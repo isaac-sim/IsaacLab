@@ -28,11 +28,12 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
-from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
 from isaaclab.physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, _resolve_physx_auto_cfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.sensors.camera.camera_cfg import CameraCfg
 from isaaclab.utils._device import set_cuda_device
+
+from .logging_utils import apply_python_logging_level, resolve_python_logging_level
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ def add_launcher_args(parser: argparse.ArgumentParser) -> None:
     Delegates to :meth:`AppLauncher.add_app_launcher_args` so that user scripts
     do not need to import ``AppLauncher`` directly.
     """
-    from isaaclab.app import AppLauncher
+    from . import AppLauncher
 
     AppLauncher.add_app_launcher_args(parser)
 
@@ -171,19 +172,16 @@ def _ensure_livestream_kit_visualizer(launcher_args: argparse.Namespace | dict |
     if visualizer_explicit and (visualizers is None or "none" in _get_visualizer_types(launcher_args)):
         raise ValueError("Livestreaming requires the Kit visualizer. Remove '--viz none' or pass '--viz kit'.")
 
-    visualizer_types = _get_visualizer_types(launcher_args)
-    if "kit" in visualizer_types:
+    if "kit" in _get_visualizer_types(launcher_args):
         return
 
-    requested_visualizers = []
-    if visualizers:
-        requested_visualizers = (
-            [visualizer.strip() for visualizer in visualizers.split(",")]
-            if isinstance(visualizers, str)
-            else [str(visualizer).strip() for visualizer in visualizers if str(visualizer).strip()]
-        )
-    requested_visualizers.append("kit")
-    _set_arg(launcher_args, "visualizer", requested_visualizers)
+    if not visualizers:
+        requested_visualizers = []
+    elif isinstance(visualizers, str):
+        requested_visualizers = [visualizer.strip() for visualizer in visualizers.split(",")]
+    else:
+        requested_visualizers = [str(visualizer).strip() for visualizer in visualizers if str(visualizer).strip()]
+    _set_arg(launcher_args, "visualizer", [*requested_visualizers, "kit"])
 
 
 def _get_visualizer_intent(cfg) -> dict[str, bool]:
@@ -530,13 +528,13 @@ def launch_simulation(
     if not needs_kit:
         apply_python_logging_level(resolve_python_logging_level(launcher_args))
 
-    if needs_kit and (config_scan.has_kit_camera or config_scan.visualizer_intent.get("has_kit_streaming_view")):
-        if not _get_arg(launcher_args, "enable_cameras", False):
-            logger.info(
-                "Auto-enabling camera rendering because the scene contains Kit camera sensors "
-                "or a Kit visualizer with streaming_view=True."
-            )
-            _set_arg(launcher_args, "enable_cameras", True)
+    needs_kit_rendering = config_scan.has_kit_camera or config_scan.visualizer_intent.get("has_kit_streaming_view")
+    if needs_kit and needs_kit_rendering and not _get_arg(launcher_args, "enable_cameras", False):
+        logger.info(
+            "Auto-enabling camera rendering because the scene contains Kit camera sensors "
+            "or a Kit visualizer with streaming_view=True."
+        )
+        _set_arg(launcher_args, "enable_cameras", True)
 
     # Resolve distributed device early, before AppLauncher or physics init.
     _resolve_distributed_device(effective_cfg, launcher_args)
@@ -551,7 +549,7 @@ def launch_simulation(
         from isaaclab.utils import has_kit
 
         if not has_kit():
-            from isaaclab.app import AppLauncher
+            from . import AppLauncher
 
             app_launcher = AppLauncher(launcher_args)
             # AppLauncher may refine the device choice; propagate its final value,
@@ -563,7 +561,7 @@ def launch_simulation(
     elif visualizer_types or visualizer_explicit_none:
         # Kitless path: AppLauncher is skipped, so persist the visualizer selection in
         # SettingsManager so SimulationContext._get_cli_visualizer_types() can find it.
-        from isaaclab.app import AppLauncher
+        from . import AppLauncher
 
         disable_all = visualizer_explicit_none or "none" in visualizer_types
         base = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args
@@ -588,15 +586,13 @@ def launch_simulation(
         raise
     finally:
         if close_fn is not None:
-            if exit_code:
-                close_fn(exit_code=exit_code)
-            else:
-                close_fn()
+            # Only pass a failure status; the plain call keeps working with apps lacking ``exit_code``.
+            close_fn(**({"exit_code": exit_code} if exit_code else {}))
 
 
 def _ensure_isaac_sim_available() -> None:
     """Raise ``SystemExit`` with an actionable hint when Isaac Sim / Kit is missing."""
-    from isaaclab.app import AppLauncher  # noqa: PLC0415
+    from . import AppLauncher  # noqa: PLC0415
 
     if AppLauncher.is_available():
         return

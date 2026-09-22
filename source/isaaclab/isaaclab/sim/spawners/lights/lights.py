@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from pxr import Usd, UsdLux
 
-from isaaclab.sim.utils import clone, create_prim, get_current_stage, safe_set_attribute_on_usd_prim
+from ...utils import clone, create_prim, safe_set_attribute_on_usd_prim
 
 if TYPE_CHECKING:
     from . import lights_cfg
@@ -44,28 +44,14 @@ def spawn_light(
     Raises:
         ValueError:  When a prim already exists at the specified prim path.
     """
-    # obtain stage handle
-    stage = get_current_stage()
-    # check if prim already exists
-    if stage.GetPrimAtPath(prim_path).IsValid():
-        raise ValueError(f"A prim already exists at path: '{prim_path}'.")
-    # create the prim
-    prim = create_prim(
-        prim_path, prim_type=cfg.prim_type, translation=translation, orientation=orientation, stage=stage
-    )
+    prim = create_prim(prim_path, prim_type=cfg.prim_type, translation=translation, orientation=orientation)
 
-    # convert to dict
+    # every remaining config field maps onto a USD light attribute
     cfg = cfg.to_dict()
-    # delete spawner func specific parameters
-    del cfg["prim_type"]
-    # delete custom attributes in the config that are not USD parameters
-    non_usd_cfg_param_names = ["func", "copy_from_source", "visible", "semantic_tags", "spawn_path"]
-    for param_name in non_usd_cfg_param_names:
+    for param_name in ("prim_type", "func", "copy_from_source", "visible", "semantic_tags", "spawn_path"):
         del cfg[param_name]
-    # set into USD API
     for attr_name, value in cfg.items():
-        # special operation for texture properties
-        # note: this is only used for dome light
+        # texture attributes only exist on dome lights
         if "texture" in attr_name:
             light_prim = UsdLux.DomeLight(prim)
             if attr_name == "texture_file":
@@ -75,11 +61,6 @@ def spawn_light(
             else:
                 raise ValueError(f"Unsupported texture attribute: '{attr_name}'.")
         else:
-            if attr_name == "visible_in_primary_ray":
-                prim_prop_name = attr_name
-            else:
-                prim_prop_name = f"inputs:{attr_name}"
-            # set the attribute
+            prim_prop_name = attr_name if attr_name == "visible_in_primary_ray" else f"inputs:{attr_name}"
             safe_set_attribute_on_usd_prim(prim, prim_prop_name, value, camel_case=True)
-    # return the prim
     return prim

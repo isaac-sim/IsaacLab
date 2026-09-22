@@ -22,7 +22,7 @@ import socket
 from datetime import datetime, timezone
 from typing import Any
 
-from isaaclab.benchmark.schema import (
+from .schema import (
     GpuDeviceInfo,
     GpuResources,
     Hardware,
@@ -45,9 +45,7 @@ def _find_value(measurements: Any, name: str, default: float = 0.0) -> float:
     Returns:
         The ``float`` value of the first matching measurement, or *default*.
     """
-    if not measurements:
-        return default
-    for m in measurements:
+    for m in measurements or ():
         if m.name == name:
             return float(m.value)
     return default
@@ -64,13 +62,13 @@ def _get_recorder_data(bm: Any, key: str) -> Any | None:
         The :class:`~.interfaces.MeasurementData` returned by the recorder, or
         ``None`` when the recorders dict is absent or the key is missing.
     """
-    recorders = getattr(bm, "_manual_recorders", None)
-    if recorders is None:
-        return None
-    rec = recorders.get(key)
-    if rec is None:
-        return None
-    return rec.get_data()
+    recorder = (getattr(bm, "_manual_recorders", None) or {}).get(key)
+    return None if recorder is None else recorder.get_data()
+
+
+def _metadata_map(data: Any | None) -> dict[str, Any]:
+    """Map recorder metadata names to their values, or return an empty map without a recorder."""
+    return {m.name: m.data for m in data.metadata or []} if data is not None else {}
 
 
 def now_utc_iso() -> str:
@@ -120,26 +118,7 @@ def capture_versions(bm: Any) -> Versions:
     Returns:
         Populated :class:`~.schema.Versions` dataclass; never raises.
     """
-    data = _get_recorder_data(bm, "VersionInfo")
-    if data is None:
-        return Versions(
-            isaaclab="unknown",
-            isaacsim=None,
-            kit=None,
-            newton=None,
-            warp=None,
-            mjwarp=None,
-            torch="unknown",
-            rsl_rl=None,
-            rl_games=None,
-            skrl=None,
-            sb3=None,
-            git_commit=None,
-            git_branch=None,
-            git_dirty=False,
-        )
-
-    md = {m.name: m.data for m in data.metadata or []}
+    md = _metadata_map(_get_recorder_data(bm, "VersionInfo"))
     dev: dict[str, Any] = md.get("dev") or {}
 
     return Versions(
@@ -186,45 +165,25 @@ def capture_hardware(bm: Any) -> Hardware:
     Returns:
         Populated :class:`~.schema.Hardware` dataclass; never raises.
     """
-    gpu_data = _get_recorder_data(bm, "GPUInfo")
-    cpu_data = _get_recorder_data(bm, "CPUInfo")
-    mem_data = _get_recorder_data(bm, "MemoryInfo")
+    gpu_md = _metadata_map(_get_recorder_data(bm, "GPUInfo"))
+    cpu_md = _metadata_map(_get_recorder_data(bm, "CPUInfo"))
+    mem_md = _metadata_map(_get_recorder_data(bm, "MemoryInfo"))
 
-    # GPU devices
-    gpu_devices: list[GpuDeviceInfo] = []
-    if gpu_data is not None:
-        gpu_md = {m.name: m.data for m in gpu_data.metadata or []}
-        raw_devices: dict[str, Any] = gpu_md.get("gpu_devices") or {}
-        for idx_str in sorted(raw_devices.keys(), key=lambda k: int(k)):
-            d = raw_devices[idx_str]
-            gpu_devices.append(
-                GpuDeviceInfo(
-                    name=d["name"],
-                    mem_gb=float(d["total_memory_gb"]),
-                    compute_cap=str(d["compute_capability"]),
-                )
-            )
-
-    # CPU
-    cpu_name = "unknown"
-    cpu_count = 0
-    if cpu_data is not None:
-        cpu_md = {m.name: m.data for m in cpu_data.metadata or []}
-        cpu_name = cpu_md.get("cpu_name", "unknown")
-        cpu_count = int(cpu_md.get("physical_cores", 0))
-
-    # RAM
-    ram_gb = 0.0
-    if mem_data is not None:
-        mem_md = {m.name: m.data for m in mem_data.metadata or []}
-        ram_gb = float(mem_md.get("total_ram_gb", 0.0))
-
+    raw_devices: dict[str, Any] = gpu_md.get("gpu_devices") or {}
+    gpu_devices = [
+        GpuDeviceInfo(
+            name=raw_devices[index]["name"],
+            mem_gb=float(raw_devices[index]["total_memory_gb"]),
+            compute_cap=str(raw_devices[index]["compute_capability"]),
+        )
+        for index in sorted(raw_devices, key=int)
+    ]
     return Hardware(
         hostname=socket.gethostname(),
         gpu_devices=gpu_devices,
-        cpu_name=cpu_name,
-        cpu_count=cpu_count,
-        ram_gb=ram_gb,
+        cpu_name=cpu_md.get("cpu_name", "unknown"),
+        cpu_count=int(cpu_md.get("physical_cores", 0)),
+        ram_gb=float(mem_md.get("total_ram_gb", 0.0)),
     )
 
 
@@ -319,9 +278,8 @@ def capture_resources(bm: Any) -> Resources:
     cpu_data = _get_recorder_data(bm, "CPUInfo")
     mem_data = _get_recorder_data(bm, "MemoryInfo")
 
-    # --- GPU ---
     gpu_meas = gpu_data.measurements if gpu_data is not None else []
-    gpu_metadata = {m.name: m.data for m in gpu_data.metadata or []} if gpu_data is not None else {}
+    gpu_metadata = _metadata_map(gpu_data)
     # Without the recorder there is nothing to attribute to a device, so the per-device mapping
     # stays empty rather than claiming an idle device 0.
     device_count = int(gpu_metadata.get("gpu_device_count", 1)) if gpu_data is not None else 0
@@ -334,25 +292,20 @@ def capture_resources(bm: Any) -> Resources:
     }
     current = devices.get(str(current_device), _gpu_device_resources(gpu_meas, "GPU "))
 
-    # --- CPU ---
     cpu_meas = cpu_data.measurements if cpu_data is not None else []
-
-    cpu_util_mean = _find_value(cpu_meas, "CPU Utilization")
-    cpu_util_std = _find_value(cpu_meas, "CPU Utilization std")
-
-    # --- Memory ---
     mem_meas = mem_data.measurements if mem_data is not None else []
-
     ram_mean = _find_value(mem_meas, "System Memory RSS")
-    ram_std = _find_value(mem_meas, "System Memory RSS std")
-    _ram_peak_raw = _find_value(mem_meas, "System Memory RSS peak", default=0.0)
-    ram_peak = max(ram_mean, _ram_peak_raw)
-
     return Resources(
         gpu_util_pct=current.util_pct,
         gpu_mem_gb=current.mem_gb,
-        cpu_util_pct=MeanStd(mean=cpu_util_mean, std=cpu_util_std, peak=None),
-        ram_gb=MeanStd(mean=ram_mean, std=ram_std, peak=ram_peak),
+        cpu_util_pct=MeanStd(
+            mean=_find_value(cpu_meas, "CPU Utilization"), std=_find_value(cpu_meas, "CPU Utilization std"), peak=None
+        ),
+        ram_gb=MeanStd(
+            mean=ram_mean,
+            std=_find_value(mem_meas, "System Memory RSS std"),
+            peak=max(ram_mean, _find_value(mem_meas, "System Memory RSS peak")),
+        ),
         devices=devices,
     )
 
@@ -369,6 +322,6 @@ def _gpu_device_resources(measurements: Any, prefix: str) -> GpuResources:
         mem_gb=MeanStd(
             mean=mem_mean,
             std=_find_value(measurements, f"{prefix}Memory Used std"),
-            peak=max(mem_mean, _find_value(measurements, f"{prefix}Memory Used peak", default=0.0)),
+            peak=max(mem_mean, _find_value(measurements, f"{prefix}Memory Used peak")),
         ),
     )

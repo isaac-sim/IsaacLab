@@ -11,12 +11,16 @@ from typing import TYPE_CHECKING
 from pxr import Usd
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.spawners.from_files import UsdFileCfg
+
+from ..from_files import UsdFileCfg
 
 if TYPE_CHECKING:
     from . import wrappers_cfg
 
 logger = logging.getLogger(__name__)
+
+_OVERRIDABLE_PROPS = ("mass_props", "rigid_props", "collision_props", "activate_contact_sensors", "deformable_props")
+"""Spawner settings a multi-asset wrapper applies to every asset it spawns."""
 
 
 def spawn_multi_asset(
@@ -75,15 +79,13 @@ def spawn_multi_asset(
     for asset_prim_path, asset_cfg in zip(asset_prim_paths, cfg.assets_cfg):
         if asset_prim_path is None:
             continue
-        # append semantic tags if specified
         if cfg.semantic_tags is not None:
             if asset_cfg.semantic_tags is None:
                 asset_cfg.semantic_tags = cfg.semantic_tags
             else:
                 asset_cfg.semantic_tags += cfg.semantic_tags
-        # override settings for properties
-        attr_names = ["mass_props", "rigid_props", "collision_props", "activate_contact_sensors", "deformable_props"]
-        for attr_name in attr_names:
+        # wrapper-level physics settings override the per-asset ones
+        for attr_name in _OVERRIDABLE_PROPS:
             attr_value = getattr(cfg, attr_name)
             if hasattr(asset_cfg, attr_name) and attr_value is not None:
                 setattr(asset_cfg, attr_name, attr_value)
@@ -129,34 +131,17 @@ def spawn_multi_usd_file(
     # needed here to avoid circular imports
     from .wrappers_cfg import MultiAssetSpawnerCfg
 
-    # parse all the usd files
-    if isinstance(cfg.usd_path, str):
-        usd_paths = [cfg.usd_path]
-    else:
-        usd_paths = cfg.usd_path
+    usd_paths = [cfg.usd_path] if isinstance(cfg.usd_path, str) else cfg.usd_path
 
-    # make a template usd config
+    # every file shares the same settings, differing only in its usd path
     usd_template_cfg = UsdFileCfg()
     for attr_name, attr_value in cfg.__dict__.items():
-        # skip names we know are not present
-        if attr_name in ["func", "usd_path", "random_choice", "spawn_path", "spawn_paths"]:
-            continue
-        # set the attribute into the template
-        setattr(usd_template_cfg, attr_name, attr_value)
-
-    # create multi asset configuration of USD files
-    multi_asset_cfg = MultiAssetSpawnerCfg(assets_cfg=[], spawn_paths=cfg.spawn_paths)
-    for usd_path in usd_paths:
-        usd_cfg = usd_template_cfg.replace(usd_path=usd_path)
-        multi_asset_cfg.assets_cfg.append(usd_cfg)
-
-    # propagate the contact sensor settings
-    # note: the default value for activate_contact_sensors in MultiAssetSpawnerCfg is False.
-    #  This ends up overwriting the usd-template-cfg's value when the `spawn_multi_asset`
-    #  function is called. We hard-code the value to the usd-template-cfg's value to ensure
-    #  that the contact sensor settings are propagated correctly.
-    if hasattr(cfg, "activate_contact_sensors"):
-        multi_asset_cfg.activate_contact_sensors = cfg.activate_contact_sensors
-
-    # call the original function
+        if attr_name not in ("func", "usd_path", "random_choice", "spawn_path", "spawn_paths"):
+            setattr(usd_template_cfg, attr_name, attr_value)
+    multi_asset_cfg = MultiAssetSpawnerCfg(
+        assets_cfg=[usd_template_cfg.replace(usd_path=usd_path) for usd_path in usd_paths],
+        spawn_paths=cfg.spawn_paths,
+        # the wrapper's default (False) would otherwise override the per-file setting in spawn_multi_asset
+        activate_contact_sensors=cfg.activate_contact_sensors,
+    )
     return spawn_multi_asset(prim_path, multi_asset_cfg, translation, orientation, clone_in_fabric, replicate_physics)

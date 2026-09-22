@@ -33,7 +33,6 @@ from .camera_data import CameraData, RenderBufferKind
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -277,7 +276,7 @@ class Camera(SensorBase):
             )
 
         # UsdGeom Camera prim for the sensor
-        self._sensor_prims: list[UsdGeom.Camera] = list()
+        self._sensor_prims: list[UsdGeom.Camera] = []
         # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
         self._data: CameraData | None = None
         # The backend's ``__init__`` is its pre-physics phase, so it has to exist before
@@ -517,19 +516,11 @@ class Camera(SensorBase):
         """
         pos_wp = None
         if positions is not None:
-            if isinstance(positions, np.ndarray):
-                positions = torch.from_numpy(positions).to(device=self._device)
-            elif not isinstance(positions, torch.Tensor):
-                positions = torch.tensor(positions, device=self._device)
-            positions = positions.to(device=self._device, dtype=torch.float32).reshape(-1, 3)
+            positions = self._as_device_tensor(positions, 3)
             pos_wp = wp.from_torch(positions.contiguous(), dtype=wp.vec3f)
         ori_wp = None
         if orientations is not None:
-            if isinstance(orientations, np.ndarray):
-                orientations = torch.from_numpy(orientations).to(device=self._device)
-            elif not isinstance(orientations, torch.Tensor):
-                orientations = torch.tensor(orientations, device=self._device)
-            orientations = orientations.to(device=self._device, dtype=torch.float32).reshape(-1, 4)
+            orientations = self._as_device_tensor(orientations, 4)
             orientations = convert_camera_frame_orientation_convention(orientations, origin=convention, target="opengl")
             ori_wp = wp.from_torch(orientations.contiguous(), dtype=wp.vec4f)
         idx_wp = self._resolve_env_ids_wp(env_ids)
@@ -556,26 +547,10 @@ class Camera(SensorBase):
                 whole batch). When only some rows are degenerate, those rows are skipped and the
                 remaining poses are still applied; a warning is logged.
         """
-        if isinstance(eyes, np.ndarray):
-            eyes = torch.from_numpy(eyes).to(device=self._device)
-        elif not isinstance(eyes, torch.Tensor):
-            eyes = torch.tensor(eyes, device=self._device)
-        eyes = eyes.to(device=self._device, dtype=torch.float32).reshape(-1, 3)
-        if isinstance(targets, np.ndarray):
-            targets = torch.from_numpy(targets).to(device=self._device)
-        elif not isinstance(targets, torch.Tensor):
-            targets = torch.tensor(targets, device=self._device)
-        targets = targets.to(device=self._device, dtype=torch.float32).reshape(-1, 3)
-        if env_ids is None:
-            env_ids_torch = torch.arange(self._view.count, dtype=torch.int32, device=self._device)
-        elif isinstance(env_ids, slice):
-            env_ids_torch = torch.arange(self._view.count, dtype=torch.int32, device=self._device)[env_ids]
-        elif isinstance(env_ids, wp.array):
-            env_ids_torch = wp.to_torch(env_ids).to(device=self._device, dtype=torch.int32).reshape(-1)
-        elif isinstance(env_ids, torch.Tensor):
-            env_ids_torch = env_ids.to(device=self._device, dtype=torch.int32).reshape(-1)
-        else:
-            env_ids_torch = torch.tensor(env_ids, dtype=torch.int32, device=self._device).reshape(-1)
+        eyes = self._as_device_tensor(eyes, 3)
+        targets = self._as_device_tensor(targets, 3)
+        env_ids_wp = self._resolve_env_ids_wp(env_ids)
+        env_ids_torch = wp.to_torch(self._ALL_INDICES if env_ids_wp is None else env_ids_wp)
         # get up axis of current stage
         up_axis = UsdGeom.GetStageUpAxis(self.stage)
         # set camera poses using the view; degenerate rows (eye == target) come back as NaN
@@ -658,10 +633,9 @@ class Camera(SensorBase):
         rel_under_env0 = (
             cam_paths[0].removeprefix(env_0_prefix) if cam_paths and cam_paths[0].startswith(env_0_prefix) else ""
         )
-        device_str = self._device if isinstance(self._device, str) else str(self._device)
         render_spec = CameraRenderSpec(
             cfg=self.cfg,
-            device=device_str,
+            device=str(self._device),
             num_instances=self._num_envs,
             camera_prim_paths=cam_paths,
             view_count=self._num_envs,
@@ -789,7 +763,6 @@ class Camera(SensorBase):
             )
         if errors:
             raise ValueError("\n".join(errors))
-        device_str = self._device if isinstance(self._device, str) else str(self._device)
         self._data = CameraData.allocate(
             data_types=known,
             height=self.cfg.height,
@@ -800,7 +773,7 @@ class Camera(SensorBase):
         )
         # Camera-frame state (pose / intrinsics) is owned by the camera, not
         # the renderer: allocate warp buffers and populate them.
-        self._data.create_buffers(self._view.count, device_str)
+        self._data.create_buffers(self._view.count, str(self._device))
         self._initialize_intrinsics()
         self._update_poses()
         self._renderer.set_outputs(self._render_data, self._data.output)
@@ -971,6 +944,14 @@ class Camera(SensorBase):
             ],
             device=self._device,
         )
+
+    def _as_device_tensor(self, value: np.ndarray | torch.Tensor | Sequence, num_cols: int) -> torch.Tensor:
+        """Convert array-like input to a float32 tensor of shape (N, ``num_cols``) on the camera device."""
+        if isinstance(value, np.ndarray):
+            value = torch.from_numpy(value)
+        elif not isinstance(value, torch.Tensor):
+            value = torch.tensor(value)
+        return value.to(device=self._device, dtype=torch.float32).reshape(-1, num_cols)
 
     def _resolve_env_ids_wp(self, env_ids: Sequence[int] | torch.Tensor | wp.array | slice | None) -> wp.array | None:
         """Resolve camera indices to a Warp ``int32`` array."""

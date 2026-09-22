@@ -33,9 +33,8 @@ from .transforms import convert_world_pose_to_local, standardize_xform_ops
 if TYPE_CHECKING:
     from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils  # noqa: F401
 
-    from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
+    from ..spawners.spawner_cfg import SpawnerCfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -138,33 +137,24 @@ def create_prim(
     """
     from pxr import UsdGeom  # noqa: PLC0415
 
-    # Ensure that user doesn't provide both position and translation
     if position is not None and translation is not None:
         raise ValueError("Cannot provide both position and translation. Please provide only one.")
 
-    # obtain stage handle
     stage = get_current_stage() if stage is None else stage
-
-    # check if prim already exists
     if stage.GetPrimAtPath(prim_path).IsValid():
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
-    # create prim in stage
     prim = stage.DefinePrim(prim_path, prim_type)
     if not prim.IsValid():
         raise ValueError(f"Failed to create prim at path: '{prim_path}' of type: '{prim_type}'.")
-    # apply attributes into prim
     if attributes is not None:
         for k, v in attributes.items():
             prim.GetAttribute(k).Set(v)
-    # add reference to USD file
     if usd_path is not None:
         add_usd_reference(prim_path=prim_path, usd_path=usd_path, stage=stage)
-    # add semantic label to prim
     if semantic_label is not None:
         add_labels(prim, labels=[semantic_label], instance_name=semantic_type)
 
-    # check if prim type is Xformable
     if not prim.IsA(UsdGeom.Xformable):
         logger.debug(
             f"Prim at path '{prim.GetPath().pathString}' is of type '{prim.GetTypeName()}', "
@@ -173,21 +163,15 @@ def create_prim(
         )
         return prim
 
-    # convert input arguments to tuples
     position = _to_tuple(position) if position is not None else None
     translation = _to_tuple(translation) if translation is not None else None
     orientation = _to_tuple(orientation) if orientation is not None else None
     scale = _to_tuple(scale) if scale is not None else None
-
-    # convert position and orientation to translation and orientation
-    # world --> local
+    # a world-frame pose is expressed relative to the parent before authoring
     if position is not None:
-        # this means that user provided pose in the world frame
         translation, orientation = convert_world_pose_to_local(position, orientation, ref_prim=prim.GetParent())
 
-    # standardize the xform ops
     standardize_xform_ops(prim, translation, orientation, scale)
-
     return prim
 
 
@@ -207,28 +191,11 @@ def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) 
         >>>
         >>> sim_utils.delete_prim("/World/Cube")
     """
-    from pxr import UsdUtils  # noqa: PLC0415
-
-    # convert prim_path to list if it is a string
     if isinstance(prim_path, str):
         prim_path = [prim_path]
-    # get stage handle
     stage = get_current_stage() if stage is None else stage
-    # FIXME: We should not need to cache the stage here. It should
-    # happen at the creation of the stage.
-    # the prim command looks for the stage ID in the stage cache
-    # so we need to ensure the stage is cached
-    stage_cache = UsdUtils.StageCache.Get()
-    stage_id = stage_cache.GetId(stage).ToLongInt()
-    if stage_id < 0:
-        stage_id = stage_cache.Insert(stage).ToLongInt()
-
-    # delete prims via the Sdf API directly
-    success = True
-    for path in prim_path:
-        if not stage.RemovePrim(path):
-            success = False
-    return success
+    # evaluate every removal; ``all`` alone would stop at the first failure
+    return all([stage.RemovePrim(path) for path in prim_path])
 
 
 """
@@ -324,25 +291,14 @@ def safe_set_attribute_on_usd_schema(schema_api: Usd.APISchemaBase, name: str, v
     Raises:
         TypeError: When the input attribute name does not exist on the provided schema API.
     """
-    # if value is None, do nothing
     if value is None:
         return
-    # convert attribute name to camel case
-    if camel_case:
-        attr_name = to_camel_case(name, to="CC")
-    else:
-        attr_name = name
-    # retrieve the attribute
+    attr_name = to_camel_case(name, to="CC") if camel_case else name
     # reference: https://openusd.org/dev/api/_usd__page__common_idioms.html#Usd_Create_Or_Get_Property
-    attr = getattr(schema_api, f"Create{attr_name}Attr", None)
-    # check if attribute exists
-    if attr is not None:
-        attr().Set(value)
-    else:
-        # think: do we ever need to create the attribute if it doesn't exist?
-        #   currently, we are not doing this since the schemas are already created with some defaults.
-        logger.error(f"Attribute '{attr_name}' does not exist on prim '{schema_api.GetPath()}'.")
+    create_attr = getattr(schema_api, f"Create{attr_name}Attr", None)
+    if create_attr is None:
         raise TypeError(f"Attribute '{attr_name}' does not exist on prim '{schema_api.GetPath()}'.")
+    create_attr().Set(value)
 
 
 def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, camel_case: bool):
@@ -360,13 +316,10 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
     """
     from pxr import Sdf  # noqa: PLC0415
 
-    # if value is None, do nothing
     if value is None:
         return
-    # convert attribute name to camel case
     if camel_case:
         attr_name = to_camel_case(attr_name, to="cC")
-    # resolve sdf type based on value
     if isinstance(value, bool):
         sdf_type = Sdf.ValueTypeNames.Bool
     elif isinstance(value, int):
@@ -384,7 +337,6 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
             f"Cannot set attribute '{attr_name}' with value '{value}'. Please modify the code to support this type."
         )
 
-    # change property using the change_prim_property function
     change_prim_property(
         prop_path=f"{prim.GetPath()}.{attr_name}",
         value=value,
@@ -448,38 +400,27 @@ def change_prim_property(
     """
     from pxr import Sdf, Usd  # noqa: PLC0415
 
-    # get stage handle
     stage = get_current_stage() if stage is None else stage
+    prop_path = Sdf.Path(prop_path)
 
-    # convert to Sdf.Path if needed
-    prop_path = Sdf.Path(prop_path) if isinstance(prop_path, str) else prop_path
-
-    # get the prim path
     prim_path = prop_path.GetAbsoluteRootOrPrimPath()
     prim = stage.GetPrimAtPath(prim_path)
-    if not prim or not prim.IsValid():
+    if not prim.IsValid():
         raise ValueError(f"Prim does not exist at path: '{prim_path}'")
 
-    # get or create the property
     prop = stage.GetPropertyAtPath(prop_path)
-
     if not prop:
-        if type_to_create_if_not_exist is not None:
-            # create new attribute on the prim
-            prop = prim.CreateAttribute(prop_path.name, type_to_create_if_not_exist, is_custom)
-        else:
+        if type_to_create_if_not_exist is None:
             logger.error(f"Property {prop_path} does not exist and 'type_to_create_if_not_exist' was not provided.")
             return False
+        prop = prim.CreateAttribute(prop_path.name, type_to_create_if_not_exist, is_custom)
+        if not prop:
+            logger.error(f"Failed to get or create property at path: '{prop_path}'")
+            return False
 
-    if not prop:
-        logger.error(f"Failed to get or create property at path: '{prop_path}'")
-        return False
-
-    # set the value
     if value is None:
         return bool(prop.Clear())
-    else:
-        return bool(prop.Set(value, Usd.TimeCode.Default()))
+    return bool(prop.Set(value, Usd.TimeCode.Default()))
 
 
 """
@@ -691,7 +632,7 @@ def clone(func: Callable) -> Callable:
 
     @functools.wraps(func)
     def wrapper(prim_path: str | Sdf.Path, cfg: SpawnerCfg, *args, **kwargs):
-        from pxr import Sdf, UsdGeom  # noqa: PLC0415
+        from pxr import Sdf  # noqa: PLC0415
 
         # get stage handle
         stage = get_current_stage()
@@ -739,22 +680,16 @@ def clone(func: Callable) -> Callable:
         prim_spawn_path = f"{source_prim_paths[0]}/{asset_path.replace('.*', '0')}"
         # spawn single instance
         prim = func(prim_spawn_path, cfg, *args, **kwargs)
-        # set the prim visibility
         if hasattr(cfg, "visible"):
-            imageable = UsdGeom.Imageable(prim)
-            if cfg.visible:
-                imageable.MakeVisible()
-            else:
-                imageable.MakeInvisible()
-        # set the semantic annotations
-        if hasattr(cfg, "semantic_tags") and cfg.semantic_tags is not None:
+            set_prim_visibility(prim, cfg.visible)
+        # semantic labels do not allow spaces
+        if getattr(cfg, "semantic_tags", None) is not None:
             for semantic_type, semantic_value in cfg.semantic_tags:
-                # deal with spaces by replacing them with underscores
-                semantic_type_sanitized = semantic_type.replace(" ", "_")
-                semantic_value_sanitized = semantic_value.replace(" ", "_")
-                # add labels to the prim
                 add_labels(
-                    prim, labels=[semantic_value_sanitized], instance_name=semantic_type_sanitized, overwrite=False
+                    prim,
+                    labels=[semantic_value.replace(" ", "_")],
+                    instance_name=semantic_type.replace(" ", "_"),
+                    overwrite=False,
                 )
         # activate rigid body contact sensors (lazy import to avoid circular import with schemas)
         if hasattr(cfg, "activate_contact_sensors") and cfg.activate_contact_sensors:
@@ -811,11 +746,9 @@ def bind_visual_material(
     """
     from pxr import UsdShade  # noqa: PLC0415
 
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
 
-    # check if prim and material exists
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         raise ValueError(f"Target prim '{prim_path}' does not exist.")
@@ -823,14 +756,10 @@ def bind_visual_material(
     if not material_prim.IsValid():
         raise ValueError(f"Visual material '{material_path}' does not exist.")
 
-    # resolve token for weaker than descendants
-    if stronger_than_descendants:
-        binding_strength = UsdShade.Tokens.strongerThanDescendants
-    else:
-        binding_strength = UsdShade.Tokens.weakerThanDescendants
     binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
-    material = UsdShade.Material(material_prim)
-    return binding_api.Bind(material, bindingStrength=binding_strength)
+    return binding_api.Bind(
+        UsdShade.Material(material_prim), bindingStrength=_binding_strength(stronger_than_descendants)
+    )
 
 
 @apply_nested
@@ -865,49 +794,47 @@ def bind_physics_material(
     """
     from pxr import UsdPhysics, UsdShade  # noqa: PLC0415
 
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
 
-    # check if prim and material exists
-    if not stage.GetPrimAtPath(prim_path).IsValid():
-        raise ValueError(f"Target prim '{material_path}' does not exist.")
-    if not stage.GetPrimAtPath(material_path).IsValid():
-        raise ValueError(f"Physics material '{material_path}' does not exist.")
-    # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
-    # check if prim has collision applied on it
-    applied = prim.GetAppliedSchemas()
-    has_physics_scene_api = "PhysxSceneAPI" in applied
-    has_collider = prim.HasAPI(UsdPhysics.CollisionAPI)
-    has_deformable_body = has_deformable_body_api(prim)
-    has_deformable_curve = has_deformable_curve_api(prim)
-    has_particle_system = prim.GetTypeName() == "PhysxParticleSystem"
-    if not (
-        has_physics_scene_api or has_collider or has_deformable_body or has_deformable_curve or has_particle_system
-    ):
+    if not prim.IsValid():
+        raise ValueError(f"Target prim '{prim_path}' does not exist.")
+    material_prim = stage.GetPrimAtPath(material_path)
+    if not material_prim.IsValid():
+        raise ValueError(f"Physics material '{material_path}' does not exist.")
+
+    # only physics-enabled prims can carry a physics material
+    is_physics_prim = (
+        "PhysxSceneAPI" in prim.GetAppliedSchemas()
+        or prim.HasAPI(UsdPhysics.CollisionAPI)
+        or has_deformable_body_api(prim)
+        or has_deformable_curve_api(prim)
+        or prim.GetTypeName() == "PhysxParticleSystem"
+    )
+    if not is_physics_prim:
         logger.debug(
             f"Cannot apply physics material '{material_path}' on prim '{prim_path}'. It is neither a"
             " PhysX scene, collider, deformable, or particle system."
         )
         return False
 
-    # obtain material binding API
-    if prim.HasAPI(UsdShade.MaterialBindingAPI):
-        material_binding_api = UsdShade.MaterialBindingAPI(prim)
-    else:
-        material_binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
-    # obtain the material prim
-    material = UsdShade.Material(stage.GetPrimAtPath(material_path))
-    # resolve token for weaker than descendants
-    if stronger_than_descendants:
-        binding_strength = UsdShade.Tokens.strongerThanDescendants
-    else:
-        binding_strength = UsdShade.Tokens.weakerThanDescendants
-    # apply the material
-    material_binding_api.Bind(material, bindingStrength=binding_strength, materialPurpose="physics")  # type: ignore
-    # return success
+    binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
+    binding_api.Bind(
+        UsdShade.Material(material_prim),
+        bindingStrength=_binding_strength(stronger_than_descendants),
+        materialPurpose="physics",
+    )  # type: ignore
     return True
+
+
+def _binding_strength(stronger_than_descendants: bool):
+    """Resolve the ``UsdShade`` binding-strength token for a material binding."""
+    from pxr import UsdShade  # noqa: PLC0415
+
+    if stronger_than_descendants:
+        return UsdShade.Tokens.strongerThanDescendants
+    return UsdShade.Tokens.weakerThanDescendants
 
 
 """
@@ -939,7 +866,7 @@ def add_usd_reference(
     Raises:
         FileNotFoundError: When the input USD file is not found at the specified path.
     """
-    # resolve remote USD paths to local (same as Newton / add_reference_to_stage)
+    # resolve remote USD paths to a local copy
     file_status = check_file_path(usd_path)
     if file_status == 0:
         raise FileNotFoundError(f"Unable to open the usd file at path: {usd_path}")
@@ -949,23 +876,15 @@ def add_usd_reference(
         except Exception as e:
             raise FileNotFoundError(f"Failed to retrieve USD file from {usd_path}") from e
 
-    # get current stage
     stage = get_current_stage() if stage is None else stage
-    # get prim at path
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         prim = stage.DefinePrim(prim_path, prim_type)
-
-    def _add_reference_to_prim(prim: Usd.Prim) -> Usd.Prim:
-        """Helper function to add a reference to a prim."""
-        success_bool = prim.GetReferences().AddReference(usd_path)
-        if not success_bool:
-            raise RuntimeError(
-                f"Unable to add USD reference to the prim at path: {prim_path} from the USD file at path: {usd_path}"
-            )
-        return prim
-
-    return _add_reference_to_prim(prim)
+    if not prim.GetReferences().AddReference(usd_path):
+        raise RuntimeError(
+            f"Unable to add USD reference to the prim at path: {prim_path} from the USD file at path: {usd_path}"
+        )
+    return prim
 
 
 def get_usd_references(prim_path: str, stage: Usd.Stage | None = None) -> list[str]:
@@ -981,18 +900,11 @@ def get_usd_references(prim_path: str, stage: Usd.Stage | None = None) -> list[s
     Raises:
         ValueError: If the prim at the specified path is not valid.
     """
-    # get stage handle
     stage = get_current_stage() if stage is None else stage
-    # get prim at path
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")
-    # get USD references
-    references = []
-    for prim_spec in prim.GetPrimStack():
-        for ref in prim_spec.referenceList.prependedItems:
-            references.append(str(ref.assetPath))
-    return references
+    return [str(ref.assetPath) for prim_spec in prim.GetPrimStack() for ref in prim_spec.referenceList.prependedItems]
 
 
 def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage: Usd.Stage | None = None):
@@ -1125,18 +1037,12 @@ def _to_tuple(value: Any) -> tuple[float, ...]:
         (1.0, 2.0, 3.0)
 
     """
-    # Normalize to tensor if value is a plain sequence (list with mixed types, etc.)
-    # This handles cases like [np.float32(1.0), 2.0, torch.tensor(3.0)]
+    # plain sequences (possibly mixing numpy/torch scalars and floats) are normalized through a tensor
     if not hasattr(value, "tolist"):
         value = torch.tensor(value, device="cpu", dtype=torch.float)
-
-    # Remove leading singleton dimension if present (e.g., shape (1, 3) -> (3,))
-    # This is common when batched operations produce single-item batches
+    # drop singleton dimensions, e.g. shape (1, 3) -> (3,)
     if value.ndim != 1:
         value = value.squeeze()
-    # Validate that the result is one-dimensional
     if value.ndim != 1:
         raise ValueError(f"Input value is not one dimensional: {value.shape}")
-
-    # Convert to tuple - works for both numpy arrays and torch tensors
     return tuple(value.tolist())

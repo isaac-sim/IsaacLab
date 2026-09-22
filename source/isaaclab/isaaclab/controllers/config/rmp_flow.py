@@ -5,8 +5,9 @@
 
 import os
 
-from isaaclab.controllers.rmp_flow_cfg import RmpFlowControllerCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+
+from ..rmp_flow_cfg import RmpFlowControllerCfg
 
 # Directory on Nucleus Server for RMP-Flow assets (URDFs, collision models, etc.)
 ISAACLAB_NUCLEUS_RMPFLOW_DIR = os.path.join(ISAACLAB_NUCLEUS_DIR, "Controllers", "RmpFlowAssets")

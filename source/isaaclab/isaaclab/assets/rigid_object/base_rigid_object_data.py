@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import warnings
 from abc import ABC, abstractmethod
 
 import warp as wp
@@ -22,6 +21,8 @@ from isaaclab.utils.leapp import (
 )
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
+
+from .._deprecation import warn_renamed_member
 
 
 class BaseRigidObjectData(ABC):
@@ -796,11 +797,12 @@ class BaseRigidObjectData(ABC):
     @leapp_tensor_semantics(const=True)
     def default_mass(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_mass` instead and manage the default mass manually."""
-        warnings.warn(
-            "The `default_mass` property will be deprecated in a IsaacLab 4.0. Please use `body_mass` instead. "
-            "The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_mass",
+            "body_mass",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_mass is None:
             self._default_mass = wp.clone(self.body_mass.warp, self.device)
@@ -810,11 +812,12 @@ class BaseRigidObjectData(ABC):
     @leapp_tensor_semantics(const=True)
     def default_inertia(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_inertia` instead and manage the default inertia manually."""
-        warnings.warn(
-            "The `default_inertia` property will be deprecated in a IsaacLab 4.0. Please use `body_inertia` instead. "
-            "The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_inertia",
+            "body_inertia",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_inertia is None:
             self._default_inertia = wp.clone(self.body_inertia.warp, self.device)

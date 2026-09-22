@@ -84,29 +84,21 @@ class AssetBase(Asset, ABC):
 
         Args:
             cfg: The configuration class for the asset.
-
         """
         super().__init__(cfg)
-        # Resolve shape-check flag once: True means checks are active.
-        # cfg.disable_shape_checks: None -> follow __debug__
-        # True -> force disable checks; False -> force enable checks.
+        # ``disable_shape_checks=None`` follows ``__debug__``; a bool forces the checks on or off.
         if self.cfg.disable_shape_checks is None:
             self._check_shapes = __debug__
         else:
             self._check_shapes = not self.cfg.disable_shape_checks
-        # flag for whether the asset is initialized
         self._is_initialized = False
-        # register various callback functions
         self._register_callbacks()
-
-        # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
+        # set to a valid handle inside ``set_debug_vis``
         self._debug_vis_handle = None
-        # set initial state of debug visualization
         self.set_debug_vis(self.cfg.debug_vis)
 
     def __del__(self):
         """Unsubscribe from the callbacks."""
-        # clear events handles
         self._clear_callbacks()
 
     """
@@ -128,7 +120,7 @@ class AssetBase(Asset, ABC):
 
         This is equal to the number of asset instances per environment multiplied by the number of environments.
         """
-        return NotImplementedError
+        raise NotImplementedError
 
     @property
     def device(self) -> str:
@@ -139,7 +131,7 @@ class AssetBase(Asset, ABC):
     @abstractmethod
     def data(self) -> Any:
         """Data related to the asset."""
-        return NotImplementedError
+        raise NotImplementedError
 
     @property
     def has_debug_vis_implementation(self) -> bool:
@@ -169,17 +161,11 @@ class AssetBase(Asset, ABC):
         self._set_debug_vis_impl(debug_vis)
         # toggle debug visualization handles (Kit/omni only for PhysX backend)
         if debug_vis:
-            if self._debug_vis_handle is None:
-                sim_ctx = SimulationContext.instance()
-                if sim_ctx is not None:
-                    self._debug_vis_handle = sim_ctx.vis_marker_registry.add_debug_vis_callback(self)
-        else:
             sim_ctx = SimulationContext.instance()
-            if sim_ctx is not None:
-                sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
-            else:
-                self._debug_vis_handle = None
-        # return success
+            if self._debug_vis_handle is None and sim_ctx is not None:
+                self._debug_vis_handle = sim_ctx.vis_marker_registry.add_debug_vis_callback(self)
+        else:
+            self._clear_debug_vis_handle()
         return True
 
     def _resolve_finder_indices(
@@ -213,6 +199,14 @@ class AssetBase(Asset, ABC):
         selector_cache = getattr(self, "_selector_cache", None)
         if selector_cache is not None:
             selector_cache.clear()
+
+    def _clear_debug_vis_handle(self) -> None:
+        """Unregister the debug visualization callback, or drop the handle when no simulation context exists."""
+        sim_ctx = SimulationContext.instance()
+        if sim_ctx is not None:
+            sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
+        else:
+            self._debug_vis_handle = None
 
     @abstractmethod
     def reset(self, env_ids: Sequence[int] | None = None):
@@ -411,11 +405,7 @@ class AssetBase(Asset, ABC):
         """Invalidates the scene elements."""
         self._is_initialized = False
         self._clear_selector_cache()
-        sim_ctx = SimulationContext.instance()
-        if sim_ctx is not None:
-            sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
-        else:
-            self._debug_vis_handle = None
+        self._clear_debug_vis_handle()
 
     def _on_prim_deletion(self, event) -> None:
         """Invalidates and clears callbacks when the prim is deleted.
@@ -441,8 +431,4 @@ class AssetBase(Asset, ABC):
         if getattr(self, "_prim_deletion_handle", None) is not None:
             self._prim_deletion_handle.deregister()
             self._prim_deletion_handle = None
-        sim_ctx = SimulationContext.instance()
-        if sim_ctx is not None:
-            sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
-        else:
-            self._debug_vis_handle = None
+        self._clear_debug_vis_handle()

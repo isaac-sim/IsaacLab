@@ -31,15 +31,9 @@ def class_to_dict(obj: object) -> dict[str, Any]:
     Args:
         obj: An instance of a class to convert.
 
-    Raises:
-        ValueError: When input argument is not an object.
-
     Returns:
         Converted dictionary mapping.
     """
-    # check that input data is class instance
-    if not hasattr(obj, "__class__"):
-        raise ValueError(f"Expected a class instance. Received: {type(obj)}.")
     # ResolvableString is a str subclass — serialize as plain str so OmegaConf accepts it.
     if isinstance(obj, ResolvableString):
         return str(obj)
@@ -60,7 +54,7 @@ def class_to_dict(obj: object) -> dict[str, Any]:
         return obj
 
     # convert to dictionary
-    data = dict()
+    data = {}
     for key, value in obj_dict.items():
         # disregard builtin attributes
         if key.startswith("__"):
@@ -68,7 +62,6 @@ def class_to_dict(obj: object) -> dict[str, Any]:
         # Keep lazy callable references as strings; don't force callable introspection.
         if isinstance(value, ResolvableString):
             data[key] = str(value)
-        # check if attribute is callable -- function
         # check if attribute is callable -- function
         elif callable(value):
             data[key] = callable_to_string(value)
@@ -210,16 +203,9 @@ def dict_to_md5_hash(data: object) -> str:
     Returns:
         A string object of double length containing only hexadecimal digits.
     """
-    # convert to dictionary
-    if isinstance(data, dict):
-        encoded_buffer = json.dumps(data, sort_keys=True).encode()
-    else:
-        encoded_buffer = json.dumps(class_to_dict(data), sort_keys=True).encode()
-    # compute hash using MD5
-    data_hash = hashlib.md5()
-    data_hash.update(encoded_buffer)
-    # return the hash key
-    return data_hash.hexdigest()
+    if not isinstance(data, dict):
+        data = class_to_dict(data)
+    return hashlib.md5(json.dumps(data, sort_keys=True).encode()).hexdigest()
 
 
 """
@@ -263,7 +249,7 @@ def convert_dict_to_backend(
     tensor_type_conversions = TENSOR_TYPE_CONVERSIONS[backend]
 
     # Parse the array types and convert them to the corresponding types: "numpy" -> np.ndarray, etc.
-    parsed_types = list()
+    parsed_types = []
     for t in array_types:
         # Check type is valid.
         if t not in TENSOR_TYPES:
@@ -275,7 +261,7 @@ def convert_dict_to_backend(
         parsed_types.append(TENSOR_TYPES[t])
 
     # Convert the data to the desired backend.
-    output_dict = dict()
+    output_dict = {}
     for key, value in data.items():
         # Obtain the data type of the current value.
         data_type = type(value)
@@ -287,7 +273,7 @@ def convert_dict_to_backend(
             # convert the data to the desired backend.
             output_dict[key] = tensor_type_conversions[data_type](value)
         # -- nested dictionaries
-        elif isinstance(data[key], dict):
+        elif isinstance(value, dict):
             output_dict[key] = convert_dict_to_backend(value, backend=backend, array_types=array_types)
         # -- everything else
         else:

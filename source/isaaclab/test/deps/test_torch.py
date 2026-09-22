@@ -5,7 +5,6 @@
 
 import pytest
 import torch
-import torch.utils.benchmark as benchmark
 
 from isaaclab.test.utils import test_devices
 
@@ -136,25 +135,9 @@ def test_array_single_indexing(device):
 
 @pytest.mark.parametrize("device", test_devices())
 def test_logical_or(device):
-    """Test bitwise or operation."""
-
+    """Bitwise ``|`` on boolean tensors matches ``torch.logical_or``."""
     size = (400, 300, 5)
     my_tensor_1 = torch.rand(size, device=device) > 0.5
     my_tensor_2 = torch.rand(size, device=device) < 0.5
 
-    # check the speed of logical or
-    timer_logical_or = benchmark.Timer(
-        stmt="torch.logical_or(my_tensor_1, my_tensor_2)",
-        globals={"my_tensor_1": my_tensor_1, "my_tensor_2": my_tensor_2},
-    )
-    timer_bitwise_or = benchmark.Timer(
-        stmt="my_tensor_1 | my_tensor_2", globals={"my_tensor_1": my_tensor_1, "my_tensor_2": my_tensor_2}
-    )
-
-    print("Time for logical or:", timer_logical_or.timeit(number=1000))
-    print("Time for bitwise or:", timer_bitwise_or.timeit(number=1000))
-    # check that logical or works as expected
-    output_logical_or = torch.logical_or(my_tensor_1, my_tensor_2)
-    output_bitwise_or = my_tensor_1 | my_tensor_2
-
-    assert torch.allclose(output_logical_or, output_bitwise_or)
+    assert torch.equal(torch.logical_or(my_tensor_1, my_tensor_2), my_tensor_1 | my_tensor_2)

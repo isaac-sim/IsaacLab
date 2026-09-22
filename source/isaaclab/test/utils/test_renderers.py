@@ -9,6 +9,8 @@ import pytest
 
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 
+pytestmark = pytest.mark.unit
+
 _ENV_VAR = "ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION"
 
 

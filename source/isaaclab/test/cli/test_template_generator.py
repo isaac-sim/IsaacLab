@@ -27,6 +27,8 @@ finally:
 
 CLIHandler = _MODULE.CLIHandler
 _GENERATOR = sys.modules["generator"]
+_SOURCE_INSTALL = types.SimpleNamespace(__file__="/repo/source/isaaclab/isaaclab/__init__.py", __version__="3.0.0")
+"""Stand-in for an ``isaaclab`` imported from a source checkout."""
 
 
 def _external_specification(
@@ -58,10 +60,9 @@ def test_main_collects_canonical_external_project_choices():
     handler.input_checkbox.side_effect = lambda message, choices: [choices[0]]
     handler.get_choices.side_effect = CLIHandler.get_choices
 
-    source_install = types.SimpleNamespace(__file__="/repo/source/isaaclab/isaaclab/__init__.py", __version__="3.0.0")
     with (
         mock.patch.object(_MODULE, "CLIHandler", return_value=handler),
-        mock.patch.object(_MODULE.importlib, "import_module", return_value=source_install),
+        mock.patch.object(_MODULE.importlib, "import_module", return_value=_SOURCE_INSTALL),
         mock.patch.object(_MODULE, "generate") as generate,
     ):
         _MODULE.main([])
@@ -93,10 +94,9 @@ def test_main_skips_task_prompts_for_blank_project():
     handler.input_path.return_value = "/tmp"
     handler.input_text.side_effect = ["empty_project", "Test Author"]
 
-    source_install = types.SimpleNamespace(__file__="/repo/source/isaaclab/isaaclab/__init__.py", __version__="3.0.0")
     with (
         mock.patch.object(_MODULE, "CLIHandler", return_value=handler),
-        mock.patch.object(_MODULE.importlib, "import_module", return_value=source_install),
+        mock.patch.object(_MODULE.importlib, "import_module", return_value=_SOURCE_INSTALL),
         mock.patch.object(_MODULE, "generate") as generate,
     ):
         _MODULE.main([])
@@ -152,10 +152,9 @@ def test_main_skips_task_prompts_for_blank_project():
 )
 def test_non_interactive_generation(options, expected, tmp_path):
     """Non-interactive mode must support defaults, Blank projects, and explicit selections."""
-    source_install = types.SimpleNamespace(__file__="/repo/source/isaaclab/isaaclab/__init__.py", __version__="3.0.0")
     with (
         mock.patch.object(_MODULE, "CLIHandler", side_effect=AssertionError("unexpected prompt")),
-        mock.patch.object(_MODULE.importlib, "import_module", return_value=source_install),
+        mock.patch.object(_MODULE.importlib, "import_module", return_value=_SOURCE_INSTALL),
         mock.patch.object(_MODULE, "generate") as generate,
     ):
         _MODULE.main(
@@ -182,9 +181,8 @@ def test_generation_arguments_require_non_interactive_opt_in(capsys):
 
     assert "template arguments require --non_interactive" in capsys.readouterr().err
 
-    source_install = types.SimpleNamespace(__file__="/repo/source/isaaclab/isaaclab/__init__.py", __version__="3.0.0")
     with (
-        mock.patch.object(_MODULE.importlib, "import_module", return_value=source_install),
+        mock.patch.object(_MODULE.importlib, "import_module", return_value=_SOURCE_INSTALL),
         pytest.raises(SystemExit, match="2"),
     ):
         _MODULE.main(

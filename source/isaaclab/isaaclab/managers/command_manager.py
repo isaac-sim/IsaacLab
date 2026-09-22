@@ -46,7 +46,7 @@ class CommandTerm(ManagerTermBase):
 
         # create buffers to store the command
         # -- metrics that can be used for logging
-        self.metrics = dict()
+        self.metrics = {}
         # -- time left before resampling
         self.time_left = torch.zeros(self.num_envs, device=self.device)
         # -- counter for the number of times the command has been resampled within the current episode
@@ -241,16 +241,15 @@ class CommandManager(ManagerBase):
             env: The environment instance.
         """
         # create buffers to parse and store terms
-        self._terms: dict[str, CommandTerm] = dict()
+        self._terms: dict[str, CommandTerm] = {}
 
         # call the base class constructor (this prepares the terms)
         super().__init__(cfg, env)
         # store the commands
-        self._commands = dict()
+        self._commands = {}
+        # debug visualization is enabled if any term requests it
         if self.cfg:
-            self.cfg.debug_vis = False
-            for term in self._terms.values():
-                self.cfg.debug_vis |= term.cfg.debug_vis
+            self.cfg.debug_vis = any(term.cfg.debug_vis for term in self._terms.values())
 
     def __str__(self) -> str:
         """Returns: A string representation for the command manager."""
@@ -282,12 +281,8 @@ class CommandManager(ManagerBase):
 
     @property
     def has_debug_vis_implementation(self) -> bool:
-        """Whether the command terms have debug visualization implemented."""
-        # check if function raises NotImplementedError
-        has_debug_vis = False
-        for term in self._terms.values():
-            has_debug_vis |= term.has_debug_vis_implementation
-        return has_debug_vis
+        """Whether any command term has debug visualization implemented."""
+        return any(term.has_debug_vis_implementation for term in self._terms.values())
 
     """
     Operations.
@@ -304,13 +299,7 @@ class CommandManager(ManagerBase):
         Returns:
             The active terms.
         """
-
-        terms = []
-        idx = 0
-        for name, term in self._terms.items():
-            terms.append((name, term.command[env_idx].cpu().tolist()))
-            idx += term.command.shape[1]
-        return terms
+        return [(name, term.command[env_idx].cpu().tolist()) for name, term in self._terms.items()]
 
     def set_debug_vis(self, debug_vis: bool):
         """Sets whether to visualize the command data.
@@ -392,23 +381,13 @@ class CommandManager(ManagerBase):
     """
 
     def _prepare_terms(self):
-        # check if config is dict already
-        if isinstance(self.cfg, dict):
-            cfg_items = self.cfg.items()
-        else:
-            cfg_items = self.cfg.__dict__.items()
-        # iterate over all the terms
-        for term_name, term_cfg in cfg_items:
-            # check for non config
-            if term_cfg is None:
-                continue
-            # check for valid config type
+        for term_name, term_cfg in self._iter_term_cfgs(self.cfg):
             if not isinstance(term_cfg, CommandTermCfg):
                 raise TypeError(
                     f"Configuration for the term '{term_name}' is not of type CommandTermCfg."
                     f" Received: '{type(term_cfg)}'."
                 )
-            # create the action term
+            # create the command term
             term = term_cfg.class_type(term_cfg, self._env)
             # sanity check if term is valid type
             if not isinstance(term, CommandTerm):

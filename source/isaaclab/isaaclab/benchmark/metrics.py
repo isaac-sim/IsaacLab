@@ -17,7 +17,9 @@ from dataclasses import dataclass
 
 from tensorboard.backend.event_processing import event_accumulator
 
-from isaaclab.benchmark.schema import Framework, MeanStd
+from .schema import Framework, MeanStd
+
+logger = logging.getLogger(__name__)
 
 SUCCESS_RATE_LOG_TAGS = ("Metrics/success_rate", "Episode/Metrics/success_rate")
 
@@ -79,19 +81,13 @@ def parse_tf_logs(log_dir: str, pattern: str = "events*") -> dict[str, list[floa
     Returns:
         Mapping of each scalar tag to its per-iteration value list; empty when no event file matched.
     """
-    list_of_files = glob.glob(os.path.join(log_dir, pattern))
-    if not list_of_files:
-        logging.getLogger(__name__).warning(
-            "No TensorBoard event files matched %r under %r; returning empty log data.", pattern, log_dir
-        )
+    event_files = glob.glob(os.path.join(log_dir, pattern))
+    if not event_files:
+        logger.warning("No TensorBoard event files matched %r under %r; returning empty log data.", pattern, log_dir)
         return {}
-    latest_file = max(list_of_files, key=os.path.getmtime)
-    ea = event_accumulator.EventAccumulator(latest_file)
-    ea.Reload()
-    log_data: dict[str, list[float]] = {}
-    for tag in ea.Tags()["scalars"]:
-        log_data[tag] = [event.value for event in ea.Scalars(tag)]
-    return log_data
+    accumulator = event_accumulator.EventAccumulator(max(event_files, key=os.path.getmtime))
+    accumulator.Reload()
+    return {tag: [event.value for event in accumulator.Scalars(tag)] for tag in accumulator.Tags()["scalars"]}
 
 
 def get_success_rate_log(log_data: dict[str, list[float]]) -> list[float] | None:
@@ -107,10 +103,7 @@ def get_success_rate_log(log_data: dict[str, list[float]]) -> list[float] | None
     Returns:
         The per-iteration success-rate values, or ``None`` if no success tag is present.
     """
-    for tag in SUCCESS_RATE_LOG_TAGS:
-        if tag in log_data:
-            return log_data[tag]
-    return None
+    return next((log_data[tag] for tag in SUCCESS_RATE_LOG_TAGS if tag in log_data), None)
 
 
 def success_rate_step_value(extras_log: dict) -> float | None:
@@ -128,8 +121,8 @@ def success_rate_step_value(extras_log: dict) -> float | None:
     """
     for tag in SUCCESS_RATE_LOG_TAGS:
         if tag in extras_log:
-            val = extras_log[tag]
-            return float(val.item()) if hasattr(val, "item") else float(val)
+            value = extras_log[tag]
+            return float(value.item()) if hasattr(value, "item") else float(value)
     return None
 
 
@@ -232,6 +225,13 @@ class SuccessRateTracker:
         return statistics.mean(tail)
 
 
+def _mean_std(values: list[float]) -> tuple[float, float]:
+    """Return the mean and sample standard deviation, which is zero for fewer than two samples."""
+    if not values:
+        return 0.0, 0.0
+    return statistics.mean(values), statistics.stdev(values) if len(values) > 1 else 0.0
+
+
 def mean_std_peak(values: Sequence[float]) -> MeanStd:
     """Aggregate *values* into a :class:`MeanStd` with ``peak`` = max. Empty -> all zeros.
 
@@ -239,11 +239,8 @@ def mean_std_peak(values: Sequence[float]) -> MeanStd:
         values: Per-sample values [same unit as the field being aggregated].
     """
     vals = list(values)
-    if not vals:
-        return MeanStd(mean=0.0, std=0.0, peak=0.0)
-    mean = statistics.mean(vals)
-    std = statistics.stdev(vals) if len(vals) > 1 else 0.0
-    return MeanStd(mean=mean, std=std, peak=max(vals))
+    mean, std = _mean_std(vals)
+    return MeanStd(mean=mean, std=std, peak=max(vals, default=0.0))
 
 
 def mean_std(values: Sequence[float]) -> MeanStd:
@@ -254,11 +251,7 @@ def mean_std(values: Sequence[float]) -> MeanStd:
     Args:
         values: Per-sample values.
     """
-    vals = list(values)
-    if not vals:
-        return MeanStd(mean=0.0, std=0.0, peak=None)
-    mean = statistics.mean(vals)
-    std = statistics.stdev(vals) if len(vals) > 1 else 0.0
+    mean, std = _mean_std(list(values))
     return MeanStd(mean=mean, std=std, peak=None)
 
 
@@ -272,7 +265,7 @@ def ema(series: Sequence[float], alpha: float) -> float:
     vals = list(series)
     if not vals:
         return 0.0
-    e = float(vals[0])
-    for x in vals[1:]:
-        e = alpha * float(x) + (1.0 - alpha) * e
-    return e
+    value = float(vals[0])
+    for sample in vals[1:]:
+        value = alpha * float(sample) + (1.0 - alpha) * value
+    return value

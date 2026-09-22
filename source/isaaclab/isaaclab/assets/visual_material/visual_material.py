@@ -14,10 +14,10 @@ import torch
 from pxr import Sdf, UsdShade
 
 from isaaclab import cloner
-from isaaclab.assets.asset_base import AssetBase
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import find_matching_prim_paths
 
+from ..asset_base import AssetBase
 from .visual_material_cfg import VisualMaterialCfg
 
 _PREVIEW_CHANNELS = {

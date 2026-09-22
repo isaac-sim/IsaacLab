@@ -57,10 +57,7 @@ class Se3Gamepad(DeviceBase):
 
     """
 
-    def __init__(
-        self,
-        cfg: Se3GamepadCfg,
-    ):
+    def __init__(self, cfg: Se3GamepadCfg):
         """Initialize the gamepad layer.
 
         Args:
@@ -95,7 +92,7 @@ class Se3Gamepad(DeviceBase):
         # (positive, negative), (x, y, z, roll, pitch, yaw)
         self._delta_pose_raw = np.zeros([2, 6])
         # dictionary for additional callbacks
-        self._additional_callbacks = dict()
+        self._additional_callbacks = {}
 
     def __del__(self):
         """Unsubscribe from gamepad events."""

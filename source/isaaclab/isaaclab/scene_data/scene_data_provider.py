@@ -14,8 +14,7 @@ import numpy as np
 import warp as wp
 
 import isaaclab.sim as sim_utils
-
-from .scene_data_backend import SceneDataBackend, SceneDataFormat
+from isaaclab.scene_data.scene_data_backend import SceneDataBackend, SceneDataFormat
 
 logger = logging.getLogger(__name__)
 
@@ -77,26 +76,23 @@ class SceneDataProvider:
         if self._interactive_scene is None:
             return {}
         try:
-            from isaaclab.sensors.camera import Camera
+            from isaaclab.sensors.camera import Camera  # noqa: PLC0415
         except ImportError:
             return {}
-        return {
-            name: sensor
-            for name, sensor in getattr(self._interactive_scene, "sensors", {}).items()
-            if isinstance(sensor, Camera)
-        }
+        return self._sensors_of_type(Camera)
 
     def get_contact_sensors(self) -> dict[str, Any]:
         """Return Isaac Lab contact sensors keyed by scene sensor name."""
         if self._interactive_scene is None:
             return {}
-        from isaaclab.sensors.contact_sensor import BaseContactSensor
+        from isaaclab.sensors.contact_sensor import BaseContactSensor  # noqa: PLC0415
 
-        return {
-            name: sensor
-            for name, sensor in getattr(self._interactive_scene, "sensors", {}).items()
-            if isinstance(sensor, BaseContactSensor)
-        }
+        return self._sensors_of_type(BaseContactSensor)
+
+    def _sensors_of_type(self, sensor_type: type) -> dict[str, Any]:
+        """Return the registered scene's sensors that are instances of ``sensor_type``."""
+        sensors = getattr(self._interactive_scene, "sensors", {})
+        return {name: sensor for name, sensor in sensors.items() if isinstance(sensor, sensor_type)}
 
     @property
     def transform_count(self) -> int:
@@ -112,14 +108,14 @@ class SceneDataProvider:
         cached stage. Returns ``None`` on Newton-only headless runs without a USD
         stage.
         """
-        from isaaclab.sim import SimulationContext
+        from isaaclab.sim import SimulationContext  # noqa: PLC0415
 
         sim = SimulationContext.instance()
         stage = getattr(sim, "stage", None) if sim is not None else None
         if stage is not None:
             return stage
         try:
-            import omni.usd
+            import omni.usd  # noqa: PLC0415
 
             return omni.usd.get_context().get_stage()
         except Exception:
@@ -136,9 +132,8 @@ class SceneDataProvider:
         Cached on first call. Returns ``0`` when no USD stage is available or when
         no ``/World/envs/env_<id>`` prims exist.
         """
-        if self._num_envs_cache is not None:
-            return self._num_envs_cache
-        self._num_envs_cache = _discover_num_envs(self.usd_stage)
+        if self._num_envs_cache is None:
+            self._num_envs_cache = _discover_num_envs(self.usd_stage)
         return self._num_envs_cache
 
     def get_camera_transforms(self) -> dict[str, Any] | None:
@@ -342,7 +337,7 @@ class SceneDataProvider:
             wp.copy(output.points, input_points.points)
             return True
 
-        from isaaclab.scene_data.geometry_points import scatter_geometry_points
+        from isaaclab.scene_data.geometry_points import scatter_geometry_points  # noqa: PLC0415
 
         scatter_geometry_points(
             input_points.points,
@@ -634,67 +629,3 @@ def _walk_camera_prims(stage: Usd.Stage | None) -> dict[str, Any] | None:
         orientations.append(per_world_ori)
 
     return {"order": shared_paths, "positions": positions, "orientations": orientations, "num_envs": num_envs}
-
-
-############################
-## Example
-
-if __name__ == "__main__":
-
-    class ExampleSceneDataBackend(SceneDataBackend):
-        def __init__(self):
-            self.__transforms = SceneDataFormat.Transform()
-            self.__transforms.transforms = wp.array(np.hstack([np.arange(10).reshape(10, 1)] * 7), dtype=wp.transformf)
-
-        @property
-        def transforms(self) -> SceneDataFormat.Transform:
-            return self.__transforms
-
-        @property
-        def transform_count(self) -> int:
-            return self.__transforms.transforms.shape[0]
-
-        @property
-        def transform_paths(self):
-            return [
-                "/world/shape_01",
-                "/world/shape_02",
-                "/world/shape_03",
-                "/world/shape_04",
-                "/world/shape_05",
-                "/world/shape_06",
-                "/world/shape_07",
-                "/world/shape_08",
-                "/world/shape_09",
-                "/world/shape_10",
-            ]
-
-    sim = ExampleSceneDataBackend()
-    sdp = SceneDataProvider(sim)
-
-    output_data = SceneDataFormat.Vec3_Matrix33()
-    output_data.positions = wp.empty(sdp.transform_count, dtype=wp.vec3f)
-    output_data.orientations = wp.empty(sdp.transform_count, dtype=wp.mat33f)
-
-    print(sim.transforms.transforms)
-    mapping = sdp.create_mapping(
-        [
-            "/world/shape_02",
-            "/world/shape_01",
-            "/world/shape_03",
-            "/world/shape_04",
-            "/world/shape_05",
-            None,
-            None,
-            "/world/shape_10",
-            None,
-            None,
-        ]
-    )
-    print(mapping)
-    if sdp.get_transforms(output_data, mapping):
-        print(output_data.positions)
-    else:
-        print("Failed to get transforms!")
-
-    wp.synchronize()

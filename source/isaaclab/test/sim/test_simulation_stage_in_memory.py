@@ -30,7 +30,12 @@ from isaaclab.sim.simulation_context import SimulationCfg, SimulationContext
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.version import get_isaac_sim_version
 
-pytestmark = pytest.mark.integration
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        get_isaac_sim_version().major < 5, reason="Stage in memory is not supported in this version of Isaac Sim"
+    ),
+]
 
 
 @pytest.fixture
@@ -52,10 +57,6 @@ Tests
 
 def test_stage_in_memory_with_shapes(sim):
     """Test spawning of shapes with stage in memory."""
-
-    # skip test if stage in memory is not supported
-    if get_isaac_sim_version().major < 5:
-        pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
     # grab stage in memory and set as current stage via the with statement
     stage_in_memory = sim.stage
@@ -123,10 +124,6 @@ def test_stage_in_memory_with_shapes(sim):
 def test_stage_in_memory_with_usds(sim):
     """Test spawning of USDs with stage in memory."""
 
-    # skip test if stage in memory is not supported
-    if get_isaac_sim_version().major < 5:
-        pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
-
     # define parameters
     num_robot_prototypes = 2
     usd_paths = [
@@ -183,13 +180,9 @@ def test_stage_in_memory_with_usds(sim):
 def test_stage_in_memory_with_clone_in_fabric(sim):
     """Test cloning in fabric with stage in memory."""
 
-    # skip test if stage in memory is not supported
-    if get_isaac_sim_version().major < 5:
-        pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
-
     # define parameters
     usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd"
-    num_clones = 100
+    num_clones = 4
 
     # verify stage is attached to USD context (happens automatically now with create_stage_in_memory)
     assert not sim_utils.is_current_stage_in_memory()

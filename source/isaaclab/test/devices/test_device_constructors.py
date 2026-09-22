@@ -3,14 +3,46 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Constructor and data-flow tests for the teleoperation devices.
+
+The devices talk to hardware through ``carb``/``omni`` (keyboard, gamepad), ``hid`` (SpaceMouse), and
+``websockets`` (Haply). Those interfaces are replaced by fakes so the tests run without Kit or hardware.
+"""
+
 import importlib
-import json
+import sys
+import threading
+from types import ModuleType
+from unittest.mock import MagicMock
 
 import pytest
 import torch
 
-# Import device classes to test
-from isaaclab.devices import (
+
+def _install_fake_module(name: str) -> list[str]:
+    """Register a placeholder module so the device modules import without Kit or hardware libraries."""
+    if name in sys.modules:
+        return []
+    module = ModuleType(name)
+    module.__path__ = []
+    installed = {name: module}
+    if name == "carb":
+        module.input = ModuleType("carb.input")
+        module.input.KeyboardEventType = MagicMock(KEY_PRESS=1, KEY_RELEASE=2)
+        module.input.GamepadInput = MagicMock()
+        module.input.acquire_input_interface = MagicMock()
+        installed["carb.input"] = module.input
+    elif name == "omni":
+        module.appwindow = ModuleType("omni.appwindow")
+        module.appwindow.get_default_app_window = MagicMock()
+        installed["omni.appwindow"] = module.appwindow
+    sys.modules.update(installed)
+    return list(installed)
+
+
+_fake_modules = [name for module in ("carb", "omni", "hid", "websockets") for name in _install_fake_module(module)]
+
+from isaaclab.devices import (  # noqa: E402
     HaplyDevice,
     HaplyDeviceCfg,
     Se2Gamepad,
@@ -27,476 +59,212 @@ from isaaclab.devices import (
     Se3SpaceMouseCfg,
 )
 
-pytestmark = pytest.mark.integration
+# the device modules keep their own references; drop the placeholders so other tests see the real imports
+for _name in _fake_modules:
+    sys.modules.pop(_name, None)
+
+pytestmark = pytest.mark.unit
+
+_SPACEMOUSE_COMPACT = {"product_string": "SpaceMouse Compact", "vendor_id": 0x256F, "product_id": 0xC635}
 
 
 @pytest.fixture
-def mock_environment(mocker):
-    """Set up common mock objects for tests."""
-    # Create mock objects that will be used across tests
+def kit(mocker):
+    """Fake carb/omni input interfaces shared by the keyboard and gamepad devices."""
     carb_mock = mocker.MagicMock()
-    omni_mock = mocker.MagicMock()
-    appwindow_mock = mocker.MagicMock()
-    keyboard_mock = mocker.MagicMock()
-    gamepad_mock = mocker.MagicMock()
-    input_mock = mocker.MagicMock()
-    settings_mock = mocker.MagicMock()
-    hid_mock = mocker.MagicMock()
-    device_mock = mocker.MagicMock()
-
-    # Set up the mocks to return appropriate objects
-    omni_mock.appwindow.get_default_app_window.return_value = appwindow_mock
-    appwindow_mock.get_keyboard.return_value = keyboard_mock
-    appwindow_mock.get_gamepad.return_value = gamepad_mock
-    carb_mock.input.acquire_input_interface.return_value = input_mock
-    carb_mock.settings.get_settings.return_value = settings_mock
-
-    # Mock keyboard event types
     carb_mock.input.KeyboardEventType.KEY_PRESS = 1
     carb_mock.input.KeyboardEventType.KEY_RELEASE = 2
-
-    # Mock the SpaceMouse
-    hid_mock.enumerate.return_value = [
-        {"product_string": "SpaceMouse Compact", "vendor_id": 0x256F, "product_id": 0xC635}
-    ]
-    hid_mock.device.return_value = device_mock
-
-    # Mock Haply WebSocket
-    websockets_mock = mocker.MagicMock()
-    websocket_mock = mocker.MagicMock()
-    websockets_mock.connect.return_value.__aenter__.return_value = websocket_mock
-
-    return {
-        "carb": carb_mock,
-        "omni": omni_mock,
-        "appwindow": appwindow_mock,
-        "keyboard": keyboard_mock,
-        "gamepad": gamepad_mock,
-        "input": input_mock,
-        "settings": settings_mock,
-        "hid": hid_mock,
-        "device": device_mock,
-        "websockets": websockets_mock,
-        "websocket": websocket_mock,
-    }
+    omni_mock = mocker.MagicMock()
+    mocker.patch("isaaclab.app.settings_manager.get_settings_manager", mocker.MagicMock())
+    for module_name in (
+        "isaaclab.devices.keyboard.se2_keyboard",
+        "isaaclab.devices.keyboard.se3_keyboard",
+        "isaaclab.devices.gamepad.se2_gamepad",
+        "isaaclab.devices.gamepad.se3_gamepad",
+    ):
+        module = importlib.import_module(module_name)
+        mocker.patch.object(module, "carb", carb_mock)
+        mocker.patch.object(module, "omni", omni_mock)
+        if hasattr(module, "get_settings_manager"):
+            mocker.patch.object(module, "get_settings_manager", mocker.MagicMock())
+    return carb_mock
 
 
-"""
-Test keyboard devices.
-"""
-
-
-def test_se2keyboard_constructors(mock_environment, mocker):
-    """Test constructor for Se2Keyboard."""
-    # Test config-based constructor
-    config = Se2KeyboardCfg(
-        v_x_sensitivity=0.9,
-        v_y_sensitivity=0.5,
-        omega_z_sensitivity=1.2,
-    )
-    device_mod = importlib.import_module("isaaclab.devices.keyboard.se2_keyboard")
-    mocker.patch.dict("sys.modules", {"carb": mock_environment["carb"], "omni": mock_environment["omni"]})
-    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
-    mocker.patch.object(device_mod, "omni", mock_environment["omni"])
-
-    keyboard = Se2Keyboard(config)
-
-    # Verify configuration was applied correctly
-    assert keyboard.v_x_sensitivity == 0.9
-    assert keyboard.v_y_sensitivity == 0.5
-    assert keyboard.omega_z_sensitivity == 1.2
-
-    # Test advance() returns expected type
-    result = keyboard.advance()
-    assert isinstance(result, torch.Tensor)
-    assert result.shape == (3,)  # (v_x, v_y, omega_z)
-
-
-def test_se3keyboard_constructors(mock_environment, mocker):
-    """Test constructor for Se3Keyboard."""
-    # Test config-based constructor
-    config = Se3KeyboardCfg(
-        pos_sensitivity=0.5,
-        rot_sensitivity=0.9,
-    )
-    device_mod = importlib.import_module("isaaclab.devices.keyboard.se3_keyboard")
-    mocker.patch.dict("sys.modules", {"carb": mock_environment["carb"], "omni": mock_environment["omni"]})
-    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
-    mocker.patch.object(device_mod, "omni", mock_environment["omni"])
-
-    keyboard = Se3Keyboard(config)
-
-    # Verify configuration was applied correctly
-    assert keyboard.pos_sensitivity == 0.5
-    assert keyboard.rot_sensitivity == 0.9
-
-    # Test advance() returns expected type
-    result = keyboard.advance()
-    assert isinstance(result, torch.Tensor)
-    assert result.shape == (7,)  # (pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, gripper)
-
-
-"""
-Test gamepad devices.
-"""
-
-
-def test_se2gamepad_constructors(mock_environment, mocker):
-    """Test constructor for Se2Gamepad."""
-    # Test config-based constructor
-    config = Se2GamepadCfg(
-        v_x_sensitivity=1.1,
-        v_y_sensitivity=0.6,
-        omega_z_sensitivity=1.2,
-        dead_zone=0.02,
-    )
-    device_mod = importlib.import_module("isaaclab.devices.gamepad.se2_gamepad")
-    mocker.patch.dict("sys.modules", {"carb": mock_environment["carb"], "omni": mock_environment["omni"]})
-    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
-    mocker.patch.object(device_mod, "omni", mock_environment["omni"])
-
-    gamepad = Se2Gamepad(config)
-
-    # Verify configuration was applied correctly
-    assert gamepad.v_x_sensitivity == 1.1
-    assert gamepad.v_y_sensitivity == 0.6
-    assert gamepad.omega_z_sensitivity == 1.2
-    assert gamepad.dead_zone == 0.02
-
-    # Test advance() returns expected type
-    result = gamepad.advance()
-    assert isinstance(result, torch.Tensor)
-    assert result.shape == (3,)  # (v_x, v_y, omega_z)
-
-
-def test_se3gamepad_constructors(mock_environment, mocker):
-    """Test constructor for Se3Gamepad."""
-    # Test config-based constructor
-    config = Se3GamepadCfg(
-        pos_sensitivity=1.1,
-        rot_sensitivity=1.7,
-        dead_zone=0.02,
-    )
-    device_mod = importlib.import_module("isaaclab.devices.gamepad.se3_gamepad")
-    mocker.patch.dict("sys.modules", {"carb": mock_environment["carb"], "omni": mock_environment["omni"]})
-    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
-    mocker.patch.object(device_mod, "omni", mock_environment["omni"])
-
-    gamepad = Se3Gamepad(config)
-
-    # Verify configuration was applied correctly
-    assert gamepad.pos_sensitivity == 1.1
-    assert gamepad.rot_sensitivity == 1.7
-    assert gamepad.dead_zone == 0.02
-
-    # Test advance() returns expected type
-    result = gamepad.advance()
-    assert isinstance(result, torch.Tensor)
-    assert result.shape == (7,)  # (pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, gripper)
-
-
-"""
-Test spacemouse devices.
-"""
-
-
-def test_se2spacemouse_constructors(mock_environment, mocker):
-    """Test constructor for Se2SpaceMouse."""
-    # Test config-based constructor
-    config = Se2SpaceMouseCfg(
-        v_x_sensitivity=0.9,
-        v_y_sensitivity=0.5,
-        omega_z_sensitivity=1.2,
-    )
-    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se2_spacemouse")
-    mocker.patch.dict("sys.modules", {"hid": mock_environment["hid"]})
-    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
-
-    spacemouse = Se2SpaceMouse(config)
-
-    # Verify configuration was applied correctly
-    assert spacemouse.v_x_sensitivity == 0.9
-    assert spacemouse.v_y_sensitivity == 0.5
-    assert spacemouse.omega_z_sensitivity == 1.2
-
-    # Test advance() returns expected type
-    mock_environment["device"].read.return_value = [1, 0, 0, 0, 0]
-    result = spacemouse.advance()
-    assert isinstance(result, torch.Tensor)
-    assert result.shape == (3,)  # (v_x, v_y, omega_z)
+@pytest.fixture
+def hid(mocker):
+    """Fake ``hid`` backend enumerating one SpaceMouse Compact whose reads return no data."""
+    hid_mock = mocker.MagicMock()
+    hid_mock.enumerate.return_value = [dict(_SPACEMOUSE_COMPACT)]
+    hid_mock.device.return_value.read.return_value = None
+    for module_name in ("isaaclab.devices.spacemouse.se2_spacemouse", "isaaclab.devices.spacemouse.se3_spacemouse"):
+        module = importlib.import_module(module_name)
+        mocker.patch.object(module, "hid", hid_mock)
+        # the listener thread would spin on the fake device; detection and command flow are under test
+        mocker.patch.object(module, "threading")
+        mocker.patch.object(module.time, "sleep")
+    return hid_mock
 
 
 @pytest.mark.parametrize(
-    "product_string",
+    ("device_cls", "cfg", "expected_dim"),
+    [
+        (Se2Keyboard, Se2KeyboardCfg(v_x_sensitivity=0.9, v_y_sensitivity=0.5, omega_z_sensitivity=1.2), 3),
+        (Se3Keyboard, Se3KeyboardCfg(pos_sensitivity=0.5, rot_sensitivity=0.9), 7),
+        (
+            Se2Gamepad,
+            Se2GamepadCfg(v_x_sensitivity=1.1, v_y_sensitivity=0.6, omega_z_sensitivity=1.2, dead_zone=0.02),
+            3,
+        ),
+        (Se3Gamepad, Se3GamepadCfg(pos_sensitivity=1.1, rot_sensitivity=1.7, dead_zone=0.02), 7),
+        (Se2SpaceMouse, Se2SpaceMouseCfg(v_x_sensitivity=0.9, v_y_sensitivity=0.5, omega_z_sensitivity=1.2), 3),
+        (Se3SpaceMouse, Se3SpaceMouseCfg(pos_sensitivity=0.5, rot_sensitivity=0.9), 7),
+    ],
+    ids=["se2_keyboard", "se3_keyboard", "se2_gamepad", "se3_gamepad", "se2_spacemouse", "se3_spacemouse"],
+)
+def test_device_constructors(kit, hid, device_cls, cfg, expected_dim):
+    """Devices adopt their configuration and report an idle command of the documented size."""
+    device = device_cls(cfg)
+
+    for name in ("v_x_sensitivity", "v_y_sensitivity", "omega_z_sensitivity", "pos_sensitivity", "rot_sensitivity"):
+        if hasattr(cfg, name):
+            assert getattr(device, name) == getattr(cfg, name)
+    if hasattr(cfg, "dead_zone"):
+        assert device.dead_zone == cfg.dead_zone
+
+    command = device.advance()
+    assert isinstance(command, torch.Tensor)
+    assert command.shape == (expected_dim,)
+    # idle devices command no motion; SE(3) devices report an open gripper
+    torch.testing.assert_close(command[:6], torch.zeros(min(expected_dim, 6)), check_dtype=False)
+    if expected_dim == 7:
+        assert command[6] == 1.0
+
+
+@pytest.mark.parametrize(
+    ("enumerated", "expected_name", "expected_ids"),
     [
         # some HID backends report the kernel's combined name instead of the bare USB product string
-        "3Dconnexion SpaceMouse Compact",
-        # the libusb-based backend bundled in the hidapi wheels reports no product string at all
-        # unless the process is allowed to open the USB node
-        "",
+        (
+            [dict(_SPACEMOUSE_COMPACT, product_string="3Dconnexion SpaceMouse Compact")],
+            "SpaceMouse Compact",
+            (0x256F, 0xC635),
+        ),
+        # the libusb-based backend reports no product string unless the process may open the USB node
+        ([dict(_SPACEMOUSE_COMPACT, product_string="")], "SpaceMouse Compact", (0x256F, 0xC635)),
+        (
+            [{"product_string": "SpaceNavigator", "vendor_id": 0x046D, "product_id": 0xC626}],
+            "SpaceNavigator",
+            (0x046D, 0xC626),
+        ),
+        ([{"product_string": "", "vendor_id": 0x046D, "product_id": 0xC626}], "SpaceNavigator", (0x046D, 0xC626)),
     ],
-    ids=["prefixed_product_string", "missing_product_string"],
+    ids=["prefixed_product_string", "missing_product_string", "spacenavigator", "spacenavigator_usb_id_only"],
 )
-def test_spacemouse_detected_by_usb_id(mock_environment, mocker, product_string):
+def test_spacemouse_detection_by_usb_id(hid, enumerated, expected_name, expected_ids):
     """SpaceMouse detection must not rely on an exact product string match."""
-    mock_environment["hid"].enumerate.return_value = [
-        {"product_string": product_string, "vendor_id": 0x256F, "product_id": 0xC635}
-    ]
-    for module_name, device_cls, cfg_cls in (
-        ("isaaclab.devices.spacemouse.se2_spacemouse", Se2SpaceMouse, Se2SpaceMouseCfg),
-        ("isaaclab.devices.spacemouse.se3_spacemouse", Se3SpaceMouse, Se3SpaceMouseCfg),
-    ):
-        device_mod = importlib.import_module(module_name)
-        mocker.patch.object(device_mod, "hid", mock_environment["hid"])
-        # the listener thread polls the mocked device in a busy loop; detection is what is under test
-        mocker.patch.object(device_mod, "threading")
-
-        device = device_cls(cfg_cls())
-
-        assert device is not None
-    mock_environment["device"].open.assert_called_with(0x256F, 0xC635)
-
-
-@pytest.mark.parametrize(
-    "product_string",
-    [
-        # the string the device reports when the backend can read its USB descriptors
-        "SpaceNavigator",
-        # the same device seen through a backend that cannot read them
-        "",
-    ],
-    ids=["product_string", "usb_id_only"],
-)
-def test_se3spacemouse_detects_spacenavigator(mock_environment, mocker, product_string):
-    """The legacy SpaceNavigator must stay detectable, with or without a readable product string."""
-    mock_environment["hid"].enumerate.return_value = [
-        {"product_string": product_string, "vendor_id": 0x046D, "product_id": 0xC626}
-    ]
-    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se3_spacemouse")
-    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
-    mocker.patch.object(device_mod, "threading")
+    hid.enumerate.return_value = enumerated
 
     device = Se3SpaceMouse(Se3SpaceMouseCfg())
 
     # the resolved name selects the report layout used by the listener thread
-    assert device._device_name == "SpaceNavigator"
-    mock_environment["device"].open.assert_called_with(0x046D, 0xC626)
+    assert device._device_name == expected_name
+    hid.device.return_value.open.assert_called_with(*expected_ids)
 
 
-def test_spacemouse_skips_devices_that_cannot_be_opened(mock_environment, mocker):
+def test_spacemouse_skips_devices_that_cannot_be_opened(hid):
     """An inaccessible SpaceMouse must not hide a second one the user can actually open."""
-    inaccessible = {"product_string": "", "vendor_id": 0x256F, "product_id": 0xC635}
-    accessible = {"product_string": "", "vendor_id": 0x256F, "product_id": 0xC62E}
-    mock_environment["hid"].enumerate.return_value = [inaccessible, accessible]
-    mock_environment["device"].open.side_effect = [OSError("open failed"), None]
-    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se3_spacemouse")
-    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
-    mocker.patch.object(device_mod, "threading")
+    hid.enumerate.return_value = [
+        {"product_string": "", "vendor_id": 0x256F, "product_id": 0xC635},
+        {"product_string": "", "vendor_id": 0x256F, "product_id": 0xC62E},
+    ]
+    hid.device.return_value.open.side_effect = [OSError("open failed"), None]
 
     device = Se3SpaceMouse(Se3SpaceMouseCfg())
 
     assert device._device_name == "SpaceMouse Wireless"
-    mock_environment["device"].open.assert_called_with(0x256F, 0xC62E)
+    hid.device.return_value.open.assert_called_with(0x256F, 0xC62E)
 
 
-def test_spacemouse_open_failure_reports_permissions(mock_environment, mocker):
-    """When the only supported device cannot be opened, the error must explain why."""
-    mock_environment["hid"].enumerate.return_value = [{"product_string": "", "vendor_id": 0x256F, "product_id": 0xC635}]
-    mock_environment["device"].open.side_effect = OSError("open failed")
-    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se3_spacemouse")
-    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
-    mocker.patch.object(device_mod, "threading")
-    mocker.patch.object(device_mod.time, "sleep")
-
-    with pytest.raises(OSError) as exc_info:
-        Se3SpaceMouse(Se3SpaceMouseCfg())
-
-    message = str(exc_info.value)
-    assert "SpaceMouse Compact" in message
-    assert "/dev/bus/usb" in message
-
-
-def test_spacemouse_not_found_error_lists_enumerated_devices(mock_environment, mocker):
-    """The error raised when no SpaceMouse is connected should help identify the problem."""
-    mock_environment["hid"].enumerate.return_value = [{"product_string": "", "vendor_id": 0x046D, "product_id": 0xC52F}]
-    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se3_spacemouse")
-    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
-    mocker.patch.object(device_mod, "threading")
-    mocker.patch.object(device_mod.time, "sleep")
+@pytest.mark.parametrize(
+    ("enumerated", "open_error", "expected_fragments"),
+    [
+        (
+            [dict(_SPACEMOUSE_COMPACT, product_string="")],
+            OSError("open failed"),
+            ["SpaceMouse Compact", "/dev/bus/usb"],
+        ),
+        ([{"product_string": "", "vendor_id": 0x046D, "product_id": 0xC52F}], None, ["0x046d:0xc52f", "/dev/bus/usb"]),
+    ],
+    ids=["open_failure_reports_permissions", "not_found_lists_enumerated_devices"],
+)
+def test_spacemouse_discovery_errors(hid, enumerated, open_error, expected_fragments):
+    """Discovery errors name the inaccessible or unsupported devices and hint at USB permissions."""
+    hid.enumerate.return_value = enumerated
+    hid.device.return_value.open.side_effect = open_error
 
     with pytest.raises(OSError) as exc_info:
         Se3SpaceMouse(Se3SpaceMouseCfg())
 
-    message = str(exc_info.value)
-    assert "0x046d:0xc52f" in message
-    assert "/dev/bus/usb" in message
+    for fragment in expected_fragments:
+        assert fragment in str(exc_info.value)
 
 
-def test_se3spacemouse_constructors(mock_environment, mocker):
-    """Test constructor for Se3SpaceMouse."""
-    # Test config-based constructor
-    config = Se3SpaceMouseCfg(
-        pos_sensitivity=0.5,
-        rot_sensitivity=0.9,
-    )
-    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se3_spacemouse")
-    mocker.patch.dict("sys.modules", {"hid": mock_environment["hid"]})
-    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
-
-    spacemouse = Se3SpaceMouse(config)
-
-    # Verify configuration was applied correctly
-    assert spacemouse.pos_sensitivity == 0.5
-    assert spacemouse.rot_sensitivity == 0.9
-
-    # Test advance() returns expected type
-    mock_environment["device"].read.return_value = [1, 0, 0, 0, 0, 0, 0]
-    result = spacemouse.advance()
-    assert isinstance(result, torch.Tensor)
-    assert result.shape == (7,)  # (pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, gripper)
-
-
-def test_se3spacemouse_destructor_handles_partial_initialization():
+@pytest.mark.parametrize("device_cls", [Se2SpaceMouse, Se3SpaceMouse])
+def test_spacemouse_destructor_handles_partial_initialization(device_cls):
     """The destructor must tolerate construction failing before the listener thread exists."""
-    spacemouse = Se3SpaceMouse.__new__(Se3SpaceMouse)
-
-    spacemouse.__del__()
+    device_cls.__new__(device_cls).__del__()
 
 
-"""
-Test Haply devices.
-"""
-
-
-def test_haply_constructors(mock_environment, mocker):
-    """Test constructor for HaplyDevice."""
-    # Test config-based constructor
-    config = HaplyDeviceCfg(
-        websocket_uri="ws://localhost:10001",
-        pos_sensitivity=1.5,
-        data_rate=250.0,
-    )
-
-    # Mock the websockets module and asyncio
+def test_haply_device(mocker):
+    """The Haply device times out without both peripherals and streams position, orientation, buttons, and forces."""
+    cfg = HaplyDeviceCfg(websocket_uri="ws://localhost:10001", pos_sensitivity=1.5, data_rate=250.0)
     device_mod = importlib.import_module("isaaclab.devices.haply.se3_haply")
-    mocker.patch.dict("sys.modules", {"websockets": mock_environment["websockets"]})
-    mocker.patch.object(device_mod, "websockets", mock_environment["websockets"])
+    # never open a socket: the connection thread is replaced by a thread that is not alive
+    mocker.patch.object(device_mod, "websockets")
+    mocker.patch.object(device_mod, "asyncio")
+    threading_mock = mocker.patch.object(device_mod, "threading")
+    threading_mock.Thread.return_value.is_alive.return_value = False
+    threading_mock.Lock.side_effect = threading.Lock
+    time_mock = mocker.patch.object(device_mod, "time")
+    time_mock.time.side_effect = [0.0, 0.1, 0.2, 0.3, 6.0]
 
-    # Mock asyncio to prevent actual async operations
-    asyncio_mock = mocker.MagicMock()
-    mocker.patch.object(device_mod, "asyncio", asyncio_mock)
-
-    # Mock threading to prevent actual thread creation
-    threading_mock = mocker.MagicMock()
-    thread_instance = mocker.MagicMock()
-    threading_mock.Thread.return_value = thread_instance
-    thread_instance.is_alive.return_value = False
-    mocker.patch.object(device_mod, "threading", threading_mock)
-
-    # Mock time.time() for connection timeout simulation
-    time_mock = mocker.MagicMock()
-    time_mock.time.side_effect = [0.0, 0.1, 0.2, 0.3, 6.0]  # Will timeout
-    mocker.patch.object(device_mod, "time", time_mock)
-
-    # Create sample WebSocket response data
-    ws_response = {
-        "inverse3": [
-            {
-                "device_id": "test_inverse3_123",
-                "state": {"cursor_position": {"x": 0.1, "y": 0.2, "z": 0.3}},
-            }
-        ],
-        "wireless_verse_grip": [
-            {
-                "device_id": "test_versegrip_456",
-                "state": {
-                    "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
-                    "buttons": {"a": False, "b": False, "c": False},
-                },
-            }
-        ],
-    }
-
-    # Configure websocket mock to return JSON data
-    mock_environment["websocket"].recv = mocker.AsyncMock(return_value=json.dumps(ws_response))
-    mock_environment["websocket"].send = mocker.AsyncMock()
-
-    # The constructor will raise RuntimeError due to timeout, which is expected in test
     with pytest.raises(RuntimeError, match="Failed to connect both Inverse3 and VerseGrip devices"):
-        haply = HaplyDevice(config)
+        HaplyDevice(cfg)
 
-    # Now test successful connection by mocking time to not timeout
-    time_mock.time.side_effect = [0.0, 0.1, 0.2, 0.3, 0.4]  # Won't timeout
+    # bypass the connection handshake and feed cached device data directly
+    mocker.patch.object(
+        device_mod.HaplyDevice, "_start_websocket_thread", lambda self: setattr(self, "connected", True)
+    )
+    time_mock.time.side_effect = [0.0, 0.1]
+    haply = HaplyDevice(cfg)
+    assert (haply.websocket_uri, haply.pos_sensitivity, haply.data_rate) == (cfg.websocket_uri, 1.5, 250.0)
+    haply.cached_data.update(
+        position=torch.tensor([0.1, 0.2, 0.3]).numpy(),
+        quaternion=torch.tensor([0.0, 0.0, 1.0, 0.0]).numpy(),
+        buttons={"a": True, "b": False, "c": False},
+        inverse3_connected=True,
+        versegrip_connected=True,
+    )
+    pressed = []
+    haply.add_callback("a", lambda: pressed.append("a"))
+    with pytest.raises(ValueError, match="Invalid button key"):
+        haply.add_callback("d", lambda: None)
 
-    # Mock the connection status
-    mocker.patch.object(device_mod.HaplyDevice, "_start_websocket_thread")
-    haply = device_mod.HaplyDevice.__new__(device_mod.HaplyDevice)
-    haply._sim_device = config.sim_device
-    haply.websocket_uri = config.websocket_uri
-    haply.pos_sensitivity = config.pos_sensitivity
-    haply.data_rate = config.data_rate
-    haply.limit_force = config.limit_force
-    haply.connected = True
-    haply.inverse3_device_id = "test_inverse3_123"
-    haply.verse_grip_device_id = "test_versegrip_456"
-    haply.data_lock = threading_mock.Lock()
-    haply.force_lock = threading_mock.Lock()
-    haply._connected_lock = threading_mock.Lock()
-    haply._additional_callbacks = {}
-    haply._prev_buttons = {"a": False, "b": False, "c": False}
-    haply._websocket_thread = None  # Initialize to prevent AttributeError in __del__
-    haply.running = True
-    haply.cached_data = {
-        "position": torch.tensor([0.1, 0.2, 0.3], dtype=torch.float32).numpy(),
-        "quaternion": torch.tensor([0.0, 0.0, 1.0, 0.0], dtype=torch.float32).numpy(),
-        "buttons": {"a": False, "b": False, "c": False},
-        "inverse3_connected": True,
-        "versegrip_connected": True,
-    }
-    haply.feedback_force = {"x": 0.0, "y": 0.0, "z": 0.0}
+    command = haply.advance()
+    # [pos * sensitivity, quaternion, buttons]; the rising edge of button "a" fires its callback once
+    torch.testing.assert_close(command, torch.tensor([0.15, 0.3, 0.45, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0]))
+    haply.advance()
+    assert pressed == ["a"]
 
-    # Verify configuration was applied correctly
-    assert haply.websocket_uri == "ws://localhost:10001"
-    assert haply.pos_sensitivity == 1.5
-    assert haply.data_rate == 250.0
+    forces = torch.tensor([[1.0, 2.0, 3.0], [0.5, 0.8, -0.3], [0.1, 0.2, 0.3]])
+    haply.push_force(forces, torch.tensor(1))
+    assert haply.feedback_force == pytest.approx({"x": 0.5, "y": 0.8, "z": -0.3})
+    # the selected forces are summed and clipped to the default 2.0 N limit
+    haply.push_force(forces, torch.tensor([0, 2]))
+    assert haply.feedback_force == pytest.approx({"x": 1.1, "y": 2.0, "z": 2.0})
+    with pytest.raises(ValueError, match="No forces provided"):
+        haply.push_force(torch.zeros(0, 3), torch.tensor([0]))
 
-    # Test advance() returns expected type
-    result = haply.advance()
-    assert isinstance(result, torch.Tensor)
-    assert result.shape == (10,)  # (pos_x, pos_y, pos_z, qx, qy, qz, qw, btn_a, btn_b, btn_c)
-
-    # Test push_force with tensor (single force vector)
-    forces_within = torch.tensor([[1.0, 1.5, -0.5]], dtype=torch.float32)
-    position_zero = torch.tensor([0], dtype=torch.long)
-    haply.push_force(forces_within, position_zero)
-    assert haply.feedback_force["x"] == pytest.approx(1.0)
-    assert haply.feedback_force["y"] == pytest.approx(1.5)
-    assert haply.feedback_force["z"] == pytest.approx(-0.5)
-
-    # Test push_force with tensor (force limiting, default limit is 2.0 N)
-    forces_exceed = torch.tensor([[5.0, -10.0, 1.5]], dtype=torch.float32)
-    haply.push_force(forces_exceed, position_zero)
-    assert haply.feedback_force["x"] == pytest.approx(2.0)
-    assert haply.feedback_force["y"] == pytest.approx(-2.0)
-    assert haply.feedback_force["z"] == pytest.approx(1.5)
-
-    # Test push_force with position tensor (single index)
-    forces_multi = torch.tensor([[1.0, 2.0, 3.0], [0.5, 0.8, -0.3], [0.1, 0.2, 0.3]], dtype=torch.float32)
-    position_single = torch.tensor([1], dtype=torch.long)
-    haply.push_force(forces_multi, position=position_single)
-    assert haply.feedback_force["x"] == pytest.approx(0.5)
-    assert haply.feedback_force["y"] == pytest.approx(0.8)
-    assert haply.feedback_force["z"] == pytest.approx(-0.3)
-
-    # Test push_force with position tensor (multiple indices)
-    position_multi = torch.tensor([0, 2], dtype=torch.long)
-    haply.push_force(forces_multi, position=position_multi)
-    # Should sum forces[0] and forces[2]: [1.0+0.1, 2.0+0.2, 3.0+0.3] = [1.1, 2.2, 3.3]
-    # But clipped to [-2.0, 2.0]: [1.1, 2.0, 2.0]
-    assert haply.feedback_force["x"] == pytest.approx(1.1)
-    assert haply.feedback_force["y"] == pytest.approx(2.0)
-    assert haply.feedback_force["z"] == pytest.approx(2.0)
-
-    # Test reset functionality
     haply.reset()
     assert haply.feedback_force == {"x": 0.0, "y": 0.0, "z": 0.0}
+    haply.__del__()

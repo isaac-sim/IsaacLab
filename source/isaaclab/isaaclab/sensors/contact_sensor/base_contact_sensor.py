@@ -55,10 +55,7 @@ class BaseContactSensor(SensorBase):
         Args:
             cfg: The configuration parameters.
         """
-        # initialize base class
         super().__init__(cfg)
-
-        # check that config is valid
         if cfg.history_length < 0:
             raise ValueError(f"History length must be greater than 0! Received: {cfg.history_length}")
 
@@ -248,13 +245,6 @@ class BaseContactSensor(SensorBase):
             env_mask: Mask of the environments to update. None: update all environments.
         """
         raise NotImplementedError(f"Update buffers is not implemented for {self.__class__.__name__}.")
-
-    def _invalidate_initialize_callback(self, event):
-        """Invalidates the scene elements."""
-        # call parent
-        super()._invalidate_initialize_callback(event)
-        # set all existing views to None to invalidate them
-        # TODO: invalidate NewtonManager if necessary
 
     @property
     def num_bodies(self) -> int:

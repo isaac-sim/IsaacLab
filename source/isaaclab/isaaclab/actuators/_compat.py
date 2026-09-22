@@ -36,6 +36,29 @@ def _limits_equal(first: torch.Tensor | float, second: torch.Tensor | float) -> 
     return float(first) == float(second)
 
 
+def _resolve_constructor_limit_alias(
+    canonical_name: str,
+    canonical_value: torch.Tensor | float | None,
+    alias_name: str,
+    alias_value: torch.Tensor | float | None,
+) -> torch.Tensor | float | None:
+    """Fold a deprecated constructor limit argument into its canonical counterpart.
+
+    Warns when the alias is used and rejects conflicting values.
+    """
+    if alias_value is None:
+        return canonical_value
+    warnings.warn(
+        f"The {alias_name} constructor argument is deprecated. Use {canonical_name} instead; "
+        f"{alias_name} will be removed in 3.1.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
+    if canonical_value is not None and not _limits_equal(canonical_value, alias_value):
+        raise ValueError(f"Received conflicting {canonical_name} and deprecated {alias_name} constructor arguments.")
+    return alias_value
+
+
 def _resolve_limit_aliases(
     actuator_name: str,
     cfg: ActuatorBaseCfg,

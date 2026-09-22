@@ -30,40 +30,29 @@ class _StubMARLEnv(DirectMARLEnv):
         self._is_closed = True
         self.cfg = cfg
         self.scene = SimpleNamespace(num_envs=cfg.scene.num_envs)
-        self.sim = SimpleNamespace(device=cfg.sim.device)
+        self.sim = SimpleNamespace(device=cfg.sim.device, vis_marker_registry=VisMarkerRegistry())
 
 
-def test_agent_and_space_configuration():
-    """Agent counts and spaces are configured without initializing the simulator."""
-    env = _StubMARLEnv(make_empty_direct_marl_env_cfg(device="cpu"))
-
-    env._configure_env_spaces()
-
-    assert env.agents == ["agent_0", "agent_1"]
-    assert env.possible_agents == ["agent_0", "agent_1"]
-    assert env.num_agents == 2
-    assert env.max_num_agents == 2
-    assert len(env.observation_spaces) == 2
-    assert len(env.action_spaces) == 2
-    assert all(isinstance(space, gym.spaces.Box) for space in env.observation_spaces.values())
-    assert all(isinstance(space, gym.spaces.Box) for space in env.action_spaces.values())
-    assert env.observation_spaces["agent_0"].shape == (3,)
-    assert env.observation_spaces["agent_1"].shape == (4,)
-    assert env.action_spaces["agent_0"].shape == (1,)
-    assert env.action_spaces["agent_1"].shape == (2,)
-    assert isinstance(env.state_space, gym.spaces.Box)
-    assert env.state_space.shape == (7,)
-
-
-def test_zero_state_space_disables_centralized_state():
-    """A zero state-space follows the documented no-centralized-state contract."""
+@pytest.mark.parametrize("state_space", [-1, 0], ids=["concatenated_state", "no_state"])
+def test_agent_and_space_configuration(state_space):
+    """Agents and spaces are configured without the simulator; a zero state-space disables the centralized state."""
     cfg = make_empty_direct_marl_env_cfg(device="cpu")
-    cfg.state_space = 0
+    cfg.state_space = state_space
     env = _StubMARLEnv(cfg)
 
     env._configure_env_spaces()
 
-    assert env.state_space is None
+    assert env.agents == env.possible_agents == ["agent_0", "agent_1"]
+    assert env.num_agents == env.max_num_agents == 2
+    assert {agent: space.shape for agent, space in env.observation_spaces.items()} == {"agent_0": (3,), "agent_1": (4,)}
+    assert {agent: space.shape for agent, space in env.action_spaces.items()} == {"agent_0": (1,), "agent_1": (2,)}
+    assert all(isinstance(space, gym.spaces.Box) for space in env.observation_spaces.values())
+    assert all(isinstance(space, gym.spaces.Box) for space in env.action_spaces.values())
+    if state_space == 0:
+        assert env.state_space is None
+    else:
+        assert isinstance(env.state_space, gym.spaces.Box)
+        assert env.state_space.shape == (7,)
 
 
 class _DebugVisStubMARLEnv(_StubMARLEnv):
@@ -74,7 +63,6 @@ class _DebugVisStubMARLEnv(_StubMARLEnv):
         # mirrors what DirectMARLEnv.__init__ derives, which the stub skips
         self.has_debug_vis_implementation = "NotImplementedError" not in inspect.getsource(self._set_debug_vis_impl)
         self._debug_vis_handle = None
-        self.sim = SimpleNamespace(device=cfg.sim.device, vis_marker_registry=VisMarkerRegistry())
         self.callback_count = 0
 
     def _set_debug_vis_impl(self, debug_vis: bool) -> None:
@@ -96,12 +84,10 @@ def test_set_debug_vis_registers_without_kit():
 
     assert env.set_debug_vis(True) is True
     assert isinstance(env._debug_vis_handle, str)
-
     registry.dispatch_callbacks()
     assert env.callback_count == 1
 
     env.set_debug_vis(False)
     assert env._debug_vis_handle is None
-
     registry.dispatch_callbacks()
     assert env.callback_count == 1

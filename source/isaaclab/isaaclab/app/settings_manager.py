@@ -35,30 +35,15 @@ class SettingsManager:
     """
 
     def __new__(cls):
-        """Singleton pattern - always return the same instance, stored in sys.modules to survive reloads."""
-        # Check if instance exists in sys.modules (survives module reloads)
+        """Return the process-wide instance, stored in ``sys.modules`` so it survives module reloads."""
         instance = sys.modules.get(_SINGLETON_KEY)
-
         if instance is None:
             instance = super().__new__(cls)
+            instance._standalone_settings: dict[str, Any] = {}
+            instance._carb_settings = None
+            instance._use_carb = False
             sys.modules[_SINGLETON_KEY] = instance
-            # Mark that this instance needs initialization
-            instance._needs_init = True
-
         return instance
-
-    def __init__(self):
-        """Initialize the settings manager (only runs once due to singleton pattern)."""
-        # Check if this instance needs initialization
-        needs_init = getattr(self, "_needs_init", False)
-
-        if not needs_init:
-            return
-
-        self._standalone_settings: dict[str, Any] = {}
-        self._carb_settings = None
-        self._use_carb = False
-        self._needs_init = False
 
     @classmethod
     def instance(cls) -> "SettingsManager":
@@ -67,13 +52,7 @@ class SettingsManager:
         Returns:
             The singleton SettingsManager instance
         """
-        # Get instance from sys.modules (survives module reloads)
-        instance = sys.modules.get(_SINGLETON_KEY)
-
-        if instance is None:
-            instance = cls()
-
-        return instance
+        return cls()
 
     def initialize_carb_settings(self):
         """Initialize carb.settings if SimulationApp has been launched.
@@ -87,7 +66,6 @@ class SettingsManager:
             self._carb_settings = carb.settings.get_settings()
             self._use_carb = True
         except (ImportError, AttributeError):
-            # carb not available or SimulationApp not launched - use standalone mode
             self._use_carb = False
 
     def set(self, path: str, value: Any) -> None:
@@ -97,22 +75,18 @@ class SettingsManager:
             path: The settings path (e.g., "/isaaclab/render/offscreen")
             value: The value to set
         """
-        if self._use_carb and self._carb_settings is not None:
-            # Delegate to carb.settings
-            if isinstance(value, bool):
-                self._carb_settings.set_bool(path, value)
-            elif isinstance(value, int):
-                self._carb_settings.set_int(path, value)
-            elif isinstance(value, float):
-                self._carb_settings.set_float(path, value)
-            elif isinstance(value, str):
-                self._carb_settings.set_string(path, value)
-            else:
-                # For other types, try generic set
-                self._carb_settings.set(path, value)
-        else:
-            # Standalone mode - use dictionary
+        if not self._use_carb:
             self._standalone_settings[path] = value
+        elif isinstance(value, bool):
+            self._carb_settings.set_bool(path, value)
+        elif isinstance(value, int):
+            self._carb_settings.set_int(path, value)
+        elif isinstance(value, float):
+            self._carb_settings.set_float(path, value)
+        elif isinstance(value, str):
+            self._carb_settings.set_string(path, value)
+        else:
+            self._carb_settings.set(path, value)
 
     def get(self, path: str, default: Any = None) -> Any:
         """Get a setting value at the given path.
@@ -124,13 +98,10 @@ class SettingsManager:
         Returns:
             The value at the path, or default if not found
         """
-        if self._use_carb and self._carb_settings is not None:
-            # Delegate to carb.settings
-            value = self._carb_settings.get(path)
-            return value if value is not None else default
-        else:
-            # Standalone mode - use dictionary
+        if not self._use_carb:
             return self._standalone_settings.get(path, default)
+        value = self._carb_settings.get(path)
+        return value if value is not None else default
 
     def set_bool(self, path: str, value: bool) -> None:
         """Set a boolean setting value.
@@ -188,11 +159,7 @@ def get_settings_manager() -> SettingsManager:
     Returns:
         The global SettingsManager instance
     """
-    # Get instance from sys.modules (survives module reloads)
-    instance = sys.modules.get(_SINGLETON_KEY)
-    if instance is None:
-        instance = SettingsManager()
-    return instance
+    return SettingsManager()
 
 
 def initialize_carb_settings():
@@ -201,5 +168,4 @@ def initialize_carb_settings():
     This should be called after SimulationApp is created to enable
     Omniverse mode for the global settings manager.
     """
-    manager = get_settings_manager()
-    manager.initialize_carb_settings()
+    get_settings_manager().initialize_carb_settings()

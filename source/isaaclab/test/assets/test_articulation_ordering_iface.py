@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from _articulation_iface_test_utils import BACKEND_UNAVAILABLE_REASONS, BACKENDS, get_articulation
+from _iface_test_utils import BACKEND_UNAVAILABLE_REASONS, BACKENDS, get_articulation
 from _pytest.mark.structures import ParameterSet
 
 from isaaclab.utils.buffers import TimestampedBufferWarp

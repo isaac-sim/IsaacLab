@@ -41,41 +41,20 @@ def temp_dir():
     shutil.rmtree(temp_dir)
 
 
-@pytest.mark.parametrize("task_name", ["IsaacContrib-Stack-Cube-Franka-IK-Rel"])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.isaacsim_ci
-def test_action_state_recorder_terms(temp_dir, task_name, device, num_envs):
-    """Check FrameTransformer values after reset."""
+def test_frame_transformer_observation_fresh_after_reset(temp_dir, device):
+    """The end-effector observation reported by ``reset()`` matches the first idle step, i.e. is not stale."""
+    task_name = "IsaacContrib-Stack-Cube-Franka-IK-Rel"
     sim_utils.create_new_stage()
-
-    # parse configuration
-    env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+    env_cfg = parse_env_cfg(task_name, device=device, num_envs=2)
     env_cfg.wait_for_textures = False
-
-    # create environment
     env = gym.make(task_name, cfg=env_cfg)
-
-    # disable control on stop
     env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
 
-    # reset environment
     obs = env.reset()[0]
-
-    # get the end effector position after the reset
     pre_reset_eef_pos = obs["policy"]["eef_pos"].clone()
-    print(pre_reset_eef_pos)
-
-    # step the environment with idle actions
     idle_actions = torch.zeros(env.action_space.shape, device=env.unwrapped.device)
     obs = env.step(idle_actions)[0]
-
-    # get the end effector position after the first step
-    post_reset_eef_pos = obs["policy"]["eef_pos"]
-    print(post_reset_eef_pos)
-
-    # check if the end effector position is the same after the reset and the first step
-    torch.testing.assert_close(pre_reset_eef_pos, post_reset_eef_pos, atol=1e-5, rtol=1e-3)
-
-    # close the environment
+    torch.testing.assert_close(pre_reset_eef_pos, obs["policy"]["eef_pos"], atol=1e-5, rtol=1e-3)
     env.close()

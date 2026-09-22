@@ -3,81 +3,71 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for VideoRecorder, VideoRecorderCfg, and the ViewerCfg deprecation shim.
+"""Unit tests for :class:`VideoRecorder`.
 
-All tests are pure-Python mocks — no simulation context or Kit app required.
+The environment is a stub exposing ``sim`` and ``scene`` and ``moviepy`` is replaced by a recording double,
+so no simulation context or Kit app is required.
 """
 
 from __future__ import annotations
 
-import warnings
+import logging
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import numpy as np
 import pytest
+import torch
 
-from isaaclab.envs.common import ViewerCfg
 from isaaclab.envs.utils.video_recorder import VideoRecorder, _parse_source
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
-_FRAME = np.ones((8, 12, 3), dtype=np.uint8) * 128
+pytestmark = pytest.mark.unit
 
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
+_FRAME = np.full((8, 12, 3), 128, dtype=np.uint8)
+_LOGGER = "isaaclab.envs.utils.video_recorder"
 
 
 @pytest.fixture(autouse=True)
-def _patch_moviepy():
-    """Stub out ImageSequenceClip so tests run without moviepy installed.
-
-    Tests that specifically validate the ImportError path re-patch to None
-    inside their own context managers, which takes precedence over this stub.
-    """
-    with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", MagicMock()):
-        yield
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+def image_sequence_clip():
+    """Stub out ImageSequenceClip so tests run without moviepy installed."""
+    with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip") as clip_cls:
+        yield clip_cls
 
 
 def _cfg(**overrides) -> VideoRecorderCfg:
-    defaults = dict(source="visualizer", output_dir="/tmp/test_videos", fps=30, video_length=4, video_interval=0)
-    cfg = VideoRecorderCfg()
-    for k, v in {**defaults, **overrides}.items():
-        setattr(cfg, k, v)
-    return cfg
+    return VideoRecorderCfg(**{"output_dir": "/tmp/test_videos", "fps": 30, "video_length": 4, **overrides})
 
 
 class _FakeViz:
-    def __init__(self, viz_type: str, frame: np.ndarray | None = None):
+    def __init__(self, viz_type: str):
         self.cfg = SimpleNamespace(visualizer_type=viz_type)
-        self._frame = frame if frame is not None else _FRAME.copy()
         self.render_calls = 0
 
     def render_rgb_array(self) -> np.ndarray:
         self.render_calls += 1
-        return self._frame
+        return _FRAME.copy()
 
 
-def _make_env(visualizers=(), sensors: dict | None = None):
-    env = MagicMock()
-    env.sim.visualizers = list(visualizers)
-    env.scene.sensors = sensors or {}
-    return env
+class _FakeSim:
+    def __init__(self, visualizers=(), is_rendering=True, physics_backend=None):
+        self.visualizers = list(visualizers)
+        self.is_rendering = is_rendering
+        self.forward_calls = 0
+        self.physics_manager = SimpleNamespace(video_capture_backend=lambda: physics_backend)
+
+    def forward(self) -> None:
+        self.forward_calls += 1
 
 
-# ---------------------------------------------------------------------------
-# _parse_source
-# ---------------------------------------------------------------------------
+def _make_env(visualizers=(), sensors: dict | None = None, **sim_kwargs):
+    return SimpleNamespace(
+        sim=_FakeSim(visualizers, **sim_kwargs), scene=SimpleNamespace(sensors=sensors or {}), step_dt=0.1
+    )
 
 
 @pytest.mark.parametrize(
-    "source,expected",
+    ("source", "expected"),
     [
         ("visualizer", ("visualizer", "", "")),
         ("visualizer:kit", ("visualizer", "kit", "")),
@@ -90,472 +80,175 @@ def test_parse_source(source, expected):
     assert _parse_source(source) == expected
 
 
-# ---------------------------------------------------------------------------
-# Construction-time validation
-# ---------------------------------------------------------------------------
-
-
-def test_init_raises_value_error_for_unknown_source_kind():
+def test_init_validation():
+    """Unknown source kinds and a missing moviepy are rejected on construction."""
     with pytest.raises(ValueError, match="Unrecognized source kind"):
         VideoRecorder(_cfg(source="badkind:foo"), _make_env())
-
-
-def test_init_raises_import_error_when_moviepy_missing():
     with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", None):
         with pytest.raises(ImportError, match="moviepy"):
             VideoRecorder(_cfg(), _make_env())
 
 
-def test_init_continues_clip_index_after_existing_files(tmp_path):
+@pytest.mark.parametrize(
+    ("existing", "expected_index"),
+    [([], 0), (["clip_0000.mp4", "clip_0007.mp4", "clip_final.mp4", "other_0008.mp4"], 8)],
+    ids=["empty_dir", "existing_clips"],
+)
+def test_init_clip_index_continues_after_existing_files(tmp_path, existing, expected_index):
+    """The clip index continues after the highest existing clip of the same prefix."""
     output_dir = tmp_path / "videos"
     output_dir.mkdir()
-    (output_dir / "clip_0000.mp4").touch()
-    (output_dir / "clip_0007.mp4").touch()
-    (output_dir / "clip_final.mp4").touch()
-    (output_dir / "other_0008.mp4").touch()
-
-    recorder = VideoRecorder(_cfg(output_dir=str(output_dir), output_filename_prefix="clip"), _make_env())
-
-    assert recorder._clip_index == 8
-
-
-def test_init_starts_clip_index_at_zero_for_empty_output_dir(tmp_path):
-    output_dir = tmp_path / "videos"
-    output_dir.mkdir()
+    for name in existing:
+        (output_dir / name).touch()
 
     recorder = VideoRecorder(_cfg(output_dir=str(output_dir)), _make_env())
 
-    assert recorder._clip_index == 0
+    assert recorder._clip_index == expected_index
 
 
-# ---------------------------------------------------------------------------
-# Trigger logic
-# ---------------------------------------------------------------------------
-
-
-def test_trigger_one_shot_fires_once():
-    """video_interval=0 → single clip starts at step 1 and never re-triggers."""
+@pytest.mark.parametrize(
+    ("video_interval", "video_length", "expected_trigger_steps"),
+    [(0, 2, [1]), (3, 1, [1, 4, 7])],
+    ids=["one_shot", "recurring"],
+)
+def test_trigger_schedule(video_interval, video_length, expected_trigger_steps):
+    """A zero interval records a single clip at step 1; a positive interval records recurring clips."""
     viz = _FakeViz("kit")
     recorder = VideoRecorder(
-        _cfg(source="visualizer:kit", video_length=2, video_interval=0), _make_env(visualizers=[viz])
+        _cfg(source="visualizer:kit", video_length=video_length, video_interval=video_interval),
+        _make_env(visualizers=[viz]),
     )
-    closed_count = [0]
-
-    def counting_close():
-        recorder._frames = []
-        recorder._recording = False
-        closed_count[0] += 1
-
-    with patch.object(recorder, "_close_clip", side_effect=counting_close):
-        for _ in range(8):
-            recorder.step()
-    assert closed_count[0] == 1
-
-
-def test_trigger_recurring_fires_periodically():
-    """video_interval=3 + video_length=1 → exactly 3 clips over 9 steps, first at step 1."""
-    viz = _FakeViz("kit")
-    recorder = VideoRecorder(
-        _cfg(source="visualizer:kit", video_length=1, video_interval=3), _make_env(visualizers=[viz])
-    )
-    close_count = [0]
     trigger_steps = []
 
     def counting_close():
-        close_count[0] += 1
-        trigger_steps.append(recorder._step_count)
+        trigger_steps.append(recorder._step_count - video_length + 1)
         recorder._frames = []
         recorder._recording = False
 
     with patch.object(recorder, "_close_clip", side_effect=counting_close):
         for _ in range(9):
             recorder.step()
-    assert close_count[0] == 3
-    # First clip should trigger at step 1 (not step 3).
-    assert trigger_steps[0] == 1, f"Expected first clip at step 1, got step {trigger_steps[0]}"
+    assert trigger_steps == expected_trigger_steps
 
 
-# ---------------------------------------------------------------------------
-# Frame collection, step_offset, frame_stride
-# ---------------------------------------------------------------------------
-
-
-def test_step_accumulates_frames_and_closes_clip():
-    """Recorder collects exactly video_length frames then calls _close_clip."""
-    viz = _FakeViz("kit")
-    recorder = VideoRecorder(_cfg(source="visualizer:kit", video_length=3), _make_env(visualizers=[viz]))
-    with patch.object(recorder, "_close_clip") as mock_close:
-        for _ in range(3):
-            recorder.step()
-        assert mock_close.call_count == 1
-    assert viz.render_calls == 3
-
-
-def test_step_offset_delays_first_trigger():
-    """step_offset=5 means the first clip starts at step 6, not step 1."""
+def test_step_offset_and_frame_stride():
+    """Recording starts after ``step_offset`` steps and captures one frame every ``frame_stride`` steps."""
     viz = _FakeViz("kit")
     recorder = VideoRecorder(
-        _cfg(source="visualizer:kit", step_offset=5, video_length=100, video_interval=0),
-        _make_env(visualizers=[viz]),
+        _cfg(source="visualizer:kit", step_offset=5, video_length=4, frame_stride=2), _make_env(visualizers=[viz])
     )
     for _ in range(5):
         recorder.step()
-    assert not recorder._recording
-    recorder.step()  # step 6 — triggers
-    assert recorder._recording
+    assert not recorder._recording and viz.render_calls == 0
 
-
-def test_frame_stride_subsamples_frames():
-    """frame_stride=2 captures one frame every 2 steps."""
-    viz = _FakeViz("kit")
-    recorder = VideoRecorder(
-        _cfg(source="visualizer:kit", video_length=4, frame_stride=2), _make_env(visualizers=[viz])
-    )
-    with patch.object(recorder, "_close_clip"):
-        for _ in range(4):
+    with patch.object(recorder, "_close_clip") as mock_close:
+        recorder.step()
+        assert recorder._recording
+        for _ in range(3):
             recorder.step()
+        assert mock_close.call_count == 1
     assert viz.render_calls == 2
 
 
-# ---------------------------------------------------------------------------
-# Visualizer frame routing
-# ---------------------------------------------------------------------------
+def test_visualizer_source_selection():
+    """Auto mode picks the first capture-capable visualizer and ``newton`` aliases ``newton_gl``."""
+    kit_viz, newton_viz = _FakeViz("kit"), _FakeViz("newton_gl")
+    env = _make_env(visualizers=[kit_viz, newton_viz])
 
-
-def test_visualizer_source_auto_picks_first_with_render_rgb_array():
-    viz = _FakeViz("kit")
-    recorder = VideoRecorder(_cfg(source="visualizer"), _make_env(visualizers=[viz]))
-    recorder.step()
-    assert viz.render_calls == 1
+    assert VideoRecorder(_cfg(source="visualizer"), env)._get_frame() is not None
+    assert (kit_viz.render_calls, newton_viz.render_calls) == (1, 0)
+    assert VideoRecorder(_cfg(source="visualizer:newton"), env)._get_frame() is not None
+    assert (kit_viz.render_calls, newton_viz.render_calls) == (1, 1)
 
 
 def test_visualizer_source_refreshes_physics_before_on_demand_capture():
-    """On-demand capture reads a frame after physics transforms are synchronized."""
-    synchronized = False
-
-    class _FreshFrameViz(_FakeViz):
-        def render_rgb_array(self) -> np.ndarray:
-            return np.full_like(self._frame, 255 if synchronized else 0)
-
-    viz = _FreshFrameViz("kit")
-    env = _make_env(visualizers=[viz])
-    env.sim.is_rendering = False
-
-    def synchronize_physics() -> None:
-        nonlocal synchronized
-        synchronized = True
-
-    env.sim.forward.side_effect = synchronize_physics
+    """Without continuous rendering, physics transforms are synchronized before a frame is read."""
+    env = _make_env(visualizers=[_FakeViz("kit")], is_rendering=False)
     recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
 
-    frame = recorder._get_frame()
-
-    assert frame is not None
-    assert np.all(frame == 255)
+    assert recorder._get_frame() is not None
+    assert env.sim.forward_calls == 1
 
 
-def test_visualizer_source_auto_no_visualizer_logs_and_returns_none(caplog):
-    """source='visualizer' with no visualizers logs an error once and returns None instead of raising."""
-    import logging
+@pytest.mark.parametrize(
+    ("source", "sensors", "expected_message"),
+    [
+        ("visualizer", {}, "no recording-capable visualizer"),
+        ("sensor:missing", {"tiled_camera": object()}, "tiled_camera"),
+    ],
+    ids=["no_visualizer", "missing_sensor"],
+)
+def test_missing_source_logs_once_and_returns_none(caplog, source, sensors, expected_message):
+    """A missing visualizer or sensor logs an error once and suppresses further capture attempts."""
+    recorder = VideoRecorder(_cfg(source=source), _make_env(sensors=sensors))
+    with caplog.at_level(logging.ERROR, logger=_LOGGER):
+        assert recorder._get_frame() is None
+        assert recorder._get_frame() is None
+    error_records = [record for record in caplog.records if record.levelno == logging.ERROR]
+    assert len(error_records) == 1
+    assert expected_message in error_records[0].message
 
-    recorder = VideoRecorder(_cfg(source="visualizer"), _make_env(visualizers=[]))
-    with caplog.at_level(logging.ERROR, logger="isaaclab.envs.utils.video_recorder"):
-        frame = recorder._get_frame()
-    assert frame is None
-    assert any("no recording-capable visualizer" in r.message for r in caplog.records)
 
-
-def test_kit_visualizer_newton_physics_logs_warning(caplog):
-    """source='visualizer:kit' with Newton physics logs a warning and attempts capture.
-
-    With cubric the capture succeeds; without it frames may be black.  Either way
-    the recorder warns and does not hard-fail.
-
-    The warned-about condition is fixed configuration state, so the message is emitted
-    once per recorder rather than once per captured frame.
-    """
-    import logging
-
+def test_kit_visualizer_newton_physics_logs_warning_once(caplog):
+    """Kit capture with Newton physics warns once per recorder and keeps capturing frames."""
     kit_viz = _FakeViz("kit")
-    env = _make_env(visualizers=[kit_viz])
-    env.sim.physics_manager.video_capture_backend.return_value = "newton_gl"
+    env = _make_env(visualizers=[kit_viz], physics_backend="newton_gl")
 
     recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
-    with caplog.at_level(logging.WARNING, logger="isaaclab.envs.utils.video_recorder"):
+    with caplog.at_level(logging.WARNING, logger=_LOGGER):
         for _ in range(5):
             recorder._get_frame()
-        second_recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
-        second_recorder._get_frame()
+        VideoRecorder(_cfg(source="visualizer:kit"), env)._get_frame()
 
     cubric_warnings = [r for r in caplog.records if "source='visualizer:newton'" in r.message]
     assert len(cubric_warnings) == 2
-    # Capture is still attempted on every frame rather than short-circuiting.
     assert kit_viz.render_calls == 6
 
 
-def test_visualizer_newton_alias_resolves_newton_gl():
-    """source='visualizer:newton' should match a visualizer with visualizer_type='newton_gl'."""
-    viz = _FakeViz("newton_gl")
-    recorder = VideoRecorder(_cfg(source="visualizer:newton"), _make_env(visualizers=[viz]))
-    frame = recorder._get_frame()
-    assert viz.render_calls == 1
-    assert frame is not None
-
-
-# ---------------------------------------------------------------------------
-# Sensor frame routing
-# ---------------------------------------------------------------------------
-
-
 def test_sensor_source_reads_rgb():
-    import torch
-
-    rgb = torch.ones((1, 8, 12, 3), dtype=torch.uint8) * 200
-    sensor = MagicMock()
-    sensor.data.output = {"rgb": rgb}
+    """Sensor sources read the first environment's RGB output as an ``(H, W, 3)`` frame."""
+    sensor = SimpleNamespace(data=SimpleNamespace(output={"rgb": torch.full((1, 8, 12, 3), 200, dtype=torch.uint8)}))
     recorder = VideoRecorder(_cfg(source="sensor:tiled_camera"), _make_env(sensors={"tiled_camera": sensor}))
     frame = recorder._get_frame()
     assert frame is not None
     assert frame.shape == (8, 12, 3)
 
 
-def test_sensor_source_missing_logs_and_returns_none(caplog):
-    """Missing sensor logs an error (listing available sensors) and returns None instead of raising."""
-    import logging
-
-    sensors = {"tiled_camera": MagicMock()}
-    recorder = VideoRecorder(_cfg(source="sensor:missing"), _make_env(sensors=sensors))
-    with caplog.at_level(logging.ERROR, logger="isaaclab.envs.utils.video_recorder"):
-        frame = recorder._get_frame()
-    assert frame is None
-    assert any("tiled_camera" in r.message for r in caplog.records)
-
-
-# ---------------------------------------------------------------------------
-# Clip writing
-# ---------------------------------------------------------------------------
-
-
-def test_close_clip_writes_mp4_via_moviepy():
+def test_close_clip_writes_mp4_and_clears_frames(image_sequence_clip):
+    """Buffered frames are written through moviepy at the configured fps, then the buffer is cleared."""
     frames = [_FRAME.copy(), _FRAME.copy()]
-    recorder = VideoRecorder(_cfg(output_dir="/tmp/test_clips", fps=10), _make_env())
+    recorder = VideoRecorder(_cfg(fps=10), _make_env())
     recorder._frames = frames
     recorder._recording = True
 
-    mock_clip = MagicMock()
-    with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", return_value=mock_clip) as mock_cls:
-        with patch("isaaclab.envs.utils.video_recorder.os.makedirs"):
-            recorder._close_clip()
+    with patch("isaaclab.envs.utils.video_recorder.os.makedirs"):
+        recorder.close()
 
-    mock_cls.assert_called_once_with(frames, fps=10)
-    mock_clip.write_videofile.assert_called_once()
+    image_sequence_clip.assert_called_once_with(frames, fps=10)
+    image_sequence_clip.return_value.write_videofile.assert_called_once()
     assert not recorder._recording
     assert recorder._frames == []
 
 
-def test_close_with_empty_frame_buffer_does_not_write():
+def test_close_with_empty_frame_buffer_does_not_write(image_sequence_clip):
     recorder = VideoRecorder(_cfg(), _make_env())
     recorder._recording = True
-    recorder._frames = []
-    mock_cls = MagicMock()
-    with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", mock_cls):
-        recorder.close()
-    mock_cls.assert_not_called()
+    recorder.close()
+    image_sequence_clip.assert_not_called()
 
 
-# ---------------------------------------------------------------------------
-# ViewerCfg deprecation shim
-# ---------------------------------------------------------------------------
-
-
-def test_viewer_cfg_warns_on_non_default_field():
-    with pytest.warns(DeprecationWarning, match="ViewerCfg is deprecated"):
-        ViewerCfg(eye=(1.0, 2.0, 3.0))
-
-
-def test_viewer_cfg_default_no_warning():
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", DeprecationWarning)
-        ViewerCfg()  # must not raise
-
-
-# ---------------------------------------------------------------------------
-# _apply_deprecated_viewer_cfg bridge
-# ---------------------------------------------------------------------------
-
-
-def _make_env_cfg(eye=(7.5, 7.5, 7.5)):
-    viewer = ViewerCfg()
-    viewer.eye = eye
-    sim = SimpleNamespace(default_visualizer_cfg=None)
-    return SimpleNamespace(viewer=viewer, sim=sim)
-
-
-def test_apply_deprecated_viewer_sets_visualizer_cfg():
-    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
-
-    env_cfg = _make_env_cfg(eye=(1.0, 2.0, 3.0))
-    _apply_deprecated_viewer_cfg(env_cfg)
-    assert env_cfg.sim.default_visualizer_cfg is not None
-    assert env_cfg.sim.default_visualizer_cfg.eye == (1.0, 2.0, 3.0)
-
-
-def test_apply_deprecated_viewer_noop_when_defaults():
-    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
-
-    env_cfg = _make_env_cfg()
-    _apply_deprecated_viewer_cfg(env_cfg)
-    assert env_cfg.sim.default_visualizer_cfg is None
-
-
-# ---------------------------------------------------------------------------
-# Minor 11: asset_root / asset_body origin_type migration
-# ---------------------------------------------------------------------------
-
-
-def test_apply_deprecated_viewer_asset_root_migration():
-    """origin_type='asset_root' → origin_type='asset' + origin_track_path=asset_name."""
-    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
-
-    env_cfg = _make_env_cfg(eye=(1.0, 2.0, 3.0))
-    env_cfg.viewer.origin_type = "asset_root"
-    env_cfg.viewer.asset_name = "robot"
-    _apply_deprecated_viewer_cfg(env_cfg)
-    cfg = env_cfg.sim.default_visualizer_cfg
-    assert cfg is not None
-    assert getattr(cfg, "origin_type", None) == "asset"
-    assert getattr(cfg, "origin_track_path", None) == "robot"
-
-
-def test_apply_deprecated_viewer_asset_body_migration():
-    """origin_type='asset_body' → origin_type='asset' + origin_track_path='asset/body'."""
-    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
-
-    env_cfg = _make_env_cfg(eye=(1.0, 2.0, 3.0))
-    env_cfg.viewer.origin_type = "asset_body"
-    env_cfg.viewer.asset_name = "robot"
-    env_cfg.viewer.body_name = "panda_hand"
-    _apply_deprecated_viewer_cfg(env_cfg)
-    cfg = env_cfg.sim.default_visualizer_cfg
-    assert cfg is not None
-    assert getattr(cfg, "origin_type", None) == "asset"
-    assert getattr(cfg, "origin_track_path", None) == "robot/panda_hand"
-
-
-# ---------------------------------------------------------------------------
-# Minor 12: conflict branch — default_visualizer_cfg already set
-# ---------------------------------------------------------------------------
-
-
-def test_apply_deprecated_viewer_skips_when_default_visualizer_cfg_already_set():
-    """If sim.default_visualizer_cfg is already set, the shim logs and returns without overwriting."""
-    from unittest.mock import MagicMock
-
-    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
-
-    existing_cfg = MagicMock()
-    env_cfg = _make_env_cfg(eye=(1.0, 2.0, 3.0))
-    env_cfg.sim.default_visualizer_cfg = existing_cfg
-    _apply_deprecated_viewer_cfg(env_cfg)
-    # Must not overwrite the existing cfg.
-    assert env_cfg.sim.default_visualizer_cfg is existing_cfg
-
-
-# ---------------------------------------------------------------------------
-# Minor 13: keep_last_n_clips pruning
-# ---------------------------------------------------------------------------
-
-
-def test_keep_last_n_clips_prunes_old_clips():
-    """keep_last_n_clips=2 removes the oldest clip once a third is written."""
-
-    recorder = VideoRecorder(
-        _cfg(output_dir="/tmp/test_prune", keep_last_n_clips=2),
-        _make_env(),
-    )
-    recorder._clip_index = 3
-    removed = []
-
-    def fake_remove(path):
-        removed.append(path)
-
-    with patch("isaaclab.envs.utils.video_recorder.os.path.isdir", return_value=True):
-        with patch(
-            "isaaclab.envs.utils.video_recorder.os.listdir",
-            return_value=["clip_0000.mp4", "clip_0001.mp4", "clip_0002.mp4"],
-        ):
-            with patch("isaaclab.envs.utils.video_recorder.os.remove", side_effect=fake_remove):
-                recorder._maybe_delete_old_clips()
-
-    # After 3 clips with keep_last_n_clips=2, clip index 0 should be removed.
-    assert any("_0000.mp4" in p for p in removed), f"Expected clip 0 to be removed, got: {removed}"
-
-
-def test_keep_last_n_clips_prunes_only_existing_sparse_clips():
-    """Sparse clip indices must not trigger one deletion attempt per missing index."""
-
-    recorder = VideoRecorder(
-        _cfg(output_dir="/tmp/test_sparse_prune", keep_last_n_clips=2),
-        _make_env(),
-    )
+def test_keep_last_n_clips_prunes_only_existing_old_clips():
+    """Only existing clips below the retention cutoff are deleted; sparse indices are not probed."""
+    recorder = VideoRecorder(_cfg(output_dir="/tmp/test_sparse_prune", keep_last_n_clips=2), _make_env())
     recorder._clip_index = 10_000
     removed = []
-
-    def fake_remove(path):
-        removed.append(path)
 
     with patch("isaaclab.envs.utils.video_recorder.os.path.isdir", return_value=True):
         with patch(
             "isaaclab.envs.utils.video_recorder.os.listdir",
             return_value=["clip_0001.mp4", "clip_9997.mp4", "clip_9998.mp4", "other_0000.mp4"],
         ):
-            with patch("isaaclab.envs.utils.video_recorder.os.remove", side_effect=fake_remove):
+            with patch("isaaclab.envs.utils.video_recorder.os.remove", side_effect=removed.append):
                 recorder._maybe_delete_old_clips()
 
     assert removed == ["/tmp/test_sparse_prune/clip_0001.mp4", "/tmp/test_sparse_prune/clip_9997.mp4"]
-
-
-# ---------------------------------------------------------------------------
-# Minor 14: partial-clip close() flush
-# ---------------------------------------------------------------------------
-
-
-def test_close_flushes_partial_clip():
-    """close() with non-empty _frames and _recording=True flushes the clip."""
-    recorder = VideoRecorder(_cfg(output_dir="/tmp/test_partial", fps=10), _make_env())
-    recorder._frames = [_FRAME.copy()]
-    recorder._recording = True
-
-    mock_clip = MagicMock()
-    with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", return_value=mock_clip):
-        with patch("isaaclab.envs.utils.video_recorder.os.makedirs"):
-            recorder.close()
-
-    mock_clip.write_videofile.assert_called_once()
-    assert not recorder._recording
-    assert recorder._frames == []
-
-
-# ---------------------------------------------------------------------------
-# Minor 15: one-shot trigger uses mock _close_clip (no disk I/O)
-# ---------------------------------------------------------------------------
-
-
-def test_trigger_one_shot_fires_once_no_disk_io():
-    """video_interval=0 → single clip starts at step 1; _close_clip called exactly once (mocked)."""
-    viz = _FakeViz("kit")
-    recorder = VideoRecorder(
-        _cfg(source="visualizer:kit", video_length=2, video_interval=0), _make_env(visualizers=[viz])
-    )
-    close_count = [0]
-
-    def counting_close():
-        recorder._frames = []
-        recorder._recording = False
-        close_count[0] += 1
-
-    with patch.object(recorder, "_close_clip", side_effect=counting_close):
-        for _ in range(8):
-            recorder.step()
-
-    assert close_count[0] == 1

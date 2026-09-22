@@ -286,11 +286,8 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         for target_prim in target_prims:
             reference_prim = target_prim
             if target_cfg.track_mesh_transforms:
-                while reference_prim and reference_prim.IsValid() and str(reference_prim.GetPath()) != "/":
-                    if reference_prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                        break
-                    reference_prim = reference_prim.GetParent()
-                if reference_prim is None or not reference_prim.IsValid() or not has_rigid_body_api(reference_prim):
+                reference_prim = sim_utils.get_first_matching_ancestor_prim(target_prim.GetPath(), has_rigid_body_api)
+                if reference_prim is None:
                     raise RuntimeError(
                         f"Cannot track non-physics ray-cast target '{target_cfg.prim_expr}'. "
                         "Set track_mesh_transforms=False for static targets, or apply RigidBodyAPI to dynamic targets."
@@ -434,15 +431,10 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
             device=self._device,
         )
 
-        n_meshes = self._mesh_ids_wp.shape[1]
-        return_normal = False
-        return_face_id = False
-        write_mesh_ids = self.cfg.update_mesh_ids
-
         # Ray-cast against all meshes; closest hit wins via atomic_min on ray_distance.
         wp.launch(
             warp_kernels.raycast_dynamic_meshes_kernel,
-            dim=(n_meshes, self._num_envs, self.num_rays),
+            dim=(self._mesh_ids_wp.shape[1], self._num_envs, self.num_rays),
             inputs=[
                 env_mask,
                 self._mesh_ids_wp,
@@ -456,9 +448,9 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                 self._mesh_positions_w,
                 self._mesh_orientations_w,
                 float(self.cfg.max_distance),
-                int(return_normal),
-                int(return_face_id),
-                int(write_mesh_ids),
+                int(False),  # return_normal
+                int(False),  # return_face_id
+                int(self.cfg.update_mesh_ids),
             ],
             device=self._device,
         )

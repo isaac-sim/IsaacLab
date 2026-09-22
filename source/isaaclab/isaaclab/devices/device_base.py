@@ -15,8 +15,9 @@ from typing import Any
 
 import torch
 
-from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.utils import configclass
+
+from .retargeter_base import RetargeterBase, RetargeterCfg
 
 
 @configclass

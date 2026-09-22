@@ -13,8 +13,8 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.kernels import (
+from .warp import ProxyArray
+from .warp.kernels import (
     add_forces_to_dual_buffers_index_kernel,
     add_forces_to_dual_buffers_mask,
     add_raw_wrench_buffers,
@@ -56,24 +56,17 @@ class WrenchComposer:
         Args:
             asset: Asset to use.
         """
-        self.num_envs = asset.num_instances
         # Avoid isinstance to prevent circular import issues; check by attribute presence instead.
-        if hasattr(asset, "num_bodies"):
-            self.num_bodies = asset.num_bodies
-        else:
+        if not hasattr(asset, "num_bodies") or not all(
+            hasattr(asset.data, name) for name in ("body_com_pos_w", "body_link_quat_w")
+        ):
             raise ValueError(f"Unsupported asset type: {asset.__class__.__name__}")
+        self.num_envs = asset.num_instances
+        self.num_bodies = asset.num_bodies
         self.device = asset.device
         self._asset = asset
         self._active = False
         self._dirty = False
-        if hasattr(self._asset.data, "body_com_pos_w"):
-            self._get_com_pos_fn = lambda a=self._asset: a.data.body_com_pos_w.warp
-        else:
-            raise ValueError(f"Unsupported asset type: {self._asset.__class__.__name__}")
-        if hasattr(self._asset.data, "body_link_quat_w"):
-            self._get_link_quat_fn = lambda a=self._asset: a.data.body_link_quat_w.warp
-        else:
-            raise ValueError(f"Unsupported asset type: {self._asset.__class__.__name__}")
 
         # -- Input buffers (5 total) --
         self._global_force_w = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
@@ -521,9 +514,6 @@ class WrenchComposer:
 
         The dirty flag is cleared after composition.
         """
-        com_pos_w = self._get_com_pos_fn()
-        link_quat_w = self._get_link_quat_fn()
-
         wp.launch(
             compose_wrench_to_body_frame,
             dim=(self.num_envs, self.num_bodies),
@@ -533,8 +523,8 @@ class WrenchComposer:
                 self._global_force_at_com_w,
                 self._local_force_b,
                 self._local_torque_b,
-                com_pos_w,
-                link_quat_w,
+                self._asset.data.body_com_pos_w.warp,
+                self._asset.data.body_link_quat_w.warp,
                 self._out_force_b,
                 self._out_torque_b,
             ],

@@ -8,18 +8,25 @@ import os
 import subprocess
 import sys
 
-from isaaclab.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
-from isaaclab.benchmark.measurements import DictMetadata, StringMetadata
 from isaaclab.paths import ISAACLAB_ROOT
 
-# Path to the source checkout or installed wheel resources.
-_REPO_ROOT = str(ISAACLAB_ROOT)
+from ..interfaces import MeasurementData, MeasurementDataRecorder
+from ..measurements import DictMetadata, StringMetadata
+
+_GIT_QUERIES = (
+    ("commit_hash", ["git", "rev-parse", "HEAD"]),
+    ("branch", ["git", "rev-parse", "--abbrev-ref", "HEAD"]),
+    ("commit_date", ["git", "log", "-1", "--format=%ci"]),
+    ("status", ["git", "status", "--porcelain"]),
+)
 
 
 class VersionInfoRecorder(MeasurementDataRecorder):
+    """Record the versions of Isaac Lab, its runtimes and RL libraries, and the git checkout state."""
+
     def __init__(self):
         self._version_info: dict[str, str | None] = {}
-        self._dev_info = {}
+        self._dev_info: dict[str, str | bool] = {}
         self._get_version_info()
         self._get_git_info()
 
@@ -34,11 +41,10 @@ class VersionInfoRecorder(MeasurementDataRecorder):
             Version string or None if not available.
         """
         try:
-            module = __import__(module_name)
-            # Handle nested attributes like "config.version"
+            value = __import__(module_name)
             for attr in version_attr.split("."):
-                module = getattr(module, attr)
-            return str(module)
+                value = getattr(value, attr)
+            return str(value)
         except Exception:
             return None
 
@@ -91,135 +97,83 @@ class VersionInfoRecorder(MeasurementDataRecorder):
             self._version_info[key] = version
 
     def _get_version_info(self) -> None:
-        # isaaclab
         self._record("isaaclab", self._get_version("isaaclab"))
-
-        # warp - try config.version first, then __version__
-        version = self._get_version("warp", "config.version") or self._get_version("warp")
-        self._record("warp", version)
+        self._record("warp", self._get_version("warp", "config.version") or self._get_version("warp"))
 
         # Kit and Isaac Sim are meaningful only for an active Kit runtime.
-        version = self._get_kit_version()
-        self._record("kit", version, nullable=True)
-        self._record("isaacsim", self._get_isaacsim_version() if version else None, nullable=True)
+        kit_version = self._get_kit_version()
+        self._record("kit", kit_version, nullable=True)
+        self._record("isaacsim", self._get_isaacsim_version() if kit_version else None, nullable=True)
 
-        # torch
         self._record("torch", self._get_version("torch"))
-
-        # numpy
         self._record("numpy", self._get_version("numpy"))
 
-        # IsaacLab sub-packages
-        self._record("isaaclab_newton", self._get_pkg_version("isaaclab_newton"))
-        self._record("isaaclab_physx", self._get_pkg_version("isaaclab_physx"))
-        self._record("isaaclab_ov", self._get_pkg_version("isaaclab_ov"))
-        self._record("isaaclab_tasks", self._get_pkg_version("isaaclab_tasks"))
-        self._record("isaaclab_rl", self._get_pkg_version("isaaclab_rl"))
+        for key, pip_name in (
+            ("isaaclab_newton", "isaaclab_newton"),
+            ("isaaclab_physx", "isaaclab_physx"),
+            ("isaaclab_ov", "isaaclab_ov"),
+            ("isaaclab_tasks", "isaaclab_tasks"),
+            ("isaaclab_rl", "isaaclab_rl"),
+        ):
+            self._record(key, self._get_pkg_version(pip_name))
 
-        # Renderers & physics engines
+        # Optional renderers and physics engines are recorded as null when absent.
         self._record("ovrtx", self._get_pkg_version("ovrtx"), nullable=True)
         self._record("ovphysx", self._get_pkg_version("ovphysx"), nullable=True)
-        self._record("newton", self._get_pkg_version("newton"))
-        self._record("mujoco", self._get_pkg_version("mujoco"))
-        self._record("mujoco_warp", self._get_pkg_version("mujoco-warp"))
+        for key, pip_name in (
+            ("newton", "newton"),
+            ("mujoco", "mujoco"),
+            ("mujoco_warp", "mujoco-warp"),
+            ("rl_games", "rl_games"),
+            ("rsl_rl", "rsl-rl-lib"),
+            ("stable_baselines3", "stable_baselines3"),
+            ("skrl", "skrl"),
+            ("gymnasium", "gymnasium"),
+            ("cuda_bindings", "cuda-bindings"),
+            # usd-exchange is the standalone USD provider; usd-core only appears in environments
+            # that predate the switch, so record whichever one is installed.
+            ("usd_core", "usd-core"),
+            ("usd_exchange", "usd-exchange"),
+        ):
+            self._record(key, self._get_pkg_version(pip_name))
 
-        # RL frameworks
-        self._record("rl_games", self._get_pkg_version("rl_games"))
-        self._record("rsl_rl", self._get_pkg_version("rsl-rl-lib"))
-        self._record("stable_baselines3", self._get_pkg_version("stable_baselines3"))
-        self._record("skrl", self._get_pkg_version("skrl"))
-
-        # Key dependencies
-        self._record("gymnasium", self._get_pkg_version("gymnasium"))
-        self._record("cuda_bindings", self._get_pkg_version("cuda-bindings"))
-        # usd-exchange is the standalone USD provider; usd-core only appears in environments
-        # that predate the switch, so record whichever one is installed.
-        self._record("usd_core", self._get_pkg_version("usd-core"))
-        self._record("usd_exchange", self._get_pkg_version("usd-exchange"))
-
-        # Release version from root VERSION file
-        version_file = os.path.join(_REPO_ROOT, "VERSION")
         try:
-            with open(version_file) as f:
+            with open(os.path.join(ISAACLAB_ROOT, "VERSION")) as f:
                 self._record("isaaclab_release", f.read().strip())
         except Exception:
             pass
 
     def _get_git_info(self) -> None:
-        """Get git repository information."""
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-
+        """Record the commit, branch, commit date, and dirty state of the checkout, when inside one."""
+        cwd = os.path.dirname(os.path.abspath(__file__))
         try:
-            # Get full commit hash
-            result = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
-                cwd=script_dir,
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if result.returncode == 0:
-                self._dev_info["commit_hash"] = result.stdout.strip()
-                self._dev_info["commit_hash_short"] = result.stdout.strip()[:8]
-
-            # Get branch name
-            result = subprocess.run(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                cwd=script_dir,
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if result.returncode == 0:
-                self._dev_info["branch"] = result.stdout.strip()
-
-            # Get commit date
-            result = subprocess.run(
-                ["git", "log", "-1", "--format=%ci"],
-                cwd=script_dir,
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if result.returncode == 0:
-                self._dev_info["commit_date"] = result.stdout.strip()
-
-            # Check if working directory is dirty
-            result = subprocess.run(
-                ["git", "status", "--porcelain"],
-                cwd=script_dir,
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if result.returncode == 0:
-                self._dev_info["dirty"] = len(result.stdout.strip()) > 0
-
+            for key, command in _GIT_QUERIES:
+                result = subprocess.run(command, cwd=cwd, capture_output=True, text=True, timeout=5)
+                if result.returncode != 0:
+                    continue
+                output = result.stdout.strip()
+                if key == "status":
+                    self._dev_info["dirty"] = bool(output)
+                else:
+                    self._dev_info[key] = output
+                if key == "commit_hash":
+                    self._dev_info["commit_hash_short"] = output[:8]
         except Exception:
             pass
 
     def update(self) -> None:
-        """No-op for version info as it doesn't change during runtime."""
-        pass
+        """Versions do not change while the benchmark runs."""
 
     def get_initial_data(self) -> dict:
-        return {
-            "version_metadata": self._version_info,
-            "dev": self._dev_info,
-        }
+        return {"version_metadata": self._version_info, "dev": self._dev_info}
 
     def get_runtime_data(self) -> dict:
         return {}
 
     def get_data(self) -> MeasurementData:
-        metadata = []
-
-        # Add version metadata
-        for package, version in self._version_info.items():
-            metadata.append(StringMetadata(name=f"{package}_version", data=version))
-
-        # Add dev/git info as a dict metadata entry
+        metadata = [
+            StringMetadata(name=f"{package}_version", data=version) for package, version in self._version_info.items()
+        ]
         if self._dev_info:
             metadata.append(DictMetadata(name="dev", data=self._dev_info))
-
         return MeasurementData(measurements=[], metadata=metadata)

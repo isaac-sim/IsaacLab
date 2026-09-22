@@ -16,11 +16,9 @@ from isaaclab.managers.action_manager import ActionTerm
 if TYPE_CHECKING:
     from isaaclab_physx.assets import SurfaceGripper
 
-    from isaaclab.envs import ManagerBasedEnv
-
+    from ... import ManagerBasedEnv
     from . import actions_cfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 

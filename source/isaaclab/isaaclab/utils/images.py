@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import torch
 
-from isaaclab.utils.warp.ops import normalize_image_uint8
+from .warp.ops import normalize_image_uint8
 
 _RGB_LIKE_PREFIXES: tuple[str, ...] = ("rgb", "albedo", "simple_shading")
 _DEPTH_LIKE_PATTERNS: tuple[str, ...] = ("depth", "distance_to")
@@ -116,11 +116,11 @@ def normalize_camera_output_for_display(tensor: torch.Tensor, data_type: str) ->
         max_val = normalized.max()
         if max_val > 0:
             normalized = normalized / max_val
-    elif data_type in {"albedo"}:
+    elif data_type == "albedo":
         normalized = normalized[..., :3] / 255.0
-    elif data_type in {"normals"}:
+    elif data_type == "normals":
         normalized = (normalized + 1.0) * 0.5
-    elif data_type in {"motion_vectors"}:
+    elif data_type == "motion_vectors":
         # Motion vectors are per-pixel (u, v) offsets that can be positive or negative. Clamp to [-1, 1],
         # remap to [0, 1], and pack the two channels into an RGB image (u -> R, v -> G, unused B -> 0)
         # so the result can be composed into a grid and saved as an image.

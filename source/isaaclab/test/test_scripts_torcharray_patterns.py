@@ -62,65 +62,50 @@ _PROXYARRAY_DIRECT_METHOD_DOT_DATA = re.compile(
 _EXCLUDE_PREFIXES = ("source/isaaclab_contrib/",)
 
 
-def _repo_root() -> Path:
-    # this test lives at source/isaaclab/test/test_scripts_torcharray_patterns.py
-    # parents[0]=test, [1]=isaaclab, [2]=source, [3]=repo root
-    return Path(__file__).resolve().parents[3]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+
+pytestmark = pytest.mark.unit
 
 
-def _scripts_files() -> list[Path]:
-    scripts = _repo_root() / "scripts"
-    return sorted(p for p in scripts.rglob("*.py") if "__pycache__" not in p.parts)
+def _python_files(*roots: str) -> list[Path]:
+    """Return the Python files below the given repository directories, excluding the contrib package."""
+    return sorted(
+        path
+        for root in roots
+        for path in (_REPO_ROOT / root).rglob("*.py")
+        if "__pycache__" not in path.parts and not path.relative_to(_REPO_ROOT).as_posix().startswith(_EXCLUDE_PREFIXES)
+    )
 
 
-def _source_and_scripts_files() -> list[Path]:
-    roots = [_repo_root() / "scripts", _repo_root() / "source"]
-    return sorted(p for root in roots for p in root.rglob("*.py") if "__pycache__" not in p.parts)
+def _offending_lines(files: list[Path], patterns: tuple[re.Pattern, ...]) -> list[str]:
+    """Return ``path:line: text`` entries for every line matching one of the patterns."""
+    offenders = []
+    for path in files:
+        rel = path.relative_to(_REPO_ROOT).as_posix()
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if any(pattern.search(line) for pattern in patterns):
+                offenders.append(f"{rel}:{number}: {line.rstrip()}")
+    return offenders
 
 
-@pytest.mark.parametrize("path", _scripts_files(), ids=lambda p: str(p.relative_to(_repo_root())))
-def test_no_wp_to_torch_on_torcharray_data(path: Path) -> None:
+def test_no_wp_to_torch_on_torcharray_data() -> None:
     """No ``wp.to_torch(<x>.data.<field>)`` / ``wp.to_torch(<x>_data.<field>)`` in scripts/.
 
-    Post-migration, ``<asset>.data.<field>`` returns a ``ProxyArray``
-    (or ``torch.Tensor`` for CameraData). The temporary ``wp.to_torch``
-    shim is deprecated, so use the ``.torch`` accessor instead (or omit
-    the wrap entirely for torch-native fields).
+    Post-migration, ``<asset>.data.<field>`` returns a ``ProxyArray`` (or ``torch.Tensor`` for
+    CameraData). The temporary ``wp.to_torch`` shim is deprecated, so use the ``.torch`` accessor
+    instead (or omit the wrap entirely for torch-native fields).
     """
-    rel = path.relative_to(_repo_root()).as_posix()
-    if rel.startswith(_EXCLUDE_PREFIXES):
-        pytest.skip(f"{rel} is outside the ProxyArray migration scan scope")
-
-    text = path.read_text(encoding="utf-8")
-
-    offenders: list[str] = []
-    for i, line in enumerate(text.splitlines(), start=1):
-        if _WP_TO_TORCH_DOT_DATA.search(line) or _WP_TO_TORCH_NAME_DATA.search(line):
-            offenders.append(f"{rel}:{i}: {line.rstrip()}")
-
-    if offenders:
-        pytest.fail(
-            "Found wp.to_torch(...) calls on a migrated ProxyArray data accessor. "
-            "Use .torch instead of wp.to_torch(...) (see isaaclab 4.6.15 CHANGELOG).\n" + "\n".join(offenders)
-        )
+    offenders = _offending_lines(_python_files("scripts"), (_WP_TO_TORCH_DOT_DATA, _WP_TO_TORCH_NAME_DATA))
+    assert not offenders, (
+        "Found wp.to_torch(...) calls on a migrated ProxyArray data accessor. "
+        "Use .torch instead of wp.to_torch(...) (see isaaclab 4.6.15 CHANGELOG).\n" + "\n".join(offenders)
+    )
 
 
-@pytest.mark.parametrize("path", _source_and_scripts_files(), ids=lambda p: str(p.relative_to(_repo_root())))
-def test_no_direct_proxyarray_data_methods(path: Path) -> None:
-    """No direct tensor/wp.array methods on migrated ``<x>.data.<field>`` accessors."""
-    rel = path.relative_to(_repo_root()).as_posix()
-    if rel.startswith(_EXCLUDE_PREFIXES):
-        pytest.skip(f"{rel} is outside the ProxyArray migration scan scope")
-
-    text = path.read_text(encoding="utf-8")
-
-    offenders: list[str] = []
-    for i, line in enumerate(text.splitlines(), start=1):
-        if _PROXYARRAY_DIRECT_METHOD_DOT_DATA.search(line):
-            offenders.append(f"{rel}:{i}: {line.rstrip()}")
-
-    if offenders:
-        pytest.fail(
-            "Found direct tensor/wp.array methods on migrated ProxyArray data accessors. "
-            "Use .torch.clone() for tensor copies or .warp.assign(...) for warp writes.\n" + "\n".join(offenders)
-        )
+def test_no_direct_proxyarray_data_methods() -> None:
+    """No direct tensor/wp.array methods on migrated ``<x>.data.<field>`` accessors in scripts/ and source/."""
+    offenders = _offending_lines(_python_files("scripts", "source"), (_PROXYARRAY_DIRECT_METHOD_DOT_DATA,))
+    assert not offenders, (
+        "Found direct tensor/wp.array methods on migrated ProxyArray data accessors. "
+        "Use .torch.clone() for tensor copies or .warp.assign(...) for warp writes.\n" + "\n".join(offenders)
+    )

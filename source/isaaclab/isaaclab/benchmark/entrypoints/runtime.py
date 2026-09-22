@@ -24,13 +24,14 @@ independent workload; see :mod:`isaaclab.benchmark.entrypoints.multigpu`.
 
 from __future__ import annotations
 
+import argparse
+import contextlib
+import sys
+import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from isaaclab.benchmark import BenchmarkResult
-
-import argparse
-import sys
 
 
 def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
@@ -95,24 +96,14 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     Returns:
         Completed runtime result, or ``None`` on a distributed rank other than global rank 0.
     """
-    import time
-
     imports_t0 = time.perf_counter_ns()
-    import contextlib
 
     import gymnasium as gym
 
     from isaaclab.app import launch_simulation
-    from isaaclab.benchmark import (
-        BaseIsaacLabBenchmark,
-        BenchmarkMonitor,
-        BenchmarkResult,
-        builders,
-        capture,
-        console,
-        stepping,
-    )
+    from isaaclab.benchmark import BenchmarkMonitor, BenchmarkResult, builders, capture, console, stepping
     from isaaclab.benchmark.distributed import DistributedContext
+    from isaaclab.benchmark.entrypoints._shared import capture_snapshots, create_benchmark, finish_run_identity
     from isaaclab.benchmark.schema import StartupTime
 
     # Importing the task packages registers their gym environments so the
@@ -147,30 +138,22 @@ def run(argv: list[str]) -> BenchmarkResult | None:
         if args.seed is not None:
             env_cfg.seed = args.seed
 
-        formatter_types = [value.strip() for value in args.benchmark_formatter.split(",") if value.strip()]
-        formatter_types = formatter_types or ["omniperf"]
         cfg = capture.run_config_from_env_cfg(env_cfg)
-
-        benchmark = BaseIsaacLabBenchmark(
-            benchmark_name="benchmark_runtime",
-            formatter_type=args.benchmark_formatter,
-            output_path=args.output_path,
-            use_recorders=True,
-            frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
+        benchmark = create_benchmark(
+            "benchmark_runtime",
+            args,
             output_prefix=f"benchmark_runtime{'_multigpu' if distributed.enabled else ''}_{args.task}",
-            workflow_metadata={
-                "metadata": [
-                    {"name": "task", "data": args.task},
-                    {"name": "num_envs", "data": args.num_envs},
-                    {"name": "num_steps", "data": args.num_steps},
-                    {"name": "environment_step_warmup_steps", "data": args.warmup_steps},
-                    {
-                        "name": "environment_step_measurement_mode",
-                        "data": ("serialized_synchronized" if args.measure_sync_step else "host_return"),
-                    },
-                    {"name": "world_size", "data": distributed.world_size},
-                ]
-            },
+            metadata=[
+                {"name": "task", "data": args.task},
+                {"name": "num_envs", "data": args.num_envs},
+                {"name": "num_steps", "data": args.num_steps},
+                {"name": "environment_step_warmup_steps", "data": args.warmup_steps},
+                {
+                    "name": "environment_step_measurement_mode",
+                    "data": "serialized_synchronized" if args.measure_sync_step else "host_return",
+                },
+                {"name": "world_size", "data": distributed.world_size},
+            ],
         )
 
         env_t0 = time.perf_counter_ns()
@@ -218,24 +201,15 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                 simulation_step_calls=environment_step_timer.simulation_step_calls,
             )
 
-            versions = capture.capture_versions(benchmark)
-            hardware = capture.capture_hardware(benchmark)
-            resources = capture.capture_resources(benchmark)
-
-            end_utc = capture.now_utc_iso()
-            stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
+            versions, hardware, resources = capture_snapshots(benchmark)
 
             seed = args.seed if args.seed is not None else 0
-            run_id = capture.synth_run_id(None, cfg.physics_backend, args.task, seed, stamp)
-
-            run = builders.build_run_identity(
-                run_id=run_id,
+            run = finish_run_identity(
                 framework=None,
                 config=cfg,
                 task=args.task,
                 seed=seed,
                 start_utc=start_utc,
-                end_utc=end_utc,
                 num_envs=num_envs,
             )
 

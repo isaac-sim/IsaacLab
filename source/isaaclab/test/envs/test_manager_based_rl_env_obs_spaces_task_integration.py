@@ -7,6 +7,7 @@
 
 This temporary relocation handoff intentionally remains in the core test tree until the
 task-backed reset/step, camera, and ray-caster scenarios can move to the task package.
+The observation-space structure does not depend on the device, so the tasks run on their default device.
 """
 
 from isaaclab.app import AppLauncher
@@ -28,8 +29,7 @@ from isaaclab_tasks.utils import resolve_task_config
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_non_concatenated_obs_groups_contain_all_terms(device):
+def test_non_concatenated_obs_groups_contain_all_terms():
     """Test that non-concatenated observation groups contain all defined terms (issue #3133).
 
     Before the fix, only the last term in each non-concatenated group would be present
@@ -42,7 +42,6 @@ def test_non_concatenated_obs_groups_contain_all_terms(device):
     env_cfg, _ = resolve_task_config("Isaac-Cartpole", "", overrides=())
     env_cfg.scene.num_envs = 2  # keep num_envs small for testing
     env_cfg.observations.policy.concatenate_terms = False
-    env_cfg.sim.device = device
 
     env = ManagerBasedRLEnv(cfg=env_cfg)
     try:
@@ -74,8 +73,7 @@ def test_non_concatenated_obs_groups_contain_all_terms(device):
     ],
     ids=["RGB", "Depth", "RayCaster"],
 )
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_obs_space_follows_clip_constraint(task_name, overrides, device):
+def test_obs_space_follows_clip_constraint(task_name, overrides):
     """Ensure observation space bounds reflect the clip constraint on each term."""
     # new USD stage
     sim_utils.create_new_stage()
@@ -85,7 +83,6 @@ def test_obs_space_follows_clip_constraint(task_name, overrides, device):
     for group_cfg in vars(env_cfg.observations).values():
         if isinstance(group_cfg, ObservationGroupCfg):
             group_cfg.concatenate_terms = False
-    env_cfg.sim.device = device
 
     env = ManagerBasedRLEnv(cfg=env_cfg)
     try:

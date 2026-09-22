@@ -13,11 +13,11 @@ from typing import TYPE_CHECKING
 
 from filelock import FileLock
 
-from isaaclab.sim import converters, schemas
-from isaaclab.sim.spawners._utils import bare_fragments, fragment_mapping, props_expr, subtree_carries_api
-from isaaclab.sim.spawners.materials import SurfaceDeformableBodyMaterialBaseCfg
-from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
-from isaaclab.sim.utils import (
+from isaaclab.utils.assets import check_file_path, retrieve_file_path
+from isaaclab.utils.version import has_kit
+
+from ... import converters, schemas
+from ...utils import (
     add_labels,
     bind_physics_material,
     bind_visual_material,
@@ -31,15 +31,15 @@ from isaaclab.sim.utils import (
     select_usd_variants,
     set_prim_visibility,
 )
-from isaaclab.utils.assets import check_file_path, retrieve_file_path
-from isaaclab.utils.version import has_kit
+from .._utils import bare_fragments, fragment_mapping, props_expr, resolve_material_path, subtree_carries_api
+from ..materials import SurfaceDeformableBodyMaterialBaseCfg
+from ..materials.physics_materials import spawn_physics_material
 
 if TYPE_CHECKING:
     from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: F401
 
     from . import from_files_cfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -203,39 +203,24 @@ def spawn_ground_plane(
     Raises:
         ValueError: If the prim path already exists.
     """
-    # Obtain current stage
     stage = get_current_stage()
+    prim = create_prim(prim_path, usd_path=cfg.usd_path, translation=translation, orientation=orientation, stage=stage)
 
-    # Spawn Ground-plane
-    if not stage.GetPrimAtPath(prim_path).IsValid():
-        create_prim(prim_path, usd_path=cfg.usd_path, translation=translation, orientation=orientation, stage=stage)
-    else:
-        raise ValueError(f"A prim already exists at path: '{prim_path}'.")
-
-    # Create physics material
     if cfg.physics_material is not None:
-        spawn_physics_material(f"{prim_path}/physicsMaterial", cfg.physics_material, stage=stage)
-        # Apply physics material to ground plane
+        material_path = f"{prim_path}/physicsMaterial"
+        spawn_physics_material(material_path, cfg.physics_material, stage=stage)
         collision_prim = get_first_matching_child_prim(
-            prim_path,
-            predicate=lambda _prim: _prim.GetTypeName() == "Plane",
-            stage=stage,
+            prim_path, predicate=lambda _prim: _prim.GetTypeName() == "Plane", stage=stage
         )
         if collision_prim is None:
             raise ValueError(f"No collision prim found at path: '{prim_path}'.")
-        # bind physics material to the collision prim
-        collision_prim_path = str(collision_prim.GetPath())
-        bind_physics_material(collision_prim_path, f"{prim_path}/physicsMaterial", stage=stage)
+        bind_physics_material(str(collision_prim.GetPath()), material_path, stage=stage)
 
-    # Obtain environment prim
-    environment_prim = stage.GetPrimAtPath(f"{prim_path}/Environment")
     # Scale only the mesh
     # Warning: This is specific to the default grid plane asset.
+    environment_prim = stage.GetPrimAtPath(f"{prim_path}/Environment")
     if environment_prim.IsValid():
-        # compute scale from size
-        scale = (cfg.size[0] / 100.0, cfg.size[1] / 100.0, 1.0)
-        # apply scale to the mesh
-        environment_prim.GetAttribute("xformOp:scale").Set(scale)
+        environment_prim.GetAttribute("xformOp:scale").Set((cfg.size[0] / 100.0, cfg.size[1] / 100.0, 1.0))
 
         # The default asset maps its texture through ``primvars:st`` alone, so rescale the UVs with the
         # plane to keep the 2 m tile -- and therefore the 1 m checks -- metric in every renderer.
@@ -261,37 +246,22 @@ def spawn_ground_plane(
     if cfg.color is not None:
         from pxr import Gf, Sdf  # noqa: PLC0415
 
-        # change the color
         change_prim_property(
             prop_path=f"{prim_path}/Looks/theGrid/Shader.inputs:diffuse_tint",
             value=Gf.Vec3f(*cfg.color),
             stage=stage,
             type_to_create_if_not_exist=Sdf.ValueTypeNames.Color3f,
         )
-    # Remove the light from the ground plane (USD API, works without Kit/Newton)
-    # It isn't bright enough and messes up with the user's lighting settings
+    # Hide the asset's light: it isn't bright enough and interferes with the user's lighting
     light_prim = stage.GetPrimAtPath(f"{prim_path}/SphereLight")
     if light_prim.IsValid():
-        from pxr import UsdGeom  # noqa: PLC0415
+        set_prim_visibility(light_prim, False)
 
-        imageable = UsdGeom.Imageable(light_prim)
-        imageable.MakeInvisible()
-
-    prim = stage.GetPrimAtPath(prim_path)
-    # Apply semantic tags
-    if hasattr(cfg, "semantic_tags") and cfg.semantic_tags is not None:
-        # note: taken from replicator scripts.utils.utils.py
+    # semantic labels do not allow spaces
+    if cfg.semantic_tags is not None:
         for semantic_type, semantic_value in cfg.semantic_tags:
-            # deal with spaces by replacing them with underscores
-            semantic_type_sanitized = semantic_type.replace(" ", "_")
-            semantic_value_sanitized = semantic_value.replace(" ", "_")
-            # add labels to the prim
-            add_labels(prim, labels=[semantic_value_sanitized], instance_name=semantic_type_sanitized)
-
-    # Apply visibility
+            add_labels(prim, labels=[semantic_value.replace(" ", "_")], instance_name=semantic_type.replace(" ", "_"))
     set_prim_visibility(prim, cfg.visible)
-
-    # return the prim
     return prim
 
 
@@ -584,11 +554,7 @@ def _spawn_from_usd_file(
         if not has_kit():
             logger.warning("Skipping visual material application for '%s' in kitless mode.", prim_path)
         else:
-            material_path = (
-                cfg.visual_material_path
-                if cfg.visual_material_path.startswith("/")
-                else f"{prim_path}/{cfg.visual_material_path}"
-            )
+            material_path = resolve_material_path(cfg.visual_material_path, prim_path)
             cfg.visual_material.func(material_path, cfg.visual_material)
             bind_visual_material(prim_path, material_path, stage=stage)
 
@@ -606,17 +572,10 @@ def _spawn_from_usd_file(
 
     # apply physics material
     if cfg.physics_material is not None:
-        material_path = (
-            cfg.physics_material_path
-            if cfg.physics_material_path.startswith("/")
-            else f"{prim_path}/{cfg.physics_material_path}"
-        )
-        # create material (accepts a legacy material cfg or rigid-body fragment(s))
+        material_path = resolve_material_path(cfg.physics_material_path, prim_path)
         spawn_physics_material(material_path, cfg.physics_material, stage=stage)
-        # apply material
         bind_physics_material(prim_path, material_path, stage=stage)
 
-    # return the prim
     return stage.GetPrimAtPath(prim_path)
 
 
@@ -650,7 +609,6 @@ def spawn_from_usd_with_compliant_contact_material(
     Raises:
         FileNotFoundError: If the USD file does not exist at the given path.
     """
-
     prim = _spawn_from_usd_file(prim_path, cfg.usd_path, cfg, translation, orientation)
     stiff = cfg.compliant_contact_stiffness
     damp = cfg.compliant_contact_damping
@@ -674,20 +632,10 @@ def spawn_from_usd_with_compliant_contact_material(
         material_cfg = PhysxRigidBodyMaterialCfg(**material_kwargs)
 
         for path in prim_paths:
-            if not path.startswith("/"):
-                rigid_body_prim_path = f"{prim_path}/{path}"
-            else:
-                rigid_body_prim_path = path
-
+            rigid_body_prim_path = resolve_material_path(path, prim_path)
             material_path = f"{rigid_body_prim_path}/compliant_material"
-
-            # spawn physics material
             material_cfg.func(material_path, material_cfg)
-
-            bind_physics_material(
-                rigid_body_prim_path,
-                material_path,
-            )
+            bind_physics_material(rigid_body_prim_path, material_path)
             logger.info(
                 f"Applied physics material to prim: {rigid_body_prim_path} with compliance stiffness: {stiff} and"
                 f" compliance damping: {damp}."

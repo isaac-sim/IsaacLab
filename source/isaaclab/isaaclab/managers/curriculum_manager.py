@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import torch
 from prettytable import PrettyTable
@@ -46,17 +46,14 @@ class CurriculumManager(ManagerBase):
             ValueError: If curriculum term configuration does not satisfy its function signature.
         """
         # create buffers to parse and store terms
-        self._term_names: list[str] = list()
-        self._term_cfgs: list[CurriculumTermCfg] = list()
-        self._class_term_cfgs: list[CurriculumTermCfg] = list()
+        self._term_names: list[str] = []
+        self._term_cfgs: list[CurriculumTermCfg] = []
+        self._class_term_cfgs: list[CurriculumTermCfg] = []
 
         # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
-
-        # prepare logging
-        self._curriculum_state = dict()
-        for term_name in self._term_names:
-            self._curriculum_state[term_name] = None
+        # latest state returned by each term (for logging)
+        self._curriculum_state = dict.fromkeys(self._term_names)
 
     def __str__(self) -> str:
         """Returns: A string representation for curriculum manager."""
@@ -103,23 +100,10 @@ class CurriculumManager(ManagerBase):
         """
         extras = {}
         for term_name, term_state in self._curriculum_state.items():
-            if term_state is not None:
-                # deal with dict
-                if isinstance(term_state, dict):
-                    # each key is a separate state to log
-                    for key, value in term_state.items():
-                        if isinstance(value, torch.Tensor):
-                            value = value.item()
-                        extras[f"Curriculum/{term_name}/{key}"] = value
-                else:
-                    # log directly if not a dict
-                    if isinstance(term_state, torch.Tensor):
-                        term_state = term_state.item()
-                    extras[f"Curriculum/{term_name}"] = term_state
-        # reset all the curriculum terms
+            for key, value in self._flatten_state(term_state):
+                extras[f"Curriculum/{term_name}" if key is None else f"Curriculum/{term_name}/{key}"] = value
         for term_cfg in self._class_term_cfgs:
             term_cfg.func.reset(env_ids=env_ids)
-        # return logged information
         return extras
 
     def compute(self, env_ids: Sequence[int] | None = None):
@@ -150,45 +134,30 @@ class CurriculumManager(ManagerBase):
         Returns:
             The active terms.
         """
-
-        terms = []
-
-        for term_name, term_state in self._curriculum_state.items():
-            if term_state is not None:
-                # deal with dict
-                data = []
-
-                if isinstance(term_state, dict):
-                    # each key is a separate state to log
-                    for key, value in term_state.items():
-                        if isinstance(value, torch.Tensor):
-                            value = value.item()
-                        data.append(value)
-                else:
-                    # log directly if not a dict
-                    if isinstance(term_state, torch.Tensor):
-                        term_state = term_state.item()
-                    data.append(term_state)
-                terms.append((term_name, data))
-
-        return terms
+        return [
+            (term_name, [value for _, value in self._flatten_state(term_state)])
+            for term_name, term_state in self._curriculum_state.items()
+            if term_state is not None
+        ]
 
     """
     Helper functions.
     """
 
+    @staticmethod
+    def _flatten_state(term_state: Any) -> list[tuple[str | None, Any]]:
+        """Flatten a term state into ``(key, value)`` pairs with tensors converted to Python scalars.
+
+        A dictionary state yields one pair per entry; any other non-``None`` state yields a single
+        pair with a ``None`` key.
+        """
+        if term_state is None:
+            return []
+        items = term_state.items() if isinstance(term_state, dict) else [(None, term_state)]
+        return [(key, value.item() if isinstance(value, torch.Tensor) else value) for key, value in items]
+
     def _prepare_terms(self):
-        # check if config is dict already
-        if isinstance(self.cfg, dict):
-            cfg_items = self.cfg.items()
-        else:
-            cfg_items = self.cfg.__dict__.items()
-        # iterate over all the terms
-        for term_name, term_cfg in cfg_items:
-            # check for non config
-            if term_cfg is None:
-                continue
-            # check if the term is a valid term config
+        for term_name, term_cfg in self._iter_term_cfgs(self.cfg):
             if not isinstance(term_cfg, CurriculumTermCfg):
                 raise TypeError(
                     f"Configuration for the term '{term_name}' is not of type CurriculumTermCfg."

@@ -18,7 +18,7 @@ import torch
 from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.unit
 
 _NUM_JOINTS = 5
 _ID_QUAT = [0.0, 0.0, 0.0, 1.0]  # xyzw identity
@@ -58,21 +58,20 @@ def test_adaptive_dls_default_params():
     assert set(cfg.ik_params) == {"lambda_min", "lambda_max", "sigma_thresh"}
 
 
-def test_cfg_rejects_bad_orientation_weight():
+@pytest.mark.parametrize(
+    "cfg_kwargs",
+    [
+        dict(ik_method="dls", orientation_weight=(0.3, 0.3)),
+        dict(ik_method="adaptive_dls", ik_params={"lambda_min": 0.5, "lambda_max": 0.1, "sigma_thresh": 0.02}),
+        dict(ik_method="adaptive_dls", ik_params={"sigma_thresh": 0.0}),
+        dict(ik_method="dls", joint_limit_avoidance_gain=-1.0),
+        dict(ik_method="dls", joint_limit_avoidance_margin=0.0),
+    ],
+    ids=["orientation_weight", "lambda_order", "sigma_thresh", "jla_gain", "jla_margin"],
+)
+def test_cfg_rejects_invalid_settings(cfg_kwargs):
     with pytest.raises(ValueError):
-        DifferentialIKControllerCfg(
-            command_type="pose", use_relative_mode=False, ik_method="dls", orientation_weight=(0.3, 0.3)
-        )
-
-
-def test_cfg_rejects_bad_adaptive_params():
-    with pytest.raises(ValueError):
-        DifferentialIKControllerCfg(
-            command_type="pose",
-            use_relative_mode=False,
-            ik_method="adaptive_dls",
-            ik_params={"lambda_min": 0.5, "lambda_max": 0.1, "sigma_thresh": 0.02},
-        )
+        DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, **cfg_kwargs)
 
 
 def test_set_command_renormalizes_quat():
@@ -189,15 +188,12 @@ def test_adaptive_dls_damps_singularity():
     assert dq.norm().item() < dq_min.norm().item()
 
 
-def test_joint_limit_avoidance_zero_when_disabled():
+@pytest.mark.parametrize("joint_limit_avoidance_gain", [0.0, 1.0], ids=["disabled", "limits_not_set"])
+def test_joint_limit_avoidance_zero_when_inactive(joint_limit_avoidance_gain):
     """JLA returns zeros when joint_limit_avoidance_gain == 0 (default) or before limits are provided."""
-    c = _make_controller(joint_limit_avoidance_gain=0.0)
+    c = _make_controller(joint_limit_avoidance_gain=joint_limit_avoidance_gain)
     out = c._joint_limit_avoidance(torch.zeros(1, _NUM_JOINTS), torch.ones(1, 6, _NUM_JOINTS))
     torch.testing.assert_close(out, torch.zeros(1, _NUM_JOINTS))
-    # enabled but limits not set yet -> still zeros
-    c2 = _make_controller(joint_limit_avoidance_gain=1.0)
-    out2 = c2._joint_limit_avoidance(torch.zeros(1, _NUM_JOINTS), torch.ones(1, 6, _NUM_JOINTS))
-    torch.testing.assert_close(out2, torch.zeros(1, _NUM_JOINTS))
 
 
 def test_joint_limit_avoidance_stays_in_position_nullspace():

@@ -352,7 +352,7 @@ def run_play_loop(env, policy, num_steps: int) -> tuple[list[float], MeanStd | N
     """
     import torch  # noqa: PLC0415
 
-    from isaaclab.benchmark.metrics import mean_std_peak  # noqa: PLC0415
+    from .metrics import mean_std_peak  # noqa: PLC0415
 
     u = env.unwrapped
     num_envs = u.num_envs

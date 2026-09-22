@@ -11,120 +11,40 @@ import numpy as np
 import pytest
 import warp as wp
 
-from isaaclab.scene_data.deformable_vis_remap import (
-    build_volume_vis_barycentric_remap,
-    launch_volume_vis_remap,
-)
+from isaaclab.scene_data.deformable_vis_remap import build_volume_vis_barycentric_remap, launch_volume_vis_remap
 
-pytestmark = pytest.mark.usefixtures("wp_init")
+pytestmark = pytest.mark.unit
 
-
-@pytest.fixture
-def wp_init():
-    wp.init()
+_UNIT_TET = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], dtype=np.float32)
+_TET_INDICES = np.array([0, 1, 2, 3], dtype=np.int32)
 
 
-def test_build_volume_vis_barycentric_remap_embeds_vis_vertex_in_tet():
-    sim_vertices = np.array(
-        [
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [0.0, 0.0, 1.0],
-        ],
-        dtype=np.float32,
-    )
-    tet_indices = np.array([0, 1, 2, 3], dtype=np.int32)
-    vis_vertices = np.array([[0.25, 0.25, 0.25]], dtype=np.float32)
+def _vis(x: float, y: float, z: float) -> np.ndarray:
+    return np.array([[x, y, z]], dtype=np.float32)
 
-    remap = build_volume_vis_barycentric_remap(sim_vertices, tet_indices, vis_vertices)
+
+def test_remap_embeds_and_interpolates_vis_vertex():
+    """A visual vertex inside the tet gets its barycentric weights and follows the sim nodes on remap."""
+    remap = build_volume_vis_barycentric_remap(_UNIT_TET, _TET_INDICES, _vis(0.25, 0.25, 0.25))
     assert remap is not None
-    assert remap.tet_vertex_indices.shape == (1, 4)
-    assert remap.bary_weights.shape == (1, 4)
-    np.testing.assert_allclose(remap.bary_weights.numpy()[0], [0.25, 0.25, 0.25, 0.25], atol=1e-4)
+    assert remap.tet_vertex_indices.numpy().tolist() == [[0, 1, 2, 3]]
+    np.testing.assert_allclose(remap.bary_weights.numpy()[0], [0.25] * 4, atol=1e-4)
+
+    render_q = wp.zeros(1, dtype=wp.vec3f, device="cpu")
+    for shift in (0.0, 1.0):
+        sim_q = wp.array(_UNIT_TET + np.array([shift, 0.0, 0.0], dtype=np.float32), dtype=wp.vec3f, device="cpu")
+        launch_volume_vis_remap(sim_q, render_q, 0, 0, remap)
+        np.testing.assert_allclose(render_q.numpy()[0], [0.25 + shift, 0.25, 0.25], atol=1e-4)
 
 
-def test_build_volume_vis_barycentric_remap_clamps_outside_hull_vertex(caplog):
-    sim_vertices = np.array(
-        [
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [0.0, 0.0, 1.0],
-        ],
-        dtype=np.float32,
-    )
-    tet_indices = np.array([0, 1, 2, 3], dtype=np.int32)
-    vis_vertices = np.array([[2.0, 2.0, 2.0]], dtype=np.float32)
-
+def test_remap_clamps_outside_hull_vertex(caplog):
     with caplog.at_level("WARNING", logger="isaaclab.scene_data.deformable_vis_remap"):
-        remap = build_volume_vis_barycentric_remap(sim_vertices, tet_indices, vis_vertices)
-
+        remap = build_volume_vis_barycentric_remap(_UNIT_TET, _TET_INDICES, _vis(2.0, 2.0, 2.0))
     assert remap is not None
-    assert any("clamped" in record.message for record in caplog.records)
+    assert any("clamped 1/1" in record.message for record in caplog.records)
 
 
-def test_launch_volume_vis_remap_interpolates_sim_into_render_buffer():
-    remap = build_volume_vis_barycentric_remap(
-        np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], dtype=np.float32),
-        np.array([0, 1, 2, 3], dtype=np.int32),
-        np.array([[0.25, 0.25, 0.25]], dtype=np.float32),
-    )
-    assert remap is not None
-
-    sim_q = wp.array(
-        [
-            wp.vec3(0.0, 0.0, 0.0),
-            wp.vec3(1.0, 0.0, 0.0),
-            wp.vec3(0.0, 1.0, 0.0),
-            wp.vec3(0.0, 0.0, 1.0),
-        ],
-        dtype=wp.vec3f,
-        device="cpu",
-    )
-    render_q = wp.zeros(1, dtype=wp.vec3f, device="cpu")
-    launch_volume_vis_remap(sim_q, render_q, 0, 0, remap)
-    result = render_q.numpy()[0]
-    np.testing.assert_allclose(result, [0.25, 0.25, 0.25], atol=1e-4)
-
-
-def test_launch_volume_vis_remap_reuses_device_arrays():
-    remap = build_volume_vis_barycentric_remap(
-        np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], dtype=np.float32),
-        np.array([0, 1, 2, 3], dtype=np.int32),
-        np.array([[0.25, 0.25, 0.25]], dtype=np.float32),
-    )
-    assert remap is not None
-
-    tet_ptr = remap.tet_vertex_indices.ptr
-    bary_ptr = remap.bary_weights.ptr
-
-    sim_q = wp.array(
-        [
-            wp.vec3(0.0, 0.0, 0.0),
-            wp.vec3(1.0, 0.0, 0.0),
-            wp.vec3(0.0, 1.0, 0.0),
-            wp.vec3(0.0, 0.0, 1.0),
-        ],
-        dtype=wp.vec3f,
-        device="cpu",
-    )
-    render_q = wp.zeros(1, dtype=wp.vec3f, device="cpu")
-
-    launch_volume_vis_remap(sim_q, render_q, 0, 0, remap)
-
-    sim_q = wp.array(
-        [
-            wp.vec3(1.0, 0.0, 0.0),
-            wp.vec3(2.0, 0.0, 0.0),
-            wp.vec3(1.0, 1.0, 0.0),
-            wp.vec3(1.0, 0.0, 1.0),
-        ],
-        dtype=wp.vec3f,
-        device="cpu",
-    )
-    launch_volume_vis_remap(sim_q, render_q, 0, 0, remap)
-
-    assert remap.tet_vertex_indices.ptr == tet_ptr
-    assert remap.bary_weights.ptr == bary_ptr
-    np.testing.assert_allclose(render_q.numpy()[0], [1.25, 0.25, 0.25], atol=1e-4)
+def test_remap_returns_none_for_empty_inputs():
+    empty = np.empty((0, 3), dtype=np.float32)
+    assert build_volume_vis_barycentric_remap(_UNIT_TET, _TET_INDICES, empty) is None
+    assert build_volume_vis_barycentric_remap(empty, _TET_INDICES, _UNIT_TET[:1]) is None

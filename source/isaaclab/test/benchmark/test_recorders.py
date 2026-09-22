@@ -3,828 +3,239 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for benchmark recorder classes."""
+"""Tests for the benchmark recorders."""
 
 import builtins
+import statistics
 import sys
 import types
 
+import psutil
 import pytest
+import torch
 
 from isaaclab.benchmark.interfaces import MeasurementData
-from isaaclab.benchmark.recorders.record_cpu_info import CPUInfoRecorder
-from isaaclab.benchmark.recorders.record_gpu_info import GPUInfoRecorder
-from isaaclab.benchmark.recorders.record_memory_info import MemoryInfoRecorder
-from isaaclab.benchmark.recorders.record_version_info import VersionInfoRecorder
+from isaaclab.benchmark.recorders import CPUInfoRecorder, GPUInfoRecorder, MemoryInfoRecorder, VersionInfoRecorder
+from isaaclab.benchmark.recorders._stats import RunningStats, bytes_to_gb
 
 pytestmark = pytest.mark.benchmark
 
-# ==============================================================================
-# CPUInfoRecorder Tests
-# ==============================================================================
+GIB = 1024**3
 
 
-class TestCPUInfoRecorder:
-    """Tests for CPUInfoRecorder."""
+def _values(data: MeasurementData) -> dict[str, object]:
+    return {m.name: m.value for m in data.measurements}
 
-    @pytest.fixture
-    def recorder(self):
-        """Create a CPUInfoRecorder fixture."""
-        return CPUInfoRecorder()
 
-    def test_initialization(self, recorder):
-        """Test that CPUInfoRecorder initializes correctly."""
-        assert recorder._cpu_hardware_info is not None
-        assert recorder._cpu_runtime_info is not None
-        assert recorder._mean == 0
-        assert recorder._std == 0
-        assert recorder._n == 0
-        assert recorder._m2 == 0
+def test_running_stats_match_reference():
+    stats = RunningStats()
+    assert (stats.mean, stats.std, stats.peak, stats.n) == (0.0, 0.0, 0.0, 0)
 
-    def test_get_initial_data_structure(self, recorder):
-        """Test that get_initial_data returns correct structure."""
-        data = recorder.get_initial_data()
-        assert "cpu_metadata" in data
-        assert "physical_cores" in data["cpu_metadata"]
-        assert "name" in data["cpu_metadata"]
+    samples = [3.0, 1.0, 4.0, 1.0, 5.0]
+    for index, value in enumerate(samples, start=1):
+        stats.update(value)
+        assert stats.n == index
+        assert stats.mean == pytest.approx(statistics.mean(samples[:index]))
+        assert stats.std == pytest.approx(statistics.stdev(samples[:index]) if index > 1 else 0.0)
+        assert stats.peak == max(samples[:index])
+    assert bytes_to_gb(1.5 * GIB) == 1.5
 
-    def test_get_initial_data_values(self, recorder):
-        """Test that get_initial_data returns valid values."""
-        data = recorder.get_initial_data()
-        assert isinstance(data["cpu_metadata"]["physical_cores"], int)
-        assert data["cpu_metadata"]["physical_cores"] > 0
-        assert isinstance(data["cpu_metadata"]["name"], str)
 
-    def test_update_increments_count(self, recorder):
-        """Test that update increments the sample count."""
-        assert recorder._n == 0
-        recorder.update()
-        assert recorder._n == 1
-        recorder.update()
-        assert recorder._n == 2
+def test_cpu_recorder_reports_process_utilization():
+    recorder = CPUInfoRecorder()
+    metadata = recorder.get_initial_data()["cpu_metadata"]
+    assert metadata["physical_cores"] > 0 and isinstance(metadata["name"], str)
+    assert recorder.get_runtime_data() == {"cpu_utilization": {}}
 
-    def test_get_runtime_data_after_updates(self, recorder):
-        """Test that get_runtime_data returns stats after updates."""
-        for _ in range(5):
-            recorder.update()
-
-        data = recorder.get_runtime_data()
-        assert "cpu_utilization" in data
-        assert "mean" in data["cpu_utilization"]
-        assert "std" in data["cpu_utilization"]
-        assert "n" in data["cpu_utilization"]
-        assert data["cpu_utilization"]["n"] == 5
-
-    def test_runtime_data_types(self, recorder):
-        """Test that runtime data has correct types."""
-        for _ in range(3):
-            recorder.update()
-
-        data = recorder.get_runtime_data()
-        assert isinstance(data["cpu_utilization"]["mean"], float)
-        assert isinstance(data["cpu_utilization"]["std"], float)
-        assert isinstance(data["cpu_utilization"]["n"], int)
-
-    def test_get_data_returns_measurement_data(self, recorder):
-        """Test that get_data returns a MeasurementData object."""
-        for _ in range(3):
-            recorder.update()
-
-        data = recorder.get_data()
-        assert isinstance(data, MeasurementData)
-        assert len(data.measurements) == 3
-        assert len(data.metadata) == 2
-
-    def test_get_data_measurement_names(self, recorder):
-        """Test that get_data returns measurements with correct names."""
-        for _ in range(3):
-            recorder.update()
-
-        data = recorder.get_data()
-        names = [m.name for m in data.measurements]
-        assert "CPU Utilization" in names
-        assert "CPU Utilization std" in names
-        assert "CPU Utilization n" in names
-
-    def test_get_data_metadata_names(self, recorder):
-        """Test that get_data returns metadata with correct names."""
-        recorder.update()
-        data = recorder.get_data()
-        names = [m.name for m in data.metadata]
-        assert "cpu_name" in names
-        assert "physical_cores" in names
-
-
-# ==============================================================================
-# GPUInfoRecorder Tests
-# ==============================================================================
-
-
-class TestGPUInfoRecorder:
-    """Tests for GPUInfoRecorder."""
-
-    @pytest.fixture
-    def recorder(self):
-        """Create a GPUInfoRecorder fixture."""
-        return GPUInfoRecorder()
-
-    def test_initialization(self, recorder):
-        """Test that GPUInfoRecorder initializes correctly."""
-        assert recorder._gpu_hardware_info is not None
-        assert recorder._gpu_runtime_info is not None
-        # These are now lists (one entry per GPU)
-        assert isinstance(recorder._mem_mean, list)
-        assert isinstance(recorder._mem_n, list)
-        assert isinstance(recorder._util_mean, list)
-        assert isinstance(recorder._util_n, list)
-        # No utilization peak tracking
-        assert not hasattr(recorder, "_util_peak")
-
-    def test_get_initial_data_structure(self, recorder):
-        """Test that get_initial_data returns correct structure."""
-        data = recorder.get_initial_data()
-        assert "gpu_metadata" in data
-        assert "available" in data["gpu_metadata"]
-
-    def test_get_initial_data_with_gpu(self, recorder):
-        """Test hardware info when GPU is available."""
-        data = recorder.get_initial_data()
-        if data["gpu_metadata"]["available"]:
-            assert "devices" in data["gpu_metadata"]
-            assert "device_count" in data["gpu_metadata"]
-            assert "current_device" in data["gpu_metadata"]
-            # Check first device has expected fields
-            assert len(data["gpu_metadata"]["devices"]) > 0
-            device = data["gpu_metadata"]["devices"][0]
-            assert "name" in device
-            assert "total_memory_gb" in device
-            assert "compute_capability" in device
-            assert "multi_processor_count" in device
-
-    def test_multiple_gpu_info(self, recorder):
-        """Test that all GPUs are recorded."""
-        data = recorder.get_initial_data()
-        if not data["gpu_metadata"]["available"]:
-            pytest.skip("GPU not available")
-
-        device_count = data["gpu_metadata"]["device_count"]
-        assert len(data["gpu_metadata"]["devices"]) == device_count
-        # Each device should have an index
-        for i, device in enumerate(data["gpu_metadata"]["devices"]):
-            assert device["index"] == i
-
-    def test_update_increments_count(self, recorder):
-        """Test that update increments the sample count."""
-        data = recorder.get_initial_data()
-        if not data["gpu_metadata"]["available"]:
-            pytest.skip("GPU not available")
-
-        assert all(n == 0 for n in recorder._mem_n)
-        recorder.update()
-        assert all(n == 1 for n in recorder._mem_n)
-        recorder.update()
-        assert all(n == 2 for n in recorder._mem_n)
-
-    def test_get_runtime_data_after_updates(self, recorder):
-        """Test that get_runtime_data returns stats after updates."""
-        data = recorder.get_initial_data()
-        if not data["gpu_metadata"]["available"]:
-            pytest.skip("GPU not available")
-
-        for _ in range(5):
-            recorder.update()
-
-        runtime_data = recorder.get_runtime_data()
-        assert "gpu_utilization" in runtime_data
-        assert "devices" in runtime_data["gpu_utilization"]
-        # Check first device
-        device_runtime = runtime_data["gpu_utilization"]["devices"][0]
-        assert "memory_used_mean_bytes" in device_runtime
-        assert "memory_used_std_bytes" in device_runtime
-        assert "memory_n" in device_runtime
-        assert device_runtime["memory_n"] == 5
-
-    def test_runtime_data_types(self, recorder):
-        """Test that runtime data has correct types."""
-        data = recorder.get_initial_data()
-        if not data["gpu_metadata"]["available"]:
-            pytest.skip("GPU not available")
-
-        for _ in range(3):
-            recorder.update()
-
-        runtime_data = recorder.get_runtime_data()
-        device_runtime = runtime_data["gpu_utilization"]["devices"][0]
-        assert isinstance(device_runtime["memory_used_mean_bytes"], float)
-        assert isinstance(device_runtime["memory_used_std_bytes"], float)
-        assert isinstance(device_runtime["memory_n"], int)
-
-    def test_memory_values_non_negative(self, recorder):
-        """Test that memory values are non-negative."""
-        data = recorder.get_initial_data()
-        if not data["gpu_metadata"]["available"]:
-            pytest.skip("GPU not available")
-
-        for _ in range(5):
-            recorder.update()
-
-        runtime_data = recorder.get_runtime_data()
-        for device_runtime in runtime_data["gpu_utilization"]["devices"]:
-            assert device_runtime["memory_used_mean_bytes"] >= 0
-            assert device_runtime["memory_used_std_bytes"] >= 0
-
-    def test_get_data_returns_measurement_data(self, recorder):
-        """Test that get_data returns a MeasurementData object."""
-        data = recorder.get_initial_data()
-        if not data["gpu_metadata"]["available"]:
-            pytest.skip("GPU not available")
-
-        for _ in range(3):
-            recorder.update()
-
-        measurement_data = recorder.get_data()
-        assert isinstance(measurement_data, MeasurementData)
-        # Assert memory peak is present and utilization peak is absent for each GPU.
-        num_gpus = data["gpu_metadata"]["device_count"]
-        names = {m.name for m in measurement_data.measurements}
-        for i in range(num_gpus):
-            prefix = f"GPU {i} " if num_gpus > 1 else "GPU "
-            assert f"{prefix}Memory Used peak" in names
-            assert f"{prefix}Utilization peak" not in names
-        # 4 metadata entries: device_count, current_device, cuda_version, gpu_devices dict
-        assert len(measurement_data.metadata) == 4
-
-    def test_get_data_metadata_names(self, recorder):
-        """Test that get_data returns metadata with correct names."""
-        data = recorder.get_initial_data()
-        if not data["gpu_metadata"]["available"]:
-            pytest.skip("GPU not available")
-
-        recorder.update()
-        measurement_data = recorder.get_data()
-        names = [m.name for m in measurement_data.metadata]
-        # Global metadata
-        assert "gpu_device_count" in names
-        assert "gpu_current_device" in names
-        assert "cuda_version" in names
-        # Per-device data in dict
-        assert "gpu_devices" in names
-
-    def test_get_data_devices_dict_structure(self, recorder):
-        """Test that gpu_devices dict contains per-device data."""
-        data = recorder.get_initial_data()
-        if not data["gpu_metadata"]["available"]:
-            pytest.skip("GPU not available")
-
-        for _ in range(3):
-            recorder.update()
-
-        measurement_data = recorder.get_data()
-        # Find the gpu_devices metadata
-        gpu_devices = None
-        for m in measurement_data.metadata:
-            if m.name == "gpu_devices":
-                gpu_devices = m.data
-                break
-
-        assert gpu_devices is not None
-        device_count = data["gpu_metadata"]["device_count"]
-        assert len(gpu_devices) == device_count
-
-        # Check first device has expected hardware fields
-        device_0 = gpu_devices["0"]
-        assert "name" in device_0
-        assert "total_memory_gb" in device_0
-        assert "compute_capability" in device_0
-        assert "multi_processor_count" in device_0
-
-    def test_mem_peak_is_zero_before_any_record(self, monkeypatch):
-        """Peak memory row for device 0 exists and is 0.0 before any update."""
-        import torch
-
-        from isaaclab.benchmark.recorders.record_gpu_info import GPUInfoRecorder
-
-        monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
-        monkeypatch.setattr(torch.cuda, "device_count", lambda: 1)
-        monkeypatch.setattr(torch.cuda, "current_device", lambda: 0)
-
-        class _FakeProps:
-            name = "FakeGPU"
-            total_memory = 80 * 1024**3
-            major = 9
-            minor = 0
-            multi_processor_count = 132
-
-        monkeypatch.setattr(torch.cuda, "get_device_properties", lambda i: _FakeProps())
-
-        rec = GPUInfoRecorder()
-        data = rec.get_data()
-        peaks = [m for m in data.measurements if "peak" in m.name.lower() and "GPU" in m.name]
-        # At minimum there should be a GPU memory peak row for device 0.
-        mem_peak_rows = [m for m in peaks if "Memory" in m.name]
-        assert mem_peak_rows, f"expected a GPU memory peak row, got names: {[m.name for m in data.measurements]}"
-        assert mem_peak_rows[0].value == 0.0
-
-    def test_mem_peak_tracks_running_max(self, monkeypatch):
-        """Feed the recorder a scripted memory sequence; peak must match the max."""
-        import torch
-
-        from isaaclab.benchmark.recorders.record_gpu_info import GPUInfoRecorder
-
-        monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
-        monkeypatch.setattr(torch.cuda, "device_count", lambda: 1)
-        monkeypatch.setattr(torch.cuda, "current_device", lambda: 0)
-
-        class _FakeProps:
-            name = "FakeGPU"
-            total_memory = 80 * 1024**3
-            major = 9
-            minor = 0
-            multi_processor_count = 132
-
-        monkeypatch.setattr(torch.cuda, "get_device_properties", lambda i: _FakeProps())
-
-        rec = GPUInfoRecorder()
-
-        # Bypass nvml / nvidia-smi entirely and drive memory_allocated.
-        scripted_mem = iter([10 * 1024**3, 50 * 1024**3, 30 * 1024**3])  # 10 GB, 50 GB, 30 GB
-        monkeypatch.setattr(torch.cuda, "memory_allocated", lambda i: next(scripted_mem))
-        rec._nvml_available = False
-        rec._nvidia_smi_available = False
-
-        for _ in range(3):
-            rec.update()
-
-        data = rec.get_data()
-        mem_peak_rows = [m for m in data.measurements if "Memory" in m.name and "peak" in m.name.lower()]
-        assert mem_peak_rows, "expected a GPU memory peak row"
-        # 50 GB is the max.
-        assert mem_peak_rows[0].value == 50.0, f"expected 50.0 GB peak, got {mem_peak_rows[0].value}"
-
-
-# ==============================================================================
-# MemoryInfoRecorder Tests
-# ==============================================================================
-
-
-class TestMemoryInfoRecorder:
-    """Tests for MemoryInfoRecorder."""
-
-    @pytest.fixture
-    def recorder(self):
-        """Create a MemoryInfoRecorder fixture."""
-        return MemoryInfoRecorder()
-
-    def test_initialization(self, recorder):
-        """Test that MemoryInfoRecorder initializes correctly."""
-        assert recorder._memory_hardware_info is not None
-        assert recorder._memory_runtime_info is not None
-        assert recorder._rss_mean == 0
-        assert recorder._rss_n == 0
-        assert recorder._vms_mean == 0
-        assert recorder._vms_n == 0
-        assert recorder._uss_mean == 0
-        assert recorder._uss_n == 0
-
-    def test_get_initial_data_structure(self, recorder):
-        """Test that get_initial_data returns correct structure."""
-        data = recorder.get_initial_data()
-        assert "memory_metadata" in data
-        assert "total_ram_gb" in data["memory_metadata"]
-
-    def test_get_initial_data_values(self, recorder):
-        """Test that get_initial_data returns valid values."""
-        data = recorder.get_initial_data()
-        assert isinstance(data["memory_metadata"]["total_ram_gb"], float)
-        assert data["memory_metadata"]["total_ram_gb"] > 0
-
-    def test_update_increments_count(self, recorder):
-        """Test that update increments the sample count."""
-        assert recorder._rss_n == 0
-        assert recorder._vms_n == 0
-        recorder.update()
-        assert recorder._rss_n == 1
-        assert recorder._vms_n == 1
-        recorder.update()
-        assert recorder._rss_n == 2
-        assert recorder._vms_n == 2
-
-    def test_get_runtime_data_after_updates(self, recorder):
-        """Test that get_runtime_data returns stats after updates."""
-        for _ in range(5):
-            recorder.update()
-
-        data = recorder.get_runtime_data()
-        assert "memory_utilization" in data
-        # RSS stats
-        assert "rss_mean" in data["memory_utilization"]
-        assert "rss_std" in data["memory_utilization"]
-        assert "rss_n" in data["memory_utilization"]
-        # VMS stats
-        assert "vms_mean" in data["memory_utilization"]
-        assert "vms_std" in data["memory_utilization"]
-        assert "vms_n" in data["memory_utilization"]
-        # Check counts
-        assert data["memory_utilization"]["rss_n"] == 5
-        assert data["memory_utilization"]["vms_n"] == 5
-
-    def test_runtime_data_types(self, recorder):
-        """Test that runtime data has correct types."""
-        for _ in range(3):
-            recorder.update()
-
-        data = recorder.get_runtime_data()
-        assert isinstance(data["memory_utilization"]["rss_mean"], float)
-        assert isinstance(data["memory_utilization"]["rss_std"], float)
-        assert isinstance(data["memory_utilization"]["rss_n"], int)
-        assert isinstance(data["memory_utilization"]["vms_mean"], float)
-        assert isinstance(data["memory_utilization"]["vms_std"], float)
-        assert isinstance(data["memory_utilization"]["vms_n"], int)
-
-    def test_memory_values_positive(self, recorder):
-        """Test that memory values are positive."""
-        for _ in range(5):
-            recorder.update()
-
-        data = recorder.get_runtime_data()
-        assert data["memory_utilization"]["rss_mean"] > 0
-        assert data["memory_utilization"]["vms_mean"] > 0
-
-    def test_std_non_negative(self, recorder):
-        """Test that standard deviation values are non-negative."""
-        for _ in range(5):
-            recorder.update()
-
-        data = recorder.get_runtime_data()
-        assert data["memory_utilization"]["rss_std"] >= 0
-        assert data["memory_utilization"]["vms_std"] >= 0
-
-    def test_get_data_returns_measurement_data(self, recorder):
-        """Test that get_data returns a MeasurementData object."""
-        for _ in range(3):
-            recorder.update()
-
-        data = recorder.get_data()
-        assert isinstance(data, MeasurementData)
-        # 8 measurements for RSS and VMS (mean, std, peak, n for each)
-        # Plus potentially 4 more for USS if available (mean, std, peak, n)
-        assert len(data.measurements) >= 8
-        assert len(data.measurements) <= 12
-        assert len(data.metadata) == 1
-
-    def test_get_data_measurement_names(self, recorder):
-        """Test that get_data returns measurements with correct names."""
-        for _ in range(3):
-            recorder.update()
-
-        data = recorder.get_data()
-        names = [m.name for m in data.measurements]
-        # RSS measurements should always be present
-        assert "System Memory RSS" in names
-        assert "System Memory RSS std" in names
-        assert "System Memory RSS n" in names
-        # VMS measurements should always be present
-        assert "System Memory VMS" in names
-        assert "System Memory VMS std" in names
-        assert "System Memory VMS n" in names
-        # USS measurements may be present depending on platform
-        # We don't assert their presence since they're platform-dependent
-
-    def test_get_data_metadata_names(self, recorder):
-        """Test that get_data returns metadata with correct names."""
-        recorder.update()
-        data = recorder.get_data()
-        names = [m.name for m in data.metadata]
-        assert "total_ram_gb" in names
-
-    def test_rss_peak_is_zero_before_any_record(self):
-        """Test that RSS peak is 0.0 before any update has been called."""
-        from isaaclab.benchmark.recorders.record_memory_info import MemoryInfoRecorder
-
-        rec = MemoryInfoRecorder()
-        data = rec.get_data()
-        peak_rows = [m for m in data.measurements if m.name == "System Memory RSS peak"]
-        assert peak_rows, "expected a 'System Memory RSS peak' SingleMeasurement"
-        assert peak_rows[0].value == 0.0
-
-    def test_rss_peak_tracks_running_max(self, monkeypatch):
-        """Test that RSS peak tracks the running maximum across updates."""
-        import psutil
-
-        from isaaclab.benchmark.recorders.record_memory_info import MemoryInfoRecorder
-
-        # Scripted RSS sequence; peak must equal the max seen so far.
-        scripted_values = [100 * 1024**3, 200 * 1024**3, 150 * 1024**3]  # bytes
-        scripted_iter = iter(scripted_values)
-
-        class _FakeMemInfo:
-            def __init__(self, rss):
-                self.rss = rss
-                self.vms = rss  # mirror so VMS also moves
-                # USS is read via memory_full_info, not memory_info; leave alone.
-
-        def _fake_memory_info(self):  # noqa: ARG001 — bound method, self is the process
-            return _FakeMemInfo(next(scripted_iter))
-
-        monkeypatch.setattr(psutil.Process, "memory_info", _fake_memory_info)
-
-        rec = MemoryInfoRecorder()
-        for _ in scripted_values:
-            rec.update()
-
-        data = rec.get_data()
-        rss_peak = next(m for m in data.measurements if m.name == "System Memory RSS peak")
-        # The recorder emits GB; input was in bytes. 200 GiB -> 200.0 after rounding.
-        assert rss_peak.value == 200.0, f"expected peak=200.0 GB, got {rss_peak.value}"
-
-        vms_peak = next(m for m in data.measurements if m.name == "System Memory VMS peak")
-        assert vms_peak.value == 200.0
-
-    def test_rss_peak_does_not_decrease(self, monkeypatch):
-        """Test that RSS peak does not decrease when memory usage drops."""
-        import psutil
-
-        from isaaclab.benchmark.recorders.record_memory_info import MemoryInfoRecorder
-
-        # Decreasing sequence — peak is set by the first sample and then stays.
-        scripted_values = [300 * 1024**3, 50 * 1024**3, 25 * 1024**3]
-        scripted_iter = iter(scripted_values)
-
-        class _FakeMemInfo:
-            def __init__(self, rss):
-                self.rss = rss
-                self.vms = rss
-
-        def _fake_memory_info(self):  # noqa: ARG001
-            return _FakeMemInfo(next(scripted_iter))
-
-        monkeypatch.setattr(psutil.Process, "memory_info", _fake_memory_info)
-
-        rec = MemoryInfoRecorder()
-        for _ in scripted_values:
-            rec.update()
-
-        data = rec.get_data()
-        rss_peak = next(m for m in data.measurements if m.name == "System Memory RSS peak")
-        assert rss_peak.value == 300.0
-
-
-# ==============================================================================
-# VersionInfoRecorder Tests
-# ==============================================================================
-
-
-class TestVersionInfoRecorder:
-    """Tests for VersionInfoRecorder."""
-
-    @pytest.fixture
-    def recorder(self):
-        """Create a VersionInfoRecorder fixture."""
-        return VersionInfoRecorder()
-
-    def test_initialization(self, recorder):
-        """Test that VersionInfoRecorder initializes correctly."""
-        assert recorder._version_info is not None
-        assert recorder._dev_info is not None
-
-    def test_get_initial_data_structure(self, recorder):
-        """Test that get_initial_data returns correct structure."""
-        data = recorder.get_initial_data()
-        assert "version_metadata" in data
-        assert "dev" in data
-
-    def test_captures_core_versions(self, recorder):
-        """Test that core package versions are captured."""
-        data = recorder.get_initial_data()
-        versions = data["version_metadata"]
-        # These should always be available in the test environment
-        assert "torch" in versions
-        assert "numpy" in versions
-        assert "isaaclab" in versions
-
-    def test_captures_renderer_runtime_versions(self, monkeypatch):
-        versions_by_distribution = {"ovrtx": "0.3.1", "ovphysx": "0.5.9"}
-        monkeypatch.setattr(
-            VersionInfoRecorder,
-            "_get_pkg_version",
-            lambda _self, distribution: versions_by_distribution.get(distribution),
-        )
-
-        versions = VersionInfoRecorder().get_initial_data()["version_metadata"]
-        assert versions["ovrtx"] == "0.3.1"
-        assert versions["ovphysx"] == "0.5.9"
-
-    def test_captures_active_kit_versions(self, monkeypatch, tmp_path):
-        """Test that versions are captured from an active Kit runtime."""
-        isaac_path = tmp_path / "isaacsim"
-        isaac_path.mkdir()
-        (isaac_path / "VERSION").write_text("6.0.0-test")
-        monkeypatch.setenv("ISAAC_PATH", str(isaac_path))
-
-        omni = types.ModuleType("omni")
-        kit = types.ModuleType("omni.kit")
-        app = types.ModuleType("omni.kit.app")
-        app.get_app = lambda: types.SimpleNamespace(get_build_version=lambda: "110.1.1-test")
-        omni.kit = kit
-        kit.app = app
-        monkeypatch.setitem(sys.modules, "omni", omni)
-        monkeypatch.setitem(sys.modules, "omni.kit", kit)
-        monkeypatch.setitem(sys.modules, "omni.kit.app", app)
-
-        versions = VersionInfoRecorder().get_initial_data()["version_metadata"]
-
-        assert versions["kit"] == "110.1.1-test"
-        assert versions["isaacsim"] == "6.0.0-test"
-
-    def test_captures_isaacsim_version_without_isaac_path(self, monkeypatch):
-        """Test that an active Kit runtime provides the Isaac Sim application version."""
-        monkeypatch.delenv("ISAAC_PATH", raising=False)
-
-        omni = types.ModuleType("omni")
-        kit = types.ModuleType("omni.kit")
-        app = types.ModuleType("omni.kit.app")
-        app.get_app = lambda: types.SimpleNamespace(get_kit_version=lambda: "110.1.1-test")
-        omni.kit = kit
-        kit.app = app
-        isaacsim = types.ModuleType("isaacsim")
-        core = types.ModuleType("isaacsim.core")
-        version = types.ModuleType("isaacsim.core.version")
-        version.get_version = lambda: ("6.0.0", "rc.59", "6", "0", "0", "rc", "59", "main.0.test")
-        isaacsim.core = core
-        core.version = version
-        monkeypatch.setitem(sys.modules, "omni", omni)
-        monkeypatch.setitem(sys.modules, "omni.kit", kit)
-        monkeypatch.setitem(sys.modules, "omni.kit.app", app)
-        monkeypatch.setitem(sys.modules, "isaacsim", isaacsim)
-        monkeypatch.setitem(sys.modules, "isaacsim.core", core)
-        monkeypatch.setitem(sys.modules, "isaacsim.core.version", version)
-        monkeypatch.setitem(sys.modules, "carb", types.ModuleType("carb"))
-
-        versions = VersionInfoRecorder().get_initial_data()["version_metadata"]
-
-        assert versions["isaacsim"] == "6.0.0-rc.59+main.0.test"
-
-    def test_records_null_kit_versions_without_active_kit(self, monkeypatch):
-        """Test that Kit versions are null when no Kit runtime is active."""
-        monkeypatch.delenv("ISAAC_PATH", raising=False)
-
-        omni = types.ModuleType("omni")
-        kit = types.ModuleType("omni.kit")
-        app = types.ModuleType("omni.kit.app")
-        app.get_app = lambda: None
-        omni.kit = kit
-        kit.app = app
-        isaacsim = types.ModuleType("isaacsim")
-        isaacsim.__version__ = "should-not-be-recorded"
-        carb = types.ModuleType("carb")
-        monkeypatch.setitem(sys.modules, "omni", omni)
-        monkeypatch.setitem(sys.modules, "isaacsim", isaacsim)
-        monkeypatch.setitem(sys.modules, "carb", carb)
-        monkeypatch.setitem(sys.modules, "omni.kit", kit)
-        monkeypatch.setitem(sys.modules, "omni.kit.app", app)
-
-        versions = VersionInfoRecorder().get_initial_data()["version_metadata"]
-
-        assert versions["kit"] is None
-        assert versions["isaacsim"] is None
-
-    def test_records_null_kit_versions_without_importing_kit(self, monkeypatch):
-        """Test that Kitless runs do not import the Kit application module."""
-        monkeypatch.delenv("ISAAC_PATH", raising=False)
-        for module_name in ("omni.kit.app", "omni.kit", "omni"):
-            monkeypatch.delitem(sys.modules, module_name, raising=False)
-
-        kit_imports = []
-        original_import = builtins.__import__
-
-        def import_without_kit(name, globals=None, locals=None, fromlist=(), level=0):
-            if name == "omni.kit.app":
-                kit_imports.append(name)
-                raise AssertionError("Kit must not be imported for Kitless runs")
-            return original_import(name, globals, locals, fromlist, level)
-
-        monkeypatch.setattr(builtins, "__import__", import_without_kit)
-
-        versions = VersionInfoRecorder().get_initial_data()["version_metadata"]
-
-        assert kit_imports == []
-        assert versions["kit"] is None
-        assert versions["isaacsim"] is None
-
-    def test_records_null_renderer_runtime_versions_when_unavailable(self, monkeypatch):
-        """Test that unavailable renderer runtime versions are null."""
-        monkeypatch.setattr(VersionInfoRecorder, "_get_pkg_version", lambda _self, _distribution: None)
-
-        recorder = VersionInfoRecorder()
-        versions = recorder.get_initial_data()["version_metadata"]
-        metadata = {entry.name: entry.data for entry in recorder.get_data().metadata}
-
-        assert versions["ovrtx"] is None
-        assert versions["ovphysx"] is None
-        assert metadata["ovrtx_version"] is None
-        assert metadata["ovphysx_version"] is None
-
-    def test_version_values_are_strings_or_null(self, recorder):
-        """Test that version values are strings or null for runtime packages."""
-        data = recorder.get_initial_data()
-        nullable_versions = {"kit", "isaacsim", "ovrtx", "ovphysx"}
-        for name, version in data["version_metadata"].items():
-            if name in nullable_versions:
-                assert version is None or isinstance(version, str)
-            else:
-                assert isinstance(version, str)
-                assert len(version) > 0
-
-    def test_git_info_structure(self, recorder):
-        """Test that git info has expected fields when available."""
-        data = recorder.get_initial_data()
-        dev = data["dev"]
-        # If git info is available, check structure
-        if dev:
-            # At least one of these should be present if git is available
-            possible_keys = ["commit_hash", "commit_hash_short", "branch", "commit_date", "dirty"]
-            assert any(key in dev for key in possible_keys)
-
-    def test_commit_hash_format(self, recorder):
-        """Test that commit hash has correct format when available."""
-        data = recorder.get_initial_data()
-        dev = data["dev"]
-        if "commit_hash" in dev:
-            # Full hash should be 40 hex characters
-            assert len(dev["commit_hash"]) == 40
-            assert all(c in "0123456789abcdef" for c in dev["commit_hash"])
-        if "commit_hash_short" in dev:
-            # Short hash should be 8 characters
-            assert len(dev["commit_hash_short"]) == 8
-
-    def test_update_is_noop(self, recorder):
-        """Test that update doesn't change anything."""
-        data_before = recorder.get_initial_data()
-        recorder.update()
-        data_after = recorder.get_initial_data()
-        assert data_before == data_after
-
-    def test_get_runtime_data_is_empty(self, recorder):
-        """Test that runtime data is empty (versions don't change)."""
-        data = recorder.get_runtime_data()
-        assert data == {}
-
-    def test_get_data_returns_measurement_data(self, recorder):
-        """Test that get_data returns a MeasurementData object."""
-        data = recorder.get_data()
-        assert isinstance(data, MeasurementData)
-        # No measurements, only metadata
-        assert len(data.measurements) == 0
-        # Should have metadata for versions + dev info
-        assert len(data.metadata) > 0
-
-    def test_get_data_metadata_names(self, recorder):
-        """Test that get_data returns metadata with version names."""
-        data = recorder.get_data()
-        names = [m.name for m in data.metadata]
-        # Check that version suffixes are present
-        assert "torch_version" in names
-        assert "numpy_version" in names
-        assert "isaaclab_version" in names
-        # Dev info is now in a DictMetadata entry named "dev" if git info is available
-        # We check if it's present (it may not be in all environments)
-        if any(name == "dev" for name in names):
-            # If dev metadata is present, verify it's a dict
-            dev_meta = next(m for m in data.metadata if m.name == "dev")
-            assert hasattr(dev_meta, "data")
-            assert isinstance(dev_meta.data, dict)
-
-
-# ==============================================================================
-# Welford's Algorithm Verification Tests
-# ==============================================================================
-
-
-class TestWelfordAlgorithm:
-    """Tests to verify Welford's algorithm implementation in recorders."""
-
-    def test_memory_recorder_welford_convergence(self):
-        """Test that MemoryInfoRecorder's Welford implementation produces stable results."""
-        recorder = MemoryInfoRecorder()
-
-        # Run many updates
-        for _ in range(100):
-            recorder.update()
-
-        data = recorder.get_runtime_data()
-
-        # Mean should be positive (process is using memory)
-        assert data["memory_utilization"]["rss_mean"] > 0
-
-        # Std should be defined after multiple samples
-        assert data["memory_utilization"]["rss_n"] == 100
-
-    def test_single_update_std_is_zero(self):
-        """Test that std is zero after a single update (no variance with one sample)."""
-        recorder = MemoryInfoRecorder()
+    for _ in range(3):
         recorder.update()
 
-        data = recorder.get_runtime_data()
-        # With n=1, std should be 0 (or undefined, but we initialize to 0)
-        assert data["memory_utilization"]["rss_std"] == 0
-        assert data["memory_utilization"]["vms_std"] == 0
+    utilization = recorder.get_runtime_data()["cpu_utilization"]
+    assert utilization["n"] == 3 and utilization["mean"] >= 0.0 and utilization["std"] >= 0.0
+    data = recorder.get_data()
+    assert set(_values(data)) == {"CPU Utilization", "CPU Utilization std", "CPU Utilization n"}
+    assert {m.name for m in data.metadata} == {"cpu_name", "physical_cores"}
+
+
+def test_memory_recorder_reports_process_memory():
+    recorder = MemoryInfoRecorder()
+    assert recorder.get_initial_data()["memory_metadata"]["total_ram_gb"] > 0
+    assert _values(recorder.get_data())["System Memory RSS peak"] == 0.0
+
+    for _ in range(3):
+        recorder.update()
+
+    memory = recorder.get_runtime_data()["memory_utilization"]
+    assert memory["rss_n"] == memory["vms_n"] == 3
+    assert memory["rss_mean"] > 0 and memory["rss_std"] >= 0 and memory["rss_peak"] >= memory["rss_mean"]
+    data = recorder.get_data()
+    assert {"System Memory RSS", "System Memory RSS std", "System Memory RSS peak", "System Memory VMS n"} <= set(
+        _values(data)
+    )
+    assert [m.name for m in data.metadata] == ["total_ram_gb"]
+
+
+def test_memory_recorder_tracks_peak(monkeypatch):
+    scripted = iter([300 * GIB, 50 * GIB, 200 * GIB])
+    monkeypatch.setattr(
+        psutil.Process, "memory_info", lambda self: types.SimpleNamespace(rss=(value := next(scripted)), vms=value)
+    )
+
+    recorder = MemoryInfoRecorder()
+    for _ in range(3):
+        recorder.update()
+
+    values = _values(recorder.get_data())
+    assert values["System Memory RSS peak"] == values["System Memory VMS peak"] == 300.0
+    assert values["System Memory RSS"] == pytest.approx(bytes_to_gb(statistics.mean([300, 50, 200]) * GIB))
+
+
+@pytest.fixture
+def fake_cuda(monkeypatch):
+    """Present one fake CUDA device so GPU recorder tests run without hardware or NVML."""
+    props = types.SimpleNamespace(name="FakeGPU", total_memory=80 * GIB, major=9, minor=0, multi_processor_count=132)
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.cuda, "device_count", lambda: 1)
+    monkeypatch.setattr(torch.cuda, "current_device", lambda: 0)
+    monkeypatch.setattr(torch.cuda, "get_device_properties", lambda index: props)
+    monkeypatch.setitem(sys.modules, "pynvml", None)
+    monkeypatch.setattr("isaaclab.benchmark.recorders.record_gpu_info.subprocess.run", lambda *a, **k: 1 / 0)
+
+
+def test_gpu_recorder_tracks_memory_with_torch_fallback(fake_cuda, monkeypatch):
+    recorder = GPUInfoRecorder()
+    metadata = recorder.get_initial_data()["gpu_metadata"]
+    assert metadata["available"] and metadata["device_count"] == 1
+    assert metadata["devices"][0]["name"] == "FakeGPU"
+    assert recorder.get_runtime_data() == {"gpu_utilization": {}}
+    assert _values(recorder.get_data())["GPU Memory Used peak"] == 0.0
+
+    scripted = iter([10 * GIB, 50 * GIB, 30 * GIB])
+    monkeypatch.setattr(torch.cuda, "memory_allocated", lambda index: next(scripted))
+    for _ in range(3):
+        recorder.update()
+
+    device = recorder.get_runtime_data()["gpu_utilization"]["devices"][0]
+    assert device["memory_n"] == 3 and device["memory_used_peak_bytes"] == 50 * GIB
+    assert "utilization_mean_percent" not in device
+    data = recorder.get_data()
+    values = _values(data)
+    assert values["GPU Memory Used peak"] == 50.0 and values["GPU Memory Used"] == 30.0
+    assert "GPU Utilization" not in values and "GPU Utilization peak" not in values
+    assert {m.name: m.data for m in data.metadata}["gpu_devices"] == {
+        "0": {"name": "FakeGPU", "total_memory_gb": 80.0, "compute_capability": "9.0", "multi_processor_count": 132}
+    }
+
+
+def test_gpu_recorder_without_cuda(monkeypatch):
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+
+    recorder = GPUInfoRecorder()
+    recorder.update()
+
+    assert recorder.get_initial_data() == {"gpu_metadata": {"available": False}}
+    assert recorder.get_runtime_data() == {"gpu_utilization": {}}
+    assert recorder.get_data() == MeasurementData()
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires a CUDA device")
+def test_gpu_recorder_samples_every_device():
+    recorder = GPUInfoRecorder()
+    recorder.update()
+    recorder.update()
+
+    device_count = recorder.get_initial_data()["gpu_metadata"]["device_count"]
+    devices = recorder.get_runtime_data()["gpu_utilization"]["devices"]
+    assert len(devices) == device_count
+    assert all(device["memory_n"] == 2 and device["memory_used_mean_bytes"] >= 0 for device in devices)
+    names = set(_values(recorder.get_data()))
+    prefix = "GPU " if device_count == 1 else "GPU 0 "
+    assert {f"{prefix}Memory Used", f"{prefix}Memory Used peak"} <= names
+
+
+def _install_kit(monkeypatch, app) -> None:
+    omni, kit, kit_app = types.ModuleType("omni"), types.ModuleType("omni.kit"), types.ModuleType("omni.kit.app")
+    kit_app.get_app = lambda: app
+    omni.kit, kit.app = kit, kit_app
+    for name, module in (
+        ("omni", omni),
+        ("omni.kit", kit),
+        ("omni.kit.app", kit_app),
+        ("carb", types.ModuleType("carb")),
+    ):
+        monkeypatch.setitem(sys.modules, name, module)
+
+
+def test_version_recorder_captures_environment():
+    recorder = VersionInfoRecorder()
+    versions = recorder.get_initial_data()["version_metadata"]
+    assert all(isinstance(versions[name], str) and versions[name] for name in ("torch", "numpy", "isaaclab"))
+    for name, version in versions.items():
+        assert version is None or isinstance(version, str)
+        assert version is None and name in {"kit", "isaacsim", "ovrtx", "ovphysx"} or version
+    assert recorder.get_runtime_data() == {}
+
+    data = recorder.get_data()
+    metadata = {m.name: m.data for m in data.metadata}
+    assert data.measurements == []
+    assert {"torch_version", "numpy_version", "isaaclab_version"} <= set(metadata)
+    dev = metadata.get("dev", {})
+    if "commit_hash" in dev:
+        assert len(dev["commit_hash"]) == 40 and dev["commit_hash_short"] == dev["commit_hash"][:8]
+        assert isinstance(dev["dirty"], bool)
+
+
+def test_version_recorder_reads_kit_versions_from_install(monkeypatch, tmp_path):
+    (tmp_path / "VERSION").write_text("6.0.0-test")
+    monkeypatch.setenv("ISAAC_PATH", str(tmp_path))
+    _install_kit(monkeypatch, types.SimpleNamespace(get_build_version=lambda: "110.1.1-test"))
+
+    versions = VersionInfoRecorder().get_initial_data()["version_metadata"]
+
+    assert versions["kit"] == "110.1.1-test"
+    assert versions["isaacsim"] == "6.0.0-test"
+
+
+def test_version_recorder_reads_isaacsim_version_from_runtime(monkeypatch):
+    monkeypatch.delenv("ISAAC_PATH", raising=False)
+    _install_kit(monkeypatch, types.SimpleNamespace(get_kit_version=lambda: "110.1.1-test"))
+    version = types.ModuleType("isaacsim.core.version")
+    version.get_version = lambda: ("6.0.0", "rc.59", "6", "0", "0", "rc", "59", "main.0.test")
+    monkeypatch.setitem(sys.modules, "isaacsim", types.ModuleType("isaacsim"))
+    monkeypatch.setitem(sys.modules, "isaacsim.core", types.ModuleType("isaacsim.core"))
+    monkeypatch.setitem(sys.modules, "isaacsim.core.version", version)
+
+    assert VersionInfoRecorder().get_initial_data()["version_metadata"]["isaacsim"] == "6.0.0-rc.59+main.0.test"
+
+
+def test_version_recorder_records_null_kit_versions_without_kit(monkeypatch):
+    monkeypatch.delenv("ISAAC_PATH", raising=False)
+    for module_name in ("omni.kit.app", "omni.kit", "omni"):
+        monkeypatch.delitem(sys.modules, module_name, raising=False)
+    original_import = builtins.__import__
+
+    def import_without_kit(name, *args, **kwargs):
+        assert name != "omni.kit.app", "Kit must not be imported for Kitless runs"
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_kit)
+
+    recorder = VersionInfoRecorder()
+    versions = recorder.get_initial_data()["version_metadata"]
+    metadata = {m.name: m.data for m in recorder.get_data().metadata}
+
+    assert versions["kit"] is None and versions["isaacsim"] is None
+    assert metadata["kit_version"] is None and metadata["isaacsim_version"] is None
+
+
+def test_version_recorder_records_optional_runtime_versions(monkeypatch):
+    available = {"ovrtx": "0.3.1"}
+    monkeypatch.setattr(VersionInfoRecorder, "_get_pkg_version", lambda self, name: available.get(name))
+
+    recorder = VersionInfoRecorder()
+    versions = recorder.get_initial_data()["version_metadata"]
+    metadata = {m.name: m.data for m in recorder.get_data().metadata}
+
+    assert versions["ovrtx"] == metadata["ovrtx_version"] == "0.3.1"
+    assert versions["ovphysx"] is None and metadata["ovphysx_version"] is None
+    assert "newton" not in versions

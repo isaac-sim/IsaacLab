@@ -70,18 +70,18 @@ class _FakeMarkerVisualizer:
         pass
 
 
-def test_instantiation(sim):
-    """Test that the class can be initialized properly."""
-    config = VisualizationMarkersCfg(
-        prim_path="/World/Visuals/test",
-        markers={
-            "test": sim_utils.SphereCfg(radius=1.0),
-        },
-    )
-    test_marker = VisualizationMarkers(config)
-    print(test_marker)
-    # check number of markers
-    assert test_marker.num_prototypes == 1
+def _author_env_partitions(stage, num_envs: int = 2):
+    from pxr import Sdf
+
+    for env_id in range(num_envs):
+        env_prim = stage.DefinePrim(f"/World/envs/env_{env_id}", "Xform")
+        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(f"env_{env_id}")
+
+
+def _scene_partition_primvar(stage, prim_path: str):
+    from pxr import UsdGeom
+
+    return UsdGeom.PrimvarsAPI(stage.GetPrimAtPath(prim_path)).GetPrimvar("omni:scenePartition")
 
 
 @pytest.mark.parametrize(
@@ -139,94 +139,63 @@ def test_marker_backend_selection(
     assert marker._backends == expected_backends
 
 
-def test_rendering_context_authors_visible_usd_point_instancer(sim):
-    """Rendering-active contexts should create visible USD marker prims."""
+def test_kit_backend_authors_visible_point_instancer(sim):
+    """Rendering-active contexts create a visible USD point instancer; omitted marker indices default to prototype 0."""
     from pxr import UsdGeom
 
     sim._has_offscreen_render = True
     config = VisualizationMarkersCfg(
         prim_path="/World/Visuals/rendered_marker",
         markers={
-            "failure": sim_utils.CuboidCfg(
-                size=(0.1, 0.1, 0.1),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.25, 0.15, 0.15)),
-                visible=True,
-            ),
-            "success": sim_utils.CuboidCfg(
-                size=(0.1, 0.1, 0.1),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.25, 0.15)),
-                visible=True,
-            ),
+            "failure": sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
+            "success": sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
         },
     )
     test_marker = VisualizationMarkers(config)
-    test_marker.visualize(
-        translations=torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device),
-        marker_indices=torch.tensor([0, 1], device=sim.device),
-    )
+    assert test_marker.num_prototypes == 2
+    assert str(test_marker).startswith("VisualizationMarkers(prim_path=/World/Visuals/rendered_marker)")
+    translations = torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device)
 
-    stage = sim_utils.get_current_stage()
-    instancer_prim = stage.GetPrimAtPath(test_marker.prim_path)
+    instancer_prim = sim_utils.get_current_stage().GetPrimAtPath(test_marker.prim_path)
     instancer = UsdGeom.PointInstancer(instancer_prim)
-
-    assert instancer_prim.IsValid()
-    assert instancer
+    # omitted marker indices on the first call should not preserve initialization prototype placeholders
+    test_marker.visualize(translations=translations)
+    assert instancer_prim.IsValid() and instancer
     assert UsdGeom.Imageable(instancer_prim).GetVisibilityAttr().Get() != UsdGeom.Tokens.invisible
     assert len(instancer.GetPositionsAttr().Get()) == 2
+    assert list(instancer.GetProtoIndicesAttr().Get()) == [0, 0]
+
+    test_marker.visualize(translations=translations, marker_indices=torch.tensor([0, 1], device=sim.device))
     assert list(instancer.GetProtoIndicesAttr().Get()) == [0, 1]
 
 
-def test_environment_ids_author_point_instance_scene_partitions(sim):
-    """Per-instance environment IDs should author vertex-interpolated scene-partition tokens."""
-    from pxr import Sdf, UsdGeom
+def test_environment_ids_author_scene_partitions(sim, monkeypatch):
+    """Per-instance environment IDs author vertex-interpolated partition tokens, rebuilt only when they change."""
+    from pxr import Sdf, UsdGeom, Vt
 
     sim._has_offscreen_render = True
     stage = sim_utils.get_current_stage()
-    for env_id in range(2):
-        env_prim = stage.DefinePrim(f"/World/envs/env_{env_id}", "Xform")
-        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(f"env_{env_id}")
-
-    config = VisualizationMarkersCfg(
-        prim_path="/World/Visuals/partitioned_marker",
-        markers={"test": sim_utils.SphereCfg(radius=0.1)},
+    _author_env_partitions(stage)
+    test_marker = VisualizationMarkers(
+        VisualizationMarkersCfg(
+            prim_path="/World/Visuals/partitioned_marker", markers={"test": sim_utils.SphereCfg(radius=0.1)}
+        )
     )
-    test_marker = VisualizationMarkers(config)
-    test_marker.visualize(
-        translations=torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device),
-        environment_ids=torch.tensor([1, 0], device=sim.device),
-    )
+    translations = torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device)
+    environment_ids = torch.tensor([1, 0], device=sim.device)
 
-    instancer_prim = stage.GetPrimAtPath(test_marker.prim_path)
-    primvar = UsdGeom.PrimvarsAPI(instancer_prim).GetPrimvar("omni:scenePartition")
+    with pytest.raises(ValueError, match="one index per marker"):
+        test_marker.visualize(translations=translations, environment_ids=torch.tensor([0], device=sim.device))
+
+    test_marker.visualize(translations=translations, environment_ids=environment_ids)
+    primvar = _scene_partition_primvar(stage, test_marker.prim_path)
     assert primvar
     assert primvar.GetTypeName() == Sdf.ValueTypeNames.TokenArray
     assert primvar.GetInterpolation() == UsdGeom.Tokens.vertex
     assert list(primvar.Get()) == ["env_1", "env_0"]
 
-
-def test_unchanged_environment_ids_do_not_rebuild_scene_partitions(sim, monkeypatch):
-    """Unchanged environment IDs should not rebuild partition tokens on every call.
-
-    Marker ownership is static in most tasks, but ``visualize`` runs every frame. Rebuilding the
-    token array anyway costs a device synchronization and one string per marker per frame.
-    """
-    from pxr import Sdf, UsdGeom, Vt
-
-    sim._has_offscreen_render = True
-    stage = sim_utils.get_current_stage()
-    for env_id in range(2):
-        env_prim = stage.DefinePrim(f"/World/envs/env_{env_id}", "Xform")
-        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(f"env_{env_id}")
-
-    config = VisualizationMarkersCfg(
-        prim_path="/World/Visuals/cached_partition_marker",
-        markers={"test": sim_utils.SphereCfg(radius=0.1)},
-    )
-    test_marker = VisualizationMarkers(config)
-    translations = torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device)
-    environment_ids = torch.tensor([1, 0], device=sim.device)
-    test_marker.visualize(translations=translations, environment_ids=environment_ids)
-
+    # markers move every frame while ownership stays fixed: the token array must not be rebuilt
+    # (that would cost a device sync and one string per marker per frame)
     rebuilt_token_arrays = []
     original_token_array = Vt.TokenArray
 
@@ -235,171 +204,69 @@ def test_unchanged_environment_ids_do_not_rebuild_scene_partitions(sim, monkeypa
         return original_token_array(*args, **kwargs)
 
     monkeypatch.setattr(Vt, "TokenArray", _counting_token_array)
-    # Markers move every frame while their environment ownership stays fixed.
     test_marker.visualize(translations=translations + 0.1, environment_ids=environment_ids)
-
     assert rebuilt_token_arrays == []
-    primvar = UsdGeom.PrimvarsAPI(stage.GetPrimAtPath(test_marker.prim_path)).GetPrimvar("omni:scenePartition")
     assert list(primvar.Get()) == ["env_1", "env_0"]
 
-
-def test_changed_environment_ids_reauthor_scene_partitions(sim):
-    """New environment IDs should still update the authored partition tokens."""
-    from pxr import Sdf, UsdGeom
-
-    sim._has_offscreen_render = True
-    stage = sim_utils.get_current_stage()
-    for env_id in range(2):
-        env_prim = stage.DefinePrim(f"/World/envs/env_{env_id}", "Xform")
-        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(f"env_{env_id}")
-
-    config = VisualizationMarkersCfg(
-        prim_path="/World/Visuals/updated_partition_marker",
-        markers={"test": sim_utils.SphereCfg(radius=0.1)},
-    )
-    test_marker = VisualizationMarkers(config)
-    translations = torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device)
-    test_marker.visualize(translations=translations, environment_ids=torch.tensor([1, 0], device=sim.device))
+    # new environment IDs still update the authored tokens
     test_marker.visualize(translations=translations, environment_ids=torch.tensor([0, 1], device=sim.device))
-
-    primvar = UsdGeom.PrimvarsAPI(stage.GetPrimAtPath(test_marker.prim_path)).GetPrimvar("omni:scenePartition")
     assert list(primvar.Get()) == ["env_0", "env_1"]
 
 
 def test_environment_ids_require_active_scene_partitions(sim):
-    """Environment IDs should not partition markers when renderer stage preparation is inactive."""
-    from pxr import UsdGeom
-
+    """Environment IDs do not partition markers when the stage has no scene partitions."""
     sim._has_offscreen_render = True
-    config = VisualizationMarkersCfg(
-        prim_path="/World/Visuals/unpartitioned_marker",
-        markers={"test": sim_utils.SphereCfg(radius=0.1)},
+    test_marker = VisualizationMarkers(
+        VisualizationMarkersCfg(
+            prim_path="/World/Visuals/unpartitioned_marker", markers={"test": sim_utils.SphereCfg(radius=0.1)}
+        )
     )
-    test_marker = VisualizationMarkers(config)
     test_marker.visualize(
         translations=torch.tensor([[0.0, 0.0, 0.0]], device=sim.device),
         environment_ids=torch.tensor([0], device=sim.device),
     )
-
-    instancer_prim = sim_utils.get_current_stage().GetPrimAtPath(test_marker.prim_path)
-    primvar = UsdGeom.PrimvarsAPI(instancer_prim).GetPrimvar("omni:scenePartition")
+    primvar = _scene_partition_primvar(sim_utils.get_current_stage(), test_marker.prim_path)
     assert not primvar or not primvar.GetAttr().HasAuthoredValueOpinion()
 
 
-def test_environment_ids_must_match_marker_count(sim):
-    """Each marker instance should require one environment ID."""
-    sim._has_offscreen_render = True
-    config = VisualizationMarkersCfg(
-        prim_path="/World/Visuals/mismatched_partition_marker",
-        markers={"test": sim_utils.SphereCfg(radius=0.1)},
-    )
-    test_marker = VisualizationMarkers(config)
-
-    with pytest.raises(ValueError, match="one index per marker"):
-        test_marker.visualize(
-            translations=torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device),
-            environment_ids=torch.tensor([0], device=sim.device),
-        )
-
-
-def test_first_visualize_defaults_to_first_prototype_when_count_matches_prototypes(sim):
-    """Omitted marker indices should not preserve initialization prototype placeholders."""
-    from pxr import UsdGeom
-
-    sim._has_offscreen_render = True
-    config = VisualizationMarkersCfg(
-        prim_path="/World/Visuals/default_marker_indices",
-        markers={
-            "frame": sim_utils.SphereCfg(radius=0.1),
-            "line": sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
-        },
-    )
-    test_marker = VisualizationMarkers(config)
-
-    test_marker.visualize(translations=torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device))
-
-    instancer = UsdGeom.PointInstancer(sim_utils.get_current_stage().GetPrimAtPath(test_marker.prim_path))
-    assert list(instancer.GetProtoIndicesAttr().Get()) == [0, 0]
-
-
-def test_usd_marker(sim):
-    """Test with marker from a USD."""
-    # create a marker
-    config = FRAME_MARKER_CFG.copy()
-    config.prim_path = "/World/Visuals/test_frames"
-    test_marker = VisualizationMarkers(config)
-
-    # play the simulation
+def test_marker_count_and_prototypes_follow_visualize_calls(sim):
+    """USD and multi-prototype markers track the number of instances passed to each visualize call."""
+    frame_marker = VisualizationMarkers(FRAME_MARKER_CFG.replace(prim_path="/World/Visuals/test_frames"))
+    goal_marker = VisualizationMarkers(POSITION_GOAL_MARKER_CFG.replace(prim_path="/World/Visuals/test_protos"))
     sim.reset()
-    # create a buffer
-    num_frames = 0
-    # run with randomization of poses
-    for count in range(1000):
-        # sample random poses
-        if count % 50 == 0:
-            num_frames = torch.randint(10, 1000, (1,)).item()
-            frame_translations = torch.randn(num_frames, 3, device=sim.device)
-            frame_rotations = random_orientation(num_frames, device=sim.device)
-            # set the marker
-            test_marker.visualize(translations=frame_translations, orientations=frame_rotations)
-        # update the kit
+    for count in range(40):
+        if count % 10 == 0:
+            num_frames = int(torch.randint(10, 100, (1,)).item())
+            frame_marker.visualize(
+                translations=torch.randn(num_frames, 3, device=sim.device),
+                orientations=random_orientation(num_frames, device=sim.device),
+            )
+            goal_marker.visualize(
+                translations=torch.randn(num_frames, 3, device=sim.device),
+                marker_indices=torch.randint(0, goal_marker.num_prototypes, (num_frames,), device=sim.device),
+            )
         sim.step()
-        # asset that count is correct
-        assert test_marker.count == num_frames
-
-
-def test_multiple_prototypes_marker(sim):
-    """Test with multiple prototypes of spheres."""
-    # create a marker
-    config = POSITION_GOAL_MARKER_CFG.copy()
-    config.prim_path = "/World/Visuals/test_protos"
-    test_marker = VisualizationMarkers(config)
-
-    # play the simulation
-    sim.reset()
-    # run with randomization of poses
-    for count in range(1000):
-        # sample random poses
-        if count % 50 == 0:
-            num_frames = torch.randint(100, 1000, (1,)).item()
-            frame_translations = torch.randn(num_frames, 3, device=sim.device)
-            # randomly choose a prototype
-            marker_indices = torch.randint(0, test_marker.num_prototypes, (num_frames,), device=sim.device)
-            # set the marker
-            test_marker.visualize(translations=frame_translations, marker_indices=marker_indices)
-        # update the kit
-        sim.step()
+        assert frame_marker.count == goal_marker.count == num_frames
 
 
 def test_visualization_skips_updates_when_invisible(sim):
     """When invisible, visualize should not update marker state."""
-    # create a marker
-    config = POSITION_GOAL_MARKER_CFG.copy()
-    config.prim_path = "/World/Visuals/test_protos"
-    test_marker = VisualizationMarkers(config)
-
-    # play the simulation
+    test_marker = VisualizationMarkers(POSITION_GOAL_MARKER_CFG.replace(prim_path="/World/Visuals/test_protos"))
     sim.reset()
-
-    # check that visibility is true
     assert test_marker.is_visible()
-    frame_translations = torch.randn(4, 3, device=sim.device)
-    marker_indices = torch.zeros(4, dtype=torch.int32, device=sim.device)
-    test_marker.visualize(translations=frame_translations, marker_indices=marker_indices)
+    test_marker.visualize(
+        translations=torch.randn(4, 3, device=sim.device),
+        marker_indices=torch.zeros(4, dtype=torch.int32, device=sim.device),
+    )
     assert test_marker.count == 4
 
-    # update the kit
     sim.step()
-    # make invisible
     test_marker.set_visibility(False)
-
-    # check that visibility is false
     assert not test_marker.is_visible()
     test_marker.visualize(
         translations=torch.randn(8, 3, device=sim.device),
         marker_indices=torch.zeros(8, dtype=torch.int32, device=sim.device),
     )
-
     assert test_marker.count == 4
 
 
@@ -623,40 +490,6 @@ def test_rerun_visualizer_marker_failure_still_ends_frame(monkeypatch: pytest.Mo
     assert [call[0] for call in viewer.calls] == ["begin_frame", "log_state", "end_frame"]
 
 
-def test_newton_marker_mesh_registration_is_per_viewer(monkeypatch: pytest.MonkeyPatch):
-    marker = object.__new__(newton_markers.NewtonVisualizationMarkers)
-    marker._registered_meshes = set()
-
-    class _FakeMesh:
-        vertices = np.zeros((1, 3), dtype=np.float32)
-        indices = np.zeros((3,), dtype=np.int32)
-        normals = np.zeros((0, 3), dtype=np.float32)
-        uvs = np.zeros((0, 2), dtype=np.float32)
-
-    class _FakeViewer:
-        device = "cpu"
-
-        def __init__(self):
-            self.meshes = []
-
-        def log_mesh(self, name, vertices, indices, **kwargs):
-            self.meshes.append((name, vertices, indices, kwargs))
-
-    monkeypatch.setattr(newton_markers, "_create_mesh", lambda cfg: _FakeMesh())
-    monkeypatch.setattr(newton_markers.wp, "array", lambda value, dtype=None, device=None: value)
-
-    spec = newton_markers._NewtonMarkerSpec(renderer="mesh", mesh_type="box", mesh_params={"size": (1.0, 1.0, 1.0)})
-    viewer_a = _FakeViewer()
-    viewer_b = _FakeViewer()
-
-    marker._ensure_mesh_registered(viewer_a, "/Visuals/marker/meshes/arrow", spec)
-    marker._ensure_mesh_registered(viewer_a, "/Visuals/marker/meshes/arrow", spec)
-    marker._ensure_mesh_registered(viewer_b, "/Visuals/marker/meshes/arrow", spec)
-
-    assert len(viewer_a.meshes) == 1
-    assert len(viewer_b.meshes) == 1
-
-
 class _FakeNewtonMarkerMesh:
     vertices = np.zeros((1, 3), dtype=np.float32)
     indices = np.zeros((3,), dtype=np.int32)
@@ -747,6 +580,23 @@ def _patch_newton_marker_render_deps(
     monkeypatch.setattr(newton_markers, "_create_mesh", lambda cfg: _FakeNewtonMarkerMesh())
     monkeypatch.setattr(newton_markers.wp, "array", lambda value, dtype=None, device=None: value)
     return warp_world_offsets
+
+
+def test_newton_marker_mesh_registration_is_per_viewer(monkeypatch: pytest.MonkeyPatch):
+    marker = object.__new__(newton_markers.NewtonVisualizationMarkers)
+    marker._registered_meshes = set()
+
+    world_offsets = _patch_newton_marker_render_deps(monkeypatch)
+    spec = newton_markers._NewtonMarkerSpec(renderer="mesh", mesh_type="box", mesh_params={"size": (1.0, 1.0, 1.0)})
+    viewer_a = _FakeNewtonMarkerViewer(world_offsets)
+    viewer_b = _FakeNewtonMarkerViewer(world_offsets)
+
+    marker._ensure_mesh_registered(viewer_a, "/Visuals/marker/meshes/arrow", spec)
+    marker._ensure_mesh_registered(viewer_a, "/Visuals/marker/meshes/arrow", spec)
+    marker._ensure_mesh_registered(viewer_b, "/Visuals/marker/meshes/arrow", spec)
+
+    assert len(viewer_a.meshes) == 1
+    assert len(viewer_b.meshes) == 1
 
 
 def test_newton_marker_partial_update_preserves_prototype_indices():

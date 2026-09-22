@@ -3,16 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-# note: need to enable cameras to be able to make replicator core available
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
-
-"""Rest everything follows."""
-
 import ast
 import inspect
 import textwrap
@@ -23,78 +13,109 @@ from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.utils import queries
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
-pytestmark = pytest.mark.integration
-
-
-@pytest.fixture(autouse=True)
-def test_setup_teardown():
-    """Create a blank new stage for each test."""
-    # Setup: Create a new stage
-    sim_utils.create_new_stage()
-    sim_utils.update_stage()
-
-    # Yield for the test
-    yield
-
-    # Teardown: Clear stage after each test
-    sim_utils.clear_stage()
+pytestmark = pytest.mark.unit
 
 
-"""
-USD Stage Querying.
-"""
+@pytest.fixture
+def stage():
+    return sim_utils.create_new_stage()
 
 
-def test_get_next_free_prim_path():
-    """Test get_next_free_prim_path() function."""
-    # create scene
+def _paths(prims) -> list[str]:
+    return [prim.GetPath().pathString for prim in prims]
+
+
+def _define_instanceable_robot(stage, path: str):
+    """Author an articulation whose mesh sits inside an instanceable reference, like production assets."""
+    stage.DefinePrim("/Prototypes/Link", "Xform")
+    stage.DefinePrim("/Prototypes/Link/visuals", "Xform")
+    stage.DefinePrim("/Prototypes/Link/visuals/mesh", "Mesh")
+    robot = stage.DefinePrim(path, "Xform")
+    UsdPhysics.ArticulationRootAPI.Apply(robot)
+    link = stage.DefinePrim(f"{path}/link0", "Xform")
+    link.GetReferences().AddInternalReference("/Prototypes/Link")
+    link.SetInstanceable(True)
+    return robot
+
+
+def test_get_next_free_prim_path(stage):
     sim_utils.create_prim("/World/Floor")
-    sim_utils.create_prim("/World/Floor/Box", "Cube", position=[75, 75, -150.1], attributes={"size": 300})
-    sim_utils.create_prim("/World/Wall", "Sphere", attributes={"radius": 1e3})
-
-    # test
-    isaaclab_result = sim_utils.get_next_free_prim_path("/World/Floor")
-    assert isaaclab_result == "/World/Floor_01"
-
-    # create another prim
-    sim_utils.create_prim("/World/Floor/Box_01", "Cube", position=[75, 75, -150.1], attributes={"size": 300})
-
-    # test again
-    isaaclab_result = sim_utils.get_next_free_prim_path("/World/Floor/Box")
-    assert isaaclab_result == "/World/Floor/Box_02"
+    sim_utils.create_prim("/World/Floor/Box", "Cube")
+    assert sim_utils.get_next_free_prim_path("/World/Wall") == "/World/Wall"
+    assert sim_utils.get_next_free_prim_path("/World/Floor") == "/World/Floor_01"
+    sim_utils.create_prim("/World/Floor/Box_01", "Cube")
+    assert sim_utils.get_next_free_prim_path("/World/Floor/Box") == "/World/Floor/Box_02"
+    with pytest.raises(ValueError, match="not a valid prim path"):
+        sim_utils.get_next_free_prim_path("World Room")
 
 
-def test_get_first_matching_ancestor_prim():
-    """Test get_first_matching_ancestor_prim() function."""
-    # create scene
-    sim_utils.create_prim("/World/Floor")
-    sim_utils.create_prim("/World/Floor/Box", "Cube", position=[75, 75, -150.1], attributes={"size": 300})
-    sim_utils.create_prim("/World/Floor/Box/Sphere", "Sphere", attributes={"radius": 1e3})
+def test_get_first_matching_ancestor_prim(stage):
+    sim_utils.create_prim("/World/Floor/Box", "Cube")
+    sim_utils.create_prim("/World/Floor/Box/Sphere", "Sphere")
+    is_cube = lambda prim: prim.GetTypeName() == "Cube"  # noqa: E731
 
-    # test with input prim not having the predicate
-    isaaclab_result = sim_utils.get_first_matching_ancestor_prim(
-        "/World/Floor/Box/Sphere", predicate=lambda x: x.GetTypeName() == "Cube"
+    assert (
+        sim_utils.get_first_matching_ancestor_prim("/World/Floor/Box/Sphere", is_cube).GetPrimPath()
+        == "/World/Floor/Box"
     )
-    assert isaaclab_result is not None
-    assert isaaclab_result.GetPrimPath() == "/World/Floor/Box"
-
-    # test with input prim having the predicate
-    isaaclab_result = sim_utils.get_first_matching_ancestor_prim(
-        "/World/Floor/Box", predicate=lambda x: x.GetTypeName() == "Cube"
-    )
-    assert isaaclab_result is not None
-    assert isaaclab_result.GetPrimPath() == "/World/Floor/Box"
-
-    # test with no predicate match
-    isaaclab_result = sim_utils.get_first_matching_ancestor_prim(
-        "/World/Floor/Box/Sphere", predicate=lambda x: x.GetTypeName() == "Cone"
-    )
-    assert isaaclab_result is None
+    # the prim itself counts as its first ancestor
+    assert sim_utils.get_first_matching_ancestor_prim("/World/Floor/Box", is_cube).GetPrimPath() == "/World/Floor/Box"
+    assert sim_utils.get_first_matching_ancestor_prim("/World/Floor/Box", lambda p: p.GetTypeName() == "Cone") is None
+    with pytest.raises(ValueError, match="not global"):
+        sim_utils.get_first_matching_ancestor_prim("World/Floor", is_cube)
 
 
-def test_matches_path_expr_prefix():
+def test_get_matching_child_prims_traverse_instances(stage):
+    sim_utils.create_prim("/World/Floor/Box", "Cube")
+    sim_utils.create_prim("/World/Wall", "Sphere")
+    for env in ("env_1", "env_2", "env_0"):
+        _define_instanceable_robot(stage, f"/World/{env}/Robot")
+    is_mesh = lambda prim: prim.GetTypeName() == "Mesh"  # noqa: E731
+
+    # all matches, including those inside instance proxies
+    assert _paths(sim_utils.get_all_matching_child_prims("/World", lambda p: p.GetTypeName() == "Cube")) == [
+        "/World/Floor/Box"
+    ]
+    assert _paths(sim_utils.get_all_matching_child_prims("/World/env_1/Robot", is_mesh)) == [
+        "/World/env_1/Robot/link0/visuals/mesh"
+    ]
+    assert sim_utils.get_all_matching_child_prims("/World/env_1/Robot", is_mesh, traverse_instance_prims=False) == []
+    assert _paths(sim_utils.get_all_matching_child_prims("/World", depth=1)) == [
+        "/World",
+        "/World/Floor",
+        "/World/Wall",
+        "/World/env_1",
+        "/World/env_2",
+        "/World/env_0",
+    ]
+
+    # first match follows authoring order
+    root = sim_utils.get_first_matching_child_prim("/World", lambda p: p.HasAPI(UsdPhysics.ArticulationRootAPI))
+    assert root.GetPrimPath() == "/World/env_1/Robot"
+    mesh = sim_utils.get_first_matching_child_prim("/World/env_1/Robot", is_mesh)
+    assert mesh.GetPrimPath() == "/World/env_1/Robot/link0/visuals/mesh"
+    assert sim_utils.get_first_matching_child_prim("/World/Wall", is_mesh) is None
+
+    # match-count validation
+    assert len(sim_utils.get_all_matching_child_prims("/World", is_mesh, expected_num_matches=3)) == 3
+    with pytest.raises(RuntimeError, match="Expected 2 prims under '/World', found 3"):
+        sim_utils.get_all_matching_child_prims("/World", is_mesh, expected_num_matches=2)
+    with pytest.raises(ValueError, match="non-negative"):
+        sim_utils.get_all_matching_child_prims("/World", expected_num_matches=-1)
+    with pytest.raises(ValueError, match="bigger than zero"):
+        sim_utils.get_all_matching_child_prims("/World", depth=0)
+    with pytest.raises(ValueError, match="not global"):
+        sim_utils.get_all_matching_child_prims("World/Room")
+
+
+def test_path_expression_helpers():
+    path_expr = r"/World/envs/env_[^/]+/Robot/link_[0-9]{2}"
+    assert sim_utils.split_path_expr(path_expr) == ["", "World", "envs", "env_[^/]+", "Robot", "link_[0-9]{2}"]
+    # only the supported segment wildcards are translated to globs
+    assert sim_utils.path_expr_to_glob(path_expr) == r"/World/envs/env_*/Robot/link_[0-9]{2}"
+    assert sim_utils.path_expr_to_glob(r"/World/Robot/[^/]{2}") == r"/World/Robot/[^/]{2}"
+
     path_expr = "/World/envs/env_[^/]+/Robot"
     assert sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0")
     assert sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Robot")
@@ -105,179 +126,66 @@ def test_matches_path_expr_prefix():
     )
 
 
-def test_path_expression_helpers_preserve_supported_regex_text():
-    """Path adapters touch only the syntax they explicitly support."""
-    path_expr = r"/World/envs/env_[^/]+/Robot/link_[0-9]{2}"
+def test_find_matching_prims_regex_semantics(stage):
+    """The expression is a plain full-path regex: tokens keep their Python semantics across separators."""
+    for path in ("/World/Robot/foo", "/World/Robot/foo/bar", "/World/Robot/Arm", "/World/A/foo", "/World/B/foo"):
+        sim_utils.create_prim(path)
+    stage.DefinePrim("/World/Inactive", "Xform").SetActive(False)
+    stage.OverridePrim("/World/Undefined")
 
-    assert sim_utils.split_path_expr(path_expr) == ["", "World", "envs", "env_[^/]+", "Robot", "link_[0-9]{2}"]
-    assert sim_utils.path_expr_to_glob(path_expr) == r"/World/envs/env_*/Robot/link_[0-9]{2}"
-    assert sim_utils.path_expr_to_glob(r"/World/Robot/[^/]{2}") == r"/World/Robot/[^/]{2}"
+    assert _paths(sim_utils.find_matching_prims(r"/World/Robot/[^A]+")) == ["/World/Robot/foo", "/World/Robot/foo/bar"]
+    assert sim_utils.find_matching_prim_paths(r"/World/[^/]+/foo") == [
+        "/World/Robot/foo",
+        "/World/A/foo",
+        "/World/B/foo",
+    ]
+    # anchoring applies to the whole expression, not to each alternative
+    assert sim_utils.find_matching_prim_paths(r"/World/Robot/foo/bar|/World/A") == ["/World/Robot/foo/bar", "/World/A"]
+    # inactive and undefined prims are exposed rather than silently filtered
+    assert sim_utils.find_matching_prim_paths(r"/World/(Inactive|Undefined)") == ["/World/Inactive", "/World/Undefined"]
+    assert sim_utils.find_first_matching_prim(r"/World/.*/foo").GetPath() == "/World/Robot/foo"
+    assert sim_utils.find_first_matching_prim(r"/World/Missing.*") is None
+    with pytest.raises(ValueError, match="not global"):
+        sim_utils.find_matching_prims("World/Robot")
 
 
-def test_find_matching_prims_uses_unbounded_full_path_regex():
-    """Regex tokens retain their Python semantics across prim path separators."""
-    sim_utils.create_prim("/World/Robot/foo")
-    sim_utils.create_prim("/World/Robot/foo/bar")
-    sim_utils.create_prim("/World/Robot/Arm")
-    sim_utils.create_prim("/World/A/foo")
-    sim_utils.create_prim("/World/B/foo")
-
-    matches = sim_utils.find_matching_prims(r"/World/Robot/[^A]+")
-
-    assert [prim.GetPath().pathString for prim in matches] == ["/World/Robot/foo", "/World/Robot/foo/bar"]
-    matches = sim_utils.find_matching_prims(r"/World/[^/]+/foo")
-    assert [prim.GetPath().pathString for prim in matches] == ["/World/Robot/foo", "/World/A/foo", "/World/B/foo"]
+def test_find_matching_prims_traverses_instance_proxies(stage):
+    _define_instanceable_robot(stage, "/World/Robot")
+    assert "/World/Robot/link0/visuals/mesh" in sim_utils.find_matching_prim_paths("/World/Robot(/.*)?")
 
 
 def test_find_matching_prims_has_no_inferred_traversal_bounds():
     """The query must not narrow or prune USD traversal from the user's regex."""
     sources = (sim_utils.find_matching_prims, queries._iter_matching_prims_in_subtree)
     tree = ast.parse("\n".join(textwrap.dedent(inspect.getsource(function)) for function in sources))
-    called_methods = {
-        node.func.attr for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-    }
-    called_functions = {
-        node.func.id for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-    }
+    calls = [node.func for node in ast.walk(tree) if isinstance(node, ast.Call)]
+    called_methods = {func.attr for func in calls if isinstance(func, ast.Attribute)}
+    called_functions = {func.id for func in calls if isinstance(func, ast.Name)}
 
-    assert "GetPrimAtPath" not in called_methods
-    assert "PruneChildren" not in called_methods
+    assert not {"GetPrimAtPath", "PruneChildren"} & called_methods
     assert "_bound_search" not in called_functions
 
 
-def test_find_matching_prims_fullmatches_top_level_alternation():
-    """Anchoring applies to the complete expression rather than individual alternatives."""
-    sim_utils.create_prim("/World/Robot/foo/bar")
-    sim_utils.create_prim("/World/Robot/foo/bar/baz")
-    sim_utils.create_prim("/World/Floor")
+def test_find_global_fixed_joint_prim(stage):
+    def define_robot(path: str, fixed_to_world: bool):
+        stage.DefinePrim(path, "Xform")
+        stage.DefinePrim(f"{path}/base", "Xform")
+        # some assets author fixed joints with the generic "Joint" schema
+        joint = UsdPhysics.Joint.Define(stage, f"{path}/root_joint")
+        joint.GetBody1Rel().SetTargets([f"{path}/base"])
+        if not fixed_to_world:
+            stage.DefinePrim(f"{path}/link", "Xform")
+            joint.GetBody0Rel().SetTargets([f"{path}/link"])
+        return joint
 
-    matches = sim_utils.find_matching_prims(r"/World/Robot/foo/bar|/World/Floor")
+    define_robot("/World/Floating", fixed_to_world=False)
+    joint = define_robot("/World/Fixed", fixed_to_world=True)
 
-    assert [prim.GetPath().pathString for prim in matches] == ["/World/Robot/foo/bar", "/World/Floor"]
-
-
-def test_find_matching_prims_includes_inactive_and_undefined_prims():
-    """An unscoped query exposes authored prims instead of silently filtering stage state."""
-    stage = sim_utils.get_current_stage()
-    stage.DefinePrim("/World/Inactive", "Xform").SetActive(False)
-    stage.OverridePrim("/World/Undefined")
-
-    matches = sim_utils.find_matching_prims(r"/World/(Inactive|Undefined)")
-
-    assert [prim.GetPath().pathString for prim in matches] == ["/World/Inactive", "/World/Undefined"]
-
-
-def test_get_all_matching_child_prims():
-    """Test get_all_matching_child_prims() function."""
-    # create scene
-    sim_utils.create_prim("/World/Floor")
-    sim_utils.create_prim("/World/Floor/Box", "Cube", position=[75, 75, -150.1], attributes={"size": 300})
-    sim_utils.create_prim("/World/Wall", "Sphere", attributes={"radius": 1e3})
-
-    # add articulation root prim -- this asset has instanced prims
-    # note: isaac sim function does not support instanced prims so we add it here
-    #  after the above test for the above test to still pass.
-    sim_utils.create_prim(
-        "/World/Franka", "Xform", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd"
-    )
-
-    # test with predicate
-    isaaclab_result = sim_utils.get_all_matching_child_prims("/World", predicate=lambda x: x.GetTypeName() == "Cube")
-    assert len(isaaclab_result) == 1
-    assert isaaclab_result[0].GetPrimPath() == "/World/Floor/Box"
-
-    # test with predicate and instanced prims
-    isaaclab_result = sim_utils.get_all_matching_child_prims(
-        "/World/Franka/panda_hand/visuals", predicate=lambda x: x.GetTypeName() == "Mesh"
-    )
-    assert len(isaaclab_result) == 1
-    assert isaaclab_result[0].GetPrimPath() == "/World/Franka/panda_hand/visuals/panda_hand"
-
-    # test expected number of matches
-    isaaclab_result = sim_utils.get_all_matching_child_prims(
-        "/World", predicate=lambda x: x.GetTypeName() == "Cube", expected_num_matches=1
-    )
-    assert len(isaaclab_result) == 1
-    with pytest.raises(RuntimeError, match="Expected 2 prims under '/World', found 1"):
-        sim_utils.get_all_matching_child_prims(
-            "/World", predicate=lambda x: x.GetTypeName() == "Cube", expected_num_matches=2
-        )
-    with pytest.raises(ValueError, match="Expected number of matches must be non-negative"):
-        sim_utils.get_all_matching_child_prims("/World", expected_num_matches=-1)
-
-    # test valid path
-    with pytest.raises(ValueError):
-        sim_utils.get_all_matching_child_prims("World/Room")
-
-
-def test_get_first_matching_child_prim():
-    """Test get_first_matching_child_prim() function."""
-    # create scene
-    sim_utils.create_prim("/World/Floor")
-    sim_utils.create_prim(
-        "/World/env_1/Franka",
-        "Xform",
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd",
-    )
-    sim_utils.create_prim(
-        "/World/env_2/Franka",
-        "Xform",
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd",
-    )
-    sim_utils.create_prim(
-        "/World/env_0/Franka",
-        "Xform",
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd",
-    )
-
-    # test
-    isaaclab_result = sim_utils.get_first_matching_child_prim(
-        "/World", predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
-    )
-    assert isaaclab_result is not None
-    assert isaaclab_result.GetPrimPath() == "/World/env_1/Franka"
-
-    # test with instanced prims
-    isaaclab_result = sim_utils.get_first_matching_child_prim(
-        "/World/env_1/Franka", predicate=lambda prim: prim.GetTypeName() == "Mesh"
-    )
-    assert isaaclab_result is not None
-    assert isaaclab_result.GetPrimPath() == "/World/env_1/Franka/panda_link0/visuals/panda_link0"
-
-
-def test_find_matching_prims_traverses_instance_proxies():
-    """Matching descends into instanceable prims so callers can detect (and skip) proxy carriers."""
-    stage = sim_utils.get_current_stage()
-    stage.DefinePrim("/World/Source", "Xform")
-    stage.DefinePrim("/World/Source/body", "Xform")
-    instance = stage.DefinePrim("/World/Asset", "Xform")
-    instance.GetReferences().AddInternalReference("/World/Source")
-    instance.SetInstanceable(True)
-    matched_paths = sim_utils.find_matching_prim_paths("/World/Asset(/.*)?")
-    assert "/World/Asset/body" in matched_paths
-
-
-def test_find_global_fixed_joint_prim():
-    """Test find_global_fixed_joint_prim() function."""
-    # create scene
-    sim_utils.create_prim("/World")
-    sim_utils.create_prim("/World/ANYmal", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd")
-    sim_utils.create_prim(
-        "/World/Franka", usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd"
-    )
-    if "4.5" in ISAAC_NUCLEUS_DIR:
-        franka_usd = f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka.usd"
-    else:
-        franka_usd = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
-    sim_utils.create_prim("/World/Franka_Isaac", usd_path=franka_usd)
-
-    # test
-    assert sim_utils.find_global_fixed_joint_prim("/World/ANYmal") is None
-    assert sim_utils.find_global_fixed_joint_prim("/World/Franka") is not None
-    assert sim_utils.find_global_fixed_joint_prim("/World/Franka_Isaac") is not None
-
-    # make fixed joint disabled manually
-    joint_prim = sim_utils.find_global_fixed_joint_prim("/World/Franka")
-    joint_prim.GetJointEnabledAttr().Set(False)
-    assert sim_utils.find_global_fixed_joint_prim("/World/Franka") is not None
-    assert sim_utils.find_global_fixed_joint_prim("/World/Franka", check_enabled_only=True) is None
+    assert sim_utils.find_global_fixed_joint_prim("/World/Floating") is None
+    assert sim_utils.find_global_fixed_joint_prim("/World/Fixed").GetPath() == joint.GetPath()
+    # disabled joints only count when requested
+    joint.GetJointEnabledAttr().Set(False)
+    assert sim_utils.find_global_fixed_joint_prim("/World/Fixed") is not None
+    assert sim_utils.find_global_fixed_joint_prim("/World/Fixed", check_enabled_only=True) is None
+    with pytest.raises(ValueError, match="not valid"):
+        sim_utils.find_global_fixed_joint_prim("/World/Missing")

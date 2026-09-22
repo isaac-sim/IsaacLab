@@ -449,15 +449,7 @@ def remove_generated_prims(prim_paths: list[str] | None) -> None:
 
 def camera_rgb_batch(camera: Camera, env_indices: list[int]) -> torch.Tensor:
     """Return RGB output for selected env indices."""
-    rgb = camera.data.output["rgb"]
-    if isinstance(rgb, wp.array):
-        rgb = wp.to_torch(rgb)
-    elif hasattr(rgb, "torch"):
-        rgb = rgb.torch
-    if env_indices:
-        index = torch.tensor(env_indices, dtype=torch.long, device=rgb.device)
-        return rgb.index_select(0, index)
-    return rgb
+    return camera_gt_batch(camera, env_indices, "rgb")
 
 
 def compose_rgb_grid_tensor(rgb_batch: torch.Tensor) -> torch.Tensor:
@@ -496,16 +488,12 @@ def compute_tile_resolution(window_width: int, window_height: int, num_tiles: in
     return max(1, int(window_width) // (cols * n_gt)), max(1, int(window_height) // rows)
 
 
-def _normalize_env0_path(path_template: str) -> str:
-    """Resolve env template spellings to env_0 for path comparison."""
-    return env_path_from_template(path_template, 0)
-
-
 def _scene_articulation_positions(scene: Any, prim_path_template: str, env_indices: list[int]) -> torch.Tensor | None:
     """Resolve follow positions from scene articulation state when the path targets an asset/body."""
-    follow_env0 = _normalize_env0_path(prim_path_template)
+    # compare the env_0 spelling of the paths so that different wildcard templates match
+    follow_env0 = env_path_from_template(prim_path_template, 0)
     for asset in getattr(scene, "articulations", {}).values():
-        asset_path = _normalize_env0_path(getattr(asset.cfg, "prim_path", ""))
+        asset_path = env_path_from_template(getattr(asset.cfg, "prim_path", ""), 0)
         if not asset_path:
             continue
         if follow_env0 == asset_path:
@@ -588,11 +576,8 @@ def apply_camera_target_positions(
     env_ids: list[int] | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Set generated tiled camera poses as target-relative eye offsets."""
-    device = camera.device
-    target_positions = target_positions.to(device=device)
-    eye_offset = torch.tensor(eye, dtype=torch.float32, device=device).unsqueeze(0)
-    eyes = target_positions + eye_offset
-    targets = target_positions
+    targets = target_positions.to(device=camera.device)
+    eyes = targets + torch.tensor(eye, dtype=torch.float32, device=camera.device).unsqueeze(0)
     camera.set_world_poses_from_view(eyes, targets, env_ids=env_ids)
     camera._update_poses(None)
     return eyes.detach().cpu(), targets.detach().cpu()

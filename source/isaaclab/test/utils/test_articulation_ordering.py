@@ -3,9 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import importlib
-
+import pytest
 import torch
+
+from isaaclab.test.utils import articulation_ordering as helper
+
+pytestmark = pytest.mark.unit
 
 
 def _make_trace(
@@ -38,7 +41,6 @@ def _make_trace(
 
 
 def test_assert_articulation_ordering_trace_matches_canonicalizes_public_and_adapter_axes() -> None:
-    helper = importlib.import_module("isaaclab.test.utils.articulation_ordering")
     identity_trace = _make_trace(
         ("hip", "knee"),
         ("hip", "knee"),
@@ -58,8 +60,6 @@ def test_assert_articulation_ordering_trace_matches_canonicalizes_public_and_ada
 
 
 def test_shared_articulation_ordering_constants_are_consistent() -> None:
-    helper = importlib.import_module("isaaclab.test.utils.articulation_ordering")
-
     assert helper.PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES == (
         "panda_link0",
         "panda_rightfinger",

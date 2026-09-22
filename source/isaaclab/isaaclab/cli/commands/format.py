@@ -15,10 +15,6 @@ def command_format() -> None:
     def _run_pre_commit() -> None:
         run_command([python_exe, "-m", "pre_commit", "run", "--all-files"], cwd=ISAACLAB_ROOT)
 
-    # Check if pre-commit is installed.
-
-    pre_commit_module = False
-
     result = run_command(
         [python_exe, "-c", "import pre_commit"],
         check=False,
@@ -26,11 +22,7 @@ def command_format() -> None:
         stderr=subprocess.DEVNULL,
     )
 
-    if result.returncode == 0:
-        pre_commit_module = True
-
-    # If pre-commit is not installed, install it.
-    if not pre_commit_module:
+    if result.returncode != 0:
         print_info('Pre-commit not found. Installing "pre-commit" module...')
         pip_cmd = get_pip_command(python_exe)
         run_command(pip_cmd + ["install", "pre-commit"])
@@ -38,15 +30,8 @@ def command_format() -> None:
     print_info("Formatting the repository...")
 
     try:
-        # Run pre-commit as a module since we may have just installed it.
         _run_pre_commit()
-
     except SystemExit:
-        # Pre-commit exits with code=1 when files changed, that is expected.
-        # To verify if the error is due to pre-commit just changing files,
-        # run pre-commit again to see if it exits with code=0.
+        # Formatting hooks report failure when they modify files; validate again.
         print_info("Pre-commit changed some files, running it again to validate...")
         _run_pre_commit()
-
-    finally:
-        pass

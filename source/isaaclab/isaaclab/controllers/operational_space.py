@@ -94,7 +94,7 @@ class OperationalSpaceController:
             raise ValueError("Inertia conditioning thresholds must satisfy 0 < lower < upper <= 1.")
 
         # resolve tasks-pace target dimensions
-        self.target_list = list()
+        self.target_list = []
         for command_type in self.cfg.target_types:
             if command_type == "pose_rel":
                 self.target_list.append(6)
@@ -136,11 +136,10 @@ class OperationalSpaceController:
         # -- -- zero out the axes that are not motion controlled, as keeping them non-zero will cause other axes
         # -- -- to act due to coupling
         self._motion_p_gains_task[:] = self._selection_matrix_motion_task @ self._motion_p_gains_task[:]
-        self._motion_d_gains_task = torch.diag_embed(
-            2
-            * torch.diagonal(self._motion_p_gains_task, dim1=-2, dim2=-1).sqrt()
-            * torch.as_tensor(self.cfg.motion_damping_ratio_task, dtype=torch.float, device=self._device).reshape(1, -1)
-        )
+        self._motion_damping_ratio_task = torch.as_tensor(
+            self.cfg.motion_damping_ratio_task, dtype=torch.float, device=self._device
+        ).reshape(1, -1)
+        self._motion_d_gains_task = self._critically_damped_gains(self._motion_damping_ratio_task)
         # -- -- motion control gains in root frame
         self._motion_p_gains_b = torch.zeros_like(self._motion_p_gains_task)
         self._motion_d_gains_b = torch.zeros_like(self._motion_d_gains_task)
@@ -172,6 +171,9 @@ class OperationalSpaceController:
         )
         # -- end-effector contact wrench
         self._ee_contact_wrench_b = torch.zeros(self.num_envs, 6, device=self._device)
+        # -- identity task frame (xyzw quaternion), used when no task frame pose is provided
+        self._identity_task_frame_pose_b = torch.zeros(self.num_envs, 7, device=self._device)
+        self._identity_task_frame_pose_b[:, -1] = 1.0
 
         # -- buffers for null-space control gains
         self._nullspace_p_gain = torch.tensor(self.cfg.nullspace_stiffness, dtype=torch.float, device=self._device)
@@ -263,49 +265,28 @@ class OperationalSpaceController:
         if self.cfg.impedance_mode == "fixed":
             # task space targets (i.e., pose/wrench)
             self._task_space_target_task[:] = command
-        elif self.cfg.impedance_mode == "variable_kp":
-            # split input command
-            task_space_command, stiffness = torch.split(command, [self.target_dim, 6], dim=-1)
-            # format command
-            stiffness = stiffness.clip_(
-                min=self._motion_p_gains_limits[..., 0], max=self._motion_p_gains_limits[..., 1]
-            )
-            # task space targets + stiffness
-            self._task_space_target_task[:] = task_space_command.squeeze(dim=-1)
-            self._motion_p_gains_task[:] = torch.diag_embed(stiffness)
-            self._motion_p_gains_task[:] = self._selection_matrix_motion_task @ self._motion_p_gains_task[:]
-            self._motion_d_gains_task = torch.diag_embed(
-                2
-                * torch.diagonal(self._motion_p_gains_task, dim1=-2, dim2=-1).sqrt()
-                * torch.as_tensor(self.cfg.motion_damping_ratio_task, dtype=torch.float, device=self._device).reshape(
-                    1, -1
+        elif self.cfg.impedance_mode in ("variable_kp", "variable"):
+            if self.cfg.impedance_mode == "variable_kp":
+                task_space_command, stiffness = torch.split(command, [self.target_dim, 6], dim=-1)
+                damping_ratio = self._motion_damping_ratio_task
+            else:
+                task_space_command, stiffness, damping_ratio = torch.split(command, [self.target_dim, 6, 6], dim=-1)
+                damping_ratio = damping_ratio.clip_(
+                    min=self._motion_damping_ratio_limits[..., 0], max=self._motion_damping_ratio_limits[..., 1]
                 )
-            )
-        elif self.cfg.impedance_mode == "variable":
-            # split input command
-            task_space_command, stiffness, damping_ratio = torch.split(command, [self.target_dim, 6, 6], dim=-1)
-            # format command
             stiffness = stiffness.clip_(
                 min=self._motion_p_gains_limits[..., 0], max=self._motion_p_gains_limits[..., 1]
             )
-            damping_ratio = damping_ratio.clip_(
-                min=self._motion_damping_ratio_limits[..., 0], max=self._motion_damping_ratio_limits[..., 1]
-            )
-            # task space targets + stiffness + damping
+            # task space targets + stiffness (+ damping)
             self._task_space_target_task[:] = task_space_command
             self._motion_p_gains_task[:] = torch.diag_embed(stiffness)
             self._motion_p_gains_task[:] = self._selection_matrix_motion_task @ self._motion_p_gains_task[:]
-            self._motion_d_gains_task[:] = torch.diag_embed(
-                2 * torch.diagonal(self._motion_p_gains_task, dim1=-2, dim2=-1).sqrt() * damping_ratio
-            )
+            self._motion_d_gains_task = self._critically_damped_gains(damping_ratio)
         else:
             raise ValueError(f"Invalid impedance mode: {self.cfg.impedance_mode}.")
 
         if current_task_frame_pose_b is None:
-            # xyzw format: identity quat is [0, 0, 0, 1]
-            current_task_frame_pose_b = torch.tensor(
-                [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]] * self.num_envs, device=self._device
-            )
+            current_task_frame_pose_b = self._identity_task_frame_pose_b
 
         # Resolve the target commands
         target_groups = torch.split(self._task_space_target_task, self.target_list, dim=1)
@@ -352,39 +333,14 @@ class OperationalSpaceController:
 
         # Rotation of task frame wrt root frame, converts a coordinate from task frame to root frame.
         R_task_b = matrix_from_quat(current_task_frame_pose_b[:, 3:])
-        # Rotation of root frame wrt task frame, converts a coordinate from root frame to task frame.
-        R_b_task = R_task_b.mT
 
-        # Transform motion control stiffness gains from task frame to root frame
-        self._motion_p_gains_b[:, 0:3, 0:3] = R_task_b @ self._motion_p_gains_task[:, 0:3, 0:3] @ R_b_task
-        self._motion_p_gains_b[:, 3:6, 3:6] = R_task_b @ self._motion_p_gains_task[:, 3:6, 3:6] @ R_b_task
-
-        # Transform motion control damping gains from task frame to root frame
-        self._motion_d_gains_b[:, 0:3, 0:3] = R_task_b @ self._motion_d_gains_task[:, 0:3, 0:3] @ R_b_task
-        self._motion_d_gains_b[:, 3:6, 3:6] = R_task_b @ self._motion_d_gains_task[:, 3:6, 3:6] @ R_b_task
-
-        # Transform contact wrench gains from task frame to root frame (if applicable)
-        if self._contact_wrench_p_gains_task is not None and self._contact_wrench_p_gains_b is not None:
-            self._contact_wrench_p_gains_b[:, 0:3, 0:3] = (
-                R_task_b @ self._contact_wrench_p_gains_task[:, 0:3, 0:3] @ R_b_task
-            )
-            self._contact_wrench_p_gains_b[:, 3:6, 3:6] = (
-                R_task_b @ self._contact_wrench_p_gains_task[:, 3:6, 3:6] @ R_b_task
-            )
-
-        # Transform selection matrices from target frame to base frame
-        self._selection_matrix_motion_b[:, 0:3, 0:3] = (
-            R_task_b @ self._selection_matrix_motion_task[:, 0:3, 0:3] @ R_b_task
-        )
-        self._selection_matrix_motion_b[:, 3:6, 3:6] = (
-            R_task_b @ self._selection_matrix_motion_task[:, 3:6, 3:6] @ R_b_task
-        )
-        self._selection_matrix_force_b[:, 0:3, 0:3] = (
-            R_task_b @ self._selection_matrix_force_task[:, 0:3, 0:3] @ R_b_task
-        )
-        self._selection_matrix_force_b[:, 3:6, 3:6] = (
-            R_task_b @ self._selection_matrix_force_task[:, 3:6, 3:6] @ R_b_task
-        )
+        # Transform the gains and selection matrices from task frame to root frame
+        self._rotate_blocks(R_task_b, self._motion_p_gains_task, self._motion_p_gains_b)
+        self._rotate_blocks(R_task_b, self._motion_d_gains_task, self._motion_d_gains_b)
+        if self._contact_wrench_p_gains_task is not None:
+            self._rotate_blocks(R_task_b, self._contact_wrench_p_gains_task, self._contact_wrench_p_gains_b)
+        self._rotate_blocks(R_task_b, self._selection_matrix_motion_task, self._selection_matrix_motion_b)
+        self._rotate_blocks(R_task_b, self._selection_matrix_force_task, self._selection_matrix_force_b)
 
         # Transform desired pose from task frame to root frame
         if self.desired_ee_pose_task is not None:
@@ -589,3 +545,19 @@ class OperationalSpaceController:
             joint_efforts += tau_null.squeeze(-1)
 
         return joint_efforts
+
+    """
+    Helper functions.
+    """
+
+    def _critically_damped_gains(self, damping_ratio: torch.Tensor) -> torch.Tensor:
+        """Derive the diagonal damping gains from the current stiffness gains and a damping ratio."""
+        stiffness = torch.diagonal(self._motion_p_gains_task, dim1=-2, dim2=-1)
+        return torch.diag_embed(2.0 * stiffness.sqrt() * damping_ratio)
+
+    @staticmethod
+    def _rotate_blocks(rotation: torch.Tensor, source: torch.Tensor, target: torch.Tensor) -> None:
+        """Rotate the translational and rotational 3x3 blocks of ``source`` into ``target`` in place."""
+        rotation_T = rotation.mT
+        target[:, 0:3, 0:3] = rotation @ source[:, 0:3, 0:3] @ rotation_T
+        target[:, 3:6, 3:6] = rotation @ source[:, 3:6, 3:6] @ rotation_T

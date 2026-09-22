@@ -25,6 +25,11 @@ from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
+_GROUP_SETTING_NAMES = frozenset(
+    {"enable_corruption", "concatenate_terms", "history_length", "flatten_history_dim", "concatenate_dim"}
+)
+"""Attributes of :class:`ObservationGroupCfg` that configure the group rather than an observation term."""
+
 
 class ObservationManager(ManagerBase):
     """Manager for computing observation signals for a given world.
@@ -84,7 +89,7 @@ class ObservationManager(ManagerBase):
         super().__init__(cfg, env)
 
         # compute combined vector for obs group
-        self._group_obs_dim: dict[str, tuple[int, ...] | list[tuple[int, ...]]] = dict()
+        self._group_obs_dim: dict[str, tuple[int, ...] | list[tuple[int, ...]]] = {}
         for group_name, group_term_dims in self._group_obs_term_dim.items():
             # if terms are concatenated, compute the combined shape into a single tuple
             # otherwise, keep the list of shapes as is
@@ -248,19 +253,9 @@ class ObservationManager(ManagerBase):
         """Collect IO descriptors without emitting a deprecation warning."""
         group_data = {}
 
-        for group_name in self._group_obs_term_names:
+        for group_name, group_term_names in self._group_obs_term_names.items():
             group_data[group_name] = []
-            # check if group name is valid
-            if group_name not in self._group_obs_term_names:
-                raise ValueError(
-                    f"Unable to find the group '{group_name}' in the observation manager."
-                    f" Available groups are: {list(self._group_obs_term_names.keys())}"
-                )
-            # iterate over all the terms in each group
-            group_term_names = self._group_obs_term_names[group_name]
-            # read attributes for each term
             obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
-
             for term_name, term_cfg in obs_terms:
                 # Call to the observation function to get the IO descriptor with the inspect flag set to True
                 try:
@@ -338,14 +333,11 @@ class ObservationManager(ManagerBase):
             The observations are either concatenated into a single tensor or returned as a dictionary
             with keys corresponding to the term's name.
         """
-        # create a buffer for storing obs from all the groups
-        obs_buffer = dict()
-        # iterate over all the terms in each group
-        for group_name in self._group_obs_term_names:
-            obs_buffer[group_name] = self.compute_group(group_name, update_history=update_history)
-        # otherwise return a dict with observations of all groups
-
-        # Cache the observations.
+        obs_buffer = {
+            group_name: self.compute_group(group_name, update_history=update_history)
+            for group_name in self._group_obs_term_names
+        }
+        # cache the observations for get_active_iterable_terms
         self._obs_buffer = obs_buffer
         return obs_buffer
 
@@ -384,24 +376,18 @@ class ObservationManager(ManagerBase):
         Raises:
             ValueError: If input ``group_name`` is not a valid group handled by the manager.
         """
-        # check ig group name is valid
         if group_name not in self._group_obs_term_names:
             raise ValueError(
                 f"Unable to find the group '{group_name}' in the observation manager."
                 f" Available groups are: {list(self._group_obs_term_names.keys())}"
             )
-        # iterate over all the terms in each group
         group_term_names = self._group_obs_term_names[group_name]
-        # buffer to store obs per group
         group_obs = dict.fromkeys(group_term_names, None)
-        # read attributes for each term
         obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
 
-        # evaluate terms: compute, add noise, clip, scale, custom modifiers
+        # evaluate terms: compute, apply modifiers, add noise, clip, scale
         for term_name, term_cfg in obs_terms:
-            # compute term's value
             obs: torch.Tensor = term_cfg.func(self._env, **term_cfg.params).clone()
-            # apply post-processing
             if term_cfg.modifiers is not None:
                 for modifier in term_cfg.modifiers:
                     if isinstance(modifier.func, modifiers.ModifierBase):
@@ -476,17 +462,17 @@ class ObservationManager(ManagerBase):
         """Prepares a list of observation terms functions."""
         # create buffers to store information for each observation group
         # TODO: Make this more convenient by using data structures.
-        self._group_obs_term_names: dict[str, list[str]] = dict()
-        self._group_obs_term_dim: dict[str, list[tuple[int, ...]]] = dict()
-        self._group_obs_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
-        self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = dict()
-        self._group_obs_concatenate: dict[str, bool] = dict()
-        self._group_obs_concatenate_dim: dict[str, int] = dict()
+        self._group_obs_term_names: dict[str, list[str]] = {}
+        self._group_obs_term_dim: dict[str, list[tuple[int, ...]]] = {}
+        self._group_obs_term_cfgs: dict[str, list[ObservationTermCfg]] = {}
+        self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = {}
+        self._group_obs_concatenate: dict[str, bool] = {}
+        self._group_obs_concatenate_dim: dict[str, int] = {}
 
-        self._group_obs_term_history_buffer: dict[str, dict] = dict()
+        self._group_obs_term_history_buffer: dict[str, dict] = {}
         # create a list to store classes instances, e.g., for modifiers and noise models
         # we store it as a separate list to only call reset on them and prevent unnecessary calls
-        self._group_obs_class_instances: list[modifiers.ModifierBase | noise.NoiseModel] = list()
+        self._group_obs_class_instances: list[modifiers.ModifierBase | noise.NoiseModel] = []
 
         # make sure the simulation is playing since we compute obs dims which needs asset quantities
         if not self._env.sim.is_playing():
@@ -496,30 +482,20 @@ class ObservationManager(ManagerBase):
                 " observation manager."
             )
 
-        # check if config is dict already
-        if isinstance(self.cfg, dict):
-            group_cfg_items = self.cfg.items()
-        else:
-            group_cfg_items = self.cfg.__dict__.items()
-        # iterate over all the groups
-        for group_name, group_cfg in group_cfg_items:
-            # check for non config
-            if group_cfg is None:
-                continue
-            # check if the term is a curriculum term
+        for group_name, group_cfg in self._iter_term_cfgs(self.cfg):
             if not isinstance(group_cfg, ObservationGroupCfg):
                 raise TypeError(
                     f"Observation group '{group_name}' is not of type 'ObservationGroupCfg'."
                     f" Received: '{type(group_cfg)}'."
                 )
             # initialize list for the group settings
-            self._group_obs_term_names[group_name] = list()
-            self._group_obs_term_dim[group_name] = list()
-            self._group_obs_term_cfgs[group_name] = list()
-            self._group_obs_class_term_cfgs[group_name] = list()
+            self._group_obs_term_names[group_name] = []
+            self._group_obs_term_dim[group_name] = []
+            self._group_obs_term_cfgs[group_name] = []
+            self._group_obs_class_term_cfgs[group_name] = []
 
             # history buffers
-            group_entry_history_buffer: dict[str, CircularBuffer] = dict()
+            group_entry_history_buffer: dict[str, CircularBuffer] = {}
 
             # read common config for the group
             self._group_obs_concatenate[group_name] = group_cfg.concatenate_terms
@@ -528,24 +504,9 @@ class ObservationManager(ManagerBase):
                 group_cfg.concatenate_dim + 1 if group_cfg.concatenate_dim >= 0 else group_cfg.concatenate_dim
             )
 
-            # check if config is dict already
-            if isinstance(group_cfg, dict):
-                term_cfg_items = group_cfg.items()
-            else:
-                term_cfg_items = group_cfg.__dict__.items()
-            # iterate over all the terms in each group
-            for term_name, term_cfg in term_cfg_items:
-                # skip non-obs settings
-                if term_name in [
-                    "enable_corruption",
-                    "concatenate_terms",
-                    "history_length",
-                    "flatten_history_dim",
-                    "concatenate_dim",
-                ]:
-                    continue
-                # check for non config
-                if term_cfg is None:
+            for term_name, term_cfg in self._iter_term_cfgs(group_cfg):
+                # skip the group-level settings
+                if term_name in _GROUP_SETTING_NAMES:
                     continue
                 if not isinstance(term_cfg, ObservationTermCfg):
                     raise TypeError(
@@ -613,24 +574,18 @@ class ObservationManager(ManagerBase):
                                 f" Received: {mod_cfg.func}"
                             )
 
-                        # TODO(jichuanh): improvement can be made in two ways:
-                        #                 1. modifier specific check can be done in the modifier class
-                        #                 2. general param vs function matching check can be a common utility
-                        # check if term's arguments are matched by params
+                        # check if the modifier's arguments (after the data argument) are matched by params
                         term_params = list(mod_cfg.params.keys())
                         args = inspect.signature(mod_cfg.func).parameters
                         args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
                         args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
                         args = args_without_defaults + args_with_defaults
-                        # ignore first two arguments for env and env_ids
-                        # Think: Check for cases when kwargs are set inside the function?
-                        if len(args) > 1:
-                            if set(args[1:]) != set(term_params + args_with_defaults):
-                                raise ValueError(
-                                    f"Modifier '{mod_cfg}' of observation term '{term_name}' expects"
-                                    f" mandatory parameters: {args_without_defaults[1:]}"
-                                    f" and optional parameters: {args_with_defaults}, but received: {term_params}."
-                                )
+                        if len(args) > 1 and set(args[1:]) != set(term_params + args_with_defaults):
+                            raise ValueError(
+                                f"Modifier '{mod_cfg}' of observation term '{term_name}' expects"
+                                f" mandatory parameters: {args_without_defaults[1:]}"
+                                f" and optional parameters: {args_with_defaults}, but received: {term_params}."
+                            )
 
                 # prepare noise model classes
                 if term_cfg.noise is not None and isinstance(term_cfg.noise, noise.NoiseModelCfg):

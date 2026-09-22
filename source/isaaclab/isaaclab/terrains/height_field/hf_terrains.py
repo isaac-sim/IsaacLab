@@ -134,7 +134,6 @@ def pyramid_sloped_terrain(difficulty: float, cfg: hf_terrains_cfg.HfPyramidSlop
     xx = xx.reshape(width_pixels, 1)
     yy = yy.reshape(1, length_pixels)
     # create a sloped surface
-    hf_raw = np.zeros((width_pixels, length_pixels))
     hf_raw = height_max * xx * yy
 
     # create a flat platform at the center of the terrain
@@ -342,10 +341,8 @@ def wave_terrain(difficulty: float, cfg: hf_terrains_cfg.HfWaveTerrainCfg) -> np
     xx = xx.reshape(width_pixels, 1)
     yy = yy.reshape(1, length_pixels)
 
-    # create a terrain with a flat platform at the center
-    hf_raw = np.zeros((width_pixels, length_pixels))
     # add the waves
-    hf_raw += amplitude_pixels * (np.cos(yy * wave_number) + np.sin(xx * wave_number))
+    hf_raw = amplitude_pixels * (np.cos(yy * wave_number) + np.sin(xx * wave_number))
     # round off the heights to the nearest vertical step
     return np.rint(hf_raw).astype(np.int16)
 
@@ -411,7 +408,7 @@ def stepping_stones_terrain(difficulty: float, cfg: hf_terrains_cfg.HfSteppingSt
                 start_x += stone_width + stone_distance
             # update y-position
             start_y += stone_width + stone_distance
-    elif width_pixels > length_pixels:
+    else:
         while start_x < width_pixels:
             # ensure that stone stops along x-axis
             stop_x = min(width_pixels, start_x + stone_width)

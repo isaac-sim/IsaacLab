@@ -32,84 +32,88 @@ Locally, the schemas are defined in the following files:
 
 """
 
+import importlib
+
 from isaaclab.utils.module import lazy_export
 
 _stub_getattr, _stub_dir, __all__ = lazy_export()
 
-# Names that moved out of this module into ``isaaclab_physx.sim.schemas``.
-# Resolved lazily on first access so importing ``isaaclab.sim.schemas`` does
-# not require ``isaaclab_physx`` to be installed.
-_PHYSX_FORWARDS = frozenset(
-    {
-        "RigidBodyPropertiesCfg",
-        "JointDrivePropertiesCfg",
-        "PhysxRigidBodyPropertiesCfg",
-        "PhysxJointDrivePropertiesCfg",
-        "CollisionPropertiesCfg",
-        "PhysxCollisionPropertiesCfg",
-        "DeformableBodyPropertiesCfg",
-        "PhysxDeformableBodyPropertiesCfg",
-        "ArticulationRootPropertiesCfg",
-        "PhysxArticulationRootPropertiesCfg",
-        "MeshCollisionPropertiesCfg",
-        "ConvexHullPropertiesCfg",
-        "ConvexDecompositionPropertiesCfg",
-        "TriangleMeshPropertiesCfg",
-        "TriangleMeshSimplificationPropertiesCfg",
-        "SDFMeshPropertiesCfg",
-        "PhysxConvexHullPropertiesCfg",
-        "PhysxConvexDecompositionPropertiesCfg",
-        "PhysxTriangleMeshPropertiesCfg",
-        "PhysxTriangleMeshSimplificationPropertiesCfg",
-        "PhysxSDFMeshPropertiesCfg",
-        "FixedTendonPropertiesCfg",
-        "SpatialTendonPropertiesCfg",
-        "PhysxFixedTendonPropertiesCfg",
-        "PhysxSpatialTendonPropertiesCfg",
-    }
-)
+# Cfg names that moved out of core into a backend package, resolved lazily on first access so
+# importing ``isaaclab.sim.schemas`` does not require the backend to be installed.
+_MOVED_CFGS: dict[str, frozenset[str]] = {
+    "isaaclab_physx": frozenset(
+        {
+            "RigidBodyPropertiesCfg",
+            "JointDrivePropertiesCfg",
+            "PhysxRigidBodyPropertiesCfg",
+            "PhysxJointDrivePropertiesCfg",
+            "CollisionPropertiesCfg",
+            "PhysxCollisionPropertiesCfg",
+            "DeformableBodyPropertiesCfg",
+            "PhysxDeformableBodyPropertiesCfg",
+            "ArticulationRootPropertiesCfg",
+            "PhysxArticulationRootPropertiesCfg",
+            "MeshCollisionPropertiesCfg",
+            "ConvexHullPropertiesCfg",
+            "ConvexDecompositionPropertiesCfg",
+            "TriangleMeshPropertiesCfg",
+            "TriangleMeshSimplificationPropertiesCfg",
+            "SDFMeshPropertiesCfg",
+            "PhysxConvexHullPropertiesCfg",
+            "PhysxConvexDecompositionPropertiesCfg",
+            "PhysxTriangleMeshPropertiesCfg",
+            "PhysxTriangleMeshSimplificationPropertiesCfg",
+            "PhysxSDFMeshPropertiesCfg",
+            "FixedTendonPropertiesCfg",
+            "SpatialTendonPropertiesCfg",
+            "PhysxFixedTendonPropertiesCfg",
+            "PhysxSpatialTendonPropertiesCfg",
+        }
+    ),
+    "isaaclab_newton": frozenset(
+        {
+            "MujocoRigidBodyPropertiesCfg",
+            "MujocoJointDrivePropertiesCfg",
+            "NewtonRigidBodyPropertiesCfg",
+            "NewtonJointDrivePropertiesCfg",
+            "NewtonCollisionPropertiesCfg",
+            "NewtonMeshCollisionPropertiesCfg",
+            "NewtonMaterialPropertiesCfg",
+            "NewtonArticulationRootPropertiesCfg",
+            "NewtonSDFCollisionPropertiesCfg",
+        }
+    ),
+}
+_MOVED_CFG_NAMES = frozenset().union(*_MOVED_CFGS.values())
 
-# Names that moved out of this module into ``isaaclab_newton.sim.schemas``.
-# Resolved lazily on first access so importing ``isaaclab.sim.schemas`` does
-# not require ``isaaclab_newton`` to be installed.
-_NEWTON_FORWARDS = frozenset(
-    {
-        "MujocoRigidBodyPropertiesCfg",
-        "MujocoJointDrivePropertiesCfg",
-        "NewtonRigidBodyPropertiesCfg",
-        "NewtonJointDrivePropertiesCfg",
-        "NewtonCollisionPropertiesCfg",
-        "NewtonMeshCollisionPropertiesCfg",
-        "NewtonMaterialPropertiesCfg",
-        "NewtonArticulationRootPropertiesCfg",
-        "NewtonSDFCollisionPropertiesCfg",
-    }
-)
+
+def _import_moved_cfg(name: str, source: str):
+    """Resolve a cfg that moved to a backend package, or return None when ``name`` is not forwarded.
+
+    Args:
+        name: The attribute name being looked up.
+        source: The dotted module name the lookup happened on, for the error message.
+
+    Raises:
+        ImportError: If the owning backend package is not installed.
+    """
+    for package, names in _MOVED_CFGS.items():
+        if name in names:
+            try:
+                module = importlib.import_module(f"{package}.sim.schemas.schemas_cfg")
+            except ImportError as e:
+                raise ImportError(
+                    f"'{source}.{name}' has moved to '{package}.sim.schemas'. Install the {package} extension"
+                    " or update your import. This forwarding shim is scheduled for removal in 4.0."
+                ) from e
+            return getattr(module, name)
+    return None
 
 
 def __getattr__(name):
-    if name in _PHYSX_FORWARDS:
-        try:
-            from isaaclab_physx.sim.schemas import schemas_cfg as _physx_cfg
-        except ImportError as e:
-            raise ImportError(
-                f"'isaaclab.sim.schemas.{name}' has moved to 'isaaclab_physx.sim.schemas'."
-                " Install the isaaclab_physx extension or update your import. This forwarding"
-                " shim is scheduled for removal in 4.0."
-            ) from e
-        return getattr(_physx_cfg, name)
-    if name in _NEWTON_FORWARDS:
-        try:
-            from isaaclab_newton.sim.schemas import schemas_cfg as _newton_cfg
-        except ImportError as e:
-            raise ImportError(
-                f"'isaaclab.sim.schemas.{name}' has moved to 'isaaclab_newton.sim.schemas'."
-                " Install the isaaclab_newton extension or update your import. This forwarding"
-                " shim is scheduled for removal in 4.0."
-            ) from e
-        return getattr(_newton_cfg, name)
-    return _stub_getattr(name)
+    value = _import_moved_cfg(name, __name__)
+    return _stub_getattr(name) if value is None else value
 
 
 def __dir__():
-    return sorted(set(_stub_dir()) | _PHYSX_FORWARDS | _NEWTON_FORWARDS)
+    return sorted(set(_stub_dir()) | _MOVED_CFG_NAMES)

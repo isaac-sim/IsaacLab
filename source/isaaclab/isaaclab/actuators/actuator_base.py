@@ -15,7 +15,7 @@ import torch
 import isaaclab.utils.string as string_utils
 from isaaclab.utils.types import ArticulationActions
 
-from ._compat import _limits_equal, _resolve_limit_aliases
+from ._compat import _resolve_constructor_limit_alias, _resolve_limit_aliases
 
 if TYPE_CHECKING:
     from .actuator_base_cfg import ActuatorBaseCfg
@@ -184,40 +184,15 @@ class ActuatorBase(ABC):
 
         # normalize deprecated configuration aliases for direct construction
         # TODO: Deprecated. Remove in 4.0.
-        if (
-            self.cfg.effort_limit is not None
-            or self.cfg.effort_limit_sim is not None
-            or self.cfg.velocity_limit is not None
-            or self.cfg.velocity_limit_sim is not None
-        ):
-            _resolve_limit_aliases(type(self).__name__, self.cfg, self.joint_names)
+        _resolve_limit_aliases(type(self).__name__, self.cfg, self.joint_names)
 
-        # normalize deprecated constructor aliases
         # TODO: Deprecated. Remove in 4.0.
-        if effort_limit is not None:
-            warnings.warn(
-                "The effort_limit constructor argument is deprecated. Use actuator_effort_limit instead; "
-                "effort_limit will be removed in 3.1.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            if actuator_effort_limit is not None and not _limits_equal(actuator_effort_limit, effort_limit):
-                raise ValueError(
-                    "Received conflicting actuator_effort_limit and deprecated effort_limit constructor arguments."
-                )
-            actuator_effort_limit = effort_limit
-        if velocity_limit is not None:
-            warnings.warn(
-                "The velocity_limit constructor argument is deprecated. Use actuator_velocity_limit instead; "
-                "velocity_limit will be removed in 3.1.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            if actuator_velocity_limit is not None and not _limits_equal(actuator_velocity_limit, velocity_limit):
-                raise ValueError(
-                    "Received conflicting actuator_velocity_limit and deprecated velocity_limit constructor arguments."
-                )
-            actuator_velocity_limit = velocity_limit
+        actuator_effort_limit = _resolve_constructor_limit_alias(
+            "actuator_effort_limit", actuator_effort_limit, "effort_limit", effort_limit
+        )
+        actuator_velocity_limit = _resolve_constructor_limit_alias(
+            "actuator_velocity_limit", actuator_velocity_limit, "velocity_limit", velocity_limit
+        )
 
         # parse the actuator-model limits. Implicit models expose their effort limit as a live
         # projection of the articulation joint effort limit instead of a local buffer.

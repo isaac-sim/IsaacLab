@@ -15,147 +15,10 @@ from isaaclab.benchmark import benchmark_core as benchmark_core_module
 from isaaclab.benchmark import formatters
 from isaaclab.benchmark.benchmark_core import BaseIsaacLabBenchmark, _runtime_measurements
 from isaaclab.benchmark.measurements import SingleMeasurement, StringMetadata
+from isaaclab.benchmark.schema import EnvironmentStepTiming, MeanStd
 from isaaclab.sim import utils as sim_utils
 
 pytestmark = pytest.mark.benchmark
-
-# ==============================================================================
-# BaseIsaacLabBenchmark Tests
-# ==============================================================================
-
-
-@pytest.fixture(autouse=True)
-def reset_formatters():
-    formatters.MetricsFormatter.reset_instances()
-    yield
-    formatters.MetricsFormatter.reset_instances()
-
-
-def _minimal_runtime_bundle():
-    from isaaclab.benchmark.schema import (
-        GpuDeviceInfo,
-        Hardware,
-        MeanStd,
-        Resources,
-        RunConfig,
-        RunIdentity,
-        Runtime,
-        RuntimeBundle,
-        StartupTime,
-        Versions,
-    )
-
-    return RuntimeBundle(
-        run=RunIdentity(
-            run_id="runtime_newton_mjwarp_Isaac-Ant-Direct-v0_20260422-131500_seed42",
-            framework=None,
-            config=RunConfig(physics_backend="newton_mjwarp", rendering_backend="none"),
-            task="Isaac-Ant-Direct-v0",
-            seed=42,
-            start_time_utc="2026-04-22T13:15:00Z",
-            end_time_utc="2026-04-22T13:15:10Z",
-            duration_s=10.0,
-            status="completed",
-            num_envs=16,
-        ),
-        versions=Versions(
-            isaaclab="4.6.8",
-            isaacsim=None,
-            kit=None,
-            newton=None,
-            warp=None,
-            mjwarp=None,
-            torch="2.5.1",
-            rsl_rl=None,
-            rl_games=None,
-            skrl=None,
-            sb3=None,
-            git_commit=None,
-            git_branch=None,
-            git_dirty=False,
-        ),
-        hardware=Hardware(
-            hostname="benchmark-host",
-            gpu_devices=[GpuDeviceInfo(name="NVIDIA H100 80GB", mem_gb=80.0, compute_cap="9.0")],
-            cpu_name="AMD EPYC 7763",
-            cpu_count=64,
-            ram_gb=512.0,
-        ),
-        runtime=Runtime(
-            startup_time_s=StartupTime(app_launch=1.0, env_creation=2.0, first_step=0.5),
-            iterations_completed=1,
-            total_wall_time_s=4.0,
-            steps_per_iteration=24,
-            iteration_time_s=MeanStd(mean=1.0, std=0.0),
-            collection_fps=MeanStd(mean=100.0, std=0.0),
-            total_fps=MeanStd(mean=100.0, std=0.0),
-            iterations_per_s=MeanStd(mean=1.0, std=0.0),
-        ),
-        resources=Resources(
-            gpu_util_pct=MeanStd(mean=80.0, std=5.0),
-            gpu_mem_gb=MeanStd(mean=10.0, std=0.5, peak=12.0),
-            cpu_util_pct=MeanStd(mean=30.0, std=4.0),
-            ram_gb=MeanStd(mean=20.0, std=1.0, peak=24.0),
-        ),
-    )
-
-
-def _minimal_training_bundle():
-    from isaaclab.benchmark.schema import Learning, LearningCurve, TrainingBundle
-
-    bundle = _minimal_runtime_bundle()
-    return TrainingBundle(
-        run=replace(bundle.run, framework="rsl_rl", max_iterations=1),
-        versions=bundle.versions,
-        hardware=bundle.hardware,
-        runtime=bundle.runtime,
-        resources=bundle.resources,
-        learning=Learning(
-            ema_alpha=0.95,
-            reward=LearningCurve(final_raw=3.0, final_ema=2.5, series_per_iter=[1.0, 3.0]),
-            ep_length=LearningCurve(final_raw=20.0, final_ema=18.0, series_per_iter=[10.0, 20.0]),
-        ),
-        success_rate=0.75,
-    )
-
-
-def _minimal_startup_bundle():
-    from isaaclab.benchmark.schema import CProfileFunction, StartupBundle, StartupConfig, StartupPhase
-
-    bundle = _minimal_runtime_bundle()
-    return StartupBundle(
-        run=replace(bundle.run, num_envs=None),
-        versions=bundle.versions,
-        hardware=bundle.hardware,
-        phases={
-            "python_imports": StartupPhase(
-                total_time_s=0.25,
-                top_functions=[
-                    CProfileFunction(
-                        name="isaaclab_tasks.utils:import_packages", own_time_s=0.1, cum_time_s=0.2, calls=2
-                    )
-                ],
-            )
-        },
-        config=StartupConfig(top_n=1, whitelist=None),
-    )
-
-
-def _minimal_play_bundle():
-    from isaaclab.benchmark.schema import MeanStd, PlayBundle
-
-    bundle = _minimal_runtime_bundle()
-    return PlayBundle(
-        run=replace(bundle.run, framework="rsl_rl"),
-        versions=bundle.versions,
-        hardware=bundle.hardware,
-        runtime=bundle.runtime,
-        resources=bundle.resources,
-        success_rate=0.75,
-        reward=MeanStd(mean=4.0, std=1.0, peak=5.0),
-        ep_length=MeanStd(mean=20.0, std=2.0, peak=25.0),
-        checkpoint_path="model.pt",
-    )
 
 
 def _formatter_keys(benchmark: BaseIsaacLabBenchmark) -> list[str]:
@@ -207,11 +70,16 @@ def test_benchmark_updates_recorders_and_cleans_up(tmp_path):
 
     benchmark.add_measurement("runtime", measurement=SingleMeasurement(name="execution_time", value=100.5, unit="ms"))
     benchmark.update_manual_recorders()
-    assert benchmark._manual_recorders["CPUInfo"]._n >= 1
-    assert benchmark._manual_recorders["MemoryInfo"]._rss_n >= 1
+    assert benchmark._manual_recorders["CPUInfo"].get_runtime_data()["cpu_utilization"]["n"] == 1
+    assert benchmark._manual_recorders["MemoryInfo"].get_runtime_data()["memory_utilization"]["rss_n"] == 1
 
     benchmark.finalize()
-    assert os.path.exists(benchmark.output_file_path)
+    with open(benchmark.output_file_path) as f:
+        data = json.load(f)
+    assert data["runtime"]["execution_time"] == 100.5
+    assert data["runtime"]["System Memory RSS n"] == 1
+    assert data["hardware_info"]["physical_cores"] > 0
+    assert "torch_version" in data["version_info"]
     assert benchmark._manual_recorders is None
     assert benchmark._frametime_recorders is None
 
@@ -260,7 +128,7 @@ def test_benchmark_skips_frametime_recorders_if_kit_app_stops(monkeypatch, tmp_p
     assert "Could not initialize Kit frametime recorders" in caplog.text
 
 
-def test_formatter_selection_and_output_filenames(tmp_path):
+def test_formatter_selection_and_output_filenames(tmp_path, runtime_bundle):
     default_benchmark = BaseIsaacLabBenchmark(
         "default", formatter_type="   ", output_path=str(tmp_path), use_recorders=False
     )
@@ -281,7 +149,7 @@ def test_formatter_selection_and_output_filenames(tmp_path):
         output_prefix="test",
     )
     assert _formatter_keys(multi) == ["schema", "json"]
-    multi.attach_bundle(_minimal_runtime_bundle())
+    multi.attach_bundle(runtime_bundle)
     multi.add_measurement("runtime", measurement=SingleMeasurement(name="execution_time", value=100.5, unit="ms"))
     multi_paths = multi.finalize()
 
@@ -302,12 +170,14 @@ def test_formatter_selection_and_output_filenames(tmp_path):
     assert schema_data["run"]["task"] == "Isaac-Ant-Direct-v0"
 
 
-def test_attached_bundles_are_projected_to_flat_formatters(tmp_path):
+def test_attached_bundles_are_projected_to_flat_formatters(
+    tmp_path, runtime_bundle, training_bundle, play_bundle, startup_bundle
+):
     cases = [
-        (_minimal_runtime_bundle(), "runtime", "Mean Total FPS", 100.0),
-        (_minimal_training_bundle(), "train", "Last Reward", 3.0),
-        (_minimal_play_bundle(), "play", "Mean Reward", 4.0),
-        (_minimal_startup_bundle(), "python_imports", "Wall Clock Time", 0.25),
+        (runtime_bundle, "runtime", "Mean Total FPS", 100.0),
+        (training_bundle, "train", "Last Reward", 3.0),
+        (play_bundle, "play", "Mean Reward", 4.0),
+        (startup_bundle, "python_imports", "Wall Clock Time", 0.25),
     ]
 
     for index, (bundle, phase, metric, expected) in enumerate(cases):
@@ -326,10 +196,7 @@ def test_attached_bundles_are_projected_to_flat_formatters(tmp_path):
         assert data[phase][metric] == expected
 
 
-def test_environment_step_timing_flat_labels_describe_measurement_mode():
-    from isaaclab.benchmark.schema import EnvironmentStepTiming, MeanStd
-
-    bundle = _minimal_runtime_bundle()
+def test_environment_step_timing_flat_labels_describe_measurement_mode(runtime, serialized_step_timing):
     host_return = EnvironmentStepTiming(
         environment_step_time_s=MeanStd(mean=0.08, std=0.01, peak=0.1),
         environment_step_fps=MeanStd(mean=200.0, std=2.0, peak=205.0),
@@ -340,26 +207,16 @@ def test_environment_step_timing_flat_labels_describe_measurement_mode():
         simulation_step_calls=None,
         measurement_mode="host_return",
     )
-    serialized = EnvironmentStepTiming(
-        environment_step_time_s=MeanStd(mean=0.08, std=0.01, peak=0.1),
-        environment_step_fps=MeanStd(mean=200.0, std=2.0, peak=205.0),
-        simulation_step_time_s=MeanStd(mean=0.05, std=0.01, peak=0.07),
-        outside_simulation_step_time_s=MeanStd(mean=0.03, std=0.005, peak=0.04),
-        outside_simulation_step_fraction=0.375,
-        environment_step_calls=100,
-        simulation_step_calls=400,
-        measurement_mode="serialized_synchronized",
-    )
 
     host_names = {
         measurement.name
-        for measurement in _runtime_measurements(replace(bundle.runtime, environment_step_timing=host_return))[
-            "runtime"
-        ]
+        for measurement in _runtime_measurements(replace(runtime, environment_step_timing=host_return))["runtime"]
     }
     synchronized_names = {
         measurement.name
-        for measurement in _runtime_measurements(replace(bundle.runtime, environment_step_timing=serialized))["runtime"]
+        for measurement in _runtime_measurements(replace(runtime, environment_step_timing=serialized_step_timing))[
+            "runtime"
+        ]
     }
 
     assert "Mean Environment Step Host-Return FPS" in host_names

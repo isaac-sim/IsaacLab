@@ -47,6 +47,18 @@ def _load_external_tasks() -> None:
         entry_point.load()
 
 
+def _split_workflow_args(parser: argparse.ArgumentParser, args: list[str] | None) -> tuple[str, list[str]]:
+    """Parse the leading ``command`` positional and return it with the arguments that follow it.
+
+    Args:
+        parser: Parser declaring a ``command`` positional; it handles ``--help`` and unknown commands.
+        args: Command-line arguments. Uses ``sys.argv`` when ``None``.
+    """
+    if args is None:
+        args = sys.argv[1:]
+    return parser.parse_args(args[:1]).command, args[1:]
+
+
 def train(args: list[str] | None = None) -> None:
     """Run unified reinforcement learning training."""
     from isaaclab_rl.entrypoints import run_train_cli
@@ -75,19 +87,14 @@ def leapp(args: list[str] | None = None) -> None:
         prog=f"{Path(sys.argv[0]).name} leapp",
     )
     parser.add_argument("command", choices=("export", "deploy"), help="LEAPP workflow to run.")
-    if args is None:
-        args = sys.argv[1:]
-    if not args or args[0] in ("-h", "--help"):
-        parser.parse_args(args)
-    parsed_args = parser.parse_args(args[:1])
-    command_args = args[1:]
+    command, command_args = _split_workflow_args(parser, args)
 
-    if parsed_args.command == "export":
+    if command == "export":
         from isaaclab_rl.entrypoints import run_export_cli
 
         _exit_on_error(run_export_cli(command_args))
     else:
-        from isaaclab.cli.commands.deploy import command_deploy_leapp
+        from .commands.deploy import command_deploy_leapp
 
         _exit_on_error(command_deploy_leapp(command_args))
 
@@ -124,12 +131,8 @@ def teleop(args: list[str] | None = None) -> None:
     }
     parser = argparse.ArgumentParser(description="Run an Isaac Lab teleoperation workflow.")
     parser.add_argument("command", choices=tuple(workflow_scripts), help="Teleoperation workflow to run.")
-    if args is None:
-        args = sys.argv[1:]
-    if not args or args[0] in ("-h", "--help"):
-        parser.parse_args(args)
-    parsed_args = parser.parse_args(args[:1])
-    run_python_command(workflow_scripts[parsed_args.command], args[1:], check=True)
+    command, command_args = _split_workflow_args(parser, args)
+    run_python_command(workflow_scripts[command], command_args, check=True)
 
 
 def benchmark(args: list[str] | None = None) -> None:
@@ -152,7 +155,9 @@ def microbenchmark(args: list[str] | None = None) -> None:
 
 def cli() -> None:
     """Parse CLI arguments and run the requested command."""
-    subcommands = {
+    # Subcommands that run registered tasks load downstream task packages first; ``list_envs`` owns its
+    # own discovery and ``teleop`` forwards to a script.
+    task_subcommands = {
         "benchmark": benchmark,
         "leapp": leapp,
         "microbenchmark": microbenchmark,
@@ -162,15 +167,13 @@ def cli() -> None:
         "zero_agent": zero_agent,
         "random_agent": random_agent,
     }
-    if len(sys.argv) > 1 and sys.argv[1] == "list_envs":
-        list_envs(sys.argv[2:])
-        return
-    if len(sys.argv) > 1 and sys.argv[1] in subcommands:
+    subcommand = sys.argv[1] if len(sys.argv) > 1 else None
+    if subcommand in task_subcommands:
         _load_external_tasks()
-        subcommands[sys.argv[1]](sys.argv[2:])
+        task_subcommands[subcommand](sys.argv[2:])
         return
-    if len(sys.argv) > 1 and sys.argv[1] == "teleop":
-        teleop(sys.argv[2:])
+    if subcommand in ("list_envs", "teleop"):
+        {"list_envs": list_envs, "teleop": teleop}[subcommand](sys.argv[2:])
         return
 
     executable_name = Path(sys.argv[0]).name
@@ -195,9 +198,9 @@ def cli() -> None:
         ),
     )
 
-    _optional_str = ", ".join(sorted(OPTIONAL_ISAACLAB_SUBMODULES))
-    _extras_str = ", ".join(sorted(VALID_EXTRA_FEATURES))
-    _core_str = ", ".join(CORE_ISAACLAB_SUBMODULES)
+    optional_str = ", ".join(sorted(OPTIONAL_ISAACLAB_SUBMODULES))
+    extras_str = ", ".join(sorted(VALID_EXTRA_FEATURES))
+    core_str = ", ".join(CORE_ISAACLAB_SUBMODULES)
     parser.add_argument(
         "-i",
         "--install",
@@ -207,15 +210,15 @@ def cli() -> None:
             "Install Isaac Lab submodules and optional extra dependencies.\n"
             "\n"
             "All core submodules are always installed:\n"
-            f"  {_core_str}\n"
+            f"  {core_str}\n"
             "\n"
             "Accepts a comma-separated list of optional submodule names and/or\n"
             "extra feature selectors, or one of the special values below.\n"
             "\n"
-            f"* Optional submodules: {_optional_str}\n"
+            f"* Optional submodules: {optional_str}\n"
             "  Installed by 'all' or by explicit token.\n"
             "\n"
-            f"* Extra feature sets: {_extras_str}\n"
+            f"* Extra feature sets: {extras_str}\n"
             "  Install optional heavy dependencies for a feature on top of the core.\n"
             "  Supports an optional selector in brackets:\n"
             "    contrib[rlinf]\n"
@@ -351,10 +354,9 @@ def cli() -> None:
         command_run_docker(args.docker)
 
     elif args.python is not None:
-        if args.python:
-            run_python_command(args.python[0], args.python[1:], check=True)
-        else:
-            run_python_command("-i", [], check=True)
+        # Without a script, open an interactive interpreter.
+        script, *script_args = args.python or ["-i"]
+        run_python_command(script, script_args, check=True)
 
     elif args.sim is not None:
         command_run_isaacsim(args.sim)

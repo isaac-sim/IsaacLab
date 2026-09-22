@@ -27,38 +27,22 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_initialization_and_close(device):
-    """DirectMARLEnv initializes its spaces and releases its simulation context."""
+def test_lifecycle(device):
+    """DirectMARLEnv owns the simulation context, republishes renderer scene state on reset and releases it on close."""
     sim_utils.create_new_stage()
     env = DirectMARLEnv(cfg=make_empty_direct_marl_env_cfg(device=device))
-
     try:
         assert not env._is_closed
         assert sim_utils.SimulationContext.instance() is env.sim
-        assert env.num_agents == 2
-        assert env.max_num_agents == 2
-        assert len(env.observation_spaces) == 2
-        assert len(env.action_spaces) == 2
-        assert env.state_space.shape == (7,)
+        assert env.num_agents == env.max_num_agents == 2
+
+        # a reset must invalidate the renderer scene-state cadence
+        env._get_observations = lambda: {}
+        env.sim.render_context._last_scene_state_step = 7
+        env.reset()
+        assert env.sim.render_context._last_scene_state_step is None
     finally:
         env.close()
 
     assert env._is_closed
     assert sim_utils.SimulationContext.instance() is None
-
-
-def test_reset_invalidates_renderer_scene_state_cadence():
-    """A same-step multi-agent reset must republish renderer scene state."""
-    env = None
-    try:
-        sim_utils.create_new_stage()
-        env = DirectMARLEnv(cfg=make_empty_direct_marl_env_cfg())
-        env._get_observations = lambda: {}
-        env.sim.render_context._last_scene_state_step = 7
-
-        env.reset()
-
-        assert env.sim.render_context._last_scene_state_step is None
-    finally:
-        if env is not None:
-            env.close()

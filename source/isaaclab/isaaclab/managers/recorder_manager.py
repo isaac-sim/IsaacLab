@@ -9,6 +9,7 @@ from __future__ import annotations
 import enum
 import os
 from collections.abc import Sequence
+from dataclasses import fields
 from typing import TYPE_CHECKING
 
 import torch
@@ -162,8 +163,8 @@ class RecorderManager(ManagerBase):
             cfg: The configuration object or dictionary (``dict[str, RecorderTermCfg]``).
             env: The environment instance.
         """
-        self._term_names: list[str] = list()
-        self._terms: dict[str, RecorderTerm] = dict()
+        self._term_names: list[str] = []
+        self._terms: dict[str, RecorderTerm] = {}
 
         # Do nothing if cfg is None or an empty dict
         if not cfg:
@@ -179,9 +180,7 @@ class RecorderManager(ManagerBase):
             raise TypeError("Configuration for the recorder manager is not of type RecorderManagerBaseCfg.")
 
         # create episode data buffer indexed by environment id
-        self._episodes: dict[int, EpisodeData] = dict()
-        for env_id in range(env.num_envs):
-            self._episodes[env_id] = EpisodeData()
+        self._episodes: dict[int, EpisodeData] = {env_id: EpisodeData() for env_id in range(env.num_envs)}
 
         env_name = getattr(env.cfg, "env_name", None)
 
@@ -282,15 +281,9 @@ class RecorderManager(ManagerBase):
         if len(self.active_terms) == 0:
             return {}
 
-        # resolve environment ids
-        if env_ids is None:
-            env_ids = list(range(self._env.num_envs))
-        if isinstance(env_ids, torch.Tensor):
-            env_ids = env_ids.tolist()
-
+        env_ids = self._resolve_env_ids(env_ids)
         for term in self._terms.values():
             term.reset(env_ids=env_ids)
-
         for env_id in env_ids:
             self._episodes[env_id] = EpisodeData()
 
@@ -319,18 +312,11 @@ class RecorderManager(ManagerBase):
                 The shape of a tensor in the value is (env_ids, ...).
             env_ids: The environment ids. Defaults to None, in which case all environments are considered.
         """
-        # Do nothing if no active recorder terms are provided
-        if len(self.active_terms) == 0:
+        # Do nothing if no active recorder terms are provided or the term has nothing to record
+        if len(self.active_terms) == 0 or key is None:
             return
 
-        # resolve environment ids
-        if key is None:
-            return
-        if env_ids is None:
-            env_ids = list(range(self._env.num_envs))
-        if isinstance(env_ids, torch.Tensor):
-            env_ids = env_ids.tolist()
-
+        env_ids = self._resolve_env_ids(env_ids)
         if isinstance(value, dict):
             for sub_key, sub_value in value.items():
                 if isinstance(sub_value, wp.array):
@@ -358,13 +344,7 @@ class RecorderManager(ManagerBase):
         if len(self.active_terms) == 0:
             return
 
-        # resolve environment ids
-        if env_ids is None:
-            env_ids = list(range(self._env.num_envs))
-        if isinstance(env_ids, torch.Tensor):
-            env_ids = env_ids.tolist()
-
-        for value_index, env_id in enumerate(env_ids):
+        for value_index, env_id in enumerate(self._resolve_env_ids(env_ids)):
             self._episodes[env_id].success = success_values[value_index].item()
 
     def record_pre_step(self) -> None:
@@ -407,21 +387,17 @@ class RecorderManager(ManagerBase):
         if len(self.active_terms) == 0:
             return
 
-        if env_ids is None:
-            env_ids = list(range(self._env.num_envs))
-        if isinstance(env_ids, torch.Tensor):
-            env_ids = env_ids.tolist()
-
+        env_ids = self._resolve_env_ids(env_ids)
         for term in self._terms.values():
             key, value = term.record_pre_reset(env_ids)
             self.add_to_episodes(key, value, env_ids)
 
-        # Set task success values for the relevant episodes
-        success_results = torch.zeros(len(env_ids), dtype=bool, device=self._env.device)
-        # Check success indicator from termination terms
-        if hasattr(self._env, "termination_manager"):
-            if "success" in self._env.termination_manager.active_terms:
-                success_results |= self._env.termination_manager.get_term("success")[env_ids]
+        # the "success" termination term (if any) marks the episode outcome
+        termination_manager = getattr(self._env, "termination_manager", None)
+        if termination_manager is not None and "success" in termination_manager.active_terms:
+            success_results = termination_manager.get_term("success")[env_ids]
+        else:
+            success_results = torch.zeros(len(env_ids), dtype=bool, device=self._env.device)
         self.set_success_to_episodes(env_ids, success_results)
 
         if force_export_or_skip or (force_export_or_skip is None and self.cfg.export_in_record_pre_reset):
@@ -442,21 +418,21 @@ class RecorderManager(ManagerBase):
             self.add_to_episodes(key, value, env_ids)
 
     def get_ep_meta(self) -> dict:
-        """Get the episode metadata."""
-        if not hasattr(self._env.cfg, "get_ep_meta"):
-            # Add basic episode metadata
-            ep_meta = dict()
-            ep_meta["sim_args"] = {
+        """Get the episode metadata.
+
+        Uses the environment configuration's ``get_ep_meta`` method when available and falls back to the
+        basic simulation arguments otherwise.
+        """
+        if hasattr(self._env.cfg, "get_ep_meta"):
+            return self._env.cfg.get_ep_meta()
+        return {
+            "sim_args": {
                 "dt": self._env.cfg.sim.dt,
                 "decimation": self._env.cfg.decimation,
                 "render_interval": self._env.cfg.sim.render_interval,
                 "num_envs": self._env.cfg.scene.num_envs,
             }
-            return ep_meta
-
-        # Add custom episode metadata if available
-        ep_meta = self._env.cfg.get_ep_meta()
-        return ep_meta
+        }
 
     def export_episodes(self, env_ids: Sequence[int] | None = None, demo_ids: Sequence[int] | None = None) -> None:
         """Concludes and exports the episodes for the given environment ids.
@@ -473,12 +449,7 @@ class RecorderManager(ManagerBase):
         if len(self.active_terms) == 0:
             return
 
-        if env_ids is None:
-            env_ids = list(range(self._env.num_envs))
-        if isinstance(env_ids, torch.Tensor):
-            env_ids = env_ids.tolist()
-
-        # Handle demo_ids processing
+        env_ids = self._resolve_env_ids(env_ids)
         if demo_ids is not None:
             if isinstance(demo_ids, torch.Tensor):
                 demo_ids = demo_ids.tolist()
@@ -557,29 +528,21 @@ class RecorderManager(ManagerBase):
     Helper functions.
     """
 
+    def _resolve_env_ids(self, env_ids: Sequence[int] | None) -> list[int]:
+        """Convert the environment ids into a list, defaulting to all environments."""
+        if env_ids is None:
+            return list(range(self._env.num_envs))
+        if isinstance(env_ids, torch.Tensor):
+            return env_ids.tolist()
+        return env_ids
+
     def _prepare_terms(self):
         """Prepares a list of recorder terms."""
-        # check if config is dict already
-        if isinstance(self.cfg, dict):
-            cfg_items = self.cfg.items()
-        else:
-            cfg_items = self.cfg.__dict__.items()
-        for term_name, term_cfg in cfg_items:
-            # skip non-term settings
-            if term_name in [
-                "dataset_file_handler_class_type",
-                "dataset_filename",
-                "dataset_export_dir_path",
-                "dataset_export_mode",
-                "export_in_record_pre_reset",
-                "export_in_close",
-                "dataset_compression",
-            ]:
+        manager_setting_names = {field.name for field in fields(RecorderManagerBaseCfg)}
+        for term_name, term_cfg in self._iter_term_cfgs(self.cfg):
+            # skip the manager-level settings
+            if term_name in manager_setting_names:
                 continue
-            # check if term config is None
-            if term_cfg is None:
-                continue
-            # check valid type
             if not isinstance(term_cfg, RecorderTermCfg):
                 raise TypeError(
                     f"Configuration for the term '{term_name}' is not of type RecorderTermCfg."

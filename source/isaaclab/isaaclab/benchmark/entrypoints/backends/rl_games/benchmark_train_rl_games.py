@@ -7,18 +7,29 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from isaaclab.benchmark import BenchmarkResult
-
+import argparse
+import contextlib
+import math
+import os
+import random
 import sys
 import time
+from datetime import datetime
+from typing import TYPE_CHECKING, Any
 
+from isaaclab.benchmark.entrypoints._shared import (
+    capture_snapshots,
+    create_benchmark,
+    finish_run_identity,
+    step_timing_metadata,
+)
 from isaaclab.benchmark.entrypoints.backends.rl_games.registry import register_scoped_rl_games_environment
 from isaaclab.benchmark.entrypoints.training import _resolve_training_checkpoint_path
 
 from isaaclab_rl.entrypoints import common
+
+if TYPE_CHECKING:
+    from isaaclab.benchmark import BenchmarkResult
 
 
 def _close_rl_games_writer(observer: Any) -> None:
@@ -44,10 +55,8 @@ def _parse_args(argv: list[str]):
         Tuple of ``(parsed_args, remaining)`` where *remaining* are the verbatim Hydra
         preset tokens written back to ``sys.argv`` for ``launch_simulation`` to pick up.
     """
-    import argparse
-
     from isaaclab.app import add_launcher_args
-    from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+    from isaaclab.benchmark._cli import add_benchmark_output_args, parse_positive_int
 
     from isaaclab_tasks.utils import setup_preset_cli
 
@@ -64,40 +73,7 @@ def _parse_args(argv: list[str]):
     )
     add_launcher_args(parser)
 
-    parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
-    parser.add_argument(
-        "--measure_sync_step",
-        action="store_true",
-        help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
-    )
-    parser.add_argument(
-        "--warmup_steps",
-        type=parse_non_negative_int,
-        default=1,
-        help="Exclude the first N env.step() calls from environment-step timing. Default 1 removes cold start.",
-    )
-    parser.add_argument(
-        "--benchmark_formatter",
-        type=str,
-        default="schema",
-        help=(
-            "Output format(s): comma-separated list of 'schema' (default, the typed benchmark bundle),"
-            " 'omniperf', 'osmo', 'json', 'summary'"
-            " Example: 'schema,omniperf'."
-        ),
-    )
-    parser.add_argument(
-        "--ema_alpha",
-        type=float,
-        default=0.1,
-        help="EMA smoothing factor for learning curves (higher = more recent weight).",
-    )
-    parser.add_argument(
-        "--no_series",
-        action="store_true",
-        default=False,
-        help="Omit per-iteration series data from the bundle to reduce file size.",
-    )
+    add_benchmark_output_args(parser, include_learning_args=True)
 
     from isaaclab.benchmark.distributed import validate_distributed_args
     from isaaclab.benchmark.entrypoints.early_stop import add_success_cli_args
@@ -123,19 +99,12 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     """
     imports_t0 = time.perf_counter_ns()
 
-    import contextlib
-    import math
-    import os
-    import random
-    from datetime import datetime
-
     from rl_games.common import env_configurations, vecenv
     from rl_games.common.algo_observer import IsaacAlgoObserver
     from rl_games.torch_runner import Runner
 
     from isaaclab.app import launch_simulation
     from isaaclab.benchmark import (
-        BaseIsaacLabBenchmark,
         BenchmarkMonitor,
         BenchmarkResult,
         builders,
@@ -210,30 +179,18 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             reported_num_envs, _ = distributed.global_work(env_cfg.scene.num_envs, horizon_length)
 
             cfg = capture.run_config_from_env_cfg(env_cfg)
-            formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
-            formatter_types = formatter_types or ["omniperf"]
-
-            benchmark = BaseIsaacLabBenchmark(
-                benchmark_name="benchmark_training",
-                formatter_type=formatter_types,
-                output_path=args_cli.output_path,
-                use_recorders=True,
-                frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
+            benchmark = create_benchmark(
+                "benchmark_training",
+                args_cli,
                 output_prefix=f"benchmark_training{'_multigpu' if distributed.enabled else ''}_{args_cli.task}",
-                workflow_metadata={
-                    "metadata": [
-                        {"name": "task", "data": args_cli.task},
-                        {"name": "seed", "data": agent_cfg["params"]["seed"]},
-                        {"name": "num_envs", "data": reported_num_envs},
-                        {"name": "max_iterations", "data": agent_cfg["params"]["config"].get("max_epochs")},
-                        {
-                            "name": "environment_step_measurement_mode",
-                            "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
-                        },
-                        {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
-                        {"name": "world_size", "data": distributed.world_size},
-                    ]
-                },
+                metadata=[
+                    {"name": "task", "data": args_cli.task},
+                    {"name": "seed", "data": agent_cfg["params"]["seed"]},
+                    {"name": "num_envs", "data": reported_num_envs},
+                    {"name": "max_iterations", "data": agent_cfg["params"]["config"].get("max_epochs")},
+                    *step_timing_metadata(args_cli),
+                    {"name": "world_size", "data": distributed.world_size},
+                ],
             )
 
             config_name = agent_cfg["params"]["config"]["name"]
@@ -352,22 +309,15 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             )
             success_rate = round(tracker.tail_mean, 4) if (tracker and tracker.history) else None
 
-            versions = capture.capture_versions(benchmark)
-            hardware = capture.capture_hardware(benchmark)
-            resources = capture.capture_resources(benchmark)
+            versions, hardware, resources = capture_snapshots(benchmark)
 
-            end_utc = capture.now_utc_iso()
-            stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
             seed = agent_cfg["params"]["seed"] if agent_cfg["params"]["seed"] is not None else 0
-
-            run_identity = builders.build_run_identity(
-                run_id=capture.synth_run_id("rl_games", cfg.physics_backend, args_cli.task, seed, stamp),
+            run_identity = finish_run_identity(
                 framework="rl_games",
                 config=cfg,
                 task=args_cli.task,
                 seed=seed,
                 start_utc=start_utc,
-                end_utc=end_utc,
                 num_envs=num_envs,
                 max_iterations=agent_cfg["params"]["config"].get("max_epochs"),
             )

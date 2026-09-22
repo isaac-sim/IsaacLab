@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import copy
 import functools
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -46,17 +45,13 @@ def height_field_to_mesh(func: Callable) -> Callable:
         length_pixels = int(cfg.size[1] / cfg.horizontal_scale) + 1
         border_pixels = int(cfg.border_width / cfg.horizontal_scale) + 1
         heights = np.zeros((width_pixels, length_pixels), dtype=np.int16)
-        # override size of the terrain to account for the border
-        sub_terrain_size = [width_pixels - 2 * border_pixels, length_pixels - 2 * border_pixels]
-        sub_terrain_size = [dim * cfg.horizontal_scale for dim in sub_terrain_size]
-        # update the config
-        terrain_size = copy.deepcopy(cfg.size)
-        cfg.size = tuple(sub_terrain_size)
-        # generate the height field
-        z_gen = func(difficulty, cfg)
-        # handle the border for the terrain
-        heights[border_pixels:-border_pixels, border_pixels:-border_pixels] = z_gen
-        # set terrain size back to config
+        # shrink the size seen by the generator to account for the border, then restore it
+        terrain_size = cfg.size
+        cfg.size = (
+            (width_pixels - 2 * border_pixels) * cfg.horizontal_scale,
+            (length_pixels - 2 * border_pixels) * cfg.horizontal_scale,
+        )
+        heights[border_pixels:-border_pixels, border_pixels:-border_pixels] = func(difficulty, cfg)
         cfg.size = terrain_size
 
         # convert to trimesh
@@ -71,7 +66,6 @@ def height_field_to_mesh(func: Callable) -> Callable:
         y2 = int((cfg.size[1] * 0.5 + 1) / cfg.horizontal_scale)
         origin_z = np.max(heights[x1:x2, y1:y2]) * cfg.vertical_scale
         origin = np.array([0.5 * cfg.size[0], 0.5 * cfg.size[1], origin_z])
-        # return mesh and origin
         return [mesh], origin
 
     return wrapper
@@ -117,14 +111,12 @@ def convert_height_field_to_mesh(
         - **triangles** (np.ndarray(int)): Array of shape (num_triangles, 3).
           Each row represents the indices of the 3 vertices connected by this triangle.
     """
-    # read height field
     num_rows, num_cols = height_field.shape
     # create a mesh grid of the height field
     y = np.linspace(0, (num_cols - 1) * horizontal_scale, num_cols)
     x = np.linspace(0, (num_rows - 1) * horizontal_scale, num_rows)
     yy, xx = np.meshgrid(y, x)
-    # copy height field to avoid modifying the original array
-    hf = height_field.copy()
+    hf = height_field
 
     # correct vertical surfaces above the slope threshold
     if slope_threshold is not None:
@@ -155,20 +147,13 @@ def convert_height_field_to_mesh(
     vertices[:, 0] = xx.flatten()
     vertices[:, 1] = yy.flatten()
     vertices[:, 2] = hf.flatten() * vertical_scale
-    # create triangles for the mesh
-    triangles = -np.ones((2 * (num_rows - 1) * (num_cols - 1), 3), dtype=np.uint32)
-    for i in range(num_rows - 1):
-        ind0 = np.arange(0, num_cols - 1) + i * num_cols
-        ind1 = ind0 + 1
-        ind2 = ind0 + num_cols
-        ind3 = ind2 + 1
-        start = 2 * i * (num_cols - 1)
-        stop = start + 2 * (num_cols - 1)
-        triangles[start:stop:2, 0] = ind0
-        triangles[start:stop:2, 1] = ind3
-        triangles[start:stop:2, 2] = ind1
-        triangles[start + 1 : stop : 2, 0] = ind0
-        triangles[start + 1 : stop : 2, 1] = ind2
-        triangles[start + 1 : stop : 2, 2] = ind3
+    # create two triangles per grid cell, ordered row-major with the two triangles of a cell interleaved
+    ind0 = (np.arange(num_rows - 1)[:, None] * num_cols + np.arange(num_cols - 1)[None, :]).ravel()
+    ind1 = ind0 + 1
+    ind2 = ind0 + num_cols
+    ind3 = ind2 + 1
+    triangles = np.empty((2 * len(ind0), 3), dtype=np.uint32)
+    triangles[0::2] = np.stack([ind0, ind3, ind1], axis=1)
+    triangles[1::2] = np.stack([ind0, ind2, ind3], axis=1)
 
     return vertices, triangles

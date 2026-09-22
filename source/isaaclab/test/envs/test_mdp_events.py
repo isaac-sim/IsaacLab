@@ -3,7 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for articulation ordering in environment event terms."""
+"""Simulator-free tests for MDP event terms.
+
+The physics backends are replaced by minimal fakes so that the body-ordering translation, the friction
+write paths, and the scene-wide gravity path can be checked without launching a simulator.
+"""
 
 from __future__ import annotations
 
@@ -14,6 +18,10 @@ import torch
 
 from isaaclab.assets import BaseArticulation
 from isaaclab.envs.mdp import events as events_module
+from isaaclab.envs.mdp.events import _is_all_body_selection, randomize_physics_scene_gravity
+from isaaclab.managers import EventTermCfg
+
+pytestmark = pytest.mark.unit
 
 _NUM_SHAPES_PER_BACKEND_BODY = (1, 2, 3)
 _NUM_ENVS = 2
@@ -22,6 +30,16 @@ _NONIDENTITY_BODY_ORDERING = SimpleNamespace(
     user_to_backend_indices=(0, 2, 1),
     backend_to_user_indices=(0, 2, 1),
 )
+_MATERIAL_PARAMS = {
+    "static_friction_range": (0.4, 0.4),
+    "dynamic_friction_range": (0.2, 0.2),
+    "restitution_range": (0.1, 0.1),
+    "num_buckets": 1,
+}
+_BODY_ORDERING_CASES = [
+    pytest.param(_NONIDENTITY_BODY_ORDERING, slice(3, 6), id="nonidentity-ordering"),
+    pytest.param(None, slice(1, 3), id="default-ordering"),
+]
 
 
 def _sample_lower_bound(low, high, shape, device):
@@ -107,11 +125,9 @@ class _FakeNewtonArticulation:
         self.viscous_friction_writes = []
 
     def write_joint_friction_coefficient_to_sim_index(self, **kwargs):
-        """Record Newton static-friction writes."""
         self.static_friction_writes.append(kwargs)
 
     def write_joint_viscous_friction_coefficient_to_sim_index(self, **kwargs):
-        """Record Newton passive-damping writes."""
         self.viscous_friction_writes.append(kwargs)
 
 
@@ -130,61 +146,44 @@ class _FakeNewtonManager:
         cls.notifications.append(notification)
 
 
-class _FakeScene(dict):
-    """Dictionary-backed scene with the attributes used by joint randomization."""
-
-    def __init__(self, **assets):
-        super().__init__(assets)
-        self.num_envs = _NUM_ENVS
-
-
 @pytest.fixture
 def deterministic_material_sampling(monkeypatch):
     """Keep material samples deterministic and accept torch-backed fake bindings."""
-    import isaaclab.assets as assets_module
-
-    _ = assets_module.BaseArticulation
     monkeypatch.setattr(events_module.math_utils, "sample_uniform", _sample_lower_bound)
     monkeypatch.setattr(events_module.wp, "from_torch", lambda tensor, dtype=None: tensor)
     monkeypatch.setattr(events_module.wp, "to_torch", lambda tensor, requires_grad=None: tensor)
 
 
 @pytest.mark.parametrize(
-    ("body_ordering", "expected_shape_slice"),
+    ("body_ids", "num_bodies", "expected"),
     [
-        pytest.param(_NONIDENTITY_BODY_ORDERING, slice(3, 6), id="nonidentity-ordering"),
-        pytest.param(None, slice(1, 3), id="default-ordering"),
+        (slice(None), 3, True),
+        ([0, 1, 2], 3, True),
+        ([2, 0, 1], 3, True),
+        ([0, 1], 3, False),
+        ([0, 1, 1], 3, False),
     ],
 )
-def test_physx_material_randomization_automatically_converts_public_body_ids_to_backend_shape_range(
+def test_is_all_body_selection(body_ids, num_bodies, expected):
+    """Only the sentinel and explicit complete body selections classify as whole-asset."""
+    assert _is_all_body_selection(body_ids, num_bodies) is expected
+
+
+@pytest.mark.parametrize(("body_ordering", "expected_shape_slice"), _BODY_ORDERING_CASES)
+def test_physx_material_randomization_converts_public_body_ids_to_backend_shape_range(
     monkeypatch, deterministic_material_sampling, body_ordering, expected_shape_slice
 ):
-    """PhysX automatically converts public body selections to backend shape ranges."""
     import isaaclab.assets as assets_module
 
     monkeypatch.setattr(assets_module, "BaseArticulation", _FakePhysxArticulation)
     asset = _FakePhysxArticulation(body_ordering)
     asset_cfg = SimpleNamespace(body_ids=[1])
-    cfg = SimpleNamespace(
-        params={
-            "static_friction_range": (0.4, 0.4),
-            "dynamic_friction_range": (0.2, 0.2),
-            "restitution_range": (0.1, 0.1),
-            "num_buckets": 1,
-        }
-    )
     env = SimpleNamespace(scene=SimpleNamespace(num_envs=_NUM_ENVS), device="cpu")
-    term = events_module._RandomizeRigidBodyMaterialPhysx(cfg, env, asset, asset_cfg)
-
-    term(
-        env,
-        torch.tensor([0], dtype=torch.int32),
-        static_friction_range=(0.4, 0.4),
-        dynamic_friction_range=(0.2, 0.2),
-        restitution_range=(0.1, 0.1),
-        num_buckets=1,
-        asset_cfg=asset_cfg,
+    term = events_module._RandomizeRigidBodyMaterialPhysx(
+        SimpleNamespace(params=_MATERIAL_PARAMS), env, asset, asset_cfg
     )
+
+    term(env, torch.tensor([0], dtype=torch.int32), asset_cfg=asset_cfg, **_MATERIAL_PARAMS)
 
     expected = torch.zeros_like(asset.root_view.materials)
     expected[0, expected_shape_slice] = torch.tensor([0.4, 0.2, 0.1])
@@ -192,17 +191,10 @@ def test_physx_material_randomization_automatically_converts_public_body_ids_to_
     torch.testing.assert_close(asset.root_view.written_env_ids, torch.tensor([0], dtype=torch.int32))
 
 
-@pytest.mark.parametrize(
-    ("body_ordering", "expected_shape_slice"),
-    [
-        pytest.param(_NONIDENTITY_BODY_ORDERING, slice(3, 6), id="nonidentity-ordering"),
-        pytest.param(None, slice(1, 3), id="default-ordering"),
-    ],
-)
-def test_newton_material_randomization_automatically_converts_public_body_ids_to_backend_shape_range(
+@pytest.mark.parametrize(("body_ordering", "expected_shape_slice"), _BODY_ORDERING_CASES)
+def test_newton_material_randomization_converts_public_body_ids_to_backend_shape_range(
     monkeypatch, deterministic_material_sampling, body_ordering, expected_shape_slice
 ):
-    """Newton automatically converts public body selections to backend shape ranges."""
     newton_assets_module = pytest.importorskip("isaaclab_newton.assets")
     newton_manager_module = pytest.importorskip("isaaclab_newton.physics.newton_manager")
 
@@ -211,24 +203,12 @@ def test_newton_material_randomization_automatically_converts_public_body_ids_to
     _FakeNewtonManager.notifications.clear()
     asset = _FakeNewtonArticulation(body_ordering)
     asset_cfg = SimpleNamespace(body_ids=[1])
-    cfg = SimpleNamespace(
-        params={
-            "static_friction_range": (0.4, 0.4),
-            "restitution_range": (0.1, 0.1),
-        }
-    )
     env = SimpleNamespace(scene=SimpleNamespace(num_envs=_NUM_ENVS), device="cpu")
-    term = events_module._RandomizeRigidBodyMaterialNewton(cfg, env, asset, asset_cfg)
-
-    term(
-        env,
-        torch.tensor([0], dtype=torch.int32),
-        static_friction_range=(0.4, 0.4),
-        dynamic_friction_range=(0.2, 0.2),
-        restitution_range=(0.1, 0.1),
-        num_buckets=1,
-        asset_cfg=asset_cfg,
+    term = events_module._RandomizeRigidBodyMaterialNewton(
+        SimpleNamespace(params=_MATERIAL_PARAMS), env, asset, asset_cfg
     )
+
+    term(env, torch.tensor([0], dtype=torch.int32), asset_cfg=asset_cfg, **_MATERIAL_PARAMS)
 
     expected_friction = torch.zeros((_NUM_ENVS, _NUM_SHAPES))
     expected_restitution = torch.zeros_like(expected_friction)
@@ -244,32 +224,52 @@ def test_newton_joint_parameter_randomization_writes_static_and_viscous_friction
     asset = _FakeNewtonArticulation(body_ordering=None)
     asset_cfg = SimpleNamespace(name="robot", joint_ids=slice(None))
     cfg = SimpleNamespace(
-        params={
-            "asset_cfg": asset_cfg,
-            "operation": "abs",
-            "friction_distribution_params": (0.5, 0.5),
-        }
+        params={"asset_cfg": asset_cfg, "operation": "abs", "friction_distribution_params": (0.5, 0.5)}
     )
-    env = SimpleNamespace(
-        scene=_FakeScene(robot=asset),
-        sim=SimpleNamespace(physics_manager=type("NewtonManager", (), {})),
-    )
+    scene = {"robot": asset}
+    env = SimpleNamespace(scene=scene, sim=SimpleNamespace(physics_manager=type("NewtonManager", (), {})))
+    env_ids = torch.tensor([0], dtype=torch.int32)
 
     term = events_module.randomize_joint_parameters(cfg, env)
-    term(
-        env,
-        torch.tensor([0], dtype=torch.int32),
-        asset_cfg,
-        friction_distribution_params=(0.5, 0.5),
-    )
+    term(env, env_ids, asset_cfg, friction_distribution_params=(0.5, 0.5))
 
-    assert len(asset.static_friction_writes) == 1
-    assert len(asset.viscous_friction_writes) == 1
-    static_write = asset.static_friction_writes[0]
-    viscous_write = asset.viscous_friction_writes[0]
+    (static_write,) = asset.static_friction_writes
+    (viscous_write,) = asset.viscous_friction_writes
     assert set(static_write) == {"joint_friction_coeff", "joint_ids", "env_ids"}
     assert set(viscous_write) == {"joint_viscous_friction_coeff", "joint_ids", "env_ids"}
     torch.testing.assert_close(static_write["joint_friction_coeff"], torch.full((1, 2), 0.5))
     torch.testing.assert_close(viscous_write["joint_viscous_friction_coeff"], torch.full((1, 2), 0.5))
-    torch.testing.assert_close(static_write["env_ids"], torch.tensor([0], dtype=torch.int32))
-    torch.testing.assert_close(viscous_write["env_ids"], torch.tensor([0], dtype=torch.int32))
+    torch.testing.assert_close(static_write["env_ids"], env_ids)
+    torch.testing.assert_close(viscous_write["env_ids"], env_ids)
+
+
+@pytest.mark.parametrize("backend", ["physx", "ovphysx"])
+def test_scene_wide_gravity_backends_use_configured_distribution(monkeypatch, backend):
+    """PhysX and OvPhysX sample one gravity vector with the distribution configured at initialization."""
+    gravity_sink = SimpleNamespace()
+    physics_manager = type(
+        f"{backend}Manager",
+        (),
+        {"set_gravity": staticmethod(lambda gravity: setattr(gravity_sink, "value", gravity))},
+    )
+    monkeypatch.setattr(randomize_physics_scene_gravity, "_init_physx", lambda *_args: None)
+    env = SimpleNamespace(
+        device="cpu",
+        sim=SimpleNamespace(cfg=SimpleNamespace(gravity=(0.0, 0.0, -9.81)), physics_manager=physics_manager),
+    )
+    cfg = EventTermCfg(
+        func=randomize_physics_scene_gravity,
+        params={
+            "gravity_distribution_params": ((1.0, 2.0, 3.0), (0.0, 0.0, 0.0)),
+            "operation": "abs",
+            "distribution": "gaussian",
+        },
+    )
+    gravity_event = randomize_physics_scene_gravity(cfg, env)
+    gravity_event._carb = SimpleNamespace(Float3=lambda *values: values)
+    gravity_event._physics_sim_view = physics_manager
+
+    gravity_event(env, env_ids=None, **cfg.params)
+
+    # a zero standard deviation makes the gaussian sample equal to its mean
+    assert gravity_sink.value == pytest.approx((1.0, 2.0, 3.0))

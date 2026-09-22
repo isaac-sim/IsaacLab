@@ -57,6 +57,7 @@ def test_visualizer_cfg_streaming_view_is_opt_in():
     assert cfg.background_color == (0.3, 0.55, 0.82)
     assert cfg.streaming_view is False
     assert cfg.streaming_envs == 32
+    assert cfg.streaming_cam_renderer is None
 
 
 def test_visualizer_cfg_validates_background_color():
@@ -66,11 +67,16 @@ def test_visualizer_cfg_validates_background_color():
         VisualizerCfg(background_color=(0.0, 0.5, 1.1))
 
 
-def test_streaming_cfg_fields_on_visualizer_cfg():
-    """streaming_view is opt-in (False) and streaming_cam_renderer defaults to None."""
-    cfg = VisualizerCfg()
-    assert cfg.streaming_view is False
-    assert cfg.streaming_cam_renderer is None
+def test_visualizer_cfg_deprecated_tiled_cam_aliases_forward_with_warning():
+    """Deprecated ``tiled_cam_*`` fields move to their ``streaming_*`` replacement; explicit indices beat the count."""
+    with pytest.warns(DeprecationWarning, match="tiled_cam_env_indices"):
+        cfg = VisualizerCfg(tiled_cam_view=True, tiled_cam_env_indices=[1, 2], tiled_cam_num=5)
+    assert cfg.streaming_view is True
+    assert cfg.streaming_envs == [1, 2]
+    assert (cfg.tiled_cam_view, cfg.tiled_cam_env_indices, cfg.tiled_cam_num) == (None, None, None)
+
+    with pytest.warns(DeprecationWarning, match="tiled_cam_num"):
+        assert VisualizerCfg(tiled_cam_num=5).streaming_envs == 5
 
 
 #

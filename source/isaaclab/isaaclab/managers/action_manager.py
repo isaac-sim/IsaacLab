@@ -216,11 +216,8 @@ class ActionManager(ManagerBase):
         # create buffers to store actions
         self._action = torch.zeros((self.num_envs, self.total_action_dim), device=self.device)
         self._prev_action = torch.zeros_like(self._action)
-
-        # check if any term has debug visualization implemented
-        self.cfg.debug_vis = False
-        for term in self._terms.values():
-            self.cfg.debug_vis |= term.cfg.debug_vis
+        # debug visualization is enabled if any term requests it
+        self.cfg.debug_vis = any(term.cfg.debug_vis for term in self._terms.values())
 
     def __str__(self) -> str:
         """Returns: A string representation for action manager."""
@@ -273,12 +270,8 @@ class ActionManager(ManagerBase):
 
     @property
     def has_debug_vis_implementation(self) -> bool:
-        """Whether the command terms have debug visualization implemented."""
-        # check if function raises NotImplementedError
-        has_debug_vis = False
-        for term in self._terms.values():
-            has_debug_vis |= term.has_debug_vis_implementation
-        return has_debug_vis
+        """Whether any action term has debug visualization implemented."""
+        return any(term.has_debug_vis_implementation for term in self._terms.values())
 
     @property
     def get_IO_descriptors(self) -> list[dict[str, Any]]:
@@ -307,7 +300,6 @@ class ActionManager(ManagerBase):
         for item in data:
             name = item.pop("name")
             formatted_item = {"name": name, "extras": item.pop("extras")}
-            print(item["export"])
             if not item.pop("export"):
                 continue
             for k, v in item.items():
@@ -435,20 +427,10 @@ class ActionManager(ManagerBase):
 
     def _prepare_terms(self):
         # create buffers to parse and store terms
-        self._term_names: list[str] = list()
-        self._terms: dict[str, ActionTerm] = dict()
+        self._term_names: list[str] = []
+        self._terms: dict[str, ActionTerm] = {}
 
-        # check if config is dict already
-        if isinstance(self.cfg, dict):
-            cfg_items = self.cfg.items()
-        else:
-            cfg_items = self.cfg.__dict__.items()
-        # parse action terms from the config
-        for term_name, term_cfg in cfg_items:
-            # check if term config is None
-            if term_cfg is None:
-                continue
-            # check valid type
+        for term_name, term_cfg in self._iter_term_cfgs(self.cfg):
             if not isinstance(term_cfg, ActionTermCfg):
                 raise TypeError(
                     f"Configuration for the term '{term_name}' is not of type ActionTermCfg."

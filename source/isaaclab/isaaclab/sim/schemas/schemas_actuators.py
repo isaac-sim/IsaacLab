@@ -20,14 +20,23 @@ side effect of asset construction.
 
 from __future__ import annotations
 
+import json
 import re
+import tempfile
 from typing import Any
 
 from pxr import Sdf, Usd, UsdPhysics
 
 from isaaclab.actuators._compat import _resolve_limit_aliases
 from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
-from isaaclab.utils.string import _resolve_matching_values_dense, resolve_matching_names, string_to_callable
+from isaaclab.utils.string import (
+    _resolve_matching_values_dense,
+    resolve_matching_names,
+    string_to_callable,
+    to_camel_case,
+)
+
+from .schemas import _drive_instance_name
 
 
 def _resolve_actuator_class(class_type: type | str) -> type:
@@ -175,15 +184,15 @@ def define_actuator_properties(
     Raises:
         ValueError: If Newton-native execution is enabled and an explicit actuator config is unsupported.
     """
-    from isaaclab.sim import SimulationContext  # noqa: PLC0415
+    from .. import SimulationContext  # noqa: PLC0415
 
     sim_ctx = SimulationContext.instance()
     sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
     if sim_cfg is None or not getattr(sim_cfg, "use_newton_actuators", False):
         return
 
-    from isaaclab.sim.utils.queries import find_first_matching_prim  # noqa: PLC0415
-    from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
+    from ..utils.queries import find_first_matching_prim  # noqa: PLC0415
+    from ..utils.stage import get_current_stage  # noqa: PLC0415
 
     if stage is None:
         stage = get_current_stage()
@@ -305,7 +314,7 @@ def _author_actuator_prims(
                 schemas.append("NewtonMaxEffortClampingAPI")
                 attrs["max_effort"] = effort_map[jname]
 
-            if is_remotized and isinstance(cfg, RemotizedPDActuatorCfg):
+            if is_remotized:
                 lookup = cfg.joint_parameter_lookup
                 schemas.append("NewtonPositionBasedClampingAPI")
                 array_attrs["lookup_positions"] = [row[0] for row in lookup]
@@ -333,37 +342,29 @@ def _author_actuator_prims(
                 )
 
             for attr_name, attr_val in attrs.items():
-                usd_name = f"newton:{_snake_to_camel(attr_name)}"
+                usd_name = f"newton:{to_camel_case(attr_name)}"
                 if isinstance(attr_val, int):
                     act_prim.CreateAttribute(usd_name, Sdf.ValueTypeNames.Int).Set(attr_val)
                 else:
                     act_prim.CreateAttribute(usd_name, Sdf.ValueTypeNames.Float).Set(float(attr_val))
 
             for attr_name, attr_val in array_attrs.items():
-                usd_name = f"newton:{_snake_to_camel(attr_name)}"
+                usd_name = f"newton:{to_camel_case(attr_name)}"
                 act_prim.CreateAttribute(usd_name, Sdf.ValueTypeNames.FloatArray).Set(attr_val)
 
 
-# ---------------------------------------------------------------------------
-# Private helpers
-# ---------------------------------------------------------------------------
+"""
+Private helpers.
+"""
 
-_SNAKE_TO_CAMEL_RE = re.compile(r"_([a-z])")
-
-
-def _snake_to_camel(name: str) -> str:
-    """Convert a snake_case name to camelCase."""
-    return _SNAKE_TO_CAMEL_RE.sub(lambda m: m.group(1).upper(), name)
+_JOINT_TYPES = frozenset({"PhysicsRevoluteJoint", "PhysicsPrismaticJoint"})
 
 
 def _get_authored_joint_effort_limit(stage: Usd.Stage, joint_prim_path: str) -> float | None:
     """Read a revolute or prismatic joint's authored USD drive effort limit."""
     joint_prim = stage.GetPrimAtPath(joint_prim_path)
-    if joint_prim.IsA(UsdPhysics.RevoluteJoint):
-        drive_name = "angular"
-    elif joint_prim.IsA(UsdPhysics.PrismaticJoint):
-        drive_name = "linear"
-    else:
+    drive_name = _drive_instance_name(joint_prim)
+    if drive_name is None:
         return None
     value = UsdPhysics.DriveAPI(joint_prim, drive_name).GetMaxForceAttr().Get()
     return None if value is None else float(value)
@@ -375,13 +376,9 @@ def _collect_joint_prims(art_prim: Any) -> dict[str, str]:
     Returns:
         Ordered mapping of joint name to full prim path.
     """
-    _JOINT_TYPES = {"PhysicsRevoluteJoint", "PhysicsPrismaticJoint"}
-
-    joints: dict[str, str] = {}
-    for prim in Usd.PrimRange(art_prim):
-        if prim.GetTypeName() in _JOINT_TYPES:
-            joints[prim.GetName()] = str(prim.GetPath())
-    return joints
+    return {
+        prim.GetName(): str(prim.GetPath()) for prim in Usd.PrimRange(art_prim) if prim.GetTypeName() in _JOINT_TYPES
+    }
 
 
 def _remove_actuator_prims_for_joints(
@@ -397,17 +394,14 @@ def _remove_actuator_prims_for_joints(
 
     Only prims under the *art_prim* subtree are considered.
     """
-    to_deactivate: list = []
+    to_deactivate = []
     for prim in Usd.PrimRange(art_prim):
         if prim.GetTypeName() != "NewtonActuator":
             continue
         rel = prim.GetRelationship("newton:targets")
-        if rel and rel.IsValid():
-            for target in rel.GetTargets():
-                if str(target) in joint_paths:
-                    to_deactivate.append(prim)
-                    break
-
+        if rel and any(str(target) in joint_paths for target in rel.GetTargets()):
+            to_deactivate.append(prim)
+    # deactivate after the traversal so the prim range is not mutated while iterating
     for prim in to_deactivate:
         prim.SetActive(False)
 
@@ -426,9 +420,6 @@ def _resave_checkpoint_with_metadata(
     Returns:
         Path to the temporary checkpoint file.
     """
-    import json  # noqa: PLC0415
-    import tempfile  # noqa: PLC0415
-
     import torch  # noqa: PLC0415
 
     from isaaclab.utils.assets import retrieve_file_path  # noqa: PLC0415

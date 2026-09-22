@@ -13,10 +13,13 @@ import torch
 
 from isaaclab.benchmark.stepping import (
     EnvironmentStepTimingRecorder,
+    run_play_loop,
     run_runtime_loop,
     run_runtime_warmup,
     sample_random_actions,
 )
+
+pytestmark = pytest.mark.benchmark
 
 
 class _Space:
@@ -75,8 +78,6 @@ def test_run_runtime_loop_steps_and_times():
     assert env.reset_called and env.steps == 5
     assert len(times) == 5 and all(t >= 0.0 for t in times)
 
-
-def test_run_runtime_loop_can_skip_reset():
     env = _Env()
     run_runtime_loop(env, num_steps=2, reset=False)
     assert not env.reset_called and env.steps == 2
@@ -283,3 +284,37 @@ def test_sample_multi_agent_returns_dict_per_agent():
     assert set(actions) == {"a0", "a1"}
     assert tuple(actions["a0"].shape) == (4, 3)
     assert tuple(actions["a1"].shape) == (4, 2)
+
+
+class _PlayEnv:
+    """Env 0 finishes a two-step episode on the second step; env 1 never finishes."""
+
+    num_envs = 2
+    device = "cpu"
+
+    def __init__(self):
+        self.unwrapped = self
+        self._calls = 0
+        self.inference_mode_enabled = False
+
+    def reset(self):
+        return torch.zeros(2, 3), {}
+
+    def step(self, actions):
+        self.inference_mode_enabled = torch.is_inference_mode_enabled()
+        self._calls += 1
+        dones = torch.tensor([True, False]) if self._calls == 2 else torch.tensor([False, False])
+        return torch.zeros(2, 3), torch.ones(2), dones, {"log": {"Episode_Reward/success": torch.tensor(1.0)}}
+
+
+def test_run_play_loop_aggregates_completed_episodes():
+    env = _PlayEnv()
+
+    step_times, reward, ep_length, success_rate = run_play_loop(env, policy=lambda obs: torch.zeros(2, 1), num_steps=3)
+
+    assert env.inference_mode_enabled
+    assert len(step_times) == 3
+    # Env 0 completed one two-step episode with reward 1 per step.
+    assert reward.mean == pytest.approx(2.0)
+    assert ep_length.mean == pytest.approx(2.0)
+    assert success_rate == pytest.approx(1.0)

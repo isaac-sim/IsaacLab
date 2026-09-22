@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from isaaclab.scene_data.deformable_discovery import (
     DeformableStageEntry,
     build_deformable_root_path_lookup,
@@ -16,6 +18,8 @@ from isaaclab.scene_data.deformable_discovery import (
     resolve_deformable_vertex_count,
     sort_deformable_entries_for_geometry_sync,
 )
+
+pytestmark = pytest.mark.unit
 
 
 def test_deformable_vertex_count_lookup_and_resolve():

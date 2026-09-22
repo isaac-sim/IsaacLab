@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from collections import namedtuple
+from types import SimpleNamespace
 
 import pytest
 
@@ -12,30 +12,14 @@ from isaaclab.envs.mdp import NullCommandCfg
 pytestmark = pytest.mark.unit
 
 
-@pytest.fixture
-def env():
-    """Create a dummy environment."""
-    return namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device"])(20, 0.1, "cpu")
-
-
-def test_str(env):
-    """Test the string representation of the command manager."""
-    cfg = NullCommandCfg()
-    command_term = cfg.class_type(cfg, env)
-    # print the expected string
-    print()
-    print(command_term)
-
-
-def test_compute(env):
-    """Test the compute function. For null command generator, it does nothing."""
+def test_null_command_term_has_no_command():
+    """The null command term resets and computes without side effects and exposes no command."""
+    env = SimpleNamespace(num_envs=20, dt=0.1, device="cpu")
     cfg = NullCommandCfg()
     command_term = cfg.class_type(cfg, env)
 
-    # test the reset function
+    assert "NullCommand" in str(command_term)
     command_term.reset()
-    # test the compute function
     command_term.compute(dt=env.dt)
-    # expect error
     with pytest.raises(RuntimeError):
         command_term.command

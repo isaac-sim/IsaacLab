@@ -18,6 +18,27 @@ if TYPE_CHECKING:
 ##
 
 
+def _move_params_to_device(cfg: noise_cfg.NoiseCfg, data: torch.Tensor, *names: str) -> None:
+    """Move tensor-valued noise parameters onto the data device (once, on first call)."""
+    for name in names:
+        value = getattr(cfg, name)
+        if isinstance(value, torch.Tensor) and value.device != data.device:
+            setattr(cfg, name, value.to(data.device))
+
+
+def _apply_noise(data: torch.Tensor, noise: torch.Tensor | float, operation: str) -> torch.Tensor:
+    """Combine ``noise`` with ``data`` according to the configured operation."""
+    if operation == "add":
+        return data + noise
+    if operation == "scale":
+        return data * noise
+    if operation == "abs":
+        if isinstance(noise, torch.Tensor) and noise.shape == data.shape:
+            return noise
+        return torch.zeros_like(data) + noise
+    raise ValueError(f"Unknown operation in noise: {operation}")
+
+
 def constant_noise(data: torch.Tensor, cfg: noise_cfg.ConstantNoiseCfg) -> torch.Tensor:
     """Applies a constant noise bias to a given data set.
 
@@ -28,19 +49,8 @@ def constant_noise(data: torch.Tensor, cfg: noise_cfg.ConstantNoiseCfg) -> torch
     Returns:
         The data modified by the noise parameters provided.
     """
-
-    # fix tensor device for bias on first call and update config parameters
-    if isinstance(cfg.bias, torch.Tensor):
-        cfg.bias = cfg.bias.to(device=data.device)
-
-    if cfg.operation == "add":
-        return data + cfg.bias
-    elif cfg.operation == "scale":
-        return data * cfg.bias
-    elif cfg.operation == "abs":
-        return torch.zeros_like(data) + cfg.bias
-    else:
-        raise ValueError(f"Unknown operation in noise: {cfg.operation}")
+    _move_params_to_device(cfg, data, "bias")
+    return _apply_noise(data, cfg.bias, cfg.operation)
 
 
 def uniform_noise(data: torch.Tensor, cfg: noise_cfg.UniformNoiseCfg) -> torch.Tensor:
@@ -54,21 +64,9 @@ def uniform_noise(data: torch.Tensor, cfg: noise_cfg.UniformNoiseCfg) -> torch.T
         The data modified by the noise parameters provided.
     """
 
-    # fix tensor device for n_max on first call and update config parameters
-    if isinstance(cfg.n_max, torch.Tensor):
-        cfg.n_max = cfg.n_max.to(data.device)
-    # fix tensor device for n_min on first call and update config parameters
-    if isinstance(cfg.n_min, torch.Tensor):
-        cfg.n_min = cfg.n_min.to(data.device)
-
-    if cfg.operation == "add":
-        return data + torch.rand_like(data) * (cfg.n_max - cfg.n_min) + cfg.n_min
-    elif cfg.operation == "scale":
-        return data * (torch.rand_like(data) * (cfg.n_max - cfg.n_min) + cfg.n_min)
-    elif cfg.operation == "abs":
-        return torch.rand_like(data) * (cfg.n_max - cfg.n_min) + cfg.n_min
-    else:
-        raise ValueError(f"Unknown operation in noise: {cfg.operation}")
+    _move_params_to_device(cfg, data, "n_min", "n_max")
+    noise = torch.rand_like(data) * (cfg.n_max - cfg.n_min) + cfg.n_min
+    return _apply_noise(data, noise, cfg.operation)
 
 
 def gaussian_noise(data: torch.Tensor, cfg: noise_cfg.GaussianNoiseCfg) -> torch.Tensor:
@@ -82,21 +80,9 @@ def gaussian_noise(data: torch.Tensor, cfg: noise_cfg.GaussianNoiseCfg) -> torch
         The data modified by the noise parameters provided.
     """
 
-    # fix tensor device for mean on first call and update config parameters
-    if isinstance(cfg.mean, torch.Tensor):
-        cfg.mean = cfg.mean.to(data.device)
-    # fix tensor device for std on first call and update config parameters
-    if isinstance(cfg.std, torch.Tensor):
-        cfg.std = cfg.std.to(data.device)
-
-    if cfg.operation == "add":
-        return data + cfg.mean + cfg.std * torch.randn_like(data)
-    elif cfg.operation == "scale":
-        return data * (cfg.mean + cfg.std * torch.randn_like(data))
-    elif cfg.operation == "abs":
-        return cfg.mean + cfg.std * torch.randn_like(data)
-    else:
-        raise ValueError(f"Unknown operation in noise: {cfg.operation}")
+    _move_params_to_device(cfg, data, "mean", "std")
+    noise = cfg.mean + cfg.std * torch.randn_like(data)
+    return _apply_noise(data, noise, cfg.operation)
 
 
 ##

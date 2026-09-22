@@ -16,7 +16,7 @@ from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils.backend_utils import FactoryBase
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
+    from .. import ManagerBasedEnv
 
 
 class randomize_visual_material(ManagerTermBase):

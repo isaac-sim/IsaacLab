@@ -18,13 +18,12 @@ import xml.etree.ElementTree as ET
 
 from isaaclab.sim.utils import enable_extension, get_extension_path
 
-# import logger
 logger = logging.getLogger(__name__)
 
 # NOTE: As of Isaac Sim 6.0, ``isaacsim.robot_motion.lula`` (and ``isaacsim.robot_motion.motion_generation``)
 # are deprecated -- ``lula`` has been subsumed by cuMotion (``isaacsim.robot_motion.cumotion``), which is
 # built on the new experimental motion-generation API and is the long-term replacement for RMPFlow here.
-# ``lula`` is still shipped (under ``extsDeprecated`` in pip installs) so this controller keeps working,
+# ``lula`` is still shipped (under ``extsDeprecated`` in pip installs) so this controller keeps working.
 
 _LULA_EXT_NAME = "isaacsim.robot_motion.lula"
 _RMPFLOW_EXT_PREFIX = "rmpflow_ext:"
@@ -80,22 +79,17 @@ def _sanitize_urdf_for_pinocchio(urdf_path: str) -> None:
         tree.write(urdf_path, encoding="unicode")
 
 
-def change_revolute_to_fixed(urdf_path: str, fixed_joints: list[str], verbose: bool = False):
-    """Change revolute joints to fixed joints in a URDF file.
+def _revolute_joint_tag(joint: str) -> str:
+    return f'<joint name="{joint}" type="revolute">'
 
-    This function modifies a URDF file by changing specified revolute joints to fixed joints.
-    This is useful when you want to disable certain joints in a robot model.
 
-    Args:
-        urdf_path: Path to the URDF file to modify.
-        fixed_joints: List of joint names to convert from revolute to fixed.
-        verbose: Whether to print information about the changes being made.
-    """
+def _rewrite_revolute_joints_as_fixed(urdf_path: str, joints: list[str], verbose: bool) -> None:
+    """Rewrite the opening tags of the given revolute joints as fixed joints."""
     with open(urdf_path) as file:
         content = file.read()
 
-    for joint in fixed_joints:
-        old_str = f'<joint name="{joint}" type="revolute">'
+    for joint in joints:
+        old_str = _revolute_joint_tag(joint)
         new_str = f'<joint name="{joint}" type="fixed">'
         if verbose:
             logger.warning(f"Replacing {joint} with fixed joint")
@@ -109,6 +103,20 @@ def change_revolute_to_fixed(urdf_path: str, fixed_joints: list[str], verbose: b
         file.write(content)
 
 
+def change_revolute_to_fixed(urdf_path: str, fixed_joints: list[str], verbose: bool = False):
+    """Change revolute joints to fixed joints in a URDF file.
+
+    This function modifies a URDF file by changing specified revolute joints to fixed joints.
+    This is useful when you want to disable certain joints in a robot model.
+
+    Args:
+        urdf_path: Path to the URDF file to modify.
+        fixed_joints: List of joint names to convert from revolute to fixed.
+        verbose: Whether to print information about the changes being made.
+    """
+    _rewrite_revolute_joints_as_fixed(urdf_path, fixed_joints, verbose)
+
+
 def change_revolute_to_fixed_regex(urdf_path: str, fixed_joints: list[str], verbose: bool = False):
     """Change revolute joints to fixed joints in a URDF file.
 
@@ -120,38 +128,27 @@ def change_revolute_to_fixed_regex(urdf_path: str, fixed_joints: list[str], verb
         fixed_joints: List of regular expressions matching joint names to convert from revolute to fixed.
         verbose: Whether to print information about the changes being made.
     """
-
     with open(urdf_path) as file:
         content = file.read()
-
-    # Find all revolute joints in the URDF
     revolute_joints = re.findall(r'<joint name="([^"]+)" type="revolute">', content)
-
-    for joint in revolute_joints:
-        # Check if this joint matches any of the fixed joint patterns
-        should_fix = any(re.match(pattern, joint) for pattern in fixed_joints)
-
-        if should_fix:
-            old_str = f'<joint name="{joint}" type="revolute">'
-            new_str = f'<joint name="{joint}" type="fixed">'
-            if verbose:
-                logger.warning(f"Replacing {joint} with fixed joint")
-                logger.warning(old_str)
-                logger.warning(new_str)
-            content = content.replace(old_str, new_str)
-
-    with open(urdf_path, "w") as file:
-        file.write(content)
+    matched_joints = [joint for joint in revolute_joints if any(re.match(pattern, joint) for pattern in fixed_joints)]
+    _rewrite_revolute_joints_as_fixed(urdf_path, matched_joints, verbose)
 
 
-def _find_rmpflow_extension_dir() -> str | None:
-    """Locate the extension directory shipping RMPFlow motion policy configs."""
+def _isaac_path() -> str | None:
+    """Return the Isaac Sim install directory, importing ``isaacsim`` to populate ``ISAAC_PATH`` if needed."""
     isaac_path = os.environ.get("ISAAC_PATH")
     if not isaac_path:
         with contextlib.suppress(ImportError):
             import isaacsim  # noqa: F401  (sets ``os.environ["ISAAC_PATH"]`` as a side effect)
         isaac_path = os.environ.get("ISAAC_PATH")
-    if not isaac_path:
+    return isaac_path or None
+
+
+def _find_rmpflow_extension_dir() -> str | None:
+    """Locate the extension directory shipping RMPFlow motion policy configs."""
+    isaac_path = _isaac_path()
+    if isaac_path is None:
         return None
 
     candidates = [
@@ -213,12 +210,8 @@ def find_lula_prebundle_dir() -> str | None:
     ``extsDeprecated/<name>`` for the Isaac Sim 6.0 pip packages (where the Kit resolver reports it as
     unavailable even though the prebundled module is present). All layouts are searched.
     """
-    isaac_path = os.environ.get("ISAAC_PATH")
-    if not isaac_path:
-        with contextlib.suppress(ImportError):
-            import isaacsim  # noqa: F401  (sets ``os.environ["ISAAC_PATH"]`` as a side effect)
-        isaac_path = os.environ.get("ISAAC_PATH")
-    if not isaac_path:
+    isaac_path = _isaac_path()
+    if isaac_path is None:
         return None
     candidates = [os.path.join(isaac_path, "exts", _LULA_EXT_NAME, "pip_prebundle")]
     for parent in ("extscache", "extsDeprecated", "exts"):

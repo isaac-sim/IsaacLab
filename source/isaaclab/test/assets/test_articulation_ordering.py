@@ -1184,9 +1184,9 @@ def test_map_ids_to_backend_handles_slice_selectors() -> None:
     assert permuted.map_body_ids_to_backend(slice(0, 3, 2)) == [2, 1]
 
     identity = _make_map_ids_articulation(permuted=False)
-    all_items = slice(None)
-    assert identity.map_joint_ids_to_backend(all_items) is all_items
-    assert identity.map_body_ids_to_backend(all_items) is all_items
+    for selector in (slice(None), [2, 0, 1]):
+        assert identity.map_joint_ids_to_backend(selector) is selector
+        assert identity.map_body_ids_to_backend(selector) is selector
 
 
 def test_ordering_map_helpers_pick_axis_direction_and_identity_fallback() -> None:
@@ -1279,39 +1279,22 @@ def test_build_articulation_name_map_builds_permutation_indices_and_device_maps(
     assert name_map.backend_to_user is not None
     np.testing.assert_array_equal(name_map.user_to_backend.numpy(), np.asarray([2, 0, 1], dtype=np.int32))
     np.testing.assert_array_equal(name_map.backend_to_user.numpy(), np.asarray([1, 2, 0], dtype=np.int32))
+    assert not hasattr(name_map, "is_identity")
+    assert not hasattr(name_map, "user_names")
 
 
-def test_build_articulation_name_map_rejects_duplicate_backend_names() -> None:
-    """Reject backend names that cannot be mapped unambiguously."""
-    with pytest.raises(ValueError, match="Duplicate backend joint names"):
-        build_articulation_name_map(
-            kind="joint",
-            backend_names=("hip", "hip"),
-            user_names=("hip", "knee"),
-            device="cpu",
-        )
-
-
-def test_build_articulation_name_map_rejects_duplicate_requested_names() -> None:
-    """Reject requested user names that cannot be mapped unambiguously."""
-    with pytest.raises(ValueError, match="Duplicate requested body names"):
-        build_articulation_name_map(
-            kind="body",
-            backend_names=("base", "foot"),
-            user_names=("base", "base"),
-            device="cpu",
-        )
-
-
-def test_build_articulation_name_map_rejects_incomplete_permutation() -> None:
-    """Reject requested names that are not a complete backend-name permutation."""
-    with pytest.raises(ValueError, match=r"Missing=\['knee'\], extra=\['wheel'\]"):
-        build_articulation_name_map(
-            kind="joint",
-            backend_names=("hip", "knee"),
-            user_names=("hip", "wheel"),
-            device="cpu",
-        )
+@pytest.mark.parametrize(
+    "kind, backend_names, user_names, match",
+    [
+        ("joint", ("hip", "hip"), ("hip", "knee"), "Duplicate backend joint names"),
+        ("body", ("base", "foot"), ("base", "base"), "Duplicate requested body names"),
+        ("joint", ("hip", "knee"), ("hip", "wheel"), r"Missing=\['knee'\], extra=\['wheel'\]"),
+    ],
+    ids=["duplicate_backend", "duplicate_requested", "incomplete_permutation"],
+)
+def test_build_articulation_name_map_rejects_ambiguous_or_incomplete_names(kind, backend_names, user_names, match):
+    with pytest.raises(ValueError, match=match):
+        build_articulation_name_map(kind=kind, backend_names=backend_names, user_names=user_names, device="cpu")
 
 
 def test_build_articulation_name_map_returns_none_for_identity() -> None:
@@ -1322,15 +1305,6 @@ def test_build_articulation_name_map_returns_none_for_identity() -> None:
         is None
     )
     assert build_articulation_name_map(kind="joint", backend_names=backend_names, user_names=None, device="cpu") is None
-
-    permuted = build_articulation_name_map(
-        kind="joint", backend_names=backend_names, user_names=("j_c", "j_a", "j_b"), device="cpu"
-    )
-    assert permuted is not None
-    assert permuted.user_to_backend_indices == (2, 0, 1)
-    assert permuted.backend_to_user_indices == (1, 2, 0)
-    assert not hasattr(permuted, "is_identity")
-    assert not hasattr(permuted, "user_names")
 
 
 def test_ordering_state_lives_only_on_data() -> None:
@@ -1344,59 +1318,3 @@ def test_ordering_state_lives_only_on_data() -> None:
     ):
         for name in names:
             assert not hasattr(owner, name), f"{owner.__name__}.{name} should be deleted"
-
-
-_NONIDENTITY_ORDERING = types.SimpleNamespace(
-    user_to_backend_indices=(0, 2, 1),
-    backend_to_user_indices=(0, 2, 1),
-)
-
-
-class _MapBodyIdsSurface:
-    """Minimal surface exercising the real body-id translation method."""
-
-    map_body_ids_to_backend = BaseArticulation.map_body_ids_to_backend
-
-    def __init__(self, body_ordering):
-        self.body_ordering = body_ordering
-
-
-class _MapJointIdsSurface:
-    """Minimal surface exercising the real joint-id translation method."""
-
-    map_joint_ids_to_backend = BaseArticulation.map_joint_ids_to_backend
-
-    def __init__(self, joint_ordering):
-        self.joint_ordering = joint_ordering
-
-
-def test_map_body_ids_to_backend_returns_input_unchanged_for_default_ordering() -> None:
-    """A ``None`` body ordering returns the input object unchanged.
-
-    ``None`` covers identity-configured orderings too: assets normalize
-    identity maps away at install time, so this is the only fast-path state.
-    """
-    asset = _MapBodyIdsSurface(None)
-    body_ids = [2, 0, 1]
-    assert asset.map_body_ids_to_backend(body_ids) is body_ids
-
-
-def test_map_body_ids_to_backend_permutes_ids_for_nonidentity_ordering() -> None:
-    """A nonidentity body ordering gathers public IDs into backend order."""
-    asset = _MapBodyIdsSurface(_NONIDENTITY_ORDERING)
-    # user_to_backend_indices == (0, 2, 1): public 1 -> backend 2, public 2 -> backend 1
-    assert asset.map_body_ids_to_backend([1, 2]) == [2, 1]
-
-
-def test_map_joint_ids_to_backend_returns_input_unchanged_for_default_ordering() -> None:
-    """A ``None`` (default) joint ordering returns the input object unchanged."""
-    asset = _MapJointIdsSurface(None)
-    joint_ids = [2, 0, 1]
-    assert asset.map_joint_ids_to_backend(joint_ids) is joint_ids
-
-
-def test_map_joint_ids_to_backend_permutes_ids_for_nonidentity_ordering() -> None:
-    """A nonidentity joint ordering gathers public IDs into backend order."""
-    asset = _MapJointIdsSurface(_NONIDENTITY_ORDERING)
-    # user_to_backend_indices == (0, 2, 1): public 1 -> backend 2, public 2 -> backend 1
-    assert asset.map_joint_ids_to_backend([1, 2]) == [2, 1]

@@ -7,6 +7,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pxr import Usd
+
 
 def props_expr(prim_path: str, pattern: str) -> str:
     """Append a cfg-relative target pattern to an anchor prim path.
@@ -48,7 +54,7 @@ def fragment_mapping(value, default_pattern: str = "") -> dict | None:
     Returns:
         The equivalent target-pattern mapping, or None when the value is a legacy configuration.
     """
-    from isaaclab.sim.schemas.schemas_cfg import SchemaFragment  # noqa: PLC0415
+    from ..schemas.schemas_cfg import SchemaFragment  # noqa: PLC0415
 
     if isinstance(value, dict):
         return value
@@ -74,11 +80,48 @@ def bare_fragments(value) -> bool:
     Returns:
         True when the value is a bare fragment or a sequence of fragments.
     """
-    from isaaclab.sim.schemas.schemas_cfg import SchemaFragment  # noqa: PLC0415
+    from ..schemas.schemas_cfg import SchemaFragment  # noqa: PLC0415
 
     if isinstance(value, SchemaFragment):
         return True
     return isinstance(value, (list, tuple)) and all(isinstance(item, SchemaFragment) for item in value)
+
+
+def apply_schema_props(
+    value, anchor_path: str, apply_func: Callable, define_func: Callable, stage: Usd.Stage | None
+) -> None:
+    """Author a schema family from a spawner-configuration value onto a freshly spawned prim.
+
+    A fragment mapping applies one ``apply_func`` call per entry, in insertion order, with the
+    pattern anchored at ``anchor_path`` (so ``""`` targets the anchor itself) and the API created
+    when missing. A legacy dataclass configuration routes to ``define_func``.
+
+    Args:
+        value: The value of the spawner-configuration field.
+        anchor_path: The absolute path of the prim the target patterns anchor on.
+        apply_func: The fragment family writer, e.g. ``schemas.apply_mass_properties``.
+        define_func: The legacy writer, e.g. ``schemas.define_mass_properties``.
+        stage: The stage containing the prim.
+    """
+    mapping = fragment_mapping(value)
+    if mapping is None:
+        define_func(anchor_path, value, stage=stage)
+        return
+    for pattern, fragments in mapping.items():
+        apply_func(props_expr(anchor_path, pattern), fragments, create_if_missing=True, stage=stage)
+
+
+def resolve_material_path(material_path: str, parent_path: str) -> str:
+    """Resolve a material path from a spawner configuration.
+
+    Args:
+        material_path: An absolute prim path, or a name relative to ``parent_path``.
+        parent_path: The prim path relative material names are placed under.
+
+    Returns:
+        The absolute prim path of the material.
+    """
+    return material_path if material_path.startswith("/") else f"{parent_path}/{material_path}"
 
 
 def subtree_carries_api(prim_path: str, api_type, stage) -> bool:

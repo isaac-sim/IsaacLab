@@ -3,140 +3,93 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+# ignore private usage of variables warning
+# pyright: reportPrivateUsage=none
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+from __future__ import annotations
 
 import pytest
 import torch
 
 from isaaclab.managers import TerminationManager, TerminationTermCfg
-from isaaclab.sim import SimulationContext
 
-pytestmark = pytest.mark.integration
-
-
-class DummyEnv:
-    """Minimal mutable env stub for the termination manager tests."""
-
-    def __init__(self, num_envs: int, device: str, sim: SimulationContext):
-        self.num_envs = num_envs
-        self.device = device
-        self.sim = sim
-        self.counter = 0  # mutable step counter used by test terms
+pytestmark = pytest.mark.unit
 
 
-def fail_every_5_steps(env) -> torch.Tensor:
-    """Returns True for all envs when counter is a positive multiple of 5."""
-    cond = env.counter > 0 and (env.counter % 5 == 0)
-    return torch.full((env.num_envs,), cond, dtype=torch.bool, device=env.device)
+def _fail_every(period: int):
+    """Build a termination term that fires for all envs when the env counter is a positive multiple of ``period``."""
+
+    def term(env) -> torch.Tensor:
+        cond = env.counter > 0 and env.counter % period == 0
+        return torch.full((env.num_envs,), cond, dtype=torch.bool, device=env.device)
+
+    return term
 
 
-def fail_every_10_steps(env) -> torch.Tensor:
-    """Returns True for all envs when counter is a positive multiple of 10."""
-    cond = env.counter > 0 and (env.counter % 10 == 0)
-    return torch.full((env.num_envs,), cond, dtype=torch.bool, device=env.device)
-
-
-def fail_every_3_steps(env) -> torch.Tensor:
-    """Returns True for all envs when counter is a positive multiple of 3."""
-    cond = env.counter > 0 and (env.counter % 3 == 0)
-    return torch.full((env.num_envs,), cond, dtype=torch.bool, device=env.device)
+fail_every_3_steps = _fail_every(3)
+fail_every_5_steps = _fail_every(5)
+fail_every_10_steps = _fail_every(10)
 
 
 @pytest.fixture
-def env():
-    sim = SimulationContext()
-    yield DummyEnv(num_envs=20, device="cpu", sim=sim)
-    SimulationContext.clear_instance()
+def env(make_env):
+    return make_env(counter=0)
 
 
 def test_initial_state_and_shapes(env):
+    """Buffers are allocated per term and start as all False."""
     cfg = {
         "term_5": TerminationTermCfg(func=fail_every_5_steps),
         "term_10": TerminationTermCfg(func=fail_every_10_steps),
     }
     tm = TerminationManager(cfg, env)
 
-    # Active term names
     assert tm.active_terms == ["term_5", "term_10"]
-
-    # Internal buffers have expected shapes and start as all False
-    assert tm._term_dones.shape == (env.num_envs, 2)
-    assert tm._last_episode_dones.shape == (env.num_envs, 2)
-    assert tm.dones.shape == (env.num_envs,)
-    assert tm.time_outs.shape == (env.num_envs,)
-    assert tm.terminated.shape == (env.num_envs,)
-    assert torch.all(~tm._term_dones) and torch.all(~tm._last_episode_dones)
+    assert tm._term_dones.shape == tm._last_episode_dones.shape == (env.num_envs, 2)
+    assert tm.dones.shape == tm.time_outs.shape == tm.terminated.shape == (env.num_envs,)
+    assert not tm._term_dones.any() and not tm._last_episode_dones.any()
 
 
 def test_term_transitions_and_persistence(env):
-    """Concise transitions: single fire, persist, switch, both, persist.
-
-    Uses 3-step and 5-step terms and verifies current-step values and last-episode persistence.
-    """
+    """Per-term dones reflect the current step while the last-episode dones persist until a term fires again."""
     cfg = {
-        "term_3": TerminationTermCfg(func=fail_every_3_steps, time_out=False),
-        "term_5": TerminationTermCfg(func=fail_every_5_steps, time_out=False),
+        "term_3": TerminationTermCfg(func=fail_every_3_steps),
+        "term_5": TerminationTermCfg(func=fail_every_5_steps),
     }
     tm = TerminationManager(cfg, env)
 
-    # step 3: only term_3 -> last_episode [True, False]
-    env.counter = 3
-    out = tm.compute()
-    assert torch.all(tm.get_term("term_3")) and torch.all(~tm.get_term("term_5"))
-    assert torch.all(out)
-    assert torch.all(tm._last_episode_dones[:, 0]) and torch.all(~tm._last_episode_dones[:, 1])
+    # (counter, term_3 fired, term_5 fired, last-episode dones)
+    steps = [
+        (3, True, False, (True, False)),
+        (4, False, False, (True, False)),
+        (5, False, True, (False, True)),
+        (15, True, True, (True, True)),
+        (16, False, False, (True, True)),
+    ]
+    for counter, term_3, term_5, last_episode in steps:
+        env.counter = counter
+        dones = tm.compute()
+        assert torch.all(dones == (term_3 or term_5))
+        assert torch.all(tm.get_term("term_3") == term_3) and torch.all(tm.get_term("term_5") == term_5)
+        assert torch.all(tm._last_episode_dones == torch.tensor(last_episode))
 
-    # step 4: none -> last_episode persists [True, False]
-    env.counter = 4
-    out = tm.compute()
-    assert torch.all(~out)
-    assert torch.all(~tm.get_term("term_3")) and torch.all(~tm.get_term("term_5"))
-    assert torch.all(tm._last_episode_dones[:, 0]) and torch.all(~tm._last_episode_dones[:, 1])
-
-    # step 5: only term_5 -> last_episode [False, True]
-    env.counter = 5
-    out = tm.compute()
-    assert torch.all(~tm.get_term("term_3")) and torch.all(tm.get_term("term_5"))
-    assert torch.all(out)
-    assert torch.all(~tm._last_episode_dones[:, 0]) and torch.all(tm._last_episode_dones[:, 1])
-
-    # step 15: both -> last_episode [True, True]
-    env.counter = 15
-    out = tm.compute()
-    assert torch.all(tm.get_term("term_3")) and torch.all(tm.get_term("term_5"))
-    assert torch.all(out)
-    assert torch.all(tm._last_episode_dones[:, 0]) and torch.all(tm._last_episode_dones[:, 1])
-
-    # step 16: none -> persist [True, True]
-    env.counter = 16
-    out = tm.compute()
-    assert torch.all(~out)
-    assert torch.all(~tm.get_term("term_3")) and torch.all(~tm.get_term("term_5"))
-    assert torch.all(tm._last_episode_dones[:, 0]) and torch.all(tm._last_episode_dones[:, 1])
+    extras = tm.reset()
+    assert extras == {"Episode_Termination/term_3": 1.0, "Episode_Termination/term_5": 1.0}
 
 
 def test_time_out_vs_terminated_split(env):
+    """Time-out terms feed ``time_outs`` while the others feed ``terminated``; both feed the net signal."""
     cfg = {
-        "term_5": TerminationTermCfg(func=fail_every_5_steps, time_out=False),  # terminated
-        "term_10": TerminationTermCfg(func=fail_every_10_steps, time_out=True),  # timeout
+        "term_5": TerminationTermCfg(func=fail_every_5_steps, time_out=False),
+        "term_10": TerminationTermCfg(func=fail_every_10_steps, time_out=True),
     }
     tm = TerminationManager(cfg, env)
 
-    # Step 5: terminated fires, not timeout
     env.counter = 5
-    out = tm.compute()
-    assert torch.all(out)
-    assert torch.all(tm.terminated) and torch.all(~tm.time_outs)
+    assert torch.all(tm.compute())
+    assert torch.all(tm.terminated) and not tm.time_outs.any()
 
-    # Step 10: both fire; timeout and terminated both True
     env.counter = 10
-    out = tm.compute()
-    assert torch.all(out)
+    assert torch.all(tm.compute())
     assert torch.all(tm.terminated) and torch.all(tm.time_outs)
+    assert tm.get_active_iterable_terms(env_idx=0) == [("term_5", [1.0]), ("term_10", [1.0])]

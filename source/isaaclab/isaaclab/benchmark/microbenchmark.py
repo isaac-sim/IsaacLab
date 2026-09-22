@@ -55,6 +55,8 @@ class MicrobenchmarkFactory:
     )
     _ASSET_COMPONENTS = frozenset({"articulation", "rigid_object", "rigid_object_collection"})
     _SENSOR_COMPONENTS = frozenset({"contact_sensor", "frame_transformer", "imu", "pva", "joint_wrench", "ray_caster"})
+    # The IMU and PVA sensors share one entrypoint that selects the sensor with ``--sensor``.
+    _IMU_PVA_COMPONENTS = frozenset({"imu", "pva"})
 
     @classmethod
     def repository_root(cls) -> Path:
@@ -107,25 +109,23 @@ class MicrobenchmarkFactory:
             available = ", ".join(self.physics_variants())
             raise ValueError(f"Unknown physics variant '{physics}'. Available variants: {available}.") from exc
 
-        if component not in self._ASSET_COMPONENTS | self._SENSOR_COMPONENTS:
+        if component in self._ASSET_COMPONENTS:
+            group = "assets"
+        elif component in self._SENSOR_COMPONENTS:
+            group = "sensors"
+        else:
             available = ", ".join(self.components())
             raise ValueError(f"Unknown component '{component}'. Available components: {available}.")
 
-        group = "assets" if component in self._ASSET_COMPONENTS else "sensors"
-        script_component = "imu_pva" if component in {"imu", "pva"} else component
-        script = (
-            self.repository_root()
-            / "source"
-            / descriptor.package
-            / "benchmark"
-            / group
-            / f"benchmark_{script_component}.py"
-        )
+        script_component = "imu_pva" if component in self._IMU_PVA_COMPONENTS else component
+        script = self.repository_root() / "source" / descriptor.package / "benchmark" / group
         child_args = ["--physics_variant", descriptor.variant]
-        if component in {"imu", "pva"}:
+        if component in self._IMU_PVA_COMPONENTS:
             child_args.extend(["--sensor", component])
         child_args.extend(passthrough_args)
-        return MicrobenchmarkCommand(descriptor.variant, component, script, child_args)
+        return MicrobenchmarkCommand(
+            descriptor.variant, component, script / f"benchmark_{script_component}.py", child_args
+        )
 
 
 def _create_parser(factory: MicrobenchmarkFactory, *, add_help: bool = True) -> argparse.ArgumentParser:

@@ -14,7 +14,7 @@ from isaaclab.sim.spawners import SpawnerCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from isaaclab.markers import VisualizationMarkers
+    from . import VisualizationMarkers
 
 
 @configclass

@@ -58,16 +58,14 @@ def force_log_level(level: int):
     """
     root = logging.getLogger()
     saved_root = root.level
-    saved_handlers = [(h, h.level) for h in root.handlers]
-    root.setLevel(level)
-    for h, _ in saved_handlers:
-        h.setLevel(level)
+    saved_handlers = [(handler, handler.level) for handler in root.handlers]
+    apply_python_logging_level(level)
     try:
         yield
     finally:
         root.setLevel(saved_root)
-        for h, saved in saved_handlers:
-            h.setLevel(saved)
+        for handler, saved in saved_handlers:
+            handler.setLevel(saved)
 
 
 def apply_python_logging_level(level: int) -> None:

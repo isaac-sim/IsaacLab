@@ -13,79 +13,15 @@ from typing_extensions import deprecated
 
 from isaaclab.utils import configclass
 
-# Names that moved out of this submodule into ``isaaclab_physx.sim.schemas.schemas_cfg``.
-# Resolved lazily so callers using ``from isaaclab.sim.schemas.schemas_cfg import
-# RigidBodyPropertiesCfg`` continue to work without importing ``isaaclab_physx`` at module
-# load time.
-_PHYSX_FORWARDS = frozenset(
-    {
-        "RigidBodyPropertiesCfg",
-        "JointDrivePropertiesCfg",
-        "PhysxRigidBodyPropertiesCfg",
-        "PhysxJointDrivePropertiesCfg",
-        "CollisionPropertiesCfg",
-        "PhysxCollisionPropertiesCfg",
-        "DeformableBodyPropertiesCfg",
-        "PhysxDeformableBodyPropertiesCfg",
-        "ArticulationRootPropertiesCfg",
-        "PhysxArticulationRootPropertiesCfg",
-        "MeshCollisionPropertiesCfg",
-        "ConvexHullPropertiesCfg",
-        "ConvexDecompositionPropertiesCfg",
-        "TriangleMeshPropertiesCfg",
-        "TriangleMeshSimplificationPropertiesCfg",
-        "SDFMeshPropertiesCfg",
-        "PhysxConvexHullPropertiesCfg",
-        "PhysxConvexDecompositionPropertiesCfg",
-        "PhysxTriangleMeshPropertiesCfg",
-        "PhysxTriangleMeshSimplificationPropertiesCfg",
-        "PhysxSDFMeshPropertiesCfg",
-        "FixedTendonPropertiesCfg",
-        "SpatialTendonPropertiesCfg",
-        "PhysxFixedTendonPropertiesCfg",
-        "PhysxSpatialTendonPropertiesCfg",
-    }
-)
-
-_NEWTON_FORWARDS = frozenset(
-    {
-        "MujocoRigidBodyPropertiesCfg",
-        "MujocoJointDrivePropertiesCfg",
-        "NewtonRigidBodyPropertiesCfg",
-        "NewtonJointDrivePropertiesCfg",
-        "NewtonCollisionPropertiesCfg",
-        "NewtonMeshCollisionPropertiesCfg",
-        "NewtonMaterialPropertiesCfg",
-        "NewtonArticulationRootPropertiesCfg",
-        "NewtonSDFCollisionPropertiesCfg",
-    }
-)
-
 
 def __getattr__(name):
-    if name in _PHYSX_FORWARDS:
-        try:
-            from isaaclab_physx.sim.schemas import schemas_cfg as _physx_cfg
-        except ImportError as e:
-            raise ImportError(
-                f"'isaaclab.sim.schemas.schemas_cfg.{name}' has moved to"
-                " 'isaaclab_physx.sim.schemas.schemas_cfg'. Install the isaaclab_physx"
-                " extension or update your import. This forwarding shim is scheduled for"
-                " removal in 4.0."
-            ) from e
-        return getattr(_physx_cfg, name)
-    if name in _NEWTON_FORWARDS:
-        try:
-            from isaaclab_newton.sim.schemas import schemas_cfg as _newton_cfg
-        except ImportError as e:
-            raise ImportError(
-                f"'isaaclab.sim.schemas.schemas_cfg.{name}' has moved to"
-                " 'isaaclab_newton.sim.schemas.schemas_cfg'. Install the isaaclab_newton"
-                " extension or update your import. This forwarding shim is scheduled for"
-                " removal in 4.0."
-            ) from e
-        return getattr(_newton_cfg, name)
-    raise AttributeError(f"module 'isaaclab.sim.schemas.schemas_cfg' has no attribute {name!r}")
+    # cfg classes that moved to a backend package keep resolving through this submodule
+    from . import _import_moved_cfg
+
+    value = _import_moved_cfg(name, __name__)
+    if value is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    return value
 
 
 def _deprecate_field_alias(cfg, alias: str, canonical: str) -> None:
@@ -163,8 +99,6 @@ class SchemaFragment:
 class RigidBodyFragment(SchemaFragment):
     """Marker base for rigid-body fragments; types the ``rigid_props`` slot."""
 
-    pass
-
 
 @configclass
 class UsdPhysicsRigidBodyCfg(RigidBodyFragment):
@@ -194,8 +128,6 @@ class UsdPhysicsRigidBodyCfg(RigidBodyFragment):
 class CollisionFragment(SchemaFragment):
     """Marker base for collision fragments; types the ``collision_props`` slot."""
 
-    pass
-
 
 @configclass
 class ArticulationRootFragment(SchemaFragment):
@@ -209,14 +141,10 @@ class ArticulationRootFragment(SchemaFragment):
     :func:`~isaaclab.sim.schemas.modify_articulation_root_properties` behaviour).
     """
 
-    pass
-
 
 @configclass
 class JointDriveFragment(SchemaFragment):
     """Marker base for joint-drive fragments; types the ``joint_drive_props`` slot."""
-
-    pass
 
 
 @configclass
@@ -248,8 +176,6 @@ class FixedTendonFragment(SchemaFragment):
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
     """
 
-    pass
-
 
 @configclass
 class SpatialTendonFragment(SchemaFragment):
@@ -261,8 +187,6 @@ class SpatialTendonFragment(SchemaFragment):
     does not apply an anchor schema; it only tunes existing root instances via each fragment's
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
     """
-
-    pass
 
 
 @configclass
@@ -653,7 +577,6 @@ class MassPropertiesCfg:
     # The ``UsdPhysics.MassAPI`` schema is applied upstream by ``define_mass_properties``.
     _usd_namespace: ClassVar[str | None] = "physics"
     _usd_applied_schema: ClassVar[str | None] = None
-    _usd_field_exceptions: ClassVar[dict] = {}
 
     mass: float | None = None
     """The mass of the rigid body (in kg).
@@ -673,8 +596,6 @@ class MassPropertiesCfg:
 @configclass
 class MassFragment(SchemaFragment):
     """Marker base for mass fragments; types the ``mass_props`` slot."""
-
-    pass
 
 
 @configclass
@@ -868,8 +789,6 @@ class MeshCollisionBaseCfg:
     _usd_applied_schema: ClassVar[str | None] = "MeshCollisionAPI"
     # Base class authors no PhysX-namespaced fields, so no namespace is defined.
     _usd_namespace: ClassVar[str | None] = None
-    _usd_attr_name_map: ClassVar[dict] = {}
-    _usd_field_exceptions: ClassVar[dict] = {}
 
     mesh_approximation_name: str = "none"
     """Name of mesh collision approximation method. Default: "none".
@@ -885,29 +804,19 @@ class MeshCollisionBaseCfg:
         Returns the legacy-mapped string value derived from the class-level
         ``_usd_applied_schema`` metadata and emits a ``DeprecationWarning``.
         """
+        if name not in ("usd_api", "physx_api"):
+            raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
+        warnings.warn(
+            f"'{name}' attribute is deprecated and will be removed in 3.2. Use class-level"
+            " metadata via getattr(cfg, '_usd_applied_schema').",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        schema = self.__dict__.get("_usd_applied_schema", None)
         if name == "usd_api":
-            warnings.warn(
-                "'usd_api' attribute is deprecated and will be removed in 3.2. Use class-level"
-                " metadata via getattr(cfg, '_usd_applied_schema').",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            schema = self.__dict__.get("_usd_applied_schema", None)
-            # Every PhysX cooking subclass legacy-mapped to ``"MeshCollisionAPI"``; the base
-            # class also wrote that token. Return ``None`` only when no schema is declared.
+            # every PhysX cooking subclass legacy-mapped to ``"MeshCollisionAPI"``, as did the base class
             return "MeshCollisionAPI" if schema is not None else None
-        if name == "physx_api":
-            warnings.warn(
-                "'physx_api' attribute is deprecated and will be removed in 3.2. Use class-level"
-                " metadata via getattr(cfg, '_usd_applied_schema').",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            schema = self.__dict__.get("_usd_applied_schema", None)
-            if schema and schema.startswith("Physx"):
-                return schema
-            return None
-        raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
+        return schema if schema and schema.startswith("Physx") else None
 
 
 @_deprecated_schema_cfg('[UsdPhysicsMeshCollisionCfg(mesh_approximation_name="boundingCube")]')
@@ -957,5 +866,3 @@ class DeformableBodyPropertiesBaseCfg:
     This class is currently empty. It will be populated once the USD deformable
     schemas can be unified more cleanly between physics backends.
     """
-
-    pass

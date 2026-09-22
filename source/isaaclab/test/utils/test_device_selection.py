@@ -18,6 +18,8 @@ from isaaclab.test.utils import devices as devices_mod
 from isaaclab.test.utils.devices import DeviceScope, resolve_test_sim_device
 from isaaclab.test.utils.devices import test_devices as resolve_devices
 
+pytestmark = pytest.mark.unit
+
 # Representative hosts, in mask order (cpu first, then cuda:0, cuda:1, ...).
 SINGLE_GPU = ["cpu", "cuda:0"]
 MULTI_GPU = ["cpu", "cuda:0", "cuda:1", "cuda:2"]

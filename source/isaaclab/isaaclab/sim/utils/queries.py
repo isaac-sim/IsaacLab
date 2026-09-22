@@ -13,14 +13,13 @@ from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING
 
 from isaaclab import cloner
-from isaaclab.sim.simulation_context import SimulationContext
 
+from ..simulation_context import SimulationContext
 from .stage import get_current_stage
 
 if TYPE_CHECKING:
     from pxr import Sdf, Usd, UsdPhysics  # noqa: F401
 
-# import logger
 logger = logging.getLogger(__name__)
 
 _CHARACTER_CLASS = re.compile(r"\[\^?[^]]*\]")
@@ -128,31 +127,21 @@ def get_first_matching_ancestor_prim(
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
     """
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
 
-    # make paths str type if they aren't already
     prim_path = str(prim_path)
-    # check if prim path is global
     if not prim_path.startswith("/"):
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
-    # get prim
     prim = stage.GetPrimAtPath(prim_path)
-    # check if prim is valid
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")
 
-    # walk up to find the first matching ancestor prim
     ancestor_prim = prim
     while ancestor_prim and ancestor_prim.IsValid():
-        # check if prim passes predicate
         if predicate(ancestor_prim):
             return ancestor_prim
-        # get parent prim
         ancestor_prim = ancestor_prim.GetParent()
-
-    # If no ancestor prim passes the predicate, return None
     return None
 
 
@@ -192,29 +181,22 @@ def get_first_matching_child_prim(
     """
     from pxr import Usd  # noqa: PLC0415
 
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
 
-    # make paths str type if they aren't already
     prim_path = str(prim_path)
-    # check if prim path is global
     if not prim_path.startswith("/"):
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
-    # get prim
     prim = stage.GetPrimAtPath(prim_path)
-    # check if prim is valid
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")
-    # iterate over all prims under prim-path
+
+    # breadth-first search
     all_prims = [prim]
-    while len(all_prims) > 0:
-        # get current prim
+    while all_prims:
         child_prim = all_prims.pop(0)
-        # check if prim passes predicate
         if predicate(child_prim):
             return child_prim
-        # add children to list
         if traverse_instance_prims:
             all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
         else:
@@ -266,44 +248,32 @@ def get_all_matching_child_prims(
     """
     from pxr import Usd  # noqa: PLC0415
 
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
 
-    # make paths str type if they aren't already
     prim_path = str(prim_path)
-    # check if prim path is global
     if not prim_path.startswith("/"):
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
-    # get prim
     prim = stage.GetPrimAtPath(prim_path)
-    # check if prim is valid
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")
-    # check if depth is valid
     if depth is not None and depth <= 0:
         raise ValueError(f"Depth must be bigger than zero, got {depth}.")
     if expected_num_matches is not None and expected_num_matches < 0:
         raise ValueError(f"Expected number of matches must be non-negative, got {expected_num_matches}.")
 
-    # iterate over all prims under prim-path
-    # list of tuples (prim, current_depth)
+    # breadth-first search over (prim, depth) pairs
     all_prims_queue = [(prim, 0)]
     output_prims = []
-    while len(all_prims_queue) > 0:
-        # get current prim
+    while all_prims_queue:
         child_prim, current_depth = all_prims_queue.pop(0)
-        # check if prim passes predicate
         if predicate(child_prim):
             output_prims.append(child_prim)
-        # add children to list
         if depth is None or current_depth < depth:
-            # resolve prims under the current prim
             if traverse_instance_prims:
                 children = child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
             else:
                 children = child_prim.GetChildren()
-            # add children to list
             all_prims_queue += [(child, current_depth + 1) for child in children]
 
     if expected_num_matches is not None and len(output_prims) != expected_num_matches:
@@ -544,39 +514,27 @@ def find_global_fixed_joint_prim(
     """
     from pxr import Usd, UsdPhysics  # noqa: PLC0415
 
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
 
-    # check prim path is global
+    prim_path = str(prim_path)
     if not prim_path.startswith("/"):
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
-
-    # check if prim exists
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")
 
-    fixed_joint_prim = None
-    # we check all joints under the root prim and classify the asset as fixed base if there exists
-    # a fixed joint that has only one target (i.e. the root link).
-    for prim in Usd.PrimRange(prim):
-        # note: ideally checking if it is FixedJoint would have been enough, but some assets use "Joint" as the
-        # schema name which makes it difficult to distinguish between the two.
-        joint_prim = UsdPhysics.Joint(prim)
-        if joint_prim:
-            # if check_enabled_only is True, we only consider enabled joints
-            if check_enabled_only and not joint_prim.GetJointEnabledAttr().Get():
-                continue
-            # check body 0 and body 1 exist
-            body_0_exist = joint_prim.GetBody0Rel().GetTargets() != []
-            body_1_exist = joint_prim.GetBody1Rel().GetTargets() != []
-            # if either body 0 or body 1 does not exist, we have a fixed joint that connects to the world
-            if not (body_0_exist and body_1_exist):
-                fixed_joint_prim = joint_prim
-                break
-
-    return fixed_joint_prim
+    # note: some assets author fixed joints with the generic "Joint" schema, so every joint is checked
+    # and a joint missing one of its two body targets is taken to attach the asset to the world.
+    for child_prim in Usd.PrimRange(prim):
+        joint_prim = UsdPhysics.Joint(child_prim)
+        if not joint_prim:
+            continue
+        if check_enabled_only and not joint_prim.GetJointEnabledAttr().Get():
+            continue
+        if not joint_prim.GetBody0Rel().GetTargets() or not joint_prim.GetBody1Rel().GetTargets():
+            return joint_prim
+    return None
 
 
 def has_deformable_body_api(prim: Usd.Prim) -> bool:

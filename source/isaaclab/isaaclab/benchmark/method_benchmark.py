@@ -145,20 +145,12 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
             physics_variant: Exact physics backend selector, when applicable.
         """
         self._config = config
-
-        # Build workflow metadata from config
-        workflow_metadata = {
-            "metadata": [
-                {"name": "num_iterations", "data": config.num_iterations},
-                {"name": "warmup_steps", "data": config.warmup_steps},
-                {"name": "num_instances", "data": config.num_instances},
-                {"name": "num_bodies", "data": config.num_bodies},
-                {"name": "num_joints", "data": config.num_joints},
-                {"name": "device", "data": config.device},
-            ]
-        }
+        metadata = [
+            {"name": name, "data": getattr(config, name)}
+            for name in ("num_iterations", "warmup_steps", "num_instances", "num_bodies", "num_joints", "device")
+        ]
         if physics_variant is not None:
-            workflow_metadata["metadata"].append({"name": "physics_variant", "data": physics_variant})
+            metadata.append({"name": "physics_variant", "data": physics_variant})
 
         super().__init__(
             benchmark_name=benchmark_name,
@@ -166,17 +158,14 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
             output_path=output_path,
             use_recorders=use_recorders,
             output_prefix=benchmark_name,
-            workflow_metadata=workflow_metadata,
+            workflow_metadata={"metadata": metadata},
         )
 
-        # Determine which modes to run
+        # ``None`` runs every input mode a benchmark defines.
         if isinstance(config.mode, str):
-            if config.mode == "all":
-                self._modes_to_run = None  # Run all available
-            else:
-                self._modes_to_run = [config.mode]
+            self._modes_to_run = None if config.mode == "all" else [config.mode]
         else:
-            self._modes_to_run = config.mode
+            self._modes_to_run = list(config.mode)
 
     @property
     def config(self) -> MethodBenchmarkRunnerConfig:
@@ -194,62 +183,53 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
             benchmarks: List of benchmark definitions to run.
             target_object: Object containing the methods to benchmark.
         """
-
-        print(f"\nBenchmarking {len(benchmarks)} methods...")
-        print(f"Config: {self._config.num_iterations} iterations, {self._config.warmup_steps} warmup steps")
-        print(
-            f"        {self._config.num_instances} instances, {self._config.num_bodies} bodies, "
-            f"{self._config.num_joints} joints"
-        )
+        self._print_header(f"Benchmarking {len(benchmarks)} methods...")
         print(f"Device: {self._config.device}")
         print(f"Modes: {self._modes_to_run if self._modes_to_run else 'All available'}")
         print("-" * 80)
 
         for i, benchmark in enumerate(benchmarks):
             method = getattr(target_object, benchmark.method_name, None)
-
-            # Determine which modes to run for this benchmark
-            available_modes = list(benchmark.input_generators.keys())
-            current_modes = self._modes_to_run if self._modes_to_run is not None else available_modes
-            current_modes = [m for m in current_modes if m in available_modes]
-
-            for mode in current_modes:
-                # Update manual recorders
+            modes = benchmark.input_generators if self._modes_to_run is None else self._modes_to_run
+            for mode in (mode for mode in modes if mode in benchmark.input_generators):
                 self.update_manual_recorders()
-
-                generator = benchmark.input_generators[mode]
-                bench_name = f"{benchmark.name}_{mode}"
                 print(f"[{i + 1}/{len(benchmarks)}] [{mode.upper()}] {benchmark.name}...", end=" ", flush=True)
-
                 result = self._benchmark_method(
                     method=method,
-                    method_name=bench_name,
-                    generator=generator,
+                    method_name=f"{benchmark.name}_{mode}",
+                    generator=benchmark.input_generators[mode],
                     prepare_target=(
                         partial(benchmark.prepare_target, target_object)
                         if benchmark.prepare_target is not None
                         else None
                     ),
                 )
+                # Results are grouped into one phase per input mode (torch_list, torch_tensor, ...).
+                self._report_result(result, benchmark.name, mode, "method not found")
 
-                if result is None:
-                    print("SKIPPED (method not found)")
-                elif result.get("skipped"):
-                    print(f"SKIPPED ({result.get('skip_reason', 'unknown')})")
-                else:
-                    mean = result["mean"]
-                    std = result["std"]
-                    print(f"{mean:.2f} +/- {std:.2f} us")
+    def _print_header(self, title: str) -> None:
+        """Print the workload summary shown before a benchmark batch."""
+        print(f"\n{title}")
+        print(f"Config: {self._config.num_iterations} iterations, {self._config.warmup_steps} warmup steps")
+        print(
+            f"        {self._config.num_instances} instances, {self._config.num_bodies} bodies, "
+            f"{self._config.num_joints} joints"
+        )
 
-                    # Add measurement to mode-based phase (torch_list, torch_tensor, etc.)
-                    measurement = StatisticalMeasurement(
-                        name=benchmark.name,
-                        mean=mean,
-                        std=std,
-                        n=result["n"],
-                        unit="us",
-                    )
-                    self.add_measurement(mode, measurement=measurement)
+    def _report_result(self, result: dict | None, name: str, phase: str, missing_reason: str) -> None:
+        """Print one benchmark outcome and record it as a statistical measurement when it ran."""
+        if result is None:
+            print(f"SKIPPED ({missing_reason})")
+        elif result.get("skipped"):
+            print(f"SKIPPED ({result.get('skip_reason', 'unknown')})")
+        else:
+            print(f"{result['mean']:.2f} +/- {result['std']:.2f} us")
+            self.add_measurement(
+                phase,
+                measurement=StatisticalMeasurement(
+                    name=name, mean=result["mean"], std=result["std"], n=result["n"], unit="us"
+                ),
+            )
 
     def _benchmark_method(
         self,
@@ -310,14 +290,14 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
         Returns:
             Timing statistics in microseconds.
         """
+        synchronize = self._sync_device if self._config.device.startswith("cuda") else lambda: None
         for iteration in range(self._config.warmup_steps):
             try:
                 prepare()
                 operation()
             except Exception as e:
                 raise RuntimeError(f"{workload_name} failed during warmup iteration {iteration}") from e
-            if self._config.device.startswith("cuda"):
-                self._sync_device()
+            synchronize()
 
         times: list[float] = []
         for iteration in range(self._config.num_iterations):
@@ -325,21 +305,14 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
                 prepare()
             except Exception as e:
                 raise RuntimeError(f"{workload_name} failed during timed preparation iteration {iteration}") from e
-
-            if self._config.device.startswith("cuda"):
-                self._sync_device()
-
+            synchronize()
             start_time = time.perf_counter_ns()
             try:
                 operation()
             except Exception as e:
                 raise RuntimeError(f"{workload_name} failed during timed iteration {iteration}") from e
-
-            if self._config.device.startswith("cuda"):
-                self._sync_device()
-
-            end_time = time.perf_counter_ns()
-            times.append((end_time - start_time) / 1e3)
+            synchronize()
+            times.append((time.perf_counter_ns() - start_time) / 1e3)
 
         return {
             "mean": statistics.mean(times),
@@ -373,51 +346,20 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
             dependencies: Optional dict mapping property names to their dependencies.
             category: Category name for grouping results.
         """
-        if dependencies is None:
-            dependencies = {}
-
-        # Update manual recorders at start
+        dependencies = dependencies or {}
         self.update_manual_recorders()
-
-        print(f"\nBenchmarking {len(properties)} properties...")
-        print(f"Config: {self._config.num_iterations} iterations, {self._config.warmup_steps} warmup steps")
-        print(
-            f"        {self._config.num_instances} instances, {self._config.num_bodies} bodies, "
-            f"{self._config.num_joints} joints"
-        )
+        self._print_header(f"Benchmarking {len(properties)} properties...")
         print("-" * 80)
 
         for i, prop_name in enumerate(properties):
             print(f"[{i + 1}/{len(properties)}] [DEFAULT] {prop_name}...", end=" ", flush=True)
-
-            # Get dependencies for this property
-            prop_deps = dependencies.get(prop_name, [])
-
             result = self._benchmark_property(
                 target_data=target_data,
                 prop_name=prop_name,
                 gen_mock_data=gen_mock_data,
-                dependencies=prop_deps,
+                dependencies=dependencies.get(prop_name, []),
             )
-
-            if result is None:
-                print("SKIPPED (property not found)")
-            elif result.get("skipped"):
-                print(f"SKIPPED ({result.get('skip_reason', 'unknown')})")
-            else:
-                mean = result["mean"]
-                std = result["std"]
-                print(f"{mean:.2f} +/- {std:.2f} us")
-
-                # Add measurement
-                measurement = StatisticalMeasurement(
-                    name=prop_name,
-                    mean=mean,
-                    std=std,
-                    n=result["n"],
-                    unit="us",
-                )
-                self.add_measurement(category, measurement=measurement)
+            self._report_result(result, prop_name, category, "property not found")
 
     def _benchmark_property(
         self,
@@ -437,7 +379,6 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
         Returns:
             Dict with timing results, or None if property not found.
         """
-        # Check if property exists
         if inspect.getattr_static(target_data, prop_name, None) is None:
             return None
 

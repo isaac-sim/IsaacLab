@@ -21,6 +21,8 @@ from isaaclab.benchmark.metrics import (
 )
 from isaaclab.benchmark.schema import MeanStd
 
+pytestmark = pytest.mark.benchmark
+
 
 @pytest.mark.parametrize(
     ("framework", "tfevents_pattern", "reward_tag", "ep_length_tag"),
@@ -45,47 +47,33 @@ def test_rl_library_descriptors(
     assert descriptor.ep_length_tag == ep_length_tag
 
 
-def test_mean_std_peak_computes_peak():
-    ms = mean_std_peak([1.0, 2.0, 3.0])
-    assert isinstance(ms, MeanStd)
-    assert ms.mean == pytest.approx(2.0)
-    assert ms.std == pytest.approx(1.0)
-    assert ms.peak == pytest.approx(3.0)
+def test_mean_std_aggregates():
+    assert mean_std_peak([1.0, 2.0, 3.0]) == MeanStd(mean=2.0, std=1.0, peak=3.0)
+    assert mean_std_peak([]) == MeanStd(mean=0.0, std=0.0, peak=0.0)
+    assert mean_std([10.0, 20.0]) == MeanStd(mean=15.0, std=pytest.approx(50**0.5), peak=None)
+    assert mean_std([]) == MeanStd(mean=0.0, std=0.0, peak=None)
 
 
-def test_mean_std_omits_peak():
-    ms = mean_std([10.0, 20.0])
-    assert ms.peak is None
-    assert ms.mean == pytest.approx(15.0)
-
-
-def test_mean_std_empty_is_zero():
-    ms = mean_std_peak([])
-    assert ms.mean == 0.0 and ms.std == 0.0 and ms.peak == 0.0
-
-
-def test_ema_matches_manual():
-    series = [0.0, 10.0, 10.0]
-    a = 0.5
-    e = series[0]
-    for x in series[1:]:
-        e = a * x + (1 - a) * e
-    assert ema(series, a) == pytest.approx(e)
-
-
-def test_ema_empty_is_zero():
+def test_ema():
+    # e = 0 -> 0.5 * 10 + 0.5 * 0 = 5 -> 0.5 * 10 + 0.5 * 5 = 7.5
+    assert ema([0.0, 10.0, 10.0], 0.5) == pytest.approx(7.5)
+    assert ema([3.0], 0.1) == 3.0
     assert ema([], 0.1) == 0.0
 
 
-def test_check_convergence_passes_on_stable_high_rewards():
-    res = check_convergence([100.0] * 10, threshold=50.0)
-    assert res["passed"] is True
-    assert res["tail_mean"] == pytest.approx(100.0)
-
-
-def test_check_convergence_fails_when_below_threshold():
-    res = check_convergence([1.0] * 10, threshold=50.0)
-    assert res["passed"] is False
+@pytest.mark.parametrize(
+    ("rewards", "kwargs", "tail_mean", "passed"),
+    [
+        ([100.0] * 10, {"threshold": 50.0}, 100.0, True),
+        ([1.0] * 10, {"threshold": 50.0}, 1.0, False),
+        # The tail mean clears the threshold but the coefficient of variation is far above 20%.
+        ([1.0, 1000.0], {"threshold": 2.0, "window_pct": 1.0}, 500.5, False),
+    ],
+)
+def test_check_convergence(rewards, kwargs, tail_mean, passed):
+    result = check_convergence(rewards, **kwargs)
+    assert result["passed"] is passed
+    assert result["tail_mean"] == pytest.approx(tail_mean)
 
 
 def test_get_success_rate_log_prefers_first_tag():
@@ -103,20 +91,9 @@ def test_success_rate_tracker_convergence():
     assert t.tail_mean == pytest.approx(0.65)
 
 
-def test_check_convergence_high_cv_fails_despite_mean_above_threshold():
-    # Series whose tail mean clears the threshold but CV is too high to pass.
-    # With window_pct=1.0, the whole series is the tail.
-    # [1, 1000] -> tail_mean ~500.5, threshold=2.0, cv >> 20 -> passed False.
-    rewards = [1.0, 1000.0]
-    res = check_convergence(rewards, threshold=2.0, window_pct=1.0)
-    assert res["passed"] is False
-    assert res["cv"] > 20.0
-    assert res["tail_mean"] >= 2.0
-
-
-def test_check_convergence_empty_rewards():
-    res = check_convergence([], threshold=1.0)
-    assert res == {"tail_mean": 0.0, "cv": 999.9, "passed": False}
+@pytest.mark.parametrize("rewards", [[], [0.0] * 5])
+def test_check_convergence_without_signal_reports_undefined_cv(rewards):
+    assert check_convergence(rewards, threshold=0.3) == {"tail_mean": 0.0, "cv": 999.9, "passed": False}
 
 
 def test_success_rate_tracker_multi_step_boundary():
@@ -132,25 +109,18 @@ def test_success_rate_tracker_multi_step_boundary():
     assert len(t.history) == 1
 
 
-def test_success_rate_tracker_item_tensor_path():
-    class _T:
-        def item(self):
-            return 0.7
+def test_success_rate_tracker_handles_tensor_and_missing_values():
+    import torch
 
     t = SuccessRateTracker(threshold=0.5, window=1, num_steps_per_env=1)
-    t.record_step({"log": {"Metrics/success_rate": _T()}})
-    mean = t.end_iteration()
-    assert mean == pytest.approx(0.7)
+    t.record_step({"log": {"Metrics/success_rate": torch.tensor(0.7)}})
+    assert t.end_iteration() == pytest.approx(0.7)
     assert t.history == [pytest.approx(0.7)]
 
-
-def test_success_rate_tracker_no_data_end_iteration_returns_none():
-    t = SuccessRateTracker(threshold=0.5, window=1, num_steps_per_env=1)
     t.record_step({"log": {}})
-    assert t._step_count == 1
-    result = t.end_iteration()
-    assert result is None
-    assert t.history == []
+    assert t.at_iteration_boundary
+    assert t.end_iteration() is None
+    assert len(t.history) == 1
 
 
 def test_parse_tf_logs_empty_dir_returns_empty(tmp_path, caplog):
@@ -160,13 +130,6 @@ def test_parse_tf_logs_empty_dir_returns_empty(tmp_path, caplog):
         result = parse_tf_logs(str(tmp_path))
     assert result == {}
     assert any("No TensorBoard event files" in r.getMessage() for r in caplog.records)
-
-
-def test_check_convergence_zero_mean_returns_high_cv():
-    result = check_convergence([0.0, 0.0, 0.0, 0.0, 0.0], threshold=0.3)
-    assert result["tail_mean"] == 0.0
-    assert result["cv"] == 999.9
-    assert result["passed"] is False
 
 
 def test_success_rate_step_value_reads_scalar():

@@ -13,12 +13,39 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
-from isaaclab.benchmark.measurements import SingleMeasurement, StatisticalMeasurement, TestPhase, TestPhaseEncoder
+from .measurements import SingleMeasurement, StatisticalMeasurement, TestPhase, TestPhaseEncoder
 
 if TYPE_CHECKING:
-    from isaaclab.benchmark.schema import PlayBundle, RuntimeBundle, StartupBundle, TrainingBundle
+    from .schema import PlayBundle, RuntimeBundle, StartupBundle, TrainingBundle
 
 logger = logging.getLogger(__name__)
+
+
+_SUMMARY_STARTUP_ROWS = (
+    "App Launch Time",
+    "Python Imports Time",
+    "Task Creation and Start Time",
+    "Scene Creation Time",
+    "Simulation Start Time",
+    "Total Start Time (Launch to Train)",
+)
+_SUMMARY_TRAIN_ROWS = (
+    "Max Rewards",
+    "Max Episode Lengths",
+    "Last Reward",
+    "Last Episode Length",
+    "EMA 0.95 Reward",
+    "EMA 0.95 Episode Length",
+)
+_SUMMARY_KNOWN_PHASES = {"benchmark_info", "runtime", "startup", "train", "frametime", "hardware_info", "version_info"}
+
+
+def _write_json(output_path: str, output_filename: str, data: object, **dump_kwargs) -> None:
+    """Write ``data`` to ``<output_path>/<output_filename>.json`` and report the location."""
+    metrics_path = os.path.join(output_path, f"{output_filename}.json")
+    with open(metrics_path, "w") as f:
+        f.write(json.dumps(data, indent=4, **dump_kwargs))
+    print(f"Results written to: {metrics_path}")
 
 
 def get_default_output_filename(prefix: str = "benchmark") -> str:
@@ -45,7 +72,6 @@ class MetricsFormatterInterface(ABC):
         Args:
             test_phase: Test phase containing metrics to add.
         """
-        pass
 
     @abstractmethod
     def finalize(self, output_path: str, **kwargs) -> None:
@@ -55,7 +81,10 @@ class MetricsFormatterInterface(ABC):
             output_path: Path to write output file(s).
             **kwargs: Additional formatter-specific options.
         """
-        pass
+
+
+_FORMATTER_CLASSES: dict[str, type[MetricsFormatterInterface]] = {}
+"""Formatter classes keyed by type name, filled in below the class definitions."""
 
 
 class MetricsFormatter:
@@ -77,16 +106,9 @@ class MetricsFormatter:
             ValueError: If the instance_type is not recognized.
         """
         if instance_type not in cls._instances:
-            formatter_map = {
-                "json": JSONFileMetrics,
-                "osmo": OsmoKPIFile,
-                "omniperf": OmniPerfKPIFile,
-                "summary": SummaryMetrics,
-                "schema": SchemaBundleFile,
-            }
-            if instance_type not in formatter_map:
-                raise ValueError(f"Unknown formatter type: {instance_type}. Available: {list(formatter_map.keys())}")
-            cls._instances[instance_type] = formatter_map[instance_type]()
+            if instance_type not in _FORMATTER_CLASSES:
+                raise ValueError(f"Unknown formatter type: {instance_type}. Available: {list(_FORMATTER_CLASSES)}")
+            cls._instances[instance_type] = _FORMATTER_CLASSES[instance_type]()
         return cls._instances[instance_type]
 
     @classmethod
@@ -134,10 +156,9 @@ class JSONFileMetrics(MetricsFormatterInterface):
             logger.warning("No test data to write. Skipping metrics file generation.")
             return
 
-        # Append test name to measurement name as OVAT needs to uniquely identify
+        # OVAT identifies measurements by their fully qualified "<test> <phase> <name>" label.
         for test_phase in self.data:
             test_name = test_phase.get_metadata_field("workflow_name")
-            # Store the test name
             if test_name != self.test_name:
                 if self.test_name:
                     logger.warning(
@@ -153,13 +174,7 @@ class JSONFileMetrics(MetricsFormatterInterface):
             for metadata in test_phase.metadata:
                 metadata.name = f"{test_name} {phase_name} {metadata.name}"
 
-        json_data = json.dumps(self.data, indent=4, cls=TestPhaseEncoder)
-
-        metrics_path = os.path.join(output_path, f"{output_filename}.json")
-        with open(metrics_path, "w") as f:
-            f.write(json_data)
-        print(f"Results written to: {metrics_path}")
-
+        _write_json(output_path, output_filename, self.data, cls=TestPhaseEncoder)
         self.data.clear()
 
 
@@ -249,65 +264,23 @@ class SummaryMetrics(MetricsFormatterInterface):
 
         if startup_phase:
             self._print_box_line("Phase: startup")
-            self._print_optional_measurement(startup_phase, "App Launch Time")
-            self._print_optional_measurement(startup_phase, "Python Imports Time")
-            self._print_optional_measurement(startup_phase, "Task Creation and Start Time")
-            self._print_optional_measurement(startup_phase, "Scene Creation Time")
-            self._print_optional_measurement(startup_phase, "Simulation Start Time")
-            self._print_optional_measurement(startup_phase, "Total Start Time (Launch to Train)")
+            for name in _SUMMARY_STARTUP_ROWS:
+                self._print_optional_measurement(startup_phase, name)
             self._print_box_separator()
 
         if train_phase:
             self._print_box_line("Phase: train")
-            self._print_optional_measurement(train_phase, "Max Rewards", unit_fallback="float")
-            self._print_optional_measurement(train_phase, "Max Episode Lengths", unit_fallback="float")
-            self._print_optional_measurement(train_phase, "Last Reward", unit_fallback="float")
-            self._print_optional_measurement(train_phase, "Last Episode Length", unit_fallback="float")
-            self._print_optional_measurement(train_phase, "EMA 0.95 Reward", unit_fallback="float")
-            self._print_optional_measurement(train_phase, "EMA 0.95 Episode Length", unit_fallback="float")
+            for name in _SUMMARY_TRAIN_ROWS:
+                self._print_optional_measurement(train_phase, name, unit_fallback="float")
             self._print_box_separator()
 
         if frametime_phase and frametime_phase.measurements:
-            self._print_box_line("Phase: frametime")
-            for measurement in frametime_phase.measurements:
-                label = measurement.name
-                if isinstance(measurement, StatisticalMeasurement):
-                    unit_str = f" {measurement.unit.strip()}" if (measurement.unit and measurement.unit.strip()) else ""
-                    value = f"{self._format_scalar(measurement.mean)}{unit_str}"
-                elif isinstance(measurement, SingleMeasurement):
-                    unit_str = f" {measurement.unit.strip()}" if (measurement.unit and measurement.unit.strip()) else ""
-                    value = f"{self._format_scalar(measurement.value)}{unit_str}"
-                else:
-                    continue
-                self._print_box_line(f"{label}: {value}")
-            self._print_box_separator()
+            self._print_phase_measurements("frametime", frametime_phase)
 
-        # Render any phases not handled above (e.g. profiling phases from benchmark_startup)
-        known_phases = {
-            "benchmark_info",
-            "runtime",
-            "startup",
-            "train",
-            "frametime",
-            "hardware_info",
-            "version_info",
-        }
+        # Phases not handled above, e.g. the profiling phases of the startup benchmark.
         for phase_name, phase in phases.items():
-            if phase_name in known_phases or not phase.measurements:
-                continue
-            self._print_box_line(f"Phase: {phase_name}")
-            for measurement in phase.measurements:
-                label = measurement.name
-                if isinstance(measurement, StatisticalMeasurement):
-                    unit_str = f" {measurement.unit.strip()}" if (measurement.unit and measurement.unit.strip()) else ""
-                    value = f"{self._format_scalar(measurement.mean)}{unit_str}"
-                elif isinstance(measurement, SingleMeasurement):
-                    unit_str = f" {measurement.unit.strip()}" if (measurement.unit and measurement.unit.strip()) else ""
-                    value = f"{self._format_scalar(measurement.value)}{unit_str}"
-                else:
-                    continue
-                self._print_box_line(f"{label}: {value}")
-            self._print_box_separator()
+            if phase_name not in _SUMMARY_KNOWN_PHASES and phase.measurements:
+                self._print_phase_measurements(phase_name, phase)
 
         if hardware_meta:
             self._print_box_line("System:")
@@ -317,6 +290,21 @@ class SummaryMetrics(MetricsFormatterInterface):
             self._print_box_kv("gpu_device_count", hardware_meta.get("gpu_device_count"))
             self._print_box_kv("cuda_version", hardware_meta.get("cuda_version"))
             self._print_box_separator()
+
+    def _print_phase_measurements(self, phase_name: str, phase: TestPhase) -> None:
+        """Print every scalar measurement of a phase as its own row."""
+        self._print_box_line(f"Phase: {phase_name}")
+        for measurement in phase.measurements:
+            if isinstance(measurement, StatisticalMeasurement):
+                value = measurement.mean
+            elif isinstance(measurement, SingleMeasurement):
+                value = measurement.value
+            else:
+                continue
+            unit = (measurement.unit or "").strip()
+            suffix = f" {unit}" if unit else ""
+            self._print_box_line(f"{measurement.name}: {self._format_scalar(value)}{suffix}")
+        self._print_box_separator()
 
     def _merge_phases(self) -> dict[str, TestPhase]:
         """Merge all stored phases by name, combining measurements and metadata.
@@ -411,29 +399,12 @@ class SummaryMetrics(MetricsFormatterInterface):
         series: dict[str, dict[str, float]] = {}
         units: dict[str, str | None] = {}
         for measurement in measurements:
-            if not isinstance(measurement, SingleMeasurement):
+            if not isinstance(measurement, SingleMeasurement) or not isinstance(measurement.value, (int, float)):
                 continue
-            name = measurement.name
-            value = measurement.value
-            unit = measurement.unit
-            if not isinstance(value, (int, float)):
-                continue
-            if name.startswith("Min "):
-                base = name[len("Min ") :]
-                series.setdefault(base, {})["min"] = float(value)
-                units.setdefault(base, unit)
-            elif name.startswith("Max "):
-                base = name[len("Max ") :]
-                series.setdefault(base, {})["max"] = float(value)
-                units.setdefault(base, unit)
-            elif name.startswith("Mean "):
-                base = name[len("Mean ") :]
-                series.setdefault(base, {})["mean"] = float(value)
-                units.setdefault(base, unit)
-            elif name.startswith("Std "):
-                base = name[len("Std ") :]
-                series.setdefault(base, {})["std"] = float(value)
-                units.setdefault(base, unit)
+            statistic, _, base = measurement.name.partition(" ")
+            if statistic in ("Min", "Max", "Mean", "Std") and base:
+                series.setdefault(base, {})[statistic.lower()] = float(measurement.value)
+                units.setdefault(base, measurement.unit)
 
         category_order = ["Collection", "Learning", "Step Times", "Throughput", "Other"]
         categorized: dict[str, list[str]] = {key: [] for key in category_order}
@@ -441,8 +412,7 @@ class SummaryMetrics(MetricsFormatterInterface):
             raw_unit = units.get(base)
             unit = (raw_unit or "").strip() if isinstance(raw_unit, str) else ""
             unit_suffix = f" {unit}" if unit else ""
-            statistic_order = ("min", "mean", "std", "max")
-            available = [statistic for statistic in statistic_order if statistic in stats]
+            available = [statistic for statistic in ("min", "mean", "std", "max") if statistic in stats]
             values = " / ".join(self._format_scalar(stats[statistic]) for statistic in available)
             labels = "/".join(available)
             row = f"{base} ({labels}): {values}{unit_suffix}"
@@ -538,27 +508,13 @@ class OsmoKPIFile(MetricsFormatterInterface):
         """
         multi_phase = len(self._test_phases) > 1
         for test_phase in self._test_phases:
-            # Retrieve useful metadata from test_phase
             phase_name = test_phase.get_metadata_field("phase")
-
-            osmo_kpis: dict[str, object] = {}
-            log_statements = [f"{phase_name} KPIs:"]
-            # Add metadata as KPIs
-            for metadata in test_phase.metadata:
-                osmo_kpis[metadata.name] = metadata.data
-                log_statements.append(f"{metadata.name}: {metadata.data}")
-            # Add single measurements as KPIs
+            osmo_kpis: dict[str, object] = {metadata.name: metadata.data for metadata in test_phase.metadata}
             for measurement in test_phase.measurements:
                 if isinstance(measurement, SingleMeasurement):
                     osmo_kpis[measurement.name] = measurement.value
-                    log_statements.append(f"{measurement.name}: {measurement.value} {measurement.unit}")
             filename = f"{output_filename}_{phase_name}" if multi_phase else output_filename
-            metrics_path = os.path.join(output_path, f"{filename}.json")
-            # Dump key-value pairs (fields) to the JSON document
-            json_data = json.dumps(osmo_kpis, indent=4)
-            with open(metrics_path, "w") as f:
-                f.write(json_data)
-            print(f"Results written to: {metrics_path}")
+            _write_json(output_path, filename, osmo_kpis)
         self._test_phases.clear()
 
 
@@ -604,38 +560,19 @@ class OmniPerfKPIFile(MetricsFormatterInterface):
             return
 
         workflow_data: dict[str, object] = {}
-
         for test_phase in self._test_phases:
-            # Retrieve useful metadata from test_phase
-            phase_name = test_phase.get_metadata_field("phase")
-
-            phase_data: dict[str, object] = {}
-            log_statements = [f"{phase_name} Metrics:"]
-            # Add metadata as metrics
-            for metadata in test_phase.metadata:
-                phase_data[metadata.name] = metadata.data
-                log_statements.append(f"{metadata.name}: {metadata.data}")
-            # Add measurements as metrics
+            phase_data: dict[str, object] = {metadata.name: metadata.data for metadata in test_phase.metadata}
             for measurement in test_phase.measurements:
                 if isinstance(measurement, StatisticalMeasurement):
-                    log_statements.append(
-                        f"{measurement.name}: {measurement.mean:.2f} ± {measurement.std:.2f} "
-                        f"{measurement.unit} (n={measurement.n})"
-                    )
                     phase_data[f"{measurement.name}_mean"] = measurement.mean
                     phase_data[f"{measurement.name}_std"] = measurement.std
                     phase_data[f"{measurement.name}_n"] = measurement.n
+                # Matched by class name so Isaac Sim's SingleMeasurement is accepted as well.
                 elif type(measurement).__name__ == "SingleMeasurement":
-                    log_statements.append(f"{measurement.name}: {measurement.value} {measurement.unit}")
                     phase_data[measurement.name] = measurement.value
-            workflow_data[phase_name] = phase_data
+            workflow_data[test_phase.get_metadata_field("phase")] = phase_data
 
-        metrics_path = os.path.join(output_path, f"{output_filename}.json")
-        # Dump key-value pairs (fields) to the JSON document
-        json_data = json.dumps(workflow_data, indent=4)
-        with open(metrics_path, "w") as f:
-            f.write(json_data)
-        print(f"Results written to: {metrics_path}")
+        _write_json(output_path, output_filename, workflow_data)
         self._test_phases.clear()
 
 
@@ -678,8 +615,17 @@ class SchemaBundleFile(MetricsFormatterInterface):
             raise RuntimeError("The schema formatter requires a benchmark bundle.")
 
         # Lazy import keeps formatters.py free of the schema layer at module import time.
-        from isaaclab.benchmark.serialize import write_bundle_file
+        from .serialize import write_bundle_file
 
         path = os.path.join(output_path, f"{output_filename}.json")
         write_bundle_file(bundle, path)
         logger.info("Wrote schema bundle to %s", path)
+
+
+_FORMATTER_CLASSES.update(
+    json=JSONFileMetrics,
+    osmo=OsmoKPIFile,
+    omniperf=OmniPerfKPIFile,
+    summary=SummaryMetrics,
+    schema=SchemaBundleFile,
+)

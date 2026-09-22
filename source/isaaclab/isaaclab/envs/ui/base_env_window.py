@@ -80,7 +80,7 @@ class BaseEnvWindow:
 
         # keep a dictionary of stacks so that child environments can add their own UI elements
         # this can be done by using the `with` context manager
-        self.ui_window_elements = dict()
+        self.ui_window_elements = {}
         # create main frame
         self.ui_window_elements["main_frame"] = self.ui_window.frame
         with self.ui_window_elements["main_frame"]:
@@ -116,15 +116,7 @@ class BaseEnvWindow:
     def _build_sim_frame(self):
         """Builds the sim-related controls frame for the UI."""
         # create collapsable frame for controls
-        self.ui_window_elements["sim_frame"] = omni.ui.CollapsableFrame(
-            title="Simulation Settings",
-            width=omni.ui.Fraction(1),
-            height=0,
-            collapsed=False,
-            style=isaacsim.gui.components.ui_utils.get_style(),
-            horizontal_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
-            vertical_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON,
-        )
+        self.ui_window_elements["sim_frame"] = self._create_collapsable_frame("Simulation Settings")
         with self.ui_window_elements["sim_frame"]:
             # create stack for controls
             self.ui_window_elements["sim_vstack"] = omni.ui.VStack(spacing=5, height=0)
@@ -193,15 +185,7 @@ class BaseEnvWindow:
     def _build_viewer_frame(self):
         """Build the viewer-related control frame for the UI."""
         # create collapsable frame for viewer
-        self.ui_window_elements["viewer_frame"] = omni.ui.CollapsableFrame(
-            title="Viewer Settings",
-            width=omni.ui.Fraction(1),
-            height=0,
-            collapsed=False,
-            style=isaacsim.gui.components.ui_utils.get_style(),
-            horizontal_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
-            vertical_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON,
-        )
+        self.ui_window_elements["viewer_frame"] = self._create_collapsable_frame("Viewer Settings")
         with self.ui_window_elements["viewer_frame"]:
             # create stack for controls
             self.ui_window_elements["viewer_vstack"] = omni.ui.VStack(spacing=5, height=0)
@@ -254,15 +238,7 @@ class BaseEnvWindow:
 
     def _build_debug_vis_frame(self):
         """Builds the Live Plots frame for manager data visualizers."""
-        self.ui_window_elements["debug_frame"] = omni.ui.CollapsableFrame(
-            title="Live Plots",
-            width=omni.ui.Fraction(1),
-            height=0,
-            collapsed=False,
-            style=isaacsim.gui.components.ui_utils.get_style(),
-            horizontal_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
-            vertical_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON,
-        )
+        self.ui_window_elements["debug_frame"] = self._create_collapsable_frame("Live Plots")
         with self.ui_window_elements["debug_frame"]:
             self.ui_window_elements["debug_vstack"] = omni.ui.VStack(spacing=5, height=0)
 
@@ -272,15 +248,7 @@ class BaseEnvWindow:
         Creates a checkbox per scene element (terrain, rigid objects, articulations, sensors)
         that has a debug visualization implemented.
         """
-        self.ui_window_elements["vis_markers_frame"] = omni.ui.CollapsableFrame(
-            title="Visualization Markers",
-            width=omni.ui.Fraction(1),
-            height=0,
-            collapsed=False,
-            style=isaacsim.gui.components.ui_utils.get_style(),
-            horizontal_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
-            vertical_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON,
-        )
+        self.ui_window_elements["vis_markers_frame"] = self._create_collapsable_frame("Visualization Markers")
         with self.ui_window_elements["vis_markers_frame"]:
             vstack = omni.ui.VStack(spacing=5, height=0)
             with vstack:
@@ -307,7 +275,6 @@ class BaseEnvWindow:
             title: The title of the manager visualization frame.
             class_name: The name of the manager to visualize.
         """
-
         if hasattr(self.env, "manager_visualizers") and class_name in self.env.manager_visualizers:
             manager = self.env.manager_visualizers[class_name]
             if hasattr(manager, "has_content") and not manager.has_content:
@@ -410,10 +377,7 @@ class BaseEnvWindow:
             from isaaclab_visualizers.kit import KitVisualizer
         except ImportError:
             return None
-        for viz in self.env.sim._visualizers:
-            if isinstance(viz, KitVisualizer):
-                return viz
-        return None
+        return next((viz for viz in self.env.sim.visualizers if isinstance(viz, KitVisualizer)), None)
 
     def _set_viewer_origin_type_fn(self, value: str):
         """Sets the origin of the viewport's camera. This is based on the drop-down menu in the UI."""
@@ -437,7 +401,6 @@ class BaseEnvWindow:
 
     def _set_viewer_location_fn(self, model: omni.ui.SimpleFloatModel):
         """Sets the viewport camera location based on the UI."""
-
         viz = self._get_kit_visualizer()
         if viz is None:
             return
@@ -474,6 +437,19 @@ class BaseEnvWindow:
     """
     Helper functions - UI building.
     """
+
+    @staticmethod
+    def _create_collapsable_frame(title: str) -> omni.ui.CollapsableFrame:
+        """Create a full-width collapsable frame with the shared window style."""
+        return omni.ui.CollapsableFrame(
+            title=title,
+            width=omni.ui.Fraction(1),
+            height=0,
+            collapsed=False,
+            style=isaacsim.gui.components.ui_utils.get_style(),
+            horizontal_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
+            vertical_scrollbar_policy=omni.ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON,
+        )
 
     def _create_debug_vis_ui_element(self, name: str, elem: object):
         """Create a checkbox for toggling debug visualization for the given element."""
