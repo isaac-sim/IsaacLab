@@ -6,10 +6,13 @@
 """Version compatibility between the public OVRTX 0.4 API and OVRTX 0.5 and later.
 
 OVRTX 0.4 keys ``frame.render_vars`` by render-var source name (``"LdrColor"``), while
-0.5 keys it by the authored RenderVar prim path (``"/Render/Vars/LdrColor"``). The
-installed version cannot change while the process runs, so the key form is resolved once
-at import and published as :data:`RENDER_VAR_FRAME_KEYS`; per-frame code indexes that
-mapping instead of re-checking the version.
+0.5 keys it by the authored RenderVar prim path. :data:`RENDER_VAR_FRAME_KEYS` gives the
+*single-camera* (unscoped) form of that path (``"/Render/Vars/LdrColor"``) for callers
+that do not have a specific camera's render scope. OVRTX 0.5+ actually authors render
+vars under a *per-camera* scope (``"/RenderCamera_<id>/Vars/LdrColor"``, see
+``render_scope_name`` in :func:`build_render_product_as_string`), so per-frame reads that
+know which camera they are reading must use :func:`resolve_render_var_key` with that
+camera's scope name instead of indexing :data:`RENDER_VAR_FRAME_KEYS` directly.
 
 Missing or invalid version metadata selects source-name render-var keys.
 """
@@ -85,4 +88,37 @@ OVRTX_VERSION: Version | None = detect_ovrtx_version()
 """Installed OVRTX version, or ``None`` when it is unavailable or unparsable."""
 
 RENDER_VAR_FRAME_KEYS: Mapping[str, str] = build_render_var_frame_keys(OVRTX_VERSION)
-"""Maps render-var source name to its ``frame.render_vars`` key for the installed OVRTX."""
+"""Maps render-var source name to its ``frame.render_vars`` key for the installed OVRTX.
+
+Uses the unscoped ``"/Render/Vars/<name>"`` path on OVRTX 0.5+, which does not match any
+render var actually authored for a specific camera (those live under
+``"/RenderCamera_<id>/Vars/<name>"``). Per-frame reads for a known camera must use
+:func:`resolve_render_var_key` with that camera's render scope instead.
+"""
+
+
+def resolve_render_var_key(source: str, render_scope_name: str | None) -> str:
+    """Return the ``frame.render_vars`` key for *source* on one camera's render product.
+
+    On OVRTX 0.4, render vars are keyed by source name everywhere, so *render_scope_name*
+    is unused. On OVRTX 0.5+, each camera's render vars are authored under its own scope
+    (``"/RenderCamera_<id>/Vars/<name>"``, see ``render_scope_name`` in
+    :func:`~isaaclab_ov.renderers.ovrtx_usd.build_render_product_as_string`), so the key
+    must be rebuilt per camera rather than read from :data:`RENDER_VAR_FRAME_KEYS`, whose
+    unscoped path never matches an authored render var.
+
+    Args:
+        source: Render-var source name (e.g. ``"LdrColor"``).
+        render_scope_name: The camera's render scope (e.g. ``"RenderCamera_0"``), or
+            ``None`` when the caller does not know it -- falls back to the unscoped path,
+            which is only correct on OVRTX 0.4.
+
+    Returns:
+        The key to index into ``frame.render_vars`` for this camera and source.
+    """
+    if not uses_prim_path_render_vars(OVRTX_VERSION):
+        return source
+    unscoped_path = render_var_prim_paths_by_source().get(source, source)
+    if render_scope_name is None:
+        return unscoped_path
+    return unscoped_path.replace("/Render/", f"/{render_scope_name}/", 1)

@@ -79,7 +79,7 @@ from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     decode_stable_id_map,
     decode_stable_id_semantic_id_map,
 )
-from isaaclab_ov.renderers.ovrtx_compat import RENDER_VAR_FRAME_KEYS
+from isaaclab_ov.renderers.ovrtx_compat import resolve_render_var_key
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     compute_cable_points_world_kernel,
@@ -112,9 +112,28 @@ if TYPE_CHECKING:
 
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
-# ``frame.render_vars`` keys of the render vars read below. Baked at import from the installed
-# OVRTX version, which decides whether frames are keyed by source name or RenderVar prim path.
-_LDR_COLOR_VAR = RENDER_VAR_FRAME_KEYS["LdrColor"]
+# Render-var source names read below. The ``frame.render_vars`` key for a given source depends
+# on the installed OVRTX version *and*, on OVRTX 0.5+, on which camera's render product is being
+# read (each camera authors its render vars under its own scope) -- see
+# ``resolve_render_var_key`` and ``OVRTXCameraRenderData.render_scope_name``.
+_LDR_COLOR_SOURCE = "LdrColor"
+_HDR_COLOR_SOURCE = "HdrColor"
+_ALBEDO_SOURCE = "DiffuseAlbedoSD"
+_NORMALS_SOURCE = "NormalSD"
+_MOTION_VECTORS_SOURCE = "TargetMotionSD"
+_SEMANTIC_SEGMENTATION_SOURCE = "SemanticSegmentation"
+_INSTANCE_SEGMENTATION_SOURCE = "NonStableInstanceSegmentation"
+_SEMANTIC_ID_MAP_SOURCE = "SemanticIdMap"
+_STABLE_ID_MAP_SOURCE = "StableIdMap"
+_STABLE_ID_SEMANTIC_ID_MAP_SOURCE = "StableIdSemanticIdMap"
+
+# Render-var sources needed to decode the instance-segmentation info dicts.
+_INSTANCE_SEGMENTATION_MAP_SOURCES = (
+    _STABLE_ID_SEMANTIC_ID_MAP_SOURCE,
+    _STABLE_ID_MAP_SOURCE,
+    _SEMANTIC_ID_MAP_SOURCE,
+)
+
 _CAMERA_INTRINSIC_ATTRIBUTES = (
     "focalLength",
     "horizontalAperture",
@@ -122,23 +141,11 @@ _CAMERA_INTRINSIC_ATTRIBUTES = (
     "horizontalApertureOffset",
     "verticalApertureOffset",
 )
-_HDR_COLOR_VAR = RENDER_VAR_FRAME_KEYS["HdrColor"]
-_ALBEDO_VAR = RENDER_VAR_FRAME_KEYS["DiffuseAlbedoSD"]
-_NORMALS_VAR = RENDER_VAR_FRAME_KEYS["NormalSD"]
-_MOTION_VECTORS_VAR = RENDER_VAR_FRAME_KEYS["TargetMotionSD"]
-_SEMANTIC_SEGMENTATION_VAR = RENDER_VAR_FRAME_KEYS["SemanticSegmentation"]
-_INSTANCE_SEGMENTATION_VAR = RENDER_VAR_FRAME_KEYS["NonStableInstanceSegmentation"]
-_SEMANTIC_ID_MAP_VAR = RENDER_VAR_FRAME_KEYS["SemanticIdMap"]
-_STABLE_ID_MAP_VAR = RENDER_VAR_FRAME_KEYS["StableIdMap"]
-_STABLE_ID_SEMANTIC_ID_MAP_VAR = RENDER_VAR_FRAME_KEYS["StableIdSemanticIdMap"]
 
-# Map render vars needed to decode the instance-segmentation info dicts.
-_INSTANCE_SEGMENTATION_MAP_VARS = (_STABLE_ID_SEMANTIC_ID_MAP_VAR, _STABLE_ID_MAP_VAR, _SEMANTIC_ID_MAP_VAR)
-
-# Maps depth render vars to compatible output buffers.
+# Maps depth render-var sources to compatible output buffers.
 _DEPTH_VAR_BUFFER_KEYS: dict[str, tuple[str, ...]] = {
-    RENDER_VAR_FRAME_KEYS["DistanceToImagePlaneSD"]: ("depth", "distance_to_image_plane"),
-    RENDER_VAR_FRAME_KEYS["DistanceToCameraSD"]: ("distance_to_camera",),
+    "DistanceToImagePlaneSD": ("depth", "distance_to_image_plane"),
+    "DistanceToCameraSD": ("distance_to_camera",),
 }
 
 # The resolved integer value is assigned to the ``omni:rtx:minimal:mode`` attribute of the render product.
@@ -304,6 +311,10 @@ class OVRTXCameraRenderData:
     def __init__(self, spec: CameraRenderSpec, device):
         """Create render data from a camera render specification."""
         self.render_product_path: str | None = None
+        # Set by the renderer right after computing this camera's render scope (e.g.
+        # "RenderCamera_0"). Needed to resolve this camera's frame.render_vars keys on OVRTX 0.5+,
+        # which authors render vars per-camera instead of under one shared scope.
+        self.render_scope_name: str | None = None
         self.camera_xform_binding = None
         self.camera_xform_query = None
         self.resources = contextlib.ExitStack()
@@ -578,6 +589,7 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Expected an exported USD string from stage")
 
         scope = f"RenderCamera_{self._next_camera_id}"
+        render_data.render_scope_name = scope
         render_product_string, render_product_path = build_render_product_as_string(
             width=width,
             height=height,
@@ -994,6 +1006,7 @@ class OVRTXRenderer(BaseRenderer):
         if not camera_paths or not camera_paths[0].startswith("/World/envs/env_0/"):
             raise ValueError("OVRTX cameras must be under /World/envs/env_0/.")
         scope = f"RenderCamera_{self._next_camera_id}"
+        render_data.render_scope_name = scope
         data_types = list(spec.cfg.data_types or ["rgb"])
         if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
             data_types.append("rgb_hdr")
@@ -1344,7 +1357,7 @@ class OVRTXRenderer(BaseRenderer):
         render_data: OVRTXCameraRenderData,
         frame,
         output_buffers: dict,
-        render_var_key: str,
+        render_var_source: str,
         buffer_key: str,
         colorize: bool,
     ) -> None:
@@ -1358,11 +1371,12 @@ class OVRTXRenderer(BaseRenderer):
             render_data: OVRTX render data for the current frame.
             frame: OVRTX frame holding the mapped render vars.
             output_buffers: Destination warp buffers, keyed by data type.
-            render_var_key: ``frame.render_vars`` key of the OVRTX render var to read.
+            render_var_source: Source name of the OVRTX render var to read, resolved against
+                ``render_data``'s render scope.
             buffer_key: Data type key into ``output_buffers``.
             colorize: If True, IDs are mapped to RGBA colors; otherwise raw uint32 IDs are copied.
         """
-        render_var = frame.render_vars.get(render_var_key)
+        render_var = frame.render_vars.get(self._render_var_key(render_data, render_var_source))
         if render_var is None or buffer_key not in output_buffers:
             return
 
@@ -1403,7 +1417,7 @@ class OVRTXRenderer(BaseRenderer):
             render_data: OVRTX render data for the current frame.
             frame: OVRTX frame holding the mapped render vars.
         """
-        semantic_id_map = frame.render_vars.get(_SEMANTIC_ID_MAP_VAR)
+        semantic_id_map = frame.render_vars.get(self._render_var_key(render_data, _SEMANTIC_ID_MAP_SOURCE))
         if semantic_id_map is None:
             return
 
@@ -1440,19 +1454,22 @@ class OVRTXRenderer(BaseRenderer):
             render_data: OVRTX render data for the current frame.
             frame: OVRTX frame holding the mapped render vars.
         """
-        resolved = {key: frame.render_vars.get(key) for key in _INSTANCE_SEGMENTATION_MAP_VARS}
-        missing = [key for key, render_var in resolved.items() if render_var is None]
+        resolved = {
+            source: frame.render_vars.get(self._render_var_key(render_data, source))
+            for source in _INSTANCE_SEGMENTATION_MAP_SOURCES
+        }
+        missing = [source for source, render_var in resolved.items() if render_var is None]
         if missing:
             raise RuntimeError(
                 f"instance_segmentation was requested but the following render vars are missing from the "
                 f"OVRTX frame: {missing}. Available vars: {list(frame.render_vars.keys())}"
             )
 
-        with resolved[_STABLE_ID_SEMANTIC_ID_MAP_VAR].map(device=Device.CPU) as mapping:
+        with resolved[_STABLE_ID_SEMANTIC_ID_MAP_SOURCE].map(device=Device.CPU) as mapping:
             stable_id_semantic_id_map = decode_stable_id_semantic_id_map(np.from_dlpack(mapping))
-        with resolved[_STABLE_ID_MAP_VAR].map(device=Device.CPU) as mapping:
+        with resolved[_STABLE_ID_MAP_SOURCE].map(device=Device.CPU) as mapping:
             stable_id_to_path = decode_stable_id_map(np.from_dlpack(mapping))
-        with resolved[_SEMANTIC_ID_MAP_VAR].map(device=Device.CPU) as mapping:
+        with resolved[_SEMANTIC_ID_MAP_SOURCE].map(device=Device.CPU) as mapping:
             semantic_id_to_labels = decode_semantic_id_map(np.from_dlpack(mapping))
 
         id_to_labels, id_to_semantics = build_instance_id_to_labels_and_semantics(
@@ -1570,6 +1587,10 @@ class OVRTXRenderer(BaseRenderer):
         # assignment.
         return wp.clone(tiled_data, device=output_device)
 
+    def _render_var_key(self, render_data: OVRTXCameraRenderData, source: str) -> str:
+        """Return *render_data*'s camera's ``frame.render_vars`` key for a render-var source name."""
+        return resolve_render_var_key(source, render_data.render_scope_name)
+
     def _process_render_frame(self, render_data: OVRTXCameraRenderData, frame, output_buffers: dict) -> None:
         """Extract RGB, depth, albedo, and semantic from a single render frame into output_buffers."""
         # Reset per-output metadata so it is a snapshot of this frame only. Unlike pixel AOVs (always
@@ -1577,7 +1598,7 @@ class OVRTXRenderer(BaseRenderer):
         # is available, so without this a missing SemanticIdMap on a later frame would leave a stale mapping.
         render_data.renderer_info.clear()
 
-        ldr_color = frame.render_vars.get(_LDR_COLOR_VAR)
+        ldr_color = frame.render_vars.get(self._render_var_key(render_data, _LDR_COLOR_SOURCE))
         if ldr_color is not None:
             buffer_key = None
 
@@ -1595,8 +1616,8 @@ class OVRTXRenderer(BaseRenderer):
                 with self._map_render_var_to_dlpack(ldr_color) as tiled_data:
                     self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
 
-        for depth_var, buffer_keys in _DEPTH_VAR_BUFFER_KEYS.items():
-            depth_render_var = frame.render_vars.get(depth_var)
+        for depth_source, buffer_keys in _DEPTH_VAR_BUFFER_KEYS.items():
+            depth_render_var = frame.render_vars.get(self._render_var_key(render_data, depth_source))
             if depth_render_var is None:
                 continue
             if not any(buffer_key in output_buffers for buffer_key in buffer_keys):
@@ -1608,12 +1629,12 @@ class OVRTXRenderer(BaseRenderer):
                     )
                 self._extract_depth_tiles(render_data, tiled_depth_data, output_buffers, buffer_keys)
 
-        albedo_var = frame.render_vars.get(_ALBEDO_VAR)
+        albedo_var = frame.render_vars.get(self._render_var_key(render_data, _ALBEDO_SOURCE))
         if albedo_var is not None and "albedo" in output_buffers:
             with self._map_render_var_to_dlpack(albedo_var) as tiled_albedo_data:
                 self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
 
-        hdr_color = frame.render_vars.get(_HDR_COLOR_VAR)
+        hdr_color = frame.render_vars.get(self._render_var_key(render_data, _HDR_COLOR_SOURCE))
         if hdr_color is not None and "rgb_hdr" in output_buffers:
             with self._map_render_var_to_dlpack(hdr_color) as tiled_hdr_data:
                 tiled_hdr_data = self._prepare_ppisp_hdr_source(render_data, tiled_hdr_data, output_buffers)
@@ -1623,7 +1644,7 @@ class OVRTXRenderer(BaseRenderer):
             render_data,
             frame,
             output_buffers,
-            _SEMANTIC_SEGMENTATION_VAR,
+            _SEMANTIC_SEGMENTATION_SOURCE,
             "semantic_segmentation",
             self.cfg.colorize_semantic_segmentation,
         )
@@ -1635,7 +1656,7 @@ class OVRTXRenderer(BaseRenderer):
             render_data,
             frame,
             output_buffers,
-            _INSTANCE_SEGMENTATION_VAR,
+            _INSTANCE_SEGMENTATION_SOURCE,
             "instance_segmentation",
             self.cfg.colorize_instance_segmentation,
         )
@@ -1644,7 +1665,7 @@ class OVRTXRenderer(BaseRenderer):
         if "instance_segmentation" in output_buffers:
             self._process_instance_segmentation_maps(render_data, frame)
 
-        normals_var = frame.render_vars.get(_NORMALS_VAR)
+        normals_var = frame.render_vars.get(self._render_var_key(render_data, _NORMALS_SOURCE))
         if normals_var is not None and "normals" in output_buffers:
             with self._map_render_var_to_dlpack(normals_var) as tiled_normals_data:
                 self._launch_extract_all_tiles(render_data, tiled_normals_data, output_buffers["normals"])
@@ -1652,7 +1673,7 @@ class OVRTXRenderer(BaseRenderer):
         # For motion vectors, extract only the first two (u, v) channels from the tiled buffer.
         # Note: mirrors the Isaac RTX renderer's handling of the "TargetMotionSD" AOV
         # (check: https://github.com/isaac-sim/IsaacLab/issues/2003).
-        motion_var = frame.render_vars.get(_MOTION_VECTORS_VAR)
+        motion_var = frame.render_vars.get(self._render_var_key(render_data, _MOTION_VECTORS_SOURCE))
         if motion_var is not None and "motion_vectors" in output_buffers:
             with self._map_render_var_to_dlpack(motion_var) as tiled_motion_vectors_data:
                 self._launch_extract_all_tiles(render_data, tiled_motion_vectors_data, output_buffers["motion_vectors"])
@@ -1955,6 +1976,7 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Expected an exported USD string from stage")
 
         scope = f"RenderCamera_{self._next_camera_id}"
+        render_data.render_scope_name = scope
         render_product_string, render_product_path = build_render_product_as_string(
             width=width,
             height=height,
