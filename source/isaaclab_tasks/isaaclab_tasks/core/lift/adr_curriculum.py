@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Adaptive domain randomization curriculum for the lift environments."""
+
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.utils import configclass
 
@@ -11,9 +13,13 @@ from . import mdp
 
 @configclass
 class CurriculumCfg:
-    """Curriculum terms for the MDP."""
+    """Curriculum terms for the MDP.
 
-    # adr stands for automatic/adaptive domain randomization
+    The ``adr`` (adaptive domain randomization) scheduler promotes each environment's difficulty on
+    success; the remaining terms interpolate observation noise, termination bounds and gravity between
+    their initial and final values as the mean difficulty grows.
+    """
+
     adr = CurrTerm(
         func=mdp.DifficultyScheduler, params={"init_difficulty": 0, "min_difficulty": 0, "max_difficulty": 10}
     )
@@ -150,3 +156,14 @@ class CurriculumCfg:
             },
         },
     )
+
+    def disable_observation_noise_terms(self) -> None:
+        """Drop the terms that schedule observation noise.
+
+        Required whenever observation corruption is off: the observation manager clears the ``noise``
+        configuration of every term in an uncorrupted group, so the addresses these terms interpolate
+        no longer resolve and the first curriculum evaluation would raise ``AttributeError``.
+        """
+        for term_name, term in list(self.__dict__.items()):
+            if term is not None and ".noise." in term.params.get("address", ""):
+                setattr(self, term_name, None)

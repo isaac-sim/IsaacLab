@@ -197,7 +197,7 @@ class ActuatorBase(ABC):
         if effort_limit is not None:
             warnings.warn(
                 "The effort_limit constructor argument is deprecated. Use actuator_effort_limit instead; "
-                "effort_limit will be removed in 4.0.",
+                "effort_limit will be removed in 3.1.",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -209,7 +209,7 @@ class ActuatorBase(ABC):
         if velocity_limit is not None:
             warnings.warn(
                 "The velocity_limit constructor argument is deprecated. Use actuator_velocity_limit instead; "
-                "velocity_limit will be removed in 4.0.",
+                "velocity_limit will be removed in 3.1.",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -327,11 +327,11 @@ class ActuatorBase(ABC):
         """Deprecated actuator effort limit [N or N·m, depending on joint type].
 
         .. deprecated:: 3.0
-            Use :attr:`actuator_effort_limit` instead. This alias will be removed in 4.0.
+            Use :attr:`actuator_effort_limit` instead. This alias will be removed in 3.1.
         """
         warnings.warn(
             "ActuatorBase.effort_limit is deprecated. Use actuator_effort_limit instead; "
-            "effort_limit will be removed in 4.0.",
+            "effort_limit will be removed in 3.1.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -341,7 +341,7 @@ class ActuatorBase(ABC):
     def effort_limit(self, value: torch.Tensor) -> None:
         warnings.warn(
             "ActuatorBase.effort_limit is deprecated. Use actuator_effort_limit instead; "
-            "effort_limit will be removed in 4.0.",
+            "effort_limit will be removed in 3.1.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -352,11 +352,11 @@ class ActuatorBase(ABC):
         """Deprecated actuator velocity limit [m/s or rad/s, depending on joint type].
 
         .. deprecated:: 3.0
-            Use :attr:`actuator_velocity_limit` instead. This alias will be removed in 4.0.
+            Use :attr:`actuator_velocity_limit` instead. This alias will be removed in 3.1.
         """
         warnings.warn(
             "ActuatorBase.velocity_limit is deprecated. Use actuator_velocity_limit instead; "
-            "velocity_limit will be removed in 4.0.",
+            "velocity_limit will be removed in 3.1.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -366,7 +366,7 @@ class ActuatorBase(ABC):
     def velocity_limit(self, value: torch.Tensor) -> None:
         warnings.warn(
             "ActuatorBase.velocity_limit is deprecated. Use actuator_velocity_limit instead; "
-            "velocity_limit will be removed in 4.0.",
+            "velocity_limit will be removed in 3.1.",
             DeprecationWarning,
             stacklevel=2,
         )

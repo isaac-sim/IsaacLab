@@ -26,7 +26,6 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
 from isaaclab.controllers import DifferentialIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.envs import mdp as env_mdp
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -44,23 +43,18 @@ from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
-from isaaclab_contrib.coupling import (
-    CouplerEntryCfg,
-    CouplerProxyCfg,
-    CouplerProxyMappingCfg,
-)
+from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
 from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
+
 from ... import mdp
 
 ##
-# Pre-defined configs
+# Scene assets
 ##
-
-from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort:skip
-
 
 ##
 # Helpers
@@ -71,14 +65,12 @@ from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort:skip
 YOUNGS_MODULUS = 2e5
 POISSONS_RATIO = 0.3
 
-# Table collider whose top surface sits at z = 0. Spawned invisible: the command term's success
-# visualizer draws it instead, tinted by whether the goal is reached.
 TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
     size=(1.3, 0.9, 1.05),
-    collision_props=sim_utils.CollisionPropertiesCfg(),
+    collision_props=sim_utils.UsdPhysicsCollisionCfg(),
     visible=False,
 )
-
+"""Table collider whose top surface sits at z = 0, drawn by the command term's success markers."""
 
 FRANKA_CAMERA_CFG = CameraCfg(
     prim_path="{ENV_REGEX_NS}/Camera",
@@ -93,11 +85,12 @@ FRANKA_CAMERA_CFG = CameraCfg(
     height=128,
     renderer_cfg=MultiBackendRendererCfg(),
 )
+"""Base-mounted RGB camera of the visual variants."""
 
 
 @configclass
 class DeformableCfg(PresetCfg):
-    """Preset config for the deformable object, matching the Newton example."""
+    """Deformable soft-beam presets per physics backend, matching the Newton example."""
 
     newton_mjwarp_vbd_proxy: DeformableObjectCfg = DeformableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Deformable",
@@ -123,7 +116,7 @@ class DeformableCfg(PresetCfg):
             size=(0.3, 0.04, 0.04),
             edge_refinement=8.0,
             deformable_props=PhysxDeformableBodyPropertiesCfg(),
-            collision_props=[PhysxCollisionCfg(rest_offset=0.0025, contact_offset=0.01)],
+            collision_props=PhysxCollisionCfg(rest_offset=0.0025, contact_offset=0.01),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.45, 0.85)),
             physics_material=PhysxDeformableBodyMaterialCfg(
                 density=1000.0,
@@ -141,6 +134,8 @@ class DeformableCfg(PresetCfg):
 
 @configclass
 class PhysicsCfg(PresetCfg):
+    """Physics backend presets for the soft-beam environment."""
+
     newton_mjwarp_vbd_proxy: NewtonCfg = NewtonCfg(
         solver_cfg=CouplerProxyCfg(
             entries=[
@@ -197,8 +192,8 @@ class PhysicsCfg(PresetCfg):
 
 
 @configclass
-class _FrankaSoftSceneCfg(InteractiveSceneCfg):
-    """Scene for the Franka deformable environment."""
+class FrankaSoftBaseSceneCfg(InteractiveSceneCfg):
+    """Scene for the Franka deformable environment, also the base of the cloth and cable scenes."""
 
     robot: ArticulationCfg = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     # Deformable contact is restricted to the hand and fingertips for throughput.
@@ -225,9 +220,7 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
 
     deformable: DeformableCfg = DeformableCfg()
 
-    # static table collider with its top surface at z = 0. Kept invisible: the success
-    # visualizer renders the visible table, colored by whether the goal is reached
-    # (see CommandsCfg).
+    # static table collider drawn by the command term's success markers (see CommandsCfg)
     table: AssetBaseCfg = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, -0.525]),
@@ -250,7 +243,7 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    def __post_init__(self) -> None:
+    def __post_init__(self):
         self.robot.actuators = {
             # inspired by libfranka's joint_impedance_control.cpp
             "panda_arm": ImplicitActuatorCfg(
@@ -298,8 +291,8 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
             ),
         }
 
-        # disable gravity on the arm so the low-PD actuators do not need to fight gravity sag,
-        # which is the dominant source of steady-state IK tracking error.
+        # disable gravity on the arm so the low-gain actuators do not fight gravity sag, the dominant
+        # source of steady-state IK tracking error
         self.robot.spawn.rigid_props.disable_gravity = True
 
         # increase franka gripper stiffness
@@ -309,7 +302,7 @@ class _FrankaSoftSceneCfg(InteractiveSceneCfg):
 
 
 @configclass
-class _FrankaSoftCameraSceneCfg(_FrankaSoftSceneCfg):
+class FrankaSoftBaseCameraSceneCfg(FrankaSoftBaseSceneCfg):
     """Franka soft scene with a base camera."""
 
     base_camera: CameraCfg = FRANKA_CAMERA_CFG
@@ -406,6 +399,8 @@ class ObservationsCfg:
 
     @configclass
     class PolicyCfg(ObsGroup):
+        """Observations for policy group."""
+
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
         deformable_sampled_points = ObsTerm(
@@ -415,7 +410,7 @@ class ObservationsCfg:
         target_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "deformable_pose"})
         actions = ObsTerm(func=mdp.last_action)
 
-        def __post_init__(self) -> None:
+        def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
 
@@ -428,37 +423,45 @@ class FrankaCameraObservationsCfg:
 
     @configclass
     class PolicyCfg(ObsGroup):
+        """Observations for policy group."""
+
         target_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "deformable_pose"})
         actions = ObsTerm(func=mdp.last_action)
 
-        def __post_init__(self) -> None:
+        def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
 
     @configclass
     class ProprioCfg(ObsGroup):
+        """Observations for proprioception group."""
+
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
 
-        def __post_init__(self) -> None:
+        def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
 
     @configclass
     class PerceptionCfg(ObsGroup):
+        """Observations for perception group."""
+
         deformable_sampled_points = ObsTerm(
             func=mdp.DeformableSampledPointsInRobotRootFrame,
             params={"asset_cfg": SceneEntityCfg("deformable"), "num_points": 20},
         )
 
-        def __post_init__(self) -> None:
+        def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
 
     @configclass
     class BaseImageCfg(ObsGroup):
+        """Camera observations for the base image group."""
+
         image = ObsTerm(
-            func=env_mdp.image,
+            func=mdp.image,
             params={
                 "sensor_cfg": SceneEntityCfg("base_camera"),
                 "data_type": "rgb",
@@ -566,7 +569,7 @@ class CurriculumCfg:
         func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -1e-1, "num_steps": 15000}
     )
 
-    # Since we use 24 steps per env, 10000 steps correspond to 10000/24 = 416.67 learning iterations
+    # with 24 steps per environment, 10000 steps correspond to about 417 learning iterations
     gravity = CurrTerm(
         func=mdp.gravity_range_linear,
         params={
@@ -613,12 +616,14 @@ class TerminationsCfg:
 
 @configclass
 class FrankaSoftSceneCfg(PresetCfg):
-    newton_mjwarp_vbd_proxy: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(
+    """Scene presets for soft-beam lifting."""
+
+    newton_mjwarp_vbd_proxy: FrankaSoftBaseSceneCfg = FrankaSoftBaseSceneCfg(
         num_envs=2048, env_spacing=2.0, replicate_physics=True
     )
 
     # Isaac Sim PhysX does not support replicating physics for deformable objects
-    physx: _FrankaSoftSceneCfg = _FrankaSoftSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=False)
+    physx: FrankaSoftBaseSceneCfg = FrankaSoftBaseSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=False)
     isaacsim_physx = physx
 
     default = newton_mjwarp_vbd_proxy
@@ -628,18 +633,14 @@ class FrankaSoftSceneCfg(PresetCfg):
 class FrankaSoftCameraSceneCfg(PresetCfg):
     """Scene presets for visual Franka soft lifting."""
 
-    newton_mjwarp_vbd_proxy: _FrankaSoftCameraSceneCfg = _FrankaSoftCameraSceneCfg(
+    newton_mjwarp_vbd_proxy: FrankaSoftBaseCameraSceneCfg = FrankaSoftBaseCameraSceneCfg(
         num_envs=128, env_spacing=2.0, replicate_physics=True
     )
-    physx: _FrankaSoftCameraSceneCfg = _FrankaSoftCameraSceneCfg(num_envs=128, env_spacing=2.0, replicate_physics=False)
+    physx: FrankaSoftBaseCameraSceneCfg = FrankaSoftBaseCameraSceneCfg(
+        num_envs=128, env_spacing=2.0, replicate_physics=False
+    )
     isaacsim_physx = physx
     default = newton_mjwarp_vbd_proxy
-
-
-@configclass
-class _FrankaSoftVisualizerCfg(VisualizerCfg):
-    window_width: int = 1920
-    window_height: int = 1080
 
 
 @configclass
@@ -658,22 +659,17 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
     events: EventCfg = EventCfg()
     curriculum: CurriculumCfg = CurriculumCfg()
 
-    def __post_init__(self) -> None:
+    def __post_init__(self):
+        """Post initialization."""
         # general settings
         self.decimation = 4
         self.episode_length_s = 5.0
-
         # simulation settings
-        self.sim.dt = 1.0 / 120
+        self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysicsCfg()
-
-        self.viewer.eye = (0.75, 0.25, 0.65)
-        self.viewer.lookat = (0.0, 0.75, 0.4)
-        self.sim.default_visualizer_cfg = _FrankaSoftVisualizerCfg(
-            eye=self.viewer.eye,
-            lookat=self.viewer.lookat,
-        )
+        # visualizer settings
+        self.sim.default_visualizer_cfg = _FrankaSoftVisualizerCfg(eye=(0.75, 0.25, 0.65), lookat=(0.0, 0.75, 0.4))
 
     def play_mode(self):
         super().play_mode()
@@ -688,7 +684,15 @@ class FrankaSoftCameraEnvCfg(FrankaSoftEnvCfg):
     scene: FrankaSoftCameraSceneCfg = FrankaSoftCameraSceneCfg()
     observations: FrankaCameraObservationsCfg = FrankaCameraObservationsCfg()
 
-    def __post_init__(self) -> None:
+    def __post_init__(self):
         super().__post_init__()
-        # Warm up the RTX render product/annotator (Newton skips the PhysX assets_loading render loop).
+        # warm up the RTX render product and annotator; Newton skips the PhysX asset-loading render loop
         self.num_rerenders_on_reset = 2
+
+
+@configclass
+class _FrankaSoftVisualizerCfg(VisualizerCfg):
+    """Visualizer with a full-HD window for the soft-body environments."""
+
+    window_width: int = 1920
+    window_height: int = 1080

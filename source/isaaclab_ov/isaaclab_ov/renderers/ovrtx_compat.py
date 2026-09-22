@@ -11,8 +11,7 @@ installed version cannot change while the process runs, so the key form is resol
 at import and published as :data:`RENDER_VAR_FRAME_KEYS`; per-frame code indexes that
 mapping instead of re-checking the version.
 
-The public extras stay pinned to ``ovrtx==0.4.1.364340``; a missing or unparsable install
-keeps the 0.4 key form.
+Missing or invalid version metadata selects source-name render-var keys.
 """
 
 from __future__ import annotations

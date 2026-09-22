@@ -3,15 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the manager-based Franka cabinet-opening environment."""
+
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg
 from isaaclab.utils import configclass
-
-import isaaclab_tasks.core.cabinet.mdp as mdp
-from isaaclab_tasks.core.cabinet.cabinet_env_cfg import FRAME_MARKER_SMALL_CFG, CabinetEnvCfg, CabinetSceneCfg
 from isaaclab_tasks.utils import preset
 
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
+
+from ... import mdp
+from ...cabinet_env_cfg import FRAME_MARKER_SMALL_CFG, CabinetEnvCfg, CabinetSceneCfg
 
 
 @configclass
@@ -56,6 +58,8 @@ class FrankaCabinetSceneCfg(CabinetSceneCfg):
 
 @configclass
 class FrankaCabinetEnvCfg(CabinetEnvCfg):
+    """Cabinet-opening environment with a Franka Panda arm driven by joint position targets."""
+
     scene: FrankaCabinetSceneCfg = FrankaCabinetSceneCfg(num_envs=4096, env_spacing=2.0)
 
     def __post_init__(self):
@@ -82,6 +86,5 @@ class FrankaCabinetEnvCfg(CabinetEnvCfg):
 
     def play_mode(self):
         super().play_mode()
-
         # make a smaller scene for play
         self.scene.env_spacing = 2.5

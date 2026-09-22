@@ -22,6 +22,7 @@ import warp as wp
 from isaaclab_physx.sensors.frame_transformer import frame_transformer as frame_transformer_module
 from isaaclab_physx.sensors.frame_transformer.frame_transformer import FrameTransformer
 from isaaclab_physx.sensors.frame_transformer.frame_transformer_data import FrameTransformerData
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -69,8 +70,8 @@ class MySceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/cube",
         spawn=sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0),
+            mass_props=sim_utils.MassCfg(mass=1.0),
             physics_material=sim_utils.RigidBodyMaterialCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
         ),
@@ -745,9 +746,11 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
             # Implicit frame names (backward compatibility)
             FrameTransformerCfg.FrameCfg(
                 prim_path=f"{path_prefix}/Robot/RF_SHANK",
+                offset=OffsetCfg(pos=(0.1, 0.0, 0.0)),
             ),
             FrameTransformerCfg.FrameCfg(
                 prim_path=f"{path_prefix}/Robot_1/RF_SHANK",
+                offset=OffsetCfg(pos=(0.0, 0.2, 0.0)),
             ),
         ],
     )
@@ -849,6 +852,8 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
         robot_1_lf_pos_w = scene.articulations["robot_1"].data.body_pos_w.torch[:, robot_1_lf_shank_body_idx]
         robot_rf_pos_w = scene.articulations["robot"].data.body_pos_w.torch[:, robot_rf_shank_body_idx]
         robot_1_rf_pos_w = scene.articulations["robot_1"].data.body_pos_w.torch[:, robot_1_rf_shank_body_idx]
+        robot_rf_quat_w = scene.articulations["robot"].data.body_quat_w.torch[:, robot_rf_shank_body_idx]
+        robot_1_rf_quat_w = scene.articulations["robot_1"].data.body_quat_w.torch[:, robot_1_rf_shank_body_idx]
 
         # Get expected source frame positions and orientations (after scene.update() so they're current)
         expected_source_base_pos_w = scene.articulations[expected_source_robot].data.body_pos_w.torch[
@@ -884,16 +889,24 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
             "This indicates body name collision bug in internal body tracking."
         )
 
-        # Verify implicit named frames match correct robot bodies
-        # Note: Order depends on internal processing, so we check both match one of the robots
-        rf_positions = [target_pos_w[:, rf_shank_indices[0]], target_pos_w[:, rf_shank_indices[1]]]
+        # Verify implicit named frames preserve the offset configured for each body.
+        robot_rf_expected_pos_w, _ = math_utils.combine_frame_transforms(
+            robot_rf_pos_w,
+            robot_rf_quat_w,
+            torch.tensor((0.1, 0.0, 0.0), device=robot_rf_pos_w.device).expand_as(robot_rf_pos_w),
+        )
+        robot_1_rf_expected_pos_w, _ = math_utils.combine_frame_transforms(
+            robot_1_rf_pos_w,
+            robot_1_rf_quat_w,
+            torch.tensor((0.0, 0.2, 0.0), device=robot_1_rf_pos_w.device).expand_as(robot_1_rf_pos_w),
+        )
+        expected_rf_positions = [robot_rf_expected_pos_w, robot_1_rf_expected_pos_w]
 
-        # Each tracked position should match one of the ground truth positions
+        # Note: Order depends on internal processing, so we check both match one of the expected transforms.
+        rf_positions = [target_pos_w[:, rf_shank_indices[0]], target_pos_w[:, rf_shank_indices[1]]]
         for rf_pos in rf_positions:
-            matches_robot = torch.allclose(rf_pos, robot_rf_pos_w, atol=1e-5)
-            matches_robot_1 = torch.allclose(rf_pos, robot_1_rf_pos_w, atol=1e-5)
-            assert matches_robot or matches_robot_1, (
-                f"RF_SHANK position {rf_pos} doesn't match either robot's RF_SHANK position"
+            assert any(torch.allclose(rf_pos, expected, atol=1e-5) for expected in expected_rf_positions), (
+                f"RF_SHANK position {rf_pos} doesn't match either configured body offset"
             )
 
 

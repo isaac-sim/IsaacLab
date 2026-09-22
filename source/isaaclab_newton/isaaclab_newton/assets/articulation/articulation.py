@@ -700,6 +700,9 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        # Nonfloating root bindings write model.joint_X_p, not state.joint_q.
+        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
             self.data._reset_pose(env_ids=env_ids)
@@ -747,6 +750,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)
@@ -800,6 +805,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
@@ -850,6 +857,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of the pose related properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
@@ -1705,7 +1714,7 @@ class Articulation(BaseArticulation):
         .. deprecated:: 3.0
             Use :func:`isaaclab.envs.mdp.events.randomize_actuator_gains` for
             managed randomization. Direct controller-gain writes have no public
-            replacement. This method will be removed in 4.0.
+            replacement. This method will be removed in 3.1.
 
         Args:
             stiffness: Controller stiffness [N/m or N·m/rad, depending on joint type].
@@ -1728,7 +1737,7 @@ class Articulation(BaseArticulation):
         .. deprecated:: 3.0
             Use :func:`isaaclab.envs.mdp.events.randomize_actuator_gains` for
             managed randomization. Direct controller-gain writes have no public
-            replacement. This method will be removed in 4.0.
+            replacement. This method will be removed in 3.1.
 
         Args:
             damping: Controller damping [N·s/m or N·m·s/rad, depending on joint type].

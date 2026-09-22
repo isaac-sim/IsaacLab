@@ -32,6 +32,7 @@ args_cli = parser.parse_args()
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 
 ##
 # Pre-defined configs
@@ -104,6 +105,8 @@ def main():
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view([0.0, 18.0, 12.0], [0.0, 3.0, 0.0])
+        plan = cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Light",))
+        sim.set_clone_plan(plan)
 
         # Spawn things into stage
         # Lights
@@ -112,6 +115,7 @@ def main():
 
         # create markers
         my_visualizer = define_markers()
+        cloner.replicate(plan, replicate_physics=False)
 
         # define a grid of positions where the markers should be placed
         num_markers_per_type = 5

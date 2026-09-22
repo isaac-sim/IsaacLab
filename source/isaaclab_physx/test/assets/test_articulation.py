@@ -34,6 +34,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_physx.assets import Articulation
+from isaaclab_physx.sim.schemas import PhysxJointCfg
 
 from pxr import UsdPhysics
 
@@ -117,7 +118,7 @@ def generate_articulation_cfg(
             # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0),
+                joint_drive_props=[sim_utils.UsdPhysicsDriveCfg(max_force=80.0), PhysxJointCfg(max_joint_velocity=5.0)],
             ),
             actuators={
                 "joint": ImplicitActuatorCfg(
@@ -140,7 +141,7 @@ def generate_articulation_cfg(
         articulation_cfg = ArticulationCfg(
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0),
+                joint_drive_props=[sim_utils.UsdPhysicsDriveCfg(max_force=80.0), PhysxJointCfg(max_joint_velocity=5.0)],
             ),
             actuators={
                 "joint": IdealPDActuatorCfg(
@@ -496,9 +497,7 @@ def test_reversed_joint_dynamics_use_public_joint_basis(sim, device, gravity_ena
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_live_floating_root_writers_match_identity_after_body_reordering(sim, device, gravity_enabled):
     """Keep floating-base root writes invariant when public body order moves the root."""
-    floating_spawn = FRANKA_PANDA_CFG.spawn.replace(
-        articulation_props=FRANKA_PANDA_CFG.spawn.articulation_props.replace(fix_root_link=False)
-    )
+    floating_spawn = FRANKA_PANDA_CFG.spawn.replace(fix_root_link=False)
     identity = Articulation(
         FRANKA_PANDA_CFG.replace(
             prim_path="/World/IdentityRobot",
@@ -1032,7 +1031,7 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
     """
     articulation_cfg = generate_articulation_cfg(articulation_type="anymal").copy()
     # Fix root link by making it kinematic
-    articulation_cfg.spawn.articulation_props.fix_root_link = True
+    articulation_cfg.spawn.fix_root_link = True
     articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
 
     # Check that the framework doesn't hold excessive strong references.
@@ -1092,7 +1091,7 @@ def test_initialization_fixed_base_made_floating_base(sim, num_articulations, de
     """
     articulation_cfg = generate_articulation_cfg(articulation_type="panda").copy()
     # Unfix root link by making it non-kinematic
-    articulation_cfg.spawn.articulation_props.fix_root_link = False
+    articulation_cfg.spawn.fix_root_link = False
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
     # Check that the framework doesn't hold excessive strong references.
@@ -1831,7 +1830,9 @@ def test_setting_velocity_limit_writes_to_solver(sim, device, joint_velocity_lim
     torch.testing.assert_close(articulation.data.joint_vel_limits.torch, physx_vel_limit)
     # the solver clamp comes from joint_velocity_limit when set, otherwise the USD-authored value
     if joint_velocity_limit is None:
-        limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
+        limit = next(
+            p.max_joint_velocity for p in articulation_cfg.spawn.joint_drive_props if isinstance(p, PhysxJointCfg)
+        )
     else:
         limit = joint_velocity_limit
     expected_velocity_limit = torch.full_like(physx_vel_limit, limit)
@@ -1840,14 +1841,14 @@ def test_setting_velocity_limit_writes_to_solver(sim, device, joint_velocity_lim
 
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("joint_effort_limit", [1e5, None])
-def test_setting_effort_limit_writes_to_solver(sim, device, joint_effort_limit):
-    """Test that the resolved joint effort limit reaches the PhysX solver.
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_setting_effort_limit_writes_to_solver(sim, device, joint_effort_limit, gravity_enabled):
+    """Test that the resolved joint effort limit and a commanded effort reach the PhysX solver.
 
     The full limit-resolution matrix (config override vs. USD default, implicit and explicit
     actuators, actuator-limit soft fallback) is covered on the Newton backend and at unit
-    level. This smoke test only verifies the PhysX write path: the configured limit (or the
-    USD-authored default when unset) lands in the native solver buffers and matches
-    ``data.joint_effort_limits``.
+    level. This smoke test verifies the PhysX write path: the configured limit (or the USD-authored
+    default when unset) lands in the native solver buffers, and a commanded effort produces motion.
     """
     articulation_cfg = generate_articulation_cfg(
         articulation_type="single_joint_implicit",
@@ -1867,11 +1868,32 @@ def test_setting_effort_limit_writes_to_solver(sim, device, joint_effort_limit):
     torch.testing.assert_close(articulation.data.joint_effort_limits.torch, physx_effort_limit)
     # the solver keeps the USD-authored limit unless the user overrides it explicitly
     if joint_effort_limit is None:
-        limit = articulation_cfg.spawn.joint_drive_props.max_force
+        limit = next(
+            p.max_force for p in articulation_cfg.spawn.joint_drive_props if isinstance(p, sim_utils.UsdPhysicsDriveCfg)
+        )
     else:
         limit = joint_effort_limit
     expected_effort_limit = torch.full_like(physx_effort_limit, limit)
     torch.testing.assert_close(physx_effort_limit, expected_effort_limit)
+
+    # Exercise the command path as well as the property readback. The Isaac Sim 6.0 tensor backend
+    # accepted this write and updated its staging buffer without applying the effort to the joint.
+    initial_position = articulation.data.default_joint_pos.torch.clone()
+    articulation.write_joint_state_to_sim_index(
+        position=initial_position,
+        velocity=torch.zeros_like(initial_position),
+        full_data=True,
+    )
+    effort_target = torch.full_like(initial_position, 10.0)
+    articulation.actuators.target_command.set_position_index(value=initial_position, full_data=True)
+    articulation.actuators.target_command.set_velocity_index(value=torch.zeros_like(initial_position), full_data=True)
+    articulation.actuators.target_command.set_effort_index(value=effort_target, full_data=True)
+    articulation.write_data_to_sim()
+    sim.step()
+    articulation.update(sim.cfg.dt)
+    assert torch.all(articulation.data.joint_vel.torch > 1e-3), (
+        "a positive effort target must accelerate the commanded joint"
+    )
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])

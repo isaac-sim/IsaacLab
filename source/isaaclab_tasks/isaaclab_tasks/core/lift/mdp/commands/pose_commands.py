@@ -3,8 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
-"""Sub-module containing command generators for pose tracking."""
+"""Object pose commands for the lift environments."""
 
 from __future__ import annotations
 
@@ -13,8 +12,9 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.assets import AssetBaseCfg
+from isaaclab.assets import Asset, AssetBase
 from isaaclab.managers import CommandTerm
+from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
 
@@ -30,28 +30,16 @@ if TYPE_CHECKING:
 
 
 class ObjectUniformPoseCommand(CommandTerm):
-    """Uniform pose command generator for an object (in the robot base frame).
+    """Uniform pose command generator for an object, expressed in the robot root frame.
 
-    This command term samples target object poses by:
-      • Drawing (x, y, z) uniformly within configured Cartesian bounds, and
-      • Drawing roll-pitch-yaw uniformly within configured ranges, then converting
-        to a quaternion (x, y, z, w). Optionally makes quaternions unique by enforcing
-        a positive real part.
+    The position is drawn uniformly within the configured Cartesian bounds and the orientation from
+    uniformly drawn roll, pitch and yaw angles, converted to an ``(x, y, z, w)`` quaternion that is
+    optionally made unique by enforcing a positive real part. The command buffer has shape
+    ``(num_envs, 7)`` as ``(x, y, z, qx, qy, qz, qw)``.
 
-    Frames:
-        Targets are defined in the robot's *base frame*. For metrics/visualization,
-        targets are transformed into the *world frame* using the robot root pose.
-
-    Outputs:
-        The command buffer has shape (num_envs, 7): ``(x, y, z, qx, qy, qz, qw)``.
-
-    Metrics:
-        `position_error` and `orientation_error` are computed between the commanded
-        world-frame pose and the object's current world-frame pose.
-
-    Config:
-        `cfg` must provide the sampling ranges, whether to enforce quaternion uniqueness,
-        and optional visualization settings.
+    For the metrics and visualization the command is transformed into the world frame with the robot
+    root pose. The ``position_error`` and ``orientation_error`` metrics compare the commanded and the
+    object's current world-frame poses.
     """
 
     cfg: ObjectUniformPoseCommandCfg
@@ -67,16 +55,14 @@ class ObjectUniformPoseCommand(CommandTerm):
         # initialize the base class
         super().__init__(cfg, env)
 
-        # extract the robot and body index for which the command is generated
+        # extract the robot and the object for which the command is generated
         self.robot: Articulation = env.scene[cfg.asset_name]
         self.object: RigidObject = env.scene[cfg.object_name]
-        self.success_vis_asset: RigidObject | AssetBaseCfg | None
+        self.success_vis_asset: RigidObject | Asset | None = None
         if cfg.success_vis_asset_name in env.scene.keys():
             self.success_vis_asset = env.scene[cfg.success_vis_asset_name]
-        else:
-            self.success_vis_asset = None
-        if isinstance(self.success_vis_asset, AssetBaseCfg):
-            offset = torch.tensor(self.success_vis_asset.init_state.pos, device=self.device)
+        if isinstance(self.success_vis_asset, Asset) and not isinstance(self.success_vis_asset, AssetBase):
+            offset = torch.tensor(self.success_vis_asset.cfg.init_state.pos, device=self.device)
             self._static_success_vis_pos_w = env.scene.env_origins + offset
         else:
             self._static_success_vis_pos_w = None
@@ -90,8 +76,8 @@ class ObjectUniformPoseCommand(CommandTerm):
         self.metrics["position_error"] = torch.zeros(self.num_envs, device=self.device)
         if not self.cfg.position_only:
             self.metrics["orientation_error"] = torch.zeros(self.num_envs, device=self.device)
-        from isaaclab.markers import VisualizationMarkers
 
+        # success markers, always visible
         self.success_visualizer = VisualizationMarkers(self.cfg.success_visualizer_cfg)
         self.success_visualizer.set_visibility(True)
         if self.success_vis_asset is not None:
@@ -184,8 +170,6 @@ class ObjectUniformPoseCommand(CommandTerm):
     def _set_debug_vis_impl(self, debug_vis: bool):
         if debug_vis:
             if not hasattr(self, "goal_visualizer"):
-                from isaaclab.markers import VisualizationMarkers
-
                 self.goal_visualizer = VisualizationMarkers(self.cfg.goal_pose_visualizer_cfg)
                 self.curr_visualizer = VisualizationMarkers(self.cfg.curr_pose_visualizer_cfg)
             # set their visibility to true

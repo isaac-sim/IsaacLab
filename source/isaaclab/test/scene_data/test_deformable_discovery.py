@@ -132,6 +132,22 @@ def test_discover_surface_without_sim_api_uses_first_mesh():
     assert entries[0].vis_vertex_count == 3
 
 
+def test_discover_declared_roots_once_without_undeclared_siblings():
+    stage = Usd.Stage.CreateInMemory()
+    for path in ("/Scene/Declared/Cloth", "/Scene/Undeclared/Cloth"):
+        mesh = UsdGeom.Mesh.Define(stage, path)
+        _add_api_schemas(mesh.GetPrim(), ["OmniPhysicsDeformableBodyAPI"])
+        mesh.CreatePointsAttr([(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)])
+        mesh.CreateFaceVertexCountsAttr([3])
+        mesh.CreateFaceVertexIndicesAttr([0, 1, 2])
+
+    entries = discover_deformables_on_stage(
+        stage, root_paths=("/Scene/Declared/Cloth", "/Scene/Declared", "/Scene/Declared/Cloth")
+    )
+
+    assert [entry.root_path for entry in entries] == ["/Scene/Declared/Cloth"]
+
+
 def test_discover_volume_prefers_named_visual_over_unrelated_child_mesh():
     """When several child meshes exist under the BodyAPI root, select the visual mesh."""
     stage = Usd.Stage.CreateInMemory()

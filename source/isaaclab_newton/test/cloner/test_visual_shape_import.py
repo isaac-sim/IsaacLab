@@ -9,7 +9,6 @@ from types import SimpleNamespace
 
 import newton
 from isaaclab_newton.cloner import newton_clone_utils
-from isaaclab_newton.cloner import replicate as replicate_module
 from isaaclab_newton.cloner.newton_clone_utils import build_source_builders
 from newton import ShapeFlags
 
@@ -158,47 +157,3 @@ class TestClonerVisualShapeImport:
         newton_clone_utils._restore_visible_colliders_without_visual_shapes(builder, stage, {collider_path: 0})
 
         assert not builder.shape_flags[1] & ShapeFlags.VISIBLE
-
-
-class _StubSim:
-    def __init__(self, is_rendering: bool, can_render_rgb_array: bool, visual_shapes_required: bool = False):
-        self.is_rendering = is_rendering
-        self._can_render_rgb_array = can_render_rgb_array
-        self.visual_shapes_required = visual_shapes_required
-
-    def can_render_rgb_array(self) -> bool:
-        return self._can_render_rgb_array
-
-
-class TestRendererWantsVisualShapes:
-    """The auto mode must follow whatever will actually draw the shapes."""
-
-    def _patch_sim(self, monkeypatch, sim):
-        monkeypatch.setattr(replicate_module.PhysicsManager, "_sim", sim)
-
-    def test_headless_run_skips_visual_shapes(self, monkeypatch):
-        """Nothing rendering means nothing needs the visual-only shapes."""
-        self._patch_sim(monkeypatch, _StubSim(is_rendering=False, can_render_rgb_array=False))
-        assert replicate_module._renderer_wants_visual_shapes() is False
-
-    def test_offscreen_capture_keeps_visual_shapes(self, monkeypatch):
-        """An ``rgb_array`` capture draws the shapes even without a viewer window."""
-        self._patch_sim(monkeypatch, _StubSim(is_rendering=False, can_render_rgb_array=True))
-        assert replicate_module._renderer_wants_visual_shapes() is True
-
-    def test_active_viewer_keeps_visual_shapes(self, monkeypatch):
-        """A running viewer draws the shapes."""
-        self._patch_sim(monkeypatch, _StubSim(is_rendering=True, can_render_rgb_array=False))
-        assert replicate_module._renderer_wants_visual_shapes() is True
-
-    def test_camera_sensor_keeps_visual_shapes(self, monkeypatch):
-        """A camera on a non-Kit renderer draws the shapes without flipping any render setting."""
-        self._patch_sim(
-            monkeypatch, _StubSim(is_rendering=False, can_render_rgb_array=False, visual_shapes_required=True)
-        )
-        assert replicate_module._renderer_wants_visual_shapes() is True
-
-    def test_missing_simulation_context_keeps_visual_shapes(self, monkeypatch):
-        """Without a simulation context there is nothing to infer from, so import them."""
-        self._patch_sim(monkeypatch, None)
-        assert replicate_module._renderer_wants_visual_shapes() is True

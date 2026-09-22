@@ -7,7 +7,7 @@
 Setup:
     - none (system Python, no uv/conda env active)
 Tests:
-    - ./isaaclab.sh -i -> verify isaaclab importable in system Python
+    - ./isaaclab.sh -i core -> verify isaaclab importable in system Python
 """
 
 from __future__ import annotations
@@ -20,8 +20,12 @@ from utils import run_cmd
 
 
 @pytest.mark.smoke
-class Test_Cli_Install_In_Globalenv_Smoke:
-    """./isaaclab.sh -i with no uv/conda env active (system Python)."""
+class Test_Cli_Install_Core_In_Globalenv_Smoke:
+    """./isaaclab.sh -i core with no uv/conda env active (system Python).
+
+    Only the system-Python install path is unique here; the optional features and Isaac Sim
+    that a bare ``-i`` (``-i all``) would add are covered by the uv and wheel tests.
+    """
 
     @classmethod
     def setup_class(cls):
@@ -32,16 +36,16 @@ class Test_Cli_Install_In_Globalenv_Smoke:
     @pytest.mark.docker
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
-    def test_install_makes_isaaclab_importable(self, isaaclab_root):
-        """``./isaaclab.sh -i`` succeeds and installs into the system Python."""
+    def test_install_core_makes_isaaclab_importable(self, isaaclab_root):
+        """``./isaaclab.sh -i core`` succeeds and installs into the system Python."""
 
         cli_script = isaaclab_root / "isaaclab.sh"
 
         # PEP 668 requires opt-in to install into the system Python on
         # Ubuntu 24.04 (the Docker base image).
         install_env = {"PIP_BREAK_SYSTEM_PACKAGES": "1"}
-        result = run_cmd([str(cli_script), "-i"], cwd=isaaclab_root, env=install_env)
-        assert result.returncode == 0, f"./isaaclab.sh -i failed:\n{result.stdout}\n{result.stderr}"
+        result = run_cmd([str(cli_script), "-i", "core"], cwd=isaaclab_root, env=install_env)
+        assert result.returncode == 0, f"./isaaclab.sh -i core failed:\n{result.stdout}\n{result.stderr}"
 
         # isaaclab must be importable in the same (system) Python that ran pytest.
         result = run_cmd(

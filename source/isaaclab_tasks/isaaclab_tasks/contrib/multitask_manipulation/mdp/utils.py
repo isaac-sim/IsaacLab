@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-def _offset_body_pose(
+def offset_body_pose(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntitySelectionCfg,
     offset_pos: tuple[float, float, float],
