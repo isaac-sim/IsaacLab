@@ -226,8 +226,10 @@ def test_nested_hierarchy_world_poses(device):
     frames_view = FrameView("/World/Frame_.*", device=device)
     targets_view = FrameView("/World/Frame_.*/Target", device=device)
 
-    frames_view.set_local_poses(translations=torch.tensor(frame_positions, device=device))
-    targets_view.set_local_poses(translations=torch.tensor(target_positions, device=device))
+    with frames_view.xform_local_space_writer() as w:
+        w.set_poses(positions=torch.tensor(frame_positions, device=device))
+    with targets_view.xform_local_space_writer() as w:
+        w.set_poses(positions=torch.tensor(target_positions, device=device))
 
     world_pos = targets_view.get_world_poses()[0].torch
     expected = torch.tensor(
@@ -235,6 +237,67 @@ def test_nested_hierarchy_world_poses(device):
         device=device,
     )
     torch.testing.assert_close(world_pos, expected, atol=1e-5, rtol=0)
+
+
+# ==================================================================
+# USD-only: Cross-space scale conversion under a scaled parent
+# ==================================================================
+#
+# These exercise the USD-specific world<->local scale math that the shared
+# contract suite cannot cover: the contract fixtures only expose a unit-scale
+# parent, and Newton has no independent local scale (local == world), so the
+# parent-aware conversions below are not universal invariants.  OvPhysxFrameView
+# inherits this behavior by delegating to UsdFrameView.
+
+
+def _make_scaled_parent_child_view(device, parent_scale, child_scale=None):
+    """Build a 1-prim view with a scaled parent (and optional authored child scale)."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/Parent_0", "Xform", translation=PARENT_POS, scale=parent_scale, stage=stage)
+    child_kwargs = {} if child_scale is None else {"scale": child_scale}
+    sim_utils.create_prim("/World/Parent_0/Child", "Xform", translation=CHILD_OFFSET, stage=stage, **child_kwargs)
+    return FrameView("/World/Parent_.*/Child", device=device)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_world_scale_composes_with_parent_scale(device):
+    """Under a scaled parent, ``get_world_scales`` returns ``parent_scale * local_scale``.
+
+    Writes the child's local scale via the local-space writer and verifies
+    that reading the world scale composes with the parent's scale.
+    """
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    view = _make_scaled_parent_child_view(device, parent_scale=(2.0, 1.0, 1.0))
+    local_scales = wp.array([wp.vec3f(3.0, 1.0, 1.0)], dtype=wp.vec3f, device=device)
+    with view.xform_local_space_writer() as w:
+        w.set_scales(local_scales)
+
+    world_scales = view.get_world_scales().torch
+    expected = torch.tensor([[6.0, 1.0, 1.0]], dtype=torch.float32, device=device)
+    torch.testing.assert_close(world_scales, expected, atol=1e-5, rtol=0)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_local_scale_inverts_parent_when_writing_world_scale(device):
+    """Writing a world scale derives ``local = world / parent_scale`` under a scaled parent.
+
+    Writes the child's world scale via the world-space writer and verifies
+    that the derived local scale is the world scale divided by the
+    parent's scale.
+    """
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    view = _make_scaled_parent_child_view(device, parent_scale=(2.0, 1.0, 1.0))
+    world_scales = wp.array([wp.vec3f(6.0, 1.0, 1.0)], dtype=wp.vec3f, device=device)
+    with view.xform_world_space_writer() as w:
+        w.set_scales(world_scales)
+
+    local_scales = view.get_local_scales().torch
+    expected = torch.tensor([[3.0, 1.0, 1.0]], dtype=torch.float32, device=device)
+    torch.testing.assert_close(local_scales, expected, atol=1e-5, rtol=0)
 
 
 # ==================================================================
@@ -291,7 +354,8 @@ def test_with_franka_robots(device):
 
     new_pos = torch.tensor([[10.0, 10.0, 0.0], [-40.0, -40.0, 0.0]], device=device)
     new_quat = torch.tensor([[0.0, 0.0, 0.7071068, 0.7071068], [0.0, 0.0, -0.7071068, 0.7071068]], device=device)
-    view.set_world_poses(positions=new_pos, orientations=new_quat)
+    with view.xform_world_space_writer() as w:
+        w.set_poses(positions=new_pos, orientations=new_quat)
 
     ret_pos = view.get_world_poses()[0].torch
     torch.testing.assert_close(ret_pos, new_pos, atol=1e-5, rtol=0)

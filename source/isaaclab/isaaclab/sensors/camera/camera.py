@@ -207,11 +207,17 @@ class Camera(SensorBase):
         # Renderer and render data — assigned in _initialize_impl.
         self._renderer: BaseRenderer | None = None
         self._render_data = None
+        # Frame view — assigned in _initialize_impl.
+        self._view: FrameView | None = None
 
     def __del__(self):
         """Unsubscribes from callbacks and cleans up renderer resources."""
         # unsubscribe callbacks
         super().__del__()
+        # release the frame view's backend state
+        if self._view is not None:
+            self._view.close()
+            self._view = None
         # cleanup render resources (renderer may be None if never initialized)
         if self._renderer is not None:
             self._renderer.cleanup(self._render_data)
@@ -374,7 +380,8 @@ class Camera(SensorBase):
             orientations = convert_camera_frame_orientation_convention(orientations, origin=convention, target="opengl")
             ori_wp = wp.from_torch(orientations.contiguous(), dtype=wp.vec4f)
         idx_wp = self._resolve_env_ids_wp(env_ids)
-        self._view.set_world_poses(pos_wp, ori_wp, idx_wp)
+        with self._view.xform_world_space_writer() as writer:
+            writer.set_poses(pos_wp, ori_wp, idx_wp)
 
     def set_world_poses_from_view(
         self, eyes: torch.Tensor, targets: torch.Tensor, env_ids: Sequence[int] | None = None
@@ -432,11 +439,12 @@ class Camera(SensorBase):
             env_ids_torch = env_ids_torch.index_select(0, valid_indices)
         orientations = quat_from_matrix(rotation_matrix)
         idx_wp = wp.from_torch(env_ids_torch.contiguous(), dtype=wp.int32)
-        self._view.set_world_poses(
-            wp.from_torch(eyes.contiguous(), dtype=wp.vec3f),
-            wp.from_torch(orientations.contiguous(), dtype=wp.vec4f),
-            idx_wp,
-        )
+        with self._view.xform_world_space_writer() as writer:
+            writer.set_poses(
+                wp.from_torch(eyes.contiguous(), dtype=wp.vec3f),
+                wp.from_torch(orientations.contiguous(), dtype=wp.vec4f),
+                idx_wp,
+            )
 
     """
     Operations
@@ -807,5 +815,7 @@ class Camera(SensorBase):
         self._renderer = None
         # call parent
         super()._invalidate_initialize_callback(event)
-        # set all existing views to None to invalidate them
-        self._view = None
+        # release backend state deterministically, then invalidate the view
+        if self._view is not None:
+            self._view.close()
+            self._view = None

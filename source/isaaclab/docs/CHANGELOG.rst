@@ -1,6 +1,89 @@
 Changelog
 ---------
 
+6.1.18 (2026-09-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added explicit local/world scale getters
+  :meth:`~isaaclab.sim.views.BaseFrameView.get_local_scales` and
+  :meth:`~isaaclab.sim.views.BaseFrameView.get_world_scales` to the FrameView
+  API, implemented for :class:`~isaaclab.sim.views.UsdFrameView`.  Scale
+  writes go through the writer scope (see the ``xform-space-writer``
+  fragment).
+
+* Added :func:`~isaaclab.utils.warp.fabric.decompose_indexed_fabric_transforms`,
+  :func:`~isaaclab.utils.warp.fabric.compose_indexed_fabric_transforms`,
+  :func:`~isaaclab.utils.warp.fabric.update_indexed_local_matrix_from_world`, and
+  :func:`~isaaclab.utils.warp.fabric.update_indexed_world_matrix_from_local`
+  Warp kernels operating on :class:`wp.indexedfabricarray` for reading and
+  writing Fabric ``Matrix4d`` attributes (``omni:fabric:worldMatrix`` /
+  ``omni:fabric:localMatrix``).
+* Added :meth:`~isaaclab.sim.views.BaseFrameView.close` to release backend state
+  authored by a frame view. Backends also release best-effort on garbage
+  collection, but only an explicit close is deterministic.
+* Added :class:`~isaaclab.sim.views.FrameViewSpaceWriterBase`, the new context-managed
+  write API for ``FrameView``-managed prim transforms.  Open with
+  ``view.xform_world_space_writer()`` or ``view.xform_local_space_writer()`` and call
+  :meth:`~isaaclab.sim.views.FrameViewSpaceWriterBase.set_poses` /
+  :meth:`~isaaclab.sim.views.FrameViewSpaceWriterBase.set_scales` inside the scope;
+  the writer's ``__exit__`` derives the opposite-space matrices once and
+  synchronizes once.  Only one writer scope may be active per view at a
+  time.  View-level getters
+  (:meth:`~isaaclab.sim.views.BaseFrameView.get_world_poses` etc.) raise
+  :class:`RuntimeError` while a writer scope is active.
+
+* Added the two concrete tag classes
+  :class:`~isaaclab.sim.views.FrameViewWorldSpaceWriter` and
+  :class:`~isaaclab.sim.views.FrameViewLocalSpaceWriter` returned by
+  :meth:`~isaaclab.sim.views.BaseFrameView.xform_world_space_writer` /
+  :meth:`~isaaclab.sim.views.BaseFrameView.xform_local_space_writer`.
+
+Fixed
+^^^^^
+
+* Fixed ``./isaaclab.sh --install`` unnecessarily building ``nlopt==2.6.2`` on
+  ARM Linux (e.g. DGX Spark), where it fails with CMake 4.x. The ARM-only
+  ``nlopt`` pre-install and its temporary ``swig`` install were removed because
+  ``nlopt`` is only pulled in by Linux x86_64 dependencies.
+
+* Fixed unavoidable ARM source builds such as ``egl-probe==1.0.2`` failing when
+  CMake 4.x rejects policy compatibility older than 3.5. The installer now
+  temporarily sets ``CMAKE_POLICY_VERSION_MINIMUM=3.5`` during ARM dependency
+  builds.
+* Fixed :class:`~isaaclab.scene_data.SceneDataProvider` transform mapping stalling
+  at high rigid-body counts, which delayed setup by minutes in scenes with
+  thousands of environments.
+
+Notes
+^^^^^
+
+* :meth:`~isaaclab.sim.views.BaseFrameView.get_scales` and
+  :meth:`~isaaclab.sim.views.BaseFrameView.set_scales` remain supported as
+  convenience helpers (not deprecated).  For reads where the space matters,
+  prefer the explicit ``get_local_scales`` (operates on ``xformOp:scale``) or
+  ``get_world_scales`` (composed world-space scale).  For writes that also
+  update poses, prefer batching inside one scope:
+  ``with view.xform_world_space_writer() as w: w.set_poses(...); w.set_scales(...)``
+  (or ``xform_local_space_writer``).
+  :class:`~isaaclab.sim.views.UsdFrameView` preserves prior behavior by
+  defaulting :meth:`get_scales` / :meth:`set_scales` to local scales.
+* :meth:`~isaaclab.sim.views.BaseFrameView.set_world_poses`,
+  :meth:`~isaaclab.sim.views.BaseFrameView.set_local_poses`, and
+  :meth:`~isaaclab.sim.views.BaseFrameView.set_scales` remain supported as
+  convenience helpers (not deprecated).  Each opens a single-statement writer
+  scope internally, so updating poses and scales through separate calls derives
+  the opposite-space matrices and synchronizes twice.  For best performance,
+  update both inside one scope:
+  ``with view.xform_world_space_writer() as w: w.set_poses(...); w.set_scales(...)``
+  (or :meth:`~isaaclab.sim.views.BaseFrameView.xform_local_space_writer`).
+  The bundled examples use the writer scope to get this benefit; callers may
+  keep the convenience helpers when code simplicity matters more than shaving
+  a redundant derive/sync.
+
+
 6.1.17 (2026-07-24)
 ~~~~~~~~~~~~~~~~~~~
 

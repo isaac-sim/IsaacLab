@@ -1241,6 +1241,17 @@ def test_camera_pose_update_reflected_in_render(setup_camera_device, device):
         del camera
 
 
+def test_camera_invalidate_before_initialize(setup_sim_camera):
+    """Invalidation on a camera that never initialized does not raise."""
+    _, camera_cfg, _ = setup_sim_camera
+    camera = Camera(camera_cfg.replace(prim_path="/World/NeverInitialized", spawn=None))
+    try:
+        assert camera._view is None
+        camera._invalidate_initialize_callback(None)
+    finally:
+        del camera
+
+
 def _populate_scene():
     """Add prims to the scene."""
     # Ground-plane
