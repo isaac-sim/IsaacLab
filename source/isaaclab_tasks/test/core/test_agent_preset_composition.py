@@ -8,8 +8,10 @@
 import gymnasium as gym
 import pytest
 
+from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg
+
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import resolve_task_config
+from isaaclab_tasks.utils import PresetCfg, resolve_task_config
 from isaaclab_tasks.utils.hydra import collect_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
@@ -99,6 +101,24 @@ def test_kuka_agent_matches_camera_rig(task, suffix, presets, image_groups):
     for image_group, camera in [("base_image", "base_camera"), ("wrist_image", "wrist_camera")]:
         assert (getattr(env_cfg.observations, image_group, None) is not None) == (image_group in image_groups)
         assert (getattr(env_cfg.scene, camera, None) is not None) == (image_group in image_groups)
+
+
+def test_kuka_runner_configs_keep_preset_selection_in_registry():
+    """Runner inheritance owns PPO settings; the registry owns camera preset selection."""
+    from isaaclab_tasks.core.lift.config.kuka_allegro.agents import rsl_rl_ppo_cfg as cfg
+
+    assert issubclass(cfg.KukaAllegroPPORunnerCfg, RslRlOnPolicyRunnerCfg)
+    assert not hasattr(cfg, "KukaAllegroPPOBaseRunnerCfg")
+    assert not any(isinstance(value, type) and issubclass(value, PresetCfg) for value in vars(cfg).values())
+    for name in ("KukaAllegroSingleCameraPPORunnerCfg", "KukaAllegroDuoCameraPPORunnerCfg"):
+        assert getattr(cfg, name).__bases__ == (cfg.KukaAllegroPPORunnerCfg,)
+
+    task = "Isaac-Lift-KukaAllegro-Camera"
+    root = load_cfg_from_registry(task, "rsl_rl_cfg_entry_point")
+    assert set(collect_presets(root)[""]) == {"default", "single_camera", "duo_camera"}
+    root.default.algorithm.learning_rate = 0.0
+    fresh = load_cfg_from_registry(task, "rsl_rl_cfg_entry_point")
+    assert fresh.default.algorithm.learning_rate == cfg.CAMERA_ALGO_CFG.learning_rate
 
 
 @pytest.mark.parametrize(

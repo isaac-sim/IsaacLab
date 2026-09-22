@@ -39,13 +39,27 @@ gym.register(
 # Camera (vision) environments.
 ##
 
+
+def _camera_ppo_cfg():
+    """Build fresh camera presets on registry lookup without eagerly importing the agent configs."""
+    from isaaclab_tasks.utils import preset
+
+    from .agents.rsl_rl_ppo_cfg import KukaAllegroDuoCameraPPORunnerCfg, KukaAllegroSingleCameraPPORunnerCfg
+
+    return preset(
+        default=KukaAllegroSingleCameraPPORunnerCfg(),
+        single_camera=KukaAllegroSingleCameraPPORunnerCfg(),
+        duo_camera=KukaAllegroDuoCameraPPORunnerCfg(),
+    )
+
+
 gym.register(
     id="Isaac-Reorient-KukaAllegro-Camera",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.kuka_allegro_camera_env_cfg:KukaAllegroReorientCameraEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:KukaAllegroCameraPPORunnerCfg",
+        "rsl_rl_cfg_entry_point": _camera_ppo_cfg,
         "default_agent": "rsl_rl",
     },
 )
@@ -56,7 +70,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.kuka_allegro_camera_env_cfg:KukaAllegroLiftCameraEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:KukaAllegroCameraPPORunnerCfg",
+        "rsl_rl_cfg_entry_point": _camera_ppo_cfg,
         "default_agent": "rsl_rl",
     },
 )
