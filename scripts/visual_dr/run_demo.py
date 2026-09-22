@@ -9,7 +9,7 @@ This is the first honest look at output quality: unlike the standalone smoke
 test, the control map here is the renderer's real ``distance_to_image_plane`` and
 the preserved region is a real semantic mask.
 
-    .venv/bin/python scripts/visual_dr/run_demo.py --num-envs 2 --steps 8 --out /tmp/dr_demo
+    .venv/bin/python scripts/visual_dr/run_demo.py --num_envs 2 --steps 8 --out /tmp/dr_demo
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ import argparse
 from isaaclab.app import AppLauncher
 
 parser = argparse.ArgumentParser("run_demo")
-parser.add_argument("--num-envs", type=int, default=2)
+parser.add_argument("--num_envs", type=int, default=2)
 parser.add_argument("--steps", type=int, default=8)
 parser.add_argument("--out", default="/tmp/dr_demo")
 parser.add_argument("--camera", default="table_cam")
@@ -30,11 +30,11 @@ parser.add_argument(
 )
 parser.add_argument("--backend", choices=("cosmos", "passthrough"), default="cosmos")
 parser.add_argument("--probability", type=float, default=1.0, help="1.0 so every dumped frame is generated")
-parser.add_argument("--max-batch", type=int, default=None, help="Override the backend's frames per call")
-parser.add_argument("--num-steps", type=int, default=None, help="Override sampler steps")
+parser.add_argument("--max_batch", type=int, default=None, help="Override the backend's frames per call")
+parser.add_argument("--num_steps", type=int, default=None, help="Override sampler steps")
 parser.add_argument("--guidance", type=float, default=None, help="Classifier-free guidance on the prompt")
 parser.add_argument(
-    "--control-guidance",
+    "--control_guidance",
     type=float,
     default=None,
     help="Lower lets the prompt invent background geometry instead of following depth",
@@ -56,9 +56,9 @@ import torch
 from isaaclab.envs import ManagerBasedRLEnv
 
 from isaaclab_contrib.visual_dr import PassthroughBackend, PromptBankCfg, RemoteCosmosBackendCfg, VisualDRRuntime
-from isaaclab_contrib.visual_dr.demo import FrankaStackRuntimeDRCfg
 from isaaclab_contrib.visual_dr.observations import preserve_mask
 
+from isaaclab_tasks.contrib.stack.config.franka.stack_visual_dr_env_cfg import FrankaStackRuntimeDRCfg
 from isaaclab_tasks.utils import PresetCfg
 
 

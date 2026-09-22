@@ -40,9 +40,9 @@ from isaaclab.envs import ManagerBasedRLEnv
 
 from isaaclab_contrib.visual_dr.backends import DRFrame, DRRequest
 from isaaclab_contrib.visual_dr.cosmos import CosmosBackend
-from isaaclab_contrib.visual_dr.demo import FrankaStackRuntimeDRCfg
 from isaaclab_contrib.visual_dr.observations import preserve_mask
 
+from isaaclab_tasks.contrib.stack.config.franka.stack_visual_dr_env_cfg import FrankaStackRuntimeDRCfg
 from isaaclab_tasks.utils import PresetCfg
 
 
