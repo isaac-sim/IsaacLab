@@ -1,3 +1,5 @@
+:orphan:
+
 .. _how-to-env-wrappers:
 
 
@@ -36,8 +38,8 @@ For example, here is how you would wrap an environment to enforce that reset is 
     from isaaclab_tasks.utils import load_cfg_from_registry
 
     # create base environment
-    cfg = load_cfg_from_registry("Isaac-Reach-Franka-v0", "env_cfg_entry_point")
-    env = gym.make("Isaac-Reach-Franka-v0", cfg=cfg)
+    cfg = load_cfg_from_registry("Isaac-Reach-Franka", "env_cfg_entry_point")
+    env = gym.make("Isaac-Reach-Franka", cfg=cfg)
     # wrap environment to enforce that reset is called before step
     env = gym.wrappers.OrderEnforcing(env)
 
@@ -61,7 +63,7 @@ To use the wrapper, you need to first install ``ffmpeg``. On Ubuntu, you can ins
   By default, when running an environment in headless mode, the Omniverse viewport is disabled. This is done to
   improve performance by avoiding unnecessary rendering.
 
-  We notice the following performance in different rendering modes with the  ``Isaac-Reach-Franka-v0`` environment
+  We notice the following performance in different rendering modes with the  ``Isaac-Reach-Franka`` environment
   using an RTX 3090 GPU:
 
   * No GUI execution without off-screen rendering enabled: ~65,000 FPS
@@ -86,7 +88,7 @@ After adjusting the parameters, you can record videos by wrapping the environmen
 :class:`gymnasium.wrappers.RecordVideo` wrapper and enabling the off-screen rendering
 flag. Additionally, you need to specify the render mode of the environment as ``"rgb_array"``.
 
-As an example, the following code records a video of the ``Isaac-Reach-Franka-v0`` environment
+As an example, the following code records a video of the ``Isaac-Reach-Franka`` environment
 for 200 steps, and saves it in the ``videos`` folder at a step interval of 1500 steps.
 
 .. code:: python
@@ -142,6 +144,10 @@ As an example of how to use the RL task environment with Stable-Baselines3:
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env)
 
+Stable-Baselines3 requires finite continuous action bounds. When the environment has an unbounded action
+space, :class:`~isaaclab_rl.sb3.Sb3VecEnvWrapper` exposes normalized ``[-1, 1]`` bounds to Stable-Baselines3
+without changing the underlying environment. Set ``action_bounds`` when the policy uses a different
+finite action domain.
 
 .. caution::
 

@@ -7,10 +7,10 @@ version = "0.1.0"
 category = "isaaclab"
 readme  = "README.md"
 
-title = "Extension Template"
-author = "Isaac Lab Project Developers"
-maintainer = "Isaac Lab Project Developers"
-description="Extension Template for Isaac Lab"
+title = "{{ name }} UI Extension"
+author = "{{ authors_toml }}"
+maintainer = "{{ authors_toml }}"
+description="Isaac Sim UI extension for {{ name }}"
 repository = "https://github.com/isaac-sim/IsaacLab.git"
 keywords = ["extension", "template", "isaaclab"]
 
@@ -22,8 +22,10 @@ keywords = ["extension", "template", "isaaclab"]
 "isaaclab_tasks" = {}
 # NOTE: Add additional dependencies here
 
+# UI extension module: Kit imports this submodule directly and scans it for ``omni.ext.IExt``
+# subclasses. Kept separate from the package root so ``import {{ name }}`` stays omni-free headless.
 [[python.module]]
-name = "{{ name }}"
+name = "{{ name }}.ui_extension_example"
 
 [isaac_lab_settings]
 # TODO: Uncomment and list any apt dependencies here.
@@ -33,3 +35,8 @@ name = "{{ name }}"
 #       with rosdeps to be installed. If none,
 #       leave it commented out.
 # ros_ws = "path/from/extension_root/to/ros_ws"
+# TODO: Uncomment and list install_requires dependency names that should be upgraded
+#       after this extension is installed with ./isaaclab.sh --install.
+#       List package names only; version ranges, extras, and platform markers
+#       come from this extension's setup.py metadata.
+# pip_upgrade_dependencies = ["example_package"]

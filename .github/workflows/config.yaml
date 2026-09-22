@@ -1,0 +1,15 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Shared image config for CI workflows. Loaded by the `config` job in each
+# workflow via yq and exposed as job outputs (see e.g. .github/workflows/build.yaml).
+# The `nvidian/isaac-sim` mirror stopped receiving nightly develop builds on 2026-06-24
+# (frozen at 6.1.0-alpha.2). Both images use Isaac Sim's NGC org, which is current and
+# which the CI credential can reach.
+isaacsim_image_name: nvcr.io/0947644777160149/internal/isaac-sim
+# Isaac Sim 6.1.0-alpha.50 (b86cf6ce) includes Kit 110.3.0-360924's fix for NVBug 6566677.
+isaacsim_image_tag: latest-develop@sha256:600fa643bb362dda1771515f16a80f0fefe11001a13e47ffcb015352dbad9f70
+isaaclab_image_name: nvcr.io/0947644777160149/internal/isaac-lab
+ovphysx_wheelhouse_image: ""

@@ -23,7 +23,9 @@ from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.utils.prims import _to_tuple  # type: ignore[reportPrivateUsage]
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+
+pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
 
 @pytest.fixture(autouse=True)
@@ -40,8 +42,14 @@ def test_setup_teardown():
     sim_utils.clear_stage()
 
 
-def assert_quat_close(q1: Gf.Quatf | Gf.Quatd, q2: Gf.Quatf | Gf.Quatd, eps: float = 1e-6):
+def assert_quat_close(
+    q1: Gf.Quatf | Gf.Quatd | tuple | list, q2: Gf.Quatf | Gf.Quatd | tuple | list, eps: float = 1e-6
+):
     """Assert two quaternions are close."""
+    if isinstance(q1, (tuple, list)):
+        q1 = Gf.Quatd(q1[3], q1[0], q1[1], q1[2])
+    if isinstance(q2, (tuple, list)):
+        q2 = Gf.Quatd(q2[3], q2[0], q2[1], q2[2])
     assert math.isclose(q1.GetReal(), q2.GetReal(), abs_tol=eps)
     for i in range(3):
         assert math.isclose(q1.GetImaginary()[i], q2.GetImaginary()[i], abs_tol=eps)
@@ -76,7 +84,7 @@ def test_create_prim():
     assert prim.GetAttribute("size").Get() == 100
 
     # check adding USD reference
-    franka_usd = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    franka_usd = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd"
     prim = sim_utils.create_prim("/World/Test/USDReference", usd_path=franka_usd, stage=stage)
     # check USD reference set
     assert prim.IsValid()
@@ -87,7 +95,8 @@ def test_create_prim():
     for prim_spec in prim.GetPrimStack():
         references.extend(prim_spec.referenceList.prependedItems)
     assert len(references) == 1
-    assert str(references[0].assetPath) == franka_usd
+    expected_path = retrieve_file_path(franka_usd)
+    assert str(references[0].assetPath) == expected_path
 
     # check adding semantic label
     prim = sim_utils.create_prim(
@@ -102,7 +111,7 @@ def test_create_prim():
 
     # check setting transform
     pos = (1.0, 2.0, 3.0)
-    quat = (0.0, 0.0, 0.0, 1.0)
+    quat = (0.0, 0.0, 1.0, 0.0)
     scale = (1.0, 0.5, 0.5)
     prim = sim_utils.create_prim(
         "/World/Test/Xform", "Xform", stage=stage, translation=pos, orientation=quat, scale=scale
@@ -112,7 +121,7 @@ def test_create_prim():
     assert prim.GetPrimPath() == "/World/Test/Xform"
     assert prim.GetTypeName() == "Xform"
     assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d(pos)
-    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), Gf.Quatd(*quat))
+    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), quat)
     assert prim.GetAttribute("xformOp:scale").Get() == Gf.Vec3d(scale)
     # check xform operation order
     op_names = [op.GetOpName() for op in UsdGeom.Xformable(prim).GetOrderedXformOps()]
@@ -131,7 +140,7 @@ def test_create_prim_with_different_input_types(input_type: str):
 
     # Define test values
     translation_vals = [1.0, 2.0, 3.0]
-    orientation_vals = [1.0, 0.0, 0.0, 0.0]  # w, x, y, z
+    orientation_vals = [0.0, 0.0, 0.0, 1.0]  # x, y, z, w
     scale_vals = [2.0, 3.0, 4.0]
 
     # Convert to the specified input type
@@ -174,7 +183,7 @@ def test_create_prim_with_different_input_types(input_type: str):
 
     # Verify transform values
     assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d(*translation_vals)
-    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), Gf.Quatd(*orientation_vals))
+    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), orientation_vals)
     assert prim.GetAttribute("xformOp:scale").Get() == Gf.Vec3d(*scale_vals)
 
     # Verify xform operation order
@@ -198,12 +207,12 @@ def test_create_prim_with_world_position_different_types(input_type: str):
         "Xform",
         stage=stage,
         translation=(5.0, 10.0, 15.0),
-        orientation=(1.0, 0.0, 0.0, 0.0),
+        orientation=(0.0, 0.0, 0.0, 1.0),
     )
 
     # Define world position and orientation values
     world_pos_vals = [10.0, 20.0, 30.0]
-    world_orient_vals = [0.7071068, 0.0, 0.7071068, 0.0]  # 90 deg around Y
+    world_orient_vals = [0.0, 0.7071068, 0.0, 0.7071068]  # 90 deg around Y
 
     # Convert to the specified input type
     if input_type == "list":
@@ -266,7 +275,7 @@ def test_create_prim_non_xformable():
         "Material",
         stage=stage,
         translation=(1.0, 2.0, 3.0),  # These should be ignored
-        orientation=(1.0, 0.0, 0.0, 0.0),  # These should be ignored
+        orientation=(0.0, 0.0, 0.0, 1.0),  # These should be ignored
         scale=(2.0, 2.0, 2.0),  # These should be ignored
     )
 
@@ -319,7 +328,7 @@ def test_delete_prim():
     # check for usd reference
     prim = sim_utils.create_prim(
         "/World/Test/USDReference",
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd",
         stage=stage,
     )
     # delete prim
@@ -334,45 +343,6 @@ def test_delete_prim():
     # check prims deleted
     assert not prim1.IsValid()
     assert not prim2.IsValid()
-
-
-def test_move_prim():
-    """Test move_prim() function."""
-    # obtain stage handle
-    stage = sim_utils.get_current_stage()
-    # create scene
-    sim_utils.create_prim("/World/Test", "Xform", stage=stage)
-    prim = sim_utils.create_prim(
-        "/World/Test/Xform",
-        "Xform",
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
-        translation=(1.0, 2.0, 3.0),
-        orientation=(0.0, 0.0, 0.0, 1.0),
-        stage=stage,
-    )
-
-    # move prim
-    sim_utils.create_prim("/World/TestMove", "Xform", stage=stage, translation=(1.0, 1.0, 1.0))
-    sim_utils.move_prim("/World/Test/Xform", "/World/TestMove/Xform", stage=stage)
-    # check prim moved
-    prim = stage.GetPrimAtPath("/World/TestMove/Xform")
-    assert prim.IsValid()
-    assert prim.GetPrimPath() == "/World/TestMove/Xform"
-    assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d((0.0, 1.0, 2.0))
-    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), Gf.Quatd(0.0, 0.0, 0.0, 1.0))
-
-    # check moving prim with keep_world_transform=False
-    # it should preserve the local transform from last move
-    sim_utils.create_prim(
-        "/World/TestMove2", "Xform", stage=stage, translation=(2.0, 2.0, 2.0), orientation=(0.0, 0.7071, 0.0, 0.7071)
-    )
-    sim_utils.move_prim("/World/TestMove/Xform", "/World/TestMove2/Xform", keep_world_transform=False, stage=stage)
-    # check prim moved
-    prim = stage.GetPrimAtPath("/World/TestMove2/Xform")
-    assert prim.IsValid()
-    assert prim.GetPrimPath() == "/World/TestMove2/Xform"
-    assert prim.GetAttribute("xformOp:translate").Get() == Gf.Vec3d((0.0, 1.0, 2.0))
-    assert_quat_close(prim.GetAttribute("xformOp:orient").Get(), Gf.Quatd(0.0, 0.0, 0.0, 1.0))
 
 
 """
@@ -392,12 +362,13 @@ def test_get_usd_references():
     assert len(refs) == 0
 
     # Create a prim with a USD reference
-    franka_usd = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    franka_usd = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd"
     sim_utils.create_prim("/World/WithReference", usd_path=franka_usd, stage=stage)
-    # Check that it has the expected reference
+    # Check that it has the expected reference (remote URLs are resolved to local paths)
     refs = sim_utils.get_usd_references("/World/WithReference", stage=stage)
     assert len(refs) == 1
-    assert refs == [franka_usd]
+    expected_path = retrieve_file_path(franka_usd)
+    assert refs == [expected_path]
 
     # Test with invalid prim path
     with pytest.raises(ValueError, match="not valid"):
@@ -423,6 +394,16 @@ def test_select_usd_variants():
 
     # Check if the variant selection is correct
     assert variant_set.GetVariantSelection() == "red"
+
+    # A variant the set does not offer must raise: USD would accept the selection and compose the
+    # prim as if nothing were selected, spawning the asset without what the variant carries.
+    with pytest.raises(ValueError, match="does not offer variant"):
+        sim_utils.utils.select_usd_variants("/World", {"colors": "chartreuse"}, stage)
+    assert variant_set.GetVariantSelection() == "red"
+
+    # A variant set the prim does not have stays a warning, so one configuration can spawn assets
+    # that expose different options.
+    sim_utils.utils.select_usd_variants("/World", {"absent_set": "anything"}, stage)
 
 
 def test_select_usd_variants_in_usd_file():

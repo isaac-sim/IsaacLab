@@ -11,7 +11,7 @@ The camera sensor is based on using Warp kernels which do ray-casting against st
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_ray_caster_camera.py
+    uv run python scripts/tutorials/04_sensors/run_ray_caster_camera.py --viz kit
 
 """
 
@@ -36,10 +36,9 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import os
+from typing import Any
 
 import torch
-
-import omni.replicator.core as rep
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, patterns
@@ -58,7 +57,7 @@ def define_sensor() -> RayCasterCamera:
 
     # Setup camera sensor
     camera_cfg = RayCasterCameraCfg(
-        prim_path="/World/Origin_.*/CameraSensor",
+        prim_path="/World/Origin_[^/]+/CameraSensor",
         mesh_prim_paths=["/World/ground"],
         update_period=0.1,
         offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0)),
@@ -98,9 +97,14 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     # extract entities for simplified notation
     camera: RayCasterCamera = scene_entities["camera"]
 
-    # Create replicator writer
-    output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", "ray_caster_camera")
-    rep_writer = rep.BasicWriter(output_dir=output_dir, frame_padding=3)
+    # Create the Replicator writer only when saving. The ray-cast camera itself
+    # is Warp-based and does not require Replicator or RTX rendering extensions.
+    rep_writer: Any | None = None
+    if args_cli.save:
+        import omni.replicator.core as rep
+
+        output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", "ray_caster_camera")
+        rep_writer = rep.BasicWriter(output_dir=output_dir, frame_padding=3)
 
     # Set pose: There are two ways to set the pose of the camera.
     # -- Option-1: Set pose using view
@@ -132,18 +136,17 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
             single_cam_data = convert_dict_to_backend(
                 {k: v[camera_index] for k, v in camera.data.output.items()}, backend="numpy"
             )
-            # Extract the other information
-            single_cam_info = camera.data.info[camera_index]
-
             # Pack data back into replicator format to save them using its writer
             rep_output = {"annotators": {}}
-            for key, data, info in zip(single_cam_data.keys(), single_cam_data.values(), single_cam_info.values()):
+            for key, data in single_cam_data.items():
+                info = camera.data.info.get(key)
                 if info is not None:
                     rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
                 else:
                     rep_output["annotators"][key] = {"render_product": {"data": data}}
             # Save images
             rep_output["trigger_outputs"] = {"on_time": camera.frame[camera_index]}
+            assert rep_writer is not None
             rep_writer.write(rep_output)
 
             # Pointcloud in world frame

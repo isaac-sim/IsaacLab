@@ -1,0 +1,1 @@
+Bounded the standalone-script smoke test's output drain before intentional shutdown.

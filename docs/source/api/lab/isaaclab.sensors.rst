@@ -18,8 +18,6 @@
     Camera
     CameraData
     CameraCfg
-    TiledCamera
-    TiledCameraCfg
     ContactSensor
     ContactSensorData
     ContactSensorCfg
@@ -38,6 +36,12 @@
     MultiMeshRayCasterCameraCfg
     Imu
     ImuCfg
+    Pva
+    PvaData
+    PvaCfg
+    JointWrenchSensor
+    JointWrenchSensorData
+    JointWrenchSensorCfg
 
 Sensor Base
 -----------
@@ -68,19 +72,6 @@ USD Camera
     :show-inheritance:
     :exclude-members: __init__, class_type, OffsetCfg
 
-Tile-Rendered USD Camera
-------------------------
-
-.. autoclass:: TiledCamera
-    :members:
-    :inherited-members:
-    :show-inheritance:
-
-.. autoclass:: TiledCameraCfg
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :exclude-members: __init__, class_type
 
 Contact Sensor
 --------------
@@ -204,3 +195,109 @@ Inertia Measurement Unit
     :inherited-members:
     :show-inheritance:
     :exclude-members: __init__, class_type
+
+Pose Velocity Acceleration Sensor
+---------------------------------
+
+.. autoclass:: Pva
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: PvaData
+    :members:
+    :inherited-members:
+    :exclude-members: __init__
+
+.. autoclass:: PvaCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type
+
+Joint Wrench Sensor
+-------------------
+
+.. autoclass:: JointWrenchSensor
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: JointWrenchSensorData
+    :members:
+    :inherited-members:
+    :exclude-members: __init__
+
+.. autoclass:: JointWrenchSensorCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type
+
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab.sensors` API.
+
+.. currentmodule:: isaaclab.sensors
+
+.. autosummary::
+   :nosignatures:
+
+   BaseContactSensor
+   BaseContactSensorData
+   BaseFrameTransformer
+   BaseFrameTransformerData
+   BaseImu
+   BaseImuData
+   BaseJointWrenchSensor
+   BaseJointWrenchSensorData
+   BasePva
+   BasePvaData
+   ImuData
+   MultiMeshRayCasterCameraData
+   TiledCamera
+   TiledCameraCfg
+
+.. autoclass:: BaseContactSensor
+   :show-inheritance:
+
+.. autoclass:: BaseContactSensorData
+   :show-inheritance:
+
+.. autoclass:: BaseFrameTransformer
+   :show-inheritance:
+
+.. autoclass:: BaseFrameTransformerData
+   :show-inheritance:
+
+.. autoclass:: BaseImu
+   :show-inheritance:
+
+.. autoclass:: BaseImuData
+   :show-inheritance:
+
+.. autoclass:: BaseJointWrenchSensor
+   :show-inheritance:
+
+.. autoclass:: BaseJointWrenchSensorData
+   :show-inheritance:
+
+.. autoclass:: BasePva
+   :show-inheritance:
+
+.. autoclass:: BasePvaData
+   :show-inheritance:
+
+.. autoclass:: ImuData
+   :show-inheritance:
+
+.. autoclass:: MultiMeshRayCasterCameraData
+   :show-inheritance:
+
+.. autoclass:: TiledCamera
+   :show-inheritance:
+
+.. autoclass:: TiledCameraCfg
+   :show-inheritance:

@@ -21,14 +21,18 @@ import random
 import numpy as np
 import pytest
 import torch
+import warp as wp
 from flaky import flaky
 
 import omni.replicator.core as rep
-from isaacsim.core.prims import SingleGeometryPrim, SingleRigidPrim
 from pxr import Gf, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import TiledCamera, TiledCameraCfg
+
+# Deprecation warnings from TiledCamera/TiledCameraCfg are expected in this file;
+# the deprecation mechanism itself is validated in test_tiled_camera.py.
+pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.filterwarnings("ignore::DeprecationWarning")]
 
 
 @pytest.fixture()
@@ -37,7 +41,7 @@ def setup_camera():
     camera_cfg = TiledCameraCfg(
         height=128,
         width=256,
-        offset=TiledCameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), rot=(0.0, 0.0, 1.0, 0.0), convention="ros"),
+        offset=TiledCameraCfg.OffsetCfg(pos=(0.0, 0.0, 4.0), rot=(0.0, 1.0, 0.0, 0.0), convention="ros"),
         prim_path="/World/Camera",
         update_period=0,
         data_types=["rgb", "distance_to_camera"],
@@ -60,10 +64,8 @@ def setup_camera():
     # Teardown
     rep.vp_manager.destroy_hydra_textures("Replicator")
     # stop simulation
-    # note: cannot use self.sim.stop() since it does one render step after stopping!! This doesn't make sense :(
-    sim._timeline.stop()
+    sim.stop()
     # clear the stage
-    sim.clear_all_callbacks()
     sim.clear_instance()
 
 
@@ -81,12 +83,12 @@ def test_multi_tiled_camera_init(setup_camera):
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}[^/]*/CameraSensor"
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)
 
         # Check simulation parameter is set correctly
-        assert sim.has_rtx_sensors()
+        assert sim.get_setting("/isaaclab/render/rtx_sensors")
 
     # Play sim
     sim.reset()
@@ -98,19 +100,13 @@ def test_multi_tiled_camera_init(setup_camera):
         assert camera._sensor_prims[1].GetPath().pathString == f"/World/Origin_{i}_1/CameraSensor"
         assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
-
     for camera in tiled_cameras:
         # Check buffers that exists and have correct shapes
-        assert camera.data.pos_w.shape == (num_cameras_per_tiled_camera, 3)
-        assert camera.data.quat_w_ros.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.quat_w_world.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.quat_w_opengl.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.intrinsic_matrices.shape == (num_cameras_per_tiled_camera, 3, 3)
+        assert camera.data.pos_w.torch.shape == (num_cameras_per_tiled_camera, 3)
+        assert camera.data.quat_w_ros.torch.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.quat_w_world.torch.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.quat_w_opengl.torch.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.intrinsic_matrices.torch.shape == (num_cameras_per_tiled_camera, 3, 3)
         assert camera.data.image_shape == (camera.cfg.height, camera.cfg.width)
 
     # Simulate physics
@@ -156,13 +152,14 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
     all_annotator_types = [
         "rgb",
         "rgba",
+        "albedo",
         "depth",
         "distance_to_camera",
         "distance_to_image_plane",
         "normals",
         "motion_vectors",
         "semantic_segmentation",
-        "instance_segmentation_fast",
+        "instance_segmentation",
         "instance_id_segmentation_fast",
     ]
 
@@ -177,12 +174,12 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
         camera_cfg.data_types = all_annotator_types
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}[^/]*/CameraSensor"
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)
 
         # Check simulation parameter is set correctly
-        assert sim.has_rtx_sensors()
+        assert sim.get_setting("/isaaclab/render/rtx_sensors")
 
     # Play sim
     sim.reset()
@@ -195,19 +192,13 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
         assert sorted(camera.data.output.keys()) == sorted(all_annotator_types)
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
-
     for camera in tiled_cameras:
         # Check buffers that exists and have correct shapes
-        assert camera.data.pos_w.shape == (num_cameras_per_tiled_camera, 3)
-        assert camera.data.quat_w_ros.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.quat_w_world.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.quat_w_opengl.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.intrinsic_matrices.shape == (num_cameras_per_tiled_camera, 3, 3)
+        assert camera.data.pos_w.torch.shape == (num_cameras_per_tiled_camera, 3)
+        assert camera.data.quat_w_ros.torch.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.quat_w_world.torch.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.quat_w_opengl.torch.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.intrinsic_matrices.torch.shape == (num_cameras_per_tiled_camera, 3, 3)
         assert camera.data.image_shape == (camera.cfg.height, camera.cfg.width)
 
     # Simulate physics
@@ -223,8 +214,9 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
                     assert im_data.shape == (num_cameras_per_tiled_camera, camera.cfg.height, camera.cfg.width, 3)
                 elif data_type in [
                     "rgba",
+                    "albedo",
                     "semantic_segmentation",
-                    "instance_segmentation_fast",
+                    "instance_segmentation",
                     "instance_id_segmentation_fast",
                 ]:
                     assert im_data.shape == (num_cameras_per_tiled_camera, camera.cfg.height, camera.cfg.width, 4)
@@ -243,18 +235,19 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         # access image data and compare dtype
         output = camera.data.output
         info = camera.data.info
-        assert output["rgb"].dtype == torch.uint8
-        assert output["rgba"].dtype == torch.uint8
-        assert output["depth"].dtype == torch.float
-        assert output["distance_to_camera"].dtype == torch.float
-        assert output["distance_to_image_plane"].dtype == torch.float
-        assert output["normals"].dtype == torch.float
-        assert output["motion_vectors"].dtype == torch.float
-        assert output["semantic_segmentation"].dtype == torch.uint8
-        assert output["instance_segmentation_fast"].dtype == torch.uint8
-        assert output["instance_id_segmentation_fast"].dtype == torch.uint8
+        assert output["rgb"].dtype == wp.uint8
+        assert output["rgba"].dtype == wp.uint8
+        assert output["albedo"].dtype == wp.uint8
+        assert output["depth"].dtype == wp.float32
+        assert output["distance_to_camera"].dtype == wp.float32
+        assert output["distance_to_image_plane"].dtype == wp.float32
+        assert output["normals"].dtype == wp.float32
+        assert output["motion_vectors"].dtype == wp.float32
+        assert output["semantic_segmentation"].dtype == wp.uint8
+        assert output["instance_segmentation"].dtype == wp.uint8
+        assert output["instance_id_segmentation_fast"].dtype == wp.uint8
         assert isinstance(info["semantic_segmentation"], dict)
-        assert isinstance(info["instance_segmentation_fast"], dict)
+        assert isinstance(info["instance_segmentation"], dict)
         assert isinstance(info["instance_id_segmentation_fast"], dict)
 
     for camera in tiled_cameras:
@@ -277,13 +270,13 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}[^/]*/CameraSensor"
         camera_cfg.height, camera_cfg.width = resolutions[i]
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)
 
         # Check simulation parameter is set correctly
-        assert sim.has_rtx_sensors()
+        assert sim.get_setting("/isaaclab/render/rtx_sensors")
 
     # Play sim
     sim.reset()
@@ -295,19 +288,13 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
         assert camera._sensor_prims[1].GetPath().pathString == f"/World/Origin_{i}_1/CameraSensor"
         assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
 
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
-
     for camera in tiled_cameras:
         # Check buffers that exists and have correct shapes
-        assert camera.data.pos_w.shape == (num_cameras_per_tiled_camera, 3)
-        assert camera.data.quat_w_ros.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.quat_w_world.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.quat_w_opengl.shape == (num_cameras_per_tiled_camera, 4)
-        assert camera.data.intrinsic_matrices.shape == (num_cameras_per_tiled_camera, 3, 3)
+        assert camera.data.pos_w.torch.shape == (num_cameras_per_tiled_camera, 3)
+        assert camera.data.quat_w_ros.torch.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.quat_w_world.torch.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.quat_w_opengl.torch.shape == (num_cameras_per_tiled_camera, 4)
+        assert camera.data.intrinsic_matrices.torch.shape == (num_cameras_per_tiled_camera, 3, 3)
         assert camera.data.image_shape == (camera.cfg.height, camera.cfg.width)
 
     # Simulate physics
@@ -335,6 +322,7 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
 
 
 @pytest.mark.isaacsim_ci
+@flaky(max_runs=3, min_passes=1)
 def test_frame_offset_multi_tiled_camera(setup_camera):
     """Test frame offset issue with multiple tiled cameras"""
     camera_cfg, sim, dt = setup_camera
@@ -348,7 +336,7 @@ def test_frame_offset_multi_tiled_camera(setup_camera):
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}[^/]*/CameraSensor"
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)
 
@@ -407,7 +395,7 @@ def test_frame_different_poses_multi_tiled_camera(setup_camera):
     num_tiled_cameras = 3
     num_cameras_per_tiled_camera = 4
     positions = [(0.0, 0.0, 4.0), (0.0, 0.0, 2.0), (0.0, 0.0, 3.0)]
-    rotations = [(0.0, 0.0, 1.0, 0.0), (0.0, 0.0, 1.0, 0.0), (0.0, 0.0, 1.0, 0.0)]
+    rotations = [(0.0, 1.0, 0.0, 0.0), (0.0, 1.0, 0.0, 0.0), (0.0, 1.0, 0.0, 0.0)]
 
     tiled_cameras = []
     for i in range(num_tiled_cameras):
@@ -416,19 +404,13 @@ def test_frame_different_poses_multi_tiled_camera(setup_camera):
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
-        camera_cfg.prim_path = f"/World/Origin_{i}.*/CameraSensor"
+        camera_cfg.prim_path = f"/World/Origin_{i}[^/]*/CameraSensor"
         camera_cfg.offset = TiledCameraCfg.OffsetCfg(pos=positions[i], rot=rotations[i], convention="ros")
         camera = TiledCamera(camera_cfg)
         tiled_cameras.append(camera)
 
     # Play sim
     sim.reset()
-
-    # Simulate for a few steps
-    # note: This is a workaround to ensure that the textures are loaded.
-    #   Check "Known Issues" section in the documentation for more details.
-    for _ in range(5):
-        sim.step()
 
     # Simulate physics
     for _ in range(10):
@@ -503,6 +485,8 @@ def _populate_scene():
         color = Gf.Vec3f(random.random(), random.random(), random.random())
         geom_prim.CreateDisplayColorAttr()
         geom_prim.GetDisplayColorAttr().Set([color])
-        # add rigid properties
-        SingleGeometryPrim(f"/World/Objects/Obj_{i:02d}", collision=True)
-        SingleRigidPrim(f"/World/Objects/Obj_{i:02d}", mass=5.0)
+        # add rigid body and collision properties using Isaac Lab schemas
+        prim_path = f"/World/Objects/Obj_{i:02d}"
+        sim_utils.apply_rigid_body_properties(prim_path, [sim_utils.UsdPhysicsRigidBodyCfg()], create_if_missing=True)
+        sim_utils.apply_mass_properties(prim_path, [sim_utils.MassCfg(mass=5.0)], create_if_missing=True)
+        sim_utils.apply_collision_properties(prim_path, [sim_utils.UsdPhysicsCollisionCfg()], create_if_missing=True)

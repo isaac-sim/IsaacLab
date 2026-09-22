@@ -2,22 +2,16 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app in headless mode
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows from here."""
-
 import pytest
 import torch
 
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.datasets import EpisodeData
 
+pytestmark = pytest.mark.unit
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def test_is_empty(device):
     """Test checking whether the episode is empty."""
     episode = EpisodeData()
@@ -27,7 +21,7 @@ def test_is_empty(device):
     assert not episode.is_empty()
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def test_add_tensors(device):
     """Test appending tensor data to the episode."""
     dummy_data_0 = torch.tensor([0], device=device)
@@ -64,7 +58,7 @@ def test_add_tensors(device):
     assert torch.equal(second_data, expected_added_data)
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def test_add_dict_tensors(device):
     """Test appending dict data to the episode."""
     dummy_dict_data_0 = {
@@ -111,7 +105,7 @@ def test_add_dict_tensors(device):
     assert torch.equal(key_1_1_data, torch.tensor([[2], [5]], device=device))
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def test_get_initial_state(device):
     """Test getting the initial state of the episode."""
     dummy_initial_state = torch.tensor([1, 2, 3], device=device)
@@ -123,7 +117,7 @@ def test_get_initial_state(device):
     assert torch.equal(initial_state, dummy_initial_state.unsqueeze(0))
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def test_get_next_action(device):
     """Test getting next actions."""
     # dummy actions

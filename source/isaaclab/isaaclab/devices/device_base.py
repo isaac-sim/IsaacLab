@@ -5,18 +5,21 @@
 
 """Base class for teleoperation interface."""
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import field
 from enum import Enum
 from typing import Any
 
 import torch
 
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
+from isaaclab.utils import configclass
 
 
-@dataclass
+@configclass
 class DeviceCfg:
     """Configuration for teleoperation devices."""
 
@@ -27,10 +30,10 @@ class DeviceCfg:
     # Retargeters that transform device data into robot commands
     retargeters: list[RetargeterCfg] = field(default_factory=list)
     # Concrete device class to construct for this config. Set by each device module.
-    class_type: type["DeviceBase"] | None = None
+    class_type: type[DeviceBase] | None = None
 
 
-@dataclass
+@configclass
 class DevicesCfg:
     """Configuration for all supported teleoperation devices."""
 

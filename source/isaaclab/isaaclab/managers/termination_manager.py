@@ -127,25 +127,26 @@ class TerminationManager(ManagerBase):
     """
 
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
-        """Returns the episodic counts of individual termination terms.
+        """Returns the per-term mean activation across environments.
 
         Args:
             env_ids: The environment ids. Defaults to None, in which case
                 all environments are considered.
 
         Returns:
-            Dictionary of episodic sum of individual reward terms.
+            Dictionary mapping each termination term to its mean activation.
         """
         # resolve environment ids
         if env_ids is None:
             env_ids = slice(None)
         # add to episode dict
         extras = {}
-        last_episode_done_stats = self._last_episode_dones.float().mean(dim=0)
+        # move to host once; per-element .item() would sync per term
+        last_episode_done_stats = self._last_episode_dones.float().mean(dim=0).cpu()
         for i, key in enumerate(self._term_names):
             # store information
             extras["Episode_Termination/" + key] = last_episode_done_stats[i].item()
-        # reset all the reward terms
+        # reset all the termination terms
         for term_cfg in self._class_term_cfgs:
             term_cfg.func.reset(env_ids=env_ids)
         # return logged information

@@ -8,9 +8,7 @@
 import argparse
 
 parser = argparse.ArgumentParser(description="Generate terrains using trimesh")
-parser.add_argument(
-    "--headless", action="store_true", default=False, help="Don't create a window to display each output."
-)
+parser.add_argument("--visualize", action="store_true", help="Open a window to display each output.")
 args_cli = parser.parse_args()
 
 from isaaclab.app import AppLauncher
@@ -406,7 +404,7 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
     # Read headless mode
-    headless = args_cli.headless
+    headless = not args_cli.visualize
     # generate terrains
     test_flat_terrain(difficulty=0.0, output_dir=output_dir, headless=headless)
     test_pyramid_stairs_terrain(difficulty=0.75, holes=False, output_dir=output_dir, headless=headless)

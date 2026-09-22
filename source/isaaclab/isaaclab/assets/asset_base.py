@@ -5,28 +5,54 @@
 
 from __future__ import annotations
 
-import builtins
 import inspect
-import re
 import weakref
 from abc import ABC, abstractmethod
+from collections import OrderedDict
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import torch
-
-import omni.kit.app
-import omni.timeline
-from isaacsim.core.simulation_manager import IsaacEvents, SimulationManager
+import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.sim.simulation_context import SimulationContext
+from isaaclab.utils.warp import ProxyArray
+
+from .asset import Asset
 
 if TYPE_CHECKING:
     from .asset_base_cfg import AssetBaseCfg
 
 
-class AssetBase(ABC):
+_SELECTOR_CACHE_CAPACITY = 128
+
+
+class _AssetSelectorCache:
+    """Per-asset LRU cache for device-local finder selectors."""
+
+    def __init__(self, capacity: int = _SELECTOR_CACHE_CAPACITY):
+        self._capacity = capacity
+        self._entries: OrderedDict[tuple[str, tuple[int, ...]], ProxyArray] = OrderedDict()
+
+    def get(self, domain: str, indices: Sequence[int], device: str) -> ProxyArray:
+        """Return the cached Warp ``int32`` selector for an ordered index sequence."""
+        key = (domain, tuple(int(index) for index in indices))
+        selector = self._entries.pop(key, None)
+        if selector is None:
+            selector = ProxyArray(wp.array(key[1], dtype=wp.int32, device=device))
+        self._entries[key] = selector
+        if len(self._entries) > self._capacity:
+            self._entries.popitem(last=False)
+        return selector
+
+    def clear(self) -> None:
+        """Release all cached selectors."""
+        self._entries.clear()
+
+
+class AssetBase(Asset, ABC):
     """The base interface class for assets.
 
     An asset corresponds to any physics-enabled object that can be spawned in the simulation. These include
@@ -36,18 +62,13 @@ class AssetBase(ABC):
     This allows a convenient way to perform post-processing operations on the buffers before writing them
     into the simulator and obtaining the corresponding simulation results.
 
-    The class handles both the spawning of the asset into the USD stage as well as initialization of necessary
-    physics handles to interact with the asset. Upon construction of the asset instance, the prim corresponding
-    to the asset is spawned into the USD stage if the spawn configuration is not None. The spawn configuration
-    is defined in the :attr:`AssetBaseCfg.spawn` attribute. In case the configured :attr:`AssetBaseCfg.prim_path`
-    is an expression, then the prim is spawned at all the matching paths. Otherwise, a single prim is spawned
-    at the configured path. For more information on the spawn configuration, see the
-    :mod:`isaaclab.sim.spawners` module.
+    The class extends :class:`Asset` with physics handles and runtime data buffers. Construction first authors
+    the asset and then registers callbacks that initialize its runtime view.
 
-    Unlike Isaac Sim interface, where one usually needs to call the
-    :meth:`isaacsim.core.prims.XFormPrim.initialize` method to initialize the PhysX handles, the asset
-    class automatically initializes and invalidates the PhysX handles when the stage is played/stopped. This
-    is done by registering callbacks for the stage play/stop events.
+    Unlike backend-specific interfaces (e.g. Isaac Sim PhysX) where one usually needs to call
+    initialize explicitly, the asset class automatically initializes and invalidates physics
+    handles when the simulation is ready or stopped. This is done by registering callbacks
+    for the physics lifecycle events (:attr:`PhysicsEvent.PHYSICS_READY`, :attr:`PhysicsEvent.STOP`).
 
     Additionally, the class registers a callback for debug visualization of the asset if a debug visualization
     is implemented in the asset class. This can be enabled by setting the :attr:`AssetBaseCfg.debug_vis` attribute
@@ -55,43 +76,26 @@ class AssetBase(ABC):
     :meth:`_debug_vis_callback` methods.
     """
 
+    _check_shapes: bool = __debug__
+    """Class-level default for shape validation. Overridden per-instance in ``__init__``."""
+
     def __init__(self, cfg: AssetBaseCfg):
         """Initialize the asset base.
 
         Args:
             cfg: The configuration class for the asset.
 
-        Raises:
-            RuntimeError: If no prims found at input prim path or prim path expression.
         """
-        # check that the config is valid
-        cfg.validate()
-        # store inputs
-        self.cfg = cfg.copy()
+        super().__init__(cfg)
+        # Resolve shape-check flag once: True means checks are active.
+        # cfg.disable_shape_checks: None -> follow __debug__
+        # True -> force disable checks; False -> force enable checks.
+        if self.cfg.disable_shape_checks is None:
+            self._check_shapes = __debug__
+        else:
+            self._check_shapes = not self.cfg.disable_shape_checks
         # flag for whether the asset is initialized
         self._is_initialized = False
-        # get stage handle
-        self.stage = get_current_stage()
-
-        # check if base asset path is valid
-        # note: currently the spawner does not work if there is a regex pattern in the leaf
-        #   For example, if the prim path is "/World/Robot_[1,2]" since the spawner will not
-        #   know which prim to spawn. This is a limitation of the spawner and not the asset.
-        asset_path = self.cfg.prim_path.split("/")[-1]
-        asset_path_is_regex = re.match(r"^[a-zA-Z0-9/_]+$", asset_path) is None
-        # spawn the asset
-        if self.cfg.spawn is not None and not asset_path_is_regex:
-            self.cfg.spawn.func(
-                self.cfg.prim_path,
-                self.cfg.spawn,
-                translation=self.cfg.init_state.pos,
-                orientation=self.cfg.init_state.rot,
-            )
-        # check that spawn was successful
-        matching_prims = sim_utils.find_matching_prims(self.cfg.prim_path)
-        if len(matching_prims) == 0:
-            raise RuntimeError(f"Could not find prim with path {self.cfg.prim_path}.")
-
         # register various callback functions
         self._register_callbacks()
 
@@ -148,36 +152,6 @@ class AssetBase(ABC):
     Operations.
     """
 
-    def set_visibility(self, visible: bool, env_ids: Sequence[int] | None = None):
-        """Set the visibility of the prims corresponding to the asset.
-
-        This operation affects the visibility of the prims corresponding to the asset in the USD stage.
-        It is useful for toggling the visibility of the asset in the simulator. For instance, one can
-        hide the asset when it is not being used to reduce the rendering overhead.
-
-        Note:
-            This operation uses the PXR API to set the visibility of the prims. Thus, the operation
-            may have an overhead if the number of prims is large.
-
-        Args:
-            visible: Whether to make the prims visible or not.
-            env_ids: The indices of the object to set visibility. Defaults to None (all instances).
-        """
-        # resolve the environment ids
-        if env_ids is None:
-            env_ids = range(len(self._prims))
-        elif isinstance(env_ids, torch.Tensor):
-            env_ids = env_ids.detach().cpu().tolist()
-
-        # obtain the prims corresponding to the asset
-        # note: we only want to find the prims once since this is a costly operation
-        if not hasattr(self, "_prims"):
-            self._prims = sim_utils.find_matching_prims(self.cfg.prim_path)
-
-        # iterate over the environment ids
-        for env_id in env_ids:
-            sim_utils.set_prim_visibility(self._prims[env_id], visible)
-
     def set_debug_vis(self, debug_vis: bool) -> bool:
         """Sets whether to visualize the asset data.
 
@@ -193,21 +167,52 @@ class AssetBase(ABC):
             return False
         # toggle debug visualization objects
         self._set_debug_vis_impl(debug_vis)
-        # toggle debug visualization handles
+        # toggle debug visualization handles (Kit/omni only for PhysX backend)
         if debug_vis:
-            # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
-                app_interface = omni.kit.app.get_app_interface()
-                self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                    lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
-                )
+                sim_ctx = SimulationContext.instance()
+                if sim_ctx is not None:
+                    self._debug_vis_handle = sim_ctx.vis_marker_registry.add_debug_vis_callback(self)
         else:
-            # remove the subscriber if it exists
-            if self._debug_vis_handle is not None:
-                self._debug_vis_handle.unsubscribe()
+            sim_ctx = SimulationContext.instance()
+            if sim_ctx is not None:
+                sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
+            else:
                 self._debug_vis_handle = None
         # return success
         return True
+
+    def _resolve_finder_indices(
+        self,
+        indices: Sequence[int],
+        *,
+        proxy_indices: Sequence[int] | None = None,
+        domain: str,
+        as_proxy: bool = False,
+        legacy_type: Literal["list", "tensor"],
+    ) -> list[int] | torch.Tensor | ProxyArray:
+        """Return cached proxy indices or the legacy container."""
+        if not isinstance(as_proxy, bool):
+            raise TypeError(f"as_proxy must be a bool, got {type(as_proxy).__name__}.")
+
+        normalized_indices = tuple(int(index) for index in indices)
+        if as_proxy:
+            normalized_proxy_indices = normalized_indices if proxy_indices is None else tuple(map(int, proxy_indices))
+            selector_cache = getattr(self, "_selector_cache", None)
+            if selector_cache is None:
+                selector_cache = _AssetSelectorCache()
+                self._selector_cache = selector_cache
+            return selector_cache.get(domain, normalized_proxy_indices, self.device)
+
+        if legacy_type == "list":
+            return list(normalized_indices)
+        return torch.tensor(normalized_indices, dtype=torch.int32, device=self.device)
+
+    def _clear_selector_cache(self) -> None:
+        """Release all cached finder selectors owned by this asset."""
+        selector_cache = getattr(self, "_selector_cache", None)
+        if selector_cache is not None:
+            selector_cache.clear()
 
     @abstractmethod
     def reset(self, env_ids: Sequence[int] | None = None):
@@ -236,12 +241,99 @@ class AssetBase(ABC):
         raise NotImplementedError
 
     """
+    Validation.
+    """
+
+    # Mapping from warp dtype to the trailing dimensions that a torch.Tensor
+    # would have for the same data.  Subclasses may extend this (e.g. custom
+    # ``vec6f`` in deformable objects) by updating the dict in their ``__init__``.
+    _DTYPE_TO_TORCH_TRAILING_DIMS: dict[type, tuple[int, ...]] = {
+        wp.float32: (),
+        wp.int32: (),
+        wp.vec2f: (2,),
+        wp.vec3f: (3,),
+        wp.vec4f: (4,),
+        wp.transformf: (7,),
+        wp.spatial_vectorf: (6,),
+    }
+    _SHAPE_AXIS_LIMITS = (("env_ids", "num_instances"),)
+
+    def assert_shape_and_dtype(
+        self,
+        tensor: float | torch.Tensor | wp.array,
+        shape: tuple[int, ...],
+        dtype: type,
+        name: str = "",
+        *,
+        axis_sizes: tuple[int, ...] | None = None,
+    ) -> None:
+        """Assert the shape and dtype of a tensor or warp array.
+
+        Controlled by :attr:`AssetBaseCfg.disable_shape_checks`. When checks are
+        disabled this method is a no-op.
+
+        Args:
+            tensor: The tensor or warp array to assert the shape of. Floats are skipped.
+            shape: The expected leading dimensions (e.g. ``(num_envs, num_joints)``).
+            dtype: The expected warp dtype.
+            name: Optional parameter name for error messages.
+            axis_sizes: Optional selector sizes. Defaults to the expected leading dimensions.
+        """
+        if self._check_shapes:
+            cls = type(self).__name__
+            prefix = f"{cls}: '{name}' " if name else f"{cls}: "
+            for size, (axis_name, limit_name) in zip(axis_sizes or shape, self._SHAPE_AXIS_LIMITS):
+                limit = getattr(self, limit_name)
+                assert size <= limit, f"{prefix}{axis_name} size exceeds asset dimension: {size} > {limit}"
+            if isinstance(tensor, (int, float)):
+                return
+            elif isinstance(tensor, wp.array):
+                assert tensor.dtype == dtype, f"{prefix}Dtype mismatch: {tensor.dtype} != {dtype}"
+                assert tensor.shape == shape, f"{prefix}Shape mismatch: {tensor.shape} != {shape}"
+            elif isinstance(tensor, torch.Tensor):
+                offset = self._DTYPE_TO_TORCH_TRAILING_DIMS.get(dtype)
+                if offset is None:
+                    raise ValueError(f"Unsupported dtype: {dtype}")
+                assert tensor.shape == (*shape, *offset), (
+                    f"{prefix}Shape mismatch: {tensor.shape} != {(*shape, *offset)}"
+                )
+
+    def assert_shape_and_dtype_mask(
+        self,
+        tensor: float | torch.Tensor | wp.array,
+        masks: tuple[wp.array, ...],
+        dtype: type,
+        name: str = "",
+        trailing_dims: tuple[int, ...] = (),
+    ) -> None:
+        """Assert the shape of a tensor or warp array against mask dimensions.
+
+        Mask-based write methods expect **full-sized** data — one element per entry in each mask
+        dimension, regardless of how many entries are ``True``. The expected leading shape is therefore
+        ``(mask_0.shape[0], mask_1.shape[0], ...)`` (i.e. the *total* size of each dimension, not the
+        number of selected entries).
+
+        Controlled by :attr:`AssetBaseCfg.disable_shape_checks`. When checks are
+        disabled this method is a no-op.
+
+        Args:
+            tensor: The tensor or warp array to assert the shape of. Floats are skipped.
+            masks: Tuple of mask arrays whose ``shape[0]`` dimensions form the expected leading shape.
+            dtype: The expected warp dtype.
+            name: Optional parameter name for error messages.
+            trailing_dims: Extra trailing dimensions to append (e.g. ``(9,)`` for inertias with ``wp.float32``).
+        """
+        if self._check_shapes:
+            shape = (*tuple(m.shape[0] for m in masks), *trailing_dims)
+            self.assert_shape_and_dtype(tensor, shape, dtype, name)
+
+    """
     Implementation specific.
     """
 
     @abstractmethod
     def _initialize_impl(self):
-        """Initializes the PhysX handles and internal buffers."""
+        """Initializes the physics handles and internal buffers for the current backend."""
         raise NotImplementedError
 
     def _set_debug_vis_impl(self, debug_vis: bool):
@@ -265,99 +357,92 @@ class AssetBase(ABC):
     """
 
     def _register_callbacks(self):
-        """Registers the timeline and prim deletion callbacks."""
-
-        # register simulator callbacks (with weakref safety to avoid crashes on deletion)
-        def safe_callback(callback_name, event, obj_ref):
-            """Safely invoke a callback on a weakly-referenced object, ignoring ReferenceError if deleted."""
-            try:
-                obj = obj_ref
-                getattr(obj, callback_name)(event)
-            except ReferenceError:
-                # Object has been deleted; ignore.
-                pass
+        """Registers physics lifecycle callbacks via the current backend's physics manager."""
+        physics_mgr_cls = SimulationContext.instance().physics_manager
 
         # note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
-        # add callbacks for stage play/stop
         obj_ref = weakref.proxy(self)
-        timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
 
-        # the order is set to 10 which is arbitrary but should be lower priority than the default order of 0
-        # register timeline PLAY event callback (lower priority with order=10)
-        self._initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-            int(omni.timeline.TimelineEventType.PLAY),
-            lambda event, obj_ref=obj_ref: safe_callback("_initialize_callback", event, obj_ref),
+        def _invoke(callback_name, event):
+            getattr(obj_ref, callback_name)(event)
+
+        # Backend-agnostic: PHYSICS_READY (init) and STOP (invalidate)
+        self._initialize_handle = physics_mgr_cls.register_callback(
+            lambda payload: PhysicsManager.safe_callback_invoke(
+                _invoke, "_initialize_callback", payload, physics_manager=physics_mgr_cls
+            ),
+            PhysicsEvent.PHYSICS_READY,
             order=10,
         )
-        # register timeline STOP event callback (lower priority with order=10)
-        self._invalidate_initialize_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-            int(omni.timeline.TimelineEventType.STOP),
-            lambda event, obj_ref=obj_ref: safe_callback("_invalidate_initialize_callback", event, obj_ref),
+        self._invalidate_initialize_handle = physics_mgr_cls.register_callback(
+            lambda payload: PhysicsManager.safe_callback_invoke(
+                _invoke, "_invalidate_initialize_callback", payload, physics_manager=physics_mgr_cls
+            ),
+            PhysicsEvent.STOP,
             order=10,
         )
-        # register prim deletion callback
-        self._prim_deletion_callback_id = SimulationManager.register_callback(
-            lambda event, obj_ref=obj_ref: safe_callback("_on_prim_deletion", event, obj_ref),
-            event=IsaacEvents.PRIM_DELETION,
-        )
+        # Optional: prim deletion (only supported by Kit PhysX backend, not ovphysx)
+        self._prim_deletion_handle = None
+        physics_backend = physics_mgr_cls.__name__.lower()
+        if physics_backend.startswith("physx"):
+            from isaaclab_physx.physics import IsaacEvents
+
+            self._prim_deletion_handle = physics_mgr_cls.register_callback(
+                lambda event: PhysicsManager.safe_callback_invoke(
+                    _invoke, "_on_prim_deletion", event, physics_manager=physics_mgr_cls
+                ),
+                IsaacEvents.PRIM_DELETION,
+            )
 
     def _initialize_callback(self, event):
         """Initializes the scene elements.
 
-        Note:
-            PhysX handles are only enabled once the simulator starts playing. Hence, this function needs to be
-            called whenever the simulator "plays" from a "stop" state.
+        .. note::
+            Physics handles are only valid once the simulation is ready. This callback runs when
+            :attr:`PhysicsEvent.PHYSICS_READY` is dispatched by the current backend.
         """
         if not self._is_initialized:
-            # obtain simulation related information
-            self._backend = SimulationManager.get_backend()
-            self._device = SimulationManager.get_physics_sim_device()
-            # initialize the asset
-            try:
-                self._initialize_impl()
-            except Exception as e:
-                if builtins.ISAACLAB_CALLBACK_EXCEPTION is None:
-                    builtins.ISAACLAB_CALLBACK_EXCEPTION = e
-            # set flag
+            self._backend = SimulationContext.instance().physics_manager.get_backend()
+            self._device = SimulationContext.instance().physics_manager.get_device()
+            self._initialize_impl()
             self._is_initialized = True
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         self._is_initialized = False
-        if self._debug_vis_handle is not None:
-            self._debug_vis_handle.unsubscribe()
+        self._clear_selector_cache()
+        sim_ctx = SimulationContext.instance()
+        if sim_ctx is not None:
+            sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
+        else:
             self._debug_vis_handle = None
 
-    def _on_prim_deletion(self, prim_path: str) -> None:
-        """Invalidates and deletes the callbacks when the prim is deleted.
+    def _on_prim_deletion(self, event) -> None:
+        """Invalidates and clears callbacks when the prim is deleted.
 
-        Args:
-            prim_path: The path to the prim that is being deleted.
-
-        Note:
-            This function is called when the prim is deleted.
+        Only used when the backend supports prim deletion events (e.g. PhysX).
         """
+        payload = getattr(event, "payload", event) if not isinstance(event, dict) else event
+        prim_path = payload.get("prim_path", "") if isinstance(payload, dict) else ""
         if prim_path == "/":
             self._clear_callbacks()
             return
-        result = re.match(
-            pattern="^" + "/".join(self.cfg.prim_path.split("/")[: prim_path.count("/") + 1]) + "$", string=prim_path
-        )
-        if result:
+        if sim_utils.matches_path_expr_prefix(self.cfg.prim_path, prim_path):
             self._clear_callbacks()
 
     def _clear_callbacks(self) -> None:
-        """Clears the callbacks."""
-        if self._prim_deletion_callback_id:
-            SimulationManager.deregister_callback(self._prim_deletion_callback_id)
-            self._prim_deletion_callback_id = None
-        if self._initialize_handle:
-            self._initialize_handle.unsubscribe()
+        """Clears all registered callbacks."""
+        if getattr(self, "_initialize_handle", None) is not None:
+            self._initialize_handle.deregister()
             self._initialize_handle = None
-        if self._invalidate_initialize_handle:
-            self._invalidate_initialize_handle.unsubscribe()
+        if getattr(self, "_invalidate_initialize_handle", None) is not None:
+            self._invalidate_initialize_handle.deregister()
             self._invalidate_initialize_handle = None
-        # clear debug visualization
-        if self._debug_vis_handle:
-            self._debug_vis_handle.unsubscribe()
+        if getattr(self, "_prim_deletion_handle", None) is not None:
+            self._prim_deletion_handle.deregister()
+            self._prim_deletion_handle = None
+        sim_ctx = SimulationContext.instance()
+        if sim_ctx is not None:
+            sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
+        else:
             self._debug_vis_handle = None

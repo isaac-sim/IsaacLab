@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from dataclasses import MISSING
 from typing import Literal
 
@@ -12,7 +14,13 @@ from isaaclab.utils import configclass
 
 @configclass
 class UrdfConverterCfg(AssetConverterBaseCfg):
-    """The configuration class for UrdfConverter."""
+    """The configuration class for UrdfConverter.
+
+    Maps to :class:`~isaacsim.asset.importer.urdf.URDFImporterConfig` from the Isaac Sim
+    URDF importer. IsaacLab exposes a user-friendly nested :class:`JointDriveCfg` that is
+    translated into the importer's flat ``joint_drive_type`` / ``joint_target_type`` /
+    ``override_joint_stiffness`` / ``override_joint_damping`` fields at conversion time.
+    """
 
     @configclass
     class JointDriveCfg:
@@ -22,10 +30,10 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
         class PDGainsCfg:
             """Configuration for the PD gains of the drive."""
 
-            stiffness: dict[str, float] | float = MISSING
-            """The stiffness of the joint drive in Nm/rad or N/rad.
+            stiffness: dict[str, float] | float | None = None
+            """The stiffness of the joint drive in Nm/rad or N/rad. Defaults to None.
 
-            If None, the stiffness is set to the value parsed from the URDF file.
+            If None, the stiffness values produced by the URDF importer are preserved.
             If :attr:`~UrdfConverterCfg.JointDriveCfg.target_type` is set to ``"velocity"``, this value determines
             the drive strength in joint velocity space.
             """
@@ -52,6 +60,12 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
             * :math:`r = 1.0` is a critically damped system,
             * :math:`r < 1.0` is underdamped,
             * :math:`r > 1.0` is overdamped.
+
+            .. deprecated::
+                This gains mode is no longer supported by the URDF importer 3.0.
+                The ``compute_natural_stiffness`` function has been removed. If used, a
+                :exc:`DeprecationWarning` is emitted and joint drive gains are left at the values
+                produced by the URDF importer. Use :class:`PDGainsCfg` instead.
             """
 
             natural_frequency: dict[str, float] | float = MISSING
@@ -94,39 +108,107 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     """The name of the root link. Defaults to None.
 
     If None, the root link will be set by PhysX.
+
+    .. deprecated::
+        This option is no longer supported by the URDF importer 3.0. A warning is logged if set.
     """
 
     link_density: float = 0.0
     """Default density in ``kg/m^3`` for links whose ``"inertial"`` properties are missing in the URDF.
     Defaults to 0.0.
+
+    A value of ``0.0`` leaves density unchanged.
     """
 
     merge_fixed_joints: bool = True
-    """Consolidate links that are connected by fixed joints. Defaults to True."""
+    """Consolidate links that are connected by fixed joints. Defaults to True.
+
+    When enabled, a URDF XML pre-processing step removes all fixed joints and merges each
+    child link's visual, collision, and inertial elements into the parent link before USD
+    conversion. Downstream joints are re-parented with composed transforms. Chains of
+    consecutive fixed joints are handled automatically. The pre-processing is performed by
+    :func:`isaacsim.asset.importer.urdf.impl.urdf_utils.merge_fixed_joints`.
+    """
 
     convert_mimic_joints_to_normal_joints: bool = False
-    """Convert mimic joints to normal joints. Defaults to False."""
+    """Convert mimic joints to normal joints. Defaults to False.
+
+    .. deprecated::
+        This option is no longer supported by the URDF importer 3.0. A warning is logged if enabled.
+    """
 
     joint_drive: JointDriveCfg | None = JointDriveCfg()
     """The joint drive settings. Defaults to :class:`JointDriveCfg`.
 
-    The parameter can be set to ``None`` for URDFs without joints.
+    The parameter can be set to ``None`` for URDFs without joints, in which case no joint drive
+    overrides are sent to the importer.
     """
 
-    collision_from_visuals = False
+    collision_from_visuals: bool = False
     """Whether to create collision geometry from visual geometry. Defaults to False."""
 
-    collider_type: Literal["convex_hull", "convex_decomposition"] = "convex_hull"
-    """The collision shape simplification. Defaults to "convex_hull".
+    collision_type: Literal["Convex Hull", "Convex Decomposition", "Bounding Sphere", "Bounding Cube"] = "Convex Hull"
+    """The collision shape simplification. Defaults to ``"Convex Hull"``.
 
-    Supported values are:
+    Supported values match the ``collision_type`` field of
+    :class:`~isaacsim.asset.importer.urdf.URDFImporterConfig`:
 
-    * ``"convex_hull"``: The collision shape is simplified to a convex hull.
-    * ``"convex_decomposition"``: The collision shape is decomposed into smaller convex shapes for a closer fit.
+    * ``"Convex Hull"``: The collision shape is simplified to a convex hull.
+    * ``"Convex Decomposition"``: The collision shape is decomposed into smaller convex shapes for a closer fit.
+    * ``"Bounding Sphere"``: The collision shape is approximated by a bounding sphere.
+    * ``"Bounding Cube"``: The collision shape is approximated by a bounding cube.
     """
 
     self_collision: bool = False
     """Activate self-collisions between links of the articulation. Defaults to False."""
 
     replace_cylinders_with_capsules: bool = False
-    """Replace cylinder shapes with capsule shapes. Defaults to False."""
+    """Replace cylinder shapes with capsule shapes. Defaults to False.
+
+    .. deprecated::
+        This option is no longer supported by the URDF importer 3.0. A warning is logged if enabled.
+    """
+
+    merge_mesh: bool = False
+    """Merge meshes where possible to optimize the model. Defaults to False."""
+
+    ros_package_paths: list[dict[str, str]] = []
+    """ROS package name/path mappings used to resolve ``package://`` URLs in the URDF.
+
+    Each entry is a dictionary with keys ``name`` and ``path``. The list is forwarded directly
+    to :class:`~isaacsim.asset.importer.urdf.URDFImporterConfig`.
+    """
+
+    robot_type: str = "Default"
+    """Robot type applied by the USD robot schema. Defaults to ``"Default"``.
+
+    Supported types are: ``Default``, ``End Effector``, ``Manipulator``, ``Humanoid``, ``Wheeled``,
+    ``Holonomic``, ``Quadruped``, ``Mobile Manipulators``, ``Aerial``.
+    Forwarded to :class:`~isaacsim.asset.importer.urdf.URDFImporterConfig`.
+    """
+
+    run_asset_transformer: bool = True
+    """Run the asset transformation profile to convert the flattened USD into a layered USD asset. Defaults to True.
+
+    After running this profile, the USD asset will be a layered USD asset with the following structure:
+    - robot_name.usda (interface usd)
+    - payloads/base.usda (base usd with links, meshes, and materials)
+    - payloads/instances.usda (usd with visual and collision geometry)
+    - payloads/geometry.usd (binary usd with meshes)
+    - payloads/materials.usda (materials)
+    - payloads/Physics/physics.usda (neutral physics format)
+    - payloads/Physics/physX.usda (PhysX attributes)
+    - payloads/Physics/mujoco.usda (MuJoCo attributes)
+    """
+
+    run_multi_physics_conversion: bool = True
+    """Enable to generate compatible MuJoCo attributes from the URDF joint attributes alongside PhysX.
+    Defaults to True.
+    """
+
+    debug_mode: bool = False
+    """Enable debug mode in the underlying URDF importer. Defaults to False.
+
+    When enabled, the importer writes intermediate conversion artifacts next to the output
+    USD for inspection instead of using a temporary scratch directory.
+    """

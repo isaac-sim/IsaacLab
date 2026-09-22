@@ -5,22 +5,26 @@
 
 import numpy as np
 import torch
+from isaaclab_physx.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.envs.common import ViewerCfg
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.datasets import EpisodeData
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_mimic.locomanipulation_sdg.data_classes import LocomanipulationSDGInputData
+from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import OccupancyMap
 from isaaclab_mimic.locomanipulation_sdg.scene_utils import HasPose, SceneBody, SceneFixture
 
-from isaaclab_tasks.manager_based.locomanipulation.pick_place.locomanipulation_g1_env_cfg import (
+from isaaclab_tasks.contrib.locomanip_pick_place import mdp as locomanip_mdp
+from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg import (
     LocomanipulationG1EnvCfg,
     LocomanipulationG1SceneCfg,
     ObservationsCfg,
@@ -30,65 +34,89 @@ from isaaclab_tasks.manager_based.locomanipulation.pick_place.locomanipulation_g
 from .locomanipulation_sdg_env import LocomanipulationSDGEnv
 from .locomanipulation_sdg_env_cfg import LocomanipulationSDGEnvCfg, LocomanipulationSDGRecorderManagerCfg
 
-NUM_FORKLIFTS = 6
-NUM_BOXES = 12
+NUM_FORKLIFTS = 0
+NUM_BOXES = 0
+ISAAC_RTX_GAUSSIAN_CAMERA_RENDERER_CARB_SETTINGS = {
+    "/rtx/rtpt/gaussian/accumulatedDepth/allHits/enabled": True,
+    "/rtx/rtpt/gaussian/accumulatedAlbedo/enabled": True,
+    "/rtx/rtpt/gaussian/maxGaussiansToAccumulate": 360,
+}
 
 
 @configclass
 class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
     packing_table_2 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/PackingTable2",
+        prim_path="{ENV_REGEX_NS}/PackingTable2",
         init_state=AssetBaseCfg.InitialStateCfg(
             pos=[-2, -3.55, -0.3],
             # rot=[0, 0, 0, 1]),
-            rot=[0.9238795, 0, 0, -0.3826834],
+            rot=[0, 0, -0.3826834, 0.9238795],
         ),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         ),
     )
 
-    robot_pov_cam = CameraCfg(
-        prim_path="/World/envs/env_.*/Robot/torso_link/d435_link/camera",
-        update_period=0.0,
-        height=160,
-        width=256,
-        data_types=["rgb"],
-        spawn=sim_utils.PinholeCameraCfg(focal_length=8.0, clipping_range=(0.1, 20.0)),
-        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.9848078, 0.0, -0.1736482, 0.0), convention="world"),
-    )
+    def add_robot_pov_cam(self, height, width, use_nurec_renderer_settings: bool = False):
+        camera_kwargs = {}
+        if use_nurec_renderer_settings:
+            camera_kwargs["renderer_cfg"] = IsaacRtxRendererCfg(
+                global_settings=IsaacRtxRendererGlobalSettingsCfg(
+                    enable_dl_denoiser=True,
+                    antialiasing_mode="DLSS",
+                    carb_settings=ISAAC_RTX_GAUSSIAN_CAMERA_RENDERER_CARB_SETTINGS,
+                )
+            )
 
+        robot_pov_cam = CameraCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/torso_link/d435_link/camera",
+            update_period=0.0,
+            height=height,
+            width=width,
+            data_types=["rgb"],
+            spawn=sim_utils.PinholeCameraCfg(focal_length=8.0, clipping_range=(0.1, 20.0)),
+            offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, -0.1736482, 0.0, 0.9848078), convention="world"),
+            **camera_kwargs,
+        )
+        setattr(self, "robot_pov_cam", robot_pov_cam)
 
-# Add forklifts
-for i in range(NUM_FORKLIFTS):
-    setattr(
-        G1LocomanipulationSDGSceneCfg,
-        f"forklift_{i}",
-        AssetBaseCfg(
-            prim_path=f"/World/envs/env_.*/Forklift{i}",
-            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
-            spawn=UsdFileCfg(
-                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+    def add_background_asset(self, background_usd_path: str):
+        background = AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/Background",
+            init_state=AssetBaseCfg.InitialStateCfg(
+                pos=[0, 0, 0],
+                rot=[0.0, 0.0, 0.0, 1.0],
             ),
-        ),
-    )
-
-# Add boxes
-for i in range(NUM_BOXES):
-    setattr(
-        G1LocomanipulationSDGSceneCfg,
-        f"box_{i}",
-        AssetBaseCfg(
-            prim_path=f"/World/envs/env_.*/Box{i}",
-            init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[1.0, 0.0, 0.0, 0.0]),
             spawn=UsdFileCfg(
-                usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+                usd_path=background_usd_path,
             ),
-        ),
-    )
+        )
+
+        setattr(self, "background", background)
+
+    def add_forklifts(self, num_forklifts: int):
+        for i in range(num_forklifts):
+            forklift = AssetBaseCfg(
+                prim_path=f"/World/envs/env_[^/]+/Forklift{i}",
+                init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
+                spawn=UsdFileCfg(
+                    usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
+                    rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+                ),
+            )
+            setattr(self, f"forklift_{i}", forklift)
+
+    def add_boxes(self, num_boxes: int):
+        for i in range(num_boxes):
+            box = AssetBaseCfg(
+                prim_path=f"/World/envs/env_[^/]+/Box{i}",
+                init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
+                spawn=UsdFileCfg(
+                    usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
+                ),
+            )
+            setattr(self, f"box_{i}", box)
 
 
 @configclass
@@ -111,25 +139,30 @@ class G1LocomanipulationSDGObservationsCfg(ObservationsCfg):
 class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGEnvCfg):
     """Configuration for the G1 29DoF environment."""
 
-    viewer: ViewerCfg = ViewerCfg(
-        eye=(0.0, 3.0, 1.25), lookat=(0.0, 0.0, 0.5), origin_type="asset_body", asset_name="robot", body_name="pelvis"
-    )
-
     # Scene settings
     scene: G1LocomanipulationSDGSceneCfg = G1LocomanipulationSDGSceneCfg(
-        num_envs=1, env_spacing=2.5, replicate_physics=True
+        num_envs=1, env_spacing=2.5, replicate_physics=False
     )
     recorders: LocomanipulationSDGRecorderManagerCfg = LocomanipulationSDGRecorderManagerCfg()
     observations: G1LocomanipulationSDGObservationsCfg = G1LocomanipulationSDGObservationsCfg()
 
+    background_usd_path: str | None = None
+    background_occupancy_yaml_file: str | None = None
+    high_res_video: bool = False
+
     def __post_init__(self):
         """Post initialization."""
+        # This class overrides LocomanipulationG1EnvCfg.__post_init__, so preserve the
+        # contact reporting required by the inherited per-hand contact sensors.
+        self.scene.robot.spawn.activate_contact_sensors = True
+
         # general settings
         self.decimation = 4
-        self.episode_length_s = 100.0
+        self.episode_length_s = 50.0
         # simulation settings
         self.sim.dt = 1 / 200  # 200Hz
         self.sim.render_interval = 6
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(0.0, 3.0, 1.25), lookat=(0.0, 0.0, 0.5))
 
         # Set the URDF and mesh paths for the IK controller
         urdf_omniverse_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"  # noqa: E501
@@ -137,9 +170,40 @@ class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGE
         # Retrieve local paths for the URDF and mesh files. Will be cached for call after the first time.
         self.actions.upper_body_ik.controller.urdf_path = retrieve_file_path(urdf_omniverse_path)
 
+        # Override success condition: check placement relative to the drop-off table (packing_table_2),
+        # since this env has two tables: packing_table (pick-up) and packing_table_2 (drop-off).
+        self.terminations.success = DoneTerm(
+            func=locomanip_mdp.task_done_pick_place_table_frame,
+            params={
+                "task_link_name": "right_wrist_yaw_link",
+                "table_cfg": SceneEntityCfg("packing_table_2"),
+            },
+        )
+
 
 class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
     def __init__(self, cfg: G1LocomanipulationSDGEnvCfg, **kwargs):
+        if cfg.background_usd_path is not None:
+            self._num_forklifts = 0
+            self._num_boxes = 0
+            set_ground_invisible = True
+            cfg.scene.add_background_asset(cfg.background_usd_path)
+        else:
+            self._num_forklifts = NUM_FORKLIFTS
+            self._num_boxes = NUM_BOXES
+            set_ground_invisible = False
+
+        camera_height, camera_width = (320, 512) if cfg.high_res_video else (160, 256)
+        cfg.scene.add_robot_pov_cam(
+            camera_height, camera_width, use_nurec_renderer_settings=cfg.background_usd_path is not None
+        )
+
+        cfg.scene.add_forklifts(self._num_forklifts)
+        cfg.scene.add_boxes(self._num_boxes)
+
+        if set_ground_invisible:
+            cfg.scene.ground.spawn.visible = False
+
         super().__init__(cfg)
         self.sim.set_camera_view([10.5, 10.5, 10.5], [0.0, 0.0, 0.5])
         self._upper_body_dim = self.action_manager.get_term("upper_body_ik").action_dim
@@ -160,16 +224,17 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
 
         object_pose = dataset_state["rigid_object"]["object"]["root_pose"]
 
+        base_pose = episode_data.get_initial_state()["articulation"]["robot"]["root_pose"]
         data = LocomanipulationSDGInputData(
             left_hand_pose_target=dataset_action[0:7],
             right_hand_pose_target=dataset_action[7:14],
             left_hand_joint_positions_target=dataset_action[14:21],
             right_hand_joint_positions_target=dataset_action[21:28],
-            base_pose=episode_data.get_initial_state()["articulation"]["robot"]["root_pose"],
+            base_pose=base_pose,
             object_pose=object_pose,
             fixture_pose=torch.tensor(
-                [0.0, 0.55, -0.3, 1.0, 0.0, 0.0, 0.0]
-            ),  # Table pose is not recorded for this env.
+                [0.0, 0.55, -0.3, 0.0, 0.0, 0.0, 1.0], device=base_pose.device
+            ),  # Table pose is not recorded for this env. Quaternion in XYZW format (identity).
         )
 
         return data
@@ -182,6 +247,18 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
         right_hand_joint_positions_target: torch.Tensor,
         base_velocity_target: torch.Tensor,
     ):
+        """Build the action vector for the G1 locomanipulation environment.
+
+        Action layout (upper_body_dim = left_pose + right_pose + left_fingers + right_fingers = 28):
+
+            Indices                          Content
+            [0:7]                            left hand pose (pos[0:3] + quat[3:7])
+            [7:14]                           right hand pose (pos[7:10] + quat[10:14])
+            [14:21]                          left hand finger joints (7)
+            [21:28]                          right hand finger joints (7)
+            [upper_body_dim:upper_body_dim+3]  base velocity (vx, vy, yaw_rate)
+            [upper_body_dim+3]               base height
+        """
         action = torch.zeros(self.action_space.shape)
 
         # Set base height
@@ -240,40 +317,50 @@ class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
         return SceneBody(self.scene, "object", "sm_steeringwheel_a01_01")
 
     def get_start_fixture(self) -> SceneFixture:
-        return SceneFixture(
+        return SceneFixture.from_boundary(
             self.scene,
             "packing_table",
-            occupancy_map_boundary=np.array([[-1.45, -0.45], [1.45, -0.45], [1.45, 0.45], [-1.45, 0.45]]),
-            occupancy_map_resolution=0.05,
+            np.array([[-1.45, -0.45], [1.45, -0.45], [1.45, 0.45], [-1.45, 0.45]]),
+            0.05,
         )
 
     def get_end_fixture(self) -> SceneFixture:
-        return SceneFixture(
+        return SceneFixture.from_boundary(
             self.scene,
             "packing_table_2",
-            occupancy_map_boundary=np.array([[-1.45, -0.45], [1.45, -0.45], [1.45, 0.45], [-1.45, 0.45]]),
-            occupancy_map_resolution=0.05,
+            np.array([[-1.45, -0.45], [1.45, -0.45], [1.45, 0.45], [-1.45, 0.45]]),
+            0.05,
         )
 
     def get_obstacle_fixtures(self):
         obstacles = [
-            SceneFixture(
+            SceneFixture.from_boundary(
                 self.scene,
                 f"forklift_{i}",
-                occupancy_map_boundary=np.array([[-1.0, -1.9], [1.0, -1.9], [1.0, 2.1], [-1.0, 2.1]]),
-                occupancy_map_resolution=0.05,
+                np.array([[-1.0, -1.9], [1.0, -1.9], [1.0, 2.1], [-1.0, 2.1]]),
+                0.05,
             )
-            for i in range(NUM_FORKLIFTS)
+            for i in range(self._num_forklifts)
         ]
 
         obstacles += [
-            SceneFixture(
+            SceneFixture.from_boundary(
                 self.scene,
                 f"box_{i}",
-                occupancy_map_boundary=np.array([[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]),
-                occupancy_map_resolution=0.05,
+                np.array([[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]),
+                0.05,
             )
-            for i in range(NUM_BOXES)
+            for i in range(self._num_boxes)
         ]
 
         return obstacles
+
+    def get_background_fixture(self) -> SceneFixture | None:
+        if "background" not in self.scene.keys():
+            return None
+
+        background_map = OccupancyMap.from_ros_yaml(
+            ros_yaml_path=self.cfg.background_occupancy_yaml_file,
+        )
+        background_fixture = SceneFixture(self.scene, "background", background_map)
+        return background_fixture

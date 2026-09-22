@@ -3,29 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
 import importlib
 import json
-from typing import cast
 
 import pytest
 import torch
 
 # Import device classes to test
 from isaaclab.devices import (
-    DeviceCfg,
     HaplyDevice,
     HaplyDeviceCfg,
-    OpenXRDevice,
-    OpenXRDeviceCfg,
     Se2Gamepad,
     Se2GamepadCfg,
     Se2Keyboard,
@@ -39,11 +26,8 @@ from isaaclab.devices import (
     Se3SpaceMouse,
     Se3SpaceMouseCfg,
 )
-from isaaclab.devices.openxr import XrCfg
-from isaaclab.devices.openxr.retargeters import GripperRetargeterCfg, Se3AbsRetargeterCfg
 
-# Import teleop device factory for testing
-from isaaclab.devices.teleop_device_factory import create_teleop_device
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
@@ -71,23 +55,11 @@ def mock_environment(mocker):
     carb_mock.input.KeyboardEventType.KEY_PRESS = 1
     carb_mock.input.KeyboardEventType.KEY_RELEASE = 2
 
-    # Mock carb events used by OpenXRDevice
-    events_mock = mocker.MagicMock()
-    events_mock.type_from_string.return_value = 0
-    carb_mock.events = events_mock
-
     # Mock the SpaceMouse
-    hid_mock.enumerate.return_value = [{"product_string": "SpaceMouse Compact", "vendor_id": 123, "product_id": 456}]
+    hid_mock.enumerate.return_value = [
+        {"product_string": "SpaceMouse Compact", "vendor_id": 0x256F, "product_id": 0xC635}
+    ]
     hid_mock.device.return_value = device_mock
-
-    # Mock OpenXR
-    # xr_core_mock = mocker.MagicMock()
-    message_bus_mock = mocker.MagicMock()
-    singleton_mock = mocker.MagicMock()
-    omni_mock.kit.xr.core.XRCore.get_singleton.return_value = singleton_mock
-    singleton_mock.get_message_bus.return_value = message_bus_mock
-    omni_mock.kit.xr.core.XRPoseValidityFlags.POSITION_VALID = 1
-    omni_mock.kit.xr.core.XRPoseValidityFlags.ORIENTATION_VALID = 2
 
     # Mock Haply WebSocket
     websockets_mock = mocker.MagicMock()
@@ -254,6 +226,112 @@ def test_se2spacemouse_constructors(mock_environment, mocker):
     assert result.shape == (3,)  # (v_x, v_y, omega_z)
 
 
+@pytest.mark.parametrize(
+    "product_string",
+    [
+        # some HID backends report the kernel's combined name instead of the bare USB product string
+        "3Dconnexion SpaceMouse Compact",
+        # the libusb-based backend bundled in the hidapi wheels reports no product string at all
+        # unless the process is allowed to open the USB node
+        "",
+    ],
+    ids=["prefixed_product_string", "missing_product_string"],
+)
+def test_spacemouse_detected_by_usb_id(mock_environment, mocker, product_string):
+    """SpaceMouse detection must not rely on an exact product string match."""
+    mock_environment["hid"].enumerate.return_value = [
+        {"product_string": product_string, "vendor_id": 0x256F, "product_id": 0xC635}
+    ]
+    for module_name, device_cls, cfg_cls in (
+        ("isaaclab.devices.spacemouse.se2_spacemouse", Se2SpaceMouse, Se2SpaceMouseCfg),
+        ("isaaclab.devices.spacemouse.se3_spacemouse", Se3SpaceMouse, Se3SpaceMouseCfg),
+    ):
+        device_mod = importlib.import_module(module_name)
+        mocker.patch.object(device_mod, "hid", mock_environment["hid"])
+        # the listener thread polls the mocked device in a busy loop; detection is what is under test
+        mocker.patch.object(device_mod, "threading")
+
+        device = device_cls(cfg_cls())
+
+        assert device is not None
+    mock_environment["device"].open.assert_called_with(0x256F, 0xC635)
+
+
+@pytest.mark.parametrize(
+    "product_string",
+    [
+        # the string the device reports when the backend can read its USB descriptors
+        "SpaceNavigator",
+        # the same device seen through a backend that cannot read them
+        "",
+    ],
+    ids=["product_string", "usb_id_only"],
+)
+def test_se3spacemouse_detects_spacenavigator(mock_environment, mocker, product_string):
+    """The legacy SpaceNavigator must stay detectable, with or without a readable product string."""
+    mock_environment["hid"].enumerate.return_value = [
+        {"product_string": product_string, "vendor_id": 0x046D, "product_id": 0xC626}
+    ]
+    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se3_spacemouse")
+    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
+    mocker.patch.object(device_mod, "threading")
+
+    device = Se3SpaceMouse(Se3SpaceMouseCfg())
+
+    # the resolved name selects the report layout used by the listener thread
+    assert device._device_name == "SpaceNavigator"
+    mock_environment["device"].open.assert_called_with(0x046D, 0xC626)
+
+
+def test_spacemouse_skips_devices_that_cannot_be_opened(mock_environment, mocker):
+    """An inaccessible SpaceMouse must not hide a second one the user can actually open."""
+    inaccessible = {"product_string": "", "vendor_id": 0x256F, "product_id": 0xC635}
+    accessible = {"product_string": "", "vendor_id": 0x256F, "product_id": 0xC62E}
+    mock_environment["hid"].enumerate.return_value = [inaccessible, accessible]
+    mock_environment["device"].open.side_effect = [OSError("open failed"), None]
+    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se3_spacemouse")
+    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
+    mocker.patch.object(device_mod, "threading")
+
+    device = Se3SpaceMouse(Se3SpaceMouseCfg())
+
+    assert device._device_name == "SpaceMouse Wireless"
+    mock_environment["device"].open.assert_called_with(0x256F, 0xC62E)
+
+
+def test_spacemouse_open_failure_reports_permissions(mock_environment, mocker):
+    """When the only supported device cannot be opened, the error must explain why."""
+    mock_environment["hid"].enumerate.return_value = [{"product_string": "", "vendor_id": 0x256F, "product_id": 0xC635}]
+    mock_environment["device"].open.side_effect = OSError("open failed")
+    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se3_spacemouse")
+    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
+    mocker.patch.object(device_mod, "threading")
+    mocker.patch.object(device_mod.time, "sleep")
+
+    with pytest.raises(OSError) as exc_info:
+        Se3SpaceMouse(Se3SpaceMouseCfg())
+
+    message = str(exc_info.value)
+    assert "SpaceMouse Compact" in message
+    assert "/dev/bus/usb" in message
+
+
+def test_spacemouse_not_found_error_lists_enumerated_devices(mock_environment, mocker):
+    """The error raised when no SpaceMouse is connected should help identify the problem."""
+    mock_environment["hid"].enumerate.return_value = [{"product_string": "", "vendor_id": 0x046D, "product_id": 0xC52F}]
+    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se3_spacemouse")
+    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
+    mocker.patch.object(device_mod, "threading")
+    mocker.patch.object(device_mod.time, "sleep")
+
+    with pytest.raises(OSError) as exc_info:
+        Se3SpaceMouse(Se3SpaceMouseCfg())
+
+    message = str(exc_info.value)
+    assert "0x046d:0xc52f" in message
+    assert "/dev/bus/usb" in message
+
+
 def test_se3spacemouse_constructors(mock_environment, mocker):
     """Test constructor for Se3SpaceMouse."""
     # Test config-based constructor
@@ -278,65 +356,11 @@ def test_se3spacemouse_constructors(mock_environment, mocker):
     assert result.shape == (7,)  # (pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, gripper)
 
 
-"""
-Test OpenXR devices.
-"""
+def test_se3spacemouse_destructor_handles_partial_initialization():
+    """The destructor must tolerate construction failing before the listener thread exists."""
+    spacemouse = Se3SpaceMouse.__new__(Se3SpaceMouse)
 
-
-def test_openxr_constructors(mock_environment, mocker):
-    """Test constructor for OpenXRDevice."""
-    # Test config-based constructor with custom XrCfg
-    xr_cfg = XrCfg(
-        anchor_pos=(1.0, 2.0, 3.0),
-        anchor_rot=(0.0, 0.1, 0.2, 0.3),
-        near_plane=0.2,
-    )
-    config = OpenXRDeviceCfg(xr_cfg=xr_cfg)
-
-    # Create mock retargeters
-    mock_controller_retargeter = mocker.MagicMock()
-    mock_head_retargeter = mocker.MagicMock()
-    retargeters = [mock_controller_retargeter, mock_head_retargeter]
-
-    device_mod = importlib.import_module("isaaclab.devices.openxr.openxr_device")
-    mocker.patch.dict(
-        "sys.modules",
-        {
-            "carb": mock_environment["carb"],
-            "omni.kit.xr.core": mock_environment["omni"].kit.xr.core,
-            "isaacsim.core.prims": mocker.MagicMock(),
-        },
-    )
-    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
-    mocker.patch.object(device_mod, "XRCore", mock_environment["omni"].kit.xr.core.XRCore)
-    mocker.patch.object(device_mod, "XRPoseValidityFlags", mock_environment["omni"].kit.xr.core.XRPoseValidityFlags)
-    mock_single_xform = mocker.patch.object(device_mod, "SingleXFormPrim")
-
-    # Configure the mock to return a string for prim_path
-    mock_instance = mock_single_xform.return_value
-    mock_instance.prim_path = "/XRAnchor"
-
-    # Create the device using the factory
-    device = OpenXRDevice(config)
-
-    # Verify the device was created successfully
-    assert device._xr_cfg == xr_cfg
-
-    # Test with retargeters
-    device = OpenXRDevice(cfg=config, retargeters=retargeters)
-
-    # Verify retargeters were correctly assigned as a list
-    assert device._retargeters == retargeters
-
-    # Test with config and retargeters
-    device = OpenXRDevice(cfg=config, retargeters=retargeters)
-
-    # Verify both config and retargeters were correctly assigned
-    assert device._xr_cfg == xr_cfg
-    assert device._retargeters == retargeters
-
-    # Test reset functionality
-    device.reset()
+    spacemouse.__del__()
 
 
 """
@@ -424,7 +448,7 @@ def test_haply_constructors(mock_environment, mocker):
     haply.running = True
     haply.cached_data = {
         "position": torch.tensor([0.1, 0.2, 0.3], dtype=torch.float32).numpy(),
-        "quaternion": torch.tensor([0.0, 0.0, 0.0, 1.0], dtype=torch.float32).numpy(),
+        "quaternion": torch.tensor([0.0, 0.0, 1.0, 0.0], dtype=torch.float32).numpy(),
         "buttons": {"a": False, "b": False, "c": False},
         "inverse3_connected": True,
         "versegrip_connected": True,
@@ -476,138 +500,3 @@ def test_haply_constructors(mock_environment, mocker):
     # Test reset functionality
     haply.reset()
     assert haply.feedback_force == {"x": 0.0, "y": 0.0, "z": 0.0}
-
-
-"""
-Test teleop device factory.
-"""
-
-
-def test_create_teleop_device_basic(mock_environment, mocker):
-    """Test creating devices using the teleop device factory."""
-    # Create device configuration
-    keyboard_cfg = Se3KeyboardCfg(pos_sensitivity=0.8, rot_sensitivity=1.2)
-
-    # Create devices configuration dictionary
-    devices_cfg: dict[str, DeviceCfg] = {"test_keyboard": keyboard_cfg}
-
-    # Mock Se3Keyboard class
-    device_mod = importlib.import_module("isaaclab.devices.keyboard.se3_keyboard")
-    mocker.patch.dict("sys.modules", {"carb": mock_environment["carb"], "omni": mock_environment["omni"]})
-    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
-    mocker.patch.object(device_mod, "omni", mock_environment["omni"])
-
-    # Create the device using the factory
-    device = create_teleop_device("test_keyboard", devices_cfg)
-
-    # Verify the device was created correctly
-    assert isinstance(device, Se3Keyboard)
-    assert device.pos_sensitivity == 0.8
-    assert device.rot_sensitivity == 1.2
-
-
-def test_create_teleop_device_with_callbacks(mock_environment, mocker):
-    """Test creating device with callbacks."""
-    # Create device configuration
-    xr_cfg = XrCfg(anchor_pos=(0.0, 0.0, 0.0), anchor_rot=(1.0, 0.0, 0.0, 0.0), near_plane=0.15)
-    openxr_cfg = OpenXRDeviceCfg(xr_cfg=xr_cfg)
-
-    # Create devices configuration dictionary
-    devices_cfg: dict[str, DeviceCfg] = {"test_xr": openxr_cfg}
-
-    # Create mock callbacks
-    button_a_callback = mocker.MagicMock()
-    button_b_callback = mocker.MagicMock()
-    callbacks = {"button_a": button_a_callback, "button_b": button_b_callback}
-
-    # Mock OpenXRDevice class and dependencies
-    device_mod = importlib.import_module("isaaclab.devices.openxr.openxr_device")
-    mocker.patch.dict(
-        "sys.modules",
-        {
-            "carb": mock_environment["carb"],
-            "omni.kit.xr.core": mock_environment["omni"].kit.xr.core,
-            "isaacsim.core.prims": mocker.MagicMock(),
-        },
-    )
-    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
-    mocker.patch.object(device_mod, "XRCore", mock_environment["omni"].kit.xr.core.XRCore)
-    mocker.patch.object(device_mod, "XRPoseValidityFlags", mock_environment["omni"].kit.xr.core.XRPoseValidityFlags)
-    mock_single_xform = mocker.patch.object(device_mod, "SingleXFormPrim")
-
-    # Configure the mock to return a string for prim_path
-    mock_instance = mock_single_xform.return_value
-    mock_instance.prim_path = "/XRAnchor"
-
-    # Create the device using the factory
-    device = create_teleop_device("test_xr", devices_cfg, callbacks)
-
-    # Verify the device was created correctly
-    assert isinstance(device, OpenXRDevice)
-
-    # Verify callbacks were registered by the factory
-    assert set(device._additional_callbacks.keys()) == {"button_a", "button_b"}
-
-
-def test_create_teleop_device_with_retargeters(mock_environment, mocker):
-    """Test creating device with retargeters."""
-    # Create retargeter configurations
-    retargeter_cfg1 = Se3AbsRetargeterCfg()
-    retargeter_cfg2 = GripperRetargeterCfg()
-
-    # Create device configuration with retargeters
-    xr_cfg = XrCfg()
-    device_cfg = OpenXRDeviceCfg(xr_cfg=xr_cfg, retargeters=[retargeter_cfg1, retargeter_cfg2])
-
-    # Create devices configuration dictionary
-    devices_cfg: dict[str, DeviceCfg] = {"test_xr": device_cfg}
-
-    # Mock OpenXRDevice class and dependencies
-    device_mod = importlib.import_module("isaaclab.devices.openxr.openxr_device")
-    mocker.patch.dict(
-        "sys.modules",
-        {
-            "carb": mock_environment["carb"],
-            "omni.kit.xr.core": mock_environment["omni"].kit.xr.core,
-            "isaacsim.core.prims": mocker.MagicMock(),
-        },
-    )
-    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
-    mocker.patch.object(device_mod, "XRCore", mock_environment["omni"].kit.xr.core.XRCore)
-    mocker.patch.object(device_mod, "XRPoseValidityFlags", mock_environment["omni"].kit.xr.core.XRPoseValidityFlags)
-    mock_single_xform = mocker.patch.object(device_mod, "SingleXFormPrim")
-
-    # Configure the mock to return a string for prim_path
-    mock_instance = mock_single_xform.return_value
-    mock_instance.prim_path = "/XRAnchor"
-
-    # Create the device using the factory
-    device = create_teleop_device("test_xr", devices_cfg)
-
-    # Verify retargeters were created
-    assert len(device._retargeters) == 2
-
-
-def test_create_teleop_device_device_not_found():
-    """Test error when device name is not found in configuration."""
-    # Create devices configuration dictionary
-    devices_cfg: dict[str, DeviceCfg] = {"keyboard": Se3KeyboardCfg()}
-
-    # Try to create a non-existent device
-    with pytest.raises(ValueError, match="Device 'gamepad' not found"):
-        create_teleop_device("gamepad", devices_cfg)
-
-
-def test_create_teleop_device_unsupported_config():
-    """Test error when device configuration type is not supported."""
-
-    # Create a custom unsupported configuration class
-    class UnsupportedCfg:
-        pass
-
-    # Create devices configuration dictionary with unsupported config
-    devices_cfg: dict[str, DeviceCfg] = cast(dict[str, DeviceCfg], {"unsupported": UnsupportedCfg()})
-
-    # Try to create a device with unsupported configuration
-    with pytest.raises(ValueError, match="does not declare class_type"):
-        create_teleop_device("unsupported", devices_cfg)

@@ -8,7 +8,7 @@
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/01_assets/run_articulation.py
+    uv run python scripts/tutorials/01_assets/run_articulation.py
 
 """
 
@@ -90,22 +90,27 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
             # root state
             # we offset the root state by the origin since the states are written in simulation world frame
             # if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world
-            root_state = robot.data.default_root_state.clone()
-            root_state[:, :3] += origins
-            robot.write_root_pose_to_sim(root_state[:, :7])
-            robot.write_root_velocity_to_sim(root_state[:, 7:])
+            root_pose = robot.data.default_root_pose.torch.clone()
+            root_pose[:, :3] += origins
+            robot.write_root_pose_to_sim_index(root_pose=root_pose)
+            root_vel = robot.data.default_root_vel.torch.clone()
+            robot.write_root_velocity_to_sim_index(root_velocity=root_vel)
             # set joint positions with some noise
-            joint_pos, joint_vel = robot.data.default_joint_pos.clone(), robot.data.default_joint_vel.clone()
+            joint_pos, joint_vel = (
+                robot.data.default_joint_pos.torch.clone(),
+                robot.data.default_joint_vel.torch.clone(),
+            )
             joint_pos += torch.rand_like(joint_pos) * 0.1
-            robot.write_joint_state_to_sim(joint_pos, joint_vel)
+            robot.write_joint_position_to_sim_index(position=joint_pos)
+            robot.write_joint_velocity_to_sim_index(velocity=joint_vel)
             # clear internal buffers
             robot.reset()
             print("[INFO]: Resetting robot state...")
         # Apply random action
         # -- generate random joint efforts
-        efforts = torch.randn_like(robot.data.joint_pos) * 5.0
+        efforts = torch.randn_like(robot.data.joint_pos.torch) * 5.0
         # -- apply action to the robot
-        robot.set_joint_effort_target(efforts)
+        robot.actuators.target_command.set_effort_index(value=efforts)
         # -- write data to sim
         robot.write_data_to_sim()
         # Perform step

@@ -7,32 +7,19 @@
 
 from __future__ import annotations
 
-import contextlib
 import logging
-
-from pxr import Usd, UsdGeom
-
-# USD Semantics is only available in Isaac Sim 5.0 and later.
-with contextlib.suppress(ModuleNotFoundError, ImportError):
-    from pxr import UsdSemantics
-
-from isaaclab.utils.version import get_isaac_sim_version
+from typing import TYPE_CHECKING
 
 from .stage import get_current_stage
 
-# import logger
+if TYPE_CHECKING:
+    from pxr import Usd, UsdGeom, UsdSemantics  # noqa: F401
+
 logger = logging.getLogger(__name__)
 
 
 def add_labels(prim: Usd.Prim, labels: list[str], instance_name: str = "class", overwrite: bool = True) -> None:
-    """Apply semantic labels to a prim using the :class:`UsdSemantics.LabelsAPI`.
-
-    This function is a wrapper around the :func:`omni.replicator.core.functional.modify.semantics` function.
-    It applies the labels to the prim using the :class:`UsdSemantics.LabelsAPI`.
-
-    .. versionadded:: 2.3.0
-        This function is available in Isaac Sim 5.0 and later, which introduces the :class:`UsdSemantics.LabelsAPI`.
-        For previous versions, the function falls back to use the deprecated :class:`UsdSemantics.SemanticsAPI` instead.
+    """Apply semantic labels to a prim using :class:`UsdSemantics.LabelsAPI`.
 
     Example:
         >>> prim = sim_utils.create_prim("/World/Test/Sphere", "Sphere", stage=stage, attributes={"radius": 10.0})
@@ -45,52 +32,23 @@ def add_labels(prim: Usd.Prim, labels: list[str], instance_name: str = "class", 
         overwrite: Whether to overwrite existing labels for this instance. If False,
           the new labels are appended to existing ones (if any). Defaults to True.
     """
-    # Try modern approach (Isaac Sim >= 5.0)
-    try:
-        import omni.replicator.core.functional as rep_functional
+    from pxr import UsdSemantics  # noqa: PLC0415
 
-        mode = "replace" if overwrite else "add"
-        rep_functional.modify.semantics(prim, {instance_name: labels}, mode=mode)
-
-        return
-    except (ModuleNotFoundError, ImportError) as e:
-        # check if we are using isaac sim 5.0
-        if get_isaac_sim_version().major >= 5:
-            logger.warning(
-                f"Failed to add labels to prim {prim.GetPath()} using Replicator API: {e}. "
-                "\nPlease ensure Replicator API is enabled by passing '--enable_cameras' to the AppLauncher."
-                "\nFalling back to legacy approach."
-            )
-
-    # Try legacy approach (Isaac Sim < 5.0)
-    try:
-        import Semantics
-
-        # check we have only one label
-        if len(labels) != 1:
-            raise ValueError(f"Only one label can be applied to a prim. Received: {labels}")
-        # set the semantic API for the instance
-        instance_name = f"{instance_name}_{labels[0]}"
-        sem = Semantics.SemanticsAPI.Apply(prim, instance_name)
-        # create semantic type and data attributes
-        sem.CreateSemanticTypeAttr()
-        sem.CreateSemanticDataAttr()
-        sem.GetSemanticTypeAttr().Set(instance_name)
-        sem.GetSemanticDataAttr().Set(labels[0])
-    except Exception as e:
-        logger.warning(
-            f"Failed to add labels to prim {prim.GetPath()} using legacy API: {e}. "
-            "\nSemantics functionality may not be available in this Isaac Sim version."
-            " Please open an issue at https://github.com/isaac-sim/IsaacLab/issues if you believe this is a bug."
-        )
+    labels_api = UsdSemantics.LabelsAPI.Apply(prim, instance_name)
+    labels_attr = labels_api.CreateLabelsAttr()
+    if overwrite:
+        labels_attr.Set(labels)
+    else:
+        existing = labels_attr.Get()
+        if existing:
+            combined = list(existing) + [lbl for lbl in labels if lbl not in existing]
+            labels_attr.Set(combined)
+        else:
+            labels_attr.Set(labels)
 
 
 def get_labels(prim: Usd.Prim) -> dict[str, list[str]]:
     """Get all semantic labels (:class:`UsdSemantics.LabelsAPI`) applied to a prim.
-
-    .. versionadded:: 2.3.0
-        This function is available in Isaac Sim 5.0 and later. For previous versions,
-        please use :mod:`isaacsim.core.utils.semantics` module instead.
 
     Args:
         prim: The USD prim to return labels for.
@@ -99,6 +57,8 @@ def get_labels(prim: Usd.Prim) -> dict[str, list[str]]:
         A dictionary mapping instance names to a list of labels.
         If no labels are found, it returns an empty dictionary.
     """
+    from pxr import UsdSemantics  # noqa: PLC0415
+
     result = {}
     for schema_name in prim.GetAppliedSchemas():
         if schema_name.startswith("SemanticsLabelsAPI:"):
@@ -116,10 +76,6 @@ def get_labels(prim: Usd.Prim) -> dict[str, list[str]]:
 def remove_labels(prim: Usd.Prim, instance_name: str | None = None, include_descendants: bool = False):
     """Removes semantic labels (:class:`UsdSemantics.LabelsAPI`) from a prim and optionally its descendants.
 
-    .. versionadded:: 2.3.0
-        This function is available in Isaac Sim 5.0 and later. For previous versions,
-        please use :mod:`isaacsim.core.utils.semantics` module instead.
-
     Args:
         prim: The USD prim to remove labels from.
         instance_name: The specific instance name to remove. Defaults to None, in which case
@@ -127,6 +83,7 @@ def remove_labels(prim: Usd.Prim, instance_name: str | None = None, include_desc
         include_descendants: Whether to also traverse children and remove labels recursively.
             Defaults to False.
     """
+    from pxr import Usd, UsdSemantics  # noqa: PLC0415
 
     def _remove_single_prim_labels(target_prim: Usd.Prim):
         """Helper function to remove labels from a single prim."""
@@ -154,10 +111,6 @@ def check_missing_labels(prim_path: str | None = None, stage: Usd.Stage | None =
     .. note::
         The function checks only prims that are :class:`UsdGeom.Gprim` type.
 
-    .. versionadded:: 2.3.0
-        This function is available in Isaac Sim 5.0 and later. For previous versions,
-        please use :mod:`isaacsim.core.utils.semantics` module instead.
-
     Args:
         prim_path: The prim path to search from. If None, the entire stage is inspected.
         stage: The stage to search from. If None, the current stage is used.
@@ -165,6 +118,8 @@ def check_missing_labels(prim_path: str | None = None, stage: Usd.Stage | None =
     Returns:
         A list containing prim paths to prims with no labels applied.
     """
+    from pxr import Usd, UsdGeom  # noqa: PLC0415
+
     # check if stage is valid
     stage = stage if stage else get_current_stage()
 
@@ -197,10 +152,6 @@ def count_total_labels(prim_path: str | None = None, stage: Usd.Stage | None = N
     This function iterates over all the prims from the provided path and counts the number of times
     each label is applied to the prims. It returns a dictionary of labels and their corresponding count.
 
-    .. versionadded:: 2.3.0
-        This function is available in Isaac Sim 5.0 and later. For previous versions,
-        please use :mod:`isaacsim.core.utils.semantics` module instead.
-
     Args:
         prim_path: The prim path to search from. If None, the entire stage is inspected.
         stage: The stage to search from. If None, the current stage is used.
@@ -209,6 +160,8 @@ def count_total_labels(prim_path: str | None = None, stage: Usd.Stage | None = N
         A dictionary mapping individual labels to their total count across all instances.
         The dictionary includes a 'missing_labels' count for prims with no labels.
     """
+    from pxr import Usd, UsdGeom  # noqa: PLC0415
+
     stage = stage if stage else get_current_stage()
 
     start_prim = stage.GetPrimAtPath(prim_path) if prim_path else stage.GetPseudoRoot()

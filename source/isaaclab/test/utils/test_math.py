@@ -3,19 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first.
-
-This is only needed because of warp dependency.
-"""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app in headless mode
-simulation_app = AppLauncher(headless=True).app
-
-
-"""Rest everything follows."""
-
 import math
 from math import pi as PI
 
@@ -26,6 +13,9 @@ import torch
 import torch.utils.benchmark as benchmark
 
 import isaaclab.utils.math as math_utils
+from isaaclab.test.utils import DeviceScope, test_devices
+
+pytestmark = pytest.mark.unit
 
 DECIMAL_PRECISION = 5
 """Precision of the test.
@@ -35,7 +25,7 @@ https://github.com/pytorch/pytorch/issues/17678
 """
 
 
-@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("size", ((5, 4, 3), (10, 2)))
 def test_scale_unscale_transform(device, size):
     """Test scale_transform and unscale_transform."""
@@ -72,7 +62,7 @@ def test_scale_unscale_transform(device, size):
     torch.testing.assert_close(output_unscale_offset, inputs)
 
 
-@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("size", ((5, 4, 3), (10, 2)))
 def test_saturate(device, size):
     "Test saturate of a tensor of differed shapes and device."
@@ -94,7 +84,7 @@ def test_saturate(device, size):
     assert torch.all(torch.less_equal(output_per_batch, upper_per_batch)).item()
 
 
-@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("size", ((5, 4, 3), (10, 2)))
 def test_normalize(device, size):
     """Test normalize of a tensor along its last dimension and check the norm of that dimension is close to 1.0."""
@@ -106,7 +96,7 @@ def test_normalize(device, size):
     torch.testing.assert_close(norm, torch.ones(size[0:-1], device=device))
 
 
-@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+@pytest.mark.parametrize("device", test_devices())
 def test_copysign(device):
     """Test copysign by copying a sign from both a negative and positive value and
     verify that the new sign is the same.
@@ -136,40 +126,40 @@ def test_copysign(device):
     torch.testing.assert_close(expected_value_neg_dim1_neg, value_neg_dim1_neg)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_is_identity_pose(device):
     """Test is_identity_pose method."""
-    # Single row identity pose
+    # Single row identity pose (xyzw format)
     identity_pos = torch.zeros(3, device=device)
-    identity_rot = torch.tensor((1.0, 0.0, 0.0, 0.0), device=device)
+    identity_rot = torch.tensor((0.0, 0.0, 0.0, 1.0), device=device)
     assert math_utils.is_identity_pose(identity_pos, identity_rot) is True
 
-    # Modified single row pose
+    # Modified single row pose (not identity)
     identity_pos = torch.tensor([1.0, 0.0, 0.0], device=device)
-    identity_rot = torch.tensor((1.0, 1.0, 0.0, 0.0), device=device)
+    identity_rot = torch.tensor((0.0, 1.0, 0.0, 1.0), device=device)
     assert math_utils.is_identity_pose(identity_pos, identity_rot) is False
 
-    # Multi-row identity pose
+    # Multi-row identity pose (xyzw format)
     identity_pos = torch.zeros(3, 3, device=device)
-    identity_rot = torch.tensor([[1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]], device=device)
+    identity_rot = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]], device=device)
     assert math_utils.is_identity_pose(identity_pos, identity_rot) is True
 
-    # Modified multi-row pose
+    # Modified multi-row pose (not identity)
     identity_pos = torch.tensor([[1.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]], device=device)
-    identity_rot = torch.tensor([[1.0, 1.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]], device=device)
+    identity_rot = torch.tensor([[0.0, 1.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]], device=device)
     assert math_utils.is_identity_pose(identity_pos, identity_rot) is False
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_axis_angle_from_quat(device):
     """Test axis_angle_from_quat method."""
-    # Quaternions of the form (2,4) and (2,2,4)
+    # Quaternions of the form (2,4) and (2,2,4) in xyzw format
     quats = [
-        torch.Tensor([[1.0, 0.0, 0.0, 0.0], [0.8418536, 0.142006, 0.0, 0.5206887]]).to(device),
+        torch.Tensor([[0.0, 0.0, 0.0, 1.0], [0.142006, 0.0, 0.5206887, 0.8418536]]).to(device),
         torch.Tensor(
             [
-                [[1.0, 0.0, 0.0, 0.0], [0.8418536, 0.142006, 0.0, 0.5206887]],
-                [[1.0, 0.0, 0.0, 0.0], [0.9850375, 0.0995007, 0.0995007, 0.0995007]],
+                [[0.0, 0.0, 0.0, 1.0], [0.142006, 0.0, 0.5206887, 0.8418536]],
+                [[0.0, 0.0, 0.0, 1.0], [0.0995007, 0.0995007, 0.0995007, 0.9850375]],
             ]
         ).to(device),
     ]
@@ -184,7 +174,7 @@ def test_axis_angle_from_quat(device):
         torch.testing.assert_close(math_utils.axis_angle_from_quat(quat), angle)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_axis_angle_from_quat_approximation(device):
     """Test the Taylor approximation from axis_angle_from_quat method.
 
@@ -195,9 +185,9 @@ def test_axis_angle_from_quat_approximation(device):
     theta = torch.Tensor([0.0000001]).to(device)
     # Arbitrary normalized axis of rotation in rads, (x,y,z)
     axis = [-0.302286, 0.205494, -0.930803]
-    # Generate quaternion
+    # Generate quaternion in xyzw format: [qx, qy, qz, qw]
     qw = torch.cos(theta / 2)
-    quat_vect = [qw] + [d * torch.sin(theta / 2) for d in axis]
+    quat_vect = [d * torch.sin(theta / 2) for d in axis] + [qw]
     quaternion = torch.tensor(quat_vect, dtype=torch.float32, device=device)
 
     # Convert quaternion to axis-angle
@@ -210,36 +200,36 @@ def test_axis_angle_from_quat_approximation(device):
     torch.testing.assert_close(axis_angle_computed, axis_angle_expected)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_quat_error_magnitude(device):
     """Test quat_error_magnitude method."""
-    # No rotation
-    q1 = torch.Tensor([1, 0, 0, 0]).to(device)
-    q2 = torch.Tensor([1, 0, 0, 0]).to(device)
+    # No rotation (xyzw format)
+    q1 = torch.Tensor([0, 0, 0, 1]).to(device)
+    q2 = torch.Tensor([0, 0, 0, 1]).to(device)
     expected_diff = torch.Tensor([0.0]).to(device)
     q12_diff = math_utils.quat_error_magnitude(q1, q2)
     assert math.isclose(q12_diff.item(), expected_diff.item(), rel_tol=1e-5)
 
-    # PI/2 rotation
-    q1 = torch.Tensor([1.0, 0, 0.0, 0]).to(device)
-    q2 = torch.Tensor([0.7071068, 0.7071068, 0, 0]).to(device)
+    # PI/2 rotation around x (xyzw format)
+    q1 = torch.Tensor([0, 0, 0, 1.0]).to(device)
+    q2 = torch.Tensor([0.7071068, 0, 0, 0.7071068]).to(device)
     expected_diff = torch.Tensor([PI / 2]).to(device)
     q12_diff = math_utils.quat_error_magnitude(q1, q2)
     assert math.isclose(q12_diff.item(), expected_diff.item(), rel_tol=1e-5)
 
-    # PI rotation
-    q1 = torch.Tensor([1.0, 0, 0.0, 0]).to(device)
-    q2 = torch.Tensor([0.0, 0.0, 1.0, 0]).to(device)
+    # PI rotation around y (xyzw format)
+    q1 = torch.Tensor([0, 0, 0, 1.0]).to(device)
+    q2 = torch.Tensor([0.0, 1.0, 0, 0.0]).to(device)
     expected_diff = torch.Tensor([PI]).to(device)
     q12_diff = math_utils.quat_error_magnitude(q1, q2)
     assert math.isclose(q12_diff.item(), expected_diff.item(), rel_tol=1e-5)
 
-    # Batched inputs
+    # Batched inputs (xyzw format)
     q1 = torch.stack(
-        [torch.Tensor([1, 0, 0, 0]), torch.Tensor([1.0, 0, 0.0, 0]), torch.Tensor([1.0, 0, 0.0, 0])], dim=0
+        [torch.Tensor([0, 0, 0, 1]), torch.Tensor([0, 0, 0, 1.0]), torch.Tensor([0, 0, 0, 1.0])], dim=0
     ).to(device)
     q2 = torch.stack(
-        [torch.Tensor([1, 0, 0, 0]), torch.Tensor([0.7071068, 0.7071068, 0, 0]), torch.Tensor([0.0, 0.0, 1.0, 0])],
+        [torch.Tensor([0, 0, 0, 1]), torch.Tensor([0.7071068, 0, 0, 0.7071068]), torch.Tensor([0.0, 1.0, 0, 0.0])],
         dim=0,
     ).to(device)
     expected_diff = (
@@ -249,7 +239,7 @@ def test_quat_error_magnitude(device):
     torch.testing.assert_close(q12_diff, expected_diff)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_quat_unique(device):
     """Test quat_unique method."""
     # Define test cases
@@ -258,16 +248,16 @@ def test_quat_unique(device):
     # Test positive real quaternion
     pos_real_quats = math_utils.quat_unique(quats)
 
-    # Test that the real part is positive
-    assert torch.all(pos_real_quats[:, 0] > 0).item()
+    # Test that the real part (w, at index 3 in xyzw format) is positive
+    assert torch.all(pos_real_quats[:, 3] > 0).item()
 
-    non_pos_indices = quats[:, 0] < 0
-    # Check imaginary part have sign flipped if real part is negative
+    non_pos_indices = quats[:, 3] < 0
+    # Check quaternion is negated if real part was negative
     torch.testing.assert_close(pos_real_quats[non_pos_indices], -quats[non_pos_indices])
     torch.testing.assert_close(pos_real_quats[~non_pos_indices], quats[~non_pos_indices])
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_quat_mul_with_quat_unique(device):
     """Test quat_mul method with different quaternions.
 
@@ -300,7 +290,7 @@ def test_quat_mul_with_quat_unique(device):
     torch.testing.assert_close(quat_result_3, quat_result_1)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_quat_error_mag_with_quat_unique(device):
     """Test quat_error_magnitude method with positive real quaternions."""
 
@@ -323,12 +313,13 @@ def test_quat_error_mag_with_quat_unique(device):
     torch.testing.assert_close(error_4, error_1)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_convention_converter(device):
     """Test convert_camera_frame_orientation_convention to and from ros, opengl, and world conventions."""
-    quat_ros = torch.tensor([[-0.17591989, 0.33985114, 0.82047325, -0.42470819]], device=device)
-    quat_opengl = torch.tensor([[0.33985113, 0.17591988, 0.42470818, 0.82047324]], device=device)
-    quat_world = torch.tensor([[-0.3647052, -0.27984815, -0.1159169, 0.88047623]], device=device)
+    # Quaternions in xyzw format (converted from original wxyz test values)
+    quat_ros = torch.tensor([[0.33985114, 0.82047325, -0.42470819, -0.17591989]], device=device)
+    quat_opengl = torch.tensor([[0.17591988, 0.42470818, 0.82047324, 0.33985113]], device=device)
+    quat_world = torch.tensor([[-0.27984815, -0.1159169, 0.88047623, -0.3647052]], device=device)
 
     # from ROS
     torch.testing.assert_close(
@@ -360,7 +351,7 @@ def test_convention_converter(device):
     )
 
 
-@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("size", ((10, 4), (5, 3, 4)))
 def test_convert_quat(device, size):
     """Test convert_quat from "xyzw" to "wxyz" and back to "xyzw" and verify the correct rolling of the tensor.
@@ -395,20 +386,21 @@ def test_convert_quat(device, size):
         math_utils.convert_quat(quat, to="xwyz")
 
 
-@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+@pytest.mark.parametrize("device", test_devices())
 def test_quat_conjugate(device):
     """Test quat_conjugate by checking the sign of the imaginary part changes but the magnitudes stay the same."""
 
     quat = math_utils.random_orientation(1000, device=device)
 
     value = math_utils.quat_conjugate(quat)
-    expected_real = quat[..., 0]
-    expected_imag = -quat[..., 1:]
-    torch.testing.assert_close(expected_real, value[..., 0])
-    torch.testing.assert_close(expected_imag, value[..., 1:])
+    # In xyzw format: xyz is imaginary (indices 0-2), w is real (index 3)
+    expected_imag = -quat[..., :3]
+    expected_real = quat[..., 3]
+    torch.testing.assert_close(expected_imag, value[..., :3])
+    torch.testing.assert_close(expected_real, value[..., 3])
 
 
-@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("num_envs", (1, 10))
 @pytest.mark.parametrize(
     "euler_angles",
@@ -426,20 +418,20 @@ def test_quat_from_euler_xyz(device, num_envs, euler_angles):
 
     angles = torch.tensor(euler_angles, device=device).unsqueeze(0).repeat((num_envs, 1))
     quat_value = math_utils.quat_unique(math_utils.quat_from_euler_xyz(angles[:, 0], angles[:, 1], angles[:, 2]))
-    expected_quat = math_utils.convert_quat(
+    # scipy's as_quat() already returns xyzw format, no conversion needed
+    expected_quat = (
         torch.tensor(
             scipy_tf.Rotation.from_euler("xyz", euler_angles, degrees=False).as_quat(),
             device=device,
             dtype=torch.float,
         )
         .unsqueeze(0)
-        .repeat((num_envs, 1)),
-        to="wxyz",
+        .repeat((num_envs, 1))
     )
     torch.testing.assert_close(expected_quat, quat_value)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_wrap_to_pi(device):
     """Test wrap_to_pi method."""
     # No wrapping needed
@@ -475,7 +467,7 @@ def test_wrap_to_pi(device):
     torch.testing.assert_close(wrapped_angle, expected_angle)
 
 
-@pytest.mark.parametrize("device", ("cpu", "cuda:0"))
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("shape", ((3,), (1024, 3)))
 def test_skew_symmetric_matrix(device, shape):
     """Test skew_symmetric_matrix."""
@@ -505,7 +497,7 @@ def test_skew_symmetric_matrix(device, shape):
     torch.testing.assert_close(vec_rand_resized[:, 0], mat_value[:, 2, 1])
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_orthogonalize_perspective_depth(device):
     """Test for converting perspective depth to orthogonal depth."""
     # Create a sample perspective depth image (N, H, W)
@@ -526,7 +518,7 @@ def test_orthogonalize_perspective_depth(device):
     torch.testing.assert_close(orthogonal_depth, expected_orthogonal_depth)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_combine_frame_transform(device):
     """Test combine_frame_transforms function."""
     # create random poses
@@ -551,13 +543,16 @@ def test_combine_frame_transform(device):
     torch.testing.assert_close(pose01, torch.cat((pos01, quat01), dim=-1))
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_interpolate_poses(device):
+@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("seed", [0, 1, 2, 3, 4])
+def test_interpolate_poses(device, seed):
     """Test interpolate_poses function.
 
     This test checks the output from the :meth:`~isaaclab.utils.math_utils.interpolate_poses` function against
     the output from :func:`scipy.spatial.transform.Slerp` and :func:`np.linspace`.
     """
+    torch.manual_seed(seed)
+    np.random.seed(seed)
     for _ in range(100):
         mat1 = math_utils.generate_random_transformation_matrix()
         mat2 = math_utils.generate_random_transformation_matrix()
@@ -616,27 +611,26 @@ def test_pose_inv():
     np.testing.assert_array_almost_equal(result, expected, decimal=DECIMAL_PRECISION)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_quat_to_and_from_angle_axis(device):
     """Test that axis_angle_from_quat against scipy and that quat_from_angle_axis are the inverse of each other."""
     n = 1024
     q_rand = math_utils.quat_unique(math_utils.random_orientation(num=n, device=device))
     rot_vec_value = math_utils.axis_angle_from_quat(q_rand)
+    # Our quaternions are already in xyzw format, which scipy expects
     rot_vec_scipy = torch.tensor(
-        scipy_tf.Rotation.from_quat(
-            math_utils.convert_quat(quat=q_rand.to(device="cpu").numpy(), to="xyzw")
-        ).as_rotvec(),
+        scipy_tf.Rotation.from_quat(q_rand.to(device="cpu").numpy()).as_rotvec(),
         device=device,
         dtype=torch.float32,
     )
     torch.testing.assert_close(rot_vec_scipy, rot_vec_value)
     axis = math_utils.normalize(rot_vec_value.clone())
-    angle = torch.norm(rot_vec_value.clone(), dim=-1)
+    angle = torch.linalg.norm(rot_vec_value.clone(), dim=-1)
     q_value = math_utils.quat_unique(math_utils.quat_from_angle_axis(angle, axis))
     torch.testing.assert_close(q_rand, q_value)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_quat_box_minus(device):
     """Test quat_box_minus method.
 
@@ -654,7 +648,7 @@ def test_quat_box_minus(device):
     torch.testing.assert_close(expected_diff, axis_diff, atol=1e-06, rtol=1e-06)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_quat_box_minus_and_quat_box_plus(device):
     """Test consistency of quat_box_plus and quat_box_minus.
 
@@ -679,9 +673,9 @@ def test_quat_box_minus_and_quat_box_plus(device):
             device=device,
         )
 
-        # Initialize quaternion trajectory starting from identity quaternion
+        # Initialize quaternion trajectory starting from identity quaternion (xyzw format)
         quat_trajectory = torch.zeros((len(delta_angle), 2 * n + 1, 4), device=device)
-        quat_trajectory[:, 0, :] = torch.tensor([[1.0, 0.0, 0.0, 0.0]], device=device).repeat(len(delta_angle), 1)
+        quat_trajectory[:, 0, :] = torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=device).repeat(len(delta_angle), 1)
 
         # Integrate incremental rotations forward to form a closed loop trajectory
         for i in range(1, 2 * n + 1):
@@ -696,7 +690,7 @@ def test_quat_box_minus_and_quat_box_plus(device):
             torch.testing.assert_close(delta_result, delta_angle, atol=1e-04, rtol=1e-04)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("t12_inputs", ["True", "False"])
 @pytest.mark.parametrize("q12_inputs", ["True", "False"])
 def test_combine_frame_transforms(device, t12_inputs, q12_inputs):
@@ -735,7 +729,7 @@ def test_combine_frame_transforms(device, t12_inputs, q12_inputs):
     torch.testing.assert_close(math_utils.quat_unique(expected_quat), math_utils.quat_unique(quat_value))
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("t02_inputs", ["True", "False"])
 @pytest.mark.parametrize("q02_inputs", ["True", "False"])
 def test_subtract_frame_transforms(device, t02_inputs, q02_inputs):
@@ -775,7 +769,7 @@ def test_subtract_frame_transforms(device, t02_inputs, q02_inputs):
     torch.testing.assert_close(math_utils.quat_unique(q02_expected), math_utils.quat_unique(q02_compare))
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("rot_error_type", ("quat", "axis_angle"))
 def test_compute_pose_error(device, rot_error_type):
     """Test compute_pose_error for different rot_error_type."""
@@ -795,7 +789,7 @@ def test_compute_pose_error(device, rot_error_type):
     else:
         axis_angle = math_utils.quat_box_minus(q02, q01)
         axis = math_utils.normalize(axis_angle)
-        angle = torch.norm(axis_angle, dim=-1)
+        angle = torch.linalg.norm(axis_angle, dim=-1)
 
         torch.testing.assert_close(
             math_utils.quat_unique(math_utils.quat_from_angle_axis(angle, axis)),
@@ -803,7 +797,7 @@ def test_compute_pose_error(device, rot_error_type):
         )
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_rigid_body_twist_transform(device):
     """Test rigid_body_twist_transform method.
 
@@ -831,17 +825,17 @@ def test_rigid_body_twist_transform(device):
     torch.testing.assert_close(w_AA_, w_AA)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_yaw_quat(device):
     """
     Test for yaw_quat methods.
     """
-    # 90-degree (n/2 radians) rotations about the Y-axis
-    quat_input = torch.tensor([0.7071, 0, 0.7071, 0], device=device)
+    # 90-degree (pi/2 radians) rotations about the Y-axis (xyzw format)
+    quat_input = torch.tensor([0, 0.7071, 0, 0.7071], device=device)
     cloned_quat_input = quat_input.clone()
 
-    # Calculated output that the function should return
-    expected_output = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device)
+    # Calculated output that the function should return (identity in xyzw)
+    expected_output = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)
 
     # Compute the result using the existing implementation
     result = math_utils.yaw_quat(quat_input)
@@ -853,7 +847,7 @@ def test_yaw_quat(device):
     torch.testing.assert_close(result, expected_output)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_quat_slerp(device):
     """Test quat_slerp function.
 
@@ -883,7 +877,7 @@ def test_quat_slerp(device):
             np.testing.assert_array_almost_equal(result.cpu(), expected, decimal=DECIMAL_PRECISION)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_matrix_from_quat(device):
     """test matrix_from_quat against scipy."""
     # prepare random quaternions and vectors
@@ -891,8 +885,9 @@ def test_matrix_from_quat(device):
     # prepare random quaternions and vectors
     q_rand = math_utils.quat_unique(math_utils.random_orientation(num=n, device=device))
     rot_mat = math_utils.matrix_from_quat(quaternions=q_rand)
+    # Our quaternions are already in xyzw format, which scipy expects
     rot_mat_scipy = torch.tensor(
-        scipy_tf.Rotation.from_quat(math_utils.convert_quat(quat=q_rand.to(device="cpu"), to="xyzw")).as_matrix(),
+        scipy_tf.Rotation.from_quat(q_rand.to(device="cpu").numpy()).as_matrix(),
         device=device,
         dtype=torch.float32,
     )
@@ -901,7 +896,7 @@ def test_matrix_from_quat(device):
     torch.testing.assert_close(q_rand, q_value)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize(
     "euler_angles",
     [
@@ -934,13 +929,14 @@ def test_matrix_from_euler(device, euler_angles, convention):
     torch.testing.assert_close(expected_mag, mat_value)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_quat_apply(device):
     """Test for quat_apply against scipy."""
     # prepare random quaternions and vectors
     n = 1024
     q_rand = math_utils.random_orientation(num=n, device=device)
-    Rotation = scipy_tf.Rotation.from_quat(math_utils.convert_quat(quat=q_rand.to(device="cpu").numpy(), to="xyzw"))
+    # Our quaternions are already in xyzw format, which scipy expects
+    Rotation = scipy_tf.Rotation.from_quat(q_rand.to(device="cpu").numpy())
 
     v_rand = math_utils.sample_uniform(-1000, 1000, (n, 3), device=device)
 
@@ -950,14 +946,15 @@ def test_quat_apply(device):
     torch.testing.assert_close(scipy_result.to(device=device), apply_result, atol=2e-4, rtol=2e-4)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_quat_apply_inverse(device):
     """Test for quat_apply against scipy."""
 
     # prepare random quaternions and vectors
     n = 1024
     q_rand = math_utils.random_orientation(num=n, device=device)
-    Rotation = scipy_tf.Rotation.from_quat(math_utils.convert_quat(quat=q_rand.to(device="cpu").numpy(), to="xyzw"))
+    # Our quaternions are already in xyzw format, which scipy expects
+    Rotation = scipy_tf.Rotation.from_quat(q_rand.to(device="cpu").numpy())
 
     v_rand = math_utils.sample_uniform(-1000, 1000, (n, 3), device=device)
 
@@ -969,12 +966,12 @@ def test_quat_apply_inverse(device):
     torch.testing.assert_close(scipy_result.to(device=device), apply_result, atol=2e-4, rtol=2e-4)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_quat_inv(device):
     """Test for quat_inv method.
 
     For random unit and non-unit quaternions q, the Hamilton products
-    q ⊗ q⁻¹ and q⁻¹ ⊗ q must both equal the identity quaternion (1,0,0,0)
+    q ⊗ q⁻¹ and q⁻¹ ⊗ q must both equal the identity quaternion (0,0,0,1)
     within numerical precision.
     """
     num = 2048
@@ -986,7 +983,7 @@ def test_quat_inv(device):
     q_unit = torch.randn(num, 4, device=device)
     q_unit = q_unit / q_unit.norm(dim=-1, keepdim=True)
 
-    identity = torch.tensor([1.0, 0.0, 0.0, 0.0], device=device)
+    identity = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # xyzw format
 
     for q in (q_nonunit, q_unit):
         q_inv = math_utils.quat_inv(q)
@@ -1005,13 +1002,13 @@ def test_quat_apply_benchmarks():
     """
 
     # define old implementation for quat_rotate and quat_rotate_inverse
-    # Based on commit: cdfa954fcc4394ca8daf432f61994e25a7b8e9e2
+    # Updated for xyzw format (xyz at indices 0-2, w at index 3)
 
     @torch.jit.script
     def bmm_quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
         shape = q.shape
-        q_w = q[:, 0]
-        q_vec = q[:, 1:]
+        q_vec = q[:, :3]  # xyz
+        q_w = q[:, 3]  # w
         a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
         b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
         c = q_vec * torch.bmm(q_vec.view(shape[0], 1, 3), v.view(shape[0], 3, 1)).squeeze(-1) * 2.0
@@ -1020,8 +1017,8 @@ def test_quat_apply_benchmarks():
     @torch.jit.script
     def bmm_quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
         shape = q.shape
-        q_w = q[:, 0]
-        q_vec = q[:, 1:]
+        q_vec = q[:, :3]  # xyz
+        q_w = q[:, 3]  # w
         a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
         b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
         c = q_vec * torch.bmm(q_vec.view(shape[0], 1, 3), v.view(shape[0], 3, 1)).squeeze(-1) * 2.0
@@ -1029,8 +1026,8 @@ def test_quat_apply_benchmarks():
 
     @torch.jit.script
     def einsum_quat_rotate(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-        q_w = q[..., 0]
-        q_vec = q[..., 1:]
+        q_vec = q[..., :3]  # xyz
+        q_w = q[..., 3]  # w
         a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
         b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
         c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
@@ -1038,15 +1035,15 @@ def test_quat_apply_benchmarks():
 
     @torch.jit.script
     def einsum_quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-        q_w = q[..., 0]
-        q_vec = q[..., 1:]
+        q_vec = q[..., :3]  # xyz
+        q_w = q[..., 3]  # w
         a = v * (2.0 * q_w**2 - 1.0).unsqueeze(-1)
         b = torch.cross(q_vec, v, dim=-1) * q_w.unsqueeze(-1) * 2.0
         c = q_vec * torch.einsum("...i,...i->...", q_vec, v).unsqueeze(-1) * 2.0
         return a - b + c
 
     # check that implementation produces the same result as the new implementation
-    for device in ["cpu", "cuda:0"]:
+    for device in test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA):
         # prepare random quaternions and vectors
         q_rand = math_utils.random_orientation(num=1024, device=device)
         v_rand = math_utils.sample_uniform(-1000, 1000, (1024, 3), device=device)
@@ -1070,7 +1067,7 @@ def test_quat_apply_benchmarks():
         torch.testing.assert_close(einsum_result_inv, new_result_inv, atol=1e-3, rtol=1e-3)
 
     # check the performance of the new implementation
-    for device in ["cpu", "cuda:0"]:
+    for device in test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA):
         # prepare random quaternions and vectors
         # new implementation supports batched inputs
         q_shape = (1024, 2, 5, 4)
@@ -1261,26 +1258,27 @@ def test_euler_xyz_from_quat():
     against the expected output for various quaternions.
     The test includes quaternions representing different rotations around the x, y, and z axes.
     The test is performed for both the default output range (-π, π] and the wrapped output range [0, 2π).
+    Quaternions are in xyzw format.
     """
     quats = [
-        torch.Tensor([[1.0, 0.0, 0.0, 0.0]]),  # 0° around x, y, z
+        torch.Tensor([[0.0, 0.0, 0.0, 1.0]]),  # 0° around x, y, z (identity)
         torch.Tensor(
             [
-                [0.9238795, 0.3826834, 0.0, 0.0],  # 45° around x
-                [0.9238795, 0.0, -0.3826834, 0.0],  # -45° around y
-                [0.9238795, 0.0, 0.0, -0.3826834],  # -45° around z
+                [0.3826834, 0.0, 0.0, 0.9238795],  # 45° around x
+                [0.0, -0.3826834, 0.0, 0.9238795],  # -45° around y
+                [0.0, 0.0, -0.3826834, 0.9238795],  # -45° around z
             ]
         ),
         torch.Tensor(
             [
-                [0.7071068, -0.7071068, 0.0, 0.0],  # -90° around x
-                [0.7071068, 0.0, 0.0, -0.7071068],  # -90° around z
+                [-0.7071068, 0.0, 0.0, 0.7071068],  # -90° around x
+                [0.0, 0.0, -0.7071068, 0.7071068],  # -90° around z
             ]
         ),
         torch.Tensor(
             [
-                [0.3826834, -0.9238795, 0.0, 0.0],  # -135° around x
-                [0.3826834, 0.0, 0.0, -0.9238795],  # -135° around y
+                [-0.9238795, 0.0, 0.0, 0.3826834],  # -135° around x
+                [0.0, 0.0, -0.9238795, 0.3826834],  # -135° around z
             ]
         ),
     ]
@@ -1318,3 +1316,117 @@ def test_euler_xyz_from_quat():
         wrapped = expected % (2 * torch.pi)
         output = torch.stack(math_utils.euler_xyz_from_quat(quat, wrap_to_2pi=True), dim=-1)
         torch.testing.assert_close(output, wrapped)
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_create_rotation_matrix_from_view_lookat_along_up_axis_z(device):
+    """Camera above target on +Z axis with Z-up should return a valid orthonormal frame."""
+    eyes = torch.tensor([[0.0, 0.0, 5.0]], device=device)
+    targets = torch.tensor([[0.0, 0.0, 0.0]], device=device)
+    R = math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis="Z", device=device)
+    assert R is not None
+    identity = torch.eye(3, device=device).expand(1, 3, 3)
+    torch.testing.assert_close(R @ R.transpose(-1, -2), identity, atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(torch.linalg.det(R), torch.ones(1, device=device), atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_create_rotation_matrix_from_view_lookat_along_up_axis_y(device):
+    """Camera at +Y looking at origin with Y-up should return a valid orthonormal frame."""
+    eyes = torch.tensor([[0.0, 5.0, 0.0]], device=device)
+    targets = torch.tensor([[0.0, 0.0, 0.0]], device=device)
+    R = math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis="Y", device=device)
+    assert R is not None
+    identity = torch.eye(3, device=device).expand(1, 3, 3)
+    torch.testing.assert_close(R @ R.transpose(-1, -2), identity, atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(torch.linalg.det(R), torch.ones(1, device=device), atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_create_rotation_matrix_from_view_lookat_along_negative_up_axis(device):
+    """Camera below target looking up (-Z alignment with Z-up) should return a valid orthonormal frame."""
+    eyes = torch.tensor([[0.0, 0.0, -5.0]], device=device)
+    targets = torch.tensor([[0.0, 0.0, 0.0]], device=device)
+    R = math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis="Z", device=device)
+    assert R is not None
+    identity = torch.eye(3, device=device).expand(1, 3, 3)
+    torch.testing.assert_close(R @ R.transpose(-1, -2), identity, atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(torch.linalg.det(R), torch.ones(1, device=device), atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_create_rotation_matrix_from_view_zero_forward_returns_nan(device):
+    """When eyes == targets the forward direction is undefined; all entries of the row are NaN."""
+    eyes = torch.tensor([[1.0, 2.0, 3.0]], device=device)
+    targets = eyes.clone()
+    R = math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis="Z", device=device)
+    assert torch.isnan(R).all()
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_create_rotation_matrix_from_view_batched_partial_failure(device):
+    """Mixed batch with one degenerate row should produce NaN in that row and a valid rotation in the other."""
+    eyes = torch.tensor([[1.0, 2.0, 3.0], [0.0, 0.0, 5.0]], device=device)
+    targets = torch.tensor([[1.0, 2.0, 3.0], [0.0, 0.0, 0.0]], device=device)
+    R = math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis="Z", device=device)
+    assert torch.isnan(R[0]).any()
+    torch.testing.assert_close(R[1] @ R[1].T, torch.eye(3, device=device), atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(torch.linalg.det(R[1]), torch.tensor(1.0, device=device), atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_quat_from_matrix_unit_norm_on_valid_input(device):
+    """quat_from_matrix should produce unit quaternions for any valid rotation matrix."""
+    n = 100
+    q_rand = math_utils.random_orientation(num=n, device=device)
+    rot_mat = math_utils.matrix_from_quat(q_rand)
+    q_value = math_utils.quat_from_matrix(rot_mat)
+    norms = torch.linalg.norm(q_value, dim=-1)
+    torch.testing.assert_close(norms, torch.ones(n, device=device), atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_quat_from_matrix_singular_matrix_returns_nan(device):
+    """quat_from_matrix on a singular (non-rotation) matrix should signal NaN, not garbage."""
+    singular = torch.tensor([[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 1.0]]], device=device)
+    q = math_utils.quat_from_matrix(singular)
+    assert torch.isnan(q).all()
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_create_rotation_matrix_from_view_standard(device):
+    """Sanity: off-axis eye produces an orthonormal frame whose z-axis points from target back to eye."""
+    eyes = torch.tensor([[3.0, 0.0, 4.0]], device=device)
+    targets = torch.tensor([[0.0, 0.0, 0.0]], device=device)
+    R = math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis="Z", device=device)
+    identity = torch.eye(3, device=device).expand(1, 3, 3)
+    torch.testing.assert_close(R @ R.transpose(-1, -2), identity, atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(torch.linalg.det(R), torch.ones(1, device=device), atol=1e-5, rtol=1e-5)
+    # z_axis is back-of-camera in OpenGL convention: points from target to eye
+    expected_z = torch.tensor([[0.6, 0.0, 0.8]], device=device)
+    torch.testing.assert_close(R[:, :, 2], expected_z, atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_create_rotation_matrix_from_view_non_finite_returns_nan(device):
+    """Non-finite input (NaN or Inf in eyes/targets) should produce NaN rows."""
+    eyes = torch.tensor([[float("nan"), 0.0, 0.0]], device=device)
+    targets = torch.tensor([[0.0, 0.0, 0.0]], device=device)
+    R = math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis="Z", device=device)
+    assert torch.isnan(R).all()
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_quat_from_matrix_reflection_returns_nan(device):
+    """A reflection matrix (det = -1) is not a proper rotation; the safeguard should signal NaN."""
+    reflection = torch.diag(torch.tensor([1.0, 1.0, -1.0], device=device)).unsqueeze(0)
+    q = math_utils.quat_from_matrix(reflection)
+    assert torch.isnan(q).all()
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_quat_from_matrix_non_orthonormal_returns_nan(device):
+    """A non-orthonormal matrix (1% scale error on one axis) is not a valid rotation; expect NaN."""
+    R = torch.diag(torch.tensor([1.01, 1.0, 1.0], device=device)).unsqueeze(0)
+    q = math_utils.quat_from_matrix(R)
+    assert torch.isnan(q).all()

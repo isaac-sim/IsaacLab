@@ -11,6 +11,7 @@ import argparse
 import math
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils.string import list_intersection, string_to_callable
 
 # Launching Isaac Sim Simulator first.
 
@@ -29,32 +30,36 @@ parser.add_argument(
 )
 parser.add_argument("--auto", action="store_true", default=False, help="Automatically annotate subtasks.")
 parser.add_argument(
-    "--enable_pinocchio",
-    action="store_true",
-    default=False,
-    help="Enable Pinocchio.",
-)
-parser.add_argument(
     "--annotate_subtask_start_signals",
     action="store_true",
     default=False,
     help="Enable annotating start points of subtasks.",
 )
 
+parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
-args_cli = parser.parse_args()
-
-if args_cli.enable_pinocchio:
-    # Import pinocchio before AppLauncher to force the use of the version installed
-    # by IsaacLab and not the one installed by Isaac Sim.
-    # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
-    import pinocchio  # noqa: F401
+args_cli, remaining_args = parser.parse_known_args()
 
 # launch the simulator
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
+
+# Call an external callback if requested.
+remaining_args_env_registration = None
+if args_cli.external_callback:
+    external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
+    remaining_args_env_registration = external_callback_function()
+
+# Extras of the form "key=value" are Hydra-style task config overrides forwarded to
+# parse_env_cfg(); everything else must be consumed by the external callback or is an error.
+hydra_overrides = [arg for arg in remaining_args if "=" in arg]
+unrecognized_args = list_intersection(
+    [arg for arg in remaining_args if arg not in hydra_overrides], remaining_args_env_registration
+)
+if unrecognized_args:
+    parser.error(f"unrecognized arguments: {' '.join(unrecognized_args)}")
 
 """Rest everything follows."""
 
@@ -65,9 +70,6 @@ import gymnasium as gym
 import torch
 
 import isaaclab_mimic.envs  # noqa: F401
-
-if args_cli.enable_pinocchio:
-    import isaaclab_mimic.envs.pinocchio_envs  # noqa: F401
 
 # Only enables inputs if this script is NOT headless mode
 if not args_cli.headless and not os.environ.get("HEADLESS", 0):
@@ -197,7 +199,7 @@ def main():
     if env_name is None:
         raise ValueError("Task/env name was not specified nor found in the dataset.")
 
-    env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1)
+    env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1, overrides=hydra_overrides)
 
     env_cfg.env_name = env_name
 

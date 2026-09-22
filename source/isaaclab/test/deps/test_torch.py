@@ -7,13 +7,17 @@ import pytest
 import torch
 import torch.utils.benchmark as benchmark
 
+from isaaclab.test.utils import test_devices
 
-@pytest.mark.isaacsim_ci
-def test_array_slicing():
+pytestmark = [pytest.mark.unit, pytest.mark.arm_ci]
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_array_slicing(device):
     """Check that using ellipsis and slices work for torch tensors."""
 
     size = (400, 300, 5)
-    my_tensor = torch.rand(size, device="cuda:0")
+    my_tensor = torch.rand(size, device=device)
 
     assert my_tensor[..., 0].shape == (400, 300)
     assert my_tensor[:, :, 0].shape == (400, 300)
@@ -31,12 +35,12 @@ def test_array_slicing():
     assert my_tensor[:, 0, 0].shape == (400,)
 
 
-@pytest.mark.isaacsim_ci
-def test_array_circular():
+@pytest.mark.parametrize("device", test_devices())
+def test_array_circular(device):
     """Check circular buffer implementation in torch."""
 
     size = (10, 30, 5)
-    my_tensor = torch.rand(size, device="cuda:0")
+    my_tensor = torch.rand(size, device=device)
 
     # roll up the tensor without cloning
     my_tensor_1 = my_tensor.clone()
@@ -75,12 +79,12 @@ def test_array_circular():
     assert torch.allclose(my_tensor_4, my_tensor.roll(1, dims=1))
 
 
-@pytest.mark.isaacsim_ci
-def test_array_circular_copy():
+@pytest.mark.parametrize("device", test_devices())
+def test_array_circular_copy(device):
     """Check that circular buffer implementation in torch is copying data."""
 
     size = (10, 30, 5)
-    my_tensor = torch.rand(size, device="cuda:0")
+    my_tensor = torch.rand(size, device=device)
     my_tensor_clone = my_tensor.clone()
 
     # roll up the tensor
@@ -94,24 +98,24 @@ def test_array_circular_copy():
     assert torch.allclose(my_tensor_1, my_tensor_clone.roll(1, dims=1))
 
 
-@pytest.mark.isaacsim_ci
-def test_array_multi_indexing():
+@pytest.mark.parametrize("device", test_devices())
+def test_array_multi_indexing(device):
     """Check multi-indexing works for torch tensors."""
 
     size = (400, 300, 5)
-    my_tensor = torch.rand(size, device="cuda:0")
+    my_tensor = torch.rand(size, device=device)
 
     # this fails since array indexing cannot be broadcasted!!
     with pytest.raises(IndexError):
         my_tensor[[0, 1, 2, 3], [0, 1, 2, 3, 4]]
 
 
-@pytest.mark.isaacsim_ci
-def test_array_single_indexing():
+@pytest.mark.parametrize("device", test_devices())
+def test_array_single_indexing(device):
     """Check how indexing effects the returned tensor."""
 
     size = (400, 300, 5)
-    my_tensor = torch.rand(size, device="cuda:0")
+    my_tensor = torch.rand(size, device=device)
 
     # obtain a slice of the tensor
     my_slice = my_tensor[0, ...]
@@ -130,13 +134,13 @@ def test_array_single_indexing():
     assert my_slice.untyped_storage().data_ptr() != my_tensor.untyped_storage().data_ptr()
 
 
-@pytest.mark.isaacsim_ci
-def test_logical_or():
+@pytest.mark.parametrize("device", test_devices())
+def test_logical_or(device):
     """Test bitwise or operation."""
 
     size = (400, 300, 5)
-    my_tensor_1 = torch.rand(size, device="cuda:0") > 0.5
-    my_tensor_2 = torch.rand(size, device="cuda:0") < 0.5
+    my_tensor_1 = torch.rand(size, device=device) > 0.5
+    my_tensor_2 = torch.rand(size, device=device) < 0.5
 
     # check the speed of logical or
     timer_logical_or = benchmark.Timer(

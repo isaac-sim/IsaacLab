@@ -19,7 +19,7 @@ There are two main ways of using the spawners:
     from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
     # spawn from USD file
-    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
+    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd")
     prim_path = "/World/myAsset"
 
     # spawn using the function from the module
@@ -33,7 +33,7 @@ There are two main ways of using the spawners:
     from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
     # spawn from USD file
-    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd")
+    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd")
     prim_path = "/World/myAsset"
 
     # use the `func` reference in the config class
@@ -54,11 +54,6 @@ For example:
 
 """
 
-from .from_files import *  # noqa: F401, F403
-from .lights import *  # noqa: F401, F403
-from .materials import *  # noqa: F401, F403
-from .meshes import *  # noqa: F401, F403
-from .sensors import *  # noqa: F401, F403
-from .shapes import *  # noqa: F401, F403
-from .spawner_cfg import *  # noqa: F401, F403
-from .wrappers import *  # noqa: F401, F403
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

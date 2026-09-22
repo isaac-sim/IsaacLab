@@ -3,20 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from collections.abc import Callable
 from dataclasses import MISSING
 
+from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
 from isaaclab.utils import configclass
-
-from . import visual_materials
 
 
 @configclass
-class VisualMaterialCfg:
+class VisualMaterialCfg(SpawnerCfg):
     """Configuration parameters for creating a visual material."""
-
-    func: Callable = MISSING
-    """The function to use for creating the material."""
 
 
 @configclass
@@ -26,7 +24,7 @@ class PreviewSurfaceCfg(VisualMaterialCfg):
     See :meth:`spawn_preview_surface` for more information.
     """
 
-    func: Callable = visual_materials.spawn_preview_surface
+    func: Callable | str = "{DIR}.visual_materials:spawn_preview_surface"
 
     diffuse_color: tuple[float, float, float] = (0.18, 0.18, 0.18)
     """The RGB diffusion color. This is the base color of the surface. Defaults to a dark gray."""
@@ -51,7 +49,7 @@ class MdlFileCfg(VisualMaterialCfg):
     See :meth:`spawn_from_mdl_file` for more information.
     """
 
-    func: Callable = visual_materials.spawn_from_mdl_file
+    func: Callable | str = "{DIR}.visual_materials:spawn_from_mdl_file"
 
     mdl_path: str = MISSING
     """The path to the MDL material.
@@ -83,6 +81,18 @@ class MdlFileCfg(VisualMaterialCfg):
 
 
 @configclass
+class PbrMdlCfg(MdlFileCfg):
+    """Configuration parameters for the OmniPBR MDL material."""
+
+    mdl_path: str = "OmniPBR.mdl"
+    """Path to the OmniPBR material definition."""
+    diffuse_color_constant: tuple[float, float, float] = (0.18, 0.18, 0.18)
+    """Constant linear RGB albedo."""
+    reflection_roughness_constant: float | None = None
+    """Constant surface roughness. The material default is used when None."""
+
+
+@configclass
 class GlassMdlCfg(VisualMaterialCfg):
     """Configuration parameters for loading a glass MDL material.
 
@@ -93,7 +103,7 @@ class GlassMdlCfg(VisualMaterialCfg):
         The default values are taken from the glass material in the NVIDIA Nucleus.
     """
 
-    func: Callable = visual_materials.spawn_from_mdl_file
+    func: Callable | str = "{DIR}.visual_materials:spawn_from_mdl_file"
 
     mdl_path: str = "OmniGlass.mdl"
     """The path to the MDL material. Defaults to the glass material in the NVIDIA Nucleus."""

@@ -1,0 +1,467 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Launch Isaac Sim Simulator first."""
+
+from isaaclab.app import AppLauncher
+
+# launch omniverse app
+simulation_app = AppLauncher(headless=True).app
+
+"""Rest everything follows."""
+
+import os
+
+import pytest
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
+
+from pxr import Usd, UsdGeom, UsdPhysics
+
+import isaaclab.sim as sim_utils
+from isaaclab.sim import SimulationCfg, SimulationContext
+from isaaclab.sim.schemas import MassCfg, UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
+
+pytestmark = pytest.mark.integration
+
+
+LINK_REL_PATHS = ("link1", "link2", "link2/link3")
+"""Link prim paths relative to the robot root; ``link2/link3`` is a nested child link."""
+
+
+@pytest.fixture(autouse=True)
+def cleanup_simulation_context():
+    """Release the simulation context after each test."""
+    yield
+    SimulationContext.clear_instance()
+
+
+def _author_robot_usd(path: str) -> None:
+    """Author a minimal articulated-robot USD layout.
+
+    Mirrors how real robot assets are structured: the default (spawn) prim carries
+    ``ArticulationRootAPI``, the link prims carry ``RigidBodyAPI`` and ``MassAPI``, and the
+    collider prims under the links carry ``CollisionAPI``. The spawn prim itself carries no
+    rigid-body, collision, or mass schema. ``link3`` is authored under ``link2`` the way the
+    URDF importer nests child links under their parent link.
+    """
+    stage = Usd.Stage.CreateNew(path)
+    robot = UsdGeom.Xform.Define(stage, "/Robot")
+    UsdPhysics.ArticulationRootAPI.Apply(robot.GetPrim())
+    for link_name in LINK_REL_PATHS:
+        link = UsdGeom.Xform.Define(stage, f"/Robot/{link_name}").GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(link)
+        UsdPhysics.MassAPI.Apply(link)
+        collider = UsdGeom.Cube.Define(stage, f"/Robot/{link_name}/collider").GetPrim()
+        UsdPhysics.CollisionAPI.Apply(collider)
+    stage.SetDefaultPrim(robot.GetPrim())
+    stage.Save()
+
+
+def _spawn_robot(tmp_path, prim_path: str, **cfg_kwargs):
+    """Author the robot asset and spawn it at *prim_path* through the production USD spawn path."""
+    from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
+    from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+
+    usd_path = os.path.join(tmp_path, "robot.usda")
+    _author_robot_usd(usd_path)
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    cfg = UsdFileCfg(usd_path=usd_path, **cfg_kwargs)
+    _spawn_from_usd_file(prim_path, usd_path, cfg)
+    return sim_utils.get_current_stage()
+
+
+# -------------------------------------------------------------------------------------
+# Regression: fragment writers must target the asset's existing schema-bearing prims,
+# not force-anchor the defining API on the spawn prim.
+# -------------------------------------------------------------------------------------
+
+
+def test_rigid_body_fragments_target_existing_bodies_on_usd_asset(tmp_path):
+    """Fragment ``rigid_props`` on a USD robot must modify the existing link bodies in place.
+
+    Force-applying ``RigidBodyAPI`` on the spawn prim would invent a body the asset's joints
+    never reference and change the asset's dynamics. The fragment path must match the legacy
+    nested writer: author onto the prims that already carry the API and leave the spawn prim
+    untouched.
+    """
+    stage = _spawn_robot(
+        tmp_path,
+        "/World/RobotA",
+        rigid_props={"(/.*)?": [PhysxRigidBodyCfg(max_depenetration_velocity=5.0)]},
+    )
+    spawn_prim = stage.GetPrimAtPath("/World/RobotA")
+    # the spawn prim keeps its articulation root and gains NO rigid-body anchor or attrs
+    assert spawn_prim.HasAPI(UsdPhysics.ArticulationRootAPI)
+    assert not spawn_prim.HasAPI(UsdPhysics.RigidBodyAPI)
+    assert not spawn_prim.GetAttribute("physxRigidBody:maxDepenetrationVelocity").HasAuthoredValue()
+    # every existing link body received the fragment's attribute, including the nested one
+    for link_name in LINK_REL_PATHS:
+        link = stage.GetPrimAtPath(f"/World/RobotA/{link_name}")
+        assert link.HasAPI(UsdPhysics.RigidBodyAPI)
+        assert link.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(5.0), link_name
+
+
+def test_collision_fragments_target_existing_colliders_on_usd_asset(tmp_path):
+    """Fragment ``collision_props`` must modify the asset's existing collider prims in place."""
+    stage = _spawn_robot(
+        tmp_path,
+        "/World/RobotB",
+        collision_props={"(/.*)?": [PhysxCollisionCfg(contact_offset=0.02)]},
+    )
+    spawn_prim = stage.GetPrimAtPath("/World/RobotB")
+    assert not spawn_prim.HasAPI(UsdPhysics.CollisionAPI)
+    assert not spawn_prim.GetAttribute("physxCollision:contactOffset").HasAuthoredValue()
+    for link_name in LINK_REL_PATHS:
+        collider = stage.GetPrimAtPath(f"/World/RobotB/{link_name}/collider")
+        assert collider.HasAPI(UsdPhysics.CollisionAPI)
+        assert collider.GetAttribute("physxCollision:contactOffset").Get() == pytest.approx(0.02), link_name
+
+
+def test_mass_fragments_target_existing_mass_prims_on_usd_asset(tmp_path):
+    """Fragment ``mass_props`` must modify the asset's existing mass-bearing link prims in place."""
+    stage = _spawn_robot(
+        tmp_path,
+        "/World/RobotC",
+        mass_props={"(/.*)?": [MassCfg(mass=2.0)]},
+    )
+    spawn_prim = stage.GetPrimAtPath("/World/RobotC")
+    assert not spawn_prim.HasAPI(UsdPhysics.MassAPI)
+    assert not spawn_prim.GetAttribute("physics:mass").HasAuthoredValue()
+    for link_name in LINK_REL_PATHS:
+        link = stage.GetPrimAtPath(f"/World/RobotC/{link_name}")
+        assert link.GetAttribute("physics:mass").Get() == pytest.approx(2.0), link_name
+
+
+def test_fragment_and_legacy_paths_place_apis_identically_on_usd_asset(tmp_path):
+    """On a real asset topology, the fragment path must place APIs exactly where legacy does.
+
+    Spawns two copies of the same robot asset; configures one through the legacy single-cfg
+    path and one through the fragment path with equivalent values; asserts every prim in both
+    subtrees carries the same applied-schema set and the same authored attribute values.
+    """
+    from isaaclab_physx.sim.schemas import PhysxRigidBodyPropertiesCfg
+
+    from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
+    from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+
+    usd_path = os.path.join(tmp_path, "robot.usda")
+    _author_robot_usd(usd_path)
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    legacy_cfg = UsdFileCfg(usd_path=usd_path, rigid_props=PhysxRigidBodyPropertiesCfg(max_depenetration_velocity=5.0))
+    frag_cfg = UsdFileCfg(
+        usd_path=usd_path, rigid_props={"(/.*)?": [PhysxRigidBodyCfg(max_depenetration_velocity=5.0)]}
+    )
+    _spawn_from_usd_file("/World/Legacy", usd_path, legacy_cfg)
+    _spawn_from_usd_file("/World/Frag", usd_path, frag_cfg)
+    stage = sim_utils.get_current_stage()
+
+    legacy_root = stage.GetPrimAtPath("/World/Legacy")
+    frag_root = stage.GetPrimAtPath("/World/Frag")
+    legacy_prims = {p.GetPath().pathString.removeprefix("/World/Legacy"): p for p in Usd.PrimRange(legacy_root)}
+    frag_prims = {p.GetPath().pathString.removeprefix("/World/Frag"): p for p in Usd.PrimRange(frag_root)}
+    assert legacy_prims.keys() == frag_prims.keys()
+    for rel_path, legacy_prim in legacy_prims.items():
+        frag_prim = frag_prims[rel_path]
+        assert set(legacy_prim.GetAppliedSchemas()) == set(frag_prim.GetAppliedSchemas()), rel_path
+        legacy_attrs = {a.GetName(): a.Get() for a in legacy_prim.GetAttributes() if a.HasAuthoredValue()}
+        frag_attrs = {a.GetName(): a.Get() for a in frag_prim.GetAttributes() if a.HasAuthoredValue()}
+        assert legacy_attrs == frag_attrs, rel_path
+
+
+def test_rigid_body_pattern_cfg_narrows_spawned_targets(tmp_path):
+    """A narrowing dict key on the spawner cfg restricts which links receive fragments."""
+    stage = _spawn_robot(
+        tmp_path,
+        "/World/RobotD",
+        rigid_props={"/link2(/.*)?": [PhysxRigidBodyCfg(max_depenetration_velocity=5.0)]},
+    )
+    modified = stage.GetPrimAtPath("/World/RobotD/link2")
+    nested = stage.GetPrimAtPath("/World/RobotD/link2/link3")
+    untouched = stage.GetPrimAtPath("/World/RobotD/link1")
+    assert modified.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(5.0)
+    assert nested.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(5.0)
+    assert not untouched.GetAttribute("physxRigidBody:maxDepenetrationVelocity").HasAuthoredValue()
+
+
+def test_fragment_dicts_target_and_override_in_insertion_order(tmp_path):
+    """Dict entries target independently; later entries override earlier ones on overlap."""
+    stage = _spawn_robot(
+        tmp_path,
+        "/World/RobotE",
+        rigid_props={
+            "(/.*)?": [PhysxRigidBodyCfg(max_depenetration_velocity=5.0)],
+            "/link2(/.*)?": [PhysxRigidBodyCfg(max_depenetration_velocity=1.0)],
+        },
+    )
+    broad_only = stage.GetPrimAtPath("/World/RobotE/link1")
+    overridden = stage.GetPrimAtPath("/World/RobotE/link2")
+    nested_overridden = stage.GetPrimAtPath("/World/RobotE/link2/link3")
+    assert broad_only.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(5.0)
+    assert overridden.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(1.0)
+    assert nested_overridden.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(1.0)
+
+
+# -------------------------------------------------------------------------------------
+# Preserved behavior: bare prims (shape/mesh spawners) still get a fresh anchor, and
+# nested rigid-body trees (URDF-importer layouts) have every body modified.
+# -------------------------------------------------------------------------------------
+
+
+def test_rigid_body_fragments_create_on_bare_prim():
+    """With ``create_if_missing`` and one non-carrier match, the writer anchors that prim."""
+    from isaaclab.sim.schemas import apply_rigid_body_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    UsdGeom.Xform.Define(stage, "/World/Bare")
+    result = apply_rigid_body_properties(
+        "/World/Bare", [PhysxRigidBodyCfg(max_depenetration_velocity=3.0)], create_if_missing=True, stage=stage
+    )
+    prim = stage.GetPrimAtPath("/World/Bare")
+    assert result is True
+    assert prim.HasAPI(UsdPhysics.RigidBodyAPI)
+    assert prim.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(3.0)
+
+
+def test_rigid_body_fragments_create_on_every_matched_prim():
+    """Creation applies ``RigidBodyAPI`` to every matched prim lacking it; the expression is trusted."""
+    from isaaclab.sim.schemas import apply_rigid_body_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    for path in ("/World/Grp", "/World/Grp/a", "/World/Grp/b"):
+        UsdGeom.Xform.Define(stage, path)
+    result = apply_rigid_body_properties(
+        "/World/Grp(/.*)?", [PhysxRigidBodyCfg(max_depenetration_velocity=3.0)], create_if_missing=True, stage=stage
+    )
+    assert result is True
+    for path in ("/World/Grp", "/World/Grp/a", "/World/Grp/b"):
+        prim = stage.GetPrimAtPath(path)
+        assert prim.HasAPI(UsdPhysics.RigidBodyAPI), path
+        assert prim.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(3.0), path
+
+
+def test_rigid_body_fragments_pattern_narrows_targets():
+    """An expression targets only the carriers it matches."""
+    from isaaclab.sim.schemas import apply_rigid_body_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    for path in ("/World/Bot/armL", "/World/Bot/armR"):
+        prim = UsdGeom.Xform.Define(stage, path).GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(prim)
+    result = apply_rigid_body_properties(
+        "/World/Bot/armL", [PhysxRigidBodyCfg(max_depenetration_velocity=7.0)], stage=stage
+    )
+    assert result is True
+    left = stage.GetPrimAtPath("/World/Bot/armL")
+    right = stage.GetPrimAtPath("/World/Bot/armR")
+    assert left.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(7.0)
+    assert not right.GetAttribute("physxRigidBody:maxDepenetrationVelocity").HasAuthoredValue()
+
+
+def test_rigid_body_fragments_zero_targets_warn_and_return_false(caplog):
+    """No carrier matched and no creation requested: warn, author nothing, report failure."""
+    from isaaclab.sim.schemas import apply_rigid_body_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    UsdGeom.Xform.Define(stage, "/World/Bare")
+    with caplog.at_level("WARNING"):
+        result = apply_rigid_body_properties(
+            "/World/Bare", [PhysxRigidBodyCfg(max_depenetration_velocity=3.0)], stage=stage
+        )
+    assert result is False
+    assert not stage.GetPrimAtPath("/World/Bare").HasAPI(UsdPhysics.RigidBodyAPI)
+    assert "/World/Bare" in caplog.text
+
+
+def test_rigid_body_and_mass_fragments_modify_nested_bodies():
+    """Every body in a nested rigid-body tree is modified, not just the outermost one.
+
+    The URDF importer authors child links under their parent link prims, so carriers of
+    ``RigidBodyAPI`` (and ``MassAPI``) legitimately nest. A subtree expression must
+    reach all of them, matching the legacy writers' full-subtree traversal for these families.
+    """
+    from isaaclab.sim.schemas import apply_mass_properties, apply_rigid_body_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    body_paths = ["/World/Robot/pelvis", "/World/Robot/pelvis/hip", "/World/Robot/pelvis/hip/knee"]
+    UsdGeom.Xform.Define(stage, "/World/Robot")
+    for body_path in body_paths:
+        body = UsdGeom.Xform.Define(stage, body_path).GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(body)
+        UsdPhysics.MassAPI.Apply(body)
+
+    rigid_result = apply_rigid_body_properties(
+        "/World/Robot(/.*)?", [PhysxRigidBodyCfg(max_depenetration_velocity=7.0)], stage=stage
+    )
+    mass_result = apply_mass_properties("/World/Robot(/.*)?", [MassCfg(mass=2.5)], stage=stage)
+
+    assert rigid_result is True
+    assert mass_result is True
+    for body_path in body_paths:
+        body = stage.GetPrimAtPath(body_path)
+        assert body.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(7.0), body_path
+        assert body.GetAttribute("physics:mass").Get() == pytest.approx(2.5), body_path
+
+
+def test_rigid_body_fragments_skip_instanced_carriers(caplog):
+    """A carrier inside an instance is a read-only proxy: skipped with a warning and a False return.
+
+    Creation is not requested, so the instance root gains no rigid-body anchor either.
+    """
+    from isaaclab.sim.schemas import apply_rigid_body_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    source = UsdGeom.Xform.Define(stage, "/World/Source").GetPrim()
+    source_body = UsdGeom.Xform.Define(stage, "/World/Source/body").GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(source_body)
+    instance = UsdGeom.Xform.Define(stage, "/World/Asset").GetPrim()
+    instance.GetReferences().AddInternalReference(source.GetPath())
+    instance.SetInstanceable(True)
+    proxy_body = stage.GetPrimAtPath("/World/Asset/body")
+    assert proxy_body.IsInstanceProxy() and proxy_body.HasAPI(UsdPhysics.RigidBodyAPI)
+
+    with caplog.at_level("WARNING"):
+        result = apply_rigid_body_properties(
+            "/World/Asset(/.*)?", [PhysxRigidBodyCfg(max_depenetration_velocity=5.0)], stage=stage
+        )
+
+    assert result is False
+    assert not instance.HasAPI(UsdPhysics.RigidBodyAPI)
+    assert not proxy_body.GetAttribute("physxRigidBody:maxDepenetrationVelocity").HasAuthoredValue()
+    assert "/World/Asset/body" in caplog.text
+
+
+def test_rigid_body_fragments_empty_list_authors_nothing():
+    """An empty fragment list is a no-op: no anchor API is authored and the writer reports success."""
+    from isaaclab.sim.schemas import apply_rigid_body_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    UsdGeom.Xform.Define(stage, "/World/Bare")
+    result = apply_rigid_body_properties("/World/Bare", [], stage=stage)
+    prim = stage.GetPrimAtPath("/World/Bare")
+    assert result is True
+    assert not prim.HasAPI(UsdPhysics.RigidBodyAPI)
+
+
+def _author_child_root_robot_usd(path: str) -> None:
+    """Author a robot whose articulation root sits on a child link, as ANYmal-style assets do."""
+    stage = Usd.Stage.CreateNew(path)
+    robot = UsdGeom.Xform.Define(stage, "/Robot")
+    base = UsdGeom.Xform.Define(stage, "/Robot/base").GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(base)
+    UsdPhysics.ArticulationRootAPI.Apply(base)
+    stage.SetDefaultPrim(robot.GetPrim())
+    stage.Save()
+
+
+def test_empty_articulation_fragments_still_fix_the_root_link(tmp_path):
+    """``articulation_props=[]`` with ``fix_root_link`` must still reach a root on a child prim.
+
+    An empty fragment list carries no targeting intent, so the spawner has to fall through to the
+    topology-only path, which sweeps the spawn prim's subtree. Treating it as an anchor-targeted
+    entry instead pins the expression to the spawn prim, which carries no root API, so nothing is
+    authored and the world joint is never created.
+    """
+    from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
+    from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+
+    usd_path = os.path.join(tmp_path, "child_root_robot.usda")
+    _author_child_root_robot_usd(usd_path)
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    cfg = UsdFileCfg(usd_path=usd_path, articulation_props=[], fix_root_link=True)
+    _spawn_from_usd_file("/World/Robot", usd_path, cfg)
+
+    stage = sim_utils.get_current_stage()
+    assert sim_utils.find_global_fixed_joint_prim("/World/Robot", stage=stage) is not None
+
+
+def test_bare_fragment_on_usd_asset_reaches_nested_bodies(tmp_path):
+    """A bare fragment on a USD asset must keep the reach the legacy nested writer had.
+
+    Task configurations pass ``rigid_props=UsdPhysicsRigidBodyCfg(...)`` directly on a
+    ``UsdFileCfg``. The bodies live beneath the spawn prim, so pinning the convenience form to the
+    spawn prim authors nothing and the asset reaches the backend without a rigid body.
+    """
+    stage = _spawn_robot(
+        tmp_path,
+        "/World/Robot",
+        rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=5.0),
+        mass_props=MassCfg(mass=2.0),
+    )
+
+    for link_rel_path in LINK_REL_PATHS:
+        link = stage.GetPrimAtPath(f"/World/Robot/{link_rel_path}")
+        assert abs(link.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() - 5.0) < 1e-6
+        assert abs(link.GetAttribute("physics:mass").Get() - 2.0) < 1e-6
+
+
+def _author_prop_usd(path: str) -> None:
+    """Author a rigid prop that carries no physics schemas, as authored art assets usually do.
+
+    Task configurations point ``UsdFileCfg`` at meshes like this and rely on the spawner to turn
+    the asset into a single rigid body, so nothing in the subtree carries ``RigidBodyAPI``,
+    ``CollisionAPI``, or ``MassAPI``.
+    """
+    stage = Usd.Stage.CreateNew(path)
+    prop = UsdGeom.Xform.Define(stage, "/Prop")
+    UsdGeom.Cube.Define(stage, "/Prop/geometry")
+    stage.SetDefaultPrim(prop.GetPrim())
+    stage.Save()
+
+
+def _spawn_prop(tmp_path, prim_path: str, **cfg_kwargs):
+    """Author the schema-free prop asset and spawn it through the production USD spawn path."""
+    from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
+    from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+
+    usd_path = os.path.join(tmp_path, "prop.usda")
+    _author_prop_usd(usd_path)
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    cfg = UsdFileCfg(usd_path=usd_path, **cfg_kwargs)
+    _spawn_from_usd_file(prim_path, usd_path, cfg)
+    return sim_utils.get_current_stage()
+
+
+def test_bare_fragment_makes_a_schema_free_asset_a_single_rigid_body(tmp_path):
+    """A bare fragment on an asset that carries no physics schema must author the spawn prim.
+
+    Art assets ship without physics APIs, so there is nothing in the subtree to modify. The
+    convenience form has to fall back to making the spawn prim itself the body, otherwise the
+    asset reaches the backend with no rigid body at all.
+    """
+    stage = _spawn_prop(
+        tmp_path,
+        "/World/Prop",
+        rigid_props=UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
+        mass_props=MassCfg(mass=0.05),
+        collision_props=UsdPhysicsCollisionCfg(collision_enabled=True),
+    )
+
+    prop = stage.GetPrimAtPath("/World/Prop")
+    assert prop.HasAPI(UsdPhysics.RigidBodyAPI)
+    assert prop.HasAPI(UsdPhysics.MassAPI)
+    assert prop.HasAPI(UsdPhysics.CollisionAPI)
+    assert prop.GetAttribute("physics:rigidBodyEnabled").Get() is True
+    assert abs(prop.GetAttribute("physics:mass").Get() - 0.05) < 1e-6
+    assert prop.GetAttribute("physics:collisionEnabled").Get() is True
+    # the geometry below the spawn prim must not become a second, nested body
+    assert not stage.GetPrimAtPath("/World/Prop/geometry").HasAPI(UsdPhysics.RigidBodyAPI)

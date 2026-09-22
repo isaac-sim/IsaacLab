@@ -41,7 +41,7 @@ def transform_points(
     Args:
         points: a tensor of shape (p, 3) or (n, p, 3) comprising of 3d points in source frame.
         position: The position of source frame in target frame. Defaults to None.
-        orientation: The orientation (w, x, y, z) of source frame in target frame.
+        orientation: The orientation (x, y, z, w) of source frame in target frame.
             Defaults to None.
         device: The device for torch where the computation
             should be executed. Defaults to None, i.e. takes the device that matches the depth image.
@@ -107,7 +107,7 @@ def create_pointcloud_from_depth(
         keep_invalid: Whether to keep invalid points in the cloud or not. Invalid points
             correspond to pixels with depth values 0.0 or NaN. Defaults to False.
         position: The position of the camera in a target frame. Defaults to None.
-        orientation: The orientation (w, x, y, z) of the camera in a target frame. Defaults to None.
+        orientation: The orientation (x, y, z, w) of the camera in a target frame. Defaults to None.
         device: The device for torch where the computation should be executed.
             Defaults to None, i.e. takes the device that matches the depth image.
 
@@ -183,7 +183,7 @@ def create_pointcloud_from_rgbd(
         rgb: Color for generated point cloud. Defaults to None.
         normalize_rgb: Whether to normalize input rgb. Defaults to False.
         position: The position of the camera in a target frame. Defaults to None.
-        orientation: The orientation `(w, x, y, z)` of the camera in a target frame. Defaults to None.
+        orientation: The orientation `(x, y, z, w)` of the camera in a target frame. Defaults to None.
         device: The device for torch where the computation should be executed. Defaults to None, in which case
             it takes the device that matches the depth image.
         num_channels: Number of channels in RGB pointcloud. Defaults to 3.

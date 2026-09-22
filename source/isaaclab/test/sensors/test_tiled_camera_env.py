@@ -12,9 +12,7 @@ from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
-    description=(
-        "Test Isaac-Cartpole-RGB-Camera-Direct-v0 environment with different resolutions and number of environments."
-    )
+    description=("Test Isaac-Cartpole-Camera-Direct environment with different resolutions and number of environments.")
 )
 parser.add_argument("--save_images", action="store_true", default=False, help="Save out renders to file.")
 parser.add_argument("unittest_args", nargs="*")
@@ -34,13 +32,14 @@ import sys
 import gymnasium as gym
 import pytest
 
-import omni.usd
-
+import isaaclab.sim as sim_utils
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg, ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.sensors import save_images_to_file
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+
+pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacsim_ci]
 
 
 @pytest.mark.skip(reason="Currently takes too long to run")
@@ -104,16 +103,16 @@ def test_tiled_num_envs_edge_cases():
 def _launch_tests(tile_widths: range, tile_heights: range, num_envs: int):
     """Run through different resolutions for tiled rendering"""
     device = "cuda:0"
-    task_name = "Isaac-Cartpole-RGB-Camera-Direct-v0"
+    task_name = "Isaac-Cartpole-Camera-Direct"
     # iterate over all registered environments
     for width in tile_widths:
         for height in tile_heights:
             # create a new stage
-            omni.usd.get_context().new_stage()
+            sim_utils.create_new_stage()
             # parse configuration
             env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
-            env_cfg.tiled_camera.width = width
-            env_cfg.tiled_camera.height = height
+            env_cfg.scene.tiled_camera.width = width
+            env_cfg.scene.tiled_camera.height = height
             print(f">>> Running test for resolution: {width} x {height}")
             # check environment
             _run_environment(env_cfg)
@@ -125,7 +124,7 @@ def _launch_tests(tile_widths: range, tile_heights: range, num_envs: int):
 def _run_environment(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg):
     """Run environment and capture a rendered image."""
     # create environment
-    env: ManagerBasedRLEnv | DirectRLEnv = gym.make("Isaac-Cartpole-RGB-Camera-Direct-v0", cfg=env_cfg)
+    env: ManagerBasedRLEnv | DirectRLEnv = gym.make("Isaac-Cartpole-Camera-Direct", cfg=env_cfg)
     # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
     # test on many environments.
     env.sim.set_setting("/physics/cooking/ujitsoCollisionCooking", False)
@@ -136,7 +135,7 @@ def _run_environment(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg):
     if args_cli.save_images:
         save_images_to_file(
             obs["policy"] + 0.93,
-            f"output_{env.num_envs}_{env_cfg.tiled_camera.width}x{env_cfg.tiled_camera.height}.png",
+            f"output_{env.num_envs}_{env_cfg.scene.tiled_camera.width}x{env_cfg.scene.tiled_camera.height}.png",
         )
 
     # close the environment

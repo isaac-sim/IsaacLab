@@ -1,6 +1,266 @@
 Changelog
 ---------
 
+2.0.9 (2026-09-20)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the locomanipulation SDG scene configurations to author rigid-body properties with
+  :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` instead of the deprecated
+  :class:`~isaaclab_physx.sim.schemas.RigidBodyPropertiesCfg`. The authored USD attributes are
+  unchanged.
+
+
+2.0.8 (2026-09-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed locomanipulation SDG generation with NuRec backgrounds by enabling camera capture, applying Isaac RTX
+  Gaussian renderer settings, syncing randomized fixture poses, and recording the projected scene state after
+  placement. ``--high_res_video`` now records RGB observations at 512x320 instead of 960x540; update MP4
+  conversion dimensions and model input shapes accordingly.
+
+
+2.0.7 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Enabled contact reporting for the G1 locomanipulation SDG environment so its inherited hand
+  contact sensors initialize correctly.
+
+
+2.0.6 (2026-09-05)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the ``datagen_config.max_num_failures = 25`` assignment from the shipped Mimic environment
+  configs. The field was never read when those lines were written, so honouring it now would newly
+  cap every shipped task at 25 failed attempts and cut short any run asking for a large number of
+  demos. Set the field explicitly to opt into a cap.
+
+Fixed
+^^^^^
+
+* Fixed the Mimic generation loop never bounding a run by failure count. ``env_loop`` now stops when
+  ``datagen_config.max_num_failures`` failed attempts have accumulated, alongside the existing stop
+  on enough successes or attempts.
+
+
+2.0.5 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+
+
+2.0.4 (2026-08-08)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`SceneAsset` leaking its cached frame view when the view is rebuilt,
+  which left the view's backend state to be released on garbage collection.
+
+
+2.0.3 (2026-08-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``ModuleNotFoundError: No module named 'ipywidgets'`` when running dataset generation
+  from an environment without the ``mimic`` extra. ``isaaclab_mimic.datagen.utils`` imported
+  ``ipywidgets`` and ``IPython`` at module scope even though only its interactive notebook
+  helpers use them, so importing the module for its path helpers pulled in dependencies the
+  generation path never needs.
+
+
+2.0.2 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for environment-provided demonstration recorder configurations during Mimic generation.
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``,
+  ensuring standalone pip installs resolve local checkouts without a package index.
+
+Fixed
+^^^^^
+
+* Fixed locomanipulation path planning to enable the MobilityGen extension before importing
+  its Isaac Sim modules.
+* Fixed ``SceneAsset`` pose queries in the locomanipulation SDG utilities to
+  build their frame view on demand, since static scene assets no longer carry
+  a runtime view in :class:`~isaaclab.scene.InteractiveScene`.
+
+
+2.0.1 (2026-06-14)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the ``nvidia-srl-usd-to-urdf`` dependency now that Pink IK conversion uses Isaac Sim's URDF exporter.
+
+
+2.0.0 (2026-06-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Renamed the registered Mimic/Skillgen environment IDs to use the ``IsaacContrib-``
+  prefix instead of ``Isaac-`` and dropped the trailing ``-v0`` version suffix, matching the
+  contributed task naming convention. Update ``gym.make`` / ``--task`` calls accordingly, for example
+  ``Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0`` → ``IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic``.
+
+
+1.3.1 (2026-06-02)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Declared ``isaaclab_teleop`` as a required extension of
+  ``isaaclab_mimic`` in ``install.py``. ``./isaaclab.sh -i mimic``
+  now installs ``isaaclab_teleop`` alongside ``isaaclab_mimic``.
+* Updated imports to the new :mod:`isaaclab_tasks.core` / :mod:`isaaclab_tasks.contrib`
+  task layout. No behavior change.
+
+
+1.3.0 (2026-05-18)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Moved ``robomimic`` from an opt-in extra (``isaaclab_mimic[robomimic]``) to a
+  required dependency of :mod:`isaaclab_mimic` on Linux (via a ``sys_platform``
+  marker). ``robomimic`` is now installed automatically whenever
+  ``isaaclab_mimic`` is installed on Linux; no extra selector is needed.
+
+
+1.2.7 (2026-05-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :mod:`isaaclab_mimic.datagen` imports in packaged installs and avoided
+  importing task configuration modules until data generation config setup.
+
+
+1.2.6 (2026-05-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a temporary ``warp.torch`` compatibility shim at
+  :mod:`isaaclab_mimic` import time so that cuRobo (NVlabs/curobo) keeps
+  working with ``warp-lang>=1.13``, which dropped the ``warp.torch``
+  submodule in favour of top-level ``warp.*`` (e.g.
+  ``wp.torch.device_from_torch`` → ``wp.device_from_torch``). cuRobo's
+  pinned commit and ``main`` still call ``wp.torch.*`` and raise
+  ``AttributeError: module 'warp' has no attribute 'torch'`` at
+  :meth:`MotionGenConfig.load_from_robot_config` time. The shim
+  reconstructs ``warp.torch`` as a thin forwarding module and is a
+  no-op once warp re-introduces the namespace or cuRobo migrates.
+  Remove this shim once the cuRobo pin in ``docker/Dockerfile.curobo``
+  is bumped to a commit that uses the top-level ``wp.*`` API directly.
+
+
+1.2.5 (2026-04-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated mobility path utilities to import from ``isaacsim.replicator.experimental.mobility_gen``.
+
+
+1.2.4 (2026-04-06)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Made performance enhancing changes to data generation pipeline (elimate large tensor usage, reduce asyncio overhead and blocking)
+* Locked h5py dependency to last stable version 3.15.1 to prevent package import errors on Windows with version 3.16.0.
+
+Added
+^^^^^
+
+* Added data generation test cases for all tasks (single and multi environment).
+
+
+1.2.3 (2026-03-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Add nvidia-srl-usd-to-urdf dependency to isaaclab_mimic extension.
+
+
+1.2.2 (2026-03-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Add h5py dependency to isaaclab_mimic extension.
+
+
+1.2.1 (2026-02-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed cuRobo planner quaternion handling and Warp API compatibility for Isaac Lab 3.0.
+* Fixed Rerun visualization in cuRobo plan visualizer.
+* Added ``--visualizer kit`` to SkillGen documentation for all non-headless commands.
+
+
+1.2.0 (2026-02-23)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Update data generator to support Isaac Lab 3.0.
+* Use unique quaternion for GR1 pick place env Mimic actions.
+* Discard failed Mimic demos by default for Franka stacking task.
+
+
+1.1.0 (2026-01-30)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the quaternion ordering to match warp, PhysX, and Newton native XYZW quaternion ordering.
+
 
 1.0.16 (2025-11-10)
 ~~~~~~~~~~~~~~~~~~~

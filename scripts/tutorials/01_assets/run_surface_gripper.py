@@ -8,7 +8,7 @@
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/01_assets/run_surface_gripper.py --device=cpu
+    uv run python scripts/tutorials/01_assets/run_surface_gripper.py --device=cpu
 
 When running this script make sure the --device flag is set to cpu. This is because the surface gripper is
 currently only supported on the CPU.
@@ -24,6 +24,8 @@ from isaaclab.app import AppLauncher
 parser = argparse.ArgumentParser(description="Tutorial on spawning and interacting with a Surface Gripper.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
+# tutorials should open Kit visualizer by default
+parser.set_defaults(visualizer=["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
 
@@ -34,9 +36,11 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
+import warp as wp
+from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, SurfaceGripper, SurfaceGripperCfg
+from isaaclab.assets import Articulation
 from isaaclab.sim import SimulationContext
 
 ##
@@ -106,14 +110,19 @@ def run_simulator(
             # root state
             # we offset the root state by the origin since the states are written in simulation world frame
             # if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world
-            root_state = robot.data.default_root_state.clone()
-            root_state[:, :3] += origins
-            robot.write_root_pose_to_sim(root_state[:, :7])
-            robot.write_root_velocity_to_sim(root_state[:, 7:])
+            root_pose = robot.data.default_root_pose.torch.clone()
+            root_pose[:, :3] += origins
+            robot.write_root_pose_to_sim_index(root_pose=root_pose)
+            root_vel = robot.data.default_root_vel.torch.clone()
+            robot.write_root_velocity_to_sim_index(root_velocity=root_vel)
             # set joint positions with some noise
-            joint_pos, joint_vel = robot.data.default_joint_pos.clone(), robot.data.default_joint_vel.clone()
+            joint_pos, joint_vel = (
+                robot.data.default_joint_pos.torch.clone(),
+                robot.data.default_joint_vel.torch.clone(),
+            )
             joint_pos += torch.rand_like(joint_pos) * 0.1
-            robot.write_joint_state_to_sim(joint_pos, joint_vel)
+            robot.write_joint_position_to_sim_index(position=joint_pos)
+            robot.write_joint_velocity_to_sim_index(velocity=joint_vel)
             # clear internal buffers
             robot.reset()
             print("[INFO]: Resetting robot state...")
@@ -151,7 +160,8 @@ def run_simulator(
         # Print the gripper state
         print(f"[INFO]: Gripper state: {surface_gripper_state}")
         mapped_commands = [
-            "Open" if state == -1 else "Closing" if state == 0 else "Closed" for state in surface_gripper_state.tolist()
+            "Open" if state == -1 else "Closing" if state == 0 else "Closed"
+            for state in wp.to_torch(surface_gripper_state).tolist()
         ]
         print(f"[INFO]: Mapped commands: {mapped_commands}")
 

@@ -3,60 +3,66 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-This script demonstrates different single-arm manipulators.
+"""This script demonstrates different single-arm manipulators.
 
 .. code-block:: bash
 
-    # Usage
-    ./isaaclab.sh -p scripts/demos/arms.py
+    # Usage with default PhysX physics and default kit visualizer.
+    uv run python scripts/demos/arms.py
+
+    # Usage with Newton visualizer and default PhysX physics.
+    uv run python scripts/demos/arms.py --visualizer newton
+
+    # Usage with Newton (MJWarp) physics and default kit visualizer.
+    uv run python scripts/demos/arms.py --physics newton_mjwarp
+
+    # Usage with Newton visualizer and Newton (MJWarp) physics.
+    uv run python scripts/demos/arms.py --visualizer newton --physics newton_mjwarp
 
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
+from typing import TYPE_CHECKING
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
-# add argparse arguments
-parser = argparse.ArgumentParser(description="This script demonstrates different single-arm manipulators.")
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
+parser = argparse.ArgumentParser(
+    description="This script demonstrates different single-arm manipulators.",
+    conflict_handler="resolve",
+)
+parser.add_argument(
+    "--physics", default="isaacsim_physx", choices=["isaacsim_physx", "newton_mjwarp"], help="Physics backend."
+)
+add_launcher_args(parser)
+parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
 
 import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab import cloner
 
 ##
 # Pre-defined configs
 ##
-# isort: off
-from isaaclab_assets import (
-    FRANKA_PANDA_CFG,
-    UR10_CFG,
-    KINOVA_JACO2_N7S300_CFG,
-    KINOVA_JACO2_N6S300_CFG,
-    KINOVA_GEN3_N7_CFG,
-    SAWYER_CFG,
-)
+from isaaclab.physics import PhysicsCfg
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-# isort: on
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort:skip
+from isaaclab_assets.robots.kinova import KINOVA_GEN3_N7_CFG, KINOVA_JACO2_N6S300_CFG, KINOVA_JACO2_N7S300_CFG  # isort:skip
+from isaaclab_assets.robots.sawyer import SAWYER_CFG  # isort:skip
+from isaaclab_assets.robots.universal_robots import UR10_CFG  # isort:skip
+
+if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
-    """Defines the origins of the the scene."""
+    """Defines the origins of the scene."""
     # create tensor based on number of environments
     env_origins = torch.zeros(num_origins, 3)
     # create a grid of origins
@@ -90,8 +96,9 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     cfg.func("/World/Origin1/Table", cfg, translation=(0.55, 0.0, 1.05))
     # -- Robot
     franka_arm_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Origin1/Robot")
+    franka_arm_cfg.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
     franka_arm_cfg.init_state.pos = (0.0, 0.0, 1.05)
-    franka_panda = Articulation(cfg=franka_arm_cfg)
+    franka_panda = franka_arm_cfg.class_type(franka_arm_cfg)
 
     # Origin 2 with UR10
     sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
@@ -103,7 +110,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # -- Robot
     ur10_cfg = UR10_CFG.replace(prim_path="/World/Origin2/Robot")
     ur10_cfg.init_state.pos = (0.0, 0.0, 1.03)
-    ur10 = Articulation(cfg=ur10_cfg)
+    ur10 = ur10_cfg.class_type(ur10_cfg)
 
     # Origin 3 with Kinova JACO2 (7-Dof) arm
     sim_utils.create_prim("/World/Origin3", "Xform", translation=origins[2])
@@ -113,7 +120,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # -- Robot
     kinova_arm_cfg = KINOVA_JACO2_N7S300_CFG.replace(prim_path="/World/Origin3/Robot")
     kinova_arm_cfg.init_state.pos = (0.0, 0.0, 0.8)
-    kinova_j2n7s300 = Articulation(cfg=kinova_arm_cfg)
+    kinova_j2n7s300 = kinova_arm_cfg.class_type(kinova_arm_cfg)
 
     # Origin 4 with Kinova JACO2 (6-Dof) arm
     sim_utils.create_prim("/World/Origin4", "Xform", translation=origins[3])
@@ -123,7 +130,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # -- Robot
     kinova_arm_cfg = KINOVA_JACO2_N6S300_CFG.replace(prim_path="/World/Origin4/Robot")
     kinova_arm_cfg.init_state.pos = (0.0, 0.0, 0.8)
-    kinova_j2n6s300 = Articulation(cfg=kinova_arm_cfg)
+    kinova_j2n6s300 = kinova_arm_cfg.class_type(kinova_arm_cfg)
 
     # Origin 5 with Sawyer
     sim_utils.create_prim("/World/Origin5", "Xform", translation=origins[4])
@@ -133,7 +140,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # -- Robot
     kinova_arm_cfg = KINOVA_GEN3_N7_CFG.replace(prim_path="/World/Origin5/Robot")
     kinova_arm_cfg.init_state.pos = (0.0, 0.0, 1.05)
-    kinova_gen3n7 = Articulation(cfg=kinova_arm_cfg)
+    kinova_gen3n7 = kinova_arm_cfg.class_type(kinova_arm_cfg)
 
     # Origin 6 with Kinova Gen3 (7-Dof) arm
     sim_utils.create_prim("/World/Origin6", "Xform", translation=origins[5])
@@ -145,7 +152,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # -- Robot
     sawyer_arm_cfg = SAWYER_CFG.replace(prim_path="/World/Origin6/Robot")
     sawyer_arm_cfg.init_state.pos = (0.0, 0.0, 1.03)
-    sawyer = Articulation(cfg=sawyer_arm_cfg)
+    sawyer = sawyer_arm_cfg.class_type(sawyer_arm_cfg)
 
     # return the scene information
     scene_entities = {
@@ -159,14 +166,14 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     return scene_entities, origins
 
 
-def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articulation], origins: torch.Tensor):
+def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Articulation"], origins: torch.Tensor):
     """Runs the simulation loop."""
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     sim_time = 0.0
     count = 0
-    # Simulate physics
-    while simulation_app.is_running():
+    # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
+    while sim.is_headless_or_exist_active_visualizer():
         # reset
         if count % 200 == 0:
             # reset counters
@@ -175,25 +182,29 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
             # reset the scene entities
             for index, robot in enumerate(entities.values()):
                 # root state
-                root_state = robot.data.default_root_state.clone()
-                root_state[:, :3] += origins[index]
-                robot.write_root_pose_to_sim(root_state[:, :7])
-                robot.write_root_velocity_to_sim(root_state[:, 7:])
+                root_pose = robot.data.default_root_pose.torch.clone()
+                root_pose[:, :3] += origins[index]
+                robot.write_root_pose_to_sim_index(root_pose=root_pose)
+                root_vel = robot.data.default_root_vel.torch.clone()
+                robot.write_root_velocity_to_sim_index(root_velocity=root_vel)
                 # set joint positions
-                joint_pos, joint_vel = robot.data.default_joint_pos.clone(), robot.data.default_joint_vel.clone()
-                robot.write_joint_state_to_sim(joint_pos, joint_vel)
+                joint_pos, joint_vel = (
+                    robot.data.default_joint_pos.torch.clone(),
+                    robot.data.default_joint_vel.torch.clone(),
+                )
+                robot.write_joint_position_to_sim_index(position=joint_pos)
+                robot.write_joint_velocity_to_sim_index(velocity=joint_vel)
                 # clear internal buffers
                 robot.reset()
             print("[INFO]: Resetting robots state...")
         # apply random actions to the robots
         for robot in entities.values():
             # generate random joint positions
-            joint_pos_target = robot.data.default_joint_pos + torch.randn_like(robot.data.joint_pos) * 0.1
-            joint_pos_target = joint_pos_target.clamp_(
-                robot.data.soft_joint_pos_limits[..., 0], robot.data.soft_joint_pos_limits[..., 1]
-            )
+            joint_pos_target = robot.data.default_joint_pos.torch + torch.randn_like(robot.data.joint_pos.torch) * 0.1
+            soft_limits = robot.data.soft_joint_pos_limits.torch
+            joint_pos_target = joint_pos_target.clamp_(soft_limits[..., 0], soft_limits[..., 1])
             # apply action to the robot
-            robot.set_joint_position_target(joint_pos_target)
+            robot.set_joint_position_target_index(target=joint_pos_target)
             # write data to sim
             robot.write_data_to_sim()
         # perform step
@@ -208,24 +219,38 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
 
 def main():
     """Main function."""
-    # Initialize the simulation context
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
-    sim = sim_utils.SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view([3.5, 0.0, 3.2], [0.0, 0.0, 0.5])
-    # design scene
-    scene_entities, scene_origins = design_scene()
-    scene_origins = torch.tensor(scene_origins, device=sim.device)
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # Run the simulator
-    run_simulator(sim, scene_entities, scene_origins)
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        # The default newton mjwarp solver configuration needs to be tuned for these arms.
+        if isinstance(physics_cfg, NewtonCfg) and isinstance(physics_cfg.solver_cfg, MJWarpSolverCfg):
+            physics_cfg.solver_cfg.njmax = 70
+            physics_cfg.solver_cfg.nconmax = 70
+            physics_cfg.solver_cfg.ls_iterations = 40
+            physics_cfg.solver_cfg.cone = "elliptic"
+            physics_cfg.solver_cfg.impratio = 100
+            physics_cfg.solver_cfg.ls_parallel = False
+            physics_cfg.solver_cfg.integrator = "implicitfast"
+            physics_cfg.num_substeps = 2
+
+        # Initialize the simulation context
+        sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, physics=physics_cfg)
+        sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
+        sim.set_camera_view([3.5, 0.0, 3.2], [0.0, 0.0, 0.5])
+        # design scene
+        global_paths = ("/World/defaultGroundPlane", "/World/Light", *(f"/World/Origin{i}" for i in range(1, 7)))
+        plan = cloner.make_clone_plan((), 1, 0.0, global_paths=global_paths)
+        sim.set_clone_plan(plan)
+        scene_entities, scene_origins = design_scene()
+        cloner.replicate(plan, replicate_physics=False)
+        scene_origins = torch.tensor(scene_origins, device=sim.device)
+        # Play the simulator
+        sim.reset()
+        # Now we are ready!
+        print("[INFO]: Setup complete...")
+        # Run the simulator
+        run_simulator(sim, scene_entities, scene_origins)
 
 
 if __name__ == "__main__":
     # run the main function
     main()
-    # close sim app
-    simulation_app.close()

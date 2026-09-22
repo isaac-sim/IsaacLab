@@ -15,6 +15,7 @@ import numpy as np
 import torch
 from prettytable import PrettyTable
 
+from isaaclab.envs.utils.io_descriptors import _warn_io_descriptors_deprecated
 from isaaclab.utils import class_to_dict, modifiers, noise
 from isaaclab.utils.buffers import CircularBuffer
 
@@ -234,10 +235,17 @@ class ObservationManager(ManagerBase):
     def get_IO_descriptors(self, group_names_to_export: list[str] = ["policy"]):
         """Get the IO descriptors for the observation manager.
 
+        .. deprecated:: 3.0
+           IO descriptors will be removed in Isaac Lab 3.2.
+
         Returns:
             A dictionary with keys as the group names and values as the IO descriptors.
         """
+        _warn_io_descriptors_deprecated(stacklevel=3)
+        return self._collect_io_descriptors(group_names_to_export)
 
+    def _collect_io_descriptors(self, group_names_to_export: list[str] = ["policy"]):
+        """Collect IO descriptors without emitting a deprecation warning."""
         group_data = {}
 
         for group_name in self._group_obs_term_names:
@@ -396,7 +404,10 @@ class ObservationManager(ManagerBase):
             # apply post-processing
             if term_cfg.modifiers is not None:
                 for modifier in term_cfg.modifiers:
-                    obs = modifier.func(obs, **modifier.params)
+                    if isinstance(modifier.func, modifiers.ModifierBase):
+                        obs = modifier.func(obs)
+                    else:
+                        obs = modifier.func(obs, **modifier.params)
             if isinstance(term_cfg.noise, noise.NoiseCfg):
                 obs = term_cfg.noise.func(obs, term_cfg.noise)
             elif isinstance(term_cfg.noise, noise.NoiseModelCfg) and term_cfg.noise.func is not None:
@@ -512,6 +523,7 @@ class ObservationManager(ManagerBase):
 
             # read common config for the group
             self._group_obs_concatenate[group_name] = group_cfg.concatenate_terms
+            # to account for the batch dimension
             self._group_obs_concatenate_dim[group_name] = (
                 group_cfg.concatenate_dim + 1 if group_cfg.concatenate_dim >= 0 else group_cfg.concatenate_dim
             )
@@ -550,7 +562,7 @@ class ObservationManager(ManagerBase):
                 if group_cfg.history_length is not None:
                     term_cfg.history_length = group_cfg.history_length
                     term_cfg.flatten_history_dim = group_cfg.flatten_history_dim
-                # add term config to list to list
+                # add term config to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
 
@@ -578,24 +590,21 @@ class ObservationManager(ManagerBase):
                 if term_cfg.modifiers is not None:
                     # initialize list of modifiers for term
                     for mod_cfg in term_cfg.modifiers:
-                        # check if class modifier and initialize with observation size when adding
-                        if isinstance(mod_cfg, modifiers.ModifierCfg):
-                            # to list of modifiers
-                            if inspect.isclass(mod_cfg.func):
-                                if not issubclass(mod_cfg.func, modifiers.ModifierBase):
-                                    raise TypeError(
-                                        f"Modifier function '{mod_cfg.func}' for observation term '{term_name}'"
-                                        f" is not a subclass of 'ModifierBase'. Received: '{type(mod_cfg.func)}'."
-                                    )
-                                mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
-
-                                # add to list of class modifiers
-                                self._group_obs_class_instances.append(mod_cfg.func)
-                        else:
+                        if not isinstance(mod_cfg, modifiers.ModifierCfg):
                             raise TypeError(
                                 f"Modifier configuration '{mod_cfg}' of observation term '{term_name}' is not of"
                                 f" required type ModifierCfg, Received: '{type(mod_cfg)}'"
                             )
+
+                        # construct stateful modifiers with the observation size
+                        if inspect.isclass(mod_cfg.func):
+                            mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
+                            if not isinstance(mod_cfg.func, modifiers.ModifierBase):
+                                raise TypeError(
+                                    f"Modifier function '{mod_cfg.func}' for observation term '{term_name}'"
+                                    f" is not an instance of 'ModifierBase'. Received: '{type(mod_cfg.func)}'."
+                                )
+                            self._group_obs_class_instances.append(mod_cfg.func)
 
                         # check if function is callable
                         if not callable(mod_cfg.func):
@@ -604,6 +613,9 @@ class ObservationManager(ManagerBase):
                                 f" Received: {mod_cfg.func}"
                             )
 
+                        # TODO(jichuanh): improvement can be made in two ways:
+                        #                 1. modifier specific check can be done in the modifier class
+                        #                 2. general param vs function matching check can be a common utility
                         # check if term's arguments are matched by params
                         term_params = list(mod_cfg.params.keys())
                         args = inspect.signature(mod_cfg.func).parameters
@@ -622,16 +634,15 @@ class ObservationManager(ManagerBase):
 
                 # prepare noise model classes
                 if term_cfg.noise is not None and isinstance(term_cfg.noise, noise.NoiseModelCfg):
-                    noise_model_cls = term_cfg.noise.class_type
-                    if not issubclass(noise_model_cls, noise.NoiseModel):
-                        raise TypeError(
-                            f"Class type for observation term '{term_name}' NoiseModelCfg"
-                            f" is not a subclass of 'NoiseModel'. Received: '{type(noise_model_cls)}'."
-                        )
-                    # initialize func to be the noise model class instance
-                    term_cfg.noise.func = noise_model_cls(
+                    term_cfg.noise.func = term_cfg.noise.class_type(
                         term_cfg.noise, num_envs=self._env.num_envs, device=self._env.device
                     )
+                    # verify the instance is the correct type
+                    if not isinstance(term_cfg.noise.func, noise.NoiseModel):
+                        raise TypeError(
+                            f"Noise model for observation term '{term_name}' is not an instance of 'NoiseModel'."
+                            f" Received: '{type(term_cfg.noise.func)}'."
+                        )
                     self._group_obs_class_instances.append(term_cfg.noise.func)
 
                 # create history buffers and calculate history term dimensions
@@ -643,7 +654,9 @@ class ObservationManager(ManagerBase):
                     old_dims.insert(1, term_cfg.history_length)
                     obs_dims = tuple(old_dims)
                     if term_cfg.flatten_history_dim:
-                        obs_dims = (obs_dims[0], np.prod(obs_dims[1:]))
+                        # Cast to ``int`` so the dim is a plain Python int rather than ``np.int64``;
+                        # otherwise the tuple would render as ``(np.int64(N),)`` in __str__.
+                        obs_dims = (obs_dims[0], int(np.prod(obs_dims[1:])))
 
                 self._group_obs_term_dim[group_name].append(obs_dims[1:])
 

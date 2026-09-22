@@ -2,34 +2,19 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-"""Launch Isaac Sim Simulator first."""
-
-# Import pinocchio in the main script to force the use of the dependencies installed
-# by IsaacLab and not the one installed by Isaac Sim
-# pinocchio is required by the Pink IK controller
-import sys
-
-if sys.platform != "win32":
-    import pinocchio  # noqa: F401
-    import pinocchio as pin  # noqa: F401
-else:
-    import pinocchio  # noqa: F401
-    import pinocchio as pin  # noqa: F401
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
 """Unit tests for NullSpacePostureTask with simplified robot configuration using Pink library directly."""
 
 import numpy as np
+import pinocchio as pin
 import pytest
 from pink.configuration import Configuration
 from pink.tasks import FrameTask
 from pinocchio.robot_wrapper import RobotWrapper
 
 from isaaclab.controllers.pink_ik.null_space_posture_task import NullSpacePostureTask
+from isaaclab.controllers.pink_ik.pink_task_cfg import NullSpacePostureTaskCfg
+
+pytestmark = pytest.mark.integration
 
 
 class TestNullSpacePostureTaskSimplifiedRobot:
@@ -73,15 +58,17 @@ class TestNullSpacePostureTaskSimplifiedRobot:
         return [
             FrameTask("left_hand_pitch_link", position_cost=1.0, orientation_cost=1.0),
             NullSpacePostureTask(
-                cost=1.0,
-                controlled_frames=["left_hand_pitch_link"],
-                controlled_joints=[
-                    "waist_yaw_joint",
-                    "waist_pitch_joint",
-                    "waist_roll_joint",
-                    "left_shoulder_pitch_joint",
-                    "left_shoulder_roll_joint",
-                ],
+                NullSpacePostureTaskCfg(
+                    cost=1.0,
+                    controlled_frames=["left_hand_pitch_link"],
+                    controlled_joints=[
+                        "waist_yaw_joint",
+                        "waist_pitch_joint",
+                        "waist_roll_joint",
+                        "left_shoulder_pitch_joint",
+                        "left_shoulder_roll_joint",
+                    ],
+                )
             ),
         ]
 
@@ -96,7 +83,7 @@ class TestNullSpacePostureTaskSimplifiedRobot:
         frame_task = tasks[0]
         # Create pin.SE3 from position and quaternion
         position = np.array([0.5, 0.3, 0.8])  # x, y, z
-        quaternion = pin.Quaternion(1.0, 0.0, 0.0, 0.0)  # w, x, y, z (identity quaternion)
+        quaternion = pin.Quaternion(0.0, 0.0, 0.0, 1.0)  # x, y, z, w (identity quaternion)
         target_pose = pin.SE3(quaternion, position)
         frame_task.set_target(target_pose)
 
@@ -160,7 +147,9 @@ class TestNullSpacePostureTaskSimplifiedRobot:
     ):
         """Test that null space Jacobian is identity when no frame tasks are defined."""
         # Create null space task without frame task controlled joints
-        null_space_task = NullSpacePostureTask(cost=1.0, controlled_frames=[], controlled_joints=[])
+        null_space_task = NullSpacePostureTask(
+            NullSpacePostureTaskCfg(cost=1.0, controlled_frames=[], controlled_joints=[])
+        )
 
         # Set specific joint configuration
         robot_configuration.q = joint_configurations["sequential"]
@@ -193,7 +182,7 @@ class TestNullSpacePostureTaskSimplifiedRobot:
         frame_task = tasks[0]
         # Create pin.SE3 from position and quaternion
         position = np.array([0.3, 0.3, 0.5])
-        quaternion = pin.Quaternion(1.0, 0.0, 0.0, 0.0)  # w, x, y, z (identity quaternion)
+        quaternion = pin.Quaternion(0.0, 0.0, 0.0, 1.0)  # x, y, z, w (identity quaternion)
         target_pose = pin.SE3(quaternion, position)
         frame_task.set_target(target_pose)
 
@@ -223,9 +212,11 @@ class TestNullSpacePostureTaskSimplifiedRobot:
     def test_compute_error_without_target(self, robot_configuration, joint_configurations):
         """Test that compute_error raises ValueError when no target is set."""
         null_space_task = NullSpacePostureTask(
-            cost=1.0,
-            controlled_frames=["left_hand_pitch_link"],
-            controlled_joints=["waist_yaw_joint", "waist_pitch_joint"],
+            NullSpacePostureTaskCfg(
+                cost=1.0,
+                controlled_frames=["left_hand_pitch_link"],
+                controlled_joints=["waist_yaw_joint", "waist_pitch_joint"],
+            )
         )
 
         robot_configuration.q = joint_configurations["sequential"]
@@ -241,7 +232,9 @@ class TestNullSpacePostureTaskSimplifiedRobot:
 
         # Create task with specific controlled joints
         null_space_task = NullSpacePostureTask(
-            cost=1.0, controlled_frames=["left_hand_pitch_link"], controlled_joints=controlled_joint_names
+            NullSpacePostureTaskCfg(
+                cost=1.0, controlled_frames=["left_hand_pitch_link"], controlled_joints=controlled_joint_names
+            )
         )
 
         # Find the joint indexes in robot_configuration.model.names.tolist()[1:]
@@ -273,7 +266,7 @@ class TestNullSpacePostureTaskSimplifiedRobot:
     def test_empty_controlled_joints(self, robot_configuration, joint_configurations, num_joints):
         """Test behavior when controlled_joints is empty."""
         null_space_task = NullSpacePostureTask(
-            cost=1.0, controlled_frames=["left_hand_pitch_link"], controlled_joints=[]
+            NullSpacePostureTaskCfg(cost=1.0, controlled_frames=["left_hand_pitch_link"], controlled_joints=[])
         )
 
         current_config = joint_configurations["sequential"]
@@ -290,9 +283,11 @@ class TestNullSpacePostureTaskSimplifiedRobot:
     def test_set_target_from_configuration(self, robot_configuration, joint_configurations):
         """Test set_target_from_configuration method."""
         null_space_task = NullSpacePostureTask(
-            cost=1.0,
-            controlled_frames=["left_hand_pitch_link"],
-            controlled_joints=["waist_yaw_joint", "waist_pitch_joint"],
+            NullSpacePostureTaskCfg(
+                cost=1.0,
+                controlled_frames=["left_hand_pitch_link"],
+                controlled_joints=["waist_yaw_joint", "waist_pitch_joint"],
+            )
         )
 
         # Set a specific configuration
@@ -310,9 +305,11 @@ class TestNullSpacePostureTaskSimplifiedRobot:
         """Test null space projection with multiple frame tasks."""
         # Create task with multiple controlled frames
         null_space_task = NullSpacePostureTask(
-            cost=1.0,
-            controlled_frames=["left_hand_pitch_link", "right_hand_pitch_link"],
-            controlled_joints=["waist_yaw_joint", "waist_pitch_joint", "waist_roll_joint"],
+            NullSpacePostureTaskCfg(
+                cost=1.0,
+                controlled_frames=["left_hand_pitch_link", "right_hand_pitch_link"],
+                controlled_joints=["waist_yaw_joint", "waist_pitch_joint", "waist_roll_joint"],
+            )
         )
 
         current_config = joint_configurations["sequential"]

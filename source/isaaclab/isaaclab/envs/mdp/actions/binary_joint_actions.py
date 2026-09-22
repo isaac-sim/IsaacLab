@@ -34,8 +34,8 @@ class BinaryJointAction(ActionTerm):
 
     Based on above, we follow the following convention for the binary action:
 
-    1. Open action: 1 (bool) or positive values (float).
-    2. Close action: 0 (bool) or negative values (float).
+    1. Open action: ``True`` (bool) or non-negative values (float).
+    2. Close action: ``False`` (bool) or negative values (float).
 
     The action term can mostly be used for gripper actions, where the gripper is either open or closed. This
     helps in devising a mimicking mechanism for the gripper, since in simulation it is often not possible to
@@ -54,8 +54,9 @@ class BinaryJointAction(ActionTerm):
         super().__init__(cfg, env)
 
         # resolve the joints over which the action term is applied
-        self._joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names)
-        self._num_joints = len(self._joint_ids)
+        joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names, as_proxy=True)
+        self._num_joints = len(joint_ids)
+        self._joint_ids = joint_ids.warp
         # log the resolved joint names for debugging
         logger.info(
             f"Resolved joint names for the action term {self.__class__.__name__}:"
@@ -131,15 +132,13 @@ class BinaryJointAction(ActionTerm):
     def process_actions(self, actions: torch.Tensor):
         # store the raw actions
         self._raw_actions[:] = actions
-        # compute the binary mask
+        # identify actions that select the close command
         if actions.dtype == torch.bool:
-            # true: close, false: open
-            binary_mask = actions == 0
+            close_mask = ~actions
         else:
-            # true: close, false: open
-            binary_mask = actions < 0
+            close_mask = actions < 0
         # compute the command
-        self._processed_actions = torch.where(binary_mask, self._close_command, self._open_command)
+        self._processed_actions = torch.where(close_mask, self._close_command, self._open_command)
         if self.cfg.clip is not None:
             self._processed_actions = torch.clamp(
                 self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
@@ -156,7 +155,7 @@ class BinaryJointPositionAction(BinaryJointAction):
     """The configuration of the action term."""
 
     def apply_actions(self):
-        self._asset.set_joint_position_target(self._processed_actions, joint_ids=self._joint_ids)
+        self._asset.set_joint_position_target_index(target=self._processed_actions, joint_ids=self._joint_ids)
 
 
 class BinaryJointVelocityAction(BinaryJointAction):
@@ -166,27 +165,16 @@ class BinaryJointVelocityAction(BinaryJointAction):
     """The configuration of the action term."""
 
     def apply_actions(self):
-        self._asset.set_joint_velocity_target(self._processed_actions, joint_ids=self._joint_ids)
+        self._asset.set_joint_velocity_target_index(target=self._processed_actions, joint_ids=self._joint_ids)
 
 
 class AbsBinaryJointPositionAction(BinaryJointAction):
     """Absolute Binary joint action that sets the binary action into joint position targets.
 
-    This class extends BinaryJointAction to accept absolute position control
-    for gripper joints. It converts continuous input actions into binary open/close commands
-    using a configurable threshold mechanism.
-
-    The key difference from the base BinaryJointAction is that this class:
-    - Receives absolute joint position actions for gripper control
-    - Implements a threshold-based decision system to determine open/close state
-
-    The action processing works by:
-    1. Taking a continuous input action value
-    2. Comparing it against the configured threshold value
-    3. Based on the threshold comparison and positive_threshold flag, determining
-       whether to open or close the gripper
-    4. Setting the target joint positions to either the open or close configuration
-
+    This class extends :class:`BinaryJointAction` to accept absolute joint-position
+    actions [m or rad, depending on joint type] for gripper control. It compares
+    each continuous action with the configured threshold and selects the open or
+    closed joint-position target.
     """
 
     cfg: actions_cfg.AbsBinaryJointPositionActionCfg
@@ -210,4 +198,4 @@ class AbsBinaryJointPositionAction(BinaryJointAction):
             )
 
     def apply_actions(self):
-        self._asset.set_joint_position_target(self._processed_actions, joint_ids=self._joint_ids)
+        self._asset.set_joint_position_target_index(target=self._processed_actions, joint_ids=self._joint_ids)

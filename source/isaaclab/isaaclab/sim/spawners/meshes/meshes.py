@@ -14,9 +14,16 @@ import trimesh.transformations
 from pxr import Usd, UsdPhysics
 
 from isaaclab.sim import schemas
+from isaaclab.sim.spawners._utils import fragment_mapping, props_expr
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
 
-from ..materials import DeformableBodyMaterialCfg, RigidBodyMaterialCfg
+from ..materials import (
+    DeformableBodyMaterialBaseCfg,
+    RigidBodyMaterialBaseCfg,
+    RigidBodyMaterialFragment,
+    SurfaceDeformableBodyMaterialBaseCfg,
+)
+from ..materials.physics_materials import spawn_physics_material
 
 if TYPE_CHECKING:
     from . import meshes_cfg
@@ -43,7 +50,7 @@ def spawn_mesh_sphere(
         cfg: The configuration instance.
         translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
             this is set to the origin.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
         **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
@@ -85,7 +92,7 @@ def spawn_mesh_cuboid(
         cfg: The configuration instance.
         translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
             this is set to the origin.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
         **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
@@ -127,7 +134,7 @@ def spawn_mesh_cylinder(
         cfg: The configuration instance.
         translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
             this is set to the origin.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
         **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
@@ -177,7 +184,7 @@ def spawn_mesh_capsule(
         cfg: The configuration instance.
         translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
             this is set to the origin.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
         **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
@@ -227,7 +234,7 @@ def spawn_mesh_cone(
         cfg: The configuration instance.
         translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
             this is set to the origin.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
         **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
@@ -256,9 +263,99 @@ def spawn_mesh_cone(
     return stage.GetPrimAtPath(prim_path)
 
 
+@clone
+def spawn_mesh_rectangle(
+    prim_path: str,
+    cfg: meshes_cfg.MeshRectangleCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> Usd.Prim:
+    """Create a USD-Mesh 2D rectangle prim with the given attributes.
+
+    .. note::
+        This function is decorated with :func:`clone` that resolves prim path into list of paths
+        if the input prim path is a regex pattern. This is done to support spawning multiple assets
+        from a single and cloning the USD prim at the given path expression.
+
+    Args:
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+            then the asset is spawned at all the matching prim paths.
+        cfg: The configuration instance.
+        translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
+            this is set to the origin.
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
+            in which case this is set to identity.
+        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
+
+    Returns:
+        The created prim.
+
+    Raises:
+        ValueError: If a prim already exists at the given path.
+    """
+    # create a 2D triangle mesh
+    half_x, half_y = cfg.size[0] / 2, cfg.size[1] / 2
+    vertices = np.array(
+        [(-half_x, -half_y, 0.0), (half_x, -half_y, 0.0), (half_x, half_y, 0.0), (-half_x, half_y, 0.0)],
+        dtype=np.float32,
+    )
+    rectangle = trimesh.Trimesh(vertices=vertices, faces=((0, 1, 2), (0, 2, 3)), process=False)
+
+    # obtain stage handle
+    stage = get_current_stage()
+    # spawn the rectangle as a mesh
+    _spawn_mesh_geom_from_mesh(prim_path, cfg, rectangle, translation, orientation, None, stage=stage)
+    # return the prim
+    return stage.GetPrimAtPath(prim_path)
+
+
 """
 Helper functions.
 """
+
+
+def _refine_surface_mesh(mesh: trimesh.Trimesh, cfg: meshes_cfg.MeshCfg) -> trimesh.Trimesh:
+    """Subdivide a deformable's surface mesh to the configured edge-length target.
+
+    Args:
+        mesh: The mesh to refine.
+        cfg: The config carrying :attr:`~isaaclab.sim.MeshCfg.edge_refinement`.
+
+    Returns:
+        The refined mesh, or the input mesh when refinement does not apply.
+
+    Raises:
+        ValueError: If the edge refinement is less than ``1.0``.
+    """
+    if cfg.edge_refinement < 1.0:
+        raise ValueError(f"Mesh edge refinement must be at least 1.0, got {cfg.edge_refinement}.")
+    if cfg.deformable_props is None or cfg.edge_refinement == 1.0:
+        return mesh
+
+    max_edge = float(np.linalg.norm(mesh.bounding_box.extents)) / cfg.edge_refinement
+    vertices, faces = trimesh.remesh.subdivide_to_size(mesh.vertices, mesh.faces, max_edge=max_edge)
+    return trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+
+
+def _apply_deformable_collision_props(prim_path: str, collision_props, stage: Usd.Stage) -> None:
+    """Apply collision fragments to the simulation mesh of a deformable body.
+
+    The collider is the simulation mesh authored under the body prim, so mapping keys anchor there
+    (e.g. ``{"/sim_mesh": [...]}``) while a bare fragment list sweeps the subtree to reach it.
+
+    Args:
+        prim_path: The prim path of the deformable body.
+        collision_props: A mapping from target pattern to collision fragments, or a fragment or
+            sequence of fragments.
+        stage: The stage where the prims live.
+    """
+    if isinstance(collision_props, dict):
+        for pattern, fragments in collision_props.items():
+            schemas.apply_collision_properties(props_expr(prim_path, pattern), fragments, stage=stage)
+        return
+    fragments = collision_props if isinstance(collision_props, (list, tuple)) else [collision_props]
+    schemas.apply_collision_properties(props_expr(prim_path, "/.*"), fragments, stage=stage)
 
 
 def _spawn_mesh_geom_from_mesh(
@@ -278,8 +375,9 @@ def _spawn_mesh_geom_from_mesh(
 
     There is a difference in how the properties are applied to the prim based on the type of object:
 
-    - Deformable body properties: The properties are applied to the mesh prim: ``{prim_path}/geometry/mesh``.
-    - Collision properties: The properties are applied to the mesh prim: ``{prim_path}/geometry/mesh``.
+    - Deformable body properties: The properties are applied to the parent prim: ``{prim_path}``.
+    - Collision properties: The properties are applied to the simulation mesh ``{prim_path}/sim_mesh`` for
+      deformable bodies, and to the mesh prim ``{prim_path}/geometry/mesh`` otherwise.
     - Rigid body properties: The properties are applied to the parent prim: ``{prim_path}``.
 
     Args:
@@ -288,7 +386,7 @@ def _spawn_mesh_geom_from_mesh(
         mesh: The mesh to spawn the prim from.
         translation: The translation to apply to the prim w.r.t. its parent prim. Defaults to None, in which case
             this is set to the origin.
-        orientation: The orientation in (w, x, y, z) to apply to the prim w.r.t. its parent prim. Defaults to None,
+        orientation: The orientation in (x, y, z, w) to apply to the prim w.r.t. its parent prim. Defaults to None,
             in which case this is set to identity.
         scale: The scale to apply to the prim. Defaults to None, in which case this is set to identity.
         stage: The stage to spawn the asset at. Defaults to None, in which case the current stage is used.
@@ -296,13 +394,16 @@ def _spawn_mesh_geom_from_mesh(
 
     Raises:
         ValueError: If a prim already exists at the given path.
+        ValueError: If edge refinement is less than ``1.0``.
         ValueError: If both deformable and rigid properties are used.
-        ValueError: If both deformable and collision properties are used.
         ValueError: If the physics material is not of the correct type. Deformable properties require a deformable
             physics material, and rigid properties require a rigid physics material.
+        ValueError: If deformable properties are used with non-fragment collision properties.
 
     .. _USDGeomMesh: https://openusd.org/dev/api/class_usd_geom_mesh.html
     """
+    mesh = _refine_surface_mesh(mesh, cfg)
+
     # obtain stage handle
     stage = stage if stage is not None else get_current_stage()
 
@@ -315,13 +416,28 @@ def _spawn_mesh_geom_from_mesh(
     if cfg.deformable_props is not None and cfg.rigid_props is not None:
         raise ValueError("Cannot use both deformable and rigid properties at the same time.")
     if cfg.deformable_props is not None and cfg.collision_props is not None:
-        raise ValueError("Cannot use both deformable and collision properties at the same time.")
+        # only fragments resolve onto the simulation mesh, legacy cfgs would target the inert body prim
+        collision_props_mapping = fragment_mapping(cfg.collision_props)
+        if collision_props_mapping is not None:
+            frags = [frag for fragments in collision_props_mapping.values() for frag in fragments]
+        else:
+            frags = [cfg.collision_props]
+        if not frags or not all(isinstance(frag, schemas.SchemaFragment) for frag in frags):
+            raise ValueError("Deformable bodies require 'collision_props' as collision fragments.")
     # check material types are correct
     if cfg.deformable_props is not None and cfg.physics_material is not None:
-        if not isinstance(cfg.physics_material, DeformableBodyMaterialCfg):
+        if not isinstance(cfg.physics_material, DeformableBodyMaterialBaseCfg):
             raise ValueError("Deformable properties require a deformable physics material.")
     if cfg.rigid_props is not None and cfg.physics_material is not None:
-        if not isinstance(cfg.physics_material, RigidBodyMaterialCfg):
+        # accept anything spawn_physics_material accepts for the rigid case: a legacy rigid-body
+        # material cfg, a single fragment, or a list/tuple of fragments
+        physics_material_frags = (
+            cfg.physics_material if isinstance(cfg.physics_material, (list, tuple)) else [cfg.physics_material]
+        )
+        is_rigid_material = isinstance(cfg.physics_material, RigidBodyMaterialBaseCfg) or all(
+            isinstance(frag, RigidBodyMaterialFragment) for frag in physics_material_frags
+        )
+        if not is_rigid_material:
             raise ValueError("Rigid properties require a rigid physics material.")
 
     # create all the paths we need for clarity
@@ -342,14 +458,28 @@ def _spawn_mesh_geom_from_mesh(
         stage=stage,
     )
 
-    # note: in case of deformable objects, we need to apply the deformable properties to the mesh prim.
-    #   this is different from rigid objects where we apply the properties to the parent prim.
     if cfg.deformable_props is not None:
-        # apply mass properties
-        if cfg.mass_props is not None:
-            schemas.define_mass_properties(mesh_prim_path, cfg.mass_props, stage=stage)
         # apply deformable body properties
-        schemas.define_deformable_body_properties(mesh_prim_path, cfg.deformable_props, stage=stage)
+        deformable_type = (
+            "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialBaseCfg) else "volume"
+        )
+        deformable_kwargs = {}
+        if deformable_type == "volume":
+            deformable_kwargs["tetrahedralization_edge_length_fac"] = 1.0 / cfg.edge_refinement
+        schemas.define_deformable_body_properties(
+            prim_path,
+            cfg.deformable_props,
+            stage=stage,
+            deformable_type=deformable_type,
+            **deformable_kwargs,
+        )
+        if cfg.collision_props is not None:
+            _apply_deformable_collision_props(prim_path, cfg.collision_props, stage)
+        if cfg.mass_props is not None:
+            raise ValueError(
+                """MassPropertiesCfg are not supported for deformable bodies
+                and should be set through deformable_props with mass=<value>."""
+            )
     elif cfg.collision_props is not None:
         # decide on type of collision approximation based on the mesh
         if cfg.__class__.__name__ == "MeshSphereCfg":
@@ -364,7 +494,17 @@ def _spawn_mesh_geom_from_mesh(
         mesh_collision_api = UsdPhysics.MeshCollisionAPI.Apply(mesh_prim)
         mesh_collision_api.GetApproximationAttr().Set(collision_approximation)
         # apply collision properties
-        schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
+        # fragment path: a mapping from target pattern to fragment list, applied entry by entry in
+        # insertion order; patterns anchor at the geometry prim this spawner authors, so ``""``
+        # preserves the legacy placement. Otherwise a legacy cfg routes to the legacy writer.
+        collision_props_mapping = fragment_mapping(cfg.collision_props)
+        if collision_props_mapping is not None:
+            for pattern, fragments in collision_props_mapping.items():
+                schemas.apply_collision_properties(
+                    props_expr(mesh_prim_path, pattern), fragments, create_if_missing=True, stage=stage
+                )
+        else:
+            schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
 
     # apply visual material
     if cfg.visual_material is not None:
@@ -383,15 +523,31 @@ def _spawn_mesh_geom_from_mesh(
             material_path = f"{geom_prim_path}/{cfg.physics_material_path}"
         else:
             material_path = cfg.physics_material_path
-        # create material
-        cfg.physics_material.func(material_path, cfg.physics_material)
+        # create material (accepts a legacy material cfg or rigid-body fragment(s))
+        spawn_physics_material(material_path, cfg.physics_material, stage=stage)
         # apply material
-        bind_physics_material(mesh_prim_path, material_path, stage=stage)
+        bind_physics_material(prim_path, material_path, stage=stage)
 
     # note: we apply the rigid properties to the parent prim in case of rigid objects.
+    # fragment path: mapping entries anchor at the container prim, so ``""`` preserves the legacy
+    # placement; entries apply in insertion order. Otherwise a legacy cfg routes to the legacy writer.
     if cfg.rigid_props is not None:
         # apply mass properties
         if cfg.mass_props is not None:
-            schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
+            mass_props_mapping = fragment_mapping(cfg.mass_props)
+            if mass_props_mapping is not None:
+                for pattern, fragments in mass_props_mapping.items():
+                    schemas.apply_mass_properties(
+                        props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage
+                    )
+            else:
+                schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
         # apply rigid properties
-        schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)
+        rigid_props_mapping = fragment_mapping(cfg.rigid_props)
+        if rigid_props_mapping is not None:
+            for pattern, fragments in rigid_props_mapping.items():
+                schemas.apply_rigid_body_properties(
+                    props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage
+                )
+        else:
+            schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)

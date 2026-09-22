@@ -212,7 +212,7 @@ def replace_env_cfg_spaces_with_strings(env_cfg: object) -> object:
 
 
 def replace_strings_with_env_cfg_spaces(env_cfg: object) -> object:
-    """Replace spaces objects with their serialized JSON representations in an environment config.
+    """Replace serialized JSON space strings with space definitions in an environment config.
 
     Args:
         env_cfg: Environment config instance.
@@ -222,8 +222,14 @@ def replace_strings_with_env_cfg_spaces(env_cfg: object) -> object:
     """
     for attr in ["observation_space", "action_space", "state_space"]:
         if hasattr(env_cfg, attr):
-            setattr(env_cfg, attr, deserialize_space(getattr(env_cfg, attr)))
+            val = getattr(env_cfg, attr)
+            if isinstance(val, str):
+                setattr(env_cfg, attr, deserialize_space(val))
     for attr in ["observation_spaces", "action_spaces"]:
         if hasattr(env_cfg, attr):
-            setattr(env_cfg, attr, {k: deserialize_space(v) for k, v in getattr(env_cfg, attr).items()})
+            setattr(
+                env_cfg,
+                attr,
+                {k: deserialize_space(v) if isinstance(v, str) else v for k, v in getattr(env_cfg, attr).items()},
+            )
     return env_cfg

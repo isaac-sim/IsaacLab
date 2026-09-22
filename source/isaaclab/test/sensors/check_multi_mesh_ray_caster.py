@@ -10,7 +10,7 @@ This script shows how to use the multi-mesh ray caster from the Isaac Lab framew
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/isaaclab/test/sensors/check_multi_mesh_ray_caster.py --headless
+    uv run python source/isaaclab/test/sensors/check_multi_mesh_ray_caster.py
 
 """
 
@@ -44,12 +44,12 @@ simulation_app = app_launcher.app
 
 import random
 
+import numpy as np
 import torch
-
-from isaacsim.core.cloner import GridCloner
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
+from isaaclab import cloner as lab_cloner
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCaster, MultiMeshRayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -63,8 +63,10 @@ from isaaclab.utils.timer import Timer
 def design_scene(sim: SimulationContext, num_envs: int = 2048):
     """Design the scene."""
     # Create interface to clone the scene
-    cloner = GridCloner(spacing=10.0)
-    cloner.define_base_env("/World/envs")
+    # Create environment clones using Lab's cloner utilities
+    env_fmt = "/World/envs/env_{}"
+    env_ids = np.arange(num_envs, dtype=np.int64)
+    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=10.0)
     # Everything under the namespace "/World/envs/env_0" will be cloned
     sim.stage.DefinePrim("/World/envs/env_0", "Xform")
     # Define the scene
@@ -74,9 +76,9 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     # -- Balls
     cfg = sim_utils.SphereCfg(
         radius=0.25,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        mass_props=sim_utils.MassCfg(mass=0.5),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
     )
     cfg.func("/World/envs/env_0/ball", cfg, translation=(0.0, 0.0, 5.0))
@@ -84,9 +86,9 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     for i in range(args_cli.num_objects):
         object = sim_utils.CuboidCfg(
             size=(0.5 + random.random() * 0.5, 0.5 + random.random() * 0.5, 0.1 + random.random() * 0.05),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(
                 diffuse_color=(0.0 + i / args_cli.num_objects, 0.0, 1.0 - i / args_cli.num_objects)
             ),
@@ -95,17 +97,36 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
             f"/World/envs/env_0/object_{i}",
             object,
             translation=(0.0 + random.random(), 0.0 + random.random(), 1.0),
-            orientation=quat_from_euler_xyz(torch.Tensor(0), torch.Tensor(0), torch.rand(1) * torch.pi).numpy(),
+            orientation=quat_from_euler_xyz(torch.zeros(1), torch.zeros(1), torch.rand(1) * torch.pi)[0].numpy(),
         )
 
     # Clone the scene
-    cloner.define_base_env("/World/envs")
-    envs_prim_paths = cloner.generate_paths("/World/envs/env", num_paths=num_envs)
-    cloner.clone(source_prim_path="/World/envs/env_0", prim_paths=envs_prim_paths, replicate_physics=True)
-    physics_scene_path = sim.get_physics_context().prim_path
-    cloner.filter_collisions(
-        physics_scene_path, "/World/collisions", prim_paths=envs_prim_paths, global_paths=["/World/ground"]
+    envs_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
+    lab_cloner.usd_replicate(sim.stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
+    # Publish a trivial homogeneous ClonePlan so consumers (e.g. multi-mesh ray-caster's
+    # target tracker) can drive per-env work via clone_mask. Mirrors InteractiveScene's
+    # synthesis path for hand-authored scenes that bypass it.
+    sim.set_clone_plan(
+        lab_cloner.ClonePlan(
+            sources=(env_fmt.format(0),),
+            destinations=(env_fmt,),
+            clone_mask=np.ones((1, num_envs), dtype=np.bool_),
+        )
     )
+    # PhysX-only optimization: filter collisions across env clones. Skip on Newton —
+    # PhysxSceneAPI isn't applied there and the cloner helper is PhysX-specific.
+    physics_scene_path = next(
+        (prim.GetPrimPath().pathString for prim in sim.stage.Traverse() if "PhysxSceneAPI" in prim.GetAppliedSchemas()),
+        None,
+    )
+    if physics_scene_path is not None:
+        lab_cloner.filter_collisions(
+            sim.stage,
+            physics_scene_path,
+            "/World/collisions",
+            prim_paths=envs_prim_paths,
+            global_paths=["/World/ground"],
+        )
 
 
 def main():
@@ -127,6 +148,7 @@ def main():
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
         max_init_terrain_level=0,
         num_envs=1,
+        env_spacing=10.0,
     )
     _ = TerrainImporter(terrain_importer_cfg)
 
@@ -135,20 +157,20 @@ def main():
     ]
     if args_cli.num_objects != 0:
         mesh_targets.append(
-            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="/World/envs/env_.*/object_.*", track_mesh_transforms=True)
+            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/object_[^/]*", track_mesh_transforms=True)
         )
     # Create a ray-caster sensor
     ray_caster_cfg = MultiMeshRayCasterCfg(
-        prim_path="/World/envs/env_.*/ball",
+        prim_path="{ENV_REGEX_NS}/ball",
         mesh_prim_paths=mesh_targets,
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(1.6, 1.0)),
-        attach_yaw_only=True,
+        ray_alignment="yaw",
         debug_vis=not args_cli.headless,
     )
     ray_caster = MultiMeshRayCaster(cfg=ray_caster_cfg)
     # Create a view over all the balls
     balls_cfg = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/ball",
+        prim_path="{ENV_REGEX_NS}/ball",
         spawn=None,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5.0)),
     )
@@ -164,8 +186,8 @@ def main():
     print(ray_caster)
 
     # Get the initial positions of the balls
-    ball_initial_poses = balls.data.root_pose_w.clone()
-    ball_initial_velocities = balls.data.root_vel_w.clone()
+    ball_initial_poses = balls.data.root_pose_w.torch.clone()
+    ball_initial_velocities = balls.data.root_vel_w.torch.clone()
 
     # Create a counter for resetting the scene
     step_count = 0

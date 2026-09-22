@@ -4,11 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.utils import configclass
 
-from .thruster import Thruster
+if TYPE_CHECKING:
+    from .thruster import Thruster
 
 
 @configclass
@@ -21,7 +22,7 @@ class ThrusterCfg:
     and must be provided by the user configuration.
     """
 
-    class_type: type[Thruster] = Thruster
+    class_type: type["Thruster"] | str = "{DIR}.thruster:Thruster"
     """Concrete Python class that consumes this config."""
 
     dt: float = MISSING

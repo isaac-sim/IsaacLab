@@ -12,10 +12,11 @@ import json
 import threading
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
 
 import numpy as np
 import torch
+
+from isaaclab.utils import configclass
 
 try:
     import websockets
@@ -89,7 +90,7 @@ class HaplyDevice(DeviceBase):
         # Current data cache
         self.cached_data = {
             "position": np.zeros(3, dtype=np.float32),
-            "quaternion": np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32),
+            "quaternion": np.array([0.0, 0.0, 1.0, 0.0], dtype=np.float32),
             "buttons": {"a": False, "b": False, "c": False},
             "inverse3_connected": False,
             "versegrip_connected": False,
@@ -377,7 +378,7 @@ class HaplyDevice(DeviceBase):
                     break
 
 
-@dataclass
+@configclass
 class HaplyDeviceCfg(DeviceCfg):
     """Configuration for Haply device.
 

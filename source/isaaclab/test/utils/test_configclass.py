@@ -5,19 +5,10 @@
 
 from __future__ import annotations
 
-# NOTE: While we don't actually use the simulation app in this test, we still need to launch it
-#       because warp is only available in the context of a running simulation
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
 import copy
 import os
+import subprocess
+import sys
 from collections.abc import Callable
 from dataclasses import MISSING, asdict, field
 from functools import wraps
@@ -26,9 +17,12 @@ from typing import Any, ClassVar
 import pytest
 import torch
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils.configclass import _field_module_dir, configclass
 from isaaclab.utils.dict import class_to_dict, dict_to_md5_hash, update_class_from_dict
 from isaaclab.utils.io import dump_yaml, load_yaml
+from isaaclab.utils.string import ResolvableString
+
+pytestmark = pytest.mark.unit
 
 """
 Mock classes and functions.
@@ -107,7 +101,7 @@ class EnvCfg:
 @configclass
 class RobotDefaultStateCfg:
     pos = (0.0, 0.0, 0.0)  # type annotation missing on purpose (immutable)
-    rot: tuple = (1.0, 0.0, 0.0, 0.0)
+    rot: tuple = (0.0, 0.0, 0.0, 1.0)  # xyzw format
     dof_pos: tuple = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     dof_vel = [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]  # type annotation missing on purpose (mutable)
 
@@ -183,6 +177,27 @@ class InheritedNonTypeAnnotationOrderingDemoCfg(NonTypeAnnotationOrderingDemoCfg
     pass
 
 
+@configclass
+class MixedAnnotationOrderingDemoCfg:
+    """Config class with type annotations on only some attributes."""
+
+    plane = RobotDefaultStateCfg()
+    robot = RobotDefaultStateCfg()
+    peg: RobotDefaultStateCfg = RobotDefaultStateCfg()
+    hole: RobotDefaultStateCfg = RobotDefaultStateCfg()
+    camera = RobotDefaultStateCfg()
+    light = RobotDefaultStateCfg()
+
+
+@configclass
+class InheritedMixedAnnotationOrderingDemoCfg(MixedAnnotationOrderingDemoCfg):
+    """Inherited config class with type annotations on only some attributes."""
+
+    table = RobotDefaultStateCfg()
+    sensor: RobotDefaultStateCfg = RobotDefaultStateCfg()
+    marker = RobotDefaultStateCfg()
+
+
 """
 Dummy configuration: Inheritance
 """
@@ -217,7 +232,7 @@ class ChildADemoCfg(ParentDemoCfg):
 
     def __post_init__(self):
         self.b = 3  # change value of existing field
-        self.m.rot = (2.0, 0.0, 0.0, 0.0)  # change value of default
+        self.m.rot = (0.0, 0.0, 0.0, 2.0)  # change value of default (xyzw format)
         self.i = ["a", "b"]  # change value of existing field
 
 
@@ -401,7 +416,7 @@ basic_demo_cfg_correct = {
     "env": {"num_envs": 56, "episode_length": 2000, "viewer": {"eye": [7.5, 7.5, 7.5], "lookat": [0.0, 0.0, 0.0]}},
     "robot_default_state": {
         "pos": (0.0, 0.0, 0.0),
-        "rot": (1.0, 0.0, 0.0, 0.0),
+        "rot": (0.0, 0.0, 0.0, 1.0),
         "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
@@ -413,7 +428,7 @@ basic_demo_cfg_change_correct = {
     "env": {"num_envs": 22, "episode_length": 2000, "viewer": {"eye": (2.0, 2.0, 2.0), "lookat": [0.0, 0.0, 0.0]}},
     "robot_default_state": {
         "pos": (0.0, 0.0, 0.0),
-        "rot": (1.0, 0.0, 0.0, 0.0),
+        "rot": (0.0, 0.0, 0.0, 1.0),
         "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
@@ -425,7 +440,7 @@ basic_demo_cfg_change_with_none_correct = {
     "env": {"num_envs": 22, "episode_length": 2000, "viewer": None},
     "robot_default_state": {
         "pos": (0.0, 0.0, 0.0),
-        "rot": (1.0, 0.0, 0.0, 0.0),
+        "rot": (0.0, 0.0, 0.0, 1.0),
         "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
@@ -437,7 +452,7 @@ basic_demo_cfg_change_with_tuple_correct = {
     "env": {"num_envs": 56, "episode_length": 2000, "viewer": {"eye": [7.5, 7.5, 7.5], "lookat": [0.0, 0.0, 0.0]}},
     "robot_default_state": {
         "pos": (0.0, 0.0, 0.0),
-        "rot": (1.0, 0.0, 0.0, 0.0),
+        "rot": (0.0, 0.0, 0.0, 1.0),
         "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
@@ -447,7 +462,7 @@ basic_demo_cfg_change_with_tuple_correct = {
 
 basic_demo_cfg_nested_dict_and_list = {
     "dict_1": {
-        "dict_2": {"func": dummy_function2},
+        "dict_2": {"func": "test_configclass:dummy_function2"},
     },
     "list_1": [
         {"num_envs": 23, "episode_length": 3000, "viewer": {"eye": [5.0, 5.0, 5.0], "lookat": [0.0, 0.0, 0.0]}},
@@ -459,7 +474,7 @@ basic_demo_post_init_cfg_correct = {
     "env": {"num_envs": 56, "episode_length": 2000, "viewer": {"eye": [7.5, 7.5, 7.5], "lookat": [0.0, 0.0, 0.0]}},
     "robot_default_state": {
         "pos": (0.0, 0.0, 0.0),
-        "rot": (1.0, 0.0, 0.0, 0.0),
+        "rot": (0.0, 0.0, 0.0, 1.0),
         "dof_pos": (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         "dof_vel": [0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
     },
@@ -643,6 +658,47 @@ def test_config_update_nested_dict():
     assert isinstance(cfg.list_1[1].viewer, ViewerCfg)
 
 
+def test_wrap_resolvable_strings_handles_cyclic_containers():
+    """Cyclic container graphs in config values should not recurse forever."""
+
+    @configclass
+    class CyclicContainerCfg:
+        payload: dict[str, Any] = field(default_factory=dict)
+
+        def __post_init__(self):
+            cycle = {}
+            cycle["self"] = cycle
+            cycle["tuple"] = (cycle, {"back": cycle})
+            self.payload = cycle
+
+    cfg = CyclicContainerCfg()
+
+    assert cfg.payload["self"] is cfg.payload
+    assert cfg.payload["tuple"][0] is cfg.payload
+    assert cfg.payload["tuple"][1]["back"] is cfg.payload
+
+
+def test_dir_resolution_uses_declaring_class_for_inherited_field():
+    """{DIR} expansion should use the field declaring class, not subclass module."""
+
+    @configclass
+    class _BaseCfg:
+        class_type: type | str = "{DIR}.base_mod:BaseSymbol"
+
+    @configclass
+    class _ChildCfg(_BaseCfg):
+        pass
+
+    # Simulate subclass declared in a different package than the parent config.
+    _BaseCfg.__module__ = "test_pkg.parent.base_cfg"
+    _ChildCfg.__module__ = "other_pkg.child.child_cfg"
+
+    cfg = _ChildCfg()
+
+    assert isinstance(cfg.class_type, ResolvableString)
+    assert str(cfg.class_type) == "test_pkg.parent.base_mod:BaseSymbol"
+
+
 def test_config_update_different_iterable_lengths():
     """Iterables are whole replaced, even if their lengths are different."""
 
@@ -750,6 +806,20 @@ def test_multiple_instances_with_replace():
     assert cfg1.to_dict() == cfg2.to_dict()
 
 
+def test_borrowed_field_preserves_identity_without_changing_ordinary_copying():
+    @configclass
+    class NativeCfg(ViewerCfg):
+        handle: object = field(kw_only=True, metadata={"copy": False})
+
+    handle = object()
+    cfg = NativeCfg(handle=handle)
+    assert cfg.handle is handle
+    for copied in (cfg.copy(), cfg.replace(eye=[1.0, 2.0, 3.0])):
+        assert copied.handle is handle
+        assert copied.eye is not cfg.eye
+        assert copied.lookat is not cfg.lookat
+
+
 def test_alter_values_multiple_instances_wth_replace():
     """Test alterations in multiple instances through replace function."""
     # create two config instances
@@ -785,6 +855,26 @@ def test_configclass_type_ordering():
     assert list(cfg_1.__dict__.keys()) == list(cfg_2.__dict__.keys())
     assert list(cfg_3.__dict__.keys()) == list(cfg_2.__dict__.keys())
     assert list(cfg_1.__dict__.keys()) == list(cfg_3.__dict__.keys())
+
+
+def test_configclass_mixed_type_annotations_ordering():
+    """Checks that declaration order is preserved when only some attributes have type annotations.
+
+    Reference: https://github.com/isaac-sim/IsaacLab/issues/1949
+    """
+    cfg = MixedAnnotationOrderingDemoCfg()
+    expected_order = ["plane", "robot", "peg", "hole", "camera", "light"]
+
+    # check ordering of attributes and dictionary conversion
+    assert list(cfg.__dict__.keys()) == expected_order
+    assert list(cfg.to_dict().keys()) == expected_order
+
+    # check ordering with inheritance: parent fields first, then child fields in declaration order
+    cfg_inherited = InheritedMixedAnnotationOrderingDemoCfg()
+    expected_inherited_order = expected_order + ["table", "sensor", "marker"]
+
+    assert list(cfg_inherited.__dict__.keys()) == expected_inherited_order
+    assert list(cfg_inherited.to_dict().keys()) == expected_inherited_order
 
 
 def test_functions_config():
@@ -930,7 +1020,7 @@ def test_config_inheritance():
     # check post init
     assert cfg_a.b == 3
     assert cfg_a.i == ["a", "b"]
-    assert cfg_a.m.rot == (2.0, 0.0, 0.0, 0.0)
+    assert cfg_a.m.rot == (0.0, 0.0, 0.0, 2.0)
 
 
 def test_config_inheritance_independence():
@@ -951,8 +1041,8 @@ def test_config_inheritance_independence():
     assert cfg_b.b == 8
     assert cfg_a.c == RobotDefaultStateCfg()
     assert isinstance(cfg_b.c, type(MISSING))
-    assert cfg_a.m.rot == (2.0, 0.0, 0.0, 0.0)
-    assert cfg_b.m.rot == (1.0, 0.0, 0.0, 0.0)
+    assert cfg_a.m.rot == (0.0, 0.0, 0.0, 2.0)
+    assert cfg_b.m.rot == (0.0, 0.0, 0.0, 1.0)
     assert isinstance(cfg_a.j, type(MISSING))
     assert cfg_b.j == ["3", "4"]
     assert cfg_a.i == ["a", "b"]
@@ -1077,3 +1167,175 @@ def test_validity():
 
     # check that no more than the expected missing fields are in the error message
     assert len(error_message.split("\n")) - 2 == len(validity_expected_fields)
+
+
+def test_nested_configclass_custom_validation():
+    """Custom validation hooks run for nested configclass instances."""
+
+    @configclass
+    class ChildCfg:
+        value: int = 0
+
+        def validate_config(self) -> None:
+            if self.value == 0:
+                raise ValueError("nested validation ran")
+
+    @configclass
+    class ParentCfg:
+        child: ChildCfg = ChildCfg()
+
+    with pytest.raises(ValueError, match="nested validation ran"):
+        ParentCfg().validate()
+
+
+def test_nested_non_configclass_custom_validation_is_not_called():
+    """Arbitrary nested objects do not participate in configclass custom validation."""
+
+    class Child:
+        def validate_config(self) -> None:
+            raise ValueError("must not run")
+
+    @configclass
+    class ParentCfg:
+        child: Child = Child()
+
+    ParentCfg().validate()
+
+
+def test_missing_fields_precede_nested_custom_validation():
+    """Missing-field reporting remains the first validation phase for the whole tree."""
+
+    @configclass
+    class ChildCfg:
+        def validate_config(self) -> None:
+            raise ValueError("must run only after missing-field checks")
+
+    @configclass
+    class ParentCfg:
+        child: ChildCfg = ChildCfg()
+        required: int = MISSING
+
+    with pytest.raises(TypeError, match="required"):
+        ParentCfg().validate()
+
+
+def test_dir_resolution_in_subclass():
+    """Test that {DIR} in inherited fields resolves relative to the declaring class's module."""
+
+    @configclass
+    class ParentCfg:
+        class_type: str = "{DIR}.my_module:MyClass"
+        name: str = "default"
+
+    @configclass
+    class ChildCfg(ParentCfg):
+        extra: int = 42
+
+    # Pretend the parent lives in a real package and the child lives in a test file
+    ParentCfg.__module__ = "some_package.sub_package.parent_cfg"
+    ChildCfg.__module__ = "test_some_feature"
+
+    parent = ParentCfg.__new__(ParentCfg)
+    child = ChildCfg.__new__(ChildCfg)
+
+    # class_type should resolve to the parent's module dir in both cases
+    assert _field_module_dir(parent, "class_type") == "some_package.sub_package"
+    assert _field_module_dir(child, "class_type") == "some_package.sub_package"
+    # extra should resolve to the child's module dir
+    assert _field_module_dir(child, "extra") == "test_some_feature"
+
+
+# =============================================================================
+# Tests: checked_apply
+# =============================================================================
+
+
+def test_checked_apply_forwards_all_fields():
+    """checked_apply forwards every declared field on src onto target."""
+    from dataclasses import dataclass as plain_dataclass
+
+    from isaaclab.utils import checked_apply
+
+    @configclass
+    class WrapperCfg:
+        gap: float = 0.01
+        margin: float = 0.0
+
+    @plain_dataclass
+    class UpstreamLike:
+        gap: float = 99.0
+        margin: float = 99.0
+        unrelated: str = "keep me"
+
+    src = WrapperCfg(margin=0.005)
+    target = UpstreamLike()
+    checked_apply(src, target)
+
+    assert target.gap == 0.01
+    assert target.margin == 0.005
+    # fields not declared on src are not touched
+    assert target.unrelated == "keep me"
+
+
+def test_checked_apply_raises_on_missing_target_field():
+    """checked_apply fails loudly when target lacks a declared field."""
+    from dataclasses import dataclass as plain_dataclass
+
+    from isaaclab.utils import checked_apply
+
+    @configclass
+    class WrapperCfg:
+        margin: float = 0.01
+        renamed_in_upstream: float = 0.0
+
+    @plain_dataclass
+    class UpstreamMissingField:
+        margin: float = 0.0
+        # 'renamed_in_upstream' was renamed/removed upstream
+
+    with pytest.raises(AttributeError, match="renamed_in_upstream"):
+        checked_apply(WrapperCfg(), UpstreamMissingField())
+
+
+def test_checked_apply_rejects_non_dataclass_src():
+    """checked_apply requires src to be a dataclass."""
+    from isaaclab.utils import checked_apply
+
+    class NotADataclass:
+        margin = 0.01
+
+    with pytest.raises(TypeError, match="must be a dataclass"):
+        checked_apply(NotADataclass(), object())
+
+
+@pytest.mark.parametrize("import_first", ["sub-module", "decorator"])
+def test_configclass_name_works_for_every_import_form(import_first):
+    """``isaaclab.utils.configclass`` serves both the decorator and the sub-module, in either order.
+
+    The name belongs to a sub-module and to the decorator that sub-module defines, so whichever was
+    imported first used to decide which one the other import forms got. A fresh interpreter is
+    required because that is settled on the very first import.
+    """
+    prologue = {
+        "sub-module": "import isaaclab.utils.configclass",
+        "decorator": "from isaaclab.utils import configclass",
+    }[import_first]
+    script = f"""
+{prologue}
+
+import isaaclab.utils.configclass as configclass_module
+assert configclass_module.checked_apply is not None
+
+import isaaclab.utils
+assert isaaclab.utils.configclass._field_module_dir is not None
+
+from isaaclab.utils import configclass
+
+@configclass
+class DemoCfg:
+    value: int = 1
+
+assert DemoCfg().to_dict() == {{"value": 1}}
+"""
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr

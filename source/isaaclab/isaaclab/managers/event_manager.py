@@ -142,7 +142,9 @@ class EventManager(ManagerBase):
                 # sample a new interval and set that as time left
                 # note: global time events are based on simulation time and not episode time
                 #   so we do not reset them
-                if not term_cfg.is_global_time:
+                # note: terms with resample_interval_on_reset=False keep their per-environment
+                #   counter across resets, so we do not resample them either
+                if not term_cfg.is_global_time and term_cfg.resample_interval_on_reset:
                     lower, upper = term_cfg.interval_range_s
                     sampled_interval = torch.rand(num_envs, device=self.device) * (upper - lower) + lower
                     self._interval_term_time_left[index][env_ids] = sampled_interval
@@ -191,6 +193,13 @@ class EventManager(ManagerBase):
             logger.warning(f"Event mode '{mode}' is not defined. Skipping event.")
             return
 
+        # ensure class-based terms are resolved before applying
+        # the timeline PLAY callback may not have fired yet, so we resolve synchronously
+        # note: skip for "prestartup" mode as those terms are handled in _prepare_terms
+        # and scene entities don't exist yet
+        if mode != "prestartup" and not self._is_scene_entities_resolved:
+            self._resolve_terms_callback(None)
+
         # check if mode is interval and dt is not provided
         if mode == "interval" and dt is None:
             raise ValueError(f"Event mode '{mode}' requires the time-step of the environment.")
@@ -205,6 +214,12 @@ class EventManager(ManagerBase):
 
         # iterate over all the event terms
         for index, term_cfg in enumerate(self._mode_term_cfgs[mode]):
+            # initialize class-based terms if not already initialized (for non-prestartup modes)
+            if inspect.isclass(term_cfg.func):
+                logger.info(
+                    f"Initializing term '{self._mode_term_names[mode][index]}' with class '{term_cfg.func.__name__}'."
+                )
+                term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
             if mode == "interval":
                 # extract time left for this term
                 time_left = self._interval_term_time_left[index]

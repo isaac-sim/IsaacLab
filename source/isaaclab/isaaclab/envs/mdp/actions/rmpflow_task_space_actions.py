@@ -55,15 +55,8 @@ class RMPFlowAction(ActionTerm):
         self._body_idx = body_ids[0]
         self._body_name = body_names[0]
 
-        # check if articulation is fixed-base
-        # if fixed-base then the jacobian for the base is not computed
-        # this means that number of bodies is one less than the articulation's number of bodies
-        if self._asset.is_fixed_base:
-            self._jacobi_body_idx = self._body_idx - 1
-            self._jacobi_joint_ids = self._joint_ids
-        else:
-            self._jacobi_body_idx = self._body_idx
-            self._jacobi_joint_ids = [i + 6 for i in self._joint_ids]
+        self._jacobi_body_idx = self._body_idx - 1 if self._asset.is_fixed_base else self._body_idx
+        self._jacobi_joint_ids = [j + self._asset.num_base_dofs for j in self._joint_ids]
 
         # log info for debugging
         logger.info(
@@ -115,8 +108,7 @@ class RMPFlowAction(ActionTerm):
         if self.cfg.use_relative_mode:
             return 6  # delta_eef_xyz, delta_eef_rpy
         else:
-            return 7  # absolute_eef_xyz, absolute_eef_quat
-        # self._rmpflow_controller.num_actions = 7 since it use quaternions (w,x,y,z) as command
+            return 7  # absolute_eef_xyz, absolute_eef_quat (x, y, z, w)
 
     @property
     def raw_actions(self) -> torch.Tensor:
@@ -128,12 +120,12 @@ class RMPFlowAction(ActionTerm):
 
     @property
     def jacobian_w(self) -> torch.Tensor:
-        return self._asset.root_physx_view.get_jacobians()[:, self._jacobi_body_idx, :, self._jacobi_joint_ids]
+        return self._asset.data.body_link_jacobian_w.torch[:, self._jacobi_body_idx, :, self._jacobi_joint_ids]
 
     @property
     def jacobian_b(self) -> torch.Tensor:
         jacobian = self.jacobian_w
-        base_rot = self._asset.data.root_quat_w
+        base_rot = self._asset.data.root_quat_w.torch
         base_rot_matrix = math_utils.matrix_from_quat(math_utils.quat_inv(base_rot))
         jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
         jacobian[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
@@ -178,19 +170,22 @@ class RMPFlowAction(ActionTerm):
     def apply_actions(self):
         # obtain quantities from simulation
         ee_pos_curr, ee_quat_curr = self._compute_frame_pose()
-        joint_pos = self._asset.data.joint_pos[:, self._joint_ids]
+        joint_pos = self._asset.data.joint_pos.torch[:, self._joint_ids]
         # compute the delta in joint-space
         if ee_quat_curr.norm() != 0:
-            joint_pos_des, joint_vel_des = self._rmpflow_controller.compute()
+            joint_pos_des, joint_vel_des = self._rmpflow_controller.compute(
+                self._asset.data.joint_pos.torch, self._asset.data.joint_vel.torch
+            )
         else:
             joint_pos_des = joint_pos.clone()
+            joint_vel_des = torch.zeros_like(joint_pos_des)
         # set the joint position command
-        self._asset.set_joint_position_target(joint_pos_des, self._joint_ids)
-        self._asset.set_joint_velocity_target(joint_vel_des, self._joint_ids)
+        self._asset.set_joint_position_target_index(target=joint_pos_des, joint_ids=self._joint_ids)
+        self._asset.set_joint_velocity_target_index(target=joint_vel_des, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         self._raw_actions[env_ids] = 0.0
-        self._rmpflow_controller.initialize(self.cfg.articulation_prim_expr)
+        self._rmpflow_controller.initialize(self.num_envs, list(self._asset.joint_names))
 
     """
     Helper functions.
@@ -203,10 +198,10 @@ class RMPFlowAction(ActionTerm):
             A tuple of the body's position and orientation in the root frame.
         """
         # obtain quantities from simulation
-        ee_pos_w = self._asset.data.body_pos_w[:, self._body_idx]
-        ee_quat_w = self._asset.data.body_quat_w[:, self._body_idx]
-        root_pos_w = self._asset.data.root_pos_w
-        root_quat_w = self._asset.data.root_quat_w
+        ee_pos_w = self._asset.data.body_pos_w.torch[:, self._body_idx]
+        ee_quat_w = self._asset.data.body_quat_w.torch[:, self._body_idx]
+        root_pos_w = self._asset.data.root_pos_w.torch
+        root_quat_w = self._asset.data.root_quat_w.torch
         # compute the pose of the body in the root frame
         ee_pose_b, ee_quat_b = math_utils.subtract_frame_transforms(root_pos_w, root_quat_w, ee_pos_w, ee_quat_w)
         # account for the offset

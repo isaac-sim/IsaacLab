@@ -6,20 +6,25 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+from typing import TYPE_CHECKING, cast
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Example on using the contact sensor.")
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to spawn.")
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
+parser.add_argument(
+    "--physics",
+    default="isaacsim_physx",
+    choices=["isaacsim_physx", "newton_mjwarp"],
+    help="Physics backend.",
+)
+# append launcher CLI args
+add_launcher_args(parser)
+# demos should open Kit visualizer by default
+parser.set_defaults(visualizer=["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
@@ -27,7 +32,8 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.physics import PhysicsCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.utils import configclass
 
@@ -35,6 +41,9 @@ from isaaclab.utils import configclass
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
+
+if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
 
 
 @configclass
@@ -72,6 +81,7 @@ class ContactSensorSceneCfg(InteractiveSceneCfg):
         history_length=6,
         debug_vis=True,
         filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube"],
+        track_friction_forces=args_cli.physics == "newton_mjwarp",
     )
 
     contact_forces_RF = ContactSensorCfg(
@@ -80,6 +90,7 @@ class ContactSensorSceneCfg(InteractiveSceneCfg):
         history_length=6,
         debug_vis=True,
         filter_prim_paths_expr=["{ENV_REGEX_NS}/Cube"],
+        track_friction_forces=args_cli.physics == "newton_mjwarp",
     )
 
     contact_forces_H = ContactSensorCfg(
@@ -87,10 +98,11 @@ class ContactSensorSceneCfg(InteractiveSceneCfg):
         update_period=0.0,
         history_length=6,
         debug_vis=True,
+        track_friction_forces=args_cli.physics == "newton_mjwarp",
     )
 
 
-def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
+def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene"):
     """Run the simulator."""
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -98,7 +110,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     count = 0
 
     # Simulate physics
-    while simulation_app.is_running():
+    while sim.is_headless_or_exist_active_visualizer():
         if count % 500 == 0:
             # reset counter
             count = 0
@@ -106,25 +118,27 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             # root state
             # we offset the root state by the origin since the states are written in simulation world frame
             # if this is not done, then the robots will be spawned at the (0, 0, 0) of the simulation world
-            root_state = scene["robot"].data.default_root_state.clone()
-            root_state[:, :3] += scene.env_origins
-            scene["robot"].write_root_pose_to_sim(root_state[:, :7])
-            scene["robot"].write_root_velocity_to_sim(root_state[:, 7:])
+            root_pose = scene["robot"].data.default_root_pose.torch.clone()
+            root_pose[:, :3] += scene.env_origins
+            scene["robot"].write_root_pose_to_sim_index(root_pose=root_pose)
+            root_vel = scene["robot"].data.default_root_vel.torch.clone()
+            scene["robot"].write_root_velocity_to_sim_index(root_velocity=root_vel)
             # set joint positions with some noise
             joint_pos, joint_vel = (
-                scene["robot"].data.default_joint_pos.clone(),
-                scene["robot"].data.default_joint_vel.clone(),
+                scene["robot"].data.default_joint_pos.torch.clone(),
+                scene["robot"].data.default_joint_vel.torch.clone(),
             )
             joint_pos += torch.rand_like(joint_pos) * 0.1
-            scene["robot"].write_joint_state_to_sim(joint_pos, joint_vel)
+            scene["robot"].write_joint_position_to_sim_index(position=joint_pos)
+            scene["robot"].write_joint_velocity_to_sim_index(velocity=joint_vel)
             # clear internal buffers
             scene.reset()
             print("[INFO]: Resetting robot state...")
         # Apply default actions to the robot
         # -- generate actions/commands
-        targets = scene["robot"].data.default_joint_pos
+        targets = scene["robot"].data.default_joint_pos.torch
         # -- apply action to the robot
-        scene["robot"].set_joint_position_target(targets)
+        scene["robot"].set_joint_position_target_index(target=targets)
         # -- write data to sim
         scene.write_data_to_sim()
         # perform step
@@ -138,39 +152,41 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         # print information from the sensors
         print("-------------------------------")
         print(scene["contact_forces_LF"])
-        print("Received force matrix of: ", scene["contact_forces_LF"].data.force_matrix_w)
-        print("Received contact force of: ", scene["contact_forces_LF"].data.net_forces_w)
+        print("Received force matrix of: ", scene["contact_forces_LF"].data.normal_force_matrix_w)
+        print("Received contact force of: ", scene["contact_forces_LF"].data.net_normal_forces_w)
         print("-------------------------------")
         print(scene["contact_forces_RF"])
-        print("Received force matrix of: ", scene["contact_forces_RF"].data.force_matrix_w)
-        print("Received contact force of: ", scene["contact_forces_RF"].data.net_forces_w)
+        print("Received force matrix of: ", scene["contact_forces_RF"].data.normal_force_matrix_w)
+        print("Received contact force of: ", scene["contact_forces_RF"].data.net_normal_forces_w)
         print("-------------------------------")
         print(scene["contact_forces_H"])
-        print("Received force matrix of: ", scene["contact_forces_H"].data.force_matrix_w)
-        print("Received contact force of: ", scene["contact_forces_H"].data.net_forces_w)
+        print("Received force matrix of: ", scene["contact_forces_H"].data.normal_force_matrix_w)
+        print("Received contact force of: ", scene["contact_forces_H"].data.net_normal_forces_w)
+        if args_cli.physics == "newton_mjwarp":
+            print("Received friction force of: ", scene["contact_forces_H"].data.net_friction_forces_w)
 
 
 def main():
     """Main function."""
 
-    # Initialize the simulation context
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
-    sim = sim_utils.SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
-    # design scene
-    scene_cfg = ContactSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
-    scene = InteractiveScene(scene_cfg)
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # Run the simulator
-    run_simulator(sim, scene)
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        # Initialize the simulation context
+        sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg)
+        sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
+        sim.set_camera_view(eye=(3.5, 3.5, 3.5), target=(0.0, 0.0, 0.0))
+        # design scene
+        scene_cfg = ContactSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
+        scene_class = cast(type["InteractiveScene"], scene_cfg.class_type)
+        scene = scene_class(scene_cfg)
+        # Play the simulator
+        sim.reset()
+        # Now we are ready!
+        print("[INFO]: Setup complete...")
+        # Run the simulator
+        run_simulator(sim, scene)
 
 
 if __name__ == "__main__":
     # run the main function
     main()
-    # close sim app
-    simulation_app.close()

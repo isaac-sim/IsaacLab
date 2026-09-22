@@ -12,35 +12,105 @@ import os
 ISAACLAB_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 """Path to the root directory of the Isaac Lab repository."""
 
-DEFAULT_TIMEOUT = 300
+DEFAULT_TIMEOUT = 1000
 """The default timeout for each test in seconds."""
 
+
 PER_TEST_TIMEOUTS = {
-    "test_articulation.py": 500,
-    "test_stage_in_memory.py": 500,
-    "test_environments.py": 2500,  # This test runs through all the environments for 100 steps each
-    "test_environments_with_stage_in_memory.py": (
-        2500
-    ),  # Like the above, with stage in memory and with and without fabric cloning
+    "test_articulation.py": 3000,
+    "test_stage_in_memory.py": 1000,
+    "test_imu.py": 1000,
+    "test_environments_isaacsim_physx.py": 10000,
+    "test_environments_newton.py": 10000,
+    "test_environments_ovphysx.py": 10000,
+    "test_contrib_environments.py": 10000,
     "test_environment_determinism.py": 1000,  # This test runs through many the environments for 100 steps each
-    "test_factory_environments.py": 1000,  # This test runs through Factory environments for 100 steps each
     "test_multi_agent_environments.py": 800,  # This test runs through multi-agent environments for 100 steps each
-    "test_generate_dataset.py": 500,  # This test runs annotation for 10 demos and generation until one succeeds
+    "test_generate_dataset_franka_state.py": 10000,  # This test runs annotation for 10 demos and generation for 1 demo
+    "test_generate_dataset_franka_visuomotor.py": 10000,  # This test runs generation until one succeeds
+    "test_generate_dataset_gr1t2_nutpour.py": 10000,  # This test runs generation until one succeeds
+    "test_generate_dataset_gr1t2_pickplace.py": 10000,  # This test runs generation until one succeeds
+    "test_generate_dataset_skillgen.py": 10000,  # This test runs generation for skillgen
     "test_pink_ik.py": 1000,  # This test runs through all the pink IK environments through various motions
     "test_environments_training.py": (
-        6000
+        10000
     ),  # This test runs through training for several environments and compares thresholds
-    "test_simulation_render_config.py": 500,
-    "test_operational_space.py": 500,
+    "test_simulation_render_config.py": 1000,
+    "test_operational_space.py": 1000,
     "test_non_headless_launch.py": 1000,  # This test launches the app in non-headless mode and starts simulation
-    "test_rl_games_wrapper.py": 500,
-    "test_skrl_wrapper.py": 500,
-    "test_rsl_rl_wrapper.py": 500,
-    "test_sb3_wrapper.py": 500,
+    "test_standalone_scripts.py": 3600,  # Runs every supported standalone launch in the selected CI runtime group
+    "test_leapp_export_flow.py": 4000,
+    "test_action_state_recorder_term.py": 1000,
+    "test_manager_based_rl_env_obs_spaces_task_integration.py": 1000,
+    # Newton cloth warmup can reach ~2750 s under GPU throttling (50 frames × ~55 s each).
+    # cold-cache buffer (+700 s) is added automatically for the first camera-enabled test.
+    "test_visualizer_golden_newton.py": 6000,
+    "test_visuotactile_sensor.py": 1000,
+    "test_visuotactile_render.py": 1000,
+    "test_rigid_object_collection.py": 1500,
+    "test_outdated_sensor.py": 1000,
+    "test_multi_tiled_camera.py": 1000,
+    "test_multirotor.py": 1000,
+    "test_shadow_hand_camera_presets.py": 5000,
+    "test_surface_gripper.py": 3000,
+    # The first test in the kitless rendering test job will take longer to run due to RTX shader compilation.
+    "test_rendering_cartpole_kitless.py": 2000,
+    # Every kitless rendering file runs each AOV twice (the ``ovstage_variant`` fixture covers the
+    # legacy and ovstage OVRTX code paths). At 76 cases the Kuka Allegro scene overruns the default
+    # budget; the remaining kitless files still fit but have little headroom.
+    "test_rendering_lift_kuka_homo_kitless.py": 2000,
+    # Budgets ~45s per AOV: one full RTX env is built and torn down per parametrized data type.
+    # Bump this when renderer cases are added to _DEFAULT_SENSOR_DATA_TYPES in rendering_test_utils.py.
+    "test_rendering_shadow_hand.py": 1500,
+    "test_contact_sensor.py": 2000,
 }
 """A dictionary of tests and their timeouts in seconds.
 
 Note: Any tests not listed here will use the default timeout.
+"""
+
+GIT_ASSET_STARTUP_TIMEOUT = 1000
+"""Startup timeout for tests that may populate the external Git asset cache."""
+
+PER_TEST_STARTUP_TIMEOUTS = {
+    "test_environments_isaacsim_physx.py": GIT_ASSET_STARTUP_TIMEOUT,
+    "test_environments_newton.py": GIT_ASSET_STARTUP_TIMEOUT,
+    "test_environments_ovphysx.py": GIT_ASSET_STARTUP_TIMEOUT,
+    "test_multi_agent_environments.py": GIT_ASSET_STARTUP_TIMEOUT,
+}
+"""Per-test startup timeouts for cold external asset downloads."""
+
+CUROBO_PLANNER_TESTS = [
+    "test_curobo_planner_franka.py",
+    "test_curobo_planner_cube_stack.py",
+    "test_pink_ik.py",
+]
+"""Tests for the cuRobo motion planner and Pink IK controller.
+
+These tests are skipped in the base image CI jobs and run in the dedicated
+``test-curobo`` CI job which uses the cuRobo Docker image.
+"""
+
+CUROBO_TESTS = [
+    *CUROBO_PLANNER_TESTS,
+    "test_generate_dataset_skillgen.py",
+    "test_contrib_environments.py",
+]
+"""A list of tests that require cuRobo installation.
+
+These tests are skipped in the base image CI jobs and run separately in the
+dedicated ``test-curobo`` and ``test-contrib-environments`` CI jobs which use the cuRobo
+Docker image.
+"""
+
+QUARANTINED_TESTS: list[str] = []
+"""A list of tests that are quarantined due to known instability.
+
+These tests are skipped in normal CI runs. When the ``test-quarantined``
+CI job is enabled (gated by the ``RUN_QUARANTINED_TESTS`` repository
+variable), they run in a dedicated job where failures do not block PR
+merges. The job is currently disabled. Add test filenames here to
+quarantine them from regular CI.
 """
 
 TESTS_TO_SKIP = [
@@ -53,21 +123,31 @@ TESTS_TO_SKIP = [
     # lab_tasks
     "test_record_video.py",  # Failing
     "test_tiled_camera_env.py",  # Need to improve the logic
+    # curobo / skillgen - require cuRobo installation; run via test-curobo and test-skillgen CI jobs
+    *CUROBO_TESTS,
+    # quarantined tests - run in dedicated CI job that does not block PR merges
+    *QUARANTINED_TESTS,
+    "test_environments_training.py",  # Long-running RL training test; runs in dedicated CI job
+    # Exercises tools/conftest.py itself, including a hang that has to be waited out in real time.
+    # Needs no Isaac Sim and is not worth the CI spend. To run it when changing the orchestrator:
+    #   PYTHONPATH=tools:source/isaaclab pytest --noconftest \
+    #     source/isaaclab/test/cli/test_test_orchestrator_result_handling.py
+    "test_test_orchestrator_result_handling.py",
 ]
-"""A list of tests to skip by run_tests.py"""
+"""A list of tests to skip in CI (see conftest.py)."""
 
 TEST_RL_ENVS = [
     # classic control
-    "Isaac-Ant-v0",
-    "Isaac-Cartpole-v0",
+    "Isaac-Ant",
+    "Isaac-Cartpole",
     # manipulation
-    "Isaac-Lift-Cube-Franka-v0",
-    "Isaac-Open-Drawer-Franka-v0",
+    "Isaac-Lift-Franka",
+    "Isaac-Open-Drawer-Franka",
     # dexterous manipulation
-    "Isaac-Repose-Cube-Allegro-v0",
+    "Isaac-Reorient-Cube-Allegro",
     # locomotion
-    "Isaac-Velocity-Flat-Unitree-Go2-v0",
-    "Isaac-Velocity-Rough-Anymal-D-v0",
-    "Isaac-Velocity-Rough-G1-v0",
+    "Isaac-Velocity-Flat-UnitreeGo2",
+    "Isaac-Velocity-Rough-AnymalD",
+    "Isaac-Velocity-Rough-G1",
 ]
 """A list of RL environments to test training on by run_train_envs.py"""

@@ -18,16 +18,16 @@
     HaplyDevice
     OpenXRDevice
     ManusVive
-    isaaclab.devices.openxr.retargeters.GripperRetargeter
-    isaaclab.devices.openxr.retargeters.Se3AbsRetargeter
-    isaaclab.devices.openxr.retargeters.Se3RelRetargeter
-    isaaclab.devices.openxr.retargeters.GR1T2Retargeter
+    openxr.retargeters.GripperRetargeter
+    openxr.retargeters.Se3AbsRetargeter
+    openxr.retargeters.Se3RelRetargeter
+    openxr.retargeters.GR1T2Retargeter
 
   .. rubric:: Modules
 
   .. autosummary::
 
-    isaaclab.devices.openxr.retargeters
+    openxr.retargeters
 
 Device Base
 -----------
@@ -139,3 +139,54 @@ Retargeters
     :inherited-members:
     :show-inheritance:
     :noindex:
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab.devices` API.
+
+.. currentmodule:: isaaclab.devices
+
+.. autosummary::
+   :nosignatures:
+
+   DeviceCfg
+   DevicesCfg
+   HaplyDeviceCfg
+   RetargeterCfg
+   Se2GamepadCfg
+   Se2KeyboardCfg
+   Se2SpaceMouseCfg
+   Se3GamepadCfg
+   Se3KeyboardCfg
+   Se3SpaceMouseCfg
+
+.. autoclass:: DeviceCfg
+   :show-inheritance:
+
+.. autoclass:: DevicesCfg
+   :show-inheritance:
+
+.. autoclass:: HaplyDeviceCfg
+   :show-inheritance:
+
+.. autoclass:: RetargeterCfg
+   :show-inheritance:
+
+.. autoclass:: Se2GamepadCfg
+   :show-inheritance:
+
+.. autoclass:: Se2KeyboardCfg
+   :show-inheritance:
+
+.. autoclass:: Se2SpaceMouseCfg
+   :show-inheritance:
+
+.. autoclass:: Se3GamepadCfg
+   :show-inheritance:
+
+.. autoclass:: Se3KeyboardCfg
+   :show-inheritance:
+
+.. autoclass:: Se3SpaceMouseCfg
+   :show-inheritance:

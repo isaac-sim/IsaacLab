@@ -7,20 +7,20 @@
 
   .. autosummary::
 
-    isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv
-    isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env_cfg.FrankaCubeStackIKRelMimicEnvCfg
-    isaaclab_mimic.envs.franka_stack_ik_abs_mimic_env.FrankaCubeStackIKAbsMimicEnv
-    isaaclab_mimic.envs.franka_stack_ik_abs_mimic_env_cfg.FrankaCubeStackIKAbsMimicEnvCfg
-    isaaclab_mimic.envs.galbot_stack_rmp_rel_mimic_env.RmpFlowGalbotCubeStackRelMimicEnv
-    isaaclab_mimic.envs.galbot_stack_rmp_rel_mimic_env_cfg.RmpFlowGalbotLeftArmGripperCubeStackRelMimicEnvCfg
-    isaaclab_mimic.envs.galbot_stack_rmp_rel_mimic_env_cfg.RmpFlowGalbotRightArmSuctionCubeStackRelMimicEnvCfg
-    isaaclab_mimic.envs.galbot_stack_rmp_abs_mimic_env.RmpFlowGalbotCubeStackAbsMimicEnv
-    isaaclab_mimic.envs.galbot_stack_rmp_abs_mimic_env_cfg.RmpFlowGalbotLeftArmGripperCubeStackAbsMimicEnvCfg
-    isaaclab_mimic.envs.galbot_stack_rmp_abs_mimic_env_cfg.RmpFlowGalbotRightArmSuctionCubeStackAbsMimicEnvCfg
-    isaaclab_mimic.envs.pick_place_mimic_env.PickPlaceRelMimicEnv
-    isaaclab_mimic.envs.pick_place_mimic_env.PickPlaceAbsMimicEnv
-    isaaclab_mimic.envs.agibot_place_upright_mug_mimic_env_cfg.RmpFlowAgibotPlaceUprightMugMimicEnvCfg
-    isaaclab_mimic.envs.agibot_place_toy2box_mimic_env_cfg.RmpFlowAgibotPlaceToy2BoxMimicEnvCfg
+    franka_stack_ik_rel_mimic_env.FrankaCubeStackIKRelMimicEnv
+    franka_stack_ik_rel_mimic_env_cfg.FrankaCubeStackIKRelMimicEnvCfg
+    franka_stack_ik_abs_mimic_env.FrankaCubeStackIKAbsMimicEnv
+    franka_stack_ik_abs_mimic_env_cfg.FrankaCubeStackIKAbsMimicEnvCfg
+    galbot_stack_rmp_rel_mimic_env.RmpFlowGalbotCubeStackRelMimicEnv
+    galbot_stack_rmp_rel_mimic_env_cfg.RmpFlowGalbotLeftArmGripperCubeStackRelMimicEnvCfg
+    galbot_stack_rmp_rel_mimic_env_cfg.RmpFlowGalbotRightArmSuctionCubeStackRelMimicEnvCfg
+    galbot_stack_rmp_abs_mimic_env.RmpFlowGalbotCubeStackAbsMimicEnv
+    galbot_stack_rmp_abs_mimic_env_cfg.RmpFlowGalbotLeftArmGripperCubeStackAbsMimicEnvCfg
+    galbot_stack_rmp_abs_mimic_env_cfg.RmpFlowGalbotRightArmSuctionCubeStackAbsMimicEnvCfg
+    pick_place_mimic_env.PickPlaceRelMimicEnv
+    pick_place_mimic_env.PickPlaceAbsMimicEnv
+    agibot_place_upright_mug_mimic_env_cfg.RmpFlowAgibotPlaceUprightMugMimicEnvCfg
+    agibot_place_toy2box_mimic_env_cfg.RmpFlowAgibotPlaceToy2BoxMimicEnvCfg
 
 Franka Environments
 -------------------

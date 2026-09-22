@@ -5,15 +5,6 @@
 
 """Tests for logging utilities."""
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
 import logging
 import os
 import re
@@ -23,6 +14,8 @@ import time
 import pytest
 
 from isaaclab.utils.logger import ColoredFormatter, RateLimitFilter, configure_logging
+
+pytestmark = pytest.mark.unit
 
 
 # Fixtures
@@ -486,8 +479,8 @@ def test_configure_logging_basic():
     # Should return root logger
     assert logger is not None
     assert logger is logging.getLogger()
-    # Root logger is always set to DEBUG to ensure all messages are logged
-    assert logger.level == logging.DEBUG
+    # Root logger level matches the requested level
+    assert logger.level == logging.INFO
 
     # Should have exactly one handler (stream handler)
     assert len(logger.handlers) == 1
@@ -556,8 +549,8 @@ def test_configure_logging_levels():
 
     for level_str in levels:
         logger = configure_logging(logging_level=level_str, save_logs_to_file=False)
-        # Root logger is always set to DEBUG to ensure all messages are logged
-        assert logger.level == logging.DEBUG
+        # Root logger level matches the requested level
+        assert logger.level == level_values[level_str]
         # Handler level should match the requested level
         assert logger.handlers[0].level == level_values[level_str]
 
@@ -585,8 +578,8 @@ def test_configure_logging_default_log_dir():
 
     logger = configure_logging(logging_level="INFO", save_logs_to_file=True, log_dir=None)
 
-    # Root logger is always set to DEBUG
-    assert logger.level == logging.DEBUG
+    # Root logger level matches the requested level
+    assert logger.level == logging.INFO
 
     # Should have file handler
     assert len(logger.handlers) == 2
@@ -614,8 +607,8 @@ def test_configure_logging_custom_log_dir():
         assert os.path.exists(custom_log_dir)
         assert os.path.isdir(custom_log_dir)
 
-        # Root logger is always set to DEBUG
-        assert logger.level == logging.DEBUG
+        # Root logger level matches the requested level
+        assert logger.level == logging.INFO
 
         # Log file should be in custom directory
         file_handler = logger.handlers[1]
@@ -629,8 +622,8 @@ def test_configure_logging_log_file_format():
     with tempfile.TemporaryDirectory() as temp_dir:
         logger = configure_logging(logging_level="INFO", save_logs_to_file=True, log_dir=temp_dir)
 
-        # Root logger is always set to DEBUG
-        assert logger.level == logging.DEBUG
+        # Root logger level matches the requested level
+        assert logger.level == logging.INFO
 
         # Get log file name
         file_handler = logger.handlers[1]
@@ -648,8 +641,8 @@ def test_configure_logging_file_formatter():
     with tempfile.TemporaryDirectory() as temp_dir:
         logger = configure_logging(logging_level="INFO", save_logs_to_file=True, log_dir=temp_dir)
 
-        # Root logger is always set to DEBUG
-        assert logger.level == logging.DEBUG
+        # Root logger level matches the requested level
+        assert logger.level == logging.INFO
 
         stream_handler = logger.handlers[0]
         file_handler = logger.handlers[1]

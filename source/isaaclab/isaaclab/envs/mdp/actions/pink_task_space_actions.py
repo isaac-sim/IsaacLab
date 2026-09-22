@@ -14,7 +14,7 @@ from pink.tasks import FrameTask
 import isaaclab.utils.math as math_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.controllers.pink_ik import PinkIKController
-from isaaclab.controllers.pink_ik.local_frame_task import LocalFrameTask
+from isaaclab.controllers.pink_ik.pink_tasks import LocalFrameTask
 from isaaclab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
@@ -58,9 +58,6 @@ class PinkInverseKinematicsAction(ActionTerm):
         # Initialize action tensors
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
         self._processed_actions = torch.zeros_like(self._raw_actions)
-
-        # PhysX Articulation Floating joint indices offset from IsaacLab Articulation joint indices
-        self._physx_floating_joint_indices_offset = 6
 
         # Pre-allocate tensors for runtime use
         self._initialize_helper_tensors()
@@ -131,7 +128,7 @@ class PinkInverseKinematicsAction(ActionTerm):
 
     @property
     def orientation_dim(self) -> int:
-        """Dimension for orientation (w, x, y, z)."""
+        """Dimension for orientation (x, y, z, w)."""
         return 4
 
     @property
@@ -217,7 +214,7 @@ class PinkInverseKinematicsAction(ActionTerm):
         """
         # Get base link frame pose in world origin using cached index
         articulation_data = self._env.scene[self.cfg.controller.articulation_name].data
-        base_link_frame_in_world_origin = articulation_data.body_link_state_w[:, self._base_link_idx, :7]
+        base_link_frame_in_world_origin = articulation_data.body_link_pose_w.torch[:, self._base_link_idx]
 
         # Transform to environment origin frame (reuse buffer to avoid allocation)
         torch.sub(
@@ -318,24 +315,30 @@ class PinkInverseKinematicsAction(ActionTerm):
             self._apply_gravity_compensation()
 
         # Apply joint position targets
-        self._asset.set_joint_position_target(self._processed_actions, self._controlled_joint_ids)
+        self._asset.set_joint_position_target_index(
+            target=self._processed_actions, joint_ids=self._controlled_joint_ids
+        )
 
     def _apply_gravity_compensation(self) -> None:
-        """Apply gravity compensation to arm joints if not disabled in props."""
+        """Apply gravity compensation to arm joints if not disabled in props.
+
+        Reads :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`
+        and applies it as a joint-effort target on the controlled arm joints, on top
+        of the joint-position targets from IK. Supported on both the PhysX and the
+        Newton backend.
+        """
         if not self._asset.cfg.spawn.rigid_props.disable_gravity:
-            # Get gravity compensation forces using cached tensor
+            # ``gravity_compensation_forces`` shape is ``(N, num_joints + num_base_dofs)``.
+            # Shift actuated-joint ids by ``num_base_dofs`` to skip the leading floating-
+            # base columns (0 for fixed-base, 6 for floating-base).
+            jacobi_ids = self._controlled_joint_ids_tensor + self._asset.num_base_dofs
             if self._asset.is_fixed_base:
-                gravity = torch.zeros_like(
-                    self._asset.root_physx_view.get_gravity_compensation_forces()[:, self._controlled_joint_ids_tensor]
-                )
+                gravity = torch.zeros_like(self._asset.data.gravity_compensation_forces.torch[:, jacobi_ids])
             else:
-                # If floating base, then need to skip the first 6 joints (base)
-                gravity = self._asset.root_physx_view.get_gravity_compensation_forces()[
-                    :, self._controlled_joint_ids_tensor + self._physx_floating_joint_indices_offset
-                ]
+                gravity = self._asset.data.gravity_compensation_forces.torch[:, jacobi_ids]
 
             # Apply gravity compensation to arm joints
-            self._asset.set_joint_effort_target(gravity, self._controlled_joint_ids)
+            self._asset.set_joint_effort_target_index(target=gravity, joint_ids=self._controlled_joint_ids)
 
     def _compute_ik_solutions(self) -> torch.Tensor:
         """Compute IK solutions for all environments.
@@ -347,7 +350,7 @@ class PinkInverseKinematicsAction(ActionTerm):
 
         for env_index, ik_controller in enumerate(self._ik_controllers):
             # Get current joint positions for this environment
-            current_joint_pos = self._asset.data.joint_pos.cpu().numpy()[env_index]
+            current_joint_pos = self._asset.data.joint_pos.torch.cpu().numpy()[env_index]
 
             # Compute IK solution
             joint_pos_des = ik_controller.compute(current_joint_pos, self._sim_dt)

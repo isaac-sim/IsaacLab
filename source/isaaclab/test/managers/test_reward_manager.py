@@ -21,6 +21,8 @@ from isaaclab.managers import RewardManager, RewardTermCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass
 
+pytestmark = pytest.mark.integration
+
 
 def grilled_chicken(env):
     return 1
@@ -41,7 +43,8 @@ def grilled_chicken_with_yoghurt(env, hot: bool, bland: float):
 @pytest.fixture
 def env():
     sim = SimulationContext()
-    return namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim"])(20, 0.1, "cpu", sim)
+    yield namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim"])(20, 0.1, "cpu", sim)
+    SimulationContext.clear_instance()
 
 
 def test_str(env):
