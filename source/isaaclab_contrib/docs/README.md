@@ -212,7 +212,7 @@ A complete demonstration of multirotor simulation is available:
 
 ```bash
 # Run multirotor demo
-uv run python scripts/demos/arl_robot_1.py
+uv run isaaclab demo arl-robot-1
 ```
 
 ## TacSL Tactile Sensor (Detailed)
@@ -457,14 +457,14 @@ A complete demonstration of TacSL tactile sensor is available:
 
 ```bash
 # Run TacSL tactile sensor demo with RGB and force field sensing
-uv run python scripts/demos/sensors/tacsl_sensor.py \
+uv run isaaclab demo tactile-sensor \
     --use_tactile_rgb \
     --use_tactile_ff \
     --num_envs 16 \
     --contact_object_type nut
 
 # Save visualization data
-uv run python scripts/demos/sensors/tacsl_sensor.py \
+uv run isaaclab demo tactile-sensor \
     --use_tactile_rgb \
     --use_tactile_ff \
     --save_viz \

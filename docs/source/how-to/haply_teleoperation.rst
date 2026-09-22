@@ -161,7 +161,7 @@ Basic Usage
 .. code:: bash
 
    # Ensure Haply SDK is running
-   python scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65
+   isaaclab demo haply-teleoperation --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65
 
 The demo will:
 
@@ -186,10 +186,10 @@ Customize the demo with command-line arguments:
 .. code:: bash
 
    # Use custom WebSocket URI
-   python scripts/demos/haply_teleoperation.py --websocket_uri ws://192.168.1.100:10001
+   isaaclab demo haply-teleoperation --websocket_uri ws://192.168.1.100:10001
 
    # Adjust position sensitivity (default: 1.0)
-   python scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 2.0
+   isaaclab demo haply-teleoperation --websocket_uri ws://localhost:10001 --pos_sensitivity 2.0
 
 Demo Features
 ~~~~~~~~~~~~~

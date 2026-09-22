@@ -112,6 +112,9 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
 
         assert "isaaclab/app/__init__.py" in names
         assert "isaaclab/apps/isaaclab.python.kit" in names
+        assert "isaaclab/demo_registry.py" in names
+        assert "isaaclab/_demos/arms.py" in names
+        assert "isaaclab/_demos/assets/nvidia_logo_domino_poses.pth" in names
         nested_prefix = "isaaclab/source/isaaclab/isaaclab/"
         assert not any(name.startswith(nested_prefix) for name in names)
 
@@ -163,6 +166,18 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         """Verify the isaaclab CLI is functional."""
         result = self.run_in_uv_env(["python", "-m", "isaaclab", "--help"])
         assert result.returncode == 0, f"isaaclab CLI help failed:\n{result.stdout}\n{result.stderr}"
+
+    def test_installed_demo_catalog_resolves_packaged_scripts(self):
+        """Verify the installed CLI resolves demos without a source checkout."""
+        result = self.run_in_uv_env(
+            [
+                "python",
+                "-c",
+                "from isaaclab.demo_registry import list_demos; "
+                "assert all(demo.path.is_file() for demo in list_demos())",
+            ]
+        )
+        assert result.returncode == 0, f"installed demo catalog is incomplete:\n{result.stdout}\n{result.stderr}"
 
     def test_project_generator_is_bundled(self):
         """Verify the installed CLI includes the project generator."""

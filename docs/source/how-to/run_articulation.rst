@@ -154,7 +154,7 @@ of an articulation (its root and joint state) and how to apply commands to it. W
 buffers to read the latest state from the simulation.
 
 In addition to this tutorial, we also provide a few other scripts that spawn different robots. These are included
-in the ``scripts/demos`` directory. You can run these scripts as:
+through the packaged demo command. You can run them as:
 
 .. tab-set::
 
@@ -163,16 +163,16 @@ in the ``scripts/demos`` directory. You can run these scripts as:
       .. code-block:: bash
 
          # Spawn many different single-arm manipulators
-         uv run isaaclab -p scripts/demos/arms.py --viz kit
+         uv run isaaclab demo arms --viz kit
 
          # Spawn many different quadrupeds
-         uv run isaaclab -p scripts/demos/quadrupeds.py --viz kit
+         uv run isaaclab demo quadrupeds --viz kit
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
          # Spawn many different single-arm manipulators
-         ./isaaclab.sh -p scripts/demos/arms.py --viz kit
+         ./isaaclab.sh demo arms --viz kit
 
          # Spawn many different quadrupeds
-         ./isaaclab.sh -p scripts/demos/quadrupeds.py --viz kit
+         ./isaaclab.sh demo quadrupeds --viz kit

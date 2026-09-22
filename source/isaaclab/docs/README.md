@@ -7,5 +7,5 @@ features such as augmenting simulators with non-ideal actuator models, managing 
 settings, integrate different sensors, as well as provide interfaces to features that are currently not available in
 Isaac Sim but are available from the physics side (such as deformable bodies).
 
-We recommend the users to try out the demo scripts present in `scripts/demos` that display how different parts
+We recommend trying the demos listed by `isaaclab demo list`, which show how different parts
 of the framework can be integrated together.

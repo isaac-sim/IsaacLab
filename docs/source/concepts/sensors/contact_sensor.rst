@@ -137,9 +137,8 @@ sensor contacts but does not change the reported data.
    :figwidth: 100%
    :alt: Contact sensor debug visualization
 
-A complete runnable example is available in
-``scripts/demos/sensors/contact_sensor.py``:
+A complete runnable example is available as the ``contact-sensor`` demo:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim python scripts/demos/sensors/contact_sensor.py
+   uv run --extra isaacsim isaaclab demo contact-sensor

@@ -16,15 +16,15 @@
             return;
         }
 
-        const cards = [...browser.querySelectorAll("[data-demo-path]")];
+        const cards = [...browser.querySelectorAll("[data-demo-id]")];
         const fields = Object.fromEntries(
             [...browser.querySelectorAll("[data-demo-field]")].map((field) => [field.dataset.demoField, field])
         );
         const commandOutput = browser.querySelector("[data-command-output]");
         const copyButton = browser.querySelector("[data-copy-command]");
         const copyStatus = browser.querySelector("[data-copy-status]");
-        const selectedName = browser.querySelector("[data-demo-name]:not([data-demo-path])");
-        const selectedDescription = browser.querySelector("[data-demo-description]:not([data-demo-path])");
+        const selectedName = browser.querySelector("[data-demo-name]:not([data-demo-id])");
+        const selectedDescription = browser.querySelector("[data-demo-description]:not([data-demo-id])");
         let selectedCard = cards[0];
 
         const populateSelect = (select, values, preferredValues) => {
@@ -56,11 +56,11 @@
             const extraOrder = ["isaacsim", "ovphysx", "tetrahedralization", "teleop", "rerun", "viser"];
             const extras = extraOrder.filter((extra) => requiredExtras.has(extra));
 
-            const parts = ["uv", "run"];
+            const parts = ["uvx"];
             if (extras.length) {
-                parts.push("--extra", extras.join(","));
+                parts.push("--from", `'isaaclab[${extras.join(",")}]'`);
             }
-            parts.push("python", selectedCard.dataset.demoPath);
+            parts.push("isaaclab", "demo", selectedCard.dataset.demoId);
             if (selectedCard.dataset.demoFixedPhysics !== "true") {
                 parts.push("--physics", fields.physics.value);
             }
@@ -90,7 +90,7 @@
             }
             selectedName.textContent = selectedCard.dataset.demoName;
             selectedDescription.textContent = selectedCard.dataset.demoDescription;
-            populateSelect(fields.physics, splitValues(selectedCard.dataset.demoPhysics), ["isaacsim_physx", "newton_mjwarp"]);
+            populateSelect(fields.physics, splitValues(selectedCard.dataset.demoPhysics), ["newton_mjwarp", "isaacsim_physx"]);
             updateVisualizer();
         };
 

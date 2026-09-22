@@ -17,7 +17,7 @@ Supported on Kit, Newton GL, Rerun, and Viser; not yet on Newton RTX. See
 Quick Start
 -----------
 
-This guide is accompanied by ``markers.py`` in ``IsaacLab/scripts/demos``.
+This guide is accompanied by the packaged ``markers`` demo.
 
 .. tab-set::
 
@@ -25,13 +25,13 @@ This guide is accompanied by ``markers.py`` in ``IsaacLab/scripts/demos``.
 
       .. code-block:: bash
 
-          uv run --extra isaacsim python scripts/demos/markers.py
+          uv run --extra isaacsim isaaclab demo markers
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-          ./isaaclab.sh -p scripts/demos/markers.py
+          ./isaaclab.sh demo markers
 
 Pass ``--visualizer newton_gl`` (or another supported backend) to switch visualizers; defaults
 to ``kit``.
@@ -47,7 +47,7 @@ To stop, close the window or press ``Ctrl+C``.
 .. dropdown:: Code for markers.py
    :icon: code
 
-   .. literalinclude:: ../../../scripts/demos/markers.py
+   .. literalinclude:: ../../../demos/markers.py
       :language: python
       :emphasize-lines: 48-96, 106-107, 146
       :linenos:
@@ -69,7 +69,7 @@ Configuring markers
    Physics properties on a marker prototype's spawn config are stripped on creation, since
    markers are not simulated.
 
-.. literalinclude:: ../../../scripts/demos/markers.py
+.. literalinclude:: ../../../demos/markers.py
    :language: python
    :lines: 50-96
    :dedent:
@@ -81,7 +81,7 @@ Drawing markers
 :meth:`~markers.VisualizationMarkers.visualize` sets marker poses and, optionally, which
 prototype each marker instance uses via ``marker_indices``.
 
-.. literalinclude:: ../../../scripts/demos/markers.py
+.. literalinclude:: ../../../demos/markers.py
    :language: python
    :lines: 144-146
    :dedent:

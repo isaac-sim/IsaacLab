@@ -57,7 +57,7 @@ if RUNTIME_GROUP:
 MULTI_MESH_RAYCASTER_CASES = [
     case
     for case in CASES
-    if case.spec.relative_path == "scripts/demos/sensors/multi_mesh_raycaster.py" and case.visualizer == "none"
+    if case.spec.relative_path == "demos/sensors/multi_mesh_raycaster.py" and case.visualizer == "none"
 ]
 RUN_LAUNCH_MATRIX = os.environ.get("ISAACLAB_RUN_STANDALONE_SCRIPT_TESTS") == "1"
 SCREENSHOT_DIR = os.environ.get("ISAACLAB_STANDALONE_SCREENSHOT_DIR")
@@ -112,89 +112,88 @@ def test_runtime_groups_partition_matrix_without_overlap():
 def test_script_scope_rejects_empty_selection():
     """A stale or misspelled scope must not produce a vacuously green launch matrix."""
     assert select_script_scope(SPECS, "all") is SPECS
-    assert all(spec.relative_path.startswith("scripts/demos/mpm/") for spec in select_script_scope(SPECS, "demos/mpm"))
+    assert all(spec.relative_path.startswith("demos/mpm/") for spec in select_script_scope(SPECS, "demos/mpm"))
     with pytest.raises(ValueError, match="selected no scripts"):
         select_script_scope(SPECS, "missing")
+
+
+def test_every_packaged_demo_is_registered_for_cli_launch():
+    """Every executable module in the demo package must have one public CLI name."""
+    demo_specs = [spec for spec in SPECS if spec.path.is_relative_to(script_cases.DEMO_ROOT)]
+    assert all(spec.demo_name is not None for spec in demo_specs)
+    assert {spec.demo_name for spec in demo_specs} == set(script_cases.DEMO_NAMES_BY_PATH.values())
 
 
 def test_demo_browser_documents_options_for_each_demo():
     """Every demo card must expose its supported launch options to the command builder."""
     docs_source = script_cases.ROOT / "docs/source"
     demos_page = (docs_source / "setup/demos.rst").read_text(encoding="utf-8")
-    cards = re.findall(r'(?s)<button[^>]+data-demo-path="[^"]+"[^>]*>', demos_page)
+    browser_script = (docs_source / "_static/css/demo-browser.js").read_text(encoding="utf-8")
+    assert 'const parts = ["uvx"]' in browser_script
+    assert 'parts.push("isaaclab", "demo", selectedCard.dataset.demoId)' in browser_script
+    assert "data-demo-path" not in demos_page
+    cards = re.findall(r'(?s)<button[^>]+data-demo-id="[^"]+"[^>]*>', demos_page)
     documented_entries = {}
     for card in cards:
         attributes = dict(re.findall(r'data-demo-([\w-]+)="([^"]*)"', card))
-        path = attributes.pop("path")
-        assert path not in documented_entries, f"demo browser contains a duplicate card for {path}"
-        documented_entries[path] = attributes
+        demo_name = attributes.pop("id")
+        assert demo_name not in documented_entries, f"demo browser contains a duplicate card for {demo_name}"
+        documented_entries[demo_name] = attributes
 
-    referenced_paths = set(re.findall(r"scripts/demos/[A-Za-z0-9_./-]+\.py", demos_page))
-    assert documented_entries.keys() == referenced_paths
-
-    demo_specs = {
-        spec.relative_path: spec
-        for spec in SPECS
-        if spec.relative_path.startswith("scripts/demos/") and spec.relative_path in referenced_paths
-    }
-    assert demo_specs.keys() == referenced_paths
+    demo_specs = {spec.demo_name: spec for spec in SPECS if spec.demo_name in documented_entries}
+    assert demo_specs.keys() == documented_entries.keys()
     image_paths = re.findall(r'<img src="../../([^"]+)"', demos_page)
     assert image_paths
     missing_images = [path for path in image_paths if not (docs_source / path).is_file()]
     assert not missing_images, f"demo browser references missing images: {missing_images}"
-    for path, spec in demo_specs.items():
-        entry = documented_entries[path]
+    for demo_name, spec in demo_specs.items():
+        entry = documented_entries[demo_name]
         expected_physics = {backend for _, backend in spec.physics_backends}
         expected_visualizers = set(spec.visualizers)
-        assert set(entry["physics"].split(",")) == expected_physics, f"{path} documents incorrect physics options"
+        assert set(entry["physics"].split(",")) == expected_physics, f"{demo_name} documents incorrect physics options"
         assert set(entry["visualizers"].split(",")) == expected_visualizers, (
-            f"{path} documents incorrect visualizer options"
+            f"{demo_name} documents incorrect visualizer options"
         )
 
 
 def test_commands_respect_script_launcher_capabilities():
     """Commands must enable cameras and avoid unsupported launcher arguments."""
-    h1_case = next(case for case in build_cases(SPECS) if case.spec.relative_path == "scripts/demos/h1_locomotion.py")
+    h1_case = next(case for case in build_cases(SPECS) if case.spec.relative_path == "demos/h1_locomotion.py")
     assert h1_case.command()[-4:] == ["--physics", "isaacsim_physx", "--visualizer", "kit"]
 
     pick_and_place_case = next(
-        case for case in build_cases(SPECS) if case.spec.relative_path == "scripts/demos/pick_and_place.py"
+        case for case in build_cases(SPECS) if case.spec.relative_path == "demos/pick_and_place.py"
     )
     assert pick_and_place_case.command()[-4:] == ["--physics", "isaacsim_physx", "--visualizer", "kit"]
 
     camera_case = next(
         case
         for case in build_cases(SPECS)
-        if case.spec.relative_path == "scripts/demos/sensors/cameras.py" and case.visualizer == "none"
+        if case.spec.relative_path == "demos/sensors/cameras.py" and case.visualizer == "none"
     )
-    assert camera_case.command()[3:5] == ["--num_envs", "1"]
+    num_envs_index = camera_case.command().index("--num_envs")
+    assert camera_case.command()[num_envs_index + 1] == "1"
     assert camera_case.command()[-2:] == ["--visualizer", "none"]
     assert camera_case.spec.startup_timeout == 900.0
-
-    kitless_case = next(
-        case for case in build_cases(SPECS) if case.spec.relative_path == "scripts/demos/sensors/ppisp_camera_ovrtx.py"
-    )
-    assert kitless_case.command()[-2:] == ["--viz", "none"]
 
     renderer_case = next(
         case
         for case in build_cases(SPECS)
-        if case.spec.relative_path == "scripts/demos/sensors/ppisp_camera.py" and case.renderer_backend == "isaac_rtx"
+        if case.spec.relative_path == "demos/sensors/ppisp_camera.py" and case.renderer_backend == "isaac_rtx"
     )
     assert renderer_case.command()[-4:] == ["--renderer", "isaac_rtx", "--visualizer", "none"]
 
     newton_renderer_case = next(
         case
         for case in build_cases(SPECS)
-        if case.spec.relative_path == "scripts/demos/sensors/ppisp_camera.py"
-        and case.renderer_backend == "newton_renderer"
+        if case.spec.relative_path == "demos/sensors/ppisp_camera.py" and case.renderer_backend == "newton_renderer"
     )
     assert newton_renderer_case.command()[-4:] == ["--renderer", "newton_renderer", "--visualizer", "none"]
 
     physics_case = next(
         case
         for case in build_cases(SPECS)
-        if case.spec.relative_path == "scripts/demos/bin_packing.py"
+        if case.spec.relative_path == "demos/bin_packing.py"
         and case.physics_backend == "isaacsim_physx"
         and case.visualizer == "none"
     )
@@ -206,11 +205,12 @@ def test_commands_respect_script_launcher_capabilities():
     multi_asset_case = next(
         case
         for case in build_cases(SPECS)
-        if case.spec.relative_path == "scripts/demos/multi_asset.py"
+        if case.spec.relative_path == "demos/multi_asset.py"
         and case.physics_backend == "newton_mjwarp"
         and case.visualizer == "none"
     )
-    assert multi_asset_case.command()[3:5] == ["--num_envs", "4"]
+    num_envs_index = multi_asset_case.command().index("--num_envs")
+    assert multi_asset_case.command()[num_envs_index + 1] == "4"
 
     surface_gripper_case = next(
         case
@@ -238,7 +238,7 @@ def test_commands_respect_script_launcher_capabilities():
 
 def test_hands_demo_uses_asset_owned_shadow_hand_configs():
     """The generic hands demo must not inherit task-specific spawn policy."""
-    path = script_cases.ROOT / "scripts/demos/hands.py"
+    path = script_cases.ROOT / "demos/hands.py"
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     imports = {
         (node.module, alias.name) for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) for alias in node.names
@@ -254,13 +254,13 @@ def test_hands_demo_uses_asset_owned_shadow_hand_configs():
 @pytest.mark.parametrize(
     "relative_path",
     [
-        "scripts/demos/sensors/cameras.py",
-        "scripts/demos/sensors/frame_transformer_sensor.py",
-        "scripts/demos/sensors/imu_sensor.py",
-        "scripts/demos/sensors/multi_mesh_raycaster_camera.py",
-        "scripts/demos/sensors/pva_sensor.py",
-        "scripts/demos/sensors/raycaster_sensor.py",
-        "scripts/demos/sensors/tacsl_sensor.py",
+        "demos/sensors/cameras.py",
+        "demos/sensors/frame_transformer_sensor.py",
+        "demos/sensors/imu_sensor.py",
+        "demos/sensors/multi_mesh_raycaster_camera.py",
+        "demos/sensors/pva_sensor.py",
+        "demos/sensors/raycaster_sensor.py",
+        "demos/sensors/tacsl_sensor.py",
     ],
 )
 def test_physx_only_sensor_demos_accept_explicit_physics_selector(relative_path):
@@ -271,19 +271,19 @@ def test_physx_only_sensor_demos_accept_explicit_physics_selector(relative_path)
 
 def test_contact_sensor_demo_accepts_physx_and_newton_selectors():
     """The contact sensor demo exposes both PhysX and Newton MJWarp."""
-    spec = next(spec for spec in SPECS if spec.relative_path == "scripts/demos/sensors/contact_sensor.py")
+    spec = next(spec for spec in SPECS if spec.relative_path == "demos/sensors/contact_sensor.py")
     assert spec.physics_backends == (("--physics", "isaacsim_physx"), ("--physics", "newton_mjwarp"))
 
 
 def test_cable_demo_accepts_explicit_newton_vbd_selector():
     """The Newton-only cable demo must accept its documented backend explicitly."""
-    spec = next(spec for spec in SPECS if spec.relative_path == "scripts/demos/cables.py")
+    spec = next(spec for spec in SPECS if spec.relative_path == "demos/cables.py")
     assert spec.physics_backends == (("--physics", "newton_vbd"),)
 
 
 def test_multi_mesh_raycaster_uses_cli_visualizer_defaults():
     """The interactive raycaster demo must let CLI requests create default visualizer configs."""
-    path = script_cases.ROOT / "scripts/demos/sensors/multi_mesh_raycaster.py"
+    path = script_cases.ROOT / "demos/sensors/multi_mesh_raycaster.py"
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     simulation_cfg_calls = [
         node
@@ -302,7 +302,7 @@ def test_multi_mesh_raycaster_uses_cli_visualizer_defaults():
 
 def test_h1_locomotion_uses_backend_aware_checkpoint_and_rejects_missing_policy():
     """The H1 demo must select its backend-aware policy without passing None to RSL-RL."""
-    path = script_cases.ROOT / "scripts/demos/h1_locomotion.py"
+    path = script_cases.ROOT / "demos/h1_locomotion.py"
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
     constants = {
@@ -355,7 +355,7 @@ def test_h1_locomotion_uses_backend_aware_checkpoint_and_rejects_missing_policy(
 
 def test_launch_case_reports_script_and_combination_exemptions():
     """Whole-script and individual-combination exemptions must remain distinguishable."""
-    skipped_script = next(spec for spec in SPECS if spec.relative_path == "scripts/demos/h1_locomotion.py")
+    skipped_script = next(spec for spec in SPECS if spec.relative_path == "demos/h1_locomotion.py")
     assert build_cases([skipped_script])[0].skip_reason == skipped_script.skip_reason
     spec = next(spec for spec in SPECS if spec.skip_reason is None)
     case = build_cases([spec])[0]

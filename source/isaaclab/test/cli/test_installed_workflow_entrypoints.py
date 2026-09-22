@@ -16,6 +16,7 @@ import pytest
 import isaaclab
 import isaaclab.__main__ as package_main
 import isaaclab.cli as cli
+import isaaclab.demo_registry as demo_registry
 import isaaclab.paths as paths
 
 pytestmark = pytest.mark.unit
@@ -92,6 +93,75 @@ def test_workflow_command_propagates_failure_status():
     """A nonzero in-process result must remain the console command's exit status."""
     with mock.patch("isaaclab_rl.entrypoints.run_train_cli", return_value=2), pytest.raises(SystemExit, match="2"):
         cli.train([])
+
+
+def test_demo_catalog_lists_packaged_demos(capsys):
+    """The demo command must expose stable names without importing simulator modules."""
+    cli.demo(["list"])
+
+    output = capsys.readouterr().out
+    assert "arms" in output
+    assert "teapot-fill" in output
+    assert "uvx --from 'isaaclab[isaacsim]' isaaclab demo camera" in output
+    assert "ppisp_camera_ovrtx" not in output
+
+
+def test_demo_catalog_resolves_repository_scripts():
+    """Every catalog entry must resolve to a script in the repository demo directory."""
+    assert all(demo.path.is_file() for demo in demo_registry.list_demos())
+
+
+def test_demo_command_dispatches_to_packaged_script():
+    """The demo command must forward all remaining arguments to the selected demo."""
+    with mock.patch("isaaclab.demo_registry.run_demo") as run_demo:
+        cli.demo(["arms", "--physics", "newton_mjwarp"])
+
+    run_demo.assert_called_once_with("arms", ["--physics", "newton_mjwarp"])
+
+
+def test_demo_command_forwards_help_to_selected_demo():
+    """Help after a demo name belongs to that demo, not the catalog parser."""
+    with mock.patch("isaaclab.demo_registry.run_demo") as run_demo:
+        cli.demo(["arms", "--help"])
+
+    run_demo.assert_called_once_with("arms", ["--help"])
+
+
+def test_demo_runner_restores_process_arguments():
+    """Running a demo programmatically must not leak its arguments to the caller."""
+    original_argv = sys.argv
+    with mock.patch.object(demo_registry.runpy, "run_path") as run_path:
+        demo_registry.run_demo("arms", ["--physics", "newton_mjwarp"])
+
+    run_path.assert_called_once_with(str(demo_registry.get_demo("arms").path), run_name="__main__")
+    assert sys.argv is original_argv
+
+
+def test_demo_command_rejects_unknown_name():
+    """Unknown demo names must fail before attempting a module import."""
+    with pytest.raises(SystemExit, match="2"):
+        cli.demo(["does-not-exist"])
+
+
+def test_demo_command_reports_missing_optional_dependencies(capsys):
+    """A demo with missing extras must print its complete uvx installation command."""
+    with mock.patch("isaaclab.demo_registry.find_spec", return_value=None), pytest.raises(SystemExit, match="2"):
+        cli.demo(["camera"])
+
+    assert "uvx --from 'isaaclab[isaacsim]' isaaclab demo camera" in capsys.readouterr().err
+
+
+def test_cli_routes_demo_without_loading_external_tasks():
+    """Demos do not need task plug-in discovery before dispatch."""
+    with (
+        mock.patch.object(cli, "_load_external_tasks") as load_external_tasks,
+        mock.patch.object(cli, "demo") as demo,
+        mock.patch.object(sys, "argv", ["isaaclab", "demo", "arms", "--headless"]),
+    ):
+        cli.cli()
+
+    load_external_tasks.assert_not_called()
+    demo.assert_called_once_with(["arms", "--headless"])
 
 
 def test_cli_loads_downstream_tasks_before_benchmark():

@@ -55,7 +55,7 @@ class VisuoTactileSensor(SensorBase):
         to compute normal and shear forces at discrete tactile points.
 
     **Example Usage:**
-        For a complete working example, see: ``scripts/demos/sensors/tacsl/tacsl_example.py``
+        Run ``isaaclab demo tactile-sensor`` for a complete working example.
 
     **Current Limitations:**
         - SDF collision meshes must be pre-computed and objects specified before simulation starts

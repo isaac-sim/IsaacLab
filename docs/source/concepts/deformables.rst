@@ -387,7 +387,7 @@ where ``L_parent`` and ``L_child`` are the rest lengths of the two segments it s
     Lab authors has no attribute for it.
 
 To target a specific axial ``E * A`` or bending ``E * I``, invert these relations to pick the
-modulus; ``scripts/demos/cables.py`` does this from a target stiffness and the segment geometry.
+modulus; ``demos/cables.py`` does this from a target stiffness and the segment geometry.
 
 Cable collision
 ^^^^^^^^^^^^^^^
@@ -584,25 +584,25 @@ Run a demo first to confirm that the spawner, solver, and visualizer all work in
       - Demo
       - Tasks
     * - Volume
-      - ``scripts/demos/deformables.py``
+      - ``demos/deformables.py``
       - ``Isaac-Lift-Soft-Franka``, ``Isaac-Lift-Soft-Franka-Camera``
     * - Surface
-      - ``scripts/demos/deformables.py``
+      - ``demos/deformables.py``
       - ``Isaac-Lift-Cloth-Franka``, ``Isaac-Lift-Cloth-Franka-Camera``
     * - Cable
-      - ``scripts/demos/cables.py``
+      - ``demos/cables.py``
       - ``Isaac-Lift-Cable-Franka``, ``Isaac-Lift-Cable-Franka-Camera``
 
 .. code-block:: bash
 
     # Volume and surface deformables falling onto a ground plane.
-    uv run --extra isaacsim --extra tetrahedralization python scripts/demos/deformables.py
+    uv run --extra isaacsim --extra tetrahedralization isaaclab demo deformables
 
     # A pile of cables that collide and settle. Newton VBD only.
-    uv run --extra isaacsim python scripts/demos/cables.py
+    uv run --extra isaacsim isaaclab demo cables
 
     # A larger cable pile, without a visualizer, stopping after a fixed number of steps.
-    uv run python scripts/demos/cables.py --visualizer none --num_cables 40 --num_segments 15 --max_steps 500
+    uv run isaaclab demo cables --visualizer none --num_cables 40 --num_segments 15 --max_steps 500
 
 ``scripts/environments/state_machine/lift_franka_soft.py`` drives ``Isaac-Lift-Soft-Franka`` with a
 scripted state machine, which is a useful starting point for a deformable manipulation task.

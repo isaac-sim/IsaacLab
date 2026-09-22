@@ -11,6 +11,7 @@ Demos
 Explore focused scripts that demonstrate Isaac Lab's robots, objects, sensors, and simulation features.
 Choose a demo card, then select a supported physics backend and visualizer to build a ready-to-run command.
 The command automatically includes the optional dependency groups required by the selection.
+Run ``uvx isaaclab demo list`` to inspect the complete packaged catalog without cloning the repository.
 
 Command Builder
 ---------------
@@ -20,7 +21,7 @@ Command Builder
    <div class="environment-browser demo-browser" data-demo-browser>
      <section class="environment-command-panel" aria-label="Isaac Lab demo command builder">
        <div class="environment-command-row environment-command-row-primary demo-command-row">
-         <span class="environment-command-prefix" aria-hidden="true">uv run</span>
+         <span class="environment-command-prefix" aria-hidden="true">uvx</span>
          <strong class="demo-command-selection" data-demo-name>Arms</strong>
          <label class="environment-selector environment-selector-physics">
            <span>--physics</span>
@@ -46,7 +47,7 @@ Command Builder
 
      <div class="demo-card-grid" data-demo-list>
        <button type="button" class="demo-card is-selected" aria-pressed="true"
-               data-demo-name="Arms" data-demo-path="scripts/demos/arms.py"
+               data-demo-name="Arms" data-demo-id="arms"
                data-demo-physics="isaacsim_physx,newton_mjwarp"
                data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-description="Spawn different robot arms and apply random joint-position commands.">
@@ -54,7 +55,7 @@ Command Builder
          <span>Arms</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="Bipeds" data-demo-path="scripts/demos/bipeds.py"
+               data-demo-name="Bipeds" data-demo-id="bipeds"
                data-demo-physics="isaacsim_physx,newton_mjwarp"
                data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-description="Spawn a collection of biped robots.">
@@ -62,7 +63,7 @@ Command Builder
          <span>Bipeds</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="Cables" data-demo-path="scripts/demos/cables.py"
+               data-demo-name="Cables" data-demo-id="cables"
                data-demo-physics="newton_vbd"
                data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-description="Simulate a pile of colliding cables with Newton VBD.">
@@ -70,7 +71,7 @@ Command Builder
          <span>Cables</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="Deformable Objects" data-demo-path="scripts/demos/deformables.py"
+               data-demo-name="Deformable Objects" data-demo-id="deformables"
                data-demo-physics="isaacsim_physx,newton_vbd,ovphysx"
                data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-visualizers-isaacsim-physx="none,kit"
@@ -81,7 +82,7 @@ Command Builder
          <span>Deformable Objects</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="Teapot Fill" data-demo-path="scripts/demos/mpm/teapot_fill.py"
+               data-demo-name="Teapot Fill" data-demo-id="teapot-fill"
                data-demo-physics="newton_mpm" data-demo-fixed-physics="true"
                data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-args="--device cuda:0"
@@ -90,14 +91,14 @@ Command Builder
          <span>Teapot Fill</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="H1 Locomotion" data-demo-path="scripts/demos/h1_locomotion.py"
+               data-demo-name="H1 Locomotion" data-demo-id="h1-locomotion"
                data-demo-physics="isaacsim_physx" data-demo-visualizers="kit"
                data-demo-description="Interactively control a trained H1 rough-terrain locomotion policy with the keyboard.">
          <img src="../../_static/demos/h1_locomotion.jpg" alt="H1 locomotion in Isaac Lab" loading="lazy">
          <span>H1 Locomotion</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="Dexterous Hands" data-demo-path="scripts/demos/hands.py"
+               data-demo-name="Dexterous Hands" data-demo-id="hands"
                data-demo-physics="isaacsim_physx,newton_mjwarp"
                data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-description="Spawn dexterous hands and command them to open and close.">
@@ -105,7 +106,7 @@ Command Builder
          <span>Dexterous Hands</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="Markers" data-demo-path="scripts/demos/markers.py"
+               data-demo-name="Markers" data-demo-id="markers"
                data-demo-physics="isaacsim_physx"
                data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-description="Create reusable visualization markers.">
@@ -113,7 +114,7 @@ Command Builder
          <span>Markers</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="Multi-Asset Scene" data-demo-path="scripts/demos/multi_asset.py"
+               data-demo-name="Multi-Asset Scene" data-demo-id="multi-asset"
                data-demo-physics="isaacsim_physx,newton_mjwarp"
                data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-description="Spawn varying assets in separate environments of one interactive scene.">
@@ -121,7 +122,7 @@ Command Builder
          <span>Multi-Asset Scene</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="Heterogeneous Scene" data-demo-path="scripts/demos/heterogeneous_scene.py"
+               data-demo-name="Heterogeneous Scene" data-demo-id="heterogeneous-scene"
                data-demo-physics="isaacsim_physx"
                data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-description="Compose several task scenes into one heterogeneous cloned simulation.">
@@ -129,7 +130,7 @@ Command Builder
          <span>Heterogeneous Scene</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="Bin Packing" data-demo-path="scripts/demos/bin_packing.py"
+               data-demo-name="Bin Packing" data-demo-id="bin-packing"
                data-demo-physics="isaacsim_physx"
                data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-description="Demonstrate bin packing with a rigid-object collection.">
@@ -137,14 +138,14 @@ Command Builder
          <span>Bin Packing</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="Pick and Place" data-demo-path="scripts/demos/pick_and_place.py"
+               data-demo-name="Pick and Place" data-demo-id="pick-and-place"
                data-demo-physics="isaacsim_physx" data-demo-visualizers="kit"
                data-demo-description="Interactively pick up a cube with a parallel robot and place it on a target.">
          <img src="../../_static/demos/pick_and_place.jpg" alt="Interactive pick and place demo" loading="lazy">
          <span>Pick and Place</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="Haply Teleoperation" data-demo-path="scripts/demos/haply_teleoperation.py"
+               data-demo-name="Haply Teleoperation" data-demo-id="haply-teleoperation"
                data-demo-physics="isaacsim_physx,newton_mjwarp"
                data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-extras="teleop"
@@ -154,7 +155,7 @@ Command Builder
          <span>Haply Teleoperation</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="Procedural Terrain" data-demo-path="scripts/demos/procedural_terrain.py"
+               data-demo-name="Procedural Terrain" data-demo-id="procedural-terrain"
                data-demo-physics="isaacsim_physx"
                data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-description="Create and spawn procedurally generated terrain configurations.">
@@ -162,7 +163,7 @@ Command Builder
          <span>Procedural Terrain</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="Quadcopter" data-demo-path="scripts/demos/quadcopter.py"
+               data-demo-name="Quadcopter" data-demo-id="quadcopter"
                data-demo-physics="isaacsim_physx,newton_mjwarp"
                data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-description="Spawn a quadcopter in the default environment.">
@@ -170,7 +171,7 @@ Command Builder
          <span>Quadcopter</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="Quadrupeds" data-demo-path="scripts/demos/quadrupeds.py"
+               data-demo-name="Quadrupeds" data-demo-id="quadrupeds"
                data-demo-physics="isaacsim_physx,newton_mjwarp"
                data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-description="Spawn quadruped robots and hold standing poses with position commands.">
@@ -178,7 +179,7 @@ Command Builder
          <span>Quadrupeds</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="Multi-Mesh Ray Caster" data-demo-path="scripts/demos/sensors/multi_mesh_raycaster.py"
+               data-demo-name="Multi-Mesh Ray Caster" data-demo-id="multi-mesh-ray-caster"
                data-demo-physics="isaacsim_physx,newton_mjwarp"
                data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-visualizers-isaacsim-physx="none,kit,newton_gl,newton_rtx,rerun,viser"

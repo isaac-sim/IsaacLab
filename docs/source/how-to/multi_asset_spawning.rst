@@ -15,16 +15,16 @@ prim paths resolved from an expression. Multi-asset workflows cover two related 
 This guide demonstrates both mechanisms and explains how their execution differs between PhysX and Newton.
 
 The sample script ``multi_asset.py`` is used as a reference, located in the
-``IsaacLab/scripts/demos`` directory.
+the packaged ``multi-asset`` demo.
 
 .. dropdown:: Code for multi_asset.py
    :icon: code
 
-   .. literalinclude:: ../../../scripts/demos/multi_asset.py
+   .. literalinclude:: ../../../demos/multi_asset.py
       :language: python
       :linenos:
 
-With the default PhysX configuration, this script creates multiple environments containing:
+With the default Newton configuration, this script creates multiple environments containing:
 
 * a rigid object collection containing a sphere, a cube, and a cylinder
 * a rigid object selected from nine geometry and material variants by the clone plan
@@ -43,7 +43,7 @@ want to access them as one batch. The collection exposes data with an ``(env, ob
 ``(env_ids, obj_ids)`` selections for commands. Compared with managing each object separately, the collection uses one
 batched physics view.
 
-.. literalinclude:: ../../../scripts/demos/multi_asset.py
+.. literalinclude:: ../../../demos/multi_asset.py
    :language: python
    :start-at: object_collection: RigidObjectCollectionCfg = RigidObjectCollectionCfg(
    :end-before: # articulation
@@ -54,7 +54,7 @@ instances. Each dictionary key is the object's stable identifier within the coll
 
 The demo resets all collection members through the same API used by both physics backends:
 
-.. literalinclude:: ../../../scripts/demos/multi_asset.py
+.. literalinclude:: ../../../demos/multi_asset.py
    :language: python
    :start-at: default_pose_w = rigid_object_collection.data.default_body_pose.torch.clone()
    :end-at: rigid_object_collection.write_body_com_velocity_to_sim_index(body_velocities=default_vel_w)
@@ -71,7 +71,7 @@ plan and assigns one valid prototype combination to each environment.
 For configuration-based assets, assign :class:`~sim.spawners.wrappers.MultiAssetSpawnerCfg` to the
 :class:`~assets.RigidObjectCfg` spawn configuration:
 
-.. literalinclude:: ../../../scripts/demos/multi_asset.py
+.. literalinclude:: ../../../demos/multi_asset.py
    :language: python
    :start-at: object: RigidObjectCfg = RigidObjectCfg(
    :end-before: # object collection
@@ -90,7 +90,7 @@ round-robin order. To sample combinations randomly instead, set the strategy bef
 For USD assets, assign :class:`~sim.spawners.wrappers.MultiUsdFileCfg` to the
 :class:`~assets.ArticulationCfg` spawn configuration:
 
-.. literalinclude:: ../../../scripts/demos/multi_asset.py
+.. literalinclude:: ../../../demos/multi_asset.py
    :language: python
    :start-at: robot: ArticulationCfg = ArticulationCfg(
    :end-before: ##
@@ -115,7 +115,7 @@ mode is not supported by the Newton backend.
 The demo keeps physics replication enabled. For Newton, it also narrows the standalone object and articulation to one
 variant because their batched Newton views currently require a uniform body layout across worlds:
 
-.. literalinclude:: ../../../scripts/demos/multi_asset.py
+.. literalinclude:: ../../../demos/multi_asset.py
    :language: python
    :start-at: scene_cfg = MultiObjectSceneCfg(num_envs=args_cli.num_envs
    :end-at: scene_cfg.robot.spawn.usd_path = scene_cfg.robot.spawn.usd_path[0]
@@ -134,20 +134,20 @@ The physics backend and visualizer are selected independently. Run one of these 
 
       .. code-block:: bash
 
-         uv run --extra isaacsim python scripts/demos/multi_asset.py --num_envs 2048
+         uv run --extra isaacsim isaaclab demo multi-asset --num_envs 2048
 
    .. tab-item:: Newton MJWarp with Kit
 
       .. code-block:: bash
 
-         uv run --extra isaacsim python scripts/demos/multi_asset.py \
+         uv run --extra isaacsim isaaclab demo multi-asset \
              --physics newton_mjwarp --num_envs 2048
 
    .. tab-item:: Newton MJWarp with Newton GL
 
       .. code-block:: bash
 
-         uv run python scripts/demos/multi_asset.py \
+         uv run isaaclab demo multi-asset \
              --physics newton_mjwarp --visualizer newton_gl --num_envs 2048
 
 The Newton commands exercise the same :class:`~assets.RigidObjectCollectionCfg` and ``(env_ids, obj_ids)`` APIs as the
