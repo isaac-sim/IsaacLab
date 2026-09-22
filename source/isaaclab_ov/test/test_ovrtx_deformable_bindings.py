@@ -623,7 +623,7 @@ def test_update_transforms_writes_caller_owned_buffer(monkeypatch: pytest.Monkey
 def test_update_camera_writes_without_mapping(monkeypatch: pytest.MonkeyPatch):
     """Camera xforms are handed to ``write()`` instead of copied into a mapped OVRTX buffer."""
     renderer, _ = _make_renderer_without_backend()
-    renderer._camera_xform_binding = _FakePointsBinding("omni:xform")
+    render_data = SimpleNamespace(camera_xform_binding=_FakePointsBinding("omni:xform"))
     camera_transforms = []
 
     monkeypatch.setattr(ovrtx_renderer_module, "convert_camera_frame_orientation_convention_wp", lambda **kwargs: None)
@@ -639,8 +639,8 @@ def test_update_camera_writes_without_mapping(monkeypatch: pytest.MonkeyPatch):
     renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=7))
 
     positions = SimpleNamespace(shape=(2,), warp=object())
-    renderer.update_camera(object(), positions, SimpleNamespace(warp=object()), object())
+    renderer.update_camera(render_data, positions, SimpleNamespace(warp=object()), object())
 
-    assert renderer._camera_xform_binding.written is camera_transforms[0]
-    assert renderer._camera_xform_binding.write_kwargs["data_access"] is DataAccess.ASYNC
-    assert renderer._camera_xform_binding.write_kwargs["cuda_stream"] == 7
+    assert render_data.camera_xform_binding.written is camera_transforms[0]
+    assert render_data.camera_xform_binding.write_kwargs["data_access"] is DataAccess.ASYNC
+    assert render_data.camera_xform_binding.write_kwargs["cuda_stream"] == 7

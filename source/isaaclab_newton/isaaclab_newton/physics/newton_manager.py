@@ -521,7 +521,7 @@ class NewtonManager(PhysicsManager):
     # Cached after the first fabric sync that probes IFabricHierarchy GPU APIs.
     _use_fabric_gpu_hierarchy: bool | None = None
 
-    # Set to True after sync_transforms_to_usd() successfully writes body positions for
+    # Set to True after sync_transforms_to_fabric() successfully writes body positions for
     # the first time in each simulation session.  Reset to False in clear().  Polled by
     # test drain helpers to know when the GPU has propagated the newton:index Fabric
     # attribute and body_q values are valid.
@@ -695,13 +695,16 @@ class NewtonManager(PhysicsManager):
             cls.forward()
             if NewtonManager._transforms_may_change_on_graph_replay:
                 cls._mark_transforms_dirty()
-        cls.sync_transforms_to_usd()
+        cls.sync_transforms_to_fabric()
         cls.sync_cables_to_usd()
         cls.sync_particles_to_usd()
 
     @classmethod
-    def sync_transforms_to_usd(cls) -> None:
-        """Write Newton body_q to USD Fabric world matrices for Kit viewport / RTX rendering.
+    def sync_transforms_to_fabric(cls) -> None:
+        """Write Newton body_q to Fabric world matrices for Kit viewport / RTX rendering.
+
+        The write lands in Fabric only. Authored USD attributes are left untouched, so the
+        poses are visible to the RTX renderer but absent from a stage export or save.
 
         No-op when ``_usdrt_stage`` is None (i.e. Kit visualizer is not active)
         or when transforms have not changed since the last sync.
@@ -822,7 +825,21 @@ class NewtonManager(PhysicsManager):
                     fabric_hierarchy.track_world_xform_changes(True)
                     fabric_hierarchy.track_local_xform_changes(True)
         except Exception:
-            logger.exception("[NewtonManager] sync_transforms_to_usd FAILED")
+            logger.exception("[NewtonManager] sync_transforms_to_fabric FAILED")
+
+    @classmethod
+    def sync_transforms_to_usd(cls) -> None:
+        """Write Newton body_q to Fabric world matrices for Kit viewport / RTX rendering.
+
+        .. deprecated:: v6.3.0
+            Renamed to :meth:`sync_transforms_to_fabric`, which describes where the write
+            actually lands. This alias will be removed in a future release.
+        """
+        logger.warning(
+            "The method 'NewtonManager.sync_transforms_to_usd' is deprecated because it writes Fabric, not the USD"
+            " stage. Please use 'NewtonManager.sync_transforms_to_fabric' instead."
+        )
+        cls.sync_transforms_to_fabric()
 
     @classmethod
     def sync_cables_to_usd(cls) -> None:
@@ -946,7 +963,7 @@ class NewtonManager(PhysicsManager):
     def _mark_transforms_dirty(cls) -> None:
         """Flag that rigid-body transforms have changed and Fabric needs re-sync.
 
-        The actual sync is deferred to :meth:`sync_transforms_to_usd`,
+        The actual sync is deferred to :meth:`sync_transforms_to_fabric`,
         which runs at render cadence via :meth:`pre_render`.
         """
         NewtonManager._transforms_dirty = True
@@ -1697,7 +1714,7 @@ class NewtonManager(PhysicsManager):
             )
 
             cls._mark_state_dirty()
-            cls.sync_transforms_to_usd()
+            cls.sync_transforms_to_fabric()
             cls.sync_cables_to_usd()
             cls.sync_particles_to_usd()
 
@@ -1960,7 +1977,14 @@ class NewtonManager(PhysicsManager):
 
         from pxr import UsdGeom
 
+        # MPMObject imports NewtonManager, so defer this reciprocal import until model construction.
+        from isaaclab_newton.assets.mpm_object.mpm_object import (  # noqa: PLC0415
+            record_registered_mpm_particle_ranges,
+            reset_registered_mpm_particle_ranges,
+        )
+
         stage = get_current_stage()
+        reset_registered_mpm_particle_ranges()
         up_axis = UsdGeom.GetStageUpAxis(stage)
 
         # Scan /World children for env-like Xforms (Env_0, env_1, ...)
@@ -1996,6 +2020,7 @@ class NewtonManager(PhysicsManager):
             import_result = builder.add_usd(
                 stage, ignore_paths=[*hf_ignore_paths, *solver_ignore_paths], schema_resolvers=schema_resolvers
             )
+            record_registered_mpm_particle_ranges(import_result.get("path_particle_map", {}))
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
             import_builder_visual_material_paths(builder, stage)
@@ -2012,6 +2037,7 @@ class NewtonManager(PhysicsManager):
             # and any terrain colliders already added as heightfields above.
             ignore_paths = [path for _, path in env_paths] + hf_ignore_paths + solver_ignore_paths
             import_result = builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
+            record_registered_mpm_particle_ranges(import_result.get("path_particle_map", {}))
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
             import_builder_visual_material_paths(builder, stage)
@@ -2049,6 +2075,17 @@ class NewtonManager(PhysicsManager):
             positions = np.asarray([pos for pos, _ in poses], dtype=np.float32)
             quaternions = np.asarray([quat for _, quat in poses], dtype=np.float32)
             mapping = np.ones((1, len(env_paths)), dtype=np.bool_)
+
+            def record_source_particle_ranges(source, particle_offset, source_builder, source_xform) -> None:
+                if source == proto_path:
+                    record_registered_mpm_particle_ranges(
+                        import_result.get("path_particle_map", {}),
+                        particle_offset,
+                        builder=builder,
+                        source_builder=source_builder,
+                        source_xform=source_xform,
+                    )
+
             local_site_map, world_xforms, _ = replicate_builder_mapping(
                 builder=builder,
                 sources=(proto_path,),
@@ -2059,6 +2096,7 @@ class NewtonManager(PhysicsManager):
                 source_site_indices=source_site_indices,
                 env_root_sites=env_root_sites,
                 per_world_builder_hooks=cls._per_world_builder_hooks,
+                source_builder_added=record_source_particle_ranges if cls._mpm_object_registry else None,
             )
 
             NewtonManager._cl_site_index_map = {label: (idx, None) for label, idx in global_site_indices.items()}
@@ -2473,7 +2511,7 @@ class NewtonManager(PhysicsManager):
         - Call ``cudaStreamEndCapture`` to close the CUDA stream capture and get the graph.
 
         Warmup run pre-allocates all solver scratch buffers so no ``cudaMalloc`` occurs during
-        capture.  ``sync_transforms_to_usd`` (which calls ``wp.synchronize_device``) is
+        capture.  ``sync_transforms_to_fabric`` (which calls ``wp.synchronize_device``) is
         excluded from the capture and runs eagerly in ``step()`` after ``wp.capture_launch``.
 
         When ``capture_target`` is provided it is captured instead of the physics simulate

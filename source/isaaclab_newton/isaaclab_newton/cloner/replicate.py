@@ -103,10 +103,18 @@ def _replicate_newton(
     quaternions: np.ndarray | None = None,
 ) -> tuple[ModelBuilder, object, dict]:
     """Import and replicate the plan's Newton representation, with or without Newton physics."""
+    # MPMObject imports NewtonManager, so defer this reciprocal import until model construction.
+    from isaaclab_newton.assets.mpm_object.mpm_object import (  # noqa: PLC0415
+        record_registered_mpm_particle_ranges,
+        reset_registered_mpm_particle_ranges,
+    )
+
     cfg = sim.cfg.physics
     simulation = isinstance(cfg, NewtonCfg)
     sources = tuple(plan.sources[row] for row in rows)
     positions = plan.positions
+    if simulation:
+        reset_registered_mpm_particle_ranges()
     if positions is None:
         positions = np.zeros((len(plan.env_ids), 3), dtype=np.float32)
     if quaternions is None:
@@ -156,12 +164,15 @@ def _replicate_newton(
         _restore_visible_colliders_without_visual_shapes(
             builder, stage, import_result["path_shape_map"], load_visual_shapes
         )
+        if simulation:
+            record_registered_mpm_particle_ranges(import_result.get("path_particle_map", {}))
         import_results.append(import_result)
     if simulation:
         replace_newton_builder_shape_colors(builder, stage)
     if load_visual_shapes:
         import_builder_visual_material_paths(builder, stage)
 
+    source_import_results: dict[str, dict[str, Any]] = {}
     source_builders = build_source_builders(
         stage,
         sources,
@@ -170,6 +181,7 @@ def _replicate_newton(
         ignore_paths=ignore_paths,
         load_visual_shapes=load_visual_shapes,
         skip_mesh_approximation=not simulation,
+        import_results_out=source_import_results,
     )
 
     if simulation:
@@ -184,6 +196,20 @@ def _replicate_newton(
         builder.add_builder(global_builder)
         global_sites, source_sites, root_sites = {}, {}, {}
 
+    def record_source_particle_ranges(
+        source: str,
+        particle_offset: int,
+        source_builder: ModelBuilder,
+        source_xform: Sequence[float],
+    ) -> None:
+        record_registered_mpm_particle_ranges(
+            source_import_results[source].get("path_particle_map", {}),
+            particle_offset,
+            builder=builder,
+            source_builder=source_builder,
+            source_xform=source_xform,
+        )
+
     local_site_map, world_xforms, fabric_body_bindings = replicate_builder_mapping(
         builder=builder,
         sources=sources,
@@ -196,6 +222,9 @@ def _replicate_newton(
         source_site_indices=source_sites,
         env_root_sites=root_sites,
         per_world_builder_hooks=NewtonManager._per_world_builder_hooks if simulation else (),
+        source_builder_added=record_source_particle_ranges
+        if simulation and NewtonManager._mpm_object_registry
+        else None,
     )
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
