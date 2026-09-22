@@ -17,7 +17,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import TerminationTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from ..envs import ManagerBasedRLEnv
 
 
 class TerminationManager(ManagerBase):

@@ -151,7 +151,7 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
             import torch  # noqa: PLC0415
             import warp as wp  # noqa: PLC0415
 
-            from isaaclab.utils.timer import Timer  # noqa: PLC0415
+            from ..utils.timer import Timer  # noqa: PLC0415
 
             assert self.simulation_step_times_s is not None
             self.simulation_step_times_s.clear()

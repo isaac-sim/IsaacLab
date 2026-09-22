@@ -12,8 +12,7 @@
 
 from __future__ import annotations
 
-from isaaclab.utils.backend_utils import FactoryBase
-
+from ...utils.backend_utils import FactoryBase
 from .base_frame_view import BaseFrameView
 
 

@@ -10,8 +10,7 @@ import os
 import pathlib
 import warnings
 
-from isaaclab.utils.version import has_kit
-
+from ...utils.version import has_kit
 from .asset_converter_base import AssetConverterBase
 from .urdf_converter_cfg import UrdfConverterCfg
 

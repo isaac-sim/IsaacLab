@@ -28,11 +28,10 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
-from isaaclab.physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, _resolve_physx_auto_cfg
-from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.sensors.camera.camera_cfg import CameraCfg
-from isaaclab.utils._device import set_cuda_device
-
+from ..physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, _resolve_physx_auto_cfg
+from ..renderers.renderer_cfg import RendererCfg
+from ..sensors.camera.camera_cfg import CameraCfg
+from ..utils._device import set_cuda_device
 from .logging_utils import apply_python_logging_level, resolve_python_logging_level
 
 logger = logging.getLogger(__name__)
@@ -549,7 +548,7 @@ def launch_simulation(
     close_fn: Any = None
     if needs_kit:
         _ensure_isaac_sim_available()
-        from isaaclab.utils import has_kit
+        from ..utils import has_kit
 
         if not has_kit():
             from . import AppLauncher
@@ -577,7 +576,7 @@ def launch_simulation(
     try:
         # The import stays after the Kit launch decision. With no selected profile this is a
         # no-op; with one, it installs process-wide OmniClient routing before user code runs.
-        from isaaclab.utils.assets import configure_storage_profile
+        from ..utils.assets import configure_storage_profile
 
         configure_storage_profile()
         yield physics_cfg

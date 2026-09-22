@@ -15,13 +15,12 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.managers import ManagerTermBase, SceneEntityCfg, TerminationTermCfg
+from ...managers import ManagerTermBase, SceneEntityCfg, TerminationTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, RigidObject
-    from isaaclab.managers.command_manager import CommandTerm
-    from isaaclab.sensors import ContactSensor
-
+    from ...assets import Articulation, RigidObject
+    from ...managers.command_manager import CommandTerm
+    from ...sensors import ContactSensor
     from .. import ManagerBasedRLEnv
     from .commands.pose_command import UniformPoseCommand
 

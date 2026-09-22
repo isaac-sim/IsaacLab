@@ -23,10 +23,9 @@ from pink import solve_ik
 from pink.tasks import Task
 from qpsolvers.exceptions import SolverNotFound
 
-from isaaclab.assets import ArticulationCfg
-from isaaclab.utils.assets import retrieve_file_path
-from isaaclab.utils.string import resolve_matching_names_values
-
+from ...assets import ArticulationCfg
+from ...utils.assets import retrieve_file_path
+from ...utils.string import resolve_matching_names_values
 from .. import utils as controller_utils
 from .null_space_posture_task import NullSpacePostureTask
 from .pink_kinematics_configuration import PinkKinematicsConfiguration
@@ -251,7 +250,7 @@ class PinkIKController:
                 )
 
             if self.cfg.xr_enabled:
-                from isaaclab.ui.xr_widgets import XRVisualization
+                from ...ui.xr_widgets import XRVisualization
 
                 XRVisualization.push_event("ik_error", {"error": error})
             return torch.tensor(curr_controlled_joint_pos, device=self.device, dtype=torch.float32)

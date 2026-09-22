@@ -8,8 +8,7 @@ from collections.abc import Sequence
 
 import torch
 
-import isaaclab.utils.math as PoseUtils
-
+from ..utils import math as PoseUtils
 from . import ManagerBasedRLEnv
 
 

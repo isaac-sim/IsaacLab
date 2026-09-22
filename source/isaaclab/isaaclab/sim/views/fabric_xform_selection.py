@@ -15,7 +15,7 @@ import logging
 
 import warp as wp
 
-from isaaclab.utils.warp import fabric as fabric_utils
+from ...utils.warp import fabric as fabric_utils
 
 logger = logging.getLogger(__name__)
 

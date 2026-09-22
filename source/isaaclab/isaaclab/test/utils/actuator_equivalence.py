@@ -27,9 +27,9 @@ import tempfile
 import torch
 import warp as wp
 
-import isaaclab.sim as sim_utils
-from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
-from isaaclab.sim import SimulationCfg, build_simulation_context
+from ... import sim as sim_utils
+from ...actuators import DCMotorCfg, DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
+from ...sim import SimulationCfg, build_simulation_context
 
 # ---------------------------------------------------------------------------
 # Actuator configurations under test
@@ -292,8 +292,8 @@ class MockEnv:
 
 def build_dr_term(env, asset_name, joint_ids=None):
     """Build a ``randomize_actuator_gains`` event term bound to ``asset_name``."""
-    from isaaclab.envs.mdp.events import randomize_actuator_gains  # noqa: PLC0415
-    from isaaclab.managers import EventTermCfg, SceneEntityCfg  # noqa: PLC0415
+    from ...envs.mdp.events import randomize_actuator_gains  # noqa: PLC0415
+    from ...managers import EventTermCfg, SceneEntityCfg  # noqa: PLC0415
 
     asset_cfg = SceneEntityCfg(asset_name)
     if joint_ids is not None:
@@ -426,7 +426,7 @@ class ActuatorStateResetBase:
         """Lab: DelayedPDActuator circular buffer zeroed for env 0 only."""
         ctx, sim, articulation = self._build_and_warm(use_newton_actuators=False)
         try:
-            from isaaclab.actuators import DelayedPDActuator  # noqa: PLC0415
+            from ...actuators import DelayedPDActuator  # noqa: PLC0415
 
             delayed = [a for a in articulation.actuators.values() if isinstance(a, DelayedPDActuator)]
             self.assertGreater(len(delayed), 0, "expected at least one Lab DelayedPDActuator")

@@ -13,10 +13,10 @@ from typing import TYPE_CHECKING
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
-from isaaclab.sim.utils.stage import resolve_paths
-from isaaclab.ui.widgets import ManagerLiveVisualizer
-from isaaclab.ui.widgets.ui_visualizer_base import UiVisualizerBase
-from isaaclab.utils.version import has_kit
+from ...sim.utils.stage import resolve_paths
+from ...ui.widgets import ManagerLiveVisualizer
+from ...ui.widgets.ui_visualizer_base import UiVisualizerBase
+from ...utils.version import has_kit
 
 if has_kit():
     import isaacsim

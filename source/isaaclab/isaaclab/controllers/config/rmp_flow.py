@@ -5,8 +5,7 @@
 
 import os
 
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-
+from ...utils.assets import ISAACLAB_NUCLEUS_DIR
 from ..rmp_flow_cfg import RmpFlowControllerCfg
 
 # Directory on Nucleus Server for RMP-Flow assets (URDFs, collision models, etc.)

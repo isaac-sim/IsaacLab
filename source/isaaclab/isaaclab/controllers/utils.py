@@ -16,7 +16,7 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 
-from isaaclab.sim.utils import enable_extension, get_extension_path
+from ..sim.utils import enable_extension, get_extension_path
 
 # import logger
 logger = logging.getLogger(__name__)

@@ -10,8 +10,8 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from isaaclab.sim.spawners import SpawnerCfg
-from isaaclab.utils import configclass
+from ..sim.spawners import SpawnerCfg
+from ..utils import configclass
 
 if TYPE_CHECKING:
     from . import VisualizationMarkers

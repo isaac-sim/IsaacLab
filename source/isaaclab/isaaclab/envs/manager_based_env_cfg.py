@@ -14,19 +14,18 @@ from __future__ import annotations
 from dataclasses import MISSING, field
 from typing import TYPE_CHECKING
 
-from isaaclab.devices.device_base import DevicesCfg
-from isaaclab.managers import EventTermCfg as EventTerm
-from isaaclab.managers import RecorderManagerBaseCfg as DefaultEmptyRecorderManagerCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
-
+from ..devices.device_base import DevicesCfg
+from ..managers import EventTermCfg as EventTerm
+from ..managers import RecorderManagerBaseCfg as DefaultEmptyRecorderManagerCfg
+from ..scene import InteractiveSceneCfg
+from ..sim import SimulationCfg
+from ..utils import configclass
 from . import mdp
 from .common import ViewerCfg
 from .utils.video_recorder_cfg import VideoRecorderCfg
 
 if TYPE_CHECKING:
-    from isaaclab.devices.openxr import XrCfg
+    from ..devices.openxr import XrCfg
 
 
 @configclass

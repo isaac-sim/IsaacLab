@@ -15,14 +15,13 @@ from typing import Any
 
 import torch
 
-from isaaclab.app.loading_screen import report_activity
-from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
-from isaaclab.scene import InteractiveScene
-from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.stage import use_stage
-from isaaclab.utils.seed import configure_seed
-from isaaclab.utils.timer import Timer
-
+from ..app.loading_screen import report_activity
+from ..managers import ActionManager, EventManager, ObservationManager, RecorderManager
+from ..scene import InteractiveScene
+from ..sim import SimulationContext
+from ..sim.utils.stage import use_stage
+from ..utils.seed import configure_seed
+from ..utils.timer import Timer
 from .common import (
     VecEnvObs,
     _apply_deprecated_viewer_cfg,

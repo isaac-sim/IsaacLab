@@ -16,9 +16,8 @@ from typing import TYPE_CHECKING, Any, ParamSpec, overload
 
 import torch
 
-from isaaclab.utils.assets import check_file_path, retrieve_file_path
-from isaaclab.utils.string import to_camel_case
-
+from ...utils.assets import check_file_path, retrieve_file_path
+from ...utils.string import to_camel_case
 from .queries import (
     find_matching_prim_paths,
     has_deformable_body_api,

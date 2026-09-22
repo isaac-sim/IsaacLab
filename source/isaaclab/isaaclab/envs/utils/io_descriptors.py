@@ -19,13 +19,12 @@ import warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
 
-from isaaclab.utils import configclass
+from ...utils import configclass
 
 if TYPE_CHECKING:
     import torch
 
-    from isaaclab.assets.articulation import Articulation
-
+    from ...assets.articulation import Articulation
     from .. import ManagerBasedEnv
 
 

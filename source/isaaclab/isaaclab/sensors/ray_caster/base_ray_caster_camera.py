@@ -14,10 +14,9 @@ import warp as wp
 
 from pxr import UsdGeom
 
-import isaaclab.utils.math as math_utils
-from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.kernels import raycast_mesh_masked_kernel
-
+from ...utils import math as math_utils
+from ...utils.warp import ProxyArray
+from ...utils.warp.kernels import raycast_mesh_masked_kernel
 from ..camera import CameraData
 from ..sensor_base import SensorBase
 from . import kernels as ray_caster_kernels

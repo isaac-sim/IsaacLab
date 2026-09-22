@@ -7,8 +7,7 @@ from __future__ import annotations
 
 import os
 
-from isaaclab.utils.version import has_kit
-
+from ...utils.version import has_kit
 from .asset_converter_base import AssetConverterBase
 from .mjcf_converter_cfg import MjcfConverterCfg
 

@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import isaaclab.sim as sim_utils
+from ... import sim as sim_utils
 from ..visualization_markers_cfg import VisualizationMarkersCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from ...utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
 # Sensors.

@@ -18,19 +18,18 @@ from typing import TYPE_CHECKING, Any
 import torch
 import warp as wp
 
-import isaaclab.sim as sim_utils
-from isaaclab.app.settings_manager import SettingsManager
-from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
-from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager
-from isaaclab.physics.physics_manager_cfg import _resolve_physx_auto_cfg
-from isaaclab.renderers.render_context import RenderContext
-from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
-from isaaclab.utils.string import clear_resolve_matching_names_cache
-from isaaclab.utils.version import has_kit
-from isaaclab.visualizers.base_visualizer import BaseVisualizer
-from isaaclab.visualizers.visualizer_cfg import _get_visualizer_install_hint
-
+from .. import sim as sim_utils
+from ..app.settings_manager import SettingsManager
+from ..markers.vis_marker_registry import VisMarkerRegistry
+from ..physics import PhysicsCfg, PhysicsEvent, PhysicsManager
+from ..physics.physics_manager_cfg import _resolve_physx_auto_cfg
+from ..renderers.render_context import RenderContext
+from ..renderers.renderer_cfg import RendererCfg
+from ..scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
+from ..utils.string import clear_resolve_matching_names_cache
+from ..utils.version import has_kit
+from ..visualizers.base_visualizer import BaseVisualizer
+from ..visualizers.visualizer_cfg import _get_visualizer_install_hint
 from .simulation_cfg import BackendCfg, SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 from .utils import create_new_stage
@@ -39,7 +38,7 @@ from .utils import stage as stage_utils
 if TYPE_CHECKING:
     from pxr import Usd
 
-    from isaaclab.cloner.clone_plan import ClonePlan
+    from ..cloner.clone_plan import ClonePlan
 
 
 logger = logging.getLogger(__name__)
@@ -445,7 +444,7 @@ class SimulationContext:
         ``streaming_view=False`` from stomping backend-specific defaults like
         ``NewtonGLVisualizerCfg.streaming_view=True``.
         """
-        from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+        from ..visualizers.visualizer_cfg import VisualizerCfg
 
         default_cfg = getattr(self.cfg, "default_visualizer_cfg", None)
         if default_cfg is None:

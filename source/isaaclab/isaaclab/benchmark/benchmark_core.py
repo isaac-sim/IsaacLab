@@ -11,8 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import has_kit
-
+from ..utils import has_kit
 from . import formatters
 from .formatters import get_default_output_filename
 from .interfaces import MeasurementDataRecorder
@@ -301,7 +300,7 @@ class BaseIsaacLabBenchmark:
             elif self._use_frametime_recorders:
                 try:
                     # Enable the benchmark services extension first
-                    from isaaclab.sim.utils import enable_extension
+                    from ..sim.utils import enable_extension
 
                     enable_extension("isaacsim.benchmark.services")
 

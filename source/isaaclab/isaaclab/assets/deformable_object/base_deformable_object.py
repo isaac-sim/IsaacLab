@@ -13,9 +13,8 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-import isaaclab.utils.math as math_utils
-from isaaclab.utils.warp import ProxyArray
-
+from ...utils import math as math_utils
+from ...utils.warp import ProxyArray
 from ..asset_base import AssetBase
 
 if TYPE_CHECKING:

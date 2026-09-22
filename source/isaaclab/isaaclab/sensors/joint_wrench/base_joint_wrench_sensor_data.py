@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from isaaclab.utils.warp import ProxyArray
+from ...utils.warp import ProxyArray
 
 
 class BaseJointWrenchSensorData(ABC):

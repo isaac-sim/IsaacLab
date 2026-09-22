@@ -7,10 +7,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.markers.config import DEFORMABLE_TARGET_MARKER_CFG
-from isaaclab.utils import configclass
-
+from ...markers import VisualizationMarkersCfg
+from ...markers.config import DEFORMABLE_TARGET_MARKER_CFG
+from ...utils import configclass
 from ..asset_base_cfg import AssetBaseCfg
 
 if TYPE_CHECKING:

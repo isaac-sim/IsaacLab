@@ -8,8 +8,7 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import Literal
 
-from isaaclab.utils import configclass
-
+from ...utils import configclass
 from .asset_converter_base_cfg import AssetConverterBaseCfg
 
 

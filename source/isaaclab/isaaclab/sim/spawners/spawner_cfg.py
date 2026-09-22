@@ -9,7 +9,7 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from ...utils import configclass
 
 if TYPE_CHECKING:
     from pxr import Usd

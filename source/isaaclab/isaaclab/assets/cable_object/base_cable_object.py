@@ -12,8 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.utils.warp import ProxyArray
-
+from ...utils.warp import ProxyArray
 from ..asset_base import AssetBase
 
 if TYPE_CHECKING:

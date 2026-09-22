@@ -13,9 +13,8 @@ import random
 import tempfile
 from datetime import datetime
 
-from isaaclab.utils.assets import check_file_path
-from isaaclab.utils.io import dump_yaml
-
+from ...utils.assets import check_file_path
+from ...utils.io import dump_yaml
 from .asset_converter_base_cfg import AssetConverterBaseCfg
 
 logger = logging.getLogger(__name__)

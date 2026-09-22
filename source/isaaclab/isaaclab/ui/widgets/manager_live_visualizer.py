@@ -11,10 +11,9 @@ from typing import TYPE_CHECKING
 
 import numpy
 
-from isaaclab.managers import ManagerBase
-from isaaclab.sim import SimulationContext
-from isaaclab.utils import configclass
-
+from ...managers import ManagerBase
+from ...sim import SimulationContext
+from ...utils import configclass
 from ..live_plots.manager_live_plots import DirectScalarLivePlots, ManagerLivePlots
 from .image_plot import ImagePlot
 from .line_plot import LiveLinePlot
