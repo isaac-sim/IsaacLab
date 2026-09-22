@@ -40,6 +40,8 @@ The system has three layers:
      :class:`SceneDataFormat.Matrix44`, :class:`SceneDataFormat.Vec3_Matrix33`).
    - :attr:`SceneDataBackend.transform_count`: number of transforms.
    - :attr:`SceneDataBackend.transform_paths`: list of USD prim paths, one per transform.
+   - :attr:`SceneDataBackend.fabric_publication`: optional engine-owned Fabric interface and
+     dirty flag. Native PhysX uses this path without fetching a packed pose array.
    - :attr:`SceneDataBackend.points`: flattened deformable nodal positions as
      :class:`SceneDataFormat.Points` (optional; rigid-only backends return an empty buffer).
    - :attr:`SceneDataBackend.point_count`: total number of geometry points.
@@ -115,6 +117,10 @@ Newton backend
 When Newton is the active physics backend, the backend wraps the Newton model's ``body_q``
 directly. No shadow model or per-frame sync is needed: Newton already owns the authoritative
 model and state, and the provider exposes that state as :class:`SceneDataFormat.Transform`.
+
+Externally replayed CUDA graphs do not call Python write hooks. After writes have been captured,
+Newton conservatively republishes transforms when read so an unannounced replay cannot leave
+rendering stale. Those reads do not benefit from clean-publication caching.
 
 Data requirements
 ------------------

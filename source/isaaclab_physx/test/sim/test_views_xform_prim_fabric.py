@@ -26,11 +26,13 @@ import torch  # noqa: E402
 import warp as wp  # noqa: E402
 from frame_view_contract_utils import *  # noqa: F401, F403, E402
 from frame_view_contract_utils import CHILD_OFFSET, ViewBundle  # noqa: E402, F401
+from isaaclab_physx.physics import PhysxCfg  # noqa: E402
 from isaaclab_physx.sim.views import FabricFrameView as FrameView  # noqa: E402
 
-from pxr import Gf, UsdGeom  # noqa: E402
+from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab.scene_data import SceneDataFormat  # noqa: E402
 
 pytestmark = pytest.mark.isaacsim_ci
 PARENT_POS = (0.0, 0.0, 1.0)
@@ -133,6 +135,37 @@ def view_factory(request):
 # ------------------------------------------------------------------
 # Fabric-specific tests (not in shared contract)
 # ------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("device", [device for device in test_devices() if device.startswith("cuda")])
+def test_sdp_native_gpu_fabric_binding_preserves_live_physx_pose(device, request):
+    """First binding borrows live GPU matrices without resetting them from authored USD."""
+    _skip_if_unavailable(device)
+    prim = UsdGeom.Cube.Define(sim_utils.get_current_stage(), "/World/Cube").GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(prim)
+    UsdPhysics.CollisionAPI.Apply(prim)
+    sim = sim_utils.SimulationContext(
+        sim_utils.SimulationCfg(physics=PhysxCfg(), device=device, gravity=(0, 0, 0), use_fabric=True)
+    )
+    sim.set_setting("/physics/fabricUpdateTransformations", True)
+    sim.reset()
+    frame_view = FrameView("/World/Cube", device=device)
+    request.addfinalizer(frame_view.close)
+    frame_view.get_world_poses()  # Initialize its authored pose before the native pose write.
+    view = sim.physics_manager.get_physics_sim_view().create_rigid_body_view("/World/Cube")
+    view.set_transforms(
+        wp.array([[1, 2, 3, 0, 0, 0, 1]], dtype=wp.float32, device=device),
+        indices=wp.array([0], dtype=wp.int32, device=device),
+    )
+    sim.step(render=False)
+    sim.forward()
+    before = tuple(value.torch.clone() for value in frame_view.get_world_poses())
+    torch.testing.assert_close(before[0], torch.tensor([[1, 2, 3]], dtype=torch.float32, device=device))
+    provider = sim.get_scene_data_provider()
+    assert provider._fabric_output is None
+    assert provider.request_transforms(SceneDataFormat.FabricMatrix44).matrices.shape == (1,)
+    for value, expected in zip(frame_view.get_world_poses(), before, strict=True):
+        torch.testing.assert_close(value.torch, expected, rtol=0, atol=0)
 
 
 @pytest.mark.parametrize("device", test_devices())

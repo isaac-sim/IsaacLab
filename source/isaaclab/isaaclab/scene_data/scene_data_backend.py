@@ -89,6 +89,9 @@ class SceneDataFormat:
         mapping: wp.array | None = None
         """Native-to-output indices; solver-only bodies without rigid destinations map to -1."""
 
+        scales: wp.array | None = None
+        """Authored world scales captured once per SDP-owned destination layout, shape [count]."""
+
     @wp_struct
     class Points:
         """Flat world-space nodal or particle positions."""

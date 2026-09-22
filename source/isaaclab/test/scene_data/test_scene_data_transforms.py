@@ -182,8 +182,23 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
         output = provider.request_transforms(SceneDataFormat.FabricMatrix44)
         assert provider.request_transforms(SceneDataFormat.FabricMatrix44) is output
         assert provider.transform_generation == 1
-        assert len(calls) == allocation + 1
+        assert len(calls) == 2 * (allocation + 1)
         np.testing.assert_allclose(matrices.numpy(), expected)
+
+    if format_name == "Transform" and not solver_only_body:
+        rotations = np.random.default_rng(42).normal(size=(2000, len(poses), 4)).astype(np.float32)
+        rotations /= np.linalg.norm(rotations, axis=-1, keepdims=True)
+        poses = np.asarray(poses, dtype=np.float32)
+        for rotation in rotations:
+            poses[:, 3:] = rotation
+            data.transforms.assign(poses)
+            publication.dirty = True
+            provider.request_transforms(SceneDataFormat.FabricMatrix44)
+        np.testing.assert_allclose(
+            np.linalg.norm(matrices.numpy()[:, :3, :3], axis=-1),
+            np.linalg.norm(expected[:, :3, :3], axis=-1),
+            rtol=1.0e-6,
+        )
 
 
 @pytest.mark.parametrize("gpu_options", [None, 3])

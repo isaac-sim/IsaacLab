@@ -129,7 +129,7 @@ class SceneDataProvider:
         device = _publication_device(source)
         if output_format is SceneDataFormat.FabricMatrix44:
             output = fabric_output
-            inputs, outputs = [source, output.mapping], [output.matrices]
+            inputs, outputs = [source, output.mapping, output.scales], [output.matrices]
         else:
             output = cached[1] if cached is not None else output_format()
             _init_output(output, count, device)
@@ -152,17 +152,18 @@ class SceneDataProvider:
 
         stage_id = UsdUtils.StageCache.Get().GetId(stage).ToLongInt()
         self._fabric_stage = usdrt.Usd.Stage.Attach(stage_id)
-        self._fabric_stage.SynchronizeToFabric()
-        self._fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-            self._fabric_stage.GetFabricId(), self._fabric_stage.GetStageIdAsStageId()
-        )
-        self._fabric_hierarchy.update_world_xforms()
-        gpu_options = getattr(usdrt.hierarchy, "FabricHierarchyGpuUpdateOptions", None)
-        self._fabric_update_options = (
-            gpu_options.RIGID_BODY | gpu_options.FORCE_UPDATE
-            if gpu_options is not None and hasattr(self._fabric_hierarchy, "update_world_xforms_gpu_with_options")
-            else None
-        )
+        if self.backend.fabric_publication is None:
+            self._fabric_stage.SynchronizeToFabric()
+            self._fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
+                self._fabric_stage.GetFabricId(), self._fabric_stage.GetStageIdAsStageId()
+            )
+            self._fabric_hierarchy.update_world_xforms()
+            gpu_options = getattr(usdrt.hierarchy, "FabricHierarchyGpuUpdateOptions", None)
+            self._fabric_update_options = (
+                gpu_options.RIGID_BODY | gpu_options.FORCE_UPDATE
+                if gpu_options is not None and hasattr(self._fabric_hierarchy, "update_world_xforms_gpu_with_options")
+                else None
+            )
         self._fabric_selection = self._fabric_stage.SelectPrims(
             require_applied_schemas=["PhysicsRigidBodyAPI"],
             require_attrs=[(usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.ReadWrite)],
@@ -186,6 +187,15 @@ class SceneDataProvider:
                 ),
                 mapping=self.create_mapping(paths),
             )
+            if self.backend.fabric_publication is None:
+                self._fabric_output.scales = wp.empty(len(paths), dtype=wp.vec3f, device=self._fabric_device)
+                wp.launch(
+                    ConversionKernels.capture_fabric_scales,
+                    dim=len(paths),
+                    inputs=[self._fabric_output.matrices],
+                    outputs=[self._fabric_output.scales],
+                    device=self._fabric_device,
+                )
             self._fabric_generation = -1
         return self._fabric_output
 
@@ -511,15 +521,20 @@ class SceneDataProvider:
 
 
 class ConversionKernels:
-    @wp.func
-    def fabric_transform(pose: wp.transformf, previous: wp.mat44d) -> wp.mat44d:
-        """Preserve authored world scale while replacing a rigid body's pose."""
-        matrix = wp.mat44f(previous)
-        scale = wp.vec3f(
+    @wp.kernel(enable_backward=False)
+    def capture_fabric_scales(matrices: wp.indexedfabricarray(dtype=wp.mat44d), scales: wp.array(dtype=wp.vec3f)):
+        """Capture authored scales before pose updates introduce rotation round-off."""
+        index = wp.tid()
+        matrix = wp.mat44f(matrices[index])
+        scales[index] = wp.vec3f(
             wp.length(wp.vec3f(matrix[0, 0], matrix[0, 1], matrix[0, 2])),
             wp.length(wp.vec3f(matrix[1, 0], matrix[1, 1], matrix[1, 2])),
             wp.length(wp.vec3f(matrix[2, 0], matrix[2, 1], matrix[2, 2])),
         )
+
+    @wp.func
+    def fabric_transform(pose: wp.transformf, scale: wp.vec3f) -> wp.mat44d:
+        """Preserve the destination's captured authored scale while replacing its pose."""
         return wp.mat44d(
             wp.transpose(
                 wp.transform_compose(wp.transform_get_translation(pose), wp.transform_get_rotation(pose), scale)
@@ -530,48 +545,52 @@ class ConversionKernels:
     def convert_Transform_to_FabricMatrix44(
         input: SceneDataFormat.Transform,
         mapping: wp.array(dtype=wp.int32),
+        scales: wp.array(dtype=wp.vec3f),
         output: wp.indexedfabricarray(dtype=wp.mat44d),
     ):
         i = wp.tid()
         index = ConversionKernels.get_output_index(i, mapping)
         if index > -1:
-            output[index] = ConversionKernels.fabric_transform(input.transforms[i], output[index])
+            output[index] = ConversionKernels.fabric_transform(input.transforms[i], scales[index])
 
     @wp.kernel(enable_backward=False)
     def convert_Vec3_Quat_to_FabricMatrix44(
         input: SceneDataFormat.Vec3_Quat,
         mapping: wp.array(dtype=wp.int32),
+        scales: wp.array(dtype=wp.vec3f),
         output: wp.indexedfabricarray(dtype=wp.mat44d),
     ):
         i = wp.tid()
         index = ConversionKernels.get_output_index(i, mapping)
         if index > -1:
             pose = wp.transformf(input.positions[i], input.orientations[i])
-            output[index] = ConversionKernels.fabric_transform(pose, output[index])
+            output[index] = ConversionKernels.fabric_transform(pose, scales[index])
 
     @wp.kernel(enable_backward=False)
     def convert_Vec3_Matrix33_to_FabricMatrix44(
         input: SceneDataFormat.Vec3_Matrix33,
         mapping: wp.array(dtype=wp.int32),
+        scales: wp.array(dtype=wp.vec3f),
         output: wp.indexedfabricarray(dtype=wp.mat44d),
     ):
         i = wp.tid()
         index = ConversionKernels.get_output_index(i, mapping)
         if index > -1:
             pose = wp.transformf(input.positions[i], wp.quat_from_matrix(input.orientations[i]))
-            output[index] = ConversionKernels.fabric_transform(pose, output[index])
+            output[index] = ConversionKernels.fabric_transform(pose, scales[index])
 
     @wp.kernel(enable_backward=False)
     def convert_Matrix44_to_FabricMatrix44(
         input: SceneDataFormat.Matrix44,
         mapping: wp.array(dtype=wp.int32),
+        scales: wp.array(dtype=wp.vec3f),
         output: wp.indexedfabricarray(dtype=wp.mat44d),
     ):
         i = wp.tid()
         index = ConversionKernels.get_output_index(i, mapping)
         if index > -1:
             output[index] = ConversionKernels.fabric_transform(
-                wp.transform_from_matrix(input.matrices[i]), output[index]
+                wp.transform_from_matrix(input.matrices[i]), scales[index]
             )
 
     @wp.func
