@@ -90,6 +90,16 @@ def _prepare_camera_feed_cfgs(env_cfg: Any, cfgs: list[XrCameraFeedCfg]) -> list
     return prepared
 
 
+def _configure_camera_scene_partition(camera_cfg: Any) -> None:
+    """Keep an isolated PiP source camera outside the shared XR/SceneUI partition."""
+    renderer_cfg = getattr(camera_cfg, "renderer_cfg", None)
+    candidates = (renderer_cfg, getattr(renderer_cfg, "default", None), getattr(renderer_cfg, "isaacsim_rtx", None))
+    for cfg in candidates:
+        if getattr(cfg, "renderer_type", None) == "isaac_rtx":
+            cfg.enable_scene_partitioning = False
+            cfg.global_settings.show_all_partitions_by_default = False
+
+
 def _apply_ray_reconstruction_compatibility(cfgs: list[XrCameraFeedCfg]) -> None:
     """Resolve the effective PiP Ray Reconstruction policy for this runtime."""
     if not any(cfg.enable_dlss_ray_reconstruction is True for cfg in cfgs):
@@ -168,6 +178,9 @@ class XrCameraFeedSession:
         if int(env_cfg.scene.num_envs) != 1:
             raise ValueError("XR camera PiP supports exactly one environment; set --num_envs 1 or disable PiP feeds.")
         cfgs = _prepare_camera_feed_cfgs(env_cfg, requested)
+        if teleop_cfg.xr_camera_feed_layout.use_scene_partition:
+            for cfg in cfgs:
+                _configure_camera_scene_partition(getattr(env_cfg.scene, cfg.camera_name))
         _apply_ray_reconstruction_compatibility(cfgs)
         return cls(
             cfgs,
@@ -250,6 +263,8 @@ def _centered_positions(sizes: list[float], gap: float) -> list[float]:
 
 
 def _validate_layout_cfg(layout_cfg: XrCameraFeedLayoutCfg) -> None:
+    if type(layout_cfg.use_scene_partition) is not bool:
+        raise TypeError("XR camera feed layout use_scene_partition must be a bool.")
     if layout_cfg.mode not in {"manual", "horizontal", "vertical", "grid"}:
         raise ValueError(f"Unknown XR camera feed layout mode {layout_cfg.mode!r}.")
     if layout_cfg.placement not in {"viewer_start", "head_locked", "world"}:
@@ -319,6 +334,7 @@ class _PanelDescriptor:
     placement: str
     world_position_m: tuple[float, float, float] | None
     world_orientation_xyzw: tuple[float, float, float, float]
+    use_scene_partition: bool
 
 
 def _panel_descriptor(cfg: XrCameraFeedCfg, layout_cfg: XrCameraFeedLayoutCfg) -> _PanelDescriptor:
@@ -330,6 +346,7 @@ def _panel_descriptor(cfg: XrCameraFeedCfg, layout_cfg: XrCameraFeedLayoutCfg) -
         placement=layout_cfg.placement,
         world_position_m=None if layout_cfg.world_position_m is None else tuple(layout_cfg.world_position_m),
         world_orientation_xyzw=tuple(layout_cfg.world_orientation_xyzw),
+        use_scene_partition=layout_cfg.use_scene_partition,
     )
 
 
