@@ -1352,10 +1352,11 @@ vertical, and grid layouts. The following registered tasks enable PiP by default
 * ``IsaacContrib-PickPlace-GR1T2-Abs``
 * ``IsaacContrib-NutPour-GR1T2-Pink-IK-Abs``
 * ``IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs``
+* ``IsaacContrib-PickPlace-Locomanipulation-G1-Abs``
 
-The G1 locomanipulation and fixed-base tasks do not create a PiP panel by default because the head
-camera can capture the panel and produce a recursive view. The locomanipulation task retains the
-camera as a recorded policy observation.
+The G1 locomanipulation task presents its calibrated head camera in a ``head_locked`` panel that
+follows headset position and orientation. The same camera remains a recorded policy observation.
+The fixed-base G1 task does not create a PiP panel by default.
 
 ``teleop_se3_agent.py`` and ``record_demos.py`` show every enabled feed when an IsaacTeleop-enabled
 environment runs with ``--xr``. PiP is absent unless the task explicitly selects an existing
@@ -1372,9 +1373,23 @@ recorded view follows robot motion:
 
 .. warning::
 
-   If a PiP panel enters its source camera's field of view, the camera captures the panel and
-   produces a recursive hall-of-mirrors effect. Move the panel or reorient the camera, for example
-   by changing the robot pose, to keep the panel outside the camera's field of view.
+   Without scene-partition isolation, a PiP panel entering its source camera's field of view
+   produces a recursive hall-of-mirrors effect. Move the panel or reorient the camera to keep
+   the panel outside the camera's field of view.
+
+G1 locomanipulation enables :attr:`~isaaclab_teleop.XrCameraFeedLayoutCfg.use_scene_partition`
+to avoid this recursion. The SceneUI adapter assigns the entire ``/ui`` root and the XR
+presentation camera to ``isaaclab_teleop_xr_camera_pip`` in the stage's session layer, restoring
+prior opinions when the final isolated panel closes. This is shared XR/SceneUI state, not
+independent per-panel visibility.
+
+Scene-partition isolation requires a Kit runtime containing XR scene-partition propagation and
+runtime-updated mesh bounds fixes. When enabled PiP is prepared, selected Isaac RTX cameras are
+configured with ``enable_scene_partitioning=False`` and
+``global_settings.show_all_partitions_by_default=False`` so the robot camera remains outside
+the UI partition. The latter changes a process-global renderer setting through the renderer's
+settings manager. Non-XR runs and disabled feeds retain their camera defaults. Other tasks also
+retain their existing behavior because ``use_scene_partition`` defaults to ``False``.
 
 .. code-block:: bash
 

@@ -96,6 +96,17 @@ class XrCameraFeedCfg:
 class XrCameraFeedLayoutCfg:
     """Declarative placement and packing for enabled XR camera feeds."""
 
+    use_scene_partition: bool = False
+    """Isolate the XR camera and entire SceneUI root from robot-camera rendering.
+
+    Requires Kit XR scene-partition propagation and runtime-updated mesh bounds fixes.
+    Enabled PiP preparation disables per-environment partitioning on selected Isaac RTX
+    cameras and requests ``global_settings.show_all_partitions_by_default=False``.
+    The latter is a process-global renderer setting. Isolation affects the shared
+    XR camera and ``/ui`` stage root, not just individual panels. Defaults to False to
+    preserve existing tasks and runtimes that do not support XR scene partitions.
+    """
+
     mode: Literal["manual", "horizontal", "vertical", "grid"] = "manual"
     """Layout mode. Manual preserves each feed's offset and distance."""
 
