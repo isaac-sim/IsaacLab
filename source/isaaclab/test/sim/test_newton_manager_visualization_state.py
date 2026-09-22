@@ -339,32 +339,6 @@ def test_update_visualization_state_noop_when_backend_is_newton(monkeypatch):
     assert NewtonManager.backend.state_0 == "live-state"
 
 
-@pytest.mark.parametrize("newton_active", [True, False])
-def test_get_state_uses_native_publication_or_foreign_visualization(monkeypatch, newton_active):
-    """Native FK belongs to publication; foreign state binds the visualization output."""
-    from isaaclab_newton.physics import NewtonManager
-
-    events: list[str] = []
-    state = object()
-    provider = SimpleNamespace(request_transforms=lambda _: events.append("publication"))
-    monkeypatch.setattr(
-        NewtonManager,
-        "_backend_is_newton",
-        classmethod(lambda cls, provider=None: newton_active),
-    )
-    monkeypatch.setattr(NewtonManager, "forward", Mock(side_effect=AssertionError("FK bypassed publication")))
-    monkeypatch.setattr(
-        NewtonManager,
-        "update_visualization_state",
-        classmethod(lambda cls, provider=None: events.append("visualization")),
-    )
-    monkeypatch.setattr(NewtonManager, "get_state_0", classmethod(lambda cls: state))
-
-    assert NewtonManager.get_state(provider) is state
-    expected = ["publication"] if newton_active else ["visualization"]
-    assert events == expected
-
-
 @pytest.mark.parametrize("invalidate", ["invalidate_body_state", "invalidate_fk"])
 def test_scene_data_publishes_native_pointer_and_invalidates_writes_and_swaps(monkeypatch, invalidate):
     """Native publication never recurses into consumers and follows solver buffer swaps."""
@@ -534,7 +508,7 @@ def test_update_visualization_state_shares_sdp_transforms(monkeypatch, layout):
 
     generation = provider.transform_generation
     NewtonManager._sensor_state_dirty = False
-    NewtonManager.update_visualization_state(provider)
+    assert NewtonManager.get_state(provider) is NewtonManager.backend.state_0
     assert provider.transform_generation == generation
     assert not NewtonManager._sensor_state_dirty
     assert provider.create_mapping.call_count == 1

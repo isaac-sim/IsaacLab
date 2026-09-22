@@ -81,7 +81,7 @@ class SceneDataFormat:
 
     @dataclass(slots=True)
     class FabricMatrix44:
-        """Indexed Fabric world matrices and their native-to-output mapping."""
+        """Native Fabric world matrices, or indexed conversion destinations with authored scale."""
 
         matrices: Any = None
         """Transposed double-precision ``omni:fabric:worldMatrix`` values [m]."""

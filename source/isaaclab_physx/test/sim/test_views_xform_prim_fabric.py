@@ -32,7 +32,7 @@ from isaaclab_physx.sim.views import FabricFrameView as FrameView  # noqa: E402
 from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
-from isaaclab.scene_data import SceneDataFormat  # noqa: E402
+from isaaclab.scene_data import SceneDataFormat, SceneDataProvider  # noqa: E402
 
 pytestmark = pytest.mark.isaacsim_ci
 PARENT_POS = (0.0, 0.0, 1.0)
@@ -161,8 +161,8 @@ def test_sdp_native_gpu_fabric_binding_preserves_live_physx_pose(device, request
     sim.forward()
     before = tuple(value.torch.clone() for value in frame_view.get_world_poses())
     torch.testing.assert_close(before[0], torch.tensor([[1, 2, 3]], dtype=torch.float32, device=device))
-    provider = sim.get_scene_data_provider()
-    assert provider._fabric_output is None
+    provider = SceneDataProvider(sim.get_scene_data_provider().backend)
+    provider._prepare_fabric(sim.stage, device)
     assert provider.request_transforms(SceneDataFormat.FabricMatrix44).matrices.shape == (1,)
     for value, expected in zip(frame_view.get_world_poses(), before, strict=True):
         torch.testing.assert_close(value.torch, expected, rtol=0, atol=0)

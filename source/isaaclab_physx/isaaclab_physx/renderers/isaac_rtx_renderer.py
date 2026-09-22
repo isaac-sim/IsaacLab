@@ -23,6 +23,7 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import enable_extension
 from isaaclab.utils.version import get_isaac_sim_version
@@ -579,7 +580,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
     def update_transforms(self) -> None:
         """Request shared Fabric transforms and propagate the visual hierarchy."""
-        self._sdp._update_fabric()
+        self._sdp.request_transforms(SceneDataFormat.FabricMatrix44)
 
     def update_geometries(self) -> None:
         """No-op for Isaac RTX - uses USD scene directly.

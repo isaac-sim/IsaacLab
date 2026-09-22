@@ -1059,31 +1059,24 @@ def _capture_kit_viewport_with_pose_reapply(
     kit_visualizer: KitVisualizer,
     resolution: tuple[int, int] | None = None,
     physics_backend: str = "",
-    prior_physics_steps: int = 0,
     max_warmup_frames: int | None = None,
     app_updates_only: bool = False,
 ) -> np.ndarray:
     """Set the configured eye/lookat, warm RTX, then capture.
 
-    Re-applies the camera between the two ``app.update()`` calls in the warmup loop so
-    that Newton stage init (which resets the viewport camera) does not affect the final
-    frame.  When ``prior_physics_steps > 0``, also re-syncs Newton body transforms
-    between the two calls so the correct pose is rendered.
+    Re-applies the camera after rendering so Newton viewport initialization does not
+    change the captured viewpoint. The normal render path refreshes body transforms.
 
     Args:
         env: The simulation environment.
         kit_visualizer: The active :class:`KitVisualizer` instance.
         resolution: Optional ``(width, height)`` override for the render product.
-        physics_backend: ``"newton"`` to enable per-render camera reapply and body-
-            transform re-sync.
-        prior_physics_steps: When > 0, injects a Newton body-transform re-sync
-            between the two ``app.update()`` calls.
+        physics_backend: ``"newton"`` to enable per-render camera reapply.
         max_warmup_frames: When set, overrides the default convergence cap.  Use a
             small value when per-frame render cost is very high and test thresholds
             are loose enough that convergence is not required (e.g. franka cloth RTX).
-        app_updates_only: When True, uses lightweight ``app.update()`` ticks instead
-            of ``env.sim.render()``.  Required for VBD cloth scenes where
-            ``env.sim.render()`` blocks in the Newton Fabric sync path.
+        app_updates_only: When True, warms RTX with ``app.update()`` ticks instead
+            of ``env.sim.render()``.
     """
     kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
     camera_path = getattr(kit_visualizer, "_controlled_camera_path", None)
@@ -1091,14 +1084,11 @@ def _capture_kit_viewport_with_pose_reapply(
     annotator, render_product = _build_rgb_annotator_for_camera(camera_path, resolution=resolution)
     try:
         if physics_backend == "newton":
-            kit_visualizer._scene_data_provider._update_fabric()
             prev: np.ndarray | None = None
             for i in range(_WARMUP_MAX_FRAMES):
                 kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
                 env.sim.render()
                 kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
-                if prior_physics_steps > 0:
-                    kit_visualizer._scene_data_provider._update_fabric()
                 _update_active_simulation_app()
                 with contextlib.suppress(Exception):
                     annotator.get_data()
@@ -1139,9 +1129,8 @@ def _warm_kit_rtx_render_product(
     satisfy :func:`_frames_converged` or :data:`_WARMUP_MAX_FRAMES` is reached.
     When ``max_frames_override`` is set, it replaces both caps above — useful when the
     per-frame render cost is high and loose thresholds make convergence unnecessary.
-    When ``app_updates_only`` is True, replaces ``env.sim.render()`` with lightweight
-    ``app.update()`` calls.  Use this for VBD cloth scenes where ``env.sim.render()``
-    blocks in the Newton Fabric sync path (VBD cloth particles never set the ready flag).
+    When ``app_updates_only`` is True, warms RTX with ``app.update()`` calls without
+    advancing the visualizers.
     """
     if max_frames_override is not None:
         max_frames = max_frames_override
@@ -1321,7 +1310,6 @@ def _capture_visualizer_tiled_camera_rgb(
     if force_recompute and getattr(visualizer, "_camera_is_owned", False):
         visualizer._update_owned_camera_poses()
         if isinstance(visualizer, KitVisualizer):
-            visualizer._scene_data_provider._update_fabric()
             _update_active_simulation_app()
         return _pump_tiled_until_stable(camera_sensor, camera_indices)
     rgb_batch = camera_rgb_batch(camera_sensor, camera_indices)

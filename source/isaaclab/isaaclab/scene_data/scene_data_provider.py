@@ -84,6 +84,7 @@ class SceneDataProvider:
 
         A matching native format and ordering returns the producer's pointer without a copy.
         Converted outputs belong to SDP and are reused across consumers and clean requests.
+        Fabric consumers bind their stage during initialization with ``_prepare_fabric``.
 
         Args:
             output_format: Requested :class:`SceneDataFormat` type.
@@ -94,56 +95,73 @@ class SceneDataProvider:
         Returns:
             The requested format, or None when no transforms are published. Treat its arrays as read-only.
         """
-        publication = self.backend.transform_publication
-        if publication.dirty:
-            self._transform_generation += 1
-            publication.dirty = False
-        native_count = self.transform_count
-        if native_count == 0:
-            return None
-        count = native_count if count is None else count
-        if mapping is None and count != native_count:
-            raise ValueError("A different destination count requires an explicit transform mapping.")
-        if scales is not None and output_format is not SceneDataFormat.TransposedMatrix44d:
-            raise ValueError("Static scales are supported only for TransposedMatrix44d destinations.")
-        source = publication.data
-        if source._cls is output_format and mapping is None and scales is None:
-            return source
-        fabric_output = None
-        if output_format is SceneDataFormat.FabricMatrix44:
-            if mapping is not None:
-                raise ValueError("Fabric destinations already specify native ordering and authored scale.")
-            if self.backend.fabric_publication is not None:
-                self._update_fabric()
-                self._prepare_fabric(self.usd_stage, str(_publication_device(source)), bind_native=True)
+        fabric = output_format is SceneDataFormat.FabricMatrix44
+        if fabric:
+            if mapping is not None or count is not None or scales is not None:
+                raise ValueError("Fabric destinations already specify native ordering, count, and authored scale.")
+            publication = self.backend.fabric_publication
+            if publication is not None:
+                if publication.dirty:
+                    publication.data.force_update(0.0, 0.0)
+                    publication.dirty = False
                 return self._prepare_fabric_output()
-            fabric_output = self._prepare_fabric_output()
-        key = (output_format, mapping, count, scales)
-        cached = self._transform_cache.get(key)
-        if (
-            cached is not None
-            and cached[0] == self._transform_generation
-            and (fabric_output is None or cached[1] is fabric_output)
-        ):
-            return cached[1]
-        device = _publication_device(source)
-        if output_format is SceneDataFormat.FabricMatrix44:
-            output = fabric_output
-            inputs, outputs = [source, output.mapping, output.scales], [output.matrices]
-        else:
-            output = cached[1] if cached is not None else output_format()
-            _init_output(output, count, device)
-            inputs, outputs = [source, mapping], [output]
-            if output_format is SceneDataFormat.TransposedMatrix44d:
-                inputs.append(scales)
-        kernel = getattr(ConversionKernels, f"convert_{source._cls.__name__}_to_{output_format.__name__}")
-        wp.launch(kernel, dim=native_count, inputs=inputs, outputs=outputs, device=device)
-        self._transform_cache[key] = (self._transform_generation, output)
-        return output
+            # PrepareForReuse dirties writable attributes even when the layout has not changed.
+            if self._fabric_update_options is not None:
+                self._fabric_hierarchy.track_world_xform_changes(False)
+                self._fabric_hierarchy.track_local_xform_changes(False)
+        try:
+            fabric_output = self._prepare_fabric_output() if fabric else None
+            publication = self.backend.transform_publication
+            if publication.dirty:
+                self._transform_generation += 1
+                publication.dirty = False
+            native_count = self.transform_count
+            if native_count == 0:
+                return None
+            count = native_count if count is None else count
+            if mapping is None and count != native_count:
+                raise ValueError("A different destination count requires an explicit transform mapping.")
+            if scales is not None and output_format is not SceneDataFormat.TransposedMatrix44d:
+                raise ValueError("Static scales are supported only for TransposedMatrix44d destinations.")
+            source = publication.data
+            if source._cls is output_format and mapping is None and scales is None:
+                return source
+            key = (output_format, mapping, count, scales)
+            cached = self._transform_cache.get(key)
+            if (
+                cached is not None
+                and cached[0] == self._transform_generation
+                and (fabric_output is None or cached[1] is fabric_output)
+            ):
+                return cached[1]
+            device = _publication_device(source)
+            if fabric:
+                output = fabric_output
+                inputs, outputs = [source, output.mapping, output.scales], [output.matrices]
+            else:
+                output = cached[1] if cached is not None else output_format()
+                _init_output(output, count, device)
+                inputs, outputs = [source, mapping], [output]
+                if output_format is SceneDataFormat.TransposedMatrix44d:
+                    inputs.append(scales)
+            kernel = getattr(ConversionKernels, f"convert_{source._cls.__name__}_to_{output_format.__name__}")
+            wp.launch(kernel, dim=native_count, inputs=inputs, outputs=outputs, device=device)
+            if fabric:
+                wp.synchronize_device(device)
+                if self._fabric_update_options is None:
+                    self._fabric_hierarchy.update_world_xforms()
+                else:
+                    self._fabric_hierarchy.update_world_xforms_gpu_with_options(self._fabric_update_options)
+            self._transform_cache[key] = (self._transform_generation, output)
+            return output
+        finally:
+            if fabric and self._fabric_update_options is not None:
+                self._fabric_hierarchy.track_world_xform_changes(True)
+                self._fabric_hierarchy.track_local_xform_changes(True)
 
-    def _prepare_fabric(self, stage: Usd.Stage, device: str, *, bind_native: bool = False) -> None:
-        """Bind shared Fabric matrices; engine-owned Fabric only needs a view when requested."""
-        if self._fabric_output is not None or (self.backend.fabric_publication is not None and not bind_native):
+    def _prepare_fabric(self, stage: Usd.Stage, device: str) -> None:
+        """Bind shared Fabric matrices once, preserving engine-owned poses when available."""
+        if self._fabric_output is not None:
             return
         # Fabric is supplied by the running Kit application, not the standalone USD wheel.
         import usdrt  # noqa: PLC0415
@@ -152,7 +170,8 @@ class SceneDataProvider:
 
         stage_id = UsdUtils.StageCache.Get().GetId(stage).ToLongInt()
         self._fabric_stage = usdrt.Usd.Stage.Attach(stage_id)
-        if self.backend.fabric_publication is None:
+        native = self.backend.fabric_publication is not None
+        if not native:
             self._fabric_stage.SynchronizeToFabric()
             self._fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
                 self._fabric_stage.GetFabricId(), self._fabric_stage.GetStageIdAsStageId()
@@ -164,66 +183,40 @@ class SceneDataProvider:
                 if gpu_options is not None and hasattr(self._fabric_hierarchy, "update_world_xforms_gpu_with_options")
                 else None
             )
+        access = usdrt.Usd.Access.Read if native else usdrt.Usd.Access.ReadWrite
         self._fabric_selection = self._fabric_stage.SelectPrims(
             require_applied_schemas=["PhysicsRigidBodyAPI"],
-            require_attrs=[(usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.ReadWrite)],
+            require_attrs=[(usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", access)],
             device=device,
-            want_paths=True,
+            want_paths=not native,
         )
         self._fabric_device = device
-        self._fabric_generation = -1
         self._fabric_output = SceneDataFormat.FabricMatrix44()
 
     def _prepare_fabric_output(self) -> SceneDataFormat.FabricMatrix44:
         """Refresh the shared Fabric selection after topology changes."""
         changed = self._fabric_selection.PrepareForReuse()
         if changed or self._fabric_output.matrices is None:
+            matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
+            if self.backend.fabric_publication is not None:
+                self._fabric_output = SceneDataFormat.FabricMatrix44(matrices=matrices)
+                return self._fabric_output
             slots = {str(path): index for index, path in enumerate(self._fabric_selection.GetPaths())}
             paths = [path for path in self.backend.transform_paths if path in slots]
             indices = wp.array([slots[path] for path in paths], dtype=wp.int32, device=self._fabric_device)
             self._fabric_output = SceneDataFormat.FabricMatrix44(
-                matrices=wp.indexedfabricarray(
-                    fa=wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix"), indices=indices
-                ),
+                matrices=wp.indexedfabricarray(fa=matrices, indices=indices),
                 mapping=self.create_mapping(paths),
+                scales=wp.empty(len(paths), dtype=wp.vec3f, device=self._fabric_device),
             )
-            if self.backend.fabric_publication is None:
-                self._fabric_output.scales = wp.empty(len(paths), dtype=wp.vec3f, device=self._fabric_device)
-                wp.launch(
-                    ConversionKernels.capture_fabric_scales,
-                    dim=len(paths),
-                    inputs=[self._fabric_output.matrices],
-                    outputs=[self._fabric_output.scales],
-                    device=self._fabric_device,
-                )
-            self._fabric_generation = -1
+            wp.launch(
+                ConversionKernels.capture_fabric_scales,
+                dim=len(paths),
+                inputs=[self._fabric_output.matrices],
+                outputs=[self._fabric_output.scales],
+                device=self._fabric_device,
+            )
         return self._fabric_output
-
-    def _update_fabric(self) -> None:
-        """Consume SDP poses and propagate them without rebuilding Fabric connectivity."""
-        publication = self.backend.fabric_publication
-        if publication is not None:
-            if publication.dirty:
-                publication.data.force_update(0.0, 0.0)
-                publication.dirty = False
-            return
-        if self._fabric_update_options is not None:
-            self._fabric_hierarchy.track_world_xform_changes(False)
-            self._fabric_hierarchy.track_local_xform_changes(False)
-        try:
-            self.request_transforms(SceneDataFormat.FabricMatrix44)
-            generation = self.transform_generation
-            if generation != self._fabric_generation:
-                wp.synchronize_device(self._fabric_device)
-                if self._fabric_update_options is None:
-                    self._fabric_hierarchy.update_world_xforms()
-                else:
-                    self._fabric_hierarchy.update_world_xforms_gpu_with_options(self._fabric_update_options)
-                self._fabric_generation = generation
-        finally:
-            if self._fabric_update_options is not None:
-                self._fabric_hierarchy.track_world_xform_changes(True)
-                self._fabric_hierarchy.track_local_xform_changes(True)
 
     def set_interactive_scene(self, scene: Any) -> None:
         """Attach the active interactive scene for scene-owned sensor discovery."""

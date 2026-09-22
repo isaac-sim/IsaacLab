@@ -35,6 +35,7 @@ from isaaclab.envs.utils.camera_view import (
     remove_generated_prims,
     resolve_streaming_envs,
 )
+from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
@@ -211,7 +212,7 @@ class KitVisualizer(BaseVisualizer):
         """
         if not self._is_initialized:
             return
-        self._scene_data_provider._update_fabric()
+        self._scene_data_provider.request_transforms(SceneDataFormat.FabricMatrix44)
         self._app_pumped_this_step = False
         self._sim_time += dt
         self._step_counter += 1
@@ -291,7 +292,7 @@ class KitVisualizer(BaseVisualizer):
         import omni.kit.app
         import omni.replicator.core as rep
 
-        self._scene_data_provider._update_fabric()
+        self._scene_data_provider.request_transforms(SceneDataFormat.FabricMatrix44)
         camera_path = self._controlled_camera_path or "/OmniverseKit_Persp"
         w, h = self.cfg.window_width, self.cfg.window_height
 

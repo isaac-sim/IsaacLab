@@ -522,7 +522,9 @@ class PhysxManager(PhysicsManager):
             cls._kinematics_dirty = False
         cls.invalidate_transforms()
         if cls._fabric is not None:
-            sim.get_scene_data_provider()._update_fabric()
+            provider = sim.get_scene_data_provider()
+            provider._prepare_fabric(sim.stage, str(PhysicsManager._device))
+            provider.request_transforms(SceneDataFormat.FabricMatrix44)
 
     @classmethod
     def invalidate_transforms(cls, *, kinematics: bool = False) -> None:

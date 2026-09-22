@@ -19,6 +19,7 @@ import warp as wp
 from packaging import version
 
 from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
+from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
@@ -372,7 +373,7 @@ def test_init_enables_replicator_before_applying_global_settings(monkeypatch):
     sim = SimulationContext.instance()
     provider = sim.get_scene_data_provider.return_value
     provider._prepare_fabric.assert_called_once_with(sim.stage, sim.device)
-    provider._update_fabric.assert_called_once_with()
+    provider.request_transforms.assert_called_once_with(SceneDataFormat.FabricMatrix44)
 
 
 @pytest.mark.parametrize("configured_value", [None, False, True])

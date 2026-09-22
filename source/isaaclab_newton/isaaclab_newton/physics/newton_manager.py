@@ -663,7 +663,7 @@ class NewtonManager(PhysicsManager):
             return
         provider = cls.get_scene_data_provider()
         provider._prepare_fabric(PhysicsManager._sim.stage, str(PhysicsManager._device))
-        provider._update_fabric()
+        provider.request_transforms(SceneDataFormat.FabricMatrix44)
 
     @classmethod
     def sync_transforms_to_usd(cls) -> None:

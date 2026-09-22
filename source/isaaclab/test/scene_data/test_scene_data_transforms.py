@@ -18,7 +18,7 @@ import warp as wp
 from pxr import UsdUtils
 
 from isaaclab.cloner.usd import UsdReplicateContext
-from isaaclab.scene_data.scene_data_backend import SceneDataBackend, SceneDataFormat, SceneDataPublication
+from isaaclab.scene_data.scene_data_backend import SceneDataFormat, SceneDataPublication
 from isaaclab.scene_data.scene_data_provider import SceneDataProvider
 
 
@@ -60,32 +60,26 @@ def test_publication_aliases_native_pointer_and_converts_once_per_write(monkeypa
     provider = SceneDataProvider(SimpleNamespace(transform_publication=publication, transform_count=1))
     with pytest.raises(ValueError, match="destination count"):
         provider.request_transforms(SceneDataFormat.Transform, count=2)
-    launch = wp.launch
-    calls = []
-
-    def record_launch(*args, **kwargs):
-        calls.append(kwargs.get("kernel", args[0] if args else None))
-        return launch(*args, **kwargs)
-
-    monkeypatch.setattr(wp, "launch", record_launch)
+    launch = Mock(wraps=wp.launch)
+    monkeypatch.setattr(wp, "launch", launch)
     assert provider.request_transforms(SceneDataFormat.Transform).transforms is data.transforms
-    assert calls == []
+    launch.assert_not_called()
     converted = provider.request_transforms(SceneDataFormat.Vec3_Quat)
     assert provider.request_transforms(SceneDataFormat.Vec3_Quat) is converted
-    assert len(calls) == 1
+    assert launch.call_count == 1
     np.testing.assert_array_equal(converted.positions.numpy(), [[1, 2, 3]])
 
     data.transforms.assign([[4, 5, 6, 0, 0, 0, 1]])
     publication.dirty = True
     assert provider.request_transforms(SceneDataFormat.Vec3_Quat) is converted
-    assert len(calls) == 2
+    assert launch.call_count == 2
     np.testing.assert_array_equal(converted.positions.numpy(), [[4, 5, 6]])
 
     data.transforms = wp.array([[7, 8, 9, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
     publication.dirty = True
     assert provider.request_transforms(SceneDataFormat.Transform).transforms is data.transforms
     assert provider.request_transforms(SceneDataFormat.Vec3_Quat) is converted
-    assert len(calls) == 3
+    assert launch.call_count == 3
     np.testing.assert_array_equal(converted.positions.numpy(), [[7, 8, 9]])
 
 
@@ -123,8 +117,9 @@ def test_transposed_matrices_fuse_format_mapping_and_scale(format_name, scaled):
 
 @pytest.mark.parametrize("format_name", ["Transform", "Vec3_Quat", "Vec3_Matrix33", "Matrix44"])
 @pytest.mark.parametrize("solver_only_body", [False, True])
+@pytest.mark.parametrize("gpu_options", [None, 3])
 def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destinations(
-    format_name, solver_only_body, monkeypatch
+    format_name, solver_only_body, gpu_options, monkeypatch
 ):
     """Rigid destinations preserve scale and refresh while solver-only cable bodies are excluded."""
     poses = [[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 0, 0, 1, 0]]
@@ -149,16 +144,12 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
     )
     provider._fabric_device = "cpu"
     provider._fabric_output = SceneDataFormat.FabricMatrix44()
+    provider._fabric_update_options = gpu_options
+    provider._fabric_hierarchy = Mock()
     expected = np.array([np.diag([-2, -3, 4, 1]), np.diag([5, 6, 7, 1])], dtype=np.float64)
     expected[:, 3, :3] = [[4, 5, 6], [1, 2, 3]]
-    launch = wp.launch
-    calls = []
-
-    def record_launch(*args, **kwargs):
-        calls.append(args[0])
-        return launch(*args, **kwargs)
-
-    monkeypatch.setattr(wp, "launch", record_launch)
+    launch = Mock(wraps=wp.launch)
+    monkeypatch.setattr(wp, "launch", launch)
     for allocation in range(2):
         matrices = wp.array([np.diag([2, 3, 4, 1]), np.diag([5, 6, 7, 1])], dtype=wp.mat44d, device="cpu")
         interface = {
@@ -174,15 +165,29 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
             },
         }
         changes = [True]
+
+        def prepare_for_reuse():
+            if gpu_options is not None:
+                provider._fabric_hierarchy.track_world_xform_changes.assert_called_with(False)
+                provider._fabric_hierarchy.track_local_xform_changes.assert_called_with(False)
+            return changes.pop() if changes else False
+
         provider._fabric_selection = SimpleNamespace(
             __fabric_arrays_interface__=interface,
-            PrepareForReuse=lambda: changes.pop() if changes else False,
+            PrepareForReuse=prepare_for_reuse,
             GetPaths=lambda: ["/World/b", "/World/a"],
         )
         output = provider.request_transforms(SceneDataFormat.FabricMatrix44)
+        if gpu_options is None:
+            provider._fabric_hierarchy.update_world_xforms.assert_called_once_with()
+        else:
+            provider._fabric_hierarchy.update_world_xforms_gpu_with_options.assert_called_once_with(gpu_options)
+        provider._fabric_hierarchy.reset_mock()
         assert provider.request_transforms(SceneDataFormat.FabricMatrix44) is output
+        provider._fabric_hierarchy.update_world_xforms.assert_not_called()
+        provider._fabric_hierarchy.update_world_xforms_gpu_with_options.assert_not_called()
         assert provider.transform_generation == 1
-        assert len(calls) == 2 * (allocation + 1)
+        assert launch.call_count == 2 * (allocation + 1)
         np.testing.assert_allclose(matrices.numpy(), expected)
 
     if format_name == "Transform" and not solver_only_body:
@@ -202,10 +207,12 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
 
 
 @pytest.mark.parametrize("gpu_options", [None, 3])
-def test_fabric_hierarchy_uses_available_sdk_path(gpu_options, monkeypatch):
+@pytest.mark.parametrize("native", [False, True])
+def test_fabric_hierarchy_uses_available_sdk_path(gpu_options, native, monkeypatch):
     """Consumers share one SDP binding and hierarchy update; cloning owns neither."""
     context = UsdReplicateContext(None)
     assert not any(hasattr(context, name) for name in ("_prepare_fabric", "_update_fabric"))
+    assert not hasattr(SceneDataProvider, "_update_fabric")
     calls = []
     hierarchy = SimpleNamespace(update_world_xforms=lambda: calls.append("cpu"))
     if gpu_options is not None:
@@ -220,45 +227,35 @@ def test_fabric_hierarchy_uses_available_sdk_path(gpu_options, monkeypatch):
     if gpu_options is not None:
         fabric_hierarchy.FabricHierarchyGpuUpdateOptions = SimpleNamespace(RIGID_BODY=1, FORCE_UPDATE=2)
     usdrt = SimpleNamespace(
-        Usd=SimpleNamespace(Stage=SimpleNamespace(Attach=attach), Access=SimpleNamespace(ReadWrite=object())),
+        Usd=SimpleNamespace(Stage=SimpleNamespace(Attach=attach), Access=SimpleNamespace(Read=object(), ReadWrite=object())),
         Sdf=SimpleNamespace(ValueTypeNames=SimpleNamespace(Matrix4d=object())),
         hierarchy=fabric_hierarchy,
     )
     monkeypatch.setitem(sys.modules, "usdrt", usdrt)
     monkeypatch.setitem(sys.modules, "usdrt.hierarchy", fabric_hierarchy)
     monkeypatch.setattr(UsdUtils, "StageCache", SimpleNamespace(Get=lambda: Mock()))
-    provider = SceneDataProvider(SceneDataBackend())
+    publication = SceneDataPublication(Mock()) if native else None
+    provider = SceneDataProvider(SimpleNamespace(fabric_publication=publication))
     stage = object()
     provider._prepare_fabric(stage, "cpu")
     provider._prepare_fabric(stage, "cpu")
     attach.assert_called_once()
-    fabric_stage.SynchronizeToFabric.assert_called_once()
     fabric_stage.SelectPrims.assert_called_once()
-    assert calls == ["cpu"]
-    calls.clear()
-    provider._transform_generation = 1
-    monkeypatch.setattr(provider, "request_transforms", lambda _format: calls.append("write"))
-    provider._update_fabric()
-    expected = (
-        ["write", "cpu"]
-        if gpu_options is None
-        else [("world", False), ("local", False), "write", ("gpu", gpu_options), ("world", True), ("local", True)]
+    assert fabric_stage.SelectPrims.call_args.kwargs["require_attrs"][0][2] is (
+        usdrt.Usd.Access.Read if native else usdrt.Usd.Access.ReadWrite
     )
-    assert calls == expected
-    calls.clear()
-    provider._update_fabric()
-    assert calls == [call for call in expected if call not in ("cpu", ("gpu", gpu_options))]
-
-
-def test_native_fabric_borrows_engine_interface_without_binding_or_reading_poses():
-    fabric = Mock()
-    publication = SceneDataPublication(fabric)
-    provider = SceneDataProvider(SimpleNamespace(fabric_publication=publication))
-    provider._prepare_fabric(object(), "cpu")
-    provider._update_fabric()
-    provider._update_fabric()
-    fabric.force_update.assert_called_once_with(0.0, 0.0)
-    assert provider._fabric_output is None
-    publication.dirty = True
-    provider._update_fabric()
-    assert fabric.force_update.call_count == 2
+    if native:
+        fabric_stage.SynchronizeToFabric.assert_not_called()
+        assert calls == []
+        output = provider._fabric_output
+        output.matrices = object()
+        provider._fabric_selection.PrepareForReuse.return_value = False
+        assert provider.request_transforms(SceneDataFormat.FabricMatrix44) is output
+        assert provider.request_transforms(SceneDataFormat.FabricMatrix44) is output
+        publication.data.force_update.assert_called_once_with(0.0, 0.0)
+        publication.dirty = True
+        provider.request_transforms(SceneDataFormat.FabricMatrix44)
+        assert publication.data.force_update.call_count == 2
+    else:
+        fabric_stage.SynchronizeToFabric.assert_called_once()
+        assert calls == ["cpu"]

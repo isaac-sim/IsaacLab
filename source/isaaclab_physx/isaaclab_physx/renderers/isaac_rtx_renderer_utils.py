@@ -241,9 +241,7 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
     if not force and not sim.is_rendering:
         return
 
-    # Sync physics results → Fabric so RTX sees updated positions.
-    # physics_manager.step() only runs simulate()/fetch_results() and does NOT
-    # call _update_fabric(), so without this the render would lag one frame behind.
+    # Publish current poses through SDP before RTX consumes Fabric.
     sim.physics_manager.forward()
 
     import omni.kit.app
