@@ -38,10 +38,11 @@ from isaaclab.sim.schemas import (
     define_collision_properties,
     define_mass_properties,
     define_rigid_body_properties,
+    modify_articulation_root_properties,
     modify_joint_drive_properties,
 )
 
-from isaaclab_newton.sim.schemas import NewtonArticulationCfg  # isort: skip
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg, NewtonArticulationRootPropertiesCfg  # isort: skip
 from isaaclab_physx.sim.schemas import (  # isort: skip
     PhysxArticulationCfg,
     PhysxArticulationRootPropertiesCfg,
@@ -52,6 +53,8 @@ from isaaclab_physx.sim.schemas import (  # isort: skip
     PhysxRigidBodyCfg,
     PhysxRigidBodyPropertiesCfg,
 )
+
+pytestmark = pytest.mark.unit
 
 LEGACY_PATH = "/World/Legacy"
 FRAGMENT_PATH = "/World/Fragment"
@@ -124,21 +127,21 @@ def _diff_authoring(legacy: Usd.Prim, fragment: Usd.Prim) -> list[str]:
 def test_rigid_body_fragments_match_legacy_authoring():
     """The UsdPhysics + PhysX rigid-body fragment pair reproduces the legacy rigid-body cfg."""
     stage, legacy, fragment = _make_sibling_prims("cube")
-    physx_values = dict(
-        disable_gravity=True,
-        linear_damping=0.1,
-        angular_damping=0.2,
-        max_linear_velocity=123.0,
-        max_angular_velocity=456.0,
-        max_depenetration_velocity=1.5,
-        max_contact_impulse=1.0e4,
-        enable_gyroscopic_forces=True,
-        retain_accelerations=False,
-        solver_position_iteration_count=8,
-        solver_velocity_iteration_count=1,
-        sleep_threshold=0.005,
-        stabilization_threshold=0.001,
-    )
+    physx_values = {
+        "disable_gravity": True,
+        "linear_damping": 0.1,
+        "angular_damping": 0.2,
+        "max_linear_velocity": 123.0,
+        "max_angular_velocity": 456.0,
+        "max_depenetration_velocity": 1.5,
+        "max_contact_impulse": 1.0e4,
+        "enable_gyroscopic_forces": True,
+        "retain_accelerations": False,
+        "solver_position_iteration_count": 8,
+        "solver_velocity_iteration_count": 1,
+        "sleep_threshold": 0.005,
+        "stabilization_threshold": 0.001,
+    }
 
     define_rigid_body_properties(
         LEGACY_PATH,
@@ -163,9 +166,12 @@ def test_rigid_body_fragments_match_legacy_authoring():
 def test_collision_fragments_match_legacy_authoring():
     """The UsdPhysics + PhysX collision fragment pair reproduces the legacy collision cfg."""
     stage, legacy, fragment = _make_sibling_prims("cube")
-    physx_values = dict(
-        contact_offset=0.02, rest_offset=0.001, torsional_patch_radius=0.1, min_torsional_patch_radius=0.05
-    )
+    physx_values = {
+        "contact_offset": 0.02,
+        "rest_offset": 0.001,
+        "torsional_patch_radius": 0.1,
+        "min_torsional_patch_radius": 0.05,
+    }
 
     define_collision_properties(LEGACY_PATH, PhysxCollisionPropertiesCfg(collision_enabled=True, **physx_values), stage)
     apply_collision_properties(
@@ -197,14 +203,14 @@ def test_articulation_root_fragments_match_legacy_authoring():
     so a faithful replacement needs both fragments.
     """
     stage, legacy, fragment = _make_sibling_prims("xform")
-    physx_values = dict(
-        articulation_enabled=True,
-        enabled_self_collisions=True,
-        solver_position_iteration_count=8,
-        solver_velocity_iteration_count=2,
-        sleep_threshold=0.005,
-        stabilization_threshold=0.001,
-    )
+    physx_values = {
+        "articulation_enabled": True,
+        "enabled_self_collisions": True,
+        "solver_position_iteration_count": 8,
+        "solver_velocity_iteration_count": 2,
+        "sleep_threshold": 0.005,
+        "stabilization_threshold": 0.001,
+    }
 
     define_articulation_root_properties(LEGACY_PATH, PhysxArticulationRootPropertiesCfg(**physx_values), stage)
     UsdPhysics.ArticulationRootAPI.Apply(fragment)
@@ -219,6 +225,26 @@ def test_articulation_root_fragments_match_legacy_authoring():
     assert fragment.GetAttribute("physxArticulation:enabledSelfCollisions").Get() is True
     assert fragment.GetAttribute("newton:selfCollisionEnabled").Get() is True
     assert "NewtonArticulationRootAPI" in _applied_api_schemas(fragment)
+
+
+def test_newton_legacy_articulation_cfg_matches_fragment_composition():
+    """A Newton legacy subclass still routes its inherited ``articulation_enabled`` base field."""
+    stage, legacy, fragment = _make_sibling_prims("xform")
+    UsdPhysics.ArticulationRootAPI.Apply(legacy)
+    UsdPhysics.ArticulationRootAPI.Apply(fragment)
+
+    modify_articulation_root_properties(
+        LEGACY_PATH, NewtonArticulationRootPropertiesCfg(articulation_enabled=False, self_collision_enabled=True), stage
+    )
+    apply_articulation_root_properties(
+        FRAGMENT_PATH,
+        [PhysxArticulationCfg(articulation_enabled=False), NewtonArticulationCfg(self_collision_enabled=True)],
+        stage=stage,
+    )
+
+    assert _diff_authoring(legacy, fragment) == []
+    assert fragment.GetAttribute("physxArticulation:articulationEnabled").Get() is False
+    assert fragment.GetAttribute("newton:selfCollisionEnabled").Get() is True
 
 
 def test_parity_check_detects_dropped_newton_self_collision_mirror():
@@ -253,7 +279,7 @@ def test_joint_drive_fragments_match_legacy_authoring(joint_type):
     conversion that applies to angular drives only.
     """
     stage, legacy, fragment = _make_sibling_prims(joint_type)
-    drive_values = dict(drive_type="force", max_force=87.0, stiffness=100.0, damping=10.0)
+    drive_values = {"drive_type": "force", "max_force": 87.0, "stiffness": 100.0, "damping": 10.0}
 
     modify_joint_drive_properties(
         LEGACY_PATH, PhysxJointDrivePropertiesCfg(max_joint_velocity=3.0, **drive_values), stage

@@ -40,7 +40,7 @@ class FrameView(FactoryBase, BaseFrameView):
 
     @classmethod
     def _get_backend(cls, *args, **kwargs) -> str:
-        from isaaclab.sim.simulation_context import SimulationContext  # noqa: PLC0415
+        from ..simulation_context import SimulationContext  # noqa: PLC0415
 
         ctx = SimulationContext.instance()
         if ctx is None:
@@ -51,7 +51,3 @@ class FrameView(FactoryBase, BaseFrameView):
         if "ovphysx" in manager_name:
             return "ovphysx"
         return "physx"
-
-    def __new__(cls, *args, **kwargs) -> BaseFrameView:
-        """Create a new FrameView for the active physics backend."""
-        return super().__new__(cls, *args, **kwargs)

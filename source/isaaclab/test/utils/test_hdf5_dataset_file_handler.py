@@ -2,150 +2,78 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
 import json
-import os
-import shutil
-import tempfile
-import uuid
 
 import h5py
 import pytest
 import torch
 
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 pytestmark = pytest.mark.unit
 
 
-def create_test_episode(device):
-    """create a test episode with dummy data."""
-    test_episode = EpisodeData()
-
-    test_episode.seed = 0
-    test_episode.success = True
-
-    test_episode.add("initial_state", torch.tensor([1, 2, 3], device=device))
-
-    test_episode.add("actions", torch.tensor([1, 2, 3], device=device))
-    test_episode.add("actions", torch.tensor([4, 5, 6], device=device))
-    test_episode.add("actions", torch.tensor([7, 8, 9], device=device))
-
-    test_episode.add("obs/policy/term1", torch.tensor([1, 2, 3, 4, 5], device=device))
-    test_episode.add("obs/policy/term1", torch.tensor([6, 7, 8, 9, 10], device=device))
-    test_episode.add("obs/policy/term1", torch.tensor([11, 12, 13, 14, 15], device=device))
-
-    return test_episode
+def read_env_args(path) -> dict:
+    with h5py.File(path, "r") as dataset_file:
+        return json.loads(dataset_file["data"].attrs["env_args"])
 
 
-@pytest.fixture
-def temp_dir():
-    """Create a temporary directory for test datasets."""
-    temp_dir = tempfile.mkdtemp()
-    yield temp_dir
-    # cleanup after tests
-    shutil.rmtree(temp_dir)
+def test_create_appends_extension_and_resets_env_args(tmp_path):
+    handler = HDF5DatasetFileHandler()
+    handler.create(str(tmp_path / "first"), "first_env")
+    handler.add_env_args({"custom_arg": "custom_value"})
+    handler.close()
+    assert (tmp_path / "first.hdf5").is_file()
+    assert read_env_args(tmp_path / "first.hdf5") == {"env_name": "first_env", "type": 2, "custom_arg": "custom_value"}
+
+    # reusing the handler for a new dataset does not leak the previous env args
+    handler.create(str(tmp_path / "second.hdf5"), "second_env")
+    handler.close()
+    assert read_env_args(tmp_path / "second.hdf5") == {"env_name": "second_env", "type": 2}
+
+    # env args can be extended after reopening
+    handler.open(str(tmp_path / "second.hdf5"), mode="r+")
+    handler.add_env_args({"custom_arg": "custom_value"})
+    handler.close()
+    assert read_env_args(tmp_path / "second.hdf5") == {
+        "env_name": "second_env",
+        "type": 2,
+        "custom_arg": "custom_value",
+    }
 
 
-def test_create_dataset_file(temp_dir):
-    """Test creating a new dataset file."""
-    # create a dataset file given a file name with extension
-    dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")
-    dataset_file_handler = HDF5DatasetFileHandler()
-    dataset_file_handler.create(dataset_file_path, "test_env_name")
-    dataset_file_handler.close()
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
+def test_write_and_load_episode(tmp_path, device):
+    episode = EpisodeData()
+    episode.seed = 0
+    episode.success = True
+    episode.add("initial_state", torch.tensor([1, 2, 3], device=device))
+    actions = torch.arange(1, 10, device=device).reshape(3, 3)
+    for action in actions:
+        episode.add("actions", action)
+        episode.add("obs/policy/term1", action.repeat(2))
+    episode.pre_export()
 
-    # check if the dataset is created
-    assert os.path.exists(dataset_file_path)
+    path = str(tmp_path / "dataset.hdf5")
+    handler = HDF5DatasetFileHandler()
+    handler.create(path, "test_env_name")
+    for expected_count in (1, 2):
+        handler.write_episode(episode)
+        handler.flush()
+        assert handler.get_num_episodes() == expected_count
+    handler.close()
 
-    # create a dataset file given a file name without extension
-    dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}")
-    dataset_file_handler = HDF5DatasetFileHandler()
-    dataset_file_handler.create(dataset_file_path, "test_env_name")
-    dataset_file_handler.close()
-
-    # check if the dataset is created
-    assert os.path.exists(dataset_file_path + ".hdf5")
-
-
-def test_add_env_args_preserves_existing_args_after_reopen(temp_dir):
-    """Test extending environment arguments after reopening a dataset."""
-    dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")
-    dataset_file_handler = HDF5DatasetFileHandler()
-    dataset_file_handler.create(dataset_file_path, "test_env_name")
-    dataset_file_handler.close()
-
-    dataset_file_handler = HDF5DatasetFileHandler()
-    dataset_file_handler.open(dataset_file_path, mode="r+")
-    dataset_file_handler.add_env_args({"custom_arg": "custom_value"})
-    dataset_file_handler.close()
-
-    with h5py.File(dataset_file_path, "r") as dataset_file:
-        env_args = json.loads(dataset_file["data"].attrs["env_args"])
-
-    assert env_args == {"env_name": "test_env_name", "type": 2, "custom_arg": "custom_value"}
-
-
-def test_create_resets_env_args_when_reusing_handler(temp_dir):
-    """Test environment arguments do not leak between datasets."""
-    first_dataset_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")
-    second_dataset_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")
-    dataset_file_handler = HDF5DatasetFileHandler()
-    dataset_file_handler.create(first_dataset_path, "first_env")
-    dataset_file_handler.add_env_args({"custom_arg": "custom_value"})
-    dataset_file_handler.close()
-
-    dataset_file_handler.create(second_dataset_path, "second_env")
-    dataset_file_handler.close()
-
-    with h5py.File(second_dataset_path, "r") as dataset_file:
-        env_args = json.loads(dataset_file["data"].attrs["env_args"])
-
-    assert env_args == {"env_name": "second_env", "type": 2}
-
-
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_write_and_load_episode(temp_dir, device):
-    """Test writing and loading an episode to and from the dataset file."""
-    dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")
-    dataset_file_handler = HDF5DatasetFileHandler()
-    dataset_file_handler.create(dataset_file_path, "test_env_name")
-
-    test_episode = create_test_episode(device)
-
-    # write the episode to the dataset
-    test_episode.pre_export()
-    dataset_file_handler.write_episode(test_episode)
-    dataset_file_handler.flush()
-
-    assert dataset_file_handler.get_num_episodes() == 1
-
-    # write the episode again to test writing 2nd episode
-    dataset_file_handler.write_episode(test_episode)
-    dataset_file_handler.flush()
-
-    assert dataset_file_handler.get_num_episodes() == 2
-
-    # close the dataset file to prepare for testing the load function
-    dataset_file_handler.close()
-
-    # load the episode from the dataset
-    dataset_file_handler = HDF5DatasetFileHandler()
-    dataset_file_handler.open(dataset_file_path)
-
-    assert dataset_file_handler.get_env_name() == "test_env_name"
-
-    loaded_episode_names = dataset_file_handler.get_episode_names()
-    assert len(list(loaded_episode_names)) == 2
-
-    for episode_name in loaded_episode_names:
-        loaded_episode = dataset_file_handler.load_episode(episode_name, device=device)
-        assert loaded_episode.env_id == "test_env_name"
-        assert loaded_episode.seed == test_episode.seed
-        assert loaded_episode.success == test_episode.success
-
-        assert torch.equal(loaded_episode.get_initial_state(), test_episode.get_initial_state())
-
-        for action in test_episode.data["actions"]:
-            assert torch.equal(loaded_episode.get_next_action(), action)
-
-    dataset_file_handler.close()
+    handler.open(path)
+    assert handler.get_env_name() == "test_env_name"
+    episode_names = list(handler.get_episode_names())
+    assert len(episode_names) == 2
+    for name in episode_names:
+        loaded = handler.load_episode(name, device=device)
+        assert (loaded.env_id, loaded.seed, loaded.success) == ("test_env_name", 0, True)
+        torch.testing.assert_close(loaded.get_initial_state(), episode.get_initial_state())
+        for action in actions:
+            torch.testing.assert_close(loaded.get_next_action(), action)
+        assert loaded.get_next_action() is None
+    handler.close()

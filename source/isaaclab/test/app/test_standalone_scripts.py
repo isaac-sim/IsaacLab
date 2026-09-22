@@ -152,88 +152,64 @@ def test_demo_browser_documents_options_for_each_demo():
         )
 
 
-def test_commands_respect_script_launcher_capabilities():
-    """Commands must enable cameras and avoid unsupported launcher arguments."""
-    h1_case = next(case for case in build_cases(SPECS) if case.spec.relative_path == "scripts/demos/h1_locomotion.py")
-    assert h1_case.command()[-4:] == ["--physics", "isaacsim_physx", "--visualizer", "kit"]
-
-    pick_and_place_case = next(
-        case for case in build_cases(SPECS) if case.spec.relative_path == "scripts/demos/pick_and_place.py"
-    )
-    assert pick_and_place_case.command()[-4:] == ["--physics", "isaacsim_physx", "--visualizer", "kit"]
-
-    camera_case = next(
+def _case(relative_path: str, **selection) -> script_cases.LaunchCase:
+    """Return the launch case of ``relative_path`` matching the given backend/visualizer selection."""
+    return next(
         case
         for case in build_cases(SPECS)
-        if case.spec.relative_path == "scripts/demos/sensors/cameras.py" and case.visualizer == "none"
+        if case.spec.relative_path == relative_path and all(getattr(case, k) == v for k, v in selection.items())
     )
-    assert camera_case.command()[3:5] == ["--num_envs", "1"]
-    assert camera_case.command()[-2:] == ["--visualizer", "none"]
-    assert camera_case.spec.startup_timeout == 900.0
 
-    kitless_case = next(
-        case for case in build_cases(SPECS) if case.spec.relative_path == "scripts/demos/sensors/ppisp_camera_ovrtx.py"
-    )
-    assert kitless_case.command()[-2:] == ["--viz", "none"]
 
-    renderer_case = next(
-        case
-        for case in build_cases(SPECS)
-        if case.spec.relative_path == "scripts/demos/sensors/ppisp_camera.py" and case.renderer_backend == "isaac_rtx"
-    )
-    assert renderer_case.command()[-4:] == ["--renderer", "isaac_rtx", "--visualizer", "none"]
+@pytest.mark.parametrize(
+    ("relative_path", "selection", "expected_tail"),
+    [
+        ("scripts/demos/h1_locomotion.py", {}, ["--physics", "isaacsim_physx", "--visualizer", "kit"]),
+        ("scripts/demos/pick_and_place.py", {}, ["--physics", "isaacsim_physx", "--visualizer", "kit"]),
+        ("scripts/demos/sensors/ppisp_camera_ovrtx.py", {}, ["--viz", "none"]),
+        (
+            "scripts/demos/sensors/ppisp_camera.py",
+            {"renderer_backend": "isaac_rtx"},
+            ["--renderer", "isaac_rtx", "--visualizer", "none"],
+        ),
+        (
+            "scripts/demos/sensors/ppisp_camera.py",
+            {"renderer_backend": "newton_renderer"},
+            ["--renderer", "newton_renderer", "--visualizer", "none"],
+        ),
+        (
+            "scripts/demos/bin_packing.py",
+            {"physics_backend": "isaacsim_physx", "visualizer": "none"},
+            ["--physics", "isaacsim_physx", "--visualizer", "none"],
+        ),
+    ],
+)
+def test_commands_end_with_the_selected_backends(relative_path, selection, expected_tail):
+    """Commands select the physics backend, renderer, and visualizer through each script's own options."""
+    assert _case(relative_path, **selection).command()[-len(expected_tail) :] == expected_tail
 
-    newton_renderer_case = next(
-        case
-        for case in build_cases(SPECS)
-        if case.spec.relative_path == "scripts/demos/sensors/ppisp_camera.py"
-        and case.renderer_backend == "newton_renderer"
-    )
-    assert newton_renderer_case.command()[-4:] == ["--renderer", "newton_renderer", "--visualizer", "none"]
 
-    physics_case = next(
-        case
-        for case in build_cases(SPECS)
-        if case.spec.relative_path == "scripts/demos/bin_packing.py"
-        and case.physics_backend == "isaacsim_physx"
-        and case.visualizer == "none"
-    )
-    assert "--num_envs" in physics_case.command()
-    num_envs_index = physics_case.command().index("--num_envs")
-    assert physics_case.command()[num_envs_index + 1] == "2"
-    assert physics_case.command()[-4:] == ["--physics", "isaacsim_physx", "--visualizer", "none"]
+@pytest.mark.parametrize(
+    ("relative_path", "selection", "num_envs"),
+    [
+        ("scripts/demos/sensors/cameras.py", {"visualizer": "none"}, "1"),
+        ("scripts/demos/multi_asset.py", {"physics_backend": "newton_mjwarp", "visualizer": "none"}, "4"),
+        ("scripts/demos/bin_packing.py", {"physics_backend": "isaacsim_physx", "visualizer": "none"}, "2"),
+    ],
+)
+def test_commands_pass_the_environment_count(relative_path, selection, num_envs):
+    """Overrides pin the environment count where the demo declares one; others receive the batched default."""
+    command = _case(relative_path, **selection).command()
+    assert command[command.index("--num_envs") + 1] == num_envs
 
-    multi_asset_case = next(
-        case
-        for case in build_cases(SPECS)
-        if case.spec.relative_path == "scripts/demos/multi_asset.py"
-        and case.physics_backend == "newton_mjwarp"
-        and case.visualizer == "none"
-    )
-    assert multi_asset_case.command()[3:5] == ["--num_envs", "4"]
 
-    surface_gripper_case = next(
-        case
-        for case in build_cases(SPECS)
-        if case.spec.relative_path == "scripts/tutorials/01_assets/run_surface_gripper.py" and case.visualizer == "none"
-    )
-    assert "--device" in surface_gripper_case.command()
-    assert "cpu" in surface_gripper_case.command()
-
-    ray_camera_case = next(
-        case
-        for case in build_cases(SPECS)
-        if case.spec.relative_path == "scripts/tutorials/04_sensors/run_ray_caster_camera.py"
-        and case.visualizer == "none"
-    )
-    assert "--enable_cameras" not in ray_camera_case.command()
-
-    usd_camera_case = next(
-        case
-        for case in build_cases(SPECS)
-        if case.spec.relative_path == "scripts/tutorials/04_sensors/run_usd_camera.py" and case.visualizer == "none"
-    )
-    assert "--enable_cameras" not in usd_camera_case.command()
+def test_commands_respect_script_specific_capabilities():
+    """Camera demos get a longer startup, CPU-only tutorials pin the device, and no script gets removed flags."""
+    assert _case("scripts/demos/sensors/cameras.py", visualizer="none").spec.startup_timeout == 900.0
+    surface_gripper = _case("scripts/tutorials/01_assets/run_surface_gripper.py", visualizer="none").command()
+    assert surface_gripper[surface_gripper.index("--device") + 1] == "cpu"
+    for tutorial in ("run_ray_caster_camera.py", "run_usd_camera.py"):
+        assert "--enable_cameras" not in _case(f"scripts/tutorials/04_sensors/{tutorial}", visualizer="none").command()
 
 
 def test_hands_demo_uses_asset_owned_shadow_hand_configs():

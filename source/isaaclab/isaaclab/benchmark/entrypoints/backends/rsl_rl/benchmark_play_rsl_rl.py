@@ -12,15 +12,26 @@ and emits a :class:`~isaaclab.benchmark.schema.PlayBundle` JSON file. Dispatched
 
 from __future__ import annotations
 
+import argparse
+import contextlib
+import importlib.metadata as metadata
+import os
+import sys
+import time
 from typing import TYPE_CHECKING
+
+from isaaclab.benchmark.entrypoints._shared import (
+    build_play_runtime,
+    capture_snapshots,
+    create_benchmark,
+    finish_run_identity,
+    step_timing_metadata,
+)
+
+from isaaclab_rl.entrypoints import common
 
 if TYPE_CHECKING:
     from isaaclab.benchmark import BenchmarkResult
-
-import argparse
-import sys
-
-from isaaclab_rl.entrypoints import common
 
 
 def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
@@ -39,51 +50,18 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         Tuple of ``(parsed_args, remaining)`` where *remaining* are the Hydra preset tokens.
     """
     from isaaclab.app import add_launcher_args
-    from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+    from isaaclab.benchmark._cli import add_benchmark_output_args, add_play_args
 
     from isaaclab_tasks.utils import setup_preset_cli
 
     parser = argparse.ArgumentParser(description="Benchmark RL inference (play) with RSL-RL.")
-    parser.add_argument("--video", action="store_true", default=False, help="Record videos during play.")
-    parser.add_argument("--video_length", type=int, default=None, help="Recorded video length in environment steps.")
-    help_requested = "-h" in argv or "--help" in argv
-    parser.add_argument("--task", type=str, required=not help_requested, help="Gym task id to benchmark.")
-    parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
-    parser.add_argument(
-        "--num_steps", type=parse_positive_int, default=100, help="Number of inference steps to benchmark."
+    add_play_args(
+        parser,
+        argv,
+        agent_default="rsl_rl_cfg_entry_point",
+        agent_help="Name of the RL agent configuration entry point.",
     )
-    parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
-    parser.add_argument(
-        "--checkpoint",
-        type=str,
-        default=None,
-        help="Local or Nucleus checkpoint path to roll out; falls back to the published checkpoint when omitted.",
-    )
-    parser.add_argument(
-        "--agent", type=str, default="rsl_rl_cfg_entry_point", help="Name of the RL agent configuration entry point."
-    )
-    parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
-    parser.add_argument(
-        "--measure_sync_step",
-        action="store_true",
-        help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
-    )
-    parser.add_argument(
-        "--warmup_steps",
-        type=parse_non_negative_int,
-        default=1,
-        help="Exclude the first N env.step() calls from environment-step timing. Default 1 removes cold start.",
-    )
-    parser.add_argument(
-        "--benchmark_formatter",
-        type=str,
-        default="schema",
-        help=(
-            "Output format(s): comma-separated list of 'schema' (default, the typed benchmark bundle),"
-            " 'omniperf', 'osmo', 'json', 'summary'"
-            " Example: 'schema,omniperf'."
-        ),
-    )
+    add_benchmark_output_args(parser)
     add_launcher_args(parser)
     common.add_frontend_args(parser)
 
@@ -100,15 +78,10 @@ def run(argv: list[str]) -> BenchmarkResult:
         argv: Command-line arguments, excluding the script path (i.e. ``sys.argv[1:]``
             after the dispatcher has stripped ``--rl_library``).
     """
-    import contextlib
-    import importlib.metadata as metadata
-    import os
-    import time
-
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
     from isaaclab.app import launch_simulation
-    from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
+    from isaaclab.benchmark import BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
     from isaaclab.benchmark.schema import StartupTime
 
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
@@ -158,28 +131,16 @@ def run(argv: list[str]) -> BenchmarkResult:
                 resume_path = common.resolve_play_checkpoint(args.checkpoint, "rsl_rl", args.task, env_cfg)
 
             cfg = capture.run_config_from_env_cfg(env_cfg)
-            formatter_types = [value.strip() for value in args.benchmark_formatter.split(",") if value.strip()]
-            formatter_types = formatter_types or ["omniperf"]
-
-            benchmark = BaseIsaacLabBenchmark(
-                benchmark_name="benchmark_play",
-                formatter_type=formatter_types,
-                output_path=args.output_path,
-                use_recorders=True,
-                frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
+            benchmark = create_benchmark(
+                "benchmark_play",
+                args,
                 output_prefix=f"benchmark_play_{args.task}",
-                workflow_metadata={
-                    "metadata": [
-                        {"name": "task", "data": args.task},
-                        {"name": "num_envs", "data": args.num_envs},
-                        {"name": "num_steps", "data": args.num_steps},
-                        {
-                            "name": "environment_step_measurement_mode",
-                            "data": ("serialized_synchronized" if args.measure_sync_step else "host_return"),
-                        },
-                        {"name": "environment_step_warmup_steps", "data": args.warmup_steps},
-                    ]
-                },
+                metadata=[
+                    {"name": "task", "data": args.task},
+                    {"name": "num_envs", "data": args.num_envs},
+                    {"name": "num_steps", "data": args.num_steps},
+                    *step_timing_metadata(args),
+                ],
             )
 
             env_t0 = time.perf_counter_ns()
@@ -210,47 +171,30 @@ def run(argv: list[str]) -> BenchmarkResult:
             with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
                 all_step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, total_steps)
 
-            first_step_s = all_step_times[0]
-            step_times = all_step_times[args.warmup_steps :]
-
             benchmark.update_manual_recorders()
 
             startup = StartupTime(
                 app_launch=(app_t1 - app_t0) / 1e9,
                 env_creation=(env_t1 - env_t0) / 1e9,
-                first_step=first_step_s,
+                first_step=all_step_times[0],
+            )
+            runtime = build_play_runtime(
+                startup=startup,
+                step_times_s=all_step_times,
+                num_envs=num_envs,
+                warmup_steps=args.warmup_steps,
+                timer=environment_step_timer,
             )
 
-            fps = [num_envs / t for t in step_times if t > 0]
-            runtime = builders.build_runtime(
-                startup_time_s=startup,
-                iteration_times_s=step_times,
-                collection_fps=fps,
-                total_fps=fps,
-                steps_per_iteration=num_envs,
-                frames_per_environment_step=env.unwrapped.num_envs,
-                environment_step_warmup_steps=args.warmup_steps,
-                environment_step_times_s=environment_step_timer.step_times_s,
-                simulation_step_times_s=environment_step_timer.simulation_step_times_s,
-                simulation_step_calls=environment_step_timer.simulation_step_calls,
-            )
+            versions, hardware, resources = capture_snapshots(benchmark)
 
-            versions = capture.capture_versions(benchmark)
-            hardware = capture.capture_hardware(benchmark)
-            resources = capture.capture_resources(benchmark)
-
-            end_utc = capture.now_utc_iso()
-            stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
             seed = agent_cfg.seed if agent_cfg.seed is not None else 0
-
-            run_identity = builders.build_run_identity(
-                run_id=capture.synth_run_id("rsl_rl", cfg.physics_backend, args.task, seed, stamp),
+            run_identity = finish_run_identity(
                 framework="rsl_rl",
                 config=cfg,
                 task=args.task,
                 seed=seed,
                 start_utc=start_utc,
-                end_utc=end_utc,
                 num_envs=num_envs,
             )
 

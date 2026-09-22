@@ -3,19 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+"""Tests for the lazy-update, reset, and caching contract of :class:`SensorBase`."""
 
 from isaaclab.app import AppLauncher
 
-# launch omniverse app
-app_launcher = AppLauncher(headless=True)
-simulation_app = app_launcher.app
-
-
-"""Rest everything follows."""
+simulation_app = AppLauncher(headless=True).app
 
 from collections.abc import Sequence
-from dataclasses import dataclass
 
 import pytest
 import torch
@@ -29,54 +23,45 @@ from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.integration
 
-
-@dataclass
-class DummyData:
-    count: torch.Tensor = None
+NUM_ENVS = 5
+DT = 0.01
 
 
 @wp.kernel
 def increment_count_kernel(env_mask: wp.array(dtype=wp.bool), count: wp.array(dtype=wp.int32)):
-    """Increment the count for the selected environments."""
     env_id = wp.tid()
     if env_mask[env_id]:
         count[env_id] += 1
 
 
 class DummySensor(SensorBase):
+    """Counts how often each environment's buffers were refreshed by the backend."""
+
     def __init__(self, cfg):
         super().__init__(cfg)
-        self._data = DummyData()
+        self.count: torch.Tensor | None = None
         self.backend_update_count = 0
 
     def _initialize_impl(self):
         super()._initialize_impl()
-        self._data.count = torch.zeros((self._num_envs), dtype=torch.int, device=self.device)
+        self.count = torch.zeros(self._num_envs, dtype=torch.int32, device=self.device)
 
     @property
-    def data(self):
-        # update sensors if needed
+    def data(self) -> torch.Tensor:
         self._update_outdated_buffers()
-        # return the data (where `_data` is the data for the sensor)
-        return self._data
+        return self.count
 
-    def _update_buffers_impl(self, env_mask: wp.array | None = None):
+    def _update_buffers_impl(self, env_mask: wp.array):
         self.backend_update_count += 1
         wp.launch(
-            increment_count_kernel,
-            dim=self._num_envs,
-            inputs=[env_mask, wp.from_torch(self._data.count)],
-            device=self.device,
+            increment_count_kernel, dim=self._num_envs, inputs=[env_mask, wp.from_torch(self.count)], device=self.device
         )
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         super().reset(env_ids=env_ids, env_mask=env_mask)
-        # Resolve sensor ids
         if env_ids is None and env_mask is not None:
             env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
-        elif env_ids is None:
-            env_ids = slice(None)
-        self._data.count[env_ids] = 0
+        self.count[slice(None) if env_ids is None else env_ids] = 0
 
 
 @configclass
@@ -86,268 +71,125 @@ class DummySensorCfg(SensorBaseCfg):
     prim_path = "{ENV_REGEX_NS}/Cube/dummy_sensor"
 
 
-def _populate_scene():
-    """"""
-
-    # Ground-plane
-    cfg = sim_utils.GroundPlaneCfg()
-    cfg.func("/World/defaultGroundPlane", cfg)
-    # Lights
-    cfg = sim_utils.SphereLightCfg()
-    cfg.func("/World/Light/GreySphere", cfg, translation=(4.5, 3.5, 10.0))
-    cfg.func("/World/Light/WhiteSphere", cfg, translation=(-4.5, 3.5, 10.0))
-
-    # create prims
-    for i in range(5):
-        _ = sim_utils.create_prim(
-            f"/World/envs/env_{i:02d}/Cube",
-            "Cube",
-            translation=(i * 1.0, 0.0, 0.0),
-            scale=(0.25, 0.25, 0.25),
-        )
-
-
 @pytest.fixture
-def create_dummy_sensor(request, device):
-    # Create a new stage
+def sim(device):
     sim_utils.create_new_stage()
-
-    # Simulation time-step
-    dt = 0.01
-    # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(device=device, dt=dt)
-    sim = sim_utils.SimulationContext(sim_cfg)
-
-    # create sensor
-    _populate_scene()
-
-    sensor_cfg = DummySensorCfg()
-
+    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device=device, dt=DT))
+    for i in range(NUM_ENVS):
+        sim_utils.create_prim(f"/World/envs/env_{i:02d}/Cube", "Cube", translation=(i * 1.0, 0.0, 0.0))
     sim_utils.update_stage()
-
-    yield sensor_cfg, sim, dt
-
-    # stop simulation and clean up
+    yield sim
     sim.stop()
     sim.clear_instance()
 
 
-@pytest.mark.parametrize("device", ("cpu", "cuda"))
-def test_sensor_init(create_dummy_sensor, device):
-    """Test that the sensor initializes, steps without update, and forces update."""
+def _expect_count(sensor: DummySensor, value: int, env_ids=slice(None)):
+    torch.testing.assert_close(sensor.data[env_ids], torch.full_like(sensor.data[env_ids], value))
 
-    sensor_cfg, sim, dt = create_dummy_sensor
-    sensor = DummySensor(cfg=sensor_cfg)
 
-    # Play sim
-    sim.step()
-
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_sensor_update_and_data_cache(sim, device):
+    """Buffers refresh once per update only when read (or forced), and repeated reads reuse the cached data."""
+    sensor = DummySensor(DummySensorCfg())
     sim.reset()
-
     assert sensor.is_initialized
-    assert int(sensor.num_instances) == 5
+    assert sensor.num_instances == NUM_ENVS
 
-    # test that the data is not updated
-    for i in range(10):
+    for step in range(3):
         sim.step()
-        sensor.update(dt=dt, force_recompute=True)
-        expected_value = i + 1
-        torch.testing.assert_close(
-            sensor.data.count,
-            torch.tensor(expected_value, device=device, dtype=torch.int32).repeat(sensor.num_instances),
-        )
-    assert sensor.data.count.shape[0] == 5
+        sensor.update(dt=DT, force_recompute=True)
+        _expect_count(sensor, step + 1)
 
-    # test that the data is not updated if sensor.data is not accessed
-    for _ in range(5):
+    # lazy updates only refresh the buffers when the data is accessed
+    for _ in range(2):
         sim.step()
-        sensor.update(dt=dt, force_recompute=False)
-        torch.testing.assert_close(
-            sensor._data.count,
-            torch.tensor(expected_value, device=device, dtype=torch.int32).repeat(sensor.num_instances),
-        )
+        sensor.update(dt=DT)
+    assert sensor.count.max() == 3
+    _expect_count(sensor, 4)
 
-
-@pytest.mark.parametrize("device", ("cpu", "cuda"))
-def test_sensor_update_rate(create_dummy_sensor, device):
-    """Test that the update_rate configuration parameter works by checking the value of the data is old for an update
-    period of 2.
-    """
-    sensor_cfg, sim, dt = create_dummy_sensor
-    sensor_cfg.update_period = 2 * dt
-    sensor = DummySensor(cfg=sensor_cfg)
-
-    # Play sim
-    sim.step()
-
-    sim.reset()
-
-    assert sensor.is_initialized
-    assert int(sensor.num_instances) == 5
-    expected_value = 1
-    for i in range(10):
-        sim.step()
-        sensor.update(dt=dt, force_recompute=True)
-        # count should he half of the number of steps
-        torch.testing.assert_close(
-            sensor.data.count,
-            torch.tensor(expected_value, device=device, dtype=torch.int32).repeat(sensor.num_instances),
-        )
-        expected_value += i % 2
-
-
-@pytest.mark.parametrize("device", ("cpu", "cuda"))
-def test_sensor_reset(create_dummy_sensor, device):
-    """Test that sensor can be reset for all or partial env ids."""
-    sensor_cfg, sim, dt = create_dummy_sensor
-    sensor = DummySensor(cfg=sensor_cfg)
-
-    # Play sim
-    sim.step()
-    sim.reset()
-
-    assert sensor.is_initialized
-    assert int(sensor.num_instances) == 5
-    for i in range(5):
-        sim.step()
-        sensor.update(dt=dt)
-        # count should he half of the number of steps
-        torch.testing.assert_close(
-            sensor.data.count,
-            torch.tensor(i + 1, device=device, dtype=torch.int32).repeat(sensor.num_instances),
-        )
-
-    sensor.reset()
-
-    for j in range(5):
-        sim.step()
-        sensor.update(dt=dt)
-        # count should he half of the number of steps
-        torch.testing.assert_close(
-            sensor.data.count,
-            torch.tensor(j + 1, device=device, dtype=torch.int32).repeat(sensor.num_instances),
-        )
-
-    reset_ids = [2, 4]
-    cont_ids = [0, 1, 3]
-    sensor.reset(env_ids=reset_ids)
-
-    for k in range(5):
-        sim.step()
-        sensor.update(dt=dt)
-        # count should he half of the number of steps
-        torch.testing.assert_close(
-            sensor.data.count[reset_ids],
-            torch.tensor(k + 1, device=device, dtype=torch.int32).repeat(len(reset_ids)),
-        )
-        torch.testing.assert_close(
-            sensor.data.count[cont_ids],
-            torch.tensor(k + 6, device=device, dtype=torch.int32).repeat(len(cont_ids)),
-        )
-
-
-@pytest.mark.parametrize("device", ("cpu", "cuda"))
-def test_repeated_data_reads_update_backend_once(create_dummy_sensor, device):
-    """Test that repeated data reads update the backend once per sensor update."""
-    sensor_cfg, sim, dt = create_dummy_sensor
-    sensor = DummySensor(cfg=sensor_cfg)
-    sim.step()
-    sim.reset()
-
-    sensor.update(dt=dt)
+    # repeated reads within one generation do not refresh again; a forced refresh bypasses the cache
+    backend_updates = sensor.backend_update_count
     _ = sensor.data
-    backend_update_count = sensor.backend_update_count
-    _ = sensor.data
-
-    assert sensor.backend_update_count == backend_update_count
-
-
-@pytest.mark.parametrize("device", ("cpu", "cuda"))
-def test_reset_invalidates_cached_sensor_data(create_dummy_sensor, device):
-    """Test that full and partial resets each invalidate cached sensor data once."""
-    sensor_cfg, sim, _ = create_dummy_sensor
-    sensor = DummySensor(cfg=sensor_cfg)
-    sim.step()
-    sim.reset()
-    _ = sensor.data
-
-    sensor.reset()
-    backend_update_count = sensor.backend_update_count
-    _ = sensor.data
-    _ = sensor.data
-    assert sensor.backend_update_count == backend_update_count + 1
-
-    reset_ids = [2, 4]
-    continued_ids = [0, 1, 3]
-    sensor.reset(env_ids=reset_ids)
-    backend_update_count = sensor.backend_update_count
-    _ = sensor.data
-    _ = sensor.data
-
-    assert sensor.backend_update_count == backend_update_count + 1
-    torch.testing.assert_close(
-        sensor.data.count[reset_ids], torch.ones(len(reset_ids), dtype=torch.int32, device=device)
-    )
-    torch.testing.assert_close(
-        sensor.data.count[continued_ids], torch.ones(len(continued_ids), dtype=torch.int32, device=device)
-    )
-
-
-@pytest.mark.parametrize("device", ("cpu", "cuda"))
-def test_force_recompute_bypasses_sensor_data_cache(create_dummy_sensor, device):
-    """Test that forced recomputation bypasses a consumed freshness generation."""
-    sensor_cfg, sim, _ = create_dummy_sensor
-    sensor = DummySensor(cfg=sensor_cfg)
-    sim.step()
-    sim.reset()
-    _ = sensor.data
-    backend_update_count = sensor.backend_update_count
-
+    assert sensor.backend_update_count == backend_updates
     sensor._update_outdated_buffers(force_recompute=True)
-    _ = sensor.data
-
-    assert sensor.backend_update_count == backend_update_count + 1
+    assert sensor.backend_update_count == backend_updates + 1
 
 
-@pytest.mark.parametrize("device", ("cuda",))
-def test_repeated_data_reads_are_graph_safe(create_dummy_sensor, device):
-    """Test that CUDA graph capture records one backend refresh for repeated reads."""
-    sensor_cfg, sim, dt = create_dummy_sensor
-    sensor = DummySensor(cfg=sensor_cfg)
-    sim.step()
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_sensor_update_period(sim, device):
+    """With an update period of two steps the buffers only refresh every other update."""
+    sensor = DummySensor(DummySensorCfg(update_period=2 * DT))
     sim.reset()
 
-    # Warm up the kernels before capture.
-    sensor.update(dt=dt)
+    expected = 1
+    for step in range(6):
+        sim.step()
+        sensor.update(dt=DT, force_recompute=True)
+        _expect_count(sensor, expected)
+        expected += step % 2
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_sensor_reset(sim, device):
+    """Full and partial resets clear the selected environments and invalidate the cached data exactly once."""
+    sensor = DummySensor(DummySensorCfg())
+    sim.reset()
+    for step in range(3):
+        sim.step()
+        sensor.update(dt=DT)
+        _expect_count(sensor, step + 1)
+
+    sensor.reset()
+    backend_updates = sensor.backend_update_count
+    _expect_count(sensor, 1)
     _ = sensor.data
-    backend_update_count = sensor.backend_update_count
+    assert sensor.backend_update_count == backend_updates + 1
+
+    reset_ids, continued_ids = [2, 4], [0, 1, 3]
+    sensor.reset(env_ids=reset_ids)
+    _expect_count(sensor, 1, reset_ids)
+    _expect_count(sensor, 1, continued_ids)
+    for step in range(2):
+        sim.step()
+        sensor.update(dt=DT)
+        _expect_count(sensor, step + 2, reset_ids)
+        _expect_count(sensor, step + 2, continued_ids)
+
+    sensor.reset(env_mask=wp.array([True, False, False, False, False], dtype=wp.bool, device=sensor.device))
+    _expect_count(sensor, 1, [0])
+    _expect_count(sensor, 3, [1, 2, 3, 4])
+
+
+@pytest.mark.parametrize("device", ["cuda"])
+def test_repeated_data_reads_are_graph_safe(sim, device):
+    """CUDA graph capture records exactly one backend refresh for repeated reads."""
+    sensor = DummySensor(DummySensorCfg())
+    sim.reset()
+    # warm up the kernels before capture
+    sensor.update(dt=DT)
+    _ = sensor.data
+    backend_updates = sensor.backend_update_count
 
     with wp.ScopedCapture(device=device) as capture:
-        sensor.update(dt=dt)
+        sensor.update(dt=DT)
         _ = sensor.data
         _ = sensor.data
 
-    assert sensor.backend_update_count == backend_update_count + 1
+    assert sensor.backend_update_count == backend_updates + 1
     wp.capture_launch(capture.graph)
 
 
-@pytest.mark.parametrize("device", ("cpu",))
-def test_rigid_body_ancestor_expr_trims_only_terminal_suffix(create_dummy_sensor, device):
-    """Test that ancestor expression trimming keeps repeated path segments above the sensor."""
-    sensor_cfg, _, _ = create_dummy_sensor
-
+@pytest.mark.parametrize("device", ["cpu"])
+def test_rigid_body_ancestor_expr_trims_only_terminal_suffix(sim, device):
+    """Ancestor expression trimming keeps repeated path segments above the sensor."""
     parent_path = "/World/envs/env_00/Robot/link"
-    child_path = parent_path + "/link"
     sim_utils.create_prim(parent_path, "Xform")
-    sim_utils.create_prim(child_path, "Xform")
+    sim_utils.create_prim(parent_path + "/link", "Xform")
     UsdPhysics.RigidBodyAPI.Apply(sim_utils.get_current_stage().GetPrimAtPath(parent_path))
     sim_utils.update_stage()
 
-    sensor_cfg.prim_path = "{ENV_REGEX_NS}/Robot/link/link"
-    sensor = DummySensor(cfg=sensor_cfg)
-
+    sensor = DummySensor(DummySensorCfg(prim_path="{ENV_REGEX_NS}/Robot/link/link"))
     rigid_parent_expr, fixed_pos_b, fixed_quat_b = sensor._resolve_rigid_body_ancestor_expr()
 
     assert rigid_parent_expr == "/World/envs/env_[^/]+/Robot/link"
-    assert fixed_pos_b is not None
-    assert fixed_quat_b is not None
+    assert fixed_pos_b is not None and fixed_quat_b is not None

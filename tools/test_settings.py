@@ -49,7 +49,6 @@ PER_TEST_TIMEOUTS = {
     "test_visuotactile_render.py": 1000,
     "test_rigid_object_collection.py": 1500,
     "test_outdated_sensor.py": 1000,
-    "test_multi_tiled_camera.py": 1000,
     "test_multirotor.py": 1000,
     "test_shadow_hand_camera_presets.py": 5000,
     "test_surface_gripper.py": 3000,
@@ -115,14 +114,9 @@ quarantine them from regular CI.
 
 TESTS_TO_SKIP = [
     # lab
-    "test_argparser_launch.py",  # app.close issue
-    "test_build_simulation_context_nonheadless.py",  # headless
-    "test_env_var_launch.py",  # app.close issue
-    "test_kwarg_launch.py",  # app.close issue
     "test_differential_ik.py",  # Failing
     # lab_tasks
     "test_record_video.py",  # Failing
-    "test_tiled_camera_env.py",  # Need to improve the logic
     # curobo / skillgen - require cuRobo installation; run via test-curobo and test-skillgen CI jobs
     *CUROBO_TESTS,
     # quarantined tests - run in dedicated CI job that does not block PR merges

@@ -64,37 +64,26 @@ def _parse_as_training_script(child_argv: list[str], monkeypatch: pytest.MonkeyP
     return args.kit_args
 
 
-class TestFuseKitArgs:
-    """Unit tests for :meth:`AppLauncher._fuse_kit_args`."""
-
-    def test_space_separated_option_like_value_is_fused(self):
-        assert AppLauncher._fuse_kit_args(["--kit_args", "--foo=/bar"]) == ["--kit_args=--foo=/bar"]
-
-    def test_equals_attached_value_is_unchanged(self):
-        argv = ["--kit_args=--foo=/bar"]
-        assert AppLauncher._fuse_kit_args(argv) == argv
-
-    def test_value_with_space_is_unchanged(self):
+@pytest.mark.parametrize(
+    ("argv", "expected"),
+    [
+        (["--kit_args", "--foo=/bar"], ["--kit_args=--foo=/bar"]),
+        (["--kit_args=--foo=/bar"], None),
         # a token containing a space cannot be mistaken for an option by argparse
-        argv = ["--kit_args", "--foo=/bar --baz=1"]
-        assert AppLauncher._fuse_kit_args(argv) == argv
-
-    def test_non_option_value_is_unchanged(self):
-        argv = ["--kit_args", "foo.txt"]
-        assert AppLauncher._fuse_kit_args(argv) == argv
-
-    def test_trailing_kit_args_is_unchanged(self):
+        (["--kit_args", "--foo=/bar --baz=1"], None),
+        (["--kit_args", "foo.txt"], None),
         # argparse should still report the missing value normally
-        argv = ["--task", "Isaac-Cartpole-Direct", "--kit_args"]
-        assert AppLauncher._fuse_kit_args(argv) == argv
-
-    def test_multiple_occurrences_are_all_fused(self):
-        argv = ["--kit_args", "--foo=/a", "--task", "X", "--kit_args", "--bar=/b"]
-        assert AppLauncher._fuse_kit_args(argv) == ["--kit_args=--foo=/a", "--task", "X", "--kit_args=--bar=/b"]
-
-    def test_surrounding_tokens_are_preserved(self):
-        argv = ["--task", "X", "--kit_args", "--foo=/bar", "--num_envs", "16"]
-        assert AppLauncher._fuse_kit_args(argv) == ["--task", "X", "--kit_args=--foo=/bar", "--num_envs", "16"]
+        (["--task", "Isaac-Cartpole-Direct", "--kit_args"], None),
+        (
+            ["--kit_args", "--foo=/a", "--task", "X", "--kit_args", "--bar=/b", "--num_envs", "16"],
+            ["--kit_args=--foo=/a", "--task", "X", "--kit_args=--bar=/b", "--num_envs", "16"],
+        ),
+    ],
+    ids=["fused", "equals-form", "value-with-space", "plain-value", "trailing", "multiple"],
+)
+def test_fuse_kit_args(argv, expected):
+    """Only a space-separated option-like ``--kit_args`` value is fused; everything else passes through."""
+    assert AppLauncher._fuse_kit_args(argv) == (argv if expected is None else expected)
 
 
 class TestAddAppLauncherArgsNormalization:

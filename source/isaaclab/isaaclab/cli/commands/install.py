@@ -3,13 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+
 import os
+import platform
 import re
 import shutil
 import subprocess
 import sys
+import sysconfig
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import tomllib
@@ -70,85 +74,59 @@ def _arm_cmake_policy_compatibility() -> Iterator[None]:
             os.environ[variable] = saved_value
 
 
+def _apt_install(*packages: str) -> None:
+    """Install apt packages after refreshing the index, through ``sudo`` unless running as root."""
+    sudo = [] if os.geteuid() == 0 else ["sudo"]
+    run_command([*sudo, "apt-get", "update"])
+    run_command([*sudo, "apt-get", "install", "-y", "--no-install-recommends", *packages])
+
+
 def _install_system_deps() -> None:
-    """install system dependencies"""
+    """Install the system packages required to build native Python dependencies."""
     if is_windows():
         return
 
-    # Check if cmake is already installed.
     if shutil.which("cmake"):
         print_info("cmake is already installed.")
     else:
         print_info("Installing system dependencies...")
+        _apt_install("cmake", "build-essential")
 
-        # apt-get update
-        cmd = ["apt-get", "update"]
-        run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
+    if not is_arm():
+        return
 
-        # apt-get install -y --no-install-recommends cmake build-essential
-        cmd = [
-            "apt-get",
-            "install",
-            "-y",
-            "--no-install-recommends",
-            "cmake",
-            "build-essential",
-        ]
-        run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
-
-    # On ARM Linux (e.g. DGX Spark), Python dev headers (Python.h) are needed
-    # to build Python packages with native extensions. They are typically
-    # pre-installed in x86 Docker images but missing on bare-metal ARM systems.
-    if is_arm():
+    # Python dev headers (Python.h) are pre-installed in x86 Docker images but missing on bare-metal
+    # ARM systems such as DGX Spark.
+    include_dir = sysconfig.get_path("include")
+    if include_dir and os.path.isfile(os.path.join(include_dir, "Python.h")):
+        print_info("Python dev headers are already installed.")
+    else:
         python_dev_pkg = f"python{sys.version_info.major}.{sys.version_info.minor}-dev"
-        try:
-            import sysconfig
+        print_info(f"Installing {python_dev_pkg} (required for building C extensions on ARM)...")
+        _apt_install(python_dev_pkg)
 
-            if sysconfig.get_path("include") and os.path.isfile(
-                os.path.join(sysconfig.get_path("include"), "Python.h")
-            ):
-                print_info("Python dev headers are already installed.")
-            else:
-                raise FileNotFoundError
-        except (FileNotFoundError, AttributeError):
-            print_info(f"Installing {python_dev_pkg} (required for building C extensions on ARM)...")
-            cmd = ["apt-get", "update"]
-            run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
-            cmd = [
-                "apt-get",
-                "install",
-                "-y",
-                "--no-install-recommends",
-                python_dev_pkg,
-            ]
-            run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
-
-        # imgui-bundle has no aarch64 manylinux wheel, so pip falls back to a
-        # CMake source build that needs GL/X11 dev headers (via glfw).
-        # Mirrors the apt step in docker/Dockerfile.base.
-        _gl_x11_packages = [
-            "libgl1-mesa-dev",
-            "libopengl-dev",
-            "libglx-dev",
-            "libx11-dev",
-            "libxcursor-dev",
-            "libxi-dev",
-            "libxinerama-dev",
-            "libxrandr-dev",
-        ]
-        if not os.path.isfile("/usr/include/X11/Xlib.h"):
-            if os.geteuid() != 0 and not shutil.which("sudo"):
-                print_info(
-                    "GL/X11 dev headers are missing and sudo is unavailable; "
-                    "skipping install.  Pre-install " + " ".join(_gl_x11_packages) + " "
-                    "if you need to build imgui-bundle from source."
-                )
-            else:
-                print_info("Installing GL/X11 dev headers (required for building imgui-bundle on ARM)...")
-                cmd = ["apt-get", "update"]
-                run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
-                cmd = ["apt-get", "install", "-y", "--no-install-recommends", *_gl_x11_packages]
-                run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
+    # imgui-bundle has no aarch64 manylinux wheel, so pip falls back to a CMake source build that
+    # needs GL/X11 dev headers (via glfw). Mirrors the apt step in docker/Dockerfile.base.
+    gl_x11_packages = [
+        "libgl1-mesa-dev",
+        "libopengl-dev",
+        "libglx-dev",
+        "libx11-dev",
+        "libxcursor-dev",
+        "libxi-dev",
+        "libxinerama-dev",
+        "libxrandr-dev",
+    ]
+    if not os.path.isfile("/usr/include/X11/Xlib.h"):
+        if os.geteuid() != 0 and not shutil.which("sudo"):
+            print_info(
+                "GL/X11 dev headers are missing and sudo is unavailable; "
+                "skipping install.  Pre-install " + " ".join(gl_x11_packages) + " "
+                "if you need to build imgui-bundle from source."
+            )
+        else:
+            print_info("Installing GL/X11 dev headers (required for building imgui-bundle on ARM)...")
+            _apt_install(*gl_x11_packages)
 
 
 def _torch_first_on_sys_path_is_prebundle(python_exe: str, *, env: dict[str, str]) -> bool:
@@ -182,13 +160,13 @@ sys.exit(0)
     return result.returncode == 1
 
 
-def _maybe_uninstall_prebundled_torch(
-    python_exe: str,
-    pip_cmd: list[str],
-    using_uv: bool,
-    *,
-    probe_env: dict[str, str],
-) -> None:
+def _pip_uninstall(pip_cmd: list[str], *packages: str) -> None:
+    """Uninstall packages without failing when they are absent; ``uv pip`` does not accept ``-y``."""
+    confirm = [] if pip_cmd[0] == "uv" else ["-y"]
+    run_command([*pip_cmd, "uninstall", *confirm, *packages], check=False)
+
+
+def _maybe_uninstall_prebundled_torch(python_exe: str, pip_cmd: list[str], *, probe_env: dict[str, str]) -> None:
     """Uninstall pip torch stack when ``sys.path`` would load ``torch`` from a prebundle first."""
     if not _torch_first_on_sys_path_is_prebundle(python_exe, env=probe_env):
         return
@@ -197,11 +175,7 @@ def _maybe_uninstall_prebundled_torch(
         "``omni.isaac.ml_archive/pip_prebundle``). Uninstalling pip "
         "``torch``/``torchvision``/``torchaudio`` before continuing."
     )
-    uninstall_flags = ["-y"] if not using_uv else []
-    run_command(
-        pip_cmd + ["uninstall"] + uninstall_flags + ["torch", "torchvision", "torchaudio"],
-        check=False,
-    )
+    _pip_uninstall(pip_cmd, *_TORCH_DISTRIBUTIONS)
 
 
 # Packages forming the Pink IK dependency stack. Pinocchio is installed via the
@@ -252,8 +226,6 @@ def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], 
     needed by the optional pink IK controller, so the rest of Isaac Lab should
     still install cleanly.
     """
-    import platform
-
     if platform.system() != "Linux":
         return
     if platform.machine() not in {"x86_64", "AMD64", "aarch64", "arm64"}:
@@ -278,7 +250,7 @@ def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], 
     print_info("Pink IK dependency probe failed. Force-installing the cmeel pinocchio and DAQP stack.")
     pink_ik_stack = _pink_ik_stack()
     install_result = _run_package_install(
-        pip_cmd + ["install", "--upgrade", "--force-reinstall", *pink_ik_stack],
+        [*pip_cmd, "install", "--upgrade", "--force-reinstall", *pink_ik_stack],
         check=False,
     )
     if install_result.returncode != 0:
@@ -291,57 +263,29 @@ def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], 
 
 def _ensure_cuda_torch() -> None:
     """Ensure correct PyTorch and CUDA versions are installed."""
-    python_exe = extract_python_exe()
-    pip_cmd = get_pip_command(python_exe)
-    using_uv = pip_cmd[0] == "uv"
-
-    # Base index for torch.
-    base_index = "https://download.pytorch.org/whl"
+    pip_cmd = get_pip_command(extract_python_exe())
 
     # Pinned versions (single source of truth: [tool.isaaclab.versions]).
     torch_ver = _pinned_version("torch")
     tv_ver = _pinned_version("torchvision")
-
     cuda_tag = "cu130"
-    index_url = f"{base_index}/{cuda_tag}"
-
+    index_url = f"https://download.pytorch.org/whl/{cuda_tag}"
     want_torch = f"{torch_ver}+{cuda_tag}"
 
-    # Check current torch version using pip show (includes build tags).
-    current_ver = ""
-    try:
-        result = run_command(
-            pip_cmd + ["show", "torch"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode == 0:
-            for line in result.stdout.split("\n"):
-                if line.startswith("Version: "):
-                    current_ver = line.split("Version: ", 1)[1].strip()
-                    break
-    except Exception:
-        pass
-
-    # Skip install if version already matches (including CUDA build tag).
-    if current_ver == want_torch:
+    # ``pip show`` reports the version including its CUDA build tag.
+    result = run_command([*pip_cmd, "show", "torch"], capture_output=True, text=True, check=False)
+    current_ver = next(
+        (line.removeprefix("Version:").strip() for line in result.stdout.splitlines() if line.startswith("Version:")),
+        "",
+    )
+    if result.returncode == 0 and current_ver == want_torch:
         print_info(f"PyTorch {want_torch} already installed.")
         return
 
-    # Clean install torch.
     print_info(f"Installing torch=={torch_ver} and torchvision=={tv_ver} ({cuda_tag}) from {index_url}...")
-
-    # uv pip uninstall does not accept -y
-    uninstall_flags = ["-y"] if not using_uv else []
-    run_command(
-        pip_cmd + ["uninstall"] + uninstall_flags + ["torch", "torchvision", "torchaudio"],
-        check=False,
-    )
-
-    _run_package_install(
-        pip_cmd + ["install", "--index-url", index_url, f"torch=={torch_ver}", f"torchvision=={tv_ver}"]
-    )
+    _pip_uninstall(pip_cmd, *_TORCH_DISTRIBUTIONS)
+    torch_stack = [f"torch=={torch_ver}", f"torchvision=={tv_ver}"]
+    _run_package_install([*pip_cmd, "install", "--index-url", index_url, *torch_stack])
 
 
 def _ensure_newton() -> None:
@@ -361,11 +305,9 @@ def _ensure_newton() -> None:
     # Newton-matched schemas (isaacsim pins the older ==0.2.0); force it alongside newton.
     schemas = next((r for r in overrides if _requirement_name(r) == "newton-usd-schemas"), None)
 
-    python_exe = extract_python_exe()
-    pip_cmd = get_pip_command(python_exe)
-    using_uv = pip_cmd[0] == "uv"
+    pip_cmd = get_pip_command(extract_python_exe())
 
-    frozen = run_command(pip_cmd + ["freeze"], capture_output=True, text=True, check=False)
+    frozen = run_command([*pip_cmd, "freeze"], capture_output=True, text=True, check=False)
     if frozen.returncode == 0 and any(
         line.strip().lower() == f"newton=={pin}" or line.strip().lower().endswith(f"@{pin}")
         for line in frozen.stdout.splitlines()
@@ -375,13 +317,12 @@ def _ensure_newton() -> None:
         return
 
     print_info(f"Installing Newton {pin}...")
-    uninstall_flags = ["-y"] if not using_uv else []
-    run_command(pip_cmd + ["uninstall"] + uninstall_flags + ["newton"], check=False)
-    _run_package_install(pip_cmd + ["install", requirement, *([schemas] if schemas else [])])
+    _pip_uninstall(pip_cmd, "newton")
+    _run_package_install([*pip_cmd, "install", requirement, *([schemas] if schemas else [])])
 
 
-# Isaac Sim install settings.
 NVIDIA_INDEX_URL = "https://pypi.nvidia.com"
+"""Package index hosting the Isaac Sim wheels."""
 
 
 def _normalize_package_name(name: str) -> str:
@@ -398,7 +339,7 @@ def _requirement_name(requirement: str) -> str:
 # Distributions installed from the PyTorch index by :func:`_ensure_cuda_torch`;
 # excluded from the centralized core-dependency install so they are not pulled
 # from PyPI first.
-_TORCH_DISTRIBUTIONS = {"torch", "torchvision", "torchaudio"}
+_TORCH_DISTRIBUTIONS = ("torch", "torchvision", "torchaudio")
 
 
 def _is_isaaclab_requirement(requirement: str) -> bool:
@@ -445,15 +386,13 @@ def _root_core_dependencies() -> list[str]:
     Workspace members (installed as editable submodules) and the torch stack
     (installed by :func:`_ensure_cuda_torch`) are excluded.
     """
-    project = _load_root_pyproject().get("project", {})
-    dependencies = []
-    for requirement in project.get("dependencies", []):
-        if _is_isaaclab_requirement(requirement):
-            continue
-        if _normalize_package_name(_requirement_name(requirement)) in _TORCH_DISTRIBUTIONS:
-            continue
-        dependencies.append(requirement)
-    return dependencies
+    dependencies = _load_root_pyproject().get("project", {}).get("dependencies", [])
+    return [
+        requirement
+        for requirement in dependencies
+        if not _is_isaaclab_requirement(requirement)
+        and _normalize_package_name(_requirement_name(requirement)) not in _TORCH_DISTRIBUTIONS
+    ]
 
 
 def _root_extra_dependencies(extra: str) -> list[str]:
@@ -489,7 +428,7 @@ def _install_root_extra(extra: str) -> None:
     python_exe = extract_python_exe()
     pip_cmd = get_pip_command(python_exe)
     print_info(f"Installing '{extra}' extra dependencies from the root pyproject...")
-    _run_package_install(pip_cmd + ["install"] + dependencies)
+    _run_package_install([*pip_cmd, "install", *dependencies])
 
 
 def _install_centralized_dependencies(pip_cmd: list[str], optional_submodules: list[str]) -> None:
@@ -507,7 +446,7 @@ def _install_centralized_dependencies(pip_cmd: list[str], optional_submodules: l
     core_dependencies = _root_core_dependencies()
     if core_dependencies:
         print_info("Installing core dependencies from the root pyproject...")
-        _run_package_install(pip_cmd + ["install"] + core_dependencies)
+        _run_package_install([*pip_cmd, "install", *core_dependencies])
     # dict preserves order while de-duplicating extras shared across submodules.
     extras: dict[str, None] = {}
     for submodule_name in optional_submodules:
@@ -566,8 +505,8 @@ def _get_extension_pip_upgrade_dependencies(extension_dir: Path) -> list[str]:
 def _get_pip_upgrade_command(pip_cmd: list[str], dependency_name: str, requirement: str) -> list[str]:
     """Return a pip command that upgrades one dependency requirement."""
     if pip_cmd[0] == "uv":
-        return pip_cmd + ["install", "--upgrade-package", dependency_name, requirement]
-    return pip_cmd + ["install", "--upgrade", requirement]
+        return [*pip_cmd, "install", "--upgrade-package", dependency_name, requirement]
+    return [*pip_cmd, "install", "--upgrade", requirement]
 
 
 def _upgrade_extension_pip_dependencies(
@@ -636,23 +575,10 @@ def _install_isaacsim() -> None:
         requirement = _isaacsim_requirement()
         print_info("Installing Isaac Sim...")
 
-    using_uv = pip_cmd[0] == "uv"
-    extra_flags = []
-    if using_uv:
-        # uv needs unsafe-best-match to resolve packages across multiple indexes
-        # (isaacsim is on pypi.nvidia.com, its deps are on pypi.org).
-        extra_flags = ["--index-strategy", "unsafe-best-match"]
-
-    _run_package_install(
-        pip_cmd
-        + [
-            "install",
-            requirement,
-            "--extra-index-url",
-            NVIDIA_INDEX_URL,
-        ]
-        + extra_flags
-    )
+    # uv needs unsafe-best-match to resolve packages across multiple indexes
+    # (isaacsim is on pypi.nvidia.com, its deps are on pypi.org).
+    extra_flags = ["--index-strategy", "unsafe-best-match"] if pip_cmd[0] == "uv" else []
+    _run_package_install([*pip_cmd, "install", requirement, "--extra-index-url", NVIDIA_INDEX_URL, *extra_flags])
 
 
 # Source directories installed on every ./isaaclab.sh -i invocation (even "core").
@@ -723,16 +649,12 @@ def split_install_items(install_type: str) -> list[str]:
         elif ch == "]":
             bracket_depth = max(0, bracket_depth - 1)
         if ch == "," and bracket_depth == 0:
-            token = "".join(buf).strip()
-            if token:
-                parts.append(token)
+            parts.append("".join(buf))
             buf = []
         else:
             buf.append(ch)
-    token = "".join(buf).strip()
-    if token:
-        parts.append(token)
-    return parts
+    parts.append("".join(buf))
+    return [token.strip() for token in parts if token.strip()]
 
 
 def _install_isaaclab_submodules(isaaclab_submodules: list[str]) -> None:
@@ -757,7 +679,7 @@ def _install_isaaclab_submodules(isaaclab_submodules: list[str]) -> None:
             print_warning(f"Submodule directory not found or missing pyproject.toml: {item}")
             continue
         print_info(f"Installing submodule: {pkg_name}")
-        _run_package_install(pip_cmd + ["install", "--editable", str(item)])
+        _run_package_install([*pip_cmd, "install", "--editable", str(item)])
         _upgrade_extension_pip_dependencies(
             python_exe,
             pip_cmd,
@@ -1165,192 +1087,156 @@ def command_install(install_type: str = "all") -> None:
     os.environ.setdefault("PIP_RETRIES", _PACKAGE_INDEX_RETRIES)
     os.environ.setdefault("UV_HTTP_RETRIES", _PACKAGE_INDEX_RETRIES)
 
-    # Install system dependencies first.
     _install_system_deps()
 
     print_info("Installing extensions inside the Isaac Lab repository...")
     python_exe = extract_python_exe()
-
     if os.environ.get("VIRTUAL_ENV"):
         print_info(f"Using uv/venv environment: {os.environ['VIRTUAL_ENV']}")
     elif os.environ.get("CONDA_PREFIX"):
         print_info(f"Using conda environment: {os.environ['CONDA_PREFIX']}")
     print_info(f"Python executable: {python_exe}")
 
-    install_isaacsim = False
-    # Always start with the full core set (isaaclab must be first).
-    submodules_to_install: list[str] = list(CORE_ISAACLAB_SUBMODULES)
-    # List of (feature_name, selector) tuples to apply after the base install.
-    extra_features: list[tuple[str, str]] = []
-    # List of (submodule_name, selector) tuples for optional submodule extras.
-    optional_submodule_extra_dependencies: list[tuple[str, str]] = []
-    # Names of requested optional submodules (used to install their root extras).
-    requested_optional_submodules: list[str] = []
-
-    def append_submodules_once(package_dirs: tuple[str, ...]) -> None:
-        for pkg_dir in package_dirs:
-            if pkg_dir not in submodules_to_install:
-                submodules_to_install.append(pkg_dir)
-
-    # back-compat: "none" is the old name for "core"
-    if install_type == "none":
-        install_type = "core"
-
-    if install_type == "all":
-        for package_dirs in OPTIONAL_ISAACLAB_SUBMODULES.values():
-            append_submodules_once(package_dirs)
-        requested_optional_submodules = list(OPTIONAL_ISAACLAB_SUBMODULES)
-        extra_features = [(name, "") for name in sorted(VALID_EXTRA_FEATURES - MANUAL_EXTRA_FEATURES)]
-    elif install_type == "core":
-        # Core only — no optional submodules, no extra features.
-        pass
-    else:
-        for token in split_install_items(install_type):
-            if "[" in token:
-                bracket_pos = token.index("[")
-                name = token[:bracket_pos].strip()
-                if "]" not in token:
-                    print_warning(f"Malformed install token '{token}': missing closing ']'. Skipping.")
-                    continue
-                selector = token[bracket_pos + 1 : token.index("]")].strip()
-            else:
-                name = token.strip()
-                selector = ""
-
-            if name == "isaacsim":
-                install_isaacsim = True
-            elif name in OPTIONAL_ISAACLAB_SUBMODULES:
-                append_submodules_once(OPTIONAL_ISAACLAB_SUBMODULES[name])
-                requested_optional_submodules.append(name)
-                if selector:
-                    optional_submodule_extra_dependencies.append((name, selector))
-            elif name in VALID_EXTRA_FEATURES:
-                extra_features.append((name, selector))
-            else:
-                valid = sorted(OPTIONAL_ISAACLAB_SUBMODULES) + sorted(VALID_EXTRA_FEATURES) + ["isaacsim"]
-                print_warning(f"Unknown install token '{name}'. Valid values: {', '.join(valid)}. Skipping.")
+    plan = _resolve_install_plan(install_type)
 
     # Configure extra package indexes for NVIDIA and MuJoCo wheels.
-    os.environ.setdefault("UV_EXTRA_INDEX_URL", "https://pypi.nvidia.com")
-    os.environ.setdefault("PIP_EXTRA_INDEX_URL", "https://pypi.nvidia.com")
+    os.environ.setdefault("UV_EXTRA_INDEX_URL", NVIDIA_INDEX_URL)
+    os.environ.setdefault("PIP_EXTRA_INDEX_URL", NVIDIA_INDEX_URL)
     os.environ.setdefault("PIP_FIND_LINKS", "https://py.mujoco.org/")
 
-    # if on ARM arch, temporarily clear LD_PRELOAD
-    # LD_PRELOAD is restored below, after installation
-    saved_ld_preload = None
-    if is_arm() and "LD_PRELOAD" in os.environ:
-        print_info("ARM install sandbox: temporarily unsetting LD_PRELOAD for installation.")
-        saved_ld_preload = os.environ.pop("LD_PRELOAD")
+    with _pip_environment() as probe_env, _arm_cmake_policy_compatibility():
+        pip_cmd = get_pip_command(python_exe)
 
-    # Temporarily filter Isaac Sim pre-bundled package paths from PYTHONPATH during all pip operations.
-    # This prevents pip from scanning and managing packages in Isaac Sim's pip_prebundle directories,
-    # which can cause those packages to be deleted or modified. This is especially important
-    # in conda environments where Isaac Sim setup scripts add these paths to PYTHONPATH.
-    saved_pythonpath = None
-    filtered_pythonpath = None
-    if "PYTHONPATH" in os.environ:
-        saved_pythonpath = os.environ["PYTHONPATH"]
-        # Filter out any paths containing pip_prebundle (pre-bundled packages that pip shouldn't manage)
-        paths = saved_pythonpath.split(os.pathsep)
-        filtered_paths = [p for p in paths if p and "pip_prebundle" not in p]
+        # Baseline for the post-install integrity check: no pip operation below may
+        # leave new dangling symlinks in Isaac Sim's prebundles (nvbugs 6343978).
+        dangling_symlinks_before = _find_dangling_prebundle_symlinks()
 
-        if len(filtered_paths) != len(paths):
-            filtered_pythonpath = os.pathsep.join(filtered_paths)
-            os.environ["PYTHONPATH"] = filtered_pythonpath
-            filtered_count = len(paths) - len(filtered_paths)
-            print_info(
-                f"Temporarily filtering {filtered_count} Isaac Sim pre-bundled package path(s) from PYTHONPATH "
-                "during pip operations to prevent interference with pre-bundled packages."
-            )
+        if pip_cmd[0] != "uv":
+            print_info("Upgrading pip...")
+            _run_package_install([*pip_cmd, "install", "--upgrade", "pip"])
+        # Pin setuptools to avoid issues with pkg_resources removal in 82.0.0.
+        _run_package_install([*pip_cmd, "install", "setuptools<82.0.0"])
 
-    pip_cmd = get_pip_command(python_exe)
-    using_uv = pip_cmd[0] == "uv"
+        # Drop pip-installed torch if Isaac Sim's deprecated ML prebundle would shadow it.
+        _maybe_uninstall_prebundled_torch(python_exe, pip_cmd, probe_env=probe_env)
 
-    # Probe with the user's original PYTHONPATH (before pip-time filtering) so we detect
-    # Isaac Sim's setup_python_env.sh ordering that prefers extsDeprecated/ml_archive.
-    probe_env = {**os.environ}
-    if saved_pythonpath is not None:
-        probe_env["PYTHONPATH"] = saved_pythonpath
+        if plan.install_isaacsim:
+            _install_isaacsim()
+        _ensure_cuda_torch()
+        _install_isaaclab_submodules(plan.submodules)
+        # The submodules do not declare third-party dependencies; the centralized requirements come
+        # from the root pyproject (torch excluded, it is handled by _ensure_cuda_torch).
+        _install_centralized_dependencies(pip_cmd, plan.optional_submodules)
 
-    # Baseline for the post-install integrity check: no pip operation below may
-    # leave new dangling symlinks in Isaac Sim's prebundles (nvbugs 6343978).
-    dangling_symlinks_before = _find_dangling_prebundle_symlinks()
+        if plan.optional_submodule_selectors:
+            print_info("Installing optional submodule dependencies...")
+            for submodule_name, selector in plan.optional_submodule_selectors:
+                _install_optional_submodule_extra_dependencies(submodule_name, selector)
+        if plan.extra_features:
+            print_info("Installing extra feature dependencies...")
+            for feature_name, selector in plan.extra_features:
+                _install_extra_feature(feature_name, selector)
 
-    with _arm_cmake_policy_compatibility():
-        try:
-            # Upgrade pip first to avoid compatibility issues (skip when using uv).
-            if not using_uv:
-                print_info("Upgrading pip...")
-                _run_package_install(pip_cmd + ["install", "--upgrade", "pip"])
-
-            # Pin setuptools to avoid issues with pkg_resources removal in 82.0.0.
-            _run_package_install(pip_cmd + ["install", "setuptools<82.0.0"])
-
-            # Drop pip-installed torch if Isaac Sim's deprecated ML prebundle would shadow it.
-            _maybe_uninstall_prebundled_torch(python_exe, pip_cmd, using_uv, probe_env=probe_env)
-
-            # Install Isaac Sim if requested.
-            if install_isaacsim:
-                _install_isaacsim()
-
-            # Install the pinned PyTorch CUDA build.
-            _ensure_cuda_torch()
-
-            # Install all submodules (core set + any explicitly requested optional ones).
-            _install_isaaclab_submodules(submodules_to_install)
-
-            # The submodules no longer declare third-party dependencies; install the
-            # centralized core requirements (and optional-submodule extras) from the
-            # root pyproject. torch is excluded — it is handled by _ensure_cuda_torch.
-            _install_centralized_dependencies(pip_cmd, requested_optional_submodules)
-
-            # Install requested optional submodule dependency extras.
-            if optional_submodule_extra_dependencies:
-                print_info("Installing optional submodule dependencies...")
-                for submodule_name, selector in optional_submodule_extra_dependencies:
-                    _install_optional_submodule_extra_dependencies(submodule_name, selector)
-
-            # Install requested extra feature dependencies.
-            if extra_features:
-                print_info("Installing extra feature dependencies...")
-                for feature_name, selector in extra_features:
-                    _install_extra_feature(feature_name, selector)
-
-            # Isaac Sim's bundled newton==1.2.0 satisfies the loose core bound, so force the
-            # pinned Newton release (the default physics engine) over it. This runs after every
-            # install pass because they go through pip, which does not see
-            # [tool.uv].override-dependencies: isaacsim-asset-isolated's exact mujoco and
-            # newton-usd-schemas pins would otherwise stand.
-            _ensure_newton()
-
-            # In some rare cases, torch might not be installed properly by pyproject.toml, add one more check here.
-            # Can prevent that from happening.
-            _ensure_cuda_torch()
-
-            # Ensure Pink IK's runtime dependencies are actually importable.  The kit-bundled
-            # ``pin-pink`` in recent Isaac Sim images can cause transitive dependencies from
-            # ``pip install -e source/isaaclab`` to be silently skipped.
-            _ensure_pink_ik_dependencies_installed(python_exe, pip_cmd, probe_env=probe_env)
-
-            # Repoint prebundled packages in Isaac Sim to the environment's copies so
-            # the active venv/conda versions are always loaded regardless of PYTHONPATH
-            # ordering (e.g. torch+cu130 in venv vs torch+cu128 in prebundle on aarch64).
-            _repoint_prebundle_packages()
-
-            # Fail loud if any pip operation above broke Isaac Sim's cross-extension
-            # symlink farms. Prebundle deletions on their own are routine (pip
-            # replaces those packages in site-packages, which shadows the prebundle
-            # at runtime); only newly dangling symlinks break extension startup.
-            _assert_no_new_dangling_prebundle_symlinks(dangling_symlinks_before)
-
-        finally:
-            # Restore LD_PRELOAD if we cleared it.
-            if saved_ld_preload:
-                os.environ["LD_PRELOAD"] = saved_ld_preload
-            # Restore PYTHONPATH if we filtered it.
-            if saved_pythonpath is not None:
-                os.environ["PYTHONPATH"] = saved_pythonpath
+        # Isaac Sim's bundled newton==1.2.0 satisfies the loose core bound, so force the pinned
+        # Newton release over it after every pip pass; pip does not see [tool.uv].override-dependencies.
+        _ensure_newton()
+        # Guard against a torch that a dependency resolution above replaced.
+        _ensure_cuda_torch()
+        # The kit-bundled ``pin-pink`` in recent Isaac Sim images lets pip skip Pink IK's transitive deps.
+        _ensure_pink_ik_dependencies_installed(python_exe, pip_cmd, probe_env=probe_env)
+        # Load the environment's package versions regardless of PYTHONPATH ordering.
+        _repoint_prebundle_packages()
+        _assert_no_new_dangling_prebundle_symlinks(dangling_symlinks_before)
 
     # Update editor settings unless we're in Docker.
     if not (os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")):
         command_editor([], project_dir=ISAACLAB_ROOT)
+
+
+@dataclass
+class _InstallPlan:
+    """Optional work requested on top of the always-installed core submodules."""
+
+    install_isaacsim: bool = False
+    submodules: list[str] = field(default_factory=lambda: list(CORE_ISAACLAB_SUBMODULES))
+    """Source directories to install as editable packages; ``isaaclab`` stays first."""
+    optional_submodules: list[str] = field(default_factory=list)
+    """Requested optional submodule names, used to install their root extras."""
+    optional_submodule_selectors: list[tuple[str, str]] = field(default_factory=list)
+    """``(submodule, selector)`` pairs from tokens such as ``mimic[foo]``."""
+    extra_features: list[tuple[str, str]] = field(default_factory=list)
+    """``(feature, selector)`` pairs applied after the base install."""
+
+    def add_optional_submodule(self, name: str, selector: str = "") -> None:
+        self.optional_submodules.append(name)
+        for package_dir in OPTIONAL_ISAACLAB_SUBMODULES[name]:
+            if package_dir not in self.submodules:
+                self.submodules.append(package_dir)
+        if selector:
+            self.optional_submodule_selectors.append((name, selector))
+
+
+def _split_install_token(token: str) -> tuple[str, str] | None:
+    """Split ``name[selector]`` into its parts, or return ``None`` for a malformed token."""
+    name, bracket, rest = token.partition("[")
+    if bracket and "]" not in rest:
+        print_warning(f"Malformed install token '{token}': missing closing ']'. Skipping.")
+        return None
+    return name.strip(), rest.partition("]")[0].strip()
+
+
+def _resolve_install_plan(install_type: str) -> _InstallPlan:
+    """Translate the ``--install`` value into the submodules and extras to install."""
+    plan = _InstallPlan()
+    if install_type == "all":
+        for name in OPTIONAL_ISAACLAB_SUBMODULES:
+            plan.add_optional_submodule(name)
+        plan.extra_features = [(name, "") for name in sorted(VALID_EXTRA_FEATURES - MANUAL_EXTRA_FEATURES)]
+        return plan
+    if install_type in ("core", "none"):  # "none" is the legacy name for "core"
+        return plan
+
+    for token in split_install_items(install_type):
+        parts = _split_install_token(token)
+        if parts is None:
+            continue
+        name, selector = parts
+        if name == "isaacsim":
+            plan.install_isaacsim = True
+        elif name in OPTIONAL_ISAACLAB_SUBMODULES:
+            plan.add_optional_submodule(name, selector)
+        elif name in VALID_EXTRA_FEATURES:
+            plan.extra_features.append((name, selector))
+        else:
+            valid = sorted(OPTIONAL_ISAACLAB_SUBMODULES) + sorted(VALID_EXTRA_FEATURES) + ["isaacsim"]
+            print_warning(f"Unknown install token '{name}'. Valid values: {', '.join(valid)}. Skipping.")
+    return plan
+
+
+@contextmanager
+def _pip_environment() -> Iterator[dict[str, str]]:
+    """Adjust ``os.environ`` for pip operations and yield the environment to probe the runtime with.
+
+    ``LD_PRELOAD`` is cleared on ARM, and Isaac Sim ``pip_prebundle`` entries are dropped from
+    ``PYTHONPATH`` so pip does not scan or modify the pre-bundled packages (conda activation scripts
+    add them). The yielded environment keeps the original ``PYTHONPATH`` so probes still see Isaac
+    Sim's own import ordering.
+    """
+    saved = {key: os.environ[key] for key in ("LD_PRELOAD", "PYTHONPATH") if key in os.environ}
+    probe_env = dict(os.environ)
+    if is_arm() and "LD_PRELOAD" in saved:
+        print_info("ARM install sandbox: temporarily unsetting LD_PRELOAD for installation.")
+        del os.environ["LD_PRELOAD"]
+    if "PYTHONPATH" in saved:
+        paths = saved["PYTHONPATH"].split(os.pathsep)
+        filtered = [path for path in paths if path and "pip_prebundle" not in path]
+        if len(filtered) != len(paths):
+            os.environ["PYTHONPATH"] = os.pathsep.join(filtered)
+            print_info(
+                f"Temporarily filtering {len(paths) - len(filtered)} Isaac Sim pre-bundled package path(s) from "
+                "PYTHONPATH during pip operations to prevent interference with pre-bundled packages."
+            )
+    try:
+        yield probe_env
+    finally:
+        os.environ.update(saved)

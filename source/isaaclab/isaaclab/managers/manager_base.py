@@ -9,7 +9,7 @@ import copy
 import inspect
 import weakref
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
@@ -146,30 +146,22 @@ class ManagerBase(ABC):
         self.cfg = copy.deepcopy(cfg)
         self._env = env
 
-        # flag for whether the scene entities have been resolved
-        # if sim is playing, we resolve the scene entities directly while preparing the terms
+        # if the simulation is playing, the scene entities are resolved while preparing the terms.
+        # otherwise, the resolution is deferred to the physics-ready callback.
         self._is_scene_entities_resolved = self._env.sim.is_playing()
-
-        # if the simulation is not playing, we use callbacks to trigger the resolution of the scene
-        # entities configuration. this is needed for cases where the manager is created after the
-        # simulation, but before the simulation is playing.
-        if not self._env.sim.is_playing():
-            # note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor
-            # is called. The order is set to 20 to allow asset/sensor initialization to complete before the
-            # scene entities are resolved. Those have the order 10.
-
-            physics_mgr_cls = self._env.sim.physics_manager
+        self._resolve_terms_handle = None
+        if not self._is_scene_entities_resolved:
+            # a weak reference keeps the callback from preventing garbage collection of the manager.
+            # order 20 runs after the asset/sensor initialization callbacks (order 10).
+            physics_manager = self._env.sim.physics_manager
             obj_ref = weakref.proxy(self)
-
-            self._resolve_terms_handle = physics_mgr_cls.register_callback(
+            self._resolve_terms_handle = physics_manager.register_callback(
                 lambda payload: PhysicsManager.safe_callback_invoke(
-                    obj_ref._resolve_terms_callback, None, physics_manager=physics_mgr_cls
+                    obj_ref._resolve_terms_callback, None, physics_manager=physics_manager
                 ),
                 PhysicsEvent.PHYSICS_READY,
                 order=20,
             )
-        else:
-            self._resolve_terms_handle = None
 
         # parse config to create terms information
         if self.cfg:
@@ -233,16 +225,10 @@ class ManagerBase(ABC):
         Returns:
             A list of term names that match the input keys.
         """
-        # resolve search keys
-        if isinstance(self.active_terms, dict):
-            list_of_strings = []
-            for names in self.active_terms.values():
-                list_of_strings.extend(names)
-        else:
-            list_of_strings = self.active_terms
-
-        # return the matching names
-        return string_utils.resolve_matching_names(name_keys, list_of_strings)[1]
+        active_terms = self.active_terms
+        if isinstance(active_terms, dict):
+            active_terms = [name for names in active_terms.values() for name in names]
+        return string_utils.resolve_matching_names(name_keys, active_terms)[1]
 
     def get_active_iterable_terms(self, env_idx: int) -> Sequence[tuple[str, Sequence[float]]]:
         """Returns the active terms as iterable sequence of tuples.
@@ -272,30 +258,22 @@ class ManagerBase(ABC):
 
         Please check the :meth:`_process_term_cfg_at_play` method for more information.
         """
-        # check if scene entities have been resolved
         if self._is_scene_entities_resolved:
             return
-        # check if config is dict already
-        if isinstance(self.cfg, dict):
-            cfg_items = self.cfg.items()
-        else:
-            cfg_items = self.cfg.__dict__.items()
-
-        # iterate over all the terms
-        for term_name, term_cfg in cfg_items:
-            # check for non config
-            if term_cfg is None:
-                continue
-            # process attributes at runtime
-            # these properties are only resolvable once the simulation starts playing
+        # these properties are only resolvable once the simulation starts playing
+        for term_name, term_cfg in self._iter_term_cfgs(self.cfg):
             self._process_term_cfg_at_play(term_name, term_cfg)
-
-        # set the flag
         self._is_scene_entities_resolved = True
 
     """
     Internal functions.
     """
+
+    @staticmethod
+    def _iter_term_cfgs(cfg: object) -> Iterator[tuple[str, Any]]:
+        """Iterate over the non-``None`` entries of a term configuration object or dictionary."""
+        items = cfg.items() if isinstance(cfg, dict) else vars(cfg).items()
+        return ((name, term_cfg) for name, term_cfg in items if term_cfg is not None)
 
     def _resolve_common_term_cfg(self, term_name: str, term_cfg: ManagerTermBaseCfg, min_argc: int = 1):
         """Resolve common attributes of the term configuration.
@@ -356,20 +334,17 @@ class ManagerBase(ABC):
         if not callable(func_static):
             raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
 
-        # check statically if the term's arguments are matched by params
+        # check statically if the term's arguments are matched by params (the first ``min_argc`` are positional)
         term_params = list(term_cfg.params.keys())
         args = inspect.signature(func_static).parameters
         args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
         args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
         args = args_without_defaults + args_with_defaults
-        # ignore first two arguments for env and env_ids
-        # Think: Check for cases when kwargs are set inside the function?
-        if len(args) > min_argc:
-            if set(args[min_argc:]) != set(term_params + args_with_defaults):
-                raise ValueError(
-                    f"The term '{term_name}' expects mandatory parameters: {args_without_defaults[min_argc:]}"
-                    f" and optional parameters: {args_with_defaults}, but received: {term_params}."
-                )
+        if len(args) > min_argc and set(args[min_argc:]) != set(term_params + args_with_defaults):
+            raise ValueError(
+                f"The term '{term_name}' expects mandatory parameters: {args_without_defaults[min_argc:]}"
+                f" and optional parameters: {args_with_defaults}, but received: {term_params}."
+            )
 
         # process attributes at runtime
         # these properties are only resolvable once the simulation starts playing

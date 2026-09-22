@@ -7,13 +7,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, RigidObject, RigidObjectCollection
     from isaaclab.scene import InteractiveScene
 
 
@@ -133,163 +133,90 @@ class SceneEntityCfg:
             ValueError: If both ``object_collection_names`` and ``object_collection_ids`` are specified and
                 are not consistent.
         """
-        # check if the entity is valid
         if self.name not in scene.keys():
             raise ValueError(f"The scene entity '{self.name}' does not exist. Available entities: {scene.keys()}.")
+        entity = scene[self.name]
 
-        # convert joint names to indices based on regex
-        self._resolve_joint_names(scene)
-
-        # convert fixed tendon names to indices based on regex
-        self._resolve_fixed_tendon_names(scene)
-
-        # convert body names to indices based on regex
-        self._resolve_body_names(scene)
-
-        # convert object collection names to indices based on regex
-        self._resolve_object_collection_names(scene)
-
-    def _resolve_joint_names(self, scene: InteractiveScene):
-        # convert joint names to indices based on regex
         if self.joint_names is not None or self.joint_ids != slice(None):
-            entity: Articulation = scene[self.name]
-            # -- if both are not their default values, check if they are valid
-            if self.joint_names is not None and self.joint_ids != slice(None):
-                if isinstance(self.joint_names, str):
-                    self.joint_names = [self.joint_names]
-                if isinstance(self.joint_ids, int):
-                    self.joint_ids = [self.joint_ids]
-                joint_ids, _ = entity.find_joints(self.joint_names, preserve_order=self.preserve_order)
-                joint_names = [entity.joint_names[i] for i in self.joint_ids]
-                if joint_ids != self.joint_ids or joint_names != self.joint_names:
-                    raise ValueError(
-                        "Both 'joint_names' and 'joint_ids' are specified, and are not consistent."
-                        f"\n\tfrom joint names: {self.joint_names} [{joint_ids}]"
-                        f"\n\tfrom joint ids: {joint_names} [{self.joint_ids}]"
-                        "\nHint: Use either 'joint_names' or 'joint_ids' to avoid confusion."
-                    )
-            # -- from joint names to joint indices
-            elif self.joint_names is not None:
-                if isinstance(self.joint_names, str):
-                    self.joint_names = [self.joint_names]
-                self.joint_ids, _ = entity.find_joints(self.joint_names, preserve_order=self.preserve_order)
-                # performance optimization (slice offers faster indexing than list of indices)
-                # only all joint in the entity order are selected
-                if len(self.joint_ids) == entity.num_joints and self.joint_names == entity.joint_names:
-                    self.joint_ids = slice(None)
-            # -- from joint indices to joint names
-            elif self.joint_ids != slice(None):
-                if isinstance(self.joint_ids, int):
-                    self.joint_ids = [self.joint_ids]
-                self.joint_names = [entity.joint_names[i] for i in self.joint_ids]
-
-    def _resolve_fixed_tendon_names(self, scene: InteractiveScene):
-        # convert tendon names to indices based on regex
+            self.joint_names, self.joint_ids = self._resolve_names_and_ids(
+                "joint", self.joint_names, self.joint_ids, entity.find_joints, entity.joint_names, entity.num_joints
+            )
         if self.fixed_tendon_names is not None or self.fixed_tendon_ids != slice(None):
-            entity: Articulation = scene[self.name]
-            # -- if both are not their default values, check if they are valid
-            if self.fixed_tendon_names is not None and self.fixed_tendon_ids != slice(None):
-                if isinstance(self.fixed_tendon_names, str):
-                    self.fixed_tendon_names = [self.fixed_tendon_names]
-                if isinstance(self.fixed_tendon_ids, int):
-                    self.fixed_tendon_ids = [self.fixed_tendon_ids]
-                fixed_tendon_ids, _ = entity.find_fixed_tendons(
-                    self.fixed_tendon_names, preserve_order=self.preserve_order
-                )
-                fixed_tendon_names = [entity.fixed_tendon_names[i] for i in self.fixed_tendon_ids]
-                if fixed_tendon_ids != self.fixed_tendon_ids or fixed_tendon_names != self.fixed_tendon_names:
-                    raise ValueError(
-                        "Both 'fixed_tendon_names' and 'fixed_tendon_ids' are specified, and are not consistent."
-                        f"\n\tfrom joint names: {self.fixed_tendon_names} [{fixed_tendon_ids}]"
-                        f"\n\tfrom joint ids: {fixed_tendon_names} [{self.fixed_tendon_ids}]"
-                        "\nHint: Use either 'fixed_tendon_names' or 'fixed_tendon_ids' to avoid confusion."
-                    )
-            # -- from fixed tendon names to fixed tendon indices
-            elif self.fixed_tendon_names is not None:
-                if isinstance(self.fixed_tendon_names, str):
-                    self.fixed_tendon_names = [self.fixed_tendon_names]
-                self.fixed_tendon_ids, _ = entity.find_fixed_tendons(
-                    self.fixed_tendon_names, preserve_order=self.preserve_order
-                )
-                # performance optimization (slice offers faster indexing than list of indices)
-                # only all fixed tendon in the entity order are selected
-                if (
-                    len(self.fixed_tendon_ids) == entity.num_fixed_tendons
-                    and self.fixed_tendon_names == entity.fixed_tendon_names
-                ):
-                    self.fixed_tendon_ids = slice(None)
-            # -- from fixed tendon indices to fixed tendon names
-            elif self.fixed_tendon_ids != slice(None):
-                if isinstance(self.fixed_tendon_ids, int):
-                    self.fixed_tendon_ids = [self.fixed_tendon_ids]
-                self.fixed_tendon_names = [entity.fixed_tendon_names[i] for i in self.fixed_tendon_ids]
-
-    def _resolve_body_names(self, scene: InteractiveScene):
-        # convert body names to indices based on regex
+            self.fixed_tendon_names, self.fixed_tendon_ids = self._resolve_names_and_ids(
+                "fixed_tendon",
+                self.fixed_tendon_names,
+                self.fixed_tendon_ids,
+                entity.find_fixed_tendons,
+                entity.fixed_tendon_names,
+                entity.num_fixed_tendons,
+            )
         if self.body_names is not None or self.body_ids != slice(None):
-            entity: RigidObject = scene[self.name]
-            # -- if both are not their default values, check if they are valid
-            # use find_sensors/num_sensors for ContactSensor, find_bodies/num_bodies for others
-            _find_fn = entity.find_sensors if hasattr(entity, "find_sensors") else entity.find_bodies
-            _num_bodies = entity.num_sensors if hasattr(entity, "num_sensors") else entity.num_bodies
-            if self.body_names is not None and self.body_ids != slice(None):
-                if isinstance(self.body_names, str):
-                    self.body_names = [self.body_names]
-                if isinstance(self.body_ids, int):
-                    self.body_ids = [self.body_ids]
-                body_ids, _ = _find_fn(self.body_names, preserve_order=self.preserve_order)
-                body_names = [entity.body_names[i] for i in self.body_ids]
-                if body_ids != self.body_ids or body_names != self.body_names:
-                    raise ValueError(
-                        "Both 'body_names' and 'body_ids' are specified, and are not consistent."
-                        f"\n\tfrom body names: {self.body_names} [{body_ids}]"
-                        f"\n\tfrom body ids: {body_names} [{self.body_ids}]"
-                        "\nHint: Use either 'body_names' or 'body_ids' to avoid confusion."
-                    )
-            # -- from body names to body indices
-            elif self.body_names is not None:
-                if isinstance(self.body_names, str):
-                    self.body_names = [self.body_names]
-                self.body_ids, _ = _find_fn(self.body_names, preserve_order=self.preserve_order)
-                # performance optimization (slice offers faster indexing than list of indices)
-                # only all bodies in the entity order are selected
-                if len(self.body_ids) == _num_bodies and self.body_names == entity.body_names:
-                    self.body_ids = slice(None)
-            # -- from body indices to body names
-            elif self.body_ids != slice(None):
-                if isinstance(self.body_ids, int):
-                    self.body_ids = [self.body_ids]
-                self.body_names = [entity.body_names[i] for i in self.body_ids]
-
-    def _resolve_object_collection_names(self, scene: InteractiveScene):
-        # convert object names to indices based on regex
+            # contact sensors expose their bodies through find_sensors/num_sensors
+            is_sensor = hasattr(entity, "find_sensors")
+            self.body_names, self.body_ids = self._resolve_names_and_ids(
+                "body",
+                self.body_names,
+                self.body_ids,
+                entity.find_sensors if is_sensor else entity.find_bodies,
+                entity.body_names,
+                entity.num_sensors if is_sensor else entity.num_bodies,
+            )
         if self.object_collection_names is not None or self.object_collection_ids != slice(None):
-            entity: RigidObjectCollection = scene[self.name]
-            # -- if both are not their default values, check if they are valid
-            if self.object_collection_names is not None and self.object_collection_ids != slice(None):
-                if isinstance(self.object_collection_names, str):
-                    self.object_collection_names = [self.object_collection_names]
-                if isinstance(self.object_collection_ids, int):
-                    self.object_collection_ids = [self.object_collection_ids]
-                object_ids, _ = entity.find_objects(self.object_collection_names, preserve_order=self.preserve_order)
-                object_names = [entity.object_names[i] for i in self.object_collection_ids]
-                if object_ids != self.object_collection_ids or object_names != self.object_collection_names:
-                    raise ValueError(
-                        "Both 'object_collection_names' and 'object_collection_ids' are specified, and are not"
-                        " consistent.\n\tfrom object collection names:"
-                        f" {self.object_collection_names} [{object_ids}]\n\tfrom object collection ids:"
-                        f" {object_names} [{self.object_collection_ids}]\nHint: Use either 'object_collection_names' or"
-                        " 'object_collection_ids' to avoid confusion."
-                    )
-            # -- from object names to object indices
-            elif self.object_collection_names is not None:
-                if isinstance(self.object_collection_names, str):
-                    self.object_collection_names = [self.object_collection_names]
-                self.object_collection_ids, _ = entity.find_objects(
-                    self.object_collection_names, preserve_order=self.preserve_order
+            self.object_collection_names, self.object_collection_ids = self._resolve_names_and_ids(
+                "object_collection",
+                self.object_collection_names,
+                self.object_collection_ids,
+                entity.find_objects,
+                entity.object_names,
+                None,
+            )
+
+    def _resolve_names_and_ids(
+        self,
+        label: str,
+        names: str | list[str] | None,
+        ids: int | list[int] | slice,
+        find_fn: Callable[..., tuple[list[int], list[str]]],
+        entity_names: list[str],
+        num_entities: int | None,
+    ) -> tuple[list[str], list[int] | slice]:
+        """Resolve the names and indices of one entity attribute (joints, bodies, ...) against each other.
+
+        Args:
+            label: The attribute label used in error messages (e.g. ``"joint"``).
+            names: The configured names or regular expressions, if any.
+            ids: The configured indices, or ``slice(None)`` when unspecified.
+            find_fn: The entity method that resolves names to ``(indices, names)``.
+            entity_names: All names of the attribute in the entity's order.
+            num_entities: Number of entries in the entity. When given and all entries are selected in the
+                entity's order, the indices collapse to ``slice(None)`` since slices index faster than lists.
+
+        Returns:
+            The resolved names and indices.
+
+        Raises:
+            ValueError: If both names and indices are specified and are not consistent.
+        """
+        if isinstance(names, str):
+            names = [names]
+        if isinstance(ids, int):
+            ids = [ids]
+        if names is not None and ids != slice(None):
+            # both are specified: make sure they agree
+            found_ids, _ = find_fn(names, preserve_order=self.preserve_order)
+            found_names = [entity_names[i] for i in ids]
+            if found_ids != ids or found_names != names:
+                prose = label.replace("_", " ")
+                raise ValueError(
+                    f"Both '{label}_names' and '{label}_ids' are specified, and are not consistent."
+                    f"\n\tfrom {prose} names: {names} [{found_ids}]"
+                    f"\n\tfrom {prose} ids: {found_names} [{ids}]"
+                    f"\nHint: Use either '{label}_names' or '{label}_ids' to avoid confusion."
                 )
-            # -- from object indices to object names
-            elif self.object_collection_ids != slice(None):
-                if isinstance(self.object_collection_ids, int):
-                    self.object_collection_ids = [self.object_collection_ids]
-                self.object_collection_names = [entity.object_names[i] for i in self.object_collection_ids]
+        elif names is not None:
+            ids, _ = find_fn(names, preserve_order=self.preserve_order)
+            if num_entities is not None and len(ids) == num_entities and names == entity_names:
+                ids = slice(None)
+        else:
+            names = [entity_names[i] for i in ids]
+        return names, ids

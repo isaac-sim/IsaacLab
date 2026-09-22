@@ -26,7 +26,4 @@ class ContactSensor(FactoryBase, BaseContactSensor):
 
     def __new__(cls, *args, **kwargs) -> BaseContactSensor | PhysXContactSensor | NewtonContactSensor:
         """Create a new instance of a contact sensor based on the backend."""
-        # The `FactoryBase` __new__ method will handle the logic and return
-        # an instance of the correct backend-specific contact sensor class,
-        # which is guaranteed to be a subclass of `BaseContactSensor` by convention.
         return super().__new__(cls, *args, **kwargs)

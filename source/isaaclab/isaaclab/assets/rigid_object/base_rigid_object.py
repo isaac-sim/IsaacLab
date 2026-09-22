@@ -16,6 +16,7 @@ import warp as wp
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
+from .._deprecation import warn_renamed_function
 from ..asset_base import AssetBase
 
 if TYPE_CHECKING:
@@ -49,14 +50,6 @@ class BaseRigidObject(AssetBase):
 
     __backend_name__: str = "base"
     """The name of the backend for the rigid object."""
-
-    def __init__(self, cfg: RigidObjectCfg):
-        """Initialize the rigid object.
-
-        Args:
-            cfg: A configuration instance.
-        """
-        super().__init__(cfg)
 
     """
     Properties
@@ -760,12 +753,7 @@ class BaseRigidObject(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_root_pose_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_root_pose_to_sim' will be deprecated in a future release. Please"
-            " use 'write_root_pose_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_root_pose_to_sim", "write_root_pose_to_sim_index")
         self.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
 
     def write_root_link_pose_to_sim(
@@ -774,12 +762,7 @@ class BaseRigidObject(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_root_link_pose_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_root_link_pose_to_sim' will be deprecated in a future release. Please"
-            " use 'write_root_link_pose_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_root_link_pose_to_sim", "write_root_link_pose_to_sim_index")
         self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
 
     def write_root_com_pose_to_sim(
@@ -788,12 +771,7 @@ class BaseRigidObject(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_root_com_pose_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_root_com_pose_to_sim' will be deprecated in a future release. Please"
-            " use 'write_root_com_pose_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_root_com_pose_to_sim", "write_root_com_pose_to_sim_index")
         self.write_root_com_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
 
     def write_root_velocity_to_sim(
@@ -802,12 +780,7 @@ class BaseRigidObject(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_root_velocity_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_root_velocity_to_sim' will be deprecated in a future release. Please"
-            " use 'write_root_velocity_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_root_velocity_to_sim", "write_root_velocity_to_sim_index")
         self.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
 
     def write_root_com_velocity_to_sim(
@@ -816,12 +789,7 @@ class BaseRigidObject(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_root_com_velocity_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_root_com_velocity_to_sim' will be deprecated in a future release. Please"
-            " use 'write_root_com_velocity_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_root_com_velocity_to_sim", "write_root_com_velocity_to_sim_index")
         self.write_root_com_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
 
     def write_root_link_velocity_to_sim(
@@ -830,12 +798,7 @@ class BaseRigidObject(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_root_link_velocity_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_root_link_velocity_to_sim' will be deprecated in a future release. Please"
-            " use 'write_root_link_velocity_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_root_link_velocity_to_sim", "write_root_link_velocity_to_sim_index")
         self.write_root_link_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
 
     def set_masses(
@@ -845,11 +808,7 @@ class BaseRigidObject(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_masses_index`."""
-        warnings.warn(
-            "The function 'set_masses' will be deprecated in a future release. Please use 'set_masses_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("set_masses", "set_masses_index")
         self.set_masses_index(masses=masses, body_ids=body_ids, env_ids=env_ids)
 
     def set_coms(
@@ -859,11 +818,7 @@ class BaseRigidObject(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_coms_index`."""
-        warnings.warn(
-            "The function 'set_coms' will be deprecated in a future release. Please use 'set_coms_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("set_coms", "set_coms_index")
         self.set_coms_index(coms=coms, body_ids=body_ids, env_ids=env_ids)
 
     def set_inertias(
@@ -873,12 +828,7 @@ class BaseRigidObject(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_inertias_index`."""
-        warnings.warn(
-            "The function 'set_inertias' will be deprecated in a future release. Please"
-            " use 'set_inertias_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("set_inertias", "set_inertias_index")
         self.set_inertias_index(inertias=inertias, body_ids=body_ids, env_ids=env_ids)
 
     def set_external_force_and_torque(

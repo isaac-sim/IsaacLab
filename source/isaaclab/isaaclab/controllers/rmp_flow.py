@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 
 import numpy as np
@@ -16,6 +17,8 @@ from isaaclab.utils.math import matrix_from_quat
 
 from .rmp_flow_cfg import RmpFlowControllerCfg  # noqa: F401
 from .utils import import_lula, resolve_rmpflow_path
+
+logger = logging.getLogger(__name__)
 
 
 class _LulaRmpFlow:
@@ -265,7 +268,7 @@ class RmpFlowController:
         """
         self.cfg = cfg
         self._device = device
-        print(f"[INFO]: Loading RMPFlow controller URDF from: {self.cfg.urdf_file}")
+        logger.info("Loading RMPFlow controller URDF from: %s", self.cfg.urdf_file)
 
     """
     Properties.
@@ -371,7 +374,7 @@ class RmpFlowController:
             pos_targets, vel_targets = rmpflow.compute_joint_targets(
                 active_pos, active_vel, watched_pos, watched_vel, self._physics_dt
             )
-            self.dof_pos_target[i, :] = torch.from_numpy(pos_targets[:]).to(self.dof_pos_target)
-            self.dof_vel_target[i, :] = torch.from_numpy(vel_targets[:]).to(self.dof_vel_target)
+            self.dof_pos_target[i] = torch.from_numpy(pos_targets).to(self.dof_pos_target)
+            self.dof_vel_target[i] = torch.from_numpy(vel_targets).to(self.dof_vel_target)
 
         return self.dof_pos_target, self.dof_vel_target

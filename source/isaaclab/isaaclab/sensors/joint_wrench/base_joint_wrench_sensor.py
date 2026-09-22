@@ -37,14 +37,6 @@ class BaseJointWrenchSensor(SensorBase):
     __backend_name__: str = "base"
     """The name of the backend for the joint wrench sensor."""
 
-    def __init__(self, cfg: JointWrenchSensorCfg):
-        """Initialize the joint wrench sensor.
-
-        Args:
-            cfg: The configuration parameters.
-        """
-        super().__init__(cfg)
-
     """
     Properties
     """

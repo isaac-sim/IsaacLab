@@ -31,11 +31,6 @@ concurrently; see :mod:`isaaclab.benchmark.entrypoints.multigpu`.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from isaaclab.benchmark import BenchmarkResult
-
 import argparse
 import cProfile
 import importlib.util
@@ -43,6 +38,11 @@ import os
 import sys
 import time
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from isaaclab.benchmark import BenchmarkResult
+
 
 _PHASE_ORDER = ("python_imports", "task_config", "app_launch", "env_creation", "first_step")
 _VALID_PHASES = set(_PHASE_ORDER)
@@ -176,6 +176,14 @@ def _isaaclab_source_prefixes() -> list[str]:
     return list(dict.fromkeys(prefixes))
 
 
+def _synchronize_cuda() -> None:
+    """Wait for queued CUDA work so phase boundaries include it."""
+    import torch
+
+    if torch.cuda.is_available() and torch.cuda.is_initialized():
+        torch.cuda.synchronize()
+
+
 def _timer_totals(since: dict[str, float] | None = None) -> dict[str, float]:
     """Return the cumulative time [s] recorded by each named :class:`~isaaclab.utils.timer.Timer`.
 
@@ -222,8 +230,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     from isaaclab_tasks.utils import resolve_task_config
 
     imports_profile.disable()
-    if torch.cuda.is_available() and torch.cuda.is_initialized():
-        torch.cuda.synchronize()
+    _synchronize_cuda()
     imports_time_end = time.perf_counter_ns()
 
     task_config_profile = cProfile.Profile()
@@ -247,8 +254,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
 
     with launch_simulation(env_cfg, args):
         app_launch_profile.disable()
-        if torch.cuda.is_available() and torch.cuda.is_initialized():
-            torch.cuda.synchronize()
+        _synchronize_cuda()
         app_launch_time_end = time.perf_counter_ns()
 
         if args.num_envs is not None:
@@ -275,9 +281,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                 env_creation_profile.disable()
             env_creation_detail = _timer_totals(since=timers_before)
             env_creation_detail["env_reset"] = (env_reset_time_end - env_reset_time_begin) / 1e9
-
-            if torch.cuda.is_available() and torch.cuda.is_initialized():
-                torch.cuda.synchronize()
+            _synchronize_cuda()
             env_creation_time_end = time.perf_counter_ns()
 
             actions = stepping.sample_random_actions(env)
@@ -290,9 +294,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                     env.step(actions)
             finally:
                 first_step_profile.disable()
-
-            if torch.cuda.is_available() and torch.cuda.is_initialized():
-                torch.cuda.synchronize()
+            _synchronize_cuda()
             first_step_time_end = time.perf_counter_ns()
             end_utc = capture.now_utc_iso()
 

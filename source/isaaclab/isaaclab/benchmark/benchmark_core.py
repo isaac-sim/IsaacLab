@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import importlib
 import logging
 import os
 import time
@@ -11,25 +12,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from isaaclab.benchmark import formatters
-from isaaclab.benchmark.formatters import get_default_output_filename
-from isaaclab.benchmark.interfaces import MeasurementDataRecorder
-from isaaclab.benchmark.measurements import (
-    DictMetadata,
-    FloatMetadata,
-    IntMetadata,
-    ListMeasurement,
-    Measurement,
-    MetadataBase,
-    SingleMeasurement,
-    StringMetadata,
-    TestPhase,
-)
-from isaaclab.benchmark.recorders import CPUInfoRecorder, GPUInfoRecorder, MemoryInfoRecorder, VersionInfoRecorder
 from isaaclab.utils import has_kit
 
+from . import formatters
+from .formatters import get_default_output_filename
+from .interfaces import MeasurementDataRecorder
+from .measurements import ListMeasurement, Measurement, MetadataBase, SingleMeasurement, StringMetadata, TestPhase
+from .recorders import CPUInfoRecorder, GPUInfoRecorder, MemoryInfoRecorder, VersionInfoRecorder
+
 if TYPE_CHECKING:
-    from isaaclab.benchmark.schema import (
+    from .schema import (
         LearningCurve,
         MeanStd,
         PlayBundle,
@@ -41,7 +33,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Valid measurement and metadata class names (to support both isaaclab and isaacsim types)
+# Measurement and metadata types are matched by class name so Isaac Sim's equivalents are accepted too.
 _MEASUREMENT_CLASS_NAMES = {
     "Measurement",
     "SingleMeasurement",
@@ -52,15 +44,22 @@ _MEASUREMENT_CLASS_NAMES = {
 }
 _METADATA_CLASS_NAMES = {"MetadataBase", "StringMetadata", "IntMetadata", "FloatMetadata", "DictMetadata"}
 
+# Isaac Sim frametime recorders, tried individually so partial availability still yields metrics.
+_FRAMETIME_RECORDERS = (
+    ("PhysicsFrametime", "isaacsim.benchmark.services.datarecorders.physics_frametime", "PhysicsFrametimeRecorder"),
+    ("RenderFrametime", "isaacsim.benchmark.services.datarecorders.render_frametime", "RenderFrametimeRecorder"),
+    ("AppFrametime", "isaacsim.benchmark.services.datarecorders.app_frametime", "AppFrametimeRecorder"),
+    ("GPUFrametime", "isaacsim.benchmark.services.datarecorders.gpu_frametime", "GPUFrametimeRecorder"),
+)
 
-def _is_measurement_type(obj: object) -> bool:
-    """Check if object is a measurement type by class name (supports isaacsim types)."""
-    return type(obj).__name__ in _MEASUREMENT_CLASS_NAMES
 
-
-def _is_metadata_type(obj: object) -> bool:
-    """Check if object is a metadata type by class name (supports isaacsim types)."""
-    return type(obj).__name__ in _METADATA_CLASS_NAMES
+def _extend_validated(target: list, items: object, class_names: set[str], label: str) -> None:
+    """Append one or more items to ``target`` after checking their class names."""
+    items = list(items) if isinstance(items, Sequence) else [items]
+    for item in items:
+        if type(item).__name__ not in class_names:
+            raise ValueError(f"{label} element {item} is not of type {label}")
+    target.extend(items)
 
 
 def _stat_measurements(name: str, stats: "MeanStd", unit: str, scale: float = 1.0) -> list[Measurement]:
@@ -165,7 +164,7 @@ def _measurements_from_bundle(
     bundle: "RuntimeBundle | TrainingBundle | StartupBundle | PlayBundle",
 ) -> dict[str, list[Measurement]]:
     """Project a typed bundle into flat phases for non-schema formatters."""
-    from isaaclab.benchmark.schema import PlayBundle, StartupBundle, TrainingBundle
+    from .schema import PlayBundle, StartupBundle, TrainingBundle
 
     if isinstance(bundle, StartupBundle):
         projected: dict[str, list[Measurement]] = {}
@@ -261,142 +260,79 @@ class BaseIsaacLabBenchmark:
         self._bundle = None
         self._phases: dict[str, TestPhase] = {}
 
-        # Generate workflow-level metadata
-        workflow_name = StringMetadata(name="workflow_name", data=self.benchmark_name)
-        timestamp = StringMetadata(name="timestamp", data=datetime.now().isoformat())
-        self.add_measurement("benchmark_info", metadata=workflow_name)
-        self.add_measurement("benchmark_info", metadata=timestamp)
+        self.add_measurement("benchmark_info", metadata=StringMetadata(name="workflow_name", data=benchmark_name))
+        self.add_measurement(
+            "benchmark_info", metadata=StringMetadata(name="timestamp", data=datetime.now().isoformat())
+        )
         if workflow_metadata:
             if "metadata" in workflow_metadata:
-                self.add_measurement("benchmark_info", metadata=self._metadata_from_dict(workflow_metadata))
+                self.add_measurement("benchmark_info", metadata=TestPhase.metadata_from_dict(workflow_metadata))
             else:
                 logger.warning(
                     "workflow_metadata provided, but missing expected 'metadata' entry. Metadata will not be read."
                 )
 
-        # Whether to use recorders to collect metrics.
         self._use_recorders = use_recorders
         self._use_frametime_recorders = frametime_recorders
-
-        # Initialize frametime recorders dict (always, even when not using recorders)
         self._frametime_recorders: dict[str, MeasurementDataRecorder] = {}
 
-        if self._use_recorders:
-            # Recorders that need to be updated manually since they don't depend on the kit timeline.
+        if use_recorders:
+            # Recorders sampled explicitly, since they do not depend on the Kit timeline.
             self._manual_recorders: dict[str, MeasurementDataRecorder] = {
                 "CPUInfo": CPUInfoRecorder(),
                 "GPUInfo": GPUInfoRecorder(),
                 "MemoryInfo": MemoryInfoRecorder(),
                 "VersionInfo": VersionInfoRecorder(),
             }
-
-            # "Kit-full" means Isaac Sim (Kit) runtime is available, so benchmark services can
-            # provide frametime recorders. "Kit-less" means those services are absent; we should
-            # gracefully skip or fall back while still allowing mixed modes (e.g., kit-full physics
-            # with kit-less rendering).
-            # If we're using Kit, then we can use IsaacSim's benchmark services to peek into the frametimes.
-            if self._use_frametime_recorders and not has_kit():
+            # Frametime recorders come from Isaac Sim's benchmark services, so they are optional
+            # and only attempted while Kit is running.
+            if frametime_recorders and not has_kit():
                 logger.warning("Kit is not running. Kit related measurements will not be available.")
-            elif self._use_frametime_recorders:
-                try:
-                    # Enable the benchmark services extension first
-                    from isaaclab.sim.utils import enable_extension
+            elif frametime_recorders:
+                self._start_frametime_recorders()
 
-                    enable_extension("isaacsim.benchmark.services")
-
-                    added_any = False
-
-                    # Try individual recorders first so we can collect partial metrics when only some are available.
-                    try:
-                        from isaacsim.benchmark.services.datarecorders.physics_frametime import PhysicsFrametimeRecorder
-
-                        self._frametime_recorders["PhysicsFrametime"] = PhysicsFrametimeRecorder()
-                        added_any = True
-                    except (ImportError, Exception) as e:
-                        logger.debug(f"Physics frametime recorder unavailable: {e}")
-
-                    try:
-                        from isaacsim.benchmark.services.datarecorders.render_frametime import RenderFrametimeRecorder
-
-                        self._frametime_recorders["RenderFrametime"] = RenderFrametimeRecorder()
-                        added_any = True
-                    except (ImportError, Exception) as e:
-                        logger.debug(f"Render frametime recorder unavailable: {e}")
-
-                    try:
-                        from isaacsim.benchmark.services.datarecorders.app_frametime import AppFrametimeRecorder
-
-                        self._frametime_recorders["AppFrametime"] = AppFrametimeRecorder()
-                        added_any = True
-                    except (ImportError, Exception) as e:
-                        logger.debug(f"App frametime recorder unavailable: {e}")
-
-                    try:
-                        from isaacsim.benchmark.services.datarecorders.gpu_frametime import GPUFrametimeRecorder
-
-                        self._frametime_recorders["GPUFrametime"] = GPUFrametimeRecorder()
-                        added_any = True
-                    except (ImportError, Exception) as e:
-                        logger.debug(f"GPU frametime recorder unavailable: {e}")
-
-                    if not added_any:
-                        # Fallback for Isaac Sim packaging that bundles frametime recorders in a single module.
-                        try:
-                            from isaacsim.benchmark.services.datarecorders.interface import InputContext
-                            from isaacsim.benchmark.services.recorders import IsaacFrameTimeRecorder
-
-                            context = InputContext(phase="frametime")
-                            self._frametime_recorders["IsaacFrameTime"] = IsaacFrameTimeRecorder(
-                                context=context, gpu_frametime=False
-                            )
-                        except ImportError as e:
-                            logger.warning(
-                                "Could not import bundled frametime recorder: "
-                                f"{e}. Frametime measurements will not be available."
-                            )
-                # Kit may stop after the availability check above. Frametime recorders are
-                # optional, so retain the non-Kit recorders if the IApp interface disappears.
-                except (ImportError, RuntimeError) as e:
-                    logger.warning(
-                        f"Could not initialize Kit frametime recorders: {e}. "
-                        "Kit related measurements will not be available."
-                    )
-
-                # Start collecting frametime recorders.
-                for recorder in self._frametime_recorders.values():
-                    recorder.start_collecting()
-
-        # Set the start time of the benchmark.
         logger.info("Starting")
         self.benchmark_start_time = time.time()
+
+    def _start_frametime_recorders(self) -> None:
+        """Create and start the Kit frametime recorders that are importable in this runtime."""
+        try:
+            from isaaclab.sim.utils import enable_extension
+
+            enable_extension("isaacsim.benchmark.services")
+            for key, module_name, class_name in _FRAMETIME_RECORDERS:
+                try:
+                    module = importlib.import_module(module_name)
+                    self._frametime_recorders[key] = getattr(module, class_name)()
+                except Exception as e:
+                    logger.debug(f"{key} recorder unavailable: {e}")
+            if not self._frametime_recorders:
+                # Older Isaac Sim packaging bundles every frametime recorder in one module.
+                try:
+                    from isaacsim.benchmark.services.datarecorders.interface import InputContext
+                    from isaacsim.benchmark.services.recorders import IsaacFrameTimeRecorder
+
+                    self._frametime_recorders["IsaacFrameTime"] = IsaacFrameTimeRecorder(
+                        context=InputContext(phase="frametime"), gpu_frametime=False
+                    )
+                except ImportError as e:
+                    logger.warning(
+                        f"Could not import bundled frametime recorder: {e}."
+                        " Frametime measurements will not be available."
+                    )
+        # Kit may stop after the availability check above; the non-Kit recorders remain usable.
+        except (ImportError, RuntimeError) as e:
+            logger.warning(
+                f"Could not initialize Kit frametime recorders: {e}. Kit related measurements will not be available."
+            )
+
+        for recorder in self._frametime_recorders.values():
+            recorder.start_collecting()
 
     @property
     def output_file_path(self) -> str:
         """Get the full path to the output file."""
         return os.path.join(self.output_path, f"{self.output_prefix}.json")
-
-    def _metadata_from_dict(self, metadata_dict: dict) -> list[MetadataBase]:
-        """Convert a dictionary with metadata lists into a list of MetadataBase objects.
-
-        Example:
-        .. code-block:: python
-            metadata = self._metadata_from_dict({"metadata": [{"name": "gpu", "data": "A10"}]})
-
-        Args:
-            metadata_dict: A dictionary with metadata lists.
-
-        Returns:
-            A list of MetadataBase objects.
-        """
-        metadata: list[MetadataBase] = []
-        metadata_mapping = {str: StringMetadata, int: IntMetadata, float: FloatMetadata, dict: DictMetadata}
-        for meas in metadata_dict["metadata"]:
-            if "data" in meas:
-                metadata_type = metadata_mapping.get(type(meas["data"]))
-                if metadata_type:
-                    curr_meta = metadata_type(name=meas["name"], data=meas["data"])
-                    metadata.append(curr_meta)
-        return metadata
 
     def attach_bundle(self, bundle: "RuntimeBundle | TrainingBundle | StartupBundle | PlayBundle | None") -> None:
         """Attach a typed bundle for schema serialization and flat-formatter projection.
@@ -411,7 +347,6 @@ class BaseIsaacLabBenchmark:
 
     def update_manual_recorders(self) -> None:
         """Update manual recorders that don't depend on the kit timeline."""
-
         if not self._use_recorders:
             logger.warning("Recorders are not enabled. Skipping update of manual recorders.")
             return
@@ -433,32 +368,19 @@ class BaseIsaacLabBenchmark:
             metadata: The metadata to add.
         """
         if phase_name not in self._phases:
-            self._phases[phase_name] = TestPhase(phase_name=phase_name)
-            # Add required phase metadata for formatters
-            phase_metadata = StringMetadata(name="phase", data=phase_name)
-            workflow_metadata = StringMetadata(name="workflow_name", data=self.benchmark_name)
-            self._phases[phase_name].metadata.extend([phase_metadata, workflow_metadata])
-
+            # Formatters read the phase and workflow names back from the phase metadata.
+            self._phases[phase_name] = TestPhase(
+                phase_name=phase_name,
+                metadata=[
+                    StringMetadata(name="phase", data=phase_name),
+                    StringMetadata(name="workflow_name", data=self.benchmark_name),
+                ],
+            )
+        phase = self._phases[phase_name]
         if measurement:
-            if isinstance(measurement, Sequence):
-                for m in measurement:
-                    if not _is_measurement_type(m):
-                        raise ValueError(f"Measurement element {m} is not of type Measurement")
-                self._phases[phase_name].measurements.extend(measurement)
-            else:
-                if not _is_measurement_type(measurement):
-                    raise ValueError(f"Measurement element {measurement} is not of type Measurement")
-                self._phases[phase_name].measurements.append(measurement)
+            _extend_validated(phase.measurements, measurement, _MEASUREMENT_CLASS_NAMES, "Measurement")
         if metadata:
-            if isinstance(metadata, Sequence):
-                for m in metadata:
-                    if not _is_metadata_type(m):
-                        raise ValueError(f"Metadata element {m} is not of type MetadataBase")
-                self._phases[phase_name].metadata.extend(metadata)
-            else:
-                if not _is_metadata_type(metadata):
-                    raise ValueError(f"Metadata element {metadata} is not of type MetadataBase")
-                self._phases[phase_name].metadata.append(metadata)
+            _extend_validated(phase.metadata, metadata, _METADATA_CLASS_NAMES, "MetadataBase")
 
     def finalize(self) -> tuple[Path, ...]:
         """Finalize metric collection and write selected formatter outputs.
@@ -472,31 +394,24 @@ class BaseIsaacLabBenchmark:
         if self._bundle is None and any(key == "schema" for key, _ in self._metrics):
             raise RuntimeError("The schema formatter requires an attached benchmark bundle.")
 
-        # Stop collecting frametime recorders.
         for recorder in self._frametime_recorders.values():
             recorder.stop_collecting()
 
-        # Add measurements and metadata from recorders to the phases.
         if self._use_recorders:
-            for recorder_name, measurement_data in self._manual_recorders.items():
-                data = measurement_data.get_data()
-                # Add measurements to runtime phase if present
+            for recorder_name, recorder in self._manual_recorders.items():
+                data = recorder.get_data()
                 if data.measurements:
                     self.add_measurement("runtime", measurement=data.measurements)
-                # Add metadata to appropriate phase (even if no measurements)
                 if data.metadata:
-                    if recorder_name == "VersionInfo":
-                        self.add_measurement("version_info", metadata=data.metadata)
-                    else:
-                        self.add_measurement("hardware_info", metadata=data.metadata)
-            for recorder_name, measurement_data in self._frametime_recorders.items():
-                data = measurement_data.get_data()
-                # Add measurements to runtime phase if present
+                    phase_name = "version_info" if recorder_name == "VersionInfo" else "hardware_info"
+                    self.add_measurement(phase_name, metadata=data.metadata)
+            for recorder in self._frametime_recorders.values():
+                data = recorder.get_data()
                 if data.measurements:
                     self.add_measurement("frametime", measurement=data.measurements)
 
         if not self._phases:
-            logger.warning("No phases collected.No metrics will be written.")
+            logger.warning("No phases collected. No metrics will be written.")
             return ()
 
         # Add the phases to each metrics formatter and write its output file. When more than one

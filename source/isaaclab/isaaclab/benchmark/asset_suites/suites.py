@@ -84,139 +84,54 @@ def _signed_joint_limits(spec: AssetMethodSpec) -> AssetMethodSpec:
     )
 
 
-_ARTICULATION_PLAIN = (
-    _indexed("write_root_state_to_sim", {"root_state": ("instances", 13)}, {"env_ids": "instances"}, "root_state"),
-    _indexed("write_root_com_state_to_sim", {"root_state": ("instances", 13)}, {"env_ids": "instances"}, "root_state"),
-    _indexed("write_root_link_state_to_sim", {"root_state": ("instances", 13)}, {"env_ids": "instances"}, "root_state"),
-    _indexed("write_root_link_pose_to_sim", {"root_pose": ("instances", 7)}, {"env_ids": "instances"}, "root_pose"),
-    _indexed("write_root_com_pose_to_sim", {"root_pose": ("instances", 7)}, {"env_ids": "instances"}, "root_pose"),
-    _indexed(
-        "write_root_link_velocity_to_sim",
-        {"root_velocity": ("instances", 6)},
-        {"env_ids": "instances"},
-        "root_velocity",
-    ),
-    _indexed(
-        "write_root_com_velocity_to_sim",
-        {"root_velocity": ("instances", 6)},
-        {"env_ids": "instances"},
-        "root_velocity",
-    ),
-    _indexed(
+def _with_articulation_ranges(spec: AssetMethodSpec, writer: str) -> AssetMethodSpec:
+    """Give the joint-parameter inputs of ``writer`` ordered limits or their expected magnitude."""
+    if writer == "write_joint_position_limit_to_sim":
+        return _signed_joint_limits(spec)
+    if scale := _ARTICULATION_GENERATOR_SCALES.get(writer):
+        return _scaled_tensor_field(spec, *scale)
+    return spec
+
+
+_JOINT_INDEXED = {"env_ids": "instances", "joint_ids": "joints"}
+_BODY_INDEXED = {"env_ids": "instances", "body_ids": "bodies"}
+
+# (method name, tensor shapes, index dimensions, category) of every indexed articulation writer.
+_ARTICULATION_WRITERS = (
+    ("write_root_state_to_sim", {"root_state": ("instances", 13)}, {"env_ids": "instances"}, "root_state"),
+    ("write_root_com_state_to_sim", {"root_state": ("instances", 13)}, {"env_ids": "instances"}, "root_state"),
+    ("write_root_link_state_to_sim", {"root_state": ("instances", 13)}, {"env_ids": "instances"}, "root_state"),
+    ("write_root_link_pose_to_sim", {"root_pose": ("instances", 7)}, {"env_ids": "instances"}, "root_pose"),
+    ("write_root_com_pose_to_sim", {"root_pose": ("instances", 7)}, {"env_ids": "instances"}, "root_pose"),
+    ("write_root_link_velocity_to_sim", {"root_velocity": ("instances", 6)}, {"env_ids": "instances"}, "root_velocity"),
+    ("write_root_com_velocity_to_sim", {"root_velocity": ("instances", 6)}, {"env_ids": "instances"}, "root_velocity"),
+    (
         "write_joint_state_to_sim",
         {"position": ("instances", "joints"), "velocity": ("instances", "joints")},
-        {"env_ids": "instances", "joint_ids": "joints"},
+        _JOINT_INDEXED,
         "joint_state",
     ),
-    _indexed(
-        "write_joint_position_to_sim",
-        {"position": ("instances", "joints")},
-        {"env_ids": "instances", "joint_ids": "joints"},
-        "joint_state",
-    ),
-    _indexed(
-        "write_joint_velocity_to_sim",
-        {"velocity": ("instances", "joints")},
-        {"env_ids": "instances", "joint_ids": "joints"},
-        "joint_state",
-    ),
-    _indexed(
-        "write_joint_stiffness_to_sim",
-        {"stiffness": ("instances", "joints")},
-        {"env_ids": "instances", "joint_ids": "joints"},
+    ("write_joint_position_to_sim", {"position": ("instances", "joints")}, _JOINT_INDEXED, "joint_state"),
+    ("write_joint_velocity_to_sim", {"velocity": ("instances", "joints")}, _JOINT_INDEXED, "joint_state"),
+    ("write_joint_stiffness_to_sim", {"stiffness": ("instances", "joints")}, _JOINT_INDEXED, "joint_params"),
+    ("write_joint_damping_to_sim", {"damping": ("instances", "joints")}, _JOINT_INDEXED, "joint_params"),
+    ("write_joint_position_limit_to_sim", {"limits": ("instances", "joints", 2)}, _JOINT_INDEXED, "joint_params"),
+    ("write_joint_velocity_limit_to_sim", {"limits": ("instances", "joints")}, _JOINT_INDEXED, "joint_params"),
+    ("write_joint_effort_limit_to_sim", {"limits": ("instances", "joints")}, _JOINT_INDEXED, "joint_params"),
+    ("write_joint_armature_to_sim", {"armature": ("instances", "joints")}, _JOINT_INDEXED, "joint_params"),
+    (
+        "write_joint_friction_coefficient_to_sim",
+        {"joint_friction_coeff": ("instances", "joints")},
+        _JOINT_INDEXED,
         "joint_params",
     ),
-    _indexed(
-        "write_joint_damping_to_sim",
-        {"damping": ("instances", "joints")},
-        {"env_ids": "instances", "joint_ids": "joints"},
-        "joint_params",
-    ),
-    _signed_joint_limits(
-        _indexed(
-            "write_joint_position_limit_to_sim",
-            {"limits": ("instances", "joints", 2)},
-            {"env_ids": "instances", "joint_ids": "joints"},
-            "joint_params",
-        )
-    ),
-    _scaled_tensor_field(
-        _indexed(
-            "write_joint_velocity_limit_to_sim",
-            {"limits": ("instances", "joints")},
-            {"env_ids": "instances", "joint_ids": "joints"},
-            "joint_params",
-        ),
-        "limits",
-        10.0,
-    ),
-    _scaled_tensor_field(
-        _indexed(
-            "write_joint_effort_limit_to_sim",
-            {"limits": ("instances", "joints")},
-            {"env_ids": "instances", "joint_ids": "joints"},
-            "joint_params",
-        ),
-        "limits",
-        100.0,
-    ),
-    _scaled_tensor_field(
-        _indexed(
-            "write_joint_armature_to_sim",
-            {"armature": ("instances", "joints")},
-            {"env_ids": "instances", "joint_ids": "joints"},
-            "joint_params",
-        ),
-        "armature",
-        0.1,
-    ),
-    _scaled_tensor_field(
-        _indexed(
-            "write_joint_friction_coefficient_to_sim",
-            {"joint_friction_coeff": ("instances", "joints")},
-            {"env_ids": "instances", "joint_ids": "joints"},
-            "joint_params",
-        ),
-        "joint_friction_coeff",
-        0.5,
-    ),
-    _indexed(
-        "set_joint_position_target",
-        {"target": ("instances", "joints")},
-        {"env_ids": "instances", "joint_ids": "joints"},
-        "joint_targets",
-    ),
-    _indexed(
-        "set_joint_velocity_target",
-        {"target": ("instances", "joints")},
-        {"env_ids": "instances", "joint_ids": "joints"},
-        "joint_targets",
-    ),
-    _indexed(
-        "set_joint_effort_target",
-        {"target": ("instances", "joints")},
-        {"env_ids": "instances", "joint_ids": "joints"},
-        "joint_targets",
-    ),
-    _indexed(
-        "set_masses",
-        {"masses": ("instances", "bodies")},
-        {"env_ids": "instances", "body_ids": "bodies"},
-        "body_props",
-    ),
-    _indexed(
-        "set_coms",
-        {"coms": ("instances", "bodies", 7)},
-        {"env_ids": "instances", "body_ids": "bodies"},
-        "body_props",
-    ),
-    _indexed(
-        "set_inertias",
-        {"inertias": ("instances", "bodies", 9)},
-        {"env_ids": "instances", "body_ids": "bodies"},
-        "body_props",
-    ),
-    _indexed(
+    ("set_joint_position_target", {"target": ("instances", "joints")}, _JOINT_INDEXED, "joint_targets"),
+    ("set_joint_velocity_target", {"target": ("instances", "joints")}, _JOINT_INDEXED, "joint_targets"),
+    ("set_joint_effort_target", {"target": ("instances", "joints")}, _JOINT_INDEXED, "joint_targets"),
+    ("set_masses", {"masses": ("instances", "bodies")}, _BODY_INDEXED, "body_props"),
+    ("set_coms", {"coms": ("instances", "bodies", 7)}, _BODY_INDEXED, "body_props"),
+    ("set_inertias", {"inertias": ("instances", "bodies", 9)}, _BODY_INDEXED, "body_props"),
+    (
         "set_external_force_and_torque",
         {"forces": ("instances", "bodies", 3), "torques": ("instances", "bodies", 3)},
         {"env_ids": "instances"},
@@ -224,28 +139,37 @@ _ARTICULATION_PLAIN = (
     ),
 )
 
+_ARTICULATION_PLAIN = tuple(
+    _with_articulation_ranges(_indexed(method_name, shapes, index_dimensions, category), method_name)
+    for method_name, shapes, index_dimensions, category in _ARTICULATION_WRITERS
+)
+
+# Writers without a mask variant.
+_UNMASKED_ARTICULATION_WRITERS = frozenset(
+    {
+        "write_root_state_to_sim",
+        "write_root_com_state_to_sim",
+        "write_root_link_state_to_sim",
+        "set_external_force_and_torque",
+    }
+)
+
 _ARTICULATION_MASKS = tuple(
-    _masked(
-        f"{spec.method_name}_mask" if not spec.method_name.startswith("set_joint_") else f"{spec.method_name}_mask",
-        {
-            key: shape
-            for key, shape in {
-                "root_pose": ("instances", 7),
-                "root_velocity": ("instances", 6),
-            }.items()
-            if key
-            in (
-                ("root_pose",)
-                if "pose" in spec.method_name
-                else ("root_velocity",)
-                if "velocity_to_sim" in spec.method_name and "joint" not in spec.method_name
-                else ()
-            )
-        },
-        {"env_mask": "instances"},
-        spec.category,
+    _with_articulation_ranges(
+        _masked(
+            f"{method_name}_mask",
+            shapes,
+            {
+                "env_mask": "instances",
+                **({"joint_mask": "joints"} if "joint_ids" in index_dimensions else {}),
+                **({"body_mask": "bodies"} if "body_ids" in index_dimensions else {}),
+            },
+            category,
+        ),
+        method_name,
     )
-    for spec in _ARTICULATION_PLAIN[3:7]
+    for method_name, shapes, index_dimensions, category in _ARTICULATION_WRITERS
+    if method_name not in _UNMASKED_ARTICULATION_WRITERS
 )
 
 
@@ -276,122 +200,40 @@ def _finder_specs(method_name: str) -> tuple[AssetMethodSpec, ...]:
 _ARTICULATION_FINDERS = _finder_specs("find_bodies") + _finder_specs("find_joints")
 
 
-def _articulation_mask_specs() -> tuple[AssetMethodSpec, ...]:
-    specs = list(_ARTICULATION_MASKS)
-    for spec in _ARTICULATION_PLAIN[7:20]:
-        name = f"{spec.method_name}_mask"
-        if spec.method_name == "write_joint_state_to_sim":
-            shapes = {"position": ("instances", "joints"), "velocity": ("instances", "joints")}
-        elif spec.method_name in ("write_joint_position_to_sim",):
-            shapes = {"position": ("instances", "joints")}
-        elif spec.method_name in ("write_joint_velocity_to_sim",):
-            shapes = {"velocity": ("instances", "joints")}
-        elif spec.method_name == "write_joint_stiffness_to_sim":
-            shapes = {"stiffness": ("instances", "joints")}
-        elif spec.method_name == "write_joint_damping_to_sim":
-            shapes = {"damping": ("instances", "joints")}
-        elif "limit" in spec.method_name:
-            shapes = {
-                "limits": (
-                    ("instances", "joints", 2)
-                    if spec.method_name == "write_joint_position_limit_to_sim"
-                    else ("instances", "joints")
-                )
-            }
-        elif spec.method_name == "write_joint_armature_to_sim":
-            shapes = {"armature": ("instances", "joints")}
-        elif spec.method_name == "write_joint_friction_coefficient_to_sim":
-            shapes = {"joint_friction_coeff": ("instances", "joints")}
-        else:
-            shapes = {"target": ("instances", "joints")}
-        mask_spec = _masked(name, shapes, {"env_mask": "instances", "joint_mask": "joints"}, spec.category)
-        if spec.method_name == "write_joint_position_limit_to_sim":
-            mask_spec = _signed_joint_limits(mask_spec)
-        elif scale := _ARTICULATION_GENERATOR_SCALES.get(spec.method_name):
-            mask_spec = _scaled_tensor_field(mask_spec, *scale)
-        specs.append(mask_spec)
-    for spec in _ARTICULATION_PLAIN[20:23]:
-        shape = {
-            "set_masses": {"masses": ("instances", "bodies")},
-            "set_coms": {"coms": ("instances", "bodies", 7)},
-            "set_inertias": {"inertias": ("instances", "bodies", 9)},
-        }[spec.method_name]
-        specs.append(
-            _masked(
-                f"{spec.method_name}_mask",
-                shape,
-                {"env_mask": "instances", "body_mask": "bodies"},
-                spec.category,
-            )
-        )
-    return tuple(specs)
+def _rigid_writers(prefix: str) -> tuple[tuple[str, dict, dict, str], ...]:
+    """Return the rigid pose, velocity, and body-property writers as ``_ARTICULATION_WRITERS``-style rows.
 
-
-def _rigid_methods(prefix: str) -> tuple[AssetMethodSpec, ...]:
+    ``prefix`` is ``"root"`` for rigid objects and ``"body"`` for rigid object collections, whose
+    writers address individual bodies.
+    """
+    per_body = prefix == "body"
+    pose_key, velocity_key = (f"{prefix}_poses", f"{prefix}_velocities") if per_body else ("root_pose", "root_velocity")
+    pose_shape = ("instances", "bodies", 7) if per_body else ("instances", 7)
+    velocity_shape = ("instances", "bodies", 6) if per_body else ("instances", 6)
+    kinematic_indices = _BODY_INDEXED if per_body else {"env_ids": "instances"}
     return (
-        _indexed(
-            f"write_{prefix}_link_pose_to_sim",
-            {
-                f"{prefix}_poses" if prefix == "body" else "root_pose": ("instances", "bodies", 7)
-                if prefix == "body"
-                else ("instances", 7)
-            },
-            {"env_ids": "instances", **({"body_ids": "bodies"} if prefix == "body" else {})},
-            f"{prefix}_pose" if prefix == "body" else "root_pose",
-        ),
-        _indexed(
-            f"write_{prefix}_com_pose_to_sim",
-            {
-                f"{prefix}_poses" if prefix == "body" else "root_pose": ("instances", "bodies", 7)
-                if prefix == "body"
-                else ("instances", 7)
-            },
-            {"env_ids": "instances", **({"body_ids": "bodies"} if prefix == "body" else {})},
-            f"{prefix}_pose" if prefix == "body" else "root_pose",
-        ),
-        _indexed(
+        (f"write_{prefix}_link_pose_to_sim", {pose_key: pose_shape}, kinematic_indices, f"{prefix}_pose"),
+        (f"write_{prefix}_com_pose_to_sim", {pose_key: pose_shape}, kinematic_indices, f"{prefix}_pose"),
+        (
             f"write_{prefix}_link_velocity_to_sim",
-            {
-                f"{prefix}_velocities" if prefix == "body" else "root_velocity": ("instances", "bodies", 6)
-                if prefix == "body"
-                else ("instances", 6)
-            },
-            {"env_ids": "instances", **({"body_ids": "bodies"} if prefix == "body" else {})},
-            f"{prefix}_velocity" if prefix == "body" else "root_velocity",
+            {velocity_key: velocity_shape},
+            kinematic_indices,
+            f"{prefix}_velocity",
         ),
-        _indexed(
+        (
             f"write_{prefix}_com_velocity_to_sim",
-            {
-                f"{prefix}_velocities" if prefix == "body" else "root_velocity": ("instances", "bodies", 6)
-                if prefix == "body"
-                else ("instances", 6)
-            },
-            {"env_ids": "instances", **({"body_ids": "bodies"} if prefix == "body" else {})},
-            f"{prefix}_velocity" if prefix == "body" else "root_velocity",
+            {velocity_key: velocity_shape},
+            kinematic_indices,
+            f"{prefix}_velocity",
         ),
+        ("set_masses", {"masses": ("instances", "bodies")}, _BODY_INDEXED, "body_props"),
+        ("set_coms", {"coms": ("instances", "bodies", 3)}, _BODY_INDEXED, "body_props"),
+        ("set_inertias", {"inertias": ("instances", "bodies", 9)}, _BODY_INDEXED, "body_props"),
     )
 
 
 def _rigid_common(prefix: str) -> tuple[AssetMethodSpec, ...]:
-    return _rigid_methods(prefix) + (
-        _indexed(
-            "set_masses",
-            {"masses": ("instances", "bodies")},
-            {"env_ids": "instances", "body_ids": "bodies"},
-            "body_props",
-        ),
-        _indexed(
-            "set_coms",
-            {"coms": ("instances", "bodies", 3)},
-            {"env_ids": "instances", "body_ids": "bodies"},
-            "body_props",
-        ),
-        _indexed(
-            "set_inertias",
-            {"inertias": ("instances", "bodies", 9)},
-            {"env_ids": "instances", "body_ids": "bodies"},
-            "body_props",
-        ),
+    return tuple(_indexed(*writer) for writer in _rigid_writers(prefix)) + (
         _indexed(
             "set_external_force_and_torque",
             {"forces": ("instances", "bodies", 3), "torques": ("instances", "bodies", 3)},
@@ -402,38 +244,14 @@ def _rigid_common(prefix: str) -> tuple[AssetMethodSpec, ...]:
 
 
 def _rigid_masks(prefix: str) -> tuple[AssetMethodSpec, ...]:
-    pose_key = f"{prefix}_poses" if prefix == "body" else "root_pose"
-    velocity_key = f"{prefix}_velocities" if prefix == "body" else "root_velocity"
-    pose_shape = ("instances", "bodies", 7) if prefix == "body" else ("instances", 7)
-    velocity_shape = ("instances", "bodies", 6) if prefix == "body" else ("instances", 6)
-    masks = {"env_mask": "instances", **({"body_mask": "bodies"} if prefix == "body" else {})}
-    return (
-        _masked(f"write_{prefix}_link_pose_to_sim_mask", {pose_key: pose_shape}, masks, f"{prefix}_pose"),
-        _masked(f"write_{prefix}_com_pose_to_sim_mask", {pose_key: pose_shape}, masks, f"{prefix}_pose"),
+    return tuple(
         _masked(
-            f"write_{prefix}_link_velocity_to_sim_mask", {velocity_key: velocity_shape}, masks, f"{prefix}_velocity"
-        ),
-        _masked(
-            f"write_{prefix}_com_velocity_to_sim_mask", {velocity_key: velocity_shape}, masks, f"{prefix}_velocity"
-        ),
-        _masked(
-            "set_masses_mask",
-            {"masses": ("instances", "bodies")},
-            {"env_mask": "instances", "body_mask": "bodies"},
-            "body_props",
-        ),
-        _masked(
-            "set_coms_mask",
-            {"coms": ("instances", "bodies", 3)},
-            {"env_mask": "instances", "body_mask": "bodies"},
-            "body_props",
-        ),
-        _masked(
-            "set_inertias_mask",
-            {"inertias": ("instances", "bodies", 9)},
-            {"env_mask": "instances", "body_mask": "bodies"},
-            "body_props",
-        ),
+            f"{method_name}_mask",
+            shapes,
+            {"env_mask": "instances", **({"body_mask": "bodies"} if "body_ids" in index_dimensions else {})},
+            category,
+        )
+        for method_name, shapes, index_dimensions, category in _rigid_writers(prefix)
     )
 
 
@@ -690,7 +508,7 @@ _COLLECTION_PROPERTIES = tuple(
 _SUITES = {
     "articulation": AssetBenchmarkSuite(
         component="articulation",
-        methods=_ARTICULATION_PLAIN + _ARTICULATION_FINDERS + _articulation_mask_specs(),
+        methods=_ARTICULATION_PLAIN + _ARTICULATION_FINDERS + _ARTICULATION_MASKS,
         properties=_ARTICULATION_PROPERTIES,
     ),
     "rigid_object": AssetBenchmarkSuite(

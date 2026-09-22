@@ -5,14 +5,155 @@
 
 from __future__ import annotations
 
+import logging
 import warnings
+from collections.abc import Callable
 from dataclasses import MISSING, fields
-from typing import Dict, Literal, TypeVar  # noqa: UP035
+from typing import TYPE_CHECKING, Any, Dict, Literal, TypeVar  # noqa: UP035
 
 import gymnasium as gym
+import numpy as np
 import torch
 
 from isaaclab.utils import configclass
+from isaaclab.utils.seed import configure_seed
+
+if TYPE_CHECKING:
+    from isaaclab.sim import SimulationContext
+
+logger = logging.getLogger(__name__)
+
+##
+# Shared environment helpers.
+##
+
+
+def _seed_env(seed: int) -> int:
+    """Seed the replicator (when available) and the common random number generators."""
+    try:
+        import omni.replicator.core as rep
+
+        rep.set_global_seed(seed)
+    except (ModuleNotFoundError, AttributeError):
+        pass
+    return configure_seed(seed)
+
+
+def _log_env_info(env: Any) -> None:
+    """Print the environment time-step summary and warn about render intervals below the decimation."""
+    print("[INFO]: Base environment:")
+    print(f"\tEnvironment device    : {env.device}")
+    print(f"\tEnvironment seed      : {env.cfg.seed}")
+    print(f"\tPhysics step-size     : {env.physics_dt}")
+    print(f"\tRendering step-size   : {env.physics_dt * env.cfg.sim.render_interval}")
+    print(f"\tEnvironment step-size : {env.step_dt}")
+    if env.cfg.sim.render_interval < env.cfg.decimation:
+        logger.warning(
+            f"The render interval ({env.cfg.sim.render_interval}) is smaller than the decimation"
+            f" ({env.cfg.decimation}). Multiple render calls will happen for each environment step."
+            " If this is not intended, set the render interval to be equal to the decimation."
+        )
+
+
+def _warn_rerender_on_reset_deprecated(cfg: Any, cfg_name: str) -> None:
+    """Map the deprecated ``rerender_on_reset`` flag onto ``num_rerenders_on_reset``."""
+    if not cfg.rerender_on_reset:
+        return
+    warnings.warn(
+        f"\033[93m\033[1m[DEPRECATION WARNING] {cfg_name}.rerender_on_reset is deprecated. Use"
+        f" {cfg_name}.num_rerenders_on_reset instead.\033[0m",
+        FutureWarning,
+        stacklevel=3,
+    )
+    if cfg.num_rerenders_on_reset == 0:
+        cfg.num_rerenders_on_reset = 1
+
+
+def _step_physics(env: Any, apply_action: Callable[[], None], after_step: Callable[[], None] | None = None) -> None:
+    """Advance the simulation by one environment step, honoring decimation and render cadence.
+
+    Backends that fold the decimation into a single :meth:`~isaaclab.sim.SimulationContext.step` call are
+    stepped once; otherwise the physics is stepped ``decimation`` times. Rendering happens whenever the
+    simulation step counter hits a ``render_interval`` boundary and the simulation is rendering. When
+    :attr:`render_enabled` is False the Kit app loop is skipped, but standalone visualizers still update.
+
+    Args:
+        env: The environment being stepped.
+        apply_action: Callback that writes the processed actions into the asset buffers.
+        after_step: Optional callback invoked after each physics step (e.g. recorder hooks).
+    """
+    is_rendering = env.sim.is_rendering
+    render_interval = env.cfg.sim.render_interval
+    if env._physics_handles_decimation:
+        substeps, dt = 1, env.step_dt
+        env._sim_step_counter += env.cfg.decimation
+    else:
+        substeps, dt = env.cfg.decimation, env.physics_dt
+    for _ in range(substeps):
+        if not env._physics_handles_decimation:
+            env._sim_step_counter += 1
+        apply_action()
+        env.scene.write_data_to_sim()
+        env.sim.step(render=False)
+        if after_step is not None:
+            after_step()
+        if is_rendering and env._sim_step_counter % render_interval == 0:
+            env.sim.render(skip_app_pumping=not env.render_enabled)
+        env.scene.update(dt=dt)
+
+
+def _render_env(env: Any, recompute: bool) -> np.ndarray | None:
+    """Shared :meth:`render` implementation for the environment classes."""
+    # with RTX sensors the step already rendered, so only render again when explicitly asked
+    if not env.has_rtx_sensors and not recompute:
+        env.sim.render()
+    if env.render_mode == "rgb_array":
+        warnings.warn(
+            "render_mode='rgb_array' is deprecated and will be removed in a future release. "
+            "Use VideoRecorderCfg on env_cfg.video_recorders to capture frames instead.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        return None
+    if env.render_mode == "human" or env.render_mode is None:
+        return None
+    raise NotImplementedError(
+        f"Render mode '{env.render_mode}' is not supported. Please use: {env.metadata['render_modes']}."
+    )
+
+
+def _set_env_debug_vis(env: Any, debug_vis: bool) -> bool:
+    """Shared :meth:`set_debug_vis` implementation for the direct environment classes."""
+    if not env.has_debug_vis_implementation:
+        return False
+    env._set_debug_vis_impl(debug_vis)
+    if debug_vis:
+        if env._debug_vis_handle is None:
+            env._debug_vis_handle = env.sim.vis_marker_registry.add_debug_vis_callback(env)
+    else:
+        env.sim.vis_marker_registry.clear_debug_vis_callback(env)
+    return True
+
+
+def _episode_scalar_sources(env: Any) -> dict[str, dict[str, Callable[[], float]]]:
+    """Live-plot scalar sources for the mean reward and mean episode length."""
+
+    def mean_reward() -> float:
+        reward_buf = getattr(env, "reward_buf", None)
+        return float(reward_buf.mean()) if reward_buf is not None else 0.0
+
+    return {
+        "episode": {
+            "mean_reward": mean_reward,
+            "episode_length": lambda: float(env.episode_length_buf.float().mean()),
+        }
+    }
+
+
+def _kit_manager_visualizers(sim: SimulationContext) -> dict[str, Any]:
+    """Collect the Kit ``ManagerLiveVisualizer`` widgets exposed by the active visualizers."""
+    return {name: mlv for viz in sim.visualizers for name, mlv in getattr(viz, "kit_manager_visualizers", {}).items()}
+
 
 ##
 # Deprecated: ViewerCfg
@@ -109,8 +250,6 @@ def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
     Must be called before :class:`~isaaclab.sim.SimulationContext` is constructed so
     that the translated cfg is visible to the context.
     """
-    import logging as _logging
-
     viewer = getattr(env_cfg, "viewer", None)
     if viewer is None:
         return
@@ -128,14 +267,14 @@ def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
         return
 
     if cam_prim_path_changed:
-        _logging.getLogger(__name__).warning(
+        logger.warning(
             "env_cfg.viewer.cam_prim_path=%r cannot be automatically forwarded to KitVisualizerCfg "
             "(no equivalent field). Set the camera prim path via the Kit viewport UI or configure "
             "a custom KitVisualizerCfg in env_cfg.sim.visualizer_cfgs.",
             viewer.cam_prim_path,
         )
 
-    _logging.getLogger(__name__).warning(
+    logger.warning(
         "env_cfg.viewer is deprecated. Set env_cfg.sim.default_visualizer_cfg = "
         "KitVisualizerCfg(eye=..., lookat=...) instead. The viewer values have been "
         "automatically forwarded for this run."
@@ -146,7 +285,7 @@ def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
         return
 
     if getattr(sim_cfg, "default_visualizer_cfg", None) is not None:
-        _logging.getLogger(__name__).warning(
+        logger.warning(
             "env_cfg.viewer is deprecated, but its non-default values (eye, lookat, origin_type) "
             "could NOT be forwarded automatically because env_cfg.sim.default_visualizer_cfg is "
             "already set. To silence this warning and preserve your camera settings, migrate to "

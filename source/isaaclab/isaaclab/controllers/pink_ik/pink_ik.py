@@ -14,6 +14,8 @@ Reference:
 
 from __future__ import annotations
 
+import logging
+import tempfile
 from typing import TYPE_CHECKING, cast
 
 import numpy as np
@@ -23,10 +25,10 @@ from pink.tasks import Task
 from qpsolvers.exceptions import SolverNotFound
 
 from isaaclab.assets import ArticulationCfg
-from isaaclab.controllers import utils as controller_utils
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.string import resolve_matching_names_values
 
+from .. import utils as controller_utils
 from .null_space_posture_task import NullSpacePostureTask
 from .pink_kinematics_configuration import PinkKinematicsConfiguration
 from .pink_task_cfg import PinkIKTaskCfg
@@ -34,6 +36,8 @@ from .pink_task_cfg import PinkIKTaskCfg
 if TYPE_CHECKING:
     from .pink_ik_cfg import PinkIKControllerCfg
 
+
+logger = logging.getLogger(__name__)
 
 _QP_SOLVER = "daqp"
 
@@ -84,8 +88,6 @@ class PinkIKController:
 
         # Resolve URDF/mesh paths at runtime. If only usd_path is provided, convert USD→URDF first.
         if cfg.urdf_path is None and cfg.usd_path is not None:
-            import tempfile
-
             urdf_output_dir = cfg.urdf_output_dir or tempfile.gettempdir()
             urdf_path, mesh_path = controller_utils.convert_usd_to_urdf(
                 cfg.usd_path, urdf_output_dir, force_conversion=True
@@ -122,13 +124,13 @@ class PinkIKController:
         self.cfg.fixed_input_tasks = cast(list[Task | PinkIKTaskCfg], self._fixed_input_tasks)
 
         for task in self._variable_input_tasks:
-            # If task is a NullSpacePostureTask, set the target to the initial joint positions
+            # posture tasks start from the configured initial joint positions instead of the model default
             if isinstance(task, NullSpacePostureTask):
                 task.set_target(self.init_joint_positions)
-                continue
-            getattr(task, "set_target_from_configuration")(self.pink_configuration)
+            else:
+                task.set_target_from_configuration(self.pink_configuration)
         for task in self._fixed_input_tasks:
-            getattr(task, "set_target_from_configuration")(self.pink_configuration)
+            task.set_target_from_configuration(self.pink_configuration)
 
         # Create joint ordering mappings
         self._setup_joint_ordering_mappings()
@@ -144,8 +146,6 @@ class PinkIKController:
             ValueError: If any consistency checks fail.
         """
         # Check: Length consistency
-        if cfg.joint_names is None:
-            raise ValueError("cfg.joint_names cannot be None")
         if len(controlled_joint_indices) != len(cfg.joint_names):
             raise ValueError(
                 f"Length mismatch: controlled_joint_indices has {len(controlled_joint_indices)} elements "
@@ -153,31 +153,21 @@ class PinkIKController:
             )
 
         # Check: Joint name consistency - verify that the indices point to the expected joint names
-        if cfg.all_joint_names is None:
-            raise ValueError("cfg.all_joint_names cannot be None")
         actual_joint_names = [cfg.all_joint_names[idx] for idx in controlled_joint_indices]
-        if actual_joint_names != cfg.joint_names:
-            mismatches = []
-            for i, (actual, expected) in enumerate(zip(actual_joint_names, cfg.joint_names)):
-                if actual != expected:
-                    mismatches.append(
-                        f"Index {i}: index {controlled_joint_indices[i]} points to '{actual}' but expected '{expected}'"
-                    )
-            if mismatches:
-                raise ValueError(
-                    "Joint name mismatch between controlled_joint_indices and cfg.joint_names:\n"
-                    + "\n".join(mismatches)
-                )
+        mismatches = [
+            f"Index {i}: index {controlled_joint_indices[i]} points to '{actual}' but expected '{expected}'"
+            for i, (actual, expected) in enumerate(zip(actual_joint_names, cfg.joint_names))
+            if actual != expected
+        ]
+        if mismatches:
+            raise ValueError(
+                "Joint name mismatch between controlled_joint_indices and cfg.joint_names:\n" + "\n".join(mismatches)
+            )
 
     def _setup_joint_ordering_mappings(self):
         """Setup joint ordering mappings between Isaac Lab and Pink conventions."""
         pink_joint_names = self.pink_configuration.all_joint_names_pinocchio_order
         isaac_lab_joint_names = self.cfg.all_joint_names
-
-        if pink_joint_names is None:
-            raise ValueError("pink_joint_names should not be None")
-        if isaac_lab_joint_names is None:
-            raise ValueError("isaac_lab_joint_names should not be None")
 
         # Create reordering arrays for all joints
         self.isaac_lab_to_pink_ordering = np.array(
@@ -189,11 +179,6 @@ class PinkIKController:
         # Create reordering arrays for controlled joints only
         pink_controlled_joint_names = self.pink_configuration.controlled_joint_names_pinocchio_order
         isaac_lab_controlled_joint_names = self.cfg.joint_names
-
-        if pink_controlled_joint_names is None:
-            raise ValueError("pink_controlled_joint_names should not be None")
-        if isaac_lab_controlled_joint_names is None:
-            raise ValueError("isaac_lab_controlled_joint_names should not be None")
 
         self.isaac_lab_to_pink_controlled_ordering = np.array(
             [isaac_lab_controlled_joint_names.index(pink_joint) for pink_joint in pink_controlled_joint_names]
@@ -246,9 +231,9 @@ class PinkIKController:
 
         def _return_current_joint_positions(error: Exception) -> torch.Tensor:
             if self.cfg.show_ik_warnings:
-                print(
-                    "Warning: IK quadratic solver could not find a solution! Did not update the target joint"
-                    f" positions.\nError: {error}"
+                logger.warning(
+                    "IK quadratic solver could not find a solution! Did not update the target joint positions."
+                    f"\nError: {error}"
                 )
 
             if self.cfg.xr_enabled:
@@ -283,7 +268,7 @@ class PinkIKController:
                     "``pyproject.toml``."
                 ) from e
             return _return_current_joint_positions(e)
-        except (AssertionError, Exception) as e:
+        except Exception as e:
             return _return_current_joint_positions(e)
 
         # Reorder the joint angle changes back to Isaac Lab conventions

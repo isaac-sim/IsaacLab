@@ -30,6 +30,7 @@ from isaaclab.actuators import (
 )
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
+from isaaclab.actuators.newton.adapter import LightArticulationView, NewtonActuatorSelection
 from isaaclab.utils.warp import ProxyArray
 
 
@@ -312,8 +313,6 @@ class NativeFakeActuatorControl(FakeActuatorControl):
         return True
 
     def finalize_native_actuators(self, collection):
-        from isaaclab.actuators.newton.adapter import LightArticulationView, NewtonActuatorSelection
-
         return NewtonActuatorSelection(
             view=LightArticulationView(self.num_instances, self.num_joints, self.device),
             actuators=[self.newton_actuator],
@@ -676,8 +675,6 @@ def test_articulation_control_projects_warp_joint_property_selectors():
 
 def test_native_explicit_groups_zero_solver_drives_and_build_no_lab_model(monkeypatch):
     """Zero the solver drives of a native explicit group and expose the Newton actuator."""
-    from isaaclab.actuators.newton.adapter import LightArticulationView, NewtonActuatorSelection
-
     articulation = FakeArticulation()
     articulation.data.joint_stiffness.torch.fill_(17.0)
     articulation.data.joint_damping.torch.fill_(3.0)

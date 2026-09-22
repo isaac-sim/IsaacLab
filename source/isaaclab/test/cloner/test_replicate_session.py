@@ -16,7 +16,7 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import CloneCfg, ClonePlan, UsdReplicateContext, clone_plan_from_env_0, make_clone_plan
 from isaaclab.renderers import RenderContext, RendererCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.sim import CuboidCfg, PinholeCameraCfg, SimulationContext
+from isaaclab.sim import ConeCfg, CuboidCfg, MultiAssetSpawnerCfg, PinholeCameraCfg, SimulationContext, SphereCfg
 
 
 class _Context:
@@ -154,6 +154,52 @@ def test_make_clone_plan_rejects_non_integer_combinations(valid_set):
 
     with pytest.raises(ValueError, match="integer prototype indices"):
         make_clone_plan((cfg,), 2, 1.0, valid_set=valid_set)
+
+
+def test_make_clone_plan_homogeneous_returns_env_root_plan():
+    """Homogeneous (single-variant) cfgs produce one source row at the env root and assign the spawn path."""
+    cube = SimpleNamespace(
+        prim_path="/World/envs/env_[^/]+/Robot", spawn=CuboidCfg(size=(0.1, 0.1, 0.1)), cloning_contexts=None
+    )
+    plan = make_clone_plan(cfgs=[cube], num_clones=4, env_spacing=1.0, global_paths=("/World/Ground",))
+
+    assert plan.sources == ("/World/envs/env_0",)
+    assert plan.destinations == ("/World/envs/env_{}",)
+    assert plan.clone_mask.shape == (1, 4) and plan.clone_mask.all()
+    assert plan.cfg_rows[id(cube)] == (0,)
+    assert plan.global_paths == ("/World/Ground",)
+    assert plan.env_ids.shape == (4,) and plan.positions.shape == (4, 3)
+    assert cube.spawn.spawn_path == "/World/envs/env_0/Robot"
+
+
+def test_make_clone_plan_heterogeneous_mutates_spawn_paths():
+    """Multi-variant spawners get per-variant spawn_paths and contribute multiple plan rows."""
+    multi_cfg = SimpleNamespace(
+        prim_path="/World/envs/env_[^/]+/Object",
+        cloning_contexts=None,
+        spawn=MultiAssetSpawnerCfg(assets_cfg=[ConeCfg(radius=0.1, height=0.2), SphereCfg(radius=0.1)]),
+    )
+    plain_cfg = SimpleNamespace(
+        prim_path="/World/envs/env_[^/]+/Robot", spawn=CuboidCfg(size=(0.1, 0.1, 0.1)), cloning_contexts=None
+    )
+    plan = make_clone_plan(cfgs=[multi_cfg, plain_cfg], num_clones=4, env_spacing=1.0, global_paths=("/World/Ground",))
+
+    assert plan.destinations == ("/World/envs/env_{}/Object", "/World/envs/env_{}/Object", "/World/envs/env_{}/Robot")
+    assert plan.cfg_rows == {id(multi_cfg): (0, 1), id(plain_cfg): (2,)}
+    assert plan.global_paths == ("/World/Ground",)
+    assert multi_cfg.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
+    assert plain_cfg.spawn.spawn_path == "/World/envs/env_0/Robot"
+
+
+def test_make_clone_plan_records_globals_outside_replication_rows():
+    """Global cfgs are named by the plan without becoming rows a backend might copy."""
+    global_paths = ("/World/global/Robot", "/World/ground")
+    plan = make_clone_plan(cfgs=[], num_clones=3, env_spacing=1.0, global_paths=global_paths)
+
+    assert plan.sources == () and plan.destinations == ()
+    assert plan.clone_mask.shape == (0, 3)
+    assert plan.cfg_rows == {}
+    assert plan.global_paths == global_paths
 
 
 def test_grid_transforms_always_returns_float32():

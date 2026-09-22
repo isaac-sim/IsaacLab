@@ -253,7 +253,7 @@ class PhysicsManager(ABC):
         if cid not in cls._callbacks:
             return
 
-        event, callback, order, name, subscription = cls._callbacks.pop(cid)
+        event, _, _, _, subscription = cls._callbacks.pop(cid)
         cls._unsubscribe_from_event(cid, event, subscription)
 
     @classmethod
@@ -267,11 +267,15 @@ class PhysicsManager(ABC):
             event: The event to dispatch.
             payload: Optional data to pass to callbacks.
         """
-        matching = [(cid, cb, order) for cid, (ev, cb, order, name, sub) in cls._callbacks.items() if ev == event]
-        matching.sort(key=lambda x: x[2])
-
-        for _, callback, _ in matching:
+        for callback in cls._callbacks_for(event):
             callback(payload)
+
+    @classmethod
+    def _callbacks_for(cls, event: PhysicsEvent) -> list[Callable]:
+        """Return the callbacks registered for ``event`` in ascending order of priority."""
+        matching = [(order, callback) for ev, callback, order, _, _ in cls._callbacks.values() if ev == event]
+        matching.sort(key=lambda item: item[0])
+        return [callback for _, callback in matching]
 
     @classmethod
     def clear_callbacks(cls) -> None:
@@ -289,9 +293,8 @@ class PhysicsManager(ABC):
         ``_initialize_callback`` by ID collision, leaving the second sensor
         forever uninitialized.
         """
-        for cid in list(cls._callbacks.keys()):
+        for cid in list(cls._callbacks):
             cls.deregister_callback(cid)
-        cls._callbacks.clear()
 
     @classmethod
     def _wrap_weak_ref(cls, callback: Callable) -> Callable:
@@ -492,12 +495,6 @@ class PhysicsManager(ABC):
     @classmethod
     def _dispatch_event_collect_errors(cls, event: PhysicsEvent, payload: Any = None) -> list[Exception]:
         """Dispatch an event to every listener and collect direct or backend-stored failures."""
-        matching = [
-            (callback, order)
-            for registered_event, callback, order, _name, _subscription in cls._callbacks.values()
-            if registered_event == event
-        ]
-        matching.sort(key=lambda item: item[1])
         callback_errors: list[Exception] = []
         raise_stored = getattr(cls, "raise_callback_exception_if_any", None)
 
@@ -508,7 +505,7 @@ class PhysicsManager(ABC):
                 except Exception as exc:
                     callback_errors.append(exc)
 
-        for callback, _order in matching:
+        for callback in cls._callbacks_for(event):
             try:
                 callback(payload)
             except Exception as exc:

@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import warnings
 from abc import ABC, abstractmethod
 
 import warp as wp
@@ -18,6 +17,8 @@ from isaaclab.utils.leapp import (
 )
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
+
+from .._deprecation import warn_renamed_member
 
 
 class BaseRigidObjectCollectionData(ABC):
@@ -592,462 +593,273 @@ class BaseRigidObjectCollectionData(ABC):
     @leapp_tensor_semantics(const=True)
     def default_object_pose(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`default_body_pose` instead."""
-        warnings.warn(
-            "The `default_object_pose` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `default_body_pose` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("default_object_pose", "default_body_pose", kind="property", release="a IsaacLab 4.0")
         return self.default_body_pose
 
     @property
     @leapp_tensor_semantics(const=True)
     def default_object_vel(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`default_body_vel` instead."""
-        warnings.warn(
-            "The `default_object_vel` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `default_body_vel` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("default_object_vel", "default_body_vel", kind="property", release="a IsaacLab 4.0")
         return self.default_body_vel
 
     @property
     @leapp_tensor_semantics(const=True)
     def default_object_state(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`default_body_state` instead."""
-        warnings.warn(
-            "The `default_object_state` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `default_body_state` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("default_object_state", "default_body_state", kind="property", release="a IsaacLab 4.0")
         return self.default_body_state
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
     def object_link_pose_w(self):
         """Deprecated property. Please use :attr:`body_link_pose_w` instead."""
-        warnings.warn(
-            "The `object_link_pose_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_link_pose_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_link_pose_w", "body_link_pose_w", kind="property", release="a IsaacLab 4.0")
         return self.body_link_pose_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose6_resolver)
     def object_link_vel_w(self):
         """Deprecated property. Please use :attr:`body_link_vel_w` instead."""
-        warnings.warn(
-            "The `object_link_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_link_vel_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_link_vel_w", "body_link_vel_w", kind="property", release="a IsaacLab 4.0")
         return self.body_link_vel_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
     def object_com_pose_w(self):
         """Deprecated property. Please use :attr:`body_com_pose_w` instead."""
-        warnings.warn(
-            "The `object_com_pose_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_pose_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_com_pose_w", "body_com_pose_w", kind="property", release="a IsaacLab 4.0")
         return self.body_com_pose_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose6_resolver)
     def object_com_vel_w(self):
         """Deprecated property. Please use :attr:`body_com_vel_w` instead."""
-        warnings.warn(
-            "The `object_com_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_vel_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_com_vel_w", "body_com_vel_w", kind="property", release="a IsaacLab 4.0")
         return self.body_com_vel_w
 
     @property
     @leapp_tensor_semantics(kind="state/body/state")
     def object_state_w(self):
         """Deprecated property. Please use :attr:`body_state_w` instead."""
-        warnings.warn(
-            "The `object_state_w` property will be deprecated in a IsaacLab 4.0. Please use `body_state_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_state_w", "body_state_w", kind="property", release="a IsaacLab 4.0")
         return self.body_state_w
 
     @property
     @leapp_tensor_semantics(kind="state/body/link_state")
     def object_link_state_w(self):
         """Deprecated property. Please use :attr:`body_link_state_w` instead."""
-        warnings.warn(
-            "The `object_link_state_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_link_state_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_link_state_w", "body_link_state_w", kind="property", release="a IsaacLab 4.0")
         return self.body_link_state_w
 
     @property
     @leapp_tensor_semantics(kind="state/body/com_state")
     def object_com_state_w(self):
         """Deprecated property. Please use :attr:`body_com_state_w` instead."""
-        warnings.warn(
-            "The `object_com_state_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_state_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_com_state_w", "body_com_state_w", kind="property", release="a IsaacLab 4.0")
         return self.body_com_state_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_resolver=body_pose6_resolver)
     def object_com_acc_w(self):
         """Deprecated property. Please use :attr:`body_com_acc_w` instead."""
-        warnings.warn(
-            "The `object_com_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_acc_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_com_acc_w", "body_com_acc_w", kind="property", release="a IsaacLab 4.0")
         return self.body_com_acc_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
     def object_com_pose_b(self):
         """Deprecated property. Please use :attr:`body_com_pose_b` instead."""
-        warnings.warn(
-            "The `object_com_pose_b` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_pose_b` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_com_pose_b", "body_com_pose_b", kind="property", release="a IsaacLab 4.0")
         return self.body_com_pose_b
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
     def object_link_pos_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_pos_w` instead."""
-        warnings.warn(
-            "The `object_link_pos_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_link_pos_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_link_pos_w", "body_link_pos_w", kind="property", release="a IsaacLab 4.0")
         return self.body_link_pos_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
     def object_link_quat_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_quat_w` instead."""
-        warnings.warn(
-            "The `object_link_quat_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_link_quat_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_link_quat_w", "body_link_quat_w", kind="property", release="a IsaacLab 4.0")
         return self.body_link_quat_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_link_lin_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_lin_vel_w` instead."""
-        warnings.warn(
-            "The `object_link_lin_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_link_lin_vel_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_link_lin_vel_w", "body_link_lin_vel_w", kind="property", release="a IsaacLab 4.0")
         return self.body_link_lin_vel_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_link_ang_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_ang_vel_w` instead."""
-        warnings.warn(
-            "The `object_link_ang_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_link_ang_vel_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_link_ang_vel_w", "body_link_ang_vel_w", kind="property", release="a IsaacLab 4.0")
         return self.body_link_ang_vel_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
     def object_com_pos_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_pos_w` instead."""
-        warnings.warn(
-            "The `object_com_pos_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_pos_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_com_pos_w", "body_com_pos_w", kind="property", release="a IsaacLab 4.0")
         return self.body_com_pos_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
     def object_com_quat_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_quat_w` instead."""
-        warnings.warn(
-            "The `object_com_quat_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_quat_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_com_quat_w", "body_com_quat_w", kind="property", release="a IsaacLab 4.0")
         return self.body_com_quat_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_com_lin_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_lin_vel_w` instead."""
-        warnings.warn(
-            "The `object_com_lin_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_lin_vel_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_com_lin_vel_w", "body_com_lin_vel_w", kind="property", release="a IsaacLab 4.0")
         return self.body_com_lin_vel_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_com_ang_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_ang_vel_w` instead."""
-        warnings.warn(
-            "The `object_com_ang_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_ang_vel_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_com_ang_vel_w", "body_com_ang_vel_w", kind="property", release="a IsaacLab 4.0")
         return self.body_com_ang_vel_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
     def object_com_lin_acc_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_lin_acc_w` instead."""
-        warnings.warn(
-            "The `object_com_lin_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_lin_acc_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_com_lin_acc_w", "body_com_lin_acc_w", kind="property", release="a IsaacLab 4.0")
         return self.body_com_lin_acc_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
     def object_com_ang_acc_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_ang_acc_w` instead."""
-        warnings.warn(
-            "The `object_com_ang_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_ang_acc_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_com_ang_acc_w", "body_com_ang_acc_w", kind="property", release="a IsaacLab 4.0")
         return self.body_com_ang_acc_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
     def object_com_pos_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_pos_b` instead."""
-        warnings.warn(
-            "The `object_com_pos_b` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_pos_b` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_com_pos_b", "body_com_pos_b", kind="property", release="a IsaacLab 4.0")
         return self.body_com_pos_b
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
     def object_com_quat_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_quat_b` instead."""
-        warnings.warn(
-            "The `object_com_quat_b` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_quat_b` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_com_quat_b", "body_com_quat_b", kind="property", release="a IsaacLab 4.0")
         return self.body_com_quat_b
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_link_lin_vel_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_lin_vel_b` instead."""
-        warnings.warn(
-            "The `object_link_lin_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_link_lin_vel_b` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_link_lin_vel_b", "body_link_lin_vel_b", kind="property", release="a IsaacLab 4.0")
         return self.body_link_lin_vel_b
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_link_ang_vel_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_ang_vel_b` instead."""
-        warnings.warn(
-            "The `object_link_ang_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_link_ang_vel_b` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_link_ang_vel_b", "body_link_ang_vel_b", kind="property", release="a IsaacLab 4.0")
         return self.body_link_ang_vel_b
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_com_lin_vel_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_lin_vel_b` instead."""
-        warnings.warn(
-            "The `object_com_lin_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_lin_vel_b` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_com_lin_vel_b", "body_com_lin_vel_b", kind="property", release="a IsaacLab 4.0")
         return self.body_com_lin_vel_b
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_com_ang_vel_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_ang_vel_b` instead."""
-        warnings.warn(
-            "The `object_com_ang_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_ang_vel_b` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_com_ang_vel_b", "body_com_ang_vel_b", kind="property", release="a IsaacLab 4.0")
         return self.body_com_ang_vel_b
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSE, element_names_resolver=body_pose_resolver)
     def object_pose_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_pose_w` instead."""
-        warnings.warn(
-            "The `object_pose_w` property will be deprecated in a IsaacLab 4.0. Please use `body_link_pose_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_pose_w", "body_link_pose_w", kind="property", release="a IsaacLab 4.0")
         return self.body_link_pose_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_POSITION, element_names_resolver=body_xyz_resolver)
     def object_pos_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_pos_w` instead."""
-        warnings.warn(
-            "The `object_pos_w` property will be deprecated in a IsaacLab 4.0. Please use `body_link_pos_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_pos_w", "body_link_pos_w", kind="property", release="a IsaacLab 4.0")
         return self.body_link_pos_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_ROTATION, element_names_resolver=body_quat_resolver)
     def object_quat_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_link_quat_w` instead."""
-        warnings.warn(
-            "The `object_quat_w` property will be deprecated in a IsaacLab 4.0. Please use `body_link_quat_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_quat_w", "body_link_quat_w", kind="property", release="a IsaacLab 4.0")
         return self.body_link_quat_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_VEL, element_names_resolver=body_pose6_resolver)
     def object_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_vel_w` instead."""
-        warnings.warn(
-            "The `object_vel_w` property will be deprecated in a IsaacLab 4.0. Please use `body_com_vel_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_vel_w", "body_com_vel_w", kind="property", release="a IsaacLab 4.0")
         return self.body_com_vel_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_lin_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_lin_vel_w` instead."""
-        warnings.warn(
-            "The `object_lin_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_lin_vel_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_lin_vel_w", "body_com_lin_vel_w", kind="property", release="a IsaacLab 4.0")
         return self.body_com_lin_vel_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_ang_vel_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_ang_vel_w` instead."""
-        warnings.warn(
-            "The `object_ang_vel_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_ang_vel_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_ang_vel_w", "body_com_ang_vel_w", kind="property", release="a IsaacLab 4.0")
         return self.body_com_ang_vel_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_lin_vel_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_lin_vel_b` instead."""
-        warnings.warn(
-            "The `object_lin_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_lin_vel_b` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_lin_vel_b", "body_com_lin_vel_b", kind="property", release="a IsaacLab 4.0")
         return self.body_com_lin_vel_b
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_VELOCITY, element_names_resolver=body_xyz_resolver)
     def object_ang_vel_b(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_ang_vel_b` instead."""
-        warnings.warn(
-            "The `object_ang_vel_b` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_ang_vel_b` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_ang_vel_b", "body_com_ang_vel_b", kind="property", release="a IsaacLab 4.0")
         return self.body_com_ang_vel_b
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_ACC, element_names_resolver=body_pose6_resolver)
     def object_acc_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_acc_w` instead."""
-        warnings.warn(
-            "The `object_acc_w` property will be deprecated in a IsaacLab 4.0. Please use `body_com_acc_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_acc_w", "body_com_acc_w", kind="property", release="a IsaacLab 4.0")
         return self.body_com_acc_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_LINEAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
     def object_lin_acc_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_lin_acc_w` instead."""
-        warnings.warn(
-            "The `object_lin_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_lin_acc_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_lin_acc_w", "body_com_lin_acc_w", kind="property", release="a IsaacLab 4.0")
         return self.body_com_lin_acc_w
 
     @property
     @leapp_tensor_semantics(kind=InputKindEnum.BODY_ANGULAR_ACCELERATION, element_names_resolver=body_xyz_resolver)
     def object_ang_acc_w(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_com_ang_acc_w` instead."""
-        warnings.warn(
-            "The `object_ang_acc_w` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `body_com_ang_acc_w` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_ang_acc_w", "body_com_ang_acc_w", kind="property", release="a IsaacLab 4.0")
         return self.body_com_ang_acc_w
 
     """
@@ -1058,11 +870,12 @@ class BaseRigidObjectCollectionData(ABC):
     @leapp_tensor_semantics(const=True)
     def default_mass(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_mass` instead and manage the default mass manually."""
-        warnings.warn(
-            "The `default_mass` property will be deprecated in a IsaacLab 4.0. Please use `body_mass` instead. "
-            "The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_mass",
+            "body_mass",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_mass is None:
             self._default_mass = wp.clone(self.body_mass.warp, self.device)
@@ -1072,11 +885,12 @@ class BaseRigidObjectCollectionData(ABC):
     @leapp_tensor_semantics(const=True)
     def default_inertia(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_inertia` instead and manage the default inertia manually."""
-        warnings.warn(
-            "The `default_inertia` property will be deprecated in a IsaacLab 4.0. Please use `body_inertia` instead. "
-            "The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_inertia",
+            "body_inertia",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_inertia is None:
             self._default_inertia = wp.clone(self.body_inertia.warp, self.device)

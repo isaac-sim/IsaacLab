@@ -14,7 +14,7 @@ from isaaclab.utils import configclass
 if TYPE_CHECKING:
     from pxr import Usd
 
-    from isaaclab.sim import schemas
+    from .. import schemas
 
 
 @configclass

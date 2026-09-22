@@ -5,33 +5,22 @@
 
 """Tests for compute-device selection utilities."""
 
-import sys
-from types import SimpleNamespace
+import pytest
+import torch
+import warp as wp
 
 from isaaclab.utils._device import set_cuda_device
 
+pytestmark = pytest.mark.unit
 
-def test_set_cuda_device_sets_torch_before_warp(monkeypatch):
-    """Setting a CUDA device must update PyTorch before Warp."""
+
+@pytest.mark.parametrize(("device", "warp_device"), [("cuda:2", "cuda:2"), (3, "cuda:3")])
+def test_set_cuda_device_sets_torch_before_warp(monkeypatch, device, warp_device):
+    """Select PyTorch's device before Warp, normalizing integer indices for Warp."""
     calls = []
-    torch = SimpleNamespace(cuda=SimpleNamespace(set_device=lambda device: calls.append(("torch", device))))
-    warp = SimpleNamespace(set_device=lambda device: calls.append(("warp", device)))
-    monkeypatch.setitem(sys.modules, "torch", torch)
-    monkeypatch.setitem(sys.modules, "warp", warp)
+    monkeypatch.setattr(torch.cuda, "set_device", lambda device: calls.append(("torch", device)))
+    monkeypatch.setattr(wp, "set_device", lambda device: calls.append(("warp", device)))
 
-    set_cuda_device("cuda:2")
+    set_cuda_device(device)
 
-    assert calls == [("torch", "cuda:2"), ("warp", "cuda:2")]
-
-
-def test_set_cuda_device_normalizes_integer_for_warp(monkeypatch):
-    """An integer device index must be converted to a Warp CUDA alias."""
-    calls = []
-    torch = SimpleNamespace(cuda=SimpleNamespace(set_device=lambda device: calls.append(("torch", device))))
-    warp = SimpleNamespace(set_device=lambda device: calls.append(("warp", device)))
-    monkeypatch.setitem(sys.modules, "torch", torch)
-    monkeypatch.setitem(sys.modules, "warp", warp)
-
-    set_cuda_device(3)
-
-    assert calls == [("torch", 3), ("warp", "cuda:3")]
+    assert calls == [("torch", device), ("warp", warp_device)]

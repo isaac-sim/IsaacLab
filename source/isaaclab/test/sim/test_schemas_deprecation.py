@@ -8,7 +8,8 @@
 The fragment API (one ``@configclass`` per USD applied schema) replaces the inheritance-based
 ``*PropertiesCfg`` / ``*BaseCfg`` classes and the ``define_*`` / ``modify_*`` writers. Both APIs
 coexist: the legacy names must emit a ``DeprecationWarning`` that names their concrete
-replacement, and must keep behaving exactly as before.
+replacement, keep behaving exactly as before, and keep resolving through the forwarding shims for
+the cfgs relocated to the backend packages.
 
 These tests run on an in-memory USD stage and do not launch Isaac Sim / Kit.
 """
@@ -16,6 +17,7 @@ These tests run on an in-memory USD stage and do not launch Isaac Sim / Kit.
 import dataclasses
 import inspect
 import json
+import math
 import subprocess
 import sys
 import warnings
@@ -24,8 +26,8 @@ import pytest
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
+import isaaclab.sim as sim_utils
 import isaaclab.sim.schemas as schemas
-import isaaclab.sim.schemas.schemas as schemas_impl
 import isaaclab.sim.schemas.schemas_cfg as schemas_cfg
 
 pytestmark = [pytest.mark.unit, pytest.mark.kitless]
@@ -87,6 +89,9 @@ DEPRECATED_NEWTON_CFGS = {
     "NewtonArticulationRootPropertiesCfg": _ARTICULATION + ("NewtonArticulationCfg",),
 }
 
+# Deprecated aliases that only exist as shims; their warning names no fragment.
+DEPRECATED_SHIM_ONLY_CFGS = ["FixedTendonPropertiesCfg", "SpatialTendonPropertiesCfg", "DeformableBodyPropertiesCfg"]
+
 # Replacement fragments, which must stay silent.
 CURRENT_CORE_FRAGMENTS = [
     "MassCfg",
@@ -142,6 +147,17 @@ EXCLUDED_DEFORMABLE_SYMBOLS = [
     "define_deformable_curve_properties",
 ]
 
+# Cfg names that moved to a backend package but keep resolving through the core shims.
+FORWARDED_PHYSX_NAMES = sorted(DEPRECATED_PHYSX_CFGS) + [
+    "DeformableBodyPropertiesCfg",
+    "PhysxDeformableBodyPropertiesCfg",
+    "FixedTendonPropertiesCfg",
+    "SpatialTendonPropertiesCfg",
+    "PhysxFixedTendonPropertiesCfg",
+    "PhysxSpatialTendonPropertiesCfg",
+]
+FORWARDED_NEWTON_NAMES = sorted(DEPRECATED_NEWTON_CFGS) + ["NewtonMaterialPropertiesCfg"]
+
 
 def _physx_cfgs():
     """Import the PhysX schema cfg module, skipping the test when the extension is absent."""
@@ -161,8 +177,15 @@ def _deprecations(func):
     return [w for w in caught if issubclass(w.category, DeprecationWarning)]
 
 
+def _legacy(cls, **kwargs):
+    """Instantiate a legacy cfg without its deprecation warning polluting the test."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        return cls(**kwargs)
+
+
 def _assert_deprecated_once(cls, expected: tuple[str, ...]) -> None:
-    """Instantiating ``cls`` raises one deprecation naming every entry of ``expected``, and 5.0."""
+    """Instantiating ``cls`` raises one deprecation naming every entry of ``expected``, and the removal version."""
     deprecations = _deprecations(cls)
     assert len(deprecations) == 1, f"{cls.__name__}: expected one DeprecationWarning, got {len(deprecations)}"
     message = str(deprecations[0].message)
@@ -170,6 +193,11 @@ def _assert_deprecated_once(cls, expected: tuple[str, ...]) -> None:
     missing = [name for name in expected if name not in message]
     assert not missing, f"{cls.__name__}: warning omits {missing}: {message}"
     assert "3.2" in message, f"{cls.__name__}: warning does not state the removal version: {message}"
+
+
+def _api_schemas(prim: Usd.Prim) -> set[str]:
+    """Applied API schema names including unregistered token schemas."""
+    return set(prim.GetPrimTypeInfo().GetAppliedAPISchemas())
 
 
 """
@@ -193,6 +221,14 @@ def test_legacy_physx_cfg_warns_on_instantiation(name, expected):
 def test_legacy_newton_cfg_warns_on_instantiation(name, expected):
     """Each legacy Newton cfg warns once, naming every fragment its fields need."""
     _assert_deprecated_once(getattr(_newton_cfgs(), name), expected)
+
+
+@pytest.mark.parametrize("name", DEPRECATED_SHIM_ONLY_CFGS)
+def test_deprecated_shim_alias_warns_once(name):
+    _physx_cfgs()
+    deprecations = _deprecations(getattr(schemas, name))
+    assert len(deprecations) == 1, f"{name}: expected one DeprecationWarning, got {len(deprecations)}"
+    assert "3.2" in str(deprecations[0].message)
 
 
 @pytest.mark.parametrize("name", CURRENT_CORE_FRAGMENTS)
@@ -270,48 +306,41 @@ Deprecated cfg classes keep working.
 """
 
 
-def test_legacy_cfg_keeps_field_values():
-    """The deprecation wrapper must forward every constructor argument unchanged."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        cfg = schemas_cfg.MassPropertiesCfg(mass=2.5, density=1200.0)
-    assert cfg.mass == 2.5
-    assert cfg.density == 1200.0
+def test_legacy_cfg_keeps_dataclass_behaviour():
+    """The deprecation wrapper forwards arguments and keeps the configclass helpers and signature."""
+    cfg = _legacy(schemas_cfg.MassPropertiesCfg, mass=2.5, density=1200.0)
+    assert (cfg.mass, cfg.density) == (2.5, 1200.0)
     assert [f.name for f in dataclasses.fields(cfg)] == ["mass", "density"]
-
-
-def test_legacy_cfg_keeps_configclass_helpers():
-    """``to_dict`` / ``copy`` / ``replace`` must survive the deprecation wrapper."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        cfg = schemas_cfg.MassPropertiesCfg(mass=2.5, density=1200.0)
-        assert cfg.to_dict()["mass"] == 2.5
-        assert cfg.copy().density == 1200.0
-        assert cfg.replace(mass=4.0).mass == 4.0
-        assert dataclasses.replace(cfg, mass=6.0).mass == 6.0
-
-
-def test_legacy_cfg_keeps_init_signature():
-    """``inspect.signature`` must still report the dataclass fields, not ``*args, **kwargs``."""
-    parameters = inspect.signature(schemas_cfg.MassPropertiesCfg.__init__).parameters
-    assert list(parameters) == ["self", "mass", "density"]
+    assert cfg.to_dict()["mass"] == 2.5
+    assert cfg.copy().density == 1200.0
+    assert cfg.replace(mass=4.0).mass == 4.0
+    assert dataclasses.replace(cfg, mass=6.0).mass == 6.0
+    assert list(inspect.signature(schemas_cfg.MassPropertiesCfg.__init__).parameters) == ["self", "mass", "density"]
 
 
 def test_legacy_cfg_keeps_field_alias_forwarding():
     """The renamed-field aliases on the legacy joint-drive cfg still forward."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        cfg = schemas_cfg.JointDriveBaseCfg(max_effort=80.0, max_velocity=5.0)
-    assert cfg.max_force == 80.0
-    assert cfg.max_joint_velocity == 5.0
+    cfg = _legacy(schemas_cfg.JointDriveBaseCfg, max_effort=80.0, max_velocity=5.0)
+    assert cfg.max_force == 80.0 and cfg.max_effort is None
+    assert cfg.max_joint_velocity == 5.0 and cfg.max_velocity is None
 
 
 def test_legacy_cfg_subclass_warns_only_for_itself():
     """A legacy subclass warns once for its own name, not once per legacy base."""
-    physx_cfg = _physx_cfgs()
-    deprecations = _deprecations(physx_cfg.RigidBodyPropertiesCfg)
+    deprecations = _deprecations(_physx_cfgs().RigidBodyPropertiesCfg)
     assert len(deprecations) == 1
     assert "RigidBodyPropertiesCfg is deprecated" in str(deprecations[0].message)
+
+
+def test_usd_api_physx_api_attrs_deprecated():
+    """Reading ``usd_api`` / ``physx_api`` on a mesh cfg warns and returns the legacy-mapped value."""
+    cfg = _legacy(_physx_cfgs().PhysxConvexHullPropertiesCfg)
+    with pytest.warns(DeprecationWarning, match="usd_api"):
+        assert cfg.usd_api == "MeshCollisionAPI"
+    with pytest.warns(DeprecationWarning, match="physx_api"):
+        assert cfg.physx_api == "PhysxConvexHullCollisionAPI"
+    with pytest.raises(AttributeError):
+        cfg.no_such_attribute
 
 
 """
@@ -344,17 +373,13 @@ def test_legacy_mass_writer_warns_once_and_traverses_children(name):
     stage, prim_path = _stage_with_rigid_body()
     child = UsdGeom.Cube.Define(stage, f"{prim_path}/Child").GetPrim()
     UsdPhysics.MassAPI.Apply(child)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        cfg = schemas_cfg.MassPropertiesCfg(mass=3.0)
+    cfg = _legacy(schemas_cfg.MassPropertiesCfg, mass=3.0)
 
     deprecations = _deprecations(lambda: getattr(schemas, name)(prim_path, cfg, stage))
     assert len(deprecations) == 1
     assert deprecations[0].filename == __file__
     message = str(deprecations[0].message)
-    assert f"{name} is deprecated" in message
-    assert "apply_mass_properties" in message
-    assert "3.2" in message
+    assert f"{name} is deprecated" in message and "apply_mass_properties" in message and "3.2" in message
     assert stage.GetPrimAtPath(prim_path).GetAttribute("physics:mass").Get() == pytest.approx(3.0)
     assert child.GetAttribute("physics:mass").Get() == pytest.approx(3.0)
 
@@ -366,11 +391,8 @@ def test_legacy_collision_writer_warns_once_despite_mesh_delegation(name):
     prim_path = "/World/Mesh"
     prim = UsdGeom.Mesh.Define(stage, prim_path).GetPrim()
     UsdPhysics.CollisionAPI.Apply(prim)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        cfg = schemas_cfg.CollisionBaseCfg(
-            mesh_collision_property=schemas_cfg.MeshCollisionBaseCfg(mesh_approximation_name="boundingCube")
-        )
+    mesh_cfg = _legacy(schemas_cfg.MeshCollisionBaseCfg, mesh_approximation_name="boundingCube")
+    cfg = _legacy(schemas_cfg.CollisionBaseCfg, mesh_collision_property=mesh_cfg)
 
     deprecations = _deprecations(lambda: getattr(schemas, name)(prim_path, cfg, stage))
     assert len(deprecations) == 1
@@ -379,32 +401,177 @@ def test_legacy_collision_writer_warns_once_despite_mesh_delegation(name):
 
 
 def test_modify_rigid_body_properties_warns_and_writes():
-    """The legacy rigid-body writer warns once and still authors ``physics:kinematicEnabled``."""
+    """The legacy rigid-body writer warns once, still authors and raises on a missing prim."""
     stage, prim_path = _stage_with_rigid_body()
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        cfg = schemas_cfg.RigidBodyBaseCfg(kinematic_enabled=True)
-
+    cfg = _legacy(schemas_cfg.RigidBodyBaseCfg, kinematic_enabled=True)
     deprecations = _deprecations(lambda: schemas.modify_rigid_body_properties(prim_path, cfg, stage))
     assert len(deprecations) == 1
     assert "apply_rigid_body_properties" in str(deprecations[0].message)
     assert stage.GetPrimAtPath(prim_path).GetAttribute("physics:kinematicEnabled").Get() is True
+    with pytest.raises(ValueError), warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        schemas.modify_rigid_body_properties("/World/DoesNotExist", cfg, stage)
 
 
 def test_apply_mass_properties_does_not_warn():
     """The fragment writer is the replacement and must stay silent."""
     stage, prim_path = _stage_with_rigid_body()
     fragment = schemas_cfg.MassCfg(mass=5.0)
-
     deprecations = _deprecations(lambda: schemas.apply_mass_properties(prim_path, [fragment], stage=stage))
     assert deprecations == []
     assert stage.GetPrimAtPath(prim_path).GetAttribute("physics:mass").Get() == pytest.approx(5.0)
 
 
-def test_legacy_writers_do_not_track_warning_depth():
-    """Keep deprecation at public entry points, without custom nesting state."""
-    for name in ("_deprecated_schema_writer", "_legacy_writer_state", "_legacy_writer_depth"):
-        assert not hasattr(schemas_impl, name)
+"""
+Deprecated writers keep their USD routing.
+
+Base-cfg fields whose USD attribute is PhysX-namespaced apply the PhysX schema only when set, so
+Newton-targeted assets do not get PhysX schemas stamped on them.
+"""
+
+
+@pytest.fixture
+def stage() -> Usd.Stage:
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World")
+    return stage
+
+
+def test_legacy_joint_drive_cfg_gates_physx_joint_schema(stage):
+    """``max_joint_velocity`` on the base cfg authors ``physxJoint:maxJointVelocity`` in deg/s, and only then."""
+    writer = inspect.unwrap(schemas.modify_joint_drive_properties)
+    for name in ("j0", "j1"):
+        UsdPhysics.RevoluteJoint.Define(stage, f"/World/{name}")
+    with_limit = _legacy(
+        schemas_cfg.JointDriveBaseCfg, drive_type="acceleration", max_force=80.0, max_joint_velocity=10.0
+    )
+    writer("/World/j0", with_limit, stage)
+    j0 = stage.GetPrimAtPath("/World/j0")
+    assert j0.GetAttribute("physxJoint:maxJointVelocity").Get() == pytest.approx(math.degrees(10.0))
+    assert j0.GetAttribute("drive:angular:physics:maxForce").Get() == pytest.approx(80.0)
+    without_limit = _legacy(schemas_cfg.JointDriveBaseCfg, drive_type="acceleration", max_force=80.0, stiffness=10.0)
+    writer("/World/j1", without_limit, stage)
+    j1 = stage.GetPrimAtPath("/World/j1")
+    assert "PhysxJointAPI" not in _api_schemas(j1)
+    assert j1.GetAttribute("drive:angular:physics:stiffness").Get() == pytest.approx(math.radians(10.0))
+
+
+def test_legacy_rigid_body_cfgs_gate_physx_schema(stage):
+    physx_cfg = _physx_cfgs()
+    UsdGeom.Cube.Define(stage, "/World/gravity")
+    UsdGeom.Cube.Define(stage, "/World/plain")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        schemas.define_rigid_body_properties(
+            "/World/gravity",
+            _legacy(schemas_cfg.RigidBodyBaseCfg, rigid_body_enabled=True, disable_gravity=True),
+            stage,
+        )
+        schemas.define_rigid_body_properties(
+            "/World/plain", _legacy(physx_cfg.PhysxRigidBodyPropertiesCfg, rigid_body_enabled=True), stage
+        )
+    gravity = stage.GetPrimAtPath("/World/gravity")
+    assert gravity.GetAttribute("physxRigidBody:disableGravity").Get() is True
+    assert "PhysxRigidBodyAPI" in _api_schemas(gravity)
+    plain = stage.GetPrimAtPath("/World/plain")
+    assert plain.GetAttribute("physics:rigidBodyEnabled").Get() is True
+    assert "PhysxRigidBodyAPI" not in _api_schemas(plain)
+
+
+def test_legacy_collision_cfgs_gate_physx_schema(stage):
+    physx_cfg = _physx_cfgs()
+    cases = {
+        "/World/offsets": (
+            _legacy(schemas_cfg.CollisionBaseCfg, collision_enabled=True, contact_offset=0.05, rest_offset=0.001),
+            {"physxCollision:contactOffset": 0.05, "physxCollision:restOffset": 0.001},
+        ),
+        "/World/plain": (_legacy(schemas_cfg.CollisionBaseCfg, collision_enabled=True), {}),
+        "/World/torsional": (
+            _legacy(physx_cfg.PhysxCollisionPropertiesCfg, torsional_patch_radius=1.0),
+            {"physxCollision:torsionalPatchRadius": 1.0},
+        ),
+    }
+    for path, (cfg, expected) in cases.items():
+        UsdGeom.Cube.Define(stage, path)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            schemas.define_collision_properties(path, cfg, stage)
+        prim = stage.GetPrimAtPath(path)
+        assert ("PhysxCollisionAPI" in _api_schemas(prim)) is bool(expected), path
+        for attr, value in expected.items():
+            assert prim.GetAttribute(attr).Get() == pytest.approx(value), attr
+    assert stage.GetPrimAtPath("/World/plain").GetAttribute("physics:collisionEnabled").Get() is True
+
+
+def test_legacy_articulation_cfgs_gate_physx_schema_and_mirror_newton(stage):
+    physx_cfg = _physx_cfgs()
+    for path in ("/World/enabled", "/World/topology", "/World/self_collisions"):
+        UsdGeom.Xform.Define(stage, path)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        schemas.define_articulation_root_properties(
+            "/World/enabled", _legacy(schemas_cfg.ArticulationRootBaseCfg, articulation_enabled=False), stage
+        )
+        schemas.define_articulation_root_properties(
+            "/World/topology", _legacy(schemas_cfg.ArticulationRootBaseCfg, fix_root_link=False), stage
+        )
+        schemas.define_articulation_root_properties(
+            "/World/self_collisions",
+            _legacy(physx_cfg.PhysxArticulationRootPropertiesCfg, enabled_self_collisions=True),
+            stage,
+        )
+    enabled = stage.GetPrimAtPath("/World/enabled")
+    assert enabled.GetAttribute("physxArticulation:articulationEnabled").Get() is False
+    assert "PhysxArticulationAPI" in _api_schemas(enabled)
+    # the topology flag alone authors no PhysX attribute, so no PhysX schema is stamped
+    assert "PhysxArticulationAPI" not in _api_schemas(stage.GetPrimAtPath("/World/topology"))
+    mirrored = stage.GetPrimAtPath("/World/self_collisions")
+    assert mirrored.GetAttribute("physxArticulation:enabledSelfCollisions").Get() is True
+    assert mirrored.GetAttribute("newton:selfCollisionEnabled").Get() is True
+    assert {"PhysxArticulationAPI", "NewtonArticulationRootAPI"} <= _api_schemas(mirrored)
+
+
+def test_legacy_mesh_collision_cfgs_gate_cooking_schema(stage):
+    physx_cfg = _physx_cfgs()
+    cases = {
+        "/World/base": (
+            _legacy(schemas_cfg.MeshCollisionBaseCfg, mesh_approximation_name="boundingCube"),
+            "boundingCube",
+            False,
+        ),
+        "/World/tuned": (_legacy(physx_cfg.PhysxConvexHullPropertiesCfg, hull_vertex_limit=64), "convexHull", True),
+        "/World/untuned": (_legacy(physx_cfg.PhysxConvexHullPropertiesCfg), "convexHull", False),
+    }
+    for path, (cfg, token, cooking_schema) in cases.items():
+        UsdGeom.Mesh.Define(stage, path)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            schemas.define_mesh_collision_properties(path, cfg, stage)
+        prim = stage.GetPrimAtPath(path)
+        assert prim.HasAPI(UsdPhysics.MeshCollisionAPI), path
+        assert prim.GetAttribute("physics:approximation").Get() == token, path
+        assert ("PhysxConvexHullCollisionAPI" in _api_schemas(prim)) is cooking_schema, path
+    assert stage.GetPrimAtPath("/World/tuned").GetAttribute("physxConvexHullCollision:hullVertexLimit").Get() == 64
+
+
+def test_legacy_nested_writers_reach_nested_rigid_bodies(stage):
+    """Child links authored under their parent link (URDF importer) are all modified."""
+    physx_cfg = _physx_cfgs()
+    paths = ["/World/Robot/pelvis", "/World/Robot/pelvis/hip", "/World/Robot/pelvis/hip/knee"]
+    for path in paths:
+        prim = UsdGeom.Xform.Define(stage, path).GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(prim)
+        UsdPhysics.MassAPI.Apply(prim)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        schemas.modify_rigid_body_properties(
+            "/World/Robot", physx_cfg.RigidBodyPropertiesCfg(disable_gravity=True), stage
+        )
+        schemas.modify_mass_properties("/World/Robot", schemas_cfg.MassPropertiesCfg(mass=2.5), stage)
+    for path in paths:
+        prim = stage.GetPrimAtPath(path)
+        assert prim.GetAttribute("physxRigidBody:disableGravity").Get() is True, path
+        assert prim.GetAttribute("physics:mass").Get() == pytest.approx(2.5), path
 
 
 """
@@ -423,10 +590,7 @@ def _surviving(probe, **filter_kwargs) -> int:
 
 def _legacy_writer_probe():
     stage, prim_path = _stage_with_rigid_body()
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        cfg = schemas_cfg.MassPropertiesCfg(mass=3.0)
-    schemas.modify_mass_properties(prim_path, cfg, stage)
+    schemas.modify_mass_properties(prim_path, _legacy(schemas_cfg.MassPropertiesCfg, mass=3.0), stage)
 
 
 def test_documented_message_filter_silences_legacy_cfgs_and_writers():
@@ -455,3 +619,36 @@ def test_module_filter_cannot_silence_these_warnings():
     """
     assert _surviving(schemas_cfg.MassPropertiesCfg, module="isaaclab.sim.schemas.*") == 1
     assert _surviving(_legacy_writer_probe, module="isaaclab.sim.schemas.*") == 1
+
+
+"""
+Forwarding shims for the cfgs relocated to the backend packages.
+"""
+
+
+@pytest.mark.parametrize("name", FORWARDED_PHYSX_NAMES)
+def test_physx_shims_resolve_to_relocated_class(name):
+    """Every public access path resolves to the class object defined in ``isaaclab_physx``."""
+    expected = getattr(_physx_cfgs(), name)
+    assert getattr(schemas, name) is expected
+    assert getattr(schemas_cfg, name) is expected
+    assert getattr(sim_utils, name) is expected
+    assert name in dir(schemas)
+
+
+@pytest.mark.parametrize("name", FORWARDED_NEWTON_NAMES)
+def test_newton_shims_resolve_to_relocated_class(name):
+    """Every public access path resolves to the class object defined in ``isaaclab_newton``."""
+    expected = getattr(_newton_cfgs(), name)
+    assert getattr(schemas, name) is expected
+    assert getattr(schemas_cfg, name) is expected
+    assert getattr(sim_utils, name) is expected
+    assert name in dir(schemas)
+
+
+def test_shims_reject_unknown_and_backend_component_names():
+    """Component deformable cfgs are backend-owned and not forwarded from ``isaaclab``."""
+    for module in (schemas, schemas_cfg, sim_utils):
+        assert not hasattr(module, "PhysXDeformableBodyPropertiesCfg")
+    with pytest.raises(AttributeError):
+        schemas_cfg.NoSuchCfg

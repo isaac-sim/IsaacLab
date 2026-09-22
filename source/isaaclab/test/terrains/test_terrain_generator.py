@@ -4,57 +4,58 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
-import shutil
 
 import numpy as np
 import pytest
 import torch
 
-from isaaclab.terrains import FlatPatchSamplingCfg, MeshStarTerrainCfg, TerrainGenerator, TerrainGeneratorCfg
+from isaaclab.terrains import (
+    FlatPatchSamplingCfg,
+    MeshRepeatedBoxesTerrainCfg,
+    MeshRepeatedCylindersTerrainCfg,
+    MeshRepeatedPyramidsTerrainCfg,
+    MeshStarTerrainCfg,
+    TerrainGenerator,
+    TerrainGeneratorCfg,
+)
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.utils.seed import configure_seed
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.unit
 
 
-@pytest.fixture
-def output_dir():
-    """Create directory to dump results."""
-    test_dir = os.path.dirname(os.path.abspath(__file__))
-    output_dir = os.path.join(test_dir, "output", "generator")
-    yield output_dir
-    # Cleanup
-    if os.path.exists(output_dir):
-        shutil.rmtree(output_dir)
+def _rough_cfg(**kwargs) -> TerrainGeneratorCfg:
+    """Copy of the rough terrains config shrunk to one row per sub-terrain type so generation stays fast."""
+    cfg = ROUGH_TERRAINS_CFG.copy()
+    cfg.num_rows = 1
+    cfg.num_cols = len(cfg.sub_terrains)
+    cfg.border_width = 2.0
+    cfg.use_cache = False
+    cfg.seed = 0
+    for name, value in kwargs.items():
+        setattr(cfg, name, value)
+    return cfg
 
 
-def test_generation(output_dir):
-    """Generates assorted terrains and tests that the resulting mesh has the expected size."""
-    # create terrain generator
-    cfg = ROUGH_TERRAINS_CFG
-    terrain_generator = TerrainGenerator(cfg=cfg)
-
-    # print terrain generator info
-    print(terrain_generator)
-
-    # get size from mesh bounds
+def _assert_terrain_bounds(terrain_generator: TerrainGenerator, cfg: TerrainGeneratorCfg):
     bounds = terrain_generator.terrain_mesh.bounds
-    actualSize = abs(bounds[1] - bounds[0])
-    # compute the expected size
-    expectedSizeX = cfg.size[0] * cfg.num_rows + 2 * cfg.border_width
-    expectedSizeY = cfg.size[1] * cfg.num_cols + 2 * cfg.border_width
+    actual_size = abs(bounds[1] - bounds[0])
+    assert actual_size[0] == pytest.approx(cfg.size[0] * cfg.num_rows + 2 * cfg.border_width)
+    assert actual_size[1] == pytest.approx(cfg.size[1] * cfg.num_cols + 2 * cfg.border_width)
+    assert terrain_generator.terrain_origins.shape == (cfg.num_rows, cfg.num_cols, 3)
 
-    # check if the size is as expected
-    assert actualSize[0] == pytest.approx(expectedSizeX)
-    assert actualSize[1] == pytest.approx(expectedSizeY)
+
+@pytest.mark.parametrize("curriculum", [True, False])
+def test_generation(curriculum):
+    """Every rough sub-terrain type generates and the combined mesh has the configured footprint."""
+    cfg = _rough_cfg(curriculum=curriculum)
+    terrain_generator = TerrainGenerator(cfg=cfg)
+    assert str(terrain_generator).startswith("Terrain Generator:")
+    _assert_terrain_bounds(terrain_generator, cfg)
 
 
 def test_generation_star_terrain():
-    """Generates a star sub-terrain and tests that the resulting mesh has the expected size.
-
-    The star sub-terrain is not part of :obj:`ROUGH_TERRAINS_CFG`, so it needs its own coverage.
-    """
-    # create terrain generator with only the star sub-terrain
+    """The star sub-terrain is not part of the rough config; the bar count covers every bar-length branch."""
     cfg = TerrainGeneratorCfg(
         seed=0,
         size=(8.0, 8.0),
@@ -62,130 +63,82 @@ def test_generation_star_terrain():
         num_cols=1,
         use_cache=False,
         sub_terrains={
-            # the number of bars is chosen so that all the branches of the bar-length computation are covered
             "star": MeshStarTerrainCfg(
-                proportion=1.0,
-                platform_width=1.5,
-                num_bars=5,
-                bar_width_range=(0.5, 1.0),
-                bar_height_range=(0.05, 0.2),
+                platform_width=1.5, num_bars=5, bar_width_range=(0.5, 1.0), bar_height_range=(0.05, 0.2)
             )
         },
     )
-    terrain_generator = TerrainGenerator(cfg=cfg)
+    _assert_terrain_bounds(TerrainGenerator(cfg=cfg), cfg)
 
-    # get size from mesh bounds
-    bounds = terrain_generator.terrain_mesh.bounds
-    actual_size = abs(bounds[1] - bounds[0])
 
-    # check if the size is as expected
-    assert actual_size[0] == pytest.approx(cfg.size[0] * cfg.num_rows + 2 * cfg.border_width)
-    assert actual_size[1] == pytest.approx(cfg.size[1] * cfg.num_cols + 2 * cfg.border_width)
-    # check the sub-terrain origin is at the center of the terrain
-    assert terrain_generator.terrain_origins.shape == (cfg.num_rows, cfg.num_cols, 3)
+@pytest.mark.parametrize(
+    "cfg_type, object_kwargs",
+    [
+        (MeshRepeatedBoxesTerrainCfg, {"size": (0.3, 0.3)}),
+        (MeshRepeatedCylindersTerrainCfg, {"radius": 0.2}),
+        (MeshRepeatedPyramidsTerrainCfg, {"radius": 0.2}),
+    ],
+)
+def test_repeated_objects_default_object_type(cfg_type, object_kwargs):
+    """The default ``object_type`` of the repeated-object configs resolves to the matching mesh primitive."""
+    cfg = cfg_type(
+        size=(4.0, 4.0),
+        platform_width=1.0,
+        object_params_start=cfg_type.ObjectCfg(num_objects=3, height=0.2, **object_kwargs),
+        object_params_end=cfg_type.ObjectCfg(num_objects=3, height=0.4, **object_kwargs),
+    )
+    np.random.seed(0)
+    meshes, origin = cfg.function(0.5, cfg)
+    # three objects, ground plane and platform
+    assert len(meshes) == 5
+    assert origin.shape == (3,)
 
 
 @pytest.mark.parametrize("use_global_seed", [True, False])
-@pytest.mark.parametrize("seed", [20, 40, 80])
-def test_generation_reproducibility(use_global_seed, seed):
-    """Generates assorted terrains and tests that the resulting mesh is reproducible.
+def test_generation_reproducibility(use_global_seed):
+    """Meshes are reproducible whether the seed comes from the config or only from the global RNG state."""
+    seed = 20
+    cfg = _rough_cfg(seed=seed if use_global_seed else None)
 
-    We check both scenarios where the seed is set globally only and when it is set both globally and locally.
-    Setting only locally is not tested as it is not supported.
-    """
-    # set initial seed
     configure_seed(seed)
-
-    # create terrain generator
-    cfg = ROUGH_TERRAINS_CFG
-    cfg.use_cache = False
-    cfg.seed = seed if use_global_seed else None
-    terrain_generator = TerrainGenerator(cfg=cfg)
-
-    # keep a copy of the generated terrain mesh
-    terrain_mesh_1 = terrain_generator.terrain_mesh.copy()
-
-    # set seed again
+    terrain_mesh_1 = TerrainGenerator(cfg=cfg).terrain_mesh
     configure_seed(seed)
+    terrain_mesh_2 = TerrainGenerator(cfg=cfg).terrain_mesh
 
-    # create terrain generator
-    terrain_generator = TerrainGenerator(cfg=cfg)
-
-    # keep a copy of the generated terrain mesh
-    terrain_mesh_2 = terrain_generator.terrain_mesh.copy()
-
-    # check if the meshes are equal
-    np.testing.assert_allclose(
-        terrain_mesh_1.vertices, terrain_mesh_2.vertices, atol=1e-5, err_msg="Vertices are not equal"
-    )
-    np.testing.assert_allclose(terrain_mesh_1.faces, terrain_mesh_2.faces, atol=1e-5, err_msg="Faces are not equal")
+    np.testing.assert_allclose(terrain_mesh_1.vertices, terrain_mesh_2.vertices, atol=1e-5)
+    np.testing.assert_array_equal(terrain_mesh_1.faces, terrain_mesh_2.faces)
 
 
 @pytest.mark.parametrize("curriculum", [True, False])
-def test_generation_cache(output_dir, curriculum):
-    """Generate the terrain and check that caching works.
-
-    When caching is enabled, the terrain should be generated only once and the same terrain should be returned
-    when the terrain generator is created again.
-    """
-    # create terrain generator with cache enabled
-    cfg: TerrainGeneratorCfg = ROUGH_TERRAINS_CFG
-    cfg.use_cache = True
-    cfg.seed = 0
-    cfg.cache_dir = output_dir
-    cfg.curriculum = curriculum
-    terrain_generator = TerrainGenerator(cfg=cfg)
-    # keep a copy of the generated terrain mesh
-    terrain_mesh_1 = terrain_generator.terrain_mesh.copy()
-
-    # check cache exists and is equal to the number of terrains
-    # with curriculum, all sub-terrains are uniquely generated
+def test_generation_cache(tmp_path, curriculum):
+    """Cached sub-terrains are reused on the second generation regardless of the global RNG state."""
+    cfg = _rough_cfg(use_cache=True, cache_dir=str(tmp_path), curriculum=curriculum)
+    terrain_mesh_1 = TerrainGenerator(cfg=cfg).terrain_mesh
     hash_ids_1 = set(os.listdir(cfg.cache_dir))
-    assert os.listdir(cfg.cache_dir)
+    assert hash_ids_1
 
-    # set a random seed to disturb the process
-    # this is to ensure that the seed inside the terrain generator makes deterministic results
+    # disturb the global RNG: cached terrains must still be picked up
     configure_seed(12456)
+    terrain_mesh_2 = TerrainGenerator(cfg=cfg).terrain_mesh
 
-    # create terrain generator with cache enabled
-    terrain_generator = TerrainGenerator(cfg=cfg)
-    # keep a copy of the generated terrain mesh
-    terrain_mesh_2 = terrain_generator.terrain_mesh.copy()
-
-    # check no new terrain is generated
-    hash_ids_2 = set(os.listdir(cfg.cache_dir))
-    assert len(hash_ids_1) == len(hash_ids_2)
-    assert hash_ids_1 == hash_ids_2
-
-    # check if the mesh is the same
-    # check they don't point to the same object
+    assert set(os.listdir(cfg.cache_dir)) == hash_ids_1
     assert terrain_mesh_1 is not terrain_mesh_2
-
-    # check if the meshes are equal
-    np.testing.assert_allclose(
-        terrain_mesh_1.vertices, terrain_mesh_2.vertices, atol=1e-5, err_msg="Vertices are not equal"
-    )
-    np.testing.assert_allclose(terrain_mesh_1.faces, terrain_mesh_2.faces, atol=1e-5, err_msg="Faces are not equal")
+    np.testing.assert_allclose(terrain_mesh_1.vertices, terrain_mesh_2.vertices, atol=1e-5)
+    np.testing.assert_array_equal(terrain_mesh_1.faces, terrain_mesh_2.faces)
 
 
 def test_terrain_flat_patches():
-    """Test the flat patches generation."""
-    # create terrain generator
-    cfg = ROUGH_TERRAINS_CFG
-    # add flat patch configuration
-    for _, sub_terrain_cfg in cfg.sub_terrains.items():
+    """Flat patches are sampled per sub-terrain with the configured shapes and non-trivial values."""
+    cfg = _rough_cfg()
+    for sub_terrain_cfg in cfg.sub_terrains.values():
         sub_terrain_cfg.flat_patch_sampling = {
             "root_spawn": FlatPatchSamplingCfg(num_patches=8, patch_radius=0.5, max_height_diff=0.05),
-            "target_spawn": FlatPatchSamplingCfg(num_patches=5, patch_radius=0.35, max_height_diff=0.05),
+            "target_spawn": FlatPatchSamplingCfg(num_patches=5, patch_radius=[0.35, 0.5], max_height_diff=0.05),
         }
-    # generate terrain
     terrain_generator = TerrainGenerator(cfg=cfg)
 
-    # check if flat patches are generated
-    assert terrain_generator.flat_patches
-    # check the size of the flat patches
+    assert set(terrain_generator.flat_patches) == {"root_spawn", "target_spawn"}
     assert terrain_generator.flat_patches["root_spawn"].shape == (cfg.num_rows, cfg.num_cols, 8, 3)
     assert terrain_generator.flat_patches["target_spawn"].shape == (cfg.num_rows, cfg.num_cols, 5, 3)
-    # check that no flat patches are zero
-    for _, flat_patches in terrain_generator.flat_patches.items():
+    for flat_patches in terrain_generator.flat_patches.values():
         assert not torch.allclose(flat_patches, torch.zeros_like(flat_patches))

@@ -22,15 +22,25 @@ from isaaclab.managers import EventManager
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import use_stage
 from isaaclab.utils.noise import NoiseModel
-from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
-from .common import ActionType, AgentID, EnvStepReturn, ObsType, StateType, _apply_deprecated_viewer_cfg
+from .common import (
+    ActionType,
+    AgentID,
+    EnvStepReturn,
+    ObsType,
+    StateType,
+    _apply_deprecated_viewer_cfg,
+    _log_env_info,
+    _render_env,
+    _seed_env,
+    _set_env_debug_vis,
+    _step_physics,
+)
 from .direct_marl_env_cfg import DirectMARLEnvCfg
 from .utils.spaces import sample_space, spec_to_gym_space
 from .utils.video_recorder import VideoRecorder
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -120,22 +130,7 @@ class DirectMARLEnv(gym.Env):
         # make sure torch is running on the correct device
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
-
-        # print useful information
-        print("[INFO]: Base environment:")
-        print(f"\tEnvironment device    : {self.device}")
-        print(f"\tEnvironment seed      : {self.cfg.seed}")
-        print(f"\tPhysics step-size     : {self.physics_dt}")
-        print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
-        print(f"\tEnvironment step-size : {self.step_dt}")
-
-        if self.cfg.sim.render_interval < self.cfg.decimation:
-            msg = (
-                f"The render interval ({self.cfg.sim.render_interval}) is smaller than the decimation "
-                f"({self.cfg.decimation}). Multiple render calls will happen for each environment step."
-                "If this is not intended, set the render interval to be equal to the decimation."
-            )
-            logger.warning(msg)
+        _log_env_info(self)
 
         # generate scene
         with Timer("[INFO]: Time taken for scene creation", "scene_creation", activity="Creating scene"):
@@ -146,67 +141,47 @@ class DirectMARLEnv(gym.Env):
             self.sim.register_interactive_scene(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
 
-        # create event manager
-        # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
-        #   that must happen before the simulation starts. Example: randomizing mesh scale
+        # the event manager is created before the simulation plays so USD-level randomization
+        # (e.g. mesh scale) can run in the "prestartup" mode
         if self.cfg.events:
             self.event_manager = EventManager(self.cfg.events, self)
-
-            # apply USD-related randomization events
             if "prestartup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="prestartup")
 
         self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
 
-        # play the simulator to activate physics handles
-        # note: this activates the physics simulation view that exposes TensorAPIs
-        # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
+        # play the simulator to activate the physics handles that expose the tensor APIs
         print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
         with Timer("[INFO]: Time taken for simulation start", "simulation_start", activity="Starting physics"):
-            # since the reset can trigger callbacks which use the stage,
-            # we need to set the stage context here
+            # the reset can trigger callbacks which use the stage
             with use_stage(self.sim.stage):
                 self.sim.reset()
-            # update scene to pre populate data buffers for assets and sensors.
-            # this is needed for the observation manager to get valid tensors for initialization.
-            # this shouldn't cause an issue since later on, users do a reset over all the environments
-            # so the lazy buffers would be reset.
+            # pre-populate the asset and sensor buffers; users reset all environments afterwards anyway
             self.scene.update(dt=self.physics_dt)
-        # let the physics backend know about the env decimation so it can
-        # fold the full loop into a single step() when possible
+        # let the physics backend fold the decimation loop into a single step() when possible
         self.sim.physics_manager.set_decimation(self.cfg.decimation)
         self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
 
-        # check if debug visualization is has been implemented by the environment
+        # check if debug visualization has been implemented by the environment
         source_code = inspect.getsource(self._set_debug_vis_impl)
         self.has_debug_vis_implementation = "NotImplementedError" not in source_code
         self._debug_vis_handle = None
 
-        # extend UI elements
-        # we need to do this here after all the managers are initialized
-        # this is because they dictate the sensors and commands right now
         if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
-            # if no window, then we don't need to store the window
             self._window = None
 
         # allocate dictionary to store metrics
         self.extras = {agent: {} for agent in self.cfg.possible_agents}
 
         # initialize data and constants
-        # -- counter for simulation steps
         self._sim_step_counter = 0
-        # -- controls camera/Kit rendering in step().
-        # When False, the Kit app loop (app.update()) and camera/RTX sensor updates are
-        # skipped, but standalone visualizers (Newton, Rerun, Viser) continue to update.
-        # This is because Kit bundles camera rendering with its app loop and the two
-        # cannot be separated.  Non-Kit visualizers have independent step() methods
-        # that do not trigger camera or GUI updates, so they remain active.
+        # controls camera/Kit rendering in step(); standalone visualizers keep updating when False
         self.render_enabled: bool = True
-        # -- counter for curriculum
+        # counter for curriculum
         self.common_step_counter = 0
-        # -- init buffers
+        # init buffers
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         self.reset_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.sim.device)
 
@@ -229,13 +204,11 @@ class DirectMARLEnv(gym.Env):
 
         # perform events at the start of the simulation
         if self.cfg.events:
-            # we print it here to make the logging consistent
             print("[INFO] Event Manager: ", self.event_manager)
-
             if "startup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="startup")
         self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
-        # print the environment information
+
         print("[INFO]: Completed setting up the environment...")
 
     def __del__(self, _sys=sys):
@@ -406,42 +379,11 @@ class DirectMARLEnv(gym.Env):
         # process actions
         self._pre_physics_step(actions)
 
-        # check if we need to do rendering within the physics loop
-        # note: uses cached property to avoid settings lookup every step
-        is_rendering = self.sim.is_rendering
+        _step_physics(self, self._apply_action)
 
-        # perform physics stepping
-        if self._physics_handles_decimation:
-            self._sim_step_counter += self.cfg.decimation
-            self._apply_action()
-            self.scene.write_data_to_sim()
-            self.sim.step(render=False)
-            # render only when a render_interval boundary falls within this decimation block,
-            # mirroring the per-sub-step check in the else branch.
-            if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
-                self.sim.render(skip_app_pumping=not self.render_enabled)
-            self.scene.update(dt=self.step_dt)
-        else:
-            for _ in range(self.cfg.decimation):
-                self._sim_step_counter += 1
-                # set actions into buffers
-                self._apply_action()
-                # set actions into simulator
-                self.scene.write_data_to_sim()
-                # simulate
-                self.sim.step(render=False)
-                # render between steps only if the GUI or an RTX sensor needs it.
-                # When render_enabled is False, Kit visualizer (camera/GUI) is skipped
-                # but standalone visualizers (Newton, Rerun, Viser) still update.
-                if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
-                    self.sim.render(skip_app_pumping=not self.render_enabled)
-                # update buffers at sim dt
-                self.scene.update(dt=self.physics_dt)
-
-        # post-step:
-        # -- update env counters (used for curriculum generation)
-        self.episode_length_buf += 1  # step in current episode (per env)
-        self.common_step_counter += 1  # total step (common for all envs)
+        # post-step: update env counters (used for curriculum generation)
+        self.episode_length_buf += 1
+        self.common_step_counter += 1
 
         self.terminated_dict, self.time_out_dict = self._get_dones()
         self.reset_buf[:] = math.prod(self.terminated_dict.values()) | math.prod(self.time_out_dict.values())
@@ -475,9 +417,8 @@ class DirectMARLEnv(gym.Env):
                 self._reset_idx(manual_reset_ids)
 
         # post-step: step interval event
-        if self.cfg.events:
-            if "interval" in self.event_manager.available_modes:
-                self.event_manager.apply(mode="interval", dt=self.step_dt)
+        if self.cfg.events and "interval" in self.event_manager.available_modes:
+            self.event_manager.apply(mode="interval", dt=self.step_dt)
 
         # advance video recorders (after render, before obs)
         for recorder in self.video_recorders:
@@ -487,14 +428,12 @@ class DirectMARLEnv(gym.Env):
         self.obs_dict = self._get_observations()
         self.agents = [agent for agent in self.possible_agents if agent in self.obs_dict]
 
-        # add observation noise
-        # note: we apply no noise to the state space (since it is used for centralized training or critic networks)
+        # no noise is applied to the state space since it is used for centralized training or critic networks
         if self.cfg.observation_noise_model:
             for agent, obs in self.obs_dict.items():
                 if agent in self._observation_noise_model:
                     self.obs_dict[agent] = self._observation_noise_model[agent](obs)
 
-        # return observations, rewards, resets and extras
         return self.obs_dict, self.reward_dict, self.terminated_dict, self.time_out_dict, self.extras
 
     def state(self) -> StateType | None:
@@ -529,15 +468,7 @@ class DirectMARLEnv(gym.Env):
         Returns:
             The seed used for random generator.
         """
-        # set seed for replicator
-        try:
-            import omni.replicator.core as rep
-
-            rep.set_global_seed(seed)
-        except ModuleNotFoundError:
-            pass
-        # set seed for torch and other libraries
-        return configure_seed(seed)
+        return _seed_env(seed)
 
     def render(self, recompute: bool = False) -> np.ndarray | None:
         """Run rendering without stepping through the physics.
@@ -564,27 +495,7 @@ class DirectMARLEnv(gym.Env):
                 or ``RenderMode.FULL_RENDERING``.
             NotImplementedError: If an unsupported rendering mode is specified.
         """
-        # run a rendering step of the simulator
-        # if we have rtx sensors, we do not need to render again since step already rendered
-        if not self.has_rtx_sensors and not recompute:
-            self.sim.render()
-        # decide the rendering mode
-        if self.render_mode == "rgb_array":
-            import warnings
-
-            warnings.warn(
-                "render_mode='rgb_array' is deprecated and will be removed in a future release. "
-                "Use VideoRecorderCfg on env_cfg.video_recorders to capture frames instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            return None
-        if self.render_mode == "human" or self.render_mode is None:
-            return None
-        else:
-            raise NotImplementedError(
-                f"Render mode '{self.render_mode}' is not supported. Please use: {self.metadata['render_modes']}."
-            )
+        return _render_env(self, recompute)
 
     def close(self):
         """Cleanup for the environment."""
@@ -637,21 +548,7 @@ class DirectMARLEnv(gym.Env):
             Whether the debug visualization was successfully set. False if the environment
             does not support debug visualization.
         """
-        # check if debug visualization is supported
-        if not self.has_debug_vis_implementation:
-            return False
-        # toggle debug visualization objects
-        self._set_debug_vis_impl(debug_vis)
-        # toggle debug visualization handles
-        if debug_vis:
-            # create a subscriber for the post update event if it doesn't exist
-            if self._debug_vis_handle is None:
-                self._debug_vis_handle = self.sim.vis_marker_registry.add_debug_vis_callback(self)
-        else:
-            # remove the subscriber if it exists
-            self.sim.vis_marker_registry.clear_debug_vis_callback(self)
-        # return success
-        return True
+        return _set_env_debug_vis(self, debug_vis)
 
     """
     Helper functions.
@@ -711,12 +608,10 @@ class DirectMARLEnv(gym.Env):
         self.scene.reset(env_ids)
 
         # apply events such as randomization for environments that need a reset
-        if self.cfg.events:
-            if "reset" in self.event_manager.available_modes:
-                env_step_count = self._sim_step_counter // self.cfg.decimation
-                self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
+        if self.cfg.events and "reset" in self.event_manager.available_modes:
+            env_step_count = self._sim_step_counter // self.cfg.decimation
+            self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 
-        # reset noise models
         if self.cfg.action_noise_model:
             for noise_model in self._action_noise_model.values():
                 noise_model.reset(env_ids)
@@ -724,9 +619,7 @@ class DirectMARLEnv(gym.Env):
             for noise_model in self._observation_noise_model.values():
                 noise_model.reset(env_ids)
 
-        # reset the episode length buffer
         self.episode_length_buf[env_ids] = 0
-
         self.sim.render_context.reset_scene_state_cadence()
 
     """

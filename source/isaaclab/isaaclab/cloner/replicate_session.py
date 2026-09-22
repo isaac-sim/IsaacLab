@@ -97,14 +97,14 @@ class ReplicateSession:
         """
         self._cfgs = cfgs
         self._replicate_physics = replicate_physics
-        self._kwargs = dict(
-            num_clones=num_clones,
-            env_spacing=env_spacing,
-            global_paths=global_paths,
-            clone_strategy=clone_strategy,
-            valid_set=valid_set,
-            env_template=env_template,
-        )
+        self._kwargs = {
+            "num_clones": num_clones,
+            "env_spacing": env_spacing,
+            "global_paths": global_paths,
+            "clone_strategy": clone_strategy,
+            "valid_set": valid_set,
+            "env_template": env_template,
+        }
         self._plan: ClonePlan | None = None
 
     def __enter__(self) -> ReplicateSession:

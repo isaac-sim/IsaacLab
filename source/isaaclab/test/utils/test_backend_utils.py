@@ -5,26 +5,22 @@
 
 """Tests for backend module resolution."""
 
+import pytest
+
+from isaaclab.assets import Articulation
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.utils.backend_utils import FactoryBase
 
-
-def test_get_module_name_routes_ovphysx_to_isaaclab_ov(monkeypatch):
-    """OVPhysX backend modules resolve from the consolidated package."""
-    monkeypatch.setattr(FactoryBase, "_module_subpath", "assets.articulation", raising=False)
-
-    assert FactoryBase._get_package_name("ovphysx") == "isaaclab_ov"
-    assert FactoryBase._get_module_name("ovphysx") == "isaaclab_ov.assets.articulation"
+pytestmark = pytest.mark.unit
 
 
-def test_get_module_name_preserves_other_backend_conventions(monkeypatch):
-    """Other backend modules continue to use their backend-named packages."""
-    monkeypatch.setattr(FactoryBase, "_module_subpath", "assets.articulation", raising=False)
-
-    assert FactoryBase._get_package_name("physx") == "isaaclab_physx"
-    assert FactoryBase._get_package_name("newton") == "isaaclab_newton"
-    assert FactoryBase._get_module_name("physx") == "isaaclab_physx.assets.articulation"
-    assert FactoryBase._get_module_name("newton") == "isaaclab_newton.assets.articulation"
+@pytest.mark.parametrize(
+    ("backend", "package"),
+    [("ovphysx", "isaaclab_ov"), ("physx", "isaaclab_physx"), ("newton", "isaaclab_newton")],
+)
+def test_get_module_name(backend, package):
+    assert Articulation._get_package_name(backend) == package
+    assert Articulation._get_module_name(backend) == f"{package}.assets.articulation"
 
 
 def test_factory_backend_falls_back_to_newton_without_simulation_context(monkeypatch):

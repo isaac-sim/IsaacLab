@@ -15,6 +15,13 @@ import warp as wp
 logger = logging.getLogger(__name__)
 
 
+def _flat_offsets(counts: list[int]) -> np.ndarray:
+    """Return the exclusive prefix sum of ``counts`` as int32 start offsets."""
+    offsets = np.zeros(len(counts), dtype=np.int32)
+    np.cumsum(counts[:-1], out=offsets[1:])
+    return offsets
+
+
 @wp.kernel
 def scatter_geometry_points_kernel(
     src: wp.array(dtype=wp.vec3f),
@@ -72,12 +79,7 @@ def scatter_geometry_points(
         return
 
     num_entities = len(entity_counts)
-    src_offsets = np.zeros(num_entities, dtype=np.int32)
-    flat = 0
-    for index, count in enumerate(entity_counts):
-        src_offsets[index] = flat
-        flat += int(count)
-
+    src_offsets = _flat_offsets(entity_counts)
     if mapping is None:
         dest_offsets = src_offsets.copy()
     else:
@@ -88,25 +90,19 @@ def scatter_geometry_points(
     # per-entity stride than the backend when USD discovery and PhysX nodal counts diverge).
     dest_size = int(dst.shape[0])
     src_size = int(src.shape[0])
-    positive_dests = sorted(int(offset) for offset in dest_offsets if int(offset) >= 0)
+    positive_dests = np.sort(dest_offsets[dest_offsets >= 0])
     counts = np.zeros(num_entities, dtype=np.int32)
     for entity_id, count in enumerate(entity_counts):
         count = int(count)
         dest_offset = int(dest_offsets[entity_id])
         src_offset = int(src_offsets[entity_id])
         if dest_offset < 0 or count <= 0:
-            counts[entity_id] = 0
             continue
         # Space until the next destination slot (or end of buffer), not merely dest_size.
-        next_dest = dest_size
-        for offset in positive_dests:
-            if offset > dest_offset:
-                next_dest = offset
-                break
+        next_index = np.searchsorted(positive_dests, dest_offset, side="right")
+        next_dest = int(positive_dests[next_index]) if next_index < positive_dests.size else dest_size
         dest_slot = max(0, next_dest - dest_offset)
-        copy_count = min(count, dest_slot, dest_size - dest_offset, src_size - src_offset)
-        if copy_count < 0:
-            copy_count = 0
+        copy_count = max(0, min(count, dest_slot, dest_size - dest_offset, src_size - src_offset))
         if copy_count < count:
             logger.warning(
                 "Clamping geometry point copy for entity %d from %d to %d "
@@ -120,7 +116,7 @@ def scatter_geometry_points(
                 src_offset,
                 src_size,
             )
-        counts[entity_id] = int(copy_count)
+        counts[entity_id] = copy_count
 
     wp.launch(
         scatter_geometry_points_kernel,
@@ -148,12 +144,6 @@ def pack_body_nodal_slices(
     if not body_counts:
         return
 
-    write_offsets = np.zeros(len(body_counts), dtype=np.int32)
-    flat = 0
-    for index, count in enumerate(body_counts):
-        write_offsets[index] = flat
-        flat += int(count)
-
     wp.launch(
         pack_body_slices_kernel,
         dim=len(body_counts),
@@ -161,7 +151,7 @@ def pack_body_nodal_slices(
             nodal,
             dst,
             wp.array(np.asarray(body_counts, dtype=np.int32), dtype=wp.int32, device=nodal.device),
-            wp.array(write_offsets, dtype=wp.int32, device=nodal.device),
+            wp.array(_flat_offsets(body_counts), dtype=wp.int32, device=nodal.device),
             dest_base_offset,
         ],
         device=device,

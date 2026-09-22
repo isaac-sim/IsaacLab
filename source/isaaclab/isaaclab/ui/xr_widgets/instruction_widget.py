@@ -157,7 +157,6 @@ def show_instruction(
     Returns:
         UiContainer | None: The container that owns the instruction widget, or ``None`` if creation failed.
     """
-
     try:
         import carb
         from omni.kit.scene_view.xr import XRSceneView
@@ -287,7 +286,6 @@ def hide_instruction(target_prim_path: str = "/newPrim") -> None:
     Returns:
         None: This function does not return a value.
     """
-
     global camera_facing_widget_container, camera_facing_widget_timers
 
     if target_prim_path in camera_facing_widget_container:

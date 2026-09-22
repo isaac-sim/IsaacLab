@@ -52,14 +52,14 @@ def test_inertial_decoupling_damps_near_singular_directions(device, partial_iner
     jacobian[:, :, :6] = basis @ torch.diag_embed(scales * masses[:6].sqrt())
     jacobian = jacobian @ joint_basis.mT
     acceleration = torch.arange(1.0, 7.0, device=device).repeat(4, 1)
-    inputs = dict(
-        jacobian_b=jacobian,
-        mass_matrix=mass,
-        current_ee_pose_b=pose,
-        current_ee_vel_b=-acceleration / 20.0,
-        current_joint_pos=torch.zeros(4, 7, device=device),
-        current_joint_vel=torch.zeros(4, 7, device=device),
-    )
+    inputs = {
+        "jacobian_b": jacobian,
+        "mass_matrix": mass,
+        "current_ee_pose_b": pose,
+        "current_ee_vel_b": -acceleration / 20.0,
+        "current_joint_pos": torch.zeros(4, 7, device=device),
+        "current_joint_vel": torch.zeros(4, 7, device=device),
+    }
     efforts = controller.compute(**inputs)
     retained = scales > 0.1
     # All nonzero weak modes are below the lower threshold: the scalar damped response is s / (s² + d).
@@ -118,14 +118,14 @@ def test_inertial_decoupling_smoothly_releases_weak_directions(device):
     controller.set_command(pose)
     jacobian = torch.eye(6, 7, device=device).repeat(num_envs, 1, 1)
     jacobian[:, 0, 0] = ratios.sqrt()
-    inputs = dict(
-        jacobian_b=jacobian,
-        mass_matrix=torch.eye(7, device=device).repeat(num_envs, 1, 1),
-        current_ee_pose_b=pose,
-        current_ee_vel_b=torch.full((num_envs, 6), -0.05, device=device),
-        current_joint_pos=torch.zeros(num_envs, 7, device=device),
-        current_joint_vel=torch.zeros(num_envs, 7, device=device),
-    )
+    inputs = {
+        "jacobian_b": jacobian,
+        "mass_matrix": torch.eye(7, device=device).repeat(num_envs, 1, 1),
+        "current_ee_pose_b": pose,
+        "current_ee_vel_b": torch.full((num_envs, 6), -0.05, device=device),
+        "current_joint_pos": torch.zeros(num_envs, 7, device=device),
+        "current_joint_vel": torch.zeros(num_envs, 7, device=device),
+    }
     task_efforts = controller.compute(**inputs)
     posture_efforts = controller.compute(**inputs, nullspace_joint_pos_target=torch.ones(num_envs, 7, device=device))
     posture_efforts -= task_efforts

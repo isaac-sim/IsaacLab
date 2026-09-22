@@ -11,10 +11,10 @@ from typing import TYPE_CHECKING
 
 from pxr import Usd, UsdGeom
 
-from isaaclab.sim import schemas
-from isaaclab.sim.spawners._utils import fragment_mapping, props_expr
-from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
-from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
+from ... import schemas
+from ...utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
+from .._utils import apply_schema_props, resolve_material_path
+from ..materials.physics_materials import spawn_physics_material
 
 if TYPE_CHECKING:
     from . import shapes_cfg
@@ -53,13 +53,7 @@ def spawn_sphere(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # obtain stage handle
-    stage = get_current_stage()
-    # spawn sphere if it doesn't exist.
-    attributes = {"radius": cfg.radius}
-    _spawn_geom_from_prim_type(prim_path, cfg, "Sphere", attributes, translation, orientation, stage=stage)
-    # return the prim
-    return stage.GetPrimAtPath(prim_path)
+    return _spawn_geom_from_prim_type(prim_path, cfg, "Sphere", {"radius": cfg.radius}, translation, orientation)
 
 
 @clone
@@ -99,16 +93,9 @@ def spawn_cuboid(
     Raises:
         If a prim already exists at the given path.
     """
-    # obtain stage handle
-    stage = get_current_stage()
-    # resolve the scale
     size = min(cfg.size)
     scale = [dim / size for dim in cfg.size]
-    # spawn cuboid if it doesn't exist.
-    attributes = {"size": size}
-    _spawn_geom_from_prim_type(prim_path, cfg, "Cube", attributes, translation, orientation, scale, stage=stage)
-    # return the prim
-    return stage.GetPrimAtPath(prim_path)
+    return _spawn_geom_from_prim_type(prim_path, cfg, "Cube", {"size": size}, translation, orientation, scale)
 
 
 @clone
@@ -144,13 +131,8 @@ def spawn_cylinder(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # obtain stage handle
-    stage = get_current_stage()
-    # spawn cylinder if it doesn't exist.
     attributes = {"radius": cfg.radius, "height": cfg.height, "axis": cfg.axis.upper()}
-    _spawn_geom_from_prim_type(prim_path, cfg, "Cylinder", attributes, translation, orientation, stage=stage)
-    # return the prim
-    return stage.GetPrimAtPath(prim_path)
+    return _spawn_geom_from_prim_type(prim_path, cfg, "Cylinder", attributes, translation, orientation)
 
 
 @clone
@@ -186,13 +168,8 @@ def spawn_capsule(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # obtain stage handle
-    stage = get_current_stage()
-    # spawn capsule if it doesn't exist.
     attributes = {"radius": cfg.radius, "height": cfg.height, "axis": cfg.axis.upper()}
-    _spawn_geom_from_prim_type(prim_path, cfg, "Capsule", attributes, translation, orientation, stage=stage)
-    # return the prim
-    return stage.GetPrimAtPath(prim_path)
+    return _spawn_geom_from_prim_type(prim_path, cfg, "Capsule", attributes, translation, orientation)
 
 
 @clone
@@ -228,13 +205,8 @@ def spawn_cone(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # obtain stage handle
-    stage = get_current_stage()
-    # spawn cone if it doesn't exist.
     attributes = {"radius": cfg.radius, "height": cfg.height, "axis": cfg.axis.upper()}
-    _spawn_geom_from_prim_type(prim_path, cfg, "Cone", attributes, translation, orientation, stage=stage)
-    # return the prim
-    return stage.GetPrimAtPath(prim_path)
+    return _spawn_geom_from_prim_type(prim_path, cfg, "Cone", attributes, translation, orientation)
 
 
 @clone
@@ -269,7 +241,6 @@ def spawn_cable(
         )
     cfg.physics_material.validate()
 
-    stage = get_current_stage()
     attributes = {
         "points": cfg.positions,
         "curveVertexCounts": [len(cfg.positions)],
@@ -277,19 +248,18 @@ def spawn_cable(
         "wrap": UsdGeom.Tokens.nonperiodic,
         "widths": [cfg.physics_material.thickness],
     }
-    _spawn_geom_from_prim_type(
+    prim = _spawn_geom_from_prim_type(
         prim_path,
         cfg,
         "BasisCurves",
         attributes,
         translation,
         orientation,
-        stage=stage,
         geometry_schema_func=schemas.define_deformable_curve_properties,
     )
-    curve_prim = stage.GetPrimAtPath(f"{prim_path}/geometry/mesh")
+    curve_prim = prim.GetStage().GetPrimAtPath(f"{prim_path}/geometry/mesh")
     UsdGeom.BasisCurves(curve_prim).SetWidthsInterpolation(UsdGeom.Tokens.constant)
-    return stage.GetPrimAtPath(prim_path)
+    return prim
 
 
 """
@@ -307,7 +277,7 @@ def _spawn_geom_from_prim_type(
     scale: tuple[float, float, float] | None = None,
     stage: Usd.Stage | None = None,
     geometry_schema_func: Callable[[str, Usd.Stage | None], None] | None = None,
-):
+) -> Usd.Prim:
     """Create a USDGeom-based prim with the given attributes.
 
     To make the asset instanceable, we must follow a certain structure dictated by how USD scene-graph
@@ -335,80 +305,47 @@ def _spawn_geom_from_prim_type(
         stage: The stage to spawn the asset at. Defaults to None, in which case the current stage is used.
         geometry_schema_func: A schema writer called on the geometry prim after creation.
 
+    Returns:
+        The created root prim.
+
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # obtain stage handle
     stage = stage if stage is not None else get_current_stage()
 
-    # spawn geometry if it doesn't exist.
-    if not stage.GetPrimAtPath(prim_path).IsValid():
-        create_prim(prim_path, prim_type="Xform", translation=translation, orientation=orientation, stage=stage)
-    else:
-        raise ValueError(f"A prim already exists at path: '{prim_path}'.")
-
-    # create all the paths we need for clarity
+    prim = create_prim(prim_path, prim_type="Xform", translation=translation, orientation=orientation, stage=stage)
     geom_prim_path = prim_path + "/geometry"
     mesh_prim_path = geom_prim_path + "/mesh"
-
-    # create the geometry prim
     create_prim(mesh_prim_path, prim_type, scale=scale, attributes=attributes, stage=stage)
     if geometry_schema_func is not None:
         geometry_schema_func(mesh_prim_path, stage=stage)
-    # apply collision properties
-    # fragment path: a mapping from target pattern to fragment list, applied entry by entry in
-    # insertion order; patterns anchor at the geometry prim this spawner authors, so ``""``
-    # preserves the legacy placement. Otherwise a legacy cfg routes to the legacy writer.
+
+    # collision properties anchor at the geometry prim
     if getattr(cfg, "collision_props", None) is not None:
-        collision_props_mapping = fragment_mapping(cfg.collision_props)
-        if collision_props_mapping is not None:
-            for pattern, fragments in collision_props_mapping.items():
-                schemas.apply_collision_properties(
-                    props_expr(mesh_prim_path, pattern), fragments, create_if_missing=True, stage=stage
-                )
-        else:
-            schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
-    # apply visual material
+        apply_schema_props(
+            cfg.collision_props,
+            mesh_prim_path,
+            schemas.apply_collision_properties,
+            schemas.define_collision_properties,
+            stage,
+        )
     if cfg.visual_material is not None:
-        if not cfg.visual_material_path.startswith("/"):
-            material_path = f"{geom_prim_path}/{cfg.visual_material_path}"
-        else:
-            material_path = cfg.visual_material_path
-        # create material
+        material_path = resolve_material_path(cfg.visual_material_path, geom_prim_path)
         cfg.visual_material.func(material_path, cfg.visual_material)
-        # apply material
         bind_visual_material(mesh_prim_path, material_path, stage=stage)
-    # apply physics material
     if cfg.physics_material is not None:
-        if not cfg.physics_material_path.startswith("/"):
-            material_path = f"{geom_prim_path}/{cfg.physics_material_path}"
-        else:
-            material_path = cfg.physics_material_path
-        # create material (accepts a legacy material cfg or rigid-body fragment(s))
+        material_path = resolve_material_path(cfg.physics_material_path, geom_prim_path)
         spawn_physics_material(material_path, cfg.physics_material, stage=stage)
-        # apply material
         bind_physics_material(mesh_prim_path, material_path, stage=stage)
 
-    # note: we apply rigid properties in the end to later make the instanceable prim
-    # apply mass properties
-    # fragment path: mapping entries anchor at the container prim, so ``""`` preserves the legacy
-    # placement; entries apply in insertion order. Otherwise a legacy cfg routes to the legacy writer.
+    # mass and rigid body properties anchor at the container prim and are applied last so the
+    # geometry can later be made instanceable
     if getattr(cfg, "mass_props", None) is not None:
-        mass_props_mapping = fragment_mapping(cfg.mass_props)
-        if mass_props_mapping is not None:
-            for pattern, fragments in mass_props_mapping.items():
-                schemas.apply_mass_properties(
-                    props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage
-                )
-        else:
-            schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
-    # apply rigid body properties
+        apply_schema_props(
+            cfg.mass_props, prim_path, schemas.apply_mass_properties, schemas.define_mass_properties, stage
+        )
     if getattr(cfg, "rigid_props", None) is not None:
-        rigid_props_mapping = fragment_mapping(cfg.rigid_props)
-        if rigid_props_mapping is not None:
-            for pattern, fragments in rigid_props_mapping.items():
-                schemas.apply_rigid_body_properties(
-                    props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage
-                )
-        else:
-            schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)
+        apply_schema_props(
+            cfg.rigid_props, prim_path, schemas.apply_rigid_body_properties, schemas.define_rigid_body_properties, stage
+        )
+    return prim

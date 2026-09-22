@@ -9,7 +9,8 @@ from collections.abc import Sequence
 import torch
 
 import isaaclab.utils.math as PoseUtils
-from isaaclab.envs import ManagerBasedRLEnv
+
+from . import ManagerBasedRLEnv
 
 
 def optional_method(func):
@@ -117,7 +118,7 @@ class ManagerBasedRLMimicEnv(ManagerBasedRLEnv):
             env_ids = slice(None)
 
         rigid_object_states = self.scene.get_state(is_relative=True)["rigid_object"]
-        object_pose_matrix = dict()
+        object_pose_matrix = {}
         for obj_name, obj_state in rigid_object_states.items():
             object_pose_matrix[obj_name] = PoseUtils.make_pose(
                 obj_state["root_pose"][env_ids, :3], PoseUtils.matrix_from_quat(obj_state["root_pose"][env_ids, 3:7])
@@ -164,7 +165,7 @@ class ManagerBasedRLMimicEnv(ManagerBasedRLEnv):
         This is the same as @env_meta - environment metadata stored in hdf5 datasets,
         and used in utils/env_utils.py.
         """
-        return dict(env_name=self.spec.id, type=2, env_kwargs=dict())
+        return {"env_name": self.spec.id, "type": 2, "env_kwargs": {}}
 
     @optional_method
     def get_navigation_state(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:

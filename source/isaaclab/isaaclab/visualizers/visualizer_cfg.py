@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
@@ -188,44 +189,26 @@ class VisualizerCfg:
     """Deprecated. Use :attr:`streaming_cam_renderer` instead."""
 
     def __post_init__(self) -> None:
-        import warnings
-
         if self.background_color is not None:
             if len(self.background_color) != 3 or any(not 0.0 <= value <= 1.0 for value in self.background_color):
                 raise ValueError("background_color must contain three normalized RGB values in [0, 1].")
             self.background_color = tuple(float(value) for value in self.background_color)
 
-        _simple = [
+        # explicit indices take priority over the count alias
+        if self.tiled_cam_env_indices is not None:
+            self.tiled_cam_num = None
+        deprecated_aliases = [
             ("tiled_cam_view", "streaming_view"),
             ("tiled_cam_prim_path", "streaming_sensor_prim_path"),
             ("tiled_cam_eye", "streaming_cam_eye"),
             ("tiled_cam_target_prim_path", "streaming_cam_target_prim_path"),
             ("tiled_cam_renderer", "streaming_cam_renderer"),
+            ("tiled_cam_env_indices", "streaming_envs"),
+            ("tiled_cam_num", "streaming_envs"),
         ]
-        for old, new in _simple:
+        for old, new in deprecated_aliases:
             val = getattr(self, old)
             if val is not None:
                 warnings.warn(f"{old!r} is deprecated; use {new!r} instead.", DeprecationWarning, stacklevel=3)
                 setattr(self, new, val)
                 setattr(self, old, None)
-        # tiled_cam_env_indices takes priority over tiled_cam_num
-        env_indices = getattr(self, "tiled_cam_env_indices")
-        if env_indices is not None:
-            warnings.warn(
-                "'tiled_cam_env_indices' is deprecated; use 'streaming_envs' instead.",
-                DeprecationWarning,
-                stacklevel=3,
-            )
-            self.streaming_envs = env_indices
-            self.tiled_cam_env_indices = None
-            self.tiled_cam_num = None
-        else:
-            num = getattr(self, "tiled_cam_num")
-            if num is not None:
-                warnings.warn(
-                    "'tiled_cam_num' is deprecated; use 'streaming_envs' instead.",
-                    DeprecationWarning,
-                    stacklevel=3,
-                )
-                self.streaming_envs = num
-                self.tiled_cam_num = None

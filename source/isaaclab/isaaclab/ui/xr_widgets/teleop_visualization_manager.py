@@ -5,8 +5,8 @@
 
 from typing import Any
 
-from isaaclab.ui.xr_widgets import DataCollector, TriggerType, VisualizationManager
-from isaaclab.ui.xr_widgets.instruction_widget import hide_instruction
+from . import DataCollector, TriggerType, VisualizationManager
+from .instruction_widget import hide_instruction
 
 
 class TeleopVisualizationManager(VisualizationManager):
@@ -61,7 +61,6 @@ class TeleopVisualizationManager(VisualizationManager):
         Args:
             data_collector: DataCollector instance (unused in this handler)
         """
-
         hide_instruction(mgr.ik_error_widget_id)
         mgr.cancel_rule(TriggerType.TRIGGER_ON_PERIOD, mgr._ik_error_widget_timer)
         delattr(mgr, "_ik_error_widget_timer")

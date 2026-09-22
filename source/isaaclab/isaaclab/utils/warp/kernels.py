@@ -10,7 +10,7 @@ from typing import Any
 import torch
 import warp as wp
 
-from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
+from .index_kernel import IndexKernelDispatcher
 
 ##
 # Raycasting
@@ -59,7 +59,6 @@ def raycast_mesh_kernel(
         return_normal: Whether to return the ray hit normals. Defaults to False.
         return_face_id: Whether to return the ray hit face ids. Defaults to False.
     """
-    # get the thread id
     tid = wp.tid()
 
     t = float(0.0)  # hit distance along ray
@@ -199,7 +198,6 @@ def raycast_static_meshes_kernel(
         return_face_id: Whether to return the ray hit face ids. Defaults to False.
         return_mesh_id: Whether to return the mesh id. Defaults to False.
     """
-    # get the thread id
     tid_mesh_id, tid_env, tid_ray = wp.tid()
 
     direction = ray_directions[tid_env, tid_ray]
@@ -294,7 +292,6 @@ def raycast_dynamic_meshes_kernel(
         return_face_id: Whether to return the ray hit face ids. Defaults to False.
         return_mesh_id: Whether to return the mesh id. Defaults to False.
     """
-    # get the thread id
     tid_mesh_id, tid_env, tid_ray = wp.tid()
     if not env_mask[tid_env]:
         return
@@ -358,7 +355,6 @@ def reshape_tiled_image(
         num_channels: The number of channels in the image.
         num_tiles_x: The number of tiles in x-direction.
     """
-    # get the thread id
     camera_id, height_id, width_id = wp.tid()
 
     # resolve the tile indices
@@ -686,6 +682,33 @@ def reset_wrench_composer_index(
     out_torque_b[ei, tid_body] = z
 
 
+@wp.kernel
+def reset_wrench_composer_mask(
+    env_mask: wp.array(dtype=wp.bool),
+    global_force_w: wp.array2d(dtype=wp.vec3f),
+    global_torque_w: wp.array2d(dtype=wp.vec3f),
+    global_force_at_com_w: wp.array2d(dtype=wp.vec3f),
+    local_force_b: wp.array2d(dtype=wp.vec3f),
+    local_torque_b: wp.array2d(dtype=wp.vec3f),
+    out_force_b: wp.array2d(dtype=wp.vec3f),
+    out_torque_b: wp.array2d(dtype=wp.vec3f),
+):
+    """Zero all 7 wrench composer buffers for environments matching the mask.
+
+    Dispatched with ``dim=(num_envs, num_bodies)``.
+    """
+    tid_env, tid_body = wp.tid()
+    if env_mask[tid_env]:
+        z = wp.vec3f(0.0)
+        global_force_w[tid_env, tid_body] = z
+        global_torque_w[tid_env, tid_body] = z
+        global_force_at_com_w[tid_env, tid_body] = z
+        local_force_b[tid_env, tid_body] = z
+        local_torque_b[tid_env, tid_body] = z
+        out_force_b[tid_env, tid_body] = z
+        out_torque_b[tid_env, tid_body] = z
+
+
 _SET_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER = IndexKernelDispatcher(
     set_forces_to_dual_buffers_index, ("env_ids", "body_ids")
 )
@@ -787,33 +810,6 @@ def spatial_sum_uint8_tiled(
             for j in range(src.shape[2]):
                 s += wp.int32(src[b, i, j, c])
     partials[b, tile, c] = s
-
-
-@wp.kernel
-def reset_wrench_composer_mask(
-    env_mask: wp.array(dtype=wp.bool),
-    global_force_w: wp.array2d(dtype=wp.vec3f),
-    global_torque_w: wp.array2d(dtype=wp.vec3f),
-    global_force_at_com_w: wp.array2d(dtype=wp.vec3f),
-    local_force_b: wp.array2d(dtype=wp.vec3f),
-    local_torque_b: wp.array2d(dtype=wp.vec3f),
-    out_force_b: wp.array2d(dtype=wp.vec3f),
-    out_torque_b: wp.array2d(dtype=wp.vec3f),
-):
-    """Zero all 7 wrench composer buffers for environments matching the mask.
-
-    Dispatched with ``dim=(num_envs, num_bodies)``.
-    """
-    tid_env, tid_body = wp.tid()
-    if env_mask[tid_env]:
-        z = wp.vec3f(0.0)
-        global_force_w[tid_env, tid_body] = z
-        global_torque_w[tid_env, tid_body] = z
-        global_force_at_com_w[tid_env, tid_body] = z
-        local_force_b[tid_env, tid_body] = z
-        local_torque_b[tid_env, tid_body] = z
-        out_force_b[tid_env, tid_body] = z
-        out_torque_b[tid_env, tid_body] = z
 
 
 ##

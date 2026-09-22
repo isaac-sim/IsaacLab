@@ -12,6 +12,9 @@
 
 from __future__ import annotations
 
+import dataclasses
+import functools
+import inspect
 import warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
@@ -22,11 +25,8 @@ if TYPE_CHECKING:
     import torch
 
     from isaaclab.assets.articulation import Articulation
-    from isaaclab.envs import ManagerBasedEnv
 
-import dataclasses
-import functools
-import inspect
+    from .. import ManagerBasedEnv
 
 
 def _warn_io_descriptors_deprecated(*, stacklevel: int = 2) -> None:
@@ -375,34 +375,23 @@ def export_articulations_data(env: ManagerBasedEnv) -> dict[str, dict[str, list[
     Returns:
         A dictionary containing the articulations data.
     """
-    # Create a dictionary for all the articulations in the scene.
+    # exported key -> articulation data attribute (the first instance is assumed representative)
+    exported_attrs = {
+        "default_joint_pos": "default_joint_pos",
+        "default_joint_vel": "default_joint_vel",
+        "default_joint_pos_limits": "default_joint_pos_limits",
+        "default_joint_damping": "joint_damping",
+        "default_joint_stiffness": "joint_stiffness",
+        "default_joint_friction": "joint_friction_coeff",
+        "default_joint_armature": "joint_armature",
+    }
     articulation_joint_data = {}
     for articulation_name, articulation in env.scene.articulations.items():
-        # For each articulation, create a dictionary with the articulation's data.
-        # Some of the data may be redundant with other information provided by the observation descriptors.
-        articulation_joint_data[articulation_name] = {}
-        articulation_joint_data[articulation_name]["joint_names"] = articulation.joint_names
-        articulation_joint_data[articulation_name]["default_joint_pos"] = (
-            articulation.data.default_joint_pos.torch[0].detach().cpu().numpy().tolist()
-        )
-        articulation_joint_data[articulation_name]["default_joint_vel"] = (
-            articulation.data.default_joint_vel.torch[0].detach().cpu().numpy().tolist()
-        )
-        articulation_joint_data[articulation_name]["default_joint_pos_limits"] = (
-            articulation.data.default_joint_pos_limits.torch[0].detach().cpu().numpy().tolist()
-        )
-        articulation_joint_data[articulation_name]["default_joint_damping"] = (
-            articulation.data.joint_damping.torch[0].detach().cpu().numpy().tolist()
-        )
-        articulation_joint_data[articulation_name]["default_joint_stiffness"] = (
-            articulation.data.joint_stiffness.torch[0].detach().cpu().numpy().tolist()
-        )
-        articulation_joint_data[articulation_name]["default_joint_friction"] = (
-            articulation.data.joint_friction_coeff.torch[0].detach().cpu().numpy().tolist()
-        )
-        articulation_joint_data[articulation_name]["default_joint_armature"] = (
-            articulation.data.joint_armature.torch[0].detach().cpu().numpy().tolist()
-        )
+        articulation_joint_data[articulation_name] = {"joint_names": articulation.joint_names}
+        for key, attr in exported_attrs.items():
+            articulation_joint_data[articulation_name][key] = (
+                getattr(articulation.data, attr).torch[0].detach().cpu().numpy().tolist()
+            )
     return articulation_joint_data
 
 
@@ -415,6 +404,4 @@ def export_scene_data(env: ManagerBasedEnv) -> dict[str, Any]:
     Returns:
         A dictionary containing the scene data.
     """
-    # Create a dictionary for the scene data.
-    scene_data = {"physics_dt": env.physics_dt, "dt": env.step_dt, "decimation": env.cfg.decimation}
-    return scene_data
+    return {"physics_dt": env.physics_dt, "dt": env.step_dt, "decimation": env.cfg.decimation}

@@ -63,8 +63,7 @@ def _sanitized_conda_env() -> dict[str, str]:
 
 
 def _patch_environment_yml(yml_path: str | Path, python_version: str = "3.12") -> str:
-    """
-    Read environment.yml, return content with altered python version.
+    """Return the contents of an environment file with its Python version pin replaced.
 
     Args:
         yml_path: Path to the source environment file.
@@ -73,15 +72,8 @@ def _patch_environment_yml(yml_path: str | Path, python_version: str = "3.12") -
     Returns:
         Patched YML file content.
     """
-    with open(yml_path, encoding="utf-8") as f:
-        lines = f.readlines()
-
-    new_lines = []
-    for line in lines:
-        if "python=3." in line:
-            line = re.sub(r"python=3\.\d+(?:\.\d+)?", f"python={python_version}", line)
-        new_lines.append(line)
-    return "".join(new_lines)
+    content = Path(yml_path).read_text(encoding="utf-8")
+    return re.sub(r"python=3\.\d+(?:\.\d+)?", f"python={python_version}", content)
 
 
 def _get_conda_prefix(env_name: str) -> Path | None:
@@ -102,19 +94,31 @@ def _get_conda_prefix(env_name: str) -> Path | None:
     return None
 
 
+def _conda_hook_paths(conda_prefix: Path, activate_name: str, deactivate_name: str) -> tuple[Path, Path]:
+    """Return the activation and deactivation hook paths of a conda environment, creating their directories."""
+    hooks_dir = conda_prefix / "etc" / "conda"
+    activate_hook = hooks_dir / "activate.d" / activate_name
+    deactivate_hook = hooks_dir / "deactivate.d" / deactivate_name
+    activate_hook.parent.mkdir(parents=True, exist_ok=True)
+    deactivate_hook.parent.mkdir(parents=True, exist_ok=True)
+    return activate_hook, deactivate_hook
+
+
+def _write_hooks(activate_hook: Path, activate_content: str, deactivate_hook: Path, deactivate_content: str) -> None:
+    """Write an activation/deactivation hook pair."""
+    activate_hook.write_text(activate_content, encoding="utf-8")
+    deactivate_hook.write_text(deactivate_content, encoding="utf-8")
+    print_debug(f"Created activation hook: {activate_hook}")
+    print_debug(f"Created deactivation hook: {deactivate_hook}")
+
+
 def _create_conda_envhooks_shell(conda_prefix: Path) -> None:
     """Write Linux/Mac conda activation/deactivation hooks for Isaac Lab environment variables.
 
     Args:
         conda_prefix: Prefix path of the target conda environment.
     """
-    activate_d = conda_prefix / "etc" / "conda" / "activate.d"
-    deactivate_d = conda_prefix / "etc" / "conda" / "deactivate.d"
-    activate_d.mkdir(parents=True, exist_ok=True)
-    deactivate_d.mkdir(parents=True, exist_ok=True)
-
-    activate_hook = activate_d / "setenv.sh"
-    deactivate_hook = deactivate_d / "unsetenv.sh"
+    activate_hook, deactivate_hook = _conda_hook_paths(conda_prefix, "setenv.sh", "unsetenv.sh")
     isaacsim_setup_conda_env_script = ISAACLAB_ROOT / "_isaac_sim" / "setup_conda_env.sh"
 
     activate_content = textwrap.dedent(
@@ -165,11 +169,7 @@ def _create_conda_envhooks_shell(conda_prefix: Path) -> None:
         """
     )
 
-    activate_hook.write_text(activate_content, encoding="utf-8")
-    deactivate_hook.write_text(deactivate_content, encoding="utf-8")
-
-    print_debug(f"Created activation hook: {activate_hook}")
-    print_debug(f"Created deactivation hook: {deactivate_hook}")
+    _write_hooks(activate_hook, activate_content, deactivate_hook, deactivate_content)
 
 
 def _write_torch_gomp_hooks_linux(conda_prefix: Path) -> None:
@@ -181,13 +181,7 @@ def _write_torch_gomp_hooks_linux(conda_prefix: Path) -> None:
     if not sys.platform.startswith("linux"):
         return
 
-    activate_d = conda_prefix / "etc" / "conda" / "activate.d"
-    deactivate_d = conda_prefix / "etc" / "conda" / "deactivate.d"
-    activate_d.mkdir(parents=True, exist_ok=True)
-    deactivate_d.mkdir(parents=True, exist_ok=True)
-
-    activate_hook = activate_d / "torch_gomp.sh"
-    deactivate_hook = deactivate_d / "torch_gomp_unset.sh"
+    activate_hook, deactivate_hook = _conda_hook_paths(conda_prefix, "torch_gomp.sh", "torch_gomp_unset.sh")
 
     activate_content = textwrap.dedent(
         """\
@@ -241,11 +235,7 @@ def _write_torch_gomp_hooks_linux(conda_prefix: Path) -> None:
                 """
     )
 
-    activate_hook.write_text(activate_content, encoding="utf-8")
-    deactivate_hook.write_text(deactivate_content, encoding="utf-8")
-
-    print_debug(f"Created torch gomp activation hook: {activate_hook}")
-    print_debug(f"Created torch gomp deactivation hook: {deactivate_hook}")
+    _write_hooks(activate_hook, activate_content, deactivate_hook, deactivate_content)
 
 
 def _create_conda_envhooks_cmdexe(conda_prefix: Path) -> None:
@@ -254,13 +244,7 @@ def _create_conda_envhooks_cmdexe(conda_prefix: Path) -> None:
     Args:
         conda_prefix: Path of the target conda environment.
     """
-    activate_d = conda_prefix / "etc" / "conda" / "activate.d"
-    deactivate_d = conda_prefix / "etc" / "conda" / "deactivate.d"
-    activate_d.mkdir(parents=True, exist_ok=True)
-    deactivate_d.mkdir(parents=True, exist_ok=True)
-
-    activate_hook = activate_d / "setenv.bat"
-    deactivate_hook = deactivate_d / "unsetenv.bat"
+    activate_hook, deactivate_hook = _conda_hook_paths(conda_prefix, "setenv.bat", "unsetenv.bat")
     isaacsim_setup_conda_env_script = ISAACLAB_ROOT / "_isaac_sim" / "setup_conda_env.bat"
 
     activate_content = textwrap.dedent(
@@ -307,11 +291,7 @@ def _create_conda_envhooks_cmdexe(conda_prefix: Path) -> None:
         """
     )
 
-    activate_hook.write_text(activate_content, encoding="utf-8")
-    deactivate_hook.write_text(deactivate_content, encoding="utf-8")
-
-    print_debug(f"Created cmd activation hook: {activate_hook}")
-    print_debug(f"Created cmd deactivation hook: {deactivate_hook}")
+    _write_hooks(activate_hook, activate_content, deactivate_hook, deactivate_content)
 
 
 def _create_conda_envhooks_powershell(conda_prefix: Path) -> None:
@@ -320,13 +300,7 @@ def _create_conda_envhooks_powershell(conda_prefix: Path) -> None:
     Args:
         conda_prefix: Path of the target conda environment.
     """
-    activate_d = conda_prefix / "etc" / "conda" / "activate.d"
-    deactivate_d = conda_prefix / "etc" / "conda" / "deactivate.d"
-    activate_d.mkdir(parents=True, exist_ok=True)
-    deactivate_d.mkdir(parents=True, exist_ok=True)
-
-    activate_hook = activate_d / "setenv.ps1"
-    deactivate_hook = deactivate_d / "unsetenv.ps1"
+    activate_hook, deactivate_hook = _conda_hook_paths(conda_prefix, "setenv.ps1", "unsetenv.ps1")
     isaacsim_setup_conda_env_script = ISAACLAB_ROOT / "_isaac_sim" / "setup_conda_env.ps1"
 
     activate_content = textwrap.dedent(
@@ -375,11 +349,7 @@ def _create_conda_envhooks_powershell(conda_prefix: Path) -> None:
         """
     )
 
-    activate_hook.write_text(activate_content, encoding="utf-8")
-    deactivate_hook.write_text(deactivate_content, encoding="utf-8")
-
-    print_debug(f"Created PowerShell activation hook: {activate_hook}")
-    print_debug(f"Created PowerShell deactivation hook: {deactivate_hook}")
+    _write_hooks(activate_hook, activate_content, deactivate_hook, deactivate_content)
 
 
 def _write_conda_env_hooks(conda_prefix: Path) -> None:
@@ -509,98 +479,76 @@ def _write_uv_env_hooks(env_path: Path) -> None:
         _create_uv_envhooks_shell(env_path)
 
 
+def _isaacsim_pip_package_installed() -> bool:
+    """Check whether the current interpreter can import a pip-installed Isaac Sim."""
+    result = run_command(
+        [sys.executable, "-c", "import isaacsim"],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL,  # avoid EULA prompt
+    )
+    return result.returncode == 0
+
+
+def _warn_isaac_sim_missing(environment_type: str) -> None:
+    """Warn that neither a local ``_isaac_sim`` nor a pip-installed Isaac Sim was found."""
+    print_warning(f"_isaac_sim symlink not found at {ISAACLAB_ROOT}/_isaac_sim")
+    print("\tThis warning can be ignored if you plan to install Isaac Sim via pip.")
+    print(f"\tDownloaded Isaac Sim packages use their bundled Python and cannot be combined with {environment_type}.")
+
+
+def _print_environment_instructions(activate: str, deactivate: str) -> None:
+    """Print the next steps after an environment was created."""
+    launcher = "isaaclab.bat" if is_windows() else "./isaaclab.sh"
+    print(f"\t\t1. To activate the environment, run:                {activate}")
+    print(f"\t\t2. To install Isaac Lab extensions, run:            {launcher} -i")
+    print(f"\t\t3. To perform formatting, run:                      {launcher} -f")
+    print(f"\t\t4. To deactivate the environment, run:              {deactivate}")
+
+
 def command_setup_conda(env_name: str) -> None:
     """Setup conda environment for Isaac Lab
 
     Args:
         env_name: Name for the conda environment to create or reuse.
     """
-
     _reject_downloaded_isaac_sim("conda")
 
-    # Check if conda is installed.
     if not shutil.which("conda"):
         print_error("Conda could not be found. Please install conda and try again.")
         sys.exit(1)
 
-    # Check if _isaac_sim symlink exists
-    symlink_missing = not (ISAACLAB_ROOT / "_isaac_sim").exists()
+    if not (ISAACLAB_ROOT / "_isaac_sim").exists() and not _isaacsim_pip_package_installed():
+        _warn_isaac_sim_missing("conda")
 
-    # Check if isaacsim is importable.
-    pip_package_missing = True
-    result = run_command(
-        [sys.executable, "-c", "import isaacsim"],
-        check=False,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        # avoid EULA prompt
-        stdin=subprocess.DEVNULL,
-    )
-    if result.returncode == 0:
-        pip_package_missing = False  # installed
-
-    if symlink_missing and pip_package_missing:
-        print_warning(f"_isaac_sim symlink not found at {ISAACLAB_ROOT}/_isaac_sim")
-        print("\tThis warning can be ignored if you plan to install Isaac Sim via pip.")
-        print("\tDownloaded Isaac Sim packages use their bundled Python and cannot be combined with conda.")
-
-    # Check if the environment exists.
     conda_env = _sanitized_conda_env()
     result = run_command(["conda", "env", "list", "--json"], capture_output=True, text=True, check=False, env=conda_env)
-    if '"' + env_name + '"' in result.stdout:
+    if f'"{env_name}"' in result.stdout:
         print_info(f"Conda environment named '{env_name}' already exists.")
-        env_exists = True
     else:
         print_info(f"Creating conda environment named '{env_name}'...")
         print_info(f"Installing dependencies from {ISAACLAB_ROOT}/environment.yml")
-        env_exists = False
-
-    if not env_exists:
-        # Patch Python version if needed.
-        env_yml = ISAACLAB_ROOT / "environment.yml"
-
-        # Determine appropriate python version based on Isaac Sim version.
-        python_version = determine_python_version()
-
-        # Prepare patched yml.
-
-        # Write a temp file.
+        # Create from a copy of environment.yml pinned to the Python version Isaac Sim requires.
         temp_yml = ISAACLAB_ROOT / "environment_temp.yml"
-        patched_content = _patch_environment_yml(env_yml, python_version)
-        with open(temp_yml, "w") as f:
-            f.write(patched_content)
-
+        temp_yml.write_text(_patch_environment_yml(ISAACLAB_ROOT / "environment.yml", determine_python_version()))
         try:
             run_command(["conda", "env", "create", "-y", "--file", str(temp_yml), "-n", env_name], env=conda_env)
         finally:
-            if temp_yml.exists():
-                temp_yml.unlink()
+            temp_yml.unlink(missing_ok=True)
 
-    # Now configure activation scripts.
     conda_prefix = _get_conda_prefix(env_name)
     if not conda_prefix:
         print_error(f"Could not determine prefix for env {env_name}")
         return
 
-    # Setup Isaac Lab and Isaac Sim environment variables through conda hooks.
     _write_conda_env_hooks(conda_prefix)
 
     if not is_windows():
         print_info("Added 'isaaclab' alias and environment hooks to conda activation scripts.")
-        print_info(f"Created conda environment named '{env_name}'.\n")
-        print(f"\t\t1. To activate the environment, run:                conda activate {env_name}")
-        print("\t\t2. To install Isaac Lab extensions, run:            isaaclab.sh -i")
-        print("\t\t3. To perform formatting, run:                      isaaclab.sh -f")
-        print("\t\t4. To deactivate the environment, run:              conda deactivate")
-        print("\n")
-
-    if is_windows():
-        print_info(f"Created conda environment named '{env_name}'.\n")
-        print(f"\t\t1. To activate the environment, run:                conda activate {env_name}")
-        print("\t\t2. To install Isaac Lab extensions, run:            isaaclab.bat -i")
-        print("\t\t3. To perform formatting, run:                      isaaclab.bat -f")
-        print("\t\t4. To deactivate the environment, run:              conda deactivate")
-        print("\n")
+    print_info(f"Created conda environment named '{env_name}'.\n")
+    _print_environment_instructions(f"conda activate {env_name}", "conda deactivate")
+    print("\n")
 
 
 def _check_venv_python_version(env_path: Path, required_ver: str) -> None:
@@ -613,11 +561,7 @@ def _check_venv_python_version(env_path: Path, required_ver: str) -> None:
     Raises:
         SystemExit: If the Python version does not match.
     """
-    if is_windows():
-        python_exe = env_path / "Scripts" / "python.exe"
-    else:
-        python_exe = env_path / "bin" / "python"
-
+    python_exe = env_path / ("Scripts/python.exe" if is_windows() else "bin/python")
     if not python_exe.exists():
         return
 
@@ -654,47 +598,24 @@ def command_setup_uv(env_name: str) -> None:
     """
     _reject_downloaded_isaac_sim("uv")
 
-    # Check if uv is installed.
     if not shutil.which("uv"):
         print_error("uv could not be found. Please install uv and try again.")
         print_error("uv can be installed here:")
         print_error("https://docs.astral.sh/uv/getting-started/installation/")
         sys.exit(1)
 
-    # Check if _isaac_sim symlink exists and isaacsim is not importable.
-    if not (ISAACLAB_ROOT / "_isaac_sim").is_symlink():
-        try:
-            result = run_command(
-                [sys.executable, "-c", "import isaacsim"],
-                check=False,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                # avoid EULA prompt
-                stdin=subprocess.DEVNULL,
-            )
-            if result.returncode != 0 and not (ISAACLAB_ROOT / "_isaac_sim").exists():
-                print_warning(f"_isaac_sim symlink not found at {ISAACLAB_ROOT}/_isaac_sim")
-                print("\tThis warning can be ignored if you plan to install Isaac Sim via pip.")
-                print("\tDownloaded Isaac Sim packages use their bundled Python and cannot be combined with uv.")
-        except Exception:
-            pass
+    if not (ISAACLAB_ROOT / "_isaac_sim").exists() and not _isaacsim_pip_package_installed():
+        _warn_isaac_sim_missing("uv")
 
-    # Determine appropriate python version based on Isaac Sim version.
     py_ver = determine_python_version()
 
-    # If a virtual environment is already active, configure it for Isaac Lab
-    # instead of creating a new one.
+    # Configure an already active virtual environment instead of creating a new one.
     active_venv = os.environ.get("VIRTUAL_ENV")
     if active_venv:
         env_path = Path(active_venv)
         print_info(f"Detected active virtual environment: {env_path}")
-
-        # Validate Python version.
         _check_venv_python_version(env_path, py_ver)
-
-        # Inject Isaac Lab hooks into the existing environment.
         _write_uv_env_hooks(env_path)
-
         print_info("Added Isaac Lab environment hooks to the active virtual environment.")
         print_info("Deactivate and reactivate the environment for hooks to take effect:\n")
         if is_windows():
@@ -705,30 +626,16 @@ def command_setup_uv(env_name: str) -> None:
         return
 
     env_path = ISAACLAB_ROOT / env_name
-
-    # Check if the environment exists.
     if not env_path.exists():
         print_info(f"Creating uv environment named '{env_name}'...")
         run_command(["uv", "venv", "--clear", "--seed", "--python", py_ver, str(env_path)])
     else:
         print_info(f"uv environment '{env_name}' already exists.")
-        # Validate Python version of existing environment.
         _check_venv_python_version(env_path, py_ver)
 
-    # Setup Isaac Lab and Isaac Sim environment variables through uv activation hooks.
     _write_uv_env_hooks(env_path)
-
     print_info("Added environment hooks to uv activation scripts.")
-
     print_info(f"Created uv environment named '{env_name}'.")
     print()
-    if is_windows():
-        print(f"\t\t1. To activate the environment, run:                {env_name}\\Scripts\\activate")
-        print("\t\t2. To install Isaac Lab extensions, run:            isaaclab.bat -i")
-        print("\t\t3. To perform formatting, run:                      isaaclab.bat -f")
-        print("\t\t4. To deactivate the environment, run:              deactivate")
-    else:
-        print(f"\t\t1. To activate the environment, run:                source {env_name}/bin/activate")
-        print("\t\t2. To install Isaac Lab extensions, run:            ./isaaclab.sh -i")
-        print("\t\t3. To perform formatting, run:                      ./isaaclab.sh -f")
-        print("\t\t4. To deactivate the environment, run:              deactivate")
+    activate = f"{env_name}\\Scripts\\activate" if is_windows() else f"source {env_name}/bin/activate"
+    _print_environment_instructions(activate, "deactivate")

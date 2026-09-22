@@ -20,7 +20,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: F401
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -37,6 +36,9 @@ _INVALID_XFORM_OPS = [
     "xformOp:transform",
 ]
 """List of invalid xform ops that should be removed."""
+
+_STANDARD_XFORM_OP_ORDER = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+"""Canonical xform op order enforced by :func:`standardize_xform_ops`."""
 
 
 def standardize_xform_ops(
@@ -129,11 +131,8 @@ def standardize_xform_ops(
     """
     from pxr import Gf, Sdf, UsdGeom  # noqa: PLC0415
 
-    # Validate prim
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim.GetPath()}' is not valid.")
-
-    # Check if prim is an Xformable
     if not prim.IsA(UsdGeom.Xformable):
         logger.error(
             f"Prim at path '{prim.GetPath().pathString}' is of type '{prim.GetTypeName()}', "
@@ -142,12 +141,10 @@ def standardize_xform_ops(
         )
         return False
 
-    # Create xformable interface
     xformable = UsdGeom.Xformable(prim)
-    # Get current property names
     prop_names = prim.GetPropertyNames()
 
-    # Obtain current local transformations
+    # current local transform, overridden by any explicitly provided values
     tf = Gf.Transform(xformable.GetLocalTransformation())
     xform_pos = Gf.Vec3d(tf.GetTranslation())
     xform_quat = Gf.Quatd(tf.GetRotation().GetQuat())
@@ -159,23 +156,17 @@ def standardize_xform_ops(
         # orientation is (x, y, z, w), Gf.Quatd expects (w, x, y, z)
         xform_quat = Gf.Quatd(orientation[3], orientation[0], orientation[1], orientation[2])
 
-    # Handle scale resolution
     if scale is not None:
-        # User provided scale
-        xform_scale = Gf.Vec3d(scale)
+        xform_scale = Gf.Vec3d(*scale)
     elif "xformOp:scale" in prop_names:
-        # Handle unit resolution for scale if present
-        # This occurs when assets are imported with different unit scales
-        # Reference: Omniverse Metrics Assembler
+        # bake the unit conversion authored by the Omniverse Metrics Assembler into the scale
         if "xformOp:scale:unitsResolve" in prop_names:
             units_resolve = prim.GetAttribute("xformOp:scale:unitsResolve").Get()
             for i in range(3):
                 xform_scale[i] = xform_scale[i] * units_resolve[i]
     else:
-        # No scale exists, use default uniform scale
         xform_scale = Gf.Vec3d(1.0, 1.0, 1.0)
 
-    # Verify if xform stack is reset
     has_reset = xformable.GetResetXformStack()
 
     # Ensure the prim has an "over" spec on the edit target layer. Prims from
@@ -190,48 +181,27 @@ def standardize_xform_ops(
                 parent_spec = edit_layer.GetPrimAtPath(prefix.GetParentPath()) or edit_layer.pseudoRoot
                 Sdf.PrimSpec(parent_spec, prefix.name, Sdf.SpecifierOver)
 
-    # Batch the operations
     with Sdf.ChangeBlock():
-        # Clear the existing transform operation order
         for prop_name in prop_names:
-            if prop_name in _INVALID_XFORM_OPS:
+            if prop_name in _INVALID_XFORM_OPS or prop_name == "xformOp:scale:unitsResolve":
                 prim.RemoveProperty(prop_name)
 
-        # Remove unitsResolve attribute if present (already handled in scale resolution above)
-        if "xformOp:scale:unitsResolve" in prop_names:
-            prim.RemoveProperty("xformOp:scale:unitsResolve")
-
-        # Set up or retrieve scale operation
-        xform_op_scale = UsdGeom.XformOp(prim.GetAttribute("xformOp:scale"))
-        if not xform_op_scale:
-            xform_op_scale = xformable.AddXformOp(UsdGeom.XformOp.TypeScale, UsdGeom.XformOp.PrecisionDouble, "")
-
-        # Set up or retrieve translate operation
-        xform_op_translate = UsdGeom.XformOp(prim.GetAttribute("xformOp:translate"))
-        if not xform_op_translate:
-            xform_op_translate = xformable.AddXformOp(
-                UsdGeom.XformOp.TypeTranslate, UsdGeom.XformOp.PrecisionDouble, ""
-            )
-
-        # Set up or retrieve orient (quaternion rotation) operation
-        xform_op_orient = UsdGeom.XformOp(prim.GetAttribute("xformOp:orient"))
-        if not xform_op_orient:
-            xform_op_orient = xformable.AddXformOp(UsdGeom.XformOp.TypeOrient, UsdGeom.XformOp.PrecisionDouble, "")
-
-        # Handle different floating point precisions
-        # Existing Xform operations might have floating or double precision.
-        # We need to cast the data to the correct type to avoid setting the wrong type.
-        xform_ops = [xform_op_translate, xform_op_orient, xform_op_scale]
-        xform_values = [xform_pos, xform_quat, xform_scale]
-        for xform_op, value in zip(xform_ops, xform_values):
-            # Get current value to determine precision type
+        # reuse existing standard ops so their precision is preserved; create missing ones as double
+        xform_ops = []
+        for op_type, value in (
+            (UsdGeom.XformOp.TypeTranslate, xform_pos),
+            (UsdGeom.XformOp.TypeOrient, xform_quat),
+            (UsdGeom.XformOp.TypeScale, xform_scale),
+        ):
+            xform_op = UsdGeom.XformOp(prim.GetAttribute(f"xformOp:{UsdGeom.XformOp.GetOpTypeToken(op_type)}"))
+            if not xform_op:
+                xform_op = xformable.AddXformOp(op_type, UsdGeom.XformOp.PrecisionDouble, "")
+            # cast to the op's existing value type so float-precision ops stay float
             current_value = xform_op.Get()
-            # Cast to existing type to preserve precision (float/double)
             xform_op.Set(type(current_value)(value) if current_value is not None else value)
+            xform_ops.append(xform_op)
 
-        # Set the transform operation order: translate -> orient -> scale
-        # This is the standard USD convention and ensures consistent behavior
-        xformable.SetXformOpOrder([xform_op_translate, xform_op_orient, xform_op_scale], has_reset)
+        xformable.SetXformOpOrder(xform_ops, has_reset)
 
     return True
 
@@ -247,25 +217,18 @@ def validate_standard_xform_ops(prim: Usd.Prim) -> bool:
     """
     from pxr import UsdGeom  # noqa: PLC0415
 
-    # check if prim is valid
     if not prim.IsValid():
         logger.error(f"Prim at path '{prim.GetPath().pathString}' is not valid.")
         return False
-    # check if prim is an xformable
     if not prim.IsA(UsdGeom.Xformable):
         logger.error(f"Prim at path '{prim.GetPath().pathString}' is not an xformable.")
         return False
-    # get the xformable interface
-    xformable = UsdGeom.Xformable(prim)
-    # get the xform operation order
-    xform_op_order = xformable.GetOrderedXformOps()
-    xform_op_order = [op.GetOpName() for op in xform_op_order]
-    # check if the xform operation order is the canonical form
-    if xform_op_order != ["xformOp:translate", "xformOp:orient", "xformOp:scale"]:
-        msg = f"Xform operation order for prim at path '{prim.GetPath().pathString}' is not the canonical form."
-        msg += f" Received order: {xform_op_order}"
-        msg += " Expected order: ['xformOp:translate', 'xformOp:orient', 'xformOp:scale']"
-        logger.error(msg)
+    xform_op_order = [op.GetOpName() for op in UsdGeom.Xformable(prim).GetOrderedXformOps()]
+    if xform_op_order != _STANDARD_XFORM_OP_ORDER:
+        logger.error(
+            f"Xform operation order for prim at path '{prim.GetPath().pathString}' is not the canonical form."
+            f" Received order: {xform_op_order} Expected order: {_STANDARD_XFORM_OP_ORDER}"
+        )
         return False
     return True
 
@@ -319,33 +282,20 @@ def resolve_prim_pose(
     """
     from pxr import Sdf, Usd, UsdGeom  # noqa: PLC0415
 
-    # check if prim is valid
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim.GetPath().pathString}' is not valid.")
-    # get prim xform
-    xform = UsdGeom.Xformable(prim)
-    prim_tf = xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
-    # sanitize quaternion
-    # this is needed, otherwise the quaternion might be non-normalized
+    prim_tf = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+    # orthonormalize so the extracted quaternion is normalized
     prim_tf.Orthonormalize()
 
-    if ref_prim is not None:
-        # if reference prim is the root, we can skip the computation
-        if ref_prim.GetPath() != Sdf.Path.absoluteRootPath:
-            # get ref prim xform
-            ref_xform = UsdGeom.Xformable(ref_prim)
-            ref_tf = ref_xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
-            # make sure ref tf is orthonormal
-            ref_tf.Orthonormalize()
-            # compute relative transform to get prim in ref frame
-            prim_tf = prim_tf * ref_tf.GetInverse()
+    # the root frame is the world frame, so only a non-root reference changes the result
+    if ref_prim is not None and ref_prim.GetPath() != Sdf.Path.absoluteRootPath:
+        ref_tf = UsdGeom.Xformable(ref_prim).ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+        ref_tf.Orthonormalize()
+        prim_tf = prim_tf * ref_tf.GetInverse()
 
-    # extract position and orientation
-    prim_pos = [*prim_tf.ExtractTranslation()]
-    # prim_quat = [prim_tf.ExtractRotationQuat().real, *prim_tf.ExtractRotationQuat().imaginary]
-    prim_quat = [*prim_tf.ExtractRotationQuat().imaginary, prim_tf.ExtractRotationQuat().real]
-
-    return tuple(prim_pos), tuple(prim_quat)
+    quat = prim_tf.ExtractRotationQuat()
+    return tuple(prim_tf.ExtractTranslation()), (*quat.imaginary, quat.real)
 
 
 def resolve_prim_scale(prim: Usd.Prim) -> tuple[float, float, float]:
@@ -382,14 +332,10 @@ def resolve_prim_scale(prim: Usd.Prim) -> tuple[float, float, float]:
     """
     from pxr import Usd, UsdGeom  # noqa: PLC0415
 
-    # check if prim is valid
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim.GetPath().pathString}' is not valid.")
-    # compute local to world transform
-    xform = UsdGeom.Xformable(prim)
-    world_transform = xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
-    # extract scale
-    return tuple([*(v.GetLength() for v in world_transform.ExtractRotationMatrix())])
+    world_transform = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+    return tuple(v.GetLength() for v in world_transform.ExtractRotationMatrix())
 
 
 def convert_world_pose_to_local(
@@ -444,40 +390,26 @@ def convert_world_pose_to_local(
     """
     from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: PLC0415
 
-    # Check if prim is valid
     if not ref_prim.IsValid():
         raise ValueError(f"Reference prim at path '{ref_prim.GetPath().pathString}' is not valid.")
-
-    # If reference prim is the root, return world pose as-is
     if ref_prim.GetPath() == Sdf.Path.absoluteRootPath:
         return position, orientation  # type: ignore
 
-    # Check if reference prim is a valid xformable
-    ref_xformable = UsdGeom.Xformable(ref_prim)
-    # Get reference prim's world transform
-    ref_world_tf = ref_xformable.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+    ref_world_tf = UsdGeom.Xformable(ref_prim).ComputeLocalToWorldTransform(Usd.TimeCode.Default())
 
-    # Create world transform for the desired position and orientation
     desired_world_tf = Gf.Matrix4d()
     desired_world_tf.SetTranslateOnly(Gf.Vec3d(*position))
-
     if orientation is not None:
-        # Set rotation from quaternion (x, y, z, w) - Gf.Quatd expects (w, x, y, z)
-        quat = Gf.Quatd(orientation[3], orientation[0], orientation[1], orientation[2])
-        desired_world_tf.SetRotateOnly(quat)
+        # orientation is (x, y, z, w), Gf.Quatd expects (w, x, y, z)
+        desired_world_tf.SetRotateOnly(Gf.Quatd(orientation[3], orientation[0], orientation[1], orientation[2]))
 
-    # Convert world transform to local: local = world * inv(ref_world)
-    ref_world_tf_inv = ref_world_tf.GetInverse()
-    local_tf = desired_world_tf * ref_world_tf_inv
-
-    # Extract local translation and orientation
-    local_transform = Gf.Transform(local_tf)
+    # local = world * inv(ref_world)
+    local_transform = Gf.Transform(desired_world_tf * ref_world_tf.GetInverse())
     local_translation = tuple(local_transform.GetTranslation())
 
     local_orientation = None
     if orientation is not None:
-        quat_result = local_transform.GetRotation().GetQuat()
-        # Gf.Quatd stores (w, x, y, z), return (x, y, z, w) for our convention
-        local_orientation = (*quat_result.GetImaginary(), quat_result.GetReal())
+        quat = local_transform.GetRotation().GetQuat()
+        local_orientation = (*quat.GetImaginary(), quat.GetReal())
 
     return local_translation, local_orientation

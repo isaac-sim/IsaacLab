@@ -173,30 +173,18 @@ def test_isaac_rtx_global_settings(monkeypatch):
     assert rep_settings.antialiasing == "DLAA"
 
 
-def test_isaac_rtx_determinism_settings(monkeypatch):
-    """Write RTPT reproducibility carb settings."""
+@pytest.mark.parametrize("explicit_manager", [False, True], ids=["global_manager", "explicit_manager"])
+def test_isaac_rtx_determinism_settings(monkeypatch, explicit_manager):
+    """Write RTPT reproducibility carb settings to the global manager, or to the one passed in."""
     utils = _import_isaac_rtx_utils(monkeypatch)
     settings = _FakeSettings()
-    monkeypatch.setattr(utils, "get_settings_manager", lambda: settings)
-
-    utils.apply_isaac_rtx_determinism_settings()
-
-    assert settings.get("/rtx/rendermode") == "RealTimePathTracing"
-    assert settings.get("/rtx/rtpt/cached/enabled") is False
-    assert settings.get("/rtx/rtpt/lightcache/cached/enabled") is False
-
-
-def test_isaac_rtx_determinism_settings_accepts_explicit_manager(monkeypatch):
-    """Use the provided settings manager when one is passed."""
-    utils = _import_isaac_rtx_utils(monkeypatch)
 
     def _fail():
         raise AssertionError("global settings manager should not be queried when one is provided")
 
-    monkeypatch.setattr(utils, "get_settings_manager", _fail)
-    settings = _FakeSettings()
+    monkeypatch.setattr(utils, "get_settings_manager", _fail if explicit_manager else lambda: settings)
 
-    utils.apply_isaac_rtx_determinism_settings(settings)
+    utils.apply_isaac_rtx_determinism_settings(settings if explicit_manager else None)
 
     assert settings.get("/rtx/rendermode") == "RealTimePathTracing"
     assert settings.get("/rtx/rtpt/cached/enabled") is False

@@ -26,6 +26,7 @@ from isaaclab.utils.leapp import (
 )
 from isaaclab.utils.warp import ProxyArray
 
+from .._deprecation import warn_renamed_member
 from . import ordering_kernels
 
 if TYPE_CHECKING:
@@ -1507,11 +1508,12 @@ class BaseArticulationData(ABC):
     @leapp_tensor_semantics(const=True)
     def default_mass(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_mass` instead and manage the default mass manually."""
-        warnings.warn(
-            "The `default_mass` property will be deprecated in a IsaacLab 4.0. Please use `body_mass` instead. "
-            "The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_mass",
+            "body_mass",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_mass is None:
             self._default_mass = wp.clone(self.body_mass.warp, self.device)
@@ -1521,11 +1523,12 @@ class BaseArticulationData(ABC):
     @leapp_tensor_semantics(const=True)
     def default_inertia(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`body_inertia` instead and manage the default inertia manually."""
-        warnings.warn(
-            "The `default_inertia` property will be deprecated in a IsaacLab 4.0. Please use `body_inertia` instead. "
-            "The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_inertia",
+            "body_inertia",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_inertia is None:
             self._default_inertia = wp.clone(self.body_inertia.warp, self.device)
@@ -1536,11 +1539,12 @@ class BaseArticulationData(ABC):
     def default_joint_stiffness(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`joint_stiffness` instead and manage the default joint stiffness
         manually."""
-        warnings.warn(
-            "The `default_joint_stiffness` property will be deprecated in a IsaacLab 4.0. Please use `joint_stiffness` "
-            "instead. The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_joint_stiffness",
+            "joint_stiffness",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_joint_stiffness is None:
             self._default_joint_stiffness = wp.clone(self.joint_stiffness.warp, self.device)
@@ -1551,11 +1555,12 @@ class BaseArticulationData(ABC):
     def default_joint_damping(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`joint_damping` instead and manage the default joint damping
         manually."""
-        warnings.warn(
-            "The `default_joint_damping` property will be deprecated in a IsaacLab 4.0. Please use `joint_damping` "
-            "instead. The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_joint_damping",
+            "joint_damping",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_joint_damping is None:
             self._default_joint_damping = wp.clone(self.joint_damping.warp, self.device)
@@ -1566,11 +1571,12 @@ class BaseArticulationData(ABC):
     def default_joint_armature(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`joint_armature` instead and manage the default joint armature
         manually."""
-        warnings.warn(
-            "The `default_joint_armature` property will be deprecated in a IsaacLab 4.0. Please use `joint_armature` "
-            "instead. The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_joint_armature",
+            "joint_armature",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_joint_armature is None:
             self._default_joint_armature = wp.clone(self.joint_armature.warp, self.device)
@@ -1581,11 +1587,12 @@ class BaseArticulationData(ABC):
     def default_joint_friction_coeff(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`joint_friction_coeff` instead and manage the default joint friction
         coefficient manually."""
-        warnings.warn(
-            "The `default_joint_friction_coeff` property will be deprecated in a IsaacLab 4.0. Please use "
-            "`joint_friction_coeff` instead. The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_joint_friction_coeff",
+            "joint_friction_coeff",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_joint_friction_coeff is None:
             self._default_joint_friction_coeff = wp.clone(self.joint_friction_coeff.warp, self.device)
@@ -1596,11 +1603,12 @@ class BaseArticulationData(ABC):
     def default_joint_viscous_friction_coeff(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`joint_viscous_friction_coeff` instead and manage the default joint
         viscous friction coefficient manually."""
-        warnings.warn(
-            "The `default_joint_viscous_friction_coeff` property will be deprecated in a IsaacLab 4.0. Please use "
-            "`joint_viscous_friction_coeff` instead. The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_joint_viscous_friction_coeff",
+            "joint_viscous_friction_coeff",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_joint_viscous_friction_coeff is None:
             self._default_joint_viscous_friction_coeff = wp.clone(
@@ -1613,11 +1621,12 @@ class BaseArticulationData(ABC):
     def default_joint_pos_limits(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`joint_pos_limits` instead and manage the default joint position
         limits manually."""
-        warnings.warn(
-            "The `default_joint_pos_limits` property will be deprecated in a IsaacLab 4.0. Please use "
-            "`joint_pos_limits` instead. The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_joint_pos_limits",
+            "joint_pos_limits",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_joint_pos_limits is None:
             self._default_joint_pos_limits = wp.clone(self.joint_pos_limits.warp, self.device)
@@ -1628,11 +1637,12 @@ class BaseArticulationData(ABC):
     def default_fixed_tendon_stiffness(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`fixed_tendon_stiffness` instead and manage the default fixed tendon
         stiffness manually."""
-        warnings.warn(
-            "The `default_fixed_tendon_stiffness` property will be deprecated in a IsaacLab 4.0. Please use "
-            "`fixed_tendon_stiffness` instead. The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_fixed_tendon_stiffness",
+            "fixed_tendon_stiffness",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_fixed_tendon_stiffness is None:
             self._default_fixed_tendon_stiffness = wp.clone(self.fixed_tendon_stiffness.warp, self.device)
@@ -1643,11 +1653,12 @@ class BaseArticulationData(ABC):
     def default_fixed_tendon_damping(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`fixed_tendon_damping` instead and manage the default fixed tendon
         damping manually."""
-        warnings.warn(
-            "The `default_fixed_tendon_damping` property will be deprecated in a IsaacLab 4.0. Please use "
-            "`fixed_tendon_damping` instead. The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_fixed_tendon_damping",
+            "fixed_tendon_damping",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_fixed_tendon_damping is None:
             self._default_fixed_tendon_damping = wp.clone(self.fixed_tendon_damping.warp, self.device)
@@ -1658,11 +1669,12 @@ class BaseArticulationData(ABC):
     def default_fixed_tendon_limit_stiffness(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`fixed_tendon_limit_stiffness` instead and manage the default fixed
         tendon limit stiffness manually."""
-        warnings.warn(
-            "The `default_fixed_tendon_limit_stiffness` property will be deprecated in a IsaacLab 4.0. Please use "
-            "`fixed_tendon_limit_stiffness` instead. The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_fixed_tendon_limit_stiffness",
+            "fixed_tendon_limit_stiffness",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_fixed_tendon_limit_stiffness is None:
             self._default_fixed_tendon_limit_stiffness = wp.clone(self.fixed_tendon_limit_stiffness.warp, self.device)
@@ -1673,11 +1685,12 @@ class BaseArticulationData(ABC):
     def default_fixed_tendon_rest_length(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`fixed_tendon_rest_length` instead and manage the default fixed tendon
         rest length manually."""
-        warnings.warn(
-            "The `default_fixed_tendon_rest_length` property will be deprecated in a IsaacLab 4.0. Please use "
-            "`fixed_tendon_rest_length` instead. The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_fixed_tendon_rest_length",
+            "fixed_tendon_rest_length",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_fixed_tendon_rest_length is None:
             self._default_fixed_tendon_rest_length = wp.clone(self.fixed_tendon_rest_length.warp, self.device)
@@ -1688,11 +1701,12 @@ class BaseArticulationData(ABC):
     def default_fixed_tendon_offset(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`fixed_tendon_offset` instead and manage the default fixed tendon
         offset manually."""
-        warnings.warn(
-            "The `default_fixed_tendon_offset` property will be deprecated in a IsaacLab 4.0. Please use "
-            "`fixed_tendon_offset` instead. The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_fixed_tendon_offset",
+            "fixed_tendon_offset",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_fixed_tendon_offset is None:
             self._default_fixed_tendon_offset = wp.clone(self.fixed_tendon_offset.warp, self.device)
@@ -1703,11 +1717,12 @@ class BaseArticulationData(ABC):
     def default_fixed_tendon_pos_limits(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`fixed_tendon_pos_limits` instead and manage the default fixed tendon
         position limits manually."""
-        warnings.warn(
-            "The `default_fixed_tendon_pos_limits` property will be deprecated in a IsaacLab 4.0. Please use "
-            "`fixed_tendon_pos_limits` instead. The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_fixed_tendon_pos_limits",
+            "fixed_tendon_pos_limits",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_fixed_tendon_pos_limits is None:
             self._default_fixed_tendon_pos_limits = wp.clone(self.fixed_tendon_pos_limits.warp, self.device)
@@ -1718,11 +1733,12 @@ class BaseArticulationData(ABC):
     def default_spatial_tendon_stiffness(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`spatial_tendon_stiffness` instead and manage the default spatial
         tendon stiffness manually."""
-        warnings.warn(
-            "The `default_spatial_tendon_stiffness` property will be deprecated in a IsaacLab 4.0. Please use "
-            "`spatial_tendon_stiffness` instead. The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_spatial_tendon_stiffness",
+            "spatial_tendon_stiffness",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_spatial_tendon_stiffness is None:
             self._default_spatial_tendon_stiffness = wp.clone(self.spatial_tendon_stiffness.warp, self.device)
@@ -1733,11 +1749,12 @@ class BaseArticulationData(ABC):
     def default_spatial_tendon_damping(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`spatial_tendon_damping` instead and manage the default spatial tendon
         damping manually."""
-        warnings.warn(
-            "The `default_spatial_tendon_damping` property will be deprecated in a IsaacLab 4.0. Please use "
-            "`spatial_tendon_damping` instead. The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_spatial_tendon_damping",
+            "spatial_tendon_damping",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_spatial_tendon_damping is None:
             self._default_spatial_tendon_damping = wp.clone(self.spatial_tendon_damping.warp, self.device)
@@ -1748,11 +1765,12 @@ class BaseArticulationData(ABC):
     def default_spatial_tendon_limit_stiffness(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`spatial_tendon_limit_stiffness` instead and manage the default
         spatial tendon limit stiffness manually."""
-        warnings.warn(
-            "The `default_spatial_tendon_limit_stiffness` property will be deprecated in a IsaacLab 4.0. Please use "
-            "`spatial_tendon_limit_stiffness` instead. The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_spatial_tendon_limit_stiffness",
+            "spatial_tendon_limit_stiffness",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_spatial_tendon_limit_stiffness is None:
             self._default_spatial_tendon_limit_stiffness = wp.clone(
@@ -1765,11 +1783,12 @@ class BaseArticulationData(ABC):
     def default_spatial_tendon_offset(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`spatial_tendon_offset` instead and manage the default spatial tendon
         offset manually."""
-        warnings.warn(
-            "The `default_spatial_tendon_offset` property will be deprecated in a IsaacLab 4.0. Please use "
-            "`spatial_tendon_offset` instead. The default value will need to be managed manually.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_spatial_tendon_offset",
+            "spatial_tendon_offset",
+            kind="property",
+            release="a IsaacLab 4.0",
+            detail=" The default value will need to be managed manually.",
         )
         if self._default_spatial_tendon_offset is None:
             self._default_spatial_tendon_offset = wp.clone(self.spatial_tendon_offset.warp, self.device)
@@ -1779,11 +1798,8 @@ class BaseArticulationData(ABC):
     @leapp_tensor_semantics(const=True)
     def default_fixed_tendon_limit(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`default_fixed_tendon_pos_limits` instead."""
-        warnings.warn(
-            "The `default_fixed_tendon_limit` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `default_fixed_tendon_pos_limits` instead.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_fixed_tendon_limit", "default_fixed_tendon_pos_limits", kind="property", release="a IsaacLab 4.0"
         )
         return self.default_fixed_tendon_pos_limits
 
@@ -1791,10 +1807,7 @@ class BaseArticulationData(ABC):
     @leapp_tensor_semantics(const=True)
     def default_joint_friction(self) -> ProxyArray:
         """Deprecated property. Please use :attr:`default_joint_friction_coeff` instead."""
-        warnings.warn(
-            "The `default_joint_friction` property will be deprecated in a IsaacLab 4.0. Please use"
-            " `default_joint_friction_coeff` instead.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_member(
+            "default_joint_friction", "default_joint_friction_coeff", kind="property", release="a IsaacLab 4.0"
         )
         return self.default_joint_friction_coeff

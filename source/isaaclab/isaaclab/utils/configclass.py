@@ -231,21 +231,17 @@ def _wrap_resolvable_strings(value: Any, module_dir: str | None = None, _seen: s
         if value_id in _seen:
             return value
         _seen.add(value_id)
-    if isinstance(value, list):
+    # containers are rebuilt only when one of their items was wrapped, so untouched values keep their identity
+    if isinstance(value, (list, tuple)):
         wrapped = [_wrap_resolvable_strings(item, module_dir=module_dir, _seen=_seen) for item in value]
-        if len(wrapped) == len(value) and all(new_item is old_item for new_item, old_item in zip(wrapped, value)):
+        if all(new_item is old_item for new_item, old_item in zip(wrapped, value)):
             return value
-        return wrapped
-    if isinstance(value, tuple):
-        wrapped = tuple(_wrap_resolvable_strings(item, module_dir=module_dir, _seen=_seen) for item in value)
-        if len(wrapped) == len(value) and all(new_item is old_item for new_item, old_item in zip(wrapped, value)):
-            return value
-        return wrapped
+        return type(value)(wrapped)
     if isinstance(value, dict):
         wrapped = {
             key: _wrap_resolvable_strings(item, module_dir=module_dir, _seen=_seen) for key, item in value.items()
         }
-        if len(wrapped) == len(value) and all(wrapped[key] is value[key] for key in value):
+        if all(wrapped[key] is value[key] for key in value):
             return value
         return wrapped
     if is_dataclass_instance:
@@ -327,9 +323,7 @@ def _add_annotation_types(cls):
         # this only refreshes the type and keeps their original position.
         hints.update(ann)
 
-    # Note: Do not change this line. `cls.__dict__.get("__annotations__", {})` is different from
-    #   `cls.__annotations__` because of inheritance.
-    cls.__annotations__ = cls.__dict__.get("__annotations__", {})
+    # Note: assign (not update) so that inherited annotations are not mutated in place.
     cls.__annotations__ = hints
 
 

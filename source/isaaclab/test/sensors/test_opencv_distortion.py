@@ -60,18 +60,18 @@ if not _MISSING_MODULES:
 
 # Real SO-101 wrist-camera calibration: exercises fx != fy and an off-center principal point, which
 # stock Isaac Lab camera cfgs cannot express.
-_PINHOLE_CALIB = dict(
-    fx=339.26592887,
-    fy=338.82010626,
-    cx=323.55809091,
-    cy=250.27360914,
-    image_size=(640, 480),
-    k1=0.07702322,
-    k2=-0.13605453,
-    k3=0.05163219,
-    p1=-0.00024938,
-    p2=-0.00175006,
-)
+_PINHOLE_CALIB = {
+    "fx": 339.26592887,
+    "fy": 338.82010626,
+    "cx": 323.55809091,
+    "cy": 250.27360914,
+    "image_size": (640, 480),
+    "k1": 0.07702322,
+    "k2": -0.13605453,
+    "k3": 0.05163219,
+    "p1": -0.00024938,
+    "p2": -0.00175006,
+}
 
 
 """

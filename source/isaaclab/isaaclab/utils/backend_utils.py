@@ -52,13 +52,10 @@ class FactoryBase:
         """Initializes a new factory subclass."""
         super().__init_subclass__(**kwargs)
         cls._registry = {}
-        # Determine the module subpath for dynamic loading.
-        # e.g., if factory is in 'isaaclab.assets.articulation.articulation',
-        # the subpath becomes 'assets.articulation'.
+        # Map e.g. isaaclab.assets.articulation.articulation to assets.articulation.
         module_parts = cls.__module__.split(".")
         if module_parts[0] != "isaaclab":
             raise ImportError(f"Factory class {cls.__name__} must be defined within the 'isaaclab' package.")
-        # The subpath is what comes between 'isaaclab' and the final module name.
         cls._module_subpath = ".".join(module_parts[1:-1])
 
     @classmethod
@@ -116,16 +113,12 @@ class FactoryBase:
         if cls == FactoryBase:
             raise TypeError("FactoryBase cannot be instantiated directly. Please subclass it.")
 
-        # If backend is not in registry, try to import it and register the class.
-        # This is done to only import the module once.
         if backend not in cls._registry:
-            # Construct the module name from the backend and the determined subpath.
             module_name = cls._get_module_name(backend)
             try:
                 module = importlib.import_module(module_name)
                 class_name = getattr(cls, "_backend_class_names", {}).get(backend, cls.__name__)
                 module_class = getattr(module, class_name)
-                # Manually register the class
                 cls.register(backend, module_class)
 
             except ImportError as e:
@@ -135,11 +128,10 @@ class FactoryBase:
                     f"Original error: {e}"
                 ) from e
 
-        # Now check registry again. The import should have registered the class.
         try:
             impl = cls._registry[backend]
         except KeyError:
-            available = list(cls.get_registry_keys())
+            available = cls.get_registry_keys()
             raise ValueError(
                 f"Unknown backend {backend!r} for {cls.__name__}. "
                 f"A module was found at '{module_name}', but it did not contain a class with the name {class_name!r}.\n"
@@ -150,10 +142,9 @@ class FactoryBase:
     def __new__(cls, *args, **kwargs):
         """Create a new instance of an implementation based on the backend."""
         impl = cls.resolve_class(*args, **kwargs)
-        # Return an instance of the chosen class.
         return impl(*args, **kwargs)
 
     @classmethod
     def get_registry_keys(cls) -> list[str]:
         """Returns a list of registered backend names."""
-        return list(cls._registry.keys())
+        return list(cls._registry)

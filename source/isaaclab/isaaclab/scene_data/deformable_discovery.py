@@ -42,7 +42,7 @@ class DeformableStageEntry:
 
 def _matrix4d_to_numpy(matrix: Gf.Matrix4d) -> np.ndarray:
     """Convert a USD matrix to a host ``(4, 4)`` float64 array."""
-    return np.array([[matrix[i][j] for j in range(4)] for i in range(4)], dtype=np.float64)
+    return np.array(matrix, dtype=np.float64)
 
 
 def _transform_points(matrix: np.ndarray, points: np.ndarray) -> np.ndarray:
@@ -62,9 +62,7 @@ def _transform_points(matrix: np.ndarray, points: np.ndarray) -> np.ndarray:
 
 def _usd_points_to_numpy(points) -> np.ndarray:
     """Convert USD point arrays to ``(N, 3)`` float32."""
-    if not points:
-        return np.empty((0, 3), dtype=np.float32)
-    return np.array([[float(point[0]), float(point[1]), float(point[2])] for point in points], dtype=np.float32)
+    return np.asarray(points or [], dtype=np.float32).reshape(-1, 3)
 
 
 def _get_applied_schema_names(prim) -> set[str]:
@@ -189,25 +187,20 @@ def _classify_deformable_meshes(
         raise ValueError(f"No simulation mesh found under deformable root '{root_path}'.")
 
     vis_mesh_prim = _select_visual_mesh(vis_candidates, sim_mesh_prim, len(pts))
-    vis_pts = (
-        UsdGeom.Mesh(vis_mesh_prim).GetPointsAttr().Get()
-        if vis_mesh_prim.GetTypeName() == "Mesh"
-        else UsdGeom.TetMesh(vis_mesh_prim).GetPointsAttr().Get()
-    )
-    vis_count = len(vis_pts or [])
+    # Mesh and TetMesh are both PointBased; the visual mesh may be either.
+    vis_pts = UsdGeom.PointBased(vis_mesh_prim).GetPointsAttr().Get() or []
 
+    # Bake both meshes into the deformable parent's frame.
     xform_cache = UsdGeom.XformCache()
-    mesh_to_parent_frame = _matrix4d_to_numpy(
-        xform_cache.GetLocalToWorldTransform(sim_mesh_prim)
-        * xform_cache.GetLocalToWorldTransform(root_prim.GetParent()).GetInverse()
+    world_to_parent = xform_cache.GetLocalToWorldTransform(root_prim.GetParent()).GetInverse()
+    vertices = _transform_points(
+        _matrix4d_to_numpy(xform_cache.GetLocalToWorldTransform(sim_mesh_prim) * world_to_parent),
+        _usd_points_to_numpy(pts),
     )
-    vertices = _transform_points(mesh_to_parent_frame, _usd_points_to_numpy(pts))
-
-    vis_mesh_to_parent_frame = _matrix4d_to_numpy(
-        xform_cache.GetLocalToWorldTransform(vis_mesh_prim)
-        * xform_cache.GetLocalToWorldTransform(root_prim.GetParent()).GetInverse()
+    vis_vertices = _transform_points(
+        _matrix4d_to_numpy(xform_cache.GetLocalToWorldTransform(vis_mesh_prim) * world_to_parent),
+        _usd_points_to_numpy(vis_pts),
     )
-    vis_vertices = _transform_points(vis_mesh_to_parent_frame, _usd_points_to_numpy(vis_pts or []))
 
     vis_indices = np.empty(0, dtype=np.int32)
     if vis_mesh_prim.GetTypeName() == "Mesh":
@@ -218,7 +211,7 @@ def _classify_deformable_meshes(
         sim_mesh_prim,
         vis_mesh_prim,
         len(pts),
-        vis_count,
+        len(vis_pts),
         vertices,
         indices,
         vis_vertices,
@@ -376,6 +369,40 @@ def _rewrite_env_prefix(template_path: str, source_path: str) -> str:
     return re.sub(r"/World/envs/env_\d+", f"/World/envs/{match.group(1)}", template_path)
 
 
+def _match_deformable_path(path: str, lookup: dict[str, object]) -> tuple[object, bool] | None:
+    """Find the lookup entry that ``path`` refers to.
+
+    Tries the exact path, then ancestors, then ancestor/descendant relationships, then env-relative
+    suffixes (views may report a different child under the same env asset). Returns the matched
+    value and whether it came from an env-relative suffix match, or ``None`` when nothing matches.
+    """
+    if path in lookup:
+        return lookup[path], False
+
+    normalized = path.rstrip("/")
+    parts = normalized.split("/")
+    for end in range(len(parts) - 1, 0, -1):
+        candidate = "/".join(parts[:end])
+        if candidate in lookup:
+            return lookup[candidate], False
+
+    for key, value in lookup.items():
+        key_normalized = key.rstrip("/")
+        if key_normalized.startswith(normalized + "/") or normalized.startswith(key_normalized + "/"):
+            return value, False
+
+    suffix = _env_relative_suffix(normalized)
+    if suffix is not None:
+        for key, value in lookup.items():
+            key_suffix = _env_relative_suffix(key)
+            if key_suffix is None:
+                continue
+            if suffix == key_suffix or suffix.startswith(key_suffix + "/") or key_suffix.startswith(suffix + "/"):
+                return value, True
+
+    return None
+
+
 def resolve_deformable_vertex_count(path: str, path_to_count: dict[str, int], *, fallback: int) -> int:
     """Resolve an unpadded vertex count for a deformable-related prim path.
 
@@ -391,31 +418,8 @@ def resolve_deformable_vertex_count(path: str, path_to_count: dict[str, int], *,
     Returns:
         Unpadded vertex count for ``path``, or ``fallback``.
     """
-    if path in path_to_count:
-        return int(path_to_count[path])
-
-    normalized = path.rstrip("/")
-    parts = normalized.split("/")
-    for end in range(len(parts) - 1, 0, -1):
-        candidate = "/".join(parts[:end])
-        if candidate in path_to_count:
-            return int(path_to_count[candidate])
-
-    for key, count in path_to_count.items():
-        key_normalized = key.rstrip("/")
-        if key_normalized.startswith(normalized + "/") or normalized.startswith(key_normalized + "/"):
-            return int(count)
-
-    suffix = _env_relative_suffix(normalized)
-    if suffix is not None:
-        for key, count in path_to_count.items():
-            key_suffix = _env_relative_suffix(key)
-            if key_suffix is None:
-                continue
-            if suffix == key_suffix or suffix.startswith(key_suffix + "/") or key_suffix.startswith(suffix + "/"):
-                return int(count)
-
-    return int(fallback)
+    matched = _match_deformable_path(path, path_to_count)
+    return int(fallback if matched is None else matched[0])
 
 
 def resolve_deformable_root_path(path: str, path_to_root: dict[str, str], *, fallback: str | None = None) -> str:
@@ -435,31 +439,8 @@ def resolve_deformable_root_path(path: str, path_to_root: dict[str, str], *, fal
     Returns:
         Discovered deformable root path, or ``fallback`` / ``path``.
     """
-    if fallback is None:
-        fallback = path
-
-    if path in path_to_root:
-        return path_to_root[path]
-
-    normalized = path.rstrip("/")
-    parts = normalized.split("/")
-    for end in range(len(parts) - 1, 0, -1):
-        candidate = "/".join(parts[:end])
-        if candidate in path_to_root:
-            return path_to_root[candidate]
-
-    for key, root in path_to_root.items():
-        key_normalized = key.rstrip("/")
-        if key_normalized.startswith(normalized + "/") or normalized.startswith(key_normalized + "/"):
-            return root
-
-    suffix = _env_relative_suffix(normalized)
-    if suffix is not None:
-        for key, root in path_to_root.items():
-            key_suffix = _env_relative_suffix(key)
-            if key_suffix is None:
-                continue
-            if suffix == key_suffix or suffix.startswith(key_suffix + "/") or key_suffix.startswith(suffix + "/"):
-                return _rewrite_env_prefix(root, normalized)
-
-    return fallback
+    matched = _match_deformable_path(path, path_to_root)
+    if matched is None:
+        return path if fallback is None else fallback
+    root, from_env_suffix = matched
+    return _rewrite_env_prefix(root, path.rstrip("/")) if from_env_suffix else root

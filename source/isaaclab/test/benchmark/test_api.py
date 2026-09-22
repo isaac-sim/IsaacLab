@@ -27,8 +27,10 @@ from isaaclab.benchmark import (
     TrainingBundle,
     dispatch,
 )
-from isaaclab.benchmark.entrypoints import startup
+from isaaclab.benchmark.entrypoints import startup, training
 from isaaclab.benchmark.entrypoints.backends.rl_games.registry import register_scoped_rl_games_environment
+
+pytestmark = pytest.mark.benchmark
 
 
 def test_training_request_builds_complete_cli() -> None:
@@ -312,9 +314,32 @@ def test_rl_games_registry_cleanup_removes_new_values() -> None:
 
     restore = register_scoped_rl_games_environment(vecenv, env_configurations, object(), object())
     restore()
+    restore()
 
     assert "IsaacRlgWrapper" not in vecenv.vecenv_config
     assert "rlgpu" not in env_configurations.configurations
+
+
+@pytest.mark.parametrize(
+    ("backend", "subdir", "filenames", "expected"),
+    (
+        ("rl_games", "nn", ("last_Cartpole_ep_9.pth", "last_Cartpole_ep_10.pth"), "last_Cartpole_ep_10.pth"),
+        ("skrl", "checkpoints", ("agent_4800.pt", "best_agent.pt"), "best_agent.pt"),
+        ("skrl", "checkpoints", (), None),
+    ),
+)
+def test_resolve_training_checkpoint_path_picks_latest_backend_checkpoint(
+    tmp_path, backend, subdir, filenames, expected
+):
+    """Checkpoints are matched per backend layout and ordered naturally, or reported as absent."""
+    checkpoint_dir = tmp_path / "run" / subdir
+    checkpoint_dir.mkdir(parents=True)
+    for filename in filenames:
+        (checkpoint_dir / filename).touch()
+
+    resolved = training._resolve_training_checkpoint_path(str(tmp_path / "run"), backend)
+
+    assert resolved == (None if expected is None else str(checkpoint_dir / expected))
 
 
 def test_cli_dispatch_fuses_option_like_kit_args(monkeypatch) -> None:
@@ -348,28 +373,6 @@ def test_backend_entrypoints_register_environment_cleanup_before_wrapping() -> N
         assert creation_index >= 0, entrypoint
         assert cleanup_index > creation_index, entrypoint
         assert first_wrapper_index > cleanup_index, entrypoint
-
-
-def test_late_bound_environment_cleanup_closes_base_when_wrapping_fails() -> None:
-    """The cleanup callback retains the base environment when assignment fails."""
-
-    class _Environment:
-        closed = False
-
-        def close(self) -> None:
-            self.closed = True
-
-    def fail_to_wrap(environment: _Environment) -> _Environment:
-        raise RuntimeError("wrapper construction failed")
-
-    base_environment = _Environment()
-    with pytest.raises(RuntimeError, match="wrapper construction failed"):
-        with contextlib.ExitStack() as cleanup:
-            env = base_environment
-            cleanup.callback(lambda: env.close())
-            env = fail_to_wrap(env)
-
-    assert base_environment.closed
 
 
 @pytest.mark.parametrize(

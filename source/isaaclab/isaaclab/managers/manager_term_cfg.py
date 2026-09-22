@@ -43,7 +43,7 @@ class ManagerTermBaseCfg:
     .. _`callable classes`: https://docs.python.org/3/reference/datamodel.html#object.__call__
     """
 
-    params: dict[str, Any | SceneEntityCfg] = dict()
+    params: dict[str, Any | SceneEntityCfg] = {}
     """The parameters to be passed to the function as keyword arguments. Defaults to an empty dict.
 
     .. note::

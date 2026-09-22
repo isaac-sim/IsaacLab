@@ -8,6 +8,9 @@
 from __future__ import annotations
 
 import functools
+import importlib.machinery
+import sys
+from importlib import metadata
 
 from packaging.version import Version
 
@@ -15,20 +18,10 @@ from packaging.version import Version
 def has_kit() -> bool:
     """Check if Kit (Omniverse Kit) is available in the current environment.
 
-    Returns True when running inside an Omniverse Kit application (e.g. Isaac Sim).
-    Returns False in kitless mode (e.g. Newton physics backend without Kit).
-
-    Not cached with ``lru_cache`` because this may be called before ``AppLauncher``
-    finishes starting Kit, which would permanently lock in a ``False`` result.
-    The underlying ``get_app()`` call is cheap once the module is loaded.
-
-    This function deliberately avoids triggering a fresh ``import omni.kit.app``
-    when called before Kit has started. If ``omni.kit.app`` is not already present
-    in ``sys.modules``, Kit is not running and we return ``False`` immediately without
-    performing any import (which would be a forbidden side-effect during cfg-only loading).
+    Inspects an already-loaded ``omni.kit.app`` without importing Kit during
+    configuration loading. The result is not cached because ``AppLauncher`` may
+    start Kit after the first call.
     """
-    import sys
-
     mod = sys.modules.get("omni.kit.app")
     if mod is None:
         return False
@@ -49,9 +42,6 @@ def standalone_importers_available() -> bool:
     Returns:
         Whether the standalone importers are installed and reachable.
     """
-    import importlib.machinery
-    from importlib import metadata
-
     try:
         metadata.distribution("isaacsim-asset-isolated")
     except metadata.PackageNotFoundError:
@@ -134,10 +124,4 @@ def compare_versions(v1: str, v2: str) -> int:
     """
     ver1 = Version(v1)
     ver2 = Version(v2)
-
-    if ver1 > ver2:
-        return 1
-    elif ver1 < ver2:
-        return -1
-    else:
-        return 0
+    return (ver1 > ver2) - (ver1 < ver2)

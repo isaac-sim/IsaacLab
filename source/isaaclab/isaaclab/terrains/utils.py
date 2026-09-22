@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# needed to import for allowing type-hinting: np.ndarray | torch.Tensor | None
 from __future__ import annotations
 
 import numpy as np
@@ -19,10 +18,9 @@ from isaaclab.utils.warp import raycast_mesh
 
 
 def color_meshes_by_height(meshes: list[trimesh.Trimesh], **kwargs) -> trimesh.Trimesh:
-    """
-    Color the vertices of a trimesh object based on the z-coordinate (height) of each vertex,
-    using the Turbo colormap. If the z-coordinates are all the same, the vertices will be colored
-    with a single color.
+    """Color the vertices of a trimesh object based on the z-coordinate (height) of each vertex.
+
+    If the z-coordinates are all the same, the vertices are colored with a single color.
 
     Args:
         meshes: A list of trimesh objects.
@@ -31,34 +29,22 @@ def color_meshes_by_height(meshes: list[trimesh.Trimesh], **kwargs) -> trimesh.T
         color: A list of 3 integers in the range [0,255] representing the RGB
             color of the mesh. Used when the z-coordinates of all vertices are the same.
             Defaults to [172, 216, 230].
-        color_map: The name of the color map to be used. Defaults to "turbo".
+        color_map: The name of the color map to be used. Defaults to "inferno".
 
     Returns:
         A trimesh object with the vertices colored based on the z-coordinate (height) of each vertex.
     """
-    # Combine all meshes into a single mesh
     mesh = trimesh.util.concatenate(meshes)
-    # Get the z-coordinates of each vertex
     heights = mesh.vertices[:, 2]
-    # Check if the z-coordinates are all the same
-    if np.max(heights) == np.min(heights):
-        # Obtain a single color: light blue
-        color = kwargs.pop("color", (172, 216, 230))
-        color = np.asarray(color, dtype=np.uint8)
-        # Set the color for all vertices
-        mesh.visual.vertex_colors = color
+    height_min, height_max = np.min(heights), np.max(heights)
+    if height_max == height_min:
+        # flat mesh: single color (light blue by default)
+        mesh.visual.vertex_colors = np.asarray(kwargs.pop("color", (172, 216, 230)), dtype=np.uint8)
     else:
-        # Normalize the heights to [0,1]
-        heights_normalized = (heights - np.min(heights)) / (np.max(heights) - np.min(heights))
-        # clip lower and upper bounds to have better color mapping
-        heights_normalized = np.clip(heights_normalized, 0.1, 0.9)
-        # Get the color for each vertex based on the height
-        # Valid options are ["viridis", "inferno", "plasma", "magma"]
+        # normalize heights to [0, 1] and clip the extremes for a better color mapping
+        heights_normalized = np.clip((heights - height_min) / (height_max - height_min), 0.1, 0.9)
         color_map = kwargs.pop("color_map", "inferno")
-        colors = trimesh.visual.color.interpolate(heights_normalized, color_map=color_map)
-        # Set the vertex colors
-        mesh.visual.vertex_colors = colors
-    # Return the mesh
+        mesh.visual.vertex_colors = trimesh.visual.color.interpolate(heights_normalized, color_map=color_map)
     return mesh
 
 
@@ -174,7 +160,6 @@ def find_flat_patches(
         RuntimeError: If the function fails to find valid patches. This can happen if the input parameters
             are not suitable for finding valid patches and maximum number of iterations is reached.
     """
-    # set device to warp mesh device
     device = wp.device_to_torch(wp_mesh.device)
 
     # resolve inputs to consistent type
@@ -191,13 +176,14 @@ def find_flat_patches(
 
     # create ranges for the x and y coordinates around the origin.
     # The provided ranges are bounded by the mesh's bounding box.
+    mesh_points = wp_mesh.points.numpy()
     x_range = (
-        max(x_range[0] + origin[0].item(), wp_mesh.points.numpy()[:, 0].min()),
-        min(x_range[1] + origin[0].item(), wp_mesh.points.numpy()[:, 0].max()),
+        max(x_range[0] + origin[0].item(), mesh_points[:, 0].min()),
+        min(x_range[1] + origin[0].item(), mesh_points[:, 0].max()),
     )
     y_range = (
-        max(y_range[0] + origin[1].item(), wp_mesh.points.numpy()[:, 1].min()),
-        min(y_range[1] + origin[1].item(), wp_mesh.points.numpy()[:, 1].max()),
+        max(y_range[0] + origin[1].item(), mesh_points[:, 1].min()),
+        min(y_range[1] + origin[1].item(), mesh_points[:, 1].max()),
     )
     z_range = (
         z_range[0] + origin[2].item(),
@@ -207,13 +193,9 @@ def find_flat_patches(
     # create a circle of points around (0, 0) to query validity of the patches
     # the ring of points is uniformly distributed around the circle
     angle = torch.linspace(0, 2 * np.pi, 10, device=device)
-    query_x = []
-    query_y = []
-    for radius in patch_radius:
-        query_x.append(radius * torch.cos(angle))
-        query_y.append(radius * torch.sin(angle))
-    query_x = torch.cat(query_x).unsqueeze(1)  # dim: (num_radii * 10, 1)
-    query_y = torch.cat(query_y).unsqueeze(1)  # dim: (num_radii * 10, 1)
+    radii = torch.tensor(patch_radius, device=device).unsqueeze(1)
+    query_x = (radii * torch.cos(angle)).flatten().unsqueeze(1)  # dim: (num_radii * 10, 1)
+    query_y = (radii * torch.sin(angle)).flatten().unsqueeze(1)  # dim: (num_radii * 10, 1)
     # dim: (num_radii * 10, 3)
     query_points = torch.cat([query_x, query_y, torch.zeros_like(query_x)], dim=-1)
 

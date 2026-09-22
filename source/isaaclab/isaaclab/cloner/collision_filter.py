@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -18,7 +19,7 @@ def filter_collisions(
     physicsscene_path: str,
     collision_root_path: str,
     prim_paths: list[str],
-    global_paths: list[str] = [],
+    global_paths: Sequence[str] = (),
 ) -> None:
     """Create inverted collision groups for clones (PhysX only).
 
@@ -52,73 +53,29 @@ def filter_collisions(
     # may be a live layer in the case of Live Sync.
     with Usd.EditContext(stage, Usd.EditTarget(stage.GetRootLayer())):
         UsdGeom.Scope.Define(stage, collision_root_path)
+    root_spec = stage.GetRootLayer().GetPrimAtPath(collision_root_path)
+
+    def define_group(name: str, includes: Sequence[str]):
+        """Author one PhysicsCollisionGroup that collides with itself and return its ``filteredGroups`` rel."""
+        group = Sdf.PrimSpec(root_spec, name, Sdf.SpecifierDef, "PhysicsCollisionGroup")
+        group.SetInfo(Usd.Tokens.apiSchemas, Sdf.TokenListOp.Create({"CollectionAPI:colliders"}))
+        expansion_rule = Sdf.AttributeSpec(
+            group, "collection:colliders:expansionRule", Sdf.ValueTypeNames.Token, Sdf.VariabilityUniform
+        )
+        expansion_rule.default = "expandPrims"
+        includes_rel = Sdf.RelationshipSpec(group, "collection:colliders:includes", False)
+        for path in includes:
+            includes_rel.targetPathList.Append(path)
+        # With inverted filtering objects do not collide across groups by default, so a group must list
+        # itself as a filtered group for its own members to collide with each other.
+        filtered_groups = Sdf.RelationshipSpec(group, "physics:filteredGroups", False)
+        filtered_groups.targetPathList.Append(f"{collision_root_path}/{name}")
+        return filtered_groups
 
     with Sdf.ChangeBlock():
-        if len(global_paths) > 0:
-            global_collision_group_path = collision_root_path + "/global_group"
-            # add collision group prim
-            global_collision_group = Sdf.PrimSpec(
-                stage.GetRootLayer().GetPrimAtPath(collision_root_path),
-                "global_group",
-                Sdf.SpecifierDef,
-                "PhysicsCollisionGroup",
-            )
-            # prepend collision API schema
-            global_collision_group.SetInfo(Usd.Tokens.apiSchemas, Sdf.TokenListOp.Create({"CollectionAPI:colliders"}))
-
-            # expansion rule
-            expansion_rule = Sdf.AttributeSpec(
-                global_collision_group,
-                "collection:colliders:expansionRule",
-                Sdf.ValueTypeNames.Token,
-                Sdf.VariabilityUniform,
-            )
-            expansion_rule.default = "expandPrims"
-
-            # includes rel
-            global_includes_rel = Sdf.RelationshipSpec(global_collision_group, "collection:colliders:includes", False)
-            for global_path in global_paths:
-                global_includes_rel.targetPathList.Append(global_path)
-
-            # filteredGroups rel
-            global_filtered_groups = Sdf.RelationshipSpec(global_collision_group, "physics:filteredGroups", False)
-            # We are using inverted collision group filtering, which means objects by default don't collide across
-            # groups. We need to add this group as a filtered group, so that objects within this group collide with
-            # each other.
-            global_filtered_groups.targetPathList.Append(global_collision_group_path)
-
-        # set collision groups and filters
+        global_filtered_groups = define_group("global_group", global_paths) if global_paths else None
         for i, prim_path in enumerate(prim_paths):
-            collision_group_path = collision_root_path + f"/group{i}"
-            # add collision group prim
-            collision_group = Sdf.PrimSpec(
-                stage.GetRootLayer().GetPrimAtPath(collision_root_path),
-                f"group{i}",
-                Sdf.SpecifierDef,
-                "PhysicsCollisionGroup",
-            )
-            # prepend collision API schema
-            collision_group.SetInfo(Usd.Tokens.apiSchemas, Sdf.TokenListOp.Create({"CollectionAPI:colliders"}))
-
-            # expansion rule
-            expansion_rule = Sdf.AttributeSpec(
-                collision_group,
-                "collection:colliders:expansionRule",
-                Sdf.ValueTypeNames.Token,
-                Sdf.VariabilityUniform,
-            )
-            expansion_rule.default = "expandPrims"
-
-            # includes rel
-            includes_rel = Sdf.RelationshipSpec(collision_group, "collection:colliders:includes", False)
-            includes_rel.targetPathList.Append(prim_path)
-
-            # filteredGroups rel
-            filtered_groups = Sdf.RelationshipSpec(collision_group, "physics:filteredGroups", False)
-            # We are using inverted collision group filtering, which means objects by default don't collide across
-            # groups. We need to add this group as a filtered group, so that objects within this group collide with
-            # each other.
-            filtered_groups.targetPathList.Append(collision_group_path)
-            if len(global_paths) > 0:
-                filtered_groups.targetPathList.Append(global_collision_group_path)
-                global_filtered_groups.targetPathList.Append(collision_group_path)
+            filtered_groups = define_group(f"group{i}", [prim_path])
+            if global_filtered_groups is not None:
+                filtered_groups.targetPathList.Append(f"{collision_root_path}/global_group")
+                global_filtered_groups.targetPathList.Append(f"{collision_root_path}/group{i}")

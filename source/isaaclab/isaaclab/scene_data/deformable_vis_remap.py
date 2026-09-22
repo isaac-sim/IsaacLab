@@ -51,31 +51,6 @@ def _det3(
 
 
 @wp.func
-def _tet_barycentric_weights(a: wp.vec3f, b: wp.vec3f, c: wp.vec3f, d: wp.vec3f, point: wp.vec3f) -> wp.vec4f:
-    """Return barycentric weights for ``point`` in tet ``(a,b,c,d)``, or ``(-1,...)`` when degenerate."""
-    ba = b - a
-    ca = c - a
-    da = d - a
-    rhs = point - a
-
-    det = _det3(ba[0], ca[0], da[0], ba[1], ca[1], da[1], ba[2], ca[2], da[2])
-    if wp.abs(det) < 1.0e-12:
-        return wp.vec4f(-1.0, -1.0, -1.0, -1.0)
-
-    w1 = _det3(rhs[0], ca[0], da[0], rhs[1], ca[1], da[1], rhs[2], ca[2], da[2]) / det
-    w2 = _det3(ba[0], rhs[0], da[0], ba[1], rhs[1], da[1], ba[2], rhs[2], da[2]) / det
-    w3 = _det3(ba[0], ca[0], rhs[0], ba[1], ca[1], rhs[1], ba[2], ca[2], rhs[2]) / det
-    w0 = 1.0 - w1 - w2 - w3
-    return wp.vec4f(w0, w1, w2, w3)
-
-
-@wp.func
-def _min_bary_weight(weights: wp.vec4f) -> float:
-    """Return the minimum barycentric weight (inside-hull indicator)."""
-    return wp.min(wp.min(weights[0], weights[1]), wp.min(weights[2], weights[3]))
-
-
-@wp.func
 def _tet_aabb_contains_point(
     a: wp.vec3f, b: wp.vec3f, c: wp.vec3f, d: wp.vec3f, point: wp.vec3f, margin: float
 ) -> bool:
@@ -166,7 +141,7 @@ def _build_volume_vis_barycentric_remap_kernel(
         return
 
     assigned[vis_idx] = 1
-    if best_neg < -1.0e-5:
+    if best_neg < -_BARY_EPS:
         clamped[vis_idx] = 1
 
     tet_vertex_indices[vis_idx, 0] = best_i0
@@ -389,8 +364,7 @@ def build_volume_vis_barycentric_remap(
         device=device,
     )
 
-    assigned_host = assigned.numpy()
-    if not bool(np.all(assigned_host)):
+    if not assigned.numpy().all():
         return None
 
     clamped_count = int(np.sum(clamped.numpy()))

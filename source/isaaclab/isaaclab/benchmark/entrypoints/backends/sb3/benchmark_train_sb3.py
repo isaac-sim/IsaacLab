@@ -7,15 +7,25 @@
 
 from __future__ import annotations
 
+import argparse
+import contextlib
+import os
+import sys
+import time
+from datetime import datetime
 from typing import TYPE_CHECKING
+
+from isaaclab.benchmark.entrypoints._shared import (
+    capture_snapshots,
+    create_benchmark,
+    finish_run_identity,
+    step_timing_metadata,
+)
+
+from isaaclab_rl.entrypoints import common
 
 if TYPE_CHECKING:
     from isaaclab.benchmark import BenchmarkResult
-
-import sys
-import time
-
-from isaaclab_rl.entrypoints import common
 
 
 def _build_benchmark_callback_class():
@@ -95,10 +105,8 @@ def _parse_args(argv: list[str]):
         Tuple of ``(parsed_args, remaining)`` where *remaining* are the verbatim Hydra
         preset tokens written back to ``sys.argv`` for ``launch_simulation`` to pick up.
     """
-    import argparse
-
     from isaaclab.app import add_launcher_args
-    from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+    from isaaclab.benchmark._cli import add_benchmark_output_args, parse_positive_int
 
     from isaaclab_tasks.utils import setup_preset_cli
 
@@ -123,40 +131,7 @@ def _parse_args(argv: list[str]):
         help="Use a slower SB3 wrapper but keep all the extra training info.",
     )
 
-    parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
-    parser.add_argument(
-        "--measure_sync_step",
-        action="store_true",
-        help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
-    )
-    parser.add_argument(
-        "--warmup_steps",
-        type=parse_non_negative_int,
-        default=1,
-        help="Exclude the first N env.step() calls from environment-step timing. Default 1 removes cold start.",
-    )
-    parser.add_argument(
-        "--benchmark_formatter",
-        type=str,
-        default="schema",
-        help=(
-            "Output format(s): comma-separated list of 'schema' (default, the typed benchmark bundle),"
-            " 'omniperf', 'osmo', 'json', 'summary'"
-            " Example: 'schema,omniperf'."
-        ),
-    )
-    parser.add_argument(
-        "--ema_alpha",
-        type=float,
-        default=0.1,
-        help="EMA smoothing factor for learning curves (higher = more recent weight).",
-    )
-    parser.add_argument(
-        "--no_series",
-        action="store_true",
-        default=False,
-        help="Omit per-iteration series data from the bundle to reduce file size.",
-    )
+    add_benchmark_output_args(parser, include_learning_args=True)
 
     from isaaclab.benchmark.entrypoints.early_stop import add_success_cli_args
 
@@ -179,10 +154,6 @@ def run(argv: list[str]) -> BenchmarkResult:
     """
     imports_t0 = time.perf_counter_ns()
 
-    import contextlib
-    import os
-    from datetime import datetime
-
     import numpy as np
     from stable_baselines3 import PPO
     from stable_baselines3.common.callbacks import CheckpointCallback
@@ -190,7 +161,6 @@ def run(argv: list[str]) -> BenchmarkResult:
 
     from isaaclab.app import launch_simulation
     from isaaclab.benchmark import (
-        BaseIsaacLabBenchmark,
         BenchmarkMonitor,
         BenchmarkResult,
         builders,
@@ -247,29 +217,17 @@ def run(argv: list[str]) -> BenchmarkResult:
             resolved_max_iterations = (int(agent_cfg["n_timesteps"]) + steps_per_iteration - 1) // steps_per_iteration
 
             cfg = capture.run_config_from_env_cfg(env_cfg)
-            formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
-            formatter_types = formatter_types or ["omniperf"]
-
-            benchmark = BaseIsaacLabBenchmark(
-                benchmark_name="benchmark_training",
-                formatter_type=formatter_types,
-                output_path=args_cli.output_path,
-                use_recorders=True,
-                frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
+            benchmark = create_benchmark(
+                "benchmark_training",
+                args_cli,
                 output_prefix=f"benchmark_training_{args_cli.task}",
-                workflow_metadata={
-                    "metadata": [
-                        {"name": "task", "data": args_cli.task},
-                        {"name": "seed", "data": agent_cfg["seed"]},
-                        {"name": "num_envs", "data": env_cfg.scene.num_envs},
-                        {"name": "max_iterations", "data": resolved_max_iterations},
-                        {
-                            "name": "environment_step_measurement_mode",
-                            "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
-                        },
-                        {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
-                    ]
-                },
+                metadata=[
+                    {"name": "task", "data": args_cli.task},
+                    {"name": "seed", "data": agent_cfg["seed"]},
+                    {"name": "num_envs", "data": env_cfg.scene.num_envs},
+                    {"name": "max_iterations", "data": resolved_max_iterations},
+                    *step_timing_metadata(args_cli),
+                ],
             )
 
             run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -394,22 +352,15 @@ def run(argv: list[str]) -> BenchmarkResult:
                 round(success_tracker.tail_mean, 4) if (success_tracker and success_tracker.history) else None
             )
 
-            versions = capture.capture_versions(benchmark)
-            hardware = capture.capture_hardware(benchmark)
-            resources = capture.capture_resources(benchmark)
+            versions, hardware, resources = capture_snapshots(benchmark)
 
-            end_utc = capture.now_utc_iso()
-            stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
             seed = env_cfg.seed if env_cfg.seed is not None else 0
-
-            run_identity = builders.build_run_identity(
-                run_id=capture.synth_run_id("sb3", cfg.physics_backend, args_cli.task, seed, stamp),
+            run_identity = finish_run_identity(
                 framework="sb3",
                 config=cfg,
                 task=args_cli.task,
                 seed=seed,
                 start_utc=start_utc,
-                end_utc=end_utc,
                 num_envs=env.unwrapped.num_envs,
                 max_iterations=resolved_max_iterations,
             )

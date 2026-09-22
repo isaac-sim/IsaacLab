@@ -247,7 +247,7 @@ class SubTaskConstraintConfig:
             - A "selected_src_demo_ind" and "transform" field are used to ensure the transforms used by
               both subtasks are the same.
         """
-        task_constraints_dict = dict()
+        task_constraints_dict = {}
         if self.constraint_type == SubTaskConstraintType.SEQUENTIAL:
             constrained_task_spec_key, constrained_subtask_ind = self.eef_subtask_constraint_tuple[1]
             assert isinstance(constrained_subtask_ind, int)
@@ -257,18 +257,18 @@ class SubTaskConstraintConfig:
                 constrained_task_spec_key,
                 constrained_subtask_ind,
             ) not in task_constraints_dict, "only one constraint per subtask allowed"
-            task_constraints_dict[(constrained_task_spec_key, constrained_subtask_ind)] = dict(
-                type=SubTaskConstraintType._SEQUENTIAL_LATTER,
-                pre_condition_task_spec_key=pre_condition_task_spec_key,
-                pre_condition_subtask_ind=pre_condition_subtask_ind,
-                min_time_diff=self.sequential_min_time_diff,
-                fulfilled=False,
-            )
-            task_constraints_dict[(pre_condition_task_spec_key, pre_condition_subtask_ind)] = dict(
-                type=SubTaskConstraintType._SEQUENTIAL_FORMER,
-                constrained_task_spec_key=constrained_task_spec_key,
-                constrained_subtask_ind=constrained_subtask_ind,
-            )
+            task_constraints_dict[(constrained_task_spec_key, constrained_subtask_ind)] = {
+                "type": SubTaskConstraintType._SEQUENTIAL_LATTER,
+                "pre_condition_task_spec_key": pre_condition_task_spec_key,
+                "pre_condition_subtask_ind": pre_condition_subtask_ind,
+                "min_time_diff": self.sequential_min_time_diff,
+                "fulfilled": False,
+            }
+            task_constraints_dict[(pre_condition_task_spec_key, pre_condition_subtask_ind)] = {
+                "type": SubTaskConstraintType._SEQUENTIAL_FORMER,
+                "constrained_task_spec_key": constrained_task_spec_key,
+                "constrained_subtask_ind": constrained_subtask_ind,
+            }
         elif self.constraint_type == SubTaskConstraintType.COORDINATION:
             constrained_task_spec_key, constrained_subtask_ind = self.eef_subtask_constraint_tuple[0]
             assert isinstance(constrained_subtask_ind, int)
@@ -280,32 +280,32 @@ class SubTaskConstraintConfig:
                 constrained_task_spec_key,
                 constrained_subtask_ind,
             ) not in task_constraints_dict, "only one constraint per subtask allowed"
-            task_constraints_dict[(constrained_task_spec_key, constrained_subtask_ind)] = dict(
-                concurrent_task_spec_key=concurrent_task_spec_key,
-                concurrent_subtask_ind=concurrent_subtask_ind,
-                type=SubTaskConstraintType.COORDINATION,
-                fulfilled=False,
-                finished=False,
-                selected_src_demo_ind=None,
-                coordination_scheme=self.coordination_scheme,
-                coordination_scheme_pos_noise_scale=self.coordination_scheme_pos_noise_scale,
-                coordination_scheme_rot_noise_scale=self.coordination_scheme_rot_noise_scale,
-                coordination_synchronize_start=self.coordination_synchronize_start,
-                synchronous_steps=None,  # to be calculated at runtime
-            )
-            task_constraints_dict[(concurrent_task_spec_key, concurrent_subtask_ind)] = dict(
-                concurrent_task_spec_key=constrained_task_spec_key,
-                concurrent_subtask_ind=constrained_subtask_ind,
-                type=SubTaskConstraintType.COORDINATION,
-                fulfilled=False,
-                finished=False,
-                selected_src_demo_ind=None,
-                coordination_scheme=self.coordination_scheme,
-                coordination_scheme_pos_noise_scale=self.coordination_scheme_pos_noise_scale,
-                coordination_scheme_rot_noise_scale=self.coordination_scheme_rot_noise_scale,
-                coordination_synchronize_start=self.coordination_synchronize_start,
-                synchronous_steps=None,  # to be calculated at runtime
-            )
+            task_constraints_dict[(constrained_task_spec_key, constrained_subtask_ind)] = {
+                "concurrent_task_spec_key": concurrent_task_spec_key,
+                "concurrent_subtask_ind": concurrent_subtask_ind,
+                "type": SubTaskConstraintType.COORDINATION,
+                "fulfilled": False,
+                "finished": False,
+                "selected_src_demo_ind": None,
+                "coordination_scheme": self.coordination_scheme,
+                "coordination_scheme_pos_noise_scale": self.coordination_scheme_pos_noise_scale,
+                "coordination_scheme_rot_noise_scale": self.coordination_scheme_rot_noise_scale,
+                "coordination_synchronize_start": self.coordination_synchronize_start,
+                "synchronous_steps": None,  # to be calculated at runtime
+            }
+            task_constraints_dict[(concurrent_task_spec_key, concurrent_subtask_ind)] = {
+                "concurrent_task_spec_key": constrained_task_spec_key,
+                "concurrent_subtask_ind": constrained_subtask_ind,
+                "type": SubTaskConstraintType.COORDINATION,
+                "fulfilled": False,
+                "finished": False,
+                "selected_src_demo_ind": None,
+                "coordination_scheme": self.coordination_scheme,
+                "coordination_scheme_pos_noise_scale": self.coordination_scheme_pos_noise_scale,
+                "coordination_scheme_rot_noise_scale": self.coordination_scheme_rot_noise_scale,
+                "coordination_synchronize_start": self.coordination_synchronize_start,
+                "synchronous_steps": None,  # to be calculated at runtime
+            }
         else:
             raise ValueError("Constraint type not supported.")
 

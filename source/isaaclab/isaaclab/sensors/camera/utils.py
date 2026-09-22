@@ -222,22 +222,15 @@ def create_pointcloud_from_rgbd(
     # total number of points
     num_points = im_height * im_width
     # extract color value
-    if rgb is not None:
-        if isinstance(rgb, (np.ndarray, torch.Tensor, wp.array)):
-            # copy numpy array to preserve
-            rgb = convert_to_torch(rgb, device=device, dtype=torch.float32)
-            rgb = rgb[:, :, :3]
-            # convert the matrix to (W, H, 3) from (H, W, 3) since depth processing
-            # is done in the order (u, v) where u: (0, W-1) and v: (0 - H-1)
-            points_rgb = rgb.permute(1, 0, 2).reshape(-1, 3)
-        elif isinstance(rgb, (tuple, list)):
-            # same color for all points
-            points_rgb = torch.Tensor((rgb,) * num_points, device=device, dtype=torch.uint8)
-        else:
-            # default color is white
-            points_rgb = torch.Tensor(((0, 0, 0),) * num_points, device=device, dtype=torch.uint8)
+    if isinstance(rgb, (np.ndarray, torch.Tensor, wp.array)):
+        rgb = convert_to_torch(rgb, device=device, dtype=torch.float32)[:, :, :3]
+        # convert the matrix to (W, H, 3) from (H, W, 3) since depth processing
+        # is done in the order (u, v) where u: (0, W-1) and v: (0 - H-1)
+        points_rgb = rgb.permute(1, 0, 2).reshape(-1, 3)
     else:
-        points_rgb = torch.Tensor(((0, 0, 0),) * num_points, device=device, dtype=torch.uint8)
+        # same color for all points; default color is black
+        color = (0, 0, 0) if rgb is None else tuple(rgb)
+        points_rgb = torch.tensor(color, device=device, dtype=torch.uint8).repeat(num_points, 1)
     # normalize color values
     if normalize_rgb:
         points_rgb = points_rgb.float() / 255

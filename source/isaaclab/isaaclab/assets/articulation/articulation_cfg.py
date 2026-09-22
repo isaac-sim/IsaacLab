@@ -114,7 +114,7 @@ class ArticulationCfg(AssetBaseCfg):
     def _post_spawn(self, stage: Any) -> None:
         """Author ``NewtonActuator`` USD prims from :attr:`actuators` after spawn.
 
-        Invoked by :class:`~isaaclab.assets.AssetBase` once the articulation's prims
+        Invoked by :class:`~isaaclab.assets.Asset` once the articulation's prims
         exist on the stage. Delegates to
         :func:`~isaaclab.sim.schemas.define_actuator_properties`, which gates itself
         on ``sim_cfg.use_newton_actuators`` and silently no-ops when the simulation

@@ -64,35 +64,23 @@ def sample_space(space: gym.spaces.Space, device: str, batch_size: int = -1, fil
         Tensorized sampled space.
     """
 
+    def to_tensor(x: Any, dtype: torch.dtype, shape: tuple[int, ...]) -> torch.Tensor:
+        tensor = torch.tensor(np.asarray(x), device=device, dtype=dtype).reshape(batch_size, *shape)
+        if fill_value is not None:
+            tensor.fill_(fill_value if dtype.is_floating_point else int(fill_value))
+        return tensor
+
     def tensorize(s: gym.spaces.Space, x: Any) -> Any:
         if isinstance(s, gym.spaces.Box):
-            tensor = torch.tensor(x, device=device, dtype=torch.float32).reshape(batch_size, *s.shape)
-            if fill_value is not None:
-                tensor.fill_(fill_value)
-            return tensor
-        elif isinstance(s, gym.spaces.Discrete):
-            if isinstance(x, np.ndarray):
-                tensor = torch.tensor(x, device=device, dtype=torch.int64).reshape(batch_size, 1)
-                if fill_value is not None:
-                    tensor.fill_(int(fill_value))
-                return tensor
-            elif isinstance(x, np.number) or type(x) in [int, float]:
-                tensor = torch.tensor([x], device=device, dtype=torch.int64).reshape(batch_size, 1)
-                if fill_value is not None:
-                    tensor.fill_(int(fill_value))
-                return tensor
-        elif isinstance(s, gym.spaces.MultiDiscrete):
-            if isinstance(x, np.ndarray):
-                tensor = torch.tensor(x, device=device, dtype=torch.int64).reshape(batch_size, *s.shape)
-                if fill_value is not None:
-                    tensor.fill_(int(fill_value))
-                return tensor
+            return to_tensor(x, torch.float32, s.shape)
+        elif isinstance(s, gym.spaces.Discrete) and isinstance(x, (np.ndarray, np.number, int, float)):
+            return to_tensor(x, torch.int64, (1,))
+        elif isinstance(s, gym.spaces.MultiDiscrete) and isinstance(x, np.ndarray):
+            return to_tensor(x, torch.int64, s.shape)
         elif isinstance(s, gym.spaces.Dict):
             return {k: tensorize(_s, x[k]) for k, _s in s.items()}
         elif isinstance(s, gym.spaces.Tuple):
-            return tuple([tensorize(_s, v) for _s, v in zip(s, x)])
-
-        # If the space is not supported, raise an error
+            return tuple(tensorize(_s, v) for _s, v in zip(s, x))
         raise ValueError(f"Unsupported Gymnasium space for tensorization: {s}")
 
     sample = (gym.vector.utils.batch_space(space, batch_size) if batch_size > 0 else space).sample()

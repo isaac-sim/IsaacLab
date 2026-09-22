@@ -29,15 +29,9 @@ def command_run_isaacsim(sim_args: list[str]) -> None:
     Args:
         sim_args: Additional arguments passed to the Isaac Sim executable.
     """
-
     isaacsim_exe = extract_isaacsim_exe()
     print_info(f"Running Isaac Sim from: {isaacsim_exe}")
-
-    isaacsim_exe.append("--ext-folder")
-    isaacsim_exe.append(str(ISAACLAB_ROOT / "source"))
-    isaacsim_exe.extend(sim_args)
-
-    run_command(isaacsim_exe, check=False)
+    run_command([*isaacsim_exe, "--ext-folder", str(ISAACLAB_ROOT / "source"), *sim_args], check=False)
 
 
 def command_new(new_args: list[str]) -> None:
@@ -46,7 +40,6 @@ def command_new(new_args: list[str]) -> None:
     Args:
         new_args: Arguments forwarded to the template generator CLI.
     """
-
     print_info("Running template generator...")
     cli_script = ISAACLAB_ROOT / "tools" / "template" / "cli.py"
     run_python_command(cli_script, new_args, check=True)
@@ -74,7 +67,7 @@ def command_editor(editor_args: list[str], project_dir: Path | None = None) -> N
     args = parser.parse_args(editor_args)
 
     # The installation CLI must start before Isaac Lab's runtime dependencies are installed.
-    from ...utils.editor import setup_editor
+    from isaaclab.utils.editor import setup_editor
 
     print_info("Setting up editor paths and settings...")
     try:
@@ -95,28 +88,9 @@ def command_build_docs() -> None:
         raise SystemExit(1)
 
     out_dir = docs_dir / "_build" / "current"
-    cmd = [
-        uv_exe,
-        "run",
-        "--isolated",
-        "--extra",
-        "dev",
-        "--",
-        "python",
-        "-m",
-        "sphinx",
-        "-W",
-        "--keep-going",
-        "-j",
-        "auto",
-        "-b",
-        "html",
-        "-d",
-        "_build/doctrees",
-        ".",
-        str(out_dir),
-    ]
-    run_command(cmd, cwd=docs_dir)
+    sphinx = [uv_exe, "run", "--isolated", "--extra", "dev", "--", "python", "-m", "sphinx"]
+    sphinx_args = ["-W", "--keep-going", "-j", "auto", "-b", "html", "-d", "_build/doctrees", ".", str(out_dir)]
+    run_command([*sphinx, *sphinx_args], cwd=docs_dir)
 
     index_path = out_dir / "index.html"
     print_info(f"Documentation built at {index_path}")
@@ -153,12 +127,11 @@ def command_build_isaacsim(source_path: str) -> None:
         raise SystemExit(1)
 
     link_path = ISAACLAB_ROOT / "_isaac_sim"
-    if link_path.is_symlink() or link_path.exists():
-        if link_path.is_symlink():
-            link_path.unlink()
-        else:
-            print_error(f"{link_path} exists and is not a symbolic link. Remove it and re-run.")
-            raise SystemExit(1)
+    if link_path.is_symlink():
+        link_path.unlink()
+    elif link_path.exists():
+        print_error(f"{link_path} exists and is not a symbolic link. Remove it and re-run.")
+        raise SystemExit(1)
     try:
         link_path.symlink_to(release_dir, target_is_directory=True)
     except OSError as error:

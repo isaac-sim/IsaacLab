@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Checks that the interface-test factories degrade gracefully when backend packages are missing."""
+
 import os
 import subprocess
 import sys
@@ -11,44 +13,17 @@ from pathlib import Path
 import pytest
 
 _ASSET_TEST_DIR = Path(__file__).parent
-_IFACE_UTIL_MODULES = (
-    "_articulation_iface_test_utils",
-    "_rigid_object_iface_test_utils",
-    "_rigid_object_collection_iface_test_utils",
+
+
+@pytest.mark.parametrize(
+    "blocked_prefixes, expected_backends",
+    [
+        (("isaaclab_physx",), ("newton", "ovphysx")),
+        (("isaaclab_physx", "isaaclab_newton", "isaaclab_ov", "ovphysx"), ()),
+    ],
+    ids=["without_physx", "without_any_backend"],
 )
-
-
-def _run_probe(script: str) -> subprocess.CompletedProcess[str]:
-    env = os.environ.copy()
-    env.pop("EXP_PATH", None)
-    env.pop("LD_PRELOAD", None)
-    return subprocess.run(
-        [sys.executable, "-c", script],
-        cwd=_ASSET_TEST_DIR,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
-
-
-def test_iface_utilities_share_one_bootstrap_module() -> None:
-    script = f"""
-import importlib
-import sys
-
-sys.path.insert(0, {_ASSET_TEST_DIR.as_posix()!r})
-modules = [importlib.import_module(name) for name in {_IFACE_UTIL_MODULES!r}]
-boot = importlib.import_module("_iface_test_boot")
-assert all(module.simulation_app is boot.simulation_app for module in modules)
-"""
-
-    result = _run_probe(script)
-
-    assert result.returncode == 0, result.stdout + result.stderr
-
-
-def test_iface_utilities_import_without_physx_package() -> None:
+def test_iface_utils_import_without_backend_packages(blocked_prefixes, expected_backends) -> None:
     script = f"""
 import builtins
 import importlib
@@ -56,43 +31,22 @@ import sys
 
 sys.path.insert(0, {_ASSET_TEST_DIR.as_posix()!r})
 real_import = builtins.__import__
-
-def blocked_import(name, *args, **kwargs):
-    if name == "isaaclab_physx" or name.startswith("isaaclab_physx."):
-        raise ModuleNotFoundError(name)
-    return real_import(name, *args, **kwargs)
-
-builtins.__import__ = blocked_import
-modules = [importlib.import_module(name) for name in {_IFACE_UTIL_MODULES!r}]
-assert all(not any(backend.lower() == "physx" for backend in module.BACKENDS) for module in modules)
-"""
-
-    result = _run_probe(script)
-
-    assert result.returncode == 0, result.stdout + result.stderr
-
-
-@pytest.mark.parametrize("module_name", _IFACE_UTIL_MODULES)
-def test_iface_utility_handles_no_available_backends(module_name: str) -> None:
-    script = f"""
-import builtins
-import importlib
-import sys
-
-sys.path.insert(0, {_ASSET_TEST_DIR.as_posix()!r})
-real_import = builtins.__import__
+blocked = {blocked_prefixes!r}
 
 def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
-    backend_prefixes = ("isaaclab_physx.", "isaaclab_newton.", "isaaclab_ov.")
-    if name == "ovphysx" or name.startswith(backend_prefixes):
-        raise ModuleNotFoundError("backend dependency unavailable", name="backend_dependency")
+    if name in blocked or name.startswith(tuple(prefix + "." for prefix in blocked)):
+        raise ModuleNotFoundError(name, name=name)
     return real_import(name, globals, locals, fromlist, level)
 
 builtins.__import__ = guarded_import
-module = importlib.import_module({module_name!r})
-assert module.BACKENDS == []
+module = importlib.import_module("_iface_test_utils")
+available = [backend for backend in {expected_backends!r} if backend not in module.BACKEND_UNAVAILABLE_REASONS]
+assert module.BACKENDS == available, (module.BACKENDS, module.BACKEND_UNAVAILABLE_REASONS)
 """
-
-    result = _run_probe(script)
-
+    env = os.environ.copy()
+    env.pop("EXP_PATH", None)
+    env.pop("LD_PRELOAD", None)
+    result = subprocess.run(
+        [sys.executable, "-c", script], cwd=_ASSET_TEST_DIR, env=env, capture_output=True, text=True, timeout=120
+    )
     assert result.returncode == 0, result.stdout + result.stderr

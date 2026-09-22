@@ -55,9 +55,9 @@ class TerminationManager(ManagerBase):
             env: An environment object.
         """
         # create buffers to parse and store terms
-        self._term_names: list[str] = list()
-        self._term_cfgs: list[TerminationTermCfg] = list()
-        self._class_term_cfgs: list[TerminationTermCfg] = list()
+        self._term_names: list[str] = []
+        self._term_cfgs: list[TerminationTermCfg] = []
+        self._class_term_cfgs: list[TerminationTermCfg] = []
 
         # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
@@ -136,20 +136,13 @@ class TerminationManager(ManagerBase):
         Returns:
             Dictionary mapping each termination term to its mean activation.
         """
-        # resolve environment ids
         if env_ids is None:
             env_ids = slice(None)
-        # add to episode dict
-        extras = {}
-        # move to host once; per-element .item() would sync per term
-        last_episode_done_stats = self._last_episode_dones.float().mean(dim=0).cpu()
-        for i, key in enumerate(self._term_names):
-            # store information
-            extras["Episode_Termination/" + key] = last_episode_done_stats[i].item()
-        # reset all the termination terms
+        # move to host once instead of one sync per term
+        last_episode_done_stats = self._last_episode_dones.float().mean(dim=0).tolist()
+        extras = {"Episode_Termination/" + key: value for key, value in zip(self._term_names, last_episode_done_stats)}
         for term_cfg in self._class_term_cfgs:
             term_cfg.func.reset(env_ids=env_ids)
-        # return logged information
         return extras
 
     def compute(self) -> torch.Tensor:
@@ -205,10 +198,9 @@ class TerminationManager(ManagerBase):
         Returns:
             The active terms.
         """
-        terms = []
-        for i, key in enumerate(self._term_names):
-            terms.append((key, [self._term_dones[env_idx, i].float().cpu().item()]))
-        return terms
+        # move to host once instead of one sync per term
+        term_dones = self._term_dones[env_idx].float().tolist()
+        return [(name, [value]) for name, value in zip(self._term_names, term_dones)]
 
     """
     Operations - Term settings.
@@ -251,17 +243,7 @@ class TerminationManager(ManagerBase):
     """
 
     def _prepare_terms(self):
-        # check if config is dict already
-        if isinstance(self.cfg, dict):
-            cfg_items = self.cfg.items()
-        else:
-            cfg_items = self.cfg.__dict__.items()
-        # iterate over all the terms
-        for term_name, term_cfg in cfg_items:
-            # check for non config
-            if term_cfg is None:
-                continue
-            # check for valid config type
+        for term_name, term_cfg in self._iter_term_cfgs(self.cfg):
             if not isinstance(term_cfg, TerminationTermCfg):
                 raise TypeError(
                     f"Configuration for the term '{term_name}' is not of type TerminationTermCfg."

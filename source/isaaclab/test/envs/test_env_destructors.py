@@ -40,9 +40,22 @@ class _FakeMultiAgentEnv:
 
 
 @pytest.mark.parametrize("env_cls", [DirectRLEnv, DirectMARLEnv, ManagerBasedEnv])
-def test_env_destructor_closes_before_shutdown(env_cls, monkeypatch):
-    """Environment destructors should still close open envs during normal runtime."""
+@pytest.mark.parametrize(
+    ("is_closed", "shutting_down", "expect_close"),
+    [
+        (False, False, True),
+        (True, False, False),
+        (False, True, False),
+        (None, False, False),
+    ],
+    ids=["open", "already_closed", "import_shutdown", "init_failed_early"],
+)
+def test_env_destructor(env_cls, is_closed, shutting_down, expect_close, monkeypatch):
+    """The destructor closes open environments exactly when it is safe to do so.
 
+    It must skip already closed environments, environments whose ``__init__`` raised before setting
+    ``_is_closed``, and interpreter shutdown (``sys.meta_path`` is None).
+    """
     closed = False
 
     def close(_self):
@@ -50,64 +63,20 @@ def test_env_destructor_closes_before_shutdown(env_cls, monkeypatch):
         closed = True
 
     env = object.__new__(env_cls)
-    env._is_closed = False
+    if is_closed is not None:
+        env._is_closed = is_closed
     monkeypatch.setattr(env_cls, "close", close)
+    if shutting_down:
+        monkeypatch.setattr("sys.meta_path", None)
 
     env.__del__()
 
-    assert closed
-
-
-@pytest.mark.parametrize("env_cls", [DirectRLEnv, DirectMARLEnv, ManagerBasedEnv])
-def test_env_destructor_skips_close_when_already_closed(env_cls, monkeypatch):
-    """Environment destructors should not re-enter close after normal cleanup."""
-
-    def close(_self):
-        raise AssertionError("close should not be called for an already closed env")
-
-    env = object.__new__(env_cls)
-    env._is_closed = True
-    monkeypatch.setattr(env_cls, "close", close)
-
-    env.__del__()
-
-
-@pytest.mark.parametrize("env_cls", [DirectRLEnv, DirectMARLEnv, ManagerBasedEnv])
-def test_env_destructor_skips_close_after_import_shutdown(env_cls, monkeypatch):
-    """Environment destructors should not run cleanup after import machinery is torn down."""
-
-    def close(_self):
-        raise ImportError("sys.meta_path is None, Python is likely shutting down")
-
-    env = object.__new__(env_cls)
-    env._is_closed = False
-    monkeypatch.setattr(env_cls, "close", close)
-    monkeypatch.setattr("sys.meta_path", None)
-
-    env.__del__()
-
-
-@pytest.mark.parametrize("env_cls", [DirectRLEnv, DirectMARLEnv, ManagerBasedEnv])
-def test_env_destructor_skips_close_when_init_failed_early(env_cls, monkeypatch):
-    """Environment destructors should tolerate an env whose ``__init__`` raised before it set ``_is_closed``.
-
-    Subclasses may run fallible setup (e.g. buffer allocation) before delegating to the base
-    ``__init__`` that assigns the flag, so the destructor must not mask that original failure.
-    """
-
-    def close(_self):
-        raise AssertionError("close should not be called for a partially constructed env")
-
-    env = object.__new__(env_cls)
-    monkeypatch.setattr(env_cls, "close", close)
-
-    env.__del__()
+    assert closed is expect_close
 
 
 @pytest.mark.parametrize("converter", [multi_agent_to_single_agent, multi_agent_with_one_agent])
 def test_marl_adapter_destructor_closes_wrapped_env_once(converter):
     """MARL adapters inherit env destructors without running base env __init__."""
-
     env = _FakeMultiAgentEnv()
     converted_env = converter(env)
 

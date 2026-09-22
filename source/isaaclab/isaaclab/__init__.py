@@ -32,10 +32,9 @@ def _deprioritize_prebundle_paths():
     The ``PYTHONPATH`` environment variable is also rewritten so that child
     processes inherit the corrected ordering.
     """
-
-    # Extension directory fragments that are known to ship Python packages
-    # which conflict with Isaac Lab's pip-installed versions.
-    _CONFLICTING_EXT_FRAGMENTS = (
+    # Extension directories known to ship Python packages that conflict with the pip-installed versions.
+    conflicting_fragments = (
+        "pip_prebundle",
         "omni.warp.core",
         "omni.isaac.ml_archive",
         "omni.isaac.core_archive",
@@ -43,40 +42,21 @@ def _deprioritize_prebundle_paths():
         "isaacsim.pip.newton",
     )
 
-    def _should_demote(path: str) -> bool:
-        norm = path.replace("\\", "/").lower()
-        if "pip_prebundle" in norm:
-            return True
-        for frag in _CONFLICTING_EXT_FRAGMENTS:
-            if frag.lower() in norm:
-                return True
-        return False
+    def should_demote(path: str) -> bool:
+        normalized = path.replace("\\", "/").lower()
+        return any(fragment in normalized for fragment in conflicting_fragments)
 
-    # Partition: keep non-conflicting in place, collect conflicting.
-    clean = []
-    demoted = []
-    for p in sys.path:
-        if _should_demote(p):
-            demoted.append(p)
-        else:
-            clean.append(p)
+    def demote(paths: list[str]) -> tuple[list[str], list[str]]:
+        """Split paths into the ones to keep in place and the ones to move to the end."""
+        return [p for p in paths if not should_demote(p)], [p for p in paths if should_demote(p)]
 
+    clean, demoted = demote(sys.path)
     if not demoted:
         return
-
-    # Rebuild sys.path: originals first, then demoted at the very end.
     sys.path[:] = clean + demoted
 
-    # Rewrite PYTHONPATH with the same ordering for subprocesses.
     if "PYTHONPATH" in os.environ:
-        parts = os.environ["PYTHONPATH"].split(os.pathsep)
-        env_clean = []
-        env_demoted = []
-        for p in parts:
-            if _should_demote(p):
-                env_demoted.append(p)
-            else:
-                env_clean.append(p)
+        env_clean, env_demoted = demote(os.environ["PYTHONPATH"].split(os.pathsep))
         os.environ["PYTHONPATH"] = os.pathsep.join(env_clean + env_demoted)
 
 

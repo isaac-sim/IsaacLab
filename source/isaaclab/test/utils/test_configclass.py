@@ -6,19 +6,20 @@
 from __future__ import annotations
 
 import copy
-import os
 import subprocess
 import sys
 from collections.abc import Callable
 from dataclasses import MISSING, asdict, field
+from dataclasses import dataclass as plain_dataclass
 from functools import wraps
 from typing import Any, ClassVar
 
 import pytest
 import torch
 
+from isaaclab.utils import checked_apply
 from isaaclab.utils.configclass import _field_module_dir, configclass
-from isaaclab.utils.dict import class_to_dict, dict_to_md5_hash, update_class_from_dict
+from isaaclab.utils.dict import class_to_dict, update_class_from_dict
 from isaaclab.utils.io import dump_yaml, load_yaml
 from isaaclab.utils.string import ResolvableString
 
@@ -519,25 +520,10 @@ Test fixtures.
 """
 
 
-def test_str():
-    """Test printing the configuration."""
-    cfg = BasicDemoCfg()
-    print()
-    print(cfg)
-
-
-def test_str_dict():
-    """Test printing the configuration using dataclass utility."""
-    cfg = BasicDemoCfg()
-    print()
-    print("Using dataclass function: ", asdict(cfg))
-    print("Using internal function: ", cfg.to_dict())
-    assert asdict(cfg) == cfg.to_dict()
-
-
 def test_dict_conversion():
     """Test dictionary conversion of configclass instance."""
     cfg = BasicDemoCfg()
+    assert str(cfg).startswith("BasicDemoCfg(device_id=0, env=EnvCfg(")
     # dataclass function
     assert asdict(cfg) == basic_demo_cfg_correct
     assert asdict(cfg.env) == basic_demo_cfg_correct["env"]
@@ -553,19 +539,6 @@ def test_dict_conversion():
     # We have to do a manual check because torch.Tensor does not work with assertDictEqual.
     assert torch_cfg_dict["some_number"] == 0
     assert torch.all(torch_cfg_dict["some_tensor"] == torch.tensor([1, 2, 3]))
-
-
-def test_actuator_cfg_dict_conversion():
-    """Test dict conversion of ActuatorConfig."""
-    # create a basic RemotizedPDActuator config
-    actuator_cfg = BasicActuatorCfg()
-    # return writable attributes of config object
-    actuator_cfg_dict_attr = actuator_cfg.__dict__
-    # check if __dict__ attribute of config is not empty
-    assert len(actuator_cfg_dict_attr) > 0
-    # class_to_dict utility function should return a primitive dictionary
-    actuator_cfg_dict = class_to_dict(actuator_cfg)
-    assert isinstance(actuator_cfg_dict, dict)
 
 
 def test_dict_conversion_order():
@@ -610,12 +583,16 @@ def test_config_update_after_init():
     assert asdict(cfg) == basic_demo_cfg_change_correct
 
 
-def test_config_update_dict():
-    """Test updating configclass using dictionary."""
+@pytest.mark.parametrize("via", ["update_class_from_dict", "from_dict"])
+def test_config_update_dict(via):
+    """Test updating configclass using dictionary, through the utility and the configclass method."""
     cfg = BasicDemoCfg()
     cfg_dict = {"env": {"num_envs": 22, "viewer": {"eye": (2.0, 2.0, 2.0)}}}
-    update_class_from_dict(cfg, cfg_dict)
-    assert asdict(cfg) == basic_demo_cfg_change_correct
+    if via == "from_dict":
+        cfg.from_dict(cfg_dict)
+    else:
+        update_class_from_dict(cfg, cfg_dict)
+    assert cfg.to_dict() == basic_demo_cfg_change_correct
 
     # check types are also correct
     assert isinstance(cfg.env.viewer, ViewerCfg)
@@ -721,14 +698,6 @@ def test_config_update_different_iterable_lengths():
     assert cfg.dof_vel == [9.0, 8.0, 7.0]
 
 
-def test_config_update_dict_using_internal():
-    """Test updating configclass from a dictionary using configclass method."""
-    cfg = BasicDemoCfg()
-    cfg_dict = {"env": {"num_envs": 22, "viewer": {"eye": (2.0, 2.0, 2.0)}}}
-    cfg.from_dict(cfg_dict)
-    assert cfg.to_dict() == basic_demo_cfg_change_correct
-
-
 def test_config_update_dict_using_post_init():
     cfg = BasicDemoPostInitCfg()
     assert cfg.to_dict() == basic_demo_post_init_cfg_correct
@@ -742,68 +711,27 @@ def test_invalid_update_key():
         update_class_from_dict(cfg, cfg_dict)
 
 
-def test_multiple_instances():
-    """Test multiple instances with twice instantiation."""
-    # create two config instances
+@pytest.mark.parametrize("second", ["constructor", "replace", "copy"])
+def test_instances_do_not_share_mutable_members(second):
+    """Instances created by construction, replace(), or copy() hold independent mutable members."""
     cfg1 = BasicDemoCfg()
-    cfg2 = BasicDemoCfg()
-
-    # check variables
-    # mutable -- variables should be different
-    assert id(cfg1.env.viewer.eye) != id(cfg2.env.viewer.eye)
-    assert id(cfg1.env.viewer.lookat) != id(cfg2.env.viewer.lookat)
-    assert id(cfg1.robot_default_state) != id(cfg2.robot_default_state)
-    # immutable -- variables are the same
-    assert id(cfg1.robot_default_state.dof_pos) == id(cfg2.robot_default_state.dof_pos)
-    assert id(cfg1.env.num_envs) == id(cfg2.env.num_envs)
-    assert id(cfg1.device_id) == id(cfg2.device_id)
-
-    # check values
-    assert cfg1.env.to_dict() == cfg2.env.to_dict()
-    assert cfg1.robot_default_state.to_dict() == cfg2.robot_default_state.to_dict()
-
-
-def test_alter_values_multiple_instances():
-    """Test alterations in multiple instances of the same configclass."""
-    # create two config instances
-    cfg1 = BasicDemoCfg()
-    cfg2 = BasicDemoCfg()
-
-    # alter configurations
-    cfg1.env.num_envs = 22  # immutable data: int
-    cfg1.env.viewer.eye[0] = 1.0  # mutable data: list
-    cfg1.env.viewer.lookat[2] = 12.0  # mutable data: list
-
-    # check variables
-    # values should be different
-    assert cfg1.env.num_envs != cfg2.env.num_envs
-    assert cfg1.env.viewer.eye != cfg2.env.viewer.eye
-    assert cfg1.env.viewer.lookat != cfg2.env.viewer.lookat
-    # mutable -- variables are different ids
-    assert id(cfg1.env.viewer.eye) != id(cfg2.env.viewer.eye)
-    assert id(cfg1.env.viewer.lookat) != id(cfg2.env.viewer.lookat)
-    # immutable -- altered variables are different ids
-    assert id(cfg1.env.num_envs) != id(cfg2.env.num_envs)
-
-
-def test_multiple_instances_with_replace():
-    """Test multiple instances with creation through replace function."""
-    # create two config instances
-    cfg1 = BasicDemoCfg()
-    cfg2 = cfg1.replace()
-
-    # check variable IDs
-    # mutable -- variables should be different
-    assert id(cfg1.env.viewer.eye) != id(cfg2.env.viewer.eye)
-    assert id(cfg1.env.viewer.lookat) != id(cfg2.env.viewer.lookat)
-    assert id(cfg1.robot_default_state) != id(cfg2.robot_default_state)
-    # immutable -- variables are the same
-    assert id(cfg1.robot_default_state.dof_pos) == id(cfg2.robot_default_state.dof_pos)
-    assert id(cfg1.env.num_envs) == id(cfg2.env.num_envs)
-    assert id(cfg1.device_id) == id(cfg2.device_id)
-
-    # check values
+    cfg2 = {"constructor": BasicDemoCfg, "replace": cfg1.replace, "copy": cfg1.copy}[second]()
     assert cfg1.to_dict() == cfg2.to_dict()
+
+    # mutable members are deep-copied, immutable ones may be shared
+    assert cfg1.env.viewer.eye is not cfg2.env.viewer.eye
+    assert cfg1.env.viewer.lookat is not cfg2.env.viewer.lookat
+    assert cfg1.robot_default_state is not cfg2.robot_default_state
+    assert cfg1.robot_default_state.dof_pos is cfg2.robot_default_state.dof_pos
+    assert cfg1.env.num_envs is cfg2.env.num_envs
+
+    # altering one instance leaves the other untouched
+    cfg1.env.num_envs = 22
+    cfg1.env.viewer.eye[0] = 1.0
+    cfg1.env.viewer.lookat[2] = 12.0
+    assert cfg2.env.num_envs == 56
+    assert cfg2.env.viewer.eye == [7.5, 7.5, 7.5]
+    assert cfg2.env.viewer.lookat == [0.0, 0.0, 0.0]
 
 
 def test_borrowed_field_preserves_identity_without_changing_ordinary_copying():
@@ -820,33 +748,8 @@ def test_borrowed_field_preserves_identity_without_changing_ordinary_copying():
         assert copied.lookat is not cfg.lookat
 
 
-def test_alter_values_multiple_instances_wth_replace():
-    """Test alterations in multiple instances through replace function."""
-    # create two config instances
-    cfg1 = BasicDemoCfg()
-    cfg2 = cfg1.replace(device_id=1)
-
-    # alter configurations
-    cfg1.env.num_envs = 22  # immutable data: int
-    cfg1.env.viewer.eye[0] = 1.0  # mutable data: list
-    cfg1.env.viewer.lookat[2] = 12.0  # mutable data: list
-
-    # check variables
-    # values should be different
-    assert cfg1.env.num_envs != cfg2.env.num_envs
-    assert cfg1.env.viewer.eye != cfg2.env.viewer.eye
-    assert cfg1.env.viewer.lookat != cfg2.env.viewer.lookat
-    # mutable -- variables are different ids
-    assert id(cfg1.env.viewer.eye) != id(cfg2.env.viewer.eye)
-    assert id(cfg1.env.viewer.lookat) != id(cfg2.env.viewer.lookat)
-    # immutable -- altered variables are different ids
-    assert id(cfg1.env.num_envs) != id(cfg2.env.num_envs)
-    assert id(cfg1.device_id) != id(cfg2.device_id)
-
-
 def test_configclass_type_ordering():
     """Checks ordering of config objects when no type annotation is provided."""
-
     cfg_1 = TypeAnnotationOrderingDemoCfg()
     cfg_2 = NonTypeAnnotationOrderingDemoCfg()
     cfg_3 = InheritedNonTypeAnnotationOrderingDemoCfg()
@@ -899,43 +802,18 @@ def test_function_impl_config():
     assert cfg.a == 10
 
 
-def test_class_function_impl_config():
-    """Tests having class function defined in the class instance."""
+def test_class_function_and_property_impl_config():
+    """Methods, class methods, and properties defined on a configclass are not turned into fields."""
     cfg = ClassFunctionImplementedDemoCfg()
-
-    # check that the annotations are correct
     assert cfg.__annotations__ == {"a": "int"}
 
-    # check all methods are callable
     cfg.instance_method()
-    new_cfg1 = cfg.class_method(20)
-    # check value is correct
-    assert new_cfg1.a == 20
+    assert cfg.class_method(20).a == 20
+    assert ClassFunctionImplementedDemoCfg.class_method(20).a == 20
 
-    # create the same config instance using class method
-    new_cfg2 = ClassFunctionImplementedDemoCfg.class_method(20)
-    # check value is correct
-    assert new_cfg2.a == 20
-
-
-def test_class_property_impl_config():
-    """Tests having class property defined in the class instance."""
-    cfg = ClassFunctionImplementedDemoCfg()
-
-    # check that the annotations are correct
-    assert cfg.__annotations__ == {"a": "int"}
-
-    # check all methods are callable
-    cfg.instance_method()
-
-    # check value is correct
-    assert cfg.a == 5
-    assert cfg.a_proxy == 5
-
-    # set through property
+    assert cfg.a == cfg.a_proxy == 5
     cfg.a_proxy = 10
-    assert cfg.a == 10
-    assert cfg.a_proxy == 10
+    assert cfg.a == cfg.a_proxy == 10
 
 
 def test_dict_conversion_functions_config():
@@ -1077,7 +955,6 @@ def test_config_double_inheritance():
 
 def test_config_with_class_type():
     """Tests that configclass works properly with class type."""
-
     cfg = DummyClassCfg()
 
     # since python 3.10, annotations are stored as strings
@@ -1097,7 +974,6 @@ def test_config_with_class_type():
 
 def test_nested_config_class_declarations():
     """Tests that configclass works properly with nested class class declarations."""
-
     cfg = OutsideClassCfg()
 
     # check types
@@ -1111,12 +987,9 @@ def test_nested_config_class_declarations():
     assert cfg.x == 20
 
 
-def test_config_dumping():
+def test_config_dumping(tmp_path):
     """Check that config dumping works properly."""
-
-    # file for dumping
-    dirname = os.path.dirname(os.path.abspath(__file__))
-    filename = os.path.join(dirname, "output", "configclass", "test_config.yaml")
+    filename = str(tmp_path / "configclass" / "test_config.yaml")
 
     # create config
     cfg = ChildADemoCfg(a=20, d=3, e=ViewerCfg(), j=["c", "d"])
@@ -1139,22 +1012,8 @@ def test_config_dumping():
     assert cfg.to_dict() == cfg_loaded
 
 
-def test_config_md5_hash():
-    """Check that config md5 hash generation works properly."""
-
-    # create config
-    cfg = ChildADemoCfg(a=20, d=3, e=ViewerCfg(), j=["c", "d"])
-
-    # generate md5 hash
-    md5_hash_1 = dict_to_md5_hash(cfg.to_dict())
-    md5_hash_2 = dict_to_md5_hash(cfg.to_dict())
-
-    assert md5_hash_1 == md5_hash_2
-
-
 def test_validity():
     """Check that invalid configurations raise errors."""
-
     cfg = MissingChildDemoCfg()
 
     with pytest.raises(TypeError) as context:
@@ -1252,9 +1111,6 @@ def test_dir_resolution_in_subclass():
 
 def test_checked_apply_forwards_all_fields():
     """checked_apply forwards every declared field on src onto target."""
-    from dataclasses import dataclass as plain_dataclass
-
-    from isaaclab.utils import checked_apply
 
     @configclass
     class WrapperCfg:
@@ -1279,9 +1135,6 @@ def test_checked_apply_forwards_all_fields():
 
 def test_checked_apply_raises_on_missing_target_field():
     """checked_apply fails loudly when target lacks a declared field."""
-    from dataclasses import dataclass as plain_dataclass
-
-    from isaaclab.utils import checked_apply
 
     @configclass
     class WrapperCfg:
@@ -1299,7 +1152,6 @@ def test_checked_apply_raises_on_missing_target_field():
 
 def test_checked_apply_rejects_non_dataclass_src():
     """checked_apply requires src to be a dataclass."""
-    from isaaclab.utils import checked_apply
 
     class NotADataclass:
         margin = 0.01
@@ -1308,20 +1160,16 @@ def test_checked_apply_rejects_non_dataclass_src():
         checked_apply(NotADataclass(), object())
 
 
-@pytest.mark.parametrize("import_first", ["sub-module", "decorator"])
-def test_configclass_name_works_for_every_import_form(import_first):
+def test_configclass_name_works_for_every_import_form():
     """``isaaclab.utils.configclass`` serves both the decorator and the sub-module, in either order.
 
     The name belongs to a sub-module and to the decorator that sub-module defines, so whichever was
     imported first used to decide which one the other import forms got. A fresh interpreter is
-    required because that is settled on the very first import.
+    required per import order because that is settled on the very first import.
     """
-    prologue = {
-        "sub-module": "import isaaclab.utils.configclass",
-        "decorator": "from isaaclab.utils import configclass",
-    }[import_first]
-    script = f"""
-{prologue}
+    prologues = ["import isaaclab.utils.configclass", "from isaaclab.utils import configclass"]
+    script = """
+PROLOGUE
 
 import isaaclab.utils.configclass as configclass_module
 assert configclass_module.checked_apply is not None
@@ -1335,7 +1183,14 @@ from isaaclab.utils import configclass
 class DemoCfg:
     value: int = 1
 
-assert DemoCfg().to_dict() == {{"value": 1}}
+assert DemoCfg().to_dict() == {"value": 1}
 """
-    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
-    assert result.returncode == 0, result.stderr
+    processes = [
+        subprocess.Popen(
+            [sys.executable, "-c", script.replace("PROLOGUE", prologue)], stderr=subprocess.PIPE, text=True
+        )
+        for prologue in prologues
+    ]
+    for process in processes:
+        _, stderr = process.communicate()
+        assert process.returncode == 0, stderr

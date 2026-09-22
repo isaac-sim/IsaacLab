@@ -22,7 +22,6 @@ if TYPE_CHECKING:
     from .terrain_generator_cfg import TerrainGeneratorCfg
     from .terrain_importer_cfg import TerrainImporterCfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -75,11 +74,11 @@ class TerrainImporter:
         self.device = sim_utils.SimulationContext.instance().device  # type: ignore
 
         # create buffers for the terrains
-        self.terrain_prim_paths = list()
+        self.terrain_prim_paths = []
         self.terrain_origins = None
         self.env_origins = None  # assigned later when `configure_env_origins` is called
         # private variables
-        self._terrain_flat_patches = dict()
+        self._terrain_flat_patches = {}
 
         # auto-import the terrain based on the config
         if self.cfg.terrain_type == "generator":
@@ -167,7 +166,6 @@ class TerrainImporter:
         Raises:
             RuntimeError: If terrain origins are not configured.
         """
-        # create a marker if necessary
         if debug_vis:
             if not hasattr(self, "origin_visualizer"):
                 self.origin_visualizer = VisualizationMarkers(
@@ -179,12 +177,9 @@ class TerrainImporter:
                     self.origin_visualizer.visualize(self.env_origins.reshape(-1, 3))
                 else:
                     raise RuntimeError("Terrain origins are not configured.")
-            # set visibility
             self.origin_visualizer.set_visibility(True)
-        else:
-            if hasattr(self, "origin_visualizer"):
-                self.origin_visualizer.set_visibility(False)
-        # report success
+        elif hasattr(self, "origin_visualizer"):
+            self.origin_visualizer.set_visibility(False)
         return True
 
     """
@@ -203,15 +198,7 @@ class TerrainImporter:
         Raises:
             ValueError: If a terrain with the same name already exists.
         """
-        # create prim path for the terrain
-        prim_path = self.cfg.prim_path + f"/{name}"
-        # check if key exists
-        if prim_path in self.terrain_prim_paths:
-            raise ValueError(
-                f"A terrain with the name '{name}' already exists. Existing terrains: {', '.join(self.terrain_names)}."
-            )
-        # store the mesh name
-        self.terrain_prim_paths.append(prim_path)
+        prim_path = self._register_terrain_prim(name)
 
         if size is None:
             size = self._compute_ground_plane_size()
@@ -228,7 +215,6 @@ class TerrainImporter:
                     " Preserving the ground plane's authored material."
                 )
 
-        # get the mesh
         ground_plane_cfg = sim_utils.GroundPlaneCfg(physics_material=self.cfg.physics_material, size=size, color=color)
         ground_plane_cfg.func(prim_path, ground_plane_cfg)
 
@@ -246,20 +232,25 @@ class TerrainImporter:
         Raises:
             ValueError: If a terrain with the same name already exists.
         """
-        # create prim path for the terrain
-        prim_path = self.cfg.prim_path + f"/{name}"
-        # check if key exists
+        prim_path = self._register_terrain_prim(name)
+
+        create_prim_from_mesh(
+            prim_path, mesh, visual_material=self.cfg.visual_material, physics_material=self.cfg.physics_material
+        )
+
+    def _register_terrain_prim(self, name: str) -> str:
+        """Reserve the prim path ``cfg.prim_path/{name}`` for a new terrain and return it.
+
+        Raises:
+            ValueError: If a terrain with the same name already exists.
+        """
+        prim_path = f"{self.cfg.prim_path}/{name}"
         if prim_path in self.terrain_prim_paths:
             raise ValueError(
                 f"A terrain with the name '{name}' already exists. Existing terrains: {', '.join(self.terrain_names)}."
             )
-        # store the mesh name
         self.terrain_prim_paths.append(prim_path)
-
-        # import the mesh
-        create_prim_from_mesh(
-            prim_path, mesh, visual_material=self.cfg.visual_material, physics_material=self.cfg.physics_material
-        )
+        return prim_path
 
     def _compute_ground_plane_size(self) -> tuple[float, float]:
         """Compute a bounded visual plane size that covers the environment grid [m]."""
@@ -324,17 +315,8 @@ class TerrainImporter:
         Raises:
             ValueError: If a terrain with the same name already exists.
         """
-        # create prim path for the terrain
-        prim_path = self.cfg.prim_path + f"/{name}"
-        # check if key exists
-        if prim_path in self.terrain_prim_paths:
-            raise ValueError(
-                f"A terrain with the name '{name}' already exists. Existing terrains: {', '.join(self.terrain_names)}."
-            )
-        # store the mesh name
-        self.terrain_prim_paths.append(prim_path)
+        prim_path = self._register_terrain_prim(name)
 
-        # add the prim path
         cfg = sim_utils.UsdFileCfg(usd_path=usd_path)
         cfg.func(prim_path, cfg)
 
@@ -371,7 +353,7 @@ class TerrainImporter:
         if self.terrain_origins is None:
             return
         # update terrain level for the envs
-        self.terrain_levels[env_ids] += 1 * move_up - 1 * move_down
+        self.terrain_levels[env_ids] += move_up.long() - move_down.long()
         # robots that solve the last level are sent to a random one
         # the minimum level is zero
         self.terrain_levels[env_ids] = torch.where(

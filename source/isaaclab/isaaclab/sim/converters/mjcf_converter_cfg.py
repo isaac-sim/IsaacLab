@@ -7,8 +7,9 @@ from __future__ import annotations
 
 from typing import Literal
 
-from isaaclab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
 from isaaclab.utils import configclass
+
+from .asset_converter_base_cfg import AssetConverterBaseCfg
 
 
 @configclass

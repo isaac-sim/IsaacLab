@@ -157,30 +157,16 @@ def dataset_dir():
     shutil.rmtree(test_dir)
 
 
-def test_str(dataset_dir):
-    """Test the string representation of the recorder manager."""
-    # create recorder manager
+def test_str_and_dataset_file(dataset_dir):
+    """The manager lists its terms and creates the dataset file on construction."""
     cfg = DummyRecorderManagerCfg()
     cfg.dataset_export_dir_path = dataset_dir
     cfg.dataset_filename = f"{uuid.uuid4()}.hdf5"
     recorder_manager = RecorderManager(cfg, create_dummy_env())
-    assert len(recorder_manager.active_terms) == 2
+    assert recorder_manager.active_terms == ["record_reset_term", "record_step_term"]
     manager_str = str(recorder_manager)
     assert "contains 2 active terms" in manager_str
-    assert "record_reset_term" in manager_str
-    assert "record_step_term" in manager_str
-    recorder_manager.close()
-
-
-def test_initialize_dataset_file(dataset_dir):
-    """Test the initialization of the dataset file."""
-    # create recorder manager
-    cfg = DummyRecorderManagerCfg()
-    cfg.dataset_export_dir_path = dataset_dir
-    cfg.dataset_filename = f"{uuid.uuid4()}.hdf5"
-    recorder_manager = RecorderManager(cfg, create_dummy_env())
-
-    # check if the dataset is created
+    assert "record_reset_term" in manager_str and "record_step_term" in manager_str
     assert os.path.exists(os.path.join(cfg.dataset_export_dir_path, cfg.dataset_filename))
     recorder_manager.close()
 

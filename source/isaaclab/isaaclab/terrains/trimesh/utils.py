@@ -3,13 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Primitive functions to generate meshes."""
+
 import numpy as np
 import scipy.spatial.transform as tf
 import trimesh
-
-"""
-Primitive functions to generate meshes.
-"""
 
 
 def make_plane(size: tuple[float, float], height: float, center_zero: bool = True) -> trimesh.Trimesh:
@@ -29,19 +27,15 @@ def make_plane(size: tuple[float, float], height: float, center_zero: bool = Tru
     Returns:
         A trimesh.Trimesh objects for the plane.
     """
-    # compute the vertices of the terrain
     x0 = [size[0], size[1], height]
     x1 = [size[0], 0.0, height]
     x2 = [0.0, size[1], height]
     x3 = [0.0, 0.0, height]
-    # generate the tri-mesh with two triangles
     vertices = np.array([x0, x1, x2, x3])
     faces = np.array([[1, 0, 2], [2, 3, 1]])
     plane_mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
-    # center the plane at the origin
     if center_zero:
         plane_mesh.apply_translation(-np.array([size[0] / 2.0, size[1] / 2.0, 0.0]))
-    # return the tri-mesh and the position
     return plane_mesh
 
 
@@ -73,10 +67,8 @@ def make_border(
     Returns:
         A list of trimesh.Trimesh objects that represent the border.
     """
-    # compute thickness of the border
     thickness_x = (size[0] - inner_size[0]) / 2.0
     thickness_y = (size[1] - inner_size[1]) / 2.0
-    # generate tri-meshes for the border
     # top/bottom border
     box_dims = (size[0], thickness_y, height)
     # -- top
@@ -93,8 +85,19 @@ def make_border(
     # -- right
     box_pos = (position[0] + inner_size[0] / 2.0 + thickness_x / 2.0, position[1], position[2])
     box_mesh_right = trimesh.creation.box(box_dims, trimesh.transformations.translation_matrix(box_pos))
-    # return the tri-meshes
     return [box_mesh_left, box_mesh_right, box_mesh_top, box_mesh_bottom]
+
+
+def _random_yx_capped_transform(center: tuple[float, float, float], max_yx_angle: float, degrees: bool) -> np.ndarray:
+    """Build a pose at ``center`` with a random yaw and a rotation about the y and x axes capped by ``max_yx_angle``."""
+    transform = np.eye(4)
+    transform[0:3, -1] = np.asarray(center)
+    euler_zyx = tf.Rotation.random().as_euler("zyx")
+    if degrees:
+        max_yx_angle = max_yx_angle / 180.0
+    euler_zyx[1:] *= max_yx_angle
+    transform[0:3, 0:3] = tf.Rotation.from_euler("zyx", euler_zyx).as_matrix()
+    return transform
 
 
 def make_box(
@@ -110,28 +113,16 @@ def make_box(
     Args:
         length: The length (along x) of the box (in m).
         width: The width (along y) of the box (in m).
-        height: The height of the cylinder (in m).
-        center: The center of the cylinder (in m).
+        height: The height of the box (in m).
+        center: The center of the box (in m).
         max_yx_angle: The maximum angle along the y and x axis. Defaults to 0.
         degrees: Whether the angle is in degrees. Defaults to True.
 
     Returns:
-        A trimesh.Trimesh object for the cylinder.
+        A trimesh.Trimesh object for the box.
     """
-    # create a pose for the cylinder
-    transform = np.eye(4)
-    transform[0:3, -1] = np.asarray(center)
-    # -- create a random rotation
-    euler_zyx = tf.Rotation.random().as_euler("zyx")  # returns rotation of shape (3,)
-    # -- cap the rotation along the y and x axis
-    if degrees:
-        max_yx_angle = max_yx_angle / 180.0
-    euler_zyx[1:] *= max_yx_angle
-    # -- apply the rotation
-    transform[0:3, 0:3] = tf.Rotation.from_euler("zyx", euler_zyx).as_matrix()
-    # create the box
-    dims = (length, width, height)
-    return trimesh.creation.box(dims, transform=transform)
+    transform = _random_yx_capped_transform(center, max_yx_angle, degrees)
+    return trimesh.creation.box((length, width, height), transform=transform)
 
 
 def make_cylinder(
@@ -149,18 +140,7 @@ def make_cylinder(
     Returns:
         A trimesh.Trimesh object for the cylinder.
     """
-    # create a pose for the cylinder
-    transform = np.eye(4)
-    transform[0:3, -1] = np.asarray(center)
-    # -- create a random rotation
-    euler_zyx = tf.Rotation.random().as_euler("zyx")  # returns rotation of shape (3,)
-    # -- cap the rotation along the y and x axis
-    if degrees:
-        max_yx_angle = max_yx_angle / 180.0
-    euler_zyx[1:] *= max_yx_angle
-    # -- apply the rotation
-    transform[0:3, 0:3] = tf.Rotation.from_euler("zyx", euler_zyx).as_matrix()
-    # create the cylinder
+    transform = _random_yx_capped_transform(center, max_yx_angle, degrees)
     return trimesh.creation.cylinder(radius, height, sections=np.random.randint(4, 6), transform=transform)
 
 
@@ -179,16 +159,5 @@ def make_cone(
     Returns:
         A trimesh.Trimesh object for the cone.
     """
-    # create a pose for the cylinder
-    transform = np.eye(4)
-    transform[0:3, -1] = np.asarray(center)
-    # -- create a random rotation
-    euler_zyx = tf.Rotation.random().as_euler("zyx")  # returns rotation of shape (3,)
-    # -- cap the rotation along the y and x axis
-    if degrees:
-        max_yx_angle = max_yx_angle / 180.0
-    euler_zyx[1:] *= max_yx_angle
-    # -- apply the rotation
-    transform[0:3, 0:3] = tf.Rotation.from_euler("zyx", euler_zyx).as_matrix()
-    # create the cone
+    transform = _random_yx_capped_transform(center, max_yx_angle, degrees)
     return trimesh.creation.cone(radius, height, sections=np.random.randint(4, 6), transform=transform)

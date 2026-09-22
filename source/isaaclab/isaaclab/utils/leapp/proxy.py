@@ -7,14 +7,14 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any
 
 import torch
 from leapp.utils.tensor_description import TensorSemantics
 
 from isaaclab.managers import ManagerTermBase
-from isaaclab.utils.warp.proxy_array import ProxyArray
 
+from ..warp.proxy_array import ProxyArray
 from .leapp_semantics import resolve_leapp_element_names
 from .utils import TracedProxyArray, build_write_connection
 
@@ -203,6 +203,28 @@ class _EntityProxy:
         return getattr(object.__getattribute__(self, "_real_entity"), name)
 
 
+def _proxy_entity(
+    entity: Any,
+    key: str,
+    task_name: str,
+    property_resolution_cache: dict[tuple[type, str], tuple[Callable, Any] | None],
+    cache: dict,
+):
+    """Wrap ``entity`` in an :class:`_EntityProxy` when it exposes ``.data``; return it unchanged otherwise."""
+    data = getattr(entity, "data", None)
+    if data is None:
+        return entity
+    data_proxy = _DataProxy(
+        data,
+        key,
+        task_name,
+        property_resolution_cache,
+        cache,
+        input_name_resolver=lambda prop_name: f"{key}_{prop_name}",
+    )
+    return _EntityProxy(entity, data_proxy)
+
+
 class _EntityMappingProxy:
     """Proxy around a mapping of scene entities that lazily wraps data-producing entries."""
 
@@ -224,20 +246,13 @@ class _EntityMappingProxy:
         proxied = object.__getattribute__(self, "_proxied")
         if key in proxied:
             return proxied[key]
-        real_mapping = object.__getattribute__(self, "_real_mapping")
-        entity = real_mapping[key]
-        data = getattr(entity, "data", None)
-        if data is None:
-            return entity
-        data_proxy = _DataProxy(
-            data,
+        proxy = _proxy_entity(
+            object.__getattribute__(self, "_real_mapping")[key],
             key,
             object.__getattribute__(self, "_task_name"),
             object.__getattribute__(self, "_property_resolution_cache"),
             object.__getattribute__(self, "_cache"),
-            input_name_resolver=lambda prop_name: f"{key}_{prop_name}",
         )
-        proxy = _EntityProxy(entity, data_proxy)
         proxied[key] = proxy
         return proxy
 
@@ -288,21 +303,13 @@ class _SceneProxy:
         proxied = object.__getattribute__(self, "_proxied")
         if key in proxied:
             return proxied[key]
-
-        data = getattr(entity, "data", None)
-        if data is None:
-            return entity
-
-        cache = object.__getattribute__(self, "_cache")
-        data_proxy = _DataProxy(
-            data,
+        proxy = _proxy_entity(
+            entity,
             key,
             object.__getattribute__(self, "_task_name"),
             object.__getattribute__(self, "_property_resolution_cache"),
-            cache,
-            input_name_resolver=lambda prop_name, k=key: f"{k}_{prop_name}",
+            object.__getattribute__(self, "_cache"),
         )
-        proxy = _EntityProxy(entity, data_proxy)
         proxied[key] = proxy
         return proxy
 
@@ -497,12 +504,11 @@ class _ArticulationWriteProxy:
             if not isinstance(target, torch.Tensor):
                 return result
 
-            target_tensor = cast(torch.Tensor, target)
             joint_ids = bound_args.arguments.get("joint_ids")
             output_cache.append(
                 TensorSemantics(
                     name=_unique_output_name(term_name, name, output_cache),
-                    ref=target_tensor.clone(),
+                    ref=target.clone(),
                     kind=semantics_meta.kind,
                     element_names=resolve_leapp_element_names(
                         semantics_meta,

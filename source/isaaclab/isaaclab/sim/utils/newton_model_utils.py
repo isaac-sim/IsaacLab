@@ -99,11 +99,8 @@ def _get_input_value(shader: UsdShade.Shader, name: str) -> tuple[float, float, 
     inp = shader.GetInput(name)
     if inp is not None:
         attrs = UsdShade.Utils.GetValueProducingAttributes(inp)
-        if attrs and len(attrs) > 0:
-            value = attrs[0].Get()
-            if value is not None:
-                return _coerce_color(value)
-
+        if attrs:
+            return _coerce_color(attrs[0].Get())
     return None
 
 
@@ -251,22 +248,13 @@ def replace_newton_builder_shape_colors(builder: Any, stage: Usd.Stage) -> int:
             f"Mismatching length of shape_label and shape_color: {len(shape_labels)} != {len(shape_colors)}"
         )
 
-    from isaaclab.utils.timer import Timer
+    num_color_updates = 0
+    material_color_cache: dict[str, tuple[float, float, float] | None] = {}
+    for i, label in enumerate(shape_labels):
+        rgb = _resolve_shape_color(stage, label, material_color_cache)
+        if rgb is not None:
+            shape_colors[i] = tuple(_linear_channel_to_srgb(c) for c in rgb)
+            num_color_updates += 1
 
-    with Timer(
-        f"[INFO]: Time taken for replace_newton_builder_shape_colors for {len(shape_labels)} shapes", enable=False
-    ):
-        num_color_updates = 0
-        material_color_cache: dict[str, tuple[float, float, float] | None] = {}
-        for i, label in enumerate(shape_labels):
-            rgb = _resolve_shape_color(stage, label, material_color_cache)
-            if rgb is not None:
-                shape_colors[i] = (
-                    _linear_channel_to_srgb(rgb[0]),
-                    _linear_channel_to_srgb(rgb[1]),
-                    _linear_channel_to_srgb(rgb[2]),
-                )
-                num_color_updates += 1
-
-        logger.debug("Replaced builder colors for %d / %d shapes", num_color_updates, len(shape_labels))
-        return num_color_updates
+    logger.debug("Replaced builder colors for %d / %d shapes", num_color_updates, len(shape_labels))
+    return num_color_updates

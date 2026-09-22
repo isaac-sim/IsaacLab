@@ -3,25 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+# ignore private usage of variables warning
+# pyright: reportPrivateUsage=none
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
-from collections import namedtuple
+from __future__ import annotations
 
 import pytest
 import torch
 
 from isaaclab.managers import RewardManager, RewardTermCfg
-from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.unit
 
 
 def grilled_chicken(env):
@@ -41,152 +34,82 @@ def grilled_chicken_with_yoghurt(env, hot: bool, bland: float):
 
 
 @pytest.fixture
-def env():
-    sim = SimulationContext()
-    yield namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim"])(20, 0.1, "cpu", sim)
-    SimulationContext.clear_instance()
+def env(make_env):
+    return make_env(dt=0.1)
 
 
-def test_str(env):
-    """Test the string representation of the reward manager."""
+def test_active_terms(env):
+    """Terms are listed in configuration order in ``active_terms`` and in the string representation."""
     cfg = {
         "term_1": RewardTermCfg(func=grilled_chicken, weight=10),
         "term_2": RewardTermCfg(func=grilled_chicken_with_bbq, weight=5, params={"bbq": True}),
-        "term_3": RewardTermCfg(
-            func=grilled_chicken_with_yoghurt,
-            weight=1.0,
-            params={"hot": False, "bland": 2.0},
-        ),
+        "term_3": RewardTermCfg(func=grilled_chicken_with_yoghurt, weight=1.0, params={"hot": False, "bland": 2.0}),
     }
     rew_man = RewardManager(cfg, env)
-    assert len(rew_man.active_terms) == 3
-    # print the expected string
-    print()
-    print(rew_man)
+    assert rew_man.active_terms == ["term_1", "term_2", "term_3"]
+    rew_man_str = str(rew_man)
+    assert "contains 3 active terms" in rew_man_str
+    assert "term_3" in rew_man_str
 
 
 def test_config_equivalence(env):
-    """Test the equivalence of reward manager created from different config types."""
-    # create from dictionary
+    """Dictionary, un-annotated and annotated configurations produce the same manager."""
     cfg = {
         "my_term": RewardTermCfg(func=grilled_chicken, weight=10),
         "your_term": RewardTermCfg(func=grilled_chicken_with_bbq, weight=2.0, params={"bbq": True}),
-        "his_term": RewardTermCfg(
-            func=grilled_chicken_with_yoghurt,
-            weight=1.0,
-            params={"hot": False, "bland": 2.0},
-        ),
+        "his_term": RewardTermCfg(func=grilled_chicken_with_yoghurt, weight=1.0, params={"hot": False, "bland": 2.0}),
     }
-    rew_man_from_dict = RewardManager(cfg, env)
 
-    # create from config class
     @configclass
     class MyRewardManagerCfg:
-        """Reward manager config with no type annotations."""
-
         my_term = RewardTermCfg(func=grilled_chicken, weight=10.0)
         your_term = RewardTermCfg(func=grilled_chicken_with_bbq, weight=2.0, params={"bbq": True})
         his_term = RewardTermCfg(func=grilled_chicken_with_yoghurt, weight=1.0, params={"hot": False, "bland": 2.0})
 
-    cfg = MyRewardManagerCfg()
-    rew_man_from_cfg = RewardManager(cfg, env)
-
-    # create from config class
     @configclass
     class MyRewardManagerAnnotatedCfg:
-        """Reward manager config with type annotations."""
-
         my_term: RewardTermCfg = RewardTermCfg(func=grilled_chicken, weight=10.0)
         your_term: RewardTermCfg = RewardTermCfg(func=grilled_chicken_with_bbq, weight=2.0, params={"bbq": True})
         his_term: RewardTermCfg = RewardTermCfg(
             func=grilled_chicken_with_yoghurt, weight=1.0, params={"hot": False, "bland": 2.0}
         )
 
-    cfg = MyRewardManagerAnnotatedCfg()
-    rew_man_from_annotated_cfg = RewardManager(cfg, env)
-
-    # check equivalence
-    # parsed terms
-    assert rew_man_from_dict.active_terms == rew_man_from_annotated_cfg.active_terms
-    assert rew_man_from_cfg.active_terms == rew_man_from_annotated_cfg.active_terms
-    assert rew_man_from_dict.active_terms == rew_man_from_cfg.active_terms
-    # parsed term configs
-    assert rew_man_from_dict._term_cfgs == rew_man_from_annotated_cfg._term_cfgs
-    assert rew_man_from_cfg._term_cfgs == rew_man_from_annotated_cfg._term_cfgs
-    assert rew_man_from_dict._term_cfgs == rew_man_from_cfg._term_cfgs
+    managers = [RewardManager(c, env) for c in (cfg, MyRewardManagerCfg(), MyRewardManagerAnnotatedCfg())]
+    for rew_man in managers[1:]:
+        assert rew_man.active_terms == managers[0].active_terms
+        assert rew_man._term_cfgs == managers[0]._term_cfgs
 
 
 def test_compute(env):
-    """Test the computation of reward."""
+    """The reward is the dt-scaled weighted sum of the terms; zero-weight terms are skipped."""
     cfg = {
         "term_1": RewardTermCfg(func=grilled_chicken, weight=10),
         "term_2": RewardTermCfg(func=grilled_chicken_with_curry, weight=0.0, params={"hot": False}),
     }
-    rew_man = RewardManager(cfg, env)
-    # compute expected reward
-    expected_reward = cfg["term_1"].weight * env.dt
-    # compute reward using manager
-    rewards = rew_man.compute(dt=env.dt)
-    # check the reward for environment index 0
-    assert float(rewards[0]) == expected_reward
-    assert tuple(rewards.shape) == (env.num_envs,)
+    rewards = RewardManager(cfg, env).compute(dt=env.dt)
+    assert rewards.shape == (env.num_envs,)
+    torch.testing.assert_close(rewards, torch.full((env.num_envs,), cfg["term_1"].weight * env.dt))
 
 
 def test_config_empty(env):
-    """Test the creation of reward manager with empty config."""
+    """An empty configuration yields no terms and zero rewards."""
     rew_man = RewardManager(None, env)
     assert len(rew_man.active_terms) == 0
-
-    # print the expected string
-    print()
-    print(rew_man)
-
-    # compute reward
-    rewards = rew_man.compute(dt=env.dt)
-
-    # check all rewards are zero
-    torch.testing.assert_close(rewards, torch.zeros_like(rewards))
+    assert "contains 0 active terms" in str(rew_man)
+    torch.testing.assert_close(rew_man.compute(dt=env.dt), torch.zeros(env.num_envs))
 
 
-def test_active_terms(env):
-    """Test the correct reading of active terms."""
-    cfg = {
-        "term_1": RewardTermCfg(func=grilled_chicken, weight=10),
-        "term_2": RewardTermCfg(func=grilled_chicken_with_bbq, weight=5, params={"bbq": True}),
-        "term_3": RewardTermCfg(func=grilled_chicken_with_curry, weight=0.0, params={"hot": False}),
-    }
-    rew_man = RewardManager(cfg, env)
-
-    assert len(rew_man.active_terms) == 3
-
-
-def test_missing_weight(env):
-    """Test the missing of weight in the config."""
-    # TODO: The error should be raised during the config parsing, not during the reward manager creation.
-    cfg = {
-        "term_1": RewardTermCfg(func=grilled_chicken, weight=10),
-        "term_2": RewardTermCfg(func=grilled_chicken_with_bbq, params={"bbq": True}),
-    }
-    with pytest.raises(TypeError):
-        RewardManager(cfg, env)
-
-
-def test_invalid_reward_func_module(env):
-    """Test the handling of invalid reward function's module in string representation."""
-    cfg = {
-        "term_1": RewardTermCfg(func=grilled_chicken, weight=10),
-        "term_2": RewardTermCfg(func=grilled_chicken_with_bbq, weight=5, params={"bbq": True}),
-        "term_3": RewardTermCfg(func="a:grilled_chicken_with_no_bbq", weight=0.1, params={"hot": False}),
-    }
-    with pytest.raises(ValueError):
-        RewardManager(cfg, env)
-
-
-def test_invalid_reward_config(env):
-    """Test the handling of invalid reward function's config parameters."""
-    cfg = {
-        "term_1": RewardTermCfg(func=grilled_chicken_with_bbq, weight=0.1, params={"hot": False}),
-        "term_2": RewardTermCfg(func=grilled_chicken_with_yoghurt, weight=2.0, params={"hot": False}),
-    }
-    with pytest.raises(ValueError):
+@pytest.mark.parametrize(
+    ("term_2", "error"),
+    [
+        (RewardTermCfg(func=grilled_chicken_with_bbq, params={"bbq": True}), TypeError),
+        (RewardTermCfg(func="a:grilled_chicken_with_no_bbq", weight=0.1, params={"hot": False}), ValueError),
+        (RewardTermCfg(func=grilled_chicken_with_yoghurt, weight=2.0, params={"hot": False}), ValueError),
+    ],
+    ids=["missing_weight", "invalid_module", "missing_params"],
+)
+def test_invalid_reward_config(env, term_2, error):
+    """Missing weights, unresolvable functions and unmatched parameters are rejected on construction."""
+    cfg = {"term_1": RewardTermCfg(func=grilled_chicken, weight=10), "term_2": term_2}
+    with pytest.raises(error):
         RewardManager(cfg, env)

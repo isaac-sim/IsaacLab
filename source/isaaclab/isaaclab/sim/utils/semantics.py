@@ -34,17 +34,11 @@ def add_labels(prim: Usd.Prim, labels: list[str], instance_name: str = "class", 
     """
     from pxr import UsdSemantics  # noqa: PLC0415
 
-    labels_api = UsdSemantics.LabelsAPI.Apply(prim, instance_name)
-    labels_attr = labels_api.CreateLabelsAttr()
-    if overwrite:
-        labels_attr.Set(labels)
-    else:
-        existing = labels_attr.Get()
-        if existing:
-            combined = list(existing) + [lbl for lbl in labels if lbl not in existing]
-            labels_attr.Set(combined)
-        else:
-            labels_attr.Set(labels)
+    labels_attr = UsdSemantics.LabelsAPI.Apply(prim, instance_name).CreateLabelsAttr()
+    existing = None if overwrite else labels_attr.Get()
+    if existing:
+        labels = list(existing) + [lbl for lbl in labels if lbl not in existing]
+    labels_attr.Set(labels)
 
 
 def get_labels(prim: Usd.Prim) -> dict[str, list[str]]:
@@ -60,17 +54,17 @@ def get_labels(prim: Usd.Prim) -> dict[str, list[str]]:
     from pxr import UsdSemantics  # noqa: PLC0415
 
     result = {}
-    for schema_name in prim.GetAppliedSchemas():
-        if schema_name.startswith("SemanticsLabelsAPI:"):
-            instance_name = schema_name.split(":", 1)[1]
-            sem_api = UsdSemantics.LabelsAPI(prim, instance_name)
-            labels_attr = sem_api.GetLabelsAttr()
-            if labels_attr:
-                labels = labels_attr.Get()
-                result[instance_name] = list(labels) if labels is not None else []
-            else:
-                result[instance_name] = []
+    for instance_name in _label_instance_names(prim):
+        labels_attr = UsdSemantics.LabelsAPI(prim, instance_name).GetLabelsAttr()
+        labels = labels_attr.Get() if labels_attr else None
+        result[instance_name] = list(labels) if labels is not None else []
     return result
+
+
+def _label_instance_names(prim: Usd.Prim) -> list[str]:
+    """Return the instance names of all ``UsdSemantics.LabelsAPI`` schemas applied to a prim."""
+    prefix = "SemanticsLabelsAPI:"
+    return [schema_name[len(prefix) :] for schema_name in prim.GetAppliedSchemas() if schema_name.startswith(prefix)]
 
 
 def remove_labels(prim: Usd.Prim, instance_name: str | None = None, include_descendants: bool = False):
@@ -85,23 +79,10 @@ def remove_labels(prim: Usd.Prim, instance_name: str | None = None, include_desc
     """
     from pxr import Usd, UsdSemantics  # noqa: PLC0415
 
-    def _remove_single_prim_labels(target_prim: Usd.Prim):
-        """Helper function to remove labels from a single prim."""
-        schemas_to_remove = []
-        for schema_name in target_prim.GetAppliedSchemas():
-            if schema_name.startswith("SemanticsLabelsAPI:"):
-                current_instance = schema_name.split(":", 1)[1]
-                if instance_name is None or current_instance == instance_name:
-                    schemas_to_remove.append(current_instance)
-
-        for inst_to_remove in schemas_to_remove:
-            target_prim.RemoveAPI(UsdSemantics.LabelsAPI, inst_to_remove)
-
-    if include_descendants:
-        for p in Usd.PrimRange(prim):
-            _remove_single_prim_labels(p)
-    else:
-        _remove_single_prim_labels(prim)
+    for target_prim in Usd.PrimRange(prim) if include_descendants else [prim]:
+        for current_instance in _label_instance_names(target_prim):
+            if instance_name is None or current_instance == instance_name:
+                target_prim.RemoveAPI(UsdSemantics.LabelsAPI, current_instance)
 
 
 def check_missing_labels(prim_path: str | None = None, stage: Usd.Stage | None = None) -> list[str]:
@@ -120,30 +101,18 @@ def check_missing_labels(prim_path: str | None = None, stage: Usd.Stage | None =
     """
     from pxr import Usd, UsdGeom  # noqa: PLC0415
 
-    # check if stage is valid
     stage = stage if stage else get_current_stage()
-
-    # check if inspect path is valid
     start_prim = stage.GetPrimAtPath(prim_path) if prim_path else stage.GetPseudoRoot()
     if not start_prim:
-        # Allow None prim_path for whole stage check, warn if path specified but not found
         if prim_path:
             logger.warning(f"No prim found at path '{prim_path}'. Returning from check for semantic labels.")
         return []
 
-    # iterate over prim and its children
-    prim_paths = []
-    for prim in Usd.PrimRange(start_prim):
-        if prim.IsA(UsdGeom.Gprim):
-            has_any_label = False
-            for schema_name in prim.GetAppliedSchemas():
-                if schema_name.startswith("SemanticsLabelsAPI:"):
-                    has_any_label = True
-                    break
-            if not has_any_label:
-                prim_paths.append(prim.GetPath().pathString)
-
-    return prim_paths
+    return [
+        prim.GetPath().pathString
+        for prim in Usd.PrimRange(start_prim)
+        if prim.IsA(UsdGeom.Gprim) and not _label_instance_names(prim)
+    ]
 
 
 def count_total_labels(prim_path: str | None = None, stage: Usd.Stage | None = None) -> dict[str, int]:
@@ -172,14 +141,11 @@ def count_total_labels(prim_path: str | None = None, stage: Usd.Stage | None = N
 
     labels_counter = {"missing_labels": 0}
     for prim in Usd.PrimRange(start_prim):
-        if prim.IsA(UsdGeom.Gprim):
-            labels_dict = get_labels(prim)
-            if not labels_dict:
-                labels_counter["missing_labels"] += 1
-            else:
-                # Iterate through all labels from all instances on the prim
-                all_labels = [label for sublist in labels_dict.values() for label in sublist if label]
-                for label in all_labels:
-                    labels_counter[label] = labels_counter.get(label, 0) + 1
-
+        if not prim.IsA(UsdGeom.Gprim):
+            continue
+        labels_dict = get_labels(prim)
+        if not labels_dict:
+            labels_counter["missing_labels"] += 1
+        for label in (label for labels in labels_dict.values() for label in labels if label):
+            labels_counter[label] = labels_counter.get(label, 0) + 1
     return labels_counter

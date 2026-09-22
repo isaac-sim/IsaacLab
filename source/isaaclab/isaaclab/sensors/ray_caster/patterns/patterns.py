@@ -145,7 +145,7 @@ def lidar_pattern(cfg: patterns_cfg.LidarPatternCfg, device: str) -> tuple[torch
         The starting positions and directions of the rays.
     """
     # Vertical angles
-    vertical_angles = torch.linspace(cfg.vertical_fov_range[0], cfg.vertical_fov_range[1], cfg.channels)
+    vertical_angles = torch.linspace(cfg.vertical_fov_range[0], cfg.vertical_fov_range[1], cfg.channels, device=device)
 
     # If the horizontal field of view is 360 degrees, exclude the last point to avoid overlap
     if abs(abs(cfg.horizontal_fov_range[0] - cfg.horizontal_fov_range[1]) - 360.0) < 1e-6:
@@ -157,9 +157,9 @@ def lidar_pattern(cfg: patterns_cfg.LidarPatternCfg, device: str) -> tuple[torch
     num_horizontal_angles = (
         math.ceil((cfg.horizontal_fov_range[1] - cfg.horizontal_fov_range[0]) / cfg.horizontal_res) + 1
     )
-    horizontal_angles = torch.linspace(cfg.horizontal_fov_range[0], cfg.horizontal_fov_range[1], num_horizontal_angles)[
-        :up_to
-    ]
+    horizontal_angles = torch.linspace(
+        cfg.horizontal_fov_range[0], cfg.horizontal_fov_range[1], num_horizontal_angles, device=device
+    )[:up_to]
 
     # Convert degrees to radians
     vertical_angles_rad = torch.deg2rad(vertical_angles)
@@ -174,9 +174,9 @@ def lidar_pattern(cfg: patterns_cfg.LidarPatternCfg, device: str) -> tuple[torch
     z = torch.sin(v_angles)
 
     # Ray directions
-    ray_directions = torch.stack([x, y, z], dim=-1).reshape(-1, 3).to(device)
+    ray_directions = torch.stack([x, y, z], dim=-1).reshape(-1, 3)
 
     # Ray starts: Assuming all rays originate from (0,0,0)
-    ray_starts = torch.zeros_like(ray_directions).to(device)
+    ray_starts = torch.zeros_like(ray_directions)
 
     return ray_starts, ray_directions

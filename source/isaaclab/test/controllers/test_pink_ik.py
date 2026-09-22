@@ -12,7 +12,6 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import contextlib
 import json
 import re
 from pathlib import Path
@@ -66,18 +65,14 @@ def create_test_env(env_name, num_envs):
 
     sim_utils.create_new_stage()
 
-    try:
-        env_cfg = remove_camera_configs(parse_env_cfg(env_name, device=device, num_envs=num_envs))
-        # Deterministic seed so IK convergence residual is reproducible across runs / machines.
-        env_cfg.seed = 42
-        # Modify scene config to not spawn the packing table to avoid collision with the robot
-        del env_cfg.scene.packing_table
-        del env_cfg.terminations.object_dropping
-        del env_cfg.terminations.time_out
-        return gym.make(env_name, cfg=env_cfg).unwrapped, env_cfg
-    except Exception as e:
-        print(f"Failed to create environment: {str(e)}")
-        raise
+    env_cfg = remove_camera_configs(parse_env_cfg(env_name, device=device, num_envs=num_envs))
+    # Deterministic seed so IK convergence residual is reproducible across runs / machines.
+    env_cfg.seed = 42
+    # Modify scene config to not spawn the packing table to avoid collision with the robot
+    del env_cfg.scene.packing_table
+    del env_cfg.terminations.object_dropping
+    del env_cfg.terminations.time_out
+    return gym.make(env_name, cfg=env_cfg).unwrapped, env_cfg
 
 
 @pytest.fixture(
@@ -188,25 +183,12 @@ def test_movement_types(test_setup, test_name):
     env_cfg = test_setup["env_cfg"]
 
     if test_name not in test_cfg["tests"]:
-        print(f"Skipping {test_name} test for {env_cfg.__class__.__name__} environment (test not defined)...")
         pytest.skip(f"Test {test_name} not defined for {env_cfg.__class__.__name__}")
-        return
 
     test_config = test_cfg["tests"][test_name]
-
-    # Check if test requires waist bending and if waist is enabled
-    requires_waist_bending = test_config.get("requires_waist_bending", False)
-    waist_enabled = is_waist_enabled(env_cfg)
-
-    if requires_waist_bending and not waist_enabled:
-        print(
-            f"Skipping {test_name} test because it requires waist bending but waist is not enabled in"
-            f" {env_cfg.__class__.__name__}..."
-        )
+    if test_config.get("requires_waist_bending", False) and not is_waist_enabled(env_cfg):
         pytest.skip(f"Test {test_name} requires waist bending but waist is not enabled")
-        return
 
-    print(f"Running {test_name} test...")
     run_movement_test(test_setup, test_config, test_cfg)
 
 
@@ -222,7 +204,7 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
     test_counter = 0
     num_runs = 0
 
-    with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
+    with torch.inference_mode():
         obs, _ = env.reset()
 
         # Make the first phase longer than subsequent ones

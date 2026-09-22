@@ -3,234 +3,124 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
-
 import pytest
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
+pytestmark = [pytest.mark.unit, pytest.mark.isaacsim_ci]
 
 
 @pytest.fixture
-def sim():
-    """Create a simulation context."""
-    sim_utils.create_new_stage()
-    dt = 0.1
-    sim = SimulationContext(SimulationCfg(dt=dt))
-    sim_utils.update_stage()
-    yield sim
-    sim.stop()
-    sim.clear_instance()
+def stage():
+    return sim_utils.create_new_stage()
 
 
-def test_spawn_multiple_shapes_with_regex_prefix(sim):
-    """Ensure assets are spawned and cloned when using regex prefix paths."""
+def _shape_cfgs(**kwargs) -> list[sim_utils.SpawnerCfg]:
+    return [
+        sim_utils.ConeCfg(radius=0.3, height=0.6, **kwargs),
+        sim_utils.CuboidCfg(size=(0.3, 0.3, 0.3), **kwargs),
+        sim_utils.SphereCfg(radius=0.3, **kwargs),
+    ]
+
+
+def test_spawn_multiple_shapes_with_global_settings(stage):
+    """Wrapper-level physics settings override the per-asset ones on every clone."""
     num_envs = 3
-    num_assets = 3
     for env_idx in range(num_envs):
-        env_path = f"/World/env_{env_idx}"
-        sim_utils.create_prim(env_path, "Xform", translation=(0, 0, 0))
-        sim_utils.create_prim(f"{env_path}/Cone", "Xform")
-
+        sim_utils.create_prim(f"/World/env_{env_idx}/Cone", "Xform")
+    assets_cfg = _shape_cfgs(mass_props=sim_utils.MassCfg(mass=100.0))
     cfg = sim_utils.MultiAssetSpawnerCfg(
-        assets_cfg=[
-            sim_utils.ConeCfg(
-                radius=0.3,
-                height=0.6,
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-                mass_props=sim_utils.MassCfg(mass=100.0),  # this one should get overridden
-            ),
-            sim_utils.CuboidCfg(
-                size=(0.3, 0.3, 0.3),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
-            ),
-            sim_utils.SphereCfg(
-                radius=0.3,
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
-            ),
-        ],
+        assets_cfg=assets_cfg,
         rigid_props=PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0),
         mass_props=sim_utils.MassCfg(mass=1.0),
         collision_props=sim_utils.UsdPhysicsCollisionCfg(),
     )
 
     prim = cfg.func("/World/env_.*/Cone/asset_.*", cfg)
-    assert str(prim.GetPath()) == "/World/env_0/Cone/asset_0"
 
+    assert prim.GetPath() == "/World/env_0/Cone/asset_0"
     prim_paths = sim_utils.find_matching_prim_paths("/World/env_[^/]+/Cone/asset_[^/]*")
-    assert len(prim_paths) == num_assets * num_envs
-
+    assert len(prim_paths) == num_envs * len(assets_cfg)
     for env_idx in range(num_envs):
-        for asset_idx in range(num_assets):
+        for asset_idx in range(len(assets_cfg)):
             path = f"/World/env_{env_idx}/Cone/asset_{asset_idx}"
             assert path in prim_paths
-            assert sim.stage.GetPrimAtPath(path).GetAttribute("physics:mass").Get() == cfg.mass_props.mass
+            assert stage.GetPrimAtPath(path).GetAttribute("physics:mass").Get() == 1.0
+            assert stage.GetPrimAtPath(path).GetAttribute("physxRigidBody:solverPositionIterationCount").Get() == 4
 
 
-def test_spawn_multiple_shapes_with_global_settings(sim):
-    """Test spawning of shapes randomly with global rigid body settings."""
-    sim_utils.create_prim("/World/template", "Xform", translation=(0, 0, 0))
-
-    cfg = sim_utils.MultiAssetSpawnerCfg(
-        assets_cfg=[
-            sim_utils.ConeCfg(
-                radius=0.3,
-                height=0.6,
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-                mass_props=sim_utils.MassCfg(mass=100.0),  # this one should get overridden
-            ),
-            sim_utils.CuboidCfg(
-                size=(0.3, 0.3, 0.3),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
-            ),
-            sim_utils.SphereCfg(
-                radius=0.3,
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
-            ),
-        ],
-        rigid_props=PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0),
-        mass_props=sim_utils.MassCfg(mass=1.0),
-        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-    )
-    prim = cfg.func("/World/template/Cone/asset_.*", cfg)
-
-    assert prim.IsValid()
-    assert str(prim.GetPath()) == "/World/template/Cone/asset_0"
-    prim_paths = sim_utils.find_matching_prim_paths("/World/template/Cone/asset_[^/]*")
-    assert len(prim_paths) == 3
-
-    for prim_path in prim_paths:
-        prim = sim.stage.GetPrimAtPath(prim_path)
-        assert prim.GetAttribute("physics:mass").Get() == cfg.mass_props.mass
-
-
-def test_spawn_multiple_shapes_with_individual_settings(sim):
-    """Test spawning of shapes randomly with individual rigid object settings."""
-    sim_utils.create_prim("/World/template", "Xform", translation=(0, 0, 0))
-
+def test_spawn_multiple_shapes_with_individual_settings(stage):
+    sim_utils.create_prim("/World/template", "Xform")
     mass_variations = [2.0, 3.0, 4.0]
     cfg = sim_utils.MultiAssetSpawnerCfg(
         assets_cfg=[
-            sim_utils.ConeCfg(
-                radius=0.3,
-                height=0.6,
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
-                mass_props=sim_utils.MassCfg(mass=mass_variations[0]),
-                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-            ),
-            sim_utils.CuboidCfg(
-                size=(0.3, 0.3, 0.3),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
-                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
-                mass_props=sim_utils.MassCfg(mass=mass_variations[1]),
-                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-            ),
-            sim_utils.SphereCfg(
-                radius=0.3,
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
-                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
-                mass_props=sim_utils.MassCfg(mass=mass_variations[2]),
-                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-            ),
-        ],
+            asset_cfg.replace(mass_props=sim_utils.MassCfg(mass=mass), rigid_props=sim_utils.UsdPhysicsRigidBodyCfg())
+            for asset_cfg, mass in zip(_shape_cfgs(), mass_variations)
+        ]
     )
+
     prim = cfg.func("/World/template/Cone/asset_.*", cfg)
 
-    assert prim.IsValid()
-    assert str(prim.GetPath()) == "/World/template/Cone/asset_0"
+    assert prim.GetPath() == "/World/template/Cone/asset_0"
     prim_paths = sim_utils.find_matching_prim_paths("/World/template/Cone/asset_[^/]*")
-    assert len(prim_paths) == 3
-
-    for prim_path in prim_paths:
-        prim = sim.stage.GetPrimAtPath(prim_path)
-        assert prim.GetAttribute("physics:mass").Get() in mass_variations
+    assert [stage.GetPrimAtPath(path).GetAttribute("physics:mass").Get() for path in prim_paths] == mass_variations
 
 
-def test_spawn_multiple_shapes_with_explicit_spawn_paths(sim):
-    """Multi-asset spawner accepts planned per-variant source paths."""
-    sim_utils.create_prim("/World/planned", "Xform", translation=(0, 0, 0))
-
+def test_spawn_multiple_shapes_with_explicit_spawn_paths(stage):
+    """Planned per-variant source paths take precedence over the prim path pattern."""
+    sim_utils.create_prim("/World/planned", "Xform")
     cfg = sim_utils.MultiAssetSpawnerCfg(
-        assets_cfg=[
-            sim_utils.ConeCfg(radius=0.3, height=0.6),
-            sim_utils.CuboidCfg(size=(0.3, 0.3, 0.3)),
-            sim_utils.SphereCfg(radius=0.3),
-        ],
+        assets_cfg=_shape_cfgs(),
         spawn_paths=["/World/planned/apple", None, "/World/planned/banana"],
         mass_props=sim_utils.MassCfg(mass=1.0),
-        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
     )
 
     prim = cfg.func("/World/ignored_without_regex", cfg)
 
-    assert str(prim.GetPath()) == "/World/planned/apple"
-    assert sim.stage.GetPrimAtPath("/World/planned/apple").IsValid()
-    assert not sim.stage.GetPrimAtPath("/World/planned/ignored").IsValid()
-    assert sim.stage.GetPrimAtPath("/World/planned/banana").IsValid()
-    assert sim.stage.GetPrimAtPath("/World/planned/apple").GetAttribute("physics:mass").Get() == 1.0
+    assert prim.GetPath() == "/World/planned/apple"
+    assert stage.GetPrimAtPath("/World/planned/banana").IsValid()
+    assert not stage.GetPrimAtPath("/World/planned/ignored").IsValid()
+    assert prim.GetAttribute("physics:mass").Get() == 1.0
 
 
-def test_spawn_multiple_shapes_spawn_paths_length_mismatch(sim):
-    """Explicit multi-asset paths must align one-to-one with variants."""
-    cfg = sim_utils.MultiAssetSpawnerCfg(
-        assets_cfg=[sim_utils.ConeCfg(radius=0.3, height=0.6), sim_utils.SphereCfg(radius=0.3)],
-        spawn_paths=["/World/planned/apple"],
-    )
-
+def test_spawn_multiple_shapes_rejects_invalid_paths(stage):
+    cfg = sim_utils.MultiAssetSpawnerCfg(assets_cfg=_shape_cfgs()[:2], spawn_paths=["/World/planned/apple"])
     with pytest.raises(ValueError, match="spawn_paths"):
         cfg.func("/World/ignored_without_regex", cfg)
 
+    cfg = sim_utils.MultiAssetSpawnerCfg(assets_cfg=_shape_cfgs())
+    with pytest.raises(ValueError, match="segment wildcard"):
+        cfg.func("/World/template/asset", cfg)
 
-"""
-Tests - Multiple USDs.
-"""
 
-
-def test_spawn_multiple_files_with_global_settings(sim):
-    """Test spawning of files randomly with global articulation settings."""
-    sim_utils.create_prim("/World/template", "Xform", translation=(0, 0, 0))
-
+def test_spawn_multiple_files_with_global_settings(stage):
+    sim_utils.create_prim("/World/template", "Xform")
     cfg = sim_utils.MultiUsdFileCfg(
         usd_path=[
             f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
             f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
         ],
-        rigid_props=PhysxRigidBodyCfg(
-            disable_gravity=False,
-            retain_accelerations=False,
-            linear_damping=0.0,
-            angular_damping=0.0,
-            max_linear_velocity=1000.0,
-            max_angular_velocity=1000.0,
-            max_depenetration_velocity=1.0,
-        ),
+        rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0),
         articulation_props=[
-            PhysxArticulationCfg(
-                enabled_self_collisions=True,
-                solver_position_iteration_count=4,
-                solver_velocity_iteration_count=0,
-            ),
+            PhysxArticulationCfg(enabled_self_collisions=True, solver_position_iteration_count=4),
             NewtonArticulationCfg(self_collision_enabled=True),
         ],
         activate_contact_sensors=True,
     )
+
     prim = cfg.func("/World/template/Robot/asset_.*", cfg)
 
-    assert prim.IsValid()
-    assert str(prim.GetPath()) == "/World/template/Robot/asset_0"
+    assert prim.GetPath() == "/World/template/Robot/asset_0"
     prim_paths = sim_utils.find_matching_prim_paths("/World/template/Robot/asset_[^/]*")
-    assert len(prim_paths) == 2
+    assert prim_paths == ["/World/template/Robot/asset_0", "/World/template/Robot/asset_1"]
+    # articulation settings and contact sensors are authored on every file
+    for path in prim_paths:
+        assert sim_utils.get_first_matching_child_prim(
+            path, lambda p: p.GetAttribute("physxArticulation:enabledSelfCollisions").Get() is True
+        )
+        assert sim_utils.get_first_matching_child_prim(
+            path, lambda p: "PhysxContactReportAPI" in p.GetPrimTypeInfo().GetAppliedAPISchemas()
+        )

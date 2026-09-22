@@ -128,7 +128,8 @@ class ActuatorNetMLP(DCMotor):
         self.network = torch.jit.load(file_bytes, map_location=self._device).eval()
 
         # create buffers for MLP history
-        history_length = max(self.cfg.input_idx) + 1
+        self._input_idx = list(self.cfg.input_idx)
+        history_length = max(self._input_idx) + 1
         self._joint_pos_error_history = torch.zeros(
             self._num_envs, history_length, self.num_joints, device=self._device
         )
@@ -156,18 +157,15 @@ class ActuatorNetMLP(DCMotor):
         # save current joint vel for dc-motor clipping
         self._joint_vel[:] = joint_vel
 
-        # compute network inputs
-        # -- positions
-        pos_input = torch.cat([self._joint_pos_error_history[:, i].unsqueeze(2) for i in self.cfg.input_idx], dim=2)
-        pos_input = pos_input.view(self._num_envs * self.num_joints, -1)
-        # -- velocity
-        vel_input = torch.cat([self._joint_vel_history[:, i].unsqueeze(2) for i in self.cfg.input_idx], dim=2)
-        vel_input = vel_input.view(self._num_envs * self.num_joints, -1)
-        # -- scale and concatenate inputs
+        # gather the selected history steps as one row per (env, joint) pair
+        pos_input = self._joint_pos_error_history[:, self._input_idx].permute(0, 2, 1)
+        pos_input = pos_input.reshape(self._num_envs * self.num_joints, -1) * self.cfg.pos_scale
+        vel_input = self._joint_vel_history[:, self._input_idx].permute(0, 2, 1)
+        vel_input = vel_input.reshape(self._num_envs * self.num_joints, -1) * self.cfg.vel_scale
         if self.cfg.input_order == "pos_vel":
-            network_input = torch.cat([pos_input * self.cfg.pos_scale, vel_input * self.cfg.vel_scale], dim=1)
+            network_input = torch.cat([pos_input, vel_input], dim=1)
         elif self.cfg.input_order == "vel_pos":
-            network_input = torch.cat([vel_input * self.cfg.vel_scale, pos_input * self.cfg.pos_scale], dim=1)
+            network_input = torch.cat([vel_input, pos_input], dim=1)
         else:
             raise ValueError(
                 f"Invalid input order for MLP actuator net: {self.cfg.input_order}. Must be 'pos_vel' or 'vel_pos'."
@@ -176,7 +174,7 @@ class ActuatorNetMLP(DCMotor):
         # run network inference
         with torch.inference_mode():
             torques = self.network(network_input).view(self._num_envs, self.num_joints)
-        self.computed_effort = torques.view(self._num_envs, self.num_joints) * self.cfg.torque_scale
+        self.computed_effort = torques * self.cfg.torque_scale
 
         # clip the computed effort based on the motor limits
         self.applied_effort = self._clip_effort(self.computed_effort)

@@ -16,8 +16,6 @@ simulation_app = AppLauncher(headless=True).app if _USE_KIT else None
 
 import math
 import os
-import tempfile
-import warnings
 import xml.etree.ElementTree as ET
 from types import SimpleNamespace
 
@@ -26,43 +24,50 @@ import pytest
 if _USE_KIT:
     import omni.kit.app
 
+from pxr import Usd, UsdPhysics
+
 import isaaclab
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
 
 # The Kit-less container mounts the checkout read-only, so ``usd_dir`` goes under ``tmp_path``.
-pytestmark = [pytest.mark.integration, pytest.mark.kitless]
+pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci, pytest.mark.kitless]
 
+_URDF_IMPORTER_EXTENSION = "isaacsim.asset.importer.urdf"
 
 # Portable Franka URDF for the kitless path (the Kit path uses the importer extension's bundled
 # ``panda_arm_hand.urdf``). Both expose the same 7 revolute + 2 prismatic joint structure.
 _REPO_FRANKA_URDF = os.path.join(
     os.path.dirname(isaaclab.__file__), "controllers", "config", "data", "lula_franka_gen.urdf"
 )
-
+_URDF_FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "urdfs")
 # Fixed-joint fixture for the merge tests: 7 links / 6 joints (3 fixed, 1 continuous, 2 prismatic).
-# Kept beside the tests so they are hermetic and run on either importer backend.
-_MERGE_JOINTS_URDF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "urdfs", "test_merge_joints.urdf")
-
+_MERGE_JOINTS_URDF = os.path.join(_URDF_FIXTURES, "test_merge_joints.urdf")
 # Fixed-joint-only fixture: the importer writes no PhysX data for it, so its "Physics" variant set
 # offers no "physx" variant, so requesting it must fail.
-_FIXED_ONLY_URDF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "urdfs", "test_fixed_only.urdf")
+_FIXED_ONLY_URDF = os.path.join(_URDF_FIXTURES, "test_fixed_only.urdf")
+
+# Franka Panda: 7 revolute arm joints and 2 prismatic finger joints.
+_NUM_ARM_JOINTS, _NUM_FINGER_JOINTS = 7, 2
+_DEG = math.pi / 180.0
 
 
-# Create a fixture for setup and teardown
+def _enable_importer_extension() -> str:
+    manager = omni.kit.app.get_app().get_extension_manager()
+    if not manager.is_extension_enabled(_URDF_IMPORTER_EXTENSION):
+        manager.set_extension_enabled_immediate(_URDF_IMPORTER_EXTENSION, True)
+    return manager.get_extension_path(manager.get_enabled_extension_id(_URDF_IMPORTER_EXTENSION))
+
+
 @pytest.fixture
-def sim_config():
+def sim_config(tmp_path):
+    """A stage to spawn into and a Franka converter config writing under ``tmp_path``."""
     stage = sim_utils.create_new_stage()
     if _USE_KIT:
         # Kit path: enable the importer extension and use its bundled Franka asset.
-        manager = omni.kit.app.get_app().get_extension_manager()
-        if not manager.is_extension_enabled("isaacsim.asset.importer.urdf"):
-            manager.set_extension_enabled_immediate("isaacsim.asset.importer.urdf", True)
-        extension_id = manager.get_enabled_extension_id("isaacsim.asset.importer.urdf")
-        extension_path = manager.get_extension_path(extension_id)
+        extension_path = _enable_importer_extension()
         asset_path = f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf"
-        # Load kit helper
         sim = SimulationContext(SimulationCfg(dt=0.01))
     else:
         # Kitless path: the converter loads the importer from the standalone wheel. Spawning and
@@ -70,335 +75,199 @@ def sim_config():
         # stands in for the simulation context.
         asset_path = _REPO_FRANKA_URDF
         sim = SimpleNamespace(stage=stage)
-    # default configuration
     config = UrdfConverterCfg(
         asset_path=asset_path,
         fix_base=True,
+        force_usd_conversion=True,
+        usd_dir=str(tmp_path / "usd"),
         joint_drive=UrdfConverterCfg.JointDriveCfg(
             gains=UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
         ),
     )
     yield sim, config
-    # Teardown
     if _USE_KIT:
         sim._disable_app_control_on_stop_handle = True  # prevent timeout
         sim.stop()
         sim.clear_instance()
 
 
-@pytest.mark.isaacsim_ci
-def test_no_change(sim_config):
-    """Call conversion twice. This should not generate a new USD file."""
-    sim, config = sim_config
-    urdf_converter = UrdfConverter(config)
-    time_usd_file_created = os.stat(urdf_converter.usd_path).st_mtime_ns
-
-    # no change to config only define the usd directory
-    new_config = config
-    new_config.usd_dir = urdf_converter.usd_dir
-    # convert to usd but this time in the same directory as previous step
-    new_urdf_converter = UrdfConverter(new_config)
-    new_time_usd_file_created = os.stat(new_urdf_converter.usd_path).st_mtime_ns
-
-    assert time_usd_file_created == new_time_usd_file_created
-
-
-@pytest.mark.isaacsim_ci
-def test_config_change(sim_config, tmp_path):
-    """Call conversion twice but change the config in the second call. This should generate a new USD file."""
-
-    sim, config = sim_config
-    output_dir = os.path.join(str(tmp_path), "urdf_config_change")
-    os.makedirs(output_dir, exist_ok=True)
-
-    config.usd_dir = output_dir
-    urdf_converter = UrdfConverter(config)
-    time_usd_file_created = os.stat(urdf_converter.usd_path).st_mtime_ns
-
-    # change the config
-    new_config = config
-    new_config.fix_base = not config.fix_base
-    # define the usd directory
-    new_config.usd_dir = output_dir
-    # convert to usd but this time in the same directory as previous step
-    new_urdf_converter = UrdfConverter(new_config)
-    new_time_usd_file_created = os.stat(new_urdf_converter.usd_path).st_mtime_ns
-
-    assert time_usd_file_created != new_time_usd_file_created
-
-
-@pytest.mark.isaacsim_ci
-def test_create_prim_from_usd(sim_config):
-    """Call conversion and create a prim from it."""
-    sim, config = sim_config
-    urdf_converter = UrdfConverter(config)
-
-    prim_path = "/World/Robot"
-    sim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
-
+def _assert_spawnable(sim, usd_path: str, prim_path: str = "/World/Robot") -> None:
+    assert os.path.exists(usd_path)
+    sim_utils.create_prim(prim_path, usd_path=usd_path)
     assert sim.stage.GetPrimAtPath(prim_path).IsValid()
 
 
-@pytest.mark.isaacsim_ci
-def test_config_drive_type(sim_config, tmp_path):
-    """Verify that ``target_type='position'`` plus uniform PD gains are written into every joint's DriveAPI.
+def _joint_drives(usd_path: str) -> dict[str, tuple[str, str | None, float, float]]:
+    """Map joint name to ``(drive instance, drive type, stiffness, damping)`` for revolute and prismatic joints.
 
-    Reads the converter's USD output directly via :class:`pxr.UsdPhysics.DriveAPI` so the assertion does
-    not depend on a running PhysX simulation. Revolute joints are checked in N·m/deg (the USD storage
-    convention) and prismatic joints in N/m.
+    Values are read straight from ``UsdPhysics.DriveAPI`` so the checks do not depend on a running
+    physics simulation. USD stores revolute gains per degree, prismatic gains per meter.
+    """
+    stage = Usd.Stage.Open(usd_path)
+    drives = {}
+    for prim in stage.Traverse():
+        if prim.IsA(UsdPhysics.RevoluteJoint):
+            instance = "angular"
+        elif prim.IsA(UsdPhysics.PrismaticJoint):
+            instance = "linear"
+        else:
+            continue
+        drive = UsdPhysics.DriveAPI.Get(prim, instance)
+        drives[prim.GetName()] = (
+            instance,
+            drive.GetTypeAttr().Get(),
+            drive.GetStiffnessAttr().Get(),
+            drive.GetDampingAttr().Get(),
+        )
+    return drives
+
+
+def _physics_variant(usd_path: str) -> tuple[str, int, int]:
+    """Return the authored ``"Physics"`` variant selection plus the composed joint and articulation-root counts.
+
+    Everything is read while the stage is still referenced, since USD objects do not keep it alive.
+    """
+    stage = Usd.Stage.Open(usd_path)
+    prims = list(stage.Traverse())
+    selection = stage.GetDefaultPrim().GetVariantSets().GetVariantSet("Physics").GetVariantSelection()
+    joints = sum(1 for prim in prims if prim.IsA(UsdPhysics.Joint))
+    roots = sum(1 for prim in prims if prim.HasAPI(UsdPhysics.ArticulationRootAPI))
+    return selection, joints, roots
+
+
+def test_lazy_conversion_cache(sim_config):
+    """Conversion is skipped for an unchanged asset and config, and re-run when the config changes."""
+    sim, config = sim_config
+    config.force_usd_conversion = False
+
+    converter = UrdfConverter(config)
+    created = os.stat(converter.usd_path).st_mtime_ns
+    _assert_spawnable(sim, converter.usd_path)
+    stage = Usd.Stage.Open(converter.usd_path)
+    assert any(prim.HasAPI(UsdPhysics.RigidBodyAPI) for prim in stage.Traverse())
+
+    assert os.stat(UrdfConverter(config).usd_path).st_mtime_ns == created
+
+    config.fix_base = not config.fix_base
+    assert os.stat(UrdfConverter(config).usd_path).st_mtime_ns != created
+
+
+@pytest.mark.parametrize(
+    ("drive_type", "target_type", "stiffness", "damping", "expected"),
+    [
+        # uniform position gains: revolute joints convert to per-degree units, prismatic stay per meter
+        pytest.param(
+            None,
+            "position",
+            42.0,
+            4.2,
+            lambda kind: (None, 42.0 * _DEG, 4.2 * _DEG) if kind == "angular" else (None, 42.0, 4.2),
+            id="uniform_position",
+        ),
+        pytest.param(
+            "acceleration",
+            None,
+            100.0,
+            10.0,
+            lambda kind: ("acceleration", None, None),
+            id="acceleration",
+        ),
+        pytest.param(None, "none", None, None, lambda kind: (None, 0.0, 0.0), id="target_none_zeros_gains"),
+        pytest.param(
+            {"panda_joint[1-7]": "acceleration", "panda_finger": "force"},
+            "position",
+            {"panda_joint[1-7]": 100.0, "panda_finger": 200.0},
+            {"panda_joint[1-7]": 10.0, "panda_finger": 20.0},
+            lambda kind: ("acceleration", 100.0 * _DEG, 10.0 * _DEG) if kind == "angular" else ("force", 200.0, 20.0),
+            id="per_joint_dicts",
+        ),
+    ],
+)
+def test_joint_drive_overrides(sim_config, drive_type, target_type, stiffness, damping, expected):
+    """``JointDriveCfg`` settings, uniform or per joint pattern, land in every joint's ``DriveAPI``.
+
+    ``expected(kind)`` yields ``(drive type, stiffness, damping)``; ``None`` skips that check.
     """
     sim, config = sim_config
-    output_dir = os.path.join(str(tmp_path), "urdf_converter")
-    os.makedirs(output_dir, exist_ok=True)
-
-    stiffness = 42.0
-    damping = 4.2
-
-    config.force_usd_conversion = True
-    config.joint_drive.target_type = "position"
+    if drive_type is not None:
+        config.joint_drive.drive_type = drive_type
+    if target_type is not None:
+        config.joint_drive.target_type = target_type
     config.joint_drive.gains.stiffness = stiffness
     config.joint_drive.gains.damping = damping
-    config.usd_dir = output_dir
-    urdf_converter = UrdfConverter(config)
 
-    from pxr import Usd, UsdPhysics
+    drives = _joint_drives(UrdfConverter(config).usd_path)
 
-    stage = Usd.Stage.Open(urdf_converter.usd_path)
-
-    revolute_count = 0
-    prismatic_count = 0
-    for prim in stage.Traverse():
-        is_revolute = prim.IsA(UsdPhysics.RevoluteJoint)
-        is_prismatic = prim.IsA(UsdPhysics.PrismaticJoint)
-        if not (is_revolute or is_prismatic):
-            continue
-        instance_name = "angular" if is_revolute else "linear"
-        drive = UsdPhysics.DriveAPI.Get(prim, instance_name)
-        actual_stiffness = drive.GetStiffnessAttr().Get()
-        actual_damping = drive.GetDampingAttr().Get()
-
-        if is_revolute:
-            expected_stiffness = stiffness * math.pi / 180.0
-            expected_damping = damping * math.pi / 180.0
-            revolute_count += 1
-        else:
-            expected_stiffness = stiffness
-            expected_damping = damping
-            prismatic_count += 1
-
-        assert abs(actual_stiffness - expected_stiffness) < 1e-4, (
-            f"Joint {prim.GetName()}: expected stiffness {expected_stiffness}, got {actual_stiffness}"
-        )
-        assert abs(actual_damping - expected_damping) < 1e-4, (
-            f"Joint {prim.GetName()}: expected damping {expected_damping}, got {actual_damping}"
-        )
-
-    # Franka Panda has 7 revolute arm joints and 2 prismatic finger joints.
-    assert revolute_count == 7, f"Expected 7 revolute joints, got {revolute_count}"
-    assert prismatic_count == 2, f"Expected 2 prismatic joints, got {prismatic_count}"
+    kinds = [kind for kind, *_ in drives.values()]
+    assert kinds.count("angular") == _NUM_ARM_JOINTS
+    assert kinds.count("linear") == _NUM_FINGER_JOINTS
+    for name, (kind, actual_type, actual_stiffness, actual_damping) in drives.items():
+        expected_type, expected_stiffness, expected_damping = expected(kind)
+        if expected_type is not None:
+            assert actual_type == expected_type, name
+        if expected_stiffness is not None:
+            assert actual_stiffness == pytest.approx(expected_stiffness, abs=1e-3), name
+            assert actual_damping == pytest.approx(expected_damping, abs=1e-3), name
 
 
-@pytest.mark.isaacsim_ci
-def test_merge_fixed_joints_xml():
-    """Test that the merge_fixed_joints utility correctly modifies URDF XML.
+@pytest.mark.parametrize("fix_base", [True, False])
+def test_fix_base(sim_config, fix_base):
+    """``fix_base`` adds a fixed joint anchoring a rigid body link, and only then."""
+    _, config = sim_config
+    config.fix_base = fix_base
 
-    Uses ``test_merge_joints.urdf`` which has:
-      - 7 links (root_link, base_link, link_1, link_2, palm_link, finger_link_1, finger_link_2)
-      - 6 joints (3 fixed, 1 continuous, 2 prismatic)
+    stage = Usd.Stage.Open(UrdfConverter(config).usd_path)
 
-    After merging:
-      - 4 links (root_link, link_1, finger_link_1, finger_link_2)
-      - 3 joints (0 fixed, 1 continuous, 2 prismatic)
+    fixed_joints = [UsdPhysics.FixedJoint(prim) for prim in stage.Traverse() if prim.IsA(UsdPhysics.FixedJoint)]
+    if fix_base:
+        assert any(joint.GetBody1Rel().GetTargets() for joint in fixed_joints)
+    else:
+        assert not any(prim.GetName() == "fix_base_joint" for prim in stage.Traverse())
+
+
+def test_importer_options_produce_spawnable_usd(sim_config):
+    """Pass-through importer options run end to end and still yield a spawnable articulation.
+
+    Collision and mesh approximation schemas are applied before the asset transformer restructures
+    the USD, and the deprecated options only warn, so the observable contract is a valid output.
     """
-    if _USE_KIT:
-        # this test takes no fixture, so enable the owning extension before importing from it
-        manager = omni.kit.app.get_app().get_extension_manager()
-        if not manager.is_extension_enabled("isaacsim.asset.importer.urdf"):
-            manager.set_extension_enabled_immediate("isaacsim.asset.importer.urdf", True)
-
-    from isaacsim.asset.importer.urdf.impl.urdf_utils import merge_fixed_joints
-
-    with tempfile.TemporaryDirectory(prefix="isaaclab_test_merge_") as tmpdir:
-        output_path = os.path.join(tmpdir, "merged.urdf")
-        merge_fixed_joints(_MERGE_JOINTS_URDF, output_path)
-
-        # parse the output URDF
-        tree = ET.parse(output_path)
-        root = tree.getroot()
-
-        links = root.findall("link")
-        joints = root.findall("joint")
-        link_names = sorted(link.get("name") for link in links)
-        joint_types = [j.get("type") for j in joints]
-
-        # verify link count and names
-        assert len(links) == 4, f"Expected 4 links, got {len(links)}: {link_names}"
-        assert sorted(link_names) == sorted(["root_link", "link_1", "finger_link_1", "finger_link_2"])
-
-        # verify no fixed joints remain
-        assert "fixed" not in joint_types, f"Fixed joints should be removed, got types: {joint_types}"
-
-        # verify joint count and types
-        assert len(joints) == 3, f"Expected 3 joints, got {len(joints)}"
-
-        # verify that visuals from merged links were transferred
-        # root_link should have base_link's visual (1 visual from base_link)
-        root_link = next(link for link in links if link.get("name") == "root_link")
-        root_visuals = root_link.findall("visual")
-        assert len(root_visuals) >= 1, "root_link should have at least 1 visual from merged base_link"
-
-        # link_1 should have visuals from link_1, link_2, and palm_link (3 total)
-        link_1 = next(link for link in links if link.get("name") == "link_1")
-        link_1_visuals = link_1.findall("visual")
-        assert len(link_1_visuals) == 3, (
-            f"link_1 should have 3 visuals (own + link_2 + palm_link), got {len(link_1_visuals)}"
-        )
-
-        # verify that re-parented joints (finger joints) now reference link_1
-        for joint in joints:
-            parent_name = joint.find("parent").get("link")
-            child_name = joint.find("child").get("link")
-            # finger joints were parented to palm_link, should now be parented to link_1
-            if child_name in ("finger_link_1", "finger_link_2"):
-                assert parent_name == "link_1", f"Expected finger joint parent to be 'link_1', got '{parent_name}'"
-
-
-@pytest.mark.isaacsim_ci
-def test_merge_fixed_joints_converter(sim_config, tmp_path):
-    """Test the full URDF converter pipeline with merge_fixed_joints enabled."""
     sim, config = sim_config
-    # Create directory to dump results
-    output_dir = os.path.join(str(tmp_path), "urdf_converter_merge")
-    os.makedirs(output_dir, exist_ok=True)
-
-    # use a URDF that has fixed joints
-    config.asset_path = _MERGE_JOINTS_URDF
     config.merge_fixed_joints = True
-    config.force_usd_conversion = True
-    config.usd_dir = output_dir
-
-    urdf_converter = UrdfConverter(config)
-
-    # check the USD file was created
-    assert os.path.exists(urdf_converter.usd_path), f"USD file not found at: {urdf_converter.usd_path}"
-
-    # create a prim from it and verify it's valid
-    prim_path = "/World/MergedRobot"
-    sim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
-    assert sim.stage.GetPrimAtPath(prim_path).IsValid()
-
-
-@pytest.mark.isaacsim_ci
-def test_fix_base_creates_fixed_joint(sim_config, tmp_path):
-    """Verify that fix_base=True creates a FixedJoint in the output USD."""
-    sim, config = sim_config
-    output_dir = os.path.join(str(tmp_path), "urdf_fix_base")
-    os.makedirs(output_dir, exist_ok=True)
-
-    config.fix_base = True
-    config.force_usd_conversion = True
-    config.usd_dir = output_dir
-    urdf_converter = UrdfConverter(config)
-
-    from pxr import Usd, UsdPhysics
-
-    stage = Usd.Stage.Open(urdf_converter.usd_path)
-
-    # search for a FixedJoint in the output
-    fixed_joints = [p for p in stage.Traverse() if p.IsA(UsdPhysics.FixedJoint)]
-    assert len(fixed_joints) > 0, "Expected at least one FixedJoint from fix_base=True"
-
-    # the first FixedJoint should target a rigid body link via body1
-    fj = UsdPhysics.FixedJoint(fixed_joints[0])
-    body1_targets = fj.GetBody1Rel().GetTargets()
-    assert len(body1_targets) > 0, "FixedJoint should target a rigid body link via body1"
-
-
-@pytest.mark.isaacsim_ci
-def test_no_fix_base(sim_config, tmp_path):
-    """Verify that fix_base=False does not create a fix_base_joint."""
-    sim, config = sim_config
-    output_dir = os.path.join(str(tmp_path), "urdf_no_fix_base")
-    os.makedirs(output_dir, exist_ok=True)
-
-    config.fix_base = False
-    config.force_usd_conversion = True
-    config.usd_dir = output_dir
-    urdf_converter = UrdfConverter(config)
-
-    from pxr import Usd
-
-    stage = Usd.Stage.Open(urdf_converter.usd_path)
-
-    # there should be no prim named "fix_base_joint"
-    fix_base_prims = [p for p in stage.Traverse() if p.GetName() == "fix_base_joint"]
-    assert len(fix_base_prims) == 0, "Expected no fix_base_joint when fix_base=False"
-
-
-@pytest.mark.isaacsim_ci
-def test_collision_from_visuals(sim_config, tmp_path):
-    """Verify that collision_from_visuals runs without error and produces valid output.
-
-    Note: CollisionAPI is applied on the intermediate stage before the asset transformer
-    restructures the USD.  The transformer may not preserve CollisionAPI in the final
-    output, so this test verifies the pipeline executes successfully rather than
-    inspecting the final USD for CollisionAPI schemas.
-    """
-    sim, config = sim_config
-    output_dir = os.path.join(str(tmp_path), "urdf_collision_visuals")
-    os.makedirs(output_dir, exist_ok=True)
-
     config.collision_from_visuals = True
-    config.force_usd_conversion = True
-    config.usd_dir = output_dir
-    urdf_converter = UrdfConverter(config)
+    config.collision_type = "Convex Decomposition"
+    config.link_density = 500.0
+    config.convert_mimic_joints_to_normal_joints = True
+    config.replace_cylinders_with_capsules = True
+    config.root_link_name = "some_link"
 
-    assert os.path.exists(urdf_converter.usd_path), "USD file should exist after conversion"
+    converter = UrdfConverter(config)
 
-    prim_path = "/World/Robot"
-    sim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
-    assert sim.stage.GetPrimAtPath(prim_path).IsValid()
+    stage = Usd.Stage.Open(converter.usd_path)
+    assert any(prim.HasAPI(UsdPhysics.MassAPI) for prim in stage.Traverse())
+    _assert_spawnable(sim, converter.usd_path)
 
 
-@pytest.mark.isaacsim_ci
-def test_no_collision_from_visuals(sim_config, tmp_path):
-    """Verify that conversion succeeds when collision_from_visuals is disabled."""
+def test_natural_frequency_gains_deprecation(sim_config):
+    """``NaturalFrequencyGainsCfg`` warns but the conversion still succeeds."""
     sim, config = sim_config
-    output_dir = os.path.join(str(tmp_path), "urdf_no_collision_visuals")
-    os.makedirs(output_dir, exist_ok=True)
+    config.joint_drive.gains = UrdfConverterCfg.JointDriveCfg.NaturalFrequencyGainsCfg(natural_frequency=10.0)
 
-    config.collision_from_visuals = False
-    config.force_usd_conversion = True
-    config.usd_dir = output_dir
-    urdf_converter = UrdfConverter(config)
+    with pytest.warns(DeprecationWarning, match="NaturalFrequencyGainsCfg"):
+        converter = UrdfConverter(config)
 
-    assert os.path.exists(urdf_converter.usd_path), "USD file should exist after conversion"
-
-    prim_path = "/World/Robot"
-    sim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
-    assert sim.stage.GetPrimAtPath(prim_path).IsValid()
+    _assert_spawnable(sim, converter.usd_path)
 
 
-@pytest.mark.isaacsim_ci
-def test_self_collision(sim_config, tmp_path):
-    """Verify that ``self_collision=True`` enables self-collision on the Newton articulation root.
+def test_self_collision(sim_config):
+    """``self_collision=True`` enables self-collisions on the Newton articulation root.
 
     The Isaac Sim importer's ``enable_self_collision`` writes the ``newton:selfCollisionEnabled``
-    attribute on prims tagged as articulation roots (``UsdPhysics.ArticulationRootAPI``,
-    ``PhysicsArticulationRootAPI``, or ``NewtonArticulationRootAPI``).
+    attribute on prims tagged as articulation roots.
     """
-    sim, config = sim_config
-    output_dir = os.path.join(str(tmp_path), "urdf_self_collision")
-    os.makedirs(output_dir, exist_ok=True)
-
+    _, config = sim_config
     config.self_collision = True
-    config.force_usd_conversion = True
-    config.usd_dir = output_dir
-    urdf_converter = UrdfConverter(config)
 
-    from pxr import Usd, UsdPhysics
-
-    stage = Usd.Stage.Open(urdf_converter.usd_path)
+    stage = Usd.Stage.Open(UrdfConverter(config).usd_path)
 
     articulation_roots = [
         prim
@@ -408,416 +277,61 @@ def test_self_collision(sim_config, tmp_path):
         or prim.HasAPI("NewtonArticulationRootAPI")
     ]
     assert articulation_roots, "Expected at least one articulation root in the converted USD"
-
-    found_self_collision = False
-    for prim in articulation_roots:
-        print(prim.GetName())
-        print(prim.GetAttribute("newton:selfCollisionEnabled"))
-        sc_attr = prim.GetAttribute("newton:selfCollisionEnabled")
-        if sc_attr and sc_attr.HasValue() and sc_attr.Get():
-            found_self_collision = True
-            break
-
-    assert found_self_collision, "Expected ``newton:selfCollisionEnabled`` to be True on a Newton articulation root"
+    assert any(bool(prim.GetAttribute("newton:selfCollisionEnabled").Get()) for prim in articulation_roots)
 
 
-@pytest.mark.isaacsim_ci
-def test_drive_type_acceleration(sim_config, tmp_path):
-    """Verify that drive_type='acceleration' is applied to all joints."""
-    sim, config = sim_config
-    output_dir = os.path.join(str(tmp_path), "urdf_drive_accel")
-    os.makedirs(output_dir, exist_ok=True)
+def test_merge_fixed_joints_xml(tmp_path):
+    """The importer's ``merge_fixed_joints`` collapses fixed joints and re-parents visuals and joints.
 
-    config.force_usd_conversion = True
-    config.joint_drive.drive_type = "acceleration"
-    config.joint_drive.gains.stiffness = 100.0
-    config.joint_drive.gains.damping = 10.0
-    config.usd_dir = output_dir
-    urdf_converter = UrdfConverter(config)
-
-    from pxr import Usd, UsdPhysics
-
-    stage = Usd.Stage.Open(urdf_converter.usd_path)
-
-    joint_count = 0
-    for prim in stage.Traverse():
-        if prim.IsA(UsdPhysics.RevoluteJoint) or prim.IsA(UsdPhysics.PrismaticJoint):
-            instance_name = "angular" if prim.IsA(UsdPhysics.RevoluteJoint) else "linear"
-            drive = UsdPhysics.DriveAPI.Get(prim, instance_name)
-            type_attr = drive.GetTypeAttr()
-            assert type_attr and type_attr.HasValue(), f"Joint {prim.GetName()} missing drive type"
-            assert type_attr.Get() == "acceleration", (
-                f"Expected drive type 'acceleration' on {prim.GetName()}, got '{type_attr.Get()}'"
-            )
-            joint_count += 1
-
-    assert joint_count > 0, "No joints found in the output USD"
-
-
-@pytest.mark.isaacsim_ci
-def test_target_type_none_zeros_gains(sim_config, tmp_path):
-    """Verify that ``target_type='none'`` zeros the DriveAPI stiffness and damping on every joint."""
-    sim, config = sim_config
-    output_dir = os.path.join(str(tmp_path), "urdf_target_none")
-    os.makedirs(output_dir, exist_ok=True)
-
-    config.force_usd_conversion = True
-    config.joint_drive.target_type = "none"
-    config.usd_dir = output_dir
-    urdf_converter = UrdfConverter(config)
-
-    from pxr import Usd, UsdPhysics
-
-    stage = Usd.Stage.Open(urdf_converter.usd_path)
-
-    joint_count = 0
-    for prim in stage.Traverse():
-        is_revolute = prim.IsA(UsdPhysics.RevoluteJoint)
-        is_prismatic = prim.IsA(UsdPhysics.PrismaticJoint)
-        if not (is_revolute or is_prismatic):
-            continue
-        instance_name = "angular" if is_revolute else "linear"
-        drive = UsdPhysics.DriveAPI.Get(prim, instance_name)
-        assert abs(drive.GetStiffnessAttr().Get()) < 1e-6, (
-            f"Joint {prim.GetName()}: expected zero stiffness, got {drive.GetStiffnessAttr().Get()}"
-        )
-        assert abs(drive.GetDampingAttr().Get()) < 1e-6, (
-            f"Joint {prim.GetName()}: expected zero damping, got {drive.GetDampingAttr().Get()}"
-        )
-        joint_count += 1
-
-    assert joint_count > 0, "No joints found in the output USD"
-
-
-@pytest.mark.isaacsim_ci
-def test_per_joint_dict_gains(sim_config, tmp_path):
-    """Verify that per-joint dict-based gains are applied correctly."""
-    sim, config = sim_config
-    output_dir = os.path.join(str(tmp_path), "urdf_dict_gains")
-    os.makedirs(output_dir, exist_ok=True)
-
-    arm_stiffness = 100.0
-    finger_stiffness = 200.0
-    arm_damping = 10.0
-    finger_damping = 20.0
-
-    config.force_usd_conversion = True
-    config.joint_drive.target_type = "position"
-    config.joint_drive.gains = UrdfConverterCfg.JointDriveCfg.PDGainsCfg(
-        stiffness={
-            "panda_joint[1-7]": arm_stiffness,
-            "panda_finger": finger_stiffness,
-        },
-        damping={
-            "panda_joint[1-7]": arm_damping,
-            "panda_finger": finger_damping,
-        },
-    )
-    config.usd_dir = output_dir
-    urdf_converter = UrdfConverter(config)
-
-    # inspect the USD directly rather than going through PhysX to verify per-joint values
-    from pxr import Usd, UsdPhysics
-
-    stage = Usd.Stage.Open(urdf_converter.usd_path)
-
-    arm_joint_count = 0
-    finger_joint_count = 0
-    for prim in stage.Traverse():
-        if not (prim.IsA(UsdPhysics.RevoluteJoint) or prim.IsA(UsdPhysics.PrismaticJoint)):
-            continue
-        name = prim.GetName()
-        is_revolute = prim.IsA(UsdPhysics.RevoluteJoint)
-        instance_name = "angular" if is_revolute else "linear"
-        drive = UsdPhysics.DriveAPI.Get(prim, instance_name)
-        stiffness_attr = drive.GetStiffnessAttr()
-        damping_attr = drive.GetDampingAttr()
-
-        if "panda_joint" in name and "finger" not in name:
-            # arm joint (revolute) — USD stores in Nm/deg, so expected = value * pi/180
-            expected_s = arm_stiffness * math.pi / 180.0
-            expected_d = arm_damping * math.pi / 180.0
-            assert abs(stiffness_attr.Get() - expected_s) < 0.01, (
-                f"Arm joint {name}: expected stiffness ~{expected_s}, got {stiffness_attr.Get()}"
-            )
-            assert abs(damping_attr.Get() - expected_d) < 0.01, (
-                f"Arm joint {name}: expected damping ~{expected_d}, got {damping_attr.Get()}"
-            )
-            arm_joint_count += 1
-        elif "finger" in name:
-            # finger joint (prismatic) — USD stores directly in N/m
-            assert abs(stiffness_attr.Get() - finger_stiffness) < 0.01, (
-                f"Finger joint {name}: expected stiffness {finger_stiffness}, got {stiffness_attr.Get()}"
-            )
-            assert abs(damping_attr.Get() - finger_damping) < 0.01, (
-                f"Finger joint {name}: expected damping {finger_damping}, got {damping_attr.Get()}"
-            )
-            finger_joint_count += 1
-
-    assert arm_joint_count == 7, f"Expected 7 arm joints, got {arm_joint_count}"
-    assert finger_joint_count == 2, f"Expected 2 finger joints, got {finger_joint_count}"
-
-
-@pytest.mark.isaacsim_ci
-def test_per_joint_dict_drive_type(sim_config, tmp_path):
-    """Verify that per-joint dict-based drive type is applied correctly."""
-    sim, config = sim_config
-    output_dir = os.path.join(str(tmp_path), "urdf_dict_drive_type")
-    os.makedirs(output_dir, exist_ok=True)
-
-    config.force_usd_conversion = True
-    config.joint_drive.drive_type = {
-        "panda_joint[1-7]": "acceleration",
-        "panda_finger": "force",
-    }
-    config.joint_drive.gains.stiffness = 50.0
-    config.joint_drive.gains.damping = 5.0
-    config.usd_dir = output_dir
-    urdf_converter = UrdfConverter(config)
-
-    from pxr import Usd, UsdPhysics
-
-    stage = Usd.Stage.Open(urdf_converter.usd_path)
-
-    for prim in stage.Traverse():
-        if not (prim.IsA(UsdPhysics.RevoluteJoint) or prim.IsA(UsdPhysics.PrismaticJoint)):
-            continue
-        name = prim.GetName()
-        instance_name = "angular" if prim.IsA(UsdPhysics.RevoluteJoint) else "linear"
-        drive = UsdPhysics.DriveAPI.Get(prim, instance_name)
-        type_attr = drive.GetTypeAttr()
-
-        if "panda_joint" in name and "finger" not in name:
-            assert type_attr.Get() == "acceleration", (
-                f"Arm joint {name}: expected 'acceleration', got '{type_attr.Get()}'"
-            )
-        elif "finger" in name:
-            assert type_attr.Get() == "force", f"Finger joint {name}: expected 'force', got '{type_attr.Get()}'"
-
-
-@pytest.mark.isaacsim_ci
-def test_natural_frequency_gains_deprecation(sim_config, tmp_path):
-    """Verify that NaturalFrequencyGainsCfg emits a DeprecationWarning and conversion still succeeds."""
-    sim, config = sim_config
-    output_dir = os.path.join(str(tmp_path), "urdf_nat_freq")
-    os.makedirs(output_dir, exist_ok=True)
-
-    config.force_usd_conversion = True
-    config.joint_drive.gains = UrdfConverterCfg.JointDriveCfg.NaturalFrequencyGainsCfg(
-        natural_frequency=10.0,
-    )
-    config.usd_dir = output_dir
-
-    with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter("always")
-        urdf_converter = UrdfConverter(config)
-        dep_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
-        assert len(dep_warnings) >= 1, "Expected DeprecationWarning for NaturalFrequencyGainsCfg"
-        assert "NaturalFrequencyGainsCfg" in str(dep_warnings[0].message)
-
-    # conversion should still succeed
-    assert os.path.exists(urdf_converter.usd_path), "USD file should be created despite deprecation"
-
-    # verify we can spawn from the output
-    prim_path = "/World/Robot"
-    sim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
-    assert sim.stage.GetPrimAtPath(prim_path).IsValid()
-
-
-@pytest.mark.isaacsim_ci
-def test_usd_structure_has_joints_and_links(sim_config, tmp_path):
-    """Validate that the output USD contains the expected joint and link prims for Franka Panda."""
-    sim, config = sim_config
-    output_dir = os.path.join(str(tmp_path), "urdf_structure")
-    os.makedirs(output_dir, exist_ok=True)
-
-    config.merge_fixed_joints = False
-    config.force_usd_conversion = True
-    config.usd_dir = output_dir
-    urdf_converter = UrdfConverter(config)
-
-    from pxr import Usd, UsdPhysics
-
-    stage = Usd.Stage.Open(urdf_converter.usd_path)
-
-    # count revolute and prismatic joints
-    revolute_joints = [p for p in stage.Traverse() if p.IsA(UsdPhysics.RevoluteJoint)]
-    prismatic_joints = [p for p in stage.Traverse() if p.IsA(UsdPhysics.PrismaticJoint)]
-    rigid_bodies = [p for p in stage.Traverse() if p.HasAPI(UsdPhysics.RigidBodyAPI)]
-
-    # Franka Panda: 7 revolute arm joints, 2 prismatic finger joints
-    assert len(revolute_joints) >= 7, f"Expected at least 7 revolute joints, got {len(revolute_joints)}"
-    assert len(prismatic_joints) >= 2, f"Expected at least 2 prismatic joints, got {len(prismatic_joints)}"
-    assert len(rigid_bodies) >= 1, "Expected at least one rigid body link"
-
-    # all joints should have DriveAPI applied
-    for joint_prim in revolute_joints + prismatic_joints:
-        instance_name = "angular" if joint_prim.IsA(UsdPhysics.RevoluteJoint) else "linear"
-        drive = UsdPhysics.DriveAPI.Get(joint_prim, instance_name)
-        stiffness_attr = drive.GetStiffnessAttr()
-        assert stiffness_attr and stiffness_attr.HasValue(), (
-            f"Joint {joint_prim.GetName()} missing stiffness attribute in DriveAPI"
-        )
-
-
-@pytest.mark.isaacsim_ci
-def test_link_density(sim_config, tmp_path):
-    """Verify that link_density applies density to rigid body links.
-
-    Note: The Franka Panda URDF has explicit mass on all links, so the importer's
-    ``apply_link_density`` only sets density on links without explicit mass (mass == 0).
-    This test verifies the pipeline runs without errors when ``link_density`` is set.
+    ``test_merge_joints.urdf`` has 7 links and 6 joints (3 fixed, 1 continuous, 2 prismatic); merging
+    leaves 4 links and the 3 moving joints.
     """
-    sim, config = sim_config
-    output_dir = os.path.join(str(tmp_path), "urdf_link_density")
-    os.makedirs(output_dir, exist_ok=True)
+    if _USE_KIT:
+        _enable_importer_extension()
+    from isaacsim.asset.importer.urdf.impl.urdf_utils import merge_fixed_joints
 
-    config.link_density = 500.0
-    config.force_usd_conversion = True
-    config.usd_dir = output_dir
-    urdf_converter = UrdfConverter(config)
+    output_path = str(tmp_path / "merged.urdf")
+    merge_fixed_joints(_MERGE_JOINTS_URDF, output_path)
+    root = ET.parse(output_path).getroot()
 
-    from pxr import Usd, UsdPhysics
-
-    stage = Usd.Stage.Open(urdf_converter.usd_path)
-
-    # verify conversion succeeds and prims with MassAPI exist
-    mass_prims = [p for p in stage.Traverse() if p.HasAPI(UsdPhysics.MassAPI)]
-    assert len(mass_prims) > 0, "Expected prims with MassAPI"
-
-    # verify we can spawn from the output
-    prim_path = "/World/Robot"
-    sim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
-    assert sim.stage.GetPrimAtPath(prim_path).IsValid()
+    links = {link.get("name"): link for link in root.findall("link")}
+    joints = root.findall("joint")
+    assert set(links) == {"root_link", "link_1", "finger_link_1", "finger_link_2"}
+    assert sorted(joint.get("type") for joint in joints) == ["continuous", "prismatic", "prismatic"]
+    # visuals of merged links move to their new parent: base_link -> root_link, link_2 + palm_link -> link_1
+    assert len(links["root_link"].findall("visual")) >= 1
+    assert len(links["link_1"].findall("visual")) == 3
+    # the finger joints were parented to palm_link, which merged into link_1
+    for joint in joints:
+        if joint.find("child").get("link").startswith("finger_link"):
+            assert joint.find("parent").get("link") == "link_1"
 
 
-@pytest.mark.isaacsim_ci
-def test_collision_type_convex_decomposition(sim_config, tmp_path):
-    """Verify that ``collision_type='Convex Decomposition'`` runs without error and produces valid output.
-
-    Note: MeshCollisionAPI is applied on the intermediate stage before the asset transformer.
-    The transformer may not preserve these schemas in the final output, so this test
-    verifies the pipeline executes successfully and produces a spawnable USD.
-    """
-    sim, config = sim_config
-    output_dir = os.path.join(str(tmp_path), "urdf_convex_decomp")
-    os.makedirs(output_dir, exist_ok=True)
-
-    config.collision_from_visuals = True
-    config.collision_type = "Convex Decomposition"
-    config.force_usd_conversion = True
-    config.usd_dir = output_dir
-    urdf_converter = UrdfConverter(config)
-
-    assert os.path.exists(urdf_converter.usd_path), "USD file should exist after conversion"
-
-    prim_path = "/World/Robot"
-    sim_utils.create_prim(prim_path, usd_path=urdf_converter.usd_path)
-    assert sim.stage.GetPrimAtPath(prim_path).IsValid()
-
-
-@pytest.mark.isaacsim_ci
-def test_unsupported_features_warn(sim_config, tmp_path):
-    """Verify that deprecated config options emit warnings without failing."""
-    sim, config = sim_config
-    output_dir = os.path.join(str(tmp_path), "urdf_deprecated_warn")
-    os.makedirs(output_dir, exist_ok=True)
-
-    config.convert_mimic_joints_to_normal_joints = True
-    config.replace_cylinders_with_capsules = True
-    config.root_link_name = "some_link"
-    config.force_usd_conversion = True
-    config.usd_dir = output_dir
-
-    # conversion should succeed despite deprecated options
-    urdf_converter = UrdfConverter(config)
-    assert os.path.exists(urdf_converter.usd_path), "USD file should be created despite deprecated options"
-
-
-def _physics_variant(usd_path: str) -> tuple[str, list[str]]:
-    """Return the authored ``"Physics"`` variant selection and the available variants.
-
-    Both are read while the stage is still referenced, since USD objects do not keep it alive.
-    """
-    from pxr import Usd
-
-    stage = Usd.Stage.Open(usd_path)
-    variant_set = stage.GetDefaultPrim().GetVariantSets().GetVariantSet("Physics")
-    return variant_set.GetVariantSelection(), variant_set.GetVariantNames()
-
-
-def _count_physics(usd_path: str) -> tuple[int, int]:
-    """Return the number of joints and articulation roots composed from the USD file at ``usd_path``.
-
-    The stage is held in a local for the whole traversal, since prims do not keep it alive.
-    """
-    from pxr import Usd, UsdPhysics
-
-    stage = Usd.Stage.Open(usd_path)
-    prims = list(stage.Traverse())
-    joints = sum(1 for prim in prims if prim.IsA(UsdPhysics.Joint))
-    roots = sum(1 for prim in prims if prim.HasAPI(UsdPhysics.ArticulationRootAPI))
-    return joints, roots
-
-
-@pytest.mark.isaacsim_ci
-def test_physics_variant_selected_by_default(sim_config, tmp_path):
-    """Verify that the converter selects the backend-portable ``"physics"`` variant by default.
+@pytest.mark.parametrize("variant", [None, "mujoco"], ids=["default_physics", "override_mujoco"])
+def test_physics_variant_selection(sim_config, variant):
+    """The converter selects the portable ``"physics"`` variant by default, or the requested one.
 
     The importer leaves its ``"Physics"`` variant set unselected, which composes the asset without
-    joints, articulation roots, or mass properties. Without a selection this asserts 0 joints.
+    joints, articulation roots, or mass properties.
     """
-    sim, config = sim_config
-    output_dir = os.path.join(str(tmp_path), "urdf_physics_variant_default")
-    os.makedirs(output_dir, exist_ok=True)
+    _, config = sim_config
+    if variant is not None:
+        config.physics_variant = variant
 
-    config.force_usd_conversion = True
-    config.usd_dir = output_dir
-    urdf_converter = UrdfConverter(config)
+    selection, joints, roots = _physics_variant(UrdfConverter(config).usd_path)
 
-    selection, _ = _physics_variant(urdf_converter.usd_path)
-    assert selection == "physics"
-
-    joints, roots = _count_physics(urdf_converter.usd_path)
-    assert joints > 0, "Expected the converted USD to compose joints"
-    assert roots > 0, "Expected the converted USD to compose an articulation root"
+    assert selection == (variant or "physics")
+    assert joints > 0 and roots > 0
 
 
-@pytest.mark.isaacsim_ci
-def test_physics_variant_override(sim_config, tmp_path):
-    """Verify that ``physics_variant`` selects the requested variant instead of the default."""
-    sim, config = sim_config
-    output_dir = os.path.join(str(tmp_path), "urdf_physics_variant_override")
-    os.makedirs(output_dir, exist_ok=True)
-
-    config.force_usd_conversion = True
-    config.usd_dir = output_dir
-    config.physics_variant = "mujoco"
-    urdf_converter = UrdfConverter(config)
-
-    selection, _ = _physics_variant(urdf_converter.usd_path)
-    assert selection == "mujoco"
-
-    joints, roots = _count_physics(urdf_converter.usd_path)
-    assert joints > 0, "Expected the converted USD to compose joints"
-    assert roots > 0, "Expected the converted USD to compose an articulation root"
-
-
-@pytest.mark.isaacsim_ci
 def test_physics_variant_raises_again_on_retry(tmp_path):
-    """Verify that a conversion which failed on the variant does not count as cached.
+    """A conversion which failed on the variant does not count as cached.
 
     The converter skips conversion when the asset hash matches, so recording the hash before the
     variant is settled would make an identical retry return the asset the importer selected.
     """
-    output_dir = os.path.join(str(tmp_path), "urdf_physics_variant_missing_retry")
-    os.makedirs(output_dir, exist_ok=True)
-
     config = UrdfConverterCfg(
-        asset_path=_FIXED_ONLY_URDF,
-        fix_base=True,
-        usd_dir=output_dir,
-        physics_variant="physx",
+        asset_path=_FIXED_ONLY_URDF, fix_base=True, usd_dir=str(tmp_path / "usd"), physics_variant="physx"
     )
 
     for _ in range(2):

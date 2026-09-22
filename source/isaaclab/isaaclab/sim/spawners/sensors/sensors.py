@@ -10,13 +10,13 @@ from typing import TYPE_CHECKING
 
 from pxr import Gf, Sdf, Usd
 
-from isaaclab.sim.utils import change_prim_property, clone, create_prim, get_current_stage
 from isaaclab.utils import to_camel_case
+
+from ...utils import change_prim_property, clone, create_prim, get_current_stage
 
 if TYPE_CHECKING:
     from . import sensors_cfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 CUSTOM_PINHOLE_CAMERA_ATTRIBUTES = {
@@ -141,14 +141,8 @@ def spawn_camera(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # obtain stage handle
     stage = get_current_stage()
-
-    # spawn camera if it doesn't exist.
-    if not stage.GetPrimAtPath(prim_path).IsValid():
-        create_prim(prim_path, "Camera", translation=translation, orientation=orientation, stage=stage)
-    else:
-        raise ValueError(f"A prim already exists at path: '{prim_path}'.")
+    prim = create_prim(prim_path, "Camera", translation=translation, orientation=orientation, stage=stage)
 
     # lock camera from viewport (this disables viewport movement for camera)
     if cfg.lock_camera:
@@ -180,33 +174,21 @@ def spawn_camera(
         "spawn_path",
         "distortion",
     ]
-    # get camera prim
-    prim = stage.GetPrimAtPath(prim_path)
-    # create attributes for the fisheye camera model
-    # note: for pinhole those are already part of the USD camera prim
+    # custom camera-model attributes are not part of the USD camera schema and must be created first
     for attr_name, attr_type in attribute_types.values():
-        # check if attribute does not exist
         if prim.GetAttribute(attr_name).Get() is None:
-            # create attribute based on type
             prim.CreateAttribute(attr_name, attr_type)
-    # set attribute values
     for param_name, param_value in cfg.__dict__.items():
-        # check if value is valid
         if param_value is None or param_name in non_usd_cfg_param_names:
             continue
-        # obtain prim property name
         if param_name in attribute_types:
-            # check custom attributes
             prim_prop_name = attribute_types[param_name][0]
         else:
-            # convert attribute name in prim to cfg name
             prim_prop_name = to_camel_case(param_name, to="cC")
-        # get attribute from the class
         prim.GetAttribute(prim_prop_name).Set(param_value)
-    # author the OpenCV lens-distortion model (renderer-agnostic; RTX/OVRTX honors it natively)
+    # the OpenCV lens-distortion model is renderer-agnostic; RTX/OVRTX honors it natively
     if cfg.distortion is not None:
         _author_opencv_distortion(prim, cfg.distortion)
-    # return the prim
     return prim
 
 
@@ -239,15 +221,4 @@ def spawn_sensor_frame(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    stage = get_current_stage()
-    if not stage.GetPrimAtPath(prim_path).IsValid():
-        prim = create_prim(
-            prim_path,
-            "Xform",
-            translation=translation,
-            orientation=orientation,
-            stage=stage,
-        )
-    else:
-        raise ValueError(f"A prim already exists at path: '{prim_path}'.")
-    return prim
+    return create_prim(prim_path, "Xform", translation=translation, orientation=orientation)

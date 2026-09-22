@@ -12,16 +12,28 @@ and emits a :class:`~isaaclab.benchmark.schema.PlayBundle` JSON file. Dispatched
 
 from __future__ import annotations
 
+import argparse
+import contextlib
+import math
+import os
+import re
+import sys
+import time
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from isaaclab.benchmark import BenchmarkResult
-
-import sys
-
+from isaaclab.benchmark.entrypoints._shared import (
+    build_play_runtime,
+    capture_snapshots,
+    create_benchmark,
+    finish_run_identity,
+    step_timing_metadata,
+)
 from isaaclab.benchmark.entrypoints.backends.rl_games.registry import register_scoped_rl_games_environment
 
 from isaaclab_rl.entrypoints import common
+
+if TYPE_CHECKING:
+    from isaaclab.benchmark import BenchmarkResult
 
 
 def _parse_args(argv: list[str]):
@@ -35,54 +47,19 @@ def _parse_args(argv: list[str]):
         Tuple of ``(parsed_args, remaining)`` where *remaining* are the verbatim Hydra
         preset tokens written back to ``sys.argv`` for ``launch_simulation`` to pick up.
     """
-    import argparse
-
     from isaaclab.app import add_launcher_args
-    from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+    from isaaclab.benchmark._cli import add_benchmark_output_args, add_play_args
 
     from isaaclab_tasks.utils import setup_preset_cli
 
     parser = argparse.ArgumentParser(description="Benchmark RL inference (play) with RL-Games.")
-    parser.add_argument("--video", action="store_true", default=False, help="Record videos during play.")
-    parser.add_argument("--video_length", type=int, default=None, help="Recorded video length in environment steps.")
-    help_requested = "-h" in argv or "--help" in argv
-    parser.add_argument("--task", type=str, required=not help_requested, help="Gym task id to benchmark.")
-    parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
-    parser.add_argument(
-        "--num_steps", type=parse_positive_int, default=100, help="Number of inference steps to benchmark."
+    add_play_args(
+        parser,
+        argv,
+        agent_default="rl_games_cfg_entry_point",
+        agent_help="Name of the RL agent configuration entry point.",
     )
-    parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
-    parser.add_argument(
-        "--checkpoint",
-        type=str,
-        default=None,
-        help="Local or Nucleus checkpoint path to roll out; falls back to the published checkpoint when omitted.",
-    )
-    parser.add_argument(
-        "--agent", type=str, default="rl_games_cfg_entry_point", help="Name of the RL agent configuration entry point."
-    )
-    parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
-    parser.add_argument(
-        "--measure_sync_step",
-        action="store_true",
-        help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
-    )
-    parser.add_argument(
-        "--warmup_steps",
-        type=parse_non_negative_int,
-        default=1,
-        help="Exclude the first N env.step() calls from environment-step timing. Default 1 removes cold start.",
-    )
-    parser.add_argument(
-        "--benchmark_formatter",
-        type=str,
-        default="schema",
-        help=(
-            "Output format(s): comma-separated list of 'schema' (default, the typed benchmark bundle),"
-            " 'omniperf', 'osmo', 'json', 'summary'"
-            " Example: 'schema,omniperf'."
-        ),
-    )
+    add_benchmark_output_args(parser)
     add_launcher_args(parser)
     common.add_frontend_args(parser)
 
@@ -100,18 +77,12 @@ def run(argv: list[str]) -> BenchmarkResult:
         argv: Command-line arguments, excluding the script path (i.e. ``sys.argv[1:]``
             after the dispatcher has stripped ``--rl_library``).
     """
-    import contextlib
-    import math
-    import os
-    import re
-    import time
-
     from rl_games.common import env_configurations, vecenv
     from rl_games.common.player import BasePlayer
     from rl_games.torch_runner import Runner
 
     from isaaclab.app import launch_simulation
-    from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
+    from isaaclab.benchmark import BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
     from isaaclab.benchmark.schema import StartupTime
 
     from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
@@ -161,28 +132,16 @@ def run(argv: list[str]) -> BenchmarkResult:
                 resume_path = common.resolve_play_checkpoint(args_cli.checkpoint, "rl_games", args_cli.task, env_cfg)
 
             cfg = capture.run_config_from_env_cfg(env_cfg)
-            formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
-            formatter_types = formatter_types or ["omniperf"]
-
-            benchmark = BaseIsaacLabBenchmark(
-                benchmark_name="benchmark_play",
-                formatter_type=formatter_types,
-                output_path=args_cli.output_path,
-                use_recorders=True,
-                frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
+            benchmark = create_benchmark(
+                "benchmark_play",
+                args_cli,
                 output_prefix=f"benchmark_play_{args_cli.task}",
-                workflow_metadata={
-                    "metadata": [
-                        {"name": "task", "data": args_cli.task},
-                        {"name": "num_envs", "data": args_cli.num_envs},
-                        {"name": "num_steps", "data": args_cli.num_steps},
-                        {
-                            "name": "environment_step_measurement_mode",
-                            "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
-                        },
-                        {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
-                    ]
-                },
+                metadata=[
+                    {"name": "task", "data": args_cli.task},
+                    {"name": "num_envs", "data": args_cli.num_envs},
+                    {"name": "num_steps", "data": args_cli.num_steps},
+                    *step_timing_metadata(args_cli),
+                ],
             )
 
             # Read rl_games device / clipping config.
@@ -253,47 +212,30 @@ def run(argv: list[str]) -> BenchmarkResult:
             with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
                 all_step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, total_steps)
 
-            first_step_s = all_step_times[0]
-            step_times = all_step_times[args_cli.warmup_steps :]
-
             benchmark.update_manual_recorders()
 
             startup = StartupTime(
                 app_launch=(app_t1 - app_t0) / 1e9,
                 env_creation=(env_t1 - env_t0) / 1e9,
-                first_step=first_step_s,
+                first_step=all_step_times[0],
+            )
+            runtime = build_play_runtime(
+                startup=startup,
+                step_times_s=all_step_times,
+                num_envs=num_envs,
+                warmup_steps=args_cli.warmup_steps,
+                timer=environment_step_timer,
             )
 
-            fps = [num_envs / t for t in step_times if t > 0]
-            runtime = builders.build_runtime(
-                startup_time_s=startup,
-                iteration_times_s=step_times,
-                collection_fps=fps,
-                total_fps=fps,
-                steps_per_iteration=num_envs,
-                frames_per_environment_step=env.unwrapped.num_envs,
-                environment_step_warmup_steps=args_cli.warmup_steps,
-                environment_step_times_s=environment_step_timer.step_times_s,
-                simulation_step_times_s=environment_step_timer.simulation_step_times_s,
-                simulation_step_calls=environment_step_timer.simulation_step_calls,
-            )
+            versions, hardware, resources = capture_snapshots(benchmark)
 
-            versions = capture.capture_versions(benchmark)
-            hardware = capture.capture_hardware(benchmark)
-            resources = capture.capture_resources(benchmark)
-
-            end_utc = capture.now_utc_iso()
-            stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
             seed = agent_cfg["params"]["seed"] if agent_cfg["params"]["seed"] is not None else 0
-
-            run_identity = builders.build_run_identity(
-                run_id=capture.synth_run_id("rl_games", cfg.physics_backend, args_cli.task, seed, stamp),
+            run_identity = finish_run_identity(
                 framework="rl_games",
                 config=cfg,
                 task=args_cli.task,
                 seed=seed,
                 start_utc=start_utc,
-                end_utc=end_utc,
                 num_envs=num_envs,
             )
 

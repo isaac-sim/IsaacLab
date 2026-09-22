@@ -61,12 +61,12 @@ WIDTH, HEIGHT = 640, 480
 WARMUP_STEPS = 4
 
 # Example real-world OpenCV pinhole calibration (fx != fy, off-center principal point).
-_CALIB = dict(fx=339.26592887, fy=338.82010626, cx=323.55809091, cy=250.27360914)
-_COEFFS = dict(k1=0.07702322, k2=-0.13605453, k3=0.05163219, p1=-0.00024938, p2=-0.00175006)
+_CALIB = {"fx": 339.26592887, "fy": 338.82010626, "cx": 323.55809091, "cy": 250.27360914}
+_COEFFS = {"k1": 0.07702322, "k2": -0.13605453, "k3": 0.05163219, "p1": -0.00024938, "p2": -0.00175006}
 # scale the (mild) real coefficients so the barrel effect is unambiguous in the assertion
 _K_SCALE = 15.0
 # OpenCV fisheye (equidistant) coefficients; the base fisheye projection alone differs strongly from pinhole
-_FISHEYE_COEFFS = dict(k1=0.1, k2=-0.05, k3=0.0, k4=0.0)
+_FISHEYE_COEFFS = {"k1": 0.1, "k2": -0.05, "k3": 0.0, "k4": 0.0}
 
 _CAM_EYE = (0.0, 0.0, 2.5)
 _CAM_TARGET = (1.75, 0.0, 0.0)
@@ -157,28 +157,8 @@ def _render_grid(distortion: OpenCvDistortionCfg, device: str) -> tuple[np.ndarr
         sim.clear_instance()
 
 
-@pytest.mark.parametrize("device", ["cuda:0"])
-@_SKIP_MISSING_OVRTX
-def test_opencv_distortion_changes_ovrtx_render(device):
-    """OVRTX must render the distorted and zero-coefficient cameras meaningfully differently."""
-    distorted, _ = _render_grid(_pinhole_distortion(True), device=device)
-    reference, _ = _render_grid(_pinhole_distortion(False), device=device)
-
-    assert distorted.shape == (HEIGHT, WIDTH, 3)
-    # both frames render content (not degenerate)
-    assert distorted.std() > 1.0
-    assert reference.std() > 1.0
-    # OVRTX applied the lens distortion: the two renders differ well beyond render noise
-    mean_abs_diff = np.abs(distorted.astype(np.float32) - reference.astype(np.float32)).mean()
-    assert mean_abs_diff > 2.0, f"distorted vs reference differ by only {mean_abs_diff:.3f}/255"
-
-
-@pytest.mark.parametrize("device", ["cuda:0"])
-@_SKIP_MISSING_OVRTX
-def test_opencv_distortion_intrinsics_match_authored_ovrtx(device):
-    """The OVRTX camera reports intrinsics matching the authored, non-square, off-center calibration."""
-    _rgb, k = _render_grid(_pinhole_distortion(True), device=device)
-
+def _assert_authored_intrinsics(k: np.ndarray):
+    """The reported intrinsics match the authored, non-square, off-center calibration."""
     assert k[0, 0] == pytest.approx(_CALIB["fx"], abs=1e-2)
     assert k[1, 1] == pytest.approx(_CALIB["fy"], abs=1e-2)
     assert k[0, 2] == pytest.approx(_CALIB["cx"], abs=1e-2)
@@ -190,25 +170,21 @@ def test_opencv_distortion_intrinsics_match_authored_ovrtx(device):
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 @_SKIP_MISSING_OVRTX
-def test_opencv_fisheye_distortion_renders_through_ovrtx(device):
-    """OVRTX honors the OpenCV fisheye schema: its render differs meaningfully from the pinhole projection.
+def test_opencv_distortion_renders_through_ovrtx(device):
+    """OVRTX honors the OpenCV pinhole and fisheye schemas and reports the authored intrinsics.
 
-    The same calibrated camera is rendered under the OpenCV fisheye model and under an undistorted
-    pinhole. The fisheye equidistant projection bends the straight grid, so the two frames must differ
-    well beyond render noise, and the reported intrinsics must still match the authored calibration.
+    The distorted pinhole and the fisheye camera must each render meaningfully differently from the
+    undistorted pinhole reference, which renders the grid lines straight.
     """
-    fisheye, k = _render_grid(_fisheye_distortion(True), device=device)
-    pinhole, _ = _render_grid(_pinhole_distortion(False), device=device)
+    reference, _ = _render_grid(_pinhole_distortion(False), device=device)
+    distorted, k_pinhole = _render_grid(_pinhole_distortion(True), device=device)
+    fisheye, k_fisheye = _render_grid(_fisheye_distortion(True), device=device)
 
-    assert fisheye.shape == (HEIGHT, WIDTH, 3)
-    # both frames render content (not degenerate)
-    assert fisheye.std() > 1.0
-    assert pinhole.std() > 1.0
-    # OVRTX applied the fisheye projection: it differs from the pinhole render well beyond render noise
-    mean_abs_diff = np.abs(fisheye.astype(np.float32) - pinhole.astype(np.float32)).mean()
-    assert mean_abs_diff > 2.0, f"fisheye vs pinhole differ by only {mean_abs_diff:.3f}/255"
-    # the fisheye camera still reports the authored, non-square, off-center calibration
-    assert k[0, 0] == pytest.approx(_CALIB["fx"], abs=1e-2)
-    assert k[1, 1] == pytest.approx(_CALIB["fy"], abs=1e-2)
-    assert k[0, 2] == pytest.approx(_CALIB["cx"], abs=1e-2)
-    assert k[1, 2] == pytest.approx(_CALIB["cy"], abs=1e-2)
+    assert reference.shape == distorted.shape == fisheye.shape == (HEIGHT, WIDTH, 3)
+    for rgb in (reference, distorted, fisheye):
+        assert rgb.std() > 1.0, "frame renders no content"
+    for name, rgb in (("distorted", distorted), ("fisheye", fisheye)):
+        mean_abs_diff = np.abs(rgb.astype(np.float32) - reference.astype(np.float32)).mean()
+        assert mean_abs_diff > 2.0, f"{name} vs reference differ by only {mean_abs_diff:.3f}/255"
+    _assert_authored_intrinsics(k_pinhole)
+    _assert_authored_intrinsics(k_fisheye)

@@ -163,12 +163,10 @@ class LeappDeploymentEnv:
             cfg: A ``ManagerBasedRLEnvCfg`` (or compatible) task config.
             leapp_yaml_path: Path to the LEAPP ``.yaml`` pipeline description.
         """
-
         cfg.scene.num_envs = 1
         cfg.validate()
         self.cfg = cfg
         self._is_closed = False
-        self._leapp_yaml_path = leapp_yaml_path
         self._step_count = 0
         self._sim_step_counter = 0
         self.extras: dict = {}
@@ -180,7 +178,6 @@ class LeappDeploymentEnv:
 
         with use_stage(self.sim.stage):
             self.scene = InteractiveScene(cfg.scene)
-        with use_stage(self.sim.stage):
             self.sim.reset()
         self.scene.update(dt=self.physics_dt)
         self.has_rtx_sensors = bool(self.sim.get_setting("/isaaclab/render/rtx_sensors"))

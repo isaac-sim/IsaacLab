@@ -12,7 +12,7 @@ from typing import Any, Union, cast
 
 logger = logging.getLogger(__name__)
 
-# Type alias for metadata with data attribute (defined after classes below)
+# Metadata records that carry a ``data`` attribute; the classes are defined below.
 _MetadataWithData = Union["StringMetadata", "IntMetadata", "FloatMetadata", "DictMetadata"]
 
 
@@ -186,6 +186,14 @@ class DictMetadata(MetadataBase):
     type: str = "dict"
 
 
+_METADATA_TYPES: dict[type, type[_MetadataWithData]] = {
+    str: StringMetadata,
+    int: IntMetadata,
+    float: FloatMetadata,
+    dict: DictMetadata,
+}
+
+
 @dataclass
 class TestPhase:
     """Represent a single test phase with associated metrics and metadata.
@@ -247,13 +255,10 @@ class TestPhase:
             metadata = TestPhase.metadata_from_dict({"metadata": [{"name": "gpu", "data": "A10"}]})
         """
         metadata: list[_MetadataWithData] = []
-        metadata_mapping = {str: StringMetadata, int: IntMetadata, float: FloatMetadata, dict: DictMetadata}
-        for meas in m["metadata"]:
-            if "data" in meas:
-                metadata_type = metadata_mapping.get(type(meas["data"]))
-                if metadata_type:
-                    curr_meta = metadata_type(name=meas["name"], data=meas["data"])
-                    metadata.append(curr_meta)
+        for entry in m["metadata"]:
+            metadata_type = _METADATA_TYPES.get(type(entry.get("data")))
+            if metadata_type is not None:
+                metadata.append(metadata_type(name=entry["name"], data=entry["data"]))
         return metadata
 
     @classmethod
@@ -272,27 +277,19 @@ class TestPhase:
 
             phase = TestPhase.from_json(phase_dict)
         """
-        curr_run = TestPhase(m["phase_name"])
-
+        phase = TestPhase(m["phase_name"], metadata=cls.metadata_from_dict(m["metadata"]))
         for meas in m["measurements"]:
             if "value" in meas:
-                if isinstance(meas["value"], float):
-                    curr_meas: Measurement = SingleMeasurement(
-                        name=meas["name"], value=meas["value"], unit=meas["unit"]
-                    )
-                    curr_run.measurements.append(curr_meas)
-                elif isinstance(meas["value"], dict):
-                    curr_meas = DictMeasurement(name=meas["name"], value=meas["value"])
-                    curr_run.measurements.append(curr_meas)
-                elif isinstance(meas["value"], list):
-                    curr_meas = ListMeasurement(name=meas["name"], value=meas["value"])
-                    curr_run.measurements.append(curr_meas)
+                value = meas["value"]
+                if isinstance(value, float):
+                    phase.measurements.append(SingleMeasurement(name=meas["name"], value=value, unit=meas["unit"]))
+                elif isinstance(value, dict):
+                    phase.measurements.append(DictMeasurement(name=meas["name"], value=value))
+                elif isinstance(value, list):
+                    phase.measurements.append(ListMeasurement(name=meas["name"], value=value))
             elif "bvalue" in meas:
-                curr_meas = BooleanMeasurement(name=meas["name"], bvalue=meas["bvalue"])
-                curr_run.measurements.append(curr_meas)
-
-            curr_run.metadata = TestPhase.metadata_from_dict(m["metadata"])
-        return curr_run
+                phase.measurements.append(BooleanMeasurement(name=meas["name"], bvalue=meas["bvalue"]))
+        return phase
 
     @classmethod
     def aggregate_json_files(cls, json_folder_path: str | Path) -> list["TestPhase"]:
@@ -310,23 +307,18 @@ class TestPhase:
 
             phases = TestPhase.aggregate_json_files("/tmp/metrics")
         """
-        # Gather the separate metrics files for each test
-        test_runs = []
-        metric_files = os.listdir(json_folder_path)
-        for f in metric_files:
-            metric_path = os.path.join(json_folder_path, f)
-            if os.path.isfile(metric_path):
-                if f.startswith("metrics") and f.endswith(".json"):
-                    with open(metric_path) as json_file:
-                        try:
-                            test_run_json_list = json.load(json_file)
-                            for m in test_run_json_list:
-                                run = cls.from_json(m)
-                                test_runs.append(run)
-                        except json.JSONDecodeError:
-                            logger.error(
-                                f'aggregate_json_files, problems parsing field {f} with content "{json_file.read()}"'
-                            )
+        test_runs: list[TestPhase] = []
+        for name in os.listdir(json_folder_path):
+            metric_path = os.path.join(json_folder_path, name)
+            if not (name.startswith("metrics") and name.endswith(".json") and os.path.isfile(metric_path)):
+                continue
+            with open(metric_path) as json_file:
+                try:
+                    test_runs.extend(cls.from_json(m) for m in json.load(json_file))
+                except json.JSONDecodeError:
+                    logger.error(
+                        f'aggregate_json_files, problems parsing field {name} with content "{json_file.read()}"'
+                    )
         return test_runs
 
 

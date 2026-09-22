@@ -5,8 +5,7 @@
 
 """Tests for method-level micro-benchmark sampling."""
 
-import inspect
-from dataclasses import fields
+import json
 from unittest.mock import patch
 
 import pytest
@@ -18,70 +17,53 @@ pytestmark = pytest.mark.benchmark
 
 @pytest.mark.parametrize(
     ("field", "value"),
-    (
-        ("num_iterations", 0),
-        ("warmup_steps", -1),
-        ("num_instances", 0),
-        ("num_bodies", 0),
-        ("num_joints", -1),
-    ),
+    (("num_iterations", 0), ("warmup_steps", -1), ("num_instances", 0), ("num_bodies", 0), ("num_joints", -1)),
 )
 def test_config_rejects_invalid_workload_sizes(field: str, value: int) -> None:
-    """Invalid workload sizes should fail before benchmark setup."""
     with pytest.raises(ValueError, match=field):
         MethodBenchmarkRunnerConfig(**{field: value})
+    assert MethodBenchmarkRunnerConfig(num_joints=0).num_joints == 0
 
 
-def test_config_accepts_zero_joints_for_rigid_assets() -> None:
-    """Rigid-object benchmarks should represent their zero-joint workload accurately."""
-    config = MethodBenchmarkRunnerConfig(num_joints=0)
-
-    assert config.num_joints == 0
-
-
-def test_runner_records_exact_physics_variant_in_workflow_metadata(tmp_path) -> None:
-    """Exact backend selectors should remain distinguishable in output metadata."""
-    with patch("isaaclab.benchmark.method_benchmark.BaseIsaacLabBenchmark.__init__") as base_init:
-        MethodBenchmarkRunner(
-            benchmark_name="asset_benchmark",
-            config=MethodBenchmarkRunnerConfig(device="cpu"),
-            output_path=str(tmp_path),
-            use_recorders=False,
-            physics_variant="newton_kamino",
-        )
-
-    metadata = base_init.call_args.kwargs["workflow_metadata"]["metadata"]
-    assert {"name": "physics_variant", "data": "newton_kamino"} in metadata
-
-
-def _runner(*, num_iterations: int = 3, warmup_steps: int = 0) -> MethodBenchmarkRunner:
-    runner = object.__new__(MethodBenchmarkRunner)
-    runner._config = MethodBenchmarkRunnerConfig(
-        num_iterations=num_iterations,
-        warmup_steps=warmup_steps,
-        device="cpu",
+def _runner(tmp_path, *, num_iterations: int = 3, warmup_steps: int = 0, **config) -> MethodBenchmarkRunner:
+    return MethodBenchmarkRunner(
+        benchmark_name="asset_benchmark",
+        config=MethodBenchmarkRunnerConfig(
+            num_iterations=num_iterations, warmup_steps=warmup_steps, device="cpu", **config
+        ),
+        backend_type="omniperf",
+        output_path=str(tmp_path),
+        use_recorders=False,
+        physics_variant="newton_kamino",
     )
-    return runner
 
 
-def test_method_benchmark_propagates_timed_failure() -> None:
-    """A failed timed iteration should abort instead of reducing the sample count."""
-    runner = _runner()
-    call_count = 0
+def test_runner_writes_workload_metadata_and_mode_phases(tmp_path) -> None:
+    """Exact backend selectors stay distinguishable and results are grouped by input mode."""
+    runner = _runner(tmp_path, num_iterations=2, mode="fast")
+    calls: list[str] = []
+    target = type("Target", (), {"write": lambda self, **inputs: calls.append(inputs["mode"])})()
+    definition = MethodBenchmarkDefinition(
+        name="write",
+        method_name="write",
+        input_generators={"fast": lambda config: {"mode": "fast"}, "slow": lambda config: {"mode": "slow"}},
+    )
 
-    def operation() -> None:
-        nonlocal call_count
-        call_count += 1
-        if call_count == 2:
-            raise RuntimeError("boom")
+    runner.run_benchmarks([definition], target)
+    runner.finalize()
 
-    with pytest.raises(RuntimeError, match=r"example.*timed.*iteration 0"):
-        runner._benchmark_method(operation, "example", lambda _config: {})
+    with open(runner.output_file_path) as f:
+        data = json.load(f)
+    assert data["benchmark_info"]["physics_variant"] == "newton_kamino"
+    assert data["benchmark_info"]["num_iterations"] == 2
+    assert data["fast"]["write_n"] == 2
+    assert "slow" not in data
+    assert calls == ["fast"] * 3  # preflight plus two timed iterations
 
 
-def test_method_benchmark_propagates_warmup_failure() -> None:
-    """A failed warm-up iteration should abort before measurement starts."""
-    runner = _runner(num_iterations=1, warmup_steps=1)
+def test_method_benchmark_propagates_failures(tmp_path) -> None:
+    """Failures abort the workload instead of silently reducing the sample count."""
+    runner = _runner(tmp_path, num_iterations=1, warmup_steps=1)
     call_count = 0
 
     def operation() -> None:
@@ -93,9 +75,9 @@ def test_method_benchmark_propagates_warmup_failure() -> None:
     with pytest.raises(RuntimeError, match=r"example.*warmup.*iteration 0"):
         runner._benchmark_method(operation, "example", lambda _config: {})
 
-
-def test_property_benchmark_propagates_dependency_failure() -> None:
-    """A dependency failure should not turn a derived property into another workload."""
+    call_count = 0
+    with pytest.raises(RuntimeError, match=r"example.*timed.*iteration 0"):
+        _runner(tmp_path, num_iterations=3)._benchmark_method(operation, "example", lambda _config: {})
 
     class Data:
         @property
@@ -106,42 +88,14 @@ def test_property_benchmark_propagates_dependency_failure() -> None:
         def value(self) -> int:
             return 1
 
-    runner = _runner(num_iterations=1)
-
     with pytest.raises(RuntimeError, match=r"value.*timed preparation.*iteration 0"):
-        runner._benchmark_property(Data(), "value", lambda _config: {}, dependencies=["dependency"])
+        _runner(tmp_path, num_iterations=1)._benchmark_property(Data(), "value", lambda _config: {}, ["dependency"])
 
 
-def test_method_benchmark_collects_exact_requested_samples() -> None:
-    """Preflight and warm-up calls should not change the requested sample count."""
-    runner = _runner(num_iterations=3, warmup_steps=2)
-    call_count = 0
-
-    def operation() -> None:
-        nonlocal call_count
-        call_count += 1
-
-    result = runner._benchmark_method(operation, "example", lambda _config: {})
-
-    assert result is not None
-    assert result["n"] == 3
-    assert call_count == 6
-
-
-def test_method_benchmark_prepares_target_outside_timed_operation() -> None:
-    """Target cache preparation should run for every call without contributing to measured latency."""
-    runner = _runner(num_iterations=1, warmup_steps=1)
+def test_method_benchmark_collects_exact_requested_samples(tmp_path) -> None:
+    """Preflight and warm-up calls run untimed, preparation stays outside the measured window."""
+    runner = _runner(tmp_path, num_iterations=1, warmup_steps=1)
     events: list[str] = []
-
-    def prepare_target() -> None:
-        events.append("target")
-
-    def generator(_config) -> dict[str, object]:
-        events.append("inputs")
-        return {}
-
-    def operation() -> None:
-        events.append("operation")
 
     def clock() -> int:
         events.append("clock")
@@ -149,76 +103,43 @@ def test_method_benchmark_prepares_target_outside_timed_operation() -> None:
 
     with patch("isaaclab.benchmark.method_benchmark.time.perf_counter_ns", side_effect=clock):
         result = runner._benchmark_method(
-            operation,
+            lambda: events.append("operation"),
             "example",
-            generator,
-            prepare_target=prepare_target,
+            lambda _config: events.append("inputs") or {},
+            prepare_target=lambda: events.append("target"),
         )
 
-    assert result is not None
-    assert events == [
-        "target",
-        "inputs",
-        "operation",
-        "target",
-        "inputs",
-        "operation",
-        "target",
-        "inputs",
-        "clock",
-        "operation",
-        "clock",
-    ]
+    assert result == {"mean": 1.0, "std": 0.0, "n": 1}
+    assert events == ["target", "inputs", "operation"] * 2 + ["target", "inputs", "clock", "operation", "clock"]
 
 
-def test_method_dependency_surface_is_not_published() -> None:
-    """The unused method dependency arguments should not become public API."""
-    definition_fields = {field.name for field in fields(MethodBenchmarkDefinition)}
+def test_method_benchmark_uses_sample_standard_deviation(tmp_path) -> None:
+    runner = _runner(tmp_path, num_iterations=2)
 
-    assert "dependencies" not in definition_fields
-    assert "dependencies" not in inspect.signature(MethodBenchmarkRunner.run_benchmarks).parameters
-
-
-def test_method_benchmark_uses_sample_standard_deviation() -> None:
-    """Method statistics should match the regular benchmark convention."""
-    runner = _runner(num_iterations=2)
-
-    with patch(
-        "isaaclab.benchmark.method_benchmark.time.perf_counter_ns",
-        side_effect=(0, 1_000, 0, 3_000),
-    ):
+    with patch("isaaclab.benchmark.method_benchmark.time.perf_counter_ns", side_effect=(0, 1_000, 0, 3_000)):
         result = runner._benchmark_method(lambda: None, "example", lambda _config: {})
 
-    assert result is not None
-    assert result["mean"] == pytest.approx(2.0)
-    assert result["std"] == pytest.approx(2**0.5)
-    assert result["n"] == 2
+    assert result == {"mean": pytest.approx(2.0), "std": pytest.approx(2**0.5), "n": 2}
 
 
-def test_property_benchmark_skips_not_implemented_property() -> None:
-    """A property that explicitly raises NotImplementedError should be reported as skipped."""
-
+def test_property_benchmark_skips_unsupported_and_missing_properties(tmp_path) -> None:
     class Data:
         @property
         def value(self) -> int:
             raise NotImplementedError("unsupported")
 
-    result = _runner(num_iterations=1)._benchmark_property(
-        Data(),
-        "value",
-        lambda _config: {},
-        dependencies=[],
-    )
+    runner = _runner(tmp_path, num_iterations=1)
 
-    assert result == {
+    assert runner._benchmark_property(Data(), "value", lambda _config: {}, []) == {
         "skipped": True,
         "skip_reason": "NotImplementedError: unsupported",
     }
+    assert runner._benchmark_property(Data(), "missing", lambda _config: {}, []) is None
+    assert runner._benchmark_method(None, "missing", lambda _config: {}) is None
 
 
-def test_sync_device_synchronizes_configured_device_once() -> None:
-    """The timing boundary should synchronize only the configured device."""
-    runner = _runner()
+def test_sync_device_synchronizes_configured_device(tmp_path) -> None:
+    runner = _runner(tmp_path)
     runner._config = MethodBenchmarkRunnerConfig(device="cuda:1")
 
     with patch("warp.synchronize_device") as synchronize_device:

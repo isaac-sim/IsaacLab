@@ -56,25 +56,19 @@ class SensorBase(ABC):
         Args:
             cfg: The configuration parameters for the sensor.
         """
-        # check that the config is valid
         cfg.validate()
         cfg.prim_path = expand_env_regex_ns(cfg.prim_path)
-        # store inputs
         self.cfg = cfg.copy()
-        # flag for whether the sensor is initialized
         self._is_initialized = False
-        # flag for whether the sensor is in visualization mode
         self._is_visualizing = False
         # clone plan used for this sensor's latest initialization
         self._clone_plan: ClonePlan | None = None
         self.stage = sim_utils.get_current_stage()
 
-        # register various callback functions
         self._register_callbacks()
 
-        # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
+        # set to a valid handle inside set_debug_vis
         self._debug_vis_handle = None
-        # set initial state of debug visualization
         self.set_debug_vis(self.cfg.debug_vis)
 
     def __del__(self, _sys=sys):
@@ -170,13 +164,7 @@ class SensorBase(ABC):
                 if sim_ctx is not None:
                     self._debug_vis_handle = sim_ctx.vis_marker_registry.add_debug_vis_callback(self)
         else:
-            # remove the subscriber if it exists
-            sim_ctx = sim_utils.SimulationContext.instance()
-            if sim_ctx is not None:
-                sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
-            else:
-                self._debug_vis_handle = None
-        # return success
+            self._clear_debug_vis()
         return True
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
@@ -244,14 +232,10 @@ class SensorBase(ABC):
         if clone_plan_matches:
             self._parent_prims = []
             self._num_envs = int(clone_plan.clone_mask.shape[1])
-        elif clone_plan is not None:
-            env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
-            self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
-            self._num_envs = int(clone_plan.env_ids.size)
         else:
             env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
             self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
-            self._num_envs = len(self._parent_prims)
+            self._num_envs = int(clone_plan.env_ids.size) if clone_plan is not None else len(self._parent_prims)
         # Create warp env mask arrays for "all envs" cases and resets.
         # Note: We use wp.to_torch() to create zero-copy torch tensor views of warp arrays.
         # This allows warp arrays to be passed to warp kernels while the corresponding torch
@@ -357,11 +341,7 @@ class SensorBase(ABC):
         """Invalidates the scene elements."""
         self._is_initialized = False
         self._clone_plan = None
-        sim_ctx = sim_utils.SimulationContext.instance()
-        if sim_ctx is not None:
-            sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
-        else:
-            self._debug_vis_handle = None
+        self._clear_debug_vis()
 
     def _on_prim_deletion(self, event) -> None:
         """Invalidates and deletes the callbacks when the prim is deleted.
@@ -373,24 +353,20 @@ class SensorBase(ABC):
             This function is called when the prim is deleted.
         """
         prim_path = event.payload["prim_path"]
-        if prim_path == "/":
-            self._clear_callbacks()
-            return
-        if sim_utils.matches_path_expr_prefix(self.cfg.prim_path, prim_path):
+        if prim_path == "/" or sim_utils.matches_path_expr_prefix(self.cfg.prim_path, prim_path):
             self._clear_callbacks()
 
     def _clear_callbacks(self) -> None:
-        """Clears the callbacks."""
-        if self._initialize_handle is not None:
-            self._initialize_handle.deregister()
-            self._initialize_handle = None
-        if self._invalidate_initialize_handle is not None:
-            self._invalidate_initialize_handle.deregister()
-            self._invalidate_initialize_handle = None
-        if self._prim_deletion_handle is not None:
-            self._prim_deletion_handle.deregister()
-            self._prim_deletion_handle = None
-        # Clear debug visualization
+        """Clears the callbacks. Handles may be missing if ``__init__`` failed before registering them."""
+        for name in ("_initialize_handle", "_invalidate_initialize_handle", "_prim_deletion_handle"):
+            handle = getattr(self, name, None)
+            if handle is not None:
+                handle.deregister()
+                setattr(self, name, None)
+        self._clear_debug_vis()
+
+    def _clear_debug_vis(self) -> None:
+        """Removes the debug visualization subscriber, if any."""
         sim_ctx = sim_utils.SimulationContext.instance()
         if sim_ctx is not None:
             sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)

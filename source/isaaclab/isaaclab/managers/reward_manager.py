@@ -49,20 +49,20 @@ class RewardManager(ManagerBase):
             env: The environment instance.
         """
         # create buffers to parse and store terms
-        self._term_names: list[str] = list()
-        self._term_cfgs: list[RewardTermCfg] = list()
-        self._class_term_cfgs: list[RewardTermCfg] = list()
+        self._term_names: list[str] = []
+        self._term_cfgs: list[RewardTermCfg] = []
+        self._class_term_cfgs: list[RewardTermCfg] = []
 
         # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
-        # prepare extra info to store individual reward term information
-        self._episode_sums = dict()
-        for term_name in self._term_names:
-            self._episode_sums[term_name] = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
-        # create buffer for managing reward per environment
+        # episodic sum of each reward term
+        self._episode_sums = {
+            term_name: torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+            for term_name in self._term_names
+        }
+        # net reward per environment
         self._reward_buf = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
-
-        # Buffer which stores the current step reward for each term for each environment
+        # current step reward of each term per environment
         self._step_reward = torch.zeros((self.num_envs, len(self._term_names)), dtype=torch.float, device=self.device)
 
     def __str__(self) -> str:
@@ -108,22 +108,14 @@ class RewardManager(ManagerBase):
         Returns:
             Dictionary of episodic sum of individual reward terms.
         """
-        # resolve environment ids
         if env_ids is None:
             env_ids = slice(None)
-        # store information
         extras = {}
-        for key in self._episode_sums.keys():
-            # store information
-            # r_1 + r_2 + ... + r_n
-            episodic_sum_avg = torch.mean(self._episode_sums[key][env_ids])
-            extras["Episode_Reward/" + key] = episodic_sum_avg / self._env.max_episode_length_s
-            # reset episodic sum
-            self._episode_sums[key][env_ids] = 0.0
-        # reset all the reward terms
+        for key, episode_sum in self._episode_sums.items():
+            extras["Episode_Reward/" + key] = torch.mean(episode_sum[env_ids]) / self._env.max_episode_length_s
+            episode_sum[env_ids] = 0.0
         for term_cfg in self._class_term_cfgs:
             term_cfg.func.reset(env_ids=env_ids)
-        # return logged information
         return extras
 
     def compute(self, dt: float) -> torch.Tensor:
@@ -205,27 +197,16 @@ class RewardManager(ManagerBase):
         Returns:
             The active terms.
         """
-        terms = []
-        for idx, name in enumerate(self._term_names):
-            terms.append((name, [self._step_reward[env_idx, idx].cpu().item()]))
-        return terms
+        # move to host once instead of one sync per term
+        step_rewards = self._step_reward[env_idx].cpu().tolist()
+        return [(name, [value]) for name, value in zip(self._term_names, step_rewards)]
 
     """
     Helper functions.
     """
 
     def _prepare_terms(self):
-        # check if config is dict already
-        if isinstance(self.cfg, dict):
-            cfg_items = self.cfg.items()
-        else:
-            cfg_items = self.cfg.__dict__.items()
-        # iterate over all the terms
-        for term_name, term_cfg in cfg_items:
-            # check for non config
-            if term_cfg is None:
-                continue
-            # check for valid config type
+        for term_name, term_cfg in self._iter_term_cfgs(self.cfg):
             if not isinstance(term_cfg, RewardTermCfg):
                 raise TypeError(
                     f"Configuration for the term '{term_name}' is not of type RewardTermCfg."

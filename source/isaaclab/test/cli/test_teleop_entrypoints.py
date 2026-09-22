@@ -26,24 +26,24 @@ TELEOP_WORKFLOWS = {
 }
 
 
-@pytest.mark.parametrize(("command", "script_parts"), TELEOP_WORKFLOWS.items())
-def test_teleop_workflow_help_exposes_task_preset_selectors(command, script_parts):
+def test_teleop_workflow_help_exposes_task_preset_selectors():
     """Every teleop workflow accepts the task preset selectors documented for teleoperation."""
-    script = cli.ISAACLAB_ROOT.joinpath(*script_parts)
-
-    result = subprocess.run(
-        [sys.executable, str(script), "--help"],
-        cwd=cli.ISAACLAB_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert "preset selection:" in result.stdout
-    assert "physics=NAME" in result.stdout
-    assert "renderer=NAME" in result.stdout
-    assert "presets=NAME[,NAME,...]" in result.stdout
+    # the scripts import the task registry, so probe them concurrently rather than one after another
+    probes = {
+        command: subprocess.Popen(
+            [sys.executable, str(cli.ISAACLAB_ROOT.joinpath(*script_parts)), "--help"],
+            cwd=cli.ISAACLAB_ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for command, script_parts in TELEOP_WORKFLOWS.items()
+    }
+    for command, probe in probes.items():
+        stdout, stderr = probe.communicate(timeout=120)
+        assert probe.returncode == 0, f"{command}: {stderr}"
+        for selector in ("preset selection:", "physics=NAME", "renderer=NAME", "presets=NAME[,NAME,...]"):
+            assert selector in stdout, f"{command} --help does not document {selector!r}"
 
 
 @pytest.mark.parametrize(("command", "script_parts"), TELEOP_WORKFLOWS.items())

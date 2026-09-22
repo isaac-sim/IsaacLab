@@ -12,7 +12,7 @@ the curriculum introduced by the function.
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
@@ -20,7 +20,9 @@ import torch
 from isaaclab.managers import CurriculumTermCfg, ManagerTermBase
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from .. import ManagerBasedRLEnv
+
+_INDEXED_PATH_PART = re.compile(r"^(\w+)\[(\d+)\]$")
 
 
 class modify_reward_weight(ManagerTermBase):
@@ -28,10 +30,7 @@ class modify_reward_weight(ManagerTermBase):
 
     def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-
-        # obtain term configuration
-        term_name = cfg.params["term_name"]
-        self._term_cfg = env.reward_manager.get_term_cfg(term_name)
+        self._term_cfg = env.reward_manager.get_term_cfg(cfg.params["term_name"])
 
     def __call__(
         self,
@@ -41,11 +40,9 @@ class modify_reward_weight(ManagerTermBase):
         weight: float,
         num_steps: int,
     ) -> float:
-        # update term settings
         if env.common_step_counter > num_steps:
             self._term_cfg.weight = weight
             env.reward_manager.set_term_cfg(term_name, self._term_cfg)
-
         return self._term_cfg.weight
 
 
@@ -78,14 +75,10 @@ class modify_env_param(ManagerTermBase):
     to indicate that the value should not be changed.
 
     At the first call to the term after initialization, it compiles getter and setter functions
-    for the target attribute specified by the ``address`` parameter. The getter retrieves the
-    current value, and the setter writes a new value back to the attribute.
-
-    This term processes getter/setter accessors for a target attribute in an(specified by
-    as an "address" in the term configuration :attr:`cfg.params["address"]`) the first time it is called,
-    then on each invocation reads the current value, applies a user-provided :attr:`modify_fn`,
-    and writes back the result. Since :obj:`None` in this case can sometime be desirable value
-    to write, we use token, :attr:`NO_CHANGE`, as non-modification signal to this class, see usage below.
+    for the target attribute specified by the ``address`` parameter. On each invocation it reads the
+    current value, applies the user-provided :attr:`modify_fn`, and writes back the result. Since
+    :obj:`None` can be a desirable value to write, the token :attr:`NO_CHANGE` signals that the value
+    should be left unchanged, see the usage below.
 
     Usage:
         .. code-block:: python
@@ -130,23 +123,14 @@ class modify_env_param(ManagerTermBase):
 
     def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        # resolve term configuration
         if "address" not in cfg.params:
             raise ValueError("The 'address' parameter must be specified in the curriculum term configuration.")
-
-        # store current address
         self._address: str = cfg.params["address"]
-        # store accessor functions
-        self._get_fn: callable = None
-        self._set_fn: callable = None
-
-    def __del__(self):
-        """Destructor to clean up the compiled functions."""
-        # clear the getter and setter functions
-        self._get_fn = None
-        self._set_fn = None
-        self._container = None
-        self._last_path = None
+        # accessors are compiled lazily on the first call, once all managers exist
+        self._get_fn: Callable[[], Any] | None = None
+        self._set_fn: Callable[[Any], None] | None = None
+        self._container: Any = None
+        self._last_path: str | int | None = None
 
     """
     Operations.
@@ -157,22 +141,14 @@ class modify_env_param(ManagerTermBase):
         env: ManagerBasedRLEnv,
         env_ids: Sequence[int],
         address: str,
-        modify_fn: callable,
+        modify_fn: Callable,
         modify_params: dict | None = None,
     ):
-        # fetch the getter and setter functions if not already compiled
-        if not self._get_fn:
+        if self._get_fn is None:
             self._get_fn, self._set_fn = self._process_accessors(self._env, self._address)
 
-        # resolve none type
-        modify_params = {} if modify_params is None else modify_params
-
-        # get the current value of the target attribute
         data = self._get_fn()
-        # modify the value using the provided function
-        new_val = modify_fn(self._env, env_ids, data, **modify_params)
-        # set the modified value back to the target attribute
-        # note: if the modify_fn return NO_CHANGE signal, we do not invoke self.set_fn
+        new_val = modify_fn(self._env, env_ids, data, **(modify_params or {}))
         if new_val is not self.NO_CHANGE:
             self._set_fn(new_val)
 
@@ -180,7 +156,7 @@ class modify_env_param(ManagerTermBase):
     Helper functions.
     """
 
-    def _process_accessors(self, root: ManagerBasedRLEnv, path: str) -> tuple[callable, callable]:
+    def _process_accessors(self, root: ManagerBasedRLEnv, path: str) -> tuple[Callable[[], Any], Callable[[Any], None]]:
         """Process and return the (getter, setter) functions for a dotted attribute path.
 
         This function resolves a dotted path string to an attribute in the given root object.
@@ -198,44 +174,32 @@ class modify_env_param(ManagerTermBase):
             the getter retrieves the current value of the attribute, and
             the setter writes a new value back to the attribute.
         """
-        # Turn "a.b[2].c" into ["a", ("b", 2), "c"] and store in parts
+        # turn "a.b[2].c" into ["a", ("b", 2), "c"]
         path_parts: list[str | tuple[str, int]] = []
         for part in path.split("."):
-            m = re.compile(r"^(\w+)\[(\d+)\]$").match(part)
-            if m:
-                path_parts.append((m.group(1), int(m.group(2))))
-            else:
-                path_parts.append(part)
+            match = _INDEXED_PATH_PART.match(part)
+            path_parts.append((match.group(1), int(match.group(2))) if match else part)
 
-        # Traverse the parts to find the container
+        def lookup(container: Any, key: str) -> Any:
+            return container[key] if isinstance(container, dict) else getattr(container, key)
+
+        # traverse to the container that holds the last part of the path
         container = root
         for container_path in path_parts[:-1]:
             if isinstance(container_path, tuple):
-                # we are accessing a list element
                 name, idx = container_path
-                # find underlying attribute
-                if isinstance(container_path, dict):
-                    seq = container[name]  # type: ignore[assignment]
-                else:
-                    seq = getattr(container, name)
-                # save the container for the next iteration
-                container = seq[idx]
+                container = lookup(container, name)[idx]
             else:
-                # we are accessing a dictionary key or an attribute
-                if isinstance(container, dict):
-                    container = container[container_path]
-                else:
-                    container = getattr(container, container_path)
+                container = lookup(container, container_path)
 
-        # save the container and the last part of the path
         self._container = container
         self._last_path = path_parts[-1]  # for "a.b[2].c", this is "c", while for "a.b[2]" it is 2
 
-        # build the getter and setter
         if isinstance(self._container, tuple):
             get_value = lambda: self._container[self._last_path]  # noqa: E731
 
             def set_value(val):
+                # tuples are immutable, so the container is rebuilt with the new element
                 tuple_list = list(self._container)
                 tuple_list[self._last_path] = val
                 self._container = tuple(tuple_list)
@@ -246,14 +210,9 @@ class modify_env_param(ManagerTermBase):
             def set_value(val):
                 self._container[self._last_path] = val
 
-        elif isinstance(self._container, object):
+        else:
             get_value = lambda: getattr(self._container, self._last_path)  # noqa: E731
             set_value = lambda val: setattr(self._container, self._last_path, val)  # noqa: E731
-        else:
-            raise TypeError(
-                f"Unable to build accessors for address '{path}'. Unknown type found for access variable:"
-                f" '{type(self._container)}'. Expected a list, dict, or object with attributes."
-            )
 
         return get_value, set_value
 
@@ -291,10 +250,9 @@ class modify_term_cfg(modify_env_param):
             )
     """
 
-    def __init__(self, cfg, env):
-        # initialize the parent
+    def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        # overwrite the simplified address with the full manager path
+        # expand the simplified "<manager>s." prefix into the full manager path
         self._address = self._address.replace("s.", "_manager.cfg.", 1)
 
 
