@@ -106,6 +106,19 @@ def test_init_raises_import_error_when_moviepy_missing():
             VideoRecorder(_cfg(), _make_env())
 
 
+@pytest.mark.parametrize(
+    "field,value",
+    [("video_length", 0), ("video_length", -5), ("frame_stride", 0), ("video_interval", -1), ("step_offset", -1)],
+)
+def test_cfg_validate_rejects_invalid_clip_schedule(field, value):
+    with pytest.raises(ValueError, match=f"{field}={value}"):
+        _cfg(**{field: value}).validate()
+
+
+def test_cfg_validate_accepts_boundary_clip_schedule():
+    _cfg(video_length=1, frame_stride=1, video_interval=0, step_offset=0).validate()
+
+
 def test_init_continues_clip_index_after_existing_files(tmp_path):
     output_dir = tmp_path / "videos"
     output_dir.mkdir()

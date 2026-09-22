@@ -17,7 +17,7 @@ from isaaclab_visualizers.kit import KitVisualizerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
-from isaaclab_rl.entrypoints.common import apply_video_recording, wrap_record_video
+from isaaclab_rl.entrypoints.common import apply_video_recording, video_playback_steps, wrap_record_video
 
 
 def _args(**kwargs: object) -> SimpleNamespace:
@@ -156,3 +156,34 @@ def test_wrap_record_video_is_noop_stub(caplog: pytest.LogCaptureFixture) -> Non
         result = wrap_record_video(env, "/tmp/logs", _args(video=True))
     assert result is env
     assert any("wrap_record_video" in r.message for r in caplog.records)
+
+
+def test_video_playback_steps_waits_for_every_recorder():
+    """Playback runs until the recorder whose first clip ends last has finished it."""
+    env_cfg = ManagerBasedRLEnvCfg()
+    env_cfg.video_recorders = [
+        VideoRecorderCfg(video_length=100),
+        VideoRecorderCfg(video_length=50, step_offset=80),
+        VideoRecorderCfg(video_length=120, step_offset=5),
+    ]
+    expected = max(cfg.step_offset + cfg.video_length for cfg in env_cfg.video_recorders)
+
+    assert video_playback_steps(_args(), env_cfg) == expected
+
+
+def test_video_playback_steps_keeps_step_offset_with_cli_length():
+    """A ``--video_length`` override still waits for a recorder's configured step offset."""
+    env_cfg = ManagerBasedRLEnvCfg()
+    env_cfg.video_recorders = [VideoRecorderCfg(source="visualizer:kit", step_offset=30)]
+
+    apply_video_recording(env_cfg, "/tmp/logs", _args(video_length=10))
+
+    assert video_playback_steps(_args(video_length=10), env_cfg) == 30 + 10
+
+
+def test_video_playback_steps_is_unbounded_without_video():
+    """Playback is unbounded when video is not requested or no recorder is configured."""
+    env_cfg = ManagerBasedRLEnvCfg()
+    env_cfg.video_recorders = [VideoRecorderCfg()]
+    assert video_playback_steps(_args(video=False), env_cfg) is None
+    assert video_playback_steps(_args(), ManagerBasedRLEnvCfg()) is None

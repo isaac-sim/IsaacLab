@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 import torch
 
-from isaaclab_rl.entrypoints import PlaybackRequest, TrainingRequest, api, dispatch, simple_agents
+from isaaclab_rl.entrypoints import PlaybackRequest, SimpleAgentRequest, TrainingRequest, api, dispatch, simple_agents
 from isaaclab_rl.entrypoints.simple_agents import create_zero_action_policy
 
 
@@ -343,6 +343,30 @@ def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.Mon
         simple_agents.run([], policy="zero")
 
 
+def test_zero_agent_rejects_invalid_video_length_before_launch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A non-positive ``--video_length`` fails validation before a simulator backend is initialized."""
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+
+    recorders = [VideoRecorderCfg(output_dir="unused")]
+    cfg = SimpleNamespace(
+        scene=SimpleNamespace(num_envs=1),
+        sim=SimpleNamespace(device="cpu", use_fabric=True),
+        video_recorders=recorders,
+        validate=lambda: [recorder.validate() for recorder in recorders],
+    )
+    args = SimpleNamespace(task="Example", device=None, video=True, video_length=0, video_interval=None)
+    monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
+    monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (cfg, None))
+    monkeypatch.setattr(
+        simple_agents,
+        "launch_simulation",
+        lambda *args, **kwargs: pytest.fail("simulation launched before config validation"),
+    )
+
+    with pytest.raises(SystemExit, match="video_length=0"):
+        simple_agents.run([], policy="zero")
+
+
 def test_random_agent_closes_environment_after_keyboard_interrupt(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -374,6 +398,60 @@ def test_random_agent_closes_environment_after_keyboard_interrupt(
 
     env.close.assert_called_once_with()
     assert "Random agent stopped." in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("max_steps", [None, 40])
+def test_simple_agent_video_runs_until_every_recorder_finishes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, max_steps: int | None
+) -> None:
+    """A ``--video`` run steps until the last recorder's first clip ends, unless ``--max_steps`` is smaller."""
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+
+    recorders = [
+        VideoRecorderCfg(output_dir=str(tmp_path), video_length=20),
+        VideoRecorderCfg(output_dir=str(tmp_path), video_length=30, step_offset=25),
+    ]
+    cfg = SimpleNamespace(
+        scene=SimpleNamespace(num_envs=1),
+        sim=SimpleNamespace(device="cpu", use_fabric=True),
+        video_recorders=recorders,
+        validate=lambda: None,
+    )
+    env = SimpleNamespace(
+        observation_space="observations",
+        action_space=SimpleNamespace(shape=(1, 1)),
+        unwrapped=SimpleNamespace(
+            sim=SimpleNamespace(is_headless_or_exist_active_visualizer=lambda: True),
+            device="cpu",
+        ),
+        reset=lambda: None,
+        step=mock.Mock(),
+        close=mock.Mock(),
+    )
+    args = SimpleNamespace(
+        max_steps=max_steps, task="Example", device=None, video=True, video_length=None, video_interval=None
+    )
+    monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
+    monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (cfg, None))
+    monkeypatch.setattr(simple_agents, "launch_simulation", lambda cfg, launcher_args: contextlib.nullcontext())
+    monkeypatch.setattr(simple_agents.gym, "make", lambda task, cfg: env)
+    monkeypatch.setattr(simple_agents, "create_random_action_policy", lambda environment: lambda: None)
+
+    simple_agents.run([], policy="random")
+
+    clip_budget = max(recorder.step_offset + recorder.video_length for recorder in recorders)
+    expected = clip_budget if max_steps is None else min(max_steps, clip_budget)
+    assert env.step.call_count == expected
+
+
+def test_simple_agent_request_forwards_video(monkeypatch) -> None:
+    """Checkpoint-free requests forward the video flag to the agent CLI."""
+    received: list[str] = []
+    monkeypatch.setattr(api, "run_zero_agent_cli", lambda argv: received.extend(argv) or 0)
+
+    api.zero_agent(SimpleAgentRequest(task="Isaac-Task", max_steps=5, video=True))
+
+    assert received == ["--task", "Isaac-Task", "--max_steps", "5", "--video"]
 
 
 def test_train_request_adapts_typed_parameters_to_cli(monkeypatch) -> None:

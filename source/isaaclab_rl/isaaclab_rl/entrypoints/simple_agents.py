@@ -29,11 +29,12 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 from .common import (
+    add_video_args,
     apply_env_overrides,
     apply_video_recording,
     enable_cameras_for_video,
     normalize_task_name,
-    pre_launch_video_config,
+    video_playback_steps,
 )
 
 # PLACEHOLDER: Extension template (do not remove this comment)
@@ -71,18 +72,17 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
     apply_env_overrides(args_cli, env_cfg)
     # pass the resolved task device through to the launcher
     args_cli.device = env_cfg.sim.device
+    # configure recorders before validation so invalid clip settings fail before the launch
+    log_dir = os.path.abspath(os.path.join("logs", f"{policy}_agent", normalize_task_name(args_cli.task)))
+    apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
     # reject unsupported configurations before launching Kit or initializing a native physics backend
     try:
         env_cfg.validate()
     except (TypeError, ValueError) as exc:
         raise SystemExit(f"Invalid environment configuration: {exc}") from None
 
-    pre_launch_video_config(env_cfg, args_cli)
-
     try:
         with launch_simulation(env_cfg, args_cli):
-            log_dir = os.path.abspath(os.path.join("logs", f"{policy}_agent", normalize_task_name(args_cli.task)))
-            apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
             with contextlib.closing(gym.make(args_cli.task, cfg=env_cfg)) as env:
                 print(f"[INFO]: Gym observation space: {env.observation_space}")
                 print(f"[INFO]: Gym action space: {env.action_space}")
@@ -93,12 +93,8 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
                     action_policy = create_random_action_policy(env)
                 print(f"[INFO] {policy.capitalize()} agent is running, press Ctrl+C to exit...")
 
-                max_steps = args_cli.max_steps
-                if args_cli.video:
-                    recorders = env_cfg.video_recorders or []
-                    if recorders:
-                        video_steps = recorders[0].video_length + recorders[0].step_offset
-                        max_steps = video_steps if max_steps is None else min(max_steps, video_steps)
+                budgets = [n for n in (args_cli.max_steps, video_playback_steps(args_cli, env_cfg)) if n is not None]
+                max_steps = min(budgets, default=None)
 
                 # keep running while any visualizer is open and the step budget is not exhausted
                 sim = env.unwrapped.sim
@@ -255,21 +251,7 @@ def _parse_args(argv: list[str] | None, policy: PolicyName) -> argparse.Namespac
     parser.add_argument(
         "--max_steps", type=int, default=None, help="Number of environment steps to run. Runs unbounded when omitted."
     )
-    parser.add_argument(
-        "--video", action="store_true", default=False, help=f"Record videos during the {policy} agent run."
-    )
-    parser.add_argument(
-        "--video_length",
-        type=int,
-        default=None,
-        help="Length of each recorded video clip in env steps. Overrides the value in VideoRecorderCfg.",
-    )
-    parser.add_argument(
-        "--video_interval",
-        type=int,
-        default=None,
-        help="Interval between video clips in env steps. Overrides the value in VideoRecorderCfg.",
-    )
+    add_video_args(parser, action=f"the {policy} agent run")
     add_launcher_args(parser)
     # let task configs select the simulation device and keep checkpoint-free agents on the kitless default path
     parser.set_defaults(device=None, visualizer=["newton_gl"])
