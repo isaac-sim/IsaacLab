@@ -43,8 +43,8 @@ the rendered scene is whatever it arrived at.
 Note that the physics backend still integrates in ``"render"`` mode, because an Isaac Lab
 environment has no way to skip its own physics step; that mode removes the actuation and
 overwrites the solver's result before rendering, rather than skipping the step. Either way
-``ISAACLAB_PHYSICS_PROFILE`` records each step's cost in the run log, so what physics contributed
-stays visible next to the render times ``benchmark_renderer.py`` reports.
+the runtime benchmark's ``ISAACLAB_PHYSICS_PROFILE`` wrapper records each step's cost in the run log,
+so what physics contributed stays visible next to the render times ``benchmark_renderer.py`` reports.
 """
 
 BENCHMARK_MODES: tuple[BenchmarkMode, ...] = ("render", "physics_render")

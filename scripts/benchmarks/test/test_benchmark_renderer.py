@@ -35,16 +35,16 @@ def benchmark_renderer():
     return _load_module()
 
 
-def test_render_scope_matches_render_context(benchmark_renderer):
+def test_render_scope_matches_benchmark_wrapper(benchmark_renderer):
     """The script's timer name must match the one the renderer prints, or nothing is parsed."""
-    from isaaclab.renderers.render_context import RENDER_PROFILE_SCOPE
+    from isaaclab.benchmark.stepping import RENDER_PROFILE_SCOPE
 
     assert benchmark_renderer.RENDER_SCOPE == RENDER_PROFILE_SCOPE
 
 
-def test_physics_scope_matches_physics_manager(benchmark_renderer):
-    """The script's physics timer name must match the one the physics manager prints."""
-    from isaaclab.physics.physics_manager import PHYSICS_PROFILE_SCOPE
+def test_physics_scope_matches_benchmark_wrapper(benchmark_renderer):
+    """The script's physics timer name must match the one the benchmark wrapper prints."""
+    from isaaclab.benchmark.stepping import PHYSICS_PROFILE_SCOPE
 
     assert benchmark_renderer.PHYSICS_SCOPE == PHYSICS_PROFILE_SCOPE
 

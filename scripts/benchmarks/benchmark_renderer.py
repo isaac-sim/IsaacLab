@@ -74,7 +74,7 @@ NEWTON_RENDERER = "newton_renderer"
 RENDER_SCOPE = "IsaacLab::Renderer::render"
 """Backend-agnostic timer name around ``BaseRenderer.render``, enabled by ``ISAACLAB_RENDER_PROFILE``.
 
-See :data:`isaaclab.renderers.render_context.RENDER_PROFILE_SCOPE`. It brackets the render alone,
+See :data:`isaaclab.benchmark.stepping.RENDER_PROFILE_SCOPE`. It brackets the render alone,
 excluding the scene-state sync before it and the output readback after it. ``wp.ScopedTimer`` prints
 one ``"<name> took X.XX ms"`` line per call, which :func:`parse_log` regexes out of the run's log.
 """
@@ -82,7 +82,7 @@ one ``"<name> took X.XX ms"`` line per call, which :func:`parse_log` regexes out
 PHYSICS_SCOPE = "IsaacLab::Physics::step"
 """Backend-agnostic timer name around one physics step, enabled by ``ISAACLAB_PHYSICS_PROFILE``.
 
-See :data:`isaaclab.physics.physics_manager.PHYSICS_PROFILE_SCOPE`. Turned on for every run, the
+See :data:`isaaclab.benchmark.stepping.PHYSICS_PROFILE_SCOPE`. Turned on in the runtime benchmark for every run, the
 same way :data:`RENDER_SCOPE` is, so a log always records what physics cost alongside the render
 times this script reports.
 """

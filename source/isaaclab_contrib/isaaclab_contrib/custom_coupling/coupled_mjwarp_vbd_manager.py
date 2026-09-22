@@ -32,7 +32,7 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
     _builder_attribute_solvers = (SolverMuJoCo,)
 
     @classmethod
-    def _step(cls) -> None:
+    def step(cls) -> None:
         """Step the physics simulation."""
         sim = PhysicsManager._sim
         if sim is None or not sim.is_playing():
@@ -45,7 +45,7 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
                     cls._rigid_solver.notify_model_changed(change)
                     cls._soft_solver.notify_model_changed(change)
                 NewtonManager._model_changes = set()
-        super()._step()
+        super().step()
 
     @classmethod
     def _build_solver(cls, model: Model, solver_cfg: CoupledMJWarpVBDSolverCfg) -> None:

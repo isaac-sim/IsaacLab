@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from isaaclab.benchmark import BenchmarkResult
 
 import argparse
+import os
 import sys
 
 
@@ -183,7 +184,18 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             environment_step_timer = stepping.EnvironmentStepTimingRecorder(
                 env, measure_synchronized_step_breakdown=args.measure_sync_step
             )
-            with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
+            with (
+                stepping.profile_physics_steps(
+                    env.unwrapped.sim.physics_manager,
+                    active=os.environ.get("ISAACLAB_PHYSICS_PROFILE", "0") != "0",
+                ),
+                stepping.profile_renderers(
+                    env.unwrapped.sim.render_context,
+                    active=os.environ.get("ISAACLAB_RENDER_PROFILE", "0") != "0",
+                ),
+                environment_step_timer,
+                BenchmarkMonitor(benchmark, interval=1.0),
+            ):
                 step_times_s = stepping.run_runtime_loop(env, args.num_steps, reset=False)
 
             first_step_s = warmup_step_times_s[0] if warmup_step_times_s else step_times_s[0]

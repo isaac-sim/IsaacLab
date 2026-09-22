@@ -7,14 +7,12 @@
 
 from __future__ import annotations
 
-import re
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
 import pytest
 import torch
 
-from isaaclab.renderers import render_context
 from isaaclab.renderers.base_renderer import BaseRenderer
 from isaaclab.renderers.render_context import RenderContext
 from isaaclab.renderers.renderer_cfg import RendererCfg
@@ -172,10 +170,8 @@ def test_scene_state_updates_once_per_step_until_cadence_reset(sim):
     assert renderer.update_transforms.call_count == renderer.update_geometries.call_count == 3
 
 
-@pytest.mark.parametrize("profile", [False, True])
-def test_render_into_camera_call_order_and_profile_output(sim, monkeypatch, capsys, profile):
-    """Profiling preserves call order and prints the renderer benchmark's timing format."""
-    monkeypatch.setattr(render_context, "_RENDER_PROFILE_ENABLED", profile)
+def test_render_into_camera_call_order(sim):
+    """Scene updates precede rendering and output readback follows each render."""
     renderer = sim.get_or_create_backend(RendererCfg(class_type=_renderer))
     data, camera = object(), CameraData()
 
@@ -190,8 +186,6 @@ def test_render_into_camera_call_order_and_profile_output(sim, monkeypatch, caps
         call.render(data),
         call.read_output(data, camera),
     ]
-    timing = rf"{re.escape(render_context.RENDER_PROFILE_SCOPE)} took [\d.]+ ms"
-    assert len(re.findall(timing, capsys.readouterr().out)) == (2 if profile else 0)
 
 
 @pytest.mark.parametrize("fail_writer", [False, True])

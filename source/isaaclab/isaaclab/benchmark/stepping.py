@@ -13,13 +13,106 @@ no heavy-weight side effects.
 from __future__ import annotations
 
 import time
-from contextlib import AbstractContextManager
-from typing import TYPE_CHECKING
+from collections.abc import Iterator
+from contextlib import AbstractContextManager, contextmanager
+from functools import wraps
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import torch
 
+    from isaaclab.physics import PhysicsManager
+    from isaaclab.renderers.render_context import RenderContext
+
     from .schema import MeanStd
+
+
+PHYSICS_PROFILE_SCOPE = "IsaacLab::Physics::step"
+"""Scope name for benchmark physics-step timings [ms], parsed by ``benchmark_renderer.py``."""
+
+RENDER_PROFILE_SCOPE = "IsaacLab::Renderer::render"
+"""Scope name for benchmark render timings [ms], excluding scene updates and output readback."""
+
+
+@contextmanager
+def profile_renderers(render_context: RenderContext, *, active: bool = True) -> Iterator[None]:
+    """Temporarily profile the renderers currently registered with the simulation.
+
+    Enabled timings synchronize device work on entry and exit and perturb throughput.
+    Original render methods are restored on exit, including on failure.
+
+    Args:
+        render_context: Simulation rendering context whose renderers will be timed.
+        active: Whether to install the timing wrappers.
+
+    Yields:
+        None while the benchmark's timing wrappers are installed.
+    """
+    if not active:
+        yield
+        return
+
+    import warp as wp  # noqa: PLC0415
+
+    originals = []
+    try:
+        for _, renderer in render_context._renderer_entries:
+            original = vars(renderer).get("render")
+            render = renderer.render
+
+            @wraps(render)
+            def timed_render(render_data: Any, _render=render) -> None:
+                with wp.ScopedTimer(RENDER_PROFILE_SCOPE, print=True, synchronize=True):
+                    return _render(render_data)
+
+            renderer.render = timed_render
+            originals.append((renderer, original))
+        yield
+    finally:
+        for renderer, original in reversed(originals):
+            if original is None:
+                del renderer.render
+            else:
+                renderer.render = original
+
+
+@contextmanager
+def profile_physics_steps(physics_manager: type[PhysicsManager], *, active: bool = True) -> Iterator[None]:
+    """Temporarily profile the selected backend's complete physics step.
+
+    Only the selected manager is wrapped, so inherited ``super().step()`` calls
+    are included in one timing record. The original classmethod is restored on exit.
+    Enabled timings synchronize device work on entry and exit and perturb throughput.
+
+    Args:
+        physics_manager: Concrete physics manager selected by the environment.
+        active: Whether to install the timing wrapper.
+
+    Yields:
+        None while the benchmark's timing wrapper is installed.
+    """
+    if not active:
+        yield
+        return
+
+    import warp as wp  # noqa: PLC0415
+
+    original = vars(physics_manager).get("step")
+    step = physics_manager.step.__func__
+
+    @wraps(step)
+    def timed_step(cls: type[PhysicsManager]) -> None:
+        with wp.ScopedTimer(PHYSICS_PROFILE_SCOPE, print=True, synchronize=True):
+            return step(cls)
+
+    physics_manager.step = classmethod(timed_step)
+    try:
+        yield
+    finally:
+        if original is None:
+            del physics_manager.step
+        else:
+            physics_manager.step = original
 
 
 def sample_random_actions(env) -> torch.Tensor | dict[str, torch.Tensor]:

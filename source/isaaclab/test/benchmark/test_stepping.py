@@ -5,18 +5,122 @@
 
 """Tests for the runtime stepping helpers."""
 
+import re
 import time
+from contextlib import nullcontext
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
 import torch
 
 from isaaclab.benchmark.stepping import (
+    PHYSICS_PROFILE_SCOPE,
+    RENDER_PROFILE_SCOPE,
     EnvironmentStepTimingRecorder,
+    profile_physics_steps,
+    profile_renderers,
     run_runtime_loop,
     run_runtime_warmup,
     sample_random_actions,
 )
+
+
+@pytest.mark.parametrize("active", [False, True])
+@pytest.mark.parametrize("inherited", [False, True])
+@pytest.mark.parametrize("fail", [False, True])
+def test_profile_physics_steps_times_once_and_restores_manager(monkeypatch, capsys, active, inherited, fail):
+    """Profile the complete selected step once and restore its descriptor even on failure."""
+    import warp as wp
+
+    from isaaclab.physics import PhysicsManager
+
+    calls = []
+
+    class BaseManager(PhysicsManager):
+        @classmethod
+        def step(cls):
+            assert cls is manager
+            calls.append("base")
+
+    class CoupledManager(BaseManager):
+        @classmethod
+        def step(cls):
+            calls.append("before")
+            super().step()
+            calls.append("after")
+            if fail:
+                raise ValueError("step failed")
+
+    class InheritedManager(CoupledManager):
+        pass
+
+    manager = InheritedManager if inherited else CoupledManager
+    original = manager.step
+    synchronize = Mock(wraps=wp.synchronize)
+    monkeypatch.setattr(wp, "synchronize", synchronize)
+
+    with pytest.raises(ValueError, match="step failed") if fail else nullcontext():
+        with profile_physics_steps(manager, active=active):
+            manager.step()
+
+    assert calls == ["before", "base", "after"]
+    assert synchronize.call_count == (2 if active else 0)
+    timing = rf"{re.escape(PHYSICS_PROFILE_SCOPE)} took [\d.]+ ms"
+    assert len(re.findall(timing, capsys.readouterr().out)) == int(active)
+    assert manager.step == original
+    assert ("step" in vars(manager)) is not inherited
+
+
+@pytest.mark.parametrize("active", [False, True])
+@pytest.mark.parametrize("fail", [False, True])
+def test_profile_renderers_times_only_render_and_restores_methods(monkeypatch, capsys, active, fail):
+    """Each renderer is timed independently, excluding scene updates and readback."""
+    import warp as wp
+
+    from isaaclab.renderers.render_context import RenderContext
+    from isaaclab.renderers.renderer_cfg import RendererCfg
+
+    calls = []
+
+    class Renderer:
+        def update_transforms(self):
+            calls.append("transforms")
+
+        def update_geometries(self):
+            calls.append("geometries")
+
+        def render(self, data):
+            calls.append((self, data))
+            if fail and self is second:
+                raise ValueError("render failed")
+
+        def read_output(self, data, camera):
+            calls.append("readback")
+
+    first, second = Renderer(), Renderer()
+    first.render = first.render
+    originals = [first.render, second.render]
+    context = RenderContext([(RendererCfg(), first), (RendererCfg(), second)])
+    monkeypatch.setattr(wp, "synchronize", lambda: calls.append("sync"))
+    data, camera = object(), object()
+
+    with pytest.raises(ValueError, match="render failed") if fail else nullcontext():
+        with profile_renderers(context, active=active):
+            for renderer in (first, first, second):
+                context.render_into_camera(renderer, data, camera, physics_step_count=1)
+
+    expected = ["transforms", "geometries", "transforms", "geometries"]
+    for renderer in (first, first, second):
+        expected.extend(["sync", (renderer, data), "sync"] if active else [(renderer, data)])
+        if not (fail and renderer is second):
+            expected.append("readback")
+    assert calls == expected
+    timing = rf"{re.escape(RENDER_PROFILE_SCOPE)} took [\d.]+ ms"
+    assert len(re.findall(timing, capsys.readouterr().out)) == (3 if active else 0)
+    assert [first.render, second.render] == originals
+    assert "render" in vars(first)
+    assert "render" not in vars(second)
 
 
 class _Space:

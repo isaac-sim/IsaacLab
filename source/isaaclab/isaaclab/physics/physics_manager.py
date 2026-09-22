@@ -8,14 +8,11 @@
 from __future__ import annotations
 
 import logging
-import os
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar
-
-import warp as wp
 
 from isaaclab.sim.utils.stage import get_current_stage
 
@@ -24,23 +21,6 @@ if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
 
 logger = logging.getLogger(__name__)
-
-PHYSICS_PROFILE_SCOPE = "IsaacLab::Physics::step"
-"""Name of the timed scope bracketing one physics step, emitted when physics profiling is on.
-
-The counterpart to :data:`~isaaclab.renderers.render_context.RENDER_PROFILE_SCOPE`: every physics
-backend steps through the same call, so a profile can compare them under one scope name.
-``wp.ScopedTimer`` prints one ``"<name> took X.XX ms"`` line per step, which
-``scripts/benchmarks/benchmark_renderer.py`` parses back out of the run log.
-"""
-
-_PHYSICS_PROFILE_ENABLED = os.environ.get("ISAACLAB_PHYSICS_PROFILE", "0") != "0"
-"""Whether to time and print :data:`PHYSICS_PROFILE_SCOPE`, read once from ``ISAACLAB_PHYSICS_PROFILE``.
-
-Off by default because the timer synchronizes the device on entry and exit. That is what lets it
-measure completed device work rather than submitted work, but it also removes CPU/GPU overlap, so
-an enabled run is a profiling aid and not a throughput measurement.
-"""
 
 
 class PhysicsEvent(Enum):
@@ -434,25 +414,9 @@ class PhysicsManager(ABC):
         pass
 
     @classmethod
-    def step(cls) -> None:
-        """Step physics simulation by one timestep (physics only, no rendering).
-
-        Brackets :meth:`_step` with :data:`PHYSICS_PROFILE_SCOPE` so every backend is profiled
-        through the same scope name without knowing about profiling itself. See
-        :data:`_PHYSICS_PROFILE_ENABLED` for how to turn the timer on.
-        """
-        with wp.ScopedTimer(
-            PHYSICS_PROFILE_SCOPE,
-            active=_PHYSICS_PROFILE_ENABLED,
-            print=True,
-            synchronize=True,
-        ):
-            cls._step()
-
-    @classmethod
     @abstractmethod
-    def _step(cls) -> None:
-        """Backend-specific physics step (physics only, no rendering)."""
+    def step(cls) -> None:
+        """Step physics simulation by one timestep (physics only, no rendering)."""
         pass
 
     @classmethod

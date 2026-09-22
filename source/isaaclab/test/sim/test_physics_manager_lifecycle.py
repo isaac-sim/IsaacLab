@@ -351,10 +351,7 @@ def _stub_context_for_step(recorder: list[str]):
 
 
 def test_step_calls_physics_manager_in_order(monkeypatch):
-    """``SimulationContext.step`` does not know about profiling -- that lives in ``PhysicsManager.step``.
-
-    It must still wait for the timeline, step physics, and bump the step count in order.
-    """
+    """Wait for the timeline, step physics, and bump the step count in order."""
     from isaaclab.sim import SimulationContext
 
     calls: list[str] = []
@@ -364,39 +361,3 @@ def test_step_calls_physics_manager_in_order(monkeypatch):
 
     assert calls == ["wait", "step"]
     assert context._physics_step_count == 1
-
-
-def test_physics_manager_step_prints_timing_line_when_profile_enabled(monkeypatch, capsys):
-    """The printed line must match the format ``scripts/benchmarks/benchmark_renderer.py`` parses."""
-    import re
-
-    from isaaclab.physics import physics_manager as physics_manager_module
-
-    class TestManager(PhysicsManager):
-        @classmethod
-        def _step(cls):
-            pass
-
-    monkeypatch.setattr(physics_manager_module, "_PHYSICS_PROFILE_ENABLED", True)
-
-    TestManager.step()
-
-    assert re.search(
-        rf"{re.escape(physics_manager_module.PHYSICS_PROFILE_SCOPE)} took [\d.]+ ms", capsys.readouterr().out
-    )
-
-
-def test_physics_manager_step_prints_nothing_when_profile_disabled(monkeypatch, capsys):
-    """Profiling is off by default, so an ordinary run pays neither the print nor the sync."""
-    from isaaclab.physics import physics_manager as physics_manager_module
-
-    class TestManager(PhysicsManager):
-        @classmethod
-        def _step(cls):
-            pass
-
-    monkeypatch.setattr(physics_manager_module, "_PHYSICS_PROFILE_ENABLED", False)
-
-    TestManager.step()
-
-    assert physics_manager_module.PHYSICS_PROFILE_SCOPE not in capsys.readouterr().out

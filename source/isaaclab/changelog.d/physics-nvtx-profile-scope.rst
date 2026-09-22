@@ -1,9 +1,22 @@
 Added
 ^^^^^
 
-* Added a synchronized timer around the physics step inside
-  :meth:`~isaaclab.physics.PhysicsManager.step`, gated by the ``ISAACLAB_PHYSICS_PROFILE``
-  environment variable, so any physics backend can be profiled through the same scope name
-  (:data:`~isaaclab.physics.physics_manager.PHYSICS_PROFILE_SCOPE`). When enabled, each step prints its elapsed
-  time to the log. This mirrors the existing ``ISAACLAB_RENDER_PROFILE`` timer and is off by default, so an
-  ordinary run pays neither the print nor the device synchronization.
+* Added :func:`~isaaclab.benchmark.stepping.profile_physics_steps` to time the selected physics backend
+  during runtime benchmarks with ``ISAACLAB_PHYSICS_PROFILE=1``. The benchmark temporarily wrapped
+  ``step`` and restored it after measurement, including on failure. Each complete step, including
+  inherited calls, emitted one synchronized timing under
+  :data:`~isaaclab.benchmark.stepping.PHYSICS_PROFILE_SCOPE`. Normal simulation runs incurred no profiling overhead.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Moved render profiling into the runtime benchmark through
+  :func:`~isaaclab.benchmark.stepping.profile_renderers`. To collect render timings with
+  ``ISAACLAB_RENDER_PROFILE=1``, use the runtime benchmark; normal simulation runs no longer
+  allocate render timers. Scene updates and output readback remained outside the timed scope.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``isaaclab.renderers.render_context.RENDER_PROFILE_SCOPE``; use
+  :data:`~isaaclab.benchmark.stepping.RENDER_PROFILE_SCOPE` instead.
