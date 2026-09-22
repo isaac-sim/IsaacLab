@@ -17,6 +17,8 @@ from isaaclab.envs import DirectRLEnv
 from isaaclab.sensors import save_images_to_file
 
 if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
+
     from .render_benchmark_env_cfg import RenderBenchmarkFrankaCabinetEnvCfg
 
 
