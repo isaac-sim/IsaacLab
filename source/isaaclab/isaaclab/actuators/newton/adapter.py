@@ -17,6 +17,7 @@ to controller arrays.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeAlias
@@ -37,7 +38,7 @@ from .kernels import (
 )
 
 if TYPE_CHECKING:
-    from isaaclab.actuators import ActuatorCollection
+    from .. import ActuatorCollection
 
 # ---------------------------------------------------------------------------
 # Abstract base — backend-independent logic
@@ -598,8 +599,6 @@ def _create_actuators_from_usd(
     as ``SHARED_PARAMS`` (e.g. ``model_path``, ``lookup_positions``) remain
     part of the grouping key and are passed through directly.
     """
-    from collections import defaultdict  # noqa: PLC0415
-
     from newton.actuators import parse_actuator_prim  # noqa: PLC0415
 
     from pxr import Usd  # noqa: PLC0415

@@ -9,10 +9,11 @@ import warnings
 
 import warp as wp
 
+from ..module import lazy_export
+from .proxy_array import ProxyArray
+
 wp.config.quiet = True
 wp.init()
-
-from isaaclab.utils.module import lazy_export
 
 lazy_export()
 

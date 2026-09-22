@@ -45,8 +45,8 @@ from leapp.utils.tensor_description import TensorSemantics
 from isaaclab.actuators import IdealPDActuator, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.managers import ManagerTermBase
-from isaaclab.utils.array import convert_to_torch
 
+from ..array import convert_to_torch
 from .leapp_semantics import select_element_names
 from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy
 from .utils import (

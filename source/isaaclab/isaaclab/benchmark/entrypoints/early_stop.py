@@ -11,8 +11,8 @@ import argparse
 import os
 from typing import TYPE_CHECKING
 
-from isaaclab.benchmark import SingleMeasurement
-from isaaclab.benchmark.metrics import SuccessRateTracker, get_success_rate_log
+from .. import SingleMeasurement
+from ..metrics import SuccessRateTracker, get_success_rate_log
 
 if TYPE_CHECKING:
     from types import TracebackType

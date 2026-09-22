@@ -26,7 +26,11 @@ from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
-from .common import VecEnvObs, VecEnvStepReturn, _apply_deprecated_viewer_cfg
+from .common import (
+    VecEnvObs,
+    VecEnvStepReturn,
+    _apply_deprecated_viewer_cfg,
+)
 from .direct_rl_env_cfg import DirectRLEnvCfg
 from .utils.spaces import sample_space, spec_to_gym_space
 from .utils.video_recorder import VideoRecorder

@@ -22,12 +22,7 @@ from isaaclab.managers.manager_term_cfg import ObservationTermCfg
 from isaaclab.utils.buffers import CircularBuffer
 from isaaclab.utils.images import is_rgb_like, normalize_camera_image
 
-if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, RigidObject
-    from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
-    from isaaclab.sensors import Camera, Imu, JointWrenchSensor, Pva, RayCaster, RayCasterCamera
-
-from isaaclab.envs.utils.io_descriptors import (
+from ..utils.io_descriptors import (
     generic_io_descriptor,
     record_body_names,
     record_dtype,
@@ -36,6 +31,13 @@ from isaaclab.envs.utils.io_descriptors import (
     record_joint_vel_offsets,
     record_shape,
 )
+
+if TYPE_CHECKING:
+    from isaaclab.assets import Articulation, RigidObject
+    from isaaclab.sensors import Camera, Imu, JointWrenchSensor, Pva, RayCaster, RayCasterCamera
+
+    from .. import ManagerBasedEnv, ManagerBasedRLEnv
+
 
 """
 Root state.

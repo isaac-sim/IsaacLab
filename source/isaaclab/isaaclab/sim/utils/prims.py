@@ -33,7 +33,7 @@ from .transforms import convert_world_pose_to_local, standardize_xform_ops
 if TYPE_CHECKING:
     from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils  # noqa: F401
 
-    from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
+    from ..spawners.spawner_cfg import SpawnerCfg
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -691,7 +691,7 @@ def clone(func: Callable) -> Callable:
 
     @functools.wraps(func)
     def wrapper(prim_path: str | Sdf.Path, cfg: SpawnerCfg, *args, **kwargs):
-        from pxr import Sdf, UsdGeom  # noqa: PLC0415
+        from pxr import Sdf  # noqa: PLC0415
 
         # get stage handle
         stage = get_current_stage()

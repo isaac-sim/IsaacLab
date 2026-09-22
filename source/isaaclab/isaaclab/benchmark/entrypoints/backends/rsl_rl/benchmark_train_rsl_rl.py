@@ -7,16 +7,20 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import argparse
+import contextlib
+import importlib.metadata as metadata
+import os
+import re
+import sys
+import time
+from datetime import datetime
+from typing import TYPE_CHECKING, Any
+
+from isaaclab_rl.entrypoints import common
 
 if TYPE_CHECKING:
     from isaaclab.benchmark import BenchmarkResult
-
-import sys
-import time
-from typing import Any
-
-from isaaclab_rl.entrypoints import common
 
 
 def _disable_code_state_capture(runner: Any) -> None:
@@ -35,8 +39,6 @@ def _parse_args(argv: list[str]):
         Tuple of ``(parsed_args, remaining)`` where *remaining* are the verbatim Hydra
         preset tokens written back to ``sys.argv`` for ``launch_simulation`` to pick up.
     """
-    import argparse
-
     from isaaclab.app import add_launcher_args
     from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
 
@@ -115,12 +117,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             after the dispatcher has stripped ``--rl_library``).
     """
     imports_t0 = time.perf_counter_ns()
-
-    import contextlib
-    import importlib.metadata as metadata
-    import os
-    import re
-    from datetime import datetime
 
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 

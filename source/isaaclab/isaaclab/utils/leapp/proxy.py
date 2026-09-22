@@ -13,8 +13,8 @@ import torch
 from leapp.utils.tensor_description import TensorSemantics
 
 from isaaclab.managers import ManagerTermBase
-from isaaclab.utils.warp.proxy_array import ProxyArray
 
+from ..warp.proxy_array import ProxyArray
 from .leapp_semantics import resolve_leapp_element_names
 from .utils import TracedProxyArray, build_write_connection
 

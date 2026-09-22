@@ -6,8 +6,10 @@
 from __future__ import annotations
 
 import gc
+import importlib
 import logging
 import traceback
+import warnings
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import fields
@@ -17,7 +19,6 @@ import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager
@@ -25,19 +26,21 @@ from isaaclab.physics.physics_manager_cfg import _resolve_physx_auto_cfg
 from isaaclab.renderers.render_context import RenderContext
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
-from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import _get_visualizer_install_hint
+
+from .simulation_cfg import BackendCfg, SimulationCfg
+from .spawners import DomeLightCfg, GroundPlaneCfg
+from .utils import create_new_stage
+from .utils import stage as stage_utils
 
 if TYPE_CHECKING:
     from pxr import Usd
 
     from isaaclab.cloner.clone_plan import ClonePlan
 
-from .simulation_cfg import BackendCfg, SimulationCfg
-from .spawners import DomeLightCfg, GroundPlaneCfg
 
 logger = logging.getLogger(__name__)
 
@@ -382,8 +385,6 @@ class SimulationContext:
         Loads only the requested visualizer submodule (e.g. isaaclab_visualizers.rerun)
         so dependencies for other backends are not imported.
         """
-        import importlib
-
         default_configs = []
         cfg_class_names = {
             "kit": "KitVisualizerCfg",
@@ -399,8 +400,6 @@ class SimulationContext:
                 # Resolve deprecated aliases before lookup.
                 if viz_type in _VISUALIZER_ALIASES:
                     canonical = _VISUALIZER_ALIASES[viz_type]
-                    import warnings
-
                     warnings.warn(
                         f"Visualizer type '{viz_type}' is deprecated. Use '{canonical}' instead.",
                         DeprecationWarning,
@@ -621,8 +620,6 @@ class SimulationContext:
             has_kit = any(getattr(cfg, "visualizer_type", None) == "kit" for cfg in resolved)
             if not has_kit:
                 try:
-                    import importlib
-
                     mod = importlib.import_module("isaaclab_visualizers.kit")
                     kit_cfg_cls = getattr(mod, "KitVisualizerCfg")
                     resolved.append(kit_cfg_cls())

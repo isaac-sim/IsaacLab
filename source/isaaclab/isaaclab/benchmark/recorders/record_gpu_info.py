@@ -9,13 +9,8 @@ import subprocess
 
 import torch
 
-from isaaclab.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
-from isaaclab.benchmark.measurements import (
-    DictMetadata,
-    IntMetadata,
-    SingleMeasurement,
-    StringMetadata,
-)
+from ..interfaces import MeasurementData, MeasurementDataRecorder
+from ..measurements import DictMetadata, IntMetadata, SingleMeasurement, StringMetadata
 
 
 class GPUInfoRecorder(MeasurementDataRecorder):

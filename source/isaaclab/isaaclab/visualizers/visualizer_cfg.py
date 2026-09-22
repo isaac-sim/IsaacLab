@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
@@ -188,8 +189,6 @@ class VisualizerCfg:
     """Deprecated. Use :attr:`streaming_cam_renderer` instead."""
 
     def __post_init__(self) -> None:
-        import warnings
-
         if self.background_color is not None:
             if len(self.background_color) != 3 or any(not 0.0 <= value <= 1.0 for value in self.background_color):
                 raise ValueError("background_color must contain three normalized RGB values in [0, 1].")

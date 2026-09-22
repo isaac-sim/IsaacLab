@@ -74,7 +74,7 @@ def command_editor(editor_args: list[str], project_dir: Path | None = None) -> N
     args = parser.parse_args(editor_args)
 
     # The installation CLI must start before Isaac Lab's runtime dependencies are installed.
-    from ...utils.editor import setup_editor
+    from isaaclab.utils.editor import setup_editor
 
     print_info("Setting up editor paths and settings...")
     try:

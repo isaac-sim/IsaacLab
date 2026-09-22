@@ -12,8 +12,9 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.assets.asset_base import AssetBase
 from isaaclab.utils.warp import ProxyArray
+
+from ..asset_base import AssetBase
 
 if TYPE_CHECKING:
     from .base_cable_object_data import BaseCableObjectData

@@ -22,8 +22,9 @@ from isaaclab.utils.math import combine_frame_transforms, quat_error_magnitude, 
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
-    from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import ContactSensor, RayCaster
+
+    from .. import ManagerBasedRLEnv
 
 """
 General.

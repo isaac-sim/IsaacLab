@@ -28,11 +28,12 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
-from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
 from isaaclab.physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, _resolve_physx_auto_cfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.sensors.camera.camera_cfg import CameraCfg
 from isaaclab.utils._device import set_cuda_device
+
+from .logging_utils import apply_python_logging_level, resolve_python_logging_level
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ def add_launcher_args(parser: argparse.ArgumentParser) -> None:
     Delegates to :meth:`AppLauncher.add_app_launcher_args` so that user scripts
     do not need to import ``AppLauncher`` directly.
     """
-    from isaaclab.app import AppLauncher
+    from . import AppLauncher
 
     AppLauncher.add_app_launcher_args(parser)
 
@@ -551,7 +552,7 @@ def launch_simulation(
         from isaaclab.utils import has_kit
 
         if not has_kit():
-            from isaaclab.app import AppLauncher
+            from . import AppLauncher
 
             app_launcher = AppLauncher(launcher_args)
             # AppLauncher may refine the device choice; propagate its final value,
@@ -563,7 +564,7 @@ def launch_simulation(
     elif visualizer_types or visualizer_explicit_none:
         # Kitless path: AppLauncher is skipped, so persist the visualizer selection in
         # SettingsManager so SimulationContext._get_cli_visualizer_types() can find it.
-        from isaaclab.app import AppLauncher
+        from . import AppLauncher
 
         disable_all = visualizer_explicit_none or "none" in visualizer_types
         base = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args
@@ -596,7 +597,7 @@ def launch_simulation(
 
 def _ensure_isaac_sim_available() -> None:
     """Raise ``SystemExit`` with an actionable hint when Isaac Sim / Kit is missing."""
-    from isaaclab.app import AppLauncher  # noqa: PLC0415
+    from . import AppLauncher  # noqa: PLC0415
 
     if AppLauncher.is_available():
         return

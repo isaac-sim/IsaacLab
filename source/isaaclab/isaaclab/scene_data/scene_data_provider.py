@@ -14,8 +14,7 @@ import numpy as np
 import warp as wp
 
 import isaaclab.sim as sim_utils
-
-from .scene_data_backend import SceneDataBackend, SceneDataFormat
+from isaaclab.scene_data.scene_data_backend import SceneDataBackend, SceneDataFormat
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +76,7 @@ class SceneDataProvider:
         if self._interactive_scene is None:
             return {}
         try:
-            from isaaclab.sensors.camera import Camera
+            from isaaclab.sensors.camera import Camera  # noqa: PLC0415
         except ImportError:
             return {}
         return {
@@ -90,7 +89,7 @@ class SceneDataProvider:
         """Return Isaac Lab contact sensors keyed by scene sensor name."""
         if self._interactive_scene is None:
             return {}
-        from isaaclab.sensors.contact_sensor import BaseContactSensor
+        from isaaclab.sensors.contact_sensor import BaseContactSensor  # noqa: PLC0415
 
         return {
             name: sensor
@@ -112,14 +111,14 @@ class SceneDataProvider:
         cached stage. Returns ``None`` on Newton-only headless runs without a USD
         stage.
         """
-        from isaaclab.sim import SimulationContext
+        from isaaclab.sim import SimulationContext  # noqa: PLC0415
 
         sim = SimulationContext.instance()
         stage = getattr(sim, "stage", None) if sim is not None else None
         if stage is not None:
             return stage
         try:
-            import omni.usd
+            import omni.usd  # noqa: PLC0415
 
             return omni.usd.get_context().get_stage()
         except Exception:
@@ -342,7 +341,7 @@ class SceneDataProvider:
             wp.copy(output.points, input_points.points)
             return True
 
-        from isaaclab.scene_data.geometry_points import scatter_geometry_points
+        from isaaclab.scene_data.geometry_points import scatter_geometry_points  # noqa: PLC0415
 
         scatter_geometry_points(
             input_points.points,

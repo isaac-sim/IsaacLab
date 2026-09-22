@@ -11,12 +11,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-
-if TYPE_CHECKING:
-    from isaaclab_physx.assets import SurfaceGripper
-
-    from isaaclab.terrains.terrain_importer import TerrainImporter
-
 import torch
 import warp as wp
 
@@ -50,7 +44,9 @@ from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensorCfg
 from .interactive_scene_cfg import InteractiveSceneCfg
 
 if TYPE_CHECKING:
-    from pxr import Sdf  # noqa: F401
+    from isaaclab_physx.assets import SurfaceGripper
+
+    from isaaclab.terrains.terrain_importer import TerrainImporter
 
 # import logger
 logger = logging.getLogger(__name__)

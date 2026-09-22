@@ -11,10 +11,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from isaaclab.benchmark import formatters
-from isaaclab.benchmark.formatters import get_default_output_filename
-from isaaclab.benchmark.interfaces import MeasurementDataRecorder
-from isaaclab.benchmark.measurements import (
+from isaaclab.utils import has_kit
+
+from . import formatters
+from .formatters import get_default_output_filename
+from .interfaces import MeasurementDataRecorder
+from .measurements import (
     DictMetadata,
     FloatMetadata,
     IntMetadata,
@@ -25,11 +27,10 @@ from isaaclab.benchmark.measurements import (
     StringMetadata,
     TestPhase,
 )
-from isaaclab.benchmark.recorders import CPUInfoRecorder, GPUInfoRecorder, MemoryInfoRecorder, VersionInfoRecorder
-from isaaclab.utils import has_kit
+from .recorders import CPUInfoRecorder, GPUInfoRecorder, MemoryInfoRecorder, VersionInfoRecorder
 
 if TYPE_CHECKING:
-    from isaaclab.benchmark.schema import (
+    from .schema import (
         LearningCurve,
         MeanStd,
         PlayBundle,
@@ -165,7 +166,7 @@ def _measurements_from_bundle(
     bundle: "RuntimeBundle | TrainingBundle | StartupBundle | PlayBundle",
 ) -> dict[str, list[Measurement]]:
     """Project a typed bundle into flat phases for non-schema formatters."""
-    from isaaclab.benchmark.schema import PlayBundle, StartupBundle, TrainingBundle
+    from .schema import PlayBundle, StartupBundle, TrainingBundle
 
     if isinstance(bundle, StartupBundle):
         projected: dict[str, list[Measurement]] = {}

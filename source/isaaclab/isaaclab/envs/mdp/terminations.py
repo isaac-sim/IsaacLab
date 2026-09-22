@@ -19,10 +19,10 @@ from isaaclab.managers import ManagerTermBase, SceneEntityCfg, TerminationTermCf
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
-    from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.managers.command_manager import CommandTerm
     from isaaclab.sensors import ContactSensor
 
+    from .. import ManagerBasedRLEnv
     from .commands.pose_command import UniformPoseCommand
 
 """

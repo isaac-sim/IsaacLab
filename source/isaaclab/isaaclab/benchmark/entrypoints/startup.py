@@ -31,11 +31,6 @@ concurrently; see :mod:`isaaclab.benchmark.entrypoints.multigpu`.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from isaaclab.benchmark import BenchmarkResult
-
 import argparse
 import cProfile
 import importlib.util
@@ -43,6 +38,11 @@ import os
 import sys
 import time
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from isaaclab.benchmark import BenchmarkResult
+
 
 _PHASE_ORDER = ("python_imports", "task_config", "app_launch", "env_creation", "first_step")
 _VALID_PHASES = set(_PHASE_ORDER)

@@ -2254,6 +2254,7 @@ def reset_root_state_from_terrain(
 
     * :attr:`pose_range` - a dictionary of pose ranges for each axis. The keys of the dictionary are ``roll``,
       ``pitch``, and ``yaw``. The position is sampled from the flat patches of the terrain.
+        import omni.replicator.core as rep  # noqa: PLC0415
     * :attr:`velocity_range` - a dictionary of velocity ranges for each axis and rotation. The keys of the dictionary
       are ``x``, ``y``, ``z``, ``roll``, ``pitch``, and ``yaw``.
 

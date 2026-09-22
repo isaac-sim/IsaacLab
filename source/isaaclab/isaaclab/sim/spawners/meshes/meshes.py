@@ -13,10 +13,9 @@ import trimesh.transformations
 
 from pxr import Usd, UsdPhysics
 
-from isaaclab.sim import schemas
-from isaaclab.sim.spawners._utils import fragment_mapping, props_expr
-from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
-
+from ... import schemas
+from ...utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
+from .._utils import fragment_mapping, props_expr
 from ..materials import (
     DeformableBodyMaterialBaseCfg,
     RigidBodyMaterialBaseCfg,

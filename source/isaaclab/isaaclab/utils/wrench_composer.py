@@ -13,8 +13,8 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.kernels import (
+from .warp import ProxyArray
+from .warp.kernels import (
     add_forces_to_dual_buffers_index_kernel,
     add_forces_to_dual_buffers_mask,
     add_raw_wrench_buffers,

@@ -7,18 +7,23 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from isaaclab.benchmark import BenchmarkResult
-
+import argparse
+import contextlib
+import math
+import os
+import random
 import sys
 import time
+from datetime import datetime
+from typing import TYPE_CHECKING, Any
 
 from isaaclab.benchmark.entrypoints.backends.rl_games.registry import register_scoped_rl_games_environment
 from isaaclab.benchmark.entrypoints.training import _resolve_training_checkpoint_path
 
 from isaaclab_rl.entrypoints import common
+
+if TYPE_CHECKING:
+    from isaaclab.benchmark import BenchmarkResult
 
 
 def _close_rl_games_writer(observer: Any) -> None:
@@ -44,8 +49,6 @@ def _parse_args(argv: list[str]):
         Tuple of ``(parsed_args, remaining)`` where *remaining* are the verbatim Hydra
         preset tokens written back to ``sys.argv`` for ``launch_simulation`` to pick up.
     """
-    import argparse
-
     from isaaclab.app import add_launcher_args
     from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
 
@@ -122,12 +125,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             after the dispatcher has stripped ``--rl_library``).
     """
     imports_t0 = time.perf_counter_ns()
-
-    import contextlib
-    import math
-    import os
-    import random
-    from datetime import datetime
 
     from rl_games.common import env_configurations, vecenv
     from rl_games.common.algo_observer import IsaacAlgoObserver

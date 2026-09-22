@@ -87,7 +87,7 @@ def leapp(args: list[str] | None = None) -> None:
 
         _exit_on_error(run_export_cli(command_args))
     else:
-        from isaaclab.cli.commands.deploy import command_deploy_leapp
+        from .commands.deploy import command_deploy_leapp
 
         _exit_on_error(command_deploy_leapp(command_args))
 

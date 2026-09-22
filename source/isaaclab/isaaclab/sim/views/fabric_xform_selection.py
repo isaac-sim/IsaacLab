@@ -76,7 +76,7 @@ class FabricXformSelection:
         except ImportError:
             hierarchy = None
 
-        from isaaclab.sim.utils import get_current_stage_id
+        from ..utils import get_current_stage_id
 
         self._device = device
         self._owner = owner

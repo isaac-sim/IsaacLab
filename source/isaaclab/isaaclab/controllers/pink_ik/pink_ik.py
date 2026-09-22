@@ -14,6 +14,7 @@ Reference:
 
 from __future__ import annotations
 
+import tempfile
 from typing import TYPE_CHECKING, cast
 
 import numpy as np
@@ -23,10 +24,10 @@ from pink.tasks import Task
 from qpsolvers.exceptions import SolverNotFound
 
 from isaaclab.assets import ArticulationCfg
-from isaaclab.controllers import utils as controller_utils
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.string import resolve_matching_names_values
 
+from .. import utils as controller_utils
 from .null_space_posture_task import NullSpacePostureTask
 from .pink_kinematics_configuration import PinkKinematicsConfiguration
 from .pink_task_cfg import PinkIKTaskCfg
@@ -84,8 +85,6 @@ class PinkIKController:
 
         # Resolve URDF/mesh paths at runtime. If only usd_path is provided, convert USD→URDF first.
         if cfg.urdf_path is None and cfg.usd_path is not None:
-            import tempfile
-
             urdf_output_dir = cfg.urdf_output_dir or tempfile.gettempdir()
             urdf_path, mesh_path = controller_utils.convert_usd_to_urdf(
                 cfg.usd_path, urdf_output_dir, force_conversion=True

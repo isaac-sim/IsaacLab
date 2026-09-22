@@ -12,6 +12,9 @@
 
 from __future__ import annotations
 
+import dataclasses
+import functools
+import inspect
 import warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
@@ -22,11 +25,8 @@ if TYPE_CHECKING:
     import torch
 
     from isaaclab.assets.articulation import Articulation
-    from isaaclab.envs import ManagerBasedEnv
 
-import dataclasses
-import functools
-import inspect
+    from .. import ManagerBasedEnv
 
 
 def _warn_io_descriptors_deprecated(*, stacklevel: int = 2) -> None:
