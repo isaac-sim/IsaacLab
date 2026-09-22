@@ -19,14 +19,7 @@ _DEFAULT_VSCODE_SETTINGS_TEMPLATE = """
     "editor.rulers": [120],
 
     "python.languageServer": "Pylance",
-    "python.jediEnabled": false,
     "python.defaultInterpreterPath": "",
-
-    "python.formatting.provider": "black",
-    "python.formatting.blackArgs": ["--line-length", "120"],
-
-    "python.linting.pylintEnabled": false,
-    "python.linting.flake8Enabled": true,
 
     "[python]": {
         "editor.tabSize": 4
@@ -227,9 +220,11 @@ def _overwrite_default_python_interpreter(settings: str, isaacsim_dir: pathlib.P
         wrapper = isaacsim_dir / "python.sh"
         if wrapper.is_file():
             python_exe = wrapper
+    # JSON-encode the path and bypass re.sub escape handling so backslashes stay valid
+    interpreter_setting = f'"python.defaultInterpreterPath": {json.dumps(python_exe.as_posix())}'
     return re.sub(
         r'"python\.defaultInterpreterPath": ".*?"',
-        f'"python.defaultInterpreterPath": "{python_exe.as_posix()}"',
+        lambda _: interpreter_setting,
         settings,
         flags=re.DOTALL,
     )
