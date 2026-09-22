@@ -2,8 +2,8 @@ Added
 ^^^^^
 
 * Added :func:`~isaaclab.benchmark.stepping.profile_physics_steps` to time the selected physics backend
-  during runtime benchmarks with ``ISAACLAB_PHYSICS_PROFILE=1``. The benchmark temporarily wrapped
-  ``step`` and restored it after measurement, including on failure. Each complete step, including
+  during runtime benchmarks with ``ISAACLAB_PHYSICS_PROFILE=1``. The benchmark wrapped
+  ``step`` once after warmup for the rest of the process. Each complete step, including
   inherited calls, emitted one synchronized timing under
   :data:`~isaaclab.benchmark.stepping.PHYSICS_PROFILE_SCOPE`. Normal simulation runs incurred no profiling overhead.
 

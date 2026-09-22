@@ -13,8 +13,7 @@ no heavy-weight side effects.
 from __future__ import annotations
 
 import time
-from collections.abc import Iterator
-from contextlib import AbstractContextManager, contextmanager
+from contextlib import AbstractContextManager
 from functools import wraps
 from typing import TYPE_CHECKING, Any
 
@@ -60,28 +59,23 @@ def profile_renderers(render_context: RenderContext, *, active: bool = True) -> 
         renderer.render = timed_render
 
 
-@contextmanager
-def profile_physics_steps(physics_manager: type[PhysicsManager], *, active: bool = True) -> Iterator[None]:
-    """Temporarily profile the selected backend's complete physics step.
+def profile_physics_steps(physics_manager: type[PhysicsManager], *, active: bool = True) -> None:
+    """Install a timing wrapper once on the benchmark's selected physics manager.
 
     Only the selected manager is wrapped, so inherited ``super().step()`` calls
-    are included in one timing record. The original classmethod is restored on exit.
+    are included in one timing record. The wrapper remains installed on the class
+    for the rest of the process.
     Enabled timings synchronize device work on entry and exit and perturb throughput.
 
     Args:
         physics_manager: Concrete physics manager selected by the environment.
         active: Whether to install the timing wrapper.
-
-    Yields:
-        None while the benchmark's timing wrapper is installed.
     """
     if not active:
-        yield
         return
 
     import warp as wp  # noqa: PLC0415
 
-    original = vars(physics_manager).get("step")
     step = physics_manager.step.__func__
 
     @wraps(step)
@@ -90,13 +84,6 @@ def profile_physics_steps(physics_manager: type[PhysicsManager], *, active: bool
             return step(cls)
 
     physics_manager.step = classmethod(timed_step)
-    try:
-        yield
-    finally:
-        if original is None:
-            del physics_manager.step
-        else:
-            physics_manager.step = original
 
 
 def sample_random_actions(env) -> torch.Tensor | dict[str, torch.Tensor]:

@@ -30,8 +30,8 @@ from isaaclab.benchmark.stepping import (
 @pytest.mark.parametrize("active", [False, True])
 @pytest.mark.parametrize("inherited", [False, True])
 @pytest.mark.parametrize("fail", [False, True])
-def test_profile_physics_steps_times_once_and_restores_manager(monkeypatch, capsys, active, inherited, fail):
-    """Profile the complete selected step once and restore its descriptor even on failure."""
+def test_profile_physics_steps_times_complete_step_once(monkeypatch, capsys, active, inherited, fail):
+    """Profile inherited step calls once and propagate failures."""
     import warp as wp
 
     from isaaclab.physics import PhysicsManager
@@ -57,20 +57,17 @@ def test_profile_physics_steps_times_once_and_restores_manager(monkeypatch, caps
         pass
 
     manager = InheritedManager if inherited else CoupledManager
-    original = manager.step
     synchronize = Mock(wraps=wp.synchronize)
     monkeypatch.setattr(wp, "synchronize", synchronize)
 
+    profile_physics_steps(manager, active=active)
     with pytest.raises(ValueError, match="step failed") if fail else nullcontext():
-        with profile_physics_steps(manager, active=active):
-            manager.step()
+        manager.step()
 
     assert calls == ["before", "base", "after"]
     assert synchronize.call_count == (2 if active else 0)
     timing = rf"{re.escape(PHYSICS_PROFILE_SCOPE)} took [\d.]+ ms"
     assert len(re.findall(timing, capsys.readouterr().out)) == int(active)
-    assert manager.step == original
-    assert ("step" in vars(manager)) is not inherited
 
 
 def test_profile_renderers_wraps_each_renderer(monkeypatch):

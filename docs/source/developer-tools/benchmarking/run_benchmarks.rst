@@ -79,9 +79,9 @@ runtime run, ``runtime.collection_fps`` and ``runtime.total_fps`` describe the
 same random-action stepping workload.
 
 Set ``ISAACLAB_PHYSICS_PROFILE=1`` to print synchronized physics-step timings during
-the runtime measurement loop. The benchmark temporarily wraps the selected physics
+the runtime measurement loop. The benchmark wraps the selected physics
 manager's ``step`` through :func:`~isaaclab.benchmark.stepping.profile_physics_steps`
-and restores it afterward. Similarly, ``ISAACLAB_RENDER_PROFILE=1`` wraps registered
+for the rest of the process. Similarly, ``ISAACLAB_RENDER_PROFILE=1`` wraps registered
 renderers through :func:`~isaaclab.benchmark.stepping.profile_renderers`, timing only
 ``render()`` and excluding scene updates and output readback. Render wrappers are installed
 after warmup and remain on those instances for the rest of the benchmark. The render sweep
