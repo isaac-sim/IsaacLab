@@ -41,7 +41,7 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     monkeypatch.setattr(PhysicsManager, "_device", "cpu")
     monkeypatch.setattr(physx_manager.omni.physx, "get_physx_simulation_interface", Mock(return_value=Mock()))
     provider = SceneDataProvider(backend)
-    provider._fabric_output = SceneDataFormat.FabricMatrix44(matrices=object())
+    provider._fabric_output = Mock(matrices=object())
     provider._fabric_selection = Mock(PrepareForReuse=Mock(return_value=False))
     monkeypatch.setattr(PhysicsManager._sim, "get_scene_data_provider", lambda: provider, raising=False)
     assert backend.fabric is fabric

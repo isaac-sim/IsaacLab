@@ -14,13 +14,37 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 import warp as wp
+import warp._src.codegen as warp_codegen
 
 from pxr import UsdUtils
 
 import isaaclab.scene_data as scene_data
 from isaaclab.cloner.usd import UsdReplicateContext
-from isaaclab.scene_data.scene_data_backend import SceneDataFormat
+from isaaclab.scene_data.scene_data_backend import SceneDataFormat, _patch_fabric_structs
 from isaaclab.scene_data.scene_data_provider import SceneDataProvider
+from isaaclab.test.utils import test_devices
+
+
+def test_fabric_struct_patch_is_idempotent_and_preserves_typed_handles(monkeypatch):
+    """Native/newly patched structs retain descriptors and reject invalid fields or device moves."""
+    methods = (warp_codegen.Struct.__init__, warp_codegen._make_struct_field_setter, warp_codegen.codegen_struct)
+    _patch_fabric_structs()
+    assert methods == (warp_codegen.Struct.__init__, warp_codegen._make_struct_field_setter, warp_codegen.codegen_struct)
+    output = SceneDataFormat.FabricMatrix44()
+    assert output._cls is SceneDataFormat.FabricMatrix44
+    array = wp.fabricarray(dtype=wp.mat44d)
+    output.matrices = array
+    output.scales = wp.empty(0, dtype=wp.vec3f, device="cpu")
+    assert output.to("cpu").matrices is array
+    for invalid in (wp.array(dtype=wp.mat44d), wp.fabricarray(dtype=wp.vec3f), wp.fabricarray(dtype=wp.mat44d, ndim=2)):
+        with pytest.raises(TypeError):
+            output.matrices = invalid
+        assert output.matrices is array
+    monkeypatch.setattr(array, "device", "foreign")
+    with pytest.raises(ValueError, match="[Ff]abric"):
+        output.to("cpu")
+    output.matrices = None
+    assert output.matrices is None and output.__ctype__().matrices.size == 0
 
 
 @pytest.mark.skipif(
@@ -119,15 +143,16 @@ def test_transposed_matrices_fuse_format_mapping_and_scale(format_name, scaled):
 
 @pytest.mark.parametrize("format_name", ["Transform", "Vec3_Quat", "Vec3_Matrix33", "Matrix44"])
 @pytest.mark.parametrize("solver_only_body", [False, True])
+@pytest.mark.parametrize("device", test_devices())
 def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destinations(
-    format_name, solver_only_body, monkeypatch
+    format_name, solver_only_body, device, monkeypatch
 ):
     """Nested rigid bodies receive world poses once; their visual children retain local transforms."""
     poses = [[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 0, 0, 1, 0]]
     if solver_only_body:
         poses.insert(1, [7, 8, 9, 0, 0, 0, 1])
     data = SceneDataFormat.Transform()
-    data.transforms = wp.array(poses, dtype=wp.transformf, device="cpu")
+    data.transforms = wp.array(poses, dtype=wp.transformf, device=device)
     native = SceneDataProvider(SimpleNamespace(transforms=data, transforms_dirty=True, transform_count=len(poses)))
     provider = SceneDataProvider(
         SimpleNamespace(
@@ -137,7 +162,8 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
             fabric=None,
         )
     )
-    provider._fabric_output = SceneDataFormat.FabricMatrix44(scales=wp.empty(len(poses), dtype=wp.vec3f, device="cpu"))
+    provider._fabric_output = SceneDataFormat.FabricMatrix44()
+    provider._fabric_output.scales = wp.empty(len(poses), dtype=wp.vec3f, device=device)
     expected = np.array([np.diag([-2, -3, 4, 1]), np.diag([5, 6, 7, 1])], dtype=np.float64)
     expected[:, 3, :3] = [[4, 5, 6], [1, 2, 3]]
     parent = np.array([[0, 1, 0, 0], [-1, 0, 0, 0], [0, 0, 1, 0], [10, 20, 30, 1]], dtype=np.float64)
@@ -145,7 +171,7 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
     visual_local[3, :3] = [0.1, 0.2, 0.3]
     visual_world = np.empty((4, 4))
     resets = {"/World/a": True, "/World/a/b": True}
-    indices = wp.array([len(poses) - 1, 0], dtype=wp.int32, device="cpu")
+    indices = wp.array([len(poses) - 1, 0], dtype=wp.int32, device=device)
     launch = Mock(wraps=wp.launch)
     monkeypatch.setattr(wp, "launch", launch)
     scales = provider._fabric_output.scales
@@ -153,11 +179,11 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
         authored = np.array([np.diag([2, 3, 4, 1]), np.diag([5, 6, 7, 1])], dtype=np.float64)
         if allocation:
             authored[:, :3, :3] *= 1.001  # Rebinding must not recapture scale from a rounded runtime cache.
-        matrices = wp.array(authored, dtype=wp.mat44d, device="cpu")
+        matrices = wp.array(authored, dtype=wp.mat44d, device=device)
         local_matrices = wp.array(
             [matrices.numpy()[0] @ np.linalg.inv(matrices.numpy()[1]), matrices.numpy()[1] @ np.linalg.inv(parent)],
             dtype=wp.mat44d,
-            device="cpu",
+            device=device,
         )
 
         def update_world_xforms_gpu(_no_structural_changes):
@@ -176,7 +202,7 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
         provider._fabric_hierarchy.update_world_xforms_gpu.side_effect = update_world_xforms_gpu
         interface = {
             "version": 1,
-            "device": "cpu",
+            "device": device,
             "attribs": {
                 "isaaclab:transformIndex": {
                     "type": (True, "i4", 1, 0, ""),
@@ -303,8 +329,7 @@ def test_fabric_binding_uses_read_only_world_matrices(native, monkeypatch):
         assert hierarchy.mock_calls == []
         launch = Mock(wraps=wp.launch)
         monkeypatch.setattr(wp, "launch", launch)
-        output = provider._fabric_output
-        output.matrices = object()
+        output = provider._fabric_output = Mock(matrices=object())
         provider._fabric_selection.PrepareForReuse.return_value = False
         assert provider.request_transforms(SceneDataFormat.FabricMatrix44) is output
         assert provider.request_transforms(SceneDataFormat.FabricMatrix44) is output

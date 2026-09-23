@@ -132,16 +132,15 @@ class SceneDataProvider:
         if fabric:
             self._fabric_write_selection.PrepareForReuse()
             output = fabric_output
-            inputs, outputs = [source, output.indices, output.scales], [output.local_matrices]
         else:
             output = cached[1] if cached is not None else output_format()
             _init_output(output, count, device)
-            inputs, outputs = [source, mapping], [output]
-            if output_format is SceneDataFormat.TransposedMatrix44d:
-                inputs.append(scales)
+        inputs = [source] if fabric else [source, mapping]
+        if output_format is SceneDataFormat.TransposedMatrix44d:
+            inputs.append(scales)
         kernel = getattr(ConversionKernels, f"convert_{source._cls.__name__}_to_{output_format.__name__}")
         wp.launch(
-            kernel, dim=len(output.indices) if fabric else native_count, inputs=inputs, outputs=outputs, device=device
+            kernel, dim=len(output.indices) if fabric else native_count, inputs=inputs, outputs=[output], device=device
         )
         if fabric:
             wp.synchronize_stream(device)
@@ -192,33 +191,28 @@ class SceneDataProvider:
                 require_attrs=[*attrs[:-1], (*attrs[-1][:2], usdrt.Usd.Access.ReadWrite)],
                 device=device,
             )
-        self._fabric_output = SceneDataFormat.FabricMatrix44(
-            scales=None if native else wp.empty(self.transform_count, dtype=wp.vec3f, device=device)
-        )
+        self._fabric_output = SceneDataFormat.FabricMatrix44()
+        if not native:
+            self._fabric_output.scales = wp.empty(self.transform_count, dtype=wp.vec3f, device=device)
 
     def _prepare_fabric_output(self) -> SceneDataFormat.FabricMatrix44:
         """Refresh the shared Fabric selection after topology changes."""
         changed = self._fabric_selection.PrepareForReuse()
         if changed or self._fabric_output.matrices is None:
-            matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
-            if self.backend.fabric is not None:
-                self._fabric_output = SceneDataFormat.FabricMatrix44(matrices=matrices)
-                return self._fabric_output
-            self._fabric_write_selection.PrepareForReuse()
-            output = SceneDataFormat.FabricMatrix44(
-                matrices=matrices,
-                local_matrices=wp.fabricarray(self._fabric_write_selection, "omni:fabric:localMatrix"),
-                indices=wp.fabricarray(self._fabric_selection, "isaaclab:transformIndex"),
-                scales=self._fabric_output.scales,
-            )
-            if self._fabric_output.matrices is None:
-                wp.launch(
-                    ConversionKernels.capture_fabric_scales,
-                    dim=len(output.indices),
-                    inputs=[output.matrices, output.indices],
-                    outputs=[output.scales],
-                    device=output.scales.device,
-                )
+            output = SceneDataFormat.FabricMatrix44()
+            output.matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
+            if self.backend.fabric is None:
+                self._fabric_write_selection.PrepareForReuse()
+                output.local_matrices = wp.fabricarray(self._fabric_write_selection, "omni:fabric:localMatrix")
+                output.indices = wp.fabricarray(self._fabric_selection, "isaaclab:transformIndex")
+                output.scales = self._fabric_output.scales
+                if self._fabric_output.matrices is None:
+                    wp.launch(
+                        ConversionKernels.capture_fabric_scales,
+                        dim=len(output.indices),
+                        outputs=[output],
+                        device=output.scales.device,
+                    )
             self._fabric_output = output
         return self._fabric_output
 
@@ -519,15 +513,11 @@ class SceneDataProvider:
 
 class ConversionKernels:
     @wp.kernel(enable_backward=False)
-    def capture_fabric_scales(
-        matrices: wp.fabricarray(dtype=wp.mat44d),
-        indices: wp.fabricarray(dtype=wp.int32),
-        scales: wp.array(dtype=wp.vec3f),
-    ):
+    def capture_fabric_scales(output: SceneDataFormat.FabricMatrix44):
         """Capture authored scales before pose updates introduce rotation round-off."""
         index = wp.tid()
-        matrix = wp.mat44f(matrices[index])
-        scales[indices[index]] = wp.vec3f(
+        matrix = wp.mat44f(output.matrices[index])
+        output.scales[output.indices[index]] = wp.vec3f(
             wp.length(wp.vec3f(matrix[0, 0], matrix[0, 1], matrix[0, 2])),
             wp.length(wp.vec3f(matrix[1, 0], matrix[1, 1], matrix[1, 2])),
             wp.length(wp.vec3f(matrix[2, 0], matrix[2, 1], matrix[2, 2])),
@@ -543,50 +533,34 @@ class ConversionKernels:
         )
 
     @wp.kernel(enable_backward=False)
-    def convert_Transform_to_FabricMatrix44(
-        input: SceneDataFormat.Transform,
-        indices: wp.fabricarray(dtype=wp.int32),
-        scales: wp.array(dtype=wp.vec3f),
-        output: wp.fabricarray(dtype=wp.mat44d),
-    ):
+    def convert_Transform_to_FabricMatrix44(input: SceneDataFormat.Transform, output: SceneDataFormat.FabricMatrix44):
         i = wp.tid()
-        index = indices[i]
-        output[i] = ConversionKernels.fabric_transform(input.transforms[index], scales[index])
+        index = output.indices[i]
+        output.local_matrices[i] = ConversionKernels.fabric_transform(input.transforms[index], output.scales[index])
 
     @wp.kernel(enable_backward=False)
-    def convert_Vec3_Quat_to_FabricMatrix44(
-        input: SceneDataFormat.Vec3_Quat,
-        indices: wp.fabricarray(dtype=wp.int32),
-        scales: wp.array(dtype=wp.vec3f),
-        output: wp.fabricarray(dtype=wp.mat44d),
-    ):
+    def convert_Vec3_Quat_to_FabricMatrix44(input: SceneDataFormat.Vec3_Quat, output: SceneDataFormat.FabricMatrix44):
         i = wp.tid()
-        index = indices[i]
+        index = output.indices[i]
         pose = wp.transformf(input.positions[index], input.orientations[index])
-        output[i] = ConversionKernels.fabric_transform(pose, scales[index])
+        output.local_matrices[i] = ConversionKernels.fabric_transform(pose, output.scales[index])
 
     @wp.kernel(enable_backward=False)
     def convert_Vec3_Matrix33_to_FabricMatrix44(
-        input: SceneDataFormat.Vec3_Matrix33,
-        indices: wp.fabricarray(dtype=wp.int32),
-        scales: wp.array(dtype=wp.vec3f),
-        output: wp.fabricarray(dtype=wp.mat44d),
+        input: SceneDataFormat.Vec3_Matrix33, output: SceneDataFormat.FabricMatrix44
     ):
         i = wp.tid()
-        index = indices[i]
+        index = output.indices[i]
         pose = wp.transformf(input.positions[index], wp.quat_from_matrix(input.orientations[index]))
-        output[i] = ConversionKernels.fabric_transform(pose, scales[index])
+        output.local_matrices[i] = ConversionKernels.fabric_transform(pose, output.scales[index])
 
     @wp.kernel(enable_backward=False)
-    def convert_Matrix44_to_FabricMatrix44(
-        input: SceneDataFormat.Matrix44,
-        indices: wp.fabricarray(dtype=wp.int32),
-        scales: wp.array(dtype=wp.vec3f),
-        output: wp.fabricarray(dtype=wp.mat44d),
-    ):
+    def convert_Matrix44_to_FabricMatrix44(input: SceneDataFormat.Matrix44, output: SceneDataFormat.FabricMatrix44):
         i = wp.tid()
-        index = indices[i]
-        output[i] = ConversionKernels.fabric_transform(wp.transform_from_matrix(input.matrices[index]), scales[index])
+        index = output.indices[i]
+        output.local_matrices[i] = ConversionKernels.fabric_transform(
+            wp.transform_from_matrix(input.matrices[index]), output.scales[index]
+        )
 
     @wp.func
     def get_output_index(tid: wp.int32, mapping: wp.array(dtype=wp.int32)) -> wp.int32:
