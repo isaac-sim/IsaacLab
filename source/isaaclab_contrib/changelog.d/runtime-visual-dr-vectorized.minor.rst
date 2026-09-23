@@ -165,3 +165,10 @@ Fixed
   Cosmos itself must still be installed with ``--no-deps`` -- its dependency groups
   pin torch to match the CUDA wheel variants it publishes -- and
   ``docs/visual_dr_setup.md`` records the recipe.
+
+* Documented the setup gaps found in testing: the stacking task needs the ``teleop``
+  extra, because the configuration imports ``XrCfg`` which now lives in
+  ``isaaclab_teleop``; ``uv sync`` is exact and removes the Cosmos overlay along with
+  around fifty packages unless ``--inexact`` is passed; and Cosmos cannot yet be
+  locked alongside Isaac Lab, though only its ``transformers<5`` base pin stands in
+  the way -- its base dependencies do not pin torch at all.
