@@ -104,8 +104,8 @@ the full task.
 
    <isaaclab-browser-demo src="../../_static/browser_demos/anymal/manifest.json"></isaaclab-browser-demo>
 
-See the `export script <https://github.com/isaac-sim/IsaacLab/blob/main/docs/browser_demos/export.py>`_
-and `rebuild instructions <https://github.com/isaac-sim/IsaacLab/blob/main/docs/browser_demos/README.md>`_.
+The source tree includes ``docs/browser_demos/export.py`` and rebuild instructions in
+``docs/browser_demos/README.md``.
 The browser bundles contain compiled simulation code, policy weights, and packed robot
 visual geometry. They run from Isaac Lab documentation without a connection to the export tool.
 For full task metrics and rendering, run ``uv run isaaclab play`` with the relevant task and

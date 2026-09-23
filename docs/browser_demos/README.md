@@ -22,7 +22,7 @@ at each tile corner. The browser's Newton collision plane remains separate from
 the visual texture.
 
 The exporter uses Newton 1.6.0, Warp 1.17.0, MuJoCo Warp 3.12.0, and the
-[`newton-web`](https://gitlab-master.nvidia.com/lgulich/newton-web) export/compiler
+internal `newton-web` export/compiler
 at commit `b0795fbe6b46e08a1fea2425699421415ca4cdf1` (an NVIDIA internal build
 tool). It requires Emscripten 5.0.3. The compiled assets are checked into
 `docs/source/_static/browser_demos/` so ordinary Sphinx builds do not need the
