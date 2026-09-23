@@ -737,6 +737,32 @@ class SimulationContext:
         """
         self.physics_manager.pre_render()
 
+    def refresh_visualizer(self, viz: BaseVisualizer) -> None:
+        """Step one visualizer to consume freshly published state, without touching any other.
+
+        Some visualizers (e.g. :class:`~isaaclab_visualizers.newton.NewtonGLVisualizer` /
+        ``NewtonRTXVisualizer``) cache their own render-ready state and only refresh it inside
+        :meth:`~isaaclab.visualizers.BaseVisualizer.step`; publishing transforms via
+        :meth:`pre_render` alone is not enough for those to see fresh data on the next capture.
+        Call :meth:`pre_render` (and :meth:`forward` for backends without a ``pre_render``
+        override) first so the state being consumed is current.
+
+        Dispatches marker/live-plot callbacks first when *viz* consumes them, mirroring what
+        :meth:`update_visualizers` would do for this visualizer, then calls ``viz.step`` at the
+        configured rendering cadence (:meth:`get_rendering_dt`).
+
+        Unlike :meth:`update_visualizers`, this does not step any other visualizer, remove closed
+        or non-running visualizers, or fire callbacks meant for the full render pipeline.
+        Intended for a single on-demand consumer (e.g. video capture) that only needs one
+        visualizer refreshed.
+
+        Args:
+            viz: The visualizer to refresh.
+        """
+        if viz.supports_markers() or (viz.supports_live_plots() and getattr(viz.cfg, "enable_live_plots", True)):
+            self.vis_marker_registry.dispatch_callbacks()
+        viz.step(self.get_rendering_dt())
+
     def _prepare_newton_visualizer_for_capture(self, _payload=None) -> None:
         """Initialize or rebind the Newton viewer before solver graph capture."""
         # Picking applies forces inside solver substeps, so its kernels and buffers
@@ -811,7 +837,7 @@ class SimulationContext:
                 updates while still stepping standalone visualizers (Newton, Rerun, Viser).
                 Used by environment ``step()`` when ``render_enabled`` is False.
         """
-        self.physics_manager.pre_render()
+        self.pre_render()
         self.update_visualizers(self.get_rendering_dt(), skip_app_pumping=skip_app_pumping)
         self.physics_manager.after_visualizers_render()
         for _, callback in sorted(self._render_callbacks.values(), key=lambda x: x[0]):

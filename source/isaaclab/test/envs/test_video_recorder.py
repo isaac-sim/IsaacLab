@@ -267,6 +267,11 @@ def test_visualizer_source_refreshes_render_state_before_on_demand_capture(sourc
     if is_rendering:
         env.sim.forward.assert_not_called()
         env.sim.pre_render.assert_not_called()
+        env.sim.refresh_visualizer.assert_not_called()
+    else:
+        # refresh_visualizer must target only the captured visualizer -- it must never step
+        # every visualizer via a full render()/update_visualizers() sweep.
+        assert env.sim.refresh_visualizer.call_args_list == [((viz,),)] * 3
     # Capture must never fall back to a full render(): that would also step every other
     # visualizer, fire every registered render callback, and advance the shared render
     # generation instead of only publishing this recorder's transforms.
@@ -283,13 +288,16 @@ def test_on_demand_rendering_stops_between_recording_windows():
     for step in range(1, 8):
         env.sim.forward.reset_mock()
         env.sim.pre_render.reset_mock()
+        env.sim.refresh_visualizer.reset_mock()
         recorder.step()
         if step in (1, 2, 6, 7):
             env.sim.forward.assert_called_once_with()
             env.sim.pre_render.assert_called_once_with()
+            env.sim.refresh_visualizer.assert_called_once_with(viz)
         else:
             env.sim.forward.assert_not_called()
             env.sim.pre_render.assert_not_called()
+            env.sim.refresh_visualizer.assert_not_called()
     env.sim.render.assert_not_called()
 
 

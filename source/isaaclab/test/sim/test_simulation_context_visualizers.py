@@ -226,6 +226,50 @@ class _LivePlotVisualizer(_FakeVisualizer):
         return True
 
 
+def test_refresh_visualizer_steps_only_the_target_visualizer():
+    """refresh_visualizer must not step or remove any other registered visualizer."""
+    target = _FakeVisualizer(env_ids=[0])
+    other = _FakeVisualizer(env_ids=[1])
+    ctx = _make_context([target, other], provider=_FakeProvider())
+    ctx._viz_dt = 0.1
+
+    ctx.refresh_visualizer(target)
+
+    assert target.step_calls == [0.1]
+    assert other.step_calls == []
+
+
+class _MarkerVisualizer(_FakeVisualizer):
+    def supports_markers(self):
+        return True
+
+
+def test_refresh_visualizer_dispatches_markers_only_when_target_needs_them():
+    """Marker callbacks must dispatch when the target visualizer consumes them."""
+    dispatched = []
+    marker_viz = _MarkerVisualizer(env_ids=[0])
+    ctx = _make_context([marker_viz], provider=_FakeProvider())
+    ctx._viz_dt = 0.1
+    ctx.vis_marker_registry.add_callback("probe", dispatched.append)
+
+    ctx.refresh_visualizer(marker_viz)
+
+    assert len(dispatched) == 1
+
+
+def test_refresh_visualizer_skips_marker_dispatch_when_target_does_not_need_them():
+    """A visualizer that neither renders markers nor live plots must not trigger dispatch."""
+    dispatched = []
+    plain_viz = _FakeVisualizer(env_ids=[0])
+    ctx = _make_context([plain_viz], provider=_FakeProvider())
+    ctx._viz_dt = 0.1
+    ctx.vis_marker_registry.add_callback("probe", dispatched.append)
+
+    ctx.refresh_visualizer(plain_viz)
+
+    assert dispatched == []
+
+
 def test_update_visualizers_dispatches_callbacks_for_live_plot_only_visualizer():
     """Live-plot panels share the marker registry, so dispatch must not require marker support."""
     dispatched = []

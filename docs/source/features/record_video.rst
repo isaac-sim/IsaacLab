@@ -63,6 +63,7 @@ Custom recorders that call a visualizer directly must do the same before each fr
     if not env.sim.is_rendering:
         env.sim.forward()
         env.sim.pre_render()
+        env.sim.refresh_visualizer(visualizer)
     frame = visualizer.render_rgb_array()
 
 This also applies before ``render_tiled_rgb_array()``. Calling ``sim.forward()``
@@ -70,8 +71,11 @@ alone is insufficient for Newton: it updates kinematics but does not publish
 transforms to Kit's Fabric stage. ``sim.pre_render()`` publishes those deferred
 backend transforms without the overhead of a full ``sim.render()``, which would
 also step every other visualizer and fire every registered render callback.
-Refreshing only at capture time preserves the reduced rendering overhead between
-recording windows.
+Some visualizers (e.g. the Newton GL/RTX visualizers) also cache their own
+render-ready state and only refresh it in ``step()``; ``sim.refresh_visualizer()``
+steps just this visualizer (dispatching marker/live-plot callbacks it consumes)
+without touching any other registered visualizer. Refreshing only at capture time
+preserves the reduced rendering overhead between recording windows.
 
 
 Overview

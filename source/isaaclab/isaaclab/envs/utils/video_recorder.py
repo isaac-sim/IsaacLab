@@ -202,13 +202,16 @@ class VideoRecorder:
 
         viz = candidates[0]
         if not sim.is_rendering:
-            # Sync kinematics and publish backend transforms (e.g. Newton's Fabric/USD sync)
-            # without a full sim.render(): that also steps every other visualizer, fires every
-            # registered render callback, and advances the shared render generation, which can
-            # double-render mixed headless visualizers or invalidate another recorder's cached
-            # frame within the same physics step.
+            # Sync kinematics and publish backend transforms (e.g. Newton's Fabric/USD sync),
+            # then refresh only this visualizer's cached state (e.g. NewtonGLVisualizer /
+            # NewtonRTXVisualizer only refresh their render-ready state in step()). Avoid a full
+            # sim.render(): that also steps every other visualizer, fires every registered render
+            # callback, and advances the shared render generation, which can double-render mixed
+            # headless visualizers or invalidate another recorder's cached frame within the same
+            # physics step.
             sim.forward()
             sim.pre_render()
+            sim.refresh_visualizer(viz)
         if sub == "streaming_view":
             if not hasattr(viz, "render_tiled_rgb_array"):
                 raise RuntimeError(
