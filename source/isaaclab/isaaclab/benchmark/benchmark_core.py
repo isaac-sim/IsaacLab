@@ -27,6 +27,7 @@ from .measurements import (
     TestPhase,
 )
 from .recorders import CPUInfoRecorder, GPUInfoRecorder, MemoryInfoRecorder, VersionInfoRecorder
+from .stepping import PHYSICS_PROFILE_SCOPE, RENDER_PROFILE_SCOPE
 
 if TYPE_CHECKING:
     from .schema import (
@@ -164,7 +165,10 @@ def _curve_measurements(label: str, curve: "LearningCurve", ema_alpha: float) ->
 def _measurements_from_bundle(
     bundle: "RuntimeBundle | TrainingBundle | StartupBundle | PlayBundle",
 ) -> dict[str, list[Measurement]]:
-    """Project a typed bundle into flat phases for non-schema formatters."""
+    """Project a typed bundle into flat phases for non-schema formatters.
+
+    Profiling summaries in ``extra`` describe individual physics or render calls.
+    """
     from .schema import PlayBundle, StartupBundle, TrainingBundle
 
     if isinstance(bundle, StartupBundle):
@@ -185,6 +189,15 @@ def _measurements_from_bundle(
         return projected
 
     projected = _runtime_measurements(bundle.runtime)
+    extra = bundle.extra or {}
+    for prefix, scope in (("physics", PHYSICS_PROFILE_SCOPE), ("render", RENDER_PROFILE_SCOPE)):
+        for statistic in ("mean", "std", "max"):
+            if (key := f"{prefix}_{statistic}_ms") in extra:
+                projected["runtime"].append(
+                    SingleMeasurement(name=f"{statistic.title()} {scope} Time per Call", value=extra[key], unit="ms")
+                )
+        if (key := f"{prefix}_calls") in extra:
+            projected["runtime"].append(SingleMeasurement(name=f"{scope} Calls", value=extra[key], unit="count"))
     if isinstance(bundle, TrainingBundle):
         train = _curve_measurements("Reward", bundle.learning.reward, bundle.learning.ema_alpha)
         train.extend(_curve_measurements("Episode Length", bundle.learning.ep_length, bundle.learning.ema_alpha))
