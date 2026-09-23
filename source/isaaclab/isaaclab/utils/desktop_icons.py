@@ -121,5 +121,4 @@ def install_desktop_icons() -> None:
         return
 
     with contextlib.suppress(OSError, RuntimeError):
-        apps_dir = _install_desktop_entries(icon_path, xdg_data_home())
-        refresh_desktop_database(apps_dir)
+        _install_desktop_entries(icon_path, xdg_data_home())

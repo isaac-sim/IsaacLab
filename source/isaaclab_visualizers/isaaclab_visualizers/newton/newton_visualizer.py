@@ -162,9 +162,11 @@ def _apply_newton_icon(window) -> None:
     icon. Remove this function (and ``_load_newton_icon_images`` / ``_newton_icon_source_dir``)
     once ``ViewerRTX`` sets its own icon upstream in Newton.
     """
+    import pyglet.util
+
     try:
         images = _load_newton_icon_images()
-    except (FileNotFoundError, OSError) as error:
+    except (FileNotFoundError, OSError, pyglet.util.DecodeException) as error:
         logger.debug("Could not load Newton's bundled icon for the RTX viewer window: %s", error)
         return
     with contextlib.suppress(Exception):

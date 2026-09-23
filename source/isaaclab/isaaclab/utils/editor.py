@@ -83,10 +83,13 @@ def setup_editor(project_dir: pathlib.Path, isaac_path: str | None = None, verbo
     # successful editor-settings run into a hard crash. install_desktop_icons() already never
     # raises on its own (see its docstring); it's called here, alongside the Kit desktop entry,
     # so isaaclab --editor (and isaaclab.sh -i, which calls this) has a single place that sets
-    # up all Linux desktop icons.
+    # up all Linux desktop icons. Both write into the same applications directory, so the desktop
+    # database is refreshed once here rather than once per writer.
     try:
         setup_desktop_entry(project_dir)
         install_desktop_icons()
+        if _has_graphical_session():
+            refresh_desktop_database(xdg_data_home() / "applications")
     except (OSError, RuntimeError, UnicodeDecodeError) as error:
         print(f"[WARN] Skipped desktop entry generation: {error}")
 
@@ -157,7 +160,6 @@ def setup_desktop_entry(project_dir: pathlib.Path) -> None:
         f"StartupWMClass={title} {version}\n",
         encoding="utf-8",
     )
-    refresh_desktop_database(applications_dir)
     print(f"Desktop entry generated at {desktop_path}")
 
 

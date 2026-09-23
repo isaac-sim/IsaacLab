@@ -131,8 +131,6 @@ def test_setup_desktop_entry_writes_startup_wm_class_matching_kit_identity(
         submodule_search_locations = [str(package_root)]
 
     monkeypatch.setattr("isaaclab.utils.editor.importlib.util.find_spec", lambda name: _FakeSpec())
-    refreshed_dirs = []
-    monkeypatch.setattr("isaaclab.utils.editor.refresh_desktop_database", refreshed_dirs.append)
 
     setup_desktop_entry(project_dir)
 
@@ -141,7 +139,6 @@ def test_setup_desktop_entry_writes_startup_wm_class_matching_kit_identity(
     assert "StartupWMClass=Isaac Lab 3.0.0" in content
     assert f"Icon={icon_file}" in content
     assert "Name=Isaac Lab" in content
-    assert refreshed_dirs == [desktop_file.parent]
 
 
 def test_setup_desktop_entry_is_not_a_visible_launcher(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch):
@@ -284,16 +281,41 @@ def test_setup_editor_installs_newton_desktop_icons(tmp_path: pathlib.Path, monk
 
     install_desktop_icons() is called here rather than as a separate step elsewhere (e.g. at the
     tail of ``isaaclab.sh -i``), so isaaclab --editor has a single place that sets up all Linux
-    desktop icons.
+    desktop icons. Also confirms the desktop database is refreshed exactly once here, covering
+    both writers, rather than once per writer (setup_desktop_entry() and install_desktop_icons()
+    each write into the same applications directory and no longer refresh internally).
     """
     monkeypatch.setattr("isaaclab.utils.editor.resolve_isaacsim_dir", lambda *args, **kwargs: None)
     monkeypatch.setattr("isaaclab.utils.editor.setup_desktop_entry", lambda project_dir: None)
+    monkeypatch.setattr("isaaclab.utils.editor._has_graphical_session", lambda: True)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    home = tmp_path / "home"
+    monkeypatch.setattr(pathlib.Path, "home", lambda: home)
     install_calls = []
     monkeypatch.setattr("isaaclab.utils.editor.install_desktop_icons", lambda: install_calls.append(True))
+    refreshed_dirs = []
+    monkeypatch.setattr("isaaclab.utils.editor.refresh_desktop_database", refreshed_dirs.append)
 
     setup_editor(tmp_path)
 
     assert install_calls == [True]
+    assert refreshed_dirs == [home / ".local" / "share" / "applications"]
+
+
+def test_setup_editor_skips_desktop_database_refresh_without_graphical_session(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Test the shared refresh is skipped outside a graphical session, matching the writers' own gating."""
+    monkeypatch.setattr("isaaclab.utils.editor.resolve_isaacsim_dir", lambda *args, **kwargs: None)
+    monkeypatch.setattr("isaaclab.utils.editor.setup_desktop_entry", lambda project_dir: None)
+    monkeypatch.setattr("isaaclab.utils.editor.install_desktop_icons", lambda: None)
+    monkeypatch.setattr("isaaclab.utils.editor._has_graphical_session", lambda: False)
+    refreshed_dirs = []
+    monkeypatch.setattr("isaaclab.utils.editor.refresh_desktop_database", refreshed_dirs.append)
+
+    setup_editor(tmp_path)
+
+    assert refreshed_dirs == []
 
 
 def test_setup_editor_swallows_desktop_icon_install_failure(

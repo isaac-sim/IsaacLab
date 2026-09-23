@@ -69,7 +69,6 @@ def test_install_desktop_icons_writes_entries_pointing_at_bundled_icon_on_linux(
 
     monkeypatch.setattr("isaaclab.utils.desktop_icons._has_graphical_session", lambda: True)
     monkeypatch.setattr("isaaclab.utils.desktop_icons.importlib.util.find_spec", lambda name: _FakeSpec())
-    monkeypatch.setattr("isaaclab.utils.desktop_icons.shutil.which", lambda cmd: None)
     data_home = tmp_path / "data_home"
     monkeypatch.setenv("XDG_DATA_HOME", str(data_home))
 
