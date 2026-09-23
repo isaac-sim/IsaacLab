@@ -49,10 +49,16 @@ import tempfile
 import pytest
 from generate_synthetic_gaussian_asset import (
     SYNTHETIC_GAUSSIAN_CAMERA_REGEX,
+    assert_images_meaningfully_different,
+    assert_ppisp_controller_matches_static,
     assert_ppisp_invariants,
     assert_ppisp_lifts_exposure,
+    make_aggressive_ppisp_cfg,
+    make_neutral_ppisp_cfg,
     make_synthetic_gaussian_usd,
     render_synthetic_gaussian_scene,
+    render_synthetic_gaussian_scene_with_controller_ppisp_attrs,
+    render_synthetic_gaussian_scene_with_static_ppisp_attrs,
 )
 
 from isaaclab.sim import SimulationCfg
@@ -128,6 +134,69 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx(device):
         )
     assert_ppisp_lifts_exposure(output["rgb_hdr"][0], output["rgb"][0], label="ovrtx")
     assert_ppisp_invariants(output["rgb"][0], label="ovrtx")
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.isaacsim_ci
+@_SKIP_MISSING_OVRTX
+@_XFAIL_OVRTX_GAUSSIAN_PPISP
+def test_camera_ppisp_authored_static_attrs_are_applied_on_synthetic_gaussians_ovrtx(device):
+    """OVRTX must apply camera-authored static PPISP attributes."""
+    with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
+        asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
+        aggressive_cfg = make_aggressive_ppisp_cfg()
+
+        neutral = render_synthetic_gaussian_scene_with_static_ppisp_attrs(
+            asset_path,
+            sim_cfg=_ovrtx_sim_cfg(device),
+            renderer_cfg=OVRTXRendererCfg(),
+            ppisp_cfg=make_neutral_ppisp_cfg(),
+            data_types=["rgb", "rgb_hdr"],
+            sim_dt=SIM_DT,
+        )
+        aggressive = render_synthetic_gaussian_scene_with_static_ppisp_attrs(
+            asset_path,
+            sim_cfg=_ovrtx_sim_cfg(device),
+            renderer_cfg=OVRTXRendererCfg(),
+            ppisp_cfg=aggressive_cfg,
+            data_types=["rgb", "rgb_hdr"],
+            sim_dt=SIM_DT,
+        )
+
+    assert_images_meaningfully_different(neutral["rgb"][0], aggressive["rgb"][0], label="ovrtx authored PPISP")
+    assert_ppisp_lifts_exposure(aggressive["rgb_hdr"][0], aggressive["rgb"][0], label="ovrtx authored PPISP")
+    assert_ppisp_invariants(aggressive["rgb"][0], label="ovrtx authored PPISP")
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.isaacsim_ci
+@_SKIP_MISSING_OVRTX
+@_XFAIL_OVRTX_GAUSSIAN_PPISP
+def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_ovrtx(device):
+    """OVRTX controller output must match the equivalent static PPISP cfg."""
+    with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
+        asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
+        ppisp_cfg = make_aggressive_ppisp_cfg()
+
+        static = render_synthetic_gaussian_scene_with_static_ppisp_attrs(
+            asset_path,
+            sim_cfg=_ovrtx_sim_cfg(device),
+            renderer_cfg=OVRTXRendererCfg(),
+            ppisp_cfg=ppisp_cfg,
+            data_types=["rgb", "rgb_hdr"],
+            sim_dt=SIM_DT,
+        )
+        controller = render_synthetic_gaussian_scene_with_controller_ppisp_attrs(
+            asset_path,
+            sim_cfg=_ovrtx_sim_cfg(device),
+            renderer_cfg=OVRTXRendererCfg(),
+            ppisp_cfg=ppisp_cfg,
+            data_types=["rgb", "rgb_hdr"],
+            sim_dt=SIM_DT,
+        )
+
+    assert_ppisp_controller_matches_static(static["rgb"][0], controller["rgb"][0], label="ovrtx controller")
+    assert_ppisp_invariants(controller["rgb"][0], label="ovrtx controller")
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])

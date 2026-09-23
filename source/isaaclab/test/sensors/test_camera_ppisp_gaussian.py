@@ -42,10 +42,16 @@ import tempfile
 import pytest
 from generate_synthetic_gaussian_asset import (
     SYNTHETIC_GAUSSIAN_CAMERA_REGEX,
+    assert_images_meaningfully_different,
+    assert_ppisp_controller_matches_static,
     assert_ppisp_invariants,
     assert_ppisp_lifts_exposure,
+    make_aggressive_ppisp_cfg,
+    make_neutral_ppisp_cfg,
     make_synthetic_gaussian_usd,
     render_synthetic_gaussian_scene,
+    render_synthetic_gaussian_scene_with_controller_ppisp_attrs,
+    render_synthetic_gaussian_scene_with_static_ppisp_attrs,
 )
 
 from isaaclab.sim import SimulationCfg
@@ -75,6 +81,13 @@ _RENDERER_CFG_PARAMS = _collect_renderer_cfg_params()
 SIM_DT = 0.01
 MULTI_TILE_COUNT = 4
 ISAAC_RTX_RESPONSIVITY = 1.2
+ISAAC_RTX_CONTROLLER_COMPARE_RESOLUTION = 640
+"""Resolution for static-vs-controller equivalence.
+
+Isaac RTX's very small render products go through DLSS upscaling paths whose
+run-to-run variation can be close to the controller equivalence tolerance.
+Keep only this comparison above that tiny-resolution regime.
+"""
 
 
 def _isaac_rtx_sim_cfg(device: str) -> SimulationCfg:
@@ -116,6 +129,71 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians(renderer_cfg_cls
         )
     assert_ppisp_lifts_exposure(output["rgb_hdr"][0], output["rgb"][0], label="isaac_rtx")
     assert_ppisp_invariants(output["rgb"][0], label="isaac_rtx")
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("renderer_cfg_cls", _RENDERER_CFG_PARAMS)
+@pytest.mark.isaacsim_ci
+def test_camera_ppisp_authored_static_attrs_are_applied_on_synthetic_gaussians(renderer_cfg_cls, device):
+    """Isaac RTX must apply camera-authored static PPISP attributes."""
+    with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
+        asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
+        aggressive_cfg = make_aggressive_ppisp_cfg(responsivity=ISAAC_RTX_RESPONSIVITY)
+
+        neutral = render_synthetic_gaussian_scene_with_static_ppisp_attrs(
+            asset_path,
+            sim_cfg=_isaac_rtx_sim_cfg(device),
+            renderer_cfg=renderer_cfg_cls(),
+            ppisp_cfg=make_neutral_ppisp_cfg(responsivity=ISAAC_RTX_RESPONSIVITY),
+            data_types=["rgb", "rgb_hdr"],
+            sim_dt=SIM_DT,
+        )
+        aggressive = render_synthetic_gaussian_scene_with_static_ppisp_attrs(
+            asset_path,
+            sim_cfg=_isaac_rtx_sim_cfg(device),
+            renderer_cfg=renderer_cfg_cls(),
+            ppisp_cfg=aggressive_cfg,
+            data_types=["rgb", "rgb_hdr"],
+            sim_dt=SIM_DT,
+        )
+
+    assert_images_meaningfully_different(neutral["rgb"][0], aggressive["rgb"][0], label="isaac_rtx authored PPISP")
+    assert_ppisp_lifts_exposure(aggressive["rgb_hdr"][0], aggressive["rgb"][0], label="isaac_rtx authored PPISP")
+    assert_ppisp_invariants(aggressive["rgb"][0], label="isaac_rtx authored PPISP")
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("renderer_cfg_cls", _RENDERER_CFG_PARAMS)
+@pytest.mark.isaacsim_ci
+def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians(renderer_cfg_cls, device):
+    """Isaac RTX controller output must match the equivalent static PPISP cfg."""
+    with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
+        asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
+        ppisp_cfg = make_aggressive_ppisp_cfg(responsivity=ISAAC_RTX_RESPONSIVITY)
+
+        static = render_synthetic_gaussian_scene_with_static_ppisp_attrs(
+            asset_path,
+            sim_cfg=_isaac_rtx_sim_cfg(device),
+            renderer_cfg=renderer_cfg_cls(),
+            ppisp_cfg=ppisp_cfg,
+            data_types=["rgb", "rgb_hdr"],
+            height=ISAAC_RTX_CONTROLLER_COMPARE_RESOLUTION,
+            width=ISAAC_RTX_CONTROLLER_COMPARE_RESOLUTION,
+            sim_dt=SIM_DT,
+        )
+        controller = render_synthetic_gaussian_scene_with_controller_ppisp_attrs(
+            asset_path,
+            sim_cfg=_isaac_rtx_sim_cfg(device),
+            renderer_cfg=renderer_cfg_cls(),
+            ppisp_cfg=ppisp_cfg,
+            data_types=["rgb", "rgb_hdr"],
+            height=ISAAC_RTX_CONTROLLER_COMPARE_RESOLUTION,
+            width=ISAAC_RTX_CONTROLLER_COMPARE_RESOLUTION,
+            sim_dt=SIM_DT,
+        )
+
+    assert_ppisp_controller_matches_static(static["rgb"][0], controller["rgb"][0], label="isaac_rtx controller")
+    assert_ppisp_invariants(controller["rgb"][0], label="isaac_rtx controller")
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])

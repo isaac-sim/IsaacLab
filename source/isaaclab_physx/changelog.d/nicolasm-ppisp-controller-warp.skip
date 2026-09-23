@@ -1,0 +1,1 @@
+Internal-only change: drop the now-redundant ``stage`` argument when constructing ``PpispPipeline`` (``isp_cfg`` is already resolved via ``resolve_and_normalize``). No user-facing change.
