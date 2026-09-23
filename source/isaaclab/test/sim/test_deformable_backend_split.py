@@ -76,7 +76,8 @@ def test_common_deformable_material_cfg_has_no_backend_fields():
 
 def test_physx_deformable_cfgs_use_core_schema_and_material_functions():
     """PhysX deformable cfgs own PhysX fields while schema and material functions stay in core."""
-    props = PhysxDeformableBodyPropertiesCfg()
+    with pytest.deprecated_call(match="PhysxDeformableBodyPropertiesCfg is deprecated"):
+        props = PhysxDeformableBodyPropertiesCfg()
     material = PhysxDeformableBodyMaterialCfg()
     surface_material = PhysxSurfaceDeformableBodyMaterialCfg()
 
@@ -110,7 +111,8 @@ def test_physx_deformable_cfgs_use_core_schema_and_material_functions():
 
 def test_newton_deformable_cfgs_use_core_schema_and_material_functions():
     """Newton deformable cfgs own Newton fields while schema and material functions stay in core."""
-    props = NewtonDeformableBodyPropertiesCfg()
+    with pytest.deprecated_call(match="NewtonDeformableBodyPropertiesCfg is deprecated"):
+        props = NewtonDeformableBodyPropertiesCfg()
     material = NewtonDeformableBodyMaterialCfg()
     surface_material = NewtonSurfaceDeformableBodyMaterialCfg()
 

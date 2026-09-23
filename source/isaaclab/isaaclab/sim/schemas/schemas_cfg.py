@@ -970,10 +970,20 @@ class BoundingSpherePropertiesCfg(MeshCollisionBaseCfg):
     """Name of mesh collision approximation method. Default: "boundingSphere"."""
 
 
+@deprecated_schema_cfg(
+    "a DeformableBodyFragment subclass in the spawner's volume_deformable_props or surface_deformable_props slot"
+    " (this base class carries no fields)"
+)
 @configclass
 class DeformableBodyPropertiesBaseCfg:
     """Base deformable body properties for backend-specific extensions.
 
     This class is currently empty. It will be populated once the USD deformable
     schemas can be unified more cleanly between physics backends.
+
+    .. deprecated:: 3.1
+        Use the deformable-body schema fragments instead, passed in the spawner's
+        ``volume_deformable_props`` or ``surface_deformable_props`` slot. This class carries no
+        fields; for a custom deformable-body cfg, subclass :class:`DeformableBodyFragment`. This
+        class will be removed in 3.2.
     """

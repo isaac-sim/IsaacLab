@@ -101,6 +101,7 @@ def test_spawn_mesh_with_edge_refinement(sim, monkeypatch, cfg_type, kwargs, edg
     ],
 )
 @pytest.mark.parametrize("fragments", [False, True])
+@pytest.mark.filterwarnings("ignore:DeformableBodyPropertiesCfg is deprecated:DeprecationWarning")
 def test_edge_refinement_sets_tetrahedralization_resolution(
     sim, monkeypatch, cfg_type, geometry_kwargs, refinement_kwargs, physics_material, expected_factor, fragments
 ):

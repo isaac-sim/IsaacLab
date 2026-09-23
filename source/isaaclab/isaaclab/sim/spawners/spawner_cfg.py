@@ -192,7 +192,17 @@ class DeformableObjectSpawnerCfg(SpawnerCfg):
     """Mass properties."""
 
     deformable_props: schemas.DeformableBodyPropertiesBaseCfg | None = None
-    """Deformable body properties."""
+    """Deformable body properties.
+
+    .. deprecated:: 3.1
+        Use :attr:`volume_deformable_props` or :attr:`surface_deformable_props` with deformable-body
+        schema fragments instead. This field has no deformable type of its own: it authors a surface
+        deformable when the spawner's ``physics_material`` is a
+        :class:`~isaaclab.sim.spawners.materials.SurfaceDeformableBodyMaterialBaseCfg` and a volume
+        deformable otherwise, so pick the slot the same way. The field emits no warning of its own:
+        the legacy cfgs it takes warn when constructed, and spawning through it calls the deprecated
+        deformable writers, which warn as well. This field will be removed in 3.2.
+    """
 
     volume_deformable_props: (
         dict[str, list[schemas.DeformableBodyFragment]]
