@@ -436,11 +436,13 @@ def make_sim_cfg() -> sim_utils.SimulationCfg:
     """Create the simulation cfg matching the selected renderer."""
     physics_cfg = None
     # Isaac RTX drives the Kit physics stack, while both Warp-based renderers run Newton physics.
+    # VBD accepts a scene with no articulated joints, which is essential for the camera-only
+    # Valiant Gaussian scene; MuJoCo Warp rejects that scene during model conversion.
     if args_cli.renderer != "isaac_rtx":
-        from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
         from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg
+        from isaaclab_newton.physics.vbd_manager_cfg import VBDSolverCfg
 
-        physics_cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(), num_substeps=1)
+        physics_cfg = NewtonCfg(solver_cfg=VBDSolverCfg(), num_substeps=1)
 
     return sim_utils.SimulationCfg(
         dt=1.0 / args_cli.render_fps,
