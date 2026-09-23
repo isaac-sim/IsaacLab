@@ -1118,9 +1118,8 @@ def test_explicit_broken_package_raises_with_distinct_reason(monkeypatch: pytest
 
     def _failing_import(name, *args, **kwargs):
         if "isaaclab_visualizers.rerun" in name:
-            # A plain ImportError (not ModuleNotFoundError) has no reliable .name, mirroring a
-            # real circular/partial-init failure. Its text mentions "isaaclab_visualizers", which
-            # is exactly the string the old str(exc) substring check would have misclassified.
+            # A plain ImportError has no .name; its text mentions "isaaclab_visualizers", which
+            # the old str(exc) substring check would have misclassified.
             raise ImportError(
                 "cannot import name 'RerunVisualizerCfg' from partially initialized module "
                 "'isaaclab_visualizers.rerun' (most likely due to a circular import)"
@@ -1260,8 +1259,7 @@ def test_explicit_deprecated_alias_matches_existing_cfg_by_canonical_type():
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[existing_cfg])
 
-    # The pre-existing cfg already satisfies the canonical type, so this never reaches
-    # _create_default_visualizer_configs's alias-resolution branch and emits no warning here.
+    # No alias-resolution warning: the pre-existing cfg already satisfies the canonical type.
     cfgs = ctx._resolve_visualizer_cfgs()
 
     assert len(cfgs) == 1

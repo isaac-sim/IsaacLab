@@ -383,12 +383,8 @@ class SimulationContext:
         so dependencies for other backends are not imported.
 
         Returns:
-            A tuple of the successfully created configs, and a mapping from each
-            requested type that could **not** be created to a short, specific reason
-            (unknown type, package not installed, or another import/construction
-            failure). Callers that need to report an actionable error for an
-            explicitly-requested type should surface this reason instead of a
-            generic "could not be configured" message.
+            The successfully created configs, and a reason per unresolved requested type
+            (unknown type, package not installed, or another import/construction failure).
         """
         import importlib
 
@@ -433,17 +429,13 @@ class SimulationContext:
                 default_configs.append(cfg)
             except (ImportError, ModuleNotFoundError) as exc:
                 hint = _get_visualizer_install_hint(viz_type)
-                # ModuleNotFoundError.name is set by the import system itself to the exact module
-                # that could not be found — unlike matching on str(exc), this can't mistake a
-                # module that imported successfully but then failed for other reasons (e.g. a
-                # partially-initialized or circularly-imported module, whose message can still
-                # happen to contain "isaaclab_visualizers") for a module that is simply missing.
+                # .name is the exact missing module, set by the import system itself — unlike
+                # str(exc), it can't mistake a broken (e.g. partially-initialized) module for a
+                # missing one just because its error text mentions "isaaclab_visualizers".
                 missing_module = exc.name if isinstance(exc, ModuleNotFoundError) else None
                 if missing_module == "isaaclab_visualizers":
-                    # Only an exact match proves the whole distribution is absent. A missing
-                    # descendant (e.g. "isaaclab_visualizers.rerun") means isaaclab_visualizers
-                    # itself imported fine but that backend submodule or its own dependency did
-                    # not, which the branch below reports by its own name instead.
+                    # Only an exact match means the whole distribution is absent; a missing
+                    # descendant (e.g. "isaaclab_visualizers.rerun") is reported by its own name below.
                     logger.warning(
                         "[SimulationContext] Visualizer '%s' skipped: isaaclab_visualizers is not installed. %s",
                         viz_type,
@@ -608,15 +600,12 @@ class SimulationContext:
         cli_explicit = self._is_cli_visualizer_explicit()
         cli_disable_all = self._is_cli_visualizer_disable_all()
 
-        # Populated with a specific reason (unknown type, missing package, other import/construction
-        # failure) for each explicitly-requested type that _create_default_visualizer_configs could
-        # not resolve, so the RuntimeError below can report *why* rather than just *that* it failed.
+        # Per-type reason for each requested type _create_default_visualizer_configs couldn't
+        # resolve, so the RuntimeError below can report why rather than just that it failed.
         failure_reasons: dict[str, str] = {}
 
-        # cli_requested holds the raw, possibly-deprecated-alias strings the user typed (e.g.
-        # "newton"), while resolved cfgs always carry their canonical visualizer_type (e.g.
-        # "newton_gl"). Comparing the two directly misreports a successfully-resolved alias as
-        # missing, so route every such comparison through the canonical name.
+        # cli_requested holds raw, possibly-aliased strings (e.g. "newton"); resolved cfgs carry
+        # the canonical visualizer_type (e.g. "newton_gl"). Compare via this instead of directly.
         canonical_requested = [_VISUALIZER_ALIASES.get(t, t) for t in cli_requested]
 
         if cli_disable_all:
@@ -659,9 +648,7 @@ class SimulationContext:
                 if canonical not in resolved_types
             ]
             if missing:
-                # Report the specific reason recorded per type (unknown type, missing package, or
-                # another import/construction failure) rather than a single generic message, so the
-                # raised error alone is enough to tell those cases apart.
+                # Report the recorded reason per type instead of one generic message.
                 reasons = "; ".join(
                     f"{visualizer_type!r}: {failure_reasons.get(visualizer_type, 'could not be configured')}"
                     for visualizer_type in missing
