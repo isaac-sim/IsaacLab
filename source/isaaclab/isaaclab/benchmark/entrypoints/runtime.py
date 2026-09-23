@@ -169,6 +169,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                         "data": ("serialized_synchronized" if args.measure_sync_step else "host_return"),
                     },
                     {"name": "world_size", "data": distributed.world_size},
+                    *capture.camera_resolution_metadata_from_env_cfg(env_cfg),
                 ]
             },
         )
