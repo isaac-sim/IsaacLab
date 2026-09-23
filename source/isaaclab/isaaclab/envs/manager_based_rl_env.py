@@ -196,6 +196,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
           normally because their ``step()`` methods are independent of the Kit
           app loop.
         - Post-reset re-renders for RTX sensors are also skipped.
+
         Args:
             action: The actions to apply on the environment. Shape is (num_envs, action_dim).
 

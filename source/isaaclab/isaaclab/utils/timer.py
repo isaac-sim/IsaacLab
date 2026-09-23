@@ -287,6 +287,7 @@ class Timer(ContextDecorator):
 
         Args:
             name: Name of the entry to be retrieved.
+
         Raises:
             TimerError: If name doesn't exist in the log.
 

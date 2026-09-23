@@ -408,6 +408,7 @@ def change_prim_property(
 
     Raises:
         ValueError: If the prim does not exist at the specified path.
+
     Example:
         >>> import isaaclab.sim as sim_utils
         >>> from pxr import Sdf

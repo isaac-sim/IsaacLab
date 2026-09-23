@@ -268,6 +268,7 @@ class BaseEnvWindow:
 
     def _build_vis_markers_frame(self):
         """Builds the Visualization Markers frame for scene element debug overlays.
+
         Creates a checkbox per scene element (terrain, rigid objects, articulations, sensors)
         that has a debug visualization implemented.
         """

@@ -618,6 +618,7 @@ class DirectMARLEnv(gym.Env):
 
     def set_debug_vis(self, debug_vis: bool) -> bool:
         """Toggles the environment debug visualization.
+
         Args:
             debug_vis: Whether to visualize the environment debug visualization.
 

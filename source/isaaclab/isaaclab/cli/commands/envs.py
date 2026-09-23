@@ -511,6 +511,7 @@ def _write_uv_env_hooks(env_path: Path) -> None:
 
 def command_setup_conda(env_name: str) -> None:
     """Setup conda environment for Isaac Lab
+
     Args:
         env_name: Name for the conda environment to create or reuse.
     """
@@ -612,9 +613,9 @@ def _check_venv_python_version(env_path: Path, required_ver: str) -> None:
         python_exe = env_path / "Scripts" / "python.exe"
     else:
         python_exe = env_path / "bin" / "python"
-
     if not python_exe.exists():
         return
+
     result = run_command(
         [str(python_exe), "-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"],
         capture_output=True,

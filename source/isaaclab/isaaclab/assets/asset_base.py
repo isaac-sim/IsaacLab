@@ -84,6 +84,7 @@ class AssetBase(Asset, ABC):
 
         Args:
             cfg: The configuration class for the asset.
+
         """
         super().__init__(cfg)
         # Resolve shape-check flag once: True means checks are active.
