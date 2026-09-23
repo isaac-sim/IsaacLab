@@ -39,7 +39,7 @@ Let's take a look at the Python script:
 
    .. literalinclude:: ../../../scripts/tutorials/00_sim/spawn_prims.py
       :language: python
-      :emphasize-lines: 38-86, 100-101
+      :emphasize-lines: 39-90, 104-105
       :linenos:
 
 
@@ -157,7 +157,10 @@ Lastly, we spawn a cuboid ``CuboidDeformable`` which contains deformable body ph
 rigid body simulation, a deformable body can have relative motion between its vertices. This is useful for simulating
 soft bodies like cloth, rubber, or jello. It is important to note that deformable bodies are only supported in
 GPU simulation and require a mesh object to be spawned with deformable body physics properties and a deformable
-physics material. This example uses the PhysX-specific deformable property and material cfgs.
+physics material. The properties are schema fragments, one per USD namespace, passed in the
+``volume_deformable_props`` slot: :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg` for the
+``omniphysics:*`` body attributes and :class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyCfg` for the PhysX
+solver attributes. The material is the PhysX-specific deformable material cfg.
 
 .. literalinclude:: ../../../scripts/tutorials/00_sim/spawn_prims.py
    :language: python

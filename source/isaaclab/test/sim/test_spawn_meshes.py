@@ -75,8 +75,10 @@ def test_mesh_edge_refinement_default():
 )
 def test_spawn_mesh_with_edge_refinement(sim, monkeypatch, cfg_type, kwargs, edge_refinement):
     """Test surface edge refinement for deformable mesh primitives."""
-    monkeypatch.setattr(mesh_spawner.schemas, "define_deformable_body_properties", lambda *a, **k: None)
-    cfg = cfg_type(**kwargs, edge_refinement=edge_refinement, deformable_props=sim_utils.DeformableBodyPropertiesCfg())
+    from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
+
+    monkeypatch.setattr(mesh_spawner.schemas, "apply_volume_deformable_properties", lambda *a, **k: True)
+    cfg = cfg_type(**kwargs, edge_refinement=edge_refinement, volume_deformable_props=OmniPhysicsDeformableBodyCfg())
     root = cfg.func("/World/Refined", cfg)
     assert root.GetPrimTypeInfo().GetTypeName() == "Xform"
     prim = sim.stage.GetPrimAtPath("/World/Refined/geometry/mesh")

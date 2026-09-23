@@ -14,10 +14,9 @@ from isaaclab_newton.physics import (
     NewtonSoftContactCfg,
     VBDSolverCfg,
 )
-from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
 from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg, PhysxRigidBodyCfg
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyCfg, PhysxRigidBodyCfg
 from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
@@ -28,6 +27,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import CameraCfg
+from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
 from isaaclab.utils import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
@@ -122,7 +122,7 @@ class DeformableCfg(PresetCfg):
         spawn=sim_utils.MeshRectangleCfg(
             size=(0.2, 0.2),
             edge_refinement=8,
-            deformable_props=NewtonDeformableBodyPropertiesCfg(),
+            surface_deformable_props=[],
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
             physics_material=NewtonSurfaceDeformableBodyMaterialCfg(
                 density=1.0,
@@ -142,7 +142,10 @@ class DeformableCfg(PresetCfg):
         spawn=sim_utils.MeshRectangleCfg(
             size=(0.2, 0.2),
             edge_refinement=8,
-            deformable_props=PhysxDeformableBodyPropertiesCfg(),
+            surface_deformable_props=[
+                OmniPhysicsDeformableBodyCfg(kinematic_enabled=False),
+                PhysxDeformableBodyCfg(solver_position_iteration_count=16),
+            ],
             collision_props=PhysxCollisionCfg(rest_offset=0.002, contact_offset=0.01),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
             physics_material=PhysxSurfaceDeformableBodyMaterialCfg(

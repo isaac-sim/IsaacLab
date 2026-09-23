@@ -52,7 +52,7 @@ The tutorial corresponds to the ``run_deformable_object.py`` script in the ``scr
 
    .. literalinclude:: ../../../scripts/tutorials/01_assets/run_deformable_object.py
       :language: python
-      :emphasize-lines: 88-112, 135-151, 156-164, 173-178, 191-192
+      :emphasize-lines: 94-118, 141-157, 162-170, 179-184, 197-198
       :linenos:
 
 
@@ -75,8 +75,9 @@ the :class:`assets.DeformableObject` class, it spawns the object and initializes
 when the simulation is played.
 
 .. note::
-    Deformable objects require a mesh object to be spawned with backend-specific deformable body physics
-    properties and a matching deformable physics material.
+    Deformable objects require a mesh object to be spawned with deformable-body schema fragments in its
+    ``volume_deformable_props`` slot (``surface_deformable_props`` for cloth) and a matching deformable
+    physics material.
     Use ``--backend physx`` for the PhysX implementation or ``--backend newton_vbd`` for the experimental Newton
     implementation.
 
