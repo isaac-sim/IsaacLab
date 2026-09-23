@@ -98,6 +98,8 @@ def test_success_rate_tracker_convergence():
     t = SuccessRateTracker(threshold=0.5, window=2, num_steps_per_env=1)
     for v in (0.6, 0.7):
         t.record_step({"log": {"Metrics/success_rate": v}})
+        # No process group is initialized, so the reduction leaves the local samples unchanged.
+        t.all_reduce_iteration("cpu")
         t.end_iteration()
     assert t.converged is True
     assert t.tail_mean == pytest.approx(0.65)
@@ -151,6 +153,37 @@ def test_success_rate_tracker_no_data_end_iteration_returns_none():
     result = t.end_iteration()
     assert result is None
     assert t.history == []
+
+
+def _all_reduce_worker(rank: int, world_size: int, init_file: str, results) -> None:
+    import torch.distributed as dist
+
+    dist.init_process_group("gloo", init_method=f"file://{init_file}", rank=rank, world_size=world_size)
+    try:
+        t = SuccessRateTracker(threshold=0.5, window=2, num_steps_per_env=1)
+        # Only rank 0 clears the threshold locally; the global mean decides for both ranks.
+        for _ in range(2):
+            t.record_step({"log": {"Metrics/success_rate": 1.0 if rank == 0 else 0.2}})
+            t.all_reduce_iteration("cpu")
+            t.end_iteration()
+        results[rank] = (list(t.history), t.converged)
+    finally:
+        dist.destroy_process_group()
+
+
+def test_success_rate_tracker_all_reduce_agrees_across_ranks(tmp_path):
+    """Every rank records the global mean, so all ranks make the same stop decision."""
+    import torch.multiprocessing as mp
+
+    world_size = 2
+    results = mp.Manager().dict()
+    mp.spawn(_all_reduce_worker, args=(world_size, str(tmp_path / "pg_init"), results), nprocs=world_size)
+
+    expected_mean = (1.0 + 0.2) / world_size
+    for rank in range(world_size):
+        history, converged = results[rank]
+        assert history == pytest.approx([expected_mean] * 2)
+        assert converged is True
 
 
 def test_parse_tf_logs_empty_dir_returns_empty(tmp_path, caplog):
