@@ -73,7 +73,7 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
         pattern_cfg=patterns.LidarPatternCfg(
             channels=100, vertical_fov_range=[-90, 90], horizontal_fov_range=[-90, 90], horizontal_res=1.0
         ),
-        debug_vis=not args_cli.headless,
+        debug_vis="none" not in args_cli.visualizer,
     )
 
 
