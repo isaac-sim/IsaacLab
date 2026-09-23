@@ -42,7 +42,9 @@ class SO101PoseIKAction(DifferentialInverseKinematicsAction):
         # SO-101 controller only adds the orientation joint mask on top of the core adaptive-DLS +
         # orientation-weighting + JLA controller. Null-space joint-limit injection now comes from
         # the base term (gated on ``joint_limit_avoidance_gain > 0``), so it is not repeated here.
-        self._ik_controller = SO101PoseIKController(cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device)
+        self._ik_controller = SO101PoseIKController(
+            cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device, num_joints=self._num_joints
+        )
         # Restrict the orientation task to a subset of joints if configured (e.g. the SO-101 wrist),
         # so the other joints (shoulder_pan, ...) serve position only and the base does not swing to
         # track orientation. Resolve the names against ``self._joint_names`` (asset-ordered, matching

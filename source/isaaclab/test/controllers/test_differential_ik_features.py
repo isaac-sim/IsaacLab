@@ -51,7 +51,7 @@ def _make_controller(
         joint_limit_avoidance_gain=joint_limit_avoidance_gain,
         joint_limit_avoidance_margin=joint_limit_avoidance_margin,
     )
-    return DifferentialIKController(cfg, num_envs=num_envs, device="cpu")
+    return DifferentialIKController(cfg, num_envs=num_envs, device="cpu", num_joints=_NUM_JOINTS)
 
 
 def test_adaptive_dls_default_params():
@@ -200,7 +200,7 @@ def test_adaptive_dls_damps_singularity(implementation: str):
 
 @pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_joint_limit_avoidance_zero_when_disabled(implementation: str):
-    """Disabled avoidance is a no-op; only Newton requires limits when enabled."""
+    """Avoidance is a no-op when disabled or before joint limits are provided."""
     ee_pos = torch.zeros(1, 3)
     ee_quat = torch.tensor([_ID_QUAT])
     command = torch.tensor([[0.0, 0.0, 0.0] + _ID_QUAT])
@@ -210,15 +210,9 @@ def test_joint_limit_avoidance_zero_when_disabled(implementation: str):
     c.set_command(command)
     out = c.compute(ee_pos, ee_quat, jacobian, joint_pos)
     torch.testing.assert_close(out, joint_pos)
-    # Lab permits missing limits; Newton requires them before initialization.
     c2 = _make_controller(implementation=implementation, joint_limit_avoidance_gain=1.0)
     c2.set_command(command)
-    if implementation == "newton":
-        with pytest.raises(ValueError, match="Set joint position limits before computing"):
-            c2.compute(ee_pos, ee_quat, jacobian, joint_pos)
-    else:
-        out2 = c2.compute(ee_pos, ee_quat, jacobian, joint_pos)
-        torch.testing.assert_close(out2, joint_pos)
+    torch.testing.assert_close(c2.compute(ee_pos, ee_quat, jacobian, joint_pos), joint_pos)
 
 
 @pytest.mark.parametrize("implementation", ["isaaclab", "newton"])

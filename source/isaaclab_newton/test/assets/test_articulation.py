@@ -4461,6 +4461,7 @@ def test_franka_osc_gravity_compensation_precision(
         ),
         num_envs=1,
         device=device,
+        num_joints=len(arm_joint_ids),
     )
 
     sim.step()

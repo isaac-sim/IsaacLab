@@ -165,7 +165,7 @@ def test_inertial_decoupling_handles_singular_task_inertia(partial_inertial_deco
         inertial_dynamics_decoupling=True,
         partial_inertial_dynamics_decoupling=partial_inertial_decoupling,
     )
-    controller = OperationalSpaceController(cfg, num_envs=num_envs, device="cpu")
+    controller = OperationalSpaceController(cfg, num_envs=num_envs, device="cpu", num_joints=num_joints)
 
     target_pose = torch.tensor([[0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]]).repeat(num_envs, 1)
     controller.set_command(target_pose)

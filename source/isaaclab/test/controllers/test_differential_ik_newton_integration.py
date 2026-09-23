@@ -38,7 +38,7 @@ def _make_controller(
         orientation_weight=orientation_weight,
         joint_limit_avoidance_gain=joint_limit_avoidance_gain,
     )
-    return DifferentialIKController(cfg, num_envs=_NUM_ENVS, device=device)
+    return DifferentialIKController(cfg, num_envs=_NUM_ENVS, device=device, num_joints=_NUM_JOINTS)
 
 
 def _well_conditioned_jacobian(device: str) -> torch.Tensor:
@@ -252,13 +252,9 @@ def test_joint_limits_accept_float64_cpu_tensors_and_later_updates(device: str):
 
 
 def test_joint_limit_count_matches_initialized_controller():
-    """The setter rejects limits that do not match the fixed joint count."""
+    """The setter rejects limits that do not match the controlled joint count."""
     controller = _make_controller("trans", joint_limit_avoidance_gain=0.2)
-    controller.set_joint_pos_limits(torch.full((_NUM_JOINTS,), -1.0), torch.full((_NUM_JOINTS,), 1.0))
-    ee_pos, ee_quat, command, joint_pos = _pose_inputs("cpu")
-    controller.set_command(command)
-    controller.compute(ee_pos, ee_quat, _well_conditioned_jacobian("cpu"), joint_pos)
-    with pytest.raises(ValueError, match="limits for 7 joints"):
+    with pytest.raises(ValueError, match="joint_pos_lower must have shape"):
         controller.set_joint_pos_limits(torch.full((_NUM_JOINTS - 1,), -1.0), torch.full((_NUM_JOINTS - 1,), 1.0))
 
 
@@ -287,17 +283,3 @@ def test_dls_backend_captures_with_stable_bridge_buffers(use_relative_mode):
         wp.capture_launch(capture.graph)
     wp.synchronize_device(device)
     torch.testing.assert_close(result, joint_pos)
-
-
-@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
-def test_joint_count_is_inferred_from_compute(implementation):
-    """Both solvers retain standalone construction and accept changing joint counts."""
-    cfg = DifferentialIKControllerCfg(command_type="position", ik_method="dls", implementation=implementation)
-    controller = DifferentialIKController(cfg, 1, "cpu")
-    quat = torch.tensor([[0.0, 0.0, 0.0, 1.0]])
-    controller.set_command(torch.ones(1, 3) * 0.1, ee_quat=quat)
-    for count in (7, 6, 8):
-        actual = controller.compute(torch.zeros(1, 3), quat, torch.eye(6, count).unsqueeze(0), torch.zeros(1, count))
-        expected = torch.zeros(1, count)
-        expected[:, :3] = 0.1 / (1.0 + cfg.ik_params["lambda_val"] ** 2)
-        torch.testing.assert_close(actual, expected)

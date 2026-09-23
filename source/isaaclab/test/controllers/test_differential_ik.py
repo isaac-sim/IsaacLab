@@ -92,7 +92,9 @@ def test_franka_ik_pose_abs(sim, implementation: str):
     diff_ik_cfg = DifferentialIKControllerCfg(
         implementation=implementation, command_type="pose", use_relative_mode=False, ik_method="dls"
     )
-    diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=num_envs, device=sim_context.device)
+    diff_ik_controller = DifferentialIKController(
+        diff_ik_cfg, num_envs=num_envs, device=sim_context.device, num_joints=7
+    )
 
     # Run the controller and check that it converges to the goal
     _run_ik_controller(
@@ -114,7 +116,9 @@ def test_ur10_ik_pose_abs(sim, implementation: str):
     diff_ik_cfg = DifferentialIKControllerCfg(
         implementation=implementation, command_type="pose", use_relative_mode=False, ik_method="dls"
     )
-    diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=num_envs, device=sim_context.device)
+    diff_ik_controller = DifferentialIKController(
+        diff_ik_cfg, num_envs=num_envs, device=sim_context.device, num_joints=6
+    )
 
     # Run the controller and check that it converges to the goal
     _run_ik_controller(robot, diff_ik_controller, "ee_link", [".*"], sim_context, num_envs, ee_pose_b_des_set)

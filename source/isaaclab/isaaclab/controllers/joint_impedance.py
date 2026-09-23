@@ -34,7 +34,6 @@ class JointImpedanceController:
         Raises:
             ValueError: When the shape of :obj:`dof_pos_limits` is not (num_robots, num_dof, 2).
         """
-        self._controller = None
         # check valid inputs
         if len(dof_pos_limits.shape) != 3:
             raise ValueError(f"Joint position limits has shape '{dof_pos_limits.shape}'. Expected length of shape = 3.")
@@ -60,6 +59,9 @@ class JointImpedanceController:
         # -- position offsets
         if self.cfg.dof_pos_offset is not None:
             self._dof_pos_offset[:] = torch.tensor(self.cfg.dof_pos_offset, device=self._device)
+        # -- Newton solver
+        if self.cfg.implementation == "newton":
+            self._init_newton()
 
     """
     Properties.
@@ -161,10 +163,26 @@ class JointImpedanceController:
             desired_dof_pos = self._dof_pos_target + dof_pos
         else:
             raise ValueError(f"Invalid dof position command mode: {self.cfg.command_type}.")
-        # compute errors
+        # clip to the joint limits
         desired_dof_pos = desired_dof_pos.clip_(min=self._dof_pos_limits[..., 0], max=self._dof_pos_limits[..., 1])
         if self.cfg.implementation == "newton":
             return self._compute_newton(desired_dof_pos, dof_pos, dof_vel, mass_matrix, gravity)
+        return self._compute_lab(desired_dof_pos, dof_pos, dof_vel, mass_matrix, gravity)
+
+    """
+    Helper functions.
+    """
+
+    def _compute_lab(
+        self,
+        desired_dof_pos: torch.Tensor,
+        dof_pos: torch.Tensor,
+        dof_vel: torch.Tensor,
+        mass_matrix: torch.Tensor | None,
+        gravity: torch.Tensor | None,
+    ) -> torch.Tensor:
+        """Compute the joint torques with the Isaac Lab implementation."""
+        # compute errors
         dof_pos_error = desired_dof_pos - dof_pos
         dof_vel_error = -dof_vel
         # compute acceleration
@@ -191,31 +209,31 @@ class JointImpedanceController:
         mass_matrix: torch.Tensor | None,
         gravity: torch.Tensor | None,
     ) -> torch.Tensor:
-        """Evaluate Newton with the shared commands and gains."""
-        if self._controller is None:
-            self._initialize_newton()
-        # -- Newton input ports
-        self._joint_q_des.copy_(desired_dof_pos)
-        self._joint_q.copy_(dof_pos)
-        self._joint_qd.copy_(dof_vel)
+        """Compute the joint torques with the Newton implementation.
+
+        Newton reads the inputs in place. A captured CUDA graph keeps their memory, so recapture if later
+        calls pass different tensors.
+        """
+        inputs = self._newton_inputs
+        inputs.joint_q_des = wp.from_torch(desired_dof_pos.float().reshape(-1))
+        inputs.joint_q = wp.from_torch(dof_pos.float().reshape(-1))
+        inputs.joint_qd = wp.from_torch(dof_vel.float().reshape(-1))
         if self.cfg.inertial_compensation:
-            self._mass_matrix.copy_(mass_matrix)
+            inputs.mass_matrix = wp.from_torch(mass_matrix.float())
         if self.cfg.gravity_compensation:
-            self._gravity.copy_(gravity)
+            inputs.gravity_force = wp.from_torch(gravity.float().reshape(-1))
         else:
-            self._gravity.zero_()
+            inputs.gravity_force = self._newton_zero_gravity
+        # dt is unused by the impedance law
+        self._newton_controller.step(inputs=inputs, outputs=self._newton_outputs, dt=0.0)
+        return self._newton_joint_efforts.to(dtype=dof_pos.dtype, copy=True)
 
-        # -- solve and return an independent snapshot (dt is unused)
-        self._controller.step(inputs=self._controller_input, outputs=self._controller_output, dt=0.0)
-        return self._joint_f.to(dtype=dof_pos.dtype, copy=True)
-
-    def _initialize_newton(self) -> None:
-        """Construct Newton ports and expose their arrays as Torch views."""
+    def _init_newton(self) -> None:
+        """Construct the Newton solver and bind its ports to the controller buffers."""
         from newton.controllers import ControllerJointImpedanceModelFree
 
-        # -- construct Newton controller and ports
-        # Gains remain live inputs for variable impedance modes.
-        self._controller = ControllerJointImpedanceModelFree(
+        # construct the Newton controller (gravity stays enabled so cfg.gravity_compensation can be toggled)
+        self._newton_controller = ControllerJointImpedanceModelFree(
             controlled_dofs_per_robot=wp.full(self.num_robots, self.num_dof, dtype=wp.int32, device=self._device),
             stiffness=None,
             damping=None,
@@ -225,15 +243,11 @@ class JointImpedanceController:
             has_qdd_feedforward=False,
             device=self._device,
         )
-        self._controller_input = self._controller.input()
-        self._controller_output = self._controller.output()
-
-        self._controller_input.stiffness = wp.from_torch(self._p_gains.flatten())
-        self._controller_input.damping = wp.from_torch(self._d_gains.flatten())
-        self._joint_q = wp.to_torch(self._controller_input.joint_q).view(self.num_robots, self.num_dof)
-        self._joint_qd = wp.to_torch(self._controller_input.joint_qd).view(self.num_robots, self.num_dof)
-        self._joint_q_des = wp.to_torch(self._controller_input.joint_q_des).view(self.num_robots, self.num_dof)
-        self._gravity = wp.to_torch(self._controller_input.gravity_force).view(self.num_robots, self.num_dof)
-        if self.cfg.inertial_compensation:
-            self._mass_matrix = wp.to_torch(self._controller_input.mass_matrix)
-        self._joint_f = wp.to_torch(self._controller_output.joint_f).view(self.num_robots, self.num_dof)
+        # bind ports: gains alias the controller buffers, and the joint state is bound to the caller's tensors
+        # on each compute
+        self._newton_inputs = self._newton_controller.input()
+        self._newton_outputs = self._newton_controller.output()
+        self._newton_inputs.stiffness = wp.from_torch(self._p_gains.view(-1))
+        self._newton_inputs.damping = wp.from_torch(self._d_gains.view(-1))
+        self._newton_zero_gravity = wp.zeros(self.num_robots * self.num_dof, dtype=wp.float32, device=self._device)
+        self._newton_joint_efforts = wp.to_torch(self._newton_outputs.joint_f).view(self.num_robots, self.num_dof)

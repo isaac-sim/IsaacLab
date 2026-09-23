@@ -296,7 +296,7 @@ def test_franka_pose_abs_without_inertial_decoupling(sim, implementation: str):
         motion_stiffness_task=[400.0, 400.0, 400.0, 100.0, 100.0, 100.0],
         motion_damping_ratio_task=[5.0, 5.0, 5.0, 0.001, 0.001, 0.001],
     )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
+    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device, num_joints=7)
 
     _run_op_space_controller(
         robot,
@@ -348,7 +348,7 @@ def test_franka_pose_abs_with_partial_inertial_decoupling(sim, implementation: s
         motion_stiffness_task=1000.0,
         motion_damping_ratio_task=1.0,
     )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
+    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device, num_joints=7)
 
     _run_op_space_controller(
         robot,
@@ -402,7 +402,7 @@ def test_franka_pose_abs_fixed_impedance_with_gravity_compensation(sim, implemen
         motion_stiffness_task=500.0,
         motion_damping_ratio_task=2.0,
     )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
+    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device, num_joints=7)
 
     _run_op_space_controller(
         robot,
@@ -454,7 +454,7 @@ def test_franka_pose_abs(sim, implementation: str):
         motion_stiffness_task=500.0,
         motion_damping_ratio_task=1.0,
     )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
+    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device, num_joints=7)
 
     _run_op_space_controller(
         robot,
@@ -506,7 +506,7 @@ def test_franka_pose_rel(sim, implementation: str):
         motion_stiffness_task=500.0,
         motion_damping_ratio_task=1.0,
     )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
+    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device, num_joints=7)
 
     _run_op_space_controller(
         robot,
@@ -556,7 +556,7 @@ def test_franka_pose_abs_variable_impedance(sim, implementation: str):
         partial_inertial_dynamics_decoupling=False,
         gravity_compensation=False,
     )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
+    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device, num_joints=7)
 
     _run_op_space_controller(
         robot,
@@ -639,7 +639,7 @@ def test_franka_wrench_abs_open_loop(sim, implementation: str):
         motion_control_axes_task=[0, 0, 0, 0, 0, 0],
         contact_wrench_control_axes_task=[1, 1, 1, 1, 1, 1],
     )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
+    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device, num_joints=7)
 
     _run_op_space_controller(
         robot,
@@ -730,7 +730,7 @@ def test_franka_wrench_abs_closed_loop(sim, implementation: str):
         motion_control_axes_task=[0, 0, 0, 0, 0, 0],
         contact_wrench_control_axes_task=[1, 1, 1, 1, 1, 1],
     )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
+    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device, num_joints=7)
 
     _run_op_space_controller(
         robot,
@@ -808,7 +808,7 @@ def test_franka_hybrid_decoupled_motion(sim, implementation: str):
         motion_control_axes_task=[0, 1, 1, 1, 1, 1],
         contact_wrench_control_axes_task=[1, 0, 0, 0, 0, 0],
     )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
+    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device, num_joints=7)
 
     _run_op_space_controller(
         robot,
@@ -890,7 +890,7 @@ def test_franka_hybrid_variable_kp_impedance(sim, implementation: str):
         motion_control_axes_task=[0, 1, 1, 1, 1, 1],
         contact_wrench_control_axes_task=[1, 0, 0, 0, 0, 0],
     )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
+    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device, num_joints=7)
 
     # Use more convergence steps for hybrid control which is less precise
     _run_op_space_controller(
@@ -962,7 +962,7 @@ def test_franka_taskframe_pose_abs(sim, implementation: str):
         motion_stiffness_task=500.0,
         motion_damping_ratio_task=1.0,
     )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
+    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device, num_joints=7)
 
     _run_op_space_controller(
         robot,
@@ -1015,7 +1015,7 @@ def test_franka_taskframe_pose_rel(sim, implementation: str):
         motion_stiffness_task=500.0,
         motion_damping_ratio_task=1.0,
     )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
+    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device, num_joints=7)
 
     _run_op_space_controller(
         robot,
@@ -1094,7 +1094,7 @@ def test_franka_taskframe_hybrid(sim, implementation: str):
         motion_control_axes_task=[1, 1, 0, 1, 1, 1],
         contact_wrench_control_axes_task=[0, 0, 1, 0, 0, 0],
     )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
+    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device, num_joints=7)
 
     _run_op_space_controller(
         robot,
@@ -1146,7 +1146,7 @@ def test_franka_pose_abs_without_inertial_decoupling_with_nullspace_centering(si
         motion_damping_ratio_task=[5.0, 5.0, 5.0, 0.001, 0.001, 0.001],
         nullspace_control="position",
     )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
+    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device, num_joints=7)
 
     _run_op_space_controller(
         robot,
@@ -1200,7 +1200,7 @@ def test_franka_pose_abs_with_partial_inertial_decoupling_nullspace_centering(si
         nullspace_control="position",
         nullspace_stiffness=1.0,
     )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
+    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device, num_joints=7)
 
     _run_op_space_controller(
         robot,
@@ -1255,7 +1255,7 @@ def test_franka_pose_abs_with_nullspace_centering(sim, implementation: str):
         nullspace_control="position",
         nullspace_stiffness=1.0,
     )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
+    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device, num_joints=7)
 
     _run_op_space_controller(
         robot,
@@ -1335,7 +1335,7 @@ def test_franka_taskframe_hybrid_with_nullspace_centering(sim, implementation: s
         contact_wrench_control_axes_task=[0, 0, 1, 0, 0, 0],
         nullspace_control="position",
     )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
+    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device, num_joints=7)
 
     _run_op_space_controller(
         robot,

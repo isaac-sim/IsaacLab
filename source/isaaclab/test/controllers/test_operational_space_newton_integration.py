@@ -203,7 +203,7 @@ def _build(scenario: dict, implementation: str = "newton") -> tuple[OperationalS
         motion_damping_ratio_task=(1.0, 1.1, 0.9, 1.0, 1.2, 0.8),
         **scenario,
     )
-    return OperationalSpaceController(cfg, _NUM_ENVS, _DEVICE), task_frame
+    return OperationalSpaceController(cfg, _NUM_ENVS, _DEVICE, num_joints=_NUM_DOF), task_frame
 
 
 @pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
@@ -320,26 +320,23 @@ def test_reset_clears_the_task_space_targets() -> None:
 @pytest.mark.parametrize("num_joints", [4, 6])
 def test_inertial_decoupling_requires_six_controlled_joints(num_joints: int) -> None:
     """Newton rejects under-actuated decoupling but accepts the six-joint boundary."""
-    controller = OperationalSpaceController(
-        OperationalSpaceControllerCfg(
-            implementation="newton", target_types=["pose_abs"], inertial_dynamics_decoupling=True
-        ),
-        1,
-        "cpu",
+    cfg = OperationalSpaceControllerCfg(
+        implementation="newton", target_types=["pose_abs"], inertial_dynamics_decoupling=True
     )
+    if num_joints < 6:
+        with pytest.raises(ValueError, match="at least 6 controlled DOFs"):
+            OperationalSpaceController(cfg, 1, "cpu", num_joints=num_joints)
+        return
+    controller = OperationalSpaceController(cfg, 1, "cpu", num_joints=num_joints)
     pose = torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]])
     controller.set_command(pose)
-    kwargs = dict(
+    efforts = controller.compute(
         jacobian_b=torch.eye(6, num_joints).unsqueeze(0),
         current_ee_pose_b=pose,
         current_ee_vel_b=torch.zeros(1, 6),
         mass_matrix=torch.eye(num_joints).unsqueeze(0),
     )
-    if num_joints < 6:
-        with pytest.raises(ValueError, match="at least 6 controlled DOFs"):
-            controller.compute(**kwargs)
-    else:
-        torch.testing.assert_close(controller.compute(**kwargs), torch.zeros(1, num_joints))
+    torch.testing.assert_close(efforts, torch.zeros(1, num_joints))
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA graph capture requires CUDA")
@@ -355,6 +352,7 @@ def test_captured_compute_tracks_commands_and_recaptures_after_reset() -> None:
             ),
             1,
             device,
+            num_joints=7,
         )
         pose = torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]], device=device)
         jacobian = torch.eye(6, 7, device=device).unsqueeze(0)
@@ -382,20 +380,19 @@ def test_captured_compute_tracks_commands_and_recaptures_after_reset() -> None:
 
 
 @pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
-def test_joint_count_inference_and_runtime_gravity_toggle(implementation):
-    """Both solvers infer dimensions and respect enabling/disabling gravity between calls."""
+def test_runtime_gravity_toggle(implementation):
+    """Both solvers respect enabling/disabling gravity compensation between calls."""
     cfg = OperationalSpaceControllerCfg(target_types=["pose_abs"], implementation=implementation)
-    controller = OperationalSpaceController(cfg, 1, "cpu")
+    controller = OperationalSpaceController(cfg, 1, "cpu", num_joints=_NUM_DOF)
     pose = torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]])
     controller.set_command(pose)
-    for count in (7, 6, 8):
-        gravity = torch.arange(count, dtype=torch.float32).unsqueeze(0)
-        for enabled in (False, True, False):
-            cfg.gravity_compensation = enabled
-            actual = controller.compute(
-                jacobian_b=torch.eye(6, count).unsqueeze(0),
-                current_ee_pose_b=pose,
-                current_ee_vel_b=torch.zeros(1, 6),
-                gravity=gravity if enabled else None,
-            )
-            torch.testing.assert_close(actual, gravity if enabled else torch.zeros_like(gravity))
+    gravity = torch.arange(_NUM_DOF, dtype=torch.float32).unsqueeze(0)
+    for enabled in (False, True, False):
+        cfg.gravity_compensation = enabled
+        actual = controller.compute(
+            jacobian_b=torch.eye(6, _NUM_DOF).unsqueeze(0),
+            current_ee_pose_b=pose,
+            current_ee_vel_b=torch.zeros(1, 6),
+            gravity=gravity if enabled else None,
+        )
+        torch.testing.assert_close(actual, gravity if enabled else torch.zeros_like(gravity))

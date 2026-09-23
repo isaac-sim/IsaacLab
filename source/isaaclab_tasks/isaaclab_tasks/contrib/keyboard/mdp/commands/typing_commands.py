@@ -262,7 +262,9 @@ class LetterTypingCommand(CommandTerm):
             # poses land at varying convergence (a reach-difficulty gradient). Normalize to (min, max).
             it = cfg.reset.ik_iters
             self._ik_iters = (int(it), int(it)) if isinstance(it, int) else (int(it[0]), int(it[1]))
-            self._reset_ik = DifferentialIKController(ik_cfg.controller, num_envs=self.num_envs, device=self.device)
+            self._reset_ik = DifferentialIKController(
+                ik_cfg.controller, num_envs=self.num_envs, device=self.device, num_joints=len(self._ik_joint_ids)
+            )
 
         # Success-conditioned reset curriculum (buffer built lazily on the first reset; see _build_buffer).
         # Needs reset-IK to synthesize the snapshot poses, so it stays off when reset.ik is unset.

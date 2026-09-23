@@ -68,8 +68,8 @@ class SO101PoseIKController(DifferentialIKController):
 
     cfg: SO101PoseIKControllerCfg
 
-    def __init__(self, cfg: SO101PoseIKControllerCfg, num_envs: int, device: str):
-        super().__init__(cfg, num_envs, device)
+    def __init__(self, cfg: SO101PoseIKControllerCfg, num_envs: int, device: str, num_joints: int | None = None):
+        super().__init__(cfg, num_envs, device, num_joints)
         # Column mask (1 = joint may serve the orientation rows) over the IK joints, pushed by the
         # action term once it has resolved ``orientation_joint_names`` to Jacobian columns. ``None``
         # leaves all joints free to serve orientation (the default).

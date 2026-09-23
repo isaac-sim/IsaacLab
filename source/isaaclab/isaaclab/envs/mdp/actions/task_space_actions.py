@@ -88,7 +88,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
 
         # create the differential IK controller
         self._ik_controller = DifferentialIKController(
-            cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device
+            cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device, num_joints=self._num_joints
         )
         # joint limits are injected lazily on the first apply (asset data is populated by then) so
         # the controller can do null-space joint-limit avoidance; only needed when joint_limit_avoidance_gain > 0.
@@ -376,7 +376,9 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._task_frame_pose_b = None
 
         # create the operational space controller
-        self._osc = OperationalSpaceController(cfg=self.cfg.controller_cfg, num_envs=self.num_envs, device=self.device)
+        self._osc = OperationalSpaceController(
+            cfg=self.cfg.controller_cfg, num_envs=self.num_envs, device=self.device, num_joints=self._num_DoF
+        )
 
         # create tensors for raw and processed actions
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
