@@ -20,6 +20,17 @@ from isaaclab.sim import SimulationCfg, SimulationContext
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture(autouse=True)
+def _release_simulation_context():
+    """Release the simulation context a test constructs.
+
+    ``SimulationContext`` is a singleton that refuses to be constructed twice, so a context left
+    behind by one test would make the next test's construction raise.
+    """
+    yield
+    SimulationContext.clear_instance()
+
+
 # -------------------------------------------------------------------------------------
 # Fragment metadata -- DeformableBodyFragment marker, OmniPhysicsDeformableBodyCfg
 # -------------------------------------------------------------------------------------
