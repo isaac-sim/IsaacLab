@@ -72,8 +72,26 @@ class CameraDRCfg:
     silently dissolved, which is the failure that is hard to see in a reward curve.
     """
 
-    preserve_classes: tuple[str, ...] = MISSING
-    """Semantic classes to keep exactly, e.g. ``("robot", "cube_1", "table")``."""
+    preserve_classes: tuple[str, ...] = ()
+    """Semantic classes to keep exactly, e.g. ``("robot", "cube_1", "table")``.
+
+    Required while ``composite_foreground`` is set, and unused otherwise. Naming a
+    class that never appears raises rather than silently regenerating everything."""
+
+    composite_foreground: bool = True
+    """Whether the runtime pastes the preserved pixels back over the generated frame.
+
+    Set, the foreground is bit-identical to the render: what the policy sees of the
+    robot and the objects it manipulates is exactly what the simulator produced. The
+    cost is that the generator never saw the foreground, so the two do not share
+    lighting, reflections or contact shadows, and the mask boundary is a visible seam.
+
+    Clear it to let the model render the whole frame, foreground included. The result
+    is coherently lit and has no seam, but nothing constrains the appearance of the
+    objects: in this task's own scene the cubes come back cyan and the robot black,
+    which is fatal for a policy that must pick a cube out by colour. Worth it when
+    nothing in view is task-relevant, or with a model conditioned tightly enough to
+    keep the foreground faithful -- not as a default."""
 
     unknown_policy: Literal["preserve", "randomize"] = "preserve"
     """What to do with a semantic ID absent from ``preserve_classes``."""
@@ -84,6 +102,11 @@ class CameraDRCfg:
     def __post_init__(self):
         if self.boundary_px < 0:
             raise ValueError("CameraDRCfg.boundary_px cannot be negative")
+        if self.composite_foreground and not self.preserve_classes:
+            raise ValueError(
+                "CameraDRCfg.preserve_classes must name the foreground while composite_foreground is set; "
+                "clear composite_foreground to let the generated frame stand as-is"
+            )
 
 
 @configclass

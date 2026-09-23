@@ -40,6 +40,11 @@ parser.add_argument(
     help="Lower lets the prompt invent background geometry instead of following depth",
 )
 parser.add_argument("--prompt", default=None, help="Use a single prompt instead of the task bank")
+parser.add_argument(
+    "--no_composite",
+    action="store_true",
+    help="Let the model render the foreground too, instead of pasting the render back",
+)
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 # Camera sensors need the rendering extensions in a headless, viewport-free launch.
@@ -134,6 +139,10 @@ def main() -> None:
             fp8=source.fp8,
             prompts=source.prompts,
         )
+    if args.no_composite:
+        for camera_cfg in cfg.visual_dr.cameras.values():
+            camera_cfg.composite_foreground = False
+
     if args.backend == "passthrough":
         cfg.visual_dr.backend.class_type = PassthroughBackend
 

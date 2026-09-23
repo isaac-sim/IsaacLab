@@ -36,6 +36,11 @@ parser.add_argument(
     default="",
     help="Comma-separated GPU indices to run Cosmos workers on, e.g. 3,6. Empty keeps generation in this process.",
 )
+parser.add_argument(
+    "--no_composite",
+    action="store_true",
+    help="Let the model render the foreground too, instead of pasting the render back",
+)
 parser.add_argument("--backend", choices=("cosmos", "passthrough"), default="passthrough")
 parser.add_argument("--offload_at", default="", help="Comma-separated steps at which to offload and re-activate")
 parser.add_argument(
@@ -133,6 +138,10 @@ def main() -> None:
         cfg.visual_dr.probability = args.probability
     if args.decision_period is not None:
         cfg.visual_dr.decision_period = args.decision_period
+    if args.no_composite:
+        for camera_cfg in cfg.visual_dr.cameras.values():
+            camera_cfg.composite_foreground = False
+
     worker_devices = tuple(int(d) for d in args.workers.split(",") if d.strip())
     if worker_devices:
         # Same settings, generated elsewhere: copy the configured backend across so

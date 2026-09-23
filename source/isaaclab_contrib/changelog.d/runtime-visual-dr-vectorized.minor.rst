@@ -139,3 +139,12 @@ Fixed
   disabled runtime now builds no backend, advances no scheduling state, and is
   indistinguishable from having attached no runtime: ``make_frame`` is never
   called, so depth and segmentation are not even fetched.
+
+* Added ``CameraDRCfg.composite_foreground``. Set, the runtime pastes the preserved
+  pixels back and the foreground is bit-identical to the render. Cleared, the
+  generated frame stands as it is, letting the model light and render the foreground
+  along with everything else: coherent lighting and no mask seam, but nothing
+  constrains the objects' appearance -- in the stacking scene the cubes come back
+  cyan and the robot black, which would be fatal for a policy that identifies a cube
+  by colour. ``preserve_classes`` is required only while compositing, so a scene
+  with no semantic tags works in the cleared mode.
