@@ -194,3 +194,10 @@ Fixed
   dependency index publishes FlashAttention only for CPython 3.13 against torch 2.9
   or 2.10. Dao-AILab's own releases carry a CPython 3.12 CUDA 13 build against torch
   2.10 which imports and runs on torch 2.12, varlen kernel included.
+
+* Changed the stacking demo's prompts to describe the foreground as fixed -- a bare
+  grey workbench holding a white arm and exactly three red, green and blue cubes --
+  and added negatives against furnishing or recolouring it. This only affects the
+  mode where ``composite_foreground`` is cleared; with the composite on those pixels
+  come from the render and no prompt can reach them. Without it the model previously
+  invented the foreground, returning fused cyan shapes in place of the cubes.
