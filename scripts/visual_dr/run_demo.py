@@ -43,6 +43,13 @@ parser.add_argument(
 parser.add_argument(
     "--mask_guidance", action="store_true", help="Send the preserved mask to Cosmos for guided denoising"
 )
+parser.add_argument("--boundary_px", type=int, default=None, help="Dilate the preserved region")
+parser.add_argument(
+    "--mask_downsample",
+    default=None,
+    choices=("max", "area", "trilinear"),
+    help="How the pixel mask is reduced to latent resolution",
+)
 parser.add_argument("--prompt", default=None, help="Use a single prompt instead of the task bank")
 parser.add_argument(
     "--no_composite",
@@ -148,6 +155,11 @@ def main() -> None:
     if args.mask_guidance:
         cfg.visual_dr.backend.mask_guidance = True
 
+    if args.boundary_px is not None:
+        for camera_cfg in cfg.visual_dr.cameras.values():
+            camera_cfg.boundary_px = args.boundary_px
+    if args.mask_downsample:
+        cfg.visual_dr.backend.mask_downsample_mode = args.mask_downsample
     if args.no_composite:
         for camera_cfg in cfg.visual_dr.cameras.values():
             camera_cfg.composite_foreground = False

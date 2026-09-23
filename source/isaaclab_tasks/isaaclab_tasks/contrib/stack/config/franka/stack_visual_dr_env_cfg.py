@@ -30,44 +30,27 @@ from isaaclab_tasks.contrib.stack.config.franka.stack_ik_rel_visuomotor_cosmos_e
 )
 from isaaclab_tasks.utils.presets import set_isaac_rtx_global_settings
 
-FOREGROUND_CLAUSE = (
-    "In the foreground a plain matte grey metal workbench, bare except for a white "
-    "robot arm and exactly three small matte plastic cubes -- one red, one green, one "
-    "blue. The workbench stays flat grey metal and the cubes keep their red, green and "
-    "blue colours. Nothing else rests on the workbench."
-)
-"""Repeated in every variant.
-
-Only matters when ``composite_foreground`` is cleared: with the composite on, these
-pixels are pasted back from the render and the prompt cannot affect them. Without
-it the model has no other description of the foreground, so it invents one -- the
-workbench drifts in colour and laboratory clutter appears on it. Naming what must
-stay is weak compared with pasting, but it is the only lever in that mode."""
-
-SCENE_PROMPTS = (
-    "A photograph of a biological research laboratory: researchers in white coats "
-    "walking between workstations behind the bench, fume hoods and glass-fronted "
-    "reagent cabinets along the far wall, bright even ceiling lighting, natural "
-    "photographic colour and realistic skin tones.",
-    "A candid photograph inside a busy life-sciences lab: scientists in lab coats and "
-    "safety glasses moving between the far benches, centrifuges and incubators stacked "
-    "against the back wall, cool fluorescent lighting, pale epoxy floors, documentary "
-    "photography, high dynamic range.",
-    "A real photograph of a biotech cleanroom corridor: technicians in white coats and "
-    "gloves walking past in the distance, brushed stainless equipment racks and sealed "
-    "glass doors along the walls, diffuse overhead lighting, photographic film grain, "
-    "professional architectural photography.",
+BACKGROUND_PROMPTS = (
+    "A photograph of a biological research laboratory behind the bench, shot on a "
+    "DSLR with a wide lens: researchers in white coats walking between workstations, "
+    "fume hoods and glass-fronted reagent cabinets along the wall, bright even "
+    "ceiling lighting, natural photographic colour and realistic skin tones, sharp "
+    "focus with shallow depth of field falling off towards the back wall.",
+    "A candid photograph inside a busy life-sciences lab: scientists in lab coats "
+    "and safety glasses moving between benches, centrifuges and incubators stacked "
+    "along the back wall, cool fluorescent lighting, pale epoxy floors with "
+    "realistic specular reflections, documentary photography, high dynamic range.",
+    "A real photograph of a biotech cleanroom corridor: technicians in white coats "
+    "and gloves walking past, brushed stainless steel equipment racks and sealed "
+    "glass doors, diffuse overhead lighting, photographic film grain and accurate "
+    "reflections, professional architectural photography.",
     "A photograph of a university biology laboratory during the day: postgraduate "
-    "researchers in white coats crossing the room behind the bench, microscopes and "
-    "pipette racks on the far benches, daylight through tall windows, realistic "
-    "shadows and natural colour grading, shot on a full-frame camera at f/4.",
+    "researchers in white coats crossing the room, microscopes and pipette racks on "
+    "the far benches, daylight through tall windows, realistic shadows and natural "
+    "colour grading, shot on a full-frame camera at f/4.",
 )
-"""Scene-coupled by design: these describe this room and would be wrong elsewhere.
-Each is combined with :data:`FOREGROUND_CLAUSE` so the room can change while the
-workbench and cubes are described as fixed."""
-
-BACKGROUND_PROMPTS = tuple(f"{scene} {FOREGROUND_CLAUSE}" for scene in SCENE_PROMPTS)
-"""What the bank actually contains: scene plus the fixed-foreground clause."""
+"""Scene-coupled by design: these describe this table's surroundings and would be
+wrong for another task. A new task ships its own bank."""
 
 FOCAL_LENGTH = 12.0
 """Roughly an 82 degree horizontal field of view at the task's 20.955 mm aperture,
@@ -89,17 +72,10 @@ foreground and fills the lower frame, so the room only becomes a meaningful part
 of the image once the camera stands off from it."""
 
 NEGATIVE_PROMPT = (
-    # Style: the checkpoint has plenty of stylised imagery to fall back on, and a
-    # positive request for realism competes with it rather than excluding it.
     "cartoon, anime, illustration, drawing, painting, sketch, comic, cel shading, "
     "flat shading, posterized, oversaturated colours, video game screenshot, 3D "
-    "render, CGI, toy-like, unrealistic proportions, low detail, "
-    # Content: without these the model furnishes the workbench with laboratory
-    # equipment and repaints it, which destroys the only surface the task uses.
-    "clutter on the workbench, objects on the table, bottles on the bench, tools on "
-    "the bench, papers on the bench, equipment on the workbench, additional cubes, "
-    "wooden table, patterned tabletop, coloured tabletop, reflective glass tabletop, "
-    "recolored cubes, extra objects in the foreground"
+    "render, CGI, plastic surfaces, toy-like, unrealistic proportions, blurry, "
+    "low detail"
 )
 """Steers away from the illustrated look the prompt alone does not rule out. The
 checkpoint has plenty of stylised imagery in its training distribution, and a

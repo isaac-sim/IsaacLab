@@ -206,10 +206,19 @@ class CosmosBackendCfg(DRBackendCfg):
     """Sampler steps over which the masked region is held to the source. Higher
     preserves harder and leaves less room for the background to settle around it."""
 
-    mask_downsample_mode: Literal["max", "area", "trilinear"] = "max"
-    """How the pixel mask is reduced to latent resolution. ``max`` keeps a latent
-    cell whenever any of its pixels are foreground, which is what protects thin
-    structures such as fingers; ``area`` averages and tends to drop them."""
+    mask_downsample_mode: Literal["max", "area", "trilinear"] = "area"
+    """How the pixel mask is reduced to latent resolution.
+
+    ``max`` keeps a latent cell whenever any of its pixels are foreground, so it
+    over-preserves: a rim of original background is held around every object and,
+    against a regenerated scene, reads as a bright halo tracing each silhouette.
+    ``area`` averages and thresholds instead, which measured markedly cleaner --
+    the halo fell by close to half -- while still keeping thin structures such as
+    the gripper fingers. Prefer ``max`` only if something thin is being lost.
+
+    Note that ``CameraDRCfg.boundary_px`` compounds this: dilating the preserved
+    region helps hide the composite's seam but widens the same rim under guidance,
+    so leave it at zero when generating with a mask and no composite."""
 
     guidance: float = 3.0
     """Classifier-free guidance on the prompt, matching what Cosmos tunes for every

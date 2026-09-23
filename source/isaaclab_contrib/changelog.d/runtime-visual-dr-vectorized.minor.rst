@@ -209,3 +209,13 @@ Fixed
   the composite flag decides only whether the runtime pastes it back. With a real
   mask, guided generation preserves the workbench colour exactly and keeps the cubes'
   colours while still lighting the whole frame coherently.
+
+* Fixed a bright fringe tracing every preserved object when generating with a mask
+  and no composite. Two causes, both ours: the latent mask was reduced with ``max``,
+  which keeps a cell whenever any of its pixels are foreground and so holds a rim of
+  original background around each silhouette; and the stacking prompts had been told
+  to describe the foreground, which biased the generation brighter around it. The
+  mask now reduces with ``area``, and the prompts describe only the room again --
+  with a real guidance mask they never needed to describe the foreground, since the
+  mask preserves it. ``CameraDRCfg.boundary_px`` compounds the same rim and should
+  be left at zero under guidance, which the field now documents.
