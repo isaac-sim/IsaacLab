@@ -50,14 +50,14 @@ jobs:
   # SkillEvaluator Tier 1 / Tier 2A / Tier 2B / Tier 3 for skills/user/* touched by this PR.
   # (skills/_internal/ is excluded — not part of the NVCARPS-facing catalog.)
   #
-  # Security gate: the 'skills-gpu' GitHub environment requires maintainer approval before
-  # secrets (NVIDIA_INFERENCE_API_KEY) are injected and the job runs on the self-hosted GPU
-  # runner. A maintainer reviews the PR diff and clicks "Approve and deploy" in the Actions UI.
-  # This replaces the earlier label-gate pattern and runs the workflow directly from the PR HEAD.
+  # Security gate: the 'skillevaluator-review' GitHub environment requires maintainer approval
+  # before secrets (NVIDIA_INFERENCE_API_KEY) are injected and the job runs on the self-hosted
+  # GPU runner. A maintainer reviews the PR diff and clicks "Approve and deploy" in the Actions
+  # UI. This replaces the earlier label-gate pattern and runs the workflow from the PR HEAD.
   validate-skills:
     name: Validate skills (SkillEvaluator)
     runs-on: [self-hosted, gpu]
-    environment: skills-gpu
+    environment: skillevaluator-review
     timeout-minutes: 90
 
     steps:
