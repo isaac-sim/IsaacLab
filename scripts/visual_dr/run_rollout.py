@@ -41,6 +41,7 @@ parser.add_argument(
     action="store_true",
     help="Let the model render the foreground too, instead of pasting the render back",
 )
+parser.add_argument("--num_steps", type=int, default=None, help="Override the backend's sampler steps")
 parser.add_argument("--backend", choices=("cosmos", "passthrough"), default="passthrough")
 parser.add_argument("--offload_at", default="", help="Comma-separated steps at which to offload and re-activate")
 parser.add_argument(
@@ -138,6 +139,9 @@ def main() -> None:
         cfg.visual_dr.probability = args.probability
     if args.decision_period is not None:
         cfg.visual_dr.decision_period = args.decision_period
+    if args.num_steps is not None:
+        cfg.visual_dr.backend.num_steps = args.num_steps
+
     if args.no_composite:
         for camera_cfg in cfg.visual_dr.cameras.values():
             camera_cfg.composite_foreground = False
