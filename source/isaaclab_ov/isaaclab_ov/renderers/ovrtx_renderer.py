@@ -441,7 +441,7 @@ class OVRTXRenderer(BaseRenderer):
         # Selected once at construction so every dispatch method below sees a stable path for the
         # lifetime of the renderer, even if the environment variable changes mid-process.
         self._use_ovstage = ovrtx_use_ovstage_enabled()
-        self._strategy: _RenderStrategy = _resolve_render_strategy(cfg, use_ovstage=self._use_ovstage)
+        self._strategy = _resolve_render_strategy(cfg, use_ovstage=self._use_ovstage)
         self.backend: OVRTXBackend = SimulationContext.instance().get_or_create_backend(
             OVRTXBackendCfg(
                 renderer_cfg=cfg,
