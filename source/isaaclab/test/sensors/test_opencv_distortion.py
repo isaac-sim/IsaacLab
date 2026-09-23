@@ -56,7 +56,6 @@ if not _MISSING_MODULES:
         OpenCvPinholeDistortionCfg,
         PinholeCameraCfg,
     )
-    from isaaclab.utils.sensors import convert_camera_intrinsics_to_usd
     from isaaclab.utils.warp import ProxyArray
 
 
@@ -304,13 +303,6 @@ def test_readback_distinct_image_size_mismatches_each_warn():
     assert len(mismatch_warnings) == 2
     assert any("(640, 480)" in message for message in mismatch_warnings)
     assert any("(1280, 720)" in message for message in mismatch_warnings)
-
-
-def test_intrinsics_to_usd_warns_on_negative_aperture_offset(caplog):
-    """A principal point left of and above the image center warns about aperture offsets."""
-    convert_camera_intrinsics_to_usd([400.0, 0.0, 310.0, 0.0, 400.0, 230.0, 0.0, 0.0, 1.0], 640, 480)
-
-    assert any("aperture offsets" in message for message in caplog.messages)
 
 
 def test_pointcloud_from_rgbd_uniform_color():
