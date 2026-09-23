@@ -241,11 +241,6 @@ def parse_profile(filename: str, num_frames: int, scopes: dict[str, str] | None 
     Returns:
         The :data:`FRAME_SCOPE` statistics flat, a sub-dict per remaining scope, and a ``total``
         sub-dict summing all of them. ``None`` if the file holds no usable frames.
-
-    Raises:
-        OSError: The profiling file cannot be read.
-        TypeError: A timing entry has an invalid type.
-        ValueError: The profiling file does not contain valid ordered scope timings.
     """
     scopes = PROFILE_SCOPES if scopes is None else scopes
     frames = parse_frames(filename, scopes)
