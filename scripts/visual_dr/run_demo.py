@@ -39,6 +39,9 @@ parser.add_argument(
     default=None,
     help="Lower lets the prompt invent background geometry instead of following depth",
 )
+parser.add_argument(
+    "--mask_guidance", action="store_true", help="Send the preserved mask to Cosmos for guided denoising"
+)
 parser.add_argument("--prompt", default=None, help="Use a single prompt instead of the task bank")
 parser.add_argument(
     "--no_composite",
@@ -139,6 +142,9 @@ def main() -> None:
             fp8=source.fp8,
             prompts=source.prompts,
         )
+    if args.mask_guidance:
+        cfg.visual_dr.backend.mask_guidance = True
+
     if args.no_composite:
         for camera_cfg in cfg.visual_dr.cameras.values():
             camera_cfg.composite_foreground = False

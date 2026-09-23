@@ -188,6 +188,26 @@ class CosmosBackendCfg(DRBackendCfg):
     """Generation aspect-ratio bucket. Square suits policies that consume square
     crops; the generated grid must not fall below the policy's input size."""
 
+    mask_guidance: bool = False
+    """Send the preserved-foreground mask to Cosmos so it denoises around it.
+
+    Stock ``cosmos-framework`` has no guided-generation support, so this requires a
+    checkout that adds it and raises on load otherwise rather than silently
+    generating without a mask. Where it is available it is strictly better than
+    compositing alone: the model knows what occupies the foreground, so the
+    background it produces can agree with it on lighting and contact shadows
+    instead of being pasted over blind. Compositing stays useful alongside it --
+    guidance preserves approximately, in latent space, while the paste is exact."""
+
+    mask_step_threshold: int = 3
+    """Sampler steps over which the masked region is held to the source. Higher
+    preserves harder and leaves less room for the background to settle around it."""
+
+    mask_downsample_mode: Literal["max", "area", "trilinear"] = "max"
+    """How the pixel mask is reduced to latent resolution. ``max`` keeps a latent
+    cell whenever any of its pixels are foreground, which is what protects thin
+    structures such as fingers; ``area`` averages and tends to drop them."""
+
     guidance: float = 3.0
     """Classifier-free guidance on the prompt, matching what Cosmos tunes for every
     transfer hint. At 1.0 guidance is effectively off and the prompt barely
