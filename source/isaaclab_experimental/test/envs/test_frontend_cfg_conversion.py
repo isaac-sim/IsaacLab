@@ -32,7 +32,7 @@ from isaaclab_experimental.envs.frontend import WarpFrontend
 from isaaclab_newton.physics import NewtonCfg
 
 # Registering the task packages is the whole point — import for side effects.
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
 
 # Stable manager-based tasks resolve to this env class; direct tasks provide their own and

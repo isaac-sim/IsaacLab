@@ -24,7 +24,7 @@ from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.utils import math as math_utils
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 from .common import apply_env_overrides

@@ -17,7 +17,7 @@ from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.seed import configure_seed
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 from ..common import (

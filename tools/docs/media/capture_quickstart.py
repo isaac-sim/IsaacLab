@@ -22,7 +22,7 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.core.cabinet.config.franka.joint_pos_env_cfg import FrankaCabinetEnvCfg
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg
 from isaaclab_tasks.core.lift.config.kuka_allegro.kuka_allegro_env_cfg import KukaAllegroLiftEnvCfg

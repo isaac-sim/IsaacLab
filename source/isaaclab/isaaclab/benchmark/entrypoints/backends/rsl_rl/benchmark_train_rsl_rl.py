@@ -140,7 +140,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
 
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 
-    import isaaclab_tasks  # noqa: F401
+    import isaaclab_tasks.registry  # noqa: F401
 
     with contextlib.suppress(ImportError):
         import isaaclab_tasks_experimental  # noqa: F401

@@ -22,7 +22,7 @@ from isaaclab.actuators import DCMotorCfg  # noqa: E402
 from isaaclab.envs import ManagerBasedRLEnv  # noqa: E402
 from isaaclab.sim import SimulationCfg  # noqa: E402
 
-import isaaclab_tasks  # noqa: F401, E402
+import isaaclab_tasks.registry  # noqa: F401, E402
 from isaaclab_tasks.core.velocity.config.g1.flat_env_cfg import G1FlatEnvCfg  # noqa: E402
 
 _NEWTON_CFG = NewtonCfg(

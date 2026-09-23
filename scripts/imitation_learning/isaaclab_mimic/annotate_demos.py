@@ -81,7 +81,7 @@ from isaaclab.managers import RecorderTerm, RecorderTermCfg, TerminationTermCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 is_paused = False

@@ -5,10 +5,35 @@
 
 """Tests for :func:`isaaclab_tasks.utils.parse_cfg.parse_env_cfg`."""
 
+import subprocess
+import sys
+
 import pytest
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
+
+
+def test_task_module_import_does_not_register_other_environments():
+    """Importing a task helper should leave unrelated Gym environments unregistered."""
+    script = """\
+import gymnasium as gym
+import sys
+import isaaclab_tasks
+
+assert "Isaac-Cartpole-Direct" not in gym.registry
+assert "isaaclab_tasks.core.cartpole" not in sys.modules
+
+import isaaclab_tasks.core.reorient.utils
+
+assert "Isaac-Cartpole-Direct" not in gym.registry
+assert "isaaclab_tasks.core.cartpole" not in sys.modules
+
+import isaaclab_tasks.registry
+
+assert "Isaac-Cartpole-Direct" in gym.registry
+"""
+    subprocess.run([sys.executable, "-c", script], check=True, capture_output=True, text=True)
 
 
 def test_parse_env_cfg_rejects_bare_string_overrides():

@@ -14,7 +14,7 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab.app import scan
 from isaaclab.sim import CuboidCfg
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
 
 

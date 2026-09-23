@@ -149,7 +149,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
 
     from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 
-    import isaaclab_tasks  # noqa: F401
+    import isaaclab_tasks.registry  # noqa: F401
 
     with contextlib.suppress(ImportError):
         import isaaclab_tasks_experimental  # noqa: F401

@@ -46,7 +46,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."
 
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
-    import isaaclab_tasks  # noqa: F401
+    import isaaclab_tasks.registry  # noqa: F401
 
 from isaaclab_tasks.utils.hydra import resolve_task_config
 

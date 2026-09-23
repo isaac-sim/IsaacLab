@@ -18,7 +18,7 @@ from isaaclab.envs import VideoRecorderCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.core.velocity.config.anymal_d.flat_env_cfg import AnymalDFlatEnvCfg
 
 

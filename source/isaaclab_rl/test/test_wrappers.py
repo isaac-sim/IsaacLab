@@ -51,7 +51,7 @@ def raw_env(task: str, library: str, finite_horizon: bool) -> Iterator[Any]:
 
     from isaaclab.app import launch_simulation
 
-    import isaaclab_tasks  # noqa: F401
+    import isaaclab_tasks.registry  # noqa: F401
     from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
     cfg = parse_env_cfg(task, device="cuda:0", num_envs=_NUM_ENVS)

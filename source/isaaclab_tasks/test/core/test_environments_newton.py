@@ -14,7 +14,7 @@ os.environ["PXR_WORK_THREAD_LIMIT"] = "1"
 
 import pytest
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 
 # Local imports should be imported last
 from env_test_utils import SINGLE_ENVIRONMENT_TASKS, _run_environments, setup_environment  # isort: skip

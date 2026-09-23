@@ -31,7 +31,7 @@ from isaaclab_newton.cloner import copy_newton_clone_source
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils import math as math_utils
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.contrib.franka_pour.geometry import (
     CUP_GRASP_HEIGHT,
     CUP_GRASP_TCP_QUAT_C,

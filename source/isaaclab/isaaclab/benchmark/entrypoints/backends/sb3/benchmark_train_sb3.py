@@ -203,7 +203,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
     from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
-    import isaaclab_tasks  # noqa: F401
+    import isaaclab_tasks.registry  # noqa: F401
 
     with contextlib.suppress(ImportError):
         import isaaclab_tasks_experimental  # noqa: F401

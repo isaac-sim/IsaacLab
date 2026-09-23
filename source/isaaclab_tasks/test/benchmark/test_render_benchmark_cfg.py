@@ -19,7 +19,7 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim.schemas import MassCfg, UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 

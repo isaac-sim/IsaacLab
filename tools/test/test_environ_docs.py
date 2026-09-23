@@ -62,7 +62,7 @@ from environ_docs import (  # noqa: E402
 
 from isaaclab.envs import ManagerBasedRLEnv  # noqa: E402
 
-import isaaclab_tasks  # noqa: E402, F401
+import isaaclab_tasks.registry  # noqa: E402, F401
 from isaaclab_tasks.utils.preset_target import PresetTarget  # noqa: E402
 
 

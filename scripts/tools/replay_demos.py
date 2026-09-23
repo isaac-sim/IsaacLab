@@ -90,7 +90,7 @@ import torch
 from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
 
 is_paused = False

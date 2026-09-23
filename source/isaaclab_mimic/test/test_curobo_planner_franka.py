@@ -36,7 +36,7 @@ ISAAC_NUCLEUS_DIR: str = getattr(_al_assets, "ISAAC_NUCLEUS_DIR", "/Isaac")
 from isaaclab_mimic.motion_planners.curobo.curobo_planner import CuroboPlanner
 from isaaclab_mimic.motion_planners.curobo.curobo_planner_cfg import CuroboPlannerCfg
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
 
 # Predefined EE goals for the test

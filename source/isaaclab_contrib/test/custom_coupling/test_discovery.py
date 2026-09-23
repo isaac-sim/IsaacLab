@@ -15,7 +15,7 @@ def test_custom_coupling_is_opt_in() -> None:
     script = textwrap.dedent(
         """
         import gymnasium as gym
-        import isaaclab_tasks
+        import isaaclab_tasks.registry
 
         custom_id = "IsaacContrib-Lift-Soft-Franka-Custom-Coupling"
         assert "Isaac-Lift-Soft-Franka" in gym.registry
