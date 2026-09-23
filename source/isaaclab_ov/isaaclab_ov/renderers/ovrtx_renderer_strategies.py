@@ -248,6 +248,12 @@ class _AsyncRenderStrategy(_RenderStrategy):
     step stale. Several cameras can share the strategy: their renders are grouped by frame, and a
     frame's renders drain together when the next frame's renders are enqueued.
 
+    **Frame boundaries.** No caller announces a frame. The strategy reads it from the call
+    pattern instead, which alternates two phases within every frame: first the staging calls
+    (object and camera transforms), then one render call per camera. The transition from the
+    render phase back to a staging call is the frame boundary. :meth:`_begin_staging_phase` and
+    :meth:`_begin_render_phase` are the only places that track it.
+
     Transform staging always uses two slots, so one slot can be refilled while the other still
     backs the frame in flight. A slot serves all cameras of its frame.
 
@@ -276,12 +282,37 @@ class _AsyncRenderStrategy(_RenderStrategy):
         self._slots: list[_AsyncRenderSlot] = []
         self._slot_index = 0
         self._current_slot: _AsyncRenderSlot | None = None
-        # Frame grouping: every render enqueued between two slot advances belongs to one frame.
-        # The previous frame's renders drain when the next frame's renders are enqueued, which
-        # gives every camera one frame of latency, however many cameras share the strategy.
+        # The current frame number and the phase within it. See the class docstring for how the
+        # two phases define a frame. ``_frame`` is the drain key: renders from older frames are
+        # delivered when a newer frame's renders are enqueued, which gives every camera one frame
+        # of latency, however many cameras share the strategy.
         self._frame = 0
-        self._enqueued_in_frame = False
+        self._in_render_phase = False
         self._primed_render_data: set[Any] = set()
+
+    def _begin_staging_phase(self) -> None:
+        """Start the next frame when the call pattern returns from rendering to staging."""
+        if self._in_render_phase:
+            self._in_render_phase = False
+            self._frame += 1
+            self._advance_slot()
+
+    def _begin_render_phase(self, render_data: OVRTXCameraRenderData | None) -> None:
+        """Enter the render phase of the current frame.
+
+        A second render for the same camera means the caller skipped the staging phase, so it
+        starts the next frame here instead. The staging slot keeps its buffers: nothing was
+        staged, so the frame renders from the previous transforms.
+        """
+        self._in_render_phase = True
+        if render_data is None:
+            return
+        # Only a same-frame duplicate signals a skipped staging phase. Older entries for this
+        # camera are the normal pipeline: they drain after this call, in _enqueue_render_op.
+        pending_renders_for_camera = (entry for entry in self._ring if entry.render_data is render_data)
+        already_rendered_this_frame = any(entry.frame == self._frame for entry in pending_renders_for_camera)
+        if already_rendered_this_frame:
+            self._frame += 1
 
     def _has_pending_ops(self) -> bool:
         """Return whether any render op is still queued."""
@@ -290,17 +321,10 @@ class _AsyncRenderStrategy(_RenderStrategy):
     def _enqueue_render_op(
         self, op: _AsyncRenderOp, render_data: OVRTXCameraRenderData | None, consume_products: _RenderProductConsumer
     ) -> _AsyncRenderEntry:
-        """Queue a render op for the current frame and drain the renders of earlier frames."""
-        # A second render for the same camera without staging in between belongs to the next
-        # frame. Staging normally starts the frame (see :meth:`_staging_slot`), so this only
-        # covers callers that render without moving anything.
-        if render_data is not None and any(
-            entry.frame == self._frame and entry.render_data is render_data for entry in self._ring
-        ):
-            self._frame += 1
+        """Queue a render op for the current frame and deliver the renders of earlier frames."""
+        self._begin_render_phase(render_data)
         entry = _AsyncRenderEntry(op, render_data, consume_products, self._frame)
         self._ring.append(entry)
-        self._enqueued_in_frame = True
         while self._ring and self._ring[0].frame < self._frame:
             self._try_drain_one()
         return entry
@@ -322,7 +346,7 @@ class _AsyncRenderStrategy(_RenderStrategy):
         self._slot_index = 0
         self._current_slot = None
         self._frame = 0
-        self._enqueued_in_frame = False
+        self._in_render_phase = False
         self._primed_render_data.clear()
         self._ring.clear()
 
@@ -336,17 +360,14 @@ class _AsyncRenderStrategy(_RenderStrategy):
     def _staging_slot(self) -> _AsyncRenderSlot:
         """The slot that receives this frame's staged transforms, in any staging order.
 
-        The slot pool is built on first use. The first staging call after a render enqueue starts
-        the next frame and rotates to the other slot. Further staging calls in the same frame,
-        from any camera, share that slot.
+        The slot pool is built on first use. The frame's first staging call rotates to the other
+        slot (see :meth:`_begin_staging_phase`). Further staging calls in the same frame, from any
+        camera, share that slot.
         """
         if not self._slots:
             self._create_slots()
             self._current_slot = self._slots[self._slot_index]
-        if self._enqueued_in_frame:
-            self._frame += 1
-            self._enqueued_in_frame = False
-            self._advance_slot()
+        self._begin_staging_phase()
         assert self._current_slot is not None
         return self._current_slot
 

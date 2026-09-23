@@ -304,6 +304,37 @@ def test_two_cameras_pipeline_together_with_one_frame_latency(timeline):
     assert frame_2[0] is frame_0[0], "staging buffers double-buffer across frames"
 
 
+def test_repeated_renders_without_staging_keep_one_frame_in_flight(strategy, timeline):
+    """A camera re-rendered without staging starts the next frame at the render call itself.
+
+    Nothing is staged between the rounds, so the fallback boundary in ``_begin_render_phase``
+    must group the renders into frames and drain the previous frame, for both cameras together.
+    """
+    renderer = _FakeRenderer(timeline)
+    camera_a, camera_b = object(), object()
+    delivered: list[object] = []
+
+    def consume(render_data, products):
+        delivered.append(render_data)
+
+    def render_both():
+        strategy.render(renderer, {"/A"}, 1.0 / 60.0, camera_a, consume)
+        strategy.render(renderer, {"/B"}, 1.0 / 60.0, camera_b, consume)
+
+    render_both()
+    assert delivered == [camera_a, camera_b], "each camera's first frame is primed"
+
+    delivered.clear()
+    render_both()
+    assert delivered == [], "the second round stays in flight"
+
+    delivered.clear()
+    strategy.render(renderer, {"/A"}, 1.0 / 60.0, camera_a, consume)
+    assert delivered == [camera_a, camera_b], "a repeat render drains the whole previous round"
+    strategy.render(renderer, {"/B"}, 1.0 / 60.0, camera_b, consume)
+    assert delivered == [camera_a, camera_b], "the second camera joins the new round without draining it"
+
+
 def test_cleanup_survives_failed_slot_writes(strategy, timeline):
     """A failed binding write at teardown must not raise. It must finish draining and report the failure."""
     renderer = _FakeRenderer(timeline)
