@@ -935,80 +935,17 @@ jobs:
         omni-github-test-type: "rendering-correctness-kitless-ovstage"
 
   performance-smoke:
-    name: "performance-smoke (${{ matrix.name }})"
+    name: performance-smoke-benchmarks
     runs-on: [self-hosted, gpu]
-    # Each attempt is bounded by `timeout` within the job's overall budget.
-    timeout-minutes: ${{ matrix.job_timeout_minutes }}
+    # Ceiling is the sum of each leg's own bench_timeout_s x 3 + buffer
+    # Individual attempts are still bound tightly by `timeout` inside the loop.
+    timeout-minutes: 510
     needs: [build, config]
     # Pull requests and manual dispatches run in gate mode. A push runs only on develop,
     # where it also records a baseline; pushes to main and release/** skip this job.
     if: >-
       (github.event_name != 'push' || github.ref == 'refs/heads/develop') &&
       needs.build.result == 'success'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - name: cartpole-physx
-          task: Isaac-Cartpole-Direct
-          num_envs: 4096
-          job_timeout_minutes: 30
-          bench_timeout_s: 600
-          args: ""
-        - name: cartpole-newton
-          task: Isaac-Cartpole-Direct
-          num_envs: 4096
-          job_timeout_minutes: 30
-          bench_timeout_s: 600
-          args: physics=newton_mjwarp
-        - name: gear-mesh-physx
-          task: IsaacContrib-Factory-GearMesh-Direct
-          num_envs: 512
-          job_timeout_minutes: 40
-          bench_timeout_s: 900
-          args: ""
-        - name: shadow-camera-physx-rtx
-          task: IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct
-          num_envs: 512
-          job_timeout_minutes: 50
-          bench_timeout_s: 1200
-          args: renderer=isaacsim_rtx
-        - name: shadow-camera-physx-newton-renderer
-          task: IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct
-          num_envs: 512
-          job_timeout_minutes: 50
-          bench_timeout_s: 1200
-          args: renderer=newton_renderer
-        - name: shadow-camera-newton-rtx
-          task: IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct
-          num_envs: 512
-          job_timeout_minutes: 50
-          bench_timeout_s: 1200
-          args: physics=newton_mjwarp renderer=isaacsim_rtx
-        - name: shadow-camera-newton-renderer
-          task: IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct
-          num_envs: 512
-          job_timeout_minutes: 50
-          bench_timeout_s: 1200
-          args: physics=newton_mjwarp renderer=newton_renderer
-        - name: shadow-camera-ovphysx-newton
-          task: IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct
-          num_envs: 512
-          job_timeout_minutes: 50
-          bench_timeout_s: 1200
-          args: physics=ovphysx renderer=newton_renderer
-        - name: g1-physx
-          task: Isaac-Velocity-Flat-G1
-          num_envs: 512
-          job_timeout_minutes: 34
-          bench_timeout_s: 720
-          args: ""
-        - name: g1-newton
-          task: Isaac-Velocity-Flat-G1
-          num_envs: 512
-          job_timeout_minutes: 34
-          bench_timeout_s: 720
-          args: physics=newton_mjwarp
     steps:
     - uses: actions/checkout@v6
       with:
@@ -1021,6 +958,23 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
+
+    # One row per combination: name|task|num_envs|bench_timeout_s|args
+    - name: Define benchmark matrix
+      run: |
+        cat > benchmark-legs.tsv <<'EOF'
+        cartpole-physx|Isaac-Cartpole-Direct|4096|600|
+        cartpole-newton|Isaac-Cartpole-Direct|4096|600|physics=newton_mjwarp
+        gear-mesh-physx|IsaacContrib-Factory-GearMesh-Direct|512|900|
+        shadow-camera-physx-rtx|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|renderer=isaacsim_rtx
+        shadow-camera-physx-newton-renderer|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|renderer=newton_renderer
+        shadow-camera-newton-rtx|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|physics=newton_mjwarp renderer=isaacsim_rtx
+        shadow-camera-newton-renderer|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|physics=newton_mjwarp renderer=newton_renderer
+        shadow-camera-ovphysx-newton|IsaacContrib-Reorient-Cube-Shadow-Camera-Benchmark-Direct|512|1200|physics=ovphysx renderer=newton_renderer
+        g1-physx|Isaac-Velocity-Flat-G1|512|720|
+        g1-newton|Isaac-Velocity-Flat-G1|512|720|physics=newton_mjwarp
+        EOF
+
     - name: Resolve Warp version for the JIT cache key
       id: warp_version
       run: |
@@ -1036,23 +990,16 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: ${{ github.workspace }}/jit-cache
-        key: perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ matrix.name }}-${{ github.run_id }}
+        key: perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ github.run_id }}
         restore-keys: |
-          perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ matrix.name }}-
           perf-jit-warp${{ steps.warp_version.outputs.value }}-
 
-    - name: Run runtime benchmark
+    - name: Run runtime benchmarks
       id: runtime_benchmark
       env:
-        BENCHMARK_ARGS: ${{ matrix.args }}
-        BENCHMARK_TASK: ${{ matrix.task }}
         CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
-        NUM_ENVS: ${{ matrix.num_envs }}
-        BENCH_TIMEOUT_S: ${{ matrix.bench_timeout_s }}
       run: |
         set -uo pipefail
-        install -d -m 0777 benchmark-output
-        # World-writable so the in-container user (uid 1000) can populate the cache
         install -d -m 0777 "${GITHUB_WORKSPACE}/jit-cache/warp" "${GITHUB_WORKSPACE}/jit-cache/nv"
 
         container=""
@@ -1067,9 +1014,9 @@ jobs:
 
         run_attempt() {
           local attempt="$1"
-          container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.name }}-${sample}-${attempt}"
+          container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${leg}-${sample}-${attempt}"
           cleanup_container
-          timeout "${BENCH_TIMEOUT_S}" docker run --name "$container" --gpus all --network=host --ipc=host \
+          timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host --ipc=host \
             -e OMNI_KIT_ACCEPT_EULA=yes \
             -e ACCEPT_EULA=Y \
             -e ISAAC_SIM_HEADLESS=1 \
@@ -1080,49 +1027,63 @@ jobs:
             "set -euo pipefail
             mkdir -p /tmp/benchmark-output
             uv run --no-sync isaaclab benchmark runtime \
-              --task '$BENCHMARK_TASK' \
-              --num_envs '$NUM_ENVS' \
+              --task '$task' \
+              --num_envs '$num_envs' \
               --num_steps 200 \
               --warmup_steps 100 \
               --seed 42 \
               --benchmark_formatter schema \
               --output_path /tmp/benchmark-output \
               --visualizer none \
-              $BENCHMARK_ARGS"
+              $args"
           local status=$?
-          docker cp "$container:/tmp/benchmark-output/." "benchmark-output/sample-${sample}/" 2>/dev/null || true
+          docker cp "$container:/tmp/benchmark-output/." "benchmark-output/${leg}/sample-${sample}/" 2>/dev/null || true
           cleanup_container
           container=""
           local -a bundles
-          mapfile -t bundles < <(find "benchmark-output/sample-${sample}" -maxdepth 1 -type f -name 'benchmark_runtime_*.json')
+          mapfile -t bundles < <(find "benchmark-output/${leg}/sample-${sample}" -maxdepth 1 -type f -name 'benchmark_runtime_*.json')
           if [ "$status" -eq 0 ] && [ "${#bundles[@]}" -ne 1 ]; then
-            echo "::error::${{ matrix.name }} exited 0 but did not produce exactly one benchmark JSON"
+            echo "::error::${leg} exited 0 but did not produce exactly one benchmark JSON"
             return 1
           fi
           return $status
         }
 
-        # ASV needs repeated independent runs on both sides for significance tests.
-        # Per-frame samples within one simulation are not independent CI runs.
-        for sample in 1 2 3; do
-          mkdir -p "benchmark-output/sample-${sample}"
-          if ! run_attempt 1; then
-            echo "::warning::${{ matrix.name }} sample ${sample} failed; retrying once"
-            rm -f "benchmark-output/sample-${sample}/"benchmark_runtime_*.json
-            if ! run_attempt 2; then
-              echo "::error::${{ matrix.name }} sample ${sample} failed on both attempts"
-              exit 1
+        failed_legs=()
+        while IFS='|' read -r leg task num_envs bench_timeout_s args; do
+          echo "::group::performance-smoke: ${leg}"
+          install -d -m 0777 "benchmark-output/${leg}"
+          leg_ok=true
+          # ASV needs repeated independent runs on both sides for significance tests.
+          # Per-frame samples within one simulation are not independent CI runs.
+          for sample in 1 2 3; do
+            mkdir -p "benchmark-output/${leg}/sample-${sample}"
+            if ! run_attempt 1; then
+              echo "::warning::${leg} sample ${sample} failed; retrying once"
+              rm -f "benchmark-output/${leg}/sample-${sample}/"benchmark_runtime_*.json
+              if ! run_attempt 2; then
+                echo "::error::${leg} sample ${sample} failed on both attempts"
+                leg_ok=false
+                break
+              fi
             fi
-          fi
-        done
+          done
+          echo "$([ "$leg_ok" = true ] && echo ok || echo failed)" > "benchmark-output/${leg}/status"
+          [ "$leg_ok" = true ] || failed_legs+=("$leg")
+          echo "::endgroup::"
+        done < benchmark-legs.tsv
 
-    # Only develop pushes publish, so this key is only written at push cadence
+        if [ "${#failed_legs[@]}" -gt 0 ]; then
+          echo "::error::performance-smoke: failed combination(s): ${failed_legs[*]}"
+          exit 1
+        fi
+
     - name: Save warm JIT cache
       if: always() && github.event_name == 'push' && github.ref == 'refs/heads/develop'
       uses: actions/cache/save@v4
       with:
         path: ${{ github.workspace }}/jit-cache
-        key: perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ matrix.name }}-${{ github.run_id }}
+        key: perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ github.run_id }}
 
     - name: Set up uv for performance comparisons
       if: always()
@@ -1134,7 +1095,7 @@ jobs:
     # ASV and the baseline store's SDK go in a throwaway uv environment.
     - name: Set up ASV and the baseline store client
       if: always()
-      # Job status answers "did the benchmark run", the check answers "did it regress".
+      # Job status answers "did the benchmarks run", the check answers "did they regress".
       # A transient PyPI failure means the gate could not run, degrading to ERROR instead of a failure.
       continue-on-error: true
       id: store_venv
@@ -1151,65 +1112,76 @@ jobs:
     - name: Compare against baseline history
       # The exit code carries the verdict to the summary job through the uploaded
       # artifact, so it must not also redden this job: job status answers "did the
-      # benchmark run", the check answers "did performance regress".
+      # benchmarks run", the check answers "did performance regress". Each leg is
+      # compared independently, so one leg's fault does not skip the rest.
       continue-on-error: true
       if: always()
-      timeout-minutes: 5
+      timeout-minutes: 30
       env:
         # The SAS URL is strictly only read from the environment for security.
         ISAACLAB_BLOB_URL: ${{ secrets.ISAACLAB_BLOB_READ_URL }}
         PERF_PYTHON: ${{ steps.store_venv.outputs.python }}
       run: |
-        set -euo pipefail
-        mapfile -t results < <(find benchmark-output -type f -name 'benchmark_runtime_*.json' | sort)
-        if [ "${{ steps.runtime_benchmark.outcome }}" != 'success' ] || [ "${#results[@]}" -ne 3 ]; then
-          echo "::warning::Expected three runtime benchmark JSONs, found ${#results[@]}"
-          results=("benchmark-output/benchmark_runtime_MISSING.json")
-        fi
-        # A missing credential yields SKIP, a gate fault yields ERROR; neither fails.
-        uv run --no-project --python "${PERF_PYTHON:-python3}" python -m tools.perf_smoke.cli compare \
-          --benchmark_result "${results[@]}" \
-          --label "${{ matrix.name }}" \
-          --output_json benchmark-output/comparison.json \
-          | tee -a "$GITHUB_STEP_SUMMARY"
+        set -uo pipefail
+        while IFS='|' read -r leg task num_envs bench_timeout_s args; do
+          mapfile -t results < <(find "benchmark-output/${leg}" -type f -name 'benchmark_runtime_*.json' | sort)
+          if [ "$(cat "benchmark-output/${leg}/status" 2>/dev/null)" != "ok" ] || [ "${#results[@]}" -ne 3 ]; then
+            echo "::warning::${leg}: expected three runtime benchmark JSONs, found ${#results[@]}"
+            results=("benchmark-output/${leg}/benchmark_runtime_MISSING.json")
+          fi
+          # A missing credential yields SKIP, a gate fault yields ERROR; neither fails.
+          uv run --no-project --python "${PERF_PYTHON:-python3}" python -m tools.perf_smoke.cli compare \
+            --benchmark_result "${results[@]}" \
+            --label "$leg" \
+            --output_json "benchmark-output/${leg}/comparison.json" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+        done < benchmark-legs.tsv
 
     # Only develop records baselines, so the gate always compares a pull request
     # against the branch it will merge into rather than against a stale snapshot.
-    # Writes are create-only under a name derived from the commit and run id.
+    # Writes are create-only under a name derived from the commit and run id. Each
+    # leg is gated on its own status, so one leg's fault does not skip the rest.
     - name: Record baseline
-      if: ${{ always() && steps.runtime_benchmark.outcome == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
-      timeout-minutes: 5
+      if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+      timeout-minutes: 30
       env:
         ISAACLAB_BLOB_URL: ${{ secrets.ISAACLAB_BLOB_URL }}
         PERF_PYTHON: ${{ steps.store_venv.outputs.python }}
       run: |
-        set -euo pipefail
+        set -uo pipefail
         if [ -z "${ISAACLAB_BLOB_URL:-}" ]; then
-          echo "::warning::ISAACLAB_BLOB_URL is not set; no baseline recorded"
+          echo "::warning::ISAACLAB_BLOB_URL is not set; no baselines recorded"
           exit 0
         fi
-        mapfile -t results < <(find benchmark-output -type f -name 'benchmark_runtime_*.json' | sort)
-        if [ "${#results[@]}" -ne 3 ]; then
-          echo "::error::Expected three runtime benchmark JSONs, found ${#results[@]}; no baseline recorded"
-          exit 1
-        fi
-        for index in "${!results[@]}"; do
-          uv run --no-project --python "${PERF_PYTHON:-python3}" python -m tools.perf_smoke.cli write \
-            --benchmark_result "${results[$index]}" \
-            --commit "$GITHUB_SHA" \
-            --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            --run_id "${GITHUB_RUN_ID}-sample-${index}"
-        done
+        while IFS='|' read -r leg task num_envs bench_timeout_s args; do
+          if [ "$(cat "benchmark-output/${leg}/status" 2>/dev/null)" != "ok" ]; then
+            echo "::warning::${leg}: benchmark did not succeed; no baseline recorded"
+            continue
+          fi
+          mapfile -t results < <(find "benchmark-output/${leg}" -type f -name 'benchmark_runtime_*.json' | sort)
+          if [ "${#results[@]}" -ne 3 ]; then
+            echo "::error::${leg}: expected three runtime benchmark JSONs, found ${#results[@]}; no baseline recorded"
+            continue
+          fi
+          for index in "${!results[@]}"; do
+            uv run --no-project --python "${PERF_PYTHON:-python3}" python -m tools.perf_smoke.cli write \
+              --benchmark_result "${results[$index]}" \
+              --commit "$GITHUB_SHA" \
+              --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              --run_id "${GITHUB_RUN_ID}-${leg}-sample-${index}"
+          done
+        done < benchmark-legs.tsv
     - name: Upload performance results
       if: always()
       uses: actions/upload-artifact@v7
       with:
-        name: performance-smoke-${{ matrix.name }}-${{ github.run_id }}-${{ github.run_attempt }}
+        name: performance-smoke-${{ github.run_id }}-${{ github.run_attempt }}
         path: benchmark-output/
         if-no-files-found: warn
         retention-days: 7
 
-  # Centralized summary; individual failed tasks still display their own failed jobs.
+  # Centralized summary; the performance-smoke job itself already fails on any
+  # leg whose benchmark could not be run at all.
   performance-smoke-summary:
     name: performance-smoke
     runs-on: ubuntu-latest
@@ -1224,7 +1196,7 @@ jobs:
         enable-cache: false
     - uses: actions/download-artifact@v7
       with:
-        pattern: performance-smoke-*-${{ github.run_id }}-${{ github.run_attempt }}
+        name: performance-smoke-${{ github.run_id }}-${{ github.run_attempt }}
         path: comparisons
       continue-on-error: true
     - name: Summarise performance comparisons
