@@ -22,13 +22,15 @@ from __future__ import annotations
 import argparse
 from collections.abc import Callable
 from functools import partial
+from typing import TYPE_CHECKING
 
 from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
-from pxr import Gf, Usd, UsdGeom
-
 import isaaclab.sim as sim_utils
 from isaaclab.app import add_launcher_args, launch_simulation
+
+if TYPE_CHECKING:
+    from pxr import Usd
 
 parser = argparse.ArgumentParser(description="Newton rigid-sphere and MPM-sand two-way coupling example.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many frames; negative runs forever.")
@@ -81,6 +83,8 @@ def _spawn_colored_shape(
     color: tuple[float, float, float],
 ) -> Usd.Prim:
     """Spawn a shape with a display color understood by the Newton viewer."""
+    from pxr import Gf, UsdGeom
+
     prim = spawn_func(prim_path, cfg, translation, orientation)
     mesh = UsdGeom.Gprim(prim.GetStage().GetPrimAtPath(f"{prim_path}/geometry/mesh"))
     mesh.CreateDisplayColorAttr().Set([Gf.Vec3f(*color)])
