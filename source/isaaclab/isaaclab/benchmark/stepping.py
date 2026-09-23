@@ -21,10 +21,9 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import torch
 
-    from isaaclab.physics import PhysicsManager
-    from isaaclab.renderers.render_context import RenderContext
-    from isaaclab.utils.string import ResolvableString
-
+    from ..physics import PhysicsManager
+    from ..renderers.render_context import RenderContext
+    from ..utils.string import ResolvableString
     from .schema import MeanStd
 
 
@@ -268,7 +267,7 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
             import torch  # noqa: PLC0415
             import warp as wp  # noqa: PLC0415
 
-            from isaaclab.utils.timer import Timer  # noqa: PLC0415
+            from ..utils.timer import Timer  # noqa: PLC0415
 
             assert self.simulation_step_times_s is not None
             self.simulation_step_times_s.clear()
@@ -469,7 +468,7 @@ def run_play_loop(env, policy, num_steps: int) -> tuple[list[float], MeanStd | N
     """
     import torch  # noqa: PLC0415
 
-    from isaaclab.benchmark.metrics import mean_std_peak  # noqa: PLC0415
+    from .metrics import mean_std_peak  # noqa: PLC0415
 
     u = env.unwrapped
     num_envs = u.num_envs

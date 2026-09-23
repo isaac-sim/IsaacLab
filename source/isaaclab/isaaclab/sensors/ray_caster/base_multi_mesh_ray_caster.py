@@ -15,20 +15,18 @@ import warp as wp
 
 from pxr import Usd, UsdPhysics
 
-import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.sim.simulation_context import SimulationContext
-from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
-from isaaclab.utils.warp import ProxyArray, convert_to_warp_mesh
-from isaaclab.utils.warp import kernels as warp_kernels
-
+from ... import cloner
+from ... import sim as sim_utils
+from ...sim.simulation_context import SimulationContext
+from ...utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
+from ...utils.warp import ProxyArray, convert_to_warp_mesh
+from ...utils.warp import kernels as warp_kernels
 from .base_ray_caster import BaseRayCaster
 from .kernels import copy_mesh_poses_to_table_kernel, fill_ray_hits_distance_inf_kernel
 from .multi_mesh_ray_caster_data import MultiMeshRayCasterData
 
 if TYPE_CHECKING:
-    from isaaclab.cloner import ClonePlan
-
+    from ...cloner import ClonePlan
     from .multi_mesh_ray_caster_cfg import MultiMeshRayCasterCfg
 
 logger = logging.getLogger(__name__)

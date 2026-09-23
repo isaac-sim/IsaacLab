@@ -28,11 +28,10 @@ from typing import Any
 
 import numpy as np
 
-import isaaclab.sim as sim_utils
-from isaaclab.sensors.camera.camera_cfg import CameraCfg
-from isaaclab.utils.string import string_to_callable
-from isaaclab.utils.version import has_kit
-
+from .. import sim as sim_utils
+from ..sensors.camera.camera_cfg import CameraCfg
+from ..utils.string import string_to_callable
+from ..utils.version import has_kit
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE, CloneCfg, InclusionSet, expand_env_regex_ns
 from .cloner_strategies import sequential
 from .path import match, under

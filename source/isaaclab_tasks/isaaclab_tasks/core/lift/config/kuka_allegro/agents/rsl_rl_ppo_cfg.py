@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from dataclasses import MISSING
+"""Keep PPO runner configs concrete and compose camera presets in the task registry."""
 
 from isaaclab.utils import configclass
 
@@ -13,8 +13,6 @@ from isaaclab_rl.rsl_rl import (
     RslRlOnPolicyRunnerCfg,
     RslRlPpoAlgorithmCfg,
 )
-
-from isaaclab_tasks.utils import PresetCfg
 
 
 @configclass
@@ -85,42 +83,37 @@ CAMERA_ALGO_CFG = ALGO_CFG.replace(num_mini_batches=8, schedule="fixed", learnin
 
 
 @configclass
-class KukaAllegroPPOBaseRunnerCfg(RslRlOnPolicyRunnerCfg):
+class KukaAllegroPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+    """State PPO configuration and shared settings for the camera runners."""
+
     num_steps_per_env = 32
     max_iterations = 15000
     save_interval = 250
-    experiment_name = (MISSING,)  # type: ignore
-    obs_groups = (MISSING,)  # type: ignore
-    actor = (MISSING,)  # type: ignore
-    critic = (MISSING,)  # type: ignore
-    algorithm = MISSING  # type: ignore
+    experiment_name = "lift_kuka_allegro"
+    obs_groups = {"actor": ["policy", "proprio", "perception"], "critic": ["policy", "proprio", "perception"]}
+    actor = STATE_POLICY_CFG
+    critic = STATE_CRITIC_CFG
+    algorithm = ALGO_CFG
 
 
 @configclass
-class KukaAllegroPPORunnerCfg(PresetCfg):
-    default = KukaAllegroPPOBaseRunnerCfg().replace(
-        experiment_name="lift_kuka_allegro",
-        obs_groups={"actor": ["policy", "proprio", "perception"], "critic": ["policy", "proprio", "perception"]},
-        actor=STATE_POLICY_CFG,
-        critic=STATE_CRITIC_CFG,
-        algorithm=ALGO_CFG,
-    )
+class KukaAllegroSingleCameraPPORunnerCfg(KukaAllegroPPORunnerCfg):
+    """PPO with a single-camera actor and state critic."""
 
-    single_camera = KukaAllegroPPOBaseRunnerCfg().replace(
-        experiment_name="lift_kuka_allegro_single_camera",
-        obs_groups={"actor": ["policy", "proprio", "base_image"], "critic": ["policy", "proprio", "perception"]},
-        actor=CNN_POLICY_CFG,
-        critic=STATE_CRITIC_CFG,
-        algorithm=CAMERA_ALGO_CFG,
-    )
+    experiment_name = "lift_kuka_allegro_single_camera"
+    obs_groups = {"actor": ["policy", "proprio", "base_image"], "critic": ["policy", "proprio", "perception"]}
+    actor = CNN_POLICY_CFG
+    algorithm = CAMERA_ALGO_CFG
 
-    duo_camera = KukaAllegroPPOBaseRunnerCfg().replace(
-        experiment_name="lift_kuka_allegro_duo_camera",
-        obs_groups={
-            "actor": ["policy", "proprio", "base_image", "wrist_image"],
-            "critic": ["policy", "proprio", "perception"],
-        },
-        actor=CNN_POLICY_CFG,
-        critic=STATE_CRITIC_CFG,
-        algorithm=CAMERA_ALGO_CFG,
-    )
+
+@configclass
+class KukaAllegroDuoCameraPPORunnerCfg(KukaAllegroPPORunnerCfg):
+    """PPO with a dual-camera actor and state critic."""
+
+    experiment_name = "lift_kuka_allegro_duo_camera"
+    obs_groups = {
+        "actor": ["policy", "proprio", "base_image", "wrist_image"],
+        "critic": ["policy", "proprio", "perception"],
+    }
+    actor = CNN_POLICY_CFG
+    algorithm = CAMERA_ALGO_CFG

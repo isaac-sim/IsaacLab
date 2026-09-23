@@ -10,9 +10,9 @@ from typing import TYPE_CHECKING
 
 import torch
 
-import isaaclab.sim as sim_utils
-from isaaclab.cloner.cloner_cfg import expand_env_regex_ns
-from isaaclab.sim.utils.stage import get_current_stage
+from .. import sim as sim_utils
+from ..cloner.cloner_cfg import expand_env_regex_ns
+from ..sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
     from pxr import Usd

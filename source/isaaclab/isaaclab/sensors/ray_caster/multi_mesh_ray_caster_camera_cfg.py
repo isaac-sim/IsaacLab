@@ -8,8 +8,7 @@
 import logging
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
-
+from ...utils import configclass
 from .multi_mesh_ray_caster_cfg import MultiMeshRayCasterCfg
 from .ray_caster_camera_cfg import RayCasterCameraCfg
 

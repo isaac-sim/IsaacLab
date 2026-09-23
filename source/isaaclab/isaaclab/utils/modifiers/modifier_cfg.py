@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 
-from isaaclab.utils import configclass
+from .. import configclass
 
 if TYPE_CHECKING:
     from .modifier import DigitalFilter, Integrator

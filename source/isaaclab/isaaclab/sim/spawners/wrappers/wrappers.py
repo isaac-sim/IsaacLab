@@ -11,7 +11,8 @@ from typing import TYPE_CHECKING
 from pxr import Usd
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.spawners.from_files import UsdFileCfg
+
+from ..from_files import UsdFileCfg
 
 if TYPE_CHECKING:
     from . import wrappers_cfg

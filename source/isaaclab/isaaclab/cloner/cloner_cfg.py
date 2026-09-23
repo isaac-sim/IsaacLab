@@ -10,8 +10,7 @@ from dataclasses import MISSING
 
 import numpy as np
 
-from isaaclab.utils import configclass
-
+from ..utils import configclass
 from .cloner_strategies import sequential
 
 DEFAULT_ENV_TEMPLATE = "/World/envs/env_{}"

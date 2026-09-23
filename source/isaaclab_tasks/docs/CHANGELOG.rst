@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+21.0.3 (2026-09-23)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Increased the MJWarp line-search iteration limit for lift tasks to prevent solver overflow warnings from
+  degrading simulation performance in contact-rich states.
+* Fixed the KukaAllegro Lift and Reorient camera tasks defaulting to state-based
+  RSL-RL actors. They now select the single-camera CNN actor without requiring
+  an explicit ``single_camera`` preset.
+
+
 21.0.2 (2026-09-22)
 ~~~~~~~~~~~~~~~~~~~
 
