@@ -148,3 +148,11 @@ Fixed
   cyan and the robot black, which would be fatal for a policy that identifies a cube
   by colour. ``preserve_classes`` is required only while compositing, so a scene
   with no semantic tags works in the cleared mode.
+
+* Added ``CosmosBackendCfg.mask_guidance``, which sends the preserved-foreground
+  mask to Cosmos so it denoises around it rather than being pasted over blind.
+  Stock ``cosmos-framework`` has no guided-generation support, so the backend
+  detects the capability and refuses at load when it is requested and missing,
+  instead of silently generating without a mask. Where it is available the
+  generated background can agree with the foreground on lighting and contact
+  shadows, which compositing alone cannot do.

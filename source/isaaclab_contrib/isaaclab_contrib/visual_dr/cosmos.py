@@ -122,6 +122,31 @@ def _release_retained_weights(pointers: set[int]) -> int:
     return released
 
 
+def _supports_mask_guidance(setup_args) -> bool:
+    """Whether this checkout's sample arguments accept a guided-generation mask.
+
+    Stock ``cosmos-framework`` does not: masked denoising lives in a patched
+    checkout. Detecting it rather than assuming keeps the same configuration valid
+    against both, and turns a silently unmasked generation into a load-time error.
+    """
+    try:
+        overrides = setup_args.get_sample_overrides_cls()
+    except Exception:  # noqa: BLE001 - an unexpected API shape is simply unsupported
+        return False
+    seen = set()
+    pending = [overrides]
+    while pending:
+        cls = pending.pop()
+        if cls in seen:
+            continue
+        seen.add(cls)
+        fields = getattr(cls, "model_fields", {})
+        if "guided_generation_mask" in fields:
+            return True
+        pending.extend(base for base in getattr(cls, "__mro__", ())[1:] if base is not object)
+    return False
+
+
 def _abs(path) -> str:
     """Match the absolute-path normalization Cosmos' validators apply."""
     return str(Path(path).expanduser().absolute())
@@ -226,7 +251,7 @@ class CosmosBackend:
         placeholder = Image.new("RGB", (1, 1))
         for slot in range(self.cfg.max_batch):
             paths = {}
-            for name in ("vision", "control"):
+            for name in ("vision", "control", "mask"):
                 path = sentinels / f"{name}_{slot}.png"
                 if not path.exists():
                     placeholder.save(path)
@@ -252,6 +277,12 @@ class CosmosBackend:
             max_num_seqs=self.cfg.max_batch,
         )
         self._setup_args = setup.build_setup()
+        if self.cfg.mask_guidance and not _supports_mask_guidance(self._setup_args):
+            raise RuntimeError(
+                "mask_guidance is set but this cosmos-framework checkout has no guided-generation "
+                "support: its sample arguments accept no 'guided_generation_mask'. Install a checkout "
+                "that adds it, or clear mask_guidance and rely on the runtime's composite."
+            )
         self._pipe = self._setup_args.get_inference_cls().create(self._setup_args)
         if self.cfg.fp8:
             self._quantize()
@@ -358,6 +389,14 @@ class CosmosBackend:
                         "weight": float(self.cfg.control_weight),
                     },
                 }
+                if self.cfg.mask_guidance:
+                    # Cosmos preserves where the mask is 1, which is the polarity
+                    # ``preserve`` already uses, so it goes across unchanged.
+                    manifest["guided_generation_mask"] = register(
+                        slot["mask"], frame.preserve[i].permute(2, 0, 1).float()
+                    )
+                    manifest["guided_generation_step_threshold"] = int(self.cfg.mask_step_threshold)
+                    manifest["guided_generation_latent_mask_downsample_mode"] = str(self.cfg.mask_downsample_mode)
                 negative = getattr(self.cfg.prompts, "negative_prompt", None)
                 if negative:
                     manifest["negative_prompt"] = negative

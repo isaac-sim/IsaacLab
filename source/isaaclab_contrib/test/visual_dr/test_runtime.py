@@ -393,3 +393,35 @@ def test_generated_frame_stands_as_is_without_the_composite(cpu_frames):
         torch.zeros(1, 1, 2, 1, dtype=torch.bool),
     )
     assert torch.equal(runtime.read("cam_0", frame.rgb, lambda: frame), torch.full_like(frame.rgb, 99))
+
+
+def test_mask_guidance_is_off_by_default():
+    from isaaclab_contrib.visual_dr.cfg import CosmosBackendCfg, PromptBankCfg
+    from isaaclab_contrib.visual_dr.cosmos import CosmosBackend
+
+    cfg = CosmosBackendCfg(class_type=CosmosBackend, prompts=PromptBankCfg(variants=("a lab",)))
+    # Stock cosmos-framework cannot accept a mask, so the default has to be off or
+    # every default configuration would fail to load.
+    assert cfg.mask_guidance is False
+
+
+def test_mask_guidance_support_is_detected_not_assumed():
+    from isaaclab_contrib.visual_dr.cosmos import _supports_mask_guidance
+
+    class Stock:
+        model_fields = {"prompt": None, "seed": None}
+
+    class Patched:
+        model_fields = {"prompt": None, "guided_generation_mask": None}
+
+    class Args:
+        def __init__(self, cls):
+            self._cls = cls
+
+        def get_sample_overrides_cls(self):
+            return self._cls
+
+    assert _supports_mask_guidance(Args(Stock)) is False
+    assert _supports_mask_guidance(Args(Patched)) is True
+    # An unexpected API shape is unsupported rather than an exception.
+    assert _supports_mask_guidance(object()) is False
