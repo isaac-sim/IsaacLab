@@ -5,8 +5,11 @@
 
 """Tests for the helpers the reorientation and hand-over tasks share."""
 
+import isaaclab_tasks_experimental.core.reorient.reorient_warp_env as reorient_warp_env
+import numpy as np
 import pytest
 import torch
+import warp as wp
 
 import isaaclab_tasks.core.reorient.utils as reorient_utils
 
@@ -43,6 +46,41 @@ def test_sample_joint_positions_within_limits_rejects_invalid_scale(noise_scale)
             torch.tensor([[[-1.0, 1.0]]]),
             noise_scale,
         )
+
+
+def test_warp_reset_hand_samples_the_same_range_as_the_torch_helper():
+    """Verify the Warp reorientation reset spreads joints on both sides of the default, within the torch range."""
+    num_envs, noise_scale = 512, 0.5
+    default_position = torch.tensor([[0.1, -0.2]]).repeat(num_envs, 1)
+    lower = torch.tensor([[-1.0, -2.0]]).repeat(num_envs, 1)
+    upper = torch.tensor([[1.0, 2.0]]).repeat(num_envs, 1)
+    outputs = [wp.zeros((num_envs, 2), dtype=wp.float32, device="cpu") for _ in range(5)]
+    rng_state = wp.array(np.arange(num_envs, dtype=np.uint32), dtype=wp.uint32, device="cpu")
+
+    wp.launch(
+        reorient_warp_env.reset_hand,
+        dim=num_envs,
+        inputs=[
+            wp.from_torch(default_position),
+            wp.from_torch(torch.zeros_like(default_position)),
+            wp.from_torch(lower),
+            wp.from_torch(upper),
+            noise_scale,
+            0.0,
+            wp.array(np.ones(num_envs, dtype=bool), dtype=wp.bool, device="cpu"),
+            2,
+            rng_state,
+            *outputs,
+        ],
+        device="cpu",
+    )
+    joint_position = wp.to_torch(outputs[0])
+
+    # Same endpoints as sample_joint_positions_within_limits: interpolate from the default toward each limit.
+    assert torch.all(joint_position >= default_position + noise_scale * (lower - default_position) - 1.0e-6)
+    assert torch.all(joint_position <= default_position + noise_scale * (upper - default_position) + 1.0e-6)
+    assert torch.all((joint_position < default_position).any(dim=0))
+    assert torch.all((joint_position > default_position).any(dim=0))
 
 
 def test_episode_error_recorder_reports_threshold_independent_statistics():
