@@ -101,15 +101,18 @@ def test_setup_desktop_entry_noop_without_graphical_session(tmp_path: pathlib.Pa
     assert not (home / ".local" / "share" / "applications" / "isaaclab.desktop").exists()
 
 
-def test_setup_desktop_entry_writes_startup_wm_class_matching_kit_identity(
+def test_setup_desktop_entry_writes_correct_and_non_intrusive_entry(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """Test the generated .desktop file's StartupWMClass matches Kit's composed WM_CLASS.
+    """Test the generated .desktop file matches Kit's WM_CLASS and isn't a real, visible launcher.
 
-    Kit composes the running window's WM_CLASS from the kit file's window title and app
-    version (e.g. "Isaac Lab 3.0.0"). The whole point of generating this file is for
-    StartupWMClass to match that exactly, so a desktop environment's .desktop-based taskbar
-    icon lookup succeeds instead of falling back to a generic icon.
+    Kit composes the running window's WM_CLASS from the kit file's window title and app version
+    (e.g. "Isaac Lab 3.0.0"); StartupWMClass must match that exactly for a desktop environment's
+    .desktop-based taskbar icon lookup to succeed instead of falling back to a generic icon. The
+    entry itself must stay hidden from menus and use a harmless Exec, since it exists purely for
+    that WM_CLASS match, not as a real launcher (and must not re-invoke ``sys.executable``
+    unquoted, which would split into multiple Exec tokens for interpreter paths containing
+    spaces).
     """
     monkeypatch.setattr("isaaclab.utils.editor._has_graphical_session", lambda: True)
     monkeypatch.delenv("XDG_DATA_HOME", raising=False)
@@ -134,44 +137,10 @@ def test_setup_desktop_entry_writes_startup_wm_class_matching_kit_identity(
 
     setup_desktop_entry(project_dir)
 
-    desktop_file = home / ".local" / "share" / "applications" / "isaaclab.desktop"
-    content = desktop_file.read_text()
+    content = (home / ".local" / "share" / "applications" / "isaaclab.desktop").read_text()
     assert "StartupWMClass=Isaac Lab 3.0.0" in content
     assert f"Icon={icon_file}" in content
     assert "Name=Isaac Lab" in content
-
-
-def test_setup_desktop_entry_is_not_a_visible_launcher(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch):
-    """Test the entry is hidden from menus and uses a harmless Exec, not a real launcher.
-
-    This entry exists purely so a desktop environment can match the running Kit window's
-    WM_CLASS to an icon; it isn't meant to appear as a clickable "Isaac Lab" application, and
-    it must not re-invoke ``sys.executable`` unquoted (which would split into multiple Exec
-    tokens for interpreter paths containing spaces).
-    """
-    monkeypatch.setattr("isaaclab.utils.editor._has_graphical_session", lambda: True)
-    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
-    home = tmp_path / "home"
-    monkeypatch.setattr(pathlib.Path, "home", lambda: home)
-
-    project_dir = tmp_path / "project"
-    apps_dir = project_dir / "apps"
-    apps_dir.mkdir(parents=True)
-    (apps_dir / "isaaclab.python.kit").write_text(_KIT_FILE_CONTENT)
-
-    package_root = tmp_path / "isaacsim"
-    icon_dir = package_root / "exts" / "isaacsim.simulation_app" / "data"
-    icon_dir.mkdir(parents=True)
-    (icon_dir / "omni.isaac.sim.png").write_bytes(b"")
-
-    class _FakeSpec:
-        submodule_search_locations = [str(package_root)]
-
-    monkeypatch.setattr("isaaclab.utils.editor.importlib.util.find_spec", lambda name: _FakeSpec())
-
-    setup_desktop_entry(project_dir)
-
-    content = (home / ".local" / "share" / "applications" / "isaaclab.desktop").read_text()
     assert "NoDisplay=true" in content
     assert "Exec=true" in content
     assert sys.executable not in content
@@ -212,82 +181,80 @@ def test_setup_desktop_entry_honors_xdg_data_home(tmp_path: pathlib.Path, monkey
     assert not (tmp_path / "unused_home").exists()
 
 
-def test_setup_desktop_entry_noop_when_kit_file_missing(
-    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
-):
-    """Test a missing kit file skips desktop entry generation, with a warning, instead of raising."""
-    monkeypatch.setattr("isaaclab.utils.editor._has_graphical_session", lambda: True)
-    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
-    home = tmp_path / "home"
-    monkeypatch.setattr(pathlib.Path, "home", lambda: home)
-
-    setup_desktop_entry(tmp_path / "project_without_apps_dir")
-
-    assert not (home / ".local" / "share" / "applications" / "isaaclab.desktop").exists()
-    output = capsys.readouterr().out
-    assert "[WARN]" in output
-    assert "kit file not found" in output
+def _project_dir_missing_kit_file(tmp_path: pathlib.Path) -> pathlib.Path:
+    return tmp_path / "project_without_apps_dir"
 
 
-def test_setup_desktop_entry_warns_when_kit_identity_missing(
-    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
-):
-    """Test a kit file present but missing title/version warns instead of silently skipping."""
-    monkeypatch.setattr("isaaclab.utils.editor._has_graphical_session", lambda: True)
-    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
-    home = tmp_path / "home"
-    monkeypatch.setattr(pathlib.Path, "home", lambda: home)
-
+def _project_dir_incomplete_kit_identity(tmp_path: pathlib.Path) -> pathlib.Path:
     project_dir = tmp_path / "project"
     apps_dir = project_dir / "apps"
     apps_dir.mkdir(parents=True)
-    kit_file = apps_dir / "isaaclab.python.kit"
-    kit_file.write_text('[settings.app]\nversion = "3.0.0"\n')
-
-    setup_desktop_entry(project_dir)
-
-    assert not (home / ".local" / "share" / "applications" / "isaaclab.desktop").exists()
-    output = capsys.readouterr().out
-    assert "[WARN]" in output
-    assert str(kit_file) in output
+    (apps_dir / "isaaclab.python.kit").write_text('[settings.app]\nversion = "3.0.0"\n')
+    return project_dir
 
 
-def test_setup_desktop_entry_warns_when_icon_missing(
-    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
-):
-    """Test a missing Isaac Sim icon asset warns instead of silently skipping."""
-    monkeypatch.setattr("isaaclab.utils.editor._has_graphical_session", lambda: True)
-    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
-    home = tmp_path / "home"
-    monkeypatch.setattr(pathlib.Path, "home", lambda: home)
-
+def _project_dir_valid_kit_file(tmp_path: pathlib.Path) -> pathlib.Path:
     project_dir = tmp_path / "project"
     apps_dir = project_dir / "apps"
     apps_dir.mkdir(parents=True)
     (apps_dir / "isaaclab.python.kit").write_text(_KIT_FILE_CONTENT)
+    return project_dir
 
-    monkeypatch.setattr("isaaclab.utils.editor.importlib.util.find_spec", lambda name: None)
 
-    setup_desktop_entry(project_dir)
+@pytest.mark.parametrize(
+    ("make_project_dir", "expected_substring", "icon_missing"),
+    [
+        (_project_dir_missing_kit_file, "kit file not found", False),
+        (_project_dir_incomplete_kit_identity, "could not determine Kit's WM_CLASS identity", False),
+        (_project_dir_valid_kit_file, "Isaac Sim icon asset not found", True),
+    ],
+    ids=["kit-file-missing", "kit-identity-incomplete", "icon-missing"],
+)
+def test_setup_desktop_entry_warns_and_skips_on_resolution_failures(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+    make_project_dir,
+    expected_substring: str,
+    icon_missing: bool,
+):
+    """Test each resolution failure (kit file, WM_CLASS identity, icon asset) warns instead of
+    silently skipping desktop entry generation."""
+    monkeypatch.setattr("isaaclab.utils.editor._has_graphical_session", lambda: True)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    home = tmp_path / "home"
+    monkeypatch.setattr(pathlib.Path, "home", lambda: home)
+    if icon_missing:
+        monkeypatch.setattr("isaaclab.utils.editor.importlib.util.find_spec", lambda name: None)
+
+    setup_desktop_entry(make_project_dir(tmp_path))
 
     assert not (home / ".local" / "share" / "applications" / "isaaclab.desktop").exists()
     output = capsys.readouterr().out
     assert "[WARN]" in output
-    assert "Isaac Sim icon asset not found" in output
+    assert expected_substring in output
 
 
-def test_setup_editor_installs_newton_desktop_icons(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch):
-    """Test setup_editor() also installs the Newton viewer desktop icons, not just Kit's.
+@pytest.mark.parametrize(
+    ("has_graphical_session", "expect_refresh"),
+    [(True, True), (False, False)],
+    ids=["graphical-session", "no-graphical-session"],
+)
+def test_setup_editor_installs_newton_desktop_icons_and_refreshes_once(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, has_graphical_session: bool, expect_refresh: bool
+):
+    """Test setup_editor() installs the Newton viewer desktop icons (not just Kit's) and refreshes
+    the desktop database exactly once, only when in a graphical session.
 
     install_desktop_icons() is called here rather than as a separate step elsewhere (e.g. at the
-    tail of ``isaaclab.sh -i``), so isaaclab --editor has a single place that sets up all Linux
-    desktop icons. Also confirms the desktop database is refreshed exactly once here, covering
-    both writers, rather than once per writer (setup_desktop_entry() and install_desktop_icons()
-    each write into the same applications directory and no longer refresh internally).
+    tail of ``isaaclab.sh -i``), so ``isaaclab --editor`` has a single place that sets up all
+    Linux desktop icons. The desktop database is refreshed exactly once here, covering both
+    writers, rather than once per writer (setup_desktop_entry() and install_desktop_icons() each
+    write into the same applications directory and no longer refresh internally).
     """
     monkeypatch.setattr("isaaclab.utils.editor.resolve_isaacsim_dir", lambda *args, **kwargs: None)
     monkeypatch.setattr("isaaclab.utils.editor.setup_desktop_entry", lambda project_dir: None)
-    monkeypatch.setattr("isaaclab.utils.editor._has_graphical_session", lambda: True)
+    monkeypatch.setattr("isaaclab.utils.editor._has_graphical_session", lambda: has_graphical_session)
     monkeypatch.delenv("XDG_DATA_HOME", raising=False)
     home = tmp_path / "home"
     monkeypatch.setattr(pathlib.Path, "home", lambda: home)
@@ -299,23 +266,7 @@ def test_setup_editor_installs_newton_desktop_icons(tmp_path: pathlib.Path, monk
     setup_editor(tmp_path)
 
     assert install_calls == [True]
-    assert refreshed_dirs == [home / ".local" / "share" / "applications"]
-
-
-def test_setup_editor_skips_desktop_database_refresh_without_graphical_session(
-    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
-):
-    """Test the shared refresh is skipped outside a graphical session, matching the writers' own gating."""
-    monkeypatch.setattr("isaaclab.utils.editor.resolve_isaacsim_dir", lambda *args, **kwargs: None)
-    monkeypatch.setattr("isaaclab.utils.editor.setup_desktop_entry", lambda project_dir: None)
-    monkeypatch.setattr("isaaclab.utils.editor.install_desktop_icons", lambda: None)
-    monkeypatch.setattr("isaaclab.utils.editor._has_graphical_session", lambda: False)
-    refreshed_dirs = []
-    monkeypatch.setattr("isaaclab.utils.editor.refresh_desktop_database", refreshed_dirs.append)
-
-    setup_editor(tmp_path)
-
-    assert refreshed_dirs == []
+    assert refreshed_dirs == ([home / ".local" / "share" / "applications"] if expect_refresh else [])
 
 
 def test_setup_editor_swallows_desktop_icon_install_failure(
