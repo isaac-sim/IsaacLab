@@ -3,14 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Compatibility for existing compute callers and subclass implementations."""
+"""Support deprecated compute() methods while actuators and delay buffers migrate to __call__()."""
 
 import warnings
 from functools import wraps
 
 
-def _compute_compat(cls: type) -> type:
-    """Bind both evaluation spellings at the defining class, preserving super() dispatch."""
+def _support_deprecated_compute(cls: type) -> type:
+    """Keep compute() calls and overrides working during the migration to __call__().
+
+    Add a deprecated compute() entry point to callable classes, and make subclasses that
+    override only compute() callable. Bind each implementation at its defining class so
+    mixed inheritance and super().compute() calls retain their original dispatch.
+    This support is scheduled for removal in Isaac Lab 3.2.
+    """
     for owner in cls.__mro__:
         if "__call__" in vars(owner) or "compute" in vars(owner):
             call = vars(owner).get("__call__", vars(owner).get("compute"))

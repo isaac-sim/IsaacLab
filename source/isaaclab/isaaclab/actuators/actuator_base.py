@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, ClassVar
 import torch
 
 from ..utils import string as string_utils
-from ..utils._callable import _compute_compat
+from ..utils._compute_deprecation import _support_deprecated_compute
 from ..utils.types import ArticulationActions
 from ._compat import _limits_equal, _resolve_limit_aliases
 
@@ -86,7 +86,7 @@ def resolve_joint_parameter(
     return param
 
 
-@_compute_compat
+@_support_deprecated_compute
 class ActuatorBase(ABC):
     """Base class for actuator models over a collection of actuated joints in an articulation.
 
@@ -112,7 +112,7 @@ class ActuatorBase(ABC):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        _compute_compat(cls)
+        _support_deprecated_compute(cls)
 
     is_implicit_model: ClassVar[bool] = False
     """Flag indicating if the actuator is an implicit or explicit actuator model.

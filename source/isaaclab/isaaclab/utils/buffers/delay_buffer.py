@@ -10,10 +10,10 @@ from collections.abc import Sequence
 
 import torch
 
-from .._callable import _compute_compat
+from .._compute_deprecation import _support_deprecated_compute
 
 
-@_compute_compat
+@_support_deprecated_compute
 class DelayBuffer:
     """Ring storage for delayed batched tensors, independent of actions or observations.
 
@@ -32,7 +32,7 @@ class DelayBuffer:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        _compute_compat(cls)
+        _support_deprecated_compute(cls)
 
     def __init__(self, history_length: int, batch_size: int, device: str):
         """Initialize the delay buffer.
