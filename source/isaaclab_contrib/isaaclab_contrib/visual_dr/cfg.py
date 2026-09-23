@@ -75,8 +75,11 @@ class CameraDRCfg:
     preserve_classes: tuple[str, ...] = ()
     """Semantic classes to keep exactly, e.g. ``("robot", "cube_1", "table")``.
 
-    Required while ``composite_foreground`` is set, and unused otherwise. Naming a
-    class that never appears raises rather than silently regenerating everything."""
+    Required while ``composite_foreground`` is set. Still honoured when it is
+    cleared, because a backend may send the mask to the model as a guidance signal
+    even though the runtime will not paste it back; leave it empty only if nothing
+    in view should be protected by either mechanism. Naming a class that never
+    appears raises rather than silently regenerating everything."""
 
     composite_foreground: bool = True
     """Whether the runtime pastes the preserved pixels back over the generated frame.
