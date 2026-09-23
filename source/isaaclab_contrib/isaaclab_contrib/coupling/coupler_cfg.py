@@ -167,8 +167,10 @@ class CouplerAdmmCfg(CouplerCfg):
     This budget covers all environments in one process. It is independent of
     :attr:`isaaclab_newton.physics.NewtonCfg.collision_cfg`, which configures outer contacts.
     ``None`` preserves Newton's default. Increase it for internal triangle-pair overflows.
-    With rigid contact matching enabled, Newton 1.6 requires this capacity to be below
-    ``2**20``. Increase the hashtable size factor instead for reduction-table warnings.
+    With :attr:`rigid_contact_matching` set to ``"latest"`` or ``"sticky"``, configuration
+    validation rejects capacities at or above ``2**20``. Larger capacities are allowed
+    when matching is ``"disabled"``. Increase the hashtable size factor instead for
+    reduction-table warnings.
     """
 
     contact_reduction_hashtable_size_factor: float | None = None

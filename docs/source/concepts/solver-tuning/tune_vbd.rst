@@ -380,10 +380,12 @@ hashtable fill above 80%, or hashtable insertion failures. Increasing only the
 outer collision budget does not resize ADMM's internal buffers. Isaac Lab adapts
 the pinned Newton solver by rebuilding its internal pipeline before stepping,
 preserving its pair filters, contact output capacities, and matching settings.
-With ``rigid_contact_matching`` enabled, Newton 1.6 uses deterministic contact
-packing, which requires ``max_triangle_pairs < 2**20``. For hashtable warnings in
-this mode, increase the size factor without increasing the triangle-pair budget
-past that limit. The example above allocates 2,097,152 hashtable slots while
+With ``rigid_contact_matching`` set to ``"latest"`` or ``"sticky"``, Newton 1.6
+uses deterministic contact packing. Isaac Lab validates this configuration before
+solver construction and rejects ``contact_max_triangle_pairs >= 2**20``. Larger
+capacities are allowed when matching is ``"disabled"``. For hashtable warnings
+with matching enabled, increase the size factor without increasing the triangle-pair
+budget past that limit. The example above allocates 2,097,152 hashtable slots while
 preserving contact matching.
 
 Try the demo:

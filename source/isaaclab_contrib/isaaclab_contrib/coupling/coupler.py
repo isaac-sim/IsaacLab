@@ -133,6 +133,11 @@ class NewtonCouplerManager(NewtonVBDManager):
             capacity = solver_cfg.contact_max_triangle_pairs
             if capacity is not None and (type(capacity) is not int or capacity <= 0):
                 raise ValueError("CouplerAdmmCfg.contact_max_triangle_pairs must be a positive integer or None.")
+            if capacity is not None and capacity >= 2**20 and solver_cfg.rigid_contact_matching in ("latest", "sticky"):
+                raise ValueError(
+                    "CouplerAdmmCfg.contact_max_triangle_pairs must be less than 2**20 when "
+                    "rigid_contact_matching is 'latest' or 'sticky'."
+                )
             factor = solver_cfg.contact_reduction_hashtable_size_factor
             if factor is not None and (not math.isfinite(factor) or factor <= 0.0):
                 raise ValueError(

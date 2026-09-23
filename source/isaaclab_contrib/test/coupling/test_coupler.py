@@ -171,6 +171,24 @@ def test_config_validation_rejects_invalid_admm_contact_capacity(field, value):
         NewtonCouplerManager._validate_config(cfg)
 
 
+@pytest.mark.parametrize("matching", ["latest", "sticky", "disabled"])
+@pytest.mark.parametrize(
+    ("capacity", "valid_with_matching"),
+    [(None, True), (2**20 - 1, True), (2**20, False), (2**20 + 1, False)],
+)
+def test_config_validation_admm_contact_capacity_matching_limit(matching, capacity, valid_with_matching):
+    cfg = CouplerAdmmCfg(
+        entries=[CouplerEntryCfg(name="entry", solver_cfg=XPBDSolverCfg())],
+        contact_max_triangle_pairs=capacity,
+        rigid_contact_matching=matching,
+    )
+    if valid_with_matching or matching == "disabled":
+        NewtonCouplerManager._validate_config(cfg)
+    else:
+        with pytest.raises(ValueError, match=r"contact_max_triangle_pairs.*2\*\*20.*rigid_contact_matching"):
+            NewtonCouplerManager._validate_config(cfg)
+
+
 def test_config_validation_requires_nonempty_entry_names():
     cfg = CouplerAdmmCfg(entries=[CouplerEntryCfg(name="", solver_cfg=XPBDSolverCfg())])
     with pytest.raises(ValueError, match="non-empty strings"):
