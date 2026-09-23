@@ -1497,7 +1497,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """Invalidates and deletes the callbacks when a prim is deleted.
 
         Args:
-            event: The prim deletion event. Its payload contains the deleted prim path.
+            event: A legacy prim-path string, a deletion payload dictionary, or a deletion event
+                whose payload contains the deleted prim path.
 
         .. note::
             This function is called when a prim is deleted.
