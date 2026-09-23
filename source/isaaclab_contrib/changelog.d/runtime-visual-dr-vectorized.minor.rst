@@ -188,3 +188,9 @@ Fixed
   no cuDNN path, and the Cosmos dependency index publishes FlashAttention only for
   CPython 3.13 against torch 2.9 or 2.10. The base ``Cosmos3-Nano`` path is unaffected,
   needing no FlashAttention at all.
+
+* Documented how to unblock a custom Cosmos checkout that needs FlashAttention.
+  Models using variable-length attention have no cuDNN path, and the Cosmos
+  dependency index publishes FlashAttention only for CPython 3.13 against torch 2.9
+  or 2.10. Dao-AILab's own releases carry a CPython 3.12 CUDA 13 build against torch
+  2.10 which imports and runs on torch 2.12, varlen kernel included.
