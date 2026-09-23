@@ -10,7 +10,12 @@ import subprocess
 import torch
 
 from ..interfaces import MeasurementData, MeasurementDataRecorder
-from ..measurements import DictMetadata, IntMetadata, SingleMeasurement, StringMetadata
+from ..measurements import (
+    DictMetadata,
+    IntMetadata,
+    SingleMeasurement,
+    StringMetadata,
+)
 
 
 class GPUInfoRecorder(MeasurementDataRecorder):

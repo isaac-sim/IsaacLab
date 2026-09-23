@@ -690,7 +690,7 @@ def clone(func: Callable) -> Callable:
 
     @functools.wraps(func)
     def wrapper(prim_path: str | Sdf.Path, cfg: SpawnerCfg, *args, **kwargs):
-        from pxr import Sdf  # noqa: PLC0415
+        from pxr import Sdf, UsdGeom  # noqa: PLC0415
 
         # get stage handle
         stage = get_current_stage()

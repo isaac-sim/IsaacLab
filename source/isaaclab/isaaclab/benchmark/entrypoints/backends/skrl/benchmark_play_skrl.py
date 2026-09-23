@@ -12,17 +12,15 @@ and emits a :class:`~isaaclab.benchmark.schema.PlayBundle` JSON file. Dispatched
 
 from __future__ import annotations
 
-import argparse
-import contextlib
-import os
-import sys
-import time
 from typing import TYPE_CHECKING
-
-from isaaclab_rl.entrypoints import common
 
 if TYPE_CHECKING:
     from isaaclab.benchmark import BenchmarkResult
+
+import sys
+import time
+
+from isaaclab_rl.entrypoints import common
 
 
 def _parse_args(argv: list[str]):
@@ -36,6 +34,8 @@ def _parse_args(argv: list[str]):
         Tuple of ``(parsed_args, remaining)`` where *remaining* are the verbatim Hydra
         preset tokens written back to ``sys.argv`` for ``launch_simulation`` to pick up.
     """
+    import argparse
+
     from isaaclab.app import add_launcher_args
     from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
 
@@ -116,6 +116,9 @@ def run(argv: list[str]) -> BenchmarkResult:
         argv: Command-line arguments, excluding the script path (i.e. ``sys.argv[1:]``
             after the dispatcher has stripped ``--rl_library``).
     """
+    import contextlib
+    import os
+
     from isaaclab.app import launch_simulation
     from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
     from isaaclab.benchmark.schema import StartupTime

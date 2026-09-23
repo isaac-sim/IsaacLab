@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import math
-import os
 import random
 import re
 from abc import ABC, abstractmethod
@@ -205,6 +204,7 @@ class BaseVisualizer(ABC):
             return
         if not getattr(self.cfg, "enable_live_plots", True):
             return
+        import os
 
         if os.environ.get("ISAACLAB_DISABLE_LIVE_PLOTS", "0") == "1":
             return

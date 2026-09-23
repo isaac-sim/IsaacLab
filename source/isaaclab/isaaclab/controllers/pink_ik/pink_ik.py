@@ -14,7 +14,6 @@ Reference:
 
 from __future__ import annotations
 
-import tempfile
 from typing import TYPE_CHECKING, cast
 
 import numpy as np
@@ -84,6 +83,8 @@ class PinkIKController:
 
         # Resolve URDF/mesh paths at runtime. If only usd_path is provided, convert USD→URDF first.
         if cfg.urdf_path is None and cfg.usd_path is not None:
+            import tempfile
+
             urdf_output_dir = cfg.urdf_output_dir or tempfile.gettempdir()
             urdf_path, mesh_path = controller_utils.convert_usd_to_urdf(
                 cfg.usd_path, urdf_output_dir, force_conversion=True

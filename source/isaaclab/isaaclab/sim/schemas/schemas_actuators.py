@@ -20,20 +20,14 @@ side effect of asset construction.
 
 from __future__ import annotations
 
-import json
 import re
-import tempfile
 from typing import Any
 
 from pxr import Sdf, Usd, UsdPhysics
 
 from ...actuators._compat import _resolve_limit_aliases
 from ...actuators.actuator_base_cfg import _is_implicit_actuator_cfg
-from ...utils.string import (
-    _resolve_matching_values_dense,
-    resolve_matching_names,
-    string_to_callable,
-)
+from ...utils.string import _resolve_matching_values_dense, resolve_matching_names, string_to_callable
 
 
 def _resolve_actuator_class(class_type: type | str) -> type:
@@ -432,6 +426,9 @@ def _resave_checkpoint_with_metadata(
     Returns:
         Path to the temporary checkpoint file.
     """
+    import json  # noqa: PLC0415
+    import tempfile  # noqa: PLC0415
+
     import torch  # noqa: PLC0415
 
     from ...utils.assets import retrieve_file_path  # noqa: PLC0415

@@ -8,15 +8,14 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from ..devices.openxr import XrCfg
 from ..scene import InteractiveSceneCfg
 from ..sim import SimulationCfg
 from ..utils import configclass
 from ..utils.noise import NoiseModelCfg
 from .common import SpaceType, ViewerCfg
 from .utils.video_recorder_cfg import VideoRecorderCfg
-
-if TYPE_CHECKING:
-    from ..devices.openxr import XrCfg
 
 
 @configclass

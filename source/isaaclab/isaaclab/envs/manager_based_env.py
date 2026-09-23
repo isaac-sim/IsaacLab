@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import builtins
 import logging
-import os
 import sys
 import warnings
 from collections.abc import Sequence
@@ -22,10 +21,7 @@ from ..sim import SimulationContext
 from ..sim.utils.stage import use_stage
 from ..utils.seed import configure_seed
 from ..utils.timer import Timer
-from .common import (
-    VecEnvObs,
-    _apply_deprecated_viewer_cfg,
-)
+from .common import VecEnvObs, _apply_deprecated_viewer_cfg
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .utils.io_descriptors import (
     _warn_io_descriptors_deprecated,
@@ -319,6 +315,8 @@ class ManagerBasedEnv:
         Args:
             output_dir: The directory to export the IO descriptors to.
         """
+        import os
+
         import yaml
 
         _warn_io_descriptors_deprecated(stacklevel=3)

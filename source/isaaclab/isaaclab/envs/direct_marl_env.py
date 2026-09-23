@@ -24,14 +24,7 @@ from ..sim.utils.stage import use_stage
 from ..utils.noise import NoiseModel
 from ..utils.seed import configure_seed
 from ..utils.timer import Timer
-from .common import (
-    ActionType,
-    AgentID,
-    EnvStepReturn,
-    ObsType,
-    StateType,
-    _apply_deprecated_viewer_cfg,
-)
+from .common import ActionType, AgentID, EnvStepReturn, ObsType, StateType, _apply_deprecated_viewer_cfg
 from .direct_marl_env_cfg import DirectMARLEnvCfg
 from .utils.spaces import sample_space, spec_to_gym_space
 from .utils.video_recorder import VideoRecorder

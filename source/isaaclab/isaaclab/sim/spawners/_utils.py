@@ -7,12 +7,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from pxr import Usd
-
 
 def props_expr(prim_path: str, pattern: str) -> str:
     """Append a cfg-relative target pattern to an anchor prim path.

@@ -5,8 +5,6 @@
 
 """Command-line argument utilities for benchmark scripts."""
 
-from __future__ import annotations
-
 import argparse
 
 

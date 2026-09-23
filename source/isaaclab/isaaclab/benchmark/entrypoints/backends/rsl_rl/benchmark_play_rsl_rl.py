@@ -12,18 +12,15 @@ and emits a :class:`~isaaclab.benchmark.schema.PlayBundle` JSON file. Dispatched
 
 from __future__ import annotations
 
-import argparse
-import contextlib
-import importlib.metadata as metadata
-import os
-import sys
-import time
 from typing import TYPE_CHECKING
-
-from isaaclab_rl.entrypoints import common
 
 if TYPE_CHECKING:
     from isaaclab.benchmark import BenchmarkResult
+
+import argparse
+import sys
+
+from isaaclab_rl.entrypoints import common
 
 
 def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
@@ -103,6 +100,11 @@ def run(argv: list[str]) -> BenchmarkResult:
         argv: Command-line arguments, excluding the script path (i.e. ``sys.argv[1:]``
             after the dispatcher has stripped ``--rl_library``).
     """
+    import contextlib
+    import importlib.metadata as metadata
+    import os
+    import time
+
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
     from isaaclab.app import launch_simulation

@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
-import platform
 import re
 import shutil
 import subprocess
@@ -253,6 +252,8 @@ def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], 
     needed by the optional pink IK controller, so the rest of Isaac Lab should
     still install cleanly.
     """
+    import platform
+
     if platform.system() != "Linux":
         return
     if platform.machine() not in {"x86_64", "AMD64", "aarch64", "arm64"}:

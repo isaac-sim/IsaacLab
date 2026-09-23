@@ -12,9 +12,6 @@
 
 from __future__ import annotations
 
-import dataclasses
-import functools
-import inspect
 import warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
@@ -26,6 +23,10 @@ if TYPE_CHECKING:
 
     from ...assets.articulation import Articulation
     from .. import ManagerBasedEnv
+
+import dataclasses
+import functools
+import inspect
 
 
 def _warn_io_descriptors_deprecated(*, stacklevel: int = 2) -> None:

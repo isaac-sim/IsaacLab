@@ -29,8 +29,6 @@ Usage example::
 
 from __future__ import annotations
 
-import argparse
-import importlib
 import sys
 from pathlib import Path
 
@@ -114,6 +112,9 @@ def run_worker(argv: list[str]) -> int:
     Returns:
         Process exit code.
     """
+    import argparse
+    import importlib
+
     from isaaclab.benchmark.dispatch import WORKFLOW_MODULES, run_training_cli
 
     parser = argparse.ArgumentParser(prog="benchmark multigpu worker", add_help=False)

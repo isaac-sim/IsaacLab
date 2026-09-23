@@ -21,6 +21,12 @@ from ...managers.manager_term_cfg import ObservationTermCfg
 from ...utils import math as math_utils
 from ...utils.buffers import CircularBuffer
 from ...utils.images import is_rgb_like, normalize_camera_image
+
+if TYPE_CHECKING:
+    from ...assets import Articulation, RigidObject
+    from ...sensors import Camera, Imu, JointWrenchSensor, Pva, RayCaster, RayCasterCamera
+    from .. import ManagerBasedEnv, ManagerBasedRLEnv
+
 from ..utils.io_descriptors import (
     generic_io_descriptor,
     record_body_names,
@@ -30,12 +36,6 @@ from ..utils.io_descriptors import (
     record_joint_vel_offsets,
     record_shape,
 )
-
-if TYPE_CHECKING:
-    from ...assets import Articulation, RigidObject
-    from ...sensors import Camera, Imu, JointWrenchSensor, Pva, RayCaster, RayCasterCamera
-    from .. import ManagerBasedEnv, ManagerBasedRLEnv
-
 
 """
 Root state.
