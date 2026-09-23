@@ -89,11 +89,8 @@ else:
 SIM_DT = 1.0 / 60.0
 MULTI_TILE_COUNT = 4
 
-_XFAIL_OVRTX_GAUSSIAN_PPISP = pytest.mark.xfail(
-    reason=(
-        "kit-less ovrtx must queue the RTX tonemapping setting before renderer construction; "
-        "the generic camera integration helper does not provide that pre-launch hook"
-    ),
+_XFAIL_OVRTX_GAUSSIAN_MULTITILE_SORTING = pytest.mark.xfail(
+    reason="OMPE-108417: OVRTX drops zDepth Gaussian splats from multi-camera render products",
     strict=False,
 )
 
@@ -120,7 +117,35 @@ def _ovrtx_sim_cfg(device: str) -> SimulationCfg:
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 @_SKIP_MISSING_OVRTX
-@_XFAIL_OVRTX_GAUSSIAN_PPISP
+def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx(device):
+    """Wrapper PPISP via ``ovrtx`` must show every PPISP-feature signature.
+
+    Renders a synthetic RGBW gaussian grid through ``ovrtx`` plus the
+    aggressive wrapper PPISP cfg and asserts:
+
+    1. **Non-degenerate frame** — content is rendered (not pure black / pure white).
+    2. **HDR source** — ``rgb_hdr`` is present and bright enough for PPISP.
+    3. **PPISP LDR mapping** — the center patch lands in a useful, non-saturated
+       LDR range after the calibrated responsivity/exposure pair.
+    4. **Vignetting** — each corner patch mean is meaningfully below the center patch mean.
+    5. **CRF/clamping** — no value exceeds 255.
+    """
+    with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
+        asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
+        output = render_synthetic_gaussian_scene(
+            asset_path,
+            sim_cfg=_ovrtx_sim_cfg(device),
+            renderer_cfg=OVRTXRendererCfg(),
+            data_types=["rgb", "rgb_hdr"],
+            sim_dt=SIM_DT,
+            stabilisation_steps=15,
+        )
+    assert_ppisp_lifts_exposure(output["rgb_hdr"][0], output["rgb"][0], label="ovrtx")
+    assert_ppisp_invariants(output["rgb"][0], label="ovrtx")
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@_SKIP_MISSING_OVRTX
 def test_camera_ppisp_authored_static_attrs_are_applied_on_synthetic_gaussians_ovrtx(device):
     """OVRTX must apply camera-authored static PPISP attributes."""
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
@@ -151,7 +176,6 @@ def test_camera_ppisp_authored_static_attrs_are_applied_on_synthetic_gaussians_o
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 @_SKIP_MISSING_OVRTX
-@_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_ovrtx(device):
     """OVRTX controller output must match the equivalent static PPISP cfg."""
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
@@ -181,7 +205,7 @@ def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_ovr
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 @_SKIP_MISSING_OVRTX
-@_XFAIL_OVRTX_GAUSSIAN_PPISP
+@_XFAIL_OVRTX_GAUSSIAN_MULTITILE_SORTING
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx_multitile(device):
     """Multi-tile wrapper PPISP via ``ovrtx`` must hold the same invariants
     independently for every tile.
