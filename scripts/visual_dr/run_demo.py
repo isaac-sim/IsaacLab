@@ -31,6 +31,7 @@ parser.add_argument(
 parser.add_argument("--backend", choices=("cosmos", "passthrough"), default="cosmos")
 parser.add_argument("--probability", type=float, default=1.0, help="1.0 so every dumped frame is generated")
 parser.add_argument("--max_batch", type=int, default=None, help="Override the backend's frames per call")
+parser.add_argument("--checkpoint", default=None, help="Registered name, s3:// URI, or local checkpoint directory")
 parser.add_argument("--num_steps", type=int, default=None, help="Override sampler steps")
 parser.add_argument("--guidance", type=float, default=None, help="Classifier-free guidance on the prompt")
 parser.add_argument(
@@ -110,6 +111,8 @@ def main() -> None:
     cfg.visual_dr.probability = args.probability
     if args.max_batch is not None:
         cfg.visual_dr.backend.max_batch = args.max_batch
+    if args.checkpoint:
+        cfg.visual_dr.backend.checkpoint = args.checkpoint
     if args.num_steps is not None:
         cfg.visual_dr.backend.num_steps = args.num_steps
     if args.guidance is not None:

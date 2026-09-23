@@ -97,6 +97,21 @@ hf download nvidia/<repo> --revision <rev> \
 checkpoint = "<local-path>/Cosmos3-Nano-Transfer-DMD2-4Step-LoRA-256p480p-iter8000"
 ```
 
+### A custom checkout may need FlashAttention, which constrains Python and torch
+
+The base `Cosmos3-Nano` path needs no FlashAttention: it falls back to cuDNN, or to
+torch's own Flash kernels. A checkout whose models use variable-length (packed)
+attention is different -- cuDNN does not implement varlen, so FlashAttention
+becomes mandatory, and the generation fails with *"Could not find a compatible
+Attention backend"* without it.
+
+That matters because the Cosmos dependency index publishes FlashAttention only for
+CPython 3.13 against torch 2.9 or 2.10. Isaac Lab is CPython 3.12 with torch 2.12,
+so those wheels do not apply, and building from source needs a CUDA toolkit.
+
+So a custom checkout is not automatically usable here. Check what the model
+actually needs before assuming the versions in the table above carry over.
+
 ### Distilled checkpoints want different sampling
 
 The defaults here -- 16 sampler steps at `guidance=3.0` -- are tuned for the base
