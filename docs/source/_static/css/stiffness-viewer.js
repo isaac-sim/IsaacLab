@@ -34,8 +34,8 @@ export class StiffnessViewer {
     this.camera = new THREE.PerspectiveCamera(42, 1, 0.05, 30);
     const demo = simulation.manifest.isaacLabDemo;
     const cloth = demo.kind === 'cloth_bending';
-    this.target = new THREE.Vector3(0, cloth ? 0.5 : 0.65, 0);
-    this.orbit = new OrbitCamera(canvas, this.camera, 1.3, cloth ? 0.42 : 0.26, cloth ? 3.8 : 3.6);
+    this.target = new THREE.Vector3(0, cloth ? 0.55 : 0.65, 0);
+    this.orbit = new OrbitCamera(canvas, this.camera, cloth ? Math.PI / 2 : 1.3, cloth ? 0.22 : 0.26, cloth ? 4.8 : 3.6);
 
     this.scene.add(new THREE.AmbientLight('#ffffff', 0.75));
     this.scene.add(new THREE.HemisphereLight('#ffffff', '#aebbc1', 0.7));

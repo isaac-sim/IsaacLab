@@ -39,7 +39,7 @@ export class LocomotionViewer {
     this.scene.fog = new THREE.Fog('#f3f6f7', 7, 15);
     this.camera = new THREE.PerspectiveCamera(42, 1, 0.05, 50);
     this.target = new THREE.Vector3();
-    this.orbit = new OrbitCamera(canvas, this.camera, 0.55, 0.28, this.isAnymal ? 2.0 : 2.55);
+    this.orbit = new OrbitCamera(canvas, this.camera, Math.PI, 0.28, this.isAnymal ? 2.4 : 3.0);
 
     this.scene.add(new THREE.HemisphereLight('#ffffff', '#acb9be', 2.2));
     const key = new THREE.DirectionalLight('#ffffff', 3.0);

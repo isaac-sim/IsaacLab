@@ -486,7 +486,7 @@ Try cloth bending in the browser
 
 Three free cloth sheets fall across pairs of horizontal rollers, adapting the
 bend-stiffness comparison in :doc:`../deformables`. The outer sheets retain
-``edge_ke`` values of 0.01 and 1.00 N·m; change the middle sheet's bending
+``edge_ke`` values of 0.001 and 10 N·m; change the middle sheet's bending
 stiffness on the logarithmic slider, or change gravity, then press **Reset**
 to replay the same drop. Roller contact is part of the VBD solve. The slider
 changes the material coefficient, not the 12 solver iterations.

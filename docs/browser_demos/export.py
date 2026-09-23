@@ -205,16 +205,16 @@ def export_cloth_bending(output: Path) -> None:
     supports = []
     middle_edges = None
     roller_rotation = wp.quat_from_axis_angle(wp.vec3(1.0, 0.0, 0.0), np.pi / 2)
-    for index, (y, stiffness, color) in enumerate(
+    for index, (x_offset, stiffness, color) in enumerate(
         zip(
-            (-0.82, 0.0, 0.82),
-            (0.01, 0.1, 1.0),
+            (-1.55, 0.0, 1.55),
+            (0.001, 1.0, 10.0),
             (wp.vec3(0.16, 0.48, 0.85), wp.vec3(0.57, 0.33, 0.85), wp.vec3(0.89, 0.48, 0.22)),
             strict=True,
         )
     ):
         for x in (-0.36, 0.36):
-            position = (x, y, 0.55)
+            position = (x + x_offset, 0.0, 0.55)
             builder.add_shape_cylinder(
                 body=-1,
                 xform=wp.transform(wp.vec3(*position), roller_rotation),
@@ -225,7 +225,7 @@ def export_cloth_bending(output: Path) -> None:
             supports.append({"position": position, "radius": 0.11, "height": 0.66})
         first_edge = len(builder.edge_indices)
         builder.add_cloth_grid(
-            pos=wp.vec3(-0.6, y - 0.26, 0.8),
+            pos=wp.vec3(x_offset - 0.6, -0.26, 0.8),
             rot=wp.quat_identity(),
             vel=wp.vec3(0.0),
             dim_x=10,
@@ -260,7 +260,7 @@ def export_cloth_bending(output: Path) -> None:
     state_in, state_out = model.state(), model.state()
     collision = newton.CollisionPipeline(model, deterministic=True)
     contacts = collision.contacts()
-    bending = wp.array([0.1], dtype=float, device="cpu")
+    bending = wp.array([1.0], dtype=float, device="cpu")
     gravity = wp.array([9.81], dtype=float, device="cpu")
     with wp.ScopedCapture(device="cpu", apic=True) as capture:
         wp.launch(
@@ -298,7 +298,7 @@ def export_cloth_bending(output: Path) -> None:
         output=output,
         timestep=CLOTH_DT,
         parameters=(
-            Parameter("bending", 0, "Middle sheet bending [N·m]", 0.01, 1.0, 0.01),
+            Parameter("bending", 0, "Middle sheet bending [N·m]", 0.001, 10.0, 0.001),
             Parameter("gravity", 0, "Gravity [m/s²]", 0.0, 20.0, 0.1),
         ),
         persistent=("bending", "gravity"),

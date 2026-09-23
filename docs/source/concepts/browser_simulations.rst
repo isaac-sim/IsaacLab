@@ -37,8 +37,8 @@ Cloth bending with VBD
 
 Adapted from the bend-stiffness comparison in :doc:`deformables`, three free
 cloth sheets fall across pairs of horizontal rollers. The outer sheets retain
-0.01 and 1.00 N·m bending stiffness; use the logarithmic slider to change the
-middle sheet from 0.01 to 1.00 N·m, or change gravity. Press **Reset** to
+0.001 and 10 N·m bending stiffness; use the logarithmic slider to change the
+middle sheet from 0.001 to 10 N·m, or change gravity. Press **Reset** to
 compare the same drop. The sheets can drape, slide, and touch the ground.
 The scene uses 12 VBD iterations per step. See :doc:`solver-tuning/tune_vbd`
 for the corresponding surface-deformable material fields and contact settings.

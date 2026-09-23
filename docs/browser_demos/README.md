@@ -36,7 +36,7 @@ mesh viewer. Each robot still needs its own reviewed USD, checkpoint, and
 exported graph.
 The cloth demo adapts the three-value bend-stiffness comparison in
 `deformables.rst`. Three free sheets fall across pairs of horizontal rollers;
-the outer sheets retain 0.01 and 1.00 N·m bending stiffness. The logarithmic
+the outer sheets retain 0.001 and 10 N·m bending stiffness. The logarithmic
 slider writes the middle sheet's `edge_bending_properties` before each captured
 VBD step, and gravity is also live. The rollers remain in the exported physics
 graph; the manifest carries their geometry for browser rendering because
