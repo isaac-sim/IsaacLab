@@ -6,6 +6,8 @@
 """Tests for the benchmark metrics helpers (Isaac-Sim-free)."""
 
 import pytest
+import torch.distributed as dist
+import torch.multiprocessing as mp
 
 from isaaclab.benchmark.metrics import (
     RL_LIBRARY_DESCRIPTORS,
@@ -156,8 +158,6 @@ def test_success_rate_tracker_no_data_end_iteration_returns_none():
 
 
 def _all_reduce_worker(rank: int, world_size: int, init_file: str, results) -> None:
-    import torch.distributed as dist
-
     dist.init_process_group("gloo", init_method=f"file://{init_file}", rank=rank, world_size=world_size)
     try:
         t = SuccessRateTracker(threshold=0.5, window=2, num_steps_per_env=1)
@@ -173,8 +173,6 @@ def _all_reduce_worker(rank: int, world_size: int, init_file: str, results) -> N
 
 def test_success_rate_tracker_all_reduce_agrees_across_ranks(tmp_path):
     """Every rank records the global mean, so all ranks make the same stop decision."""
-    import torch.multiprocessing as mp
-
     world_size = 2
     results = mp.Manager().dict()
     mp.spawn(_all_reduce_worker, args=(world_size, str(tmp_path / "pg_init"), results), nprocs=world_size)

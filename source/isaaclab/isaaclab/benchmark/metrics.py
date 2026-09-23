@@ -15,6 +15,8 @@ import statistics
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+import torch
+import torch.distributed as dist
 from tensorboard.backend.event_processing import event_accumulator
 
 from isaaclab.benchmark.schema import Framework, MeanStd
@@ -202,9 +204,6 @@ class SuccessRateTracker:
             device: Device of the tensor exchanged by the collective, which must match the
                 process-group backend (a CUDA device for NCCL).
         """
-        import torch
-        import torch.distributed as dist
-
         if not (dist.is_available() and dist.is_initialized()):
             return
         stats = torch.tensor([self._iter_sum, float(self._iter_count)], dtype=torch.float64, device=device)
