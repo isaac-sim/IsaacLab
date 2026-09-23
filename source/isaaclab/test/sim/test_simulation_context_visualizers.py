@@ -632,8 +632,6 @@ def test_headless_kit_recorder_publishes_state_and_renders_once(monkeypatch: pyt
     ctx.physics_manager = Mock()
     ctx.physics_manager.pre_render.side_effect = publish_transforms
     ctx._viz_dt = 0.1
-    ctx._render_callbacks = {}
-    ctx._render_generation = 0
     monkeypatch.setattr(SimulationContext, "is_rendering", property(lambda self: False))
     recorder = VideoRecorder(
         VideoRecorderCfg(source="visualizer:kit", output_dir=str(tmp_path)), SimpleNamespace(sim=ctx)
@@ -651,6 +649,9 @@ def test_headless_kit_recorder_publishes_state_and_renders_once(monkeypatch: pyt
 
     rep.create.render_product.assert_called_once()
     assert product.resume.call_count == 2
+    # Capture must reach pre_render() directly, not through a full render() that would also
+    # step every other visualizer and fire every registered render callback.
+    assert ctx.physics_manager.pre_render.call_count == 3
 
 
 def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monkeypatch: pytest.MonkeyPatch):

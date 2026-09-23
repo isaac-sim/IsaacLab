@@ -725,6 +725,18 @@ class SimulationContext:
         """Update kinematics without stepping physics."""
         self.physics_manager.forward()
 
+    def pre_render(self) -> None:
+        """Publish deferred physics state to the rendering backend without a full render.
+
+        Delegates to :meth:`~isaaclab.physics.PhysicsManager.pre_render` (e.g. Newton's
+        Fabric/USD transform sync). Unlike :meth:`render`, this does not step
+        :meth:`update_visualizers`, fire render callbacks, or advance
+        :attr:`_render_generation` -- callers that only need fresh transforms published for a
+        single consumer (e.g. on-demand video capture) should prefer this over ``render()`` to
+        avoid refreshing unrelated visualizers or double-triggering shared render callbacks.
+        """
+        self.physics_manager.pre_render()
+
     def _prepare_newton_visualizer_for_capture(self, _payload=None) -> None:
         """Initialize or rebind the Newton viewer before solver graph capture."""
         # Picking applies forces inside solver substeps, so its kernels and buffers

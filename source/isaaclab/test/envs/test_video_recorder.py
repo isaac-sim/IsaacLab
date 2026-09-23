@@ -252,7 +252,7 @@ def test_visualizer_source_refreshes_render_state_before_on_demand_capture(sourc
         nonlocal published_value
         published_value = physics_value
 
-    env.sim.render.side_effect = publish_render_state
+    env.sim.pre_render.side_effect = publish_render_state
     recorder = VideoRecorder(_cfg(source=source), env)
 
     for physics_value in (64, 128, 192):
@@ -265,7 +265,12 @@ def test_visualizer_source_refreshes_render_state_before_on_demand_capture(sourc
         assert np.all(frame == physics_value)
 
     if is_rendering:
-        env.sim.render.assert_not_called()
+        env.sim.forward.assert_not_called()
+        env.sim.pre_render.assert_not_called()
+    # Capture must never fall back to a full render(): that would also step every other
+    # visualizer, fire every registered render callback, and advance the shared render
+    # generation instead of only publishing this recorder's transforms.
+    env.sim.render.assert_not_called()
 
 
 def test_on_demand_rendering_stops_between_recording_windows():
@@ -276,12 +281,16 @@ def test_on_demand_rendering_stops_between_recording_windows():
     recorder = VideoRecorder(_cfg(source="visualizer:kit", video_length=2, video_interval=5), env)
 
     for step in range(1, 8):
-        env.sim.render.reset_mock()
+        env.sim.forward.reset_mock()
+        env.sim.pre_render.reset_mock()
         recorder.step()
         if step in (1, 2, 6, 7):
-            env.sim.render.assert_called_once_with()
+            env.sim.forward.assert_called_once_with()
+            env.sim.pre_render.assert_called_once_with()
         else:
-            env.sim.render.assert_not_called()
+            env.sim.forward.assert_not_called()
+            env.sim.pre_render.assert_not_called()
+    env.sim.render.assert_not_called()
 
 
 def test_visualizer_source_auto_no_visualizer_logs_and_returns_none(caplog):
