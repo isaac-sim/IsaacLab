@@ -10,6 +10,7 @@ from typing import ClassVar
 
 from isaaclab.sim.spawners.materials.physics_materials_cfg import (
     DeformableBodyMaterialBaseCfg,
+    DeformableMaterialFragment,
     RigidBodyMaterialFragment,
     SurfaceDeformableBodyMaterialBaseCfg,
 )
@@ -81,6 +82,58 @@ class NewtonSurfaceDeformableBodyMaterialCfg(SurfaceDeformableBodyMaterialBaseCf
 
 
 @configclass
+class NewtonVolumeDeformableMaterialCfg(DeformableMaterialFragment):
+    """``newton:*`` volume-deformable material attributes read by the Newton builder hooks."""
+
+    _usd_namespace: ClassVar[str | None] = "newton"
+    _usd_applied_schema: ClassVar[str | None] = None
+
+    density: float | None = None
+    """The material density [kg/m^3]."""
+
+    particle_radius: float | None = None
+    """Particle radius used for collision [m]."""
+
+    k_mu: float | None = None
+    """First Lame material parameter [Pa]."""
+
+    k_lambda: float | None = None
+    """Second Lame material parameter [Pa]."""
+
+    k_damp: float | None = None
+    """Damping stiffness for tetrahedral elements [Pa*s]."""
+
+
+@configclass
+class NewtonSurfaceDeformableMaterialCfg(DeformableMaterialFragment):
+    """``newton:*`` surface-deformable (cloth) material attributes read by the Newton builder hooks."""
+
+    _usd_namespace: ClassVar[str | None] = "newton"
+    _usd_applied_schema: ClassVar[str | None] = None
+
+    density: float | None = None
+    """The material areal density [kg/m^2]."""
+
+    particle_radius: float | None = None
+    """Particle radius used for collision [m]."""
+
+    tri_ke: float | None = None
+    """Triangle elastic stiffness [Pa]."""
+
+    tri_ka: float | None = None
+    """Triangle area-preservation stiffness [Pa]."""
+
+    tri_kd: float | None = None
+    """Triangle damping [Pa*s]."""
+
+    edge_ke: float | None = None
+    """Edge bending stiffness [N*m]."""
+
+    edge_kd: float | None = None
+    """Edge bending damping [N*m*s]."""
+
+
+@configclass
 class NewtonMaterialCfg(RigidBodyMaterialFragment):
     """``newton:*`` rigid-body material attributes read by Newton's USD material schema resolver.
 
@@ -100,7 +153,7 @@ class NewtonMaterialCfg(RigidBodyMaterialFragment):
     Composes with other rigid-body material fragments (e.g.
     :class:`~isaaclab.sim.spawners.materials.UsdPhysicsRigidBodyMaterialCfg`) in the same fragment
     list passed to
-    :func:`~isaaclab.sim.spawners.materials.spawn_rigid_body_material_from_fragments`. For the
+    :func:`~isaaclab.sim.spawners.materials.spawn_physics_material_from_fragments`. For the
     legacy (non-fragment) equivalent, see
     :class:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg`.
     """
