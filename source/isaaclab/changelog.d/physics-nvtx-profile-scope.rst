@@ -10,6 +10,10 @@ Added
 Changed
 ^^^^^^^
 
+* Changed runtime profiling to collect ordered scope timings in
+  ``<output_path>/profile_timings.json``. Consumers should read its ``timings_ms`` pairs
+  instead of parsing printed timer lines; use ``--profile_output_path`` to select another file.
+
 * **Breaking:** Moved render profiling into the runtime benchmark through
   :func:`~isaaclab.benchmark.stepping.profile_renderers`. To collect render timings with
   ``ISAACLAB_RENDER_PROFILE=1``, use the runtime benchmark; normal simulation runs no longer

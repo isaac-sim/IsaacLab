@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 import argparse
 import os
 import sys
+from pathlib import Path
 
 
 def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
@@ -69,6 +70,15 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     )
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
+    parser.add_argument(
+        "--profile_output_path",
+        type=Path,
+        default=None,
+        help=(
+            "JSON file for ordered timings enabled by ISAACLAB_RENDER_PROFILE / ISAACLAB_PHYSICS_PROFILE."
+            " Defaults to <output_path>/profile_timings.json when either profiling flag is enabled."
+        ),
+    )
     parser.add_argument(
         "--benchmark_formatter",
         type=str,
@@ -115,6 +125,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     )
     from isaaclab.benchmark.distributed import DistributedContext
     from isaaclab.benchmark.schema import StartupTime
+    from isaaclab.benchmark.serialize import write_bundle_file
 
     # Importing the task packages registers their gym environments so the
     # requested ``--task`` can be resolved.
@@ -184,13 +195,18 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             environment_step_timer = stepping.EnvironmentStepTimingRecorder(
                 env, measure_synchronized_step_breakdown=args.measure_sync_step
             )
+            profile_render = os.environ.get("ISAACLAB_RENDER_PROFILE", "0") != "0"
+            profile_physics = os.environ.get("ISAACLAB_PHYSICS_PROFILE", "0") != "0"
+            profile_timings: list[tuple[str, float]] = []
             stepping.profile_renderers(
                 env.unwrapped.sim.render_context,
-                active=os.environ.get("ISAACLAB_RENDER_PROFILE", "0") != "0",
+                active=profile_render,
+                timings=profile_timings,
             )
             stepping.profile_physics_steps(
                 env.unwrapped.sim.physics_manager,
-                active=os.environ.get("ISAACLAB_PHYSICS_PROFILE", "0") != "0",
+                active=profile_physics,
+                timings=profile_timings,
             )
             with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
                 step_times_s = stepping.run_runtime_loop(env, args.num_steps, reset=False)
@@ -264,6 +280,10 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             benchmark.attach_bundle(bundle)
 
             output_paths = benchmark.finalize()
+            if profile_render or profile_physics or args.profile_output_path is not None:
+                profile_path = args.profile_output_path or Path(args.output_path) / "profile_timings.json"
+                write_bundle_file({"timings_ms": profile_timings}, str(profile_path))
+                output_paths += (profile_path,)
             result = BenchmarkResult(bundle=bundle, output_paths=output_paths)
             console.print_runtime_report(bundle, output_paths)
 

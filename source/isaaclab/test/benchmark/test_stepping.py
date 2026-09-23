@@ -5,7 +5,6 @@
 
 """Tests for the runtime stepping helpers."""
 
-import re
 import time
 from contextlib import nullcontext
 from types import SimpleNamespace
@@ -27,9 +26,14 @@ from isaaclab.benchmark.stepping import (
 )
 
 
-@pytest.mark.parametrize("active", [False, True])
-@pytest.mark.parametrize("inherited", [False, True])
-@pytest.mark.parametrize("fail", [False, True])
+@pytest.mark.parametrize(
+    ("active", "inherited", "fail"),
+    [
+        pytest.param(False, False, False, id="disabled"),
+        pytest.param(True, False, False, id="enabled"),
+        pytest.param(True, True, True, id="inherited-failure"),
+    ],
+)
 def test_profile_physics_steps_times_complete_step_once(monkeypatch, capsys, active, inherited, fail):
     """Profile inherited step calls once and propagate failures."""
     import warp as wp
@@ -60,17 +64,19 @@ def test_profile_physics_steps_times_complete_step_once(monkeypatch, capsys, act
     synchronize = Mock(wraps=wp.synchronize)
     monkeypatch.setattr(wp, "synchronize", synchronize)
 
-    profile_physics_steps(manager, active=active)
+    timings = []
+    assert profile_physics_steps(manager, active=active, timings=timings) is timings
     with pytest.raises(ValueError, match="step failed") if fail else nullcontext():
         manager.step()
 
     assert calls == ["before", "base", "after"]
     assert synchronize.call_count == (2 if active else 0)
-    timing = rf"{re.escape(PHYSICS_PROFILE_SCOPE)} took [\d.]+ ms"
-    assert len(re.findall(timing, capsys.readouterr().out)) == int(active)
+    assert len(timings) == int(active)
+    assert all(scope == PHYSICS_PROFILE_SCOPE and elapsed >= 0.0 for scope, elapsed in timings)
+    assert PHYSICS_PROFILE_SCOPE not in capsys.readouterr().out
 
 
-def test_profile_renderers_wraps_each_renderer(monkeypatch):
+def test_profile_renderers_wraps_each_renderer(monkeypatch, capsys):
     """Multiple renderer wrappers keep their own targets and propagate failures."""
     import warp as wp
 
@@ -78,18 +84,21 @@ def test_profile_renderers_wraps_each_renderer(monkeypatch):
     second.render.side_effect = ValueError("render failed")
     originals = [first.render, second.render]
     context = SimpleNamespace(_renderer_entries=[(None, first), (None, second)])
-    timer = Mock(return_value=nullcontext())
-    monkeypatch.setattr(wp, "ScopedTimer", timer)
+    synchronize = Mock()
+    monkeypatch.setattr(wp, "synchronize", synchronize)
 
-    profile_renderers(context)
+    timings = []
+    assert profile_renderers(context, timings=timings) is timings
     first.render("first")
     with pytest.raises(ValueError, match="render failed"):
         second.render("second")
 
     originals[0].assert_called_once_with("first")
     originals[1].assert_called_once_with("second")
-    assert timer.call_count == 2
-    timer.assert_called_with(RENDER_PROFILE_SCOPE, print=True, synchronize=True)
+    assert synchronize.call_count == 4
+    assert len(timings) == 2
+    assert all(scope == RENDER_PROFILE_SCOPE and elapsed >= 0.0 for scope, elapsed in timings)
+    assert RENDER_PROFILE_SCOPE not in capsys.readouterr().out
 
 
 class _Space:

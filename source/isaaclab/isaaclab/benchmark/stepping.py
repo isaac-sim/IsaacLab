@@ -22,18 +22,21 @@ if TYPE_CHECKING:
 
     from isaaclab.physics import PhysicsManager
     from isaaclab.renderers.render_context import RenderContext
+    from isaaclab.utils.string import ResolvableString
 
     from .schema import MeanStd
 
 
 PHYSICS_PROFILE_SCOPE = "IsaacLab::Physics::step"
-"""Scope name for benchmark physics-step timings [ms], parsed by ``benchmark_renderer.py``."""
+"""Scope name for benchmark physics-step timings [ms]."""
 
 RENDER_PROFILE_SCOPE = "IsaacLab::Renderer::render"
 """Scope name for benchmark render timings [ms], excluding scene updates and output readback."""
 
 
-def profile_renderers(render_context: RenderContext, *, active: bool = True) -> None:
+def profile_renderers(
+    render_context: RenderContext, *, active: bool = True, timings: list[tuple[str, float]] | None = None
+) -> list[tuple[str, float]]:
     """Install timing wrappers once on the benchmark's currently registered renderers.
 
     Wrappers remain installed for the lifetime of these renderer instances.
@@ -42,24 +45,39 @@ def profile_renderers(render_context: RenderContext, *, active: bool = True) -> 
     Args:
         render_context: Simulation rendering context whose renderers will be timed.
         active: Whether to install the timing wrappers.
+        timings: Shared list of scope names and elapsed times [ms], in call order.
+            A new list is created if omitted. Timings are collected without printing.
+
+    Returns:
+        The list populated by the wrappers, including timings of calls that raise.
     """
+    if timings is None:
+        timings = []
     if not active:
-        return
+        return timings
 
     import warp as wp  # noqa: PLC0415
 
+    scope_timings = {RENDER_PROFILE_SCOPE: _ProfileScopeTimings(RENDER_PROFILE_SCOPE, timings)}
     for _, renderer in render_context._renderer_entries:
         render = renderer.render
 
         @wraps(render)
         def timed_render(render_data: Any, _render=render) -> None:
-            with wp.ScopedTimer(RENDER_PROFILE_SCOPE, print=True, synchronize=True):
+            with wp.ScopedTimer(RENDER_PROFILE_SCOPE, dict=scope_timings, print=False, synchronize=True):
                 return _render(render_data)
 
         renderer.render = timed_render
 
+    return timings
 
-def profile_physics_steps(physics_manager: type[PhysicsManager], *, active: bool = True) -> None:
+
+def profile_physics_steps(
+    physics_manager: type[PhysicsManager] | ResolvableString,
+    *,
+    active: bool = True,
+    timings: list[tuple[str, float]] | None = None,
+) -> list[tuple[str, float]]:
     """Install a timing wrapper once on the benchmark's selected physics manager.
 
     Only the selected manager is wrapped, so inherited ``super().step()`` calls
@@ -68,22 +86,33 @@ def profile_physics_steps(physics_manager: type[PhysicsManager], *, active: bool
     Enabled timings synchronize device work on entry and exit and perturb throughput.
 
     Args:
-        physics_manager: Concrete physics manager selected by the environment.
+        physics_manager: Concrete physics manager selected by the environment, or its lazy class reference.
         active: Whether to install the timing wrapper.
+        timings: Shared list of scope names and elapsed times [ms], in call order.
+            A new list is created if omitted. Timings are collected without printing.
+
+    Returns:
+        The list populated by the wrapper, including timings of calls that raise.
     """
+    if timings is None:
+        timings = []
     if not active:
-        return
+        return timings
 
     import warp as wp  # noqa: PLC0415
 
+    # The bound method identifies the concrete class even through a lazy class reference.
+    physics_manager = physics_manager.step.__self__
     step = physics_manager.step.__func__
+    scope_timings = {PHYSICS_PROFILE_SCOPE: _ProfileScopeTimings(PHYSICS_PROFILE_SCOPE, timings)}
 
     @wraps(step)
     def timed_step(cls: type[PhysicsManager]) -> None:
-        with wp.ScopedTimer(PHYSICS_PROFILE_SCOPE, print=True, synchronize=True):
+        with wp.ScopedTimer(PHYSICS_PROFILE_SCOPE, dict=scope_timings, print=False, synchronize=True):
             return step(cls)
 
     physics_manager.step = classmethod(timed_step)
+    return timings
 
 
 def sample_random_actions(env) -> torch.Tensor | dict[str, torch.Tensor]:
@@ -473,3 +502,17 @@ def run_play_loop(env, policy, num_steps: int) -> tuple[list[float], MeanStd | N
     success_rate = round(sum(successes) / len(successes), 4) if successes else None
 
     return step_times, reward_agg, ep_length_agg, success_rate
+
+
+class _ProfileScopeTimings(list[float]):
+    """Keep Warp's per-scope timings [ms] in a shared sequence for frame grouping."""
+
+    def __init__(self, scope: str, timings: list[tuple[str, float]]):
+        super().__init__()
+        self._scope = scope
+        self._timings = timings
+
+    def append(self, elapsed_ms: float) -> None:
+        """Record one scope timing [ms] in completion order."""
+        super().append(elapsed_ms)
+        self._timings.append((self._scope, elapsed_ms))

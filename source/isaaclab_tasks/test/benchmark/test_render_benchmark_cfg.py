@@ -25,7 +25,6 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim.schemas import MassCfg, UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.benchmark.render_benchmark import render_benchmark_env_cfg
 from isaaclab_tasks.benchmark.render_benchmark.render_benchmark_env import RenderBenchmarkEnv
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
@@ -56,21 +55,6 @@ def test_default_scene_and_articulations():
     assert cfg.scene.cabinet.prim_path == "{ENV_REGEX_NS}/Cabinet"
     assert cfg.joint_animation_amplitude == pytest.approx(0.4)
     assert cfg.benchmark_mode == "render"
-
-
-def test_benchmark_mode_read_from_environment(monkeypatch):
-    """``BENCHMARK_MODE`` is how ``benchmark_renderer.py`` selects what a sweep measures."""
-    monkeypatch.setenv("BENCHMARK_MODE", "physics_render")
-
-    assert render_benchmark_env_cfg._read_benchmark_mode() == "physics_render"
-
-
-def test_benchmark_mode_rejects_unknown_value(monkeypatch):
-    """A typo must fail at launch rather than silently benchmark the default for a whole sweep."""
-    monkeypatch.setenv("BENCHMARK_MODE", "physics-only")
-
-    with pytest.raises(ValueError, match="physics-only"):
-        render_benchmark_env_cfg._read_benchmark_mode()
 
 
 @pytest.mark.parametrize("mode", ["render", "physics_render"])

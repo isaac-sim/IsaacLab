@@ -78,15 +78,16 @@ environment-step rate. Runtime samples random actions before starting the
 runtime run, ``runtime.collection_fps`` and ``runtime.total_fps`` describe the
 same random-action stepping workload.
 
-Set ``ISAACLAB_PHYSICS_PROFILE=1`` to print synchronized physics-step timings during
+Set ``ISAACLAB_PHYSICS_PROFILE=1`` to collect synchronized physics-step timings during
 the runtime measurement loop. The benchmark wraps the selected physics
 manager's ``step`` through :func:`~isaaclab.benchmark.stepping.profile_physics_steps`
 for the rest of the process. Similarly, ``ISAACLAB_RENDER_PROFILE=1`` wraps registered
 renderers through :func:`~isaaclab.benchmark.stepping.profile_renderers`, timing only
 ``render()`` and excluding scene updates and output readback. Render wrappers are installed
 after warmup and remain on those instances for the rest of the benchmark. The render sweep
-enables both flags automatically. Device
-synchronization changes execution overlap, so these profiled runs are diagnostics
+enables both flags automatically. Timings are written to ``<output_path>/profile_timings.json``
+as ordered ``[scope, elapsed_ms]`` pairs under ``timings_ms``; use ``--profile_output_path``
+to choose a different file. Device synchronization changes execution overlap, so these profiled runs are diagnostics
 rather than throughput measurements.
 
 .. dropdown:: Canonical workstation output and provenance
