@@ -240,14 +240,15 @@ def parse_profile(filename: str, num_frames: int, scopes: dict[str, str] | None 
 
     Returns:
         The :data:`FRAME_SCOPE` statistics flat, a sub-dict per remaining scope, and a ``total``
-        sub-dict summing all of them. ``None`` if the file is missing, malformed, or holds no usable frames.
+        sub-dict summing all of them. ``None`` if the file holds no usable frames.
+
+    Raises:
+        OSError: The profiling file cannot be read.
+        TypeError: A timing entry has an invalid type.
+        ValueError: The profiling file does not contain valid ordered scope timings.
     """
     scopes = PROFILE_SCOPES if scopes is None else scopes
-    try:
-        frames = parse_frames(filename, scopes)
-    except (OSError, TypeError, ValueError) as error:
-        log(f"Could not read profiling results from {filename}: {error}")
-        return None
+    frames = parse_frames(filename, scopes)
 
     if not frames:
         log(f"No '{RENDER_SCOPE}' timings in {filename}; was ISAACLAB_RENDER_PROFILE set for this run?")

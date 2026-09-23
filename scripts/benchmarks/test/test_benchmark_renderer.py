@@ -13,6 +13,7 @@ import importlib.util
 import json
 import subprocess
 import sys
+from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -104,22 +105,23 @@ def test_parse_profile_skips_padding_and_keeps_num_frames(benchmark_renderer, tm
 
 
 @pytest.mark.parametrize(
-    "contents",
+    ("contents", "error"),
     [
-        None,
-        "{",
-        "{}",
-        json.dumps({"timings_ms": [(_PHYSICS_SCOPE, 1.0)]}),
-        json.dumps({"timings_ms": [(_RENDER_SCOPE, 1.0)]}),
+        (None, FileNotFoundError),
+        ("{", json.JSONDecodeError),
+        ("{}", ValueError),
+        (json.dumps({"timings_ms": [(_PHYSICS_SCOPE, 1.0)]}), None),
+        (json.dumps({"timings_ms": [(_RENDER_SCOPE, 1.0)]}), None),
     ],
 )
-def test_parse_profile_returns_none_without_usable_timings(benchmark_renderer, tmp_path, contents):
-    """Missing, malformed, and insufficient profiling results are failed measurements."""
+def test_parse_profile_handles_unusable_timings(benchmark_renderer, tmp_path, contents, error):
+    """Invalid files raise; valid files without measured frames return no result."""
     profile_path = tmp_path / "profile.json"
     if contents is not None:
         profile_path.write_text(contents)
 
-    assert benchmark_renderer.parse_profile(str(profile_path), num_frames=3) is None
+    with pytest.raises(error) if error else nullcontext():
+        assert benchmark_renderer.parse_profile(str(profile_path), num_frames=3) is None
 
 
 def test_parse_profile_sums_physics_steps_within_one_frame(benchmark_renderer, tmp_path):
@@ -190,7 +192,8 @@ def test_run_profile_reads_fresh_structured_output(benchmark_renderer, tmp_path,
     monkeypatch.setattr(benchmark_renderer.subprocess, "Popen", launch)
     args = benchmark_renderer._build_arg_parser().parse_args(["--num_frames", "2"])
 
-    results = benchmark_renderer.run_profile(profile, args)
+    with nullcontext() if write_timings else pytest.raises(FileNotFoundError):
+        results = benchmark_renderer.run_profile(profile, args)
 
     assert (tmp_path / "p.log").read_text() == f"{_RENDER_SCOPE} took 50.00 ms\n" * frames
     if write_timings:
@@ -199,9 +202,6 @@ def test_run_profile_reads_fresh_structured_output(benchmark_renderer, tmp_path,
         assert record["physics_median_ms"] == 1.234567
         assert record["total_median_ms"] == 2.345678 + 1.234567
         assert "p" in "\n".join(benchmark_renderer.format_table([record]))
-    else:
-        assert results is None
-        assert benchmark_renderer.build_record(profile, results, args.num_envs, args.resolution)["status"] == "failed"
 
 
 def _run_cli(args: list[str]) -> subprocess.CompletedProcess:
