@@ -1016,7 +1016,7 @@ def test_explicit_unknown_visualizer_type_raises():
 
 
 def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
-    """Requesting a valid type whose isaaclab_visualizers submodule is not installed raises
+    """Requesting a valid type when isaaclab_visualizers itself is not installed raises
     RuntimeError, classified by the real ModuleNotFoundError.name the import system sets."""
     settings = {
         "/isaaclab/visualizer/types": "rerun",
@@ -1026,7 +1026,34 @@ def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
     }
     ctx = _make_context_with_settings(settings)
 
-    # Force import to fail for the rerun visualizer module
+    # Force import to fail as if isaaclab_visualizers itself were not installed at all.
+    import importlib
+
+    real_import = importlib.import_module
+
+    def _failing_import(name, *args, **kwargs):
+        if "isaaclab_visualizers.rerun" in name:
+            raise ModuleNotFoundError("No module named 'isaaclab_visualizers'", name="isaaclab_visualizers")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(importlib, "import_module", _failing_import)
+
+    with pytest.raises(RuntimeError, match="rerun.*the 'isaaclab_visualizers' package is not installed"):
+        ctx._create_visualizers()
+
+
+def test_explicit_missing_backend_submodule_reported_by_its_own_name(monkeypatch: pytest.MonkeyPatch):
+    """A missing isaaclab_visualizers.<backend> submodule -- isaaclab_visualizers itself imports
+    fine, only that specific backend submodule doesn't exist -- is reported by its own module name,
+    not misclassified as the whole isaaclab_visualizers package being absent."""
+    settings = {
+        "/isaaclab/visualizer/types": "rerun",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_visible_envs": None,
+    }
+    ctx = _make_context_with_settings(settings)
+
     import importlib
 
     real_import = importlib.import_module
@@ -1038,8 +1065,11 @@ def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(importlib, "import_module", _failing_import)
 
-    with pytest.raises(RuntimeError, match="rerun.*is not installed"):
+    with pytest.raises(
+        RuntimeError, match="rerun.*required package 'isaaclab_visualizers.rerun' is not installed"
+    ) as exc_info:
         ctx._create_visualizers()
+    assert "the 'isaaclab_visualizers' package is not installed" not in str(exc_info.value)
 
 
 def test_explicit_missing_third_party_dependency_raises_with_its_own_name(monkeypatch: pytest.MonkeyPatch):
@@ -1121,7 +1151,7 @@ def test_explicit_mixed_failure_reasons_reported_per_type():
 
     def _failing_import(name, *args, **kwargs):
         if "isaaclab_visualizers.rerun" in name:
-            raise ModuleNotFoundError("No module named 'isaaclab_visualizers.rerun'", name="isaaclab_visualizers.rerun")
+            raise ModuleNotFoundError("No module named 'isaaclab_visualizers'", name="isaaclab_visualizers")
         return real_import(name, *args, **kwargs)
 
     with pytest.MonkeyPatch.context() as mp:
@@ -1215,6 +1245,49 @@ def test_explicit_deprecated_alias_alone_does_not_raise():
         ctx._create_visualizers()
 
     assert len(ctx._pending_visualizers) == 1
+
+
+def test_explicit_deprecated_alias_matches_existing_cfg_by_canonical_type():
+    """Requesting 'newton' via CLI when cfg.visualizer_cfgs already has a customized 'newton_gl'
+    config selects and returns that exact instance, rather than discarding it and building a
+    fresh default -- exercising the branch that filters pre-existing cfgs by canonical type."""
+    existing_cfg = NewtonGLVisualizerCfg(background_color=(0.4, 0.5, 0.6))
+    settings = {
+        "/isaaclab/visualizer/types": "newton",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_visible_envs": None,
+    }
+    ctx = _make_context_with_settings(settings, visualizer_cfgs=[existing_cfg])
+
+    # The pre-existing cfg already satisfies the canonical type, so this never reaches
+    # _create_default_visualizer_configs's alias-resolution branch and emits no warning here.
+    cfgs = ctx._resolve_visualizer_cfgs()
+
+    assert len(cfgs) == 1
+    assert cfgs[0] is existing_cfg
+    assert cfgs[0].background_color == (0.4, 0.5, 0.6)
+
+
+def test_explicit_existing_cfg_plus_failing_requested_type_raises_for_the_failure():
+    """A pre-existing cfg satisfies one requested type; a second requested type that cannot be
+    resolved still raises, exercising extra_failures propagation out of the branch that extends
+    pre-existing cfgs with freshly-created defaults for the remaining requested types."""
+    existing_cfg = _FakeVisualizerCfg("kit")
+    settings = {
+        "/isaaclab/visualizer/types": "kit,bogus_viz",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_visible_envs": None,
+    }
+    ctx = _make_context_with_settings(settings, visualizer_cfgs=[existing_cfg])
+
+    with pytest.raises(RuntimeError, match="bogus_viz.*unknown visualizer type") as exc_info:
+        ctx._resolve_visualizer_cfgs()
+    message = str(exc_info.value)
+    # 'kit' was satisfied by the pre-existing cfg, so only the unresolved type is reported missing.
+    assert "['bogus_viz']" in message
+    assert "'kit':" not in message
 
 
 def test_deprecated_newton_alias_warns_and_resolves_to_newton_gl():

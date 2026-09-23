@@ -439,10 +439,11 @@ class SimulationContext:
                 # partially-initialized or circularly-imported module, whose message can still
                 # happen to contain "isaaclab_visualizers") for a module that is simply missing.
                 missing_module = exc.name if isinstance(exc, ModuleNotFoundError) else None
-                if missing_module is not None and (
-                    missing_module == "isaaclab_visualizers" or missing_module.startswith("isaaclab_visualizers.")
-                ):
-                    # isaaclab_visualizers is optional; log once at warning level
+                if missing_module == "isaaclab_visualizers":
+                    # Only an exact match proves the whole distribution is absent. A missing
+                    # descendant (e.g. "isaaclab_visualizers.rerun") means isaaclab_visualizers
+                    # itself imported fine but that backend submodule or its own dependency did
+                    # not, which the branch below reports by its own name instead.
                     logger.warning(
                         "[SimulationContext] Visualizer '%s' skipped: isaaclab_visualizers is not installed. %s",
                         viz_type,
@@ -450,8 +451,8 @@ class SimulationContext:
                     )
                     failure_reasons[requested_type] = f"the 'isaaclab_visualizers' package is not installed. {hint}"
                 elif missing_module is not None:
-                    # isaaclab_visualizers is installed, but one of this backend's own third-party
-                    # dependencies (e.g. the 'rerun' package) is missing.
+                    # A named descendant of isaaclab_visualizers, or one of this backend's own
+                    # third-party dependencies (e.g. the 'rerun' package), is missing.
                     logger.warning(
                         "[SimulationContext] Visualizer '%s' skipped: required package '%s' is not installed. %s",
                         viz_type,
