@@ -251,6 +251,7 @@ class PhysxSurfaceDeformableBodyCfg(DeformableBodyFragment):
     """Multiplier on collision solver iterations."""
 
 
+@_deprecated_schema_cfg("[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]")
 @configclass
 class PhysxRigidBodyPropertiesCfg(RigidBodyBaseCfg):
     """PhysX-specific rigid body properties.

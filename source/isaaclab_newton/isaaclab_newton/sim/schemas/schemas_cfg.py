@@ -88,6 +88,7 @@ class NewtonDeformableBodyCfg(DeformableBodyFragment):
     _usd_applied_schema: ClassVar[str | None] = None
 
 
+@_deprecated_schema_cfg("[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...), MujocoRigidBodyCfg(...)]")
 @configclass
 class MujocoRigidBodyPropertiesCfg(NewtonRigidBodyPropertiesCfg):
     """MuJoCo-solver-specific rigid body properties.
