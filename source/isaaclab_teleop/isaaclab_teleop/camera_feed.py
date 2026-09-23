@@ -445,7 +445,7 @@ class _PanelDescriptor:
     placement: str
     world_position_m: tuple[float, float, float] | None
     world_orientation_xyzw: tuple[float, float, float, float]
-    use_scene_partition: bool
+    use_scene_partition: bool = False
 
 
 def _panel_descriptor(cfg: XrCameraFeedCfg, layout_cfg: XrCameraFeedLayoutCfg) -> _PanelDescriptor:

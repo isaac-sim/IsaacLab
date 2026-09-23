@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from contextlib import ExitStack
+from dataclasses import asdict
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -26,6 +27,11 @@ def test_layout_preserves_positional_constructor():
     assert layout.mode == "horizontal"
     assert layout.placement == "head_locked"
     assert layout.use_scene_partition is False
+
+    # Existing SceneUI callers construct descriptors without the new opt-in flag.
+    descriptor = asdict(camera_feed._panel_descriptor(XrCameraFeedCfg(camera_name="camera"), layout))
+    descriptor.pop("use_scene_partition")
+    assert camera_feed._PanelDescriptor(**descriptor).use_scene_partition is False
 
 
 @pytest.fixture

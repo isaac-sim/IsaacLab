@@ -1399,10 +1399,15 @@ presentation camera to ``isaaclab_teleop_xr_camera_pip`` in the stage's session 
 prior opinions when the final isolated panel closes. This is shared XR/SceneUI state, not
 independent per-panel visibility.
 
-Scene-partition isolation requires a Kit runtime containing XR scene-partition propagation and
-runtime-updated mesh bounds fixes. A supported released-runtime minimum has not yet been
-established; validation currently requires a local Kit build containing both fixes. The Isaac Sim
-package version alone does not establish compatibility.
+.. warning::
+
+   Both G1 presets require a Kit runtime containing XR scene-partition propagation and
+   runtime-updated mesh bounds fixes. A supported released-runtime minimum has not yet been
+   established. Validation used a separately installed Kit artifact containing both fixes,
+   not the unmodified Isaac Sim package. The Isaac Sim version alone does not establish
+   compatibility, and PiP does not automatically detect these fixes. Until your runtime is
+   qualified, set ``env.isaac_teleop.xr_camera_feeds=[]`` to disable PiP; simply disabling
+   isolation can reintroduce recursion.
 
 Enabled PiP preparation temporarily sets selected Isaac RTX cameras' ``enable_scene_partitioning``
 to ``False`` and owns the process-global ``/rtx/scenePartitioning/showAllPartitionsByDefault=False``
