@@ -113,12 +113,14 @@ def image_runtime_dr(env: ManagerBasedRLEnv, camera: str) -> torch.Tensor:
 
     def make_frame() -> DRFrame:
         segmentation = data.output["semantic_segmentation"].torch
-        if camera_cfg.composite_foreground:
+        # Built whenever classes are named, not only when the composite will paste
+        # it back: a backend may also send it to the model as a guidance mask, and
+        # deciding here on the composite alone would hand that backend an empty
+        # mask and silently disable the guidance.
+        if camera_cfg.preserve_classes:
             info = data.info.get("semantic_segmentation") or {}
             mask = preserve_mask(segmentation, info.get("idToLabels", {}), camera_cfg)
         else:
-            # Nothing is protected, so the label mapping is not consulted at all and
-            # a scene with no semantic tags still works in this mode.
             mask = torch.zeros_like(segmentation, dtype=torch.bool)
         return DRFrame(rgb, data.output["distance_to_image_plane"].torch, mask, segmentation)
 

@@ -449,3 +449,13 @@ def test_a_registered_checkpoint_name_is_not_mistaken_for_a_path():
     # The default is a registered name; it carries no slash and must not be
     # rejected by the path check.
     assert "/" not in cfg.checkpoint
+
+
+def test_the_mask_is_built_even_when_the_composite_is_off():
+    # A backend may send the mask to the model as guidance while the runtime does
+    # not paste it back. Gating construction on the composite handed that backend
+    # an all-zero mask, silently disabling the guidance.
+    segmentation = torch.tensor([[[[1], [2]]]], dtype=torch.int32)
+    labels = {"1": {"class": "robot"}, "2": {"class": "ground"}}
+    cfg = CameraDRCfg(preserve_classes=("robot",), composite_foreground=False)
+    assert preserve_mask(segmentation, labels, cfg).flatten().tolist() == [True, False]

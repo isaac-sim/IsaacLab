@@ -201,3 +201,11 @@ Fixed
   mode where ``composite_foreground`` is cleared; with the composite on those pixels
   come from the render and no prompt can reach them. Without it the model previously
   invented the foreground, returning fused cyan shapes in place of the cubes.
+
+* Fixed the preserved mask being empty whenever ``composite_foreground`` was cleared.
+  Mask construction was gated on the composite, so a backend sending the mask to the
+  model as a guidance signal received an all-zero mask and the guidance silently did
+  nothing. The mask is now built whenever ``preserve_classes`` names anything, and
+  the composite flag decides only whether the runtime pastes it back. With a real
+  mask, guided generation preserves the workbench colour exactly and keeps the cubes'
+  colours while still lighting the whole frame coherently.
