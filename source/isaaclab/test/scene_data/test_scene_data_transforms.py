@@ -14,37 +14,14 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 import warp as wp
-import warp._src.codegen as warp_codegen
 
 from pxr import UsdUtils
 
 import isaaclab.scene_data as scene_data
 from isaaclab.cloner.usd import UsdReplicateContext
-from isaaclab.scene_data.scene_data_backend import SceneDataFormat, _patch_fabric_structs
+from isaaclab.scene_data.scene_data_backend import SceneDataFormat
 from isaaclab.scene_data.scene_data_provider import SceneDataProvider
 from isaaclab.test.utils import test_devices
-
-
-def test_fabric_struct_patch_is_idempotent_and_preserves_typed_handles(monkeypatch):
-    """Native/newly patched structs retain descriptors and reject invalid fields or device moves."""
-    methods = (warp_codegen.Struct.__init__, warp_codegen._make_struct_field_setter, warp_codegen.codegen_struct)
-    _patch_fabric_structs()
-    assert methods == (warp_codegen.Struct.__init__, warp_codegen._make_struct_field_setter, warp_codegen.codegen_struct)
-    output = SceneDataFormat.FabricMatrix44()
-    assert output._cls is SceneDataFormat.FabricMatrix44
-    array = wp.fabricarray(dtype=wp.mat44d)
-    output.matrices = array
-    output.scales = wp.empty(0, dtype=wp.vec3f, device="cpu")
-    assert output.to("cpu").matrices is array
-    for invalid in (wp.array(dtype=wp.mat44d), wp.fabricarray(dtype=wp.vec3f), wp.fabricarray(dtype=wp.mat44d, ndim=2)):
-        with pytest.raises(TypeError):
-            output.matrices = invalid
-        assert output.matrices is array
-    monkeypatch.setattr(array, "device", "foreign")
-    with pytest.raises(ValueError, match="[Ff]abric"):
-        output.to("cpu")
-    output.matrices = None
-    assert output.matrices is None and output.__ctype__().matrices.size == 0
 
 
 @pytest.mark.skipif(
@@ -163,6 +140,7 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
         )
     )
     provider._fabric_output = SceneDataFormat.FabricMatrix44()
+    assert provider._fabric_output._cls is SceneDataFormat.FabricMatrix44
     provider._fabric_output.scales = wp.empty(len(poses), dtype=wp.vec3f, device=device)
     expected = np.array([np.diag([-2, -3, 4, 1]), np.diag([5, 6, 7, 1])], dtype=np.float64)
     expected[:, 3, :3] = [[4, 5, 6], [1, 2, 3]]

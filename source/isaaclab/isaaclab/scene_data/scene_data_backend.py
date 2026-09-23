@@ -16,76 +16,9 @@ orphaned from its parent's ``__dict__`` after restoration.
 
 from __future__ import annotations
 
-import inspect
-import textwrap
 from typing import Any
 
 import warp as wp
-import warp._src.codegen as warp_codegen
-
-
-def _patch_fabric_structs() -> None:
-    """Backport factory-annotated Fabric struct kernel arguments for older Warp (NVIDIA/warp#1818).
-
-    Patch descriptors and kernel code generation in memory, never installed files.
-    Fabric storage cannot move across devices; NumPy struct serialization is not backported.
-    """
-    if "fabricarray" in warp_codegen._make_struct_field_constructor.__code__.co_names:
-        return
-    patches = (
-        (
-            warp_codegen.Struct,
-            "__init__",
-            "        elif isinstance(var.type, Struct):",
-            "        elif isinstance(var.type, (warp.fabricarray, warp.indexedfabricarray)):\n"
-            "            fields.append((label, type(var.type.__ctype__())))\n",
-        ),
-        (
-            warp_codegen,
-            "_make_struct_field_constructor",
-            "    elif _is_texture_type(var_type):",
-            "    elif isinstance(var_type, (warp.fabricarray, warp.indexedfabricarray)):\n"
-            "        return lambda ctype: None\n",
-        ),
-        (
-            warp_codegen,
-            "_make_struct_field_setter",
-            "    elif _is_texture_type(var_type):",
-            "    elif isinstance(var_type, (warp.fabricarray, warp.indexedfabricarray)):\n"
-            "        def set_fabric_value(inst, value):\n"
-            "            if value is not None and (not isinstance(value, type(var_type))\n"
-            "                    or not types_equal(value.dtype, var_type.dtype) or value.ndim != var_type.ndim):\n"
-            "                raise TypeError(f'Invalid Fabric array for struct field {field!r}.')\n"
-            "            setattr(inst._ctype, field, var_type.__ctype__() if value is None else value.__ctype__())\n"
-            "            cls.__setattr__(inst, field, value)\n"
-            "        return set_fabric_value\n",
-        ),
-        (
-            warp_codegen,
-            "codegen_struct",
-            "atomic_add_body.append(",
-            "if not isinstance(var.type, (warp.fabricarray, warp.indexedfabricarray)):\n            ",
-        ),
-        (
-            warp_codegen.StructInstance,
-            "to",
-            "        elif isinstance(var.type, Struct):",
-            "        elif isinstance(var.type, (warp.fabricarray, warp.indexedfabricarray)):\n"
-            "            if value is not None and value.device is not None and value.device != warp.get_device(device):\n"
-            "                raise ValueError(f'Cannot move Fabric struct field {name!r} across devices.')\n"
-            "            setattr(dst, name, value)\n",
-        ),
-    )
-    replacements = []
-    for owner, name, anchor, insertion in patches:
-        source = textwrap.dedent(inspect.getsource(getattr(owner, name)))
-        if source.count(anchor) != 1:
-            raise RuntimeError(f"Unsupported Warp {wp.__version__}: cannot backport {name} Fabric fields.")
-        namespace = {}
-        exec(compile(source.replace(anchor, insertion + anchor), warp_codegen.__file__, "exec"), vars(warp_codegen), namespace)
-        replacements.append((owner, name, namespace[name]))
-    for owner, name, replacement in replacements:
-        setattr(owner, name, replacement)
 
 # Under Sphinx ``autodoc_mock_imports``, ``wp.struct`` is a ``_MockObject``
 # that replaces the decorated class with another mock, hiding its docstring
@@ -96,7 +29,6 @@ if getattr(wp, "__sphinx_mock__", False):
     def wp_struct(cls):
         return cls
 else:
-    _patch_fabric_structs()
     wp_struct = wp.struct
 
 

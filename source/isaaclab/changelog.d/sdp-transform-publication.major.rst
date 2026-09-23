@@ -11,5 +11,5 @@ Changed
   became Fabric-only reset-stack roots so nested bodies retained their absolute physics poses.
   Transform freshness no longer depended on the physics-step counter;
   ``RenderContext.reset_scene_state_cadence`` remained available for geometry updates.
-* Used a Warp struct for Fabric transform bindings. Backported Fabric struct kernel arguments
-  in memory when Kit loaded older Warp, without changing installed dependency files.
+* Used native Warp structs for Fabric transform bindings, relying on the project-managed Warp
+  dependency selected by Isaac Lab's Kit launch configuration.
