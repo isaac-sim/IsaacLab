@@ -52,6 +52,8 @@ def test_franka_lift_physx_runtimes_preserve_grasp_and_clone_contracts() -> None
         "panda_finger_joint2",
     ]
     for backend, result in results.items():
+        arm_position_trajectory = torch.tensor(result["driven_arm_position_trajectory"])
+        arm_velocity_trajectory = torch.tensor(result["driven_arm_velocity_trajectory"])
         assert result["asset_path"].endswith("/Robots/FrankaEmika/franka_panda.usda")
         assert result["asset_variants"] == {"Physics": "physx", "Colliders": "gripper_only"}
         assert result["object_spawner"] == "CuboidCfg"
@@ -65,6 +67,12 @@ def test_franka_lift_physx_runtimes_preserve_grasp_and_clone_contracts() -> None
         assert result["isolated_peak_force_max"] < 0.01, f"{backend} leaked contact across clones"
         assert result["grasp_peak_arm_velocity_max"] < 2.0
         assert result["isolated_peak_arm_velocity_max"] < 2.0
+        assert arm_position_trajectory.shape == (32, 7)
+        assert arm_velocity_trajectory.shape == (32, 7)
+        assert arm_position_trajectory.abs().max() > 0.01
+        assert arm_velocity_trajectory.abs().max() > 0.1
+        assert result["driven_arm_position_clone_spread_max"] < 1.0e-4
+        assert result["driven_arm_velocity_clone_spread_max"] < 1.0e-3
         assert result["isolated_finger_position_mean"] > result["grasp_finger_position_mean"] + 5.0e-4
         assert result["mimic_error_max"] < 1.0e-3
 
@@ -80,3 +88,15 @@ def test_franka_lift_physx_runtimes_preserve_grasp_and_clone_contracts() -> None
         )
         < 0.1
     )
+
+    # Relative arm drives should produce the same policy-visible trajectory. Allow small
+    # floating-point integration differences while still catching a changed drive contract.
+    isaacsim_arm_initial = torch.tensor(results["isaacsim_physx"]["driven_arm_initial_position_mean"])
+    ovphysx_arm_initial = torch.tensor(results["ovphysx"]["driven_arm_initial_position_mean"])
+    torch.testing.assert_close(ovphysx_arm_initial, isaacsim_arm_initial, rtol=0.0, atol=1.0e-6)
+    isaacsim_arm_position = torch.tensor(results["isaacsim_physx"]["driven_arm_position_trajectory"])
+    ovphysx_arm_position = torch.tensor(results["ovphysx"]["driven_arm_position_trajectory"])
+    torch.testing.assert_close(ovphysx_arm_position, isaacsim_arm_position, rtol=1.0e-2, atol=1.0e-4)
+    isaacsim_arm_velocity = torch.tensor(results["isaacsim_physx"]["driven_arm_velocity_trajectory"])
+    ovphysx_arm_velocity = torch.tensor(results["ovphysx"]["driven_arm_velocity_trajectory"])
+    torch.testing.assert_close(ovphysx_arm_velocity, isaacsim_arm_velocity, rtol=1.0e-2, atol=1.0e-3)

@@ -84,6 +84,7 @@ def main() -> None:
         obj = unwrapped.scene["object"]
         action_term = unwrapped.action_manager.get_term("action")
         action_joint_names = list(action_term._joint_names)
+        arm_action_ids = [action_joint_names.index(f"panda_joint{i}") for i in range(1, 8)]
         finger_action_ids = [action_joint_names.index(f"panda_finger_joint{i}") for i in (1, 2)]
         finger_joint_ids = torch.tensor(
             [robot.joint_names.index(f"panda_finger_joint{i}") for i in (1, 2)], device=unwrapped.device
@@ -111,16 +112,29 @@ def main() -> None:
         obj.write_root_velocity_to_sim_index(
             root_velocity=torch.zeros((len(isolated_env_ids), 6), device=unwrapped.device), env_ids=isolated_env_ids
         )
+        # Give the driven clones the same explicit starting state. The probe can then attribute
+        # trajectory differences to the articulation drives rather than reset-bank sampling.
+        isolated_joint_pos = robot.data.default_joint_pos.torch[isolated_env_ids].clone()
+        robot.write_joint_position_to_sim_index(position=isolated_joint_pos, env_ids=isolated_env_ids)
+        robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(isolated_joint_pos), env_ids=isolated_env_ids)
+        initial_arm_pos = robot.data.joint_pos.torch[isolated_env_ids][:, arm_joint_ids].clone()
 
         dual_contact = torch.zeros(unwrapped.num_envs, dtype=torch.bool, device=unwrapped.device)
         contact_onset = torch.full((unwrapped.num_envs,), -1, dtype=torch.long, device=unwrapped.device)
         peak_left = torch.zeros(unwrapped.num_envs, device=unwrapped.device)
         peak_right = torch.zeros_like(peak_left)
         peak_arm_velocity = torch.zeros(unwrapped.num_envs, device=unwrapped.device)
+        driven_arm_position_trajectory = []
+        driven_arm_velocity_trajectory = []
+        driven_arm_position_clone_spread_max = torch.tensor(0.0, device=unwrapped.device)
+        driven_arm_velocity_clone_spread_max = torch.tensor(0.0, device=unwrapped.device)
+        arm_action = torch.tensor([0.20, -0.16, 0.12, -0.08, 0.06, -0.04, 0.02], device=unwrapped.device)
+        drive_phases = (1.0,) * 8 + (-0.75,) * 8 + (0.5,) * 8 + (-0.25,) * 8
         with torch.inference_mode():
-            for step in range(12):
+            for step, drive_phase in enumerate(drive_phases):
                 actions.zero_()
                 actions[grasp_env_ids[:, None], finger_action_ids] = -1.0
+                actions[isolated_env_ids[:, None], arm_action_ids] = drive_phase * arm_action
                 env.step(actions)
                 left_force = _force_magnitude(left_sensor)
                 right_force = _force_magnitude(right_sensor)
@@ -132,6 +146,18 @@ def main() -> None:
                 touching = (left_force > 0.01) & (right_force > 0.01)
                 contact_onset[(contact_onset < 0) & touching] = step + 1
                 dual_contact |= touching
+                driven_arm_pos = robot.data.joint_pos.torch[isolated_env_ids][:, arm_joint_ids]
+                driven_arm_vel = robot.data.joint_vel.torch[isolated_env_ids][:, arm_joint_ids]
+                driven_arm_position_trajectory.append((driven_arm_pos - initial_arm_pos).mean(dim=0).cpu())
+                driven_arm_velocity_trajectory.append(driven_arm_vel.mean(dim=0).cpu())
+                driven_arm_position_clone_spread_max = torch.maximum(
+                    driven_arm_position_clone_spread_max,
+                    (driven_arm_pos - driven_arm_pos[:1]).abs().max(),
+                )
+                driven_arm_velocity_clone_spread_max = torch.maximum(
+                    driven_arm_velocity_clone_spread_max,
+                    (driven_arm_vel - driven_arm_vel[:1]).abs().max(),
+                )
 
         final_finger_pos = robot.data.joint_pos.torch[:, finger_joint_ids]
         mimic_error = (final_finger_pos[:, 0] - final_finger_pos[:, 1]).abs()
@@ -154,6 +180,11 @@ def main() -> None:
             ),
             "grasp_peak_arm_velocity_max": float(peak_arm_velocity[grasp_env_ids].max().item()),
             "isolated_peak_arm_velocity_max": float(peak_arm_velocity[isolated_env_ids].max().item()),
+            "driven_arm_initial_position_mean": initial_arm_pos.mean(dim=0).cpu().tolist(),
+            "driven_arm_position_trajectory": torch.stack(driven_arm_position_trajectory).tolist(),
+            "driven_arm_velocity_trajectory": torch.stack(driven_arm_velocity_trajectory).tolist(),
+            "driven_arm_position_clone_spread_max": float(driven_arm_position_clone_spread_max.item()),
+            "driven_arm_velocity_clone_spread_max": float(driven_arm_velocity_clone_spread_max.item()),
             "grasp_finger_position_mean": float(final_finger_pos[grasp_env_ids].mean().item()),
             "isolated_finger_position_mean": float(final_finger_pos[isolated_env_ids].mean().item()),
             "mimic_error_max": float(mimic_error.max().item()),
