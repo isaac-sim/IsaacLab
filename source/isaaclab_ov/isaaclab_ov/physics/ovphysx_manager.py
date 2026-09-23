@@ -34,6 +34,7 @@ from isaaclab.scene_data.deformable_discovery import (
     deformable_prototypes,
     expand_deformable_entries,
 )
+from isaaclab.sim.schemas.schemas import _setup_omniphysics_deformable_body
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.utils.buffers import TimestampedBuffer
 
@@ -429,6 +430,15 @@ class OvPhysxManager(PhysicsManager):
                 companion_namespace="physxArticulation",
             )
         return root
+
+    @classmethod
+    def setup_deformable_body(cls, prim: Any, deformable_type: str, sim_mesh_prim: Any, vis_mesh_prim: Any) -> None:
+        """Apply the OmniPhysics deformable anchor APIs, rest state, and bind pose.
+
+        OVPhysX reads the same OmniPhysics deformable schemas as the Kit PhysX backend, so both
+        backends share one authoring path.
+        """
+        _setup_omniphysics_deformable_body(prim, deformable_type, sim_mesh_prim, vis_mesh_prim)
 
     @classmethod
     def register_clone(

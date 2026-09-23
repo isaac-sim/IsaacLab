@@ -2247,6 +2247,59 @@ def _setup_deformable_meshes(
     return sim_mesh_prim, vis_mesh_prim
 
 
+def _setup_omniphysics_deformable_body(
+    prim: Usd.Prim, deformable_type: str, sim_mesh_prim: Usd.Prim, vis_mesh_prim: Usd.Prim
+) -> None:
+    """Apply the OmniPhysics deformable anchor schemas, rest state, and bind pose to a prepared body.
+
+    The OmniPhysics deformable schemas are shared by the PhysX-based backends (Kit PhysX and
+    OvPhysX), so their :meth:`~isaaclab.physics.PhysicsManager.setup_deformable_body` hooks delegate
+    here after :func:`_setup_deformable_meshes` has created the simulation and visual meshes.
+
+    Args:
+        prim: The deformable-body prim to anchor.
+        deformable_type: The deformable type, ``"volume"`` or ``"surface"``.
+        sim_mesh_prim: The prepared simulation-mesh prim.
+        vis_mesh_prim: The visual-mesh prim.
+
+    Raises:
+        RuntimeError: When an anchor schema cannot be applied.
+    """
+    sim_mesh_path = sim_mesh_prim.GetPath().pathString
+    if deformable_type == "surface":
+        if not sim_mesh_prim.ApplyAPI("OmniPhysicsSurfaceDeformableSimAPI"):
+            raise RuntimeError(f"Failed to set surface deformable sim API on prim '{sim_mesh_path}'.")
+        sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(sim_mesh_prim.GetAttribute("points").Get())
+        # flatten through numpy so USD coerces the flat index run into the Vec3i array the
+        # schema declares; a ``Vt.IntArray`` read straight back is rejected as a type mismatch
+        sim_mesh_prim.GetAttribute("omniphysics:restTriVtxIndices").Set(
+            np.asarray(sim_mesh_prim.GetAttribute("faceVertexIndices").Get()).flatten()
+        )
+    else:
+        if not sim_mesh_prim.ApplyAPI("OmniPhysicsVolumeDeformableSimAPI"):
+            raise RuntimeError(f"Failed to set volume deformable sim API on prim '{sim_mesh_path}'.")
+        sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(sim_mesh_prim.GetAttribute("points").Get())
+        sim_mesh_prim.GetAttribute("omniphysics:restTetVtxIndices").Set(
+            sim_mesh_prim.GetAttribute("tetVertexIndices").Get()
+        )
+    # bind visual to sim mesh through the default bind pose
+    purposes = ["bindPose"]
+    vis_mesh_prim.ApplyAPI("OmniPhysicsDeformablePoseAPI", "default")
+    vis_mesh_prim.CreateAttribute("deformablePose:default:omniphysics:purposes", Sdf.ValueTypeNames.TokenArray).Set(
+        purposes
+    )
+    points = UsdGeom.PointBased(vis_mesh_prim).GetPointsAttr().Get()
+    vis_mesh_prim.CreateAttribute("deformablePose:default:omniphysics:points", Sdf.ValueTypeNames.Point3fArray).Set(
+        points
+    )
+    sim_mesh_prim.ApplyAPI("OmniPhysicsDeformablePoseAPI", "default")
+    sim_mesh_prim.CreateAttribute("deformablePose:default:omniphysics:purposes", Sdf.ValueTypeNames.TokenArray).Set(
+        purposes
+    )
+    if not prim.ApplyAPI("OmniPhysicsDeformableBodyAPI"):
+        raise RuntimeError(f"Failed to set deformable body API on prim '{prim.GetPath().pathString}'.")
+
+
 def define_deformable_body_properties(
     prim_path: str,
     cfg: schemas_cfg.DeformableBodyPropertiesBaseCfg,

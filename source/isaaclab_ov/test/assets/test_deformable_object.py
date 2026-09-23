@@ -550,6 +550,43 @@ def test_initialization_with_shared_material():
         assert deformable._material_physx_view is None
 
 
+@pytest.mark.parametrize("deformable_type", ["volume", "surface"])
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
+def test_mesh_spawner_deformable_fragment_slots(deformable_type: str):
+    """The mesh spawner's deformable fragment slots author a deformable that OVPhysX simulates."""
+    from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
+
+    from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
+
+    body_cfg = OmniPhysicsDeformableBodyCfg(mass=0.5)
+    if deformable_type == "volume":
+        pytest.importorskip("pytetwild", reason="volume deformables are tetrahedralized with pytetwild")
+        spawn = sim_utils.MeshCuboidCfg(
+            size=(0.2, 0.2, 0.2), volume_deformable_props=body_cfg, physics_material=PhysxDeformableBodyMaterialCfg()
+        )
+    else:
+        spawn = sim_utils.MeshRectangleCfg(
+            size=(0.2, 0.2), surface_deformable_props=body_cfg, physics_material=PhysxSurfaceDeformableBodyMaterialCfg()
+        )
+    with _ovphysx_sim_context(device="cuda:0") as sim:
+        deformable = _generate_deformable_scene(spawn)
+
+        sim.reset()
+
+        assert deformable.is_initialized
+        assert deformable._deformable_type == deformable_type
+        assert deformable.num_instances == 2
+        stage = sim_utils.get_current_stage()
+        for index in range(2):
+            body = stage.GetPrimAtPath(f"/World/Table_{index}/Object")
+            assert "OmniPhysicsDeformableBodyAPI" in body.GetPrimTypeInfo().GetAppliedAPISchemas()
+            assert body.GetAttribute("omniphysics:mass").Get() == pytest.approx(0.5)
+        for _ in range(5):
+            sim.step()
+            deformable.update(sim.cfg.dt)
+        _assert_finite_deformable_state(deformable)
+
+
 def test_initialization_on_device_cpu():
     """Test that OVPhysX deformable initialization rejects a CPU simulation.
 
