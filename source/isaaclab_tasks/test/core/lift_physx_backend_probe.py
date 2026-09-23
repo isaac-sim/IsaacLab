@@ -18,12 +18,95 @@ if TYPE_CHECKING:
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--backend", choices=("isaacsim_physx", "ovphysx"), required=True)
+    parser.add_argument("--mode", choices=("contact", "training"), default="contact")
     return parser.parse_args()
 
 
 def _force_magnitude(sensor: Any) -> torch.Tensor:
     force = sensor.data.normal_force_matrix_w.torch
     return force.reshape(force.shape[0], -1, 3).norm(dim=-1).sum(dim=-1)
+
+
+def _material_properties(asset: Any, backend: str, *, articulation: bool) -> torch.Tensor:
+    import warp as wp
+
+    if backend == "isaacsim_physx":
+        return wp.to_torch(asset.root_view.get_material_properties()).clone()
+
+    import isaaclab_ov.tensor_types as ovphysx_tt
+
+    tensor_type = (
+        ovphysx_tt.SHAPE_FRICTION_AND_RESTITUTION
+        if articulation
+        else ovphysx_tt.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION
+    )
+    return wp.to_torch(asset.root_view.get_attribute(tensor_type)).clone()
+
+
+def _observation_snapshot(observations: dict[str, torch.Tensor]) -> dict[str, list]:
+    return {name: value.detach().cpu().tolist() for name, value in observations.items()}
+
+
+def _run_training_trace(env: Any, backend: str, cfg: Any) -> dict:
+    import torch
+
+    unwrapped = env.unwrapped
+    robot = unwrapped.scene["robot"]
+    obj = unwrapped.scene["object"]
+    startup_properties = {
+        "joint_stiffness": robot.data.joint_stiffness.torch.cpu().tolist(),
+        "joint_damping": robot.data.joint_damping.torch.cpu().tolist(),
+        "joint_friction": robot.data.joint_friction_coeff.torch.cpu().tolist(),
+        "joint_dynamic_friction": robot.data.joint_dynamic_friction_coeff.torch.cpu().tolist(),
+        "joint_viscous_friction": robot.data.joint_viscous_friction_coeff.torch.cpu().tolist(),
+        "object_mass": obj.data.body_mass.torch.cpu().tolist(),
+        "object_inertia": obj.data.body_inertia.torch.cpu().tolist(),
+        "robot_material": _material_properties(robot, backend, articulation=True).cpu().tolist(),
+        "object_material": _material_properties(obj, backend, articulation=False).cpu().tolist(),
+    }
+
+    observations, _ = env.reset(seed=42)
+    reset_joint_position = robot.data.joint_pos.torch.cpu().tolist()
+    reset_object_pose = obj.data.root_pose_w.torch.cpu().tolist()
+    command = unwrapped.command_manager.get_command("object_pose").cpu().tolist()
+    observation_trajectory = [_observation_snapshot(observations)]
+    reward_trajectory = []
+    reward_term_trajectory = []
+    terminated_trajectory = []
+    truncated_trajectory = []
+    termination_term_trajectory = []
+    action_pattern = torch.linspace(-0.25, 0.25, env.action_space.shape[-1], device=unwrapped.device)
+    action_scales = (0.0, 0.25, -0.25, 0.5, -0.5, 0.75)
+    with torch.inference_mode():
+        for scale in action_scales:
+            actions = (scale * action_pattern).expand(env.action_space.shape)
+            observations, rewards, terminated, truncated, _ = env.step(actions)
+            observation_trajectory.append(_observation_snapshot(observations))
+            reward_trajectory.append(rewards.cpu().tolist())
+            reward_term_trajectory.append(unwrapped.reward_manager._step_reward.cpu().tolist())
+            terminated_trajectory.append(terminated.cpu().tolist())
+            truncated_trajectory.append(truncated.cpu().tolist())
+            termination_term_trajectory.append(unwrapped.termination_manager._term_dones.cpu().tolist())
+
+    return {
+        "backend": backend,
+        "mode": "training",
+        "asset_path": cfg.scene.robot.spawn.usd_path,
+        "asset_variants": cfg.scene.robot.spawn.variants,
+        "object_spawner": type(cfg.scene.object.spawn).__name__,
+        "startup_properties": startup_properties,
+        "reset_joint_position": reset_joint_position,
+        "reset_object_pose": reset_object_pose,
+        "command": command,
+        "observation_trajectory": observation_trajectory,
+        "reward_terms": unwrapped.reward_manager.active_terms,
+        "reward_trajectory": reward_trajectory,
+        "reward_term_trajectory": reward_term_trajectory,
+        "termination_terms": unwrapped.termination_manager.active_terms,
+        "terminated_trajectory": terminated_trajectory,
+        "truncated_trajectory": truncated_trajectory,
+        "termination_term_trajectory": termination_term_trajectory,
+    }
 
 
 def main() -> None:
@@ -49,35 +132,39 @@ def main() -> None:
     cfg.seed = 42
     cfg.scene.num_envs = 4
     cfg.scene.env_spacing = 2.0
-    cfg.sim.gravity = (0.0, 0.0, 0.0)
-    cfg.curriculum = None
-
-    # This probe owns the initial state. Removing randomization keeps the comparison about
-    # articulation, contact, and clone behavior rather than independent random draws.
-    for event_name in (
-        "robot_physics_material",
-        "object_physics_material",
-        "object_physics_inertia",
-        "joint_stiffness_and_damping",
-        "joint_friction",
-        "object_scale_mass",
-        "variable_gravity",
-        "gripper_closing_speed",
-    ):
-        setattr(cfg.events, event_name, None)
     reset_cfg = cfg.events.conditional_reset.params
     reset_cfg["buffer_size_per_group"] = 4
     reset_cfg["oversample_factor"] = 1.0
-    reset_cfg["diversity_feature"] = None
-    reset_cfg["success_monitor"] = None
-    reset_cfg["terms"]["reset_object_to_target"].params["probability"] = 1.0
-    cfg.terminations.time_out = None
-    cfg.terminations.object_out_of_bound = None
-    cfg.terminations.abnormal_robot = None
-    cfg.rewards.early_termination = None
+    if args.mode == "contact":
+        cfg.curriculum = None
+        # This probe owns the initial state. Removing randomization keeps the comparison about
+        # articulation, contact, and clone behavior rather than independent random draws.
+        for event_name in (
+            "robot_physics_material",
+            "object_physics_material",
+            "object_physics_inertia",
+            "joint_stiffness_and_damping",
+            "joint_friction",
+            "object_scale_mass",
+            "variable_gravity",
+            "gripper_closing_speed",
+        ):
+            setattr(cfg.events, event_name, None)
+        reset_cfg["diversity_feature"] = None
+        reset_cfg["success_monitor"] = None
+        reset_cfg["terms"]["reset_object_to_target"].params["probability"] = 1.0
+        cfg.terminations.time_out = None
+        cfg.terminations.object_out_of_bound = None
+        cfg.terminations.abnormal_robot = None
+        cfg.rewards.early_termination = None
 
     env = gym.make("Isaac-Lift-Franka", cfg=cfg)
     try:
+        if args.mode == "training":
+            result = _run_training_trace(env, args.backend, cfg)
+            print("LIFT_PHYSX_BACKEND_PROBE=" + json.dumps(result, sort_keys=True))
+            return
+
         env.reset(seed=42)
         unwrapped = env.unwrapped
         robot = unwrapped.scene["robot"]
@@ -163,6 +250,7 @@ def main() -> None:
         mimic_error = (final_finger_pos[:, 0] - final_finger_pos[:, 1]).abs()
         result = {
             "backend": args.backend,
+            "enable_external_forces_every_iteration": cfg.sim.physics.enable_external_forces_every_iteration,
             "asset_path": cfg.scene.robot.spawn.usd_path,
             "asset_variants": cfg.scene.robot.spawn.variants,
             "object_spawner": type(cfg.scene.object.spawn).__name__,
