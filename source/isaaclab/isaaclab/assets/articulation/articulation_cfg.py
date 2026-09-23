@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Any
 
 from ...actuators import ActuatorBaseCfg
 from ...utils import configclass
-from ...utils.composition import WrapperCfg
 from ..asset_base_cfg import AssetBaseCfg
 from .ordering import ArticulationOrderingConvention
 
@@ -101,7 +100,7 @@ class ArticulationCfg(AssetBaseCfg):
     the root body.
     """
 
-    actuators: dict[str, ActuatorBaseCfg | WrapperCfg] = MISSING
+    actuators: dict[str, ActuatorBaseCfg] = MISSING
     """Actuators for the robot with corresponding joint names.
 
     Each joint can belong to at most one actuator group.

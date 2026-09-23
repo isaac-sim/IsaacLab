@@ -86,13 +86,12 @@ from isaaclab_physx.sim.schemas import PhysxJointCfg  # noqa: E402
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
 import isaaclab.utils.string as string_utils  # noqa: E402
-from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg  # noqa: E402
+from isaaclab.actuators import DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg  # noqa: E402
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering  # noqa: E402
 from isaaclab.assets.articulation import ordering_kernels  # noqa: E402
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit  # noqa: E402
 from isaaclab.managers import SceneEntityCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
-from isaaclab.utils import DelayCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 from isaaclab.utils.version import get_isaac_sim_version, has_kit  # noqa: E402
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
@@ -650,14 +649,13 @@ def test_newton_native_actuator_reset_and_gain_event_are_environment_selective(d
         sim._app_control_on_stop_handle = None
         articulation_cfg = generate_articulation_cfg("single_joint_explicit").replace(
             actuators={
-                "joint": DelayCfg(
-                    term=IdealPDActuatorCfg(
-                        joint_names_expr=[".*"], stiffness=20.0, damping=1.0, actuator_effort_limit=80.0
-                    ),
-                    on="input",
-                    min_lag=1,
-                    max_lag=1,
-                    resample="reset",
+                "joint": DelayedPDActuatorCfg(
+                    joint_names_expr=[".*"],
+                    stiffness=20.0,
+                    damping=1.0,
+                    actuator_effort_limit=80.0,
+                    min_delay=1,
+                    max_delay=1,
                 )
             }
         )
@@ -668,18 +666,15 @@ def test_newton_native_actuator_reset_and_gain_event_are_environment_selective(d
             sim.step()
             articulation.update(sim.cfg.dt)
 
-        collection = articulation.actuators
-        old_target = collection.target_command.position.torch.clone()
-        joint_pos = articulation.data.joint_pos.torch.clone()
-        joint_vel = articulation.data.joint_vel.torch.clone()
+        adapter = articulation.newton_actuator_adapter
+        stateful_pairs = [
+            state
+            for actuator, state in zip(adapter.actuators, adapter._states_a)
+            if state is not None and getattr(state, "delay_state", None) is not None
+        ]
+        assert len(stateful_pairs) == 1
         articulation.reset(env_ids=torch.tensor([0], device=device, dtype=torch.long))
-        collection.target_command.set_position_index(value=old_target + 0.02)
-        articulation.write_data_to_sim()
-        sim.step()
-        articulation.update(sim.cfg.dt)
-        expected_target = old_target.clone()
-        expected_target[0] += 0.02
-        torch.testing.assert_close(collection.computed_effort.torch, 20.0 * (expected_target - joint_pos) - joint_vel)
+        assert stateful_pairs[0].delay_state.num_pushes.numpy().tolist() == [0, 1]
 
         env = Env(articulation)
         asset_cfg = SceneEntityCfg("robot")

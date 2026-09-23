@@ -27,7 +27,6 @@ import os
 import unittest
 
 import numpy as np
-import pytest
 import torch
 import warp as wp
 from isaaclab_newton.assets import Articulation
@@ -54,7 +53,6 @@ from isaaclab.test.utils.actuator_equivalence import (
     make_dummy_mlp_checkpoint,
 )
 from isaaclab.test.utils.articulation_ordering import assert_articulation_ordering_trace_matches
-from isaaclab.utils import DelayCfg
 
 from isaaclab_assets import ANYMAL_C_CFG
 from isaaclab_assets.robots.spot import joint_parameter_lookup as SPOT_KNEE_LOOKUP
@@ -98,7 +96,6 @@ def _run_simulation(
     feedforward: float | None = None,
     joint_ordering: tuple[str, ...] | None = None,
     permutation_sensitive_commands: bool = False,
-    command_step: float = 0.0,
 ) -> dict:
     """Run ANYmal-C and return recorded trajectories + telemetry.
 
@@ -120,7 +117,6 @@ def _run_simulation(
         joint_ordering: Optional explicit public joint-name order.
         permutation_sensitive_commands: Whether to command distinct position, velocity, and effort values by
             physical joint name.
-        command_step: Position target increment per policy step [rad].
 
     Returns:
         Recorded joint-name metadata, commands, public trajectories and torque telemetry, and backend-order
@@ -194,9 +190,7 @@ def _run_simulation(
         recorded_pos, recorded_vel = [], []
         recorded_computed_effort, recorded_applied_effort = [], []
         recorded_adapter_applied = []
-        for step in range(num_steps):
-            if command_step:
-                articulation.set_joint_position_target_index(target=target_pos + step * command_step)
+        for _ in range(num_steps):
             if handles_dec:
                 articulation.write_data_to_sim()
                 sim.step()
@@ -229,21 +223,16 @@ def _run_simulation(
     }
 
 
-@pytest.mark.parametrize("delayed", [False, True])
-def test_newton_actuator_rollout_matches_reversed_joint_ordering(delayed) -> None:
+def test_newton_actuator_rollout_matches_reversed_joint_ordering() -> None:
     """Match Newton-backend actuator traces under reversed public joint ordering."""
-    actuators = {
-        name: DelayCfg(term=cfg, on="output", min_lag=2, max_lag=2) if delayed else cfg
-        for name, cfg in IDEAL_PD_ACTUATORS.items()
-    }
     identity_result = _run_simulation(
-        actuators,
+        IDEAL_PD_ACTUATORS,
         use_newton_actuators=True,
         permutation_sensitive_commands=True,
     )
     requested_joint_names = tuple(reversed(identity_result["joint_names"]))
     reversed_result = _run_simulation(
-        actuators,
+        IDEAL_PD_ACTUATORS,
         use_newton_actuators=True,
         joint_ordering=requested_joint_names,
         permutation_sensitive_commands=True,
@@ -586,22 +575,26 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
 
 
 class TestDelayedPDEquivalence(_EquivalenceTestBase):
-    """Shared command delay around PD on all 12 joints: Lab vs Newton."""
+    """DelayedPDActuator on all 12 joints: Lab vs Newton.
+
+    Verifies that actuator command delays are correctly authored as
+    ``NewtonActuatorDelayAPI`` and produce matching trajectories.
+    """
 
     __test__ = True
     actuators = DELAYED_PD_ACTUATORS
 
 
 class TestDelayedPDAuthoring(unittest.TestCase):
-    """Author the PD leaf without installing a second delay inside Newton."""
+    """Verify DelayedPDActuatorCfg is authored with NewtonActuatorDelayAPI."""
 
     @classmethod
     def setUpClass(cls):
         cls.result = _run_authoring_introspection(DELAYED_PD_ACTUATORS)
 
-    def test_no_duplicate_delay(self):
+    def test_has_delay(self):
         for a in self.result["actuator_info"]:
-            self.assertFalse(a["has_delay"], "Shared delay must be the only delay owner")
+            self.assertTrue(a["has_delay"], "Delay not found on delayed PD actuator")
 
     def test_controller_is_pd(self):
         for a in self.result["actuator_info"]:
@@ -645,27 +638,6 @@ class TestDecimationDelayedPD(_DecimationMixin, TestDelayedPDEquivalence):
     """DelayedPD — decimation=2 + CUDA graph (delay queue stepped inside the captured graph)."""
 
 
-@pytest.mark.parametrize("on", ["input", "output"])
-@pytest.mark.parametrize("capture", [False, True])
-def test_shared_delay_native_decimation(on, capture):
-    """The same shared history advances every physics tick in Lab and native Newton, including graph replay."""
-    actuators = {
-        name: DelayCfg(term=cfg, on=on, min_lag=1, max_lag=3, hold_prob=0.2, seed=17)
-        for name, cfg in IDEAL_PD_ACTUATORS.items()
-    }
-    kwargs = dict(
-        newton_cfg=NEWTON_CFG_DEC.replace(class_type=None, use_cuda_graph=capture),
-        num_steps=6,
-        decimation=2,
-        command_step=0.03,
-    )
-    lab = _run_simulation(actuators, use_newton_actuators=False, **kwargs)
-    native = _run_simulation(actuators, use_newton_actuators=True, **kwargs)
-    for name in ("joint_pos", "joint_vel", "computed_effort", "applied_effort"):
-        for expected, actual in zip(lab[name], native[name], strict=True):
-            torch.testing.assert_close(actual, expected, rtol=1e-4, atol=1e-4)
-
-
 # ---------------------------------------------------------------------------
 # Per-env reset: actuator state isolation
 # ---------------------------------------------------------------------------
@@ -675,7 +647,7 @@ class TestActuatorStateReset(ActuatorStateResetBase, unittest.TestCase):
     """Per-env actuator state reset isolation on the Newton backend.
 
     The scenario and assertions live in :class:`ActuatorStateResetBase`;
-    this subclass provides the Newton sim config and articulation.
+    this subclass provides the Newton sim config and the model-wide adapter.
     """
 
     def _make_sim_cfg(self, use_newton_actuators: bool) -> SimulationCfg:
@@ -683,6 +655,9 @@ class TestActuatorStateReset(ActuatorStateResetBase, unittest.TestCase):
 
     def _make_articulation(self) -> Articulation:
         return Articulation(ANYMAL_C_CFG.replace(actuators=DELAYED_PD_ACTUATORS, prim_path="/World/Env_.*/Robot"))
+
+    def _get_adapter(self, articulation):
+        return SimulationManager._adapter
 
 
 # ---------------------------------------------------------------------------
@@ -701,17 +676,13 @@ def _remotized_pd_actuators() -> dict:
             damping=5.0,
             actuator_effort_limit=80.0,
         ),
-        "knees": DelayCfg(
-            term=RemotizedPDActuatorCfg(
-                joint_names_expr=[".*KFE"],
-                stiffness=60.0,
-                damping=1.5,
-                actuator_effort_limit=80.0,
-                joint_parameter_lookup=SPOT_KNEE_LOOKUP,
-            ),
-            on="input",
-            max_lag=3,
-            resample="reset",
+        "knees": RemotizedPDActuatorCfg(
+            joint_names_expr=[".*KFE"],
+            stiffness=60.0,
+            damping=1.5,
+            actuator_effort_limit=80.0,
+            max_delay=3,
+            joint_parameter_lookup=SPOT_KNEE_LOOKUP,
         ),
     }
 
@@ -783,7 +754,8 @@ def _run_authoring_introspection(actuator_cfgs: dict) -> dict:
 
 
 class TestRemotizedPDAuthoring(unittest.TestCase):
-    """Verify RemotizedPDActuatorCfg is authored as Newton PD + position-based clamping.
+    """Verify RemotizedPDActuatorCfg is authored as Newton PD + delay +
+    position-based clamping.
 
     Uses the Spot knee lookup table on ANYmal's KFE joints, with IdealPD
     on HAA and HFE joints.
@@ -806,10 +778,10 @@ class TestRemotizedPDAuthoring(unittest.TestCase):
         kfe_acts = [a for a in self.result["actuator_info"] if "ClampingPositionBased" in a["clamping_types"]]
         self.assertTrue(len(kfe_acts) > 0, "Position-based clamping not found")
 
-    def test_kfe_has_no_duplicate_delay(self):
+    def test_kfe_has_delay(self):
         kfe_acts = [a for a in self.result["actuator_info"] if "ClampingPositionBased" in a["clamping_types"]]
         for a in kfe_acts:
-            self.assertFalse(a["has_delay"], "Shared delay must be the only delay owner")
+            self.assertTrue(a["has_delay"], "Delay not found on remotized KFE actuator")
 
 
 class TestRemotizedPDEquivalence(_EquivalenceTestBase):

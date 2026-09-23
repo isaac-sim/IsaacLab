@@ -14,9 +14,8 @@ from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
 from ..physics import PhysicsEvent, PhysicsManager
-from ..utils import class_to_dict, configclass, string_to_callable
+from ..utils import class_to_dict, string_to_callable
 from ..utils import string as string_utils
-from ..utils.composition import WrapperCfg
 from ..utils.modifiers import ModifierCfg
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
@@ -123,37 +122,6 @@ class ManagerTermBase(ABC):
             The value of the term.
         """
         raise NotImplementedError("The method '__call__' should be implemented by the subclass.")
-
-
-class _WrappedTerm(ManagerTermBase):
-    """Bind neutral callable mechanisms to the manager-owned source lifecycle."""
-
-    def __init__(self, cfg, env):
-        super().__init__(cfg, env)
-        self._source = cfg.source.func
-        inspect.signature(self._source).bind(env, **cfg.source.params)
-        self._evaluate = cfg.wrapper.wrap(self._evaluate_source, env.num_envs, env.device, input_supported=False)
-
-    def _evaluate_source(self, env):
-        return self._source(env, **self.cfg.source.params)
-
-    def __call__(self, env):
-        return self._evaluate(env)
-
-    def serialize(self):
-        return {"cfg": class_to_dict(self.cfg.wrapper)}
-
-    def reset(self, env_ids=None):
-        if isinstance(self._source, ManagerTermBase):
-            self._source.reset(env_ids)
-        self._evaluate.reset(env_ids)
-
-
-@configclass
-class _WrappedTermCfg(ManagerTermBaseCfg):
-    func: type = _WrappedTerm
-    wrapper: WrapperCfg | None = None
-    source: ManagerTermBaseCfg | None = None
 
 
 class ManagerBase(ABC):
@@ -366,19 +334,6 @@ class ManagerBase(ABC):
                 f" Received: '{type(term_cfg)}'."
             )
 
-        if isinstance(term_cfg.func, WrapperCfg):
-            wrapper = term_cfg.func
-            leaf, params = wrapper.unwrap()
-            term_cfg.func = _WrappedTermCfg(wrapper=wrapper, source=ManagerTermBaseCfg(func=leaf, params=params))
-
-        if isinstance(term_cfg.func, ManagerTermBaseCfg):
-            if term_cfg.params:
-                raise ValueError(f"Put parameters for configured term '{term_name}' inside its nested configuration.")
-            self._resolve_common_term_cfg(term_name, term_cfg.func, min_argc)
-            if self._env.sim.is_playing():
-                self._process_term_cfg_at_play(term_name, term_cfg)
-            return
-
         # get the corresponding function or functional class
         term_cfg.func = self._resolve_param_value(term_name, "func", term_cfg.func, resolve_callable=True)
         # check if function is callable
@@ -401,10 +356,19 @@ class ManagerBase(ABC):
             raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
 
         # check statically if the term's arguments are matched by params
-        try:
-            inspect.signature(func_static).bind(*([None] * min_argc), **term_cfg.params)
-        except TypeError as error:
-            raise ValueError(f"Invalid parameters for term '{term_name}': {error}") from error
+        term_params = list(term_cfg.params.keys())
+        args = inspect.signature(func_static).parameters
+        args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
+        args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
+        args = args_without_defaults + args_with_defaults
+        # ignore first two arguments for env and env_ids
+        # Think: Check for cases when kwargs are set inside the function?
+        if len(args) > min_argc:
+            if set(args[min_argc:]) != set(term_params + args_with_defaults):
+                raise ValueError(
+                    f"The term '{term_name}' expects mandatory parameters: {args_without_defaults[min_argc:]}"
+                    f" and optional parameters: {args_with_defaults}, but received: {term_params}."
+                )
 
         # process attributes at runtime
         # these properties are only resolvable once the simulation starts playing
@@ -436,9 +400,7 @@ class ManagerBase(ABC):
                 setattr(term_cfg, field.name, resolved_value)
 
         # initialize class-based terms
-        if isinstance(term_cfg.func, ManagerTermBaseCfg):
-            term_cfg.func, term_cfg.params = term_cfg.func.func, term_cfg.func.params
-        elif inspect.isclass(term_cfg.func):
+        if inspect.isclass(term_cfg.func):
             term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
 
     def _resolve_param_value(

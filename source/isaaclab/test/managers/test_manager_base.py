@@ -14,77 +14,17 @@ require an Isaac Sim launch, so they can run without AppLauncher.
 
 from collections import namedtuple
 from collections.abc import Sequence
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 import torch
 
 from isaaclab.envs import ManagerBasedEnv
-from isaaclab.envs.mdp.actions import RelativeJointPositionAction, RelativeJointPositionActionCfg
-from isaaclab.managers import ActionManager, ManagerTermBase, ManagerTermBaseCfg
+from isaaclab.managers import ManagerTermBase, ManagerTermBaseCfg
 from isaaclab.managers.manager_base import ManagerBase
-from isaaclab.utils import DelayCfg, configclass, modifiers
+from isaaclab.utils import configclass, modifiers
 
 pytestmark = pytest.mark.integration
-
-
-@pytest.mark.parametrize("on", [None, "input", "output", "nested"])
-@pytest.mark.parametrize("legacy", [False, True])
-def test_action_delay_policy_and_physics_clocks(on, legacy):
-    """Policy delay and command delay run on different clocks and retain legacy subclass dispatch."""
-
-    class LegacyRelativeAction(RelativeJointPositionAction):
-        def apply_actions(self):
-            super().apply_actions()
-
-    asset = MagicMock()
-    indices = MagicMock()
-    indices.__len__.return_value = 1
-    indices.torch = torch.tensor([0])
-    asset.find_joints.return_value = indices, ["joint"]
-    asset.num_joints = 1
-    asset.data.joint_pos.torch = torch.zeros(2, 1)
-    env = SimpleNamespace(num_envs=2, device="cpu", sim=MagicMock(), scene={"robot": asset})
-    env.sim.is_playing.return_value = True
-    cfg = RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=2.0)
-    if legacy:
-        cfg.class_type = LegacyRelativeAction
-    input_lag = int(on in ("input", "nested"))
-    output_lag = int(on in ("output", "nested"))
-    if input_lag:
-        cfg = DelayCfg(term=cfg, on="input", min_lag=1, max_lag=1)
-    if output_lag:
-        cfg = DelayCfg(term=cfg, on="output", min_lag=1, max_lag=1)
-    if legacy and output_lag:
-        with pytest.raises(ValueError, match="does not expose a delayable output"):
-            ActionManager(SimpleNamespace(joint=cfg), env)
-        return
-    manager = ActionManager(SimpleNamespace(joint=cfg), env)
-    if on is not None:
-        assert manager.serialize()["joint"]["cfg"]["on"] == cfg.on
-    commands = []
-    for physics_step in range(12):
-        policy_step = physics_step // 2
-        if physics_step == 6:
-            manager.reset([1])
-        if physics_step % 2 == 0:
-            manager.process_action(torch.full((2, 1), float(policy_step)))
-        asset.data.joint_pos.torch.fill_(0.1 * physics_step)
-        demand = []
-        for env_id in range(2):
-            start = 3 if env_id == 1 and physics_step >= 6 else 0
-            demand.append(2 * max(start, policy_step - input_lag) + 0.1 * physics_step)
-        commands.append(torch.tensor(demand).unsqueeze(1))
-        manager.apply_action()
-        delivered = []
-        for env_id in range(2):
-            start = 6 if env_id == 1 and physics_step >= 6 else 0
-            delivered.append(commands[max(start, physics_step - output_lag)][env_id])
-        setter = asset.actuators.target_command.set_position_index
-        torch.testing.assert_close(setter.call_args.kwargs["value"], torch.stack(delivered))
-    assert setter.call_count == 12
-
 
 DummyEnv = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim", "dummy1", "dummy2"])
 """Dummy environment for testing."""

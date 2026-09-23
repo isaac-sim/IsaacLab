@@ -11,21 +11,19 @@ import copy
 import itertools
 import logging
 import warnings
-from collections.abc import Callable, Iterator, Mapping, Sequence
-from contextlib import nullcontext
+from collections.abc import Iterator, Mapping, Sequence
 
 import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from ..utils.composition import WrapperCfg
 from ..utils.types import ArticulationActions
 from ..utils.warp import ProxyArray
 from ..utils.warp.launch_cache import _WarpLaunchCache
 from . import actuator_kernels
 from ._compat import _resolve_limit_aliases
 from .actuator_base import ActuatorBase, resolve_joint_parameter
-from .actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg, unwrap_actuator_cfg
+from .actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
 from .actuator_control import ActuatorControl
 from .actuator_pd import IdealPDActuator, ImplicitActuator
 
@@ -61,7 +59,7 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
 
     def __init__(
         self,
-        actuator_cfgs: dict[str, ActuatorBaseCfg | WrapperCfg],
+        actuator_cfgs: dict[str, ActuatorBaseCfg],
         control: ActuatorControl,
         *,
         debug_value_resolution: bool = False,
@@ -84,10 +82,7 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         self._has_implicit_actuators = False
         self._launch_cache = _WarpLaunchCache(self.device)
 
-        configured = {name: cfg.copy() for name, cfg in actuator_cfgs.items()}
-        self._wrapper_cfgs = {name: cfg for name, cfg in configured.items() if isinstance(cfg, WrapperCfg)}
-        self._wrapper_terms = []
-        resolved_cfgs = {name: unwrap_actuator_cfg(cfg) for name, cfg in configured.items()}
+        resolved_cfgs = {name: cfg.copy() for name, cfg in actuator_cfgs.items()}
         resolved_group_joints = self._resolve_group_joints(resolved_cfgs)
         self._allocate_buffers()
         self._target_command = ActuatorTargetCommand(self)
@@ -107,9 +102,6 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
                 self._groups[actuator_name] = self._resolve_newton_group_actuators(actuator_name)
         self._validate_coverage()
         self._build_execution_plan()
-        self._evaluate = (
-            self.wrap_execution(self._compute_actuators) if not self._control.native_actuator_path_active else None
-        )
         if self._debug_value_resolution:
             self._print_value_resolution_table()
         if not self._control.native_actuator_path_active:
@@ -194,8 +186,6 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
             env_ids: Environment indices to reset. Defaults to all environments.
         """
         group_env_ids = self._control._normalize_index_sequence(env_ids)
-        for term in self._wrapper_terms:
-            term.reset(group_env_ids)
         for actuator in self._groups.values():
             # Newton-executed groups are reset through the backend below.
             if isinstance(actuator, ActuatorBase):
@@ -208,10 +198,9 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         Args:
             dt: Physics step size [s].
         """
-        if not self._control.compute_native_actuators(self, dt):
-            self._evaluate(dt)
+        if self._control.compute_native_actuators(self, dt):
+            return
 
-    def _compute_actuators(self, dt: float) -> None:
         if self._implicit_executor is not None:
             self._implicit_executor.launch(self)
         joint_pos = self._control.joint_pos
@@ -219,77 +208,17 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         for actuator, joint_indices_wp in self._execution_actuators:
             joint_indices = actuator.joint_indices
             control_action = ArticulationActions(
-                joint_positions=self._joint_pos_target_ta.torch[:, joint_indices],
-                joint_velocities=self._joint_vel_target_ta.torch[:, joint_indices],
-                joint_efforts=self._joint_effort_target_ta.torch[:, joint_indices],
+                joint_positions=self.target_command.position.torch[:, joint_indices],
+                joint_velocities=self.target_command.velocity.torch[:, joint_indices],
+                joint_efforts=self.target_command.effort.torch[:, joint_indices],
                 joint_indices=joint_indices,
             )
-            control_action = actuator(
+            control_action = actuator.compute(
                 control_action,
                 joint_pos=joint_pos.torch[:, joint_indices],
                 joint_vel=joint_vel.torch[:, joint_indices],
             )
             self._scatter_actuator_output(actuator, control_action, joint_indices_wp)
-
-    def wrap_execution(self, evaluate: Callable[[float], None]) -> Callable[[float], None]:
-        """Enclose one complete actuator evaluation with the configured group mechanisms.
-
-        Native backends supply their aggregate evaluation here. Group callables stage their
-        commands, invoke the continuation once, and return that group's actual output. This
-        preserves nesting around a single native evaluation without splitting wrapper logic.
-        """
-        if not self._wrapper_cfgs:
-            return evaluate
-        # Warp owns native capture; retain Torch temporaries in a private pool for graph replay.
-        pool = torch.cuda.MemPool() if wp.get_device(self.device).is_cuda else None
-        for name, cfg in reversed(tuple(self._wrapper_cfgs.items())):
-            indices = self._group_joint_indices[name]
-            implicit = name in self._implicit_group_names
-
-            def group_call(commands, dt, *, indices=indices, evaluate=evaluate):
-                self._joint_pos_target_ta.torch[:, indices] = commands.joint_positions
-                self._joint_vel_target_ta.torch[:, indices] = commands.joint_velocities
-                self._joint_effort_target_ta.torch[:, indices] = commands.joint_efforts
-                evaluate(dt)
-                return ArticulationActions(
-                    joint_efforts=self._joint_effort_target_sim_ta.torch[:, indices],
-                    joint_indices=indices,
-                )
-
-            term = cfg.wrap(group_call, self.num_instances, self.device, output_supported=not implicit)
-            self._wrapper_terms.append(term)
-
-            def evaluate(dt, *, term=term, indices=indices, implicit=implicit):
-                commands = ArticulationActions(
-                    self._joint_pos_command.torch[:, indices],
-                    self._joint_vel_command.torch[:, indices],
-                    self._joint_effort_command.torch[:, indices],
-                    indices,
-                )
-                output = term(commands, dt)
-                self._joint_effort_target_sim_ta.torch[:, indices] = output.joint_efforts
-                if not implicit:
-                    self._applied_effort_ta.torch[:, indices] = output.joint_efforts
-
-        def execute(dt):
-            device = wp.get_device(self.device)
-            stream = (
-                torch.cuda.stream(wp.stream_to_torch(wp.get_stream(device)))
-                if device.is_cuda and device.is_capturing
-                else nullcontext()
-            )
-            allocation = (
-                torch.cuda.use_mem_pool(pool, device=self.device)
-                if pool is not None and device.is_capturing
-                else nullcontext()
-            )
-            with stream, allocation:
-                self._joint_pos_target.assign(self._joint_pos_command.warp)
-                self._joint_vel_target.assign(self._joint_vel_command.warp)
-                self._joint_effort_target.assign(self._joint_effort_command.warp)
-                evaluate(dt)
-
-        return execute
 
     def submit_commands(self) -> None:
         """Submit processed actuator command buffers through the backend control object."""
@@ -332,15 +261,6 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         self._joint_pos_target_ta = ProxyArray(self._joint_pos_target)
         self._joint_vel_target_ta = ProxyArray(self._joint_vel_target)
         self._joint_effort_target_ta = ProxyArray(self._joint_effort_target)
-        self._joint_pos_command = (
-            ProxyArray(wp.zeros_like(self._joint_pos_target)) if self._wrapper_cfgs else self._joint_pos_target_ta
-        )
-        self._joint_vel_command = (
-            ProxyArray(wp.zeros_like(self._joint_vel_target)) if self._wrapper_cfgs else self._joint_vel_target_ta
-        )
-        self._joint_effort_command = (
-            ProxyArray(wp.zeros_like(self._joint_effort_target)) if self._wrapper_cfgs else self._joint_effort_target_ta
-        )
         self._joint_pos_target_sim_ta = ProxyArray(self._joint_pos_target_sim)
         self._joint_vel_target_sim_ta = ProxyArray(self._joint_vel_target_sim)
         self._joint_effort_target_sim_ta = ProxyArray(self._joint_effort_target_sim)
@@ -579,7 +499,7 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         Plain :class:`~isaaclab.actuators.ImplicitActuator` groups only produce effort
         telemetry, so they are not executed one group at a time: their joint indices are
         aggregated while parsing and one executor computes all of them in a single fused
-        kernel launch. Subclasses may override :meth:`~ActuatorBase.__call__`, so they stay
+        kernel launch. Subclasses may override :meth:`~ActuatorBase.compute`, so they stay
         in the per-group list along with the explicit models. On a native actuator path the
         backend replaces :meth:`compute` entirely and the plan is left empty.
         """
@@ -798,17 +718,17 @@ class ActuatorTargetCommand:
     @property
     def position(self) -> ProxyArray:
         """Desired positions [m or rad, depending on joint type]."""
-        return self._collection._joint_pos_command
+        return self._collection._joint_pos_target_ta
 
     @property
     def velocity(self) -> ProxyArray:
         """Desired velocities [m/s or rad/s, depending on joint type]."""
-        return self._collection._joint_vel_command
+        return self._collection._joint_vel_target_ta
 
     @property
     def effort(self) -> ProxyArray:
         """Effort commands [N or N·m, depending on joint type]."""
-        return self._collection._joint_effort_command
+        return self._collection._joint_effort_target_ta
 
     def set_position_index(
         self,
@@ -835,7 +755,7 @@ class ActuatorTargetCommand:
             value,
             env_ids_resolved,
             joint_ids_resolved,
-            collection._joint_pos_command.warp,
+            collection._joint_pos_target,
             full_data=full_data,
             command_name="position",
         )
@@ -865,7 +785,7 @@ class ActuatorTargetCommand:
             value,
             env_ids_resolved,
             joint_ids_resolved,
-            collection._joint_vel_command.warp,
+            collection._joint_vel_target,
             full_data=full_data,
             command_name="velocity",
         )
@@ -895,7 +815,7 @@ class ActuatorTargetCommand:
             value,
             env_ids_resolved,
             joint_ids_resolved,
-            collection._joint_effort_command.warp,
+            collection._joint_effort_target,
             full_data=full_data,
             command_name="effort",
         )
@@ -922,7 +842,7 @@ class ActuatorTargetCommand:
             value,
             env_mask_resolved,
             joint_mask_resolved,
-            collection._joint_pos_command.warp,
+            collection._joint_pos_target,
             command_name="position",
         )
 
@@ -948,7 +868,7 @@ class ActuatorTargetCommand:
             value,
             env_mask_resolved,
             joint_mask_resolved,
-            collection._joint_vel_command.warp,
+            collection._joint_vel_target,
             command_name="velocity",
         )
 
@@ -974,7 +894,7 @@ class ActuatorTargetCommand:
             value,
             env_mask_resolved,
             joint_mask_resolved,
-            collection._joint_effort_command.warp,
+            collection._joint_effort_target,
             command_name="effort",
         )
 

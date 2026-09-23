@@ -73,7 +73,7 @@ class ActuatorNetLSTM(DCMotor):
             self.sea_hidden_state_per_env[:, env_ids] = 0.0
             self.sea_cell_state_per_env[:, env_ids] = 0.0
 
-    def __call__(
+    def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
         # compute network inputs
@@ -142,7 +142,7 @@ class ActuatorNetMLP(DCMotor):
         self._joint_pos_error_history[env_ids] = 0.0
         self._joint_vel_history[env_ids] = 0.0
 
-    def __call__(
+    def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
         # move history queue by 1 and update top of history

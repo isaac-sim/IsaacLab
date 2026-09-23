@@ -10,29 +10,18 @@ from collections.abc import Sequence
 
 import torch
 
-from .._compute_deprecation import _support_deprecated_compute
 
-
-@_support_deprecated_compute
 class DelayBuffer:
     """Ring storage for delayed batched tensors, independent of actions or observations.
 
-    Each call writes one frame and retrieves a per-batch delayed frame. Storage is allocated
+    Each updating call writes one frame and retrieves a per-batch delayed frame. Storage is allocated
     on the first call and never shifted. The write index and per-batch history lengths stay on the device,
     including during CUDA graph replay. Lag sampling and update cadence belong to the caller.
 
-    A lag of zero returns the current input. Until enough samples exist after initialization or reset,
+    When recording, a lag of zero returns the current input. Until enough samples exist after initialization or reset,
     the oldest available sample is returned. Reset only invalidates the selected batches' history;
     no previous-episode data can be read, and the remaining batches continue uninterrupted.
-
-    .. deprecated:: 3.0
-       ``compute(data)`` and custom ``compute`` overrides remain supported until Isaac Lab 3.2.
-       Call ``buffer(data)`` and implement ``__call__`` instead.
     """
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        _support_deprecated_compute(cls)
 
     def __init__(self, history_length: int, batch_size: int, device: str):
         """Initialize the delay buffer.
@@ -164,14 +153,17 @@ class DelayBuffer:
         """
         self._num_pushes[slice(None) if batch_ids is None else batch_ids] = 0
 
-    def __call__(self, data: torch.Tensor) -> torch.Tensor:
-        """Append the input data to the buffer and returns a stale version of the data based on time lag delay.
+    def compute(self, data: torch.Tensor, *, update_history: bool = True) -> torch.Tensor:
+        """Return delayed data, optionally recording the input as a new sample.
 
         If the requested delay exceeds the available history since reset, returns the oldest available
         sample. The result is independent of the internal storage and may be modified by the caller.
 
         Args:
            data: The input data. Shape is (batch_size, ...).
+           update_history: Whether to record the input as a new sample. Defaults to True. If False,
+               return the delayed sample relative to the latest recorded frame without modifying the buffer.
+               Batches with no recorded sample since initialization or reset return the input instead.
 
         Returns:
             The delayed version of the data from the stored buffer. Shape is (batch_size, ...).
@@ -179,11 +171,19 @@ class DelayBuffer:
         if data.shape[0] != self.batch_size:
             raise ValueError(f"The input data has '{data.shape[0]}' batch size while expecting '{self.batch_size}'")
         if self._buffer is None:
+            if not update_history:
+                return data.to(device=self.device).clone()
             self._buffer = torch.empty((self.history_length + 1, *data.shape), dtype=data.dtype, device=self.device)
         elif data.shape != self._buffer.shape[1:]:
             raise ValueError(f"Expected data shape {self._buffer.shape[1:]}, received {data.shape}.")
 
         data = data.to(device=self.device, dtype=self._buffer.dtype)
+        if not update_history:
+            lag = torch.minimum(self._time_lags, (self._num_pushes - 1).clamp_min(0))
+            read_index = (self._write_index - 1 - lag) % (self.history_length + 1)
+            has_history = (self._num_pushes > 0).view(self.batch_size, *([1] * (data.ndim - 1)))
+            return torch.where(has_history, self._buffer[read_index, self._ALL_INDICES], data)
+
         self._buffer.index_copy_(0, self._write_index, data.unsqueeze(0))
         lag = torch.minimum(self._time_lags, self._num_pushes)
         read_index = (self._write_index - lag) % (self.history_length + 1)

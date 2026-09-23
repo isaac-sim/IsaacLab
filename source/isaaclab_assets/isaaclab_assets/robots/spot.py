@@ -15,9 +15,8 @@ from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import IdealPDActuatorCfg, RemotizedPDActuatorCfg
+from isaaclab.actuators import DelayedPDActuatorCfg, RemotizedPDActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils import DelayCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 # Note: This data was collected by the Boston Dynamics AI Institute.
@@ -167,25 +166,22 @@ SPOT_CFG = ArticulationCfg(
         joint_vel={".*": 0.0},
     ),
     actuators={
-        "spot_hip": DelayCfg(
-            term=IdealPDActuatorCfg(
-                joint_names_expr=[".*_h[xy]"], actuator_effort_limit=45.0, stiffness=60.0, damping=1.5
-            ),
-            on="input",
-            max_lag=4,
-            resample="reset",
+        "spot_hip": DelayedPDActuatorCfg(
+            joint_names_expr=[".*_h[xy]"],
+            actuator_effort_limit=45.0,
+            stiffness=60.0,
+            damping=1.5,
+            min_delay=0,  # physics time steps (min: 2.0*0=0.0ms)
+            max_delay=4,  # physics time steps (max: 2.0*4=8.0ms)
         ),
-        "spot_knee": DelayCfg(
-            term=RemotizedPDActuatorCfg(
-                joint_names_expr=[".*_kn"],
-                joint_parameter_lookup=joint_parameter_lookup,
-                actuator_effort_limit=None,
-                stiffness=60.0,
-                damping=1.5,
-            ),
-            on="input",
-            max_lag=4,
-            resample="reset",
+        "spot_knee": RemotizedPDActuatorCfg(
+            joint_names_expr=[".*_kn"],
+            joint_parameter_lookup=joint_parameter_lookup,
+            actuator_effort_limit=None,  # Torque limits are based on experimental data (`RemotizedPDActuatorCfg.data`).
+            stiffness=60.0,
+            damping=1.5,
+            min_delay=0,  # physics time steps (min: 2.0*0=0.0ms)
+            max_delay=4,  # physics time steps (max: 2.0*4=8.0ms)
         ),
     },
 )

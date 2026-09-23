@@ -17,9 +17,6 @@ import torch
 from prettytable import PrettyTable
 
 from ..envs.utils.io_descriptors import GenericActionIODescriptor, _warn_io_descriptors_deprecated
-from ..utils import class_to_dict
-from ..utils.composition import WrapperCfg
-from ..utils.types import ArticulationActions
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
 
@@ -40,48 +37,6 @@ class ActionTerm(ManagerTermBase):
     * Applying actions: This operation is performed once per **simulation step** and is
       responsible for applying the processed actions to the asset managed by the term.
     """
-
-    produces_commands: bool = False
-    """Whether physics evaluation returns commands for submission by the manager."""
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        if "__call__" in vars(cls) and "apply_actions" not in vars(cls):
-            call = cls.__call__
-
-            def apply_actions(self):
-                self.submit(call(self))
-
-            cls.apply_actions = apply_actions
-            cls.produces_commands = True
-        elif "apply_actions" in vars(cls) and "__call__" not in vars(cls):
-            apply = cls.apply_actions
-
-            def call(self, actions=None):
-                if actions is None:
-                    return apply(self)
-                return self.process_actions(actions)
-
-            cls.__call__ = call
-            cls.produces_commands = False
-
-    def __call__(self, actions: torch.Tensor | None = None) -> ArticulationActions | None:
-        """Stage policy input when supplied, otherwise compute this physics step's commands."""
-        if actions is None:
-            raise NotImplementedError
-        self.process_actions(actions)
-        return None
-
-    def submit(self, commands: ArticulationActions | None) -> None:
-        """Submit computed targets without advancing the action term's state."""
-        if commands is not None:
-            targets = self._asset.actuators.target_command
-            if commands.joint_positions is not None:
-                targets.set_position_index(value=commands.joint_positions, joint_ids=commands.joint_indices)
-            if commands.joint_velocities is not None:
-                targets.set_velocity_index(value=commands.joint_velocities, joint_ids=commands.joint_indices)
-            if commands.joint_efforts is not None:
-                targets.set_effort_index(value=commands.joint_efforts, joint_ids=commands.joint_indices)
 
     def __init__(self, cfg: ActionTermCfg, env: ManagerBasedEnv):
         """Initialize the action term.
@@ -417,7 +372,7 @@ class ActionManager(ManagerBase):
         self._prev_action[env_ids] = 0.0
         self._action[env_ids] = 0.0
         # reset all action terms
-        for term in self._evaluations.values():
+        for term in self._terms.values():
             term.reset(env_ids=env_ids)
         # nothing to log here
         return {}
@@ -440,9 +395,9 @@ class ActionManager(ManagerBase):
 
         # split the actions and apply to each tensor
         idx = 0
-        for term_name, term in self._terms.items():
+        for term in self._terms.values():
             term_actions = action[:, idx : idx + term.action_dim]
-            self._evaluations[term_name](term_actions)
+            term.process_actions(term_actions)
             idx += term.action_dim
 
     def apply_action(self) -> None:
@@ -451,8 +406,8 @@ class ActionManager(ManagerBase):
         Note:
             This should be called at every simulation step.
         """
-        for name, term in self._terms.items():
-            term.submit(self._evaluations[name]())
+        for term in self._terms.values():
+            term.apply_actions()
 
     def get_term(self, name: str) -> ActionTerm:
         """Returns the action term with the specified name.
@@ -471,13 +426,7 @@ class ActionManager(ManagerBase):
         Returns:
             A dictionary of serialized action term configurations.
         """
-        result = {}
-        for name, term in self._terms.items():
-            result[name] = term.serialize()
-            cfg = self.cfg[name] if isinstance(self.cfg, dict) else getattr(self.cfg, name)
-            if isinstance(cfg, WrapperCfg):
-                result[name]["cfg"] = class_to_dict(cfg)
-        return result
+        return {term_name: term.serialize() for term_name, term in self._terms.items()}
 
     """
     Helper functions.
@@ -487,7 +436,6 @@ class ActionManager(ManagerBase):
         # create buffers to parse and store terms
         self._term_names: list[str] = list()
         self._terms: dict[str, ActionTerm] = dict()
-        self._evaluations: dict[str, object] = {}
 
         # check if config is dict already
         if isinstance(self.cfg, dict):
@@ -499,11 +447,6 @@ class ActionManager(ManagerBase):
             # check if term config is None
             if term_cfg is None:
                 continue
-            wrapper = term_cfg if isinstance(term_cfg, WrapperCfg) else None
-            if wrapper is not None:
-                term_cfg, params = wrapper.unwrap()
-                if params:
-                    raise ValueError("Configure action parameters on the enclosed ActionTermCfg.")
             # check valid type
             if not isinstance(term_cfg, ActionTermCfg):
                 raise TypeError(
@@ -518,10 +461,3 @@ class ActionManager(ManagerBase):
             # add term name and parameters
             self._term_names.append(term_name)
             self._terms[term_name] = term
-            self._evaluations[term_name] = (
-                wrapper.wrap(
-                    term, self.num_envs, self.device, output_supported=term.produces_commands, split_calls=True
-                )
-                if wrapper is not None
-                else term
-            )

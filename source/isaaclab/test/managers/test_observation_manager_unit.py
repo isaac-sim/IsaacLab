@@ -14,16 +14,10 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 import torch
-import warp as wp
 
-from isaaclab.managers import (
-    ManagerTermBase,
-    ObservationGroupCfg,
-    ObservationManager,
-    ObservationTermCfg,
-)
+from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
 from isaaclab.test.utils import test_devices
-from isaaclab.utils import DelayCfg, configclass, modifiers
+from isaaclab.utils import DelayBuffer, configclass, modifiers, noise
 
 pytestmark = pytest.mark.unit
 
@@ -47,9 +41,9 @@ class DummySimulation:
 class DummyEnv:
     """Minimal environment double used by :class:`ObservationManager`."""
 
-    def __init__(self, num_envs: int = 2, device: str = "cpu") -> None:
+    def __init__(self, num_envs: int = 2) -> None:
         self.num_envs = num_envs
-        self.device = device
+        self.device = "cpu"
         self.sim = DummySimulation()
         self.observation = torch.arange(num_envs, dtype=torch.float32).unsqueeze(-1)
 
@@ -74,21 +68,6 @@ class InvalidModifier:
 
     def __init__(self, cfg, data_dim, device):
         pass
-
-
-class CounterTerm(ManagerTermBase):
-    """Stateful source used to check reset propagation through delay."""
-
-    def __init__(self, cfg, env):
-        super().__init__(cfg, env)
-        self.count = torch.zeros(env.num_envs, 1, device=env.device)
-
-    def __call__(self, env, increment: float = 1.0):
-        self.count.add_(increment)
-        return self.count
-
-    def reset(self, env_ids=None):
-        self.count[slice(None) if env_ids is None else env_ids] = 0
 
 
 @configclass
@@ -169,205 +148,91 @@ def test_modifier_base_cfg_marker_does_not_exist():
     assert not hasattr(modifiers, "ModifierBaseCfg")
 
 
-def test_delay_cfg_in_func_slot():
-    """Wrap a callable using the existing func slot, with serializable config and partial resets."""
+@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("lag_bounds", [(0, 0), (2, 2), (0, 3)])
+@pytest.mark.parametrize("history_length", [0, 3])
+def test_compute_updates_history_only_when_requested(device, lag_bounds, history_length):
+    """Delay and stacked history share a recording clock, including partial resets and extra reads."""
+    env = DummyEnv()
+    env.device = device
+    env.observation = env.observation.to(device)
     cfg = HistoryObservationsCfg()
-    cfg.policy.history_length = None
-    cfg.policy.dummy.func = DelayCfg(term=dummy_observation, params={}, min_lag=2, max_lag=2)
+    cfg.policy.history_length = history_length
+    cfg.policy.enable_corruption = True
+    cfg.policy.dummy.delay_min_lag, cfg.policy.dummy.delay_max_lag = lag_bounds
+    cfg.policy.dummy.modifiers = [modifiers.ModifierCfg(func=modifiers.bias, params={"value": 1.0})]
+    cfg.policy.dummy.noise = noise.ConstantNoiseCfg(bias=0.0)
+    cfg.policy.dummy.clip = (-1000.0, 1000.0)
+    cfg.policy.dummy.scale = 2.0
     original = cfg.to_dict()
     cfg.from_dict(original)
-    env = DummyEnv()
-    manager = ObservationManager(cfg, env)
-    manager.reset()
-    assert "delay" not in ObservationTermCfg.__dataclass_fields__
-    assert not hasattr(modifiers, "DelayCfg"), "Delay configuration must not belong to observation modifiers."
-    for step in range(9):
-        if step == 5:
-            manager.reset([1])
-        env.observation.fill_(step + 10)
-        output = manager.compute()["policy"]
-        expected = torch.tensor([[max(0, step - 2)], [max(5 if step >= 5 else 0, step - 2)]])
-        torch.testing.assert_close(output, expected.float() + 10)
-    assert cfg.to_dict() == original
-    assert manager.serialize()["policy"]["dummy"]["cfg"]["func"] == original["policy"]["dummy"]["func"]
-
-
-def test_delay_cfg_resets_wrapped_stateful_term():
-    """The manager owns one resettable term that resets its source and history together."""
-    cfg = HistoryObservationsCfg()
-    cfg.policy.history_length = None
-    cfg.policy.dummy.func = DelayCfg(term=CounterTerm, params={"increment": 2.0}, min_lag=1, max_lag=1)
-    original = cfg.to_dict()
-    env = DummyEnv()
-    manager = ObservationManager(cfg, env)
-    manager.reset()
-    for _ in range(3):
-        manager.compute()
-    manager.reset([1])
-    output = manager.compute()["policy"]
-    torch.testing.assert_close(output, torch.tensor([[6.0], [2.0]]))
-    assert manager.serialize()["policy"]["dummy"]["cfg"]["func"] == original["policy"]["dummy"]["func"]
-
-
-def test_delay_cfg_validates_wrapped_parameters():
-    """Validate the wrapped callable's signature and reject ambiguous outer parameters."""
-    cfg = HistoryObservationsCfg()
-    cfg.policy.dummy.func = DelayCfg(term=CounterTerm, params={"unknown": 2.0})
-    with pytest.raises(TypeError, match="unexpected keyword argument"):
-        ObservationManager(cfg, DummyEnv())
-    cfg.policy.dummy.func.params = {}
-    cfg.policy.dummy.params = {"increment": 2.0}
-    with pytest.raises(ValueError, match="inside its nested configuration"):
-        ObservationManager(cfg, DummyEnv())
-
-
-def test_compute_updates_history_only_when_requested():
-    """Observation history changes only when ``update_history`` is enabled."""
-    env = DummyEnv()
-    manager = ObservationManager(HistoryObservationsCfg(), cast("ManagerBasedEnv", env))
-    history = manager._group_obs_term_history_buffer["policy"]["dummy"]
-
-    torch.testing.assert_close(history.current_length, torch.zeros(env.num_envs, dtype=torch.int64))
+    manager = ObservationManager(cfg, cast("ManagerBasedEnv", env))
+    buffers = manager._group_obs_term_delay_buffer["policy"]
+    delay = buffers.get("dummy")
+    assert isinstance(delay, DelayBuffer) if lag_bounds[1] else not buffers
+    assert not hasattr(modifiers, "DelayCfg"), "Delay sampling belongs to the observation manager."
+    lags = delay.time_lags.clone() if delay else torch.zeros(env.num_envs, device=device, dtype=torch.int)
+    assert torch.all((lag_bounds[0] <= lags) & (lags <= lag_bounds[1]))
+    samples, delivered = [[] for _ in range(env.num_envs)], [[] for _ in range(env.num_envs)]
+    history = manager._group_obs_term_history_buffer["policy"].get("dummy")
 
     manager.compute()
-    torch.testing.assert_close(history.current_length, torch.zeros(env.num_envs, dtype=torch.int64))
+    if delay:
+        assert torch.all(delay.num_pushes == 0)
+    if history:
+        assert torch.all(history.current_length == 0)
 
-    manager.compute(update_history=True)
-    torch.testing.assert_close(history.current_length, torch.ones(env.num_envs, dtype=torch.int64))
-    history_after_update = history.buffer.clone()
-
-    env.observation.add_(10.0)
-    observations = manager.compute()
-    policy_observation = observations["policy"]
-    assert isinstance(policy_observation, torch.Tensor)
-    torch.testing.assert_close(history.current_length, torch.ones(env.num_envs, dtype=torch.int64))
-    torch.testing.assert_close(history.buffer, history_after_update)
-    torch.testing.assert_close(policy_observation, history_after_update.reshape(env.num_envs, -1))
-
-    manager.compute(update_history=True)
-    torch.testing.assert_close(history.current_length, torch.full((env.num_envs,), 2, dtype=torch.int64))
-    torch.testing.assert_close(history.buffer[:, -1], env.observation)
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("shape", [(3,), (3, 2, 2)])
-@pytest.mark.parametrize("settings", [{"min_lag": 2, "max_lag": 2}, {"update_period": 3}, {"hold_prob": 1.0}])
-def test_delay_delivery_and_reset(device, shape, settings):
-    """Fixed latency, sensor cadence, and holds share shape-preserving reset semantics."""
-    cfg = DelayCfg(term=dummy_observation, per_env_phase=False, **settings)
-    env = DummyEnv(shape[0], device)
-    delay = cfg.wrap(dummy_observation, env.num_envs, env.device)
-    for step in range(12):
+    for step in range(11):
         if step == 5:
-            delay.reset([1])
-        data = torch.full(shape, step + 10, dtype=torch.float64, device=device)
-        env.observation = data
-        result = delay(env)
-        expected = []
-        for env_id in range(shape[0]):
-            start = 5 if env_id == 1 and step >= 5 else 0
-            if cfg.hold_prob == 1.0:
-                sample = start
-            elif cfg.update_period > 1:
-                sample = start + (step - start) // cfg.update_period * cfg.update_period
-            else:
-                sample = max(start, step - cfg.max_lag)
-            expected.append(sample + 10)
-        expected = torch.tensor(expected, dtype=data.dtype, device=device).view(3, *([1] * (len(shape) - 1)))
-        torch.testing.assert_close(result, expected.expand_as(data))
-        result.fill_(-999)  # Downstream in-place processing must not corrupt held frames.
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_delay_stochastic_delivery(device):
-    """Jitter never delivers an older sample, and bounded GPU lag generation never calls the setter."""
-    cfg = DelayCfg(term=dummy_observation, min_lag=1, max_lag=4, update_period=3, hold_prob=0.2, seed=17)
-    env = DummyEnv(16, device)
-    delay = cfg.wrap(dummy_observation, env.num_envs, env.device)
-    reference = cfg.wrap(dummy_observation, env.num_envs, env.device)
-    assert "_step" not in vars(delay), "The buffer owns the per-environment clock."
-    delay._buffer.set_time_lag = lambda *args: pytest.fail("The hot path must not validate lags on the host.")
-    previous = torch.full((16, 1), -1.0, device=device)
-    for step in range(40):
-        if step == 10:
-            delay.reset([0])
-        env.observation = torch.full_like(previous, step)
-        output = delay(env)
-        assert torch.all(output >= previous)
-        assert torch.all(output[1:] <= max(0, step - cfg.min_lag))
-        torch.testing.assert_close(output[1:], reference(env)[1:])
-        assert torch.all(delay._buffer.time_lags >= cfg.min_lag)
-        assert torch.all(delay._buffer.time_lags <= cfg.max_lag)
-        previous = output
-
-    shared = DelayCfg(term=dummy_observation, max_lag=4, per_env=False).wrap(
-        dummy_observation, env.num_envs, env.device
-    )
-    for step in range(12):
-        env.observation = torch.full_like(previous, step)
-        output = shared(env)
-        assert torch.all(output == output[0])
-
-
-@pytest.mark.parametrize(
-    "settings", [{"min_lag": -1}, {"min_lag": 2, "max_lag": 1}, {"update_period": 0}, {"hold_prob": 1.1}]
-)
-def test_delay_cfg_validation(settings):
-    """Reject invalid scheduling parameters in the config before allocating any buffer."""
-    cfg = DelayCfg(term=dummy_observation, **settings)
-    with pytest.raises(ValueError):
-        cfg.validate()
-    with pytest.raises(ValueError):
-        cfg.wrap(dummy_observation, 2, "cpu")
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("capture", ["torch", "warp"])
-@pytest.mark.parametrize("jitter", [False, True])
-def test_delay_schedule_cuda_graph(device, capture, jitter):
-    """Cadence, jitter, holds, and partial resets agree between eager execution and both graph owners."""
-    if not device.startswith("cuda"):
-        pytest.skip("CUDA graph replay requires CUDA.")
-    with torch.cuda.device(device):
-        env = DummyEnv(2, device)
-        cfg = DelayCfg(
-            term=dummy_observation,
-            update_period=3,
-            per_env_phase=False,
-            seed=17,
-            max_lag=4 if jitter else 0,
-            hold_prob=0.2 if jitter else 0.0,
+            manager.reset([1])
+            samples[1].clear()
+            delivered[1].clear()
+            if delay:
+                torch.testing.assert_close(delay.time_lags[0], lags[0])
+                lags = delay.time_lags.clone()
+                assert lag_bounds[0] <= lags[1] <= lag_bounds[1]
+                assert delay.num_pushes[0] == step and delay.num_pushes[1] == 0
+        env.observation.fill_(step * 10.0)
+        # Vary the corruption to ensure delay stores the processed sample, not fresh noise on old data.
+        manager.cfg.policy.dummy.noise.bias = float(step)
+        output = manager.compute(update_history=True)["policy"]
+        for index in range(env.num_envs):
+            samples[index].append(2.0 * (step * 11.0 + 1.0))
+            delivered[index].append(samples[index][max(0, len(samples[index]) - 1 - int(lags[index]))])
+        length = max(1, history_length)
+        expected = torch.tensor(
+            [[values[max(0, len(values) - length + index)] for index in range(length)] for values in delivered],
+            device=device,
         )
-        delay = cfg.wrap(dummy_observation, 2, device)
-        reference = cfg.wrap(dummy_observation, 2, device)
-        data = torch.zeros(2, 1, device=device)
-        env.observation = data
-        delay(env)
-        reference(env)
-        if capture == "torch":
-            graph = torch.cuda.CUDAGraph()
-            with torch.cuda.graph(graph):
-                output = delay(env)
-            replay = graph.replay
-        else:
-            with wp.ScopedCapture(device=device) as scoped:
-                with torch.cuda.stream(wp.stream_to_torch(wp.get_stream(device))):
-                    output = delay(env)
+        torch.testing.assert_close(output, expected)
+        if delay:
+            torch.testing.assert_close(delay.time_lags, lags)
+            torch.testing.assert_close(
+                delay.num_pushes, torch.tensor([len(values) for values in samples], device=device)
+            )
+        if history:
+            torch.testing.assert_close(
+                history.current_length,
+                torch.tensor([min(history_length, len(values)) for values in delivered], device=device),
+            )
+        # Both entry points must read the last recorded samples without advancing delay or history.
+        if delay or history:
+            env.observation.fill_(-100.0)
+            torch.testing.assert_close(manager.compute()["policy"], expected)
+            torch.testing.assert_close(manager.compute_group("policy"), expected)
 
-            def replay():
-                wp.capture_launch(scoped.graph)
+    assert cfg.to_dict() == original
+    serialized = manager.serialize()["policy"]["dummy"]["cfg"]
+    assert (serialized["delay_min_lag"], serialized["delay_max_lag"]) == lag_bounds
 
-        delay.reset()
-        reference.reset()
-        for step in range(40):
-            if step == 5:
-                delay.reset([1])
-                reference.reset([1])
-            data.fill_(step)
-            replay()
-            torch.testing.assert_close(output, reference(env))
-            if not jitter:
-                expected = torch.full_like(data, step // 3 * 3)
-                if step >= 5:
-                    expected[1] = 5 + (step - 5) // 3 * 3
-                torch.testing.assert_close(output, expected)
+
+@pytest.mark.parametrize("lag_bounds", [(-1, 2), (2, 1), (1, 0), (0.5, 2), (0, True)])
+def test_observation_delay_config_validation(lag_bounds):
+    """Invalid delay bounds fail configuration validation and standalone manager construction."""
+    cfg = HistoryObservationsCfg()
+    cfg.policy.dummy.delay_min_lag, cfg.policy.dummy.delay_max_lag = lag_bounds
+    error = ValueError if all(type(value) is int for value in lag_bounds) else TypeError
+    with pytest.raises(error, match="delay"):
+        cfg.validate()
+    with pytest.raises(error, match="delay"):
+        ObservationManager(cfg, cast("ManagerBasedEnv", DummyEnv()))

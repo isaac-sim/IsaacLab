@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING, ClassVar
 import torch
 
 from ..utils import string as string_utils
-from ..utils._compute_deprecation import _support_deprecated_compute
 from ..utils.types import ArticulationActions
 from ._compat import _limits_equal, _resolve_limit_aliases
 
@@ -86,7 +85,6 @@ def resolve_joint_parameter(
     return param
 
 
-@_support_deprecated_compute
 class ActuatorBase(ABC):
     """Base class for actuator models over a collection of actuated joints in an articulation.
 
@@ -104,15 +102,7 @@ class ActuatorBase(ABC):
     are matched against the joint names in the articulation.
 
     To see how the class is used, check the :class:`isaaclab.assets.Articulation` class.
-
-    .. deprecated:: 3.0
-       ``compute(...)`` and custom ``compute`` overrides remain supported until Isaac Lab 3.2.
-       Call ``actuator(...)`` and implement ``__call__`` instead, including ``super().__call__(...)`` chains.
     """
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        _support_deprecated_compute(cls)
 
     is_implicit_model: ClassVar[bool] = False
     """Flag indicating if the actuator is an implicit or explicit actuator model.
@@ -298,7 +288,7 @@ class ActuatorBase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def __call__(
+    def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
         """Process the actuator group actions and compute the articulation actions.

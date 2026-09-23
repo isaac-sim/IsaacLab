@@ -14,8 +14,6 @@
     ObservationManager
     ObservationGroupCfg
     ObservationTermCfg
-    Delay
-    DelayCfg
     ActionManager
     ActionTerm
     ActionTermCfg
@@ -56,6 +54,35 @@ Manager Base
 Observation Manager
 -------------------
 
+Observation delay
+~~~~~~~~~~~~~~~~~
+
+Configure a fixed or per-episode random observation delay directly on the term:
+
+.. code-block:: python
+
+    from isaaclab.envs import mdp
+    from isaaclab.managers import ObservationTermCfg
+
+    joint_pos = ObservationTermCfg(func=mdp.joint_pos_rel, delay_min_lag=1, delay_max_lag=3)
+
+Each environment samples its lag uniformly from the inclusive bounds at initialization and reset,
+and keeps it until its next reset. Equal bounds give a constant delay; both zero disable delay.
+This matches the reset-based lag policy of :class:`~isaaclab.actuators.DelayedPDActuator`.
+Both use :class:`~isaaclab.utils.buffers.DelayBuffer`; observation lag counts recorded observation
+samples, while actuator lag counts physics steps.
+
+The processing order is observation function, modifiers, noise, clipping, scaling, delay, then history.
+The ``delay_min_lag`` and ``delay_max_lag`` field names and delay placement follow
+`mjlab's observation configuration <https://mujocolab.github.io/mjlab/main/source/observations.html>`_.
+The lag sampling policy here follows Isaac Lab's delayed actuator, rather than mjlab's per-step lag updates.
+
+``compute(update_history=True)`` records a sample in both delay and observation history buffers.
+``compute()`` and ``compute_group()`` read without advancing either buffer or resampling lag.
+For a delay buffer with no recorded sample after initialization or reset, the current input is returned
+without recording it. Once recording starts, delays exceeding the available history return the oldest
+sample. Partial resets invalidate only the selected environments' histories.
+
 .. autoclass:: ObservationManager
     :members:
     :inherited-members:
@@ -68,9 +95,6 @@ Observation Manager
 .. autoclass:: ObservationTermCfg
     :members:
     :exclude-members: __init__
-
-Observation latency uses :class:`~isaaclab.utils.DelayCfg` in the ``func`` slot. See
-:ref:`shared-delay` for observation, action, and actuator examples.
 
 Action Manager
 --------------

@@ -14,11 +14,11 @@ from newton.actuators import ClampingDCMotor, ClampingMaxEffort, ClampingPositio
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
-from isaaclab.actuators import ActuatorBaseCfg, DCMotor, DCMotorCfg, IdealPDActuatorCfg, RemotizedPDActuatorCfg
+from isaaclab.actuators import ActuatorBaseCfg, DCMotor, DCMotorCfg, DelayedPDActuatorCfg, RemotizedPDActuatorCfg
 from isaaclab.actuators.newton import NewtonActuatorAdapter
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.schemas.schemas_actuators import _author_actuator_prims, _resave_checkpoint_with_metadata
-from isaaclab.utils import DelayCfg, configclass
+from isaaclab.utils import configclass
 
 _JOINT_NAMES = ["pd_a", "pd_b", "dc_a", "dc_b", "remote_a", "remote_b"]
 
@@ -70,21 +70,11 @@ def _make_actuator_stage() -> Usd.Stage:
         stage,
         "/World/Robot",
         {
-            "pd_a": DelayCfg(
-                term=IdealPDActuatorCfg(
-                    joint_names_expr=["pd_a"], stiffness=11.0, damping=1.5, actuator_effort_limit=21.0
-                ),
-                on="input",
-                max_lag=2,
-                resample="reset",
+            "pd_a": DelayedPDActuatorCfg(
+                joint_names_expr=["pd_a"], stiffness=11.0, damping=1.5, actuator_effort_limit=21.0, max_delay=2
             ),
-            "pd_b": DelayCfg(
-                term=IdealPDActuatorCfg(
-                    joint_names_expr=["pd_b"], stiffness=22.0, damping=2.5, actuator_effort_limit=32.0
-                ),
-                on="input",
-                max_lag=4,
-                resample="reset",
+            "pd_b": DelayedPDActuatorCfg(
+                joint_names_expr=["pd_b"], stiffness=22.0, damping=2.5, actuator_effort_limit=32.0, max_delay=4
             ),
             "dc_a": DCMotorCfg(
                 joint_names_expr=["dc_a"],
@@ -102,29 +92,21 @@ def _make_actuator_stage() -> Usd.Stage:
                 actuator_velocity_limit=8.0,
                 saturation_effort=64.0,
             ),
-            "remote_a": DelayCfg(
-                term=RemotizedPDActuatorCfg(
-                    joint_names_expr=["remote_a"],
-                    stiffness=55.0,
-                    damping=5.5,
-                    actuator_effort_limit=65.0,
-                    joint_parameter_lookup=[[-1.0, 1.0, 10.0], [1.0, 1.0, 20.0]],
-                ),
-                on="input",
-                max_lag=1,
-                resample="reset",
+            "remote_a": RemotizedPDActuatorCfg(
+                joint_names_expr=["remote_a"],
+                stiffness=55.0,
+                damping=5.5,
+                actuator_effort_limit=65.0,
+                max_delay=1,
+                joint_parameter_lookup=[[-1.0, 1.0, 10.0], [1.0, 1.0, 20.0]],
             ),
-            "remote_b": DelayCfg(
-                term=RemotizedPDActuatorCfg(
-                    joint_names_expr=["remote_b"],
-                    stiffness=55.0,
-                    damping=5.5,
-                    actuator_effort_limit=65.0,
-                    joint_parameter_lookup=[[-1.0, 1.0, 11.0], [1.0, 1.0, 21.0]],
-                ),
-                on="input",
-                max_lag=1,
-                resample="reset",
+            "remote_b": RemotizedPDActuatorCfg(
+                joint_names_expr=["remote_b"],
+                stiffness=55.0,
+                damping=5.5,
+                actuator_effort_limit=65.0,
+                max_delay=1,
+                joint_parameter_lookup=[[-1.0, 1.0, 11.0], [1.0, 1.0, 21.0]],
             ),
         },
     )
@@ -169,7 +151,8 @@ def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
     np.testing.assert_allclose(pd.controller.kp.numpy(), [11.0, 22.0, 11.0, 22.0])
     np.testing.assert_allclose(pd.controller.kd.numpy(), [1.5, 2.5, 1.5, 2.5])
     np.testing.assert_allclose(pd.clamping[0].max_effort.numpy(), [21.0, 32.0, 21.0, 32.0])
-    assert pd.delay is None  # The enclosing shared Delay owns latency; USD must not add a second delay.
+    np.testing.assert_array_equal(pd.delay.delay_steps.numpy(), [2, 4, 2, 4])
+    assert pd.delay.buf_depth == 4
 
     dc = next(actuator for actuator in actuators if [type(c) for c in actuator.clamping] == [ClampingDCMotor])
     assert type(dc.controller) is DrivePD
@@ -187,7 +170,6 @@ def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
         if any(type(clamping) is ClampingPositionBased for clamping in actuator.clamping)
     ]
     assert len(remotized) == 2
-    assert all(actuator.delay is None for actuator in remotized)
     assert {tuple(actuator.indices.numpy()) for actuator in remotized} == {(4, 10), (5, 11)}
     assert all(not any(type(clamping) is ClampingMaxEffort for clamping in actuator.clamping) for actuator in remotized)
     assert {
@@ -206,8 +188,12 @@ def test_schema_authoring_matches_lab_effort_limit_resolution(configured_limit, 
     for joint_name, authored_limit in zip(("pd_a", "pd_b"), (71.0, 72.0), strict=True):
         joint_prim = stage.GetPrimAtPath(f"/World/Robot/{joint_name}")
         UsdPhysics.DriveAPI.Apply(joint_prim, "angular").CreateMaxForceAttr(authored_limit)
-    cfg = IdealPDActuatorCfg(
-        joint_names_expr=["pd_.*"], stiffness=1.0, damping=0.0, actuator_effort_limit=configured_limit
+    cfg = DelayedPDActuatorCfg(
+        joint_names_expr=["pd_.*"],
+        stiffness=1.0,
+        damping=0.0,
+        actuator_effort_limit=configured_limit,
+        max_delay=0,
     )
 
     _author_actuator_prims(stage, "/World/Robot", {"fallback": cfg})
@@ -226,8 +212,12 @@ def test_schema_authoring_matches_lab_effort_limit_resolution(configured_limit, 
 )
 def test_schema_authoring_rejects_invalid_effort_limit_patterns(configured_limit):
     stage = _make_actuator_stage()
-    cfg = IdealPDActuatorCfg(
-        joint_names_expr=["pd_.*"], stiffness=1.0, damping=0.0, actuator_effort_limit=configured_limit
+    cfg = DelayedPDActuatorCfg(
+        joint_names_expr=["pd_.*"],
+        stiffness=1.0,
+        damping=0.0,
+        actuator_effort_limit=configured_limit,
+        max_delay=0,
     )
 
     with pytest.raises(ValueError):

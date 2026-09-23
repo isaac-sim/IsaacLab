@@ -49,7 +49,6 @@ from isaaclab.test.utils.actuator_equivalence import (
     make_dummy_mlp_checkpoint,
 )
 from isaaclab.test.utils.articulation_ordering import assert_articulation_ordering_trace_matches
-from isaaclab.utils import DelayCfg
 
 from isaaclab_assets import ANYMAL_C_CFG
 from isaaclab_assets.robots.spot import joint_parameter_lookup as SPOT_KNEE_LOOKUP
@@ -86,9 +85,7 @@ def test_prepare_native_actuators_does_not_zero_solver_gains(monkeypatch):
 
     joint_buffer = SimpleNamespace(warp=wp.zeros((1, 1), dtype=wp.float32, device="cpu"))
     collection = SimpleNamespace(
-        _joint_pos_target=joint_buffer.warp,
-        _joint_vel_target=joint_buffer.warp,
-        _joint_effort_target=joint_buffer.warp,
+        target_command=SimpleNamespace(position=joint_buffer, velocity=joint_buffer, effort=joint_buffer)
     )
     gain_writes = []
     articulation = SimpleNamespace(
@@ -158,7 +155,6 @@ def _run_simulation(
     joint_ordering: tuple[str, ...] | None = None,
     permutation_sensitive_commands: bool = False,
     capture_first_compute: bool = False,
-    command_step: float = 0.0,
 ) -> dict:
     """Run ANYmal-C on PhysX and return recorded trajectories + telemetry.
 
@@ -173,7 +169,6 @@ def _run_simulation(
         permutation_sensitive_commands: Whether to command distinct position, velocity, and effort values by
             physical joint name.
         capture_first_compute: Whether to invoke the first actuator computation inside an outer CUDA capture.
-        command_step: Position target increment per physics step [rad].
 
     Returns:
         Recorded joint-name metadata, commands, public trajectories and torque telemetry, and adapter effort traces.
@@ -238,9 +233,7 @@ def _run_simulation(
         if capture_first_compute:
             with wp.ScopedCapture(device=articulation.device, force_module_load=True):
                 articulation.actuators.compute(DT)
-        for step in range(num_steps):
-            if command_step:
-                articulation.actuators.target_command.set_position_index(value=target_pos + step * command_step)
+        for _ in range(num_steps):
             articulation.write_data_to_sim()
             sim.step()
             articulation.update(DT)
@@ -468,31 +461,6 @@ class _EquivalenceTestBase(EquivalenceAssertionsMixin, unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("on", ["input", "output"])
-def test_shared_delay_matches_native_host_execution(on):
-    """Shared delay preserves the same command and effort history in the captured PhysX host runtime."""
-    actuators = {
-        name: DelayCfg(term=cfg, on=on, min_lag=1, max_lag=3, hold_prob=0.2, seed=17)
-        for name, cfg in IDEAL_PD_ACTUATORS.items()
-    }
-    lab = _run_simulation(actuators, use_newton_actuators=False, num_steps=12, command_step=0.02)
-    native = _run_simulation(actuators, use_newton_actuators=True, num_steps=12, command_step=0.02)
-    assert native["native_actuator_graph_count"] == 2
-    for name, quantity in (
-        ("joint_pos", "pos"),
-        ("joint_vel", "vel"),
-        ("computed_effort", "torque"),
-        ("applied_effort", "torque"),
-    ):
-        for expected, actual in zip(lab[name], native[name], strict=True):
-            torch.testing.assert_close(
-                actual,
-                expected,
-                rtol=getattr(EquivalenceAssertionsMixin, f"{quantity}_rtol"),
-                atol=getattr(EquivalenceAssertionsMixin, f"{quantity}_atol"),
-            )
-
-
 class TestIdealPDEquivalence(_EquivalenceTestBase):
     """IdealPDActuator on all 12 joints: Lab vs Newton (PhysX backend)."""
 
@@ -508,7 +476,7 @@ class TestDCMotorEquivalence(_EquivalenceTestBase):
 
 
 class TestDelayedPDEquivalence(_EquivalenceTestBase):
-    """Shared command delay around PD on all 12 joints: Lab vs Newton (PhysX).
+    """DelayedPDActuator on all 12 joints: Lab vs Newton (PhysX).
 
     Verifies that actuator command delays are correctly authored and
     produce matching trajectories on the PhysX backend.
@@ -827,7 +795,8 @@ class TestActuatorStateReset(ActuatorStateResetBase, unittest.TestCase):
     """Per-env actuator state reset isolation on the PhysX backend.
 
     The scenario and assertions live in :class:`ActuatorStateResetBase`;
-    this subclass provides the PhysX sim config and articulation.
+    this subclass provides the PhysX sim config and the per-articulation
+    adapter (``articulation.newton_actuator_adapter``).
     """
 
     def _make_sim_cfg(self, use_newton_actuators: bool) -> SimulationCfg:
@@ -835,6 +804,9 @@ class TestActuatorStateReset(ActuatorStateResetBase, unittest.TestCase):
 
     def _make_articulation(self) -> Articulation:
         return Articulation(ANYMAL_C_CFG.replace(actuators=DELAYED_PD_ACTUATORS, prim_path="/World/Env_.*/Robot"))
+
+    def _get_adapter(self, articulation):
+        return articulation.newton_actuator_adapter
 
 
 # ---------------------------------------------------------------------------
@@ -862,17 +834,13 @@ class TestRemotizedPDEquivalence(_EquivalenceTestBase):
                 damping=5.0,
                 actuator_effort_limit=80.0,
             ),
-            "knees": DelayCfg(
-                term=RemotizedPDActuatorCfg(
-                    joint_names_expr=[".*KFE"],
-                    stiffness=60.0,
-                    damping=1.5,
-                    actuator_effort_limit=80.0,
-                    joint_parameter_lookup=SPOT_KNEE_LOOKUP,
-                ),
-                on="input",
-                max_lag=3,
-                resample="reset",
+            "knees": RemotizedPDActuatorCfg(
+                joint_names_expr=[".*KFE"],
+                stiffness=60.0,
+                damping=1.5,
+                actuator_effort_limit=80.0,
+                max_delay=3,
+                joint_parameter_lookup=SPOT_KNEE_LOOKUP,
             ),
         }
         super().setUpClass()

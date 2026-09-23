@@ -66,11 +66,11 @@ class PhysxActuatorRuntime:
         )
         self.wrapper.joint_q = articulation._data.joint_pos.warp.reshape(-1)
         self.wrapper.joint_qd = articulation._data.joint_vel.warp.reshape(-1)
-        self.wrapper.joint_target_q = collection._joint_pos_target.reshape(-1)
-        self.wrapper.joint_target_qd = collection._joint_vel_target.reshape(-1)
+        self.wrapper.joint_target_q = collection.target_command.position.warp.reshape(-1)
+        self.wrapper.joint_target_qd = collection.target_command.velocity.warp.reshape(-1)
         self.wrapper.joint_target_pos = self.wrapper.joint_target_q
         self.wrapper.joint_target_vel = self.wrapper.joint_target_qd
-        self.wrapper.joint_act = collection._joint_effort_target.reshape(-1)
+        self.wrapper.joint_act = collection.target_command.effort.warp.reshape(-1)
         if not adapt_usd_actuators:
             return
         self.adapter = NewtonActuatorAdapter.from_usd(
@@ -85,7 +85,6 @@ class PhysxActuatorRuntime:
 
     def finalize(self, collection: ActuatorCollection) -> None:
         """Bind telemetry and native gain defaults after collection construction."""
-        self._evaluate = collection.wrap_execution(lambda dt: self._evaluate_actuators(collection, dt))
         articulation = self._articulation
         if self.adapter is None:
             articulation._implicit_dof_mask, articulation._implicit_dof_mask_owner = build_implicit_dof_mask(
@@ -137,9 +136,9 @@ class PhysxActuatorRuntime:
         articulation = self._articulation
         if self.wrapper is None:
             raise RuntimeError("Newton-native actuator wrapper was not initialized")
-        self._evaluate(dt)
-        if collection._wrapper_cfgs:
-            self.wrapper.joint_f_2d.assign(collection._joint_effort_target_sim)
+        self.wrapper.joint_f_2d.assign(collection._joint_effort_target)
+        if self.adapter is not None:
+            self.adapter.step(self.wrapper, self.wrapper, dt)
         wp.launch(
             actuator_kernels.sync_torque_telemetry,
             dim=(articulation.num_instances, articulation.num_joints),
@@ -160,13 +159,6 @@ class PhysxActuatorRuntime:
             outputs=[collection._computed_effort, collection._applied_effort],
             device=articulation.device,
         )
-
-    def _evaluate_actuators(self, collection: ActuatorCollection, dt: float) -> None:
-        self.wrapper.joint_f_2d.assign(collection._joint_effort_target)
-        if self.adapter is not None:
-            self.adapter.step(self.wrapper, self.wrapper, dt)
-        if collection._wrapper_cfgs:
-            collection._joint_effort_target_sim.assign(self.wrapper.joint_f_2d)
 
     def _capture_native_actuator_graphs(self, collection: ActuatorCollection, dt: float) -> None:
         if self.adapter is None:

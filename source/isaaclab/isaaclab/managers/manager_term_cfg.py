@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Any
 import torch
 
 from ..utils import configclass
-from ..utils.composition import WrapperCfg
 from ..utils.modifiers import ModifierCfg
 from ..utils.noise import NoiseCfg, NoiseModelCfg
 from .scene_entity_cfg import SceneEntityCfg
@@ -30,14 +29,11 @@ if TYPE_CHECKING:
 class ManagerTermBaseCfg:
     """Configuration for a manager term."""
 
-    func: Callable | ManagerTermBase | ManagerTermBaseCfg | WrapperCfg = MISSING
+    func: Callable | ManagerTermBase = MISSING
     """The function or class to be called for the term.
 
     The function must take the environment object as the first argument.
     The remaining arguments are specified in the :attr:`params` attribute.
-
-    A :class:`ManagerTermBaseCfg` can configure a callable in this slot. Its parameters belong
-    inside the nested configuration; the outer :attr:`params` must then be empty.
 
     It also supports `callable classes`_, i.e. classes that implement the :meth:`__call__`
     method. In this case, the class should inherit from the :class:`ManagerTermBase` class
@@ -155,7 +151,7 @@ class CurriculumTermCfg(ManagerTermBaseCfg):
 class ObservationTermCfg(ManagerTermBaseCfg):
     """Configuration for an observation term."""
 
-    func: Callable[..., torch.Tensor | None] | ManagerTermBaseCfg | WrapperCfg = MISSING
+    func: Callable[..., torch.Tensor | None] = MISSING
     """The name of the function to be called.
 
     This function should take the environment object and any other parameters
@@ -189,6 +185,23 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     please make sure the length of the tuple matches the dimensions of the tensor outputted from the term.
     """
 
+    delay_min_lag: int = 0
+    """Minimum observation delay, counted in recorded samples. Defaults to zero.
+
+    Each environment samples an integer lag uniformly from ``[delay_min_lag, delay_max_lag]`` at
+    initialization and reset, and keeps it until its next reset, as with :class:`~isaaclab.actuators.DelayedPDActuator`.
+    Observation samples advance with ``ObservationManager.compute(update_history=True)``; actuator delays
+    instead count physics steps. Extra observation reads do not advance the delay.
+    """
+
+    delay_max_lag: int = 0
+    """Maximum observation delay, counted in recorded samples. Zero disables delay.
+
+    Set both lag bounds equal for a constant delay. Delay is applied after modifiers, noise, clipping, and
+    scaling, before observation history. Until enough samples have been recorded, the oldest available
+    sample is returned. After reset, no data from the previous episode is returned.
+    """
+
     history_length: int = 0
     """Number of past observations to store in the observation buffers. Defaults to 0, meaning no history.
 
@@ -201,6 +214,13 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     flatten_history_dim: bool = True
     """Whether or not the observation manager should flatten history-based observation terms to a 2-D (N, D) tensor.
     Defaults to True."""
+
+    def validate_config(self):
+        """Validate observation delay bounds."""
+        if type(self.delay_min_lag) is not int or type(self.delay_max_lag) is not int:
+            raise TypeError("Observation delay bounds must be integers.")
+        if not 0 <= self.delay_min_lag <= self.delay_max_lag:
+            raise ValueError("Observation delay requires 0 <= delay_min_lag <= delay_max_lag.")
 
 
 @configclass
