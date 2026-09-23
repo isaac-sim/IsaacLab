@@ -415,6 +415,15 @@ def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars(camera_spec, render_data)
     assert 'def RenderVar "HdrColor"' in render_scope
 
 
+def test_ovrtx_hdr_render_product_disables_gaussian_skip_tonemapping(camera_spec, render_data):
+    """OVRTX 0.5 reads Gaussian tonemapping from the RenderProduct, not global settings."""
+    camera_spec.cfg.data_types = ["rgb_hdr"]
+
+    render_scope = build_render_scope_usd(camera_spec, render_data, gaussian_skip_tonemapping=True)
+
+    assert "bool omni:rtx:rtpt:gaussian:skipTonemapping:enabled = false" in render_scope
+
+
 def test_ovrtx_semantic_segmentation_authors_semantic_and_id_map_render_vars(camera_spec, render_data):
     """Requesting semantic segmentation authors both SemanticSegmentation and SemanticIdMap render vars."""
     render_var_configs = get_render_var_configs(["semantic_segmentation"], render_scope_name="RenderCamera_0")
