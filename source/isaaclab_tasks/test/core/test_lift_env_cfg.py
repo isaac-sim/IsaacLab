@@ -48,14 +48,27 @@ class _FakeScene(dict):
         self.env_origins = torch.zeros((len(environment_ids), 3))
 
 
-def test_rigid_lift_motion_regularization_uses_shared_training_schedule() -> None:
-    """Motion penalties should become effective at the same training step on every backend."""
+def test_rigid_lift_motion_regularization_follows_success_driven_adr() -> None:
+    """Motion penalties should grow continuously with successful episodes, not elapsed steps."""
     curriculum = CurriculumCfg()
+    assert curriculum.adr.func is mdp.DifficultyScheduler
+    difficulty = SimpleNamespace(difficulty_frac=0.0)
+    env = SimpleNamespace(
+        common_step_counter=100_000,
+        curriculum_manager=SimpleNamespace(cfg=SimpleNamespace(adr=SimpleNamespace(func=difficulty))),
+    )
 
     for term_name in ("action_rate", "joint_vel"):
         term = getattr(curriculum, term_name)
-        assert term.func is mdp.modify_reward_weight
-        assert term.params == {"term_name": term_name, "weight": -1e-1, "num_steps": 10000}
+        assert term.func is mdp.modify_term_cfg
+        assert term.params["address"] == f"rewards.{term_name}.weight"
+        assert term.params["modify_fn"] is mdp.difficulty_interpolate_float
+        params = term.params["modify_params"]
+        assert params == {"initial_value": -1e-4, "final_value": -1e-1, "difficulty_term_str": "adr"}
+        for fraction in (0.0, 0.02, 0.5, 1.0):
+            difficulty.difficulty_frac = fraction
+            weight = term.params["modify_fn"](env, torch.arange(2), -1e-4, **params)
+            assert weight == pytest.approx(-1e-4 + fraction * (-1e-1 + 1e-4))
 
 
 def test_abnormal_robot_state_ignores_nominal_velocity_excursions() -> None:

@@ -25,13 +25,21 @@ class CurriculumCfg:
     )
 
     action_rate = CurrTerm(
-        func=mdp.modify_reward_weight,
-        params={"term_name": "action_rate", "weight": -1e-1, "num_steps": 10000},
+        func=mdp.modify_term_cfg,
+        params={
+            "address": "rewards.action_rate.weight",
+            "modify_fn": mdp.difficulty_interpolate_float,
+            "modify_params": {"initial_value": -1e-4, "final_value": -1e-1, "difficulty_term_str": "adr"},
+        },
     )
 
     joint_vel = CurrTerm(
-        func=mdp.modify_reward_weight,
-        params={"term_name": "joint_vel", "weight": -1e-1, "num_steps": 10000},
+        func=mdp.modify_term_cfg,
+        params={
+            "address": "rewards.joint_vel.weight",
+            "modify_fn": mdp.difficulty_interpolate_float,
+            "modify_params": {"initial_value": -1e-4, "final_value": -1e-1, "difficulty_term_str": "adr"},
+        },
     )
 
     joint_pos_unoise_min_adr = CurrTerm(
