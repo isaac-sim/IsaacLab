@@ -771,23 +771,30 @@ def _authored_deformable_type(prim: Usd.Prim) -> str | None:
     """Report the deformable type an already-anchored body was authored with.
 
     The volume/surface distinction lives on the simulation mesh (its sim API schema), not on the
-    deformable-body anchor, so the subtree is inspected for the first simulation-mesh API schema.
+    deformable-body anchor, so the body's subtree is inspected for simulation-mesh API schemas.
+    The walk stops at any nested deformable body, whose simulation mesh belongs to that body
+    rather than to this one.
 
     Args:
         prim: The deformable-body prim to inspect.
 
     Returns:
-        ``"volume"``, ``"surface"``, or None when the subtree carries no simulation-mesh API and
-        the type cannot be determined.
+        ``"volume"`` or ``"surface"`` when the body's own simulation meshes agree on a type, or None
+        when they carry no simulation-mesh API or disagree, so the type cannot be determined.
     """
-    for descendant in Usd.PrimRange(prim):
+    authored_types = set()
+    descendants = iter(Usd.PrimRange(prim))
+    for descendant in descendants:
+        if descendant != prim and has_deformable_body_api(descendant):
+            descendants.PruneChildren()
+            continue
         for schema in descendant.GetPrimTypeInfo().GetAppliedAPISchemas():
             # multi-apply schemas carry an instance suffix (``Api:instance``); the split is a no-op
             # for the single-apply sim APIs matched here
             authored_type = _DEFORMABLE_SIM_API_TYPES.get(schema.split(":", 1)[0])
             if authored_type is not None:
-                return authored_type
-    return None
+                authored_types.add(authored_type)
+    return authored_types.pop() if len(authored_types) == 1 else None
 
 
 def _apply_deformable_body_properties(

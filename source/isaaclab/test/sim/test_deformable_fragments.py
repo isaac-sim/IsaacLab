@@ -176,6 +176,49 @@ def test_apply_deformable_skips_targets_authored_as_the_other_type(monkeypatch, 
     assert "/World/Cloth" in message and "surface" in message and "volume" in message
 
 
+def test_authored_deformable_type_ignores_nested_bodies():
+    """A nested deformable body's simulation mesh must not decide the outer body's type.
+
+    The nested body is authored first so a plain subtree walk reaches its surface simulation mesh
+    before the outer body's own volume one.
+    """
+    from pxr import Usd, UsdGeom
+
+    from isaaclab.sim.schemas.schemas import _authored_deformable_type
+
+    stage = Usd.Stage.CreateInMemory()
+    outer = UsdGeom.Xform.Define(stage, "/World/Outer").GetPrim()
+    outer.AddAppliedSchema("PhysicsDeformableBodyAPI")
+    nested = UsdGeom.Xform.Define(stage, "/World/Outer/A_nested").GetPrim()
+    nested.AddAppliedSchema("PhysicsDeformableBodyAPI")
+    UsdGeom.Mesh.Define(stage, "/World/Outer/A_nested/sim_mesh").GetPrim().AddAppliedSchema(
+        "PhysicsSurfaceDeformableSimAPI"
+    )
+    UsdGeom.Mesh.Define(stage, "/World/Outer/sim_mesh").GetPrim().AddAppliedSchema("PhysicsVolumeDeformableSimAPI")
+
+    assert _authored_deformable_type(outer) == "volume"
+    assert _authored_deformable_type(nested) == "surface"
+
+
+def test_authored_deformable_type_is_undetermined_when_sim_meshes_disagree():
+    """A body whose own simulation meshes carry both types has no single authored type.
+
+    Reporting whichever mesh a traversal reaches first would skip a correctly typed target or let
+    the other family author onto it, so the writer must treat it as undeterminable instead.
+    """
+    from pxr import Usd, UsdGeom
+
+    from isaaclab.sim.schemas.schemas import _authored_deformable_type
+
+    stage = Usd.Stage.CreateInMemory()
+    body = UsdGeom.Xform.Define(stage, "/World/Body").GetPrim()
+    body.AddAppliedSchema("PhysicsDeformableBodyAPI")
+    UsdGeom.Mesh.Define(stage, "/World/Body/a_mesh").GetPrim().AddAppliedSchema("PhysicsVolumeDeformableSimAPI")
+    UsdGeom.Mesh.Define(stage, "/World/Body/b_mesh").GetPrim().AddAppliedSchema("PhysicsSurfaceDeformableSimAPI")
+
+    assert _authored_deformable_type(body) is None
+
+
 # -------------------------------------------------------------------------------------
 # Spawner slots -- volume/surface_deformable_props on mesh and USD-file spawners
 # -------------------------------------------------------------------------------------
