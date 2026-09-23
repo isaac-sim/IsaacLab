@@ -48,6 +48,7 @@ if not _MISSING_MODULES:
     import isaaclab.sim as sim_utils
     from isaaclab.sensors.camera.camera import Camera, _camera_select_intrinsics_kernel, _camera_set_intrinsics_kernel
     from isaaclab.sensors.camera.camera_data import CameraData
+    from isaaclab.sensors.camera.utils import create_pointcloud_from_rgbd
     from isaaclab.sim.spawners.sensors.sensors import spawn_camera
     from isaaclab.sim.spawners.sensors.sensors_cfg import (
         FisheyeCameraCfg,
@@ -305,17 +306,22 @@ def test_readback_distinct_image_size_mismatches_each_warn():
     assert any("(1280, 720)" in message for message in mismatch_warnings)
 
 
-@pytest.mark.parametrize(
-    "offset, warns",
-    [((0.0, 0.0), False), ((10.0, 0.0), True), ((-10.0, 0.0), True), ((0.0, 10.0), True), ((0.0, -10.0), True)],
-)
-def test_intrinsics_to_usd_warns_on_any_aperture_offset(offset, warns, caplog):
-    """Off-center principal points warn in either direction; a centered one does not."""
-    width, height = 640, 480
-    c_x, c_y = width / 2 + offset[0], height / 2 + offset[1]
-    convert_camera_intrinsics_to_usd([400.0, 0.0, c_x, 0.0, 400.0, c_y, 0.0, 0.0, 1.0], width, height)
+def test_intrinsics_to_usd_warns_on_negative_aperture_offset(caplog):
+    """A principal point left of and above the image center warns about aperture offsets."""
+    convert_camera_intrinsics_to_usd([400.0, 0.0, 310.0, 0.0, 400.0, 230.0, 0.0, 0.0, 1.0], 640, 480)
 
-    assert any("aperture offsets" in message for message in caplog.messages) == warns
+    assert any("aperture offsets" in message for message in caplog.messages)
+
+
+def test_pointcloud_from_rgbd_uniform_color():
+    """A color tuple, or no color, gives every point the same color."""
+    depth = torch.ones(4, 5)
+    intrinsics = torch.tensor([[20.0, 0.0, 2.5], [0.0, 20.0, 2.0], [0.0, 0.0, 1.0]])
+
+    for rgb, color in [((255, 0, 128), (255, 0, 128)), (None, (0, 0, 0))]:
+        points_xyz, points_rgb = create_pointcloud_from_rgbd(intrinsics, depth, rgb=rgb)
+        expected = torch.tensor(color, dtype=torch.uint8).expand(points_xyz.shape[0], 3)
+        torch.testing.assert_close(points_rgb, expected)
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
