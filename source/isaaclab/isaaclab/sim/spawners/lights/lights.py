@@ -62,7 +62,6 @@ def spawn_light(
     non_usd_cfg_param_names = ["func", "copy_from_source", "visible", "semantic_tags", "spawn_path"]
     for param_name in non_usd_cfg_param_names:
         del cfg[param_name]
-    # set into USD API
     for attr_name, value in cfg.items():
         # special operation for texture properties
         # note: this is only used for dome light
@@ -81,5 +80,4 @@ def spawn_light(
                 prim_prop_name = f"inputs:{attr_name}"
             # set the attribute
             safe_set_attribute_on_usd_prim(prim, prim_prop_name, value, camel_case=True)
-    # return the prim
     return prim

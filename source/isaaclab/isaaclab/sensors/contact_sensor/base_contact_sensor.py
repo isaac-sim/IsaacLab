@@ -54,10 +54,7 @@ class BaseContactSensor(SensorBase):
         Args:
             cfg: The configuration parameters.
         """
-        # initialize base class
         super().__init__(cfg)
-
-        # check that config is valid
         if cfg.history_length < 0:
             raise ValueError(f"History length must be greater than 0! Received: {cfg.history_length}")
 

@@ -61,7 +61,6 @@ class TeleopVisualizationManager(VisualizationManager):
         Args:
             data_collector: DataCollector instance (unused in this handler)
         """
-
         hide_instruction(mgr.ik_error_widget_id)
         mgr.cancel_rule(TriggerType.TRIGGER_ON_PERIOD, mgr._ik_error_widget_timer)
         delattr(mgr, "_ik_error_widget_timer")

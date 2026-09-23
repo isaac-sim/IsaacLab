@@ -32,7 +32,6 @@ from .camera_data import CameraData, RenderBufferKind
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -276,7 +275,7 @@ class Camera(SensorBase):
             )
 
         # UsdGeom Camera prim for the sensor
-        self._sensor_prims: list[UsdGeom.Camera] = list()
+        self._sensor_prims: list[UsdGeom.Camera] = []
         # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
         self._data: CameraData | None = None
         # The backend's ``__init__`` is its pre-physics phase, so it has to exist before
