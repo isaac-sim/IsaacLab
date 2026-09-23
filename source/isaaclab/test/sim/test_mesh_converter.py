@@ -205,10 +205,13 @@ def test_config_change(assets):
     assert time_usd_file_created != new_time_usd_file_created
 
 
-def test_convert_obj(assets):
-    """Convert an OBJ file"""
+def test_convert_obj(assets, tmp_path):
+    """Convert an OBJ file whose name has extra dots; the prim name is made a valid identifier."""
+    for key in ("mtl", "png"):
+        shutil.copy(assets[key], tmp_path)
+    asset_path = shutil.copy(assets["obj"], tmp_path / "duck.v2.obj")
     mesh_config = MeshConverterCfg(
-        asset_path=assets["obj"],
+        asset_path=str(asset_path),
         scale=(random.uniform(0.1, 2.0), random.uniform(0.1, 2.0), random.uniform(0.1, 2.0)),
         translation=(random.uniform(-10.0, 10.0), random.uniform(-10.0, 10.0), random.uniform(-10.0, 10.0)),
         rotation=random_quaternion(),
@@ -216,16 +219,6 @@ def test_convert_obj(assets):
     mesh_converter = MeshConverter(mesh_config)
 
     # check that mesh conversion is successful
-    check_mesh_conversion(mesh_converter)
-
-
-def test_convert_obj_with_dotted_file_name(assets, tmp_path):
-    """Convert an OBJ file whose name contains extra dots; the prim name is made a valid identifier."""
-    for key in ("mtl", "png"):
-        shutil.copy(assets[key], tmp_path)
-    asset_path = shutil.copy(assets["obj"], tmp_path / "duck.v2.obj")
-    mesh_converter = MeshConverter(MeshConverterCfg(asset_path=str(asset_path)))
-
     check_mesh_conversion(mesh_converter)
     assert Usd.Stage.Open(mesh_converter.usd_path).GetDefaultPrim().GetName() == "duck_v2"
 

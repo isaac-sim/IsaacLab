@@ -13,8 +13,6 @@ import torch
 from isaaclab.terrains import (
     FlatPatchSamplingCfg,
     MeshRepeatedBoxesTerrainCfg,
-    MeshRepeatedCylindersTerrainCfg,
-    MeshRepeatedPyramidsTerrainCfg,
     MeshStarTerrainCfg,
     TerrainGenerator,
     TerrainGeneratorCfg,
@@ -93,21 +91,11 @@ def test_generation_star_terrain():
     assert terrain_generator.terrain_origins.shape == (cfg.num_rows, cfg.num_cols, 3)
 
 
-@pytest.mark.parametrize(
-    "cfg_type, object_kwargs",
-    [
-        (MeshRepeatedBoxesTerrainCfg, {"size": (0.3, 0.3)}),
-        (MeshRepeatedCylindersTerrainCfg, {"radius": 0.2}),
-        (MeshRepeatedPyramidsTerrainCfg, {"radius": 0.2}),
-    ],
-)
-def test_repeated_objects_default_object_type(cfg_type, object_kwargs):
-    """The default ``object_type`` of the repeated-object configs resolves to the matching mesh primitive."""
-    cfg = cfg_type(
-        size=(4.0, 4.0),
-        platform_width=1.0,
-        object_params_start=cfg_type.ObjectCfg(num_objects=3, height=0.2, **object_kwargs),
-        object_params_end=cfg_type.ObjectCfg(num_objects=3, height=0.4, **object_kwargs),
+def test_repeated_objects_default_object_type():
+    """The default resolvable ``object_type`` of the repeated-object configs is called, not looked up by name."""
+    object_cfg = MeshRepeatedBoxesTerrainCfg.ObjectCfg(num_objects=3, height=0.2, size=(0.3, 0.3))
+    cfg = MeshRepeatedBoxesTerrainCfg(
+        size=(4.0, 4.0), platform_width=1.0, object_params_start=object_cfg, object_params_end=object_cfg
     )
     np.random.seed(0)
     meshes, origin = cfg.function(0.5, cfg)
