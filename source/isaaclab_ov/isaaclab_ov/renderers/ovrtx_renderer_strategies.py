@@ -257,15 +257,12 @@ class _AsyncRenderStrategy(_RenderStrategy):
     Transform staging always uses two slots, so one slot can be refilled while the other still
     backs the frame in flight. A slot serves all cameras of its frame.
 
-    Refilling a slot buffer is safe under one condition, and it is narrower than it looks. OVRTX
-    can still be reading a buffer on the GPU after its write op completes. A completed write op
-    guarantees one thing: OVRTX has planted a wait in the CUDA stream that the write named. GPU
-    work that enters that stream afterwards starts only after OVRTX has finished reading. GPU work
-    on any other stream is not held back and could overwrite the buffer during the read.
-
-    The refill kernels run on the device's current Warp stream, and every write names that same
-    stream, so the wait covers them. Enqueue any work that touches a slot buffer on that stream
-    and no other.
+    A slot buffer must not be refilled while OVRTX still reads it on the GPU. A completed write
+    op does not mean the read is done. It only means OVRTX planted a wait in the CUDA stream
+    named by the write. Work submitted to that stream afterwards runs after the read. Work on
+    any other stream can race the read and corrupt the frame. All refill kernels therefore run
+    on the device's current Warp stream, and every write names that same stream. Never touch a
+    slot buffer from another stream.
     """
 
     # See :meth:`_create_slots` for why two is always enough.
