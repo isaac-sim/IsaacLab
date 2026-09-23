@@ -57,6 +57,22 @@ task metric, and runtime before changing one variable at a time. Turn off
 ``debug_mode`` only after the solver budget has been validated for the
 full reset, command, and randomization distribution.
 
+Try the Cartpole baseline
+-------------------------
+
+This interactive ``Isaac-Cartpole-Direct`` scene uses the task's Cartpole USD,
+MJWarp solver settings, 120 Hz physics timestep, and published Newton policy.
+Hold the slider to add up to 300 N of horizontal force to the cart; release it
+to watch the policy recover. **Reset** restores the same initial pole angle
+of 0.2 rad. The cart resets when it passes the task's 3 m travel limit.
+Use the task configuration linked above when reproducing behavior in Isaac Lab.
+
+.. raw:: html
+
+   <link rel="stylesheet" href="../../../_static/css/browser-demo.css">
+   <script type="module" src="../../../_static/css/browser-demo.js"></script>
+   <isaaclab-browser-demo class="compact" src="../../../_static/browser_demos/cartpole/manifest.json"></isaaclab-browser-demo>
+
 Size contact and constraint capacity
 ------------------------------------
 
@@ -99,6 +115,16 @@ drive stiffness.
 
 Tune friction and contact behavior
 ----------------------------------
+
+The boxes below begin at rest on a 0.22 rad incline. Change the middle box's
+friction coefficient and press **Reset** to compare its downhill travel with
+the fixed low- and high-friction references. This isolated MJWarp scene
+illustrates how contact friction affects slip; reproduce any task-specific
+result with the task's own geometry, mass, contact settings, and solver budget.
+
+.. raw:: html
+
+   <isaaclab-browser-demo class="compact" src="../../../_static/browser_demos/rigid_friction/manifest.json"></isaaclab-browser-demo>
 
 Validate colliders, contact locations, normal force, material friction, and
 ``condim`` before changing global friction settings. ``cone`` selects the

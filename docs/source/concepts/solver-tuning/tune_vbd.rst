@@ -435,6 +435,23 @@ for volume deformables:
     * - ``k_damp``
       - Default: ``0.0`` [Pa*s]. Damping for tetrahedral elements. Increase it to reduce oscillations after deformation, but avoid overdamping if the object should rebound.
 
+Try material tuning in the browser
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The three falling cubes below use VBD with eight solver iterations per step.
+Change the middle cube's two Lamé parameters together with **Stiffness**, or
+adjust material damping and gravity. Press **Reset** after changing a value to
+compare the same drop. The first and third cubes keep their original material
+settings as visual references. This small scene illustrates material response;
+it does not reproduce a coupled Franka task. See :doc:`../browser_simulations`
+for the other browser examples and their source.
+
+.. raw:: html
+
+   <link rel="stylesheet" href="../../../_static/css/browser-demo.css">
+   <script type="module" src="../../../_static/css/browser-demo.js"></script>
+   <isaaclab-browser-demo class="compact" src="../../../_static/browser_demos/stiffness/manifest.json" parameters="stiffness,damping,gravity" demo-title="VBD material tuning"></isaaclab-browser-demo>
+
 
 Surface Deformable Materials
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -463,6 +480,21 @@ for cloth or surface deformables:
       - Default: ``5.0`` [N*m]. Bending stiffness. Increase it for stiffer cloth folds; decrease it for softer draping.
     * - ``edge_kd``
       - Default: ``1.0e-2`` [N*m*s]. Bending damping. Increase it to damp fold oscillations.
+
+Try cloth bending in the browser
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+One cloth sheet spans two vertical cylindrical supports. Its end rows are
+fixed at the cylinder tops so the middle can sag under gravity without the
+sheet sliding off. Change its ``edge_ke`` bending stiffness on the logarithmic
+slider, or change gravity, then press **Reset** to replay the same initial
+state. The supports participate in Newton's particle-rigid contact solve.
+The slider changes the material coefficient in the captured VBD simulation;
+it does not change solver iterations.
+
+.. raw:: html
+
+   <isaaclab-browser-demo class="compact" src="../../../_static/browser_demos/cloth_bending/manifest.json"></isaaclab-browser-demo>
 
 Tuning Workflow
 ---------------
