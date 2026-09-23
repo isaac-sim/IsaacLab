@@ -365,3 +365,31 @@ def test_disabled_runtime_advances_no_scheduling_state(cpu_frames):
     runtime.sync(make_env(2, [1, 1], step=2))
     assert int(runtime._episode_ids.sum()) == 0
     assert not bool(runtime._restyle.any())
+
+
+def test_compositing_requires_classes_to_preserve():
+    with pytest.raises(ValueError, match="must name the foreground"):
+        CameraDRCfg()
+
+
+def test_clearing_the_composite_makes_preserve_classes_unnecessary():
+    cfg = CameraDRCfg(composite_foreground=False)
+    assert cfg.preserve_classes == ()
+
+
+def test_generated_frame_stands_as_is_without_the_composite(cpu_frames):
+    cfg = make_cfg()
+    cfg.cameras["cam_0"].composite_foreground = False
+    runtime = VisualDRRuntime(cfg, num_envs=1, device="cpu")
+    runtime.backend = Mock()
+    runtime.backend.generate.side_effect = lambda sub, request: torch.full_like(sub.rgb, 99)
+    runtime.activate()
+    runtime.sync(make_env(1, [0], step=1))
+    # The observation term hands over an empty mask in this mode, so nothing is
+    # pasted back even though the frame carries a foreground.
+    frame = DRFrame(
+        torch.full((1, 1, 2, 3), 10, dtype=torch.uint8),
+        torch.ones(1, 1, 2, 1),
+        torch.zeros(1, 1, 2, 1, dtype=torch.bool),
+    )
+    assert torch.equal(runtime.read("cam_0", frame.rgb, lambda: frame), torch.full_like(frame.rgb, 99))

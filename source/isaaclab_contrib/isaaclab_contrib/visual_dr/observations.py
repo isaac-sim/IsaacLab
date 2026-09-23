@@ -112,9 +112,14 @@ def image_runtime_dr(env: ManagerBasedRLEnv, camera: str) -> torch.Tensor:
         return rgb
 
     def make_frame() -> DRFrame:
-        info = data.info.get("semantic_segmentation") or {}
         segmentation = data.output["semantic_segmentation"].torch
-        mask = preserve_mask(segmentation, info.get("idToLabels", {}), camera_cfg)
+        if camera_cfg.composite_foreground:
+            info = data.info.get("semantic_segmentation") or {}
+            mask = preserve_mask(segmentation, info.get("idToLabels", {}), camera_cfg)
+        else:
+            # Nothing is protected, so the label mapping is not consulted at all and
+            # a scene with no semantic tags still works in this mode.
+            mask = torch.zeros_like(segmentation, dtype=torch.bool)
         return DRFrame(rgb, data.output["distance_to_image_plane"].torch, mask, segmentation)
 
     return runtime.read(camera, rgb, make_frame)
