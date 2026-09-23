@@ -69,21 +69,8 @@ def _make_camera_cfg(data_types: list[str]) -> CameraCfg:
 
 
 def _make_ovrtx_camera_render_data() -> OVRTXCameraRenderData:
-    rd = OVRTXCameraRenderData.__new__(OVRTXCameraRenderData)
-    rd.render_scope_name = "RenderCamera_0"
-    rd.render_product_name = "RenderProduct"
-    rd.render_product_path = "/RenderCamera_0/RenderProduct"
-    rd.camera_xform_binding = None
-    rd.camera_xform_query = None
-    rd.resources = contextlib.ExitStack()
-    rd.width = 16
-    rd.height = 8
-    rd.num_envs = 2
-    rd.warp_buffers = {}
-    rd.intrinsic_bindings = []
-    rd.renderer_info = {}
-    rd.ppisp_pipeline = None
-    return rd
+    spec = types.SimpleNamespace(cfg=_make_camera_cfg(["rgb"]), num_instances=2)
+    return OVRTXCameraRenderData(spec, "cpu", render_scope_name="RenderCamera_0")
 
 
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
