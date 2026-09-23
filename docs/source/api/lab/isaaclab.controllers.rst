@@ -18,8 +18,8 @@
 Newton controllers
 ------------------
 
-The differential IK, joint impedance, and operational-space controllers use their original Torch
-implementations by default. Set ``use_newton=True`` in the controller configuration to use Newton's
+The differential IK, joint impedance, and operational-space controllers use their native Isaac Lab
+implementations by default. Set ``implementation="newton"`` in the controller configuration to use Newton's
 model-free solver instead, for example to compare the two. The constructor, command, and compute
 APIs are unchanged, and the choice is independent of the physics backend.
 

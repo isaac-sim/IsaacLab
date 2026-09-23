@@ -77,7 +77,7 @@ def _reference_efforts(
             controller._motion_d_gains_task
         ) @ (-ee_vel_b).unsqueeze(-1)
         selection_motion_b = to_root_frame(controller._selection_matrix_motion_task)
-        if cfg.use_newton:
+        if cfg.implementation == "newton":
             des_ee_acc_b = selection_motion_b @ des_ee_acc_b
         if cfg.inertial_dynamics_decoupling:
             mass_matrix_inv = torch.inverse(mass_matrix)
@@ -93,7 +93,7 @@ def _reference_efforts(
             os_command_forces_b = os_mass_matrix_b @ des_ee_acc_b
         else:
             os_command_forces_b = des_ee_acc_b
-        if not cfg.use_newton:
+        if cfg.implementation != "newton":
             os_command_forces_b = selection_motion_b @ os_command_forces_b
         joint_efforts += (jacobian_b.mT @ os_command_forces_b).squeeze(-1)
 
@@ -125,7 +125,7 @@ def _reference_efforts(
         ).unsqueeze(-1)
         posture_force = (
             mass_matrix @ joint_acc_nullspace
-            if not cfg.use_newton or cfg.inertial_dynamics_decoupling
+            if cfg.implementation != "newton" or cfg.inertial_dynamics_decoupling
             else joint_acc_nullspace
         )
         joint_efforts += (nullspace_jacobian_transpose @ posture_force).squeeze(-1)
@@ -193,12 +193,12 @@ _SCENARIOS = {
 }
 
 
-def _build(scenario: dict, use_newton: bool = True) -> tuple[OperationalSpaceController, bool]:
+def _build(scenario: dict, implementation: str = "newton") -> tuple[OperationalSpaceController, bool]:
     """Instantiate a controller from a scenario, returning it with its task-frame flag."""
     scenario = dict(scenario)
     task_frame = scenario.pop("task_frame", False)
     cfg = OperationalSpaceControllerCfg(
-        use_newton=use_newton,
+        implementation=implementation,
         motion_stiffness_task=(120.0, 130.0, 140.0, 15.0, 16.0, 17.0),
         motion_damping_ratio_task=(1.0, 1.1, 0.9, 1.0, 1.2, 0.8),
         **scenario,
@@ -206,12 +206,12 @@ def _build(scenario: dict, use_newton: bool = True) -> tuple[OperationalSpaceCon
     return OperationalSpaceController(cfg, _NUM_ENVS, _DEVICE), task_frame
 
 
-@pytest.mark.parametrize("use_newton", [False, True])
+@pytest.mark.parametrize("implementation", ["native", "newton"])
 @pytest.mark.parametrize("scenario_name", list(_SCENARIOS))
-def test_backend_matches_operational_space_law(scenario_name: str, use_newton: bool) -> None:
+def test_backend_matches_operational_space_law(scenario_name: str, implementation: str) -> None:
     """The Newton-backed controller matches an independent operational-space reference."""
     generator = torch.Generator(device=_DEVICE).manual_seed(0)
-    controller, task_frame = _build(_SCENARIOS[scenario_name], use_newton)
+    controller, task_frame = _build(_SCENARIOS[scenario_name], implementation)
 
     ee_pose_b = torch.cat([0.4 * torch.randn(_NUM_ENVS, 3, generator=generator), _random_quat(generator)], dim=-1)
     ee_vel_b = 0.2 * torch.randn(_NUM_ENVS, 6, generator=generator)
@@ -321,7 +321,9 @@ def test_reset_clears_the_task_space_targets() -> None:
 def test_inertial_decoupling_requires_six_controlled_joints(num_joints: int) -> None:
     """Newton rejects under-actuated decoupling but accepts the six-joint boundary."""
     controller = OperationalSpaceController(
-        OperationalSpaceControllerCfg(use_newton=True, target_types=["pose_abs"], inertial_dynamics_decoupling=True),
+        OperationalSpaceControllerCfg(
+            implementation="newton", target_types=["pose_abs"], inertial_dynamics_decoupling=True
+        ),
         1,
         "cpu",
     )
@@ -348,7 +350,9 @@ def test_captured_compute_tracks_commands_and_recaptures_after_reset() -> None:
     stream = torch.cuda.Stream()
     with torch.cuda.stream(stream), wp.ScopedStream(wp.stream_from_torch(stream)):
         controller = OperationalSpaceController(
-            OperationalSpaceControllerCfg(use_newton=True, target_types=["pose_abs"], impedance_mode="variable_kp"),
+            OperationalSpaceControllerCfg(
+                implementation="newton", target_types=["pose_abs"], impedance_mode="variable_kp"
+            ),
             1,
             device,
         )
@@ -377,10 +381,10 @@ def test_captured_compute_tracks_commands_and_recaptures_after_reset() -> None:
             torch.testing.assert_close(compute(), torch.zeros_like(expected))
 
 
-@pytest.mark.parametrize("use_newton", [False, True])
-def test_joint_count_inference_and_runtime_gravity_toggle(use_newton):
+@pytest.mark.parametrize("implementation", ["native", "newton"])
+def test_joint_count_inference_and_runtime_gravity_toggle(implementation):
     """Both solvers infer dimensions and respect enabling/disabling gravity between calls."""
-    cfg = OperationalSpaceControllerCfg(target_types=["pose_abs"], use_newton=use_newton)
+    cfg = OperationalSpaceControllerCfg(target_types=["pose_abs"], implementation=implementation)
     controller = OperationalSpaceController(cfg, 1, "cpu")
     pose = torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]])
     controller.set_command(pose)

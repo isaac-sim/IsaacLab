@@ -180,7 +180,7 @@ class DifferentialIKController:
         Only used when
         :attr:`~isaaclab.controllers.differential_ik_cfg.DifferentialIKControllerCfg.joint_limit_avoidance_gain`
         is positive. The IK action term injects these automatically on its first step; call this
-        manually only when using the controller standalone. With ``use_newton=True``, the limits
+        manually only when using the controller standalone. With ``implementation="newton"``, the limits
         must be set before the first :meth:`compute` call.
 
         Args:
@@ -192,7 +192,7 @@ class DifferentialIKController:
         """
         self._joint_pos_lower = lower.to(self._device)
         self._joint_pos_upper = upper.to(self._device)
-        if not self.cfg.use_newton or self.cfg.joint_limit_avoidance_gain <= 0.0:
+        if self.cfg.implementation != "newton" or self.cfg.joint_limit_avoidance_gain <= 0.0:
             return
         if lower.ndim != 1 or lower.shape != upper.shape:
             raise ValueError(f"Expected matching one-dimensional limits, got {lower.shape} and {upper.shape}.")
@@ -222,7 +222,7 @@ class DifferentialIKController:
         Returns:
             The target joint positions commands in shape (N, num_joints).
         """
-        if self.cfg.use_newton:
+        if self.cfg.implementation == "newton":
             return self._compute_newton(ee_pos, ee_quat, jacobian, joint_pos)
 
         # assemble the task Jacobian and task-space error

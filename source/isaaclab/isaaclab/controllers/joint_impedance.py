@@ -163,7 +163,7 @@ class JointImpedanceController:
             raise ValueError(f"Invalid dof position command mode: {self.cfg.command_type}.")
         # compute errors
         desired_dof_pos = desired_dof_pos.clip_(min=self._dof_pos_limits[..., 0], max=self._dof_pos_limits[..., 1])
-        if self.cfg.use_newton:
+        if self.cfg.implementation == "newton":
             return self._compute_newton(desired_dof_pos, dof_pos, dof_vel, mass_matrix, gravity)
         dof_pos_error = desired_dof_pos - dof_pos
         dof_vel_error = -dof_vel

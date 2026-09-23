@@ -45,20 +45,20 @@ def _reference_torques(
     return torques
 
 
-@pytest.mark.parametrize("use_newton", [False, True])
+@pytest.mark.parametrize("implementation", ["native", "newton"])
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
 @pytest.mark.parametrize("mode", ["fixed", "variable_kp", "variable"])
 @pytest.mark.parametrize("command_type", ["p_abs", "p_rel"])
 @pytest.mark.parametrize("inertial", [False, True])
 @pytest.mark.parametrize("gravity", [False, True])
 def test_backend_matches_previous_impedance_law(
-    mode: str, command_type: str, inertial: bool, gravity: bool, dtype: torch.dtype, use_newton: bool
+    mode: str, command_type: str, inertial: bool, gravity: bool, dtype: torch.dtype, implementation: str
 ) -> None:
     """Both backends reproduce the original Torch impedance law."""
     device = "cpu"
     generator = torch.Generator(device=device).manual_seed(0)
     cfg = JointImpedanceControllerCfg(
-        use_newton=use_newton,
+        implementation=implementation,
         impedance_mode=mode,
         command_type=command_type,
         inertial_compensation=inertial,

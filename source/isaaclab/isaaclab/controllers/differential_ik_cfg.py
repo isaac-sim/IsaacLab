@@ -21,12 +21,8 @@ class DifferentialIKControllerCfg:
     class_type: type[DifferentialIKController] | str = "{DIR}.differential_ik:DifferentialIKController"
     """The associated controller class."""
 
-    use_newton: bool = False
-    """Use Newton's model-free solver instead of the original Torch implementation.
-
-    This choice is independent of the simulation physics backend. Newton allocates its
-    float32 workspace on the first compute call; warm up before capturing CUDA graphs.
-    """
+    implementation: Literal["native", "newton"] = "native"
+    """Controller implementation to use, independent of the physics backend."""
 
     command_type: Literal["position", "pose"] = MISSING
     """Type of task-space command to control the articulation's body.
@@ -88,8 +84,6 @@ class DifferentialIKControllerCfg:
     end-effector position. Active only once joint limits are provided via
     :meth:`~isaaclab.controllers.differential_ik.DifferentialIKController.set_joint_pos_limits`
     (the IK action term injects them automatically when ``joint_limit_avoidance_gain > 0``).
-    With ``use_newton=True``, supply limits before the first compute call. Later limit updates
-    are supported; the Lab backend also permits computing before limits are supplied.
     """
 
     joint_limit_avoidance_margin: float = 0.3

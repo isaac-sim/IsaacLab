@@ -23,7 +23,7 @@ _IDENTITY_QUAT = (0.0, 0.0, 0.0, 1.0)
 def _make_controller(
     ik_method: str,
     *,
-    use_newton: bool = True,
+    implementation: str = "newton",
     command_type: str = "pose",
     orientation_weight: float | tuple[float, float, float] | None = None,
     use_relative_mode: bool = False,
@@ -31,7 +31,7 @@ def _make_controller(
     device: str = "cpu",
 ) -> DifferentialIKController:
     cfg = DifferentialIKControllerCfg(
-        use_newton=use_newton,
+        implementation=implementation,
         command_type=command_type,
         use_relative_mode=use_relative_mode,
         ik_method=ik_method,
@@ -131,10 +131,10 @@ def _previous_joint_limit_correction(
 
 @pytest.mark.parametrize("ik_method", ["pinv", "svd", "trans", "dls", "adaptive_dls"])
 @pytest.mark.parametrize("orientation_weight", [None, (0.4, 0.2, 0.0), (2.0, 1.0, 1.0)])
-@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
-def test_backend_matches_previous_pose_solver(ik_method: str, orientation_weight, use_newton: bool):
+@pytest.mark.parametrize("implementation", ["native", "newton"])
+def test_backend_matches_previous_pose_solver(ik_method: str, orientation_weight, implementation: str):
     """Every configured solver produces the previous Isaac Lab joint-position target."""
-    controller = _make_controller(ik_method, use_newton=use_newton, orientation_weight=orientation_weight)
+    controller = _make_controller(ik_method, implementation=implementation, orientation_weight=orientation_weight)
     ee_pos, ee_quat, command, joint_pos = _pose_inputs("cpu")
     jacobian = _well_conditioned_jacobian("cpu")
     controller.set_command(command)
@@ -147,10 +147,10 @@ def test_backend_matches_previous_pose_solver(ik_method: str, orientation_weight
 
 
 @pytest.mark.parametrize("ik_method", ["pinv", "svd", "trans", "dls", "adaptive_dls"])
-@pytest.mark.parametrize("use_newton", [False, True], ids=["lab", "newton"])
-def test_backend_matches_previous_position_solver(ik_method: str, use_newton: bool):
+@pytest.mark.parametrize("implementation", ["native", "newton"])
+def test_backend_matches_previous_position_solver(ik_method: str, implementation: str):
     """Position-only control passes the matching three-row site Jacobian to every solver."""
-    controller = _make_controller(ik_method, use_newton=use_newton, command_type="position")
+    controller = _make_controller(ik_method, implementation=implementation, command_type="position")
     ee_pos, ee_quat, _, joint_pos = _pose_inputs("cpu")
     command = ee_pos + torch.tensor([0.01, -0.02, 0.03])
     jacobian = _well_conditioned_jacobian("cpu")
@@ -289,10 +289,10 @@ def test_dls_backend_captures_with_stable_bridge_buffers(use_relative_mode):
     torch.testing.assert_close(result, joint_pos)
 
 
-@pytest.mark.parametrize("use_newton", [False, True])
-def test_joint_count_is_inferred_from_compute(use_newton):
+@pytest.mark.parametrize("implementation", ["native", "newton"])
+def test_joint_count_is_inferred_from_compute(implementation):
     """Both solvers retain standalone construction and accept changing joint counts."""
-    cfg = DifferentialIKControllerCfg(command_type="position", ik_method="dls", use_newton=use_newton)
+    cfg = DifferentialIKControllerCfg(command_type="position", ik_method="dls", implementation=implementation)
     controller = DifferentialIKController(cfg, 1, "cpu")
     quat = torch.tensor([[0.0, 0.0, 0.0, 1.0]])
     controller.set_command(torch.ones(1, 3) * 0.1, ee_quat=quat)

@@ -1,4 +1,4 @@
 Added
 ^^^^^
 
-* Added support for ``use_newton=True`` to the SO-101 pose IK controller.
+* Added support for ``implementation="newton"`` to the SO-101 pose IK controller.

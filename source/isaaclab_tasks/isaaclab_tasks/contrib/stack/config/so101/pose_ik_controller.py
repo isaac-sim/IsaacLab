@@ -112,7 +112,7 @@ class SO101PoseIKController(DifferentialIKController):
 
         See :meth:`DifferentialIKController.compute` for input units, shapes, and output ownership.
         """
-        if self.cfg.use_newton and self._ori_joint_mask is not None:
+        if self.cfg.implementation == "newton" and self._ori_joint_mask is not None:
             jacobian = jacobian.clone()
             jacobian[:, 3:6, :] *= self._ori_joint_mask.view(1, 1, -1)
         return super().compute(ee_pos, ee_quat, jacobian, joint_pos)

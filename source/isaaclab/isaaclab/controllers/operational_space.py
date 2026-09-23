@@ -468,7 +468,7 @@ class OperationalSpaceController:
         Returns:
             Tensor: The joint efforts computed by the controller. It is a tensor of shape (``num_envs``, ``num_DoF``).
         """
-        if self.cfg.use_newton:
+        if self.cfg.implementation == "newton":
             return self._compute_newton(
                 jacobian_b,
                 current_ee_pose_b,
