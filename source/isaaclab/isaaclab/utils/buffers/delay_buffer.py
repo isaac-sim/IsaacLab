@@ -10,25 +10,17 @@ from collections.abc import Sequence
 
 import torch
 
-from .circular_buffer import CircularBuffer
-
 
 class DelayBuffer:
-    """Delay buffer that allows retrieving stored data with delays.
+    """Ring storage for delayed batched tensors, independent of actions or observations.
 
-    This class uses a batched circular buffer to store input data. Different to a standard circular buffer,
-    which uses the LIFO (last-in-first-out) principle to retrieve the data, the delay buffer class allows
-    retrieving data based on the lag set by the user. For instance, if the delay set inside the buffer
-    is 1, then the second last entry from the stream is retrieved. If it is 2, then the third last entry
-    and so on.
+    Each :meth:`compute` writes one frame and retrieves a per-batch delayed frame. Storage is allocated
+    on the first call and never shifted. The write index and per-batch history lengths stay on the device,
+    including during CUDA graph replay. Lag sampling and update cadence belong to the caller.
 
-    The class supports storing a batched tensor data. This means that the shape of the appended data
-    is expected to be (batch_size, ...), where the first dimension is the batch dimension. Correspondingly,
-    the delay can be set separately for each batch index. If the requested delay is larger than the current
-    length of the underlying buffer, the most recent entry is returned.
-
-    .. note::
-        By default, the delay buffer has no delay, meaning that the data is returned as is.
+    A lag of zero returns the current input. Until enough samples exist after initialization or reset,
+    the oldest available sample is returned. Reset only invalidates the selected batches' history;
+    no previous-episode data can be read, and the remaining batches continue uninterrupted.
     """
 
     def __init__(self, history_length: int, batch_size: int, device: str):
@@ -41,16 +33,13 @@ class DelayBuffer:
             batch_size: The batch dimension of the data.
             device: The device used for processing.
         """
-        # set the parameters
         self._history_length = max(0, history_length)
-
-        # the buffer size: current data plus the history length
-        self._circular_buffer = CircularBuffer(self._history_length + 1, batch_size, device)
-
-        # the minimum and maximum lags across all batch indices.
-        self._min_time_lag = 0
-        self._max_time_lag = 0
-        # the lags for each batch index.
+        self._batch_size = batch_size
+        self._device = device
+        self._buffer: torch.Tensor | None = None
+        self._write_index = torch.zeros(1, dtype=torch.long, device=device)
+        self._num_pushes = torch.zeros(batch_size, dtype=torch.long, device=device)
+        self._ALL_INDICES = torch.arange(batch_size, device=device)
         self._time_lags = torch.zeros(batch_size, dtype=torch.int, device=device)
 
     """
@@ -60,12 +49,12 @@ class DelayBuffer:
     @property
     def batch_size(self) -> int:
         """The batch size of the ring buffer."""
-        return self._circular_buffer.batch_size
+        return self._batch_size
 
     @property
     def device(self) -> str:
         """The device used for processing."""
-        return self._circular_buffer.device
+        return self._device
 
     @property
     def history_length(self) -> int:
@@ -76,12 +65,20 @@ class DelayBuffer:
         return self._history_length
 
     @property
+    def num_pushes(self) -> torch.Tensor:
+        """Number of frames written since each batch's last reset. Shape is (batch_size,).
+
+        Callers may read this device tensor to schedule updates; they must not modify it.
+        """
+        return self._num_pushes
+
+    @property
     def min_time_lag(self) -> int:
         """Minimum amount of time steps that can be delayed.
 
         This value cannot be negative or larger than :attr:`max_time_lag`.
         """
-        return self._min_time_lag
+        return int(self._time_lags.min().item())
 
     @property
     def max_time_lag(self) -> int:
@@ -89,14 +86,16 @@ class DelayBuffer:
 
         This value cannot be greater than :attr:`history_length`.
         """
-        return self._max_time_lag
+        return int(self._time_lags.max().item())
 
     @property
     def time_lags(self) -> torch.Tensor:
         """The time lag across each batch index.
 
         The shape of the tensor is (batch_size, ). The value at each index represents the delay for that index.
-        This value is used to retrieve the data from the buffer.
+        This value is used to retrieve the data from the buffer. Call :meth:`set_time_lag` to validate
+        external inputs. Callers generating bounded lags on the device may update this tensor in place,
+        keeping every value in ``[0, history_length]`` without a device-to-host validation round trip.
         """
         return self._time_lags
 
@@ -125,29 +124,26 @@ class DelayBuffer:
         if batch_ids is None:
             batch_ids = slice(None)
 
-        # parse requested time_lag
+        # Reject invalid inputs before changing live state, without copying the lag tensor.
         if isinstance(time_lag, int):
-            # set the time lags across provided batch indices
-            self._time_lags[batch_ids] = time_lag
+            min_time_lag = max_time_lag = time_lag
         elif isinstance(time_lag, torch.Tensor):
             # check valid dtype for time_lag: must be int or long
             if time_lag.dtype not in [torch.int, torch.long]:
                 raise TypeError(f"Invalid dtype for time_lag: {time_lag.dtype}. Expected torch.int or torch.long.")
-            # set the time lags
-            self._time_lags[batch_ids] = time_lag.to(device=self.device)
+            min_time_lag = int(time_lag.min().item()) if time_lag.numel() else 0
+            max_time_lag = int(time_lag.max().item()) if time_lag.numel() else 0
         else:
             raise TypeError(f"Invalid type for time_lag: {type(time_lag)}. Expected int or integer tensor.")
 
-        # compute the min and max time lag
-        self._min_time_lag = int(torch.min(self._time_lags).item())
-        self._max_time_lag = int(torch.max(self._time_lags).item())
-        # check that time_lag is feasible
-        if self._min_time_lag < 0:
-            raise ValueError(f"The minimum time lag cannot be negative. Received: {self._min_time_lag}")
-        if self._max_time_lag > self._history_length:
-            raise ValueError(
-                f"The maximum time lag cannot be larger than the history length. Received: {self._max_time_lag}"
-            )
+        if min_time_lag < 0:
+            raise ValueError(f"The minimum time lag cannot be negative. Received: {min_time_lag}")
+        if max_time_lag > self._history_length:
+            raise ValueError(f"The maximum time lag cannot be larger than the history length. Received: {max_time_lag}")
+
+        if isinstance(time_lag, torch.Tensor):
+            time_lag = time_lag.to(device=self.device, dtype=self._time_lags.dtype)
+        self._time_lags[batch_ids] = time_lag
 
     def reset(self, batch_ids: Sequence[int] | None = None):
         """Reset the data in the delay buffer at the specified batch indices.
@@ -155,15 +151,13 @@ class DelayBuffer:
         Args:
             batch_ids: Elements to reset in the batch dimension. Default is None, which resets all the batch indices.
         """
-        self._circular_buffer.reset(batch_ids)
+        self._num_pushes[slice(None) if batch_ids is None else batch_ids] = 0
 
     def compute(self, data: torch.Tensor) -> torch.Tensor:
         """Append the input data to the buffer and returns a stale version of the data based on time lag delay.
 
-        If the requested delay is larger than the number of buffered data points since the last reset,
-        the function returns the latest data. For instance, if the delay is set to 2 and only one data point
-        is stored in the buffer, the function will return the latest data. If the delay is set to 2 and three
-        data points are stored, the function will return the first data point.
+        If the requested delay exceeds the available history since reset, returns the oldest available
+        sample. The result is independent of the internal storage and may be modified by the caller.
 
         Args:
            data: The input data. Shape is (batch_size, ...).
@@ -171,7 +165,18 @@ class DelayBuffer:
         Returns:
             The delayed version of the data from the stored buffer. Shape is (batch_size, ...).
         """
-        # add the new data to the last layer
-        self._circular_buffer.append(data)
-        # return output
-        return self._circular_buffer[self._time_lags]
+        if data.shape[0] != self.batch_size:
+            raise ValueError(f"The input data has '{data.shape[0]}' batch size while expecting '{self.batch_size}'")
+        if self._buffer is None:
+            self._buffer = torch.empty((self.history_length + 1, *data.shape), dtype=data.dtype, device=self.device)
+        elif data.shape != self._buffer.shape[1:]:
+            raise ValueError(f"Expected data shape {self._buffer.shape[1:]}, received {data.shape}.")
+
+        data = data.to(device=self.device, dtype=self._buffer.dtype)
+        self._buffer.index_copy_(0, self._write_index, data.unsqueeze(0))
+        lag = torch.minimum(self._time_lags, self._num_pushes)
+        read_index = (self._write_index - lag) % (self.history_length + 1)
+        result = self._buffer[read_index, self._ALL_INDICES]
+        self._num_pushes.add_(1)
+        self._write_index.add_(1).remainder_(self.history_length + 1)
+        return result

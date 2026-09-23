@@ -15,8 +15,8 @@ from typing import TYPE_CHECKING, cast
 import pytest
 import torch
 
-from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
-from isaaclab.utils import configclass, modifiers
+from isaaclab.managers import ManagerTermBase, ObservationGroupCfg, ObservationManager, ObservationTermCfg
+from isaaclab.utils import DelayCfg, configclass, modifiers
 
 pytestmark = pytest.mark.unit
 
@@ -67,6 +67,21 @@ class InvalidModifier:
 
     def __init__(self, cfg, data_dim, device):
         pass
+
+
+class CounterTerm(ManagerTermBase):
+    """Stateful source used to check reset propagation through delay."""
+
+    def __init__(self, cfg, env):
+        super().__init__(cfg, env)
+        self.count = torch.zeros(env.num_envs, 1, device=env.device)
+
+    def __call__(self, env, increment: float = 1.0):
+        self.count.add_(increment)
+        return self.count
+
+    def reset(self, env_ids=None):
+        self.count[slice(None) if env_ids is None else env_ids] = 0
 
 
 @configclass
@@ -145,6 +160,58 @@ def test_modifier_resolution_stays_out_of_observation_manager():
 def test_modifier_base_cfg_marker_does_not_exist():
     """Stateful modifiers must not require a marker configuration subtype."""
     assert not hasattr(modifiers, "ModifierBaseCfg")
+
+
+def test_delay_cfg_in_func_slot():
+    """Wrap a callable using the existing func slot, with serializable config and partial resets."""
+    cfg = HistoryObservationsCfg()
+    cfg.policy.history_length = None
+    cfg.policy.dummy.func = DelayCfg(term=dummy_observation, params={}, min_lag=2, max_lag=2)
+    original = cfg.to_dict()
+    cfg.from_dict(original)
+    env = DummyEnv()
+    manager = ObservationManager(cfg, env)
+    manager.reset()
+    assert "delay" not in ObservationTermCfg.__dataclass_fields__
+    assert not hasattr(modifiers, "DelayCfg"), "Delay configuration must not belong to observation modifiers."
+    for step in range(9):
+        if step == 5:
+            manager.reset([1])
+        env.observation.fill_(step + 10)
+        output = manager.compute()["policy"]
+        expected = torch.tensor([[max(0, step - 2)], [max(5 if step >= 5 else 0, step - 2)]])
+        torch.testing.assert_close(output, expected.float() + 10)
+    assert cfg.to_dict() == original
+    assert manager.serialize()["policy"]["dummy"]["cfg"]["func"] == original["policy"]["dummy"]["func"]
+
+
+def test_delay_cfg_resets_wrapped_stateful_term():
+    """The manager owns one resettable term that resets its source and history together."""
+    cfg = HistoryObservationsCfg()
+    cfg.policy.history_length = None
+    cfg.policy.dummy.func = DelayCfg(term=CounterTerm, params={"increment": 2.0}, min_lag=1, max_lag=1)
+    original = cfg.to_dict()
+    env = DummyEnv()
+    manager = ObservationManager(cfg, env)
+    manager.reset()
+    for _ in range(3):
+        manager.compute()
+    manager.reset([1])
+    output = manager.compute()["policy"]
+    torch.testing.assert_close(output, torch.tensor([[6.0], [2.0]]))
+    assert manager.serialize()["policy"]["dummy"]["cfg"]["func"] == original["policy"]["dummy"]["func"]
+
+
+def test_delay_cfg_validates_wrapped_parameters():
+    """Validate the wrapped callable's signature and reject ambiguous outer parameters."""
+    cfg = HistoryObservationsCfg()
+    cfg.policy.dummy.func = DelayCfg(term=CounterTerm, params={"unknown": 2.0})
+    with pytest.raises(ValueError, match="expects mandatory parameters"):
+        ObservationManager(cfg, DummyEnv())
+    cfg.policy.dummy.func.params = {}
+    cfg.policy.dummy.params = {"increment": 2.0}
+    with pytest.raises(ValueError, match="inside DelayCfg.params"):
+        ObservationManager(cfg, DummyEnv())
 
 
 def test_compute_updates_history_only_when_requested():

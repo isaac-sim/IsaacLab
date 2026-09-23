@@ -16,12 +16,15 @@ from typing import TYPE_CHECKING, Any
 import isaaclab.utils.string as string_utils
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.utils import class_to_dict, string_to_callable
+from isaaclab.utils.delay import DelayCfg, _Delay
 from isaaclab.utils.modifiers import ModifierCfg
 
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
+    import torch
+
     from isaaclab.envs import ManagerBasedEnv
 
 
@@ -123,6 +126,29 @@ class ManagerTermBase(ABC):
             The value of the term.
         """
         raise NotImplementedError("The method '__call__' should be implemented by the subclass.")
+
+
+class _DelayedTerm(ManagerTermBase):
+    """Bind a configured delay to the existing manager term lifecycle."""
+
+    def __init__(self, cfg: ManagerTermBaseCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+        self._delay = _Delay(cfg.params["delay"], env.num_envs, env.device)
+
+    def __call__(self, env, delay: DelayCfg) -> torch.Tensor:
+        return self._delay(delay.term(env, **delay.params))
+
+    def reset(self, env_ids: Sequence[int] | None = None):
+        self._delay.reset(env_ids)
+        term = self.cfg.params["delay"].term
+        if isinstance(term, ManagerTermBase):
+            term.reset(env_ids)
+
+    def serialize(self) -> dict:
+        cfg = class_to_dict(self.cfg)
+        cfg["func"] = cfg["params"]["delay"]
+        cfg["params"] = {}
+        return {"cfg": cfg}
 
 
 class ManagerBase(ABC):
@@ -335,6 +361,13 @@ class ManagerBase(ABC):
                 f" Received: '{type(term_cfg)}'."
             )
 
+        if isinstance(term_cfg.func, DelayCfg):
+            if term_cfg.params:
+                raise ValueError(f"Put parameters for delayed term '{term_name}' inside DelayCfg.params.")
+            term_cfg.func.validate()
+            term_cfg.params = {"delay": term_cfg.func}
+            term_cfg.func = _DelayedTerm
+
         # get the corresponding function or functional class
         term_cfg.func = self._resolve_param_value(term_name, "func", term_cfg.func, resolve_callable=True)
         # check if function is callable
@@ -415,6 +448,10 @@ class ManagerBase(ABC):
                 value.resolve(self._env.scene)
             except ValueError as e:
                 raise ValueError(f"Error while parsing '{term_name}:{key}'. {e}")
+        elif isinstance(value, DelayCfg):
+            term = ManagerTermBaseCfg(func=value.term, params=value.params)
+            self._resolve_common_term_cfg(f"{term_name}.{key}.term", term)
+            value.term, value.params = term.func, term.params
         elif isinstance(value, ManagerTermBaseCfg):
             self._process_term_cfg_at_play(f"{term_name}.{key}", value)
         elif isinstance(value, ModifierCfg):

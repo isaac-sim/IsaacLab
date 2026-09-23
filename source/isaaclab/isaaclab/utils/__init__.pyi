@@ -11,6 +11,7 @@ __all__ = [
     "convert_to_torch",
     "CircularBuffer",
     "DelayBuffer",
+    "DelayCfg",
     "TimestampedBuffer",
     "TimestampedBufferWarp",
     "class_to_dict",
@@ -61,6 +62,7 @@ __all__ = [
 from .timer import Timer
 from .array import TensorData, TENSOR_TYPES, TENSOR_TYPE_CONVERSIONS, convert_to_torch
 from .buffers import CircularBuffer, DelayBuffer, TimestampedBuffer, TimestampedBufferWarp
+from .delay import DelayCfg
 from .dict import (
     class_to_dict,
     update_class_from_dict,
