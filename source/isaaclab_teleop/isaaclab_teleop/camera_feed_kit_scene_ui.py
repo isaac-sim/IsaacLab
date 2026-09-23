@@ -69,6 +69,8 @@ class _KitSceneUiScenePartition:
         self._ready_stage = None
         self._ready = False
         self._authored: dict[Any, tuple[str, str, bool, Any]] = {}
+        self._created_ui_root = None
+        self._ui_inheritance_root = None
 
     def acquire(self, readiness_callback: Callable[[bool], None] | None = None) -> int:
         """Acquire one panel reference and start maintaining its scene partition."""
@@ -103,6 +105,7 @@ class _KitSceneUiScenePartition:
         if stage is None:
             return
         try:
+            # Other renderers can change these after bind(); hide panels until isolation is restored.
             if get_settings_manager().get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING) is not False:
                 raise RuntimeError("Isolated XR PiP requires showAllPartitionsByDefault=False.")
             env_root = stage.GetPrimAtPath("/World/envs/env_0")
@@ -135,14 +138,22 @@ class _KitSceneUiScenePartition:
 
     def _author_target(self, stage: Any, prim_path: str, attribute_name: str) -> bool:
         prim = stage.GetPrimAtPath(prim_path)
+        if not prim.IsValid() and prim_path == _SCENE_UI_ROOT_PATH:
+            # SceneUI creates /ui on its first draw, but panels must be partitioned before showing.
+            with Usd.EditContext(stage, stage.GetSessionLayer()):
+                prim = stage.OverridePrim(prim_path)
+            self._created_ui_root = stage.GetSessionLayer().GetPrimAtPath(prim_path)
         if not prim.IsValid():
             return False
+        refresh_inheritance = (
+            prim_path == _SCENE_UI_ROOT_PATH and prim != self._ui_inheritance_root and bool(prim.GetChildren())
+        )
         attribute = prim.GetAttribute(attribute_name)
+        current_value = attribute.Get() if attribute.IsValid() else None
         if attribute.IsValid():
-            current_value = attribute.Get()
-            if current_value == _XR_CAMERA_PIP_PARTITION:
+            if current_value == _XR_CAMERA_PIP_PARTITION and not refresh_inheritance:
                 return True
-            if current_value not in (None, ""):
+            if current_value not in (None, "", _XR_CAMERA_PIP_PARTITION):
                 raise RuntimeError(
                     f"XR camera PiP cannot replace existing scene partition {current_value!r} "
                     f"on {prim_path!r} ({attribute_name!r})."
@@ -162,8 +173,17 @@ class _KitSceneUiScenePartition:
         with Usd.EditContext(stage, session_layer):
             if not attribute.IsValid():
                 attribute = prim.CreateAttribute(attribute_name, Sdf.ValueTypeNames.Token)
-            if not attribute.Set(_XR_CAMERA_PIP_PARTITION):
+            attribute_spec = session_layer.GetAttributeAtPath(attribute_path)
+            if refresh_inheritance and current_value == _XR_CAMERA_PIP_PARTITION and attribute_spec is not None:
+                # Fabric skips inheritance on childless roots. Notify it once descendants exist;
+                # setting the same value alone emits no notice. Batch edits to keep the token visible.
+                with Sdf.ChangeBlock():
+                    attribute_spec.ClearDefaultValue()
+                    attribute_spec.default = _XR_CAMERA_PIP_PARTITION
+            elif not attribute.Set(_XR_CAMERA_PIP_PARTITION):
                 raise RuntimeError(f"Failed to author {attribute_name!r} on {prim_path!r}.")
+        if refresh_inheritance:
+            self._ui_inheritance_root = prim
         return True
 
     def _restore_stage(self) -> None:
@@ -181,8 +201,13 @@ class _KitSceneUiScenePartition:
                 except Exception as exc:
                     if first_error is None:
                         first_error = exc
+            if self._created_ui_root:
+                # Retain any definition, metadata or children subsequently authored by SceneUI/others.
+                session_layer.ScheduleRemoveIfInert(self._created_ui_root)
         finally:
             self._authored.clear()
+            self._created_ui_root = None
+            self._ui_inheritance_root = None
             self._current_stage = None
             self._ready_stage = None
         if first_error is not None:
@@ -547,52 +572,42 @@ class KitSceneUiCameraFeedPanel:
         self._provider = None
         self._component = None
         self._container = None
-        self._viewer_start_anchor = viewer_start_anchor
-        self._viewer_start_registration = None
-        self._head_locked_anchor = head_locked_anchor
-        self._head_locked_registration = None
+        self._pose_anchor = {"viewer_start": viewer_start_anchor, "head_locked": head_locked_anchor}.get(
+            descriptor.placement
+        )
+        self._pose_registration = None
         self._scene_partition = scene_partition
         self._scene_partition_registration = None
         self._pose_ready = descriptor.placement == "world"
         self._partition_ready = scene_partition is None
 
-        if descriptor.placement == "viewer_start":
-            if viewer_start_anchor is None:
-                raise ValueError("viewer_start placement requires a shared viewer-start anchor.")
-            xr_core = viewer_start_anchor.xr_core
-            coordinate_system = xr_core.get_coordinate_system()
-            coordinate_system_name = "XR coordinate-system"
-        else:
-            xr_core = XRCore.get_singleton()
-            coordinate_system = (
-                xr_core.get_stage_coordinate_system()
-                if descriptor.placement == "world"
-                else xr_core.get_coordinate_system()
-            )
-            coordinate_system_name = "Stage" if descriptor.placement == "world" else "XR coordinate-system"
+        if descriptor.placement not in {"viewer_start", "head_locked", "world"}:
+            raise ValueError(f"Unknown XR camera-feed placement {descriptor.placement!r}.")
+        if descriptor.placement != "world" and self._pose_anchor is None:
+            raise ValueError(f"{descriptor.placement} placement requires a shared pose anchor.")
+        xr_core = self._pose_anchor.xr_core if self._pose_anchor is not None else XRCore.get_singleton()
+        coordinate_system = (
+            xr_core.get_stage_coordinate_system()
+            if descriptor.placement == "world"
+            else xr_core.get_coordinate_system()
+        )
+        coordinate_system_name = "Stage" if descriptor.placement == "world" else "XR coordinate-system"
         meters_per_unit = _meters_per_unit(coordinate_system, coordinate_system_name)
         image_height_m = descriptor.width_m * image_height / image_width
         label_height_m = 0.04 if descriptor.label else 0.0
         panel_width_units = descriptor.width_m / meters_per_unit
         panel_height_units = (image_height_m + label_height_m) / meters_per_unit
         resolution_scale = max(image_width / descriptor.width_m, image_height / image_height_m)
-        if descriptor.placement == "viewer_start":
+        if self._pose_anchor is not None:
             anchor_source = SpatialSource.new_transform_matrix_source(Gf.Matrix4d(1.0))
             space_stack = [anchor_source]
-        elif descriptor.placement == "head_locked":
-            if head_locked_anchor is None:
-                raise ValueError("head_locked placement requires a shared head-locked anchor.")
-            anchor_source = SpatialSource.new_transform_matrix_source(Gf.Matrix4d(1.0))
-            space_stack = [anchor_source]
-        elif descriptor.placement == "world":
+        else:
             anchor_source = None
             space_stack = [
                 SpatialSource.new_transform_matrix_source(
                     _world_panel_matrix(descriptor, meters_per_unit),
                 )
             ]
-        else:
-            raise ValueError(f"Unknown XR camera-feed placement {descriptor.placement!r}.")
         try:
             if self._scene_partition is not None:
                 self._scene_partition_registration = self._scene_partition.acquire(self._on_partition_readiness_changed)
@@ -612,21 +627,12 @@ class KitSceneUiCameraFeedPanel:
                 space_stack=space_stack,
             )
             self._update_visibility()
-            if descriptor.placement == "viewer_start":
-                self._container.hide()
-                self._viewer_start_registration = viewer_start_anchor.register(
+            if self._pose_anchor is not None:
+                self._pose_registration = self._pose_anchor.register(
                     anchor_source,
                     descriptor.offset_m,
                     descriptor.distance_m,
-                    self._on_viewer_start_readiness_changed,
-                )
-            elif descriptor.placement == "head_locked":
-                self._container.hide()
-                self._head_locked_registration = head_locked_anchor.register(
-                    anchor_source,
-                    descriptor.offset_m,
-                    descriptor.distance_m,
-                    self._on_head_locked_readiness_changed,
+                    self._on_pose_readiness_changed,
                 )
             if self._scene_partition is not None:
                 self._scene_partition.refresh()
@@ -635,11 +641,7 @@ class KitSceneUiCameraFeedPanel:
                 self.close()
             raise
 
-    def _on_viewer_start_readiness_changed(self, ready: bool) -> None:
-        self._pose_ready = ready
-        self._update_visibility()
-
-    def _on_head_locked_readiness_changed(self, ready: bool) -> None:
+    def _on_pose_readiness_changed(self, ready: bool) -> None:
         self._pose_ready = ready
         self._update_visibility()
 
@@ -678,14 +680,10 @@ class KitSceneUiCameraFeedPanel:
         if self._closed:
             return
         self._closed = True
-        if self._viewer_start_anchor is not None and self._viewer_start_registration is not None:
-            self._viewer_start_anchor.unregister(self._viewer_start_registration)
-        self._viewer_start_registration = None
-        self._viewer_start_anchor = None
-        if self._head_locked_anchor is not None and self._head_locked_registration is not None:
-            self._head_locked_anchor.unregister(self._head_locked_registration)
-        self._head_locked_registration = None
-        self._head_locked_anchor = None
+        if self._pose_anchor is not None and self._pose_registration is not None:
+            self._pose_anchor.unregister(self._pose_registration)
+        self._pose_registration = None
+        self._pose_anchor = None
         container = self._container
         self._component = None
         self._container = None

@@ -7,5 +7,5 @@ Changed
   XR runs with enabled PiP now require ``--num_envs 1``. To retain multi-environment
   XR operation, set ``env.isaac_teleop.xr_camera_feeds=[]`` to disable PiP without
   removing the camera sensor or recorded observations. Isolated PiP requires a
-  local Kit build with the XR scene-partition propagation and mesh-bounds fixes;
+  Kit runtime with the XR scene-partition propagation and mesh-bounds fixes;
   a supported released-runtime minimum has not yet been established.
