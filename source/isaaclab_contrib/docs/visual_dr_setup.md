@@ -97,20 +97,26 @@ hf download nvidia/<repo> --revision <rev> \
 checkpoint = "<local-path>/Cosmos3-Nano-Transfer-DMD2-4Step-LoRA-256p480p-iter8000"
 ```
 
-### A custom checkout may need FlashAttention, which constrains Python and torch
+### A custom checkout may need FlashAttention
 
 The base `Cosmos3-Nano` path needs no FlashAttention: it falls back to cuDNN, or to
 torch's own Flash kernels. A checkout whose models use variable-length (packed)
-attention is different -- cuDNN does not implement varlen, so FlashAttention
-becomes mandatory, and the generation fails with *"Could not find a compatible
-Attention backend"* without it.
+attention is different -- cuDNN has no varlen path, so FlashAttention becomes
+mandatory and generation otherwise fails with *"Could not find a compatible
+Attention backend"*.
 
-That matters because the Cosmos dependency index publishes FlashAttention only for
-CPython 3.13 against torch 2.9 or 2.10. Isaac Lab is CPython 3.12 with torch 2.12,
-so those wheels do not apply, and building from source needs a CUDA toolkit.
+The Cosmos dependency index publishes FlashAttention only for CPython 3.13 against
+torch 2.9 or 2.10, which does not fit Isaac Lab. Dao-AILab's own releases do:
 
-So a custom checkout is not automatically usable here. Check what the model
-actually needs before assuming the versions in the table above carry over.
+```bash
+uv pip install --no-deps \
+  https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3%2Bcu13torch2.10cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
+```
+
+That wheel is built against torch 2.10 and imports and runs correctly on torch
+2.12 -- the ABI held in testing, including the varlen kernel. It is a pragmatic pin
+rather than a guaranteed one: check it still imports after any torch upgrade, since
+nothing enforces the match.
 
 ### Distilled checkpoints want different sampling
 

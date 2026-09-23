@@ -42,6 +42,11 @@ parser.add_argument(
     help="Let the model render the foreground too, instead of pasting the render back",
 )
 parser.add_argument("--num_steps", type=int, default=None, help="Override the backend's sampler steps")
+parser.add_argument("--checkpoint", default=None, help="Registered name, s3:// URI, or local checkpoint directory")
+parser.add_argument("--guidance", type=float, default=None, help="Classifier-free guidance on the prompt")
+parser.add_argument(
+    "--mask_guidance", action="store_true", help="Send the preserved mask to Cosmos for guided denoising"
+)
 parser.add_argument("--backend", choices=("cosmos", "passthrough"), default="passthrough")
 parser.add_argument("--offload_at", default="", help="Comma-separated steps at which to offload and re-activate")
 parser.add_argument(
@@ -139,6 +144,12 @@ def main() -> None:
         cfg.visual_dr.probability = args.probability
     if args.decision_period is not None:
         cfg.visual_dr.decision_period = args.decision_period
+    if args.checkpoint:
+        cfg.visual_dr.backend.checkpoint = args.checkpoint
+    if args.guidance is not None:
+        cfg.visual_dr.backend.guidance = args.guidance
+    if args.mask_guidance:
+        cfg.visual_dr.backend.mask_guidance = True
     if args.num_steps is not None:
         cfg.visual_dr.backend.num_steps = args.num_steps
 
