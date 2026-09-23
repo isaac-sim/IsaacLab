@@ -1,7 +1,8 @@
 Added
 ^^^^^
 
-* Added ``ObservationTermCfg(func=DelayCfg(term=..., params=...))`` with per-environment latency, refresh
+* Added ``isaaclab.managers.DelayCfg`` as a standard manager term configuration, used through
+  ``ObservationTermCfg(func=DelayCfg(term=..., params=...))`` with per-environment latency, refresh
   cadence, frame holds, and partial resets using the same buffer primitive as legacy delayed actuator targets.
 
 Changed

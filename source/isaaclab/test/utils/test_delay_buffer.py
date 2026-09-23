@@ -10,7 +10,6 @@ import torch
 
 from isaaclab.test.utils import test_devices
 from isaaclab.utils import DelayBuffer
-from isaaclab.utils.delay import DelayCfg, _Delay
 
 pytestmark = pytest.mark.unit
 
@@ -195,88 +194,3 @@ def test_delay_buffer_cuda_graph(delay_buffer):
             if step >= 4:
                 expected[1] = max(4, step - 2)
             torch.testing.assert_close(result, expected)
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("shape", [(3,), (3, 2, 2)])
-@pytest.mark.parametrize("settings", [{"min_lag": 2, "max_lag": 2}, {"update_period": 3}, {"hold_prob": 1.0}])
-def test_delay_delivery_and_reset(device, shape, settings):
-    """Fixed latency, sensor cadence, and holds share shape-preserving reset semantics."""
-    cfg = DelayCfg(term=None, per_env_phase=False, **settings)
-    delay = _Delay(cfg, shape[0], device)
-    for step in range(12):
-        if step == 5:
-            delay.reset([1])
-        data = torch.full(shape, step + 10, dtype=torch.float64, device=device)
-        result = delay(data)
-        expected = []
-        for env in range(shape[0]):
-            start = 5 if env == 1 and step >= 5 else 0
-            if cfg.hold_prob == 1.0:
-                sample = start
-            elif cfg.update_period > 1:
-                sample = start + (step - start) // cfg.update_period * cfg.update_period
-            else:
-                sample = max(start, step - cfg.max_lag)
-            expected.append(sample + 10)
-        expected = torch.tensor(expected, dtype=data.dtype, device=device).view(3, *([1] * (len(shape) - 1)))
-        torch.testing.assert_close(result, expected.expand_as(data))
-        result.fill_(-999)  # Downstream in-place processing must not corrupt held frames.
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_delay_stochastic_delivery(device):
-    """Jitter never delivers an older sample, and bounded GPU lag generation never calls the setter."""
-    cfg = DelayCfg(term=None, min_lag=1, max_lag=4, update_period=3, hold_prob=0.2)
-    delay = _Delay(cfg, 16, device)
-    assert "_step" not in vars(delay), "The buffer owns the per-environment clock."
-    delay._buffer.set_time_lag = lambda *args: pytest.fail("The hot path must not validate lags on the host.")
-    previous = torch.full((16, 1), -1.0, device=device)
-    for step in range(40):
-        output = delay(torch.full_like(previous, step))
-        assert torch.all(output >= previous)
-        assert torch.all(output <= max(0, step - cfg.min_lag))
-        assert torch.all(delay._buffer.time_lags >= cfg.min_lag)
-        assert torch.all(delay._buffer.time_lags <= cfg.max_lag)
-        previous = output
-
-    shared = _Delay(DelayCfg(term=None, max_lag=4, per_env=False), 16, device)
-    for step in range(12):
-        output = shared(torch.full_like(previous, step))
-        assert torch.all(output == output[0])
-
-
-@pytest.mark.parametrize(
-    "settings", [{"min_lag": -1}, {"min_lag": 2, "max_lag": 1}, {"update_period": 0}, {"hold_prob": 1.1}]
-)
-def test_delay_cfg_validation(settings):
-    """Reject invalid scheduling parameters in the config before allocating any buffer."""
-    cfg = DelayCfg(term=None, **settings)
-    with pytest.raises(ValueError):
-        cfg.validate()
-    with pytest.raises(ValueError):
-        _Delay(cfg, 2, "cpu")
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_delay_schedule_cuda_graph(device):
-    """Cadence and held output advance on-device during graph replay."""
-    if not device.startswith("cuda"):
-        pytest.skip("CUDA graph replay requires CUDA.")
-    with torch.cuda.device(device):
-        delay = _Delay(DelayCfg(term=None, update_period=3, per_env_phase=False), 2, device)
-        data = torch.zeros(2, 1, device=device)
-        delay(data)
-        graph = torch.cuda.CUDAGraph()
-        with torch.cuda.graph(graph):
-            output = delay(data)
-        delay.reset()
-        for step in range(10):
-            if step == 5:
-                delay.reset([1])
-            data.fill_(step)
-            graph.replay()
-            expected = torch.full_like(data, step // 3 * 3)
-            if step >= 5:
-                expected[1] = 5 + (step - 5) // 3 * 3
-            torch.testing.assert_close(output, expected)

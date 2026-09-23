@@ -20,8 +20,6 @@ from isaaclab.utils.noise import NoiseCfg, NoiseModelCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
-    from isaaclab.utils.delay import DelayCfg
-
     from .action_manager import ActionTerm
     from .command_manager import CommandTerm
     from .manager_base import ManagerTermBase
@@ -32,14 +30,14 @@ if TYPE_CHECKING:
 class ManagerTermBaseCfg:
     """Configuration for a manager term."""
 
-    func: Callable | ManagerTermBase | DelayCfg = MISSING
+    func: Callable | ManagerTermBase | ManagerTermBaseCfg = MISSING
     """The function or class to be called for the term.
 
     The function must take the environment object as the first argument.
     The remaining arguments are specified in the :attr:`params` attribute.
 
-    A :class:`~isaaclab.utils.DelayCfg` can wrap the callable in this slot. Its parameters belong
-    inside ``DelayCfg.params``; the outer :attr:`params` must then be empty.
+    A :class:`ManagerTermBaseCfg` can configure a callable in this slot. Its parameters belong
+    inside the nested configuration; the outer :attr:`params` must then be empty.
 
     It also supports `callable classes`_, i.e. classes that implement the :meth:`__call__`
     method. In this case, the class should inherit from the :class:`ManagerTermBase` class
@@ -157,7 +155,7 @@ class CurriculumTermCfg(ManagerTermBaseCfg):
 class ObservationTermCfg(ManagerTermBaseCfg):
     """Configuration for an observation term."""
 
-    func: Callable[..., torch.Tensor | None] | DelayCfg = MISSING
+    func: Callable[..., torch.Tensor | None] | ManagerTermBaseCfg = MISSING
     """The name of the function to be called.
 
     This function should take the environment object and any other parameters

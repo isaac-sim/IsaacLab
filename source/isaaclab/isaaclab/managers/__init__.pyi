@@ -11,6 +11,8 @@ __all__ = [
     "CurriculumManager",
     "EventManager",
     "ManagerBase",
+    "Delay",
+    "DelayCfg",
     "ManagerTermBase",
     "ActionTermCfg",
     "CommandTermCfg",
@@ -37,6 +39,7 @@ from .command_manager import CommandManager, CommandTerm
 from .curriculum_manager import CurriculumManager
 from .event_manager import EventManager
 from .manager_base import ManagerBase, ManagerTermBase
+from .delay import Delay, DelayCfg
 from .manager_term_cfg import (
     ActionTermCfg,
     CommandTermCfg,

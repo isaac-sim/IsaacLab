@@ -15,8 +15,16 @@ from typing import TYPE_CHECKING, cast
 import pytest
 import torch
 
-from isaaclab.managers import ManagerTermBase, ObservationGroupCfg, ObservationManager, ObservationTermCfg
-from isaaclab.utils import DelayCfg, configclass, modifiers
+from isaaclab.managers import (
+    Delay,
+    DelayCfg,
+    ManagerTermBase,
+    ObservationGroupCfg,
+    ObservationManager,
+    ObservationTermCfg,
+)
+from isaaclab.test.utils import test_devices
+from isaaclab.utils import configclass, modifiers
 
 pytestmark = pytest.mark.unit
 
@@ -40,9 +48,9 @@ class DummySimulation:
 class DummyEnv:
     """Minimal environment double used by :class:`ObservationManager`."""
 
-    def __init__(self, num_envs: int = 2) -> None:
+    def __init__(self, num_envs: int = 2, device: str = "cpu") -> None:
         self.num_envs = num_envs
-        self.device = "cpu"
+        self.device = device
         self.sim = DummySimulation()
         self.observation = torch.arange(num_envs, dtype=torch.float32).unsqueeze(-1)
 
@@ -206,11 +214,11 @@ def test_delay_cfg_validates_wrapped_parameters():
     """Validate the wrapped callable's signature and reject ambiguous outer parameters."""
     cfg = HistoryObservationsCfg()
     cfg.policy.dummy.func = DelayCfg(term=CounterTerm, params={"unknown": 2.0})
-    with pytest.raises(ValueError, match="expects mandatory parameters"):
+    with pytest.raises(TypeError, match="unexpected keyword argument"):
         ObservationManager(cfg, DummyEnv())
     cfg.policy.dummy.func.params = {}
     cfg.policy.dummy.params = {"increment": 2.0}
-    with pytest.raises(ValueError, match="inside DelayCfg.params"):
+    with pytest.raises(ValueError, match="inside its nested configuration"):
         ObservationManager(cfg, DummyEnv())
 
 
@@ -240,3 +248,95 @@ def test_compute_updates_history_only_when_requested():
     manager.compute(update_history=True)
     torch.testing.assert_close(history.current_length, torch.full((env.num_envs,), 2, dtype=torch.int64))
     torch.testing.assert_close(history.buffer[:, -1], env.observation)
+
+
+@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("shape", [(3,), (3, 2, 2)])
+@pytest.mark.parametrize("settings", [{"min_lag": 2, "max_lag": 2}, {"update_period": 3}, {"hold_prob": 1.0}])
+def test_delay_delivery_and_reset(device, shape, settings):
+    """Fixed latency, sensor cadence, and holds share shape-preserving reset semantics."""
+    cfg = DelayCfg(term=dummy_observation, per_env_phase=False, **settings)
+    env = DummyEnv(shape[0], device)
+    delay = Delay(cfg, env)
+    for step in range(12):
+        if step == 5:
+            delay.reset([1])
+        data = torch.full(shape, step + 10, dtype=torch.float64, device=device)
+        env.observation = data
+        result = delay(env)
+        expected = []
+        for env_id in range(shape[0]):
+            start = 5 if env_id == 1 and step >= 5 else 0
+            if cfg.hold_prob == 1.0:
+                sample = start
+            elif cfg.update_period > 1:
+                sample = start + (step - start) // cfg.update_period * cfg.update_period
+            else:
+                sample = max(start, step - cfg.max_lag)
+            expected.append(sample + 10)
+        expected = torch.tensor(expected, dtype=data.dtype, device=device).view(3, *([1] * (len(shape) - 1)))
+        torch.testing.assert_close(result, expected.expand_as(data))
+        result.fill_(-999)  # Downstream in-place processing must not corrupt held frames.
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_delay_stochastic_delivery(device):
+    """Jitter never delivers an older sample, and bounded GPU lag generation never calls the setter."""
+    cfg = DelayCfg(term=dummy_observation, min_lag=1, max_lag=4, update_period=3, hold_prob=0.2)
+    env = DummyEnv(16, device)
+    delay = Delay(cfg, env)
+    assert "_step" not in vars(delay), "The buffer owns the per-environment clock."
+    delay._buffer.set_time_lag = lambda *args: pytest.fail("The hot path must not validate lags on the host.")
+    previous = torch.full((16, 1), -1.0, device=device)
+    for step in range(40):
+        env.observation = torch.full_like(previous, step)
+        output = delay(env)
+        assert torch.all(output >= previous)
+        assert torch.all(output <= max(0, step - cfg.min_lag))
+        assert torch.all(delay._buffer.time_lags >= cfg.min_lag)
+        assert torch.all(delay._buffer.time_lags <= cfg.max_lag)
+        previous = output
+
+    shared = Delay(DelayCfg(term=dummy_observation, max_lag=4, per_env=False), env)
+    for step in range(12):
+        env.observation = torch.full_like(previous, step)
+        output = shared(env)
+        assert torch.all(output == output[0])
+
+
+@pytest.mark.parametrize(
+    "settings", [{"min_lag": -1}, {"min_lag": 2, "max_lag": 1}, {"update_period": 0}, {"hold_prob": 1.1}]
+)
+def test_delay_cfg_validation(settings):
+    """Reject invalid scheduling parameters in the config before allocating any buffer."""
+    cfg = DelayCfg(term=dummy_observation, **settings)
+    with pytest.raises(ValueError):
+        cfg.validate()
+    with pytest.raises(ValueError):
+        Delay(cfg, DummyEnv())
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_delay_schedule_cuda_graph(device):
+    """Cadence and held output advance on-device during graph replay."""
+    if not device.startswith("cuda"):
+        pytest.skip("CUDA graph replay requires CUDA.")
+    with torch.cuda.device(device):
+        env = DummyEnv(2, device)
+        delay = Delay(DelayCfg(term=dummy_observation, update_period=3, per_env_phase=False), env)
+        data = torch.zeros(2, 1, device=device)
+        env.observation = data
+        delay(env)
+        graph = torch.cuda.CUDAGraph()
+        with torch.cuda.graph(graph):
+            output = delay(env)
+        delay.reset()
+        for step in range(10):
+            if step == 5:
+                delay.reset([1])
+            data.fill_(step)
+            graph.replay()
+            expected = torch.full_like(data, step // 3 * 3)
+            if step >= 5:
+                expected[1] = 5 + (step - 5) // 3 * 3
+            torch.testing.assert_close(output, expected)

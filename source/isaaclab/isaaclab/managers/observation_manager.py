@@ -451,21 +451,19 @@ class ObservationManager(ManagerBase):
         Returns:
             A dictionary where each group name maps to its serialized observation term configurations.
         """
-        output = {
-            group_name: {
-                term_name: (
-                    term_cfg.func.serialize()
-                    if isinstance(term_cfg.func, ManagerTermBase)
-                    else {"cfg": class_to_dict(term_cfg)}
-                )
-                for term_name, term_cfg in zip(
-                    self._group_obs_term_names[group_name],
-                    self._group_obs_term_cfgs[group_name],
-                )
-            }
-            for group_name in self.active_terms.keys()
-        }
-
+        output = {}
+        for group_name in self.active_terms:
+            output[group_name] = {}
+            for term_name, term_cfg in zip(
+                self._group_obs_term_names[group_name], self._group_obs_term_cfgs[group_name]
+            ):
+                if isinstance(term_cfg.func, ManagerTermBase):
+                    term = term_cfg.func.serialize()
+                    if term_cfg.func.cfg is not term_cfg:
+                        term["cfg"] = {**class_to_dict(term_cfg), "func": term["cfg"], "params": {}}
+                else:
+                    term = {"cfg": class_to_dict(term_cfg)}
+                output[group_name][term_name] = term
         return output
 
     """

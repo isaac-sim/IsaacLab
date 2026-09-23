@@ -16,15 +16,12 @@ from typing import TYPE_CHECKING, Any
 import isaaclab.utils.string as string_utils
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.utils import class_to_dict, string_to_callable
-from isaaclab.utils.delay import DelayCfg, _Delay
 from isaaclab.utils.modifiers import ModifierCfg
 
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
-    import torch
-
     from isaaclab.envs import ManagerBasedEnv
 
 
@@ -126,29 +123,6 @@ class ManagerTermBase(ABC):
             The value of the term.
         """
         raise NotImplementedError("The method '__call__' should be implemented by the subclass.")
-
-
-class _DelayedTerm(ManagerTermBase):
-    """Bind a configured delay to the existing manager term lifecycle."""
-
-    def __init__(self, cfg: ManagerTermBaseCfg, env: ManagerBasedEnv):
-        super().__init__(cfg, env)
-        self._delay = _Delay(cfg.params["delay"], env.num_envs, env.device)
-
-    def __call__(self, env, delay: DelayCfg) -> torch.Tensor:
-        return self._delay(delay.term(env, **delay.params))
-
-    def reset(self, env_ids: Sequence[int] | None = None):
-        self._delay.reset(env_ids)
-        term = self.cfg.params["delay"].term
-        if isinstance(term, ManagerTermBase):
-            term.reset(env_ids)
-
-    def serialize(self) -> dict:
-        cfg = class_to_dict(self.cfg)
-        cfg["func"] = cfg["params"]["delay"]
-        cfg["params"] = {}
-        return {"cfg": cfg}
 
 
 class ManagerBase(ABC):
@@ -361,12 +335,13 @@ class ManagerBase(ABC):
                 f" Received: '{type(term_cfg)}'."
             )
 
-        if isinstance(term_cfg.func, DelayCfg):
+        if isinstance(term_cfg.func, ManagerTermBaseCfg):
             if term_cfg.params:
-                raise ValueError(f"Put parameters for delayed term '{term_name}' inside DelayCfg.params.")
-            term_cfg.func.validate()
-            term_cfg.params = {"delay": term_cfg.func}
-            term_cfg.func = _DelayedTerm
+                raise ValueError(f"Put parameters for configured term '{term_name}' inside its nested configuration.")
+            self._resolve_common_term_cfg(term_name, term_cfg.func, min_argc)
+            if self._env.sim.is_playing():
+                self._process_term_cfg_at_play(term_name, term_cfg)
+            return
 
         # get the corresponding function or functional class
         term_cfg.func = self._resolve_param_value(term_name, "func", term_cfg.func, resolve_callable=True)
@@ -390,19 +365,10 @@ class ManagerBase(ABC):
             raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
 
         # check statically if the term's arguments are matched by params
-        term_params = list(term_cfg.params.keys())
-        args = inspect.signature(func_static).parameters
-        args_with_defaults = [arg for arg in args if args[arg].default is not inspect.Parameter.empty]
-        args_without_defaults = [arg for arg in args if args[arg].default is inspect.Parameter.empty]
-        args = args_without_defaults + args_with_defaults
-        # ignore first two arguments for env and env_ids
-        # Think: Check for cases when kwargs are set inside the function?
-        if len(args) > min_argc:
-            if set(args[min_argc:]) != set(term_params + args_with_defaults):
-                raise ValueError(
-                    f"The term '{term_name}' expects mandatory parameters: {args_without_defaults[min_argc:]}"
-                    f" and optional parameters: {args_with_defaults}, but received: {term_params}."
-                )
+        try:
+            inspect.signature(func_static).bind(*([None] * min_argc), **term_cfg.params)
+        except TypeError as error:
+            raise ValueError(f"Invalid parameters for term '{term_name}': {error}") from error
 
         # process attributes at runtime
         # these properties are only resolvable once the simulation starts playing
@@ -434,7 +400,9 @@ class ManagerBase(ABC):
                 setattr(term_cfg, field.name, resolved_value)
 
         # initialize class-based terms
-        if inspect.isclass(term_cfg.func):
+        if isinstance(term_cfg.func, ManagerTermBaseCfg):
+            term_cfg.func, term_cfg.params = term_cfg.func.func, term_cfg.func.params
+        elif inspect.isclass(term_cfg.func):
             term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
 
     def _resolve_param_value(
@@ -448,10 +416,6 @@ class ManagerBase(ABC):
                 value.resolve(self._env.scene)
             except ValueError as e:
                 raise ValueError(f"Error while parsing '{term_name}:{key}'. {e}")
-        elif isinstance(value, DelayCfg):
-            term = ManagerTermBaseCfg(func=value.term, params=value.params)
-            self._resolve_common_term_cfg(f"{term_name}.{key}.term", term)
-            value.term, value.params = term.func, term.params
         elif isinstance(value, ManagerTermBaseCfg):
             self._process_term_cfg_at_play(f"{term_name}.{key}", value)
         elif isinstance(value, ModifierCfg):
