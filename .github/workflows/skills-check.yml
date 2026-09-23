@@ -6,6 +6,8 @@
 name: Skills Check
 
 on:
+  # check-skills (ubuntu) runs on every qualifying push so contributors get
+  # fast validator feedback without waiting for a GPU slot.
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
@@ -14,19 +16,31 @@ on:
       - ".claude/skills"
       - "tools/skills/**"
       - ".github/workflows/skills-check.yml"
+  # validate-skills (GPU, all tiers) uses pull_request_target so that it runs
+  # in the base-repository context and can access repo secrets (NVIDIA_INFERENCE_API_KEY).
+  # A maintainer gates execution by adding the 'ci:run-skills' label; the label
+  # event runs the workflow from the base branch, not the fork, so secrets are safe.
+  pull_request_target:
+    types: [labeled]
   workflow_dispatch:
 
 concurrency:
-  group: skills-check-${{ github.ref }}
-  cancel-in-progress: true
+  group: skills-check-${{ github.event.pull_request.number || github.ref }}
+  # Cancel in-flight GPU runs only when the trigger label is re-applied (re-run
+  # intent). Never cancel on synchronize so a push doesn't kill a GPU job.
+  cancel-in-progress: ${{ github.event.label.name == 'ci:run-skills' }}
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   check-skills:
     name: Check skills
     runs-on: ubuntu-latest
+    # pull_request_target fires for the labeled trigger; skip it here so only
+    # the pull_request event (opened/sync/reopened) drives this job.
+    if: github.event_name != 'pull_request_target'
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -50,3 +64,188 @@ jobs:
 
       - name: Test skills validator
         run: python3 -m pytest tools/skills/
+
+  # SkillEvaluator Tier 1 / Tier 2A / Tier 2B / Tier 3 for skills/user/* touched by this PR.
+  # (skills/_internal/ is excluded — not part of the NVCARPS-facing catalog.)
+  # Uses the public NVIDIA/SkillEvaluator package (Apache 2.0); no internal registry
+  # access required. Tier 3 runs via Docker (open-source Harbor framework) using the
+  # repo's existing NVIDIA_INFERENCE_API_KEY with provider nv_build — no internal
+  # managed execution service needed. Tier 3 results are advisory (warnings only).
+  #
+  # Security gate: matches the build.yaml label-gate pattern for self-hosted GPU runners.
+  # A maintainer adds the 'ci:run-skills' label to trigger this job, ensuring untrusted
+  # fork PR code never runs on the self-hosted runner without explicit human approval.
+  validate-skills:
+    name: Validate skills (SkillEvaluator)
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 90
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request_target' && github.event.label.name == 'ci:run-skills')
+
+    steps:
+      # pull_request_target runs the workflow from the base branch (security: fork
+      # cannot modify the workflow file). Explicitly check out the PR HEAD by SHA
+      # so we validate the PR's skill content, not the base branch's.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.12"
+
+      - name: Install skillevaluator and gitleaks
+        id: install_skillevaluator
+        env:
+          # Pinned to the v0.1.0 release tag. A bump here can newly-fail every
+          # open PR, so update deliberately after testing locally.
+          SKILLEVALUATOR_REF: "v0.1.0"
+          GITLEAKS_VERSION: "8.27.2"
+          # build.nvidia.com embedding API key (NVIDIA_API_KEY is the env var
+          # the public SkillEvaluator looks for). Reuses the repo's existing
+          # NVIDIA_INFERENCE_API_KEY secret — same NIM key, different endpoint.
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_INFERENCE_API_KEY }}
+          NVIDIA_INFERENCE_KEY: ${{ secrets.NVIDIA_INFERENCE_API_KEY }}
+        run: |
+          set -euo pipefail
+          python3 -m pip install --upgrade pip
+          python3 -m pip install \
+            "skillevaluator[tier2,security,tier3] @ git+https://github.com/NVIDIA/SkillEvaluator.git@${SKILLEVALUATOR_REF}"
+          # gitleaks is needed for the code-integrity (Secrets Detection) check.
+          # The security check (skillspector) is NVIDIA-internal and skipped via
+          # --checks in the validate step. Install to RUNNER_TEMP (writable on
+          # all self-hosted runners) and prepend to PATH for subsequent steps.
+          mkdir -p "${RUNNER_TEMP}/bin"
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar xz -C "${RUNNER_TEMP}/bin" gitleaks
+          echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+          "${RUNNER_TEMP}/bin/gitleaks" version
+          skillevaluator --version
+
+      - name: Determine touched skills
+        id: touched
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          GITHUB_API_URL: ${{ github.api_url }}
+        run: |
+          set -euo pipefail
+          # Do NOT run tools/skills/get_pr_files.py from the PR checkout:
+          # pull_request_target has base-repo secrets; executing fork-supplied
+          # scripts could exfiltrate them. Use stdlib directly instead.
+          changed_files="$(python3 - <<'PYEOF'
+import json, os, urllib.request
+token = os.environ["GH_TOKEN"]
+repo = os.environ["REPO"]
+pr = os.environ["PR_NUMBER"]
+api = os.environ.get("GITHUB_API_URL", "https://api.github.com")
+page, files = 1, []
+while True:
+    req = urllib.request.Request(
+        f"{api}/repos/{repo}/pulls/{pr}/files?per_page=100&page={page}",
+        headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json"},
+    )
+    with urllib.request.urlopen(req) as r:
+        batch = json.load(r)
+    files.extend(f["filename"] for f in batch)
+    if len(batch) < 100:
+        break
+    page += 1
+print("\n".join(files))
+PYEOF
+)"
+
+          declare -A seen=()
+          skill_dirs=()
+          while IFS= read -r f; do
+            [[ "$f" == skills/user/*/* ]] || continue
+            name="${f#skills/user/}"
+            name="${name%%/*}"
+            root="skills/user/${name}"
+            if [[ -d "$root" && -z "${seen[$root]:-}" ]]; then
+              seen[$root]=1
+              skill_dirs+=("$root")
+            fi
+          done <<< "$changed_files"
+
+          if [ ${#skill_dirs[@]} -eq 0 ]; then
+            echo "No skills/user/ directories were changed by this PR; nothing to validate."
+            echo "any=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skills touched by this PR (validating only these):"
+            printf '  - %s\n' "${skill_dirs[@]}"
+            echo "any=true" >> "$GITHUB_OUTPUT"
+            { printf 'dirs<<SKILL_DIRS_EOF\n'; printf '%s\n' "${skill_dirs[@]}"; printf 'SKILL_DIRS_EOF\n'; } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run SkillEvaluator Tier 1 / Tier 2A / Tier 2B
+        if: steps.install_skillevaluator.outcome == 'success' && steps.touched.outputs.any == 'true'
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_INFERENCE_API_KEY }}
+          NVIDIA_INFERENCE_KEY: ${{ secrets.NVIDIA_INFERENCE_API_KEY }}
+          SKILL_DIRS: ${{ steps.touched.outputs.dirs }}
+        run: |
+          set -euo pipefail
+          failed=0
+
+          while IFS= read -r skill_dir; do
+            [[ -n "$skill_dir" ]] || continue
+            echo ""
+            echo "===== Per-skill validation (Tier 1): ${skill_dir} ====="
+            if ! skillevaluator validate "${skill_dir}" \
+                  -c \
+                  --external \
+                  --no-dedup \
+                  --checks schema,version,pii,license,code-integrity,unicode,quality,lint; then
+              failed=1
+            fi
+
+            echo ""
+            echo "===== Tier 2A intra-skill context dedup: ${skill_dir} ====="
+            # Advisory: the dedup endpoint may return 404 if the service is
+            # unreachable from this runner. Emit a warning rather than failing
+            # the job so a transient endpoint issue does not block the PR.
+            skillevaluator context-optimization-check "${skill_dir}" \
+              || echo "::warning::Tier 2A context-optimization-check failed for ${skill_dir} (advisory)"
+          done <<< "${SKILL_DIRS}"
+
+          echo ""
+          echo "===== Tier 2B intra-repo similarity scan: skills/user/ ====="
+          skillevaluator similarity-check skills/user/ --type skill \
+            || echo "::warning::Tier 2B similarity-check failed (advisory)"
+
+          exit "${failed}"
+
+      - name: Run SkillEvaluator Tier 3 (advisory)
+        if: steps.install_skillevaluator.outcome == 'success' && steps.touched.outputs.any == 'true'
+        env:
+          # Both keys set so nv_inference auto-selects (takes precedence over nv_build
+          # when both are present). nv_inference routes the codex agent through the
+          # NVIDIA inference hub, avoiding the need for a separate OPENAI_API_KEY.
+          # Results are advisory (no --block-on-agent-eval) so Tier 3 failures
+          # emit warnings but do not block the PR.
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_INFERENCE_API_KEY }}
+          NVIDIA_INFERENCE_KEY: ${{ secrets.NVIDIA_INFERENCE_API_KEY }}
+          SKILL_DIRS: ${{ steps.touched.outputs.dirs }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r skill_dir; do
+            [[ -n "$skill_dir" ]] || continue
+            echo ""
+            echo "===== Tier 3 live evaluation (advisory): ${skill_dir} ====="
+            skillevaluator tier3 evaluate "${skill_dir}" \
+              --agents codex \
+              --env-mode docker \
+              --skill-workspace-mode group \
+              || echo "::warning::Tier 3 eval failed for ${skill_dir} (advisory)"
+          done <<< "${SKILL_DIRS}"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        if: always() && steps.install_skillevaluator.outcome == 'success' && steps.touched.outputs.any == 'true'
+        with:
+          name: skillevaluator-reports
+          path: reports/
+          retention-days: 7
