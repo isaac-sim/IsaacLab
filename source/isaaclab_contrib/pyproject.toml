@@ -25,13 +25,20 @@ dependencies = [
 # Support for the patched Cosmos source checkout installed separately with --no-deps.
 # Its upstream metadata has no inference-only extra compatible with the shared env.
 cosmos-runtime = [
-    "accelerate", "av", "cattrs", "diffusers==0.35.1", "einops",
+    # Cosmos' own runtime dependencies, minus anything that would drag in a second
+    # torch. Install cosmos-framework itself with --no-deps: its dependency groups
+    # pin torch 2.10/2.13 for the CUDA wheel variants it publishes, which would
+    # fight Isaac Lab's own pin. None of that is a hard requirement -- the versions
+    # below are what the depth and segmentation transfer paths were verified
+    # against on Python 3.12 and torch 2.12, with no flash-attn installed at all.
+    "accelerate", "av", "cattrs", "diffusers>=0.35.1", "einops",
     "hydra-core", "imageio-ffmpeg", "imageio", "loguru", "msgpack",
     "nvidia-cudnn-frontend; sys_platform == 'linux'", "nvidia-ml-py",
-    "obstore", "omegaconf", "pydantic", "requests", "scipy", "termcolor",
-    "transformers>=4.57.1,<5", "tyro", "uv", "websockets",
+    "obstore", "omegaconf", "pydantic", "pynvml", "requests", "scipy", "termcolor",
+    "transformers>=4.57.1", "tyro", "uv", "websockets",
     "ftfy", "qwen-vl-utils", "iopath", "multi-storage-client", "boto3", "pandas", "wandb",
 ]
+
 nixl = ["nixl; sys_platform == 'linux'"]
 
 [tool.uv.sources]
