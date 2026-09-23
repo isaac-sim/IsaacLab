@@ -57,9 +57,9 @@ class XrCameraFeedCfg:
     enable_dlss_ray_reconstruction: bool | None = None
     """Enable DLSS Ray Reconstruction on this feed's RTX render product.
 
-    ``None`` preserves the render-product default. On Isaac Sim versions before
-    6.1, ``True`` falls back to classic DLSS because responsive denoising is
-    unavailable. The private PiP adapter applies this setting on a best-effort
+    ``None`` preserves the render-product default. When ``True``, the teleoperation
+    and recording scripts also enable responsive denoising before environment
+    construction. The private PiP adapter applies this setting on a best-effort
     basis when binding to a compatible render product. Backends without one keep
     using the Camera-buffer fallback.
     """
@@ -142,7 +142,6 @@ class XrCameraFeedLayoutCfg:
     use_scene_partition: bool = False
     """Isolate the XR camera and entire SceneUI root from robot-camera rendering.
 
-    Requires Kit XR scene-partition propagation and runtime-updated mesh bounds fixes.
     Enabled PiP temporarily disables per-environment partitioning on selected Isaac RTX
     cameras and owns the process-global ``showAllPartitionsByDefault=False`` override.
     Prior settings are restored when the final isolated session closes. Other cameras

@@ -21,7 +21,6 @@ from typing import TYPE_CHECKING, Any
 import torch
 
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
-from isaaclab.utils.version import get_isaac_sim_version
 
 from .isaac_teleop_cfg import XrCameraFeedCfg, XrCameraFeedLayoutCfg
 
@@ -193,23 +192,6 @@ class _ScenePartitionPolicy:
                 cls._settings = cls._previous = None
 
 
-def _apply_ray_reconstruction_compatibility(cfgs: list[XrCameraFeedCfg]) -> None:
-    """Resolve the effective PiP Ray Reconstruction policy for this runtime."""
-    if not any(cfg.enable_dlss_ray_reconstruction is True for cfg in cfgs):
-        return
-    isaac_sim_version = get_isaac_sim_version()
-    if (isaac_sim_version.major, isaac_sim_version.minor) >= (6, 1):
-        return
-    for cfg in cfgs:
-        if cfg.enable_dlss_ray_reconstruction is True:
-            cfg.enable_dlss_ray_reconstruction = False
-    logger.warning(
-        "DLSS Ray Reconstruction was requested for XR camera PiP, but Isaac Sim %s predates responsive "
-        "denoising. Falling back to classic DLSS for the selected feeds.",
-        isaac_sim_version,
-    )
-
-
 class XrCameraFeedSession:
     """Manage the two-phase XR camera-feed lifecycle.
 
@@ -278,7 +260,6 @@ class XrCameraFeedSession:
         if int(env_cfg.scene.num_envs) != 1:
             raise ValueError("XR camera PiP supports exactly one environment; set --num_envs 1 or disable PiP feeds.")
         cfgs = _prepare_camera_feed_cfgs(env_cfg, requested)
-        _apply_ray_reconstruction_compatibility(cfgs)
         session = cls(
             cfgs,
             teleop_cfg.xr_camera_feed_layout,

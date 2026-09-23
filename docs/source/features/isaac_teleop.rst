@@ -1372,7 +1372,7 @@ To run fixed-base G1 upper-body teleoperation with its default head-locked PiP:
 This task uses motion controllers for the arms and TriHand fingers while the robot root remains
 fixed. The panel follows the headset, but its image comes from the robot's head camera, not the
 headset view. ``--device cpu`` selects CPU simulation; camera rendering and CloudXR encoding still
-use the GPU. The scene-partition runtime requirements below apply to both G1 tasks.
+use the GPU.
 
 ``teleop_se3_agent.py`` and ``record_demos.py`` show every enabled feed when an IsaacTeleop-enabled
 environment runs with ``--xr``. PiP is absent unless the task explicitly selects an existing
@@ -1398,16 +1398,6 @@ to avoid this recursion. The SceneUI adapter assigns the entire ``/ui`` root and
 presentation camera to ``isaaclab_teleop_xr_camera_pip`` in the stage's session layer, restoring
 prior opinions when the final isolated panel closes. This is shared XR/SceneUI state, not
 independent per-panel visibility.
-
-.. warning::
-
-   Both G1 presets require a Kit runtime containing XR scene-partition propagation and
-   runtime-updated mesh bounds fixes. A supported released-runtime minimum has not yet been
-   established. Validation used a separately installed Kit artifact containing both fixes,
-   not the unmodified Isaac Sim package. The Isaac Sim version alone does not establish
-   compatibility, and PiP does not automatically detect these fixes. Until your runtime is
-   qualified, set ``env.isaac_teleop.xr_camera_feeds=[]`` to disable PiP; simply disabling
-   isolation can reintroduce recursion.
 
 Enabled PiP preparation temporarily sets selected Isaac RTX cameras' ``enable_scene_partitioning``
 to ``False`` and owns the process-global ``/rtx/scenePartitioning/showAllPartitionsByDefault=False``
@@ -1437,10 +1427,9 @@ the camera sensor and any configured camera observations.
 
 The reference feeds request render-product-local DLSS Ray Reconstruction and ``quality`` execution
 mode through :class:`~isaaclab_teleop.XrCameraFeedCfg`. The private PiP adapter authors those two
-attributes only on the selected camera render product. On Isaac Sim 6.1 and newer, Ray
-Reconstruction also requires the process-global responsive-denoising setting, which the session
-enables before environment construction. On earlier versions, selected PiP feeds fall back to
-classic DLSS because responsive denoising is unavailable.
+attributes only on the selected camera render product. Ray Reconstruction also requires the
+process-global responsive-denoising setting, which the teleoperation and recording scripts
+enable before environment construction when a selected feed requests Ray Reconstruction.
 
 Camera selection
 ~~~~~~~~~~~~~~~~

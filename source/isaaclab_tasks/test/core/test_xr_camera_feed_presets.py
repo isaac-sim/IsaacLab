@@ -9,7 +9,6 @@ import pytest
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_teleop import XrCameraFeedSession
-from packaging.version import Version
 
 from isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg import (
     FixedBaseUpperBodyIKG1EnvCfg,
@@ -68,7 +67,6 @@ def test_g1_xr_camera_uses_calibration_and_head_locked_panel(env_cfg_type):
 @pytest.mark.parametrize("env_cfg_type", [LocomanipulationG1EnvCfg, FixedBaseUpperBodyIKG1EnvCfg])
 def test_g1_partition_overrides_apply_only_during_enabled_pip_preparation(monkeypatch, env_cfg_type):
     monkeypatch.setattr("isaaclab_teleop.camera_feed._load_kit_scene_ui_presenter", lambda: object())
-    monkeypatch.setattr("isaaclab_teleop.camera_feed.get_isaac_sim_version", lambda: Version("6.1.0"))
     values = {"/rtx/scenePartitioning/showAllPartitionsByDefault": True}
     settings = SimpleNamespace(get=lambda key: values.get(key), set=lambda key, value: values.__setitem__(key, value))
     monkeypatch.setattr("isaaclab.app.settings_manager.get_settings_manager", lambda: settings)
