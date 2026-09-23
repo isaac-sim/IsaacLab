@@ -30,16 +30,21 @@ import warp as wp
 from mujoco_warp._src.types import DisableBit
 from newton_web import Parameter, export_graph
 
-from isaaclab.assets import ArticulationCfg
-
 STIFFNESS_DT = 1.0 / 240.0
 CLOTH_DT = 1.0 / 120.0
-G1_DOF = 37
-G1_USD_SHA256 = "9dfe7a710aa791e49abf2d9ea74ad3163e291f02f21f59bda9bfcc40f3fab428"
-G1_CHECKPOINT_SHA256 = "3436a12f1f5f6ab51ae2f0c4e386656833bc7df6f1eed10986fef50606fbadaf"
-G1_BROWSER_SOLVER_ITERATIONS = 2
-G1_VISUAL_URDF_SHA256 = "d446ad17340485f694ea17746fcb6e5f09a423cf14aa38efefc8aaefb6d07353"
-G1_VISUAL_SOURCE_REVISION = "62ff3a5896b4d5b4cf0ac4c8d79afe600c9404a3"
+G1_DOF = 29
+G1_POLICY_SHA256 = "4c92c5a64d1220ab02b042e77bdd69bcd2c0310590755c3dd53b5bde229d26e4"
+G1_VISUAL_URDF_SHA256 = "c0ae739c640c3e2c00d1bdd8810b5d6e59601487bd1a3995859f9543269ee5c8"
+G1_VISUAL_SOURCE_REVISION = "ccfc6fd8430a17ba3dacef9a1e2faf64ff3b0aee"
+G1_BROWSER_SOLVER_ITERATIONS = 1
+G1_COLLISION_LINKS = {
+    "left_ankle_roll_link",
+    "right_ankle_roll_link",
+    "left_shoulder_pitch_link",
+    "left_shoulder_roll_link",
+    "right_shoulder_pitch_link",
+    "right_shoulder_roll_link",
+}
 ANYMAL_D_USD_SHA256 = "8b756c3690808b3b6a9a3fadc62ab843788c7b7835bbe085f0145f173521dc74"
 ANYMAL_D_MESH_SHA256 = "a864b5b9e192592595490f4116319476090f6789830057854c6532020dfc3d33"
 ANYMAL_D_CHECKPOINT_SHA256 = "0654295241696cdc7855f517a8d94a4951a243f6b21d73152225162ea01aeaaa"
@@ -516,44 +521,54 @@ def export_cartpole(output: Path, usd: Path, checkpoint: Path) -> None:
         raise RuntimeError("Cartpole reference trajectory is not finite")
 
 
-def _actuator_value(value: float | dict[str, float], name: str) -> float:
-    if isinstance(value, dict):
-        matching = [float(setting) for pattern, setting in value.items() if re.fullmatch(pattern, name)]
-        if len(matching) != 1:
-            raise ValueError(f"Expected one actuator setting for {name}; found {len(matching)}")
-        return matching[0]
-    return float(value)
-
-
-def _configure_g1(builder: newton.ModelBuilder, robot_cfg: ArticulationCfg) -> tuple[list[str], list[float]]:
-    """Apply the G1 default pose and actuator gains from the task's asset cfg."""
+def _configure_g1(
+    builder: newton.ModelBuilder, description: dict
+) -> tuple[list[str], list[float], list[int], list[int]]:
+    """Match the WBC-AGILE policy's joint order, initial pose, and PD gains."""
+    inputs = description["models"]["Velocity-G1-v0"]["inputs"]
+    outputs = description["models"]["Velocity-G1-v0"]["outputs"]
+    observation_names = next(item["element_names"][0] for item in inputs if item["name"] == "robot_joint_pos")
+    action_names = next(item["element_names"][0] for item in outputs if item["name"] == "joint_pos")
     names = [label.rsplit("/", 1)[-1] for label in builder.joint_label[1:]]
-    if len(names) != G1_DOF or len(set(names)) != G1_DOF:
-        raise ValueError(f"Expected {G1_DOF} unique G1 joints; found {len(names)}")
-    builder.joint_q[2] = robot_cfg.init_state.pos[2]
+    if len(names) != G1_DOF or set(names) != set(observation_names) or not set(action_names) <= set(names):
+        raise ValueError("G1 asset joints do not match the WBC-AGILE policy")
     defaults = []
+    builder.joint_q[2] = 0.8
     for index, name in enumerate(names, start=1):
-        q_index = builder.joint_q_start[index]
-        dof_index = builder.joint_qd_start[index]
-        matches = [value for pattern, value in robot_cfg.init_state.joint_pos.items() if re.fullmatch(pattern, name)]
-        if len(matches) > 1:
-            raise ValueError(f"Ambiguous default pose for {name}")
-        position = float(matches[0]) if matches else 0.0
-        builder.joint_q[q_index] = position
+        position = -0.1 if "hip_pitch" in name else 0.3 if "knee" in name else -0.2 if "ankle_pitch" in name else 0.0
         defaults.append(position)
-        actuators = [
-            actuator
-            for actuator in robot_cfg.actuators.values()
-            if any(re.fullmatch(pattern, name) for pattern in actuator.joint_names_expr)
-        ]
-        if len(actuators) != 1:
-            raise ValueError(f"Expected one actuator group for {name}; found {len(actuators)}")
-        actuator = actuators[0]
-        builder.joint_target_ke[dof_index] = _actuator_value(actuator.stiffness, name)
-        builder.joint_target_kd[dof_index] = _actuator_value(actuator.damping, name)
-        builder.joint_armature[dof_index] = _actuator_value(actuator.armature, name)
+        builder.joint_q[builder.joint_q_start[index]] = position
+        if "hip_" in name:
+            kp, kd = 100.0, 2.5
+        elif "knee" in name:
+            kp, kd = 200.0, 5.0
+        elif "ankle_pitch" in name:
+            kp, kd = 20.0, 0.2
+        elif "ankle_roll" in name:
+            kp, kd = 20.0, 0.1
+        elif "waist" in name:
+            kp, kd = 300.0, 5.0
+        elif "shoulder_pitch" in name:
+            kp, kd = 90.0, 2.0
+        elif "shoulder_roll" in name:
+            kp, kd = 60.0, 1.0
+        elif "shoulder_yaw" in name:
+            kp, kd = 20.0, 0.4
+        elif "elbow" in name:
+            kp, kd = 60.0, 1.0
+        else:
+            kp, kd = 4.0, 0.2
+        dof = builder.joint_qd_start[index]
+        builder.joint_target_ke[dof] = kp
+        builder.joint_target_kd[dof] = kd
+        builder.joint_armature[dof] = 0.02
     builder.joint_target_q[:] = builder.joint_q
-    return names, defaults
+    return (
+        names,
+        defaults,
+        [names.index(name) for name in observation_names],
+        [names.index(name) for name in action_names],
+    )
 
 
 def _write_policy(checkpoint: Path, output: Path, widths: tuple[int, ...]) -> dict[str, object]:
@@ -574,9 +589,32 @@ def _write_policy(checkpoint: Path, output: Path, widths: tuple[int, ...]) -> di
     return {"file": "policy.bin", "layers": layers, "sha256": hashlib.sha256(checkpoint.read_bytes()).hexdigest()}
 
 
+def _write_agile_g1_policy(checkpoint: Path, output: Path) -> dict[str, object]:
+    """Pack the published WBC-AGILE ONNX actor for the shared browser evaluator."""
+    import onnx
+    from onnx.numpy_helper import to_array
+
+    if hashlib.sha256(checkpoint.read_bytes()).hexdigest() != G1_POLICY_SHA256:
+        raise ValueError("G1 ONNX policy changed; review its observation and action contract")
+    graph = onnx.load(checkpoint).graph
+    arrays = {tensor.name: to_array(tensor) for tensor in graph.initializer}
+    widths = (83, 256, 256, 128, 12)
+    chunks, layers, offset = [], [], 0
+    for index, (columns, rows) in enumerate(zip(widths[:-1], widths[1:], strict=True)):
+        weight = np.asarray(arrays[f"_tensor_constant{5 + index * 2}"], dtype="<f4")
+        bias = np.asarray(arrays[f"_tensor_constant{6 + index * 2}"], dtype="<f4")
+        if weight.shape != (rows, columns) or bias.shape != (rows,):
+            raise ValueError("Unexpected WBC-AGILE policy layer shape")
+        chunks.extend((weight.tobytes(), bias.tobytes()))
+        layers.append({"rows": rows, "columns": columns, "offset": offset})
+        offset += rows * (columns + 1)
+    (output / "policy.bin").write_bytes(b"".join(chunks))
+    return {"file": "policy.bin", "layers": layers, "sha256": G1_POLICY_SHA256, "sourceLicense": "policy.LICENSE.txt"}
+
+
 def _write_g1_visuals(source: Path, body_labels: list[str], joint_names: list[str], output: Path) -> dict[str, object]:
     """Pack simplified G1 link meshes into one lazy-loaded browser asset."""
-    urdf_path = source / "g1.urdf"
+    urdf_path = source / "g1_29dof_rev_1_0.urdf"
     if hashlib.sha256(urdf_path.read_bytes()).hexdigest() != G1_VISUAL_URDF_SHA256:
         raise ValueError("G1 visual URDF changed; review its link mapping before rebuilding")
     robot = ET.parse(urdf_path).getroot()
@@ -665,67 +703,54 @@ def _write_g1_visuals(source: Path, body_labels: list[str], joint_names: list[st
     }
 
 
-def export_g1(output: Path, usd: Path, checkpoint: Path, visual_source: Path) -> None:
-    """Export the flat G1 MJWarp step and its matching RSL-RL actor weights.
+def export_g1(output: Path, checkpoint: Path, description: Path, policy_license: Path, visual_source: Path) -> None:
+    """Export the 29-joint Unitree G1 with the published WBC-AGILE velocity actor.
 
     Args:
         output: Directory for the intermediate simulation bundle.
-        usd: Local copy of the task's G1 minimal USD.
-        checkpoint: Local copy of the published Newton MJWarp RSL-RL checkpoint.
-        visual_source: Local G1 URDF and meshes from the pinned ManiSkill revision.
+        checkpoint: Published WBC-AGILE ``Velocity-G1-v0`` ONNX policy.
+        description: Matching public WBC-AGILE policy YAML.
+        policy_license: WBC-AGILE repository license file.
+        visual_source: Unitree ROS G1 description and meshes at the pinned revision.
     """
-    from isaaclab_tasks.core.velocity.config.g1.flat_env_cfg import G1FlatEnvCfg
+    import yaml
 
-    task_cfg = G1FlatEnvCfg()
-    terms = [name for name, term in vars(task_cfg.observations.policy).items() if getattr(term, "func", None)]
-    expected_terms = [
-        "base_lin_vel",
-        "base_ang_vel",
-        "projected_gravity",
-        "velocity_commands",
-        "joint_pos",
-        "joint_vel",
-        "actions",
-    ]
-    if terms != expected_terms:
-        raise ValueError(f"G1 policy observation contract changed: {terms}")
-    asset_sha256 = hashlib.sha256(usd.read_bytes()).hexdigest()
-    checkpoint_sha256 = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
-    if asset_sha256 != G1_USD_SHA256 or checkpoint_sha256 != G1_CHECKPOINT_SHA256:
-        raise ValueError("G1 asset or checkpoint changed; review its policy contract before rebuilding")
-    solver_cfg = task_cfg.sim.physics.newton_mjwarp.solver_cfg
-    if solver_cfg.use_mujoco_contacts:
-        raise ValueError("G1 task collision mode changed; review browser collision capture")
-    timestep = float(task_cfg.sim.dt)
+    urdf_path = visual_source / "g1_29dof_rev_1_0.urdf"
+    asset_sha256 = hashlib.sha256(urdf_path.read_bytes()).hexdigest()
+    if asset_sha256 != G1_VISUAL_URDF_SHA256:
+        raise ValueError("G1 URDF changed; review its physics and visual mapping before rebuilding")
+    policy_description = yaml.safe_load(description.read_text())
+    model_description = policy_description["models"]["Velocity-G1-v0"]
+    if model_description["parameters"]["sha256sum"] != G1_POLICY_SHA256:
+        raise ValueError("G1 policy description does not match the pinned ONNX actor")
+
+    # Keep the six links used for foot and upper-body contact in the reference setup.
+    robot = ET.parse(urdf_path)
+    for link in robot.getroot().findall("link"):
+        for visual in link.findall("visual"):
+            link.remove(visual)
+        if link.get("name") not in G1_COLLISION_LINKS:
+            for collider in link.findall("collision"):
+                link.remove(collider)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    physics_urdf = output.with_suffix(".physics.urdf")
+    robot.write(physics_urdf)
+
+    timestep = 0.001
     builder = newton.ModelBuilder()
-    builder.default_body_armature = 0.01
-    builder.default_joint_cfg.armature = 0.01
+    builder.default_body_armature = 0.02
+    builder.default_joint_cfg.armature = 0.02
+    builder.default_joint_cfg.target_ke = 20.0
+    builder.default_joint_cfg.target_kd = 1.0
     builder.default_shape_cfg.ke = 1.0e4
     builder.default_shape_cfg.kd = 1.0e2
     builder.default_shape_cfg.kf = 1.0e2
     builder.default_shape_cfg.mu = 1.0
-    builder.add_usd(
-        str(usd),
-        floating=True,
-        collapse_fixed_joints=True,
-        enable_self_collisions=False,
-        load_visual_shapes=False,
-        skip_mesh_approximation=True,
-    )
-    # The robot USD has zero scene gravity; the Isaac Lab task supplies gravity.
-    builder.gravity = wp.vec3(*task_cfg.sim.gravity)
-    # The minimal USD authors its three colliders as eight-vertex unit cubes.
-    # Use equivalent analytic boxes to keep browser contact generation compact.
-    if len(builder.shape_type) != 3:
-        raise ValueError("Expected the G1 minimal USD's three cube colliders")
-    for index, (shape_type, source) in enumerate(zip(builder.shape_type, builder.shape_source, strict=True)):
-        vertices = np.asarray(source.vertices)
-        if shape_type != newton.GeoType.MESH or vertices.shape != (8, 3) or not np.allclose(np.abs(vertices), 0.5):
-            raise ValueError(f"G1 collider {index} is no longer a unit cube")
-        builder.shape_type[index] = newton.GeoType.BOX
-        builder.shape_scale[index] = wp.vec3(*(value * 0.5 for value in builder.shape_scale[index]))
-        builder.shape_source[index] = None
-    names, defaults = _configure_g1(builder, task_cfg.scene.robot)
+    builder.add_urdf(str(physics_urdf), floating=True, collapse_fixed_joints=True, enable_self_collisions=False)
+    physics_urdf.unlink()
+    if len(builder.body_label) != 30 or len(builder.shape_type) != 12:
+        raise ValueError("G1 physics model no longer has 30 bodies and 12 contact shapes")
+    names, defaults, observation_indices, action_indices = _configure_g1(builder, policy_description)
     edges = [
         [parent, child] for parent, child in zip(builder.joint_parent, builder.joint_child, strict=True) if parent >= 0
     ]
@@ -735,8 +760,8 @@ def export_g1(output: Path, usd: Path, checkpoint: Path, visual_source: Path) ->
     solver = newton.solvers.SolverMuJoCo(
         model,
         use_mujoco_contacts=False,
-        njmax=solver_cfg.njmax,
-        nconmax=solver_cfg.nconmax,
+        njmax=400,
+        nconmax=200,
         iterations=G1_BROWSER_SOLVER_ITERATIONS,
     )
     solver.mjw_model.opt.disableflags |= DisableBit.WARMSTART
@@ -785,25 +810,29 @@ def export_g1(output: Path, usd: Path, checkpoint: Path, visual_source: Path) ->
         output=output,
         timestep=timestep,
     )
-    policy = _write_policy(checkpoint, output, (12 + 3 * G1_DOF, 256, 128, 128, G1_DOF))
+    policy = _write_agile_g1_policy(checkpoint, output)
     visuals = _write_g1_visuals(visual_source, builder.body_label, names, output)
-    (output / "visuals.LICENSE.txt").write_bytes((visual_source / "LICENSE.txt").read_bytes())
+    (output / "visuals.LICENSE.txt").write_bytes((visual_source.parent.parent / "LICENSE").read_bytes())
+    (output / "policy.LICENSE.txt").write_bytes(policy_license.read_bytes())
     _write_manifest(
         output,
         {
             "kind": "g1",
-            "title": "G1 flat-ground velocity control",
-            "task": "Isaac-Velocity-Flat-G1",
+            "title": "G1 WBC-AGILE velocity control",
+            "task": "Velocity-G1-v0",
             "assetSha256": asset_sha256,
             "policy": policy,
             "visuals": visuals,
             "jointNames": names,
             "jointDefaults": defaults,
+            "observationIndices": observation_indices,
+            "actionIndices": action_indices,
+            "policyType": "wbc_agile_g1",
             "edges": edges,
             "rootBody": int(builder.joint_child[0]),
             "torsoBody": torso_body,
-            "decimation": task_cfg.decimation,
-            "actionScale": task_cfg.actions.joint_pos.scale,
+            "decimation": 20,
+            "actionScale": 0.25,
             "solverIterations": G1_BROWSER_SOLVER_ITERATIONS,
         },
     )
@@ -1042,9 +1071,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("demo", choices=("stiffness", "cloth_bending", "rigid_friction", "cartpole", "g1", "anymal"))
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--usd", type=Path, help="Local task USD asset; required for Cartpole and locomotion demos")
-    parser.add_argument("--checkpoint", type=Path, help="Local Newton MJWarp flat RSL-RL checkpoint")
-    parser.add_argument("--visual-source", type=Path, help="Local pinned G1 URDF and visual meshes")
+    parser.add_argument("--usd", type=Path, help="Local task USD asset; required for Cartpole and ANYmal-D")
+    parser.add_argument("--checkpoint", type=Path, help="Local policy checkpoint (ONNX for G1, RSL-RL for others)")
+    parser.add_argument("--policy-description", type=Path, help="WBC-AGILE G1 policy YAML")
+    parser.add_argument("--policy-license", type=Path, help="WBC-AGILE repository license file")
+    parser.add_argument("--visual-source", type=Path, help="Local pinned Unitree G1 description and meshes")
     parser.add_argument("--emxx", default="em++", help="Emscripten 5.0.3 compiler")
     args = parser.parse_args()
     wp.init()
@@ -1060,9 +1091,12 @@ def main() -> None:
             parser.error("Cartpole requires --usd and --checkpoint")
         export_cartpole(bundle, args.usd, args.checkpoint)
     elif args.demo == "g1":
-        if args.usd is None or args.checkpoint is None or args.visual_source is None:
-            parser.error("G1 requires --usd, --checkpoint, and --visual-source")
-        export_g1(bundle, args.usd, args.checkpoint, args.visual_source)
+        if any(
+            value is None
+            for value in (args.checkpoint, args.policy_description, args.policy_license, args.visual_source)
+        ):
+            parser.error("G1 requires --checkpoint, --policy-description, --policy-license, and --visual-source")
+        export_g1(bundle, args.checkpoint, args.policy_description, args.policy_license, args.visual_source)
     else:
         if args.usd is None or args.checkpoint is None:
             parser.error("ANYmal-D requires --usd and --checkpoint")
@@ -1088,6 +1122,8 @@ def main() -> None:
     if args.demo in ("g1", "anymal"):
         (deployment / "visuals.bin").write_bytes((bundle / "visuals.bin").read_bytes())
         (deployment / "visuals.LICENSE.txt").write_bytes((bundle / "visuals.LICENSE.txt").read_bytes())
+    if args.demo == "g1":
+        (deployment / "policy.LICENSE.txt").write_bytes((bundle / "policy.LICENSE.txt").read_bytes())
     print(f"Built {args.demo}: {deployment}")
 
 

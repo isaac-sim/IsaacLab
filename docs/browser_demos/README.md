@@ -26,14 +26,13 @@ The exporter uses Newton 1.6.0, Warp 1.17.0, MuJoCo Warp 3.12.0, and the
 at commit `b0795fbe6b46e08a1fea2425699421415ca4cdf1` (an NVIDIA internal build
 tool). It requires Emscripten 5.0.3. The compiled assets are checked into
 `docs/source/_static/browser_demos/` so ordinary Sphinx builds do not need the
-compiler, the robot USD, or a checkpoint.
+compiler or external robot and policy assets.
 Bundles larger than 2 MB are stored as gzip files. The shared browser widget
 decompresses them with `DecompressionStream` before initializing WebAssembly.
 The gallery presents stiffness, damping, and gravity controls in one VBD widget
 and one WebAssembly instance. The VBD guide embeds the same bundle in its own
 widget. Locomotion robots share the policy evaluator, joystick controls, and
-mesh viewer. Each robot still needs its own reviewed USD, checkpoint, and
-exported graph.
+mesh viewer. Each robot still needs its own reviewed asset, policy, and exported graph.
 The cloth demo adapts the three-value bend-stiffness comparison in
 `deformables.rst`. Three free sheets fall across pairs of horizontal rollers;
 the outer sheets retain 0.001 and 10 N·m bending stiffness. The logarithmic
@@ -104,28 +103,27 @@ uv run --no-sync python docs/browser_demos/export.py cartpole \
     --output /tmp/isaaclab-browser-build --emxx /path/to/emsdk/upstream/emscripten/em++
 ```
 
-The G1 source is `G1_MINIMAL_CFG.spawn.usd_path`, currently the
-[`g1_minimal.usd`](https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/Robots/Unitree/G1/g1_minimal.usd)
-asset. The policy is the published RSL-RL checkpoint for
-`Isaac-Velocity-Flat-G1` with Newton MJWarp and no preset. The visual meshes
-come from the matching 37-joint G1 description in
-[`ManiSkill`](https://github.com/mani-skill/ManiSkill/tree/62ff3a5896b4d5b4cf0ac4c8d79afe600c9404a3/mani_skill/assets/robots/g1_humanoid),
-under Unitree's BSD 3-Clause license:
+The G1 uses Unitree's BSD 3-Clause licensed
+[`g1_29dof_rev_1_0.urdf`](https://github.com/unitreerobotics/unitree_ros/blob/ccfc6fd8430a17ba3dacef9a1e2faf64ff3b0aee/robots/g1_description/g1_29dof_rev_1_0.urdf)
+and visual meshes. Its actor is the WBC-AGILE Apache 2.0 licensed
+[`Velocity-G1-v0`](https://github.com/nvidia-isaac/WBC-AGILE/tree/v1.3.1/agile/data/policy/velocity_g1/leapp/Velocity-G1-v0)
+ONNX model. Fetch the published actor (including Git LFS) and its policy description:
 
 ```bash
-curl -fL -o /tmp/g1_minimal.usd \
-    https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/Robots/Unitree/G1/g1_minimal.usd
-curl -fL -o /tmp/g1_flat_newton.pt \
-    https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/PretrainedCheckpoints/rsl_rl/Isaac-Velocity-Flat-G1_newtonmjwarp_none_rsl_rl.pt
 git clone --depth 1 --filter=blob:none --sparse \
-    https://github.com/mani-skill/ManiSkill.git /tmp/mani-skill-g1
-git -C /tmp/mani-skill-g1 fetch --depth 1 origin 62ff3a5896b4d5b4cf0ac4c8d79afe600c9404a3
-git -C /tmp/mani-skill-g1 checkout 62ff3a5896b4d5b4cf0ac4c8d79afe600c9404a3
-git -C /tmp/mani-skill-g1 sparse-checkout set mani_skill/assets/robots/g1_humanoid
-sha256sum /tmp/g1_minimal.usd /tmp/g1_flat_newton.pt
-uv run --no-sync python docs/browser_demos/export.py g1 \
-    --usd /tmp/g1_minimal.usd --checkpoint /tmp/g1_flat_newton.pt \
-    --visual-source /tmp/mani-skill-g1/mani_skill/assets/robots/g1_humanoid \
+    https://github.com/unitreerobotics/unitree_ros.git /tmp/unitree-ros
+git -C /tmp/unitree-ros sparse-checkout set robots/g1_description
+git -C /tmp/unitree-ros fetch --depth 1 origin ccfc6fd8430a17ba3dacef9a1e2faf64ff3b0aee
+git -C /tmp/unitree-ros checkout ccfc6fd8430a17ba3dacef9a1e2faf64ff3b0aee
+git clone --branch v1.3.1 --depth 1 --filter=blob:none --sparse \
+    https://github.com/nvidia-isaac/WBC-AGILE.git /tmp/wbc-agile
+git -C /tmp/wbc-agile sparse-checkout set agile/data/policy/velocity_g1/leapp/Velocity-G1-v0
+git -C /tmp/wbc-agile lfs pull
+uv run --no-sync --with onnx python docs/browser_demos/export.py g1 \
+    --checkpoint /tmp/wbc-agile/agile/data/policy/velocity_g1/leapp/Velocity-G1-v0/Velocity-G1-v0.onnx \
+    --policy-description /tmp/wbc-agile/agile/data/policy/velocity_g1/leapp/Velocity-G1-v0/Velocity-G1-v0.yaml \
+    --policy-license /tmp/wbc-agile/LICENCE \
+    --visual-source /tmp/unitree-ros/robots/g1_description \
     --output /tmp/isaaclab-browser-build --emxx /path/to/emsdk/upstream/emscripten/em++
 ```
 
@@ -155,9 +153,8 @@ Expected input SHA-256 values for this build:
 | Cartpole USD | `c98ce5dbb174876998052d486036fb79e07f52320851526a4ff61c60ed2db043` |
 | Cartpole instanceable meshes | `27976d05b7ee47d7674ab540b8b692113c0052b36f76a5fe9deb01aadc392aa1` |
 | Cartpole Newton checkpoint | `251c836e5b6fb9b229ec5e542b7a9071ec49e2da3ebeb3dc230cc77259c76eef` |
-| G1 minimal USD | `9dfe7a710aa791e49abf2d9ea74ad3163e291f02f21f59bda9bfcc40f3fab428` |
-| G1 flat Newton checkpoint | `3436a12f1f5f6ab51ae2f0c4e386656833bc7df6f1eed10986fef50606fbadaf` |
-| G1 visual URDF | `d446ad17340485f694ea17746fcb6e5f09a423cf14aa38efefc8aaefb6d07353` |
+| Unitree G1 29-joint URDF | `c0ae739c640c3e2c00d1bdd8810b5d6e59601487bd1a3995859f9543269ee5c8` |
+| WBC-AGILE G1 ONNX policy | `4c92c5a64d1220ab02b042e77bdd69bcd2c0310590755c3dd53b5bde229d26e4` |
 | ANYmal-D USD | `8b756c3690808b3b6a9a3fadc62ab843788c7b7835bbe085f0145f173521dc74` |
 | ANYmal-D instanceable meshes | `a864b5b9e192592595490f4116319476090f6789830057854c6532020dfc3d33` |
 | ANYmal-D flat Newton checkpoint | `0654295241696cdc7855f517a8d94a4951a243f6b21d73152225162ea01aeaaa` |
@@ -166,27 +163,26 @@ Copy the contents of `stiffness-web/`, `cloth_bending-web/`, `rigid_friction-web
 `docs/source/_static/browser_demos/` directories. Verify the widgets through
 an HTTP server, since `file://` URLs cannot load the WebAssembly modules. The
 G1 bundle contains compiled Newton code, the actor weights, and decimated
-visual meshes in one 1.9 MB binary with the required Unitree license. It does
-not copy the robot's USD. The ANYmal-D visual geometry is packed into a 752 KB
+visual meshes in one 1.5 MB binary with the required Unitree and WBC-AGILE licenses.
+The ANYmal-D visual geometry is packed into a 752 KB
 binary with its BSD 3-Clause license. Visual meshes are separate from the
 exported collision graph.
 
 ## Policy contract
 
-The G1 task has 37 actions and 123 policy observations; ANYmal-D has 12 actions
-and 48 observations. The widget forms each
-observation in the task's order: root linear and angular velocity in the body
-frame, projected gravity, a three-value velocity command, joint position
-relative to the default pose, joint velocity, and previous action. The actor
-uses four dense layers with ELU activations. Position targets are the default
-pose plus `0.5 × action`. Control runs every four 5 ms physics steps. The
-exporter checks the USD joint count and checkpoint tensor shapes so an asset
-or policy swap fails visibly instead of silently driving the wrong model.
+The G1 policy has 83 observations and 12 lower-body actions, mapped by name into
+the 29-joint Unitree asset. The observations are command (four values, with the
+fourth reserved), body-frame linear and angular velocity, projected gravity,
+joint positions relative to the default pose, joint velocities scaled by 0.1,
+and previous action. Four dense layers with ELU activations produce joint targets
+at 50 Hz. The browser advances MJWarp at 1 kHz with one solver iteration and
+the reference's 12 primitive contact shapes. The exporter verifies the source
+hashes, joint names, and layer dimensions. Policy and visual licenses ship with
+the bundle.
 
-The browser uses the G1 link meshes and a convex approximation of the minimal
-USD's three collision meshes. It runs MJWarp with two solver iterations instead
-of the task's 100, so its dynamics can differ from the full Isaac Lab task. Use
-`isaaclab play` for policy evaluation.
+ANYmal-D has 12 actions and 48 observations. Its actor uses four dense layers
+with ELU activations. Position targets are the default pose plus `0.5 × action`.
+Control runs every four 5 ms physics steps.
 
 ANYmal-D uses its USD collision shapes, 8 browser solver iterations, the task's
 contact material and two substeps per 5 ms physics step, and the published actor weights.

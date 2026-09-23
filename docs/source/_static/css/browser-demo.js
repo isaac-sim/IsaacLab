@@ -200,7 +200,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
         }
         this.viewer = viewer;
         this.command = new Float32Array(3);
-        this.previousAction = new Float32Array(this.demo.jointNames.length);
+        this.previousAction = new Float32Array(this.demo.actionIndices?.length || this.demo.jointNames.length);
       } else {
         const { StiffnessViewer } = await import('./stiffness-viewer.js');
         const viewer = await StiffnessViewer.load(this.canvas, this.simulation);
@@ -363,8 +363,8 @@ class IsaacLabBrowserDemo extends HTMLElement {
     controls.className = 'browser-demo-joysticks';
     const linear = this.addStick(controls, 'Travel', 'Forward / back · left / right', true,
       (x, y, readout) => {
-        this.command[0] = -y;
-        this.command[1] = -x;
+        this.command[0] = -y * (this.demo.policyType === 'wbc_agile_g1' ? (y < 0 ? 0.8 : 0.6) : 1);
+        this.command[1] = -x * (this.demo.policyType === 'wbc_agile_g1' ? 0.5 : 1);
         readout.value = `x ${this.command[0].toFixed(2)} · y ${this.command[1].toFixed(2)} m/s`;
       });
     const yaw = this.addStick(controls, 'Turn', 'Yaw left / right', false,
@@ -458,6 +458,10 @@ class IsaacLabBrowserDemo extends HTMLElement {
   }
 
   applyPolicy() {
+    if (this.demo.policyType === 'wbc_agile_g1') {
+      this.applyAgileG1Policy();
+      return;
+    }
     const { jointNames, jointDefaults, rootBody, actionScale } = this.demo;
     const count = jointNames.length;
     const pose = this.simulation.binding('body_q');
@@ -482,6 +486,37 @@ class IsaacLabBrowserDemo extends HTMLElement {
     for (let index = 0; index < count; index += 1) {
       if (!Number.isFinite(action[index])) throw new Error('Policy produced a non-finite action');
       target[7 + index] = jointDefaults[index] + actionScale * action[index];
+    }
+    this.previousAction.set(action);
+  }
+
+  applyAgileG1Policy() {
+    const { jointDefaults, observationIndices, actionIndices, rootBody, actionScale } = this.demo;
+    const pose = this.simulation.binding('body_q');
+    const velocity = this.simulation.binding('body_qd');
+    const joints = this.simulation.binding('joint_q');
+    const jointVelocity = this.simulation.binding('joint_qd');
+    const quaternion = pose.subarray(rootBody * 7 + 3, rootBody * 7 + 7);
+    const speed = rootBody * 6;
+    const observation = new Float32Array(83);
+    observation.set(this.command, 0);
+    observation.set(rotateInverse(quaternion, velocity.subarray(speed, speed + 3)), 4);
+    observation.set(rotateInverse(quaternion, velocity.subarray(speed + 3, speed + 6)), 7);
+    observation.set(rotateInverse(quaternion, [0, 0, -1]), 10);
+    for (let index = 0; index < observationIndices.length; index += 1) {
+      const joint = observationIndices[index];
+      observation[13 + index] = joints[7 + joint] - jointDefaults[joint];
+      observation[42 + index] = 0.1 * jointVelocity[6 + joint];
+    }
+    for (let index = 0; index < this.previousAction.length; index += 1) {
+      observation[71 + index] = Math.max(-10, Math.min(10, this.previousAction[index]));
+    }
+    const action = this.policy.run(observation);
+    const target = this.simulation.binding('target_q');
+    for (let index = 0; index < actionIndices.length; index += 1) {
+      if (!Number.isFinite(action[index])) throw new Error('Policy produced a non-finite action');
+      const joint = actionIndices[index];
+      target[7 + joint] = Math.max(-4, Math.min(4, jointDefaults[joint] + actionScale * action[index]));
     }
     this.previousAction.set(action);
   }

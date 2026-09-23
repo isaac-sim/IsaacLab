@@ -77,15 +77,14 @@ the corresponding solver tuning guide.
 G1 velocity control
 -------------------
 
-This example uses the ``Isaac-Velocity-Flat-G1`` RSL-RL checkpoint trained with Newton MJWarp.
+This example runs the published 29-joint WBC-AGILE ``Velocity-G1-v0`` policy with Newton MJWarp.
 Drag the X/Y and yaw pads to set forward, sideways, and turning velocity commands. Release a pad
 to stop; the arrow keys also work when a pad is focused. Drag the 3D view to orbit
-the robot and scroll over it to zoom. Its visual meshes come from the matching 37-joint G1
-description and load only when the example enters view. The policy runs every 20 ms;
-Newton advances at 5 ms per physics step. The browser export uses the task's default pose and
-joint actuator gains, and a minimal collision asset. It uses two solver iterations for browser
-responsiveness, while the training task uses 100. It is an interactive illustration of the
-policy, rather than a replacement for Isaac Lab evaluation.
+the robot and scroll over it to zoom. The robot geometry comes from Unitree's open G1
+description and loads only when the example enters view. The policy runs every 20 ms;
+Newton advances at 1 ms per physics step. The exporter retains the policy's 29-joint pose,
+lower-body action mapping, and PD gains. This is a browser demonstration of the policy,
+not an Isaac Lab task evaluation.
 
 .. raw:: html
 
