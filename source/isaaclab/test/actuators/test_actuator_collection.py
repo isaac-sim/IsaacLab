@@ -826,7 +826,8 @@ def test_custom_singleton_compute_receives_original_selector():
     cfg.class_type = SelectorRecordingActuator
     collection = ActuatorCollection({"all": cfg}, FakeActuatorControl())
 
-    collection.compute()
+    with pytest.warns(DeprecationWarning, match="Use term"):
+        collection.compute()
 
     assert collection["all"].observed_joint_indices == slice(None)
 

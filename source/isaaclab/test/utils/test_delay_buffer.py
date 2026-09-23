@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import warnings
 from collections.abc import Generator
 
 import pytest
@@ -17,9 +18,11 @@ pytestmark = pytest.mark.unit
 def test_callable_compatibility_preserves_compute_overrides_and_super():
     """Mixed old and new implementations retain defining-class dispatch instead of recursing through self()."""
 
-    class Legacy(DelayBuffer):
-        def compute(self, data):
-            return super().compute(data + 1) * 2
+    with pytest.warns(DeprecationWarning, match="define __call__"):
+
+        class Legacy(DelayBuffer):
+            def compute(self, data):
+                return super().compute(data + 1) * 2
 
     class Modern(Legacy):
         def __call__(self, data):
@@ -29,14 +32,22 @@ def test_callable_compatibility_preserves_compute_overrides_and_super():
         def compute(self, data):
             return super().compute(data + 5) * 6
 
-    class Mixed(LegacyMixin, Modern):
-        pass
+    with pytest.warns(DeprecationWarning, match="define __call__"):
+
+        class Mixed(LegacyMixin, Modern):
+            pass
 
     data = torch.tensor([[2.0]])
     buffer = Mixed(0, 1, "cpu")
     expected = ((data + 5 + 3 + 1) * 2) * 4 * 6
-    torch.testing.assert_close(buffer(data), expected)
-    torch.testing.assert_close(buffer.compute(data), expected)
+    with pytest.warns(DeprecationWarning, match="Use term"):
+        torch.testing.assert_close(buffer(data), expected)
+    with pytest.warns(DeprecationWarning, match="Use term"):
+        torch.testing.assert_close(buffer.compute(data), expected)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        torch.testing.assert_close(DelayBuffer(0, 1, "cpu")(data), data)
+    assert not caught
 
 
 @pytest.fixture(params=test_devices())

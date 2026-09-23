@@ -134,6 +134,17 @@ in the current episode. Partial resets affect only the selected environments and
 Returned data can be modified without corrupting retained history. Legacy ``DelayedPDActuatorCfg`` remains
 supported with its original reset-sampled command delay; its Newton-native path retains Newton's own implementation.
 
+Actuator and delay-buffer invocation
+++++++++++++++++++++++++++++++++++
+
+Call actuator models as ``actuator(commands, joint_pos, joint_vel)`` and buffers as ``buffer(data)``.
+Their ``compute(...)`` spelling is deprecated in Isaac Lab 3.0 and scheduled for removal in 3.2, after a full
+release cycle. Existing custom ``compute`` overrides and ``super().compute()`` chains continue to work during
+that transition. Migrate implementations to ``__call__`` and parent calls to ``super().__call__(...)``.
+Legacy overrides warn at class definition; direct ``compute`` calls warn when invoked. Canonical calls to
+migrated implementations emit no deprecation warning. Manager-level ``compute`` methods and the action
+processing/application clocks are unchanged by this migration.
+
 Custom mechanisms derive their configuration from ``WrapperCfg`` and implement a complete ``__call__`` and
 ``reset(env_ids)``. No input/output hook pair or universal side selector is required. Their input and output must
 match the enclosing term's signal contract; custom code must also support the backend's graph capture when enabled.

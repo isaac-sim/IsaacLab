@@ -104,6 +104,10 @@ class ActuatorBase(ABC):
     are matched against the joint names in the articulation.
 
     To see how the class is used, check the :class:`isaaclab.assets.Articulation` class.
+
+    .. deprecated:: 3.0
+       ``compute(...)`` and custom ``compute`` overrides remain supported until Isaac Lab 3.2.
+       Call ``actuator(...)`` and implement ``__call__`` instead, including ``super().__call__(...)`` chains.
     """
 
     def __init_subclass__(cls, **kwargs):

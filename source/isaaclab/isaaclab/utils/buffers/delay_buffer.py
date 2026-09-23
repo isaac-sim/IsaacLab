@@ -24,6 +24,10 @@ class DelayBuffer:
     A lag of zero returns the current input. Until enough samples exist after initialization or reset,
     the oldest available sample is returned. Reset only invalidates the selected batches' history;
     no previous-episode data can be read, and the remaining batches continue uninterrupted.
+
+    .. deprecated:: 3.0
+       ``compute(data)`` and custom ``compute`` overrides remain supported until Isaac Lab 3.2.
+       Call ``buffer(data)`` and implement ``__call__`` instead.
     """
 
     def __init_subclass__(cls, **kwargs):
