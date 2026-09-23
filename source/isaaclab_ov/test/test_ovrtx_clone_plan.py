@@ -114,7 +114,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer._device = "cuda:0"  # __init__'s default, replaced by create_render_data(spec)
     # create_render_data resolves this from the spec; tests that bypass it get the default.
     renderer._warp_device = SimpleNamespace(ordinal=0)
-    renderer._camera_rel_path = "Camera"
+    renderer._camera_prim_path = "/World/envs/env_0/Camera"
     renderer._render_product_paths = []
     renderer._camera_render_data = []
     renderer._next_camera_id = 0
@@ -147,7 +147,6 @@ def _make_camera_render_spec(num_envs: int = 1, device: str = "cpu") -> CameraRe
         num_instances=num_envs,
         camera_prim_paths=camera_paths,
         view_count=num_envs,
-        camera_path_relative_to_env_0="Camera",
     )
 
 
