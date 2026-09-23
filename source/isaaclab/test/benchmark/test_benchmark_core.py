@@ -6,7 +6,6 @@
 """Tests for BaseIsaacLabBenchmark."""
 
 import json
-import math
 import os
 from dataclasses import replace
 
@@ -304,26 +303,33 @@ def test_formatter_selection_and_output_filenames(tmp_path):
 
 
 def test_attached_bundles_are_projected_to_flat_formatters(tmp_path):
-    from isaaclab.benchmark.schema import ScopeTiming
-
     bundle = _minimal_runtime_bundle()
     physics_scope = "IsaacLab::Physics::step"
     render_scope = "IsaacLab::Renderer::render"
     render_ms = 2.123456789
-    scope_timings = [
-        ScopeTiming(scope=physics_scope, elapsed_ms=1.0),
-        ScopeTiming(scope=render_scope, elapsed_ms=render_ms),
-        ScopeTiming(scope=physics_scope, elapsed_ms=3.0),
-    ]
+    profile_metrics = {
+        "physics_mean_ms": 2.0,
+        "physics_std_ms": 0.5,
+        "physics_max_ms": 3.0,
+        "physics_calls": 2,
+        "render_mean_ms": render_ms,
+        "render_std_ms": 0.0,
+        "render_max_ms": render_ms,
+        "render_calls": 1,
+    }
     cases = [
         (bundle, "runtime", {"Mean Total FPS": 100.0}),
-        (replace(bundle, runtime=replace(bundle.runtime, scope_timings=[])), "runtime", {"Mean Total FPS": 100.0}),
         (
-            replace(bundle, runtime=replace(bundle.runtime, scope_timings=scope_timings)),
+            replace(bundle, extra={"distributed": True, "world_size": 2, "workload_scope": "rank0"}),
+            "runtime",
+            {"Mean Total FPS": 100.0},
+        ),
+        (
+            replace(bundle, extra=profile_metrics),
             "runtime",
             {
                 f"Mean {physics_scope} Time per Call": 2.0,
-                f"Std {physics_scope} Time per Call": math.sqrt(2.0),
+                f"Std {physics_scope} Time per Call": 0.5,
                 f"Max {physics_scope} Time per Call": 3.0,
                 f"{physics_scope} Calls": 2,
                 f"Mean {render_scope} Time per Call": render_ms,
@@ -351,8 +357,8 @@ def test_attached_bundles_are_projected_to_flat_formatters(tmp_path):
         with open(benchmark.output_file_path) as f:
             data = json.load(f)
         assert {metric: data[phase][metric] for metric in expected} == expected
-        if hasattr(bundle, "runtime") and not bundle.runtime.scope_timings:
-            assert not any(physics_scope in metric or render_scope in metric for metric in data["runtime"])
+        if bundle.extra != profile_metrics:
+            assert not any(physics_scope in metric or render_scope in metric for metric in data.get("runtime", {}))
 
 
 def test_environment_step_timing_flat_labels_describe_measurement_mode():

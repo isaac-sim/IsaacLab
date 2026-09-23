@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Public schema for Isaac Lab benchmark bundles (v1.5).
+"""Public schema for Isaac Lab benchmark bundles (v1.4).
 
 Defines the on-disk JSON schema produced by the benchmark workflows
 in :mod:`isaaclab.benchmark.entrypoints`.
@@ -17,7 +17,7 @@ Each bundle is self-contained: every top-level bundle carries its own
 :class:`Versions` and :class:`Hardware` metadata so a reader need not
 cross-reference other files in the bundle directory.
 
-Current version: 1.5
+Current version: 1.4
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Literal
 
-SCHEMA_VERSION = "1.5"
+SCHEMA_VERSION = "1.4"
 
 Framework = Literal["rsl_rl", "rl_games", "skrl", "sb3"]
 PhysicsBackend = Literal["physx", "newton_mjwarp", "newton_kamino", "ovphysx"]
@@ -303,26 +303,8 @@ class EnvironmentStepTiming:
 
 
 @dataclass(frozen=True)
-class ScopeTiming:
-    """One synchronized physics or render scope measurement.
-
-    Args:
-        scope: Timer scope name.
-        elapsed_ms: Synchronized scope wall time [ms].
-    """
-
-    scope: str
-    elapsed_ms: float
-
-    def __post_init__(self) -> None:
-        """Validate that the elapsed time is finite and nonnegative."""
-        if not math.isfinite(self.elapsed_ms) or self.elapsed_ms < 0.0:
-            raise ValueError("elapsed_ms must be finite and nonnegative")
-
-
-@dataclass(frozen=True)
 class Runtime:
-    """Runtime metrics for a run.
+    """Aggregated runtime metrics for a run.
 
     Args:
         startup_time_s: Per-phase startup wall-clock durations [s].
@@ -340,9 +322,6 @@ class Runtime:
         environment_step_timing: Environment-step timing and optional synchronized
             simulation breakdown, when measured. Its measurement mode also
             describes the schedule used by the enclosing timing and rate fields.
-        scope_timings: Synchronized physics and render scope measurements in completion
-            order. ``None`` means profiling was disabled; an empty list means profiling
-            was enabled but no samples were collected. These timings perturb throughput.
     """
 
     startup_time_s: StartupTime
@@ -354,7 +333,6 @@ class Runtime:
     total_fps: MeanStd
     iterations_per_s: MeanStd
     environment_step_timing: EnvironmentStepTiming | None = None
-    scope_timings: list[ScopeTiming] | None = None
 
 
 @dataclass(frozen=True)

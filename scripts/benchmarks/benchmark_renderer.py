@@ -11,6 +11,7 @@
 import argparse
 import fnmatch
 import json
+import math
 import os
 import shutil
 import site
@@ -179,20 +180,23 @@ def summarize(samples: list[float]) -> dict:
 
 
 def parse_frames(filename: str, scopes: dict[str, str] | None = None) -> list[dict[str, float]]:
-    """Read per-frame scope times [ms] from a runtime benchmark bundle, in order.
+    """Read per-frame scope times [ms] from a run's structured profiling file, in order.
 
     A rendered frame is preceded by however many physics steps the task's decimation implies, so
     non-frame scopes are accumulated until the frame scope's timing closes them out rather than
     assumed to be one per frame. A scope absent from the file reads as zero for every frame.
 
     Args:
-        filename: Path to the schema JSON file written by the runtime benchmark.
+        filename: Path to the profiling JSON file written by the runtime benchmark.
         scopes: Report scope name to timer name, defaulting to :data:`PROFILE_SCOPES`. Must contain
             :data:`FRAME_SCOPE`.
 
     Returns:
         One ``{scope: time_ms}`` dict per frame, each carrying every key in ``scopes``.
 
+    Raises:
+        TypeError: A timing entry has an invalid type.
+        ValueError: The profiling file does not contain valid ordered scope timings.
     """
     scopes = PROFILE_SCOPES if scopes is None else scopes
     frames: list[dict[str, float]] = []
@@ -200,11 +204,15 @@ def parse_frames(filename: str, scopes: dict[str, str] | None = None) -> list[di
 
     with open(filename) as file:
         payload = json.load(file)
+    if not isinstance(payload, dict) or not isinstance(payload.get("timings_ms"), list):
+        raise ValueError("Expected a 'timings_ms' list of [scope, elapsed_ms] pairs.")
+
     scope_names = {timer: name for name, timer in scopes.items()}
-    for sample in payload["runtime"]["scope_timings"] or []:
-        if (name := scope_names.get(sample["scope"])) is None:
+    for timer, elapsed_ms in payload["timings_ms"]:
+        if type(elapsed_ms) not in (int, float) or not math.isfinite(elapsed_ms) or elapsed_ms < 0:
+            raise ValueError("Expected a finite nonnegative time [ms].")
+        if (name := scope_names.get(timer)) is None:
             continue
-        elapsed_ms = sample["elapsed_ms"]
         if name == FRAME_SCOPE:
             frames.append(pending | {name: elapsed_ms})
             pending = dict.fromkeys(scopes, 0.0)
@@ -215,7 +223,7 @@ def parse_frames(filename: str, scopes: dict[str, str] | None = None) -> list[di
 
 
 def parse_profile(filename: str, num_frames: int, scopes: dict[str, str] | None = None) -> dict | None:
-    """Summarize per-frame times [ms] from a runtime benchmark bundle, one entry per scope.
+    """Summarize per-frame times [ms] from a profiling JSON file, one entry per scope.
 
     Every backend is measured the same way: the wall time of :data:`RENDER_SCOPE`, collected once per
     render by ``wp.ScopedTimer`` when ``ISAACLAB_RENDER_PROFILE`` is set. The timer synchronizes the
@@ -226,7 +234,7 @@ def parse_profile(filename: str, num_frames: int, scopes: dict[str, str] | None 
     what its physics steps cost and the two summed.
 
     Args:
-        filename: Path to the schema JSON file written by the runtime benchmark.
+        filename: Path to the profiling JSON file written by the runtime benchmark.
         num_frames: Number of frames to measure, after skipping :data:`FRAME_PADDING` warm-up frames.
         scopes: Report scope name to timer name, defaulting to :data:`PROFILE_SCOPES`.
 
@@ -296,8 +304,9 @@ def run_profile(profile: dict, args: argparse.Namespace):
     output_path = os.path.join(OUTPUT_PATH, profile_name)
     os.makedirs(output_path, exist_ok=True)
     log_filename = os.path.join(OUTPUT_PATH, profile_name + ".log")
+    profile_filename = os.path.join(output_path, "profile_timings.json")
     # A successful subprocess must produce its own measurements, never reuse a previous run's.
-    previous_outputs = set(Path(output_path).glob("benchmark_runtime_*.json"))
+    Path(profile_filename).unlink(missing_ok=True)
 
     cmd = [
         sys.executable,
@@ -331,8 +340,7 @@ def run_profile(profile: dict, args: argparse.Namespace):
             log(f"Failed with exit code {process.returncode}, see {log_filename} for details.")
             return False
 
-    (profile_path,) = set(Path(output_path).glob("benchmark_runtime_*.json")) - previous_outputs
-    return parse_profile(str(profile_path), args.num_frames)
+    return parse_profile(profile_filename, args.num_frames)
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:

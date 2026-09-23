@@ -89,13 +89,15 @@ for the rest of the process. Similarly, ``ISAACLAB_RENDER_PROFILE=1`` wraps regi
 renderers through :func:`~isaaclab.benchmark.stepping.profile_renderers`, timing only
 ``render()`` and excluding scene updates and output readback. Render wrappers are installed
 after warmup and remain on those instances for the rest of the benchmark. The render sweep
-enables both flags automatically. Schema version 1.5 includes ordered ``scope`` and ``elapsed_ms``
-records in ``runtime.scope_timings`` in the standard benchmark JSON and the API's returned bundle.
-This field is ``None`` when profiling is disabled. OmniPerf output includes each scope's mean,
-standard deviation, maximum time per call [ms], and call count. These statistics describe individual
-scope calls; the render sweep groups physics calls by rendered frame and discards its padding frames.
-The sweep reads the schema output from a separate directory for each profile. Device synchronization
-changes execution overlap, so these profiled runs are diagnostics rather than throughput measurements.
+enables both flags automatically. Ordered ``[scope, elapsed_ms]`` samples are written under
+``timings_ms`` in the local ``<output_path>/profile_timings.json`` file. The benchmark bundle's
+``extra`` dictionary holds scalar ``physics_mean_ms``, ``physics_std_ms``, ``physics_max_ms``,
+``physics_calls``, and corresponding ``render_*`` summaries. Disabled scopes contribute no keys.
+Schema version 1.4 remains unchanged, and OmniPerf output includes the same summaries.
+These statistics describe individual calls after warmup; the render sweep instead groups physics
+calls by rendered frame and discards its padding frames. The sweep reads the local profiling file
+from a separate directory for each profile. Device synchronization changes execution overlap,
+so these profiled runs are diagnostics rather than throughput measurements.
 
 .. dropdown:: Canonical workstation output and provenance
 

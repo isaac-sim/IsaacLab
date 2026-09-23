@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the Isaac Lab benchmark schema."""
+"""Tests for the v1.2 Isaac Lab benchmark schema."""
 
 import dataclasses
 import json
@@ -25,7 +25,6 @@ from isaaclab.benchmark.schema import (
     RunIdentity,
     Runtime,
     RuntimeBundle,
-    ScopeTiming,
     StartupBundle,
     StartupConfig,
     StartupPhase,
@@ -150,7 +149,6 @@ def test_training_bundle_round_trip(tmp_path):
     assert data["run"]["config"]["presets"] == []
     assert data["runtime"]["collection_fps"]["mean"] == pytest.approx(1_142_000.0)
     assert data["runtime"]["total_fps"]["mean"] == pytest.approx(1_071_780.0)
-    assert data["runtime"]["scope_timings"] is None
     timing = data["runtime"]["environment_step_timing"]
     assert timing["warmup_steps"] == 0
     assert timing["outside_simulation_step_fraction"] == pytest.approx(0.375)
@@ -226,13 +224,6 @@ def test_runtime_bundle_round_trip(tmp_path):
     assert data["run"]["max_iterations"] is None
     assert "learning" not in data
     assert data["resources"]["gpu_mem_gb"]["peak"] == pytest.approx(19.2)
-    assert data["schema_version"] == "1.5"
-
-
-@pytest.mark.parametrize("elapsed_ms", [-1.0, float("nan"), float("inf"), float("-inf")])
-def test_scope_timing_rejects_invalid_elapsed_time(elapsed_ms):
-    with pytest.raises(ValueError, match="elapsed_ms must be finite and nonnegative"):
-        ScopeTiming(scope="IsaacLab::Physics::step", elapsed_ms=elapsed_ms)
 
 
 def test_training_bundle_without_series(tmp_path):

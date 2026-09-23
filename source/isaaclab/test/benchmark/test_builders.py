@@ -95,7 +95,6 @@ def test_build_runtime_aggregates():
     assert rt.total_wall_time_s == pytest.approx(4.0)
     assert rt.total_fps.peak == pytest.approx(95.0)
     assert rt.iterations_per_s.mean > 0
-    assert rt.scope_timings is None
 
 
 def test_build_runtime_uses_effective_aggregate_throughput_when_requested():
@@ -348,10 +347,7 @@ def test_build_learning_keep_series_false():
     assert learning.success_rate.series_per_iter is None
 
 
-@pytest.mark.parametrize(
-    "scope_timings", [None, [], [("physics", 0.123456789), ("render", 1.234567891), ("physics", 0.0)]]
-)
-def test_build_runtime_bundle_no_learning(tmp_path, scope_timings):
+def test_build_runtime_bundle_no_learning(tmp_path):
     run = builders.build_run_identity(
         run_id="x",
         framework=None,
@@ -368,15 +364,7 @@ def test_build_runtime_bundle_no_learning(tmp_path, scope_timings):
         collection_fps=[100.0],
         total_fps=[100.0],
         steps_per_iteration=24,
-        scope_timings=scope_timings,
     )
-    expected_timings = (
-        [{"scope": scope, "elapsed_ms": elapsed_ms} for scope, elapsed_ms in scope_timings]
-        if scope_timings is not None
-        else None
-    )
-    if scope_timings is not None:
-        scope_timings.clear()
     b = builders.build_runtime_bundle(
         run=run, versions=_versions(), hardware=_hardware(), runtime=rt, resources=_resources()
     )
@@ -384,6 +372,4 @@ def test_build_runtime_bundle_no_learning(tmp_path, scope_timings):
     p = os.path.join(tmp_path, "runtime.json")
     write_bundle_file(b, p)
     with open(p) as fh:
-        data = json.load(fh)
-    assert data["run"]["framework"] is None
-    assert data["runtime"]["scope_timings"] == expected_timings
+        assert json.load(fh)["run"]["framework"] is None

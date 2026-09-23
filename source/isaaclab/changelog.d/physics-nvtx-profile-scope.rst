@@ -15,12 +15,13 @@ Changed
   available. To collect these scopes, use a task with a non-``None`` ``benchmark_mode`` and
   enable the corresponding profiling flags.
 
-* Updated the benchmark schema to version 1.5 and included ordered physics and render
-  scope timings in ``BenchmarkResult.bundle.runtime.scope_timings`` and the standard schema
-  output. OmniPerf reports included each scope's mean, standard deviation, maximum time per
-  call [ms], and call count. Consumers should read ``runtime.scope_timings`` records with
-  ``scope`` and ``elapsed_ms`` fields instead of parsing printed timer lines or reading a
-  separate profiling file; use ``--output_path`` to select the output directory.
+* Included scalar physics and render profiling summaries in ``BenchmarkResult.bundle.extra``
+  without changing schema version 1.4. Schema and OmniPerf output included each scope's mean,
+  standard deviation, maximum time per call [ms], and call count. Consumers should read
+  ``physics_mean_ms``, ``physics_std_ms``, ``physics_max_ms``, ``physics_calls``, and the
+  corresponding ``render_*`` keys for these summaries. Raw ordered samples remained in
+  ``<output_path>/profile_timings.json`` as ``timings_ms`` pairs for local analysis instead
+  of parsing printed timer lines; use ``--output_path`` to select the output directory.
 
 * **Breaking:** Moved render profiling into the runtime benchmark through
   :func:`~isaaclab.benchmark.stepping.profile_renderers`. To collect render timings with

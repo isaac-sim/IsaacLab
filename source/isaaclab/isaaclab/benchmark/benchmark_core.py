@@ -75,10 +75,7 @@ def _stat_measurements(name: str, stats: "MeanStd", unit: str, scale: float = 1.
 
 
 def _runtime_measurements(runtime: "Runtime") -> dict[str, list[Measurement]]:
-    """Convert schema runtime metrics to startup and runtime phases.
-
-    Scope timing aggregates describe individual calls and include every collected sample.
-    """
+    """Convert schema runtime metrics to startup and runtime phases."""
     startup_fields = (
         ("app_launch", "App Launch Time"),
         ("python_imports", "Python Imports Time"),
@@ -147,15 +144,6 @@ def _runtime_measurements(runtime: "Runtime") -> dict[str, list[Measurement]]:
     runtime_metrics.extend(
         _stat_measurements(f"{metric_prefix}Iterations per Second", runtime.iterations_per_s, "iterations/s")
     )
-    if runtime.scope_timings:
-        from isaaclab.benchmark.metrics import mean_std_peak
-
-        samples_by_scope: dict[str, list[float]] = {}
-        for sample in runtime.scope_timings:
-            samples_by_scope.setdefault(sample.scope, []).append(sample.elapsed_ms)
-        for scope, samples in samples_by_scope.items():
-            runtime_metrics.extend(_stat_measurements(f"{scope} Time per Call", mean_std_peak(samples), "ms"))
-            runtime_metrics.append(SingleMeasurement(name=f"{scope} Calls", value=len(samples), unit="count"))
     return {"startup": startup, "runtime": runtime_metrics}
 
 
@@ -176,7 +164,10 @@ def _curve_measurements(label: str, curve: "LearningCurve", ema_alpha: float) ->
 def _measurements_from_bundle(
     bundle: "RuntimeBundle | TrainingBundle | StartupBundle | PlayBundle",
 ) -> dict[str, list[Measurement]]:
-    """Project a typed bundle into flat phases for non-schema formatters."""
+    """Project a typed bundle into flat phases for non-schema formatters.
+
+    Profiling summaries in ``extra`` describe individual physics or render calls.
+    """
     from isaaclab.benchmark.schema import PlayBundle, StartupBundle, TrainingBundle
 
     if isinstance(bundle, StartupBundle):
@@ -197,6 +188,15 @@ def _measurements_from_bundle(
         return projected
 
     projected = _runtime_measurements(bundle.runtime)
+    extra = bundle.extra or {}
+    for prefix, scope in (("physics", "IsaacLab::Physics::step"), ("render", "IsaacLab::Renderer::render")):
+        for statistic in ("mean", "std", "max"):
+            if (key := f"{prefix}_{statistic}_ms") in extra:
+                projected["runtime"].append(
+                    SingleMeasurement(name=f"{statistic.title()} {scope} Time per Call", value=extra[key], unit="ms")
+                )
+        if (key := f"{prefix}_calls") in extra:
+            projected["runtime"].append(SingleMeasurement(name=f"{scope} Calls", value=extra[key], unit="count"))
     if isinstance(bundle, TrainingBundle):
         train = _curve_measurements("Reward", bundle.learning.reward, bundle.learning.ema_alpha)
         train.extend(_curve_measurements("Episode Length", bundle.learning.ep_length, bundle.learning.ema_alpha))

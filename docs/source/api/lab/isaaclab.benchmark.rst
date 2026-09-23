@@ -80,7 +80,6 @@ isaaclab.benchmark
       RunIdentity
       Runtime
       RuntimeBundle
-      ScopeTiming
       StartupBundle
       StartupPhase
       StartupTime
@@ -218,7 +217,6 @@ The following classes are part of the public :mod:`isaaclab.benchmark` API.
    RunConfig
    RunIdentity
    Runtime
-   ScopeTiming
    SingleMeasurement
    StartupConfig
    StartupPhase
@@ -283,9 +281,6 @@ The following classes are part of the public :mod:`isaaclab.benchmark` API.
    :show-inheritance:
 
 .. autoclass:: Runtime
-   :show-inheritance:
-
-.. autoclass:: ScopeTiming
    :show-inheritance:
 
 .. autoclass:: SingleMeasurement
