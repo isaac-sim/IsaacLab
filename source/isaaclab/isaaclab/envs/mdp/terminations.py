@@ -70,6 +70,7 @@ def bad_orientation(
 
     This is computed by checking the angle between the projected gravity vector and the z-axis.
     """
+    # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return torch.acos(-asset.data.projected_gravity_b.torch[:, 2]).abs() > limit_angle
 
@@ -82,6 +83,7 @@ def root_height_below_minimum(
     Note:
         This is currently only supported for flat terrains, i.e. the minimum height is in the world frame.
     """
+    # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
     return asset.data.root_pos_w.torch[:, 2] < minimum_height
 
@@ -93,6 +95,7 @@ Joint terminations.
 
 def joint_pos_out_of_limit(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Terminate when the asset's joint positions are outside of the soft joint limits."""
+    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     if asset_cfg.joint_ids is None:
         asset_cfg.joint_ids = slice(None)
@@ -111,6 +114,7 @@ def joint_pos_out_of_manual_limit(
     Note:
         This function is similar to :func:`joint_pos_out_of_limit` but allows the user to specify the bounds manually.
     """
+    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     if asset_cfg.joint_ids is None:
         asset_cfg.joint_ids = slice(None)
@@ -144,6 +148,7 @@ def joint_vel_out_of_manual_limit(
     env: ManagerBasedRLEnv, max_velocity: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """Terminate when the asset's joint velocities are outside the provided limits."""
+    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return torch.any(torch.abs(asset.data.joint_vel.torch[:, asset_cfg.joint_ids]) > max_velocity, dim=1)
 
@@ -157,7 +162,9 @@ def joint_effort_out_of_limit(
     the computed torques to the joint limits. Hence, we check if the computed torques are equal to the applied
     torques. If they are not, it means that clipping has occurred.
     """
+    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
+    # check if any joint effort is out of limit
     out_of_limits = ~torch.isclose(
         asset.actuators.computed_effort.torch[:, asset_cfg.joint_ids],
         asset.actuators.applied_effort.torch[:, asset_cfg.joint_ids],
@@ -172,6 +179,7 @@ Contact sensor.
 
 def illegal_contact(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     """Terminate when the contact force on the sensor exceeds the force threshold."""
+    # extract the used quantities (to enable type-hinting)
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     net_contact_forces = contact_sensor.data.net_normal_forces_w_history.torch
     # check if any contact force exceeds the threshold

@@ -237,10 +237,12 @@ def apply_namespaced(cfg: schemas_cfg.SchemaFragment, prim_path: str, stage: Usd
     if stage is None:
         stage = get_current_stage()
     prim = stage.GetPrimAtPath(prim_path)
+    # fail loudly on an invalid path (matches the legacy define_/modify_ writers)
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
     namespace = type(cfg)._usd_namespace
     applied = type(cfg)._usd_applied_schema
+    # every fragment field is a namespaced USD attribute, so a namespace is required
     if namespace is None:
         raise ValueError(
             f"Fragment '{type(cfg).__name__}' has no '_usd_namespace' set. Every fragment field is"
@@ -527,6 +529,8 @@ def modify_articulation_root_properties(
     fix_root_link = cfg_dict.pop("fix_root_link", None)
     _apply_namespaced_schemas(articulation_prim, cfg, cfg_dict)
 
+    # fix root link based on input
+    # we do the fixed joint processing later to not interfere with setting other properties
     if fix_root_link is not None:
         # check if a global fixed joint exists under the root prim
         existing_fixed_joint_prim = find_global_fixed_joint_prim(prim_path)
@@ -563,6 +567,7 @@ def modify_articulation_root_properties(
             if "PhysxArticulationAPI" not in parent_applied:
                 parent_prim.AddAppliedSchema("PhysxArticulationAPI")
 
+            # copy the attributes
             # -- usd attributes
             usd_articulation_api = UsdPhysics.ArticulationRootAPI(articulation_prim)
             for attr_name in usd_articulation_api.GetSchemaAttributeNames():
@@ -812,8 +817,10 @@ def apply_mesh_collision_properties(
     if stage is None:
         stage = get_current_stage()
     prim = stage.GetPrimAtPath(prim_path)
+    # fail loudly on an invalid path (matches the sibling apply_* writers)
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    # apply the standard MeshCollisionAPI anchor (carrier of ``physics:approximation``)
     if not UsdPhysics.MeshCollisionAPI(prim):
         UsdPhysics.MeshCollisionAPI.Apply(prim)
     # dispatch each fragment via its ``func`` (cooking-schema namespace + implied approximation
@@ -1347,6 +1354,8 @@ def apply_drive(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
+
+    # select the drive instance based on the joint type
     drive_api_name = _drive_instance_name(prim)
     if drive_api_name is None:
         return False
@@ -1368,8 +1377,10 @@ def apply_drive(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
     # angular drives use degree units in USD; convert stiffness/damping from radian units
     if drive_api_name == "angular":
         if stiffness is not None:
+            # N-m/rad --> N-m/deg
             stiffness = stiffness * math.pi / 180.0
         if damping is not None:
+            # N-m-s/rad --> N-m-s/deg
             damping = damping * math.pi / 180.0
 
     # ``drive_type`` is a permanent inline carve-out: the USD attribute is named ``type``
@@ -1755,6 +1766,10 @@ def modify_fixed_tendon_properties(
         Use :func:`apply_fixed_tendon_properties` with schema fragments instead. This function will be removed
         in 3.2.
     """
+    # Retained for backward compatibility with callers passing PhysxFixedTendonPropertiesCfg
+    # directly. Will be removed in a future release once callers adopt the fragment-based
+    # apply_fixed_tendon_properties path.
+    # get stage handle
     if stage is None:
         stage = get_current_stage()
 
@@ -1845,6 +1860,10 @@ def modify_spatial_tendon_properties(
         Use :func:`apply_spatial_tendon_properties` with schema fragments instead. This function will be removed
         in 3.2.
     """
+    # Retained for backward compatibility with callers passing PhysxSpatialTendonPropertiesCfg
+    # directly. Will be removed in a future release once callers adopt the fragment-based
+    # apply_spatial_tendon_properties path.
+    # obtain stage
     if stage is None:
         stage = get_current_stage()
     tendon_prim = stage.GetPrimAtPath(prim_path)
@@ -1937,6 +1956,8 @@ def modify_mesh_collision_properties(
     if stage is None:
         stage = get_current_stage()
     prim = stage.GetPrimAtPath(prim_path)
+
+    # we need MeshCollisionAPI to set mesh collision approximation attribute
     if not UsdPhysics.MeshCollisionAPI(prim):
         UsdPhysics.MeshCollisionAPI.Apply(prim)
 
@@ -2077,6 +2098,7 @@ def define_deformable_body_properties(
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
 
     sim_mesh_prim = None
+    # for volume deformables, we check if a pre-tetrahedralized TetMesh exists for the sim_mesh
     if deformable_type == "volume":
         matching_prims = get_all_matching_child_prims(prim_path, lambda p: p.GetTypeName() == "TetMesh")
         if len(matching_prims) == 0:
@@ -2094,6 +2116,7 @@ def define_deformable_body_properties(
             if not sim_mesh_prim.IsValid():
                 raise ValueError(f"Mesh prim path '{sim_mesh_prim.GetPrimPath()}' is not valid.")
 
+    # Search for a visual surface mesh for both surface and volume deformables
     matching_prims = get_all_matching_child_prims(prim_path, lambda p: p.GetTypeName() == "Mesh")
     if len(matching_prims) == 0:
         # in case a TetMesh is found but no Mesh is found, we use the TetMesh surface as visual.

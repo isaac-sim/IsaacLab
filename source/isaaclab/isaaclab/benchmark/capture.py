@@ -318,6 +318,7 @@ def capture_resources(bm: Any) -> Resources:
     cpu_data = _get_recorder_data(bm, "CPUInfo")
     mem_data = _get_recorder_data(bm, "MemoryInfo")
 
+    # --- GPU ---
     gpu_meas = gpu_data.measurements if gpu_data is not None else []
     gpu_metadata = {m.name: m.data for m in gpu_data.metadata or []} if gpu_data is not None else {}
     # Without the recorder there is nothing to attribute to a device, so the per-device mapping
@@ -332,6 +333,7 @@ def capture_resources(bm: Any) -> Resources:
     }
     current = devices.get(str(current_device), _gpu_device_resources(gpu_meas, "GPU "))
 
+    # --- CPU ---
     cpu_meas = cpu_data.measurements if cpu_data is not None else []
 
     cpu_util_mean = _find_value(cpu_meas, "CPU Utilization")

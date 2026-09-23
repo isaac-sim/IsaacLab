@@ -341,6 +341,9 @@ def raycast_dynamic_meshes(
         ray_mesh_id = None
         ray_mesh_id_wp = wp.empty((1, 1), dtype=wp.int16, device=torch_device)
 
+    ##
+    # Call the warp kernels
+    ###
     if mesh_positions_w is None and mesh_orientations_w is None:
         # Static mesh case, no need to pass in positions and rotations.
         wp.launch(
@@ -363,6 +366,7 @@ def raycast_dynamic_meshes(
             device=torch_device,
         )
     else:
+        # dynamic mesh case
         if mesh_positions_w is None:
             mesh_positions_wp_w = wp.zeros((n_envs, n_meshes), dtype=wp.vec3, device=torch_device)
         else:
@@ -412,6 +416,9 @@ def raycast_dynamic_meshes(
             ],
             device=torch_device,
         )
+    ##
+    # Cleanup and convert back to torch tensors
+    ##
 
     # NOTE: Synchronize is not needed anymore, but we keep it for now. Check with @dhoeller.
     wp.synchronize()

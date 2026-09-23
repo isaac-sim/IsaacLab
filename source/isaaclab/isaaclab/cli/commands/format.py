@@ -37,6 +37,7 @@ def command_format() -> None:
     print_info("Formatting the repository...")
 
     try:
+        # Run pre-commit as a module since we may have just installed it.
         _run_pre_commit()
 
     except SystemExit:

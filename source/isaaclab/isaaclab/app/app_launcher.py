@@ -669,6 +669,8 @@ class AppLauncher:
             help=("When set, caps the nums of envs shown in the launched visualizers."),
         )
 
+        # Corresponding to the beginning of the function,
+        # if we have removed -h/--help handling, we add it back.
         if parser_help is not None:
             parser._option_string_actions["-h"] = parser_help
             parser._option_string_actions["--help"] = parser_help
@@ -1099,6 +1101,7 @@ class AppLauncher:
         if "distributed" in launcher_args and launcher_args["distributed"]:
             # local rank (GPU id) in a current multi-gpu mode
             self.local_rank = int(os.getenv("LOCAL_RANK", "0")) + int(os.getenv("JAX_LOCAL_RANK", "0"))
+            # global rank (GPU id) in multi-gpu multi-node mode
             self.global_rank = int(os.getenv("RANK", "0")) + int(os.getenv("JAX_RANK", "0"))
 
             # When CUDA_VISIBLE_DEVICES restricts each process to a single GPU,
@@ -1398,6 +1401,8 @@ class AppLauncher:
 
         # set setting to indicate no RTX sensors are used (set to True when RTX sensor is created)
         settings.set_bool("/isaaclab/render/rtx_sensors", False)
+
+        # publish the reproducible-rendering intent; rendering backends read this on initialization
         settings.set_bool("/isaaclab/render/deterministic", self._deterministic_rendering)
 
         # set fabric update flag to disable updating transforms when rendering is disabled

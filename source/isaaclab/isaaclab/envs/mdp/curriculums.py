@@ -206,6 +206,7 @@ class modify_env_param(ManagerTermBase):
         container = root
         for container_path in path_parts[:-1]:
             if isinstance(container_path, tuple):
+                # we are accessing a list element
                 name, idx = container_path
                 # find underlying attribute
                 if isinstance(container_path, dict):

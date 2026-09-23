@@ -174,6 +174,7 @@ def sample_particles_in_mesh(
     vertices, faces = _validate_mesh(vertices, faces)
     _validate_lattice_settings(spacing, jitter, inset, surface_margin, max_query_dist)
 
+    # Candidate lattice over the AABB, inset from the faces by a fraction of the spacing.
     grid = _candidate_lattice(vertices, spacing, inset, jitter, seed)
     if grid.shape[0] == 0:
         return np.empty((0, 3), dtype=np.float32)

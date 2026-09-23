@@ -260,10 +260,14 @@ class EventManager(ManagerBase):
                     # check if the term has not been triggered yet (in that case, we trigger it at least once)
                     # this is usually only needed at the start of the environment
                     valid_trigger |= (last_triggered_step == 0) & ~triggered_at_least_once
+
+                    # select the valid environment indices based on the trigger
                     if env_ids == slice(None):
                         valid_env_ids = valid_trigger.nonzero().flatten()
                     else:
                         valid_env_ids = env_ids[valid_trigger]
+
+                    # reset the last reset step for each environment to the current env step count
                     if len(valid_env_ids) > 0:
                         self._reset_term_last_triggered_once[index][valid_env_ids] = True
                         self._reset_term_last_triggered_step_id[index][valid_env_ids] = global_env_step_count

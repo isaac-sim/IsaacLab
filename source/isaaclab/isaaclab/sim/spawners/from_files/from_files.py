@@ -260,6 +260,7 @@ def spawn_ground_plane(
     if cfg.color is not None:
         from pxr import Gf, Sdf  # noqa: PLC0415
 
+        # change the color
         change_prim_property(
             prop_path=f"{prim_path}/Looks/theGrid/Shader.inputs:diffuse_tint",
             value=Gf.Vec3f(*cfg.color),

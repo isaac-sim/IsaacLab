@@ -33,6 +33,7 @@ def make_plane(size: tuple[float, float], height: float, center_zero: bool = Tru
     x1 = [size[0], 0.0, height]
     x2 = [0.0, size[1], height]
     x3 = [0.0, 0.0, height]
+    # generate the tri-mesh with two triangles
     vertices = np.array([x0, x1, x2, x3])
     faces = np.array([[1, 0, 2], [2, 3, 1]])
     plane_mesh = trimesh.Trimesh(vertices=vertices, faces=faces)

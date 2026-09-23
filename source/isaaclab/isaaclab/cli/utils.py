@@ -396,6 +396,7 @@ def extract_python_exe() -> str:
 
     python_exe = None
 
+    # Try uv virtual environment python.
     venv_prefix = os.environ.get("VIRTUAL_ENV")
     if venv_prefix:
         print_debug(f"extract_python_exe(): Found VIRTUAL_ENV: {venv_prefix}")
@@ -496,6 +497,7 @@ def extract_isaacsim_path(*, required: bool = True) -> Path | None:
         required: When ``True`` (default), exit the process if Isaac Sim
             cannot be found.  When ``False``, return ``None`` instead.
     """
+    # Use the sym-link path to Isaac Sim directory.
     isaacsim_path = DEFAULT_ISAAC_SIM_PATH
     # If above path is not available, try to find the path using python.
     if not isaacsim_path.exists():
@@ -585,6 +587,7 @@ def determine_python_version() -> str:
 
     isaacsim_version = None
 
+    # 1. Version file (only if Isaac Sim is available)
     isaacsim_path = extract_isaacsim_path(required=False)
     if isaacsim_path is not None:
         version_file = isaacsim_path / "VERSION"
@@ -603,6 +606,7 @@ def determine_python_version() -> str:
         except Exception:
             pass
 
+    # No Isaac Sim found -- default to 3.12 (required by Isaac Sim 6.x).
     if isaacsim_version is None:
         python_version = "3.12"
         print_warning(f"Unable to determine Isaac Sim version. Defaulting to python={python_version}.")

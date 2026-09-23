@@ -180,6 +180,8 @@ class ManagerBasedEnv:
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
         #   that must happen before the simulation starts. Example: randomizing mesh scale
         self.event_manager = EventManager(self.cfg.events, self)
+
+        # apply USD-related randomization events
         if "prestartup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="prestartup")
 
@@ -202,7 +204,7 @@ class ManagerBasedEnv:
         # fold the full loop into a single step() when possible
         self.sim.physics_manager.set_decimation(self.cfg.decimation)
         self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
-
+        # add timeline event to load managers
         report_activity("Setting up managers")
         self.load_managers()
         report_activity(None)

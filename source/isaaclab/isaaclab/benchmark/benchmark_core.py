@@ -276,6 +276,8 @@ class BaseIsaacLabBenchmark:
 
         self._use_recorders = use_recorders
         self._use_frametime_recorders = frametime_recorders
+
+        # Initialize frametime recorders dict (always, even when not using recorders)
         self._frametime_recorders: dict[str, MeasurementDataRecorder] = {}
 
         if self._use_recorders:
@@ -478,6 +480,7 @@ class BaseIsaacLabBenchmark:
                 # Add measurements to runtime phase if present
                 if data.measurements:
                     self.add_measurement("runtime", measurement=data.measurements)
+                # Add metadata to appropriate phase (even if no measurements)
                 if data.metadata:
                     if recorder_name == "VersionInfo":
                         self.add_measurement("version_info", metadata=data.metadata)

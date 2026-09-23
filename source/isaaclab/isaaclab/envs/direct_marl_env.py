@@ -149,6 +149,8 @@ class DirectMARLEnv(gym.Env):
         #   that must happen before the simulation starts. Example: randomizing mesh scale
         if self.cfg.events:
             self.event_manager = EventManager(self.cfg.events, self)
+
+            # apply USD-related randomization events
             if "prestartup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="prestartup")
 
@@ -178,6 +180,9 @@ class DirectMARLEnv(gym.Env):
         self.has_debug_vis_implementation = "NotImplementedError" not in source_code
         self._debug_vis_handle = None
 
+        # extend UI elements
+        # we need to do this here after all the managers are initialized
+        # this is because they dictate the sensors and commands right now
         if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
@@ -219,6 +224,7 @@ class DirectMARLEnv(gym.Env):
 
         # perform events at the start of the simulation
         if self.cfg.events:
+            # we print it here to make the logging consistent
             print("[INFO] Event Manager: ", self.event_manager)
 
             if "startup" in self.event_manager.available_modes:

@@ -170,6 +170,7 @@ def create_prim(
     # convert position and orientation to translation and orientation
     # world --> local
     if position is not None:
+        # this means that user provided pose in the world frame
         translation, orientation = convert_world_pose_to_local(position, orientation, ref_prim=prim.GetParent())
     standardize_xform_ops(prim, translation, orientation, scale)
 
@@ -1105,4 +1106,6 @@ def _to_tuple(value: Any) -> tuple[float, ...]:
         value = value.squeeze()
     if value.ndim != 1:
         raise ValueError(f"Input value is not one dimensional: {value.shape}")
+
+    # Convert to tuple - works for both numpy arrays and torch tensors
     return tuple(value.tolist())

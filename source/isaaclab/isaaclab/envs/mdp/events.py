@@ -77,6 +77,7 @@ def randomize_rigid_body_scale(
             " Please ensure that the event term is called before the simulation starts by using the 'usd' mode."
         )
 
+    # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
 
     if any(cls.__name__ == "Articulation" for cls in type(asset).__mro__):
@@ -195,6 +196,7 @@ class _RandomizeRigidBodyMaterialPhysx:
                     f" Expected total shapes: {expected_shapes}, but got: {num_shapes}."
                 )
         else:
+            # in this case, we don't need to do special indexing
             self.num_shapes_per_body = None
             self._backend_body_ids = None
 
@@ -225,6 +227,8 @@ class _RandomizeRigidBodyMaterialPhysx:
             for body_id in self._backend_body_ids:
                 start_idx = sum(self.num_shapes_per_body[:body_id])
                 end_idx = start_idx + self.num_shapes_per_body[body_id]
+                # assign the new materials
+                # material samples are of shape: num_env_ids x total_num_shapes x 3
                 materials[env_ids, start_idx:end_idx] = material_samples[:, start_idx:end_idx]
         else:
             # assign all the materials
@@ -596,6 +600,7 @@ class randomize_rigid_body_material(ManagerTermBase):
 
         super().__init__(cfg, env)
 
+        # extract the used quantities (to enable type-hinting)
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
 
@@ -677,6 +682,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
         """
         super().__init__(cfg, env)
 
+        # extract the used quantities (to enable type-hinting)
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
         # check for valid operation
@@ -801,6 +807,7 @@ class randomize_rigid_body_inertia(ManagerTermBase):
 
         super().__init__(cfg, env)
 
+        # extract the used quantities (to enable type-hinting)
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
 
@@ -887,6 +894,8 @@ class randomize_rigid_body_inertia(ManagerTermBase):
 
         # sample random values once per (env, body) - shape: (len(env_ids), len(body_ids))
         random_values = dist_fn(*inertia_distribution_params, (len(env_ids), len(body_ids)), device=self.asset.device)
+
+        # apply the operation with the SAME random value per body
         if operation == "add":
             inertias[:, :, self._inertia_idx] += random_values[..., None]
         elif operation == "scale":
@@ -1461,6 +1470,7 @@ class randomize_actuator_gains(ManagerTermBase):
         """
         super().__init__(cfg, env)
 
+        # extract the used quantities (to enable type-hinting)
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
 
@@ -1543,6 +1553,7 @@ class randomize_actuator_gains(ManagerTermBase):
         for actuator_name, actuator in self._gain_actuators.items():
             group_joint_indices = self._group_joint_indices[actuator_name]
             if isinstance(self.asset_cfg.joint_ids, slice):
+                # we take all the joints of the actuator
                 actuator_indices = slice(None)
                 if isinstance(group_joint_indices, slice):
                     global_indices = slice(None)
@@ -1551,6 +1562,7 @@ class randomize_actuator_gains(ManagerTermBase):
                 else:
                     raise TypeError("Actuator joint indices must be a slice or a torch.Tensor.")
             elif isinstance(group_joint_indices, slice):
+                # we take the joints defined in the asset config
                 global_indices = actuator_indices = torch.tensor(self.asset_cfg.joint_ids, device=self.asset.device)
             else:
                 # we take the intersection of the actuator joints and the asset config joints
@@ -1655,6 +1667,7 @@ class randomize_joint_parameters(ManagerTermBase):
         """
         super().__init__(cfg, env)
 
+        # extract the used quantities (to enable type-hinting)
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: Articulation = env.scene[self.asset_cfg.name]
 
@@ -1852,6 +1865,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         """
         super().__init__(cfg, env)
 
+        # extract the used quantities (to enable type-hinting)
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
         # check for valid operation
@@ -2030,6 +2044,7 @@ def apply_external_force_torque(
     applied to the bodies by calling ``asset.set_external_force_and_torque``. The forces and torques are only
     applied when ``asset.write_data_to_sim()`` is called in the environment.
     """
+    # extract the used quantities (to enable type-hinting)
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
     # resolve environment ids
     if env_ids is None:
@@ -2072,6 +2087,7 @@ def push_by_setting_velocity(
     are ``x``, ``y``, ``z``, ``roll``, ``pitch``, and ``yaw``. The values are tuples of the form ``(min, max)``.
     If the dictionary does not contain a key, the velocity is set to zero for that axis.
     """
+    # extract the used quantities (to enable type-hinting)
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
     # velocities
@@ -2119,6 +2135,7 @@ class reset_root_state_uniform(ManagerTermBase):
         velocity_range: dict[str, tuple[float, float]],
         asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     ):
+        # extract the used quantities (to enable type-hinting)
         asset: RigidObject | Articulation = env.scene[asset_cfg.name]
         # tensor indexing already returns a copy, and the values are only read below
         default_root_pose = asset.data.default_root_pose.torch[env_ids]
@@ -2166,6 +2183,7 @@ def reset_root_state_with_random_orientation(
     The values are tuples of the form ``(min, max)``. If the dictionary does not contain a particular key,
     the position is set to zero for that axis.
     """
+    # extract the used quantities (to enable type-hinting)
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
     # get default root state
     default_root_pose = asset.data.default_root_pose.torch[env_ids].clone()
@@ -2221,6 +2239,7 @@ def reset_root_state_from_terrain(
     Raises:
         ValueError: If the terrain does not have valid flat patches under the key "init_pos".
     """
+    # access the used quantities (to enable type-hinting)
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
     terrain: TerrainImporter = env.scene.terrain
 
@@ -2392,6 +2411,7 @@ class reset_joints_within_limits_range(ManagerTermBase):
                 " Please use 'abs' or 'scale'."
             )
 
+        # extract the used quantities (to enable type-hinting)
         self._asset: Articulation = env.scene[asset_cfg.name]
         default_joint_pos = self._asset.data.default_joint_pos.torch[0]
         default_joint_vel = self._asset.data.default_joint_vel.torch[0]
@@ -2662,6 +2682,7 @@ class randomize_visual_texture_material(ManagerTermBase):
             # convert from radians to degrees
             texture_rotation = tuple(math.degrees(angle) for angle in texture_rotation)
 
+            # Create the omni-graph node for the randomization term
             def rep_texture_randomization():
                 prims_group = rep.get.prims(path_pattern=prim_path)
 
@@ -2805,6 +2826,7 @@ class randomize_visual_color(ManagerTermBase):
         #   at-play body-name resolution (root_view.shared_metatype becomes None). So we scope to
         #   descendant visual prims, mirroring randomize_visual_texture_material.
         if mesh_name:
+            # explicit mesh override
             if not mesh_name.startswith("/"):
                 mesh_name = "/" + mesh_name
             mesh_prim_path = f"{asset.cfg.prim_path}{mesh_name}"

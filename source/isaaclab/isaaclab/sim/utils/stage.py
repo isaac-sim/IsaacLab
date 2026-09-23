@@ -536,6 +536,7 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
     """
     _sync_isaacsim_stage_context()
 
+    # First check thread-local context for an in-memory stage
     stage = getattr(_context, "stage", None)
     if stage is not None:
         if fabric:
@@ -570,7 +571,9 @@ def get_current_stage_id() -> int:
     # retrieve stage ID from stage cache
     stage_cache = UsdUtils.StageCache.Get()
     stage_id = stage_cache.GetId(stage).ToLongInt()
+    # if stage ID is not found, insert it into the stage cache
     if stage_id < 0:
+        # Ensure stage has a valid root layer before inserting
         if not stage.GetRootLayer():
             raise RuntimeError("Stage has no root layer - cannot cache an incomplete stage.")
         stage_id = stage_cache.Insert(stage).ToLongInt()

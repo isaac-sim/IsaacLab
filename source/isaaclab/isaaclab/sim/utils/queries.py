@@ -136,6 +136,7 @@ def get_first_matching_ancestor_prim(
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")
 
+    # walk up to find the first matching ancestor prim
     ancestor_prim = prim
     while ancestor_prim and ancestor_prim.IsValid():
         if predicate(ancestor_prim):

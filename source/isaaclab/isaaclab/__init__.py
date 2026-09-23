@@ -63,8 +63,11 @@ def _deprioritize_prebundle_paths():
 
     if not demoted:
         return
+
+    # Rebuild sys.path: originals first, then demoted at the very end.
     sys.path[:] = clean + demoted
 
+    # Rewrite PYTHONPATH with the same ordering for subprocesses.
     if "PYTHONPATH" in os.environ:
         parts = os.environ["PYTHONPATH"].split(os.pathsep)
         env_clean = []

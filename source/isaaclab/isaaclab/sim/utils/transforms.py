@@ -165,6 +165,7 @@ def standardize_xform_ops(
             for i in range(3):
                 xform_scale[i] = xform_scale[i] * units_resolve[i]
     else:
+        # No scale exists, use default uniform scale
         xform_scale = Gf.Vec3d(1.0, 1.0, 1.0)
 
     has_reset = xformable.GetResetXformStack()
@@ -181,6 +182,7 @@ def standardize_xform_ops(
                 parent_spec = edit_layer.GetPrimAtPath(prefix.GetParentPath()) or edit_layer.pseudoRoot
                 Sdf.PrimSpec(parent_spec, prefix.name, Sdf.SpecifierOver)
 
+    # Batch the operations
     with Sdf.ChangeBlock():
         for prop_name in prop_names:
             if prop_name in _INVALID_XFORM_OPS:
@@ -215,6 +217,7 @@ def standardize_xform_ops(
         for xform_op, value in zip(xform_ops, xform_values):
             # Get current value to determine precision type
             current_value = xform_op.Get()
+            # Cast to existing type to preserve precision (float/double)
             xform_op.Set(type(current_value)(value) if current_value is not None else value)
 
         # Set the transform operation order: translate -> orient -> scale
@@ -430,6 +433,8 @@ def convert_world_pose_to_local(
 
     if not ref_prim.IsValid():
         raise ValueError(f"Reference prim at path '{ref_prim.GetPath().pathString}' is not valid.")
+
+    # If reference prim is the root, return world pose as-is
     if ref_prim.GetPath() == Sdf.Path.absoluteRootPath:
         return position, orientation  # type: ignore
 

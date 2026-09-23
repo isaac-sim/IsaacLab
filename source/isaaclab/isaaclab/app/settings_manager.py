@@ -86,6 +86,7 @@ class SettingsManager:
             self._carb_settings = carb.settings.get_settings()
             self._use_carb = True
         except (ImportError, AttributeError):
+            # carb not available or SimulationApp not launched - use standalone mode
             self._use_carb = False
 
     def set(self, path: str, value: Any) -> None:

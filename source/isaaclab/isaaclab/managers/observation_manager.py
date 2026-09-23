@@ -394,6 +394,7 @@ class ObservationManager(ManagerBase):
         # evaluate terms: compute, add noise, clip, scale, custom modifiers
         for term_name, term_cfg in obs_terms:
             obs: torch.Tensor = term_cfg.func(self._env, **term_cfg.params).clone()
+            # apply post-processing
             if term_cfg.modifiers is not None:
                 for modifier in term_cfg.modifiers:
                     if isinstance(modifier.func, modifiers.ModifierBase):
