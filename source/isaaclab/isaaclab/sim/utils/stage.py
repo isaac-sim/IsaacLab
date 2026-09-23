@@ -14,7 +14,7 @@ import threading
 from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.version import get_isaac_sim_version, has_kit
+from ...utils.version import get_isaac_sim_version, has_kit
 
 if TYPE_CHECKING:
     from pxr import Sdf, Usd, UsdUtils  # noqa: F401

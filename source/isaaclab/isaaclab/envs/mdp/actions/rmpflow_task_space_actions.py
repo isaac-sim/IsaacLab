@@ -18,8 +18,7 @@ from isaaclab.controllers.rmp_flow import RmpFlowController
 from isaaclab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-
+    from ... import ManagerBasedEnv
     from . import rmpflow_actions_cfg
 
 # import logger

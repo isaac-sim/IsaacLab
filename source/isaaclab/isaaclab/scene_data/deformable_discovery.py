@@ -17,7 +17,7 @@ import numpy as np
 
 from pxr import Gf, Sdf, Usd, UsdGeom
 
-import isaaclab.sim as sim_utils
+from .. import sim as sim_utils
 
 logger = logging.getLogger(__name__)
 

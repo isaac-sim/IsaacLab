@@ -16,9 +16,7 @@ See ``test_update_ray_caster_kernel.py`` for tests of
 
 from __future__ import annotations
 
-import importlib.util
 import math
-import os
 
 import numpy as np
 import pytest
@@ -26,45 +24,14 @@ import warp as wp
 
 pytestmark = pytest.mark.unit
 
-# ---------------------------------------------------------------------------
-# Import kernel modules directly (avoids Isaac Sim / Omniverse dependencies)
-# ---------------------------------------------------------------------------
-
-_SENSOR_KERNEL_PATH = os.path.join(
-    os.path.dirname(__file__),
-    os.pardir,
-    os.pardir,
-    "isaaclab",
-    "sensors",
-    "ray_caster",
-    "kernels.py",
+from isaaclab.sensors.ray_caster.kernels import (
+    apply_z_drift_kernel,
+    compute_distance_to_image_plane_to_image_masked_kernel,
+    copy_float2d_to_image1_depth_clipped_masked_kernel,
+    fill_ray_hits_distance_inf_kernel,
+    quat_yaw_only,
 )
-_spec = importlib.util.spec_from_file_location("ray_caster_kernels", os.path.normpath(_SENSOR_KERNEL_PATH))
-_sensor_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_sensor_mod)
-
-_WARP_KERNEL_PATH = os.path.join(
-    os.path.dirname(__file__),
-    os.pardir,
-    os.pardir,
-    "isaaclab",
-    "utils",
-    "warp",
-    "kernels.py",
-)
-_warp_spec = importlib.util.spec_from_file_location("warp_kernels", os.path.normpath(_WARP_KERNEL_PATH))
-_warp_mod = importlib.util.module_from_spec(_warp_spec)
-_warp_spec.loader.exec_module(_warp_mod)
-
-compute_distance_to_image_plane_to_image_masked_kernel = (
-    _sensor_mod.compute_distance_to_image_plane_to_image_masked_kernel
-)
-apply_z_drift_kernel = _sensor_mod.apply_z_drift_kernel
-copy_float2d_to_image1_depth_clipped_masked_kernel = _sensor_mod.copy_float2d_to_image1_depth_clipped_masked_kernel
-fill_ray_hits_distance_inf_kernel = _sensor_mod.fill_ray_hits_distance_inf_kernel
-quat_yaw_only = _sensor_mod.quat_yaw_only
-
-raycast_dynamic_meshes_kernel = _warp_mod.raycast_dynamic_meshes_kernel
+from isaaclab.utils.warp.kernels import raycast_dynamic_meshes_kernel
 
 # ---------------------------------------------------------------------------
 # Constants & setup

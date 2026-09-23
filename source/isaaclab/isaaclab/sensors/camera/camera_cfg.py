@@ -9,10 +9,9 @@ import warnings
 from dataclasses import MISSING, field
 from typing import TYPE_CHECKING, Any, Literal
 
-from isaaclab.renderers import RendererCfg
-from isaaclab.sim import FisheyeCameraCfg, PinholeCameraCfg
-from isaaclab.utils import configclass
-
+from ...renderers import RendererCfg
+from ...sim import FisheyeCameraCfg, PinholeCameraCfg
+from ...utils import configclass
 from ..sensor_base_cfg import SensorBaseCfg
 from .camera_isp import CameraISPMode
 
@@ -232,7 +231,7 @@ class CameraCfg(SensorBaseCfg):
         """
         renderer_type = getattr(self.renderer_cfg, "renderer_type", None)
         if renderer_type == "default":
-            from isaaclab.utils.backend_utils import get_default_renderer_cfg
+            from ...utils.backend_utils import get_default_renderer_cfg
 
             self.renderer_cfg = get_default_renderer_cfg()
         # Forwarded by name: any same-named field on ``renderer_cfg`` will receive the value.

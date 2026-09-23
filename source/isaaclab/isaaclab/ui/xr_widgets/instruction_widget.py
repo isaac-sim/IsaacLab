@@ -14,7 +14,7 @@ import omni.kit.commands
 import omni.ui as ui
 import omni.usd
 
-import isaaclab.sim as sim_utils
+from ... import sim as sim_utils
 
 if TYPE_CHECKING:
     from typing import TypeAlias

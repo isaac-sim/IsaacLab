@@ -12,8 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from isaaclab.sim import SimulationContext
-
+from ..sim import SimulationContext
 from .clone_plan import make_clone_plan
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE
 from .cloner_strategies import sequential

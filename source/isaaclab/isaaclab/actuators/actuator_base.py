@@ -12,9 +12,8 @@ from typing import TYPE_CHECKING, ClassVar
 
 import torch
 
-import isaaclab.utils.string as string_utils
-from isaaclab.utils.types import ArticulationActions
-
+from ..utils import string as string_utils
+from ..utils.types import ArticulationActions
 from ._compat import _limits_equal, _resolve_limit_aliases
 
 if TYPE_CHECKING:

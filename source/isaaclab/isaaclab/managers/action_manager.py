@@ -16,14 +16,13 @@ from typing import TYPE_CHECKING, Any
 import torch
 from prettytable import PrettyTable
 
-from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor, _warn_io_descriptors_deprecated
-
+from ..envs.utils.io_descriptors import GenericActionIODescriptor, _warn_io_descriptors_deprecated
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.assets import AssetBase
-    from isaaclab.envs import ManagerBasedEnv
+    from ..assets import AssetBase
+    from ..envs import ManagerBasedEnv
 
 
 class ActionTerm(ManagerTermBase):

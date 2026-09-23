@@ -10,6 +10,6 @@ and observations. Each manager implements a specific functionality for the envir
 designed to be modular and can be easily extended to support new functionality.
 """
 
-from isaaclab.utils.module import lazy_export
+from ..utils.module import lazy_export
 
 lazy_export()

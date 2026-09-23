@@ -12,9 +12,8 @@ import re
 from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING
 
-from isaaclab import cloner
-from isaaclab.sim.simulation_context import SimulationContext
-
+from ... import cloner
+from ..simulation_context import SimulationContext
 from .stage import get_current_stage
 
 if TYPE_CHECKING:

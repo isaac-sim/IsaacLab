@@ -15,19 +15,19 @@ from typing import TYPE_CHECKING
 
 import torch
 
-import isaaclab.utils.math as math_utils
-from isaaclab.managers import SceneEntityCfg
-from isaaclab.managers.manager_base import ManagerTermBase
-from isaaclab.managers.manager_term_cfg import ObservationTermCfg
-from isaaclab.utils.buffers import CircularBuffer
-from isaaclab.utils.images import is_rgb_like, normalize_camera_image
+from ...managers import SceneEntityCfg
+from ...managers.manager_base import ManagerTermBase
+from ...managers.manager_term_cfg import ObservationTermCfg
+from ...utils import math as math_utils
+from ...utils.buffers import CircularBuffer
+from ...utils.images import is_rgb_like, normalize_camera_image
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, RigidObject
-    from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
-    from isaaclab.sensors import Camera, Imu, JointWrenchSensor, Pva, RayCaster, RayCasterCamera
+    from ...assets import Articulation, RigidObject
+    from ...sensors import Camera, Imu, JointWrenchSensor, Pva, RayCaster, RayCasterCamera
+    from .. import ManagerBasedEnv, ManagerBasedRLEnv
 
-from isaaclab.envs.utils.io_descriptors import (
+from ..utils.io_descriptors import (
     generic_io_descriptor,
     record_body_names,
     record_dtype,

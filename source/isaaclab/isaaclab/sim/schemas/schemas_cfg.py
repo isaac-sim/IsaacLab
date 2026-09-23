@@ -11,7 +11,7 @@ from typing import ClassVar, Literal
 
 from typing_extensions import deprecated
 
-from isaaclab.utils import configclass
+from ...utils import configclass
 
 # Names that moved out of this submodule into ``isaaclab_physx.sim.schemas.schemas_cfg``.
 # Resolved lazily so callers using ``from isaaclab.sim.schemas.schemas_cfg import
