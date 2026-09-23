@@ -199,14 +199,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             composer = inst
         else:
             composer = perm
-        force_in, torque_in, frame = composer.resolve_submission()
-        wrench_is_world = frame is WrenchComposer.Frame.WORLD_AT_COM
+        force_in, torque_in, is_global = composer.get_forces_and_torques()
 
         poses = self._data.body_link_pose_w.warp  # (N, B) wp.transformf
         wp.launch(
             _body_wrench_to_world,
             dim=(self._num_instances, self._num_bodies),
-            inputs=[force_in, torque_in, poses, wrench_is_world],
+            inputs=[force_in, torque_in, poses, is_global],
             outputs=[self._wrench_buf],
             device=self._device,
         )

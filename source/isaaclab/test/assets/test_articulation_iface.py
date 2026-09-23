@@ -2794,7 +2794,7 @@ class TestArticulationWritersTendonToSim:
 
 
 @pytest.mark.skipif("physx" not in BACKENDS, reason="PhysX backend unavailable")
-class TestPhysXArticulationSubmissionFrame:
+class TestPhysXArticulationWrenchFrames:
     """PhysX submits an eligible global-at-CoM wrench in the world frame, without composing."""
 
     @_default_devices
@@ -2840,7 +2840,7 @@ class TestPhysXArticulationSubmissionFrame:
 
 
 @pytest.mark.skipif("newton" not in BACKENDS, reason="Newton backend unavailable")
-class TestNewtonArticulationSubmissionFrame:
+class TestNewtonArticulationWrenchFrames:
     """Newton always consumes a body-frame wrench, and skips composition for local content."""
 
     @_default_devices
@@ -2864,7 +2864,7 @@ class TestNewtonArticulationSubmissionFrame:
 
 
 @pytest.mark.skipif("ovphysx" not in BACKENDS, reason="OvPhysX backend unavailable")
-class TestOvPhysxArticulationSubmissionFrame:
+class TestOvPhysxArticulationWrenchFrames:
     """OvPhysX packs the same world-frame wrench whether or not it takes the rotation path.
 
     ``_body_wrench_to_world_ordered`` keeps the wrench indexed in public body order while reading

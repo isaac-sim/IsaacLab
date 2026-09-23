@@ -1167,7 +1167,7 @@ def _body_wrench_to_world(
     force_in: wp.array(dtype=wp.vec3f, ndim=2),
     torque_in: wp.array(dtype=wp.vec3f, ndim=2),
     poses: wp.array(dtype=wp.transformf, ndim=2),
-    wrench_is_world: bool,
+    is_global: bool,
     wrench_out: wp.array(dtype=wp.float32, ndim=3),
 ):
     """Rotate a force/torque to world frame and pack into a flat output array.
@@ -1179,15 +1179,15 @@ def _body_wrench_to_world(
     * ``[6:9]`` -- world-frame link position ``[m]``
 
     Args:
-        force_in: Applied forces ``[N]`` in the frame selected by ``wrench_is_world``. Shape is ``(N, L)``.
-        torque_in: Applied torques ``[N*m]`` in the frame selected by ``wrench_is_world``. Shape is ``(N, L)``.
+        force_in: Applied forces ``[N]`` in the frame selected by ``is_global``. Shape is ``(N, L)``.
+        torque_in: Applied torques ``[N*m]`` in the frame selected by ``is_global``. Shape is ``(N, L)``.
         poses: Link poses in world frame. Shape is ``(N, L)``.
-        wrench_is_world: Whether the input wrench is already in the world frame, in which case no
+        is_global: Whether the input wrench is already in the world frame, in which case no
             rotation is applied.
         wrench_out: Output packed wrench array. Shape is ``(N, L, 9)``.
     """
     i, j = wp.tid()
-    if wrench_is_world:
+    if is_global:
         f_w = force_in[i, j]
         t_w = torque_in[i, j]
     else:
@@ -1213,7 +1213,7 @@ def _body_wrench_to_world_ordered(
     poses: wp.array(dtype=wp.transformf, ndim=2),
     user_to_backend: wp.array(dtype=wp.int32),
     has_ordering: bool,
-    wrench_is_world: bool,
+    is_global: bool,
     wrench_out: wp.array(dtype=wp.float32, ndim=3),
 ):
     """Rotate public-order body wrenches to world frame and write them in backend order.
@@ -1227,14 +1227,14 @@ def _body_wrench_to_world_ordered(
 
     Args:
         force_in: Applied forces ``[N]`` in public body order, in the frame selected by
-            ``wrench_is_world``. Shape is ``(N, L)``.
+            ``is_global``. Shape is ``(N, L)``.
         torque_in: Applied torques ``[N*m]`` in public body order, in the frame selected by
-            ``wrench_is_world``. Shape is ``(N, L)``.
+            ``is_global``. Shape is ``(N, L)``.
         poses: Link poses in world frame in backend body order (identity when
             ``has_ordering`` is False). Shape is ``(N, L)``.
         user_to_backend: Map from public body index to backend body index. Shape is ``(L,)``.
         has_ordering: Whether the public-to-backend body map is nonidentity.
-        wrench_is_world: Whether the input wrench is already in the world frame, in which case no
+        is_global: Whether the input wrench is already in the world frame, in which case no
             rotation is applied.
         wrench_out: Output packed wrench array in backend body order. Shape is ``(N, L, 9)``
             with ``[0:3]`` world force ``[N]``, ``[3:6]`` world torque ``[N*m]``, ``[6:9]``
@@ -1244,7 +1244,7 @@ def _body_wrench_to_world_ordered(
     backend_body_id = user_body_id
     if has_ordering:
         backend_body_id = user_to_backend[user_body_id]
-    if wrench_is_world:
+    if is_global:
         f_w = force_in[i, user_body_id]
         t_w = torque_in[i, user_body_id]
     else:

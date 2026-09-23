@@ -148,7 +148,7 @@ class RigidObject(BaseRigidObject):
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            force_b, torque_b, _ = composer.resolve_submission()
+            force_b, torque_b, _ = composer.get_forces_and_torques()
             wp.launch(
                 shared_kernels.update_wrench_array_with_force_and_torque,
                 dim=(self.num_instances, self.num_bodies),

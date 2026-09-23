@@ -193,7 +193,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            force_user, torque_user, frame = composer.resolve_submission()
+            force_user, torque_user, is_global = composer.get_forces_and_torques()
             self.root_view.apply_forces_and_torques_at_position(
                 force_data=self.reshape_data_to_view_2d(force_user, device=self.device).view(wp.float32),
                 torque_data=self.reshape_data_to_view_2d(torque_user, device=self.device).view(wp.float32),
@@ -201,7 +201,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 indices=self._env_body_ids_to_view_ids(
                     self._ALL_ENV_INDICES, self._ALL_BODY_INDICES, device=self.device
                 ),
-                is_global=frame is WrenchComposer.Frame.WORLD_AT_COM,
+                is_global=is_global,
             )
         self._instantaneous_wrench_composer.reset()
 

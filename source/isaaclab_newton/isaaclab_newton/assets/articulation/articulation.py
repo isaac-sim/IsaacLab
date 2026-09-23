@@ -393,7 +393,7 @@ class Articulation(BaseArticulation):
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            force_b, torque_b, _ = composer.resolve_submission()
+            force_b, torque_b, _ = composer.get_forces_and_torques()
             # Kept separate from the joint-target gather below: this scatter runs
             # over bodies while the target gather runs over joints (mismatched
             # item axes), and it must precede the actuator compute/submit below,

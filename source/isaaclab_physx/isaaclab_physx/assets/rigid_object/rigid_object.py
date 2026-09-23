@@ -155,13 +155,13 @@ class RigidObject(BaseRigidObject):
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            force_user, torque_user, frame = composer.resolve_submission()
+            force_user, torque_user, is_global = composer.get_forces_and_torques()
             self.root_view.apply_forces_and_torques_at_position(
                 force_data=force_user.flatten().view(wp.float32),
                 torque_data=torque_user.flatten().view(wp.float32),
                 position_data=None,
                 indices=self._ALL_INDICES,
-                is_global=frame is WrenchComposer.Frame.WORLD_AT_COM,
+                is_global=is_global,
             )
         self._instantaneous_wrench_composer.reset()
 

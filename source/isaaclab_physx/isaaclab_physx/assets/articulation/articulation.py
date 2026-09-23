@@ -251,8 +251,7 @@ class Articulation(BaseArticulation):
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            force_user, torque_user, frame = composer.resolve_submission()
-            is_global = frame is WrenchComposer.Frame.WORLD_AT_COM
+            force_user, torque_user, is_global = composer.get_forces_and_torques()
             if self.data.has_body_ordering:
                 force_backend = self._body_wrench_force_backend
                 torque_backend = self._body_wrench_torque_backend

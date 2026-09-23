@@ -1136,7 +1136,7 @@ class TestRigidObjectDataAliases:
 
 
 @pytest.mark.skipif("ovphysx" not in BACKENDS, reason="OvPhysX backend unavailable")
-class TestOvPhysxRigidObjectSubmissionFrame:
+class TestOvPhysxRigidObjectWrenchFrames:
     """OvPhysX packs the same world-frame wrench whether or not it takes the rotation path."""
 
     @_default_devices
@@ -1173,7 +1173,7 @@ class TestOvPhysxRigidObjectSubmissionFrame:
 
 
 # ---------------------------------------------------------------------------
-# Tests: resolve_submission cross-backend equivalence
+# Tests: get_forces_and_torques cross-backend equivalence
 # ---------------------------------------------------------------------------
 
 
@@ -1193,14 +1193,14 @@ def _rotate_inv_kernel(
     )
 
 
-class TestRigidObjectSubmissionEquivalence:
-    """Whatever frame ``resolve_submission`` picks, the returned wrench matches the fully composed one."""
+class TestRigidObjectWrenchEquivalence:
+    """Whatever frame ``get_forces_and_torques`` picks, the returned wrench matches the fully composed one."""
 
     @_production_backends
     @pytest.mark.parametrize(
         ("is_global", "with_positions"), [(False, False), (False, True), (True, False), (True, True)]
     )
-    def test_submission_matches_composed_wrench(self, backend, is_global, with_positions):
+    def test_wrench_matches_composed_wrench(self, backend, is_global, with_positions):
         device = "cpu"
         num_instances = 2
         obj, _ = get_rigid_object(backend, num_instances=num_instances, device=device)
@@ -1214,7 +1214,7 @@ class TestRigidObjectSubmissionEquivalence:
         positions = torch.full((num_instances, 1, 3), 0.1, device=device) if with_positions else None
         composer.set_forces_and_torques_index(forces=forces, torques=torques, positions=positions, is_global=is_global)
 
-        force, torque, frame = composer.resolve_submission()
+        force, torque, wrench_is_global = composer.get_forces_and_torques()
         composer.compose_to_body_frame()
 
         # The invariant under test: Newton must never accept a world frame. Derive the expectation
@@ -1222,19 +1222,10 @@ class TestRigidObjectSubmissionEquivalence:
         # flipping Newton's constructed value would not keep this test tautologically green.
         assert composer._supports_world_at_com is (backend != "newton")
 
-        # Expected frame per the resolve_submission contract:
-        # - a local wrench is already body-frame.
-        # - a global positioned force always needs the CoM correction, so it composes to body-frame.
-        # - a global unpositioned (at-CoM) wrench stays world-frame only on consumers that accept it.
-        if not is_global or with_positions:
-            expected_frame = WrenchComposer.Frame.BODY
-        elif composer._supports_world_at_com:
-            expected_frame = WrenchComposer.Frame.WORLD_AT_COM
-        else:
-            expected_frame = WrenchComposer.Frame.BODY
-        assert frame is expected_frame
+        expected_is_global = is_global and not with_positions and backend != "newton"
+        assert wrench_is_global is expected_is_global
 
-        if frame is WrenchComposer.Frame.BODY:
+        if not wrench_is_global:
             torch.testing.assert_close(wp.to_torch(force), wp.to_torch(composer.out_force_b.warp))
             torch.testing.assert_close(wp.to_torch(torque), wp.to_torch(composer.out_torque_b.warp))
         else:

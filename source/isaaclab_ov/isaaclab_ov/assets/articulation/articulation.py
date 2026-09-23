@@ -245,8 +245,7 @@ class Articulation(BaseArticulation):
                 composer = inst
             else:
                 composer = perm
-            force_in, torque_in, frame = composer.resolve_submission()
-            wrench_is_world = frame is WrenchComposer.Frame.WORLD_AT_COM
+            force_in, torque_in, is_global = composer.get_forces_and_torques()
 
             # rotate body-frame wrenches into the world frame expected by ``LINK_WRENCH``.
             # Read the link poses directly from the backend-order ``LINK_POSE`` buffer: the
@@ -263,7 +262,7 @@ class Articulation(BaseArticulation):
                     poses,
                     self._body_user_to_backend_map(),
                     has_body_ordering,
-                    wrench_is_world,
+                    is_global,
                 ],
                 outputs=[self._wrench_buf],
                 device=self._device,
