@@ -24,8 +24,9 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
 
     manager = physx_manager.PhysxManager
     fabric = Mock()
-    monkeypatch.setattr(manager, "_fabric", fabric)
+    monkeypatch.setattr(manager, "_fabric", None)
     backend = physx_manager.PhysxSceneDataBackend()
+    monkeypatch.setattr(manager, "_fabric", fabric)
     transforms = wp.zeros(1, dtype=wp.transformf, device="cpu")
     view = Mock(count=1, get_transforms=Mock(return_value=transforms))
     backend._rigid_body_view = view
@@ -76,6 +77,9 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     provider.request_transforms(SceneDataFormat.Transform)
     assert view.get_transforms.call_count == 3
     assert not backend.transforms_dirty
+    backend.clear()
+    monkeypatch.setattr(manager, "_fabric", None)
+    assert backend.fabric is None
 
 
 @pytest.mark.parametrize("joint_has_rigid_body_api", [False, True])

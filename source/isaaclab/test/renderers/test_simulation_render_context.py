@@ -143,6 +143,7 @@ def test_close_backend_removes_renderer_from_orchestration(sim):
     sim.render_context.update_scene_state(2)
     replacement.prepare_stage.assert_called_once_with(None, 4)
     replacement.update_transforms.assert_called_once_with()
+    replacement.update_geometries.assert_called_once_with()
     sim.render_context.close()
     renderer.close.assert_called_once_with()
     replacement.close.assert_not_called()

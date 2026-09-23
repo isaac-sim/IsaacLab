@@ -188,7 +188,6 @@ class PhysxSceneDataBackend(SceneDataBackend):
 
     def __init__(self):
         self._transforms = SceneDataFormat.Transform()
-        self._fabric = PhysxManager._fabric
         self._points_data = SceneDataFormat.Points()
         self.clear()
 
@@ -364,7 +363,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
     def fabric(self) -> Any | None:
         """Borrow PhysX's native Fabric interface without copying its transforms."""
         PhysxManager.pre_render()
-        return self._fabric
+        return PhysxManager._fabric
 
     @property
     def transforms(self) -> SceneDataFormat.Transform:
@@ -414,7 +413,6 @@ class PhysxManager(PhysicsManager):
     _stage_id: ClassVar[int] = -1
     _subscriptions: ClassVar[dict[str, Any]] = {}
     _fabric: ClassVar[Any] = None
-    _update_fabric: ClassVar[Callable[[float, float], None] | None] = None
     _anim_recorder: ClassVar[AnimationRecorder | None] = None
     _callback_exception: ClassVar[Exception | None] = None
 
@@ -622,8 +620,8 @@ class PhysxManager(PhysicsManager):
         if cls.backend is not None:
             cls.backend.simulation_view.update_articulations_kinematic()
             cls._kinematics_dirty = False
-        if cls._update_fabric is not None:
-            cls._update_fabric(0.0, 0.0)
+        if cls._fabric is not None:
+            cls._fabric.force_update(0.0, 0.0)
 
     @classmethod
     def close(cls) -> None:
@@ -643,7 +641,6 @@ class PhysxManager(PhysicsManager):
         cls._event_bus.dispatch_event(IsaacEvents.PRIM_DELETION.value, payload={"prim_path": "/"})
 
         cls._fabric = None
-        cls._update_fabric = None
         cls._anim_recorder = None
         cls._warmup_needed = True
         cls._assets_loaded = True
@@ -913,12 +910,10 @@ class PhysxManager(PhysicsManager):
             from omni.physxfabric import get_physx_fabric_interface
 
             cls._fabric = get_physx_fabric_interface()
-            cls._update_fabric = getattr(cls._fabric, "force_update", cls._fabric.update)
         else:
             if ext_mgr.is_extension_enabled("omni.physx.fabric"):
                 ext_mgr.set_extension_enabled_immediate("omni.physx.fabric", False)
             cls._fabric = None
-            cls._update_fabric = None
 
         # disable usd sync when fabric is enabled (via SettingsManager)
         for key in [

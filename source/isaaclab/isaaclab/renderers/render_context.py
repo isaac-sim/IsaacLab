@@ -324,9 +324,6 @@ class RenderContext:
 
         Transforms follow SDP freshness; geometry updates retain their once-per-step cadence.
         """
-        if not self._renderer_entries:
-            return
-
         for _cfg, renderer in self._renderer_entries:
             renderer.update_transforms()
             if self._last_geometry_step != physics_step_count:

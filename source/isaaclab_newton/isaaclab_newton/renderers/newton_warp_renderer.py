@@ -483,12 +483,12 @@ class NewtonWarpRenderer(BaseRenderer):
 
     def initialize(self) -> None:
         """Post-physics setup: read the built Newton model and construct the sensor."""
-        self._newton_model = NewtonManager.get_model()
-        if self._newton_model is None:
+        model = NewtonManager.get_model()
+        if model is None:
             raise RuntimeError("NewtonWarpRenderer requires a clone-built model before initialization.")
 
         self.newton_sensor = newton.sensors.SensorTiledCamera(
-            self._newton_model,
+            model,
             default_render_config=newton.sensors.SensorTiledCamera.RenderConfig(
                 enable_textures=self.cfg.enable_textures,
                 enable_shadows=self.cfg.enable_shadows,
@@ -562,7 +562,7 @@ class NewtonWarpRenderer(BaseRenderer):
         ):
             if self._seg_mapper is None:
                 clone_plan = SimulationContext.instance().get_clone_plan()
-                self._seg_mapper = NewtonSegmentationMapper(self._newton_model, self._stage, self.cfg, clone_plan)
+                self._seg_mapper = NewtonSegmentationMapper(self.newton_sensor.model, self._stage, self.cfg, clone_plan)
         if RenderBufferKind.SEMANTIC_SEGMENTATION in spec.cfg.data_types:
             self._seg_mapper.build_mapping(
                 RenderBufferKind.SEMANTIC_SEGMENTATION, bool(self.cfg.colorize_semantic_segmentation)
@@ -628,7 +628,7 @@ class NewtonWarpRenderer(BaseRenderer):
 
         if render_data.sensor_task_name is None:
             render_data.sensor_task_name = f"newton_warp_render:{id(render_data)}"
-            tri_indices = self._newton_model.tri_indices
+            tri_indices = self.newton_sensor.model.tri_indices
             # Warp mesh refits allocate graph nodes and are not supported inside a conditional graph body.
             graph_capturable = tri_indices is None or tri_indices.shape[0] == 0
             NewtonManager._register_sensor_task(

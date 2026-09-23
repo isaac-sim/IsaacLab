@@ -462,7 +462,6 @@ class NewtonManager(PhysicsManager):
     _sensor_bvh_shape_flags: ShapeFlags = ShapeFlags.VISIBLE
 
     # USD/Fabric sync
-    _newton_stage_path = None
     _usdrt_stage = None
     _clone_physics_only = False
     _transforms_may_change_on_graph_replay: bool = False
@@ -813,16 +812,6 @@ class NewtonManager(PhysicsManager):
         NewtonManager._particles_dirty = True
 
     @classmethod
-    def _mark_state_dirty(cls) -> None:
-        """Flag that all physics state has changed and Fabric needs re-sync.
-
-        Convenience method that marks both transforms and particles dirty.
-        Called by :meth:`_simulate` after stepping.
-        """
-        cls._mark_transforms_dirty()
-        cls._mark_particles_dirty()
-
-    @classmethod
     def register_particle_visual_prim(
         cls, prim_path: str, particle_offset: int, particle_count: int, sync_frequency: int = 1
     ) -> None:
@@ -1033,9 +1022,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._invalidate_sensor_graph()
         NewtonManager._sensor_state = None
         NewtonManager._sensor_state_dirty = True
-        NewtonManager._sensor_graph_capture_failed = False
         NewtonManager._sensor_bvh_shape_flags = ShapeFlags.VISIBLE
-        NewtonManager._newton_stage_path = None
         NewtonManager._usdrt_stage = None
         NewtonManager._transforms_may_change_on_graph_replay = False
         NewtonManager._particles_dirty = False
@@ -1541,7 +1528,8 @@ class NewtonManager(PhysicsManager):
                 NewtonManager._particle_visual_prims,
             )
 
-            cls._mark_state_dirty()
+            cls._mark_transforms_dirty()
+            cls._mark_particles_dirty()
             cls.sync_cables_to_usd()
             cls.sync_particles_to_usd()
 

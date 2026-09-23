@@ -283,6 +283,7 @@ def test_fabric_binding_uses_read_only_world_matrices(native, monkeypatch):
     stage = object()
     provider._prepare_fabric(stage, "cpu")
     provider._prepare_fabric(stage, "cpu")
+    assert "_fabric_stage" not in vars(provider), "Retain native selections, not the initialization-only stage wrapper."
     attach.assert_called_once()
     selections = fabric_stage.SelectPrims.call_args_list
     assert len(selections) == (1 if native else 2)

@@ -358,7 +358,7 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=False), raising=False)
 
     renderer = object.__new__(NewtonWarpRenderer)
-    renderer._newton_model = model
+    renderer.newton_sensor = SimpleNamespace(model=model)
     monkeypatch.setattr(renderer, "_launch_render", lambda _data: render())
     renderer.update_transforms()
     renderer.render(SimpleNamespace(sensor_task_name=None, ppisp_pipeline=None))
@@ -422,7 +422,7 @@ def test_newton_warp_renderer_marks_triangle_mesh_refit_as_eager(
 
     tri_indices = None if triangle_count is None else SimpleNamespace(shape=(triangle_count, 3))
     renderer = object.__new__(NewtonWarpRenderer)
-    renderer._newton_model = SimpleNamespace(tri_indices=tri_indices)
+    renderer.newton_sensor = SimpleNamespace(model=SimpleNamespace(tri_indices=tri_indices))
     render_data = SimpleNamespace(sensor_task_name=None, ppisp_pipeline=None)
 
     renderer.render(render_data)

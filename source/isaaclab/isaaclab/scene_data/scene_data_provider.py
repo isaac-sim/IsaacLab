@@ -162,16 +162,16 @@ class SceneDataProvider:
         from pxr import UsdUtils  # noqa: PLC0415
 
         stage_id = UsdUtils.StageCache.Get().GetId(stage).ToLongInt()
-        self._fabric_stage = usdrt.Usd.Stage.Attach(stage_id)
+        fabric_stage = usdrt.Usd.Stage.Attach(stage_id)
         native = self.backend.fabric is not None
         if not native:
-            self._fabric_stage.SynchronizeToFabric()
+            fabric_stage.SynchronizeToFabric()
             self._fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-                self._fabric_stage.GetFabricId(), self._fabric_stage.GetStageIdAsStageId()
+                fabric_stage.GetFabricId(), fabric_stage.GetStageIdAsStageId()
             )
             self._fabric_hierarchy.update_world_xforms()
             for index, path in enumerate(self.backend.transform_paths):
-                prim = self._fabric_stage.GetPrimAtPath(path)
+                prim = fabric_stage.GetPrimAtPath(path)
                 if not prim or not prim.HasAPI("PhysicsRigidBodyAPI"):
                     continue
                 prim.CreateAttribute("isaaclab:transformIndex", usdrt.Sdf.ValueTypeNames.Int, custom=True).Set(index)
@@ -181,13 +181,13 @@ class SceneDataProvider:
         if not native:
             attrs.append((usdrt.Sdf.ValueTypeNames.Int, "isaaclab:transformIndex", usdrt.Usd.Access.Read))
             attrs.append((usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:localMatrix", usdrt.Usd.Access.Read))
-        self._fabric_selection = self._fabric_stage.SelectPrims(
+        self._fabric_selection = fabric_stage.SelectPrims(
             require_applied_schemas=["PhysicsRigidBodyAPI"],
             require_attrs=attrs,
             device=device,
         )
         if not native:
-            self._fabric_write_selection = self._fabric_stage.SelectPrims(
+            self._fabric_write_selection = fabric_stage.SelectPrims(
                 require_applied_schemas=["PhysicsRigidBodyAPI"],
                 require_attrs=[*attrs[:-1], (*attrs[-1][:2], usdrt.Usd.Access.ReadWrite)],
                 device=device,
