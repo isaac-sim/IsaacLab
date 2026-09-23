@@ -26,6 +26,7 @@ from isaaclab.benchmark.measurements import (
     TestPhase,
 )
 from isaaclab.benchmark.recorders import CPUInfoRecorder, GPUInfoRecorder, MemoryInfoRecorder, VersionInfoRecorder
+from isaaclab.benchmark.stepping import PHYSICS_PROFILE_SCOPE, RENDER_PROFILE_SCOPE
 from isaaclab.utils import has_kit
 
 if TYPE_CHECKING:
@@ -189,7 +190,7 @@ def _measurements_from_bundle(
 
     projected = _runtime_measurements(bundle.runtime)
     extra = bundle.extra or {}
-    for prefix, scope in (("physics", "IsaacLab::Physics::step"), ("render", "IsaacLab::Renderer::render")):
+    for prefix, scope in (("physics", PHYSICS_PROFILE_SCOPE), ("render", RENDER_PROFILE_SCOPE)):
         for statistic in ("mean", "std", "max"):
             if (key := f"{prefix}_{statistic}_ms") in extra:
                 projected["runtime"].append(
