@@ -569,6 +569,10 @@ class SimulationContext:
         cli_explicit = self._is_cli_visualizer_explicit()
         cli_disable_all = self._is_cli_visualizer_disable_all()
 
+        # cli_requested holds raw, possibly-aliased strings (e.g. "newton"); resolved cfgs carry
+        # the canonical visualizer_type (e.g. "newton_gl"). Compare via this instead of directly.
+        canonical_requested = [_VISUALIZER_ALIASES.get(t, t) for t in cli_requested]
+
         if cli_disable_all:
             resolved = []
         elif not cli_explicit:
@@ -581,15 +585,15 @@ class SimulationContext:
             self._apply_visualizer_cli_overrides(resolved)
         else:
             # CLI selection is explicit: keep only requested cfg types, then add defaults for missing.
-            cli_requested_set = set(cli_requested)
+            cli_requested_set = set(canonical_requested)
             resolved = [cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) in cli_requested_set]
             for cfg in resolved:
                 self._apply_default_visualizer_cfg(cfg)
             existing_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
             for viz_type in cli_requested:
-                if viz_type not in existing_types and viz_type in _VISUALIZER_TYPES:
+                if _VISUALIZER_ALIASES.get(viz_type, viz_type) not in existing_types:
                     resolved.extend(self._create_default_visualizer_configs([viz_type]))
-                    existing_types.add(viz_type)
+                    existing_types.add(_VISUALIZER_ALIASES.get(viz_type, viz_type))
             self._apply_visualizer_cli_overrides(resolved)
 
         # When visualizers were explicitly requested via CLI, verify all
@@ -598,7 +602,11 @@ class SimulationContext:
         # skips.
         if cli_explicit and cli_requested:
             resolved_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
-            missing = [t for t in cli_requested if t not in resolved_types]
+            missing = [
+                t
+                for t, canonical in zip(cli_requested, canonical_requested, strict=True)
+                if canonical not in resolved_types
+            ]
             if missing:
                 install_hints = " ".join(
                     _get_visualizer_install_hint(visualizer_type)
