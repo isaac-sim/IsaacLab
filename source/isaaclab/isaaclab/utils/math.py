@@ -1789,7 +1789,7 @@ def quat_slerp(q1: torch.Tensor, q2: torch.Tensor, tau: float) -> torch.Tensor:
     if d < 0.0:
         # Invert rotation
         d = -d
-        q2 *= -1.0
+        q2 = -q2
     angle = torch.acos(torch.clamp(d, -1, 1))
     if abs(angle) < torch.finfo(q1.dtype).eps * 4.0:
         return q1

@@ -55,6 +55,7 @@ if not _MISSING_MODULES:
         OpenCvPinholeDistortionCfg,
         PinholeCameraCfg,
     )
+    from isaaclab.utils.sensors import convert_camera_intrinsics_to_usd
     from isaaclab.utils.warp import ProxyArray
 
 
@@ -302,6 +303,19 @@ def test_readback_distinct_image_size_mismatches_each_warn():
     assert len(mismatch_warnings) == 2
     assert any("(640, 480)" in message for message in mismatch_warnings)
     assert any("(1280, 720)" in message for message in mismatch_warnings)
+
+
+@pytest.mark.parametrize(
+    "offset, warns",
+    [((0.0, 0.0), False), ((10.0, 0.0), True), ((-10.0, 0.0), True), ((0.0, 10.0), True), ((0.0, -10.0), True)],
+)
+def test_intrinsics_to_usd_warns_on_any_aperture_offset(offset, warns, caplog):
+    """Off-center principal points warn in either direction; a centered one does not."""
+    width, height = 640, 480
+    c_x, c_y = width / 2 + offset[0], height / 2 + offset[1]
+    convert_camera_intrinsics_to_usd([400.0, 0.0, c_x, 0.0, 400.0, c_y, 0.0, 0.0, 1.0], width, height)
+
+    assert any("aperture offsets" in message for message in caplog.messages) == warns
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])

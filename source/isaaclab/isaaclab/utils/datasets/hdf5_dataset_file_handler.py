@@ -69,8 +69,8 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
         if not file_path.endswith(".hdf5"):
             file_path += ".hdf5"
         dir_path = os.path.dirname(file_path)
-        if not os.path.isdir(dir_path):
-            os.makedirs(dir_path)
+        if dir_path:
+            os.makedirs(dir_path, exist_ok=True)
         self._hdf5_file_stream = h5py.File(file_path, "w")
 
         # Set the dataset format version

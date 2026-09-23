@@ -878,6 +878,20 @@ def test_quat_slerp(device):
 
 
 @pytest.mark.parametrize("device", test_devices())
+def test_quat_slerp_does_not_modify_inputs(device):
+    """Test that quat_slerp does not modify its inputs when taking the shorter arc."""
+    q1 = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)
+    # negative dot product with q1, so the shorter-arc branch negates q2
+    q2 = torch.tensor([0.0, 0.0, -math.sin(math.pi / 4), -math.cos(math.pi / 4)], device=device)
+    q1_before, q2_before = q1.clone(), q2.clone()
+
+    math_utils.quat_slerp(q1, q2, 0.5)
+
+    torch.testing.assert_close(q1, q1_before)
+    torch.testing.assert_close(q2, q2_before)
+
+
+@pytest.mark.parametrize("device", test_devices())
 def test_matrix_from_quat(device):
     """test matrix_from_quat against scipy."""
     # prepare random quaternions and vectors

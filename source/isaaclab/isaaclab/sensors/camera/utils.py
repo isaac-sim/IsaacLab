@@ -232,12 +232,12 @@ def create_pointcloud_from_rgbd(
             points_rgb = rgb.permute(1, 0, 2).reshape(-1, 3)
         elif isinstance(rgb, (tuple, list)):
             # same color for all points
-            points_rgb = torch.Tensor((rgb,) * num_points, device=device, dtype=torch.uint8)
+            points_rgb = torch.tensor(rgb, device=points_xyz.device, dtype=torch.uint8).repeat(num_points, 1)
         else:
-            # default color is white
-            points_rgb = torch.Tensor(((0, 0, 0),) * num_points, device=device, dtype=torch.uint8)
+            # default color is black
+            points_rgb = torch.zeros((num_points, 3), device=points_xyz.device, dtype=torch.uint8)
     else:
-        points_rgb = torch.Tensor(((0, 0, 0),) * num_points, device=device, dtype=torch.uint8)
+        points_rgb = torch.zeros((num_points, 3), device=points_xyz.device, dtype=torch.uint8)
     # normalize color values
     if normalize_rgb:
         points_rgb = points_rgb.float() / 255
