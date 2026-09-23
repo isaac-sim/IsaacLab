@@ -12,7 +12,8 @@ Fixed
 * Restored continuous Reach tracking by removing the early success termination and restoring the
   fine-grained position reward, while retaining position-and-orientation success metrics.
 * Restored symmetric point-cloud noise in the Lift and Reorient ADR curriculum.
-* Restored action-rate and joint-velocity regularization for rigid Lift and Reorient training.
+* Restored action-rate and joint-velocity regularization for rigid Lift and Reorient training, with
+  penalty weights ramped continuously by task difficulty instead of training time.
 * Made Lift's spawn-in-hand reset candidates collision-free aligned pre-grasps while retaining
   the broad reset-state distribution used for policy qualification.
 * Kept terminal non-finite rigid-object states from propagating into Lift and Reorient reward batches.
