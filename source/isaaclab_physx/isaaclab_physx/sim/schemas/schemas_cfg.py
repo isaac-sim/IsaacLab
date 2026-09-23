@@ -182,7 +182,6 @@ class DeformableBodyPropertiesCfg(PhysxDeformableBodyPropertiesCfg):
         super().__post_init__()
 
 
-@_deprecated_schema_cfg("[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]")
 @configclass
 class PhysxDeformableBodyCfg(DeformableBodyFragment):
     """``physxDeformableBody:*`` deformable-body attributes from `PhysxBaseDeformableBodyAPI`_.

@@ -75,7 +75,6 @@ class NewtonDeformableBodyPropertiesCfg(DeformableBodyPropertiesBaseCfg):
     _usd_field_exceptions: ClassVar[dict] = {}
 
 
-@_deprecated_schema_cfg("[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...), MujocoRigidBodyCfg(...)]")
 @configclass
 class NewtonDeformableBodyCfg(DeformableBodyFragment):
     """Placeholder deformable-body fragment reserving the ``newton:*`` namespace.
