@@ -1,0 +1,9 @@
+# Host-only dependencies of the perf-smoke gate.
+#
+# The gate runs on the CI *runner host*, outside the Isaac Sim container, so these are
+# installed into a throwaway virtualenv by the workflow rather than into the image or
+# the isaaclab package. The comparison uses ASV's internal decision helper;
+# run tools.perf_smoke.test_compare before updating these pins.
+azure-storage-blob>=12.19,<13
+asv==0.6.6
+asv-runner==0.3.1
