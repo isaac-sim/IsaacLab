@@ -94,7 +94,7 @@ class OperationalSpaceController:
             raise ValueError("Inertia conditioning thresholds must satisfy 0 < lower < upper <= 1.")
 
         # resolve tasks-pace target dimensions
-        self.target_list = list()
+        self.target_list = []
         for command_type in self.cfg.target_types:
             if command_type == "pose_rel":
                 self.target_list.append(6)

@@ -54,25 +54,19 @@ class SensorBase(ABC):
         Args:
             cfg: The configuration parameters for the sensor.
         """
-        # check that the config is valid
         cfg.validate()
         cfg.prim_path = expand_env_regex_ns(cfg.prim_path)
-        # store inputs
         self.cfg = cfg.copy()
-        # flag for whether the sensor is initialized
         self._is_initialized = False
-        # flag for whether the sensor is in visualization mode
         self._is_visualizing = False
         # clone plan used for this sensor's latest initialization
         self._clone_plan: ClonePlan | None = None
         self.stage = sim_utils.get_current_stage()
 
-        # register various callback functions
         self._register_callbacks()
 
         # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
         self._debug_vis_handle = None
-        # set initial state of debug visualization
         self.set_debug_vis(self.cfg.debug_vis)
 
     def __del__(self, _sys=sys):

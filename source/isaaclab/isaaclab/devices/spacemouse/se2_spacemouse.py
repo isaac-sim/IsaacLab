@@ -63,7 +63,7 @@ class Se2SpaceMouse(DeviceBase):
         # command buffers
         self._base_command = np.zeros(3)
         # dictionary for additional callbacks
-        self._additional_callbacks = dict()
+        self._additional_callbacks = {}
         # run a thread for listening to device updates
         self._thread = threading.Thread(target=self._run_device)
         self._thread.daemon = True

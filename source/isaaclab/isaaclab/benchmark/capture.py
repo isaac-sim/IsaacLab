@@ -294,7 +294,6 @@ def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
     if physics is None:
         physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
         raise ValueError(f"Unsupported concrete physics config: {type(physics_cfg).__name__}.")
-
     return RunConfig(
         physics_backend=physics,
         rendering_backend=rendering or "none",

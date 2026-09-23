@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# needed to import for allowing type-hinting: np.ndarray | torch.Tensor | None
 from __future__ import annotations
 
 import numpy as np
@@ -36,9 +35,7 @@ def color_meshes_by_height(meshes: list[trimesh.Trimesh], **kwargs) -> trimesh.T
     Returns:
         A trimesh object with the vertices colored based on the z-coordinate (height) of each vertex.
     """
-    # Combine all meshes into a single mesh
     mesh = trimesh.util.concatenate(meshes)
-    # Get the z-coordinates of each vertex
     heights = mesh.vertices[:, 2]
     # Check if the z-coordinates are all the same
     if np.max(heights) == np.min(heights):
@@ -174,7 +171,6 @@ def find_flat_patches(
         RuntimeError: If the function fails to find valid patches. This can happen if the input parameters
             are not suitable for finding valid patches and maximum number of iterations is reached.
     """
-    # set device to warp mesh device
     device = wp.device_to_torch(wp_mesh.device)
 
     # resolve inputs to consistent type

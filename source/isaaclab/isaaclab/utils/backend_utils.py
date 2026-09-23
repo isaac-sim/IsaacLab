@@ -119,13 +119,11 @@ class FactoryBase:
         # If backend is not in registry, try to import it and register the class.
         # This is done to only import the module once.
         if backend not in cls._registry:
-            # Construct the module name from the backend and the determined subpath.
             module_name = cls._get_module_name(backend)
             try:
                 module = importlib.import_module(module_name)
                 class_name = getattr(cls, "_backend_class_names", {}).get(backend, cls.__name__)
                 module_class = getattr(module, class_name)
-                # Manually register the class
                 cls.register(backend, module_class)
 
             except ImportError as e:
@@ -150,7 +148,6 @@ class FactoryBase:
     def __new__(cls, *args, **kwargs):
         """Create a new instance of an implementation based on the backend."""
         impl = cls.resolve_class(*args, **kwargs)
-        # Return an instance of the chosen class.
         return impl(*args, **kwargs)
 
     @classmethod

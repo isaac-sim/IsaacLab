@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# needed to import for allowing type-hinting: Usd.Stage | None
 from __future__ import annotations
 
 import dataclasses
@@ -32,7 +31,6 @@ from ..utils.stage import get_current_stage
 from . import schemas_cfg
 from ._backend_hooks import _skip_joint_drive
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -405,16 +403,11 @@ def define_articulation_root_properties(
         Use :func:`apply_articulation_root_properties` with schema fragments instead. This function will be removed
         in 3.2.
     """
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
-
-    # get articulation USD prim
     prim = stage.GetPrimAtPath(prim_path)
-    # check if prim path is valid
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    # check if prim has articulation applied on it
     if not UsdPhysics.ArticulationRootAPI(prim):
         UsdPhysics.ArticulationRootAPI.Apply(prim)
     # set articulation root properties
@@ -524,13 +517,9 @@ def modify_articulation_root_properties(
         Use :func:`apply_articulation_root_properties` with schema fragments instead. This function will be removed
         in 3.2.
     """
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
-
-    # get articulation USD prim
     articulation_prim = stage.GetPrimAtPath(prim_path)
-    # check if prim has articulation applied on it
     if not UsdPhysics.ArticulationRootAPI(articulation_prim):
         return False
 
@@ -538,8 +527,6 @@ def modify_articulation_root_properties(
     cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
     # extract writer-side (non-USD) properties
     fix_root_link = cfg_dict.pop("fix_root_link", None)
-
-    # apply per-field exceptions + main-namespace writes
     _apply_namespaced_schemas(articulation_prim, cfg, cfg_dict)
 
     # fix root link based on input
@@ -568,7 +555,6 @@ def modify_articulation_root_properties(
                     " the articulation tree. However, this is not implemented yet."
                 )
 
-            # create a fixed joint between the root link and the world frame
             create_world_fixed_joint(articulation_prim, stage)
 
             # Having a fixed joint on a rigid body is not treated as "fixed base articulation".
@@ -576,7 +562,6 @@ def modify_articulation_root_properties(
             # Moving the articulation root to the parent solves this issue. This is a limitation of the PhysX parser.
             # get parent prim
             parent_prim = articulation_prim.GetParent()
-            # apply api to parent
             UsdPhysics.ArticulationRootAPI.Apply(parent_prim)
             parent_applied = parent_prim.GetAppliedSchemas()
             if "PhysxArticulationAPI" not in parent_applied:
@@ -620,7 +605,6 @@ def modify_articulation_root_properties(
                 if not articulation_prim.RemoveAppliedSchema(newton_root_schema):
                     raise RuntimeError(f"Failed to remove '{newton_root_schema}' from '{articulation_prim.GetPath()}'.")
 
-            # remove api from root
             articulation_prim.RemoveAppliedSchema("PhysxArticulationAPI")
             articulation_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
             articulation_prim = parent_prim
@@ -634,8 +618,6 @@ def modify_articulation_root_properties(
         safe_set_attribute_on_usd_prim(
             articulation_prim, "newton:selfCollisionEnabled", enabled_self_collisions, camel_case=False
         )
-
-    # success
     return True
 
 
@@ -873,19 +855,13 @@ def define_rigid_body_properties(prim_path: str, cfg: schemas_cfg.RigidBodyBaseC
         Use :func:`apply_rigid_body_properties` with schema fragments instead. This function will be removed
         in 3.2.
     """
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
-
-    # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
-    # check if prim path is valid
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    # check if prim has rigid body applied on it
     if not UsdPhysics.RigidBodyAPI(prim):
         UsdPhysics.RigidBodyAPI.Apply(prim)
-    # set rigid body properties
     modify_rigid_body_properties.__wrapped__(prim_path, cfg, stage)
 
 
@@ -932,13 +908,9 @@ def modify_rigid_body_properties(
         Use :func:`apply_rigid_body_properties` with schema fragments instead. This function will be removed
         in 3.2.
     """
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
-
-    # get rigid-body USD prim
     rigid_body_prim = stage.GetPrimAtPath(prim_path)
-    # check if prim has rigid-body applied on it
     if not UsdPhysics.RigidBodyAPI(rigid_body_prim):
         return False
     # convert to dict, filtering out class metadata (underscore-prefixed keys)
@@ -1038,19 +1010,13 @@ def define_collision_properties(
         Use :func:`apply_collision_properties` with schema fragments instead. This function will be removed
         in 3.2.
     """
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
-
-    # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
-    # check if prim path is valid
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    # check if prim has collision applied on it
     if not UsdPhysics.CollisionAPI(prim):
         UsdPhysics.CollisionAPI.Apply(prim)
-    # set collision properties
     modify_collision_properties.__wrapped__(prim_path, cfg, stage)
 
 
@@ -1091,13 +1057,9 @@ def modify_collision_properties(
         Use :func:`apply_collision_properties` with schema fragments instead. This function will be removed
         in 3.2.
     """
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
-
-    # get USD prim
     collider_prim = stage.GetPrimAtPath(prim_path)
-    # check if prim has collision applied on it
     if not UsdPhysics.CollisionAPI(collider_prim):
         return False
     # dispatch nested mesh-collision cfg if present (preserve legacy behavior)
@@ -1115,7 +1077,6 @@ def modify_collision_properties(
     # ``rest_offset`` via field exceptions; PhysX-subclass fields under
     # ``physxCollision:*``.
     _apply_namespaced_schemas(collider_prim, cfg, cfg_dict)
-    # success
     return True
 
 
@@ -1201,19 +1162,13 @@ def define_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
         Use :func:`apply_mass_properties` with schema fragments instead. This function will be removed
         in 3.2.
     """
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
-
-    # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
-    # check if prim path is valid
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    # check if prim has mass applied on it
     if not UsdPhysics.MassAPI(prim):
         UsdPhysics.MassAPI.Apply(prim)
-    # set mass properties
     modify_mass_properties.__wrapped__(prim_path, cfg, stage)
 
 
@@ -1257,13 +1212,9 @@ def modify_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
         Use :func:`apply_mass_properties` with schema fragments instead. This function will be removed
         in 3.2.
     """
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
-
-    # get USD prim
     rigid_prim = stage.GetPrimAtPath(prim_path)
-    # check if prim has mass API applied on it
     if not UsdPhysics.MassAPI(rigid_prim):
         return False
 
@@ -1296,7 +1247,6 @@ def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.
         ValueError: If the input prim path is not valid.
         ValueError: If there are no rigid bodies under the prim path.
     """
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
 
@@ -1446,7 +1396,6 @@ def apply_drive(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
             continue
         usd_attr_name = "type" if field_name == "drive_type" else field_name
         safe_set_attribute_on_usd_schema(usd_drive_api, usd_attr_name, value, camel_case=True)
-
     return True
 
 
@@ -1624,13 +1573,9 @@ def modify_joint_drive_properties(
         Use :func:`apply_joint_drive_properties` with schema fragments instead. This function will be removed
         in 3.2.
     """
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
-
-    # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
-    # check if prim path is valid
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
 
@@ -1954,12 +1899,9 @@ def define_mesh_collision_properties(
         Use :func:`apply_mesh_collision_properties` with schema fragments instead. This function will be removed
         in 3.2.
     """
-    # obtain stage
     if stage is None:
         stage = get_current_stage()
-    # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
-    # check if prim path is valid
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
 
@@ -2011,10 +1953,8 @@ def modify_mesh_collision_properties(
         Use :func:`apply_mesh_collision_properties` with schema fragments instead. This function will be removed
         in 3.2.
     """
-    # obtain stage
     if stage is None:
         stage = get_current_stage()
-    # get USD prim
     prim = stage.GetPrimAtPath(prim_path)
 
     # we need MeshCollisionAPI to set mesh collision approximation attribute
@@ -2044,8 +1984,6 @@ def modify_mesh_collision_properties(
     # gates ``Physx*CollisionAPI`` application on at least one non-None tuning field, so
     # Newton-targeted prims stay free of PhysX cooking schemas they did not opt in to.
     _apply_namespaced_schemas(prim, cfg, cfg_dict)
-
-    # success
     return True
 
 
@@ -2153,13 +2091,9 @@ def define_deformable_body_properties(
             without its optional dependencies.
         RuntimeError: When setting the deformable body properties fails.
     """
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
-
-    # get USD prim
     root_prim = stage.GetPrimAtPath(prim_path)
-    # check if prim path is valid
     if not root_prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
 
@@ -2184,7 +2118,6 @@ def define_deformable_body_properties(
 
     # Search for a visual surface mesh for both surface and volume deformables
     matching_prims = get_all_matching_child_prims(prim_path, lambda p: p.GetTypeName() == "Mesh")
-    # check if the visual surface mesh is valid
     if len(matching_prims) == 0:
         # in case a TetMesh is found but no Mesh is found, we use the TetMesh surface as visual.
         if sim_mesh_prim is not None:
@@ -2195,7 +2128,6 @@ def define_deformable_body_properties(
                     f"Deformable body at '{prim_path}' has no surface indices on its TetMesh prim; "
                     "cannot sync to visual mesh."
                 )
-            # create visual mesh
             vis_mesh_prim = create_prim(
                 prim_path + "/vis_mesh",
                 prim_type="Mesh",
@@ -2210,15 +2142,12 @@ def define_deformable_body_properties(
         else:
             raise ValueError(f"Could not find any visual mesh in '{prim_path}'. Please check asset.")
     if len(matching_prims) > 1:
-        # get list of all meshes found
         mesh_paths = [p.GetPrimPath() for p in matching_prims]
         raise ValueError(
             f"Found multiple visual meshes in '{prim_path}': {mesh_paths}."
             " Deformable body schema can only be applied to one mesh for now."
         )
     vis_mesh_prim = matching_prims[0]
-
-    # check if the prim is valid
     if not vis_mesh_prim.IsValid():
         raise ValueError(f"Mesh prim path '{vis_mesh_prim.GetPrimPath()}' is not valid.")
 
@@ -2321,14 +2250,12 @@ def define_deformable_body_properties(
             sim_mesh_prim.GetAttribute("omniphysics:restTetVtxIndices").Set(
                 sim_mesh_prim.GetAttribute("tetVertexIndices").Get()
             )
-
     else:
         raise ValueError(
             f"""Unsupported deformable type: '{deformable_type}'.
             Only surface and volume deformables are supported."""
         )
 
-    # apply collision API
     if not sim_mesh_prim.ApplyAPI(UsdPhysics.CollisionAPI):
         raise RuntimeError(f"Failed to set {deformable_type} deformable collision API on prim '{sim_mesh_prim_path}'.")
 
@@ -2351,8 +2278,6 @@ def define_deformable_body_properties(
         sim_mesh_prim.CreateAttribute("deformablePose:default:omniphysics:purposes", Sdf.ValueTypeNames.TokenArray).Set(
             purposes
         )
-
-        # apply deformable body api
         if not root_prim.ApplyAPI("OmniPhysicsDeformableBodyAPI"):
             raise RuntimeError(f"Failed to set deformable body API on prim '{prim_path}'.")
     else:
@@ -2375,12 +2300,9 @@ def define_deformable_body_properties(
             sim_mesh = UsdGeom.Mesh(sim_mesh_prim)
             vis_mesh.GetFaceVertexIndicesAttr().Set(sim_mesh.GetFaceVertexIndicesAttr().Get())
             vis_mesh.GetFaceVertexCountsAttr().Set(sim_mesh.GetFaceVertexCountsAttr().Get())
-
-        # apply deformable body api
         if not root_prim.AddAppliedSchema("PhysicsDeformableBodyAPI"):
             raise RuntimeError(f"Failed to set deformable body API on prim '{prim_path}'.")
 
-    # set deformable body properties
     modify_deformable_body_properties(prim_path, cfg, stage)
 
 
@@ -2428,11 +2350,8 @@ def modify_deformable_body_properties(
     Returns:
         True if the properties were successfully set, False otherwise.
     """
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
-
-    # get deformable-body USD prim
     deformable_body_prim = stage.GetPrimAtPath(prim_path)
     # check if the prim is valid
     if not deformable_body_prim.IsValid():
@@ -2452,5 +2371,4 @@ def modify_deformable_body_properties(
         )
 
     _apply_namespaced_schemas(deformable_body_prim, cfg, cfg_dict)
-    # success
     return True

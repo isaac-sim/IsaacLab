@@ -271,7 +271,6 @@ class ManagerBase(ABC):
 
         Please check the :meth:`_process_term_cfg_at_play` method for more information.
         """
-        # check if scene entities have been resolved
         if self._is_scene_entities_resolved:
             return
         # check if config is dict already
@@ -288,8 +287,6 @@ class ManagerBase(ABC):
             # process attributes at runtime
             # these properties are only resolvable once the simulation starts playing
             self._process_term_cfg_at_play(term_name, term_cfg)
-
-        # set the flag
         self._is_scene_entities_resolved = True
 
     """
