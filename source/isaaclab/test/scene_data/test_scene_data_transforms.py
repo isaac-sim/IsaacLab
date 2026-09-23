@@ -14,9 +14,16 @@ import numpy as np
 import pytest
 import warp as wp
 
-from isaaclab.scene_data.scene_data_backend import SceneDataFormat
+from isaaclab.renderers.render_context import RenderContext
+from isaaclab.scene_data.scene_data_backend import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.scene_data_provider import SceneDataProvider
 from isaaclab.test.utils import test_devices
+
+
+class _Backend(SimpleNamespace, SceneDataBackend):
+    transforms = None
+    transform_count = 0
+    transform_paths = ()
 
 
 @pytest.mark.skipif(
@@ -29,7 +36,7 @@ def test_get_transforms_matches_backend_device_when_warp_default_is_cuda():
         [[x, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0] for x in range(3)], dtype=wp.transformf, device="cpu"
     )
     provider = SceneDataProvider(
-        SimpleNamespace(
+        _Backend(
             transforms=transforms,
             transforms_dirty=True,
             transform_count=3,
@@ -54,7 +61,7 @@ def test_publication_aliases_native_pointer_and_converts_once_per_write(monkeypa
     """Clean requests share one conversion; writes and native buffer swaps invalidate it."""
     data = SceneDataFormat.Transform()
     data.transforms = wp.array([[1, 2, 3, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
-    backend = SimpleNamespace(transforms=data, transforms_dirty=True, transform_count=1)
+    backend = _Backend(transforms=data, transforms_dirty=True, transform_count=1)
     provider = SceneDataProvider(backend)
     native = SceneDataFormat.Transform()
     converted = SceneDataFormat.Vec3_Quat()
@@ -97,7 +104,7 @@ def test_publication_aliases_native_pointer_and_converts_once_per_write(monkeypa
 def test_owned_transform_buffers_are_written_directly_and_do_not_alias_cache(format_name, monkeypatch):
     data = SceneDataFormat.Transform()
     data.transforms = wp.array([[1, 2, 3, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
-    backend = SimpleNamespace(transforms=data, transforms_dirty=True, transform_count=1)
+    backend = _Backend(transforms=data, transforms_dirty=True, transform_count=1)
     provider = SceneDataProvider(backend)
     shared, owned = (getattr(SceneDataFormat, format_name)() for _ in range(2))
     assert provider.get_transforms(shared)
@@ -121,12 +128,28 @@ def test_owned_transform_buffers_are_written_directly_and_do_not_alias_cache(for
             np.testing.assert_array_equal(array.numpy(), getattr(shared, name).numpy())
 
 
+def test_mapping_preserves_unmapped_destination_slots():
+    data = SceneDataFormat.Transform()
+    data.transforms = wp.array([[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
+    provider = SceneDataProvider(
+        _Backend(transforms=data, transforms_dirty=True, transform_count=2, transform_paths=["/a", "/b"])
+    )
+    mapping = provider.create_mapping(["/a", "/b", None])
+    output = SceneDataFormat.Transform()
+    output.transforms = wp.zeros(3, dtype=wp.transformf, device="cpu")
+    assert provider.get_transforms(output, mapping, allow_passthrough=False, count=3)
+    np.testing.assert_array_equal(output.transforms.numpy()[:2], data.transforms.numpy())
+    np.testing.assert_array_equal(output.transforms.numpy()[2], np.zeros(7))
+
+
 @pytest.mark.parametrize("format_name", ["Transform", "Vec3_Quat", "Vec3_Matrix33", "Matrix44"])
 @pytest.mark.parametrize("scaled", [False, True])
 def test_transposed_matrices_fuse_format_mapping_and_scale(format_name, scaled):
     """All native formats produce the same row-vector matrices, with output-indexed scale."""
-    poses = np.array([[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 0, 0, 1, 0]], dtype=np.float32)
-    rotations = np.array([np.eye(3), np.diag([-1, -1, 1])], dtype=np.float32)
+    poses = np.array([[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 1, 2, 2, 2]], dtype=np.float32)
+    poses[1, 3:] /= np.sqrt(13)
+    # Independent quaternion-to-matrix reference; a non-axis rotation exposes transpose/scale ordering errors.
+    rotations = np.array([np.eye(3), np.array([[-3, -4, 12], [12, 3, 4], [-4, 12, 3]]) / 13], dtype=np.float32)
     matrices = np.broadcast_to(np.eye(4), (2, 4, 4)).copy()
     matrices[:, :3, :3] = rotations
     matrices[:, :3, 3] = poses[:, :3]
@@ -142,7 +165,7 @@ def test_transposed_matrices_fuse_format_mapping_and_scale(format_name, scaled):
             dtype=wp.quatf if format_name == "Vec3_Quat" else wp.mat33f,
             device="cpu",
         )
-    provider = SceneDataProvider(SimpleNamespace(transforms=data, transforms_dirty=True, transform_count=2))
+    provider = SceneDataProvider(_Backend(transforms=data, transforms_dirty=True, transform_count=2))
     mapping = wp.array([1, 0], dtype=wp.int32, device="cpu")
     scales = wp.array([[2, 3, 4], [5, 6, 7]], dtype=wp.vec3f, device="cpu") if scaled else None
     output = SceneDataFormat.TransposedMatrix44d()
@@ -150,7 +173,7 @@ def test_transposed_matrices_fuse_format_mapping_and_scale(format_name, scaled):
     expected = matrices[::-1].transpose(0, 2, 1).copy()
     if scaled:
         expected[:, :3, :3] *= scales.numpy()[:, :, None]
-    np.testing.assert_allclose(output.matrices.numpy(), expected)
+    np.testing.assert_allclose(output.matrices.numpy(), expected, rtol=1.0e-6, atol=1.0e-6)
     matrices = output.matrices
     assert provider.get_transforms(output, mapping, scales=scales)
     assert output.matrices is matrices
@@ -160,29 +183,26 @@ def test_transposed_matrices_fuse_format_mapping_and_scale(format_name, scaled):
 @pytest.mark.parametrize("device", test_devices())
 def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destinations(format_name, device, monkeypatch):
     """Fabric conversion skips solver-only bodies and preserves scales across buffer reallocations."""
-    poses = [[1, 2, 3, 0, 0, 0, 1], [7, 8, 9, 0, 0, 0, 1], [4, 5, 6, 0, 0, 1, 0]]
+    assert set(SceneDataFormat.FabricMatrix44.vars) == {"matrices"}
+    poses = np.array([[1, 2, 3, 0, 0, 0, 1], [7, 8, 9, 0, 0, 0, 1], [4, 5, 6, 1, 2, 2, 2]], dtype=np.float32)
+    poses[2, 3:] /= np.sqrt(13)
     data = SceneDataFormat.Transform()
     data.transforms = wp.array(poses, dtype=wp.transformf, device=device)
-    native = SceneDataProvider(SimpleNamespace(transforms=data, transforms_dirty=True, transform_count=len(poses)))
+    native = SceneDataProvider(_Backend(transforms=data, transforms_dirty=True, transform_count=len(poses)))
     source = getattr(SceneDataFormat, format_name)()
     assert native.get_transforms(source)
-    provider = SceneDataProvider(
-        SimpleNamespace(
-            transforms=source,
-            transforms_dirty=True,
-            transform_count=len(poses),
-            fabric=None,
-        )
-    )
-    provider._fabric_output = SceneDataFormat.FabricMatrix44()
-    assert provider._fabric_output._cls is SceneDataFormat.FabricMatrix44
-    provider._fabric_output.scales = wp.empty(len(poses), dtype=wp.vec3f, device=device)
-    expected = np.array([np.diag([-2, -3, 4, 1]), np.diag([5, 6, 7, 1])], dtype=np.float64)
+    provider = SceneDataProvider(_Backend(transforms=source, transforms_dirty=True, transform_count=len(poses)))
+    render_context = RenderContext([])
+    render_context._fabric_output = SceneDataFormat.FabricMatrix44()
+    render_context._fabric_scales = wp.empty(len(poses), dtype=wp.vec3f, device=device)
+    expected = np.array([np.eye(4), np.diag([5, 6, 7, 1])], dtype=np.float64)
+    rotation = np.array([[-3, -4, 12], [12, 3, 4], [-4, 12, 3]]) / 13
+    expected[0, :3, :3] = np.diag([2, 3, 4]) @ rotation.T
     expected[:, 3, :3] = [[4, 5, 6], [1, 2, 3]]
     indices = wp.array([len(poses) - 1, 0], dtype=wp.int32, device=device)
     launch = Mock(wraps=wp.launch)
     monkeypatch.setattr(wp, "launch", launch)
-    scales = provider._fabric_output.scales
+    scales = render_context._fabric_scales
     for allocation in range(2):
         authored = np.array([np.diag([2, 3, 4, 1]), np.diag([5, 6, 7, 1])], dtype=np.float64)
         if allocation:
@@ -194,8 +214,8 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
             matrices.assign(local_matrices)
             return True
 
-        provider._fabric_hierarchy = Mock()
-        provider._fabric_hierarchy.update_world_xforms_gpu.side_effect = update_world_xforms_gpu
+        render_context._fabric_hierarchy = Mock()
+        render_context._fabric_hierarchy.update_world_xforms_gpu.side_effect = update_world_xforms_gpu
         interface = {
             "version": 1,
             "device": device,
@@ -221,30 +241,30 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
             },
         }
         changes = [True]
-        provider._fabric_write_selection = SimpleNamespace(
+        render_context._fabric_write_selection = SimpleNamespace(
             __fabric_arrays_interface__=interface,
             PrepareForReuse=Mock(return_value=False),
         )
-        provider._fabric_selection = SimpleNamespace(
+        render_context._fabric_selection = SimpleNamespace(
             __fabric_arrays_interface__={
                 **interface,
                 "attribs": {name: {**attr, "access": 1} for name, attr in interface["attribs"].items()},
             },
             PrepareForReuse=lambda: changes.pop() if changes else False,
         )
-        output = SceneDataFormat.FabricMatrix44()
-        assert provider.get_transforms(output)
-        assert output.scales is scales
-        provider._fabric_hierarchy.update_world_xforms_gpu.assert_called_once_with(False)
-        provider._fabric_hierarchy.reset_mock()
-        provider._fabric_write_selection.PrepareForReuse.reset_mock()
-        previous_matrices = output.matrices
-        assert provider.get_transforms(output)
-        assert output.matrices is previous_matrices
-        assert provider._fabric_hierarchy.mock_calls == []
-        provider._fabric_write_selection.PrepareForReuse.assert_not_called()
+        render_context.update_fabric(provider)
+        assert render_context._fabric_scales is scales
+        render_context._fabric_hierarchy.update_world_xforms_gpu.assert_called_once_with(False)
+        render_context._fabric_hierarchy.reset_mock()
+        render_context._fabric_write_selection.PrepareForReuse.reset_mock()
+        previous_matrices = render_context._fabric_output.matrices
+        render_context.update_fabric(provider)
+        assert render_context._fabric_output.matrices is previous_matrices
+        assert render_context._fabric_hierarchy.mock_calls == []
+        render_context._fabric_write_selection.PrepareForReuse.assert_not_called()
         assert launch.call_count == allocation + 2
-        np.testing.assert_allclose(matrices.numpy(), expected)
+        assert len(provider._transform_cache) == 1
+        np.testing.assert_allclose(matrices.numpy(), expected, rtol=1.0e-6, atol=1.0e-6)
 
     if format_name == "Transform":
         rotations = np.random.default_rng(42).normal(size=(2000, len(poses), 4)).astype(np.float32)
@@ -254,13 +274,13 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
             poses[:, 3:] = rotation
             data.transforms.assign(poses)
             provider.backend.transforms_dirty = True
-            provider.get_transforms(output)
+            render_context.update_fabric(provider)
         np.testing.assert_allclose(
             np.linalg.norm(matrices.numpy()[:, :3, :3], axis=-1),
             np.linalg.norm(expected[:, :3, :3], axis=-1),
             rtol=1.0e-6,
         )
         np.testing.assert_allclose(matrices.numpy()[:, 3, :3], poses[[2, 0], :3])
-        assert provider._fabric_hierarchy.update_world_xforms_gpu.call_count == len(rotations)
-        provider._fabric_hierarchy.update_world_xforms_gpu.assert_called_with(True)
-        assert provider._fabric_write_selection.PrepareForReuse.call_count == len(rotations)
+        assert render_context._fabric_hierarchy.update_world_xforms_gpu.call_count == len(rotations)
+        render_context._fabric_hierarchy.update_world_xforms_gpu.assert_called_with(True)
+        assert render_context._fabric_write_selection.PrepareForReuse.call_count == len(rotations)

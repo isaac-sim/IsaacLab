@@ -26,8 +26,6 @@ if "omni.usd" not in sys.modules:
 import isaaclab_physx.renderers.isaac_rtx_renderer_utils as rtx_utils  # noqa: E402
 import pytest  # noqa: E402
 
-from isaaclab.scene_data import SceneDataFormat  # noqa: E402
-
 # test-specific timeout overrides for _STREAMING_WAIT_TIMEOUT_S
 STREAMING_TIMEOUT_S = 0.1
 
@@ -180,7 +178,8 @@ class TestEnsureIsaacRtxRenderUpdate:
         mock_omni_kit_app.get_app.return_value = mock_app
         mock_sim_context.instance.return_value = mock_sim
         provider = mock_sim.get_scene_data_provider.return_value
-        mock_app.update.side_effect = provider.get_transforms.assert_called_once
+        update_fabric = mock_sim.render_context.update_fabric
+        mock_app.update.side_effect = lambda: update_fabric.assert_called_once_with(provider)
 
         with patch.object(rtx_utils, "_get_stage_streaming_busy", return_value=False):
             rtx_utils.ensure_isaac_rtx_render_update()
@@ -191,8 +190,8 @@ class TestEnsureIsaacRtxRenderUpdate:
             rtx_utils.ensure_isaac_rtx_render_update()
 
         mock_app.update.assert_not_called()
-        provider.get_transforms.assert_called_once()
-        assert provider.get_transforms.call_args.args[0]._cls is SceneDataFormat.FabricMatrix44
+        mock_sim.render_context.prepare_fabric.assert_called_once_with(provider, mock_sim.stage, mock_sim.device)
+        update_fabric.assert_called_once_with(provider)
         mock_sim.physics_manager.forward.assert_not_called()
 
     def test_no_sim_is_noop(self, mock_sim_context, mock_omni_kit_app):
@@ -234,6 +233,5 @@ class TestEnsureIsaacRtxRenderUpdate:
             rtx_utils.ensure_isaac_rtx_render_update(force=force)
 
         assert mock_app.update.call_count == int(force)
-        provider = mock_sim.get_scene_data_provider.return_value
-        assert provider.get_transforms.call_count == int(force)
+        assert mock_sim.render_context.update_fabric.call_count == int(force)
         mock_sim.physics_manager.forward.assert_not_called()

@@ -23,7 +23,6 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
-from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import enable_extension
 from isaaclab.utils.version import get_isaac_sim_version
@@ -187,7 +186,6 @@ class IsaacRtxRenderer(BaseRenderer):
 
     def __init__(self, cfg: IsaacRtxRendererCfg):
         self.cfg = cfg
-        self._sdp = SimulationContext.instance().get_scene_data_provider()
         # Enable Replicator only when the Isaac RTX renderer is selected. Declaring it
         # in a Kit experience would resolve its bundled omni.warp.core dependency at startup.
         enable_extension("omni.replicator.core")
@@ -199,9 +197,9 @@ class IsaacRtxRenderer(BaseRenderer):
         # ``/isaaclab/render/rtx_sensors`` is owned by ``Camera.__init__`` (must be set pre-``sim.reset()``).
 
     def initialize(self) -> None:
-        """Bind SDP's shared Fabric destinations after scene creation."""
+        """Bind shared Fabric destinations after scene creation."""
         sim = SimulationContext.instance()
-        self._sdp._prepare_fabric(sim.stage, sim.device)
+        sim.render_context.prepare_fabric(sim.get_scene_data_provider(), sim.stage, sim.device)
 
     @property
     def visual_material_writer(self):
@@ -579,8 +577,9 @@ class IsaacRtxRenderer(BaseRenderer):
             )
 
     def update_transforms(self) -> None:
-        """Request shared Fabric transforms and propagate the visual hierarchy."""
-        self._sdp.get_transforms(SceneDataFormat.FabricMatrix44())
+        """Update shared Fabric transforms and propagate the visual hierarchy."""
+        sim = SimulationContext.instance()
+        sim.render_context.update_fabric(sim.get_scene_data_provider())
 
     def update_geometries(self) -> None:
         """No-op for Isaac RTX - uses USD scene directly.

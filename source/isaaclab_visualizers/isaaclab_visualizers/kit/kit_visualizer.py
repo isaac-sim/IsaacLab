@@ -35,7 +35,6 @@ from isaaclab.envs.utils.camera_view import (
     remove_generated_prims,
     resolve_streaming_envs,
 )
-from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
@@ -200,7 +199,8 @@ class KitVisualizer(BaseVisualizer):
         )
         self._setup_streaming_view(num_envs)
 
-        scene_data_provider._prepare_fabric(usd_stage, SimulationContext.instance().device)
+        sim = SimulationContext.instance()
+        sim.render_context.prepare_fabric(scene_data_provider, usd_stage, sim.device)
         self._is_initialized = True
         self._setup_initial_camera_view()
 
@@ -219,7 +219,7 @@ class KitVisualizer(BaseVisualizer):
         # triggered on demand by render_rgb_array() / render_tiled_rgb_array().
         if self._runtime_headless:
             return
-        self._scene_data_provider.get_transforms(SceneDataFormat.FabricMatrix44())
+        SimulationContext.instance().render_context.update_fabric(self._scene_data_provider)
         if self.cfg.origin_type == "asset":
             self._update_asset_tracking_camera()
         _externally_paused = self.is_training_paused()
@@ -291,7 +291,7 @@ class KitVisualizer(BaseVisualizer):
         import omni.kit.app
         import omni.replicator.core as rep
 
-        self._scene_data_provider.get_transforms(SceneDataFormat.FabricMatrix44())
+        SimulationContext.instance().render_context.update_fabric(self._scene_data_provider)
         if self._runtime_headless and self.cfg.origin_type == "asset":
             self._update_asset_tracking_camera()
         camera_path = self._controlled_camera_path or "/OmniverseKit_Persp"

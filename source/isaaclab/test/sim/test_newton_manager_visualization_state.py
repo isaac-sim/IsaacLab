@@ -273,6 +273,7 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
     sim._scene_data_provider = SceneDataProvider(
         SimpleNamespace(
             transforms=transforms,
+            get_transforms=lambda _format: transforms,
             transforms_dirty=True,
             transform_paths=body_paths,
             transform_count=body_count,
@@ -440,6 +441,7 @@ def test_update_visualization_state_shares_sdp_transforms(monkeypatch, layout):
     provider = SceneDataProvider(
         SimpleNamespace(
             transforms=source_data,
+            get_transforms=lambda _format: source_data,
             transforms_dirty=True,
             transform_paths=body_paths,
             transform_count=len(body_paths),

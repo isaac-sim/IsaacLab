@@ -32,7 +32,8 @@ The system has three layers:
    manager. It exposes the backend's transform array directly as one of the
    :class:`~isaaclab.scene_data.SceneDataFormat` Warp structs, plus the per-transform prim paths
    and total count. Producers set ``transforms_dirty`` after native state writes or buffer swaps;
-   SDP reads ``transforms`` before consuming the flag, since resolving the pointer can itself detect a swap.
+   SDP calls ``get_transforms(output_format)`` before consuming the flag, since resolving the pointer
+   can itself detect a swap. The default implementation returns the existing ``transforms`` property.
 
    - :attr:`SceneDataBackend.transforms`: the native data as a Warp struct (one of
      :class:`SceneDataFormat.Vec3_Quat`, :class:`SceneDataFormat.Transform`,
@@ -40,8 +41,8 @@ The system has three layers:
    - :attr:`SceneDataBackend.transforms_dirty`: whether SDP needs to refresh its converted outputs.
    - :attr:`SceneDataBackend.transform_count`: number of transforms.
    - :attr:`SceneDataBackend.transform_paths`: list of USD prim paths, one per transform.
-   - :attr:`SceneDataBackend.fabric`: optional engine-owned Fabric interface, with an independent
-     ``fabric_dirty`` flag. Native PhysX uses this path without fetching a packed pose array.
+   - :attr:`SceneDataBackend.native_transform_formats`: formats published without conversion.
+     PhysX publishes either packed poses or Fabric matrices and refreshes only the requested representation.
    - :attr:`SceneDataBackend.points`: flattened deformable nodal positions as
      :class:`SceneDataFormat.Points` (optional; rigid-only backends return an empty buffer).
    - :attr:`SceneDataBackend.point_count`: total number of geometry points.
@@ -106,15 +107,17 @@ than tet simulation topology. The shadow deformable registry exposes render-slot
 The deformable and cable geometry bridge remains separate from this rigid-transform path.
 OVRTX still uses Newton geometry metadata for those features.
 
-Native PhysX-to-Fabric updates use the engine-owned Fabric interface through SDP. Other
-physics publications convert directly into SDP's bound Fabric local matrices, followed by GPU
-hierarchy propagation. SDP binds rigid destinations as Fabric-only reset-stack roots because
+PhysX owns its native Fabric refresh and publishes the resulting matrices through SDP without
+fetching packed poses. For other physics backends, the shared ``RenderContext`` binds Fabric local
+matrices and asks SDP to convert directly into them, then propagates the GPU hierarchy.
+It binds rigid destinations as Fabric-only reset-stack roots because
 physics publishes absolute poses, including for nested bodies. Visual descendants still inherit
 their body's transform; authored USD is unchanged. Native source indices and world scales are
-bound once. Fabric's selection reuse API reports scene-wide structural changes; SDP refreshes
+bound once. Fabric's selection reuse API reports scene-wide structural changes; ``RenderContext`` refreshes
 array views without repeating path matching or scale capture. Otherwise GPU propagation
 reuses the hierarchy topology. Clean requests never acquire writable Fabric arrays.
 Renderers do not select a physics-specific synchronization path.
+``FabricMatrix44`` contains only matrix storage, not bindings or native engine handles.
 
 Newton backend
 --------------

@@ -24,12 +24,12 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
 
     manager = physx_manager.PhysxManager
     fabric = Mock()
-    monkeypatch.setattr(manager, "_fabric", None)
-    backend = physx_manager.PhysxSceneDataBackend()
     monkeypatch.setattr(manager, "_fabric", fabric)
+    backend = physx_manager.PhysxSceneDataBackend()
     transforms = wp.zeros(1, dtype=wp.transformf, device="cpu")
     view = Mock(count=1, get_transforms=Mock(return_value=transforms))
     backend._rigid_body_view = view
+    monkeypatch.setattr(backend, "get_rigid_body_view", Mock(wraps=backend.get_rigid_body_view))
     sim_view = Mock()
     monkeypatch.setattr(manager, "backend", SimpleNamespace(simulation_view=sim_view))
     monkeypatch.setattr(manager, "_scene_data_backend", backend)
@@ -41,15 +41,28 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     monkeypatch.setattr(PhysicsManager, "_device", "cpu")
     monkeypatch.setattr(physx_manager.omni.physx, "get_physx_simulation_interface", Mock(return_value=Mock()))
     provider = SceneDataProvider(backend)
-    provider._fabric_output = SceneDataFormat.FabricMatrix44()
-    provider._fabric_output.matrices = wp.fabricarray(dtype=wp.mat44d)
-    provider._fabric_selection = Mock(PrepareForReuse=Mock(return_value=False))
-    monkeypatch.setattr(PhysicsManager._sim, "get_scene_data_provider", lambda: provider, raising=False)
-    provider.get_transforms(SceneDataFormat.FabricMatrix44())
-    provider.get_transforms(SceneDataFormat.FabricMatrix44())
+    fabric_matrices = wp.zeros(1, dtype=wp.mat44d, device="cpu")
+    backend._fabric_selection = SimpleNamespace(
+        PrepareForReuse=Mock(return_value=False),
+        __fabric_arrays_interface__={
+            "version": 1,
+            "device": "cpu",
+            "attribs": {
+                "omni:fabric:worldMatrix": {
+                    "type": (True, "f8", 16, 0, "matrix"),
+                    "access": 1,
+                    "pointers": [fabric_matrices.ptr],
+                    "counts": [1],
+                }
+            },
+        },
+    )
+    assert provider.get_transforms(SceneDataFormat.FabricMatrix44())
+    assert provider.get_transforms(SceneDataFormat.FabricMatrix44())
     fabric.force_update.assert_called_once_with(0.0, 0.0)
+    backend.get_rigid_body_view.assert_not_called()
     view.get_transforms.assert_not_called()
-    assert backend.transforms_dirty
+    assert not backend.transforms_dirty
     native = SceneDataFormat.Transform()
     assert provider.get_transforms(native)
     assert native.transforms.ptr == transforms.ptr
@@ -71,14 +84,16 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     provider.get_transforms(SceneDataFormat.FabricMatrix44())
     assert fabric.force_update.call_count == 2
 
+    transforms.fill_(wp.transformf(wp.vec3f(4, 5, 6), wp.quat_identity()))
     manager.invalidate_transforms(kinematics=True)
-    assert backend.transforms_dirty and backend.fabric_dirty
     provider.get_transforms(SceneDataFormat.FabricMatrix44())
     provider.get_transforms(SceneDataFormat.FabricMatrix44())
     assert sim_view.update_articulations_kinematic.call_count == 1 + int(operation == "forward")
     assert fabric.force_update.call_count == 3
-    assert backend.transforms_dirty and not backend.fabric_dirty
+    assert not backend.transforms_dirty
     provider.get_transforms(native)
+    assert provider.get_transforms(output)
+    np.testing.assert_array_equal(output.matrices.numpy()[0, :3, 3], [4, 5, 6])
     assert view.get_transforms.call_count == 3
     assert not backend.transforms_dirty
 

@@ -80,19 +80,10 @@ class SceneDataFormat:
 
     @wp_struct
     class FabricMatrix44:
-        """Native Fabric world matrices, with SDP-owned bindings for foreign physics."""
+        """Double-precision row-vector matrices in native Fabric storage."""
 
         matrices: wp.fabricarray(dtype=wp.mat44d) = None
-        """Transposed double-precision ``omni:fabric:worldMatrix`` values [m]."""
-
-        local_matrices: wp.fabricarray(dtype=wp.mat44d) = None
-        """Writable local matrices [m] for conversion; native Fabric needs no conversion destinations."""
-
-        indices: wp.fabricarray(dtype=wp.int32) = None
-        """Native source index per Fabric destination; solver-only bodies have no destination."""
-
-        scales: wp.array(dtype=wp.vec3f) = None
-        """Authored world scales captured once, indexed by native source, shape [transform_count]."""
+        """Transforms [m], shape [transform_count]."""
 
     @wp_struct
     class Points:
@@ -106,13 +97,14 @@ class SceneDataBackend:
     transforms_dirty: bool
     """Set by producers after native writes or buffer swaps; cleared by SDP after reading ``transforms``."""
 
-    fabric_dirty: bool
-    """Independent dirty flag for native Fabric, when available; cleared by SDP after refreshing it."""
-
     @property
-    def fabric(self) -> Any:
-        """Return an engine-owned Fabric interface, or None for SDP conversion."""
-        return None
+    def native_transform_formats(self) -> tuple[Any, ...]:
+        """Formats available without conversion, used when binding consumer destinations."""
+        return (self.transforms._cls,)
+
+    def get_transforms(self, output_format: Any) -> Any:
+        """Publish the requested native format when available, otherwise the primary format."""
+        return self.transforms
 
     @property
     def transforms(

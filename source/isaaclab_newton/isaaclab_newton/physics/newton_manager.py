@@ -654,9 +654,10 @@ class NewtonManager(PhysicsManager):
         """Publish rigid-body poses through SDP to Fabric, leaving authored USD untouched."""
         if cls._usdrt_stage is None or cls.backend is None:
             return
-        provider = cls.get_scene_data_provider()
-        provider._prepare_fabric(PhysicsManager._sim.stage, str(PhysicsManager._device))
-        provider.get_transforms(SceneDataFormat.FabricMatrix44())
+        sim = PhysicsManager._sim
+        provider = sim.get_scene_data_provider()
+        sim.render_context.prepare_fabric(provider, sim.stage, str(PhysicsManager._device))
+        sim.render_context.update_fabric(provider)
 
     @classmethod
     def sync_transforms_to_usd(cls) -> None:

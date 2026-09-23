@@ -30,6 +30,7 @@ import omni.physics.tensors
 import omni.physx
 import omni.timeline
 import omni.usd
+import usdrt
 from pxr import Sdf, Usd, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
@@ -198,7 +199,9 @@ class PhysxSceneDataBackend(SceneDataBackend):
         self._volume_deformable_view: omni.physics.tensors.DeformableBodyView | None = None
         self._surface_deformable_view: omni.physics.tensors.DeformableBodyView | None = None
         self._transforms.transforms = None
-        self.transforms_dirty = self.fabric_dirty = True
+        self.transforms_dirty = self._poses_dirty = self._fabric_dirty = True
+        self._fabric_transforms = SceneDataFormat.FabricMatrix44()
+        self._fabric_selection = None
         self._points_data.points = None
         self._geometry_paths: list[str] = []
         self._geometry_counts: list[int] = []
@@ -360,17 +363,19 @@ class PhysxSceneDataBackend(SceneDataBackend):
         return self._geometry_counts
 
     @property
-    def fabric(self) -> Any | None:
-        """Borrow PhysX's native Fabric interface without copying its transforms."""
-        PhysxManager.pre_render()
-        return PhysxManager._fabric
+    def native_transform_formats(self) -> tuple[Any, ...]:
+        """Native pose formats available without extracting or converting body state."""
+        if PhysxManager._fabric is not None:
+            return SceneDataFormat.Transform, SceneDataFormat.FabricMatrix44
+        return (SceneDataFormat.Transform,)
 
     @property
     def transforms(self) -> SceneDataFormat.Transform:
         """Publish native rigid-body poses [m, xyzw]."""
         PhysxManager.pre_render()
-        if self.transforms_dirty and (view := self.get_rigid_body_view()):
+        if self._poses_dirty and (view := self.get_rigid_body_view()):
             self._transforms.transforms = view.get_transforms().view(wp.transformf)
+            self._poses_dirty = False
         return self._transforms
 
     @property
@@ -386,6 +391,26 @@ class PhysxSceneDataBackend(SceneDataBackend):
         if view := self.get_rigid_body_view():
             return list(view.prim_paths)
         return []
+
+    def get_transforms(self, output_format: Any) -> SceneDataFormat.Transform | SceneDataFormat.FabricMatrix44:
+        """Publish the requested native representation, refreshing only that representation."""
+        if output_format is not SceneDataFormat.FabricMatrix44 or PhysxManager._fabric is None:
+            return self.transforms
+        PhysxManager.pre_render()
+        if self._fabric_dirty:
+            PhysxManager._fabric.force_update(0.0, 0.0)
+            self._fabric_dirty = False
+        if self._fabric_selection is None:
+            stage = usdrt.Usd.Stage.Attach(PhysxManager._stage_id)
+            self._fabric_selection = stage.SelectPrims(
+                require_applied_schemas=["PhysicsRigidBodyAPI"],
+                require_attrs=[(usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.Read)],
+                device=str(PhysicsManager._device),
+            )
+        if self._fabric_selection.PrepareForReuse() or self._fabric_transforms.matrices is None:
+            self._fabric_transforms.matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
+            self.transforms_dirty = True
+        return self._fabric_transforms
 
 
 class PhysxManager(PhysicsManager):
@@ -520,16 +545,14 @@ class PhysxManager(PhysicsManager):
             cls._kinematics_dirty = False
         cls.invalidate_transforms()
         if cls._fabric is not None:
-            provider = sim.get_scene_data_provider()
-            provider._prepare_fabric(sim.stage, str(PhysicsManager._device))
-            provider.get_transforms(SceneDataFormat.FabricMatrix44())
+            cls._scene_data_backend.get_transforms(SceneDataFormat.FabricMatrix44)
 
     @classmethod
     def invalidate_transforms(cls, *, kinematics: bool = False) -> None:
         """Invalidate both native pose representations after writes; defer FK when needed."""
         cls._kinematics_dirty |= kinematics
         backend = cls._scene_data_backend
-        backend.transforms_dirty = backend.fabric_dirty = True
+        backend.transforms_dirty = backend._poses_dirty = backend._fabric_dirty = True
 
     @classmethod
     def pre_render(cls) -> None:

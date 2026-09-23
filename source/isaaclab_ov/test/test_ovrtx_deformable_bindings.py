@@ -426,6 +426,7 @@ def test_update_transforms_consumes_sdp_matrices_once_per_generation(monkeypatch
     transforms = SceneDataFormat.Transform()
     transforms.transforms = wp.array(poses, dtype=wp.transformf, device="cpu")
     backend = SimpleNamespace(transforms=transforms, transforms_dirty=True, transform_count=2, transform_paths=paths)
+    backend.get_transforms = lambda _format: transforms
     renderer._sdp = SceneDataProvider(backend)
     renderer._transform_generation = -1
     renderer._object_scales_by_path = {paths[0]: (2, 3, 4)}

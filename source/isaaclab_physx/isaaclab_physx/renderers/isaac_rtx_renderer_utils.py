@@ -15,7 +15,6 @@ import omni.usd
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import SettingsManager, get_settings_manager
-from isaaclab.scene_data import SceneDataFormat
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 from .isaac_rtx_renderer_cfg import IsaacRtxRendererGlobalSettingsCfg
@@ -235,8 +234,8 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
         return
 
     provider = sim.get_scene_data_provider()
-    provider._prepare_fabric(sim.stage, sim.device)
-    provider.get_transforms(SceneDataFormat.FabricMatrix44())
+    sim.render_context.prepare_fabric(provider, sim.stage, sim.device)
+    sim.render_context.update_fabric(provider)
 
     import omni.kit.app
 

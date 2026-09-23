@@ -16,12 +16,13 @@ from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 
 from pxr import Sdf, Usd, UsdGeom
 
-from isaaclab.scene_data import SceneDataFormat
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 
 @pytest.mark.parametrize("headless", [False, True])
 def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch, headless):
+    sim = MagicMock()
+    monkeypatch.setattr(kit_visualizer_module.SimulationContext, "instance", lambda: sim)
     visualizer = KitVisualizer(KitVisualizerCfg(headless=headless, origin_type="asset"))
     visualizer._is_initialized = True
     visualizer._scene_data_provider = MagicMock()
@@ -34,12 +35,11 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
     visualizer.step(0.1)
 
     assert tracking.call_count == int(not headless)
-    request = visualizer._scene_data_provider.get_transforms
+    request = sim.render_context.update_fabric
     if headless:
         request.assert_not_called()
     else:
-        request.assert_called_once()
-        assert request.call_args.args[0]._cls is SceneDataFormat.FabricMatrix44
+        request.assert_called_once_with(visualizer._scene_data_provider)
 
 
 @pytest.mark.parametrize("generated", [False, True])
