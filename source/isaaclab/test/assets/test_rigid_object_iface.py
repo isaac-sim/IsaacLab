@@ -13,13 +13,15 @@ the base rigid object class advertises. All rigid object interfaces need to comp
 The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
 """
 
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
 import torch
 import warp as wp
 from _rigid_object_iface_test_utils import BACKENDS, get_rigid_object
 
-from isaaclab.utils.wrench_composer import WrenchComposer
+from isaaclab.utils.math import quat_apply
 
 pytestmark = pytest.mark.integration
 
@@ -956,6 +958,46 @@ _BODY_METHODS = [
 class TestRigidObjectWritersBody:
     """Test body property writers/setters with all input combinations."""
 
+    @_production_backends
+    @_default_devices
+    def test_external_wrench_frames(self, backend, device):
+        """Forward local and world wrenches through the real writer in each backend's frame."""
+        obj, raw_backend = get_rigid_object(backend, num_instances=2, device=device)
+        composer = obj.permanent_wrench_composer
+        forces = torch.arange(1.0, 7.0, device=device).reshape(2, 1, 3)
+        torques = forces + 10.0
+        if backend == "physx":
+            raw_backend.apply_forces_and_torques_at_position = MagicMock()
+
+        for is_global in (False, True):
+            composer.reset()
+            composer.set_forces_and_torques_index(forces=forces, torques=torques, is_global=is_global)
+            with patch.object(composer, "compose_to_body_frame", wraps=composer.compose_to_body_frame) as compose:
+                obj.write_data_to_sim()
+            assert compose.call_count == int(is_global and backend == "newton")
+
+            expected_force, expected_torque = forces, torques
+            if backend == "physx":
+                call = raw_backend.apply_forces_and_torques_at_position.call_args.kwargs
+                assert call["is_global"] is is_global
+                assert call["position_data"] is None
+                actual_force = call["force_data"].numpy().reshape(2, 1, 3)
+                actual_torque = call["torque_data"].numpy().reshape(2, 1, 3)
+            else:
+                if not is_global:
+                    quat = obj.data.body_link_quat_w.torch
+                    expected_force, expected_torque = quat_apply(quat, forces), quat_apply(quat, torques)
+                if backend == "newton":
+                    packed = obj.data._sim_bind_body_external_wrench.numpy()
+                else:
+                    from isaaclab_ov import tensor_types as TT
+
+                    packed = raw_backend.bindings[TT.RIGID_BODY_WRENCH]._data.reshape(2, 1, 9)
+                    np.testing.assert_allclose(packed[..., 6:9], obj.data.body_link_pos_w.warp.numpy())
+                actual_force, actual_torque = packed[..., :3], packed[..., 3:6]
+            np.testing.assert_allclose(actual_force, expected_force.cpu().numpy(), atol=1e-5, rtol=1e-5)
+            np.testing.assert_allclose(actual_torque, expected_torque.cpu().numpy(), atol=1e-5, rtol=1e-5)
+
     @_backends
     @_default_dims
     @_default_devices
@@ -1133,118 +1175,3 @@ class TestRigidObjectDataAliases:
         assert d.body_vel_w.shape == d.body_com_vel_w.shape
         assert d.body_lin_vel_w.shape == d.body_com_lin_vel_w.shape
         assert d.body_ang_vel_w.shape == d.body_com_ang_vel_w.shape
-
-
-@pytest.mark.skipif("ovphysx" not in BACKENDS, reason="OvPhysX backend unavailable")
-class TestOvPhysxRigidObjectWrenchFrames:
-    """OvPhysX packs the same world-frame wrench whether or not it takes the rotation path."""
-
-    @_default_devices
-    def test_global_at_com_matches_composed_path(self, device):
-        num_instances = 2
-        forces = torch.zeros((num_instances, 1, 3), device=device)
-        forces[:, 0, 0] = torch.tensor([1.0, 2.0], device=device)
-        torques = torch.zeros_like(forces)
-        torques[:, 0, 2] = torch.tensor([0.5, 1.5], device=device)
-
-        # Reference: force the rotation path by denying world-frame support.
-        ref, _ = get_rigid_object("ovphysx", num_instances=num_instances, device=device)
-        ref._permanent_wrench_composer = WrenchComposer(ref, supports_world_at_com=False)
-        ref.permanent_wrench_composer.set_forces_and_torques_index(forces=forces, torques=torques, is_global=True)
-        ref._wrench_buf.zero_()
-        ref.write_data_to_sim()
-        # Only the force/torque slice ([:6]) is compared: the packed [6:9] link position comes
-        # from the mock's randomized pose, which is independent per constructed object and is
-        # identical on both paths by construction, so it adds no coverage here.
-        expected = wp.to_torch(ref._wrench_buf).clone().reshape(num_instances, -1)[:, :6]
-
-        obj, _ = get_rigid_object("ovphysx", num_instances=num_instances, device=device)
-        composer = obj.permanent_wrench_composer
-        composer.set_forces_and_torques_index(forces=forces, torques=torques, is_global=True)
-        calls = []
-        composer._get_com_pos_fn = lambda: calls.append("com")
-        composer._get_link_quat_fn = lambda: calls.append("quat")
-        obj._wrench_buf.zero_()
-        obj.write_data_to_sim()
-
-        assert calls == [], "OvPhysX read body poses for a global-at-CoM wrench"
-        actual = wp.to_torch(obj._wrench_buf).reshape(num_instances, -1)[:, :6]
-        torch.testing.assert_close(actual, expected, atol=1e-5, rtol=1e-5)
-
-
-# ---------------------------------------------------------------------------
-# Tests: get_forces_and_torques cross-backend equivalence
-# ---------------------------------------------------------------------------
-
-
-@wp.kernel
-def _rotate_inv_kernel(
-    link_quat_w: wp.array2d(dtype=wp.quatf),
-    world_force: wp.array2d(dtype=wp.vec3f),
-    world_torque: wp.array2d(dtype=wp.vec3f),
-    out_force_b: wp.array2d(dtype=wp.vec3f),
-    out_torque_b: wp.array2d(dtype=wp.vec3f),
-):
-    """Rotate world-frame force/torque into the body frame, mirroring ``compose_wrench_to_body_frame``."""
-    tid_env, tid_body = wp.tid()
-    out_force_b[tid_env, tid_body] = wp.quat_rotate_inv(link_quat_w[tid_env, tid_body], world_force[tid_env, tid_body])
-    out_torque_b[tid_env, tid_body] = wp.quat_rotate_inv(
-        link_quat_w[tid_env, tid_body], world_torque[tid_env, tid_body]
-    )
-
-
-class TestRigidObjectWrenchEquivalence:
-    """Whatever frame ``get_forces_and_torques`` picks, the returned wrench matches the fully composed one."""
-
-    @_production_backends
-    @pytest.mark.parametrize(
-        ("is_global", "with_positions"), [(False, False), (False, True), (True, False), (True, True)]
-    )
-    def test_wrench_matches_composed_wrench(self, backend, is_global, with_positions):
-        device = "cpu"
-        num_instances = 2
-        obj, _ = get_rigid_object(backend, num_instances=num_instances, device=device)
-        composer = obj.permanent_wrench_composer
-
-        forces = torch.zeros((num_instances, 1, 3), device=device)
-        forces[:, 0, 0] = torch.tensor([1.0, 2.0], device=device)
-        # Torque on a different axis than the force so an axis mix-up in the rotation cannot hide.
-        torques = torch.zeros((num_instances, 1, 3), device=device)
-        torques[:, 0, 2] = torch.tensor([0.5, 1.5], device=device)
-        positions = torch.full((num_instances, 1, 3), 0.1, device=device) if with_positions else None
-        composer.set_forces_and_torques_index(forces=forces, torques=torques, positions=positions, is_global=is_global)
-
-        force, torque, wrench_is_global = composer.get_forces_and_torques()
-        composer.compose_to_body_frame()
-
-        # The invariant under test: Newton must never accept a world frame. Derive the expectation
-        # from the backend name rather than from `composer._supports_world_at_com` itself, so that
-        # flipping Newton's constructed value would not keep this test tautologically green.
-        assert composer._supports_world_at_com is (backend != "newton")
-
-        expected_is_global = is_global and not with_positions and backend != "newton"
-        assert wrench_is_global is expected_is_global
-
-        if not wrench_is_global:
-            torch.testing.assert_close(wp.to_torch(force), wp.to_torch(composer.out_force_b.warp))
-            torch.testing.assert_close(wp.to_torch(torque), wp.to_torch(composer.out_torque_b.warp))
-        else:
-            # Mirror `compose_wrench_to_body_frame` exactly: rotate the same world-frame arrays with
-            # the same `link_quat_w` buffer the production composer uses, then compare against the
-            # fully-composed body-frame output. This avoids re-deriving the rotation with a torch
-            # helper whose quaternion component order may not match `body_link_quat_w`.
-            link_quat_w = obj.data.body_link_quat_w.warp
-            rotated_force = wp.zeros_like(composer.out_force_b.warp)
-            rotated_torque = wp.zeros_like(composer.out_torque_b.warp)
-            wp.launch(
-                _rotate_inv_kernel,
-                dim=(num_instances, obj.num_bodies),
-                inputs=[link_quat_w, force, torque, rotated_force, rotated_torque],
-                device=device,
-            )
-            torch.testing.assert_close(
-                wp.to_torch(rotated_force), wp.to_torch(composer.out_force_b.warp), atol=1e-5, rtol=1e-5
-            )
-            torch.testing.assert_close(
-                wp.to_torch(rotated_torque), wp.to_torch(composer.out_torque_b.warp), atol=1e-5, rtol=1e-5
-            )

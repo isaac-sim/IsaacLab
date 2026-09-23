@@ -7,6 +7,7 @@ import ast
 import inspect
 from types import SimpleNamespace
 from typing import get_type_hints
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -31,6 +32,15 @@ def test_wrench_composer_uses_asset_frame_conventions():
     assert not any(isinstance(node, ast.ImportFrom) and node.module == "enum" for node in ast.walk(module_tree))
     assert not hasattr(WrenchComposer, "resolve_submission")
     assert get_type_hints(WrenchComposer.get_forces_and_torques)["return"] == tuple[wp.array, wp.array, bool]
+
+
+def _get_wrench_without_pose_reads(composer: WrenchComposer) -> tuple[wp.array, wp.array, bool]:
+    """Read a fast-path wrench while rejecting the expensive body-pose queries."""
+    with (
+        patch.object(composer, "_get_com_pos_fn", side_effect=AssertionError("unexpected CoM read")),
+        patch.object(composer, "_get_link_quat_fn", side_effect=AssertionError("unexpected quaternion read")),
+    ):
+        return composer.get_forces_and_torques()
 
 
 class _WrenchAssetDataFixture:
@@ -431,27 +441,35 @@ def test_global_forces_with_rotation(device: str, num_envs: int, num_bodies: int
     """Test that global forces are correctly rotated to the local frame."""
     rng = np.random.default_rng(seed=10)
 
-    for _ in range(5):
+    for method in (
+        "add_forces_and_torques_index",
+        "add_forces_and_torques_mask",
+        "set_forces_and_torques_index",
+        "set_forces_and_torques_mask",
+    ):
         # Create random link quaternions
         link_quat_np = random_unit_quaternion_np(rng, (num_envs, num_bodies))
         link_quat_torch = torch.from_numpy(link_quat_np)
 
         # Create mock asset with custom quaternions
         mock_asset = create_mock_asset(num_envs, num_bodies, device, link_quat=link_quat_torch)
-        wrench_composer = WrenchComposer(mock_asset)
+        wrench_composer = WrenchComposer(mock_asset, supports_world_at_com=True)
 
         # Generate random global forces for all envs and bodies
         forces_global_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
         forces_global = wp.from_numpy(forces_global_np, dtype=wp.vec3f, device=device)
 
         # Apply global forces
-        wrench_composer.add_forces_and_torques_index(forces=forces_global, is_global=True)
+        getattr(wrench_composer, method)(forces=forces_global, is_global=True)
 
         # Compute expected local forces by rotating global forces by inverse quaternion
         expected_forces_local = quat_rotate_inv_np(link_quat_np, forces_global_np)
 
         # Check raw global buffer has the global forces
-        global_force_np = wrench_composer.global_force_at_com_w.numpy()
+        force, torque, is_global = _get_wrench_without_pose_reads(wrench_composer)
+        assert is_global is True
+        np.testing.assert_array_equal(torque.numpy(), np.zeros_like(forces_global_np))
+        global_force_np = force.numpy()
         assert np.allclose(global_force_np, forces_global_np, atol=1e-4, rtol=1e-5), (
             f"Global force buffer mismatch.\nExpected:\n{forces_global_np}\nGot:\n{global_force_np}"
         )
@@ -473,27 +491,35 @@ def test_global_torques_with_rotation(device: str, num_envs: int, num_bodies: in
     """Test that global torques are correctly rotated to the local frame."""
     rng = np.random.default_rng(seed=11)
 
-    for _ in range(5):
+    for method in (
+        "add_forces_and_torques_index",
+        "add_forces_and_torques_mask",
+        "set_forces_and_torques_index",
+        "set_forces_and_torques_mask",
+    ):
         # Create random link quaternions
         link_quat_np = random_unit_quaternion_np(rng, (num_envs, num_bodies))
         link_quat_torch = torch.from_numpy(link_quat_np)
 
         # Create mock asset with custom quaternions
         mock_asset = create_mock_asset(num_envs, num_bodies, device, link_quat=link_quat_torch)
-        wrench_composer = WrenchComposer(mock_asset)
+        wrench_composer = WrenchComposer(mock_asset, supports_world_at_com=True)
 
         # Generate random global torques
         torques_global_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
         torques_global = wp.from_numpy(torques_global_np, dtype=wp.vec3f, device=device)
 
-        # Apply global torques
-        wrench_composer.add_forces_and_torques_index(torques=torques_global, is_global=True)
+        # Positions are unused when only torques are supplied.
+        getattr(wrench_composer, method)(torques=torques_global, positions=torques_global, is_global=True)
 
         # Compute expected local torques
         expected_torques_local = quat_rotate_inv_np(link_quat_np, torques_global_np)
 
         # Check raw global buffer has the global torques
-        global_torque_np = wrench_composer.global_torque_w.numpy()
+        force, torque, is_global = _get_wrench_without_pose_reads(wrench_composer)
+        assert is_global is True
+        np.testing.assert_array_equal(force.numpy(), np.zeros_like(torques_global_np))
+        global_torque_np = torque.numpy()
         assert np.allclose(global_torque_np, torques_global_np, atol=1e-4, rtol=1e-5), (
             f"Global torque buffer mismatch.\nExpected:\n{torques_global_np}\nGot:\n{global_torque_np}"
         )
@@ -515,7 +541,12 @@ def test_global_forces_at_global_position(device: str, num_envs: int, num_bodies
     """Test global forces at global positions with full coordinate transformation."""
     rng = np.random.default_rng(seed=12)
 
-    for _ in range(5):
+    for method in (
+        "add_forces_and_torques_index",
+        "add_forces_and_torques_mask",
+        "set_forces_and_torques_index",
+        "set_forces_and_torques_mask",
+    ):
         # Create random link poses
         link_pos_np = rng.uniform(-10.0, 10.0, (num_envs, num_bodies, 3)).astype(np.float32)
         link_quat_np = random_unit_quaternion_np(rng, (num_envs, num_bodies))
@@ -524,7 +555,7 @@ def test_global_forces_at_global_position(device: str, num_envs: int, num_bodies
 
         # Create mock asset
         mock_asset = create_mock_asset(num_envs, num_bodies, device, link_pos=link_pos_torch, link_quat=link_quat_torch)
-        wrench_composer = WrenchComposer(mock_asset)
+        wrench_composer = WrenchComposer(mock_asset, supports_world_at_com=True)
 
         # Generate random global forces and positions
         forces_global_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
@@ -533,7 +564,7 @@ def test_global_forces_at_global_position(device: str, num_envs: int, num_bodies
         positions_global = wp.from_numpy(positions_global_np, dtype=wp.vec3f, device=device)
 
         # Apply global forces at global positions
-        wrench_composer.add_forces_and_torques_index(forces=forces_global, positions=positions_global, is_global=True)
+        getattr(wrench_composer, method)(forces=forces_global, positions=positions_global, is_global=True)
 
         # Compute expected results:
         # 1. Force in local frame = quat_rotate_inv(link_quat, global_force)
@@ -556,17 +587,17 @@ def test_global_forces_at_global_position(device: str, num_envs: int, num_bodies
             f"Global force buffer mismatch.\nExpected:\n{forces_global_np}\nGot:\n{global_force_np}"
         )
 
-        # Compose to body frame before checking output
-        wrench_composer.compose_to_body_frame()
+        force, torque, is_global = wrench_composer.get_forces_and_torques()
+        assert is_global is False
 
         # Verify forces
-        composed_force_np = wrench_composer.out_force_b.warp.numpy()
+        composed_force_np = force.numpy()
         assert np.allclose(composed_force_np, expected_forces_local, atol=1e-3, rtol=1e-4), (
             f"Global force at position failed.\nExpected forces:\n{expected_forces_local}\nGot:\n{composed_force_np}"
         )
 
         # Verify torques
-        composed_torque_np = wrench_composer.out_torque_b.warp.numpy()
+        composed_torque_np = torque.numpy()
         assert np.allclose(composed_torque_np, expected_torques_local, atol=1e-3, rtol=1e-4), (
             f"Global force at position failed.\nExpected torques:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
         )
@@ -638,13 +669,20 @@ def test_90_degree_rotation_global_force(device: str):
     # Actually, inverse rotation of +90° around Z applied to (1,0,0) gives (0,-1,0)
     expected_force_local = np.array([[[0.0, -1.0, 0.0]]], dtype=np.float32)
 
-    # Compose to body frame before checking output
-    wrench_composer.compose_to_body_frame()
+    force, _, is_global = wrench_composer.get_forces_and_torques()
+    assert is_global is False
 
-    composed_force_np = wrench_composer.out_force_b.warp.numpy()
+    composed_force_np = force.numpy()
     assert np.allclose(composed_force_np, expected_force_local, atol=1e-5), (
         f"90-degree rotation test failed.\nExpected:\n{expected_force_local}\nGot:\n{composed_force_np}"
     )
+
+    # A second read must use the live pose even though the wrench buffers have not changed.
+    quat_180_z = torch.tensor([[[0.0, 0.0, 1.0, 0.0]]], device=device)
+    mock_asset.data.body_link_quat_w = ProxyArray(wp.from_torch(quat_180_z, dtype=wp.quatf))
+    force, _, is_global = wrench_composer.get_forces_and_torques()
+    assert is_global is False
+    np.testing.assert_allclose(force.numpy(), [[[-1.0, 0.0, 0.0]]], atol=1e-6)
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -658,7 +696,7 @@ def test_composition_mixed_local_and_global(device: str):
     link_quat_torch = torch.from_numpy(link_quat_np)
 
     mock_asset = create_mock_asset(num_envs, num_bodies, device, link_quat=link_quat_torch)
-    wrench_composer = WrenchComposer(mock_asset)
+    wrench_composer = WrenchComposer(mock_asset, supports_world_at_com=True)
 
     # Generate random local and global forces
     forces_local_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
@@ -683,10 +721,10 @@ def test_composition_mixed_local_and_global(device: str):
     global_force_at_com_np = wrench_composer.global_force_at_com_w.numpy()
     assert np.allclose(global_force_at_com_np, forces_global_np, atol=1e-4, rtol=1e-5)
 
-    # Compose to body frame before checking output
-    wrench_composer.compose_to_body_frame()
+    force, _, is_global = wrench_composer.get_forces_and_torques()
+    assert is_global is False
 
-    composed_force_np = wrench_composer.out_force_b.warp.numpy()
+    composed_force_np = force.numpy()
     assert np.allclose(composed_force_np, expected_total, atol=1e-4, rtol=1e-5), (
         f"Mixed local/global composition failed.\nExpected:\n{expected_total}\nGot:\n{composed_force_np}"
     )
@@ -699,7 +737,12 @@ def test_local_forces_at_local_position(device: str, num_envs: int, num_bodies: 
     """Test local forces at local positions (offset from link frame)."""
     rng = np.random.default_rng(seed=15)
 
-    for _ in range(5):
+    for method in (
+        "add_forces_and_torques_index",
+        "add_forces_and_torques_mask",
+        "set_forces_and_torques_index",
+        "set_forces_and_torques_mask",
+    ):
         # Create random link poses (shouldn't affect local frame calculations)
         link_pos_np = rng.uniform(-10.0, 10.0, (num_envs, num_bodies, 3)).astype(np.float32)
         link_quat_np = random_unit_quaternion_np(rng, (num_envs, num_bodies))
@@ -707,7 +750,7 @@ def test_local_forces_at_local_position(device: str, num_envs: int, num_bodies: 
         link_quat_torch = torch.from_numpy(link_quat_np)
 
         mock_asset = create_mock_asset(num_envs, num_bodies, device, link_pos=link_pos_torch, link_quat=link_quat_torch)
-        wrench_composer = WrenchComposer(mock_asset)
+        wrench_composer = WrenchComposer(mock_asset, supports_world_at_com=True)
 
         # Generate random local forces and local positions (offsets)
         forces_local_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
@@ -716,7 +759,7 @@ def test_local_forces_at_local_position(device: str, num_envs: int, num_bodies: 
         positions_local = wp.from_numpy(positions_local_np, dtype=wp.vec3f, device=device)
 
         # Apply local forces at local positions
-        wrench_composer.add_forces_and_torques_index(forces=forces_local, positions=positions_local, is_global=False)
+        getattr(wrench_composer, method)(forces=forces_local, positions=positions_local, is_global=False)
 
         # Expected: forces stay as-is, torque = cross(position, force)
         expected_forces = forces_local_np
@@ -726,12 +769,12 @@ def test_local_forces_at_local_position(device: str, num_envs: int, num_bodies: 
         local_force_np = wrench_composer.local_force_b.numpy()
         assert np.allclose(local_force_np, expected_forces, atol=1e-4, rtol=1e-5)
 
-        # Compose to body frame before checking output
-        wrench_composer.compose_to_body_frame()
+        force, torque, is_global = _get_wrench_without_pose_reads(wrench_composer)
+        assert is_global is False
 
         # Verify
-        composed_force_np = wrench_composer.out_force_b.warp.numpy()
-        composed_torque_np = wrench_composer.out_torque_b.warp.numpy()
+        composed_force_np = force.numpy()
+        composed_torque_np = torque.numpy()
 
         assert np.allclose(composed_force_np, expected_forces, atol=1e-4, rtol=1e-5)
         assert np.allclose(composed_torque_np, expected_torques, atol=1e-4, rtol=1e-5)
@@ -801,7 +844,7 @@ def test_add_raw_buffers_from(device: str, num_envs: int, num_bodies: int):
     mock_a = create_mock_asset(num_envs, num_bodies, device, link_pos=link_pos_torch, link_quat=link_quat_torch)
     mock_b = create_mock_asset(num_envs, num_bodies, device, link_pos=link_pos_torch, link_quat=link_quat_torch)
 
-    composer_a = WrenchComposer(mock_a)
+    composer_a = WrenchComposer(mock_a, supports_world_at_com=True)
     composer_b = WrenchComposer(mock_b)
 
     # Populate composer_a with local forces at positions
@@ -840,15 +883,16 @@ def test_add_raw_buffers_from(device: str, num_envs: int, num_bodies: int):
     )
 
     # Compose both and compare
-    composer_a.compose_to_body_frame()
+    force, torque, is_global = composer_a.get_forces_and_torques()
+    assert is_global is False
     composer_ref.compose_to_body_frame()
 
-    assert np.allclose(
-        composer_a.out_force_b.warp.numpy(), composer_ref.out_force_b.warp.numpy(), atol=1e-4, rtol=1e-5
-    ), "add_raw_buffers_from force mismatch vs direct accumulation"
-    assert np.allclose(
-        composer_a.out_torque_b.warp.numpy(), composer_ref.out_torque_b.warp.numpy(), atol=1e-4, rtol=1e-5
-    ), "add_raw_buffers_from torque mismatch vs direct accumulation"
+    assert np.allclose(force.numpy(), composer_ref.out_force_b.warp.numpy(), atol=1e-4, rtol=1e-5), (
+        "add_raw_buffers_from force mismatch vs direct accumulation"
+    )
+    assert np.allclose(torque.numpy(), composer_ref.out_torque_b.warp.numpy(), atol=1e-4, rtol=1e-5), (
+        "add_raw_buffers_from torque mismatch vs direct accumulation"
+    )
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -1058,12 +1102,11 @@ def test_set_forces_overwrites_previous_add(device: str):
         forces=wp.from_numpy(forces_b_np, dtype=wp.vec3f, device=device),
     )
 
-    composer.compose_to_body_frame()
+    force, _, is_global = _get_wrench_without_pose_reads(composer)
+    assert is_global is False
 
     # Output should match forces_b only (forces_a should be gone)
-    assert np.allclose(composer.out_force_b.warp.numpy(), forces_b_np, atol=1e-4, rtol=1e-5), (
-        "set_forces did not clear previous add"
-    )
+    assert np.allclose(force.numpy(), forces_b_np, atol=1e-4, rtol=1e-5), "set_forces did not clear previous add"
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -1138,54 +1181,44 @@ def test_set_forces_clears_targeted_envs_only(device: str):
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_partial_reset_zeros_only_specified_envs(device: str):
-    """Test that partial reset zeros only the specified environments and leaves others intact."""
+@pytest.mark.parametrize("source_is_global", [False, True])
+def test_partial_reset_zeros_only_specified_envs(device: str, source_is_global: bool):
+    """Partial resets preserve the remaining merged wrench and its required composition."""
     num_envs, num_bodies = 8, 3
     rng = np.random.default_rng(seed=50)
-
-    mock_asset = create_mock_asset(num_envs, num_bodies, device)
-    composer = WrenchComposer(mock_asset)
-
-    # Populate all envs with local forces
-    forces_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
-    composer.add_forces_and_torques_index(
-        forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
+    asset = create_mock_asset(num_envs, num_bodies, device)
+    composer = WrenchComposer(asset, supports_world_at_com=True)
+    source = WrenchComposer(asset)
+    forces = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
+    source_forces = rng.uniform(-100.0, 100.0, forces.shape).astype(np.float32)
+    positions = rng.uniform(-5.0, 5.0, forces.shape).astype(np.float32)
+    composer.add_forces_and_torques_index(forces=wp.array(forces, dtype=wp.vec3f, device=device), is_global=True)
+    assert _get_wrench_without_pose_reads(composer)[2] is True
+    source.add_forces_and_torques_index(
+        forces=wp.array(source_forces, dtype=wp.vec3f, device=device),
+        positions=wp.array(positions, dtype=wp.vec3f, device=device),
+        is_global=source_is_global,
     )
+    composer.add_raw_buffers_from(source)
 
-    # Also add global forces to populate more buffers
-    forces_global_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
-    composer.add_forces_and_torques_index(
-        forces=wp.from_numpy(forces_global_np, dtype=wp.vec3f, device=device),
-        is_global=True,
-    )
-
-    # Partial reset: only envs [1, 3, 5]
-    reset_env_ids = np.array([1, 3, 5], dtype=np.int32)
-    kept_env_ids = np.array([0, 2, 4, 6, 7], dtype=np.int32)
-    composer.reset(env_ids=wp.from_numpy(reset_env_ids, dtype=wp.int32, device=device))
-
-    # Reset envs should be zeroed across all input buffers
-    zeros = np.zeros((num_bodies, 3), dtype=np.float32)
-    local_force = composer.local_force_b.numpy()
-    global_force_at_com = composer.global_force_at_com_w.numpy()
-    for eid in reset_env_ids:
-        assert np.allclose(local_force[eid], zeros, atol=1e-7), f"local_force_b not zeroed for env {eid}"
-        assert np.allclose(global_force_at_com[eid], zeros, atol=1e-7), (
-            f"global_force_at_com_w not zeroed for env {eid}"
-        )
-
-    # Kept envs should retain their values
-    for eid in kept_env_ids:
-        assert np.allclose(local_force[eid], forces_np[eid], atol=1e-4, rtol=1e-5), (
-            f"local_force_b changed for non-reset env {eid}"
-        )
-        assert np.allclose(global_force_at_com[eid], forces_global_np[eid], atol=1e-4, rtol=1e-5), (
-            f"global_force_at_com_w changed for non-reset env {eid}"
-        )
-
-    # Flags: _active should still be True, _dirty should be True
+    reset_env_ids = [1, 3, 5]
+    if source_is_global:
+        mask = np.zeros(num_envs, dtype=bool)
+        mask[reset_env_ids] = True
+        composer.reset(env_mask=wp.array(mask, dtype=wp.bool, device=device))
+    else:
+        composer.reset(env_ids=reset_env_ids)
     assert composer.active
     assert composer._dirty
+
+    force, torque, is_global = composer.get_forces_and_torques()
+    assert is_global is False
+    expected_force = forces + source_forces
+    expected_torque = np.cross(positions, source_forces)
+    expected_force[reset_env_ids] = 0.0
+    expected_torque[reset_env_ids] = 0.0
+    np.testing.assert_allclose(force.numpy(), expected_force, atol=1e-4, rtol=1e-5)
+    np.testing.assert_allclose(torque.numpy(), expected_torque, atol=1e-4, rtol=1e-5)
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -1195,17 +1228,32 @@ def test_full_reset_clears_active_flag(device: str, env_ids: slice | None):
     num_envs, num_bodies = 4, 2
 
     mock_asset = create_mock_asset(num_envs, num_bodies, device)
-    composer = WrenchComposer(mock_asset)
+    composer = WrenchComposer(mock_asset, supports_world_at_com=True)
 
     forces_np = np.ones((num_envs, num_bodies, 3), dtype=np.float32)
     composer.add_forces_and_torques_index(
         forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
     )
+    composer.add_forces_and_torques_index(
+        forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
+        positions=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
+        is_global=True,
+    )
+    composer.get_forces_and_torques()
     assert composer.active
 
     composer.reset(env_ids=env_ids)
     assert not composer.active
     assert not composer._dirty
+
+    force, torque, is_global = _get_wrench_without_pose_reads(composer)
+    assert is_global is False
+    np.testing.assert_array_equal(force.numpy(), np.zeros_like(forces_np))
+    np.testing.assert_array_equal(torque.numpy(), np.zeros_like(forces_np))
+    composer.add_forces_and_torques_index(
+        forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device), is_global=True
+    )
+    assert _get_wrench_without_pose_reads(composer)[2] is True
 
 
 # ============================================================================
@@ -1298,10 +1346,11 @@ def test_set_forces_mask_overwrites_previous_add(device: str):
         forces=wp.from_numpy(forces_b_np, dtype=wp.vec3f, device=device),
     )
 
-    composer.compose_to_body_frame()
+    force, _, is_global = _get_wrench_without_pose_reads(composer)
+    assert is_global is False
 
     # Output should match forces_b only (forces_a should be gone)
-    assert np.allclose(composer.out_force_b.warp.numpy(), forces_b_np, atol=1e-4, rtol=1e-5), (
+    assert np.allclose(force.numpy(), forces_b_np, atol=1e-4, rtol=1e-5), (
         "set_forces_and_torques_mask did not clear previous add"
     )
 
@@ -1791,264 +1840,3 @@ def test_deprecated_set_forces_and_torques_clears_previous(device: str):
     assert np.allclose(composer.out_force_b.warp.numpy(), forces_b_np, atol=1e-4, rtol=1e-5), (
         "Deprecated set_forces_and_torques did not replace previous values"
     )
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_get_forces_and_torques_local_only_returns_local_buffers(device: str):
-    """All-local content submits the local buffers directly, in the body frame."""
-    asset = create_mock_asset(2, 1, device)
-    composer = WrenchComposer(asset)
-    forces = torch.ones(2, 1, 3, device=device)
-    torques = torch.full((2, 1, 3), 2.0, device=device)
-    composer.add_forces_and_torques_index(forces=forces, torques=torques, is_global=False)
-
-    force, torque, is_global = composer.get_forces_and_torques()
-
-    assert is_global is False
-    composer.compose_to_body_frame()
-    np.testing.assert_allclose(force.numpy(), composer.out_force_b.warp.numpy(), atol=1e-6)
-    np.testing.assert_allclose(torque.numpy(), composer.out_torque_b.warp.numpy(), atol=1e-6)
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize(
-    "method",
-    [
-        "add_forces_and_torques_index",
-        "set_forces_and_torques_index",
-        "add_forces_and_torques_mask",
-        "set_forces_and_torques_mask",
-    ],
-)
-def test_get_forces_and_torques_local_positioned_force_keeps_fast_path(device: str, method: str):
-    """A positioned local force folds into local_torque_b, so it stays on the body fast path."""
-    asset = create_mock_asset(2, 1, device)
-    composer = WrenchComposer(asset)
-    getattr(composer, method)(
-        forces=torch.tensor([[[1.0, 0.0, 0.0]]] * 2, device=device),
-        positions=torch.tensor([[[0.0, 1.0, 0.0]]] * 2, device=device),
-        is_global=False,
-    )
-
-    force, torque, is_global = composer.get_forces_and_torques()
-
-    assert is_global is False
-    assert force is composer.local_force_b
-    assert torque is composer.local_torque_b
-    np.testing.assert_allclose(torque.numpy(), [[[0.0, 0.0, -1.0]]] * 2, atol=1e-6)
-    composer.compose_to_body_frame()
-    np.testing.assert_allclose(force.numpy(), composer.out_force_b.warp.numpy(), atol=1e-6)
-    np.testing.assert_allclose(torque.numpy(), composer.out_torque_b.warp.numpy(), atol=1e-6)
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize(
-    "method",
-    [
-        "add_forces_and_torques_index",
-        "set_forces_and_torques_index",
-        "add_forces_and_torques_mask",
-        "set_forces_and_torques_mask",
-    ],
-)
-def test_get_forces_and_torques_global_at_com_returns_world_buffers(device: str, method: str):
-    """All-global-at-CoM content submits the world buffers when the consumer accepts them."""
-    asset = create_mock_asset(2, 1, device)
-    composer = WrenchComposer(asset, supports_world_at_com=True)
-    forces = torch.ones(2, 1, 3, device=device)
-    torques = torch.full((2, 1, 3), 3.0, device=device)
-    getattr(composer, method)(forces=forces, torques=torques, is_global=True)
-
-    force, torque, is_global = composer.get_forces_and_torques()
-
-    assert is_global is True
-    np.testing.assert_allclose(force.numpy(), forces.cpu().numpy().reshape(2, 1, 3), atol=1e-6)
-    np.testing.assert_allclose(torque.numpy(), torques.cpu().numpy().reshape(2, 1, 3), atol=1e-6)
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_get_forces_and_torques_without_world_support_composes(device: str):
-    """A consumer that cannot take a world frame always gets the composed body-frame output."""
-    asset = create_mock_asset(2, 1, device)
-    composer = WrenchComposer(asset, supports_world_at_com=False)
-    composer.add_forces_and_torques_index(forces=torch.ones(2, 1, 3, device=device), is_global=True)
-
-    force, torque, is_global = composer.get_forces_and_torques()
-
-    assert is_global is False
-    composer.compose_to_body_frame()
-    np.testing.assert_allclose(force.numpy(), composer.out_force_b.warp.numpy(), atol=1e-6)
-    np.testing.assert_allclose(torque.numpy(), composer.out_torque_b.warp.numpy(), atol=1e-6)
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_get_forces_and_torques_mixed_frames_compose(device: str):
-    """Mixed local and global content is pose-dependent and must compose."""
-    asset = create_mock_asset(2, 1, device)
-    composer = WrenchComposer(asset, supports_world_at_com=True)
-    composer.add_forces_and_torques_index(
-        forces=torch.full((2, 1, 3), 2.0, device=device),
-        torques=torch.full((2, 1, 3), 3.0, device=device),
-        is_global=True,
-    )
-    composer.add_forces_and_torques_index(
-        forces=torch.full((2, 1, 3), 5.0, device=device),
-        torques=torch.full((2, 1, 3), 7.0, device=device),
-        is_global=False,
-    )
-
-    force, torque, is_global = composer.get_forces_and_torques()
-
-    assert is_global is False
-    composer.compose_to_body_frame()
-    np.testing.assert_allclose(force.numpy(), composer.out_force_b.warp.numpy(), atol=1e-6)
-    np.testing.assert_allclose(torque.numpy(), composer.out_torque_b.warp.numpy(), atol=1e-6)
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize(
-    "method",
-    [
-        "add_forces_and_torques_index",
-        "set_forces_and_torques_index",
-        "add_forces_and_torques_mask",
-        "set_forces_and_torques_mask",
-    ],
-)
-def test_get_forces_and_torques_positioned_global_force_composes(device: str, method: str):
-    """A positioned global force needs the CoM correction, so it must compose."""
-    asset = create_mock_asset(2, 1, device, link_pos=torch.tensor([[[0.0, 2.0, 0.0]]] * 2))
-    composer = WrenchComposer(asset, supports_world_at_com=True)
-    getattr(composer, method)(
-        forces=torch.tensor([[[1.0, 0.0, 0.0]]] * 2, device=device),
-        positions=torch.tensor([[[0.0, 3.0, 0.0]]] * 2, device=device),
-        is_global=True,
-    )
-
-    force, torque, is_global = composer.get_forces_and_torques()
-
-    assert is_global is False
-    np.testing.assert_allclose(torque.numpy(), [[[0.0, 0.0, -1.0]]] * 2, atol=1e-6)
-    composer.compose_to_body_frame()
-    np.testing.assert_allclose(force.numpy(), composer.out_force_b.warp.numpy(), atol=1e-6)
-    np.testing.assert_allclose(torque.numpy(), composer.out_torque_b.warp.numpy(), atol=1e-6)
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_get_forces_and_torques_recomposes_pose_dependent_wrench(device: str):
-    """A body-frame wrench is recomposed when the body pose changes."""
-    asset = create_mock_asset(1, 1, device)
-    composer = WrenchComposer(asset, supports_world_at_com=True)
-    composer.add_forces_and_torques_index(
-        forces=torch.tensor([[[1.0, 0.0, 0.0]]], device=device),
-        positions=torch.tensor([[[0.0, 1.0, 0.0]]], device=device),
-        is_global=True,
-    )
-
-    force, torque, is_global = composer.get_forces_and_torques()
-
-    assert is_global is False
-    np.testing.assert_allclose(force.numpy(), [[[1.0, 0.0, 0.0]]], atol=1e-6)
-    np.testing.assert_allclose(torque.numpy(), [[[0.0, 0.0, -1.0]]], atol=1e-6)
-
-    quat_180_z = torch.tensor([[[0.0, 0.0, 1.0, 0.0]]], device=device)
-    asset.data.body_link_quat_w = ProxyArray(wp.from_torch(quat_180_z, dtype=wp.quatf))
-
-    force, torque, is_global = composer.get_forces_and_torques()
-
-    assert is_global is False
-    np.testing.assert_allclose(force.numpy(), [[[-1.0, 0.0, 0.0]]], atol=1e-6)
-    np.testing.assert_allclose(torque.numpy(), [[[0.0, 0.0, -1.0]]], atol=1e-6)
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_get_forces_and_torques_fast_paths_read_no_body_pose(device: str):
-    """Neither fast path may touch body poses; that read is the cost this change removes."""
-    asset = create_mock_asset(2, 1, device)
-
-    for supports, is_global in ((False, False), (True, True)):
-        composer = WrenchComposer(asset, supports_world_at_com=supports)
-        composer.add_forces_and_torques_index(forces=torch.ones(2, 1, 3, device=device), is_global=is_global)
-        calls = []
-        composer._get_com_pos_fn = lambda: calls.append("com")
-        composer._get_link_quat_fn = lambda: calls.append("quat")
-
-        composer.get_forces_and_torques()
-
-        assert calls == [], f"pose read on fast path (supports={supports}, is_global={is_global})"
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("source_is_global", [False, True])
-@pytest.mark.parametrize("use_mask", [False, True])
-def test_get_forces_and_torques_merges_and_resets(device: str, source_is_global: bool, use_mask: bool):
-    """Merging and partially resetting wrenches must preserve the remaining contributions."""
-    asset = create_mock_asset(2, 1, device)
-    forces = torch.tensor([[[1.0, 0.0, 0.0]]] * 2, device=device)
-
-    composer = WrenchComposer(asset, supports_world_at_com=True)
-    composer.add_forces_and_torques_index(forces=forces, is_global=True)
-    assert composer.get_forces_and_torques()[2] is True
-
-    source = WrenchComposer(asset)
-    source.add_forces_and_torques_index(
-        forces=forces, positions=torch.tensor([[[0.0, 1.0, 0.0]]] * 2, device=device), is_global=source_is_global
-    )
-    composer.add_raw_buffers_from(source)
-    assert composer.get_forces_and_torques()[2] is False
-
-    if use_mask:
-        composer.reset(env_mask=wp.array([True, False], dtype=wp.bool, device=device))
-    else:
-        composer.reset(env_ids=[0])
-    force, torque, is_global = composer.get_forces_and_torques()
-    assert is_global is False
-    np.testing.assert_allclose(force.numpy(), [[[0.0, 0.0, 0.0]], [[2.0, 0.0, 0.0]]], atol=1e-6)
-    np.testing.assert_allclose(torque.numpy(), [[[0.0, 0.0, 0.0]], [[0.0, 0.0, -1.0]]], atol=1e-6)
-
-    composer.reset()
-    composer.add_forces_and_torques_index(forces=forces, is_global=True)
-    assert composer.get_forces_and_torques()[2] is True
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize(
-    "method",
-    [
-        "add_forces_and_torques_index",
-        "set_forces_and_torques_index",
-        "add_forces_and_torques_mask",
-        "set_forces_and_torques_mask",
-    ],
-)
-def test_get_forces_and_torques_torque_ignores_unused_positions(device: str, method: str):
-    """Positions without forces must not disable direct use of global torque buffers."""
-    composer = WrenchComposer(create_mock_asset(2, 1, device), supports_world_at_com=True)
-    torques = torch.tensor([[[1.0, 2.0, 3.0]]] * 2, device=device)
-    getattr(composer, method)(torques=torques, positions=torch.ones_like(torques), is_global=True)
-    composer._get_com_pos_fn = lambda: pytest.fail("unexpected CoM read")
-    composer._get_link_quat_fn = lambda: pytest.fail("unexpected quaternion read")
-
-    force, torque, is_global = composer.get_forces_and_torques()
-
-    assert is_global is True
-    np.testing.assert_array_equal(force.numpy(), np.zeros((2, 1, 3)))
-    np.testing.assert_array_equal(torque.numpy(), torques.cpu().numpy())
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_get_forces_and_torques_full_reset_returns_zero_without_pose_reads(device: str):
-    """Resetting a composed wrench returns zero local buffers without reading body poses."""
-    composer = WrenchComposer(create_mock_asset(1, 1, device))
-    composer.add_forces_and_torques_index(forces=torch.ones(1, 1, 3, device=device), is_global=True)
-    composer.get_forces_and_torques()
-    composer.reset(env_ids=slice(None))
-    composer._get_com_pos_fn = lambda: pytest.fail("unexpected CoM read")
-    composer._get_link_quat_fn = lambda: pytest.fail("unexpected quaternion read")
-
-    force, torque, is_global = composer.get_forces_and_torques()
-
-    assert is_global is False
-    assert not composer.active
-    np.testing.assert_array_equal(force.numpy(), np.zeros((1, 1, 3)))
-    np.testing.assert_array_equal(torque.numpy(), np.zeros((1, 1, 3)))
