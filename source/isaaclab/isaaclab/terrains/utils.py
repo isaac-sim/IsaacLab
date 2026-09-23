@@ -10,10 +10,7 @@ import torch
 import trimesh
 import warp as wp
 
-from pxr import UsdGeom
-
 from .. import sim as sim_utils
-from ..sim.spawners.materials import spawn_physics_material
 from ..utils.warp import raycast_mesh
 
 
@@ -66,65 +63,31 @@ def create_prim_from_mesh(prim_path: str, mesh: trimesh.Trimesh, **kwargs):
     following steps:
 
     - Create a USD Xform prim at the path :obj:`prim_path`.
-    - Create a USD prim with a mesh defined from the input vertices and triangles at the path :obj:`{prim_path}/mesh`.
+    - Create a USD prim with a mesh defined from the input vertices and triangles at the path :obj:`{prim_path}/mesh`,
+      with a collider and the mesh vertex colors.
     - Assign a physics material to the mesh at the path :obj:`{prim_path}/physicsMaterial`.
     - Assign a visual material to the mesh at the path :obj:`{prim_path}/visualMaterial`.
+
+    The prim is spawned with :class:`~isaaclab.sim.MeshFileCfg`.
 
     Args:
         prim_path: The path to the primitive to be created.
         mesh: The mesh to be used for the primitive.
 
     Keyword Args:
-        translation: The translation of the terrain. Defaults to None.
-        orientation: The orientation of the terrain. Defaults to None.
+        translation: The translation of the terrain root prim [m]. Defaults to None.
+        orientation: The orientation (x, y, z, w) of the terrain root prim. Defaults to None.
         visual_material: The visual material to apply. Defaults to None.
         physics_material: The physics material to apply. Defaults to None. Accepts a legacy rigid
             material cfg, a single rigid-material fragment, or a list of fragments.
     """
-    # create parent prim
-    sim_utils.create_prim(prim_path, "Xform")
-    # create mesh prim
-    prim = sim_utils.create_prim(
-        f"{prim_path}/mesh",
-        "Mesh",
-        translation=kwargs.get("translation"),
-        orientation=kwargs.get("orientation"),
-        attributes={
-            "points": mesh.vertices,
-            "faceVertexIndices": mesh.faces.flatten(),
-            "faceVertexCounts": np.asarray([3] * len(mesh.faces)),
-            "subdivisionScheme": "bilinear",
-        },
+    mesh_cfg = sim_utils.MeshFileCfg(
+        mesh=sim_utils.MeshFileCfg.TrimeshObjectCfg(mesh=mesh),
+        collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
+        visual_material=kwargs.get("visual_material"),
+        physics_material=kwargs.get("physics_material"),
     )
-    # apply collider properties
-    collider_fragments = [sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)]
-    sim_utils.apply_collision_properties(str(prim.GetPrimPath()), collider_fragments, create_if_missing=True)
-    # add rgba color to the mesh primvars
-    if mesh.visual.vertex_colors is not None:
-        # obtain color from the mesh
-        rgba_colors = np.asarray(mesh.visual.vertex_colors).astype(np.float32) / 255.0
-        # displayColor is a primvar attribute that is used to color the mesh
-        color_prim_attr = prim.GetAttribute("primvars:displayColor")
-        color_prim_var = UsdGeom.Primvar(color_prim_attr)
-        color_prim_var.SetInterpolation(UsdGeom.Tokens.vertex)
-        color_prim_attr.Set(rgba_colors[:, :3])
-        # displayOpacity is a primvar attribute that is used to set the opacity of the mesh
-        display_prim_attr = prim.GetAttribute("primvars:displayOpacity")
-        display_prim_var = UsdGeom.Primvar(display_prim_attr)
-        display_prim_var.SetInterpolation(UsdGeom.Tokens.vertex)
-        display_prim_var.Set(rgba_colors[:, 3])
-
-    # create visual material
-    if kwargs.get("visual_material") is not None:
-        visual_material_cfg: sim_utils.VisualMaterialCfg = kwargs.get("visual_material")
-        # spawn the material
-        visual_material_cfg.func(f"{prim_path}/visualMaterial", visual_material_cfg)
-        sim_utils.bind_visual_material(prim.GetPrimPath(), f"{prim_path}/visualMaterial")
-    # create physics material
-    physics_material = kwargs.get("physics_material")
-    if physics_material is not None:
-        spawn_physics_material(f"{prim_path}/physicsMaterial", physics_material)
-        sim_utils.bind_physics_material(prim.GetPrimPath(), f"{prim_path}/physicsMaterial")
+    mesh_cfg.func(prim_path, mesh_cfg, translation=kwargs.get("translation"), orientation=kwargs.get("orientation"))
 
 
 def find_flat_patches(
