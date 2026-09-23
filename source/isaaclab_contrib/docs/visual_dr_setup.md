@@ -17,10 +17,37 @@ Python version, a separate torch, or a patched Cosmos checkout.
 ## Install
 
 ```bash
-uv sync --extra isaacsim
+# --extra teleop: the stacking task imports XrCfg, which now lives in
+#   isaaclab_teleop, so the task will not import without it.
+# --extra video:  only for AppLauncher's own --video; the visual DR scripts
+#   write MP4s through imageio-ffmpeg, which the cosmos-runtime extra supplies.
+uv sync --extra isaacsim --extra teleop --extra video
+
 uv pip install -e 'source/isaaclab_contrib[cosmos-runtime]'
 uv pip install --no-deps -e /path/to/cosmos-framework
 ```
+
+### Re-running uv sync will remove all of this
+
+``uv sync`` is exact: it uninstalls whatever the lockfile does not name. Because
+Cosmos is installed over the top of the locked environment, a later plain ``uv
+sync`` removes ``cosmos-framework`` and every dependency the extra brought in --
+around fifty packages. Use:
+
+```bash
+uv sync --extra isaacsim --extra teleop --extra video --inexact
+```
+
+``--inexact`` leaves extraneous packages alone, which preserves the overlay.
+Otherwise re-run the two ``uv pip install`` lines above after every sync.
+
+Cosmos cannot currently be locked alongside Isaac Lab, but it is closer than it
+looks: its base dependencies do **not** pin torch at all -- torch appears only in
+the optional CUDA groups, which is what ``--no-deps`` avoids. The single blocker is
+its base pin of ``transformers>=4.57.1,<5`` against Isaac Lab's ``5.10.4``.
+Relaxing that, via a uv dependency override and a git source for Cosmos, would let
+it live in the lockfile and survive a sync. That is a packaging decision for the
+repository rather than something this feature should impose.
 
 `--no-deps` is the important part. Cosmos publishes dependency *groups* that pin
 torch 2.10 or 2.13 to match the CUDA wheel variants it ships, and installing those
