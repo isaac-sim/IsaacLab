@@ -11,6 +11,7 @@ import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import torch
 import warp as wp
 
 from isaaclab.actuators import ActuatorCollection
@@ -55,7 +56,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         native_group_names = {
             name for name, actuator_cfg in actuator_cfgs.items() if not _is_implicit_actuator_cfg(actuator_cfg)
         }
-        if not native_group_names:
+        if not native_group_names and not collection._wrapper_cfgs:
             return set()
 
         self._native_actuator_path_active = True
@@ -92,6 +93,51 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 dtype=wp.float32,
                 device=self.device,
             )
+
+        if collection._wrapper_cfgs:
+            # The backend arrays use backend joint order; group mechanisms use public joint order.
+            ordering = articulation.data.joint_ordering
+            indices = (
+                torch.tensor(ordering.user_to_backend_indices, device=self.device, dtype=torch.long)
+                if ordering is not None
+                else slice(None)
+            )
+
+            def bind(evaluate):
+                def run(dt):
+                    self.submit_commands(collection)
+                    evaluate(dt)
+                    collection._joint_effort_target_sim_ta.torch.copy_(
+                        wp.to_torch(articulation._data._sim_bind_joint_effort)[:, indices]
+                    )
+
+                wrapped = collection.wrap_execution(run)
+
+                def call(dt):
+                    wrapped(dt)
+                    data = articulation.data
+                    if data.has_joint_ordering:
+                        ordering_kernels.launch_reorder_joint_targets_user_to_backend(
+                            user_effort=collection._joint_effort_target_sim,
+                            user_pos_target=collection._joint_pos_target,
+                            user_vel_target=collection._joint_vel_target,
+                            backend_to_user=articulation._joint_backend_to_user_map(),
+                            write_effort=True,
+                            write_pos_target=False,
+                            write_vel_target=False,
+                            write_joint_act=False,
+                            backend_effort=data._sim_bind_joint_effort,
+                            backend_pos_target=data._sim_bind_joint_position_target,
+                            backend_vel_target=data._sim_bind_joint_velocity_target,
+                            backend_joint_act=data._sim_bind_joint_act,
+                            device=self.device,
+                        )
+                    else:
+                        data._sim_bind_joint_effort.assign(collection._joint_effort_target_sim)
+
+                return call
+
+            SimulationManager.wrap_actuator_evaluation(bind)
 
         def _post_actuator() -> None:
             # Telemetry reads _sim_bind_joint_pos inside the decimation loop, ahead of the

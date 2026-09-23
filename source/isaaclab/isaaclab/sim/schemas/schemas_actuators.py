@@ -26,7 +26,7 @@ from typing import Any
 from pxr import Sdf, Usd, UsdPhysics
 
 from ...actuators._compat import _resolve_limit_aliases
-from ...actuators.actuator_base_cfg import _is_implicit_actuator_cfg
+from ...actuators.actuator_base_cfg import _is_implicit_actuator_cfg, unwrap_actuator_cfg
 from ...utils.string import _resolve_matching_values_dense, resolve_matching_names, string_to_callable
 
 
@@ -79,6 +79,7 @@ def _validate_newton_native_actuator_cfgs(actuator_cfgs: dict[str, Any]) -> None
     """Reject explicit actuator configurations that Newton cannot author."""
     unsupported_groups = []
     for group_name, cfg in actuator_cfgs.items():
+        cfg = unwrap_actuator_cfg(cfg)
         try:
             is_implicit = _is_implicit_actuator_cfg(cfg)
         except ValueError:
@@ -215,6 +216,7 @@ def _author_actuator_prims(
 
     cfg_entries: list[tuple[str, Any, list[str]]] = []
     for group_name, cfg in actuator_cfgs.items():
+        cfg = unwrap_actuator_cfg(cfg)
         if _is_implicit_actuator_cfg(cfg):
             continue
 

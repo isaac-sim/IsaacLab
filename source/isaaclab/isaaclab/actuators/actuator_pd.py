@@ -12,7 +12,8 @@ from typing import TYPE_CHECKING, ClassVar
 
 import torch
 
-from ..utils import DelayBuffer, LinearInterpolation
+from ..utils import LinearInterpolation
+from ..utils.delay import Delay, DelayCfg
 from ..utils.types import ArticulationActions
 from ._compat import _limits_equal
 from .actuator_base import ActuatorBase, resolve_joint_parameter
@@ -195,7 +196,7 @@ class ImplicitActuator(ActuatorBase):
         # This is a no-op. There is no state to reset for implicit actuators.
         pass
 
-    def compute(
+    def __call__(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
         """Process the actuator group actions and compute the articulation actions.
@@ -317,7 +318,7 @@ class IdealPDActuator(ActuatorBase):
     def reset(self, env_ids: Sequence[int]):
         pass
 
-    def compute(
+    def __call__(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
         # compute errors
@@ -423,13 +424,13 @@ class DCMotor(IdealPDActuator):
     Operations.
     """
 
-    def compute(
+    def __call__(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
         # save current joint vel
         self._joint_vel[:] = joint_vel
         # calculate the desired joint torques
-        return super().compute(control_action, joint_pos, joint_vel)
+        return super().__call__(control_action, joint_pos, joint_vel)
 
     """
     Helper functions.
@@ -468,46 +469,17 @@ class DelayedPDActuator(IdealPDActuator):
 
     def __init__(self, cfg: DelayedPDActuatorCfg, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)
-        # instantiate the delay buffers
-        self.positions_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
-        self.velocities_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
-        self.efforts_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
-        # all of the envs
-        self._ALL_INDICES = torch.arange(self._num_envs, dtype=torch.long, device=self._device)
+        delay_cfg = DelayCfg(term=cfg, on="input", min_lag=cfg.min_delay, max_lag=cfg.max_delay, resample="reset")
+        self._delay = Delay(delay_cfg, super().__call__, self._num_envs, self._device)
 
     def reset(self, env_ids: Sequence[int]):
         super().reset(env_ids)
-        # number of environments (since env_ids can be a slice)
-        if env_ids is None or env_ids == slice(None):
-            num_envs = self._num_envs
-        else:
-            num_envs = len(env_ids)
-        # set a new random delay for environments in env_ids
-        time_lags = torch.randint(
-            low=self.cfg.min_delay,
-            high=self.cfg.max_delay + 1,
-            size=(num_envs,),
-            dtype=torch.int,
-            device=self._device,
-        )
-        # set delays
-        self.positions_delay_buffer.set_time_lag(time_lags, env_ids)
-        self.velocities_delay_buffer.set_time_lag(time_lags, env_ids)
-        self.efforts_delay_buffer.set_time_lag(time_lags, env_ids)
-        # reset buffers
-        self.positions_delay_buffer.reset(env_ids)
-        self.velocities_delay_buffer.reset(env_ids)
-        self.efforts_delay_buffer.reset(env_ids)
+        self._delay.reset(env_ids)
 
-    def compute(
+    def __call__(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
-        # apply delay based on the delay the model for all the setpoints
-        control_action.joint_positions = self.positions_delay_buffer.compute(control_action.joint_positions)
-        control_action.joint_velocities = self.velocities_delay_buffer.compute(control_action.joint_velocities)
-        control_action.joint_efforts = self.efforts_delay_buffer.compute(control_action.joint_efforts)
-        # compte actuator model
-        return super().compute(control_action, joint_pos, joint_vel)
+        return self._delay(control_action, joint_pos, joint_vel)
 
 
 class RemotizedPDActuator(DelayedPDActuator):
@@ -581,11 +553,11 @@ class RemotizedPDActuator(DelayedPDActuator):
     Operations.
     """
 
-    def compute(
+    def __call__(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
         # call the base method
-        control_action = super().compute(control_action, joint_pos, joint_vel)
+        control_action = super().__call__(control_action, joint_pos, joint_vel)
         # compute the absolute torque limits for the current joint positions
         abs_torque_limits = self._torque_limit.compute(joint_pos)
         # apply the limits

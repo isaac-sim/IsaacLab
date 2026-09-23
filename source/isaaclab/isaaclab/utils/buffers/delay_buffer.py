@@ -10,11 +10,14 @@ from collections.abc import Sequence
 
 import torch
 
+from .._callable import _compute_compat
 
+
+@_compute_compat
 class DelayBuffer:
     """Ring storage for delayed batched tensors, independent of actions or observations.
 
-    Each :meth:`compute` writes one frame and retrieves a per-batch delayed frame. Storage is allocated
+    Each call writes one frame and retrieves a per-batch delayed frame. Storage is allocated
     on the first call and never shifted. The write index and per-batch history lengths stay on the device,
     including during CUDA graph replay. Lag sampling and update cadence belong to the caller.
 
@@ -22,6 +25,10 @@ class DelayBuffer:
     the oldest available sample is returned. Reset only invalidates the selected batches' history;
     no previous-episode data can be read, and the remaining batches continue uninterrupted.
     """
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        _compute_compat(cls)
 
     def __init__(self, history_length: int, batch_size: int, device: str):
         """Initialize the delay buffer.
@@ -153,7 +160,7 @@ class DelayBuffer:
         """
         self._num_pushes[slice(None) if batch_ids is None else batch_ids] = 0
 
-    def compute(self, data: torch.Tensor) -> torch.Tensor:
+    def __call__(self, data: torch.Tensor) -> torch.Tensor:
         """Append the input data to the buffer and returns a stale version of the data based on time lag delay.
 
         If the requested delay exceeds the available history since reset, returns the oldest available

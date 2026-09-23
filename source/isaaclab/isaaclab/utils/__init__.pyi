@@ -4,6 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "WrapperCfg",
+    "Delay",
+    "DelayCfg",
     "Timer",
     "TensorData",
     "TENSOR_TYPES",
@@ -107,3 +110,6 @@ from .string import (
 from .types import ArticulationActions
 from .version import has_kit, get_isaac_sim_version, compare_versions
 from .configclass import checked_apply, configclass
+
+from .composition import WrapperCfg
+from .delay import Delay, DelayCfg

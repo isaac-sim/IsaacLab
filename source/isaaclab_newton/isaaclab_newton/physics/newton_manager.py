@@ -472,6 +472,7 @@ class NewtonManager(PhysicsManager):
 
     # Newton actuator adapter (owns actuators and double-buffered states)
     _adapter: NewtonActuatorAdapter | None = None
+    _actuator_evaluation: Callable[[float], None] | None = None
     # In-graph hooks invoked after the actuator step and before the solver
     # substeps, in registration order. Multiple articulations register their
     # implicit-DOF telemetry / FF-routing kernels here.
@@ -1105,8 +1106,7 @@ class NewtonManager(PhysicsManager):
             PhysicsManager._sim_time += physics_dt * cls._decimation
         else:
             # --- Some actuators not graph-safe: step them eagerly, graph solver only ---
-            if cls._adapter is not None:
-                cls._adapter.step(cls.backend.state_0, cls.backend.control, physics_dt)
+            cls._evaluate_actuators(physics_dt)
             for cb in cls._post_actuator_callbacks:
                 cb()
 
@@ -1189,6 +1189,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._supports_contact_sensors = True
         NewtonManager._adapter = None
         NewtonManager._post_actuator_callbacks = []
+        NewtonManager._actuator_evaluation = None
         NewtonManager._state_force_callbacks = []
         NewtonManager._post_step_callbacks = []
         # Set by an articulation that took the ``use_newton_actuators=True``
@@ -2671,8 +2672,7 @@ class NewtonManager(PhysicsManager):
             if cls._needs_collision_pipeline:
                 cls._collision_pipeline.collide(cls.backend.state_0, cls._contacts)
 
-            if cls._adapter is not None:
-                cls._adapter.step(cls.backend.state_0, cls.backend.control, physics_dt)
+            cls._evaluate_actuators(physics_dt)
             for cb in cls._post_actuator_callbacks:
                 cb()
 
@@ -3356,6 +3356,23 @@ class NewtonManager(PhysicsManager):
             device=PhysicsManager._device,
         )
         cls._adapter.finalize(cls.backend.control)
+
+    @classmethod
+    def _step_actuators(cls, dt: float) -> None:
+        if cls._adapter is not None:
+            cls._adapter.step(cls.backend.state_0, cls.backend.control, dt)
+
+    @classmethod
+    def _evaluate_actuators(cls, dt: float) -> None:
+        if cls._actuator_evaluation is None:
+            cls._step_actuators(dt)
+        else:
+            cls._actuator_evaluation(dt)
+
+    @classmethod
+    def wrap_actuator_evaluation(cls, bind: Callable) -> None:
+        """Bind a complete computation around each native actuator tick, before graph capture."""
+        NewtonManager._actuator_evaluation = bind(cls._actuator_evaluation or cls._step_actuators)
 
     @classmethod
     def register_post_actuator_callback(cls, callback: Callable[[], None]) -> None:

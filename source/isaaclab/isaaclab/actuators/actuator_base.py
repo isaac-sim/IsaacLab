@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, ClassVar
 import torch
 
 from ..utils import string as string_utils
+from ..utils._callable import _compute_compat
 from ..utils.types import ArticulationActions
 from ._compat import _limits_equal, _resolve_limit_aliases
 
@@ -85,6 +86,7 @@ def resolve_joint_parameter(
     return param
 
 
+@_compute_compat
 class ActuatorBase(ABC):
     """Base class for actuator models over a collection of actuated joints in an articulation.
 
@@ -103,6 +105,10 @@ class ActuatorBase(ABC):
 
     To see how the class is used, check the :class:`isaaclab.assets.Articulation` class.
     """
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        _compute_compat(cls)
 
     is_implicit_model: ClassVar[bool] = False
     """Flag indicating if the actuator is an implicit or explicit actuator model.
@@ -288,7 +294,7 @@ class ActuatorBase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def compute(
+    def __call__(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
         """Process the actuator group actions and compute the articulation actions.

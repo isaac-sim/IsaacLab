@@ -1,9 +1,12 @@
 Added
 ^^^^^
 
-* Added ``isaaclab.managers.DelayCfg`` as a standard manager term configuration, used through
-  ``ObservationTermCfg(func=DelayCfg(term=..., params=...))`` with per-environment latency, refresh
-  cadence, frame holds, and partial resets using the same buffer primitive as legacy delayed actuator targets.
+* Added ``isaaclab.utils.DelayCfg`` for observations, policy actions, and actuator commands or efforts,
+  including nested composition, independent sampling, cadence, holds, and partial resets. Observation terms
+  use ``ObservationTermCfg(func=DelayCfg(term=..., params=...))``; actions and actuators wrap their term config
+  directly. Input actuator delay retained current joint feedback; output delay held the computed effort.
+* Added callable actuator and delay-buffer execution while preserving ``compute()`` callers and overrides.
+  Joint action callables returned commands for submission after wrapper evaluation.
 
 Changed
 ^^^^^^^

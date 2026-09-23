@@ -27,6 +27,7 @@ import os
 import unittest
 
 import numpy as np
+import pytest
 import torch
 import warp as wp
 from isaaclab_newton.assets import Articulation
@@ -53,6 +54,7 @@ from isaaclab.test.utils.actuator_equivalence import (
     make_dummy_mlp_checkpoint,
 )
 from isaaclab.test.utils.articulation_ordering import assert_articulation_ordering_trace_matches
+from isaaclab.utils import DelayCfg
 
 from isaaclab_assets import ANYMAL_C_CFG
 from isaaclab_assets.robots.spot import joint_parameter_lookup as SPOT_KNEE_LOOKUP
@@ -96,6 +98,7 @@ def _run_simulation(
     feedforward: float | None = None,
     joint_ordering: tuple[str, ...] | None = None,
     permutation_sensitive_commands: bool = False,
+    command_step: float = 0.0,
 ) -> dict:
     """Run ANYmal-C and return recorded trajectories + telemetry.
 
@@ -117,6 +120,7 @@ def _run_simulation(
         joint_ordering: Optional explicit public joint-name order.
         permutation_sensitive_commands: Whether to command distinct position, velocity, and effort values by
             physical joint name.
+        command_step: Position target increment per policy step [rad].
 
     Returns:
         Recorded joint-name metadata, commands, public trajectories and torque telemetry, and backend-order
@@ -190,7 +194,9 @@ def _run_simulation(
         recorded_pos, recorded_vel = [], []
         recorded_computed_effort, recorded_applied_effort = [], []
         recorded_adapter_applied = []
-        for _ in range(num_steps):
+        for step in range(num_steps):
+            if command_step:
+                articulation.set_joint_position_target_index(target=target_pos + step * command_step)
             if handles_dec:
                 articulation.write_data_to_sim()
                 sim.step()
@@ -223,16 +229,21 @@ def _run_simulation(
     }
 
 
-def test_newton_actuator_rollout_matches_reversed_joint_ordering() -> None:
+@pytest.mark.parametrize("delayed", [False, True])
+def test_newton_actuator_rollout_matches_reversed_joint_ordering(delayed) -> None:
     """Match Newton-backend actuator traces under reversed public joint ordering."""
+    actuators = {
+        name: DelayCfg(term=cfg, on="output", min_lag=2, max_lag=2) if delayed else cfg
+        for name, cfg in IDEAL_PD_ACTUATORS.items()
+    }
     identity_result = _run_simulation(
-        IDEAL_PD_ACTUATORS,
+        actuators,
         use_newton_actuators=True,
         permutation_sensitive_commands=True,
     )
     requested_joint_names = tuple(reversed(identity_result["joint_names"]))
     reversed_result = _run_simulation(
-        IDEAL_PD_ACTUATORS,
+        actuators,
         use_newton_actuators=True,
         joint_ordering=requested_joint_names,
         permutation_sensitive_commands=True,
@@ -636,6 +647,27 @@ class TestDecimationDCMotor(_DecimationMixin, TestDCMotorEquivalence):
 
 class TestDecimationDelayedPD(_DecimationMixin, TestDelayedPDEquivalence):
     """DelayedPD — decimation=2 + CUDA graph (delay queue stepped inside the captured graph)."""
+
+
+@pytest.mark.parametrize("on", ["input", "output"])
+@pytest.mark.parametrize("capture", [False, True])
+def test_shared_delay_native_decimation(on, capture):
+    """The same shared history advances every physics tick in Lab and native Newton, including graph replay."""
+    actuators = {
+        name: DelayCfg(term=cfg, on=on, min_lag=1, max_lag=3, hold_prob=0.2, seed=17)
+        for name, cfg in IDEAL_PD_ACTUATORS.items()
+    }
+    kwargs = dict(
+        newton_cfg=NEWTON_CFG_DEC.replace(class_type=None, use_cuda_graph=capture),
+        num_steps=6,
+        decimation=2,
+        command_step=0.03,
+    )
+    lab = _run_simulation(actuators, use_newton_actuators=False, **kwargs)
+    native = _run_simulation(actuators, use_newton_actuators=True, **kwargs)
+    for name in ("joint_pos", "joint_vel", "computed_effort", "applied_effort"):
+        for expected, actual in zip(lab[name], native[name], strict=True):
+            torch.testing.assert_close(actual, expected, rtol=1e-4, atol=1e-4)
 
 
 # ---------------------------------------------------------------------------

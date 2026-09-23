@@ -14,6 +14,7 @@ import torch
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.utils.types import ArticulationActions
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -194,9 +195,11 @@ class JointPositionAction(JointAction):
         if cfg.use_default_offset:
             self._offset = self._asset.data.default_joint_pos.torch[:, self._joint_ids].clone()
 
-    def apply_actions(self):
+    def __call__(self, actions: torch.Tensor | None = None) -> ArticulationActions | None:
+        if actions is not None:
+            return super().__call__(actions)
         # set position targets
-        self._asset.set_joint_position_target_index(target=self.processed_actions, joint_ids=self._joint_ids)
+        return ArticulationActions(joint_positions=self.processed_actions, joint_indices=self._joint_ids)
 
 
 class RelativeJointPositionAction(JointAction):
@@ -225,11 +228,13 @@ class RelativeJointPositionAction(JointAction):
         if cfg.use_zero_offset:
             self._offset = 0.0
 
-    def apply_actions(self):
+    def __call__(self, actions: torch.Tensor | None = None) -> ArticulationActions | None:
+        if actions is not None:
+            return super().__call__(actions)
         # add current joint positions to the processed actions
         current_actions = self.processed_actions + self._asset.data.joint_pos.torch[:, self._joint_ids]
         # set position targets
-        self._asset.set_joint_position_target_index(target=current_actions, joint_ids=self._joint_ids)
+        return ArticulationActions(joint_positions=current_actions, joint_indices=self._joint_ids)
 
 
 class JointVelocityAction(JointAction):
@@ -245,9 +250,11 @@ class JointVelocityAction(JointAction):
         if cfg.use_default_offset:
             self._offset = self._asset.data.default_joint_vel.torch[:, self._joint_ids].clone()
 
-    def apply_actions(self):
+    def __call__(self, actions: torch.Tensor | None = None) -> ArticulationActions | None:
+        if actions is not None:
+            return super().__call__(actions)
         # set joint velocity targets
-        self._asset.set_joint_velocity_target_index(target=self.processed_actions, joint_ids=self._joint_ids)
+        return ArticulationActions(joint_velocities=self.processed_actions, joint_indices=self._joint_ids)
 
 
 class JointEffortAction(JointAction):
@@ -259,6 +266,8 @@ class JointEffortAction(JointAction):
     def __init__(self, cfg: actions_cfg.JointEffortActionCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
 
-    def apply_actions(self):
+    def __call__(self, actions: torch.Tensor | None = None) -> ArticulationActions | None:
+        if actions is not None:
+            return super().__call__(actions)
         # set joint effort targets
-        self._asset.set_joint_effort_target_index(target=self.processed_actions, joint_ids=self._joint_ids)
+        return ArticulationActions(joint_efforts=self.processed_actions, joint_indices=self._joint_ids)

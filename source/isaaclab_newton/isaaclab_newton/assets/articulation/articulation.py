@@ -24,7 +24,7 @@ from prettytable import PrettyTable
 from pxr import UsdPhysics
 
 from isaaclab.actuators import ActuatorCollection
-from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
+from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg, unwrap_actuator_cfg
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.physics import PhysicsEvent
@@ -116,6 +116,7 @@ def _configure_builder_joint_target_modes(builder, cfg: ArticulationCfg) -> None
             continue
 
         for actuator_cfg in cfg.actuators.values():
+            actuator_cfg = unwrap_actuator_cfg(actuator_cfg)
             matched_indices, matched_names = resolve_matching_names(
                 actuator_cfg.joint_names_expr, dof_names, raise_when_no_match=False
             )

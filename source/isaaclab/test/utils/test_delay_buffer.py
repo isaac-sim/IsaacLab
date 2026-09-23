@@ -14,6 +14,31 @@ from isaaclab.utils import DelayBuffer
 pytestmark = pytest.mark.unit
 
 
+def test_callable_compatibility_preserves_compute_overrides_and_super():
+    """Mixed old and new implementations retain defining-class dispatch instead of recursing through self()."""
+
+    class Legacy(DelayBuffer):
+        def compute(self, data):
+            return super().compute(data + 1) * 2
+
+    class Modern(Legacy):
+        def __call__(self, data):
+            return super().__call__(data + 3) * 4
+
+    class LegacyMixin:
+        def compute(self, data):
+            return super().compute(data + 5) * 6
+
+    class Mixed(LegacyMixin, Modern):
+        pass
+
+    data = torch.tensor([[2.0]])
+    buffer = Mixed(0, 1, "cpu")
+    expected = ((data + 5 + 3 + 1) * 2) * 4 * 6
+    torch.testing.assert_close(buffer(data), expected)
+    torch.testing.assert_close(buffer.compute(data), expected)
+
+
 @pytest.fixture(params=test_devices())
 def delay_buffer(request):
     """Create a delay buffer for testing."""
@@ -40,7 +65,7 @@ def test_constant_time_lags(delay_buffer):
     for i, data in enumerate(_generate_data(batch_size, 20, delay_buffer.device)):
         all_data.append(data)
         # apply delay
-        delayed_data = delay_buffer.compute(data)
+        delayed_data = delay_buffer(data)
         error = delayed_data - all_data[max(0, i - const_lag)]
         assert torch.all(error == 0)
 
@@ -60,7 +85,7 @@ def test_reset(delay_buffer):
         if i == reset_itr:
             delay_buffer.reset([-2, -1])
         # apply delay
-        delayed_data = delay_buffer.compute(data)
+        delayed_data = delay_buffer(data)
         # before 'reset_itr' is is similar to test_constant_time_lags
         # after that indices [-2, -1] should be treated separately
         if i < reset_itr:
@@ -86,7 +111,7 @@ def test_random_time_lags(delay_buffer):
     for i, data in enumerate(_generate_data(delay_buffer.batch_size, 20, delay_buffer.device)):
         all_data.append(data)
         # apply delay
-        delayed_data = delay_buffer.compute(data)
+        delayed_data = delay_buffer(data)
         true_delayed_index = torch.maximum(i - delay_buffer.time_lags, torch.zeros_like(delay_buffer.time_lags))
         true_delayed_index = true_delayed_index.tolist()
         for i in range(delay_buffer.batch_size):
@@ -127,9 +152,9 @@ def test_compute_result_independent_of_internal_buffer(delay_buffer):
     preserved — mutating the result in place must not affect the next ``compute()`` output.
     """
     delay_buffer.set_time_lag(0)
-    first = delay_buffer.compute(torch.full((delay_buffer.batch_size, 1), 1, dtype=torch.int))
+    first = delay_buffer(torch.full((delay_buffer.batch_size, 1), 1, dtype=torch.int))
     first.fill_(999)  # mutate the returned tensor
-    second = delay_buffer.compute(torch.full((delay_buffer.batch_size, 1), 2, dtype=torch.int))
+    second = delay_buffer(torch.full((delay_buffer.batch_size, 1), 2, dtype=torch.int))
     assert torch.all(second == 2), "Mutation of a prior compute() result leaked into the next call"
 
 
@@ -168,7 +193,7 @@ def test_ring_storage_and_partial_reset(delay_buffer, feature_shape):
             torch.testing.assert_close(storage, previous)
         values = torch.arange(10, device=delay_buffer.device) + 100 * step
         data = values.view(10, *([1] * len(feature_shape))).expand(10, *feature_shape)
-        result = delay_buffer.compute(data)
+        result = delay_buffer(data)
         expected = []
         for index, history in enumerate(histories):
             history.append(100 * step + index)
@@ -189,10 +214,10 @@ def test_delay_buffer_cuda_graph(delay_buffer):
     with torch.cuda.device(delay_buffer.device):
         data = torch.zeros(delay_buffer.batch_size, 1, device=delay_buffer.device)
         delay_buffer.set_time_lag(2)
-        delay_buffer.compute(data)
+        delay_buffer(data)
         graph = torch.cuda.CUDAGraph()
         with torch.cuda.graph(graph):
-            result = delay_buffer.compute(data)
+            result = delay_buffer(data)
         delay_buffer.reset()
         for step in range(9):
             if step == 4:

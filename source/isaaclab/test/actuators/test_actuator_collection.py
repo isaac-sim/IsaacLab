@@ -30,6 +30,8 @@ from isaaclab.actuators import (
 )
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
+from isaaclab.utils import DelayCfg, WrapperCfg
+from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.warp import ProxyArray
 
 
@@ -39,7 +41,7 @@ def _implicit_cfg(**kwargs) -> ImplicitActuatorCfg:
 
 
 class SelectorRecordingActuator(ImplicitActuator):
-    """Custom actuator that records the selector supplied to :meth:`compute`."""
+    """Legacy override exercising compute() and super() compatibility through canonical collection calls."""
 
     def compute(self, control_action, joint_pos, joint_vel):
         self.observed_joint_indices = control_action.joint_indices
@@ -982,25 +984,81 @@ def test_actuator_batch_rebinds_cuda_state_provider_on_request(
     )
 
 
-def test_partial_coverage_explicit_group_reads_fresh_commands_each_compute():
-    control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("placement", [None, "input", "output", "nested"])
+def test_partial_coverage_explicit_group_reads_fresh_commands_each_compute(device, placement):
+    """Delay preserves requested commands and live feedback, including partial group and environment selection."""
+    control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)], device=device)
+    cfg = _ideal_cfg(["joint_0", "joint_2"], stiffness=10.0, damping=0.0, effort_limit=1000.0)
+    input_lag = int(placement in ("input", "nested"))
+    output_lag = int(placement in ("output", "nested"))
+    if input_lag:
+        cfg = DelayCfg(term=cfg, on="input", min_lag=1, max_lag=1)
+    if output_lag:
+        cfg = DelayCfg(term=cfg, on="output", min_lag=1, max_lag=1)
+    collection = ActuatorCollection({"hips": cfg}, control)
+    initial = torch.tensor([[1.0, 2.0], [3.0, 4.0]], device=device)
+    requested, demands = [], []
+    for step in range(8):
+        if step == 4:
+            collection.reset([1])
+        if step in (0, 1, 4):
+            collection.target_command.set_position_index(value=initial * (step + 1), joint_ids=[0, 2])
+        requested.append(collection.target_command.position.torch[:, [0, 2]].clone())
+        control.joint_pos.torch.fill_(step * 0.1)
+        collection.compute()
+        demand, delivered = [], []
+        for env_id in range(2):
+            start = 4 if env_id == 1 and step >= 4 else 0
+            command = requested[max(start, step - input_lag)][env_id]
+            demand.append(10.0 * (command - step * 0.1))
+        demands.append(torch.stack(demand))
+        for env_id in range(2):
+            start = 4 if env_id == 1 and step >= 4 else 0
+            delivered.append(demands[max(start, step - output_lag)][env_id])
+        torch.testing.assert_close(collection.computed_effort.torch[:, [0, 2]], demands[-1])
+        torch.testing.assert_close(collection.applied_effort.torch[:, [0, 2]], torch.stack(delivered))
+        torch.testing.assert_close(collection.target_command.position.torch[:, [0, 2]], requested[-1])
+        torch.testing.assert_close(collection.applied_effort.torch[:, [1, 3]], torch.zeros_like(initial))
+
+
+def test_implicit_actuator_rejects_output_delay():
+    """An implicit solver drive has no explicit effort output to intercept."""
+    cfg = DelayCfg(term=_implicit_cfg(), on="output", max_lag=2)
+    with pytest.raises(ValueError, match="does not expose a delayable output"):
+        ActuatorCollection({"drive": cfg}, FakeActuatorControl())
+
+
+def test_complete_wrapper_preserves_coupled_input_and_output_computation():
+    """A wrapper can use an input intermediate after the enclosed call without defining stage hooks."""
+
+    class ResidualCommand:
+        def __init__(self, cfg, term, num_envs, device, **capabilities):
+            self.term = term
+
+        def reset(self, env_ids=None):
+            pass
+
+        def __call__(self, commands, dt):
+            offset = commands.joint_positions + 1.0
+            result = self.term(ArticulationActions(offset, commands.joint_velocities, commands.joint_efforts), dt)
+            result.joint_efforts = result.joint_efforts + offset
+            return result
+
+    cfg = _ideal_cfg(["joint_0"], stiffness=10.0, damping=0.0, effort_limit=1000.0)
+    residual = WrapperCfg(class_type=ResidualCommand, term=cfg)
     collection = ActuatorCollection(
-        {"hips": _ideal_cfg(["joint_0", "joint_2"], stiffness=10.0, damping=0.0, effort_limit=1000.0)},
-        control,
+        {
+            "first": DelayCfg(term=residual, on="output", min_lag=1, max_lag=1),
+            "second": DelayCfg(term=cfg.replace(joint_names_expr=["joint_1"]), on="input", min_lag=1, max_lag=1),
+        },
+        FakeActuatorControl(joint_names=["joint_0", "joint_1"]),
     )
-    collection.target_command.position.torch[:, [0, 2]] = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
-
-    collection.compute()
-
-    expected_first = torch.tensor([[10.0, 20.0], [30.0, 40.0]])
-    torch.testing.assert_close(collection.computed_effort.torch[:, [0, 2]].cpu(), expected_first, rtol=0.0, atol=0.0)
-
-    collection.target_command.position.torch.mul_(2.0)
-    collection.compute()
-
-    torch.testing.assert_close(
-        collection.computed_effort.torch[:, [0, 2]].cpu(), expected_first * 2.0, rtol=0.0, atol=0.0
-    )
+    for step in range(4):
+        collection.target_command.position.torch.fill_(step)
+        collection.compute()
+        expected = torch.tensor([[11.0 * (max(0, step - 1) + 1), 10.0 * max(0, step - 1)]]).expand(2, -1)
+        torch.testing.assert_close(collection.applied_effort.torch, expected)
 
 
 def test_native_execution_bypasses_lab_aggregation(monkeypatch):
@@ -1037,7 +1095,7 @@ def test_native_execution_bypasses_lab_aggregation(monkeypatch):
     def fail_compute(*args, **kwargs):
         raise AssertionError("Lab actuator execution must be bypassed")
 
-    monkeypatch.setattr(DCMotor, "compute", fail_compute)
+    monkeypatch.setattr(DCMotor, "__call__", fail_compute)
     collection.compute()
 
 

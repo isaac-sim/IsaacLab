@@ -14,17 +14,16 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 import torch
+import warp as wp
 
 from isaaclab.managers import (
-    Delay,
-    DelayCfg,
     ManagerTermBase,
     ObservationGroupCfg,
     ObservationManager,
     ObservationTermCfg,
 )
 from isaaclab.test.utils import test_devices
-from isaaclab.utils import configclass, modifiers
+from isaaclab.utils import DelayCfg, configclass, modifiers
 
 pytestmark = pytest.mark.unit
 
@@ -257,7 +256,7 @@ def test_delay_delivery_and_reset(device, shape, settings):
     """Fixed latency, sensor cadence, and holds share shape-preserving reset semantics."""
     cfg = DelayCfg(term=dummy_observation, per_env_phase=False, **settings)
     env = DummyEnv(shape[0], device)
-    delay = Delay(cfg, env)
+    delay = cfg.wrap(dummy_observation, env.num_envs, env.device)
     for step in range(12):
         if step == 5:
             delay.reset([1])
@@ -282,22 +281,28 @@ def test_delay_delivery_and_reset(device, shape, settings):
 @pytest.mark.parametrize("device", test_devices())
 def test_delay_stochastic_delivery(device):
     """Jitter never delivers an older sample, and bounded GPU lag generation never calls the setter."""
-    cfg = DelayCfg(term=dummy_observation, min_lag=1, max_lag=4, update_period=3, hold_prob=0.2)
+    cfg = DelayCfg(term=dummy_observation, min_lag=1, max_lag=4, update_period=3, hold_prob=0.2, seed=17)
     env = DummyEnv(16, device)
-    delay = Delay(cfg, env)
+    delay = cfg.wrap(dummy_observation, env.num_envs, env.device)
+    reference = cfg.wrap(dummy_observation, env.num_envs, env.device)
     assert "_step" not in vars(delay), "The buffer owns the per-environment clock."
     delay._buffer.set_time_lag = lambda *args: pytest.fail("The hot path must not validate lags on the host.")
     previous = torch.full((16, 1), -1.0, device=device)
     for step in range(40):
+        if step == 10:
+            delay.reset([0])
         env.observation = torch.full_like(previous, step)
         output = delay(env)
         assert torch.all(output >= previous)
-        assert torch.all(output <= max(0, step - cfg.min_lag))
+        assert torch.all(output[1:] <= max(0, step - cfg.min_lag))
+        torch.testing.assert_close(output[1:], reference(env)[1:])
         assert torch.all(delay._buffer.time_lags >= cfg.min_lag)
         assert torch.all(delay._buffer.time_lags <= cfg.max_lag)
         previous = output
 
-    shared = Delay(DelayCfg(term=dummy_observation, max_lag=4, per_env=False), env)
+    shared = DelayCfg(term=dummy_observation, max_lag=4, per_env=False).wrap(
+        dummy_observation, env.num_envs, env.device
+    )
     for step in range(12):
         env.observation = torch.full_like(previous, step)
         output = shared(env)
@@ -313,30 +318,56 @@ def test_delay_cfg_validation(settings):
     with pytest.raises(ValueError):
         cfg.validate()
     with pytest.raises(ValueError):
-        Delay(cfg, DummyEnv())
+        cfg.wrap(dummy_observation, 2, "cpu")
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_delay_schedule_cuda_graph(device):
-    """Cadence and held output advance on-device during graph replay."""
+@pytest.mark.parametrize("capture", ["torch", "warp"])
+@pytest.mark.parametrize("jitter", [False, True])
+def test_delay_schedule_cuda_graph(device, capture, jitter):
+    """Cadence, jitter, holds, and partial resets agree between eager execution and both graph owners."""
     if not device.startswith("cuda"):
         pytest.skip("CUDA graph replay requires CUDA.")
     with torch.cuda.device(device):
         env = DummyEnv(2, device)
-        delay = Delay(DelayCfg(term=dummy_observation, update_period=3, per_env_phase=False), env)
+        cfg = DelayCfg(
+            term=dummy_observation,
+            update_period=3,
+            per_env_phase=False,
+            seed=17,
+            max_lag=4 if jitter else 0,
+            hold_prob=0.2 if jitter else 0.0,
+        )
+        delay = cfg.wrap(dummy_observation, 2, device)
+        reference = cfg.wrap(dummy_observation, 2, device)
         data = torch.zeros(2, 1, device=device)
         env.observation = data
         delay(env)
-        graph = torch.cuda.CUDAGraph()
-        with torch.cuda.graph(graph):
-            output = delay(env)
+        reference(env)
+        if capture == "torch":
+            graph = torch.cuda.CUDAGraph()
+            with torch.cuda.graph(graph):
+                output = delay(env)
+            replay = graph.replay
+        else:
+            with wp.ScopedCapture(device=device) as scoped:
+                with torch.cuda.stream(wp.stream_to_torch(wp.get_stream(device))):
+                    output = delay(env)
+
+            def replay():
+                wp.capture_launch(scoped.graph)
+
         delay.reset()
-        for step in range(10):
+        reference.reset()
+        for step in range(40):
             if step == 5:
                 delay.reset([1])
+                reference.reset([1])
             data.fill_(step)
-            graph.replay()
-            expected = torch.full_like(data, step // 3 * 3)
-            if step >= 5:
-                expected[1] = 5 + (step - 5) // 3 * 3
-            torch.testing.assert_close(output, expected)
+            replay()
+            torch.testing.assert_close(output, reference(env))
+            if not jitter:
+                expected = torch.full_like(data, step // 3 * 3)
+                if step >= 5:
+                    expected[1] = 5 + (step - 5) // 3 * 3
+                torch.testing.assert_close(output, expected)

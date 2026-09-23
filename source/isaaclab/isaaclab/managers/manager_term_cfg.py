@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 import torch
 
 from ..utils import configclass
+from ..utils.composition import WrapperCfg
 from ..utils.modifiers import ModifierCfg
 from ..utils.noise import NoiseCfg, NoiseModelCfg
 from .scene_entity_cfg import SceneEntityCfg
@@ -29,7 +30,7 @@ if TYPE_CHECKING:
 class ManagerTermBaseCfg:
     """Configuration for a manager term."""
 
-    func: Callable | ManagerTermBase | ManagerTermBaseCfg = MISSING
+    func: Callable | ManagerTermBase | ManagerTermBaseCfg | WrapperCfg = MISSING
     """The function or class to be called for the term.
 
     The function must take the environment object as the first argument.
@@ -154,7 +155,7 @@ class CurriculumTermCfg(ManagerTermBaseCfg):
 class ObservationTermCfg(ManagerTermBaseCfg):
     """Configuration for an observation term."""
 
-    func: Callable[..., torch.Tensor | None] | ManagerTermBaseCfg = MISSING
+    func: Callable[..., torch.Tensor | None] | ManagerTermBaseCfg | WrapperCfg = MISSING
     """The name of the function to be called.
 
     This function should take the environment object and any other parameters

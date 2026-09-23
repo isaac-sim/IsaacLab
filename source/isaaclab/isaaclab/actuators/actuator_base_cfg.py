@@ -8,6 +8,18 @@ from __future__ import annotations
 from dataclasses import MISSING
 
 from ..utils import configclass
+from ..utils.composition import WrapperCfg
+
+
+def unwrap_actuator_cfg(cfg: ActuatorBaseCfg | WrapperCfg) -> ActuatorBaseCfg:
+    """Resolve the leaf consumed by authoring, group construction, and backend binding."""
+    if isinstance(cfg, WrapperCfg):
+        cfg, params = cfg.unwrap()
+        if params:
+            raise ValueError("Configure actuator parameters on the enclosed ActuatorBaseCfg.")
+    if not isinstance(cfg, ActuatorBaseCfg):
+        raise TypeError(f"Expected an actuator configuration, received {type(cfg)}.")
+    return cfg
 
 
 def _is_implicit_actuator_cfg(cfg: ActuatorBaseCfg) -> bool:
@@ -16,7 +28,7 @@ def _is_implicit_actuator_cfg(cfg: ActuatorBaseCfg) -> bool:
     Reads the :attr:`~isaaclab.actuators.ActuatorBase.is_implicit_model` class flag.
     Lazily resolving string references participate through attribute forwarding.
     """
-    return bool(getattr(cfg.class_type, "is_implicit_model", False))
+    return bool(getattr(unwrap_actuator_cfg(cfg).class_type, "is_implicit_model", False))
 
 
 @configclass

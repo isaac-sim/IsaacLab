@@ -14,8 +14,9 @@ from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
 from ..physics import PhysicsEvent, PhysicsManager
-from ..utils import class_to_dict, string_to_callable
+from ..utils import class_to_dict, configclass, string_to_callable
 from ..utils import string as string_utils
+from ..utils.composition import WrapperCfg
 from ..utils.modifiers import ModifierCfg
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
@@ -122,6 +123,37 @@ class ManagerTermBase(ABC):
             The value of the term.
         """
         raise NotImplementedError("The method '__call__' should be implemented by the subclass.")
+
+
+class _WrappedTerm(ManagerTermBase):
+    """Bind neutral callable mechanisms to the manager-owned source lifecycle."""
+
+    def __init__(self, cfg, env):
+        super().__init__(cfg, env)
+        self._source = cfg.source.func
+        inspect.signature(self._source).bind(env, **cfg.source.params)
+        self._evaluate = cfg.wrapper.wrap(self._evaluate_source, env.num_envs, env.device, input_supported=False)
+
+    def _evaluate_source(self, env):
+        return self._source(env, **self.cfg.source.params)
+
+    def __call__(self, env):
+        return self._evaluate(env)
+
+    def serialize(self):
+        return {"cfg": class_to_dict(self.cfg.wrapper)}
+
+    def reset(self, env_ids=None):
+        if isinstance(self._source, ManagerTermBase):
+            self._source.reset(env_ids)
+        self._evaluate.reset(env_ids)
+
+
+@configclass
+class _WrappedTermCfg(ManagerTermBaseCfg):
+    func: type = _WrappedTerm
+    wrapper: WrapperCfg | None = None
+    source: ManagerTermBaseCfg | None = None
 
 
 class ManagerBase(ABC):
@@ -333,6 +365,11 @@ class ManagerBase(ABC):
                 f"Configuration for the term '{term_name}' is not of type ManagerTermBaseCfg."
                 f" Received: '{type(term_cfg)}'."
             )
+
+        if isinstance(term_cfg.func, WrapperCfg):
+            wrapper = term_cfg.func
+            leaf, params = wrapper.unwrap()
+            term_cfg.func = _WrappedTermCfg(wrapper=wrapper, source=ManagerTermBaseCfg(func=leaf, params=params))
 
         if isinstance(term_cfg.func, ManagerTermBaseCfg):
             if term_cfg.params:

@@ -9,8 +9,7 @@ import pytest
 import torch
 
 from isaaclab.actuators import DelayedPDActuatorCfg, IdealPDActuatorCfg
-from isaaclab.managers import Delay, DelayCfg
-from isaaclab.utils import DelayBuffer
+from isaaclab.utils import DelayCfg
 from isaaclab.utils.types import ArticulationActions
 
 pytestmark = pytest.mark.integration
@@ -22,8 +21,9 @@ def test_delayed_actuator_and_observation_share_buffer(device):
     cfg = DelayedPDActuatorCfg(joint_names_expr=[".*"], stiffness=4.0, damping=5.0, min_delay=2, max_delay=2)
     actuator = cfg.class_type(cfg, joint_names=["a", "b"], joint_ids=slice(None), num_envs=2, device=device)
     env = SimpleNamespace(num_envs=2, device=device, observation=None)
-    observation = Delay(DelayCfg(term=lambda env: env.observation, min_lag=2, max_lag=2), env)
-    assert type(actuator.positions_delay_buffer) is type(observation._buffer) is DelayBuffer
+    observation = DelayCfg(term=lambda env: env.observation, min_lag=2, max_lag=2).wrap(
+        lambda env: env.observation, env.num_envs, device
+    )
     actuator.reset(None)
     zero = torch.zeros(2, 2, device=device)
     for step in range(10):
@@ -32,7 +32,7 @@ def test_delayed_actuator_and_observation_share_buffer(device):
             observation.reset([1])
         data = torch.full_like(zero, step + 10)
         targets = ArticulationActions(joint_positions=data, joint_velocities=2 * data, joint_efforts=3 * data)
-        result = actuator.compute(targets, zero, zero)
+        result = actuator(targets, zero, zero)
         env.observation = data
         delayed = observation(env)
         expected = torch.tensor([[max(0, step - 2)], [max(5 if step >= 5 else 0, step - 2)]], device=device)
@@ -182,7 +182,7 @@ def test_ideal_pd_compute(num_envs, num_joints, device, effort_lim):
         desired_vel - measured_joint_vel
     )
 
-    computed_control_action = actuator.compute(
+    computed_control_action = actuator(
         desired_control_action,
         measured_joint_pos * torch.ones(num_envs, num_joints, device=device),
         measured_joint_vel * torch.ones(num_envs, num_joints, device=device),
