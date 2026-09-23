@@ -10,6 +10,11 @@ Added
 Changed
 ^^^^^^^
 
+* Disabled render and physics scope capture when the task configuration's ``benchmark_mode``
+  was absent or ``None``, even with profiling flags enabled. Standard runtime reports remained
+  available. To collect these scopes, use a task with a non-``None`` ``benchmark_mode`` and
+  enable the corresponding profiling flags.
+
 * Changed runtime profiling to collect ordered scope timings in
   ``<output_path>/profile_timings.json``. Consumers should read its ``timings_ms`` pairs
   instead of parsing printed timer lines; use ``--output_path`` to select the output directory.

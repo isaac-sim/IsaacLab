@@ -186,8 +186,9 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             environment_step_timer = stepping.EnvironmentStepTimingRecorder(
                 env, measure_synchronized_step_breakdown=args.measure_sync_step
             )
-            profile_render = os.environ.get("ISAACLAB_RENDER_PROFILE", "0") != "0"
-            profile_physics = os.environ.get("ISAACLAB_PHYSICS_PROFILE", "0") != "0"
+            benchmark_mode = getattr(env_cfg, "benchmark_mode", None)
+            profile_render = benchmark_mode is not None and os.environ.get("ISAACLAB_RENDER_PROFILE", "0") != "0"
+            profile_physics = benchmark_mode is not None and os.environ.get("ISAACLAB_PHYSICS_PROFILE", "0") != "0"
             profile_timings: list[tuple[str, float]] = []
             stepping.profile_renderers(
                 env.unwrapped.sim.render_context,

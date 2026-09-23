@@ -7,6 +7,7 @@
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -17,11 +18,12 @@ _TASK = "Isaac-Cartpole-Direct"
 
 
 @pytest.mark.parametrize("measure_sync_step", [False, True], ids=["default", "synchronized_breakdown"])
-def test_runtime_writes_all_requested_formats(tmp_path, measure_sync_step: bool):
-    """The runtime entry point writes schema and OmniPerf data in one run."""
+def test_runtime_writes_all_requested_formats(tmp_path, monkeypatch, measure_sync_step: bool):
+    """Tasks without a benchmark mode write reports without collecting profiling scopes."""
+    monkeypatch.setenv("ISAACLAB_RENDER_PROFILE", "1")
+    monkeypatch.setenv("ISAACLAB_PHYSICS_PROFILE", "1")
     cmd = [
-        str(ROOT / "isaaclab.sh"),
-        "-p",
+        sys.executable,
         "scripts/benchmarks/runtime.py",
         "--task",
         _TASK,
@@ -52,6 +54,7 @@ def test_runtime_writes_all_requested_formats(tmp_path, measure_sync_step: bool)
     assert device_lines and device_lines[-1].endswith(": cpu"), f"unexpected device output: {device_lines}"
 
     files = sorted(tmp_path.glob("*.json"))
+    assert not (tmp_path / "profile_timings.json").exists()
     schema_files = [path for path in files if path.name.endswith("_schema.json")]
     omniperf_files = [path for path in files if path.name.endswith("_omniperf.json")]
     assert len(schema_files) == len(omniperf_files) == 1

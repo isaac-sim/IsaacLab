@@ -78,6 +78,10 @@ environment-step rate. Runtime samples random actions before starting the
 runtime run, ``runtime.collection_fps`` and ``runtime.total_fps`` describe the
 same random-action stepping workload.
 
+Render and physics scope profiling requires a non-``None`` ``benchmark_mode`` in the
+task configuration. If the field is absent or ``None``, both scopes remain disabled
+even when their profiling flags are set; standard runtime reports are still produced.
+
 Set ``ISAACLAB_PHYSICS_PROFILE=1`` to collect synchronized physics-step timings during
 the runtime measurement loop. The benchmark wraps the selected physics
 manager's ``step`` through :func:`~isaaclab.benchmark.stepping.profile_physics_steps`
