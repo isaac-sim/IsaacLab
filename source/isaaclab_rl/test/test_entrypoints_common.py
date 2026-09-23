@@ -284,7 +284,7 @@ def test_run_summary_reports_concrete_backends(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The summary reports concrete backends and launcher-owned automatic choices."""
-    import isaaclab_tasks  # noqa: F401
+    import isaaclab_tasks.registry  # noqa: F401
     from isaaclab_tasks.utils import resolve_task_config
 
     task = "Isaac-Cartpole-Camera-Direct"
@@ -302,7 +302,7 @@ def test_run_summary_reports_concrete_backends(
 
 def test_apply_env_overrides_records_the_deterministic_request(monkeypatch: pytest.MonkeyPatch) -> None:
     """The deterministic option is recorded in the physics configuration."""
-    import isaaclab_tasks  # noqa: F401
+    import isaaclab_tasks.registry  # noqa: F401
     from isaaclab_tasks.utils import resolve_task_config
 
     monkeypatch.setattr(rl_common.sys, "argv", ["train.py"])
@@ -319,7 +319,7 @@ def test_apply_env_overrides_records_the_deterministic_request(monkeypatch: pyte
 
 def test_apply_env_overrides_leaves_physics_alone_without_the_flag(monkeypatch: pytest.MonkeyPatch) -> None:
     """Without ``--deterministic`` the physics config is untouched."""
-    import isaaclab_tasks  # noqa: F401
+    import isaaclab_tasks.registry  # noqa: F401
     from isaaclab_tasks.utils import resolve_task_config
 
     monkeypatch.setattr(rl_common.sys, "argv", ["train.py"])

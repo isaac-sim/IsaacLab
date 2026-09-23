@@ -15,7 +15,7 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 import isaaclab.envs.mdp as mdp
 from isaaclab.actuators import IdealPDActuatorCfg
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.utils.hydra import PresetCfg, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 from isaaclab_tasks.utils.preset_cli import enumerate_task_presets

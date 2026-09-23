@@ -34,7 +34,7 @@ For example, here is how you would wrap an environment to enforce that reset is 
 
     import gymnasium as gym
 
-    import isaaclab_tasks  # noqa: F401
+    import isaaclab_tasks.registry  # noqa: F401
     from isaaclab_tasks.utils import load_cfg_from_registry
 
     # create base environment

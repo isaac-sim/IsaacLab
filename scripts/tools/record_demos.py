@@ -191,7 +191,7 @@ from isaaclab.managers import DatasetExportMode
 import isaaclab_mimic.envs  # noqa: F401
 from isaaclab_mimic.ui.instruction_display import InstructionDisplay, show_subtask_instructions
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 

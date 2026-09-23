@@ -410,7 +410,7 @@ from isaaclab_teleop import IsaacTeleopDevice, create_isaac_teleop_device, poll_
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.envs import ManagerBasedRLEnvCfg
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
 
 logger = logging.getLogger(__name__)

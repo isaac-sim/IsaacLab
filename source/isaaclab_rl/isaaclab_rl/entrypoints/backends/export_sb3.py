@@ -24,7 +24,7 @@ from stable_baselines3.common.save_util import load_from_pkl, load_from_zip_file
 
 from isaaclab.utils.assets import retrieve_file_path
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 
 from ..common import (
     CHECKPOINT_SELECTORS,

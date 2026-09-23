@@ -23,7 +23,7 @@ from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 from ...rl_games import MultiObserver, PbtAlgoObserver, RlGamesVecEnvWrapper, register_rl_games_env

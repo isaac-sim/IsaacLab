@@ -94,7 +94,7 @@ from isaaclab_rl.utils.pretrained_checkpoint import (
     has_pretrained_checkpoints_asset_root_dir,
 )
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
 from isaaclab_tasks.utils.hydra import resolve_task_config
 from isaaclab_tasks.utils.preset_cli import enumerate_task_presets

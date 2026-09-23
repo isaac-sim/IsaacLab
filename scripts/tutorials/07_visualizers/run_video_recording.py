@@ -48,7 +48,7 @@ import sys
 import gymnasium as gym
 import torch
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 
 with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401

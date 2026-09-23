@@ -125,14 +125,16 @@ As an example, the following shows the registration call for the cartpole enviro
 Creating the environment
 ------------------------
 
-To inform the ``gym`` registry with all the environments provided by the ``isaaclab_tasks``
-extension, we must import the module at the start of the script. This will execute the ``__init__.py``
-file which iterates over all the sub-packages and registers their respective environments.
+To register all built-in ``isaaclab_tasks`` environments with Gymnasium, import
+``isaaclab_tasks.registry`` at the start of the script. This module imports the task
+sub-packages, whose ``__init__.py`` files register their environments. Importing
+``isaaclab_tasks`` or an individual task module alone does not register unrelated
+environments.
 
 .. literalinclude:: ../../../source/isaaclab_rl/isaaclab_rl/entrypoints/simple_agents.py
    :language: python
-   :start-at: import isaaclab_tasks  # noqa: F401
-   :end-at: import isaaclab_tasks  # noqa: F401
+   :start-at: import isaaclab_tasks.registry  # noqa: F401
+   :end-at: import isaaclab_tasks.registry  # noqa: F401
 
 In this tutorial, the task name is read from the command line. The task name is used to parse
 the default configuration as well as to create the environment instance. In addition, other

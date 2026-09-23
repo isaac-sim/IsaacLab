@@ -105,6 +105,7 @@ It includes the following modules:
 .. autosummary::
    :toctree: lab_tasks
 
+   registry
    utils
 
 isaaclab_teleop extension

@@ -147,7 +147,7 @@ def _resolve_default_library(argv: list[str], backends: dict[str, str]) -> str |
         return None
 
     # task registration is deferred until a task name asks for it
-    import isaaclab_tasks  # noqa: F401
+    import isaaclab_tasks.registry  # noqa: F401
 
     try:
         default_library = gym.spec(args.task.split(":")[-1]).kwargs.get("default_agent")

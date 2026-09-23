@@ -121,7 +121,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
     # Importing the task packages registers their gym environments so the
     # requested ``--task`` can be resolved.
-    import isaaclab_tasks  # noqa: F401
+    import isaaclab_tasks.registry  # noqa: F401
     from isaaclab_tasks.utils import resolve_task_config
 
     # PLACEHOLDER: Extension template (do not remove this comment)

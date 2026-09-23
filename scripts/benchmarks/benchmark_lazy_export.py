@@ -10,10 +10,10 @@ user-facing cost that includes gym registry walking, lazy_export stub parsing,
 fallback resolution, module imports, and config class instantiation.
 
 Each iteration fully purges task modules and the gym registration guard so
-that the next ``import isaaclab_tasks`` re-walks every task package and
+that the next ``import isaaclab_tasks.registry`` re-walks every task package and
 re-registers every gym environment, matching a fresh-process cold start.
 
-The report separates **package loading** (``import isaaclab_tasks`` — registry
+The report separates **package loading** (``import isaaclab_tasks.registry`` — registry
 walk + gym registrations) from **config construction**
 (``load_cfg_from_registry`` — module import + class instantiation).
 
@@ -41,7 +41,7 @@ import gymnasium
 
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", UserWarning)
-    import isaaclab_tasks  # noqa: F401
+    import isaaclab_tasks.registry  # noqa: F401
 
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
@@ -168,7 +168,7 @@ def main():
 
     pkg, cfg, total = benchmark(tasks, n)
 
-    _print_table("Package loading (import isaaclab_tasks — registry walk)", pkg)
+    _print_table("Package loading (import isaaclab_tasks.registry — registry walk)", pkg)
     _print_table("Config construction (load_cfg_from_registry)", cfg)
     _print_table("Total (package loading + config construction)", total)
 

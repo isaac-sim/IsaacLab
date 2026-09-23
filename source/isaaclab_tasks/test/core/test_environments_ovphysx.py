@@ -11,7 +11,7 @@ import pytest
 # this backend install the wheel explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
-import isaaclab_tasks  # noqa: E402, F401
+import isaaclab_tasks.registry  # noqa: E402, F401
 
 # Local imports should be imported last
 from env_test_utils import SINGLE_ENVIRONMENT_TASKS, _run_environments, setup_environment  # isort: skip

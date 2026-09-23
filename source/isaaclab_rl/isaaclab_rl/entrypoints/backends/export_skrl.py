@@ -23,7 +23,7 @@ from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 
 from ...skrl import SkrlVecEnvWrapper, check_skrl_version, import_skrl_runner, resolve_skrl_algorithm
 from ..common import resolve_published_checkpoint

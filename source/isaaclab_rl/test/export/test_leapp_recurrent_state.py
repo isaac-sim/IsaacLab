@@ -80,7 +80,7 @@ def test_rl_games_recurrent_state(rnn_type: Literal["lstm", "gru"]) -> None:
     import gymnasium as gym
     from rl_games.algos_torch.players import PpoPlayerContinuous
 
-    import isaaclab_tasks  # noqa: F401
+    import isaaclab_tasks.registry  # noqa: F401
     from isaaclab_tasks.utils import load_cfg_from_registry
 
     params = load_cfg_from_registry("Isaac-Cartpole", "rl_games_cfg_entry_point")["params"]

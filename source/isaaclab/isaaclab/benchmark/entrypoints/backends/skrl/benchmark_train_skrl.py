@@ -238,7 +238,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
 
     from isaaclab_rl.skrl import SkrlVecEnvWrapper, resolve_skrl_agent_cfg_entry_point, resolve_skrl_algorithm
 
-    import isaaclab_tasks  # noqa: F401
+    import isaaclab_tasks.registry  # noqa: F401
 
     with contextlib.suppress(ImportError):
         import isaaclab_tasks_experimental  # noqa: F401

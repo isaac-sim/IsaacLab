@@ -33,7 +33,7 @@ Remediation patterns
 Performance note
 ----------------
 All task checks are batched into a **single subprocess** so that
-``import isaaclab_tasks`` (~1.6 s) is paid only once instead of once per test.
+``import isaaclab_tasks.registry`` (~1.6 s) is paid only once instead of once per test.
 Results are returned as JSON and cached for the parametrized test functions.
 """
 
@@ -46,7 +46,7 @@ import gymnasium
 import isaaclab_tasks_experimental  # noqa: F401 -- triggers experimental task registration
 import pytest
 
-import isaaclab_tasks  # noqa: F401 -- triggers task registration
+import isaaclab_tasks.registry  # noqa: F401 -- triggers task registration
 
 # Forbidden module prefixes -- these must NOT appear in sys.modules after
 # config loading because they require SimulationApp / a specific physics
@@ -68,7 +68,7 @@ _ALL_ISAAC_TASKS = sorted(
 
 # ---------------------------------------------------------------------------
 # Batch subprocess: run all checks in one Python process so we only pay the
-# `import isaaclab_tasks` cost once (~1.6 s) instead of once per test.
+# `import isaaclab_tasks.registry` cost once (~1.6 s) instead of once per test.
 # ---------------------------------------------------------------------------
 
 
@@ -79,7 +79,7 @@ def _build_batch_script(task_names: list[str]) -> str:
         FORBIDDEN = {list(_FORBIDDEN_PREFIXES)!r}
         task_names = {task_names!r}
 
-        import isaaclab_tasks  # noqa: F401
+        import isaaclab_tasks.registry  # noqa: F401
         import isaaclab_tasks_experimental  # noqa: F401
         from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 

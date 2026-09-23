@@ -36,7 +36,7 @@ def command_list_envs(args: list[str] | None = None) -> None:
     import gymnasium as gym
     from prettytable import PrettyTable
 
-    import isaaclab_tasks  # noqa: F401
+    import isaaclab_tasks.registry  # noqa: F401
 
     # PLACEHOLDER: Extension template (do not remove this comment)
     with contextlib.suppress(ImportError):

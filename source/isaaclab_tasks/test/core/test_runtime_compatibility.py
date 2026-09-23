@@ -27,7 +27,7 @@ from isaaclab.app import scan
 from isaaclab.app.sim_launcher import _get_kit_runtime_sources, _validate_runtime, launch_simulation
 from isaaclab.physics import PhysxAutoCfg
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
 
 _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Direct"

@@ -46,7 +46,7 @@ import warp as wp
 
 from isaaclab.assets.rigid_object.rigid_object_data import RigidObjectData
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.contrib.lift.lift_env_cfg import LiftEnvCfg
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 

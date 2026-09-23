@@ -52,7 +52,7 @@ from environ_docs import (  # noqa: E402
     render_environment_browser_task_rows,
 )
 
-import isaaclab_tasks  # noqa: E402, F401
+import isaaclab_tasks.registry  # noqa: E402, F401
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):

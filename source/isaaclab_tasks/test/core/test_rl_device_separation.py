@@ -49,7 +49,7 @@ import torch
 
 import isaaclab.sim as sim_utils
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 # Test environment - use Cartpole as it's simple and fast

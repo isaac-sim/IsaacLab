@@ -22,7 +22,7 @@ import gymnasium as gym
 
 from isaaclab.utils.assets import retrieve_file_path
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 
 from ...rsl_rl import (
     RslRlBaseRunnerCfg,

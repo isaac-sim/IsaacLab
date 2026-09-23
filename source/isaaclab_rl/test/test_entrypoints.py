@@ -804,7 +804,7 @@ def test_skrl_training_parser_leaves_algorithm_implicit(monkeypatch) -> None:
 @pytest.mark.parametrize("motion", ["Dance", "Run", "Walk"])
 def test_humanoid_amp_tasks_register_canonical_skrl_config(motion) -> None:
     """SKRL-only AMP tasks work through the same canonical entry point as other tasks."""
-    import isaaclab_tasks  # noqa: F401
+    import isaaclab_tasks.registry  # noqa: F401
     from isaaclab_tasks.utils import load_cfg_from_registry
 
     spec = gym.spec(f"IsaacContrib-Humanoid-AMP-{motion}-Direct")

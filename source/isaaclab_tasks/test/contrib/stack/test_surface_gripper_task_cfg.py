@@ -5,7 +5,7 @@
 
 import pytest
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 _SURFACE_GRIPPER_TASKS = [

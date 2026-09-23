@@ -25,7 +25,7 @@ from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 
-import isaaclab_tasks  # noqa: F401
+import isaaclab_tasks.registry  # noqa: F401
 
 from ...rl_games import RlGamesVecEnvWrapper, register_rl_games_env
 from ..common import resolve_published_checkpoint
