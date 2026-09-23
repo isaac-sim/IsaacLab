@@ -12,7 +12,6 @@ Covers all combinations of:
 
 import os
 import subprocess
-import sys
 from contextlib import contextmanager
 from pathlib import Path
 from unittest import mock
@@ -23,7 +22,6 @@ import isaaclab.cli.commands.install as install_cmd
 from isaaclab.cli.commands.install import (
     _PREBUNDLE_REPOINT_PACKAGES,
     _ensure_cuda_torch,
-    _install_desktop_icons_best_effort,
     _install_isaacsim,
     _maybe_uninstall_prebundled_torch,
     _repoint_prebundle_packages,
@@ -997,50 +995,3 @@ class TestInstallRootExtraExcludesIsaacSim:
         installed = " ".join(" ".join(call.args[0]) for call in mock_run.call_args_list)
         assert "isaacsim[all,extscache]" not in installed
         assert "isaacteleop" in installed
-
-
-# ---------------------------------------------------------------------------
-# _install_desktop_icons_best_effort
-# ---------------------------------------------------------------------------
-
-
-def test_install_desktop_icons_best_effort_calls_install_desktop_icons():
-    """Test the happy path actually invokes the underlying installer."""
-    with mock.patch("isaaclab.utils.desktop_icons.install_desktop_icons") as mock_install:
-        _install_desktop_icons_best_effort()
-
-    mock_install.assert_called_once_with()
-
-
-def test_install_desktop_icons_best_effort_swallows_import_errors(monkeypatch):
-    """Test a broken transitive import never escapes ``./isaaclab.sh -i``.
-
-    Regression test for an ARM installation-test failure: ``isaaclab.utils``'s own
-    ``__init__`` (needed by ``from ...utils.desktop_icons import install_desktop_icons``) can
-    fail with ``ModuleNotFoundError`` if a transitive dependency (e.g. ``lazy_loader``) is
-    briefly missing mid-install. The previous, unguarded ``from ...utils.desktop_icons import
-    install_desktop_icons`` at the ``command_install`` call site let that escape and crash a
-    completed install; this cosmetic step must never be able to do that.
-
-    Simulated here by poisoning ``sys.modules["isaaclab.utils.desktop_icons"]`` with a stand-in
-    module whose attribute access always raises ``ModuleNotFoundError``: Python's import
-    machinery resolves the relative import in ``_install_desktop_icons_best_effort`` to that
-    absolute dotted name and finds it already in ``sys.modules``, so this reproduces the failure
-    regardless of relative-import level mechanics.
-    """
-
-    class _BrokenModule:
-        def __getattr__(self, name):
-            raise ModuleNotFoundError("No module named 'lazy_loader'")
-
-    monkeypatch.setitem(sys.modules, "isaaclab.utils.desktop_icons", _BrokenModule())
-
-    # Must not raise.
-    _install_desktop_icons_best_effort()
-
-
-def test_install_desktop_icons_best_effort_swallows_runtime_errors():
-    """Test a failure inside install_desktop_icons() itself is also swallowed, not just import errors."""
-    with mock.patch("isaaclab.utils.desktop_icons.install_desktop_icons", side_effect=RuntimeError("boom")):
-        # Must not raise.
-        _install_desktop_icons_best_effort()

@@ -14,7 +14,12 @@ import re
 import subprocess
 import sys
 
-from isaaclab.utils.desktop_icons import _has_graphical_session, refresh_desktop_database, xdg_data_home
+from isaaclab.utils.desktop_icons import (
+    _has_graphical_session,
+    install_desktop_icons,
+    refresh_desktop_database,
+    xdg_data_home,
+)
 
 _DEFAULT_VSCODE_SETTINGS_TEMPLATE = """
 {
@@ -75,9 +80,13 @@ def setup_editor(project_dir: pathlib.Path, isaac_path: str | None = None, verbo
 
     # Desktop icon integration is a convenience, not something that should block the rest of
     # this command -- an unwritable home directory or unreadable kit file shouldn't turn a
-    # successful editor-settings run into a hard crash.
+    # successful editor-settings run into a hard crash. install_desktop_icons() already never
+    # raises on its own (see its docstring); it's called here, alongside the Kit desktop entry,
+    # so isaaclab --editor (and isaaclab.sh -i, which calls this) has a single place that sets
+    # up all Linux desktop icons.
     try:
         setup_desktop_entry(project_dir)
+        install_desktop_icons()
     except (OSError, RuntimeError, UnicodeDecodeError) as error:
         print(f"[WARN] Skipped desktop entry generation: {error}")
 

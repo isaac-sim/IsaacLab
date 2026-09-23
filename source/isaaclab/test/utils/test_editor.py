@@ -8,7 +8,7 @@ import sys
 
 import pytest
 
-from isaaclab.utils.editor import _find_isaac_sim_icon, _read_kit_window_identity, setup_desktop_entry
+from isaaclab.utils.editor import _find_isaac_sim_icon, _read_kit_window_identity, setup_desktop_entry, setup_editor
 
 pytestmark = pytest.mark.unit
 
@@ -277,3 +277,42 @@ def test_setup_desktop_entry_warns_when_icon_missing(
     output = capsys.readouterr().out
     assert "[WARN]" in output
     assert "Isaac Sim icon asset not found" in output
+
+
+def test_setup_editor_installs_newton_desktop_icons(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch):
+    """Test setup_editor() also installs the Newton viewer desktop icons, not just Kit's.
+
+    install_desktop_icons() is called here rather than as a separate step elsewhere (e.g. at the
+    tail of ``isaaclab.sh -i``), so isaaclab --editor has a single place that sets up all Linux
+    desktop icons.
+    """
+    monkeypatch.setattr("isaaclab.utils.editor.resolve_isaacsim_dir", lambda *args, **kwargs: None)
+    monkeypatch.setattr("isaaclab.utils.editor.setup_desktop_entry", lambda project_dir: None)
+    install_calls = []
+    monkeypatch.setattr("isaaclab.utils.editor.install_desktop_icons", lambda: install_calls.append(True))
+
+    setup_editor(tmp_path)
+
+    assert install_calls == [True]
+
+
+def test_setup_editor_swallows_desktop_icon_install_failure(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+):
+    """Test a failure from install_desktop_icons() is swallowed the same way setup_desktop_entry()'s are.
+
+    install_desktop_icons() already documents a never-raises contract on its own, but this
+    confirms setup_editor()'s guard covers it too, in case that contract is ever violated.
+    """
+    monkeypatch.setattr("isaaclab.utils.editor.resolve_isaacsim_dir", lambda *args, **kwargs: None)
+    monkeypatch.setattr("isaaclab.utils.editor.setup_desktop_entry", lambda project_dir: None)
+
+    def _raise():
+        raise OSError("disk full")
+
+    monkeypatch.setattr("isaaclab.utils.editor.install_desktop_icons", _raise)
+
+    setup_editor(tmp_path)  # must not raise
+
+    output = capsys.readouterr().out
+    assert "[WARN]" in output
