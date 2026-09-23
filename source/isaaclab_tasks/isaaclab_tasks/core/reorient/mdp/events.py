@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Reset events for state-based in-hand reorientation tasks."""
+"""Event terms for the in-hand reorientation environments."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
 
-from isaaclab_tasks.core.reorient.utils import sample_joint_positions_within_limits
+from ..utils import sample_joint_positions_within_limits
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation

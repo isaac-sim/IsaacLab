@@ -92,6 +92,10 @@ require additional VRAM. Confirm your machine against the `Isaac Sim system requ
 
 Isaac Sim 5.1 and older are not supported. Use Isaac Sim 6.1 with Python 3.12.
 
+The CUDA 13.0 PyTorch build requires NVIDIA driver ``580.65.06`` or newer on Linux and
+``580.88`` or newer on Windows, as documented in the `PyTorch 2.12 release announcement
+<https://pytorch.org/blog/pytorch-2-12-release-blog/>`__. CUDA 13.0 wheels support Blackwell GPUs.
+
 Use the latest NVIDIA production branch driver. Version ``580.95.05`` or later is recommended on
 Linux x86_64 and aarch64, ``580.142`` on DGX Spark, and ``581.42.00`` on Windows. If a new GPU or
 driver issue requires a newer release, use the production driver from the `Unix Driver Archive
@@ -238,6 +242,11 @@ See :ref:`installation-optional-extras` for the available extras.
 
 ``uv run --extra <name> <command>`` syncs the selected extra into the project environment
 and then runs the command.
+
+The source checkout selects PyTorch's CUDA 13.0 build on Linux x86_64, Linux aarch64, and Windows.
+No additional command flags are needed.
+The published wheel pins the PyTorch versions, but downstream uv projects must configure their own
+PyTorch indexes because uv does not inherit a dependency project's ``tool.uv.sources`` settings.
 
 Head over to the :doc:`/source/setup/quickstart`, which starts with your first task and
 introduces the available commands, RL libraries, backends, and visualizers.
@@ -423,7 +432,7 @@ Create and activate a Python 3.12 environment:
          conda create -n env_isaaclab python=3.12
          conda activate env_isaaclab
 
-Install Isaac Sim and the CUDA-enabled PyTorch build for your platform:
+Install Isaac Sim and the CUDA 13.0 PyTorch build for your platform:
 
 .. tab-set::
    :sync-group: python-environment
@@ -450,12 +459,12 @@ Install Isaac Sim and the CUDA-enabled PyTorch build for your platform:
          .. tab-item:: uv environment (recommended)
             :sync: uv
 
-            .. isaaclab-torch-install:: cu128
+            .. isaaclab-torch-install:: cu130
 
          .. tab-item:: conda environment
             :sync: conda
 
-            .. isaaclab-torch-install:: cu128 pip
+            .. isaaclab-torch-install:: cu130 pip
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
       :sync: windows-x86_64
@@ -466,12 +475,12 @@ Install Isaac Sim and the CUDA-enabled PyTorch build for your platform:
          .. tab-item:: uv environment (recommended)
             :sync: uv
 
-            .. isaaclab-torch-install:: cu128
+            .. isaaclab-torch-install:: cu130
 
          .. tab-item:: conda environment
             :sync: conda
 
-            .. isaaclab-torch-install:: cu128 pip
+            .. isaaclab-torch-install:: cu130 pip
 
    .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
       :sync: linux-aarch64
@@ -585,6 +594,12 @@ resources as a released wheel:
 Use a commit hash or release tag for reproducible environments. A branch name is accepted, but
 updating the lockfile can then select a newer Isaac Lab revision and dependency set.
 
+Installing the published wheel
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use NVIDIA's package index for the |isaaclab_wheel_version| prerelease. Do not use the
+``[tool.uv.sources]`` Git entry from the previous workflow when installing the published wheel.
+
 Choose how you want uv to manage the dependency. Both workflows start with the base
 ``isaaclab`` package; add optional capabilities only when your project needs them.
 
@@ -596,7 +611,7 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
 
          uv init --python 3.12 my_isaaclab_project
          cd my_isaaclab_project
-         uv add isaaclab
+         uv add --index https://pypi.nvidia.com isaaclab==3.0.0rc1
 
    .. tab-item:: Standalone uv environment
 
@@ -610,7 +625,7 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
 
                uv venv --python 3.12 env_isaaclab
                source env_isaaclab/bin/activate
-               uv pip install isaaclab
+               uv pip install --index https://pypi.nvidia.com isaaclab==3.0.0rc1
 
          .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
             :sync: windows-x86_64
@@ -619,7 +634,7 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
 
                uv venv --python 3.12 env_isaaclab
                env_isaaclab\Scripts\activate
-               uv pip install isaaclab
+               uv pip install --index https://pypi.nvidia.com isaaclab==3.0.0rc1
 
          .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
             :sync: linux-aarch64
@@ -628,7 +643,7 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
 
                uv venv --python 3.12 env_isaaclab
                source env_isaaclab/bin/activate
-               uv pip install isaaclab
+               uv pip install --index https://pypi.nvidia.com isaaclab==3.0.0rc1
 
 The project workflow records the dependency in ``pyproject.toml`` and updates ``uv.lock``. Use it
 when Isaac Lab is part of an application you maintain; use a standalone environment for exploratory
@@ -657,7 +672,7 @@ have dedicated commands below.
      - Both OV backends: OV PhysX and OV RTX.
    * - ``ovphysx`` / ``ovrtx``
      - OV PhysX only / OV RTX only.
-   * - ``sb3`` / ``skrl`` / ``rsl-rl`` / ``rlinf``
+   * - ``sb3`` / ``skrl`` / ``rsl-rl`` / ``rlinf`` / ``torchrl``
      - The corresponding RL framework.
    * - ``rerun`` / ``viser``
      - The corresponding visualizer.
@@ -719,7 +734,7 @@ Add other extras inside the brackets when needed; for example, use
 Installing CUDA-enabled PyTorch
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Install the CUDA-enabled PyTorch build appropriate for your system architecture:
+Install the CUDA 13.0 PyTorch build using the commands for your platform:
 
 .. tab-set::
    :sync-group: pip-platform
@@ -727,12 +742,12 @@ Install the CUDA-enabled PyTorch build appropriate for your system architecture:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64)
       :sync: linux-x86_64
 
-      .. isaaclab-torch-install:: cu128
+      .. isaaclab-torch-install:: cu130
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
       :sync: windows-x86_64
 
-      .. isaaclab-torch-install:: cu128
+      .. isaaclab-torch-install:: cu130
 
    .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
       :sync: linux-aarch64

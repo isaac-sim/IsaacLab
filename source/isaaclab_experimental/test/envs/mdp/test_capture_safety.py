@@ -63,8 +63,6 @@ import isaaclab.envs.mdp.rewards as stable_rew
 import isaaclab.envs.mdp.terminations as stable_term
 from isaaclab.managers.manager_term_cfg import RewardTermCfg, TerminationTermCfg
 
-import isaaclab_tasks.core.locomotion.mdp.rewards as stable_loco_rew
-
 
 @dataclasses.dataclass(frozen=True)
 class CaptureCase:
@@ -208,7 +206,7 @@ def _build_terminated_penalty() -> CaptureCase:
 
     return CaptureCase(
         warp_fn=warp_loco_rew.terminated_penalty,
-        stable_fn=stable_loco_rew.terminated_penalty,
+        stable_fn=stable_rew.terminated_penalty,
         warp_env=env,
         stable_env=env,
         params={},
@@ -228,8 +226,8 @@ def _build_survival_success_rate() -> CaptureCase:
 
     return CaptureCase(
         warp_fn=warp_loco_rew.survival_success_rate(cfg, env),
-        stable_fn=stable_loco_rew.survival_success_rate(
-            RewardTermCfg(func=stable_loco_rew.survival_success_rate, weight=0.0, params={}), env
+        stable_fn=stable_rew.survival_success_rate(
+            RewardTermCfg(func=stable_rew.survival_success_rate, weight=0.0, params={}), env
         ),
         warp_env=env,
         stable_env=env,
@@ -394,7 +392,7 @@ def _discover_warp_mdp_terms() -> set[str]:
     """Return every public warp MDP term as a ``"<module>:<name>"`` identity.
 
     Qualified rather than bare: the same term name legitimately appears in more than one task
-    mirror (``survival_success_rate`` is defined by both cartpole and locomotion), and keying
+    mirror (``survival_success_rate`` is twinned by both cartpole and locomotion), and keying
     by name alone would let a spec for one of them mark the other as declared.
     """
     terms: set[str] = set()

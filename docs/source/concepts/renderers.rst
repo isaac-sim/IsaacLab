@@ -392,11 +392,13 @@ Architecture Overview
 The renderer system consists of:
 
 1. **BaseRenderer** — Abstract base class defining the rendering lifecycle and interface
-2. **RendererCfg** — Base configuration; each backend extends it with backend-specific options and declares
+2. **RendererCfg** — A ``BackendCfg`` subclass; each backend extends it with backend-specific options and declares
    its implementation in ``class_type``
 3. **Concrete implementations** — Backend-specific renderers in extension packages
-4. **RenderContext** — A management class for instantiating and accessing renderer instances using a **RendererCfg**.
-   After instantiation, a config can then be used to acquire the instance of the renderer as needed.
+4. **SimulationContext** — Owns renderer instances in its backend registry and shares them across equal configurations
+   of the same concrete type through ``get_or_create_backend(renderer_cfg)``.
+5. **RenderContext** — Coordinates initialization, stage preparation, scene updates, and material writers using
+   a filtered view of the simulation registry. It does not construct, cache, or close renderer instances.
 
 .. code-block:: python
 
@@ -406,9 +408,8 @@ The renderer system consists of:
 
    # Create a Newton Warp renderer (no Isaac Sim required)
    sim_ctx = sim_utils.SimulationContext.instance()
-   # RenderContext.get_renderer constructs cfg.class_type(cfg)
-   # or return an existing renderer with a matching config
-   renderer: BaseRenderer = sim_ctx.render_context.get_renderer(NewtonWarpRendererCfg())
+   # Construct cfg.class_type(cfg) or reuse a renderer with a matching config.
+   renderer: BaseRenderer = sim_ctx.get_or_create_backend(NewtonWarpRendererCfg())
    assert isinstance(renderer, BaseRenderer)
 
 For the RTX renderer (requires Isaac Sim):
@@ -421,9 +422,8 @@ For the RTX renderer (requires Isaac Sim):
 
    # Create an RTX renderer
    sim_ctx = sim_utils.SimulationContext.instance()
-   # RenderContext.get_renderer constructs cfg.class_type(cfg)
-   # or return an existing renderer with a matching config
-   renderer: BaseRenderer = sim_ctx.render_context.get_renderer(IsaacRtxRendererCfg())
+   # Construct cfg.class_type(cfg) or reuse a renderer with a matching config.
+   renderer: BaseRenderer = sim_ctx.get_or_create_backend(IsaacRtxRendererCfg())
 
 For RTX renderer settings, see
 :doc:`/source/how-to/configure_rendering`.
@@ -431,8 +431,8 @@ For RTX renderer settings, see
 Core concepts
 -------------
 
-- **Use the RenderContext**: Always acquire renderers via the RenderContext with a renderer-specific config class
-  (e.g. ``sim_ctx.render_context.get_renderer(IsaacRtxRendererCfg())``). Do not import or instantiate concrete backend classes
+- **Use the simulation registry**: Always acquire renderers with a renderer-specific config class through
+  ``sim_ctx.get_or_create_backend(IsaacRtxRendererCfg())``. Do not import or instantiate concrete backend classes
   (e.g. ``IsaacRtxRenderer``, ``OVRTXRenderer``) directly—their names and package locations are
   implementation details and may change without notice.
 
@@ -449,7 +449,7 @@ Core concepts
 
      # Lazily loads ovrtx when instantiated; may fail if isaaclab_ov / ovrtx is not installed
      sim_ctx = sim_utils.SimulationContext.instance()
-     renderer: BaseRenderer = sim_ctx.render_context.get_renderer(OVRTXRendererCfg())
+     renderer: BaseRenderer = sim_ctx.get_or_create_backend(OVRTXRendererCfg())
 
 Installing the OVRTX renderer
 ------------------------------

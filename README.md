@@ -47,12 +47,12 @@ Isaac Lab offers a comprehensive set of tools and environments designed to facil
 
 ### Documentation
 
-Our [documentation page](https://isaac-sim.github.io/IsaacLab) provides everything you need to get started, including
+Our [documentation page](https://isaac-sim.github.io/IsaacLab/develop/) provides everything you need to get started, including
 detailed tutorials and step-by-step guides. Follow these links to learn more about:
 
-- [Installation steps](https://isaac-sim.github.io/IsaacLab/develop/source/setup/installation/index.html#local-installation)
-- [Reinforcement learning](docs/source/concepts/reinforcement_learning.rst)
-- [Tutorials](https://isaac-sim.github.io/IsaacLab/develop/source/tutorials/index.html)
+- [Installation steps](https://isaac-sim.github.io/IsaacLab/develop/source/setup/installation/index.html)
+- [Reinforcement learning](https://isaac-sim.github.io/IsaacLab/develop/source/concepts/reinforcement_learning.html)
+- [Tutorials and how-to guides](https://isaac-sim.github.io/IsaacLab/develop/source/how-to/index.html)
 - [Available environments](https://isaac-sim.github.io/IsaacLab/develop/source/setup/environments.html)
 
 ## Performance Dashboard
@@ -71,10 +71,10 @@ dependency versions for Isaac Sim.
 | Isaac Lab Version             | Isaac Sim Version         |
 | ----------------------------- | ------------------------- |
 | `release/3.0.0` branch        | Isaac Sim 6.1             |
-| `release/3.0.0-beta2` branch  | Isaac Sim 6.0             |
 | `develop` branch              | Isaac Sim 6.1             |
 | `main` branch                 | Isaac Sim 4.5 / 5.0 / 5.1 |
-| `v3.0.0*`                     | Isaac Sim 6.0             |
+| `v3.0.0-EA` tag               | Isaac Sim 6.1             |
+| `v3.0.0-beta2` tag            | Isaac Sim 6.0             |
 | `v2.3.X`                      | Isaac Sim 4.5 / 5.0 / 5.1 |
 | `v2.2.X`                      | Isaac Sim 4.5 / 5.0       |
 | `v2.1.X`                      | Isaac Sim 4.5             |

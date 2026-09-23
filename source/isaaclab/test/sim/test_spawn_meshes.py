@@ -15,6 +15,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import numpy as np
 import pytest
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -250,14 +251,14 @@ Physics properties.
 def test_spawn_cone_with_all_rigid_props(sim):
     """Test spawning of UsdGeomMesh prim for a cone with all rigid properties."""
     # Spawn cone
+    usd_rigid_props = sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)
+    physx_rigid_props = PhysxRigidBodyCfg(solver_position_iteration_count=8, sleep_threshold=0.1)
     cfg = sim_utils.MeshConeCfg(
         radius=1.0,
         height=2.0,
-        mass_props=sim_utils.MassPropertiesCfg(mass=5.0),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            rigid_body_enabled=True, solver_position_iteration_count=8, sleep_threshold=0.1
-        ),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        mass_props=sim_utils.MassCfg(mass=5.0),
+        rigid_props=[usd_rigid_props, physx_rigid_props],
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
         physics_material=sim_utils.RigidBodyMaterialCfg(),
     )
@@ -270,12 +271,12 @@ def test_spawn_cone_with_all_rigid_props(sim):
     # Check properties
     # -- rigid body
     prim = sim.stage.GetPrimAtPath("/World/Cone")
-    assert prim.GetAttribute("physics:rigidBodyEnabled").Get() == cfg.rigid_props.rigid_body_enabled
+    assert prim.GetAttribute("physics:rigidBodyEnabled").Get() == usd_rigid_props.rigid_body_enabled
     assert (
         prim.GetAttribute("physxRigidBody:solverPositionIterationCount").Get()
-        == cfg.rigid_props.solver_position_iteration_count
+        == physx_rigid_props.solver_position_iteration_count
     )
-    assert prim.GetAttribute("physxRigidBody:sleepThreshold").Get() == pytest.approx(cfg.rigid_props.sleep_threshold)
+    assert prim.GetAttribute("physxRigidBody:sleepThreshold").Get() == pytest.approx(physx_rigid_props.sleep_threshold)
     # -- mass
     assert prim.GetAttribute("physics:mass").Get() == cfg.mass_props.mass
     # -- collision shape

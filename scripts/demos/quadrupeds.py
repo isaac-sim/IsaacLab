@@ -43,6 +43,7 @@ import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 
 ##
 # Pre-defined configs
@@ -191,7 +192,11 @@ def main():
         sim_cfg: sim_utils.SimulationCfg = sim_utils.SimulationCfg(dt=dt, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
+        global_paths = ("/World/defaultGroundPlane", "/World/Light", *(f"/World/Origin{i}" for i in range(1, 8)))
+        plan = cloner.make_clone_plan((), 1, 0.0, global_paths=global_paths)
+        sim.set_clone_plan(plan)
         scene_entities, scene_origins = design_scene()
+        cloner.replicate(plan, replicate_physics=False)
         scene_origins = scene_origins.to(sim.device)
         sim.reset()
         print("[INFO]: Setup complete...")

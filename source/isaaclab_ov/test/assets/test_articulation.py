@@ -81,6 +81,7 @@ from isaaclab_ov.assets import Articulation  # noqa: E402
 from isaaclab_ov.assets.articulation.actuator_control import OvPhysxActuatorControl  # noqa: E402
 from isaaclab_ov.assets.articulation.articulation_data import ArticulationData  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
+from isaaclab_physx.sim.schemas import PhysxJointCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
@@ -219,6 +220,65 @@ def test_generalized_dynamics_reorder_uses_public_joint_order():
     assert buffer.timestamp == 1.0
 
 
+def test_static_property_reads_are_not_invalidated_by_simulation_steps():
+    """Joint properties and body mass/inertia should be read once per invalidation, not once per step.
+
+    On OVPhysX these are blocking CPU-only binding reads whose cost scales with the number of
+    environments, so re-reading them every physics step made per-step consumers (such as the
+    native actuator telemetry sync) host-bound. State buffers must still refresh every step.
+    """
+
+    class Buffer:
+        def __init__(self, shape):
+            self.data = wp.zeros(shape, dtype=wp.float32, device="cpu")
+            self.timestamp = -1.0
+
+    data = ArticulationData.__new__(ArticulationData)
+    data.device = "cpu"
+    data.num_instances = 1
+    data.num_joints = 2
+    data._sim_timestamp = 1.0
+    data.body_ordering = None
+    data._get_binding = lambda tensor_type: object()
+    reads: list[int] = []
+    data._binding_read = lambda tensor_type, dst: reads.append(tensor_type)
+
+    # Joint properties: one read across several steps, one more after explicit invalidation
+    # (simulation reinitialization).
+    data.joint_ordering = None
+    stiffness = Buffer((1, 2))
+    for _ in range(3):
+        data._sim_timestamp += 1.0
+        data._read_joint_property_binding(TT.DOF_STIFFNESS, stiffness, None)
+    assert reads.count(TT.DOF_STIFFNESS) == 1
+    stiffness.timestamp = -1.0
+    data._read_joint_property_binding(TT.DOF_STIFFNESS, stiffness, None)
+    assert reads.count(TT.DOF_STIFFNESS) == 2
+
+    # Body properties behave the same; body state buffers still refresh every step.
+    mass, link_pose = Buffer((1, 2)), Buffer((1, 2))
+    for _ in range(3):
+        data._sim_timestamp += 1.0
+        data._refresh_reordered_body_buffer(mass, None, TT.BODY_MASS, static=True)
+        data._refresh_reordered_body_buffer(link_pose, None, TT.LINK_POSE)
+    assert reads.count(TT.BODY_MASS) == 1
+    assert reads.count(TT.LINK_POSE) == 3
+    mass.timestamp = -1.0
+    data._refresh_reordered_body_buffer(mass, None, TT.BODY_MASS, static=True)
+    assert reads.count(TT.BODY_MASS) == 2
+
+    # Under a non-identity joint ordering the property is gathered once, then served from cache.
+    data.joint_ordering = SimpleNamespace(user_to_backend=wp.array([1, 0], dtype=wp.int32, device="cpu"))
+    data._read_launch_cache = _WarpLaunchCache("cpu")
+    user_buffer, backend_buffer = Buffer((1, 2)), Buffer((1, 2))
+    data._binding_read = lambda tensor_type, dst: (reads.append(tensor_type), dst.assign([[1.0, 2.0]]))
+    for _ in range(3):
+        data._sim_timestamp += 1.0
+        data._read_joint_property_binding(TT.DOF_DAMPING, user_buffer, backend_buffer)
+    assert reads.count(TT.DOF_DAMPING) == 1
+    torch.testing.assert_close(wp.to_torch(user_buffer.data), torch.tensor([[2.0, 1.0]]))
+
+
 def _read_binding_to_torch(articulation: Articulation, tensor_type: int, device: str | torch.device) -> torch.Tensor:
     """Read an OVPhysX attribute into a torch tensor on *device*.
 
@@ -343,7 +403,10 @@ def generate_articulation_cfg(
             # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0),
+                joint_drive_props=[
+                    sim_utils.UsdPhysicsDriveCfg(max_force=80.0),
+                    PhysxJointCfg(max_joint_velocity=5.0),
+                ],
             ),
             actuators={
                 "joint": ImplicitActuatorCfg(
@@ -366,7 +429,10 @@ def generate_articulation_cfg(
         articulation_cfg = ArticulationCfg(
             spawn=sim_utils.UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0),
+                joint_drive_props=[
+                    sim_utils.UsdPhysicsDriveCfg(max_force=80.0),
+                    PhysxJointCfg(max_joint_velocity=5.0),
+                ],
             ),
             actuators={
                 "joint": IdealPDActuatorCfg(
@@ -1789,7 +1855,7 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
     """
     articulation_cfg = generate_articulation_cfg(articulation_type="anymal").copy()
     # Fix root link by making it kinematic
-    articulation_cfg.spawn.articulation_props.fix_root_link = True
+    articulation_cfg.spawn.fix_root_link = True
     articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
 
     # Check that the framework doesn't hold excessive strong references.
@@ -1898,7 +1964,7 @@ def test_initialization_fixed_base_made_floating_base(sim, num_articulations, de
     """
     articulation_cfg = generate_articulation_cfg(articulation_type="panda")
     # Unfix root link by making it non-kinematic
-    articulation_cfg.spawn.articulation_props.fix_root_link = False
+    articulation_cfg.spawn.fix_root_link = False
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
     # Check that the framework doesn't hold excessive strong references.
@@ -2645,7 +2711,9 @@ def test_setting_velocity_limit_writes_to_solver(sim, device, joint_velocity_lim
     torch.testing.assert_close(articulation.data.joint_vel_limits.torch, physx_vel_limit)
     # the solver clamp comes from joint_velocity_limit when set, otherwise the USD-authored value
     if joint_velocity_limit is None:
-        limit = articulation_cfg.spawn.joint_drive_props.max_joint_velocity
+        limit = next(
+            p.max_joint_velocity for p in articulation_cfg.spawn.joint_drive_props if isinstance(p, PhysxJointCfg)
+        )
     else:
         limit = joint_velocity_limit
     expected_velocity_limit = torch.full_like(physx_vel_limit, limit)
@@ -2681,7 +2749,9 @@ def test_setting_effort_limit_writes_to_solver(sim, device, joint_effort_limit):
     torch.testing.assert_close(articulation.data.joint_effort_limits.torch, physx_effort_limit)
     # the solver keeps the USD-authored limit unless the user overrides it explicitly
     if joint_effort_limit is None:
-        limit = articulation_cfg.spawn.joint_drive_props.max_force
+        limit = next(
+            p.max_force for p in articulation_cfg.spawn.joint_drive_props if isinstance(p, sim_utils.UsdPhysicsDriveCfg)
+        )
     else:
         limit = joint_effort_limit
     expected_effort_limit = torch.full_like(physx_effort_limit, limit)
@@ -3057,6 +3127,42 @@ def test_body_com_pose_b_cache_and_set_coms_invalidation(sim, device):
     assert articulation.data._body_com_pose_b.timestamp >= 0.0
     for name, buffer in dependent_buffers:
         assert buffer.timestamp < articulation.data._sim_timestamp, name
+
+
+@pytest.mark.parametrize("device", ["cpu"])
+def test_com_orientation_write_invalidates_static_inertia_cache_with_body_ordering(sim, device):
+    """A COM rotation refreshes the static inertia cache in non-identity body order."""
+    sim._app_control_on_stop_handle = None
+    articulation_cfg = FRANKA_PANDA_CFG.replace(body_ordering=PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES)
+    articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
+
+    sim.reset()
+    articulation.update(sim.cfg.dt)
+    assert articulation.body_ordering is not None
+
+    public_body_id = 1
+    backend_body_id = articulation.body_ordering.user_to_backend_indices[public_body_id]
+    assert backend_body_id != public_body_id
+
+    coms = articulation.data.body_com_pose_b.torch[:, public_body_id : public_body_id + 1].clone()
+    coms[..., 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)
+    articulation.set_coms_index(coms=wp.from_torch(coms.contiguous(), dtype=wp.transformf), body_ids=[public_body_id])
+
+    principal_inertia = torch.tensor([[[1.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 3.0]]], device=device)
+    articulation.set_inertias_index(inertias=principal_inertia, body_ids=[public_body_id])
+    torch.testing.assert_close(
+        articulation.data.body_inertia.torch[:, public_body_id : public_body_id + 1], principal_inertia
+    )
+
+    coms[..., 3:7] = torch.tensor([0.0, 0.0, 0.70710677, 0.70710677], device=device)
+    articulation.set_coms_index(coms=wp.from_torch(coms.contiguous(), dtype=wp.transformf), body_ids=[public_body_id])
+    sim.step()
+    articulation.update(sim.cfg.dt)
+    expected_rotated_inertia = torch.tensor([[[2.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 3.0]]], device=device)
+    torch.testing.assert_close(
+        articulation.data.body_inertia.torch[:, public_body_id : public_body_id + 1],
+        expected_rotated_inertia,
+    )
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])

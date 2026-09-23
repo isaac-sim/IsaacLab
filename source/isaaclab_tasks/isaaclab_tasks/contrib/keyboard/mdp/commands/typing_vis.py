@@ -6,7 +6,7 @@
 """LED dot-matrix visualization helpers for the SO101 keyboard typing command.
 
 The Newton marker backend only renders primitive prototypes (sphere/box/cylinder/...), so letters are
-drawn as a grid of small cuboid "pixels" using the shared 5x7 bitmap font (``_FONT_5X7``). One
+drawn as a grid of small cuboid "pixels" using the shared 5x7 bitmap font (``FONT_5X7``). One
 cuboid prototype per color encodes the typing state (pending / correct / next / wrong) via the marker
 prototype index, and a cylinder prototype marks the next key to press.
 """
@@ -18,7 +18,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
 
-from ...keyboards.keyboard_labels import _FONT_5X7
+from ...keyboards.keyboard_labels import FONT_5X7
 
 # Marker prototype indices. MUST match the insertion order in :func:`make_typing_visualizer_cfg`.
 PIX_PENDING = 0  # gray: target letter not yet typed
@@ -63,11 +63,11 @@ def make_typing_visualizer_cfg(
 
 def build_glyph_table(device: torch.device | str) -> tuple[torch.Tensor, dict[str, int]]:
     """Return ``(glyph_lit, char_to_index)`` where ``glyph_lit`` is ``(num_chars, 7, 5)`` bool."""
-    chars = list(_FONT_5X7.keys())
+    chars = list(FONT_5X7.keys())
     char_to_index = {ch: i for i, ch in enumerate(chars)}
     glyph_lit = torch.zeros(len(chars), GLYPH_ROWS, GLYPH_COLS, dtype=torch.bool, device=device)
     for i, ch in enumerate(chars):
-        for r, row in enumerate(_FONT_5X7[ch]):
+        for r, row in enumerate(FONT_5X7[ch]):
             for c, value in enumerate(row):
                 if value == "1":
                     glyph_lit[i, r, c] = True

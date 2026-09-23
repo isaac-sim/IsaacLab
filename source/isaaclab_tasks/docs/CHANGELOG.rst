@@ -1,6 +1,134 @@
 Changelog
 ---------
 
+21.0.2 (2026-09-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused the default ground plane for the Franka Pour and UR10 Particle Push MPM tasks instead of
+  adding task-specific MPM ground colliders.
+
+
+21.0.1 (2026-09-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added TorchRL PPO agent configurations (``torchrl_cfg_entry_point``) for the ``Isaac-Cartpole`` and
+  ``Isaac-Cartpole-Direct`` tasks, including clipped value loss and adaptive KL learning rates.
+
+Changed
+^^^^^^^
+
+* Unified the coding style of the core task packages: module docstrings, section banners, import style, gym
+  registration layout, stub (``.pyi``) layout and ``ManagerTermBase`` constructor signatures now follow one convention.
+* Moved the duplicated ``survival_success_rate``, ``terminated_penalty``, ``joint_pos_target_l2``,
+  ``DifficultyScheduler`` and ``initial_final_interpolate_fn`` terms to :mod:`isaaclab.envs.mdp`. The task ``mdp``
+  packages re-export them, so ``mdp.<term>`` references and wildcard imports keep working. Import them from
+  :mod:`isaaclab.envs.mdp` instead of the task packages.
+* Unified the import style of the core task packages: relative imports within a task package, absolute imports
+  across packages.
+* Renamed the helpers shared across modules that carried a leading underscore: ``ResetDatasetSampler`` and
+  ``configure_mpm_capacities`` (Franka pour), ``nearest_grasp_to_tcp_quat`` (Franka pour), ``build_gr1t2_pickplace_pipeline``
+  (pick-place), ``offset_body_pose`` (multitask manipulation), ``FONT_5X7`` (keyboard), ``get_delta_dof_pos`` (factory and
+  AutoMate control) and :func:`isaaclab_tasks.utils.hydra.user_stacklevel`. Drop the underscore at the call sites.
+* Moved the fourbar-pole ``joint_pos_cos`` and ``joint_pos_sin`` observation terms from ``mdp/rewards.py`` to
+  ``mdp/observations.py``; they remain available as ``mdp.joint_pos_cos`` and ``mdp.joint_pos_sin``.
+* Shared the physics, camera and asset presets of the direct and manager-based cartpole, Ant and Humanoid tasks
+  through new ``cartpole_common``, ``ant_common`` and ``humanoid_common`` modules instead of duplicating them.
+* Renamed the private ``_FrankaSoftSceneCfg`` and ``_FrankaSoftCameraSceneCfg`` scene configurations of the Franka
+  soft-body tasks to the public ``FrankaSoftBaseSceneCfg`` and ``FrankaSoftBaseCameraSceneCfg``.
+* Replaced the deprecated ``viewer`` settings of the handover and Franka soft-body tasks with
+  ``sim.default_visualizer_cfg``.
+* Registered a default agent for the ``Isaac-Shadow-Handover``, ``Isaac-Lift-Cable-Franka`` and
+  ``Isaac-Lift-Cable-Franka-Camera`` tasks.
+
+Fixed
+^^^^^
+
+* Fixed the lift ADR curriculum interpolating the point-cloud noise upper bound towards ``-0.01`` instead of ``0.01``.
+* Fixed the ``LiftEnvCfg`` configuration class missing the ``@configclass`` decorator.
+* Fixed the keyboard typing command importing ``SuccessMonitor`` from the lift package instead of
+  :mod:`isaaclab_tasks.utils.success_monitor`.
+* Fixed the in-hand reorientation keypoint helpers rebuilding constant corner offsets on the device every step, and
+  the lift deformable and cable out-of-bounds terminations allocating constant bound tensors every step.
+* Fixed the lift, handover and reorientation tasks rebuilding per-step index and origin tensors with ``repeat`` where a
+  broadcast suffices.
+* Fixed docstrings stating a ``(w, x, y, z)`` quaternion order in the lift, handover, deploy and keyboard task
+  packages; Isaac Lab uses ``(x, y, z, w)``.
+* Fixed ``Isaac-Cartpole-Camera`` and ``Isaac-Cartpole-Camera-Direct`` accepting
+  ``presets=newton_renderer`` together with a ``simple_shading_*`` data type, which the Newton Warp
+  renderer cannot produce: the run failed only at environment construction, after the simulator had
+  started. The combination is now rejected during config resolution. Use ``presets=newton_renderer,rgb``,
+  or keep the shading data types on an RTX backend with ``presets=isaacsim_rtx,simple_shading_full_mdl``.
+* Fixed the Shadow Hand camera and Lift reorientation tasks rejecting Newton Warp ``rgba``, ``rgb_hdr``,
+  and ``albedo`` outputs that the renderer supports.
+
+
+21.0.0 (2026-09-20)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Moved assets and sensors in maintained Direct tasks under ``cfg.scene`` and removed
+  their explicit ``_setup_scene`` methods. Update paths such as ``cfg.robot_cfg`` and
+  ``cfg.tiled_camera`` to the corresponding declared scene fields, such as ``cfg.scene.cartpole`` and
+  ``cfg.scene.tiled_camera``. Reorientation configs using asymmetric observations must declare
+  ``cfg.scene.joint_wrench``.
+* Changed the task configurations to author physics schemas with composable schema fragments
+  (e.g. :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` plus
+  :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg`) instead of the combined legacy
+  property configs. Spawner slots now take a bare fragment or a list of multiple fragments, and the non-USD ``fix_root_link``
+  and ``ensure_drives_exist`` knobs moved from the legacy config onto the spawner. The authored
+  USD attributes are unchanged. Task configurations that copy these snippets should replace
+  ``RigidBodyPropertiesCfg`` / ``CollisionPropertiesCfg`` / ``MassPropertiesCfg`` /
+  ``ArticulationRootPropertiesCfg`` / ``JointDrivePropertiesCfg`` with the fragment for the USD
+  namespace that owns each field.
+* Changed the task configurations that tuned a shipped robot configuration in place to select the
+  owning fragment (e.g. ``self.robot.spawn.rigid_props.disable_gravity``) and to set
+  ``fix_root_link`` on the spawner, following the new shape of the spawner slots.
+
+
+20.3.2 (2026-09-18)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the Franka Pour task selecting the primitive robot collider variant,
+  which omitted the arm collision meshes required by the task.
+* Fixed Franka Lift and Reorient reset sampling with updated Franka assets by explicitly selecting the convex-hull
+  arm colliders used by the tasks' clearance criteria.
+
+
+20.3.1 (2026-09-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a ``newton_mjwarp`` branch to ``DigitPhysicsCfg``, so the Digit velocity tasks run on the
+  Newton backend with ``presets=newton_mjwarp``. Gated on that preset: ``self_collision_enabled``
+  (the asset authors ``enabledSelfCollisions=False`` and ``DIGIT_V4_CFG`` sets no
+  ``articulation_props``, so Newton filters all 253 intra-articulation shape pairs). An armature
+  floor for the ten joints below MJWarp's observed stability threshold (expressed as a second
+  actuator group) and ``entropy_coef = 0.005`` apply on **both** backends, consistent with #7607's
+  direction of not special-casing PhysX for values that do not hurt it there.
+
+Fixed
+^^^^^
+
+* Fixed 32 ``CollisionAPI`` prims on Digit's RealSense camera decoration meshes -- glass, USB-C and
+  case halves -- becoming collision shapes. This applies on **both** backends, so the PhysX contact
+  behaviour of the Digit tasks changes: those 32 shapes no longer collide.
+* Fixed Franka deformable lift tasks to select the Menagerie robot's MuJoCo physics payload under
+  Newton while retaining its PhysX payload for PhysX presets.
+
+
 20.3.0 (2026-09-12)
 ~~~~~~~~~~~~~~~~~~~
 

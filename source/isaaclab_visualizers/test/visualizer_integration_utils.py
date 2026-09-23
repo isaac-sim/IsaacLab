@@ -1069,9 +1069,9 @@ def _force_newton_transforms_resync() -> None:
     with contextlib.suppress(Exception):
         from isaaclab_newton.physics import NewtonManager  # noqa: PLC0415
 
-        if NewtonManager._usdrt_stage is not None and NewtonManager._state_0 is not None:
+        if NewtonManager._usdrt_stage is not None and NewtonManager.backend is not None:
             NewtonManager._transforms_dirty = True
-            NewtonManager.sync_transforms_to_usd()
+            NewtonManager.sync_transforms_to_fabric()
             NewtonManager._particles_dirty = True
             NewtonManager.sync_particles_to_usd()
 
@@ -1369,7 +1369,6 @@ def _capture_visualizer_tiled_camera_rgb(
     if force_recompute and getattr(visualizer, "_camera_is_owned", False):
         visualizer._update_owned_camera_poses()
         if isinstance(visualizer, KitVisualizer):
-            visualizer._sync_camera_pose_updates_to_kit()
             # Probe with a short drain to detect backend: on Newton, _newton_fabric_ready is set
             # after the first iteration; on PhysX it is never set so we skip the full drain and
             # let _pump_tiled_until_stable handle convergence instead.
@@ -1860,8 +1859,8 @@ def _make_cartpole_camera_env(
     env_cfg.viewer.eye = camera_kwargs["eye"]
     env_cfg.viewer.lookat = camera_kwargs["lookat"]
     tw, th = _CARTPOLE_TILED_CAMERA_INTEGRATION_WH
-    env_cfg.tiled_camera.width = tw
-    env_cfg.tiled_camera.height = th
+    env_cfg.scene.tiled_camera.width = tw
+    env_cfg.scene.tiled_camera.height = th
     if isinstance(env_cfg.observation_space, list) and len(env_cfg.observation_space) >= 3:
         env_cfg.observation_space = [th, tw, env_cfg.observation_space[2]]
     env_cfg.seed = None
