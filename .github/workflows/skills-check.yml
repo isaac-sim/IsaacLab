@@ -131,32 +131,30 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
           GITHUB_API_URL: ${{ github.api_url }}
+          # Inline Python avoids executing fork-supplied scripts in pull_request_target context.
+          # YAML strips leading indentation from the | block, so Python receives column-0 code.
+          GET_PR_FILES_SCRIPT: |
+            import json, os, urllib.request
+            token = os.environ["GH_TOKEN"]
+            repo = os.environ["REPO"]
+            pr = os.environ["PR_NUMBER"]
+            api = os.environ.get("GITHUB_API_URL", "https://api.github.com")
+            page, files = 1, []
+            while True:
+                req = urllib.request.Request(
+                    f"{api}/repos/{repo}/pulls/{pr}/files?per_page=100&page={page}",
+                    headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json"},
+                )
+                with urllib.request.urlopen(req) as r:
+                    batch = json.load(r)
+                files.extend(f["filename"] for f in batch)
+                if len(batch) < 100:
+                    break
+                page += 1
+            print("\n".join(files))
         run: |
           set -euo pipefail
-          # Do NOT run tools/skills/get_pr_files.py from the PR checkout:
-          # pull_request_target has base-repo secrets; executing fork-supplied
-          # scripts could exfiltrate them. Use stdlib directly instead.
-          changed_files="$(python3 - <<'PYEOF'
-import json, os, urllib.request
-token = os.environ["GH_TOKEN"]
-repo = os.environ["REPO"]
-pr = os.environ["PR_NUMBER"]
-api = os.environ.get("GITHUB_API_URL", "https://api.github.com")
-page, files = 1, []
-while True:
-    req = urllib.request.Request(
-        f"{api}/repos/{repo}/pulls/{pr}/files?per_page=100&page={page}",
-        headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json"},
-    )
-    with urllib.request.urlopen(req) as r:
-        batch = json.load(r)
-    files.extend(f["filename"] for f in batch)
-    if len(batch) < 100:
-        break
-    page += 1
-print("\n".join(files))
-PYEOF
-)"
+          changed_files="$(python3 -c "$GET_PR_FILES_SCRIPT")"
 
           declare -A seen=()
           skill_dirs=()
