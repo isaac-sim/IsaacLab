@@ -3,11 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Direct environment for render-only benchmarking."""
+"""Direct environment for renderer and physics-plus-renderer benchmarking."""
 
 from __future__ import annotations
 
 import math
+from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
 import torch
@@ -16,6 +17,8 @@ from isaaclab.envs import DirectRLEnv
 from isaaclab.sensors import save_images_to_file
 
 if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
+
     from .render_benchmark_env_cfg import RenderBenchmarkFrankaCabinetEnvCfg
 
 
@@ -23,19 +26,34 @@ class RenderBenchmarkEnv(DirectRLEnv):
     """Environment that animates its articulations so a renderer can be profiled on them.
 
     Every articulation in the configured scene is driven by a sinusoid around its default joint
-    positions. Actions are ignored and rewards are zero: the only output that matters is the camera
-    image, and the only cost that matters is the time spent producing it.
+    positions. Actions are ignored and rewards are zero.
+
+    ``"physics_render"`` mode tracks the sinusoid through actuator targets. ``"render"`` mode
+    writes joint poses after physics and requires lazy sensor updates so rendering sees those poses.
+    Isaac RTX direct posing also requires visualizers that do not pump the Kit app loop.
     """
 
     cfg: RenderBenchmarkFrankaCabinetEnvCfg
 
     def __init__(self, cfg: RenderBenchmarkFrankaCabinetEnvCfg, render_mode: str | None = None, **kwargs):
+        if cfg.benchmark_mode == "render" and not cfg.scene.lazy_sensor_update:
+            raise ValueError("Render benchmark mode requires scene.lazy_sensor_update=True to render the direct pose.")
         # Per-(env, joint) sinusoid phases [rad] and the elapsed animation time [s]. The phases
         # are filled on the first step; see :meth:`_sample_animation_phases`.
         self._anim_phases: dict[str, torch.Tensor] | None = None
         self._anim_time: float = 0.0
         super().__init__(cfg, render_mode, **kwargs)
         self._tiled_camera = self.scene["tiled_camera"]
+        if (
+            cfg.benchmark_mode == "render"
+            and "isaac_rtx" in self.sim.render_context.renderer_types
+            and any(visualizer.pumps_app_update() for visualizer in self.sim.visualizers)
+        ):
+            self.close()
+            raise ValueError(
+                "Isaac RTX direct posing requires --visualizer none or a visualizer that does not pump the Kit app"
+                " loop. Alternatively, use benchmark_mode=physics_render."
+            )
 
     # --- joint animation -----------------------------------------------------
 
@@ -44,7 +62,10 @@ class RenderBenchmarkEnv(DirectRLEnv):
             return
         if self._anim_phases is None:
             self._anim_phases = self._sample_animation_phases()
-        self._animate_joints()
+        self._anim_time += self.cfg.sim.dt * self.cfg.decimation
+        # Direct poses are applied after physics in _get_observations.
+        if self.cfg.benchmark_mode == "physics_render":
+            self._request_joint_targets()
 
     def _apply_action(self) -> None:
         pass
@@ -70,20 +91,41 @@ class RenderBenchmarkEnv(DirectRLEnv):
             phases[name] = ((env_idx * 7919.0 + joint_idx * 6553.0) % 10007.0) * (2.0 * math.pi / 10007.0)
         return phases
 
-    def _animate_joints(self) -> None:
-        """Advance the animation clock and drive every joint to its sinusoidal target."""
-        self._anim_time += self.cfg.sim.dt * self.cfg.decimation
+    def _animation_targets(self) -> Iterator[tuple[Articulation, torch.Tensor]]:
+        """Yield every articulation with its joint pose for the current animation time.
+
+        Yields:
+            Each articulation and its per-joint target [m or rad, depending on joint type],
+            clamped to the joint's soft limits, shape ``[num_envs, num_joints]``.
+        """
         omega = 2.0 * math.pi * self.cfg.joint_animation_freq_hz
         for name, articulation in self.scene.articulations.items():
             default_pos = articulation.data.default_joint_pos.torch
             offset = self.cfg.joint_animation_amplitude * torch.sin(omega * self._anim_time + self._anim_phases[name])
             soft_limits = articulation.data.soft_joint_pos_limits.torch
-            target = torch.clamp(default_pos + offset, soft_limits[..., 0], soft_limits[..., 1])
+            yield articulation, torch.clamp(default_pos + offset, soft_limits[..., 0], soft_limits[..., 1])
+
+    def _request_joint_targets(self) -> None:
+        """Set actuator targets for the current animation pose."""
+        for articulation, target in self._animation_targets():
             articulation.actuators.target_command.set_position_index(value=target)
+
+    def _pose_joints_directly(self) -> None:
+        """Write the current pose and clear momentum from the preceding physics step."""
+        for articulation, target in self._animation_targets():
+            articulation.write_joint_position_to_sim_index(position=target)
+            articulation.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(target))
 
     # --- DirectRLEnv plumbing ------------------------------------------------
 
     def _get_observations(self) -> dict:
+        # Apply direct poses after physics and propagate them to the renderer's body transforms.
+        if self.cfg.benchmark_mode == "render" and self._anim_phases is not None:
+            self._pose_joints_directly()
+            self.sim.forward()
+            # forward() changes transforms without advancing the renderer's physics-step key.
+            self.sim.render_context.reset_scene_state_cadence()
+
         # Sensor buffers update lazily, so reading the camera's data is what drives the render.
         # This access is the work the benchmark measures: keep it unconditional even when no
         # image is written, or the profile records a scene that was never rendered.
