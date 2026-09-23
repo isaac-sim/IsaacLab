@@ -79,7 +79,7 @@ export class RigidViewer {
       this.materials.push(material);
     }
     if (simulation.manifest.isaacLabDemo.kind === 'joint_pd') {
-      const pivotHeight = simulation.manifest.isaacLabDemo.pivotHeight;
+      const { pivotHeight, linkLengths } = simulation.manifest.isaacLabDemo;
       const supportMaterial = new THREE.MeshStandardMaterial({ color: '#54656d', metalness: 0.35, roughness: 0.35 });
       const ghostMaterial = new THREE.MeshStandardMaterial({ color: '#e68838', transparent: true, opacity: 0.4, depthWrite: false });
       const supportGeometry = new THREE.BoxGeometry(0.08, 0.08, pivotHeight);
@@ -94,18 +94,34 @@ export class RigidViewer {
       this.stage.add(axle);
       this.targetGhost = new THREE.Group();
       this.targetGhost.position.z = pivotHeight;
-      const ghostGeometry = new THREE.BoxGeometry(0.15, 0.19, 0.96);
-      const ghost = new THREE.Mesh(ghostGeometry, ghostMaterial);
-      ghost.position.z = -0.48;
-      this.targetGhost.add(ghost);
+      this.targetLinks = [];
+      let parent = this.targetGhost;
+      linkLengths.forEach((length, index) => {
+        const targetLink = new THREE.Group();
+        if (index) targetLink.position.z = -linkLengths[index - 1];
+        parent.add(targetLink);
+        const ghostGeometry = new THREE.BoxGeometry(0.15 - index * 0.02, 0.19 - index * 0.02, length);
+        const ghost = new THREE.Mesh(ghostGeometry, ghostMaterial);
+        ghost.position.z = -length / 2;
+        targetLink.add(ghost);
+        this.targetLinks.push(targetLink);
+        this.geometries.push(ghostGeometry);
+        parent = targetLink;
+        if (index) {
+          const jointGeometry = new THREE.SphereGeometry(0.095 - index * 0.01, 20, 12);
+          const jointMesh = new THREE.Mesh(jointGeometry, supportMaterial);
+          this.bodies[index].add(jointMesh);
+          this.geometries.push(jointGeometry);
+        }
+      });
       this.stage.add(this.targetGhost);
-      this.geometries.push(supportGeometry, axleGeometry, ghostGeometry);
+      this.geometries.push(supportGeometry, axleGeometry);
       this.materials.push(supportMaterial, ghostMaterial);
     }
     this.camera = new THREE.PerspectiveCamera(42, 1, 0.05, 35);
     const jointPd = simulation.manifest.isaacLabDemo.kind === 'joint_pd';
-    this.target = new THREE.Vector3(0, jointPd ? 0.9 : 0.85, 0);
-    this.orbit = new OrbitCamera(canvas, this.camera, jointPd ? Math.PI / 2 : 1.25, jointPd ? 0.15 : 0.35, jointPd ? 3.8 : 5.2);
+    this.target = new THREE.Vector3(0, jointPd ? 1.1 : 0.85, 0);
+    this.orbit = new OrbitCamera(canvas, this.camera, jointPd ? Math.PI / 2 : 1.25, jointPd ? 0.12 : 0.35, jointPd ? 4.2 : 5.2);
   }
 
   render() {
@@ -117,7 +133,10 @@ export class RigidViewer {
       body.position.fromArray(position);
       body.quaternion.fromArray(poses.subarray(offset + 3, offset + 7));
     });
-    if (this.targetGhost) this.targetGhost.rotation.y = this.simulation.binding('target_q')[0];
+    if (this.targetLinks) {
+      const targets = this.simulation.binding('target_q');
+      this.targetLinks.forEach((link, index) => { link.rotation.y = targets[index]; });
+    }
     const width = this.canvas.clientWidth;
     const height = this.canvas.clientHeight;
     if (!width || !height) return;

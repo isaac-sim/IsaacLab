@@ -142,6 +142,8 @@ class IsaacLabBrowserDemo extends HTMLElement {
     this.observer = null;
     cancelAnimationFrame(this.frameId);
     this.frameId = 0;
+    this.plot?.dispose();
+    this.plot = null;
     this.viewer?.dispose();
     this.viewer = null;
     this.simulation?.dispose();
@@ -175,6 +177,11 @@ class IsaacLabBrowserDemo extends HTMLElement {
           return;
         }
         this.viewer = viewer;
+        if (this.demo.kind === 'joint_pd') {
+          const { JointPdPlot } = await import('./joint-pd-plot.js');
+          if (this.generation !== generation) return;
+          this.plot = new JointPdPlot(this.canvas);
+        }
       } else if (this.demo.kind === 'cartpole') {
         const [{ CartpoleViewer }, policy] = await Promise.all([
           import('./cartpole-viewer.js'), DensePolicy.load(this.simulation.url, this.demo.policy),
@@ -210,10 +217,10 @@ class IsaacLabBrowserDemo extends HTMLElement {
         }
         this.viewer = viewer;
       }
-      this.setupControls();
-      this.running = true;
       this.tick = 0;
       this.elapsed = 0;
+      this.setupControls();
+      this.running = true;
       this.previousTime = performance.now();
       this.status.textContent = 'Running in your browser';
       this.render();
@@ -221,6 +228,8 @@ class IsaacLabBrowserDemo extends HTMLElement {
     } catch (error) {
       if (this.generation !== generation) return;
       this.failed = true;
+      this.plot?.dispose();
+      this.plot = null;
       this.viewer?.dispose();
       this.viewer = null;
       this.simulation?.dispose();
@@ -284,19 +293,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
           }, (value) => format(physical(value)));
       }
     } else if (this.demo.kind === 'joint_pd') {
-      const readout = document.createElement('div');
-      readout.className = 'browser-demo-legend';
-      const measured = document.createElement('output');
-      readout.append('Blue: actual angle · Orange: target angle · Actual ', measured);
-      this.jointReadout = measured;
-      panel.append(readout);
-      for (const name of ['target_q', 'stiffness', 'damping']) {
-        const parameter = this.simulation.manifest.parameters.find((item) => item.binding === name);
-        const binding = this.simulation.binding(name);
-        this.addSlider(panel, parameter.label, parameter.minimum, parameter.maximum, parameter.step,
-          binding[parameter.index], (value) => { binding[parameter.index] = value; },
-          (value) => name === 'target_q' ? `${value.toFixed(2)} rad` : value.toFixed(name === 'damping' ? 1 : 0));
-      }
+      this.setupJointPdControls(panel);
     } else if (this.demo.kind === 'cartpole') {
       this.policyForce = 0;
       this.perturbation = 0;
@@ -344,6 +341,69 @@ class IsaacLabBrowserDemo extends HTMLElement {
     panel.append(buttons);
   }
 
+  setupJointPdControls(panel) {
+    this.selectedJoint = 0;
+    this.driveMode = 'step';
+    this.commandAmplitude = this.simulation.binding('target_q')[0];
+    this.frequency = 0.7;
+    const toolbar = document.createElement('div');
+    toolbar.className = 'browser-demo-pd-toolbar';
+    const addSelect = (label, options, onChange) => {
+      const row = document.createElement('label');
+      const select = document.createElement('select');
+      for (const [value, title] of options) {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = title;
+        select.append(option);
+      }
+      select.addEventListener('change', () => onChange(select.value));
+      row.append(label, select);
+      toolbar.append(row);
+    };
+    addSelect('Tune joint', this.demo.jointNames.map((name, index) => [String(index), name]), (value) => {
+      this.selectedJoint = Number(value);
+      for (const name of ['stiffness', 'damping']) {
+        const slider = this.gainSliders[name];
+        const gain = this.simulation.binding(name)[this.selectedJoint];
+        slider.value = gain;
+        slider.parentElement.querySelector('output').value = gain.toFixed(name === 'damping' ? 1 : 0);
+      }
+      this.resetSimulation();
+    });
+    addSelect('Command', [['step', 'Step'], ['sine', 'Sine wave']], (value) => {
+      this.driveMode = value;
+      this.frequencyRow.hidden = value !== 'sine';
+      this.resetSimulation();
+    });
+    panel.append(toolbar);
+    const command = this.simulation.manifest.parameters.find((item) => item.binding === 'target_q');
+    this.addSlider(panel, 'Target / amplitude [rad]', command.minimum, command.maximum, command.step, this.commandAmplitude,
+      (value) => { this.commandAmplitude = value; this.updateJointPdTarget(); },
+      (value) => value.toFixed(2));
+    const frequency = this.addSlider(panel, 'Frequency [Hz]', 0.2, 2.0, 0.1, this.frequency,
+      (value) => { this.frequency = value; }, (value) => value.toFixed(1));
+    this.frequencyRow = frequency.parentElement;
+    this.frequencyRow.hidden = true;
+    this.gainSliders = {};
+    for (const name of ['stiffness', 'damping']) {
+      const parameter = this.simulation.manifest.parameters.find((item) => item.binding === name);
+      this.gainSliders[name] = this.addSlider(panel, parameter.label, parameter.minimum, parameter.maximum,
+        parameter.step, this.simulation.binding(name)[0],
+        (value) => { this.simulation.binding(name)[this.selectedJoint] = value; },
+        (value) => value.toFixed(name === 'damping' ? 1 : 0));
+    }
+    this.updateJointPdTarget();
+  }
+
+  updateJointPdTarget() {
+    const target = this.simulation.binding('target_q');
+    target.fill(0);
+    target[this.selectedJoint] = this.driveMode === 'sine'
+      ? this.commandAmplitude * Math.sin(2 * Math.PI * this.frequency * this.tick * this.simulation.manifest.timestep)
+      : this.commandAmplitude;
+  }
+
   resetSimulation() {
     this.simulation.reset();
     this.previousAction?.fill(0);
@@ -351,6 +411,10 @@ class IsaacLabBrowserDemo extends HTMLElement {
     this.resetSticks?.();
     this.tick = 0;
     this.elapsed = 0;
+    if (this.demo.kind === 'joint_pd') {
+      this.plot.reset();
+      this.updateJointPdTarget();
+    }
     this.render();
   }
 
@@ -564,8 +628,14 @@ class IsaacLabBrowserDemo extends HTMLElement {
           if (this.policy && this.tick % this.demo.decimation === 0) {
             this.demo.kind === 'cartpole' ? this.applyCartpolePolicy() : this.applyPolicy();
           }
+          if (this.demo.kind === 'joint_pd') this.updateJointPdTarget();
           this.simulation.step();
           this.tick += 1;
+          if (this.demo.kind === 'joint_pd') {
+            this.plot.add(this.tick * this.simulation.manifest.timestep,
+              this.simulation.binding('target_q')[this.selectedJoint],
+              this.simulation.binding('joint_q')[this.selectedJoint]);
+          }
           if (this.demo.cycleSteps && this.tick >= this.demo.cycleSteps) {
             this.resetSimulation();
             resetDuringFrame = true;
@@ -593,8 +663,8 @@ class IsaacLabBrowserDemo extends HTMLElement {
   }
 
   render() {
-    if (this.jointReadout) this.jointReadout.value = `${this.simulation.binding('joint_q')[0].toFixed(2)} rad`;
     this.viewer.render();
+    this.plot?.draw();
   }
 
 }

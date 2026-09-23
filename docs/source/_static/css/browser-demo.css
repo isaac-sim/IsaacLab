@@ -29,6 +29,19 @@ isaaclab-browser-demo.compact .browser-demo canvas { height: min(410px, 55vw); m
 .browser-demo-force .browser-demo-slider output { color: #4c7600; }
 .browser-demo-force-scale { display: flex; justify-content: space-between; color: #667b84; font-size: .74rem; font-variant-numeric: tabular-nums; }
 .browser-demo-force small { color: #667b84; font-size: .77rem; }
+.browser-demo-tracking { padding: .6rem 1rem .65rem; border-top: 1px solid #e5ecef; background: #f8fafb; }
+.browser-demo canvas.browser-demo-tracking-canvas,
+isaaclab-browser-demo.compact .browser-demo canvas.browser-demo-tracking-canvas { height: 145px; min-height: 0; cursor: default; touch-action: auto; }
+.browser-demo-tracking-caption { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.2rem; color: #536b74; font-size: .76rem; }
+.browser-demo-tracking-caption span::before { content: ''; display: inline-block; width: 1.1rem; height: 3px; margin: 0 .4rem .2rem 0; border-radius: 3px; vertical-align: middle; }
+.browser-demo-tracking-target::before { background: #d97825; }
+.browser-demo-tracking-measured::before { background: #236eb9; }
+.browser-demo-tracking-caption span output { font-variant-numeric: tabular-nums; }
+.browser-demo-tracking-caption > output { margin-left: auto; font-variant-numeric: tabular-nums; }
+.browser-demo-pd-toolbar { display: flex; flex-wrap: wrap; gap: .6rem 1.2rem; width: 100%; }
+.browser-demo-pd-toolbar label { display: flex; align-items: center; gap: .5rem; font-size: .82rem; font-weight: 600; }
+.browser-demo-pd-toolbar select { min-width: 8rem; padding: .38rem .55rem; border: 1px solid #b9c7cc; border-radius: 6px; background: #fff; color: inherit; font: inherit; }
+.browser-demo-slider[hidden] { display: none; }
 .browser-demo-legend { display: flex; flex-wrap: wrap; gap: .4rem 1rem; width: 100%; font-size: .78rem; color: #536b74; }
 .browser-demo-legend > span { display: inline-flex; align-items: center; gap: .4rem; }
 .browser-demo-legend i { display: inline-block; width: .65rem; height: .65rem; border-radius: 50%; }

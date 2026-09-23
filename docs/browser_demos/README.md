@@ -46,8 +46,10 @@ demo draws a solid ramp aligned to its inclined Newton plane and leaves the
 default checker ground visible below.
 Three MJWarp boxes begin at rest on the ramp; the middle slider writes its
 MuJoCo geom friction. The incline has low friction so each box's coefficient
-determines the comparison. The joint PD demo changes the target and implicit
-drive gains of one pendulum. These bundles are under 1 MB of WebAssembly and
+determines the comparison. The joint PD demo drives a suspended three-joint
+arm. The browser supplies step and sine targets and plots measured joint angles;
+the exported graph advances MJWarp with live per-joint implicit-drive gains.
+These bundles are under 1 MB of WebAssembly and
 need no robot asset.
 The ground textures are checked into `docs/source/_static/browser_demos/shared/`
 from the same hosted asset selected by `GroundPlaneCfg`. The Three.js r170 module

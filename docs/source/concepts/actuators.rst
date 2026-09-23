@@ -315,15 +315,29 @@ targets. Units are [N·m·s/rad] for revolute joints and [N·s/m] for prismatic 
 
 .. _browser-demo-joint-pd:
 
-Try a joint response in the browser
+Tune a suspended arm in the browser
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This one-joint pendulum uses an implicit position drive in Newton MJWarp at
-240 Hz. The orange silhouette marks the target and the blue link shows the
-simulated angle. Change the target angle, stiffness, or damping, then press
-**Reset** to compare responses from the same initial pose. Gravity acts on the
-link, so low gains can leave a steady tracking error. The example isolates
-drive behavior; it is separate from the five-pendulum recordings above.
+This suspended three-joint arm uses implicit position drives in Newton MJWarp
+at 240 Hz. Select a joint, then compare a **Step** command with a **Sine wave**.
+The orange silhouette marks the commanded pose; the blue arm shows the simulated
+pose. The plot traces the selected joint's target and measured angle over the
+last four seconds and reports root-mean-square (RMS) tracking error. The other
+two joints hold their zero targets with their own drives. Selecting a new joint
+or waveform starts a new trace.
+
+1. Apply a step and raise stiffness until the joint reaches its target in a
+   useful time. Watch for overshoot and oscillation in the plot.
+2. Increase damping until overshoot falls without making the response too slow.
+   Press **Reset** between trials to compare from the same pose.
+3. Switch to a sine wave and increase frequency. Look for tracking lag and a
+   growing RMS error, even if the step response looked good.
+
+Gravity and the other two joints affect the response. Gain values from this
+small arm are illustrative; tune an imported robot with its actual mass,
+actuator model, effort limits, timestep, and full task conditions. This exercise
+addresses the browser part of the `PD tuning proposal
+<https://github.com/isaac-sim/IsaacLab/issues/2783>`_.
 
 .. raw:: html
 

@@ -97,8 +97,9 @@ def _set_joint_pd(
     target_ke: wp.array(dtype=float),
     target_kd: wp.array(dtype=float),
 ):
-    target_ke[0] = stiffness[0]
-    target_kd[0] = damping[0]
+    joint = wp.tid()
+    target_ke[joint] = stiffness[joint]
+    target_kd[joint] = damping[joint]
 
 
 def _write_manifest(bundle: Path, demo: dict[str, object]) -> None:
@@ -414,45 +415,55 @@ def export_rigid_friction(output: Path) -> None:
 
 
 def export_joint_pd(output: Path) -> None:
-    """Export a single revolute pendulum with live implicit-drive gains.
+    """Export a suspended three-joint arm with live implicit-drive gains.
 
     Args:
         output: Directory for the intermediate simulation bundle.
     """
     builder = newton.ModelBuilder()
-    pivot_height = 1.4
-    link = builder.add_link(xform=wp.transform(wp.vec3(0.0, 0.0, pivot_height), wp.quat_identity()))
-    joint = builder.add_joint_revolute(
-        parent=-1,
-        child=link,
-        parent_xform=wp.transform(wp.vec3(0.0, 0.0, pivot_height), wp.quat_identity()),
-        axis=wp.vec3(0.0, 1.0, 0.0),
-        target_ke=30.0,
-        target_kd=2.0,
-        label="pendulum_hinge",
-    )
-    builder.add_articulation([joint])
-    builder.add_shape_box(
-        body=link,
-        xform=wp.transform(wp.vec3(0.0, 0.0, -0.48), wp.quat_identity()),
-        hx=0.07,
-        hy=0.09,
-        hz=0.48,
-        cfg=newton.ModelBuilder.ShapeConfig(density=75.0),
-        color=wp.vec3(0.28, 0.46, 0.88),
-    )
+    pivot_height = 1.8
+    lengths = (0.58, 0.5, 0.42)
+    names = ("Shoulder", "Elbow", "Wrist")
+    gains = ((35.0, 2.0), (80.0, 7.0), (70.0, 6.0))
+    joints = []
+    parent = -1
+    for index, (length, name, (kp, kd)) in enumerate(zip(lengths, names, gains, strict=True)):
+        height = pivot_height - sum(lengths[:index])
+        link = builder.add_link(xform=wp.transform(wp.vec3(0.0, 0.0, height), wp.quat_identity()))
+        joint = builder.add_joint_revolute(
+            parent=parent,
+            child=link,
+            parent_xform=wp.transform(
+                wp.vec3(0.0, 0.0, pivot_height if parent == -1 else -lengths[index - 1]), wp.quat_identity()
+            ),
+            axis=wp.vec3(0.0, 1.0, 0.0),
+            target_ke=kp,
+            target_kd=kd,
+            label=f"{name.lower()}_hinge",
+        )
+        builder.add_shape_box(
+            body=link,
+            xform=wp.transform(wp.vec3(0.0, 0.0, -length / 2), wp.quat_identity()),
+            hx=0.075 - 0.01 * index,
+            hy=0.09 - 0.01 * index,
+            hz=length / 2,
+            cfg=newton.ModelBuilder.ShapeConfig(density=75.0),
+        )
+        joints.append(joint)
+        parent = link
+    builder.add_articulation(joints)
     builder.joint_target_q[0] = 0.8
     model = builder.finalize(device="cpu")
     solver = newton.solvers.SolverMuJoCo(model, iterations=8, disable_sensors=True)
     state_in, state_out = model.state(), model.state()
     control = model.control()
-    stiffness = wp.array([30.0], dtype=float, device="cpu")
-    damping = wp.array([2.0], dtype=float, device="cpu")
+    stiffness = wp.array([gain[0] for gain in gains], dtype=float, device="cpu")
+    damping = wp.array([gain[1] for gain in gains], dtype=float, device="cpu")
     newton.eval_fk(model, model.joint_q, model.joint_qd, state_in)
     with wp.ScopedCapture(device="cpu", apic=True) as capture:
         wp.launch(
             _set_joint_pd,
-            dim=1,
+            dim=len(joints),
             inputs=[stiffness, damping, model.joint_target_ke, model.joint_target_kd],
             device="cpu",
         )
@@ -489,8 +500,18 @@ def export_joint_pd(output: Path) -> None:
             Parameter("damping", 0, "Damping [N·m·s/rad]", 0.0, 20.0, 0.1),
         ),
         persistent=("target_q", "stiffness", "damping"),
+        colors=("#236eb9", "#4c8ccc", "#79a9d7"),
     )
-    _write_manifest(output, {"kind": "joint_pd", "title": "Joint PD step response", "pivotHeight": pivot_height})
+    _write_manifest(
+        output,
+        {
+            "kind": "joint_pd",
+            "title": "Tune a suspended arm's PD drives",
+            "pivotHeight": pivot_height,
+            "linkLengths": lengths,
+            "jointNames": names,
+        },
+    )
     for _ in range(480):
         wp.capture_launch(capture.graph)
     if not np.isfinite(state_in.joint_q.numpy()).all():
