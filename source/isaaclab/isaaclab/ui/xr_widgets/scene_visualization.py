@@ -19,8 +19,8 @@ import torch
 
 from pxr import Gf
 
-from isaaclab.sim import SimulationContext
-from isaaclab.ui.xr_widgets import show_instruction
+from ...sim import SimulationContext
+from . import show_instruction
 
 # import logger
 logger = logging.getLogger(__name__)

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import torch
 
-from isaaclab.utils.warp.ops import normalize_image_uint8
+from .warp.ops import normalize_image_uint8
 
 _RGB_LIKE_PREFIXES: tuple[str, ...] = ("rgb", "albedo", "simple_shading")
 _DEPTH_LIKE_PATTERNS: tuple[str, ...] = ("depth", "distance_to")

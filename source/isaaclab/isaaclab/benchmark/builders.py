@@ -16,8 +16,8 @@ import math
 from collections.abc import Sequence
 from datetime import datetime
 
-from isaaclab.benchmark.metrics import ema, mean_std_peak
-from isaaclab.benchmark.schema import (
+from .metrics import ema, mean_std_peak
+from .schema import (
     EnvironmentStepTiming,
     Hardware,
     Learning,

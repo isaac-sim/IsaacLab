@@ -33,12 +33,12 @@ except ModuleNotFoundError:
 
 SimulationApp = getattr(isaacsim, "SimulationApp", None)
 
-from isaaclab.app.loading_screen import report_activity
-from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
-from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
-from isaaclab.paths import ISAACLAB_ROOT
-from isaaclab.utils._device import set_cuda_device
-from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+from ..paths import ISAACLAB_ROOT
+from ..utils._device import set_cuda_device
+from ..utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+from .loading_screen import report_activity
+from .logging_utils import apply_python_logging_level, resolve_python_logging_level
+from .settings_manager import get_settings_manager, initialize_carb_settings
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -345,7 +345,7 @@ class AppLauncher:
         # additional ``pip_prebundle`` or conflicting extension directories onto
         # ``sys.path`` during startup.  A second pass ensures pip-installed
         # packages still take priority over bundled copies.
-        from isaaclab import _deprioritize_prebundle_paths
+        from .. import _deprioritize_prebundle_paths
 
         _deprioritize_prebundle_paths()
 

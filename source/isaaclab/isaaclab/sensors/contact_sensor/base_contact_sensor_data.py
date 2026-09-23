@@ -10,14 +10,14 @@ from __future__ import annotations
 import warnings
 from abc import ABC, abstractmethod
 
-from isaaclab.utils.leapp import (
+from ...utils.leapp import (
     POSE7_ELEMENT_NAMES,
     QUAT_XYZW_ELEMENT_NAMES,
     XYZ_ELEMENT_NAMES,
     InputKindEnum,
     leapp_tensor_semantics,
 )
-from isaaclab.utils.warp import ProxyArray
+from ...utils.warp import ProxyArray
 
 
 class BaseContactSensorData(ABC):
