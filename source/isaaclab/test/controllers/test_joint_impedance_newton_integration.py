@@ -45,7 +45,7 @@ def _reference_torques(
     return torques
 
 
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
 @pytest.mark.parametrize("mode", ["fixed", "variable_kp", "variable"])
 @pytest.mark.parametrize("command_type", ["p_abs", "p_rel"])

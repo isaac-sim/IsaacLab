@@ -206,7 +206,7 @@ def _build(scenario: dict, implementation: str = "newton") -> tuple[OperationalS
     return OperationalSpaceController(cfg, _NUM_ENVS, _DEVICE), task_frame
 
 
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 @pytest.mark.parametrize("scenario_name", list(_SCENARIOS))
 def test_backend_matches_operational_space_law(scenario_name: str, implementation: str) -> None:
     """The Newton-backed controller matches an independent operational-space reference."""
@@ -381,7 +381,7 @@ def test_captured_compute_tracks_commands_and_recaptures_after_reset() -> None:
             torch.testing.assert_close(compute(), torch.zeros_like(expected))
 
 
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_joint_count_inference_and_runtime_gravity_toggle(implementation):
     """Both solvers infer dimensions and respect enabling/disabling gravity between calls."""
     cfg = OperationalSpaceControllerCfg(target_types=["pose_abs"], implementation=implementation)

@@ -154,7 +154,7 @@ def test_inertial_decoupling_rejects_invalid_conditioning_thresholds(thresholds)
 
 
 @pytest.mark.parametrize("partial_inertial_decoupling", [False, True])
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_inertial_decoupling_handles_singular_task_inertia(partial_inertial_decoupling: bool, implementation: str):
     """Inertial decoupling produces finite efforts for rank-deficient Jacobians in a mixed batch."""
     num_envs = 3

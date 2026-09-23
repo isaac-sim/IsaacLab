@@ -131,7 +131,7 @@ def _previous_joint_limit_correction(
 
 @pytest.mark.parametrize("ik_method", ["pinv", "svd", "trans", "dls", "adaptive_dls"])
 @pytest.mark.parametrize("orientation_weight", [None, (0.4, 0.2, 0.0), (2.0, 1.0, 1.0)])
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_backend_matches_previous_pose_solver(ik_method: str, orientation_weight, implementation: str):
     """Every configured solver produces the previous Isaac Lab joint-position target."""
     controller = _make_controller(ik_method, implementation=implementation, orientation_weight=orientation_weight)
@@ -147,7 +147,7 @@ def test_backend_matches_previous_pose_solver(ik_method: str, orientation_weight
 
 
 @pytest.mark.parametrize("ik_method", ["pinv", "svd", "trans", "dls", "adaptive_dls"])
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_backend_matches_previous_position_solver(ik_method: str, implementation: str):
     """Position-only control passes the matching three-row site Jacobian to every solver."""
     controller = _make_controller(ik_method, implementation=implementation, command_type="position")
@@ -289,7 +289,7 @@ def test_dls_backend_captures_with_stable_bridge_buffers(use_relative_mode):
     torch.testing.assert_close(result, joint_pos)
 
 
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_joint_count_is_inferred_from_compute(implementation):
     """Both solvers retain standalone construction and accept changing joint counts."""
     cfg = DifferentialIKControllerCfg(command_type="position", ik_method="dls", implementation=implementation)

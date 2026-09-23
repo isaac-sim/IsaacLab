@@ -21,7 +21,7 @@ class DifferentialIKControllerCfg:
     class_type: type[DifferentialIKController] | str = "{DIR}.differential_ik:DifferentialIKController"
     """The associated controller class."""
 
-    implementation: Literal["native", "newton"] = "native"
+    implementation: Literal["isaaclab", "newton"] = "isaaclab"
     """Controller implementation to use, independent of the physics backend."""
 
     command_type: Literal["position", "pose"] = MISSING

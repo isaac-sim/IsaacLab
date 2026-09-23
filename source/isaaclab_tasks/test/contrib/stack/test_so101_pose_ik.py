@@ -40,7 +40,7 @@ def _quat_xyzw(axis: list[float], angle: float) -> list[float]:
 
 def _make_controller(
     num_envs: int = 1,
-    implementation: str = "native",
+    implementation: str = "isaaclab",
     orientation_weight=1.0,
     joint_limit_avoidance_gain: float = 0.0,
     joint_limit_avoidance_margin: float = 0.3,
@@ -58,7 +58,7 @@ def _make_controller(
     return SO101PoseIKController(cfg=cfg, num_envs=num_envs, device="cpu")
 
 
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_orientation_joint_mask_zeros_unmasked_orientation_columns(implementation):
     """The SO-101 orientation joint mask zeros the orientation-row columns of the masked-out joints
     (so they serve position only), while the position rows and the task error are unchanged.
@@ -89,7 +89,7 @@ def test_orientation_joint_mask_zeros_unmasked_orientation_columns(implementatio
     torch.testing.assert_close(jac, original_jac)
 
 
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_mask_none_leaves_orientation_unmasked(implementation):
     """Without a mask, the SO-101 controller matches the base solver."""
     jac = torch.arange(6 * _NUM_JOINTS, dtype=torch.float32).reshape(1, 6, _NUM_JOINTS)
@@ -102,7 +102,7 @@ def test_mask_none_leaves_orientation_unmasked(implementation):
     torch.testing.assert_close(c.compute(*inputs), base.compute(*inputs))
 
 
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_compute_returns_joint_targets_shape(implementation):
     """End-to-end compute (adaptive DLS + orientation weight + mask + JLA) returns one target per
     joint."""

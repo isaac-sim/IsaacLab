@@ -59,7 +59,7 @@ from isaaclab_assets import FRANKA_PANDA_CFG, G1_29DOF_CFG  # isort:skip
 pytestmark = pytest.mark.integration
 
 _HYBRID_BACKENDS = [
-    pytest.param("native", id="native"),
+    pytest.param("isaaclab", id="isaaclab"),
     pytest.param(
         "newton",
         id="newton",
@@ -263,7 +263,7 @@ def sim():
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_franka_pose_abs_without_inertial_decoupling(sim, implementation: str):
     """Test absolute pose control with fixed impedance and without inertial dynamics decoupling."""
     (
@@ -314,7 +314,7 @@ def test_franka_pose_abs_without_inertial_decoupling(sim, implementation: str):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_franka_pose_abs_with_partial_inertial_decoupling(sim, implementation: str):
     """Test absolute pose control with fixed impedance and partial inertial dynamics decoupling."""
     (
@@ -367,7 +367,7 @@ def test_franka_pose_abs_with_partial_inertial_decoupling(sim, implementation: s
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_franka_pose_abs_fixed_impedance_with_gravity_compensation(sim, implementation: str):
     """Test absolute pose control with fixed impedance, gravity compensation, and inertial dynamics decoupling."""
     (
@@ -420,7 +420,7 @@ def test_franka_pose_abs_fixed_impedance_with_gravity_compensation(sim, implemen
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_franka_pose_abs(sim, implementation: str):
     """Test absolute pose control with fixed impedance and inertial dynamics decoupling."""
     (
@@ -472,7 +472,7 @@ def test_franka_pose_abs(sim, implementation: str):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_franka_pose_rel(sim, implementation: str):
     """Test relative pose control with fixed impedance and inertial dynamics decoupling."""
     (
@@ -524,7 +524,7 @@ def test_franka_pose_rel(sim, implementation: str):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_franka_pose_abs_variable_impedance(sim, implementation: str):
     """Test absolute pose control with variable impedance and inertial dynamics decoupling."""
     (
@@ -574,7 +574,7 @@ def test_franka_pose_abs_variable_impedance(sim, implementation: str):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_franka_wrench_abs_open_loop(sim, implementation: str):
     """Test open loop absolute force control."""
     (
@@ -657,7 +657,7 @@ def test_franka_wrench_abs_open_loop(sim, implementation: str):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_franka_wrench_abs_closed_loop(sim, implementation: str):
     """Test closed loop absolute force control."""
     (
@@ -748,7 +748,7 @@ def test_franka_wrench_abs_closed_loop(sim, implementation: str):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_franka_hybrid_decoupled_motion(sim, implementation: str):
     """Test hybrid control with fixed impedance and partial inertial dynamics decoupling."""
     (
@@ -927,7 +927,7 @@ def test_task_frame_conversion_preserves_absolute_target():
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_franka_taskframe_pose_abs(sim, implementation: str):
     """Test absolute pose control in task frame with fixed impedance and inertial dynamics decoupling."""
     (
@@ -980,7 +980,7 @@ def test_franka_taskframe_pose_abs(sim, implementation: str):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_franka_taskframe_pose_rel(sim, implementation: str):
     """Test relative pose control in task frame with fixed impedance and inertial dynamics decoupling."""
     (
@@ -1112,7 +1112,7 @@ def test_franka_taskframe_hybrid(sim, implementation: str):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_franka_pose_abs_without_inertial_decoupling_with_nullspace_centering(sim, implementation: str):
     """Test absolute pose control with fixed impedance and nullspace centerin but without inertial decoupling."""
     (
@@ -1164,7 +1164,7 @@ def test_franka_pose_abs_without_inertial_decoupling_with_nullspace_centering(si
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_franka_pose_abs_with_partial_inertial_decoupling_nullspace_centering(sim, implementation: str):
     """Test absolute pose control with fixed impedance, partial inertial decoupling and nullspace centering."""
     (
@@ -1219,7 +1219,7 @@ def test_franka_pose_abs_with_partial_inertial_decoupling_nullspace_centering(si
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_franka_pose_abs_with_nullspace_centering(sim, implementation: str):
     """Test absolute pose control with fixed impedance, inertial decoupling and nullspace centering."""
     (

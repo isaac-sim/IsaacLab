@@ -19,7 +19,7 @@ class JointImpedanceControllerCfg:
     class_type: type | str = "isaaclab.controllers.joint_impedance:JointImpedanceController"
     """The associated controller class."""
 
-    implementation: Literal["native", "newton"] = "native"
+    implementation: Literal["isaaclab", "newton"] = "isaaclab"
     """Controller implementation to use, independent of the physics backend."""
 
     command_type: str = "p_abs"

@@ -4410,7 +4410,7 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
 @pytest.mark.parametrize("articulation_type", ["panda_fine"])
 @pytest.mark.parametrize("gravity_enabled", [True])
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_franka_osc_gravity_compensation_precision(
     sim, device, articulation_type, gravity_enabled, implementation: str
 ):

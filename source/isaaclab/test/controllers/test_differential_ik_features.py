@@ -39,7 +39,7 @@ def _make_controller(
     joint_limit_avoidance_gain: float = 0.0,
     joint_limit_avoidance_margin: float = 0.3,
     num_envs: int = 1,
-    implementation: str = "native",
+    implementation: str = "isaaclab",
 ) -> DifferentialIKController:
     cfg = DifferentialIKControllerCfg(
         implementation=implementation,
@@ -157,7 +157,7 @@ def test_orientation_weight_per_axis_scales_rows_and_error():
     torch.testing.assert_close(ep[:, 5], torch.zeros_like(eb[:, 5]))
 
 
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_compute_quat_convention_xyzw(implementation: str):
     """Discriminating regression for the xyzw quaternion convention: commanding the EE's current
     orientation yields zero orientation error. A wxyz mis-read would corrupt this."""
@@ -173,7 +173,7 @@ def test_compute_quat_convention_xyzw(implementation: str):
     torch.testing.assert_close(result, joint_pos, atol=1e-6, rtol=0.0)
 
 
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_adaptive_dls_damps_singularity(implementation: str):
     """Near a task-Jacobian singularity, the adaptive ramp produces a smaller (more damped) and
     finite step than a fixed ``lambda_min`` solve would."""
@@ -198,7 +198,7 @@ def test_adaptive_dls_damps_singularity(implementation: str):
     assert dq.norm().item() < dq_min.norm().item()
 
 
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_joint_limit_avoidance_zero_when_disabled(implementation: str):
     """Disabled avoidance is a no-op; only Newton requires limits when enabled."""
     ee_pos = torch.zeros(1, 3)
@@ -221,7 +221,7 @@ def test_joint_limit_avoidance_zero_when_disabled(implementation: str):
         torch.testing.assert_close(out2, joint_pos)
 
 
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_joint_limit_avoidance_stays_in_position_nullspace(implementation: str):
     """When enabled, the JLA correction lies in the null space of the position rows, so it does not
     perturb the commanded end-effector position (``J_pos @ correction ~= 0``)."""
@@ -243,7 +243,7 @@ def test_joint_limit_avoidance_stays_in_position_nullspace(implementation: str):
     torch.testing.assert_close(residual, torch.zeros_like(residual), atol=1e-5, rtol=0.0)
 
 
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_compute_returns_joint_targets_shape(implementation: str):
     """compute returns one target per joint (joint_pos + delta)."""
     c = _make_controller(

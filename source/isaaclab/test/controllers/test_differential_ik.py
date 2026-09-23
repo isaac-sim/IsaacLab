@@ -79,7 +79,7 @@ def sim():
     sim.clear_instance()
 
 
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_franka_ik_pose_abs(sim, implementation: str):
     """Test IK controller for Franka arm with Franka hand."""
     sim_context, num_envs, ee_pose_b_des_set = sim
@@ -100,7 +100,7 @@ def test_franka_ik_pose_abs(sim, implementation: str):
     )
 
 
-@pytest.mark.parametrize("implementation", ["native", "newton"])
+@pytest.mark.parametrize("implementation", ["isaaclab", "newton"])
 def test_ur10_ik_pose_abs(sim, implementation: str):
     """Test IK controller for UR10 arm."""
     sim_context, num_envs, ee_pose_b_des_set = sim

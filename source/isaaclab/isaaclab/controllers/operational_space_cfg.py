@@ -22,7 +22,7 @@ class OperationalSpaceControllerCfg:
     class_type: type[OperationalSpaceController] | str = "{DIR}.operational_space:OperationalSpaceController"
     """The associated controller class."""
 
-    implementation: Literal["native", "newton"] = "native"
+    implementation: Literal["isaaclab", "newton"] = "isaaclab"
     """Controller implementation to use, independent of the physics backend."""
 
     target_types: Sequence[str] = MISSING
