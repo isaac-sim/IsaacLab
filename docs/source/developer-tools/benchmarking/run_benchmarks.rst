@@ -79,7 +79,7 @@ Hydra override on the camera's renderer configuration:
        --benchmark_formatter schema,omniperf \
        --output_path ./results/ovrtx_async \
        physics=newton_mjwarp renderer=ovrtx presets=rgb \
-       env.tiled_camera.renderer_cfg.async_rendering=True
+       env.scene.tiled_camera.renderer_cfg.async_rendering=True
 
 Only the OVRTX renderer implements asynchronous rendering.
 See :ref:`renderers-async-data-flow` for how states, observations, and frames line up in each mode.
