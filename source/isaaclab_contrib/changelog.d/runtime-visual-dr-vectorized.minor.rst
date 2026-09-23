@@ -156,3 +156,12 @@ Fixed
   instead of silently generating without a mask. Where it is available the
   generated background can agree with the foreground on lighting and contact
   shadows, which compositing alone cannot do.
+
+* Fixed the ``cosmos-runtime`` extra being unsatisfiable alongside Isaac Lab. It
+  pinned ``transformers<5`` and ``diffusers==0.35.1`` against Isaac Lab's own
+  ``transformers==5.10.4``, so selecting it could not resolve. Both pins were
+  stricter than reality: the transfer paths were verified on Python 3.12, torch
+  2.12, transformers 5.10.4 and diffusers 0.39.0, with no flash-attn installed.
+  Cosmos itself must still be installed with ``--no-deps`` -- its dependency groups
+  pin torch to match the CUDA wheel variants it publishes -- and
+  ``docs/visual_dr_setup.md`` records the recipe.
