@@ -161,9 +161,12 @@ class PhysicsManager(ABC):
             stage: The stage containing the prims. Defaults to the current stage.
 
         Raises:
-            NotImplementedError: If the backend does not support deformable bodies.
+            NotImplementedError: If the backend does not implement deformable fragment setup.
         """
-        raise NotImplementedError(f"Physics backend '{cls.__name__}' does not support deformable bodies.")
+        raise NotImplementedError(
+            f"Physics backend '{cls.__name__}' does not implement deformable fragment setup, so the"
+            " 'volume_deformable_props' and 'surface_deformable_props' slots cannot be used with it."
+        )
 
     @staticmethod
     def _relocate_articulation_root(

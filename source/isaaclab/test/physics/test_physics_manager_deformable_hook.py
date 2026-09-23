@@ -9,5 +9,5 @@ import pytest
 def test_base_setup_deformable_body_raises_not_implemented():
     from isaaclab.physics import PhysicsManager
 
-    with pytest.raises(NotImplementedError, match="does not support deformable bodies"):
+    with pytest.raises(NotImplementedError, match="does not implement deformable fragment setup"):
         PhysicsManager.setup_deformable_body(None, "volume", None, None, None)
