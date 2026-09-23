@@ -519,6 +519,7 @@ def find_global_fixed_joint_prim(
     if stage is None:
         stage = get_current_stage()
 
+    prim_path = str(prim_path)
     # check prim path is global
     if not prim_path.startswith("/"):
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")

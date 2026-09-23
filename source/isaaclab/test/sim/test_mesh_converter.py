@@ -15,6 +15,7 @@ simulation_app = AppLauncher(headless=True).app
 import math
 import os
 import random
+import shutil
 import tempfile
 
 import pytest
@@ -26,7 +27,7 @@ from isaaclab_physx.sim.schemas import (
     PhysxTriangleMeshSimplificationCfg,
 )
 
-from pxr import UsdGeom, UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -216,6 +217,17 @@ def test_convert_obj(assets):
 
     # check that mesh conversion is successful
     check_mesh_conversion(mesh_converter)
+
+
+def test_convert_obj_with_dotted_file_name(assets, tmp_path):
+    """Convert an OBJ file whose name contains extra dots; the prim name is made a valid identifier."""
+    for key in ("mtl", "png"):
+        shutil.copy(assets[key], tmp_path)
+    asset_path = shutil.copy(assets["obj"], tmp_path / "duck.v2.obj")
+    mesh_converter = MeshConverter(MeshConverterCfg(asset_path=str(asset_path)))
+
+    check_mesh_conversion(mesh_converter)
+    assert Usd.Stage.Open(mesh_converter.usd_path).GetDefaultPrim().GetName() == "duck_v2"
 
 
 def test_convert_stl(assets):

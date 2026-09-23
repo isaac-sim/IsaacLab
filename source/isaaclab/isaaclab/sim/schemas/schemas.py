@@ -533,7 +533,7 @@ def modify_articulation_root_properties(
     # we do the fixed joint processing later to not interfere with setting other properties
     if fix_root_link is not None:
         # check if a global fixed joint exists under the root prim
-        existing_fixed_joint_prim = find_global_fixed_joint_prim(prim_path)
+        existing_fixed_joint_prim = find_global_fixed_joint_prim(prim_path, stage=stage)
 
         # if we found a fixed joint, enable/disable it based on the input
         # otherwise, create a fixed joint between the world and the root link

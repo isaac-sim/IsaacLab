@@ -10,7 +10,15 @@ import numpy as np
 import pytest
 import torch
 
-from isaaclab.terrains import FlatPatchSamplingCfg, MeshStarTerrainCfg, TerrainGenerator, TerrainGeneratorCfg
+from isaaclab.terrains import (
+    FlatPatchSamplingCfg,
+    MeshRepeatedBoxesTerrainCfg,
+    MeshRepeatedCylindersTerrainCfg,
+    MeshRepeatedPyramidsTerrainCfg,
+    MeshStarTerrainCfg,
+    TerrainGenerator,
+    TerrainGeneratorCfg,
+)
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.utils.seed import configure_seed
 
@@ -83,6 +91,29 @@ def test_generation_star_terrain():
     assert actual_size[1] == pytest.approx(cfg.size[1] * cfg.num_cols + 2 * cfg.border_width)
     # check the sub-terrain origin is at the center of the terrain
     assert terrain_generator.terrain_origins.shape == (cfg.num_rows, cfg.num_cols, 3)
+
+
+@pytest.mark.parametrize(
+    "cfg_type, object_kwargs",
+    [
+        (MeshRepeatedBoxesTerrainCfg, {"size": (0.3, 0.3)}),
+        (MeshRepeatedCylindersTerrainCfg, {"radius": 0.2}),
+        (MeshRepeatedPyramidsTerrainCfg, {"radius": 0.2}),
+    ],
+)
+def test_repeated_objects_default_object_type(cfg_type, object_kwargs):
+    """The default ``object_type`` of the repeated-object configs resolves to the matching mesh primitive."""
+    cfg = cfg_type(
+        size=(4.0, 4.0),
+        platform_width=1.0,
+        object_params_start=cfg_type.ObjectCfg(num_objects=3, height=0.2, **object_kwargs),
+        object_params_end=cfg_type.ObjectCfg(num_objects=3, height=0.4, **object_kwargs),
+    )
+    np.random.seed(0)
+    meshes, origin = cfg.function(0.5, cfg)
+    # three objects, ground plane and platform
+    assert len(meshes) == 5
+    assert origin.shape == (3,)
 
 
 @pytest.mark.parametrize("use_global_seed", [True, False])
