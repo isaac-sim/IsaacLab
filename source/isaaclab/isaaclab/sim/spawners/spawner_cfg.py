@@ -194,7 +194,12 @@ class DeformableObjectSpawnerCfg(SpawnerCfg):
     deformable_props: schemas.DeformableBodyPropertiesBaseCfg | None = None
     """Deformable body properties."""
 
-    volume_deformable_props: dict[str, list[schemas.DeformableBodyFragment]] | None = None
+    volume_deformable_props: (
+        dict[str, list[schemas.DeformableBodyFragment]]
+        | schemas.DeformableBodyFragment
+        | list[schemas.DeformableBodyFragment]
+        | None
+    ) = None
     """Volume (tetrahedral FEM) deformable-body properties as a mapping from target pattern to a
     list of :class:`~isaaclab.sim.schemas.DeformableBodyFragment` fragments.
 
@@ -205,15 +210,25 @@ class DeformableObjectSpawnerCfg(SpawnerCfg):
     deformable setups on matched prims (equivalent to ``create_if_missing=True``); the simulation mesh is created as a
     ``sim_mesh`` child of each target.
 
+    As a shorthand, a bare fragment or a list of fragments is read as ``{"": [...]}``, i.e. the spawn
+    prim itself, on every spawner type. Unlike the rigid-body, collision, and mass slots, the shorthand
+    never widens to the spawn prim's subtree: the deformable writers create a whole simulation-mesh
+    setup on each target, so a subtree default would tetrahedralize every mesh under the asset.
+
     At most one of :attr:`volume_deformable_props`, :attr:`surface_deformable_props`, and the
     legacy :attr:`deformable_props` may be set. ``UsdPhysics.MassAPI`` is ignored for deformable
     bodies; set mass through :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg`.
     """
 
-    surface_deformable_props: dict[str, list[schemas.DeformableBodyFragment]] | None = None
+    surface_deformable_props: (
+        dict[str, list[schemas.DeformableBodyFragment]]
+        | schemas.DeformableBodyFragment
+        | list[schemas.DeformableBodyFragment]
+        | None
+    ) = None
     """Surface (cloth/triangle-mesh) deformable-body properties as a mapping from target pattern
     to a list of :class:`~isaaclab.sim.schemas.DeformableBodyFragment` fragments.
 
-    Same key semantics as :attr:`volume_deformable_props`; the simulation mesh is a triangle-mesh
-    copy of the visual mesh instead of a tetrahedral mesh.
+    Same key semantics and shorthand as :attr:`volume_deformable_props`; the simulation mesh is a
+    triangle-mesh copy of the visual mesh instead of a tetrahedral mesh.
     """

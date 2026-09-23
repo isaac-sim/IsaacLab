@@ -12,7 +12,9 @@ Added
   ``physics_material`` spawner fields.
 * Added ``volume_deformable_props`` and ``surface_deformable_props`` mappings to
   :class:`~isaaclab.sim.spawners.DeformableObjectSpawnerCfg`, applying deformable fragments by
-  target pattern relative to the spawn prim.
+  target pattern relative to the spawn prim. A bare fragment or list is shorthand for the spawn
+  prim itself. Alongside either slot, ``collision_props`` must be given as collision fragments; a
+  legacy collision cfg raises, since it cannot reach the simulation mesh.
 * Added :meth:`~isaaclab.physics.PhysicsManager.setup_deformable_body` so each physics backend
   applies its own deformable anchor schemas.
 * Added ``tetrahedralization_edge_length_fac`` to

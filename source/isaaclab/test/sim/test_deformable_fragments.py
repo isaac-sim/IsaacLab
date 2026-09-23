@@ -239,6 +239,27 @@ def test_deformable_slot_exclusivity_raises():
         cfg.func("/World/Bad", cfg)
 
 
+@pytest.mark.parametrize("slot", ["volume_deformable_props", "surface_deformable_props"])
+def test_deformable_slot_rejects_legacy_collision_props(slot):
+    """A legacy collision cfg next to a deformable fragment slot must fail loudly.
+
+    Only fragments resolve onto the simulation mesh; a legacy cfg would be skipped on the fragment
+    path, so the collision tuning the user asked for would silently never be authored.
+    """
+    import isaaclab.sim as sim_utils
+    from isaaclab.sim.schemas import CollisionBaseCfg, OmniPhysicsDeformableBodyCfg
+
+    cfg = sim_utils.MeshCuboidCfg(
+        size=(0.1, 0.1, 0.1),
+        collision_props=CollisionBaseCfg(collision_enabled=True),
+        **{slot: OmniPhysicsDeformableBodyCfg()},
+    )
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    with pytest.raises(ValueError, match="collision fragments"):
+        cfg.func("/World/Bad", cfg)
+
+
 def test_mesh_surface_deformable_spawn_with_collision_props(monkeypatch, caplog):
     """Surface slot end-to-end on the mesh path (no tetrahedralization needed), with collision
     offsets riding the collision family keyed to the sim mesh.

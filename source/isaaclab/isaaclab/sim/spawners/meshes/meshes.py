@@ -473,7 +473,7 @@ def _spawn_mesh_geom_from_mesh(
     deformable_slot = resolve_deformable_slot(cfg)
     if (deformable_slot is not None or cfg.deformable_props is not None) and cfg.rigid_props is not None:
         raise ValueError("Cannot use both deformable and rigid properties at the same time.")
-    if cfg.deformable_props is not None and cfg.collision_props is not None:
+    if (deformable_slot is not None or cfg.deformable_props is not None) and cfg.collision_props is not None:
         # only fragments resolve onto the simulation mesh, legacy cfgs would target the inert body prim
         collision_props_mapping = fragment_mapping(cfg.collision_props)
         if collision_props_mapping is not None:
