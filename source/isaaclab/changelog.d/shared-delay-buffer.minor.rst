@@ -13,6 +13,13 @@ Changed
 
 * Replaced history shifting in ``DelayBuffer`` with ring storage and device-side indexing, including CUDA graph
   replay. Removed full-buffer clears and backfills on reset.
+* Replaced ``DelayedPDActuatorCfg`` and ``DelayedPDActuator`` classes with deprecated composition constructors,
+  scheduled for removal in 3.2. **Breaking:** subclassing and type checks against these names are no longer
+  supported. Wrap an ``IdealPDActuatorCfg`` (or custom controller config) in
+  ``DelayCfg(on="input", min_lag=..., max_lag=..., resample="reset", term=...)`` instead.
+  Controller fields now belong to ``cfg.term``. Removed delay from ``RemotizedPDActuator``; move its config's
+  ``min_delay``/``max_delay`` to the same outer composition. Configured native actuators used the shared delay
+  instead of installing a second Newton delay; both lag bounds and reset sampling now applied on every backend.
 
 Fixed
 ^^^^^

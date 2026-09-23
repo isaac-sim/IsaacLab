@@ -1034,7 +1034,7 @@ def test_complete_wrapper_preserves_coupled_input_and_output_computation():
     """A wrapper can use an input intermediate after the enclosed call without defining stage hooks."""
 
     class ResidualCommand:
-        def __init__(self, cfg, term, num_envs, device, **capabilities):
+        def __init__(self, cfg, term, num_envs, device, *, input_supported, output_supported, split_calls):
             self.term = term
 
         def reset(self, env_ids=None):

@@ -46,12 +46,11 @@ def _resolve_actuator_class(class_type: type | str) -> type:
 
 def _is_newton_native_actuator_cfg(cfg: Any) -> bool:
     """Return whether an actuator config can be authored as a Newton actuator."""
-    from ...actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
+    from ...actuators import DCMotorCfg  # noqa: PLC0415
     from ...actuators.actuator_net import ActuatorNetLSTM, ActuatorNetMLP  # noqa: PLC0415
     from ...actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
     from ...actuators.actuator_pd import (  # noqa: PLC0415
         DCMotor,
-        DelayedPDActuator,
         IdealPDActuator,
         RemotizedPDActuator,
     )
@@ -61,7 +60,6 @@ def _is_newton_native_actuator_cfg(cfg: Any) -> bool:
         (ActuatorNetMLPCfg, ActuatorNetMLP),
         (ActuatorNetLSTMCfg, ActuatorNetLSTM),
         (RemotizedPDActuatorCfg, RemotizedPDActuator),
-        (DelayedPDActuatorCfg, DelayedPDActuator),
         (DCMotorCfg, DCMotor),
         (IdealPDActuatorCfg, IdealPDActuator),
     )
@@ -146,13 +144,14 @@ def define_actuator_properties(
       ``NewtonPDControlAPI`` + ``NewtonMaxEffortClampingAPI``
     * :class:`~isaaclab.actuators.DCMotorCfg` →
       ``NewtonPDControlAPI`` + ``NewtonDCMotorClampingAPI``
-    * :class:`~isaaclab.actuators.DelayedPDActuatorCfg` →
-      same as ``IdealPDActuatorCfg`` + ``NewtonActuatorDelayAPI``
     * :class:`~isaaclab.actuators.RemotizedPDActuatorCfg` →
-      same as ``DelayedPDActuatorCfg`` + ``NewtonPositionBasedClampingAPI``
+      ``NewtonPDControlAPI`` + ``NewtonPositionBasedClampingAPI``
     * :class:`~isaaclab.actuators.ActuatorNetMLPCfg` /
       :class:`~isaaclab.actuators.ActuatorNetLSTMCfg` →
       ``NewtonNeuralControlAPI`` (+ ``NewtonDCMotorClampingAPI``)
+
+    Enclosing mechanisms such as :class:`~isaaclab.utils.DelayCfg` run in the collection;
+    authoring consumes only the actuator leaf and does not install an additional native delay.
 
     No-ops (returns immediately) when:
 
@@ -234,7 +233,7 @@ def _author_actuator_prims(
 
     _remove_actuator_prims_for_joints(art_prim, covered_joint_paths)
 
-    from ...actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
+    from ...actuators import DCMotorCfg  # noqa: PLC0415
     from ...actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
     from ...actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
 
@@ -245,7 +244,6 @@ def _author_actuator_prims(
         is_neural = isinstance(cfg, (ActuatorNetMLPCfg, ActuatorNetLSTMCfg))
         is_remotized = isinstance(cfg, RemotizedPDActuatorCfg)
         is_dc_motor = isinstance(cfg, DCMotorCfg)
-        is_delayed = isinstance(cfg, DelayedPDActuatorCfg)
 
         configured_effort_limit = getattr(cfg, "actuator_effort_limit", None)
         effort_map: dict[str, float] = {}
@@ -264,9 +262,6 @@ def _author_actuator_prims(
             resolve_per_dof(getattr(cfg, "actuator_velocity_limit", None), joint_names) if is_dc_motor else {}
         )
         sat_effort_map = resolve_per_dof(getattr(cfg, "saturation_effort", None), joint_names) if is_dc_motor else {}
-
-        raw_delay = getattr(cfg, "max_delay", 0) if is_delayed else 0
-        delay_map = resolve_per_dof(raw_delay, joint_names, cast=int) if raw_delay else {}
 
         patched_model_path: str | None = None
         if is_neural:
@@ -312,12 +307,6 @@ def _author_actuator_prims(
                 schemas.append("NewtonPositionBasedClampingAPI")
                 array_attrs["lookup_positions"] = [row[0] for row in lookup]
                 array_attrs["lookup_efforts"] = [row[2] for row in lookup]
-
-            delay_steps = delay_map.get(jname, 0)
-            if delay_steps > 0:
-                schemas.append("NewtonActuatorDelayAPI")
-                attrs["delay_steps"] = delay_steps
-                attrs["max_delay"] = delay_steps
 
             act_prim_path = f"{articulation_prim_path}/{group_name}_{jname}_actuator"
             act_prim = stage.DefinePrim(act_prim_path, "NewtonActuator")

@@ -508,7 +508,7 @@ class TestDCMotorEquivalence(_EquivalenceTestBase):
 
 
 class TestDelayedPDEquivalence(_EquivalenceTestBase):
-    """DelayedPDActuator on all 12 joints: Lab vs Newton (PhysX).
+    """Shared command delay around PD on all 12 joints: Lab vs Newton (PhysX).
 
     Verifies that actuator command delays are correctly authored and
     produce matching trajectories on the PhysX backend.
@@ -827,8 +827,7 @@ class TestActuatorStateReset(ActuatorStateResetBase, unittest.TestCase):
     """Per-env actuator state reset isolation on the PhysX backend.
 
     The scenario and assertions live in :class:`ActuatorStateResetBase`;
-    this subclass provides the PhysX sim config and the per-articulation
-    adapter (``articulation.newton_actuator_adapter``).
+    this subclass provides the PhysX sim config and articulation.
     """
 
     def _make_sim_cfg(self, use_newton_actuators: bool) -> SimulationCfg:
@@ -836,9 +835,6 @@ class TestActuatorStateReset(ActuatorStateResetBase, unittest.TestCase):
 
     def _make_articulation(self) -> Articulation:
         return Articulation(ANYMAL_C_CFG.replace(actuators=DELAYED_PD_ACTUATORS, prim_path="/World/Env_.*/Robot"))
-
-    def _get_adapter(self, articulation):
-        return articulation.newton_actuator_adapter
 
 
 # ---------------------------------------------------------------------------
@@ -866,13 +862,17 @@ class TestRemotizedPDEquivalence(_EquivalenceTestBase):
                 damping=5.0,
                 actuator_effort_limit=80.0,
             ),
-            "knees": RemotizedPDActuatorCfg(
-                joint_names_expr=[".*KFE"],
-                stiffness=60.0,
-                damping=1.5,
-                actuator_effort_limit=80.0,
-                max_delay=3,
-                joint_parameter_lookup=SPOT_KNEE_LOOKUP,
+            "knees": DelayCfg(
+                term=RemotizedPDActuatorCfg(
+                    joint_names_expr=[".*KFE"],
+                    stiffness=60.0,
+                    damping=1.5,
+                    actuator_effort_limit=80.0,
+                    joint_parameter_lookup=SPOT_KNEE_LOOKUP,
+                ),
+                on="input",
+                max_lag=3,
+                resample="reset",
             ),
         }
         super().setUpClass()

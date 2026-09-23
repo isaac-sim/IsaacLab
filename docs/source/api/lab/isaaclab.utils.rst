@@ -131,8 +131,17 @@ and optional phases remain per environment. ``seed`` selects an independent, rep
 
 The first evaluation after reset delivers fresh data. Missing history resolves to the oldest available sample
 in the current episode. Partial resets affect only the selected environments and propagate through nested terms.
-Returned data can be modified without corrupting retained history. Legacy ``DelayedPDActuatorCfg`` remains
-supported with its original reset-sampled command delay; its Newton-native path retains Newton's own implementation.
+Returned data can be modified without corrupting retained history. Legacy ``DelayedPDActuatorCfg`` is a deprecated
+constructor returning ``DelayCfg(term=IdealPDActuatorCfg(...), on="input", resample="reset", ...)``.
+All configured actuator delays use this shared implementation, including native Newton execution.
+The authored controller has no additional Newton delay.
+
+``DelayedPDActuatorCfg`` and ``DelayedPDActuator`` remain callable until 3.2 but are no longer classes.
+The former returns a ``DelayCfg``; the latter returns a ``Delay`` whose ``term`` owns the controller properties.
+Replace old subclassing with an ``IdealPDActuator``/``IdealPDActuatorCfg`` subclass enclosed in ``DelayCfg``.
+Edit controller fields through ``cfg.term`` and delay bounds through ``cfg.min_lag``/``cfg.max_lag``.
+``RemotizedPDActuatorCfg`` now configures only the controller and its torque lookup table. Move its former
+``min_delay``/``max_delay`` arguments to an outer ``DelayCfg`` with ``on="input"`` and ``resample="reset"``.
 
 Actuator and delay-buffer invocation
 ++++++++++++++++++++++++++++++++++
@@ -148,6 +157,10 @@ processing/application clocks are unchanged by this migration.
 Custom mechanisms derive their configuration from ``WrapperCfg`` and implement a complete ``__call__`` and
 ``reset(env_ids)``. No input/output hook pair or universal side selector is required. Their input and output must
 match the enclosing term's signal contract; custom code must also support the backend's graph capture when enabled.
+Construction receives ``cfg``, the enclosed callable, ``num_envs``, ``device``, and the explicit keyword arguments
+``input_supported``, ``output_supported``, and ``split_calls``. The last identifies terms whose calls with arguments
+stage inputs and whose calls without arguments evaluate outputs on a different clock. These describe the owner's
+call interface; they do not prescribe input/output hooks in a mechanism.
 
 .. autoclass:: isaaclab.utils.WrapperCfg
    :members:

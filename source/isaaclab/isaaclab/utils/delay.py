@@ -96,13 +96,13 @@ class Delay:
         *,
         input_supported: bool = True,
         output_supported: bool = True,
-        action: bool = False,
+        split_calls: bool = False,
     ):
         wp.init()
         cfg.validate_config()
         if cfg.on == "input" and not input_supported or cfg.on == "output" and not output_supported:
             raise ValueError(f"This term does not expose a delayable {cfg.on} signal.")
-        self._action = action
+        self._split_calls = split_calls
         self.cfg = cfg
         self.term = term
         self.device = device
@@ -160,7 +160,7 @@ class Delay:
 
     def __call__(self, *args, **kwargs):
         # Actions stage policy input with arguments and evaluate physics output without arguments.
-        if self._action and (bool(args) != (self.cfg.on == "input")):
+        if self._split_calls and (bool(args) != (self.cfg.on == "input")):
             return self.term(*args, **kwargs)
         if self.cfg.on == "input":
             if not args:
@@ -262,7 +262,11 @@ class DelayCfg(WrapperCfg):
     per_env_phase: bool = True
     """Sample an independent delivery phase per environment on reset; otherwise use phase zero."""
     resample: Literal["step", "reset"] = "step"
-    """When to sample a new lag. Legacy actuator delays sample on reset."""
+    """When to choose a new delay length, independently of resetting history.
+
+    ``"reset"`` keeps one sampled lag until the next environment reset; ``"step"`` redraws it each call
+    to model timing jitter. Both modes invalidate episode history when the environment resets.
+    """
     seed: int | None = None
     """Independent device random stream seed. None draws a seed at construction."""
 

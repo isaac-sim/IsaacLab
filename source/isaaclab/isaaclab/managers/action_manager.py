@@ -519,7 +519,9 @@ class ActionManager(ManagerBase):
             self._term_names.append(term_name)
             self._terms[term_name] = term
             self._evaluations[term_name] = (
-                wrapper.wrap(term, self.num_envs, self.device, output_supported=term.produces_commands, action=True)
+                wrapper.wrap(
+                    term, self.num_envs, self.device, output_supported=term.produces_commands, split_calls=True
+                )
                 if wrapper is not None
                 else term
             )

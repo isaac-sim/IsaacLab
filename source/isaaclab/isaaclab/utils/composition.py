@@ -16,11 +16,7 @@ from .configclass import configclass
 
 @configclass
 class WrapperCfg:
-    """Configure a mechanism around a callable or another configured term.
-
-    The owner constructs the leaf and supplies its evaluation boundary to :meth:`wrap`.
-    Each mechanism owns its entire ``__call__`` implementation and any state it needs.
-    """
+    """Configure a callable around a term. The owner constructs the leaf; wrappers own their computation."""
 
     class_type: type = MISSING
     """Runtime implementation, constructed with this config, the callable, batch size, and device."""
@@ -39,15 +35,37 @@ class WrapperCfg:
             return self.term.unwrap()
         return self.term, self.params
 
-    def wrap(self, term: Callable, num_envs: int, device: str, **capabilities) -> Callable:
-        """Construct a nested callable without splitting or reordering its computation.
+    def wrap(
+        self,
+        term: Callable,
+        num_envs: int,
+        device: str,
+        *,
+        input_supported: bool = True,
+        output_supported: bool = True,
+        split_calls: bool = False,
+    ) -> Callable:
+        """Construct wrappers around the owner's leaf callable, preserving their nesting.
 
-        Args:
-            term: Constructed leaf evaluation callable.
-            num_envs: Batch size.
-            device: Execution device.
-            **capabilities: Boundary capabilities supplied by the owner.
+        ``input_supported`` and ``output_supported`` identify exposed signals. ``split_calls``
+        means calls with arguments stage inputs and calls without arguments evaluate outputs
+        on a separate clock, as action terms do. Wrappers own how they handle those calls.
         """
         if isinstance(self.term, WrapperCfg):
-            term = self.term.wrap(term, num_envs, device, **capabilities)
-        return self.class_type(self, term, num_envs, device, **capabilities)
+            term = self.term.wrap(
+                term,
+                num_envs,
+                device,
+                input_supported=input_supported,
+                output_supported=output_supported,
+                split_calls=split_calls,
+            )
+        return self.class_type(
+            self,
+            term,
+            num_envs,
+            device,
+            input_supported=input_supported,
+            output_supported=output_supported,
+            split_calls=split_calls,
+        )

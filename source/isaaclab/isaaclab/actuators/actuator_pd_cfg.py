@@ -3,14 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import warnings
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from ..utils import configclass
+from ..utils.delay import DelayCfg
 from .actuator_base_cfg import ActuatorBaseCfg
 
 if TYPE_CHECKING:
-    from .actuator_pd import DCMotor, DelayedPDActuator, IdealPDActuator, ImplicitActuator, RemotizedPDActuator
+    from .actuator_pd import DCMotor, IdealPDActuator, ImplicitActuator, RemotizedPDActuator
 
 """
 Implicit Actuator Models.
@@ -55,22 +57,30 @@ class DCMotorCfg(IdealPDActuatorCfg):
     """
 
 
+def DelayedPDActuatorCfg(*, min_delay: int = 0, max_delay: int = 0, **kwargs) -> DelayCfg:
+    """Construct reset-sampled command delay around an ideal PD controller.
+
+    Deprecated since 3.0; removed in 3.2. Use
+    ``DelayCfg(term=IdealPDActuatorCfg(...), on="input", min_lag=..., max_lag=..., resample="reset")``.
+    This constructor returns a :class:`~isaaclab.utils.DelayCfg`, not a separate actuator config type.
+    Delay bounds count physics steps; remaining arguments configure the enclosed PD controller.
+    """
+    warnings.warn(
+        "DelayedPDActuatorCfg is deprecated and will be removed in 3.2. Use "
+        'DelayCfg(term=IdealPDActuatorCfg(...), on="input", min_lag=..., max_lag=..., resample="reset").',
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return DelayCfg(
+        term=IdealPDActuatorCfg(**kwargs), on="input", min_lag=min_delay, max_lag=max_delay, resample="reset"
+    )
+
+
 @configclass
-class DelayedPDActuatorCfg(IdealPDActuatorCfg):
-    """Configuration for a delayed PD actuator."""
-
-    class_type: type["DelayedPDActuator"] | str = "{DIR}.actuator_pd:DelayedPDActuator"
-
-    min_delay: int = 0
-    """Minimum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
-
-    max_delay: int = 0
-    """Maximum number of physics time-steps with which the actuator command may be delayed. Defaults to 0."""
-
-
-@configclass
-class RemotizedPDActuatorCfg(DelayedPDActuatorCfg):
+class RemotizedPDActuatorCfg(IdealPDActuatorCfg):
     """Configuration for a remotized PD actuator.
+
+    Apply command latency with an enclosing :class:`~isaaclab.utils.DelayCfg`.
 
     Note:
         The torque output limits for this actuator is derived from a linear interpolation of a lookup table

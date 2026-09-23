@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from isaaclab.actuators import DelayedPDActuatorCfg, IdealPDActuatorCfg
+from isaaclab.actuators import DelayedPDActuator, DelayedPDActuatorCfg, IdealPDActuatorCfg
 from isaaclab.utils import DelayCfg
 from isaaclab.utils.types import ArticulationActions
 
@@ -18,8 +18,13 @@ pytestmark = pytest.mark.integration
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_delayed_actuator_and_observation_share_buffer(device):
     """Use the same ring primitive for actuator targets and observations across partial resets."""
-    cfg = DelayedPDActuatorCfg(joint_names_expr=[".*"], stiffness=4.0, damping=5.0, min_delay=2, max_delay=2)
-    actuator = cfg.class_type(cfg, joint_names=["a", "b"], joint_ids=slice(None), num_envs=2, device=device)
+    with pytest.warns(DeprecationWarning, match="DelayedPDActuatorCfg"):
+        cfg = DelayedPDActuatorCfg(joint_names_expr=[".*"], stiffness=4.0, damping=5.0, min_delay=2, max_delay=2)
+    assert type(cfg) is DelayCfg
+    assert type(cfg.term) is IdealPDActuatorCfg
+    assert cfg.on == "input" and cfg.resample == "reset"
+    with pytest.warns(DeprecationWarning, match="DelayedPDActuator is deprecated"):
+        actuator = DelayedPDActuator(cfg, joint_names=["a", "b"], joint_ids=slice(None), num_envs=2, device=device)
     env = SimpleNamespace(num_envs=2, device=device, observation=None)
     observation = DelayCfg(term=lambda env: env.observation, min_lag=2, max_lag=2).wrap(
         lambda env: env.observation, env.num_envs, device

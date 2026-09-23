@@ -22,7 +22,6 @@ if TYPE_CHECKING:
     from .actuator_control import ActuatorControl
     from .actuator_pd_cfg import (
         DCMotorCfg,
-        DelayedPDActuatorCfg,
         IdealPDActuatorCfg,
         ImplicitActuatorCfg,
         RemotizedPDActuatorCfg,
@@ -451,41 +450,26 @@ class DCMotor(IdealPDActuator):
         return clamped
 
 
-class DelayedPDActuator(IdealPDActuator):
-    """Ideal PD actuator with delayed command application.
+def DelayedPDActuator(cfg: DelayCfg, *args, **kwargs) -> Delay:
+    """Construct the shared delay around a PD controller; deprecated until removal in 3.2.
 
-    This class extends the :class:`IdealPDActuator` class by adding a delay to the actuator commands. The delay
-    is implemented using a circular buffer that stores the actuator commands for a certain number of physics steps.
-    The most recent actuation value is pushed to the buffer at every physics step, but the final actuation value
-    applied to the simulation is lagged by a certain number of physics steps.
-
-    The amount of time lag is configurable and can be set to a random value between the minimum and maximum time
-    lag bounds at every reset. The minimum and maximum time lag values are set in the configuration instance passed
-    to the class.
+    Pass the composition returned by :func:`DelayedPDActuatorCfg`. This returns a
+    :class:`~isaaclab.utils.Delay`; controller properties belong to its ``term``.
+    Subclasses should inherit :class:`IdealPDActuator` and configure delay separately.
     """
-
-    cfg: DelayedPDActuatorCfg
-    """The configuration for the actuator model."""
-
-    def __init__(self, cfg: DelayedPDActuatorCfg, *args, **kwargs):
-        super().__init__(cfg, *args, **kwargs)
-        delay_cfg = DelayCfg(term=cfg, on="input", min_lag=cfg.min_delay, max_lag=cfg.max_delay, resample="reset")
-        self._delay = Delay(delay_cfg, super().__call__, self._num_envs, self._device)
-
-    def reset(self, env_ids: Sequence[int]):
-        super().reset(env_ids)
-        self._delay.reset(env_ids)
-
-    def __call__(
-        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
-    ) -> ArticulationActions:
-        return self._delay(control_action, joint_pos, joint_vel)
+    warnings.warn(
+        "DelayedPDActuator is deprecated and will be removed in 3.2. Configure DelayCfg around an actuator instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    actuator = cfg.term.class_type(cfg.term, *args, **kwargs)
+    return Delay(cfg, actuator, actuator._num_envs, actuator._device)
 
 
-class RemotizedPDActuator(DelayedPDActuator):
+class RemotizedPDActuator(IdealPDActuator):
     """Ideal PD actuator with angle-dependent torque limits.
 
-    This class extends :class:`DelayedPDActuator` with angle-dependent effort
+    This class extends :class:`IdealPDActuator` with angle-dependent effort
     limits [N or N·m, depending on joint type]. The limits are applied by
     querying a lookup table describing the relationship between joint angle
     [m or rad, depending on joint type] and maximum output effort [N or N·m,

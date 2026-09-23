@@ -28,8 +28,9 @@ import torch
 import warp as wp
 
 from ... import sim as sim_utils
-from ...actuators import DCMotorCfg, DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
+from ...actuators import DCMotorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
 from ...sim import SimulationCfg, build_simulation_context
+from ...utils import DelayCfg
 
 # ---------------------------------------------------------------------------
 # Actuator configurations under test
@@ -95,13 +96,14 @@ MIXED_WITH_IMPLICIT_ACTUATORS = {
 }
 
 DELAYED_PD_ACTUATORS = {
-    "legs": DelayedPDActuatorCfg(
-        joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
-        stiffness=40.0,
-        damping=5.0,
-        actuator_effort_limit=80.0,
-        min_delay=2,
-        max_delay=4,
+    "legs": DelayCfg(
+        term=IdealPDActuatorCfg(
+            joint_names_expr=[".*HAA", ".*HFE", ".*KFE"], stiffness=40.0, damping=5.0, actuator_effort_limit=80.0
+        ),
+        on="input",
+        min_lag=2,
+        max_lag=4,
+        resample="reset",
     ),
 }
 
@@ -317,18 +319,7 @@ def build_dr_term(env, asset_name, joint_ids=None):
 
 
 class ActuatorStateResetBase:
-    """Reset must clear the actuator state buffers for the requested envs only.
-
-    Inspects ``adapter.actuators[i].state.delay_state.num_pushes`` directly:
-
-    * After warmup, ``num_pushes > 0`` for every DOF (buffer was populated).
-    * After ``articulation.reset(env_ids=[0])``, the entries for env 0's DOFs
-      must be ``0`` and the entries for env 1's DOFs must remain ``> 0``.
-
-    Done independently on Lab and Newton paths. Backend-specific twins mix
-    this into a ``unittest.TestCase`` and provide :meth:`_make_sim_cfg`,
-    :meth:`_make_articulation`, and :meth:`_get_adapter`.
-    """
+    """Partial reset accepts fresh commands only in the selected environments on both execution paths."""
 
     RESET_ENV: int = 0
     UNCHANGED_ENV: int = 1
@@ -343,10 +334,6 @@ class ActuatorStateResetBase:
 
     def _make_articulation(self):
         """Construct the backend articulation (DelayedPD on all joints) at ``/World/Env_.*/Robot``."""
-        raise NotImplementedError
-
-    def _get_adapter(self, articulation):
-        """Return the Newton actuator adapter that owns ``articulation``'s actuators."""
         raise NotImplementedError
 
     def _build_and_warm(self, *, use_newton_actuators: bool):
@@ -374,73 +361,27 @@ class ActuatorStateResetBase:
             articulation.update(self.DT)
         return ctx, sim, articulation
 
-    def test_newton_state_reset_isolated_to_reset_env(self):
-        """Newton: ``num_pushes`` zeroes for env 0's DOFs only after reset of [0]."""
-        ctx, sim, articulation = self._build_and_warm(use_newton_actuators=True)
-        try:
-            adapter = self._get_adapter(articulation)
-            self.assertIsNotNone(adapter)
-            # Find a DelayedPD actuator (it's the only one with delay_state).
-            stateful_pairs = [
-                (act, st)
-                for act, st in zip(adapter.actuators, adapter._states_a)
-                if st is not None and getattr(st, "delay_state", None) is not None
-            ]
-            self.assertGreater(len(stateful_pairs), 0, "expected at least one DelayedPD actuator with delay_state")
-
-            for act, state in stateful_pairs:
-                pushes_before = state.delay_state.num_pushes.numpy()
-                self.assertTrue(
-                    (pushes_before > 0).all(),
-                    "expected non-zero num_pushes for all DOFs after warmup",
-                )
-
-            articulation.reset(env_ids=torch.tensor([self.RESET_ENV], device=articulation.device, dtype=torch.long))
-
-            # Map each entry of ``act.indices`` to its env via the adapter's
-            # per-env DOF count. On the Newton backend the adapter is model-wide
-            # (includes free-joint DOFs on floating-base articulations); on
-            # PhysX it is per-articulation — ``adapter.num_joints`` is the
-            # correct stride in both cases.
-            for act, state in stateful_pairs:
-                pushes_after = state.delay_state.num_pushes.numpy()
-                indices_np = act.indices.numpy()
-                for i, global_dof in enumerate(indices_np):
-                    env = int(global_dof) // adapter.num_joints
-                    if env == self.RESET_ENV:
-                        self.assertEqual(
-                            int(pushes_after[i]),
-                            0,
-                            f"DOF {i} (env {env}) should be reset to 0, got {pushes_after[i]}",
-                        )
-                    else:
-                        self.assertGreater(
-                            int(pushes_after[i]),
-                            0,
-                            f"DOF {i} (env {env}) was NOT in reset env_ids but num_pushes is 0",
-                        )
-        finally:
-            ctx.__exit__(None, None, None)
-
-    def test_lab_state_reset_isolated_to_reset_env(self):
-        """Reset environments accept fresh commands while the remaining environments retain their history."""
-        ctx, sim, articulation = self._build_and_warm(use_newton_actuators=False)
-        try:
-            commands = articulation.actuators.target_command
-            old_target = commands.position.torch.clone()
-            new_target = old_target + 0.02
-            articulation.reset(env_ids=torch.tensor([self.RESET_ENV], device=articulation.device))
-            commands.set_position_index(value=new_target)
-            articulation.write_data_to_sim()
-            expected_target = old_target.clone()
-            expected_target[self.RESET_ENV] = new_target[self.RESET_ENV]
-            for actuator in articulation.actuators.values():
-                joints = actuator.joint_indices
-                demand = (
-                    actuator.stiffness * (expected_target[:, joints] - articulation.data.joint_pos.torch[:, joints])
-                    - actuator.damping * articulation.data.joint_vel.torch[:, joints]
-                )
-                torch.testing.assert_close(actuator.computed_effort, demand)
-
-        finally:
-            ctx.__exit__(None, None, None)
+    def test_state_reset_isolated_to_reset_env(self):
+        """Verify delivered PD demand rather than a particular backend's history storage."""
+        for use_newton_actuators in (False, True):
+            with self.subTest(use_newton_actuators=use_newton_actuators):
+                ctx, sim, articulation = self._build_and_warm(use_newton_actuators=use_newton_actuators)
+                try:
+                    collection = articulation.actuators
+                    commands = collection.target_command
+                    old_target = commands.position.torch.clone()
+                    new_target = old_target + 0.02
+                    joint_pos = articulation.data.joint_pos.torch.clone()
+                    joint_vel = articulation.data.joint_vel.torch.clone()
+                    articulation.reset(env_ids=torch.tensor([self.RESET_ENV], device=articulation.device))
+                    commands.set_position_index(value=new_target)
+                    articulation.write_data_to_sim()
+                    sim.step()
+                    articulation.update(self.DT)
+                    expected_target = old_target.clone()
+                    expected_target[self.RESET_ENV] = new_target[self.RESET_ENV]
+                    pd_cfg = DELAYED_PD_ACTUATORS["legs"].term
+                    expected = pd_cfg.stiffness * (expected_target - joint_pos) - pd_cfg.damping * joint_vel
+                    torch.testing.assert_close(collection.computed_effort.torch, expected, atol=1e-4, rtol=1e-4)
+                finally:
+                    ctx.__exit__(None, None, None)

@@ -586,26 +586,22 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
 
 
 class TestDelayedPDEquivalence(_EquivalenceTestBase):
-    """DelayedPDActuator on all 12 joints: Lab vs Newton.
-
-    Verifies that actuator command delays are correctly authored as
-    ``NewtonActuatorDelayAPI`` and produce matching trajectories.
-    """
+    """Shared command delay around PD on all 12 joints: Lab vs Newton."""
 
     __test__ = True
     actuators = DELAYED_PD_ACTUATORS
 
 
 class TestDelayedPDAuthoring(unittest.TestCase):
-    """Verify DelayedPDActuatorCfg is authored with NewtonActuatorDelayAPI."""
+    """Author the PD leaf without installing a second delay inside Newton."""
 
     @classmethod
     def setUpClass(cls):
         cls.result = _run_authoring_introspection(DELAYED_PD_ACTUATORS)
 
-    def test_has_delay(self):
+    def test_no_duplicate_delay(self):
         for a in self.result["actuator_info"]:
-            self.assertTrue(a["has_delay"], "Delay not found on delayed PD actuator")
+            self.assertFalse(a["has_delay"], "Shared delay must be the only delay owner")
 
     def test_controller_is_pd(self):
         for a in self.result["actuator_info"]:
@@ -679,7 +675,7 @@ class TestActuatorStateReset(ActuatorStateResetBase, unittest.TestCase):
     """Per-env actuator state reset isolation on the Newton backend.
 
     The scenario and assertions live in :class:`ActuatorStateResetBase`;
-    this subclass provides the Newton sim config and the model-wide adapter.
+    this subclass provides the Newton sim config and articulation.
     """
 
     def _make_sim_cfg(self, use_newton_actuators: bool) -> SimulationCfg:
@@ -687,9 +683,6 @@ class TestActuatorStateReset(ActuatorStateResetBase, unittest.TestCase):
 
     def _make_articulation(self) -> Articulation:
         return Articulation(ANYMAL_C_CFG.replace(actuators=DELAYED_PD_ACTUATORS, prim_path="/World/Env_.*/Robot"))
-
-    def _get_adapter(self, articulation):
-        return SimulationManager._adapter
 
 
 # ---------------------------------------------------------------------------
@@ -708,13 +701,17 @@ def _remotized_pd_actuators() -> dict:
             damping=5.0,
             actuator_effort_limit=80.0,
         ),
-        "knees": RemotizedPDActuatorCfg(
-            joint_names_expr=[".*KFE"],
-            stiffness=60.0,
-            damping=1.5,
-            actuator_effort_limit=80.0,
-            max_delay=3,
-            joint_parameter_lookup=SPOT_KNEE_LOOKUP,
+        "knees": DelayCfg(
+            term=RemotizedPDActuatorCfg(
+                joint_names_expr=[".*KFE"],
+                stiffness=60.0,
+                damping=1.5,
+                actuator_effort_limit=80.0,
+                joint_parameter_lookup=SPOT_KNEE_LOOKUP,
+            ),
+            on="input",
+            max_lag=3,
+            resample="reset",
         ),
     }
 
@@ -786,8 +783,7 @@ def _run_authoring_introspection(actuator_cfgs: dict) -> dict:
 
 
 class TestRemotizedPDAuthoring(unittest.TestCase):
-    """Verify RemotizedPDActuatorCfg is authored as Newton PD + delay +
-    position-based clamping.
+    """Verify RemotizedPDActuatorCfg is authored as Newton PD + position-based clamping.
 
     Uses the Spot knee lookup table on ANYmal's KFE joints, with IdealPD
     on HAA and HFE joints.
@@ -810,10 +806,10 @@ class TestRemotizedPDAuthoring(unittest.TestCase):
         kfe_acts = [a for a in self.result["actuator_info"] if "ClampingPositionBased" in a["clamping_types"]]
         self.assertTrue(len(kfe_acts) > 0, "Position-based clamping not found")
 
-    def test_kfe_has_delay(self):
+    def test_kfe_has_no_duplicate_delay(self):
         kfe_acts = [a for a in self.result["actuator_info"] if "ClampingPositionBased" in a["clamping_types"]]
         for a in kfe_acts:
-            self.assertTrue(a["has_delay"], "Delay not found on remotized KFE actuator")
+            self.assertFalse(a["has_delay"], "Shared delay must be the only delay owner")
 
 
 class TestRemotizedPDEquivalence(_EquivalenceTestBase):

@@ -204,14 +204,13 @@ simplest model that meets your requirements.
       - Same PD torque, clipped to a four-quadrant torque-speed envelope.
       - Model clips against a velocity-dependent limit.
       - ``saturation_effort``, ``actuator_velocity_limit``
-    * - :class:`~isaaclab.actuators.DelayedPDActuator`
-        (:class:`~isaaclab.actuators.DelayedPDActuatorCfg`)
+    * - :class:`~isaaclab.utils.DelayCfg` around an actuator config
       - Ideal PD applied to commands delayed by a circular buffer.
       - Same as ideal PD (``actuator_effort_limit``).
-      - ``min_delay``, ``max_delay``
+      - ``on="input"``, ``min_lag``, ``max_lag``, ``resample="reset"``
     * - :class:`~isaaclab.actuators.RemotizedPDActuator`
         (:class:`~isaaclab.actuators.RemotizedPDActuatorCfg`)
-      - Delayed PD with an angle-dependent torque ceiling.
+      - Ideal PD with an angle-dependent torque ceiling.
       - Torque clipped by a joint-angle lookup table.
       - ``joint_parameter_lookup``
     * - :class:`~isaaclab.actuators.ActuatorNetMLP` /
@@ -231,12 +230,15 @@ torque, and ``actuator_velocity_limit`` is the no-load speed. Both accept a join
 dictionary, so joints behind different gear reductions can share one group and still get their own
 curve — for example a quadruped whose knee sits behind an extra reduction relative to its hip.
 
-**DelayedPDActuator.** An ideal PD controller with delayed position, velocity, and effort commands.
-The delay is sampled uniformly from ``[min_delay, max_delay]`` at reset.
+**DelayCfg.** Adds latency around any supported actuator. With ``on="input"`` and ``resample="reset"``,
+position, velocity, and effort commands share a delay sampled uniformly from ``[min_lag, max_lag]`` at reset.
+Joint feedback remains current. ``DelayedPDActuatorCfg(...)`` is a deprecated constructor for this composition
+around ``IdealPDActuatorCfg``; it will be removed in 3.2.
 
-**RemotizedPDActuator.** A delayed PD controller with an angle-dependent torque limit. The
+**RemotizedPDActuator.** A PD controller with an angle-dependent torque limit. The
 ``joint_parameter_lookup`` table stores joint angle, transmission ratio, and maximum torque. Use it
-for linkages whose effective lever arm changes through their range of motion.
+for linkages whose effective lever arm changes through their range of motion. Configure command delay separately
+with ``DelayCfg(term=RemotizedPDActuatorCfg(...), on="input", resample="reset", ...)``.
 
 **ActuatorNetMLP / ActuatorNetLSTM.** Learned torque models that use joint-position error and
 velocity history and clip output with the DC-motor envelope. They require a TorchScript checkpoint.
@@ -442,8 +444,8 @@ requests a solver constraint. Enforcement depends on the backend; see
 Command delay
 ^^^^^^^^^^^^^
 
-A :class:`~isaaclab.actuators.DelayedPDActuator` delays every command by a fixed number of physics
-steps sampled from ``[min_delay, max_delay]`` at reset. The clip compares delays of
+A :class:`~isaaclab.utils.DelayCfg` with ``on="input"`` and ``resample="reset"`` delays every command by a fixed
+number of physics steps sampled from ``[min_lag, max_lag]`` at reset. The clip compares delays of
 :math:`[0, 6, 12, 24, 48]` steps (0--133 ms at :math:`dt = 1/360\text{ s}`) for a square-wave
 position command. Longer delays make the pendulum trail the reference. Randomizing delay between
 resets can model transport delay during sim-to-real training.
@@ -687,10 +689,8 @@ staging.
       - ``NewtonPDControlAPI`` + ``NewtonMaxEffortClampingAPI``
     * - :class:`~isaaclab.actuators.DCMotorCfg`
       - ``NewtonPDControlAPI`` + ``NewtonDCMotorClampingAPI``
-    * - :class:`~isaaclab.actuators.DelayedPDActuatorCfg`
-      - ideal PD + ``NewtonActuatorDelayAPI``
     * - :class:`~isaaclab.actuators.RemotizedPDActuatorCfg`
-      - delayed PD + ``NewtonPositionBasedClampingAPI``
+      - ``NewtonPDControlAPI`` + ``NewtonPositionBasedClampingAPI``
     * - :class:`~isaaclab.actuators.ActuatorNetMLPCfg` /
         :class:`~isaaclab.actuators.ActuatorNetLSTMCfg`
       - ``NewtonNeuralControlAPI`` (+ ``NewtonDCMotorClampingAPI``)
@@ -708,9 +708,9 @@ joints.
 
 .. note::
 
-    Under native execution, delay is fixed. The schema stores only ``max_delay``, so ``min_delay``
-    is ignored. A :class:`~isaaclab.actuators.DelayedPDActuator` does not randomize delay between
-    resets as it does on the Isaac Lab path.
+    Enclosing ``DelayCfg`` mechanisms execute in the collection on every physics tick, including native
+    decimation and graph replay. They respect the same lag bounds and sampling mode on all execution paths.
+    USD authoring configures only the enclosed controller and does not add a second delay.
 
 
 Backend submission

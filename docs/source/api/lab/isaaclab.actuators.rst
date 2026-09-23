@@ -113,16 +113,9 @@ DC Motor Actuator
 Delayed PD Actuator
 -------------------
 
-.. autoclass:: DelayedPDActuator
-  :members:
-  :inherited-members:
-  :show-inheritance:
+.. autofunction:: DelayedPDActuator
 
-.. autoclass:: DelayedPDActuatorCfg
-  :members:
-  :inherited-members:
-  :show-inheritance:
-  :exclude-members: __init__, class_type
+.. autofunction:: DelayedPDActuatorCfg
 
 Remotized PD Actuator
 ---------------------
