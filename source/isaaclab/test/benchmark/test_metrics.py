@@ -157,7 +157,7 @@ def test_success_rate_tracker_no_data_end_iteration_returns_none():
     assert t.history == []
 
 
-def _all_reduce_worker(rank: int, world_size: int, init_file: str, results) -> None:
+def _all_reduce_worker(rank: int, world_size: int, init_file: str) -> None:
     dist.init_process_group("gloo", init_method=f"file://{init_file}", rank=rank, world_size=world_size)
     try:
         t = SuccessRateTracker(threshold=0.5, window=2, num_steps_per_env=1)
@@ -166,22 +166,16 @@ def _all_reduce_worker(rank: int, world_size: int, init_file: str, results) -> N
             t.record_step({"log": {"Metrics/success_rate": 1.0 if rank == 0 else 0.2}})
             t.all_reduce_iteration("cpu")
             t.end_iteration()
-        results[rank] = (list(t.history), t.converged)
+        assert t.history == pytest.approx([0.6, 0.6])
+        assert t.converged is True
     finally:
         dist.destroy_process_group()
 
 
 def test_success_rate_tracker_all_reduce_agrees_across_ranks(tmp_path):
     """Every rank records the global mean, so all ranks make the same stop decision."""
-    world_size = 2
-    results = mp.Manager().dict()
-    mp.spawn(_all_reduce_worker, args=(world_size, str(tmp_path / "pg_init"), results), nprocs=world_size)
-
-    expected_mean = (1.0 + 0.2) / world_size
-    for rank in range(world_size):
-        history, converged = results[rank]
-        assert history == pytest.approx([expected_mean] * 2)
-        assert converged is True
+    # mp.spawn re-raises a failed assertion from any rank.
+    mp.spawn(_all_reduce_worker, args=(2, str(tmp_path / "pg_init")), nprocs=2)
 
 
 def test_parse_tf_logs_empty_dir_returns_empty(tmp_path, caplog):
