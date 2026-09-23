@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import os
-from typing import Literal
+from typing import Literal, cast
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
@@ -30,21 +30,12 @@ from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG
 
 BenchmarkMode = Literal["render", "physics_render"]
-"""How much work the physics backend does to produce each frame a renderer is timed on.
+"""Animation mode used by the render benchmark.
 
-``"render"`` isolates the renderer: each frame's pose is written straight into the simulation
-after the last physics step and before the camera is read, so the rendered scene is the analytic
-sinusoid and no actuator had to be solved to reach it.
-
-``"physics_render"`` exercises the whole step: the same poses are requested as actuator targets
-before the physics steps, so the solver does the tracking work an ordinary task's solver does and
-the rendered scene is whatever it arrived at.
-
-Note that the physics backend still integrates in ``"render"`` mode, because an Isaac Lab
-environment has no way to skip its own physics step; that mode removes the actuation and
-overwrites the solver's result before rendering, rather than skipping the step. Either way
-the runtime benchmark's ``ISAACLAB_PHYSICS_PROFILE`` wrapper records each step's cost in the run log,
-so what physics contributed stays visible next to the render times ``benchmark_renderer.py`` reports.
+``"render"`` writes analytic joint poses after physics and requires ``scene.lazy_sensor_update=True``.
+Isaac RTX direct posing also requires no Kit app-pumping visualizer (for example, ``--visualizer none``).
+``"physics_render"`` sends actuator targets before physics and renders the resulting state.
+Both modes still step physics; the renderer sweep reports physics and rendering timings separately.
 """
 
 BENCHMARK_MODES: tuple[BenchmarkMode, ...] = ("render", "physics_render")
@@ -53,11 +44,6 @@ BENCHMARK_MODES: tuple[BenchmarkMode, ...] = ("render", "physics_render")
 
 def _read_benchmark_mode() -> BenchmarkMode:
     """Read the default benchmark mode from ``BENCHMARK_MODE``, rejecting unknown values.
-
-    Read from the environment rather than taken as a preset so a sweep can be pointed at either
-    mode without touching ``benchmark_renderer.py``, the same way ``ISAACLAB_RENDER_PROFILE``
-    turns the render timer on. A typo raises here instead of silently benchmarking the wrong
-    thing for the whole sweep.
 
     Returns:
         The configured mode, or ``"render"`` when the variable is unset.
@@ -68,7 +54,7 @@ def _read_benchmark_mode() -> BenchmarkMode:
     mode = os.getenv("BENCHMARK_MODE", "render")
     if mode not in BENCHMARK_MODES:
         raise ValueError(f"Unknown BENCHMARK_MODE '{mode}'. Expected one of {list(BENCHMARK_MODES)}.")
-    return mode  # type: ignore[return-value]
+    return cast(BenchmarkMode, mode)
 
 
 BENCHMARK_MODE: BenchmarkMode = _read_benchmark_mode()
@@ -218,13 +204,7 @@ class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
     moving articulated geometry rather than a static scene. There is no policy: actions are
     ignored, rewards are zero, and the episode only ends on time-out.
 
-    :attr:`benchmark_mode` selects what the run is meant to measure -- the renderer alone, or
-    physics together with the renderer. See :data:`BenchmarkMode`.
-
-    A mirrored layout of the canonical ``Isaac-Franka-Cabinet-Direct-v0`` task, which places the
-    Franka at the origin facing its default ``+X``: here the Franka sits at ``(1.0, 0, 0)`` rotated
-    180 deg about Z (facing ``-X``, toward the cabinet), and the cabinet sits at the origin in its
-    default USD orientation.
+    :attr:`benchmark_mode` selects direct posing or actuator tracking. See :data:`BenchmarkMode`.
     """
 
     decimation: int = 2
@@ -248,10 +228,11 @@ class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
     """Frequency of the joint animation [Hz]."""
 
     benchmark_mode: BenchmarkMode = BENCHMARK_MODE
-    """Whether to benchmark the renderer alone or physics together with the renderer.
+    """Whether animation uses direct joint poses or actuator targets.
 
     See :data:`BenchmarkMode`. Defaults to the ``BENCHMARK_MODE`` environment variable, or
-    ``"render"`` when it is unset.
+    ``"render"`` when it is unset. Render mode requires ``scene.lazy_sensor_update=True``.
+    With Isaac RTX, use ``--visualizer none`` or a visualizer that does not pump the Kit app loop.
     """
 
     write_image_to_file: bool = os.getenv("BENCHMARK_SAVE_IMAGE", "0") == "1"

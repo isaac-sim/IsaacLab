@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import TYPE_CHECKING, Any
 
 import torch
@@ -22,6 +23,20 @@ if TYPE_CHECKING:
     from isaaclab.sim import BackendCfg
 
 logger = logging.getLogger(__name__)
+
+
+def __getattr__(name: str) -> Any:
+    if name == "RENDER_PROFILE_SCOPE":
+        from isaaclab.benchmark.stepping import RENDER_PROFILE_SCOPE
+
+        warnings.warn(
+            "isaaclab.renderers.render_context.RENDER_PROFILE_SCOPE is deprecated; "
+            "use isaaclab.benchmark.stepping.RENDER_PROFILE_SCOPE instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return RENDER_PROFILE_SCOPE
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 @wp.kernel(enable_backward=False)

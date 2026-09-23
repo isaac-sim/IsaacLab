@@ -21,6 +21,7 @@ from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
+from isaaclab.envs import DirectRLEnv
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim.schemas import MassCfg, UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 
@@ -55,6 +56,46 @@ def test_default_scene_and_articulations():
     assert cfg.scene.cabinet.prim_path == "{ENV_REGEX_NS}/Cabinet"
     assert cfg.joint_animation_amplitude == pytest.approx(0.4)
     assert cfg.benchmark_mode == "render"
+
+
+@pytest.mark.parametrize(
+    ("mode", "lazy_sensor_update", "renderer_type", "pumps_app_update", "error"),
+    [
+        ("render", False, "newton_warp", False, "lazy_sensor_update=True"),
+        ("physics_render", False, "newton_warp", False, None),
+        ("render", True, "isaac_rtx", True, "--visualizer none"),
+        ("physics_render", True, "isaac_rtx", True, None),
+        ("render", True, "ovrtx", True, None),
+        ("render", True, "isaac_rtx", False, None),
+    ],
+)
+def test_render_mode_rejects_rendering_before_direct_pose(
+    monkeypatch, mode, lazy_sensor_update, renderer_type, pumps_app_update, error
+):
+    """Direct posing requires camera rendering to follow the joint writes."""
+    cfg = _load_cfg().replace(benchmark_mode=mode)
+    cfg.scene.lazy_sensor_update = lazy_sensor_update
+
+    def initialize(self, *args, **kwargs):
+        self.scene = {"tiled_camera": None}
+        self.sim = SimpleNamespace(
+            render_context=SimpleNamespace(renderer_types=(renderer_type,)),
+            visualizers=[SimpleNamespace(pumps_app_update=lambda: pumps_app_update)],
+        )
+
+    close = Mock()
+    monkeypatch.setattr(DirectRLEnv, "__init__", initialize)
+    monkeypatch.setattr(DirectRLEnv, "close", close)
+
+    if error:
+        with pytest.raises(ValueError, match=error):
+            RenderBenchmarkEnv(cfg)
+    else:
+        RenderBenchmarkEnv(cfg)
+    if error == "--visualizer none":
+        close.assert_called_once()
+    else:
+        close.assert_not_called()
 
 
 @pytest.mark.parametrize("mode", ["render", "physics_render"])

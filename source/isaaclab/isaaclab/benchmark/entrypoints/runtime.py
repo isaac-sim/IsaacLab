@@ -191,17 +191,16 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             profile_render = benchmark_mode is not None and os.environ.get("ISAACLAB_RENDER_PROFILE", "0") != "0"
             profile_physics = benchmark_mode is not None and os.environ.get("ISAACLAB_PHYSICS_PROFILE", "0") != "0"
             profile_timings: list[tuple[str, float]] = []
-            stepping.profile_renderers(
-                env.unwrapped.sim.render_context,
-                active=profile_render,
-                timings=profile_timings,
-            )
-            stepping.profile_physics_steps(
-                env.unwrapped.sim.physics_manager,
-                active=profile_physics,
-                timings=profile_timings,
-            )
-            with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
+            with (
+                stepping.profile_renderers(
+                    env.unwrapped.sim.render_context, active=profile_render, timings=profile_timings
+                ),
+                stepping.profile_physics_steps(
+                    env.unwrapped.sim.physics_manager, active=profile_physics, timings=profile_timings
+                ),
+                environment_step_timer,
+                BenchmarkMonitor(benchmark, interval=1.0),
+            ):
                 step_times_s = stepping.run_runtime_loop(env, args.num_steps, reset=False)
 
             first_step_s = warmup_step_times_s[0] if warmup_step_times_s else step_times_s[0]

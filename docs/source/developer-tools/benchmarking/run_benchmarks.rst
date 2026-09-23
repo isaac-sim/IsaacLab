@@ -82,13 +82,20 @@ Render and physics scope profiling requires a non-``None`` ``benchmark_mode`` in
 task configuration. If the field is absent or ``None``, both scopes remain disabled
 even when their profiling flags are set; standard runtime reports are still produced.
 
+For ``Isaac-RenderBenchmark-Franka-Cabinet``, ``BENCHMARK_MODE=render`` (the default)
+writes analytic joint poses after physics, while ``BENCHMARK_MODE=physics_render``
+sets actuator targets before physics. Both modes still step physics. Direct posing
+requires ``scene.lazy_sensor_update=True``. With Isaac RTX, use ``--visualizer none``
+in this mode: a Kit visualizer would render before the pose write.
+
 Set ``ISAACLAB_PHYSICS_PROFILE=1`` to collect synchronized physics-step timings during
 the runtime measurement loop. The benchmark wraps the selected physics
 manager's ``step`` through :func:`~isaaclab.benchmark.stepping.profile_physics_steps`
-for the rest of the process. Similarly, ``ISAACLAB_RENDER_PROFILE=1`` wraps registered
+during the measurement loop. Similarly, ``ISAACLAB_RENDER_PROFILE=1`` wraps registered
 renderers through :func:`~isaaclab.benchmark.stepping.profile_renderers`, timing only
-``render()`` and excluding scene updates and output readback. Render wrappers are installed
-after warmup and remain on those instances for the rest of the benchmark. The render sweep
+``render()`` and excluding scene updates and output readback. Both context managers install
+wrappers after warmup and restore the original methods when measurement ends, including on
+failure, so subsequent benchmark runs are unaffected. The render sweep
 enables both flags automatically. Ordered ``[scope, elapsed_ms]`` samples are written under
 ``timings_ms`` in the local ``<output_path>/profile_timings.json`` file. The benchmark bundle's
 ``extra`` dictionary holds scalar ``physics_mean_ms``, ``physics_std_ms``, ``physics_max_ms``,

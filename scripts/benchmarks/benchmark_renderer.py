@@ -65,6 +65,17 @@ PROFILE_SCOPES = {
 }
 """Report scope names mapped to timer names; :data:`FRAME_SCOPE` closes each frame."""
 
+TABLE_COLUMNS = [
+    ("RENDER", "median_ms"),
+    ("MEAN", "mean_ms"),
+    ("MIN", "min_ms"),
+    ("MAX", "max_ms"),
+    ("STDEV", "stdev_ms"),
+    ("PHYSICS", "physics_median_ms"),
+    ("TOTAL", "total_median_ms"),
+]
+"""``(heading, record key)`` pairs for the report's timing columns, in display order."""
+
 log_stream = sys.stdout
 """Destination for progress and diagnostics. ``--json`` points it at stderr so stdout holds only JSON."""
 
@@ -117,18 +128,6 @@ def build_record(profile: dict, results: dict | None, num_envs: int, resolution:
         if isinstance(stats, dict):
             record |= {f"{group}_{key}_ms": stats[key] for key in STAT_KEYS}
     return record
-
-
-TABLE_COLUMNS = [
-    ("RENDER", "median_ms"),
-    ("MEAN", "mean_ms"),
-    ("MIN", "min_ms"),
-    ("MAX", "max_ms"),
-    ("STDEV", "stdev_ms"),
-    ("PHYSICS", "physics_median_ms"),
-    ("TOTAL", "total_median_ms"),
-]
-"""``(heading, record key)`` pairs for the report's timing columns, in display order."""
 
 
 def format_table(records: list[dict]) -> list[str]:

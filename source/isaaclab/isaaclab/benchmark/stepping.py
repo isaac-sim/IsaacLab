@@ -13,7 +13,8 @@ no heavy-weight side effects.
 from __future__ import annotations
 
 import time
-from contextlib import AbstractContextManager
+from collections.abc import Iterator
+from contextlib import AbstractContextManager, contextmanager
 from functools import wraps
 from typing import TYPE_CHECKING, Any
 
@@ -34,12 +35,13 @@ RENDER_PROFILE_SCOPE = "IsaacLab::Renderer::render"
 """Scope name for benchmark render timings [ms], excluding scene updates and output readback."""
 
 
+@contextmanager
 def profile_renderers(
     render_context: RenderContext, *, active: bool = True, timings: list[tuple[str, float]] | None = None
-) -> list[tuple[str, float]]:
-    """Install timing wrappers once on the benchmark's currently registered renderers.
+) -> Iterator[list[tuple[str, float]]]:
+    """Temporarily time the benchmark's currently registered renderers.
 
-    Wrappers remain installed for the lifetime of these renderer instances.
+    Original methods are restored when the context exits, including on failure.
     Enabled timings synchronize device work on entry and exit and perturb throughput.
 
     Args:
@@ -48,41 +50,54 @@ def profile_renderers(
         timings: Shared list of scope names and elapsed times [ms], in call order.
             A new list is created if omitted. Timings are collected without printing.
 
-    Returns:
+    Yields:
         The list populated by the wrappers, including timings of calls that raise.
     """
     if timings is None:
         timings = []
     if not active:
-        return timings
+        yield timings
+        return
 
     import warp as wp  # noqa: PLC0415
 
     scope_timings = {RENDER_PROFILE_SCOPE: _ProfileScopeTimings(RENDER_PROFILE_SCOPE, timings)}
-    for _, renderer in render_context._renderer_entries:
-        render = renderer.render
+    missing = object()
+    originals = []
+    try:
+        for _, renderer in render_context._renderer_entries:
+            render = renderer.render
+            original = vars(renderer).get("render", missing)
 
-        @wraps(render)
-        def timed_render(render_data: Any, _render=render) -> None:
-            with wp.ScopedTimer(RENDER_PROFILE_SCOPE, dict=scope_timings, print=False, synchronize=True):
-                return _render(render_data)
+            @wraps(render)
+            def timed_render(render_data: Any, _render=render) -> None:
+                with wp.ScopedTimer(RENDER_PROFILE_SCOPE, dict=scope_timings, print=False, synchronize=True):
+                    return _render(render_data)
 
-        renderer.render = timed_render
+            renderer.render = timed_render
+            originals.append((renderer, original))
 
-    return timings
+        yield timings
+    finally:
+        for renderer, original in reversed(originals):
+            if original is missing:
+                del renderer.render
+            else:
+                renderer.render = original
 
 
+@contextmanager
 def profile_physics_steps(
     physics_manager: type[PhysicsManager] | ResolvableString,
     *,
     active: bool = True,
     timings: list[tuple[str, float]] | None = None,
-) -> list[tuple[str, float]]:
-    """Install a timing wrapper once on the benchmark's selected physics manager.
+) -> Iterator[list[tuple[str, float]]]:
+    """Temporarily time the benchmark's selected physics manager.
 
     Only the selected manager is wrapped, so inherited ``super().step()`` calls
-    are included in one timing record. The wrapper remains installed on the class
-    for the rest of the process.
+    are included in one timing record. The original class method is restored when
+    the context exits, including on failure.
     Enabled timings synchronize device work on entry and exit and perturb throughput.
 
     Args:
@@ -91,19 +106,22 @@ def profile_physics_steps(
         timings: Shared list of scope names and elapsed times [ms], in call order.
             A new list is created if omitted. Timings are collected without printing.
 
-    Returns:
+    Yields:
         The list populated by the wrapper, including timings of calls that raise.
     """
     if timings is None:
         timings = []
     if not active:
-        return timings
+        yield timings
+        return
 
     import warp as wp  # noqa: PLC0415
 
     # The bound method identifies the concrete class even through a lazy class reference.
     physics_manager = physics_manager.step.__self__
     step = physics_manager.step.__func__
+    missing = object()
+    original = vars(physics_manager).get("step", missing)
     scope_timings = {PHYSICS_PROFILE_SCOPE: _ProfileScopeTimings(PHYSICS_PROFILE_SCOPE, timings)}
 
     @wraps(step)
@@ -112,7 +130,13 @@ def profile_physics_steps(
             return step(cls)
 
     physics_manager.step = classmethod(timed_step)
-    return timings
+    try:
+        yield timings
+    finally:
+        if original is missing:
+            del physics_manager.step
+        else:
+            physics_manager.step = original
 
 
 def sample_random_actions(env) -> torch.Tensor | dict[str, torch.Tensor]:

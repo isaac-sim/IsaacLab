@@ -1,19 +1,17 @@
 Added
 ^^^^^
 
-* Added :func:`~isaaclab.benchmark.stepping.profile_physics_steps` to time the selected physics backend
-  during runtime benchmarks with ``ISAACLAB_PHYSICS_PROFILE=1``. The benchmark wrapped
-  ``step`` once after warmup for the rest of the process. Each complete step, including
-  inherited calls, emitted one synchronized timing under
-  :data:`~isaaclab.benchmark.stepping.PHYSICS_PROFILE_SCOPE`. Normal simulation runs incurred no profiling overhead.
+* Added :func:`~isaaclab.benchmark.stepping.profile_physics_steps` and
+  :func:`~isaaclab.benchmark.stepping.profile_renderers` context managers for synchronized
+  runtime benchmark timings. Wrappers recorded complete calls after warmup and restored
+  the original methods when measurement ended, including on failure.
 
 Changed
 ^^^^^^^
 
-* Disabled render and physics scope capture when the task configuration's ``benchmark_mode``
-  was absent or ``None``, even with profiling flags enabled. Standard runtime reports remained
-  available. To collect these scopes, use a task with a non-``None`` ``benchmark_mode`` and
-  enable the corresponding profiling flags.
+* Restricted scope capture to tasks with a non-``None`` ``benchmark_mode``. To collect timings,
+  enable ``ISAACLAB_PHYSICS_PROFILE=1`` or ``ISAACLAB_RENDER_PROFILE=1`` for such a task.
+  Other tasks continued to produce standard runtime reports without scope profiling.
 
 * Included scalar physics and render profiling summaries in ``BenchmarkResult.bundle.extra``
   without changing schema version 1.4. Schema and OmniPerf output included each scope's mean,

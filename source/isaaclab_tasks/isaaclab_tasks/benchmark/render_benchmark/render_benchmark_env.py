@@ -26,27 +26,34 @@ class RenderBenchmarkEnv(DirectRLEnv):
     """Environment that animates its articulations so a renderer can be profiled on them.
 
     Every articulation in the configured scene is driven by a sinusoid around its default joint
-    positions. Actions are ignored and rewards are zero: the only output that matters is the camera
-    image, and the only cost that matters is the time spent producing it.
+    positions. Actions are ignored and rewards are zero.
 
-    How the sinusoid reaches the joints depends on
-    :attr:`~.render_benchmark_env_cfg.RenderBenchmarkFrankaCabinetEnvCfg.benchmark_mode`. In
-    ``"physics_render"`` mode the pose becomes an actuator position target before the physics
-    steps, so the solver tracks it the way it would in an ordinary task. In ``"render"`` mode the
-    pose is instead written straight into the simulation after the last physics step and before
-    the camera is read, so the frame a renderer is timed on is the analytic pose rather than
-    whatever the solver arrived at.
+    ``"physics_render"`` mode tracks the sinusoid through actuator targets. ``"render"`` mode
+    writes joint poses after physics and requires lazy sensor updates so rendering sees those poses.
+    Isaac RTX direct posing also requires visualizers that do not pump the Kit app loop.
     """
 
     cfg: RenderBenchmarkFrankaCabinetEnvCfg
 
     def __init__(self, cfg: RenderBenchmarkFrankaCabinetEnvCfg, render_mode: str | None = None, **kwargs):
+        if cfg.benchmark_mode == "render" and not cfg.scene.lazy_sensor_update:
+            raise ValueError("Render benchmark mode requires scene.lazy_sensor_update=True to render the direct pose.")
         # Per-(env, joint) sinusoid phases [rad] and the elapsed animation time [s]. The phases
         # are filled on the first step; see :meth:`_sample_animation_phases`.
         self._anim_phases: dict[str, torch.Tensor] | None = None
         self._anim_time: float = 0.0
         super().__init__(cfg, render_mode, **kwargs)
         self._tiled_camera = self.scene["tiled_camera"]
+        if (
+            cfg.benchmark_mode == "render"
+            and "isaac_rtx" in self.sim.render_context.renderer_types
+            and any(visualizer.pumps_app_update() for visualizer in self.sim.visualizers)
+        ):
+            self.close()
+            raise ValueError(
+                "Isaac RTX direct posing requires --visualizer none or a visualizer that does not pump the Kit app"
+                " loop. Alternatively, use benchmark_mode=physics_render."
+            )
 
     # --- joint animation -----------------------------------------------------
 
@@ -56,8 +63,7 @@ class RenderBenchmarkEnv(DirectRLEnv):
         if self._anim_phases is None:
             self._anim_phases = self._sample_animation_phases()
         self._anim_time += self.cfg.sim.dt * self.cfg.decimation
-        # In render mode the pose is applied in _get_observations instead, once physics can no
-        # longer move it. Only the actuated mode has anything to request before the solver runs.
+        # Direct poses are applied after physics in _get_observations.
         if self.cfg.benchmark_mode == "physics_render":
             self._request_joint_targets()
 
@@ -100,17 +106,12 @@ class RenderBenchmarkEnv(DirectRLEnv):
             yield articulation, torch.clamp(default_pos + offset, soft_limits[..., 0], soft_limits[..., 1])
 
     def _request_joint_targets(self) -> None:
-        """Ask the actuators to track the current pose, leaving the solver to reach it."""
+        """Set actuator targets for the current animation pose."""
         for articulation, target in self._animation_targets():
             articulation.actuators.target_command.set_position_index(value=target)
 
     def _pose_joints_directly(self) -> None:
-        """Place the joints at the current pose without asking the solver to reach it.
-
-        The velocity write keeps the articulation from carrying momentum across a pose it never
-        integrated toward, which would otherwise show up as contact and joint-limit work in the
-        step that follows.
-        """
+        """Write the current pose and clear momentum from the preceding physics step."""
         for articulation, target in self._animation_targets():
             articulation.write_joint_position_to_sim_index(position=target)
             articulation.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(target))
@@ -118,20 +119,11 @@ class RenderBenchmarkEnv(DirectRLEnv):
     # --- DirectRLEnv plumbing ------------------------------------------------
 
     def _get_observations(self) -> dict:
-        # In render mode the pose is applied here rather than in _pre_physics_step. Physics runs
-        # between those two points, and its drives, gravity and joint limits would all pull the
-        # joints off a pose written beforehand -- the renderer would then be timed on the solver's
-        # output rather than on the analytic one. Writing it here, after the last physics step and
-        # before the render below, is what makes the rendered frame the pose this mode advertises.
-        # forward() propagates the joint write to the body transforms the renderer reads without
-        # stepping the solver again.
+        # Apply direct poses after physics and propagate them to the renderer's body transforms.
         if self.cfg.benchmark_mode == "render" and self._anim_phases is not None:
             self._pose_joints_directly()
             self.sim.forward()
-            # The renderer syncs scene state at most once per physics step, and forward() does not
-            # advance that count. With lazy_sensor_update off, InteractiveScene.update has already
-            # synced this step, so without clearing the dedupe the render below would reuse the
-            # transforms captured before the write above -- the solver's pose, not this one.
+            # forward() changes transforms without advancing the renderer's physics-step key.
             self.sim.render_context.reset_scene_state_cadence()
 
         # Sensor buffers update lazily, so reading the camera's data is what drives the render.
