@@ -41,15 +41,16 @@ class ProgramSpec:
     @property
     def path(self) -> Path:
         """Return the program path in a checkout or installed wheel."""
-        return _program_root() / self.relative_path
+        directory, relative_path = self.relative_path.split("/", 1)
+        return _program_root(directory) / relative_path
 
 
-def _program_root() -> Path:
+def _program_root(directory: str) -> Path:
     """Return the root containing executable programs."""
-    installed_root = Path(__file__).resolve().parent / "_demos"
+    installed_root = Path(__file__).resolve().parent / f"_{directory}"
     if installed_root.is_dir():
         return installed_root
-    return ISAACLAB_ROOT / "demos"
+    return ISAACLAB_ROOT / directory
 
 
 def _run_script(path: Path) -> None:
@@ -75,153 +76,153 @@ _TELEOP = {"extras": ("teleop",), "required_modules": ("isaaclab_teleop", "webso
 
 
 DEMOS = (
-    ProgramSpec("zoo", "zoo.py", "Explore Isaac Lab robots and simulation features."),
+    ProgramSpec("zoo", "demos/zoo.py", "Explore Isaac Lab robots and simulation features."),
     ProgramSpec(
         "h1-locomotion",
-        "h1_locomotion.py",
+        "demos/h1_locomotion.py",
         "Control a trained H1 locomotion policy.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "pick-and-place",
-        "pick_and_place.py",
+        "demos/pick_and_place.py",
         "Interactively pick and place a cube.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "newton-dominoes",
-        "newton_viewer_dominoes.py",
+        "demos/newton_viewer_dominoes.py",
         "Interact with Newton XPBD dominoes.",
     ),
     ProgramSpec(
         "newton-block-and-tackle",
-        "newton_viewer_block_and_tackle.py",
+        "demos/newton_viewer_block_and_tackle.py",
         "Interact with a Newton VBD block-and-tackle scene.",
     ),
     ProgramSpec(
         "snowball-smash",
-        "mpm/snowball_smash.py",
+        "demos/mpm/snowball_smash.py",
         "Smash rigid crates with MPM snowballs.",
     ),
-    ProgramSpec("teapot-fill", "mpm/teapot_fill.py", "Fill and pour a teapot with MPM fluid."),
+    ProgramSpec("teapot-fill", "demos/mpm/teapot_fill.py", "Fill and pour a teapot with MPM fluid."),
 )
 
 
 EXAMPLES = (
     ProgramSpec(
         "bin-packing",
-        "bin_packing.py",
+        "examples/bin_packing.py",
         "Clone heterogeneous randomized bin layouts.",
         **_ISAACSIM,
     ),
-    ProgramSpec("cables", "cables.py", "Simulate colliding cables with Newton VBD."),
+    ProgramSpec("cables", "examples/cables.py", "Simulate colliding cables with Newton VBD."),
     ProgramSpec(
         "deformables",
-        "deformables.py",
+        "examples/deformables.py",
         "Compare deformable objects across backends.",
         **_TETRAHEDRALIZATION,
     ),
     ProgramSpec(
         "heterogeneous-scene",
-        "heterogeneous_scene.py",
+        "examples/heterogeneous_scene.py",
         "Compose heterogeneous task scenes.",
         **_ISAACSIM,
     ),
-    ProgramSpec("markers", "markers.py", "Render reusable visualization markers.", **_ISAACSIM),
-    ProgramSpec("multi-asset", "multi_asset.py", "Spawn different assets across cloned environments."),
+    ProgramSpec("markers", "examples/markers.py", "Render reusable visualization markers.", **_ISAACSIM),
+    ProgramSpec("multi-asset", "examples/multi_asset.py", "Spawn different assets across cloned environments."),
     ProgramSpec(
         "procedural-terrain",
-        "procedural_terrain.py",
+        "examples/procedural_terrain.py",
         "Generate procedural terrain meshes.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "visual-color-randomization",
-        "visual_color_randomization.py",
+        "examples/visual_color_randomization.py",
         "Randomize visual materials on cloned assets.",
     ),
     ProgramSpec(
         "mpm-granular",
-        "mpm/newton_mpm_granular.py",
+        "examples/mpm/newton_mpm_granular.py",
         "Drop granular MPM material on obstacles.",
     ),
     ProgramSpec(
         "mpm-two-way-coupling",
-        "mpm/newton_mpm_twoway_coupling.py",
+        "examples/mpm/newton_mpm_twoway_coupling.py",
         "Couple MPM sand with rigid bodies.",
     ),
     ProgramSpec(
         "camera",
-        "sensors/cameras.py",
+        "examples/sensors/cameras.py",
         "Capture data from several camera configurations.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "contact-sensor",
-        "sensors/contact_sensor.py",
+        "examples/sensors/contact_sensor.py",
         "Inspect robot contact measurements.",
     ),
     ProgramSpec(
         "frame-transformer",
-        "sensors/frame_transformer_sensor.py",
+        "examples/sensors/frame_transformer_sensor.py",
         "Track transforms between robot frames.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "imu",
-        "sensors/imu_sensor.py",
+        "examples/sensors/imu_sensor.py",
         "Inspect inertial measurements.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "multi-mesh-ray-caster",
-        "sensors/multi_mesh_raycaster.py",
+        "examples/sensors/multi_mesh_raycaster.py",
         "Cast rays against several dynamic meshes.",
     ),
     ProgramSpec(
         "multi-mesh-ray-caster-camera",
-        "sensors/multi_mesh_raycaster_camera.py",
+        "examples/sensors/multi_mesh_raycaster_camera.py",
         "Render depth and normals with a multi-mesh ray caster.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "newton-raycast",
-        "sensors/newton_raycast.py",
+        "examples/sensors/newton_raycast.py",
         "Raycast against static or moving Newton geometry.",
     ),
     ProgramSpec(
         "pva",
-        "sensors/pva_sensor.py",
+        "examples/sensors/pva_sensor.py",
         "Inspect pose, velocity, and acceleration data.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "ray-caster",
-        "sensors/raycaster_sensor.py",
+        "examples/sensors/raycaster_sensor.py",
         "Inspect a lidar-style ray caster.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "arl-robot-1",
-        "arl_robot_1.py",
+        "examples/arl_robot_1.py",
         "Fly ARL Robot 1 with its position controller.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "haply-teleoperation",
-        "haply_teleoperation.py",
+        "examples/haply_teleoperation.py",
         "Teleoperate a Franka with Haply hardware.",
         **_TELEOP,
     ),
     ProgramSpec(
         "ppisp-camera",
-        "sensors/ppisp_camera.py",
+        "examples/sensors/ppisp_camera.py",
         "Compare PPISP camera renderers.",
         **_ISAACSIM,
     ),
     ProgramSpec(
         "tactile-sensor",
-        "sensors/tacsl_sensor.py",
+        "examples/sensors/tacsl_sensor.py",
         "Inspect camera and force-field tactile data.",
         **_ISAACSIM,
     ),

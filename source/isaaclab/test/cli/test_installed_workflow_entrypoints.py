@@ -116,25 +116,26 @@ def test_example_catalog_lists_packaged_examples(capsys):
     assert "teapot-fill" not in output
 
 
-@pytest.mark.parametrize("catalog", [programs.DEMOS, programs.EXAMPLES])
-def test_program_catalog_resolves_paths(catalog):
-    """Every catalog entry must resolve to a bundled script resource."""
+@pytest.mark.parametrize(("catalog", "directory"), [(programs.DEMOS, "demos"), (programs.EXAMPLES, "examples")])
+def test_program_catalog_resolves_paths(catalog, directory):
+    """Every catalog entry must resolve inside its repository directory."""
+    assert all(program.relative_path.startswith(f"{directory}/") for program in catalog)
     assert all(program.path.is_file() for program in catalog)
 
 
-def test_integration_examples_use_root_demo_paths():
-    """Integration examples must use paths relative to the root demos directory."""
+def test_integration_examples_use_root_example_paths():
+    """Integration examples must use paths relative to the root examples directory."""
     paths_by_name = {program.name: program.relative_path for program in programs.EXAMPLES}
-    assert paths_by_name["arl-robot-1"] == "arl_robot_1.py"
-    assert paths_by_name["haply-teleoperation"] == "haply_teleoperation.py"
-    assert paths_by_name["ppisp-camera"] == "sensors/ppisp_camera.py"
-    assert paths_by_name["tactile-sensor"] == "sensors/tacsl_sensor.py"
+    assert paths_by_name["arl-robot-1"] == "examples/arl_robot_1.py"
+    assert paths_by_name["haply-teleoperation"] == "examples/haply_teleoperation.py"
+    assert paths_by_name["ppisp-camera"] == "examples/sensors/ppisp_camera.py"
+    assert paths_by_name["tactile-sensor"] == "examples/sensors/tacsl_sensor.py"
 
 
 def test_newton_raycast_scenes_share_one_example():
     """Newton ray-cast variants must stay behind one focused example entry."""
     paths_by_name = {program.name: program.relative_path for program in programs.EXAMPLES}
-    assert paths_by_name["newton-raycast"] == "sensors/newton_raycast.py"
+    assert paths_by_name["newton-raycast"] == "examples/sensors/newton_raycast.py"
     assert "newton-raycast-heightfield" not in paths_by_name
     assert "newton-raycast-moving-geometry" not in paths_by_name
 
@@ -173,7 +174,7 @@ def test_program_runner_preserves_command_name_and_restores_process_arguments(tm
     original_argv = sys.argv
     script = tmp_path / "example.py"
     script.write_text("import sys\nassert sys.argv[0] == 'isaaclab demo temporary'\n", encoding="utf-8")
-    program = programs.ProgramSpec("temporary", script.name, "Temporary test program.")
+    program = programs.ProgramSpec("temporary", f"demos/{script.name}", "Temporary test program.")
     with mock.patch.object(programs, "_program_root", return_value=tmp_path):
         programs.run_program("demo", program, ["--physics", "newton_mjwarp"])
 

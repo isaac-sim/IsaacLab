@@ -45,6 +45,7 @@ jobs:
           patterns=(
             $'^apps/\tStandalone apps packaged in the wheel'
             $'^demos/\tDemos packaged in the wheel'
+            $'^examples/\tExamples packaged in the wheel'
             $'^pyproject\.toml$\tWheel dependency metadata and resolver overrides'
             $'^VERSION$\tPackage version'
             $'^source/\tPython packages'

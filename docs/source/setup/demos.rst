@@ -12,9 +12,9 @@ Demos are polished showcases of Isaac Lab capabilities. They ship in the ``isaac
 without a source checkout. Start with Zoo to see several robot families and simulation features in one scene, or run
 ``uvx isaaclab demo list`` to inspect the complete catalog.
 
-Focused programs for learning an API, tuning a feature, or supporting documentation live beside the showcases in
-the repository-level ``demos`` directory but are cataloged separately as examples. List them with
-``uvx isaaclab example list`` and run one with ``uvx isaaclab example <name>``.
+Focused programs for learning an API, tuning a feature, or supporting documentation live in the repository-level
+``examples`` directory. List them with ``uvx isaaclab example list`` and run one with
+``uvx isaaclab example <name>``.
 
 Command Builder
 ---------------

@@ -47,7 +47,7 @@ To stop, close the window or press ``Ctrl+C``.
 .. dropdown:: Code for markers.py
    :icon: code
 
-   .. literalinclude:: ../../../demos/markers.py
+   .. literalinclude:: ../../../examples/markers.py
       :language: python
       :linenos:
 
@@ -68,7 +68,7 @@ Configuring markers
    Physics properties on a marker prototype's spawn config are stripped on creation, since
    markers are not simulated.
 
-.. literalinclude:: ../../../demos/markers.py
+.. literalinclude:: ../../../examples/markers.py
    :language: python
    :pyobject: define_markers
 
@@ -79,7 +79,7 @@ Drawing markers
 :meth:`~markers.VisualizationMarkers.visualize` sets marker poses and, optionally, which
 prototype each marker instance uses via ``marker_indices``.
 
-.. literalinclude:: ../../../demos/markers.py
+.. literalinclude:: ../../../examples/markers.py
    :language: python
    :start-at: my_visualizer.visualize
    :end-at: my_visualizer.visualize

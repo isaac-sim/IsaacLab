@@ -26,7 +26,8 @@ from isaaclab._programs import DEMOS, EXAMPLES
 
 ROOT = Path(__file__).resolve().parents[4]
 DEMO_ROOT = ROOT / "demos"
-SCRIPT_ROOTS = (DEMO_ROOT, ROOT / "scripts" / "tutorials")
+EXAMPLE_ROOT = ROOT / "examples"
+SCRIPT_ROOTS = (DEMO_ROOT, EXAMPLE_ROOT, ROOT / "scripts" / "tutorials")
 # ``scripts/tools`` is not a root because most of its scripts are not simulator launches. The asset
 # converters are: they build a SimulationContext to preview the converted asset.
 EXTRA_SCRIPTS = (
@@ -40,11 +41,11 @@ DEFAULT_BATCHED_NUM_ENVS = 2
 
 
 PROGRAMS_BY_PATH = {
-    **{DEMO_ROOT / program.relative_path: ("demo", program.name) for program in DEMOS},
-    **{DEMO_ROOT / program.relative_path: ("example", program.name) for program in EXAMPLES},
+    **{ROOT / program.relative_path: ("demo", program.name) for program in DEMOS},
+    **{ROOT / program.relative_path: ("example", program.name) for program in EXAMPLES},
 }
-DEMO_PATHS = {DEMO_ROOT / program.relative_path for program in DEMOS}
-EXAMPLE_PATHS = {DEMO_ROOT / program.relative_path for program in EXAMPLES}
+DEMO_PATHS = {ROOT / program.relative_path for program in DEMOS}
+EXAMPLE_PATHS = {ROOT / program.relative_path for program in EXAMPLES}
 
 _FATAL_PATTERNS = (
     "Traceback (most recent call last):",
@@ -181,15 +182,15 @@ OVERRIDES = {
         skip_reason="downloads a published policy and requires interactive viewport input",
         visualizers=("kit",),
     ),
-    "demos/haply_teleoperation.py": ScriptOverride(
+    "examples/haply_teleoperation.py": ScriptOverride(
         skip_reason="requires a physical Haply device and its WebSocket service"
     ),
-    "demos/arl_robot_1.py": ScriptOverride(readiness_pattern=r"Starting example with Lee Position Controller"),
-    "demos/heterogeneous_scene.py": ScriptOverride(
+    "examples/arl_robot_1.py": ScriptOverride(readiness_pattern=r"Starting example with Lee Position Controller"),
+    "examples/heterogeneous_scene.py": ScriptOverride(
         args=("--num_task", "2"),
         readiness_pattern=r"Composed \d+ task scenes into \d+ environments",
     ),
-    "demos/deformables.py": ScriptOverride(
+    "examples/deformables.py": ScriptOverride(
         case_skip_reasons={
             (
                 "isaacsim_physx",
@@ -205,12 +206,12 @@ OVERRIDES = {
             ("isaacsim_physx", "default", "viser"): "Viser cannot import PhysX deformable attributes",
         }
     ),
-    "demos/mpm/newton_mpm_granular.py": ScriptOverride(
+    "examples/mpm/newton_mpm_granular.py": ScriptOverride(
         args=("--max_steps", "20"),
         readiness_pattern=r"Newton granular MPM example ready",
         fixed_physics_backend="newton_mpm",
     ),
-    "demos/mpm/newton_mpm_twoway_coupling.py": ScriptOverride(
+    "examples/mpm/newton_mpm_twoway_coupling.py": ScriptOverride(
         args=("--max_steps", "2", "--voxel_size", "0.2"),
         readiness_pattern=r"Newton two-way MPM example ready",
         fixed_physics_backend="newton_coupler",
@@ -227,7 +228,7 @@ OVERRIDES = {
         readiness_pattern=r"Newton teapot-fill MPM demo ready",
         fixed_physics_backend="newton_mpm",
     ),
-    "demos/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
+    "examples/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
     "demos/newton_viewer_block_and_tackle.py": ScriptOverride(
         args=("--max_steps", "20"),
         fixed_physics_backend="newton_vbd",
@@ -239,15 +240,15 @@ OVERRIDES = {
         fixed_physics_backend="newton_xpbd",
         visualizers=("newton_gl",),
     ),
-    "demos/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=900.0),
-    "demos/sensors/multi_mesh_raycaster.py": ScriptOverride(
+    "examples/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=900.0),
+    "examples/sensors/multi_mesh_raycaster.py": ScriptOverride(
         args=("--flat_ground",),
         startup_timeout=600.0,
         case_skip_reasons={
             ("newton_mjwarp", "default", "kit"): "Kit viewport fails with the Newton multi-mesh raycaster"
         },
     ),
-    "demos/sensors/newton_raycast.py": ScriptOverride(
+    "examples/sensors/newton_raycast.py": ScriptOverride(
         args=("--max_steps", "20"),
         fixed_physics_backend="newton_mjwarp",
         visualizers=("none", "newton_gl", "rerun", "viser"),
@@ -255,7 +256,7 @@ OVERRIDES = {
     "demos/pick_and_place.py": ScriptOverride(
         readiness_pattern=r"Gym action space|Press the 'A' key", visualizers=("kit",)
     ),
-    "demos/sensors/ppisp_camera.py": ScriptOverride(
+    "examples/sensors/ppisp_camera.py": ScriptOverride(
         args=("--max_steps", "3", "--warmup_steps", "1", "--image_width", "64", "--image_height", "64"),
         startup_timeout=600.0,
         visualizers=("none",),
@@ -380,7 +381,7 @@ def select_script_scope(specs: list[ScriptSpec], scope: str) -> list[ScriptSpec]
     elif scope.startswith(("demos/", "examples/")):
         catalog, _, subdirectory = scope.partition("/")
         catalog_paths = DEMO_PATHS if catalog == "demos" else EXAMPLE_PATHS
-        relative_root = DEMO_ROOT / subdirectory
+        relative_root = (DEMO_ROOT if catalog == "demos" else EXAMPLE_ROOT) / subdirectory
         selected_specs = [
             spec for spec in specs if spec.path in catalog_paths and spec.path.is_relative_to(relative_root)
         ]

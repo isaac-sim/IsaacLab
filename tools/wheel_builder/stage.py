@@ -24,9 +24,11 @@ def stage_package(repo_root: Path, stage_dir: Path, version: str) -> None:
 
     shutil.copytree(repo_root / "apps", package_dir / "apps")
     shutil.copytree(repo_root / "demos", package_dir / "_demos")
+    shutil.copytree(repo_root / "examples", package_dir / "_examples")
     shutil.copytree(repo_root / "source", package_dir / "source")
     shutil.copytree(repo_root / "tools" / "template", package_dir / "tools" / "template")
     (package_dir / "_demos" / "__init__.py").touch()
+    (package_dir / "_examples" / "__init__.py").touch()
 
     for directory in (package_dir / "apps").rglob("*"):
         if directory.is_dir():

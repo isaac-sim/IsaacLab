@@ -19,7 +19,7 @@ The packaged ``multi-asset`` example provides the reference script, ``multi_asse
 .. dropdown:: Code for multi_asset.py
    :icon: code
 
-   .. literalinclude:: ../../../demos/multi_asset.py
+   .. literalinclude:: ../../../examples/multi_asset.py
       :language: python
       :linenos:
 
@@ -42,7 +42,7 @@ want to access them as one batch. The collection exposes data with an ``(env, ob
 ``(env_ids, obj_ids)`` selections for commands. Compared with managing each object separately, the collection uses one
 batched physics view.
 
-.. literalinclude:: ../../../demos/multi_asset.py
+.. literalinclude:: ../../../examples/multi_asset.py
    :language: python
    :start-at: object_collection: RigidObjectCollectionCfg = RigidObjectCollectionCfg(
    :end-before: # articulation
@@ -53,7 +53,7 @@ instances. Each dictionary key is the object's stable identifier within the coll
 
 The example resets all collection members through the same API used by both physics backends:
 
-.. literalinclude:: ../../../demos/multi_asset.py
+.. literalinclude:: ../../../examples/multi_asset.py
    :language: python
    :start-at: default_pose_w = rigid_object_collection.data.default_body_pose.torch.clone()
    :end-at: rigid_object_collection.write_body_com_velocity_to_sim_index(body_velocities=default_vel_w)
@@ -70,7 +70,7 @@ plan and assigns one valid prototype combination to each environment.
 For configuration-based assets, assign :class:`~sim.spawners.wrappers.MultiAssetSpawnerCfg` to the
 :class:`~assets.RigidObjectCfg` spawn configuration:
 
-.. literalinclude:: ../../../demos/multi_asset.py
+.. literalinclude:: ../../../examples/multi_asset.py
    :language: python
    :start-at: object: RigidObjectCfg = RigidObjectCfg(
    :end-before: # object collection
@@ -89,7 +89,7 @@ round-robin order. To sample combinations randomly instead, set the strategy bef
 For USD assets, assign :class:`~sim.spawners.wrappers.MultiUsdFileCfg` to the
 :class:`~assets.ArticulationCfg` spawn configuration:
 
-.. literalinclude:: ../../../demos/multi_asset.py
+.. literalinclude:: ../../../examples/multi_asset.py
    :language: python
    :start-at: robot: ArticulationCfg = ArticulationCfg(
    :end-before: ##
@@ -114,7 +114,7 @@ mode is not supported by the Newton backend.
 The example keeps physics replication enabled. For Newton, it also narrows the standalone object and articulation to one
 variant because their batched Newton views currently require a uniform body layout across worlds:
 
-.. literalinclude:: ../../../demos/multi_asset.py
+.. literalinclude:: ../../../examples/multi_asset.py
    :language: python
    :start-at: scene_cfg = MultiObjectSceneCfg(num_envs=args_cli.num_envs
    :end-at: scene_cfg.robot.spawn.usd_path = scene_cfg.robot.spawn.usd_path[0]

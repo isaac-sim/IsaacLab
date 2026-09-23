@@ -57,10 +57,12 @@ if RUNTIME_GROUP:
 MULTI_MESH_RAYCASTER_CASES = [
     case
     for case in CASES
-    if case.spec.relative_path == "demos/sensors/multi_mesh_raycaster.py" and case.visualizer == "none"
+    if case.spec.relative_path == "examples/sensors/multi_mesh_raycaster.py" and case.visualizer == "none"
 ]
 NEWTON_RAYCAST_CASES = [
-    case for case in CASES if case.spec.relative_path == "demos/sensors/newton_raycast.py" and case.visualizer == "none"
+    case
+    for case in CASES
+    if case.spec.relative_path == "examples/sensors/newton_raycast.py" and case.visualizer == "none"
 ]
 RUN_LAUNCH_MATRIX = os.environ.get("ISAACLAB_RUN_STANDALONE_SCRIPT_TESTS") == "1"
 SCREENSHOT_DIR = os.environ.get("ISAACLAB_STANDALONE_SCREENSHOT_DIR")
@@ -116,16 +118,20 @@ def test_script_scope_rejects_empty_selection():
     """A stale or misspelled scope must not produce a vacuously green launch matrix."""
     assert select_script_scope(SPECS, "all") is SPECS
     assert {spec.path for spec in select_script_scope(SPECS, "demos")} == set(script_cases.PROGRAMS_BY_PATH)
-    assert all(spec.relative_path.startswith("demos/mpm/") for spec in select_script_scope(SPECS, "examples/mpm"))
+    assert all(spec.relative_path.startswith("examples/mpm/") for spec in select_script_scope(SPECS, "examples/mpm"))
     with pytest.raises(ValueError, match="selected no scripts"):
         select_script_scope(SPECS, "missing")
 
 
-def test_every_root_demo_script_is_registered_for_cli_launch():
-    """Every executable script in the root demos directory must have one CLI entry."""
-    demo_specs = [spec for spec in SPECS if spec.path.is_relative_to(script_cases.DEMO_ROOT)]
-    assert all(spec.program is not None for spec in demo_specs)
-    assert {spec.path for spec in demo_specs} == set(script_cases.PROGRAMS_BY_PATH)
+def test_every_packaged_script_is_registered_for_cli_launch():
+    """Every executable script in the root demo and example directories must have one CLI entry."""
+    packaged_specs = [
+        spec
+        for spec in SPECS
+        if spec.path.is_relative_to(script_cases.DEMO_ROOT) or spec.path.is_relative_to(script_cases.EXAMPLE_ROOT)
+    ]
+    assert all(spec.program is not None for spec in packaged_specs)
+    assert {spec.path for spec in packaged_specs} == set(script_cases.PROGRAMS_BY_PATH)
 
 
 def test_demo_browser_documents_options_for_each_demo():
@@ -173,7 +179,7 @@ def test_commands_respect_script_launcher_capabilities():
     camera_case = next(
         case
         for case in build_cases(SPECS)
-        if case.spec.relative_path == "demos/sensors/cameras.py" and case.visualizer == "none"
+        if case.spec.relative_path == "examples/sensors/cameras.py" and case.visualizer == "none"
     )
     num_envs_index = camera_case.command().index("--num_envs")
     assert camera_case.command()[num_envs_index + 1] == "1"
@@ -183,21 +189,21 @@ def test_commands_respect_script_launcher_capabilities():
     renderer_case = next(
         case
         for case in build_cases(SPECS)
-        if case.spec.relative_path == "demos/sensors/ppisp_camera.py" and case.renderer_backend == "isaac_rtx"
+        if case.spec.relative_path == "examples/sensors/ppisp_camera.py" and case.renderer_backend == "isaac_rtx"
     )
     assert renderer_case.command()[-4:] == ["--renderer", "isaac_rtx", "--visualizer", "none"]
 
     newton_renderer_case = next(
         case
         for case in build_cases(SPECS)
-        if case.spec.relative_path == "demos/sensors/ppisp_camera.py" and case.renderer_backend == "newton_renderer"
+        if case.spec.relative_path == "examples/sensors/ppisp_camera.py" and case.renderer_backend == "newton_renderer"
     )
     assert newton_renderer_case.command()[-4:] == ["--renderer", "newton_renderer", "--visualizer", "none"]
 
     physics_case = next(
         case
         for case in build_cases(SPECS)
-        if case.spec.relative_path == "demos/bin_packing.py"
+        if case.spec.relative_path == "examples/bin_packing.py"
         and case.physics_backend == "isaacsim_physx"
         and case.visualizer == "none"
     )
@@ -209,7 +215,7 @@ def test_commands_respect_script_launcher_capabilities():
     multi_asset_case = next(
         case
         for case in build_cases(SPECS)
-        if case.spec.relative_path == "demos/multi_asset.py"
+        if case.spec.relative_path == "examples/multi_asset.py"
         and case.physics_backend == "newton_mjwarp"
         and case.visualizer == "none"
     )
@@ -243,13 +249,13 @@ def test_commands_respect_script_launcher_capabilities():
 @pytest.mark.parametrize(
     "relative_path",
     [
-        "demos/sensors/cameras.py",
-        "demos/sensors/frame_transformer_sensor.py",
-        "demos/sensors/imu_sensor.py",
-        "demos/sensors/multi_mesh_raycaster_camera.py",
-        "demos/sensors/pva_sensor.py",
-        "demos/sensors/raycaster_sensor.py",
-        "demos/sensors/tacsl_sensor.py",
+        "examples/sensors/cameras.py",
+        "examples/sensors/frame_transformer_sensor.py",
+        "examples/sensors/imu_sensor.py",
+        "examples/sensors/multi_mesh_raycaster_camera.py",
+        "examples/sensors/pva_sensor.py",
+        "examples/sensors/raycaster_sensor.py",
+        "examples/sensors/tacsl_sensor.py",
     ],
 )
 def test_physx_only_sensor_examples_accept_explicit_physics_selector(relative_path):
@@ -260,26 +266,26 @@ def test_physx_only_sensor_examples_accept_explicit_physics_selector(relative_pa
 
 def test_contact_sensor_example_accepts_physx_and_newton_selectors():
     """The contact sensor example exposes both PhysX and Newton MJWarp."""
-    spec = next(spec for spec in SPECS if spec.relative_path == "demos/sensors/contact_sensor.py")
+    spec = next(spec for spec in SPECS if spec.relative_path == "examples/sensors/contact_sensor.py")
     assert spec.physics_backends == (("--physics", "isaacsim_physx"), ("--physics", "newton_mjwarp"))
 
 
 def test_newton_raycast_example_exposes_both_scenes():
     """The consolidated Newton ray-cast example must retain both scene variants."""
-    spec = next(spec for spec in SPECS if spec.relative_path == "demos/sensors/newton_raycast.py")
+    spec = next(spec for spec in SPECS if spec.relative_path == "examples/sensors/newton_raycast.py")
     assert spec.options["--scene"] == ("heightfield", "moving-geometry")
     assert spec.physics_backends == ((None, "newton_mjwarp"),)
 
 
 def test_cable_example_accepts_explicit_newton_vbd_selector():
     """The Newton-only cable example must accept its documented backend explicitly."""
-    spec = next(spec for spec in SPECS if spec.relative_path == "demos/cables.py")
+    spec = next(spec for spec in SPECS if spec.relative_path == "examples/cables.py")
     assert spec.physics_backends == (("--physics", "newton_vbd"),)
 
 
 def test_multi_mesh_raycaster_uses_cli_visualizer_defaults():
     """The interactive raycaster example must let CLI requests create default visualizer configs."""
-    path = script_cases.DEMO_ROOT / "sensors/multi_mesh_raycaster.py"
+    path = script_cases.EXAMPLE_ROOT / "sensors/multi_mesh_raycaster.py"
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     simulation_cfg_calls = [
         node

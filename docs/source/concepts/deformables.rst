@@ -387,7 +387,7 @@ where ``L_parent`` and ``L_child`` are the rest lengths of the two segments it s
     Lab authors has no attribute for it.
 
 To target a specific axial ``E * A`` or bending ``E * I``, invert these relations to pick the
-modulus; ``demos/cables.py`` does this from a target stiffness and the segment geometry.
+modulus; ``examples/cables.py`` does this from a target stiffness and the segment geometry.
 
 Cable collision
 ^^^^^^^^^^^^^^^
