@@ -376,20 +376,15 @@ class SimulationContext:
         """Returns a monotonic counter for render() executions."""
         return self._render_generation
 
-    def _create_default_visualizer_configs(self, requested_visualizers: list[str]) -> tuple[list, dict[str, str]]:
+    def _create_default_visualizer_configs(self, requested_visualizers: list[str]) -> list:
         """Create default visualizer configs for requested types.
 
         Loads only the requested visualizer submodule (e.g. isaaclab_visualizers.rerun)
         so dependencies for other backends are not imported.
-
-        Returns:
-            The successfully created configs, and a reason per unresolved requested type
-            (unknown type, package not installed, or another import/construction failure).
         """
         import importlib
 
         default_configs = []
-        failure_reasons: dict[str, str] = {}
         cfg_class_names = {
             "kit": "KitVisualizerCfg",
             "newton_gl": "NewtonGLVisualizerCfg",
@@ -399,8 +394,7 @@ class SimulationContext:
         }
         # newton_gl and newton_rtx both live in the isaaclab_visualizers.newton package.
         module_overrides = {"newton_gl": "isaaclab_visualizers.newton", "newton_rtx": "isaaclab_visualizers.newton"}
-        for requested_type in requested_visualizers:
-            viz_type = requested_type
+        for viz_type in requested_visualizers:
             try:
                 # Resolve deprecated aliases before lookup.
                 if viz_type in _VISUALIZER_ALIASES:
@@ -418,9 +412,6 @@ class SimulationContext:
                         f"[SimulationContext] Unknown visualizer type '{viz_type}' requested. "
                         f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. Skipping."
                     )
-                    failure_reasons[requested_type] = (
-                        f"unknown visualizer type. Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}."
-                    )
                     continue
                 mod = importlib.import_module(module_overrides.get(viz_type, f"isaaclab_visualizers.{viz_type}"))
                 cfg_cls = getattr(mod, cfg_class_names[viz_type])
@@ -428,43 +419,22 @@ class SimulationContext:
                 self._apply_default_visualizer_cfg(cfg)
                 default_configs.append(cfg)
             except (ImportError, ModuleNotFoundError) as exc:
-                hint = _get_visualizer_install_hint(viz_type)
-                # .name is the exact missing module, set by the import system itself — unlike
-                # str(exc), it can't mistake a broken (e.g. partially-initialized) module for a
-                # missing one just because its error text mentions "isaaclab_visualizers".
-                missing_module = exc.name if isinstance(exc, ModuleNotFoundError) else None
-                if missing_module == "isaaclab_visualizers":
-                    # Only an exact match means the whole distribution is absent; a missing
-                    # descendant (e.g. "isaaclab_visualizers.rerun") is reported by its own name below.
+                # isaaclab_visualizers is optional; log once at warning level
+                if "isaaclab_visualizers" in str(exc):
                     logger.warning(
                         "[SimulationContext] Visualizer '%s' skipped: isaaclab_visualizers is not installed. %s",
                         viz_type,
-                        hint,
+                        _get_visualizer_install_hint(viz_type),
                     )
-                    failure_reasons[requested_type] = f"the 'isaaclab_visualizers' package is not installed. {hint}"
-                elif missing_module is not None:
-                    # A named descendant of isaaclab_visualizers, or one of this backend's own
-                    # third-party dependencies (e.g. the 'rerun' package), is missing.
-                    logger.warning(
-                        "[SimulationContext] Visualizer '%s' skipped: required package '%s' is not installed. %s",
-                        viz_type,
-                        missing_module,
-                        hint,
-                    )
-                    failure_reasons[requested_type] = f"required package '{missing_module}' is not installed. {hint}"
                 else:
                     logger.error(
                         "[SimulationContext] Failed to create default config for visualizer '%s': %s",
                         viz_type,
                         exc,
                     )
-                    failure_reasons[requested_type] = f"failed to import: {exc}. {hint}"
             except Exception as exc:
                 logger.error(f"[SimulationContext] Failed to create default config for visualizer '{viz_type}': {exc}")
-                failure_reasons[requested_type] = (
-                    f"failed to construct: {exc}. {_get_visualizer_install_hint(viz_type)}"
-                )
-        return default_configs, failure_reasons
+        return default_configs
 
     def _apply_default_visualizer_cfg(self, cfg: Any) -> None:
         """Apply shared default visualizer settings to a backend-specific config.
@@ -600,10 +570,6 @@ class SimulationContext:
         cli_explicit = self._is_cli_visualizer_explicit()
         cli_disable_all = self._is_cli_visualizer_disable_all()
 
-        # Per-type reason for each requested type _create_default_visualizer_configs couldn't
-        # resolve, so the RuntimeError below can report why rather than just that it failed.
-        failure_reasons: dict[str, str] = {}
-
         # cli_requested holds raw, possibly-aliased strings (e.g. "newton"); resolved cfgs carry
         # the canonical visualizer_type (e.g. "newton_gl"). Compare via this instead of directly.
         canonical_requested = [_VISUALIZER_ALIASES.get(t, t) for t in cli_requested]
@@ -616,10 +582,7 @@ class SimulationContext:
             self._apply_visualizer_cli_overrides(visualizer_cfgs)
             resolved = visualizer_cfgs
         elif not visualizer_cfgs:
-            if cli_requested:
-                resolved, failure_reasons = self._create_default_visualizer_configs(cli_requested)
-            else:
-                resolved = []
+            resolved = self._create_default_visualizer_configs(cli_requested) if cli_requested else []
             self._apply_visualizer_cli_overrides(resolved)
         else:
             # CLI selection is explicit: keep only requested cfg types, then add defaults for missing.
@@ -630,9 +593,7 @@ class SimulationContext:
             existing_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
             for viz_type in cli_requested:
                 if _VISUALIZER_ALIASES.get(viz_type, viz_type) not in existing_types:
-                    extra_configs, extra_failures = self._create_default_visualizer_configs([viz_type])
-                    resolved.extend(extra_configs)
-                    failure_reasons.update(extra_failures)
+                    resolved.extend(self._create_default_visualizer_configs([viz_type]))
                     existing_types.add(_VISUALIZER_ALIASES.get(viz_type, viz_type))
             self._apply_visualizer_cli_overrides(resolved)
 
@@ -648,12 +609,16 @@ class SimulationContext:
                 if canonical not in resolved_types
             ]
             if missing:
-                # Report the recorded reason per type instead of one generic message.
-                reasons = "; ".join(
-                    f"{visualizer_type!r}: {failure_reasons.get(visualizer_type, 'could not be configured')}"
+                install_hints = " ".join(
+                    _get_visualizer_install_hint(visualizer_type)
                     for visualizer_type in missing
+                    if visualizer_type in _VISUALIZER_TYPES
                 )
-                raise RuntimeError(f"Explicitly requested visualizer(s) {missing} could not be configured. {reasons}")
+                raise RuntimeError(
+                    f"Explicitly requested visualizer(s) {missing} could not be configured. "
+                    f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. "
+                    f"{install_hints}"
+                )
 
         # XR auto-start: auto-inject a KitVisualizer when XR is active and no
         # Kit visualizer is already present.  The KitVisualizer pumps
