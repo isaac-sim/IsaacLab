@@ -35,13 +35,13 @@ configuration, see :doc:`deformables`.
 Cloth bending with VBD
 ----------------------
 
-One cloth sheet spans two upright cylindrical supports. Its end rows are fixed
-at the cylinder tops, so it bends between the supports without sliding off.
-Change the cloth's bending stiffness on a logarithmic scale from 0.1 to
-1000 N·m, or change gravity, then press **Reset** to compare the same drop.
-The scene uses a 16 × 4 cell cloth mesh, particle-cylinder contact, and ten VBD
-iterations per step. See :doc:`solver-tuning/tune_vbd` for the corresponding
-surface-deformable material fields and contact settings.
+Adapted from the bend-stiffness comparison in :doc:`deformables`, three free
+cloth sheets fall across pairs of horizontal rollers. The outer sheets retain
+0.01 and 1.00 N·m bending stiffness; use the logarithmic slider to change the
+middle sheet from 0.01 to 1.00 N·m, or change gravity. Press **Reset** to
+compare the same drop. The sheets can drape, slide, and touch the ground.
+The scene uses 12 VBD iterations per step. See :doc:`solver-tuning/tune_vbd`
+for the corresponding surface-deformable material fields and contact settings.
 
 .. raw:: html
 

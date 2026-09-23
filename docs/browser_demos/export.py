@@ -33,6 +33,7 @@ from newton_web import Parameter, export_graph
 from isaaclab.assets import ArticulationCfg
 
 STIFFNESS_DT = 1.0 / 240.0
+CLOTH_DT = 1.0 / 120.0
 G1_DOF = 37
 G1_USD_SHA256 = "9dfe7a710aa791e49abf2d9ea74ad3163e291f02f21f59bda9bfcc40f3fab428"
 G1_CHECKPOINT_SHA256 = "3436a12f1f5f6ab51ae2f0c4e386656833bc7df6f1eed10986fef50606fbadaf"
@@ -192,74 +193,86 @@ def export_stiffness(output: Path) -> None:
 
 
 def export_cloth_bending(output: Path) -> None:
-    """Export a VBD cloth bridge over two cylindrical supports.
+    """Export three VBD cloth sheets falling across pairs of rollers.
 
     Args:
         output: Directory for the intermediate simulation bundle.
     """
     builder = newton.ModelBuilder()
-    builder.default_particle_radius = 0.025
-    shape_cfg = newton.ModelBuilder.ShapeConfig(ke=1.0e5, kd=100.0, mu=0.8)
+    builder.default_particle_radius = 0.018
+    shape_cfg = newton.ModelBuilder.ShapeConfig(ke=1.0e5, kd=100.0, mu=0.9)
     builder.add_ground_plane(cfg=shape_cfg)
     supports = []
-    for x in (-0.7, 0.7):
-        position = (x, 0.0, 0.45)
-        builder.add_shape_cylinder(
-            body=-1,
-            xform=wp.transform(wp.vec3(*position), wp.quat_identity()),
-            radius=0.18,
-            half_height=0.45,
-            cfg=shape_cfg,
+    middle_edges = None
+    roller_rotation = wp.quat_from_axis_angle(wp.vec3(1.0, 0.0, 0.0), np.pi / 2)
+    for index, (y, stiffness, color) in enumerate(
+        zip(
+            (-0.82, 0.0, 0.82),
+            (0.01, 0.1, 1.0),
+            (wp.vec3(0.16, 0.48, 0.85), wp.vec3(0.57, 0.33, 0.85), wp.vec3(0.89, 0.48, 0.22)),
+            strict=True,
         )
-        supports.append({"position": position, "radius": 0.18, "height": 0.9})
-    builder.add_cloth_grid(
-        pos=wp.vec3(-0.7, -0.12, 0.925),
-        rot=wp.quat_identity(),
-        vel=wp.vec3(0.0),
-        dim_x=16,
-        dim_y=4,
-        cell_x=0.0875,
-        cell_y=0.06,
-        mass=0.02,
-        fix_left=True,
-        fix_right=True,
-        tri_ke=3.0e3,
-        tri_ka=3.0e3,
-        tri_kd=1.0,
-        edge_ke=20.0,
-        edge_kd=0.05,
-        particle_radius=0.025,
-        color=wp.vec3(0.57, 0.33, 0.85),
-    )
+    ):
+        for x in (-0.36, 0.36):
+            position = (x, y, 0.55)
+            builder.add_shape_cylinder(
+                body=-1,
+                xform=wp.transform(wp.vec3(*position), roller_rotation),
+                radius=0.11,
+                half_height=0.33,
+                cfg=shape_cfg,
+            )
+            supports.append({"position": position, "radius": 0.11, "height": 0.66})
+        first_edge = len(builder.edge_indices)
+        builder.add_cloth_grid(
+            pos=wp.vec3(-0.6, y - 0.26, 0.8),
+            rot=wp.quat_identity(),
+            vel=wp.vec3(0.0),
+            dim_x=10,
+            dim_y=6,
+            cell_x=0.12,
+            cell_y=0.52 / 6,
+            mass=0.002,
+            tri_ke=3.0e3,
+            tri_ka=3.0e3,
+            tri_kd=1.0,
+            edge_ke=stiffness,
+            edge_kd=0.03,
+            particle_radius=0.018,
+            color=color,
+        )
+        if index == 1:
+            middle_edges = (first_edge, len(builder.edge_indices))
+    assert middle_edges is not None
     builder.color()
     model = builder.finalize(device="cpu")
     model.soft_contact_ke = 1.0e5
     model.soft_contact_kd = 100.0
-    model.soft_contact_mu = 0.8
+    model.soft_contact_mu = 0.9
     solver = newton.solvers.SolverVBD(
         model,
-        iterations=10,
+        iterations=12,
         particle_enable_self_contact=False,
         particle_enable_tile_solve=False,
-        rigid_body_particle_contact_buffer_size=256,
+        rigid_body_particle_contact_buffer_size=512,
         deterministic=wp.DeterministicMode.RUN_TO_RUN,
     )
     state_in, state_out = model.state(), model.state()
     collision = newton.CollisionPipeline(model, deterministic=True)
     contacts = collision.contacts()
-    bending = wp.array([20.0], dtype=float, device="cpu")
+    bending = wp.array([0.1], dtype=float, device="cpu")
     gravity = wp.array([9.81], dtype=float, device="cpu")
     with wp.ScopedCapture(device="cpu", apic=True) as capture:
         wp.launch(
             _set_cloth_bending,
-            dim=len(builder.edge_indices),
-            inputs=[bending, model.edge_bending_properties, 0],
+            dim=middle_edges[1] - middle_edges[0],
+            inputs=[bending, model.edge_bending_properties, middle_edges[0]],
             device="cpu",
         )
         wp.launch(_set_gravity, dim=1, inputs=[gravity, model.gravity], device="cpu")
         state_in.clear_forces()
         collision.collide(state_in, contacts)
-        solver.step(state_in, state_out, None, contacts, STIFFNESS_DT)
+        solver.step(state_in, state_out, None, contacts, CLOTH_DT)
         wp.copy(state_in.particle_q, state_out.particle_q)
         wp.copy(state_in.particle_qd, state_out.particle_qd)
 
@@ -283,18 +296,24 @@ def export_cloth_bending(output: Path) -> None:
         },
         outputs={"particle_q": state_in.particle_q, "particle_qd": state_in.particle_qd},
         output=output,
-        timestep=STIFFNESS_DT,
+        timestep=CLOTH_DT,
         parameters=(
-            Parameter("bending", 0, "Cloth bending [N·m]", 0.1, 1000.0, 0.1),
+            Parameter("bending", 0, "Middle sheet bending [N·m]", 0.01, 1.0, 0.01),
             Parameter("gravity", 0, "Gravity [m/s²]", 0.0, 20.0, 0.1),
         ),
         persistent=("bending", "gravity"),
     )
     _write_manifest(
         output,
-        {"kind": "cloth_bending", "title": "Cloth bridge with VBD", "supports": supports, "bendingScale": "log10"},
+        {
+            "kind": "cloth_bending",
+            "title": "Cloth bending comparison with VBD",
+            "supports": supports,
+            "bendingScale": "log10",
+            "cycleSteps": 360,
+        },
     )
-    for _ in range(480):
+    for _ in range(360):
         wp.capture_launch(capture.graph)
     if not np.isfinite(state_in.particle_q.numpy()).all():
         raise RuntimeError("VBD cloth reference trajectory is not finite")

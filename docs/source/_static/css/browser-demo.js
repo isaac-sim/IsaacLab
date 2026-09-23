@@ -241,7 +241,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
       const legend = document.createElement('div');
       legend.className = 'browser-demo-legend';
       const references = this.demo.kind === 'cloth_bending'
-        ? [['Adjustable sheet · 20 N·m', '#9154d9'], ['Two cylinder supports', '#536773']]
+        ? [['Reference · 0.01 N·m', '#297ad9'], ['Adjustable · 0.10 N·m', '#9154d9'], ['Reference · 1.00 N·m', '#e37a38']]
         : this.demo.kind === 'rigid_friction'
           ? [['Reference · μ 0.05', '#236bdb'], ['Adjustable · μ 0.15', '#8648ce'], ['Reference · μ 0.8', '#e34c31']]
           : [['Reference · 2 kPa', '#76b900'], ['Adjustable · 20 kPa', '#55880a'], ['Reference · 100 kPa', '#88cc22']];
@@ -264,7 +264,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
         const logarithmic = name === 'bending' && this.demo.bendingScale === 'log10';
         const physical = (value) => logarithmic ? 10 ** value : value;
         const format = name === 'stiffness' ? (value) => `${(value / 1000).toFixed(0)} kPa`
-          : name === 'bending' ? (value) => `${value < 10 ? value.toFixed(1) : value.toFixed(0)} N·m`
+          : name === 'bending' ? (value) => `${value.toFixed(2)} N·m`
             : name === 'middle_friction' ? (value) => `μ ${value.toFixed(2)}`
           : name === 'gravity' ? (value) => `${value.toFixed(1)} m/s²`
             : (value) => value.toFixed(1);
@@ -277,7 +277,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
             const value = physical(input);
             this.simulation.binding(parameter.binding)[parameter.index] = value;
             if (['stiffness', 'bending', 'middle_friction'].includes(name)) {
-              this.middleLegend.textContent = `${name === 'bending' ? 'Adjustable sheet' : 'Adjustable'} · ${format(value)}`;
+              this.middleLegend.textContent = `Adjustable · ${format(value)}`;
             }
           }, (value) => format(physical(value)));
       }

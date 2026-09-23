@@ -34,13 +34,15 @@ and one WebAssembly instance. The VBD guide embeds the same bundle in its own
 widget. Locomotion robots share the policy evaluator, joystick controls, and
 mesh viewer. Each robot still needs its own reviewed USD, checkpoint, and
 exported graph.
-The cloth demo reuses the soft-mesh viewer with one sheet fixed at the tops of
-two vertical cylinder colliders. Its logarithmic bending slider writes Newton's
-`edge_bending_properties` before each captured VBD step, and gravity is also
-live. The cylinders remain in the exported physics graph; the manifest carries
-their geometry for browser rendering because `newton-web` currently serializes
-only boxes and a plane. The rigid friction demo draws a solid ramp aligned to
-its inclined Newton plane and leaves the default checker ground visible below.
+The cloth demo adapts the three-value bend-stiffness comparison in
+`deformables.rst`. Three free sheets fall across pairs of horizontal rollers;
+the outer sheets retain 0.01 and 1.00 N·m bending stiffness. The logarithmic
+slider writes the middle sheet's `edge_bending_properties` before each captured
+VBD step, and gravity is also live. The rollers remain in the exported physics
+graph; the manifest carries their geometry for browser rendering because
+`newton-web` currently serializes only boxes and a plane. The rigid friction
+demo draws a solid ramp aligned to its inclined Newton plane and leaves the
+default checker ground visible below.
 Three MJWarp boxes begin at rest on the ramp; the middle slider writes its
 MuJoCo geom friction. The incline has low friction so each box's coefficient
 determines the comparison. Both bundles are under 1 MB of WebAssembly and

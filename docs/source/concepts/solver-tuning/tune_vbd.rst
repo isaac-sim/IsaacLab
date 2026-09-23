@@ -484,13 +484,12 @@ for cloth or surface deformables:
 Try cloth bending in the browser
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-One cloth sheet spans two vertical cylindrical supports. Its end rows are
-fixed at the cylinder tops so the middle can sag under gravity without the
-sheet sliding off. Change its ``edge_ke`` bending stiffness on the logarithmic
-slider, or change gravity, then press **Reset** to replay the same initial
-state. The supports participate in Newton's particle-rigid contact solve.
-The slider changes the material coefficient in the captured VBD simulation;
-it does not change solver iterations.
+Three free cloth sheets fall across pairs of horizontal rollers, adapting the
+bend-stiffness comparison in :doc:`../deformables`. The outer sheets retain
+``edge_ke`` values of 0.01 and 1.00 N·m; change the middle sheet's bending
+stiffness on the logarithmic slider, or change gravity, then press **Reset**
+to replay the same drop. Roller contact is part of the VBD solve. The slider
+changes the material coefficient, not the 12 solver iterations.
 
 .. raw:: html
 
