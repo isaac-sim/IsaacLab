@@ -131,7 +131,16 @@ def resolve_deformable_slot(cfg) -> tuple[str, dict] | None:
         ("volume", getattr(cfg, "volume_deformable_props", None)),
         ("surface", getattr(cfg, "surface_deformable_props", None)),
     ]
-    active = [(kind, fragment_mapping(value)) for kind, value in slots if value is not None]
+    active = []
+    for kind, value in slots:
+        if value is None:
+            continue
+        mapping = fragment_mapping(value)
+        # Setting a slot asks for a deformable body even without fragments, so an empty form still
+        # authors one on the spawn prim, with default properties.
+        if mapping == {}:
+            mapping = {"": []}
+        active.append((kind, mapping))
     legacy = getattr(cfg, "deformable_props", None)
     if len(active) + (legacy is not None) > 1:
         raise ValueError(

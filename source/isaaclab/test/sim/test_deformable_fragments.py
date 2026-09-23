@@ -304,6 +304,29 @@ def test_mesh_surface_deformable_spawn_with_collision_props(monkeypatch, caplog)
     assert not any("without a physics material binding" in rec.message for rec in caplog.records)
 
 
+@pytest.mark.parametrize("empty", [[], {}])
+def test_empty_deformable_slot_still_creates_a_body(monkeypatch, empty):
+    """Setting a deformable slot to an empty form must still make the spawn prim a deformable body.
+
+    An empty fragment sequence normally carries no targeting intent, but the slot itself is the
+    request for a deformable body, so dropping it would spawn a plain mesh with no warning.
+    """
+    import isaaclab.sim as sim_utils
+    from isaaclab.sim.spawners._utils import resolve_deformable_slot
+    from isaaclab.sim.spawners.materials import OmniPhysicsSurfaceDeformableMaterialCfg
+
+    stage = _fresh_sim_with_stub(monkeypatch)
+    cfg = sim_utils.MeshCuboidCfg(
+        size=(0.1, 0.1, 0.1),
+        surface_deformable_props=empty,
+        physics_material=[OmniPhysicsSurfaceDeformableMaterialCfg(surface_thickness=0.01)],
+    )
+    assert resolve_deformable_slot(cfg) == ("surface", {"": []})
+    cfg.func("/World/Cloth", cfg)
+    assert _StubManager.calls and _StubManager.calls[0][1] == "surface"
+    assert stage.GetPrimAtPath("/World/Cloth/sim_mesh").IsValid()
+
+
 def test_usd_file_volume_deformable_spawn(monkeypatch, tmp_path):
     """Volume slot on the USD-file path with a pre-tetrahedralized asset (no pytetwild)."""
     from pxr import Usd, UsdGeom
