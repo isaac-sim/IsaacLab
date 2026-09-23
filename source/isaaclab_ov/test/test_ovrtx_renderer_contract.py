@@ -384,27 +384,36 @@ def test_ovrtx_async_cameras_share_the_pipeline(monkeypatch):
             renderer.render(rd)
             assert_depth(rd, data, 5.0 - index - 0.5)
 
-        # Move only cam1 up. The next renders are pipelined, so both reads still show the
-        # previous frame.
-        positions = ProxyArray(wp.array([[2.0, 0, 7]] * 2, dtype=wp.vec3f, device="cuda:0"))
+        # Move only cam1 up, using the production call order: each camera stages its pose and
+        # renders before the next camera runs. The renders are pipelined, so both reads still
+        # show the previous frame.
         quats = convert_camera_frame_orientation_convention(
             torch.tensor([[0.0, 0, 0, 1.0]] * 2, device="cuda:0"), origin="opengl", target="world"
         )
         orientations = ProxyArray(wp.from_torch(quats, dtype=wp.quatf))
-        renderer.update_camera(cameras[1][0], positions, orientations, cameras[1][1].intrinsic_matrices)
-        for rd, _data in cameras:
-            renderer.render(rd)
+        poses = [
+            ProxyArray(wp.array([[0.0, 0, 5]] * 2, dtype=wp.vec3f, device="cuda:0")),
+            ProxyArray(wp.array([[2.0, 0, 7]] * 2, dtype=wp.vec3f, device="cuda:0")),
+        ]
+
+        def step():
+            for (rd, data), positions in zip(cameras, poses):
+                renderer.update_camera(rd, positions, orientations, data.intrinsic_matrices)
+                renderer.render(rd)
+
+        step()
         assert_depth(*cameras[0], 4.5)
         assert_depth(*cameras[1], 3.5)
 
-        # The next frame's renders drain the moved frame into both cameras together.
-        for rd, _data in cameras:
-            renderer.render(rd)
+        # The next step's renders drain the moved frame into both cameras together.
+        step()
         assert_depth(*cameras[0], 4.5)
         assert_depth(*cameras[1], 5.5)
     finally:
-        renderer.close()
-        SimulationContext.instance().close_backend(renderer.backend)
+        try:
+            renderer.close()
+        finally:
+            SimulationContext.instance().close_backend(renderer.backend)
 
 
 def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():

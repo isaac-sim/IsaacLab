@@ -250,18 +250,18 @@ def test_staged_buffers_are_double_buffered_per_frame(timeline, camera_first):
     strategy.set_device(wp.get_device("cuda:0"))
     strategy.initialize(2)
     renderer = _FakeRenderer(timeline)
-    binding = _FakeBinding()
+    camera_binding, object_binding = _FakeBinding(), _FakeBinding()
     consumed: list[int] = []
 
     camera_buffers = []
     object_buffers = []
     for ordinal in range(3):
         if camera_first:
-            camera_buffers.append(_stage_camera(strategy, binding))
-            object_buffers.append(_stage_objects(strategy, binding))
+            camera_buffers.append(_stage_camera(strategy, camera_binding))
+            object_buffers.append(_stage_objects(strategy, object_binding))
         else:
-            object_buffers.append(_stage_objects(strategy, binding))
-            camera_buffers.append(_stage_camera(strategy, binding))
+            object_buffers.append(_stage_objects(strategy, object_binding))
+            camera_buffers.append(_stage_camera(strategy, camera_binding))
         _render(strategy, renderer, ordinal, consumed)
 
     for buffers in (camera_buffers, object_buffers):
@@ -269,14 +269,20 @@ def test_staged_buffers_are_double_buffered_per_frame(timeline, camera_first):
         assert buffers[0] is buffers[2]
 
 
-def test_two_cameras_pipeline_together_with_one_frame_latency(timeline):
+@pytest.mark.parametrize("interleaved", [False, True], ids=["staged_then_rendered", "interleaved"])
+def test_two_cameras_pipeline_together_with_one_frame_latency(timeline, interleaved):
     """Cameras share the strategy: both prime their first frame, and a frame's renders drain
-    together when the next frame's renders are enqueued. Each camera stages into its own buffers."""
+    together when the next frame's renders are enqueued. Each camera stages into its own buffers.
+
+    The interleaved order is the one the sensor pipeline produces: each camera stages its pose
+    and renders before the next camera runs, and the object transforms stage once per step in
+    between the first camera's pose and its render.
+    """
     strategy = _AsyncRenderStrategy()
     strategy.set_device(wp.get_device("cuda:0"))
     renderer = _FakeRenderer(timeline)
     camera_a, camera_b = object(), object()
-    binding_a, binding_b = _FakeBinding(), _FakeBinding()
+    binding_a, binding_b, binding_objects = _FakeBinding(), _FakeBinding(), _FakeBinding()
     delivered: list[object] = []
 
     def consume(render_data, products):
@@ -284,8 +290,14 @@ def test_two_cameras_pipeline_together_with_one_frame_latency(timeline):
 
     def frame():
         buffer_a = _stage_camera(strategy, binding_a)
-        buffer_b = _stage_camera(strategy, binding_b)
-        strategy.render(renderer, {"/A"}, 1.0 / 60.0, camera_a, consume)
+        if interleaved:
+            _stage_objects(strategy, binding_objects)
+            strategy.render(renderer, {"/A"}, 1.0 / 60.0, camera_a, consume)
+            buffer_b = _stage_camera(strategy, binding_b)
+        else:
+            buffer_b = _stage_camera(strategy, binding_b)
+            _stage_objects(strategy, binding_objects)
+            strategy.render(renderer, {"/A"}, 1.0 / 60.0, camera_a, consume)
         strategy.render(renderer, {"/B"}, 1.0 / 60.0, camera_b, consume)
         return buffer_a, buffer_b
 

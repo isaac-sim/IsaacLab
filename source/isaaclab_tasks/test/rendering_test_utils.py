@@ -128,6 +128,10 @@ _SSIM_THRESHOLD_BY_ENV_NAME = {
 }
 
 # Targeted tolerance overrides for renderer noise in otherwise equivalent CI frames.
+# An override replaces the computed threshold wholesale, including the widened value the
+# asynchronous lanes get from ``max_different_pixels_percentage_for``. An env that runs both
+# lanes and needs an override must carry a value that suits both, or the key must grow a lane
+# dimension first.
 _IMAGE_TOLERANCE_OVERRIDES = {
     ("franka_cloth", "newton", "isaacsim_rtx_renderer", "rgb"): (20.0, 0.96),
     ("franka_cloth", "newton", "isaacsim_rtx_renderer", "rgba"): (20.0, 0.96),

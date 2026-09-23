@@ -486,23 +486,23 @@ def test_update_camera_writes_without_mapping(monkeypatch: pytest.MonkeyPatch):
     """Camera xforms are handed to ``write()`` instead of copied into a mapped OVRTX buffer."""
     renderer, _ = _make_renderer_without_backend()
     render_data = SimpleNamespace(camera_xform_binding=_FakePointsBinding("omni:xform"))
-    camera_transforms = []
+    allocated = []
 
     monkeypatch.setattr(ovrtx_renderer_module, "convert_camera_frame_orientation_convention_wp", lambda **kwargs: None)
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "empty", lambda *args, **kwargs: object())
 
-    def _fake_zeros(*args, **kwargs):
+    def _fake_empty(*args, **kwargs):
         arr = object()
-        camera_transforms.append(arr)
+        allocated.append(arr)
         return arr
 
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "zeros", _fake_zeros)
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "empty", _fake_empty)
     monkeypatch.setattr(ovrtx_renderer_module.wp, "launch", lambda *args, **kwargs: None)
     renderer._strategy.set_device(SimpleNamespace(ordinal=0, stream=SimpleNamespace(cuda_stream=7)))
 
     positions = SimpleNamespace(shape=(2,), warp=object())
     renderer.update_camera(render_data, positions, SimpleNamespace(warp=object()), object())
 
-    assert render_data.camera_xform_binding.written is camera_transforms[0]
+    # The strategy allocates ``(quats, transforms)`` on first use; the write hands over transforms.
+    assert render_data.camera_xform_binding.written is allocated[1]
     assert render_data.camera_xform_binding.write_kwargs["data_access"] is DataAccess.ASYNC
     assert render_data.camera_xform_binding.write_kwargs["cuda_stream"] == 7

@@ -130,6 +130,14 @@ class _RenderStrategy(ABC):
         corrupt the frame. The default does nothing.
         """
 
+    def drain_pending_renders(self) -> list[Exception]:
+        """Deliver every queued render and return the collected failures instead of raising.
+
+        Use this on teardown paths that must keep going: every queued op is waited even when an
+        earlier delivery fails. The default does nothing.
+        """
+        return []
+
     @abstractmethod
     def stage_object_transforms(
         self, binding: Any, num_rows: int, buffer: wp.array
@@ -174,6 +182,18 @@ class _SyncRenderStrategy(_RenderStrategy):
     OVRTX rejects ``SYNC`` for GPU buffers.
     """
 
+    def __init__(self) -> None:
+        super().__init__()
+        # Per-binding camera staging buffers, reused across frames. The blocking write returns
+        # only after the stream barrier for OVRTX's read is installed, and the refill kernels run
+        # on that same stream, so reuse is ordered after the read.
+        self._camera_buffers: dict[int, tuple[wp.array, wp.array]] = {}
+
+    def initialize(self, num_envs: int) -> None:
+        """Drop the camera staging buffers for a new scene. See :meth:`_RenderStrategy.initialize`."""
+        del num_envs  # Buffers are allocated on first use, sized by their staging calls.
+        self._camera_buffers.clear()
+
     @contextmanager
     def stage_object_transforms(self, binding: Any, num_rows: int, buffer: wp.array) -> Iterator[wp.array]:
         """Yield the caller's persistent buffer and write it to ``binding`` on exit.
@@ -185,12 +205,20 @@ class _SyncRenderStrategy(_RenderStrategy):
 
     @contextmanager
     def stage_camera_transforms(self, binding: Any, num_rows: int) -> Iterator[tuple[wp.array, wp.array]]:
-        """Yield freshly allocated staging buffers and write the transforms to ``binding`` on exit.
+        """Yield the binding's staging buffers and write the transforms to ``binding`` on exit.
 
-        See :meth:`_RenderStrategy.stage_camera_transforms`.
+        See :meth:`_RenderStrategy.stage_camera_transforms`. The buffers are allocated on first
+        use and reallocated when ``num_rows`` changes. ``wp.empty`` suffices: the fill kernels
+        write every component of every row.
         """
-        camera_quats = wp.empty(num_rows, dtype=wp.quatf, device=self._warp_device)
-        camera_transforms = wp.zeros(num_rows, dtype=wp.mat44d, device=self._warp_device)
+        buffers = self._camera_buffers.get(id(binding))
+        if buffers is None or buffers[1].shape[0] != num_rows:
+            buffers = (
+                wp.empty(num_rows, dtype=wp.quatf, device=self._warp_device),
+                wp.empty(num_rows, dtype=wp.mat44d, device=self._warp_device),
+            )
+            self._camera_buffers[id(binding)] = buffers
+        camera_quats, camera_transforms = buffers
         yield camera_quats, camera_transforms
         binding.write(camera_transforms, data_access=DataAccess.ASYNC, cuda_stream=self._cuda_stream)
 
@@ -230,15 +258,22 @@ class _AsyncRenderSlot:
         self.write_ops.append(binding.write_async(data, data_access=DataAccess.ASYNC, cuda_stream=cuda_stream))
 
     def wait_for_writes(self) -> None:
-        """Wait until this slot's async writes are done, so its buffers are safe to reuse."""
-        if self.write_ops:
+        """Wait until this slot's async writes are done, so its buffers are safe to reuse.
+
+        Every op is waited even when an earlier one fails. Skipping the rest would leave their
+        writes pending with no remaining reference to wait on.
+        """
+        ops, self.write_ops = self.write_ops, []
+        errors = []
+        for op in ops:
             try:
-                for op in self.write_ops:
-                    op.wait()
+                op.wait()
             except Exception as e:
-                raise RuntimeError("Failed to complete OVRTX async binding write before slot reuse") from e
-            finally:
-                self.write_ops = []
+                errors.append(e)
+        if errors:
+            raise RuntimeError(
+                f"{len(errors)} OVRTX async binding write(s) failed to complete before slot reuse"
+            ) from errors[0]
 
 
 class _AsyncRenderStrategy(_RenderStrategy):
@@ -248,11 +283,13 @@ class _AsyncRenderStrategy(_RenderStrategy):
     step stale. Several cameras can share the strategy: their renders are grouped by frame, and a
     frame's renders drain together when the next frame's renders are enqueued.
 
-    **Frame boundaries.** No caller announces a frame. The strategy reads it from the call
-    pattern instead, which alternates two phases within every frame: first the staging calls
-    (object and camera transforms), then one render call per camera. The transition from the
-    render phase back to a staging call is the frame boundary. :meth:`_begin_staging_phase` and
-    :meth:`_begin_render_phase` are the only places that track it.
+    **Frame boundaries.** No caller announces a frame. The strategy derives it from two facts
+    about the call pattern instead: a binding stages at most once per frame, and a camera renders
+    at most once per frame. A repeated staging or render therefore starts the next frame. Nothing
+    else does: the sensor pipeline interleaves cameras (stage A, stage objects, render A, stage B,
+    render B), so a first staging or render must join the current frame regardless of what other
+    cameras did before it. :meth:`_note_staged_binding` and :meth:`_note_rendered_camera` are the
+    only places that track this.
 
     Transform staging always uses two slots, so one slot can be refilled while the other still
     backs the frame in flight. A slot serves all cameras of its frame.
@@ -280,36 +317,40 @@ class _AsyncRenderStrategy(_RenderStrategy):
         self._slots: list[_AsyncRenderSlot] = []
         self._slot_index = 0
         self._current_slot: _AsyncRenderSlot | None = None
-        # The current frame number and the phase within it. See the class docstring for how the
-        # two phases define a frame. ``_frame`` is the drain key: renders from older frames are
-        # delivered when a newer frame's renders are enqueued, which gives every camera one frame
-        # of latency, however many cameras share the strategy.
+        # The current frame number and the bindings staged in it. See the class docstring for how
+        # the frame boundary is derived. ``_frame`` is the drain key: renders from older frames
+        # are delivered when a newer frame's renders are enqueued, which gives every camera one
+        # frame of latency, however many cameras share the strategy.
         self._frame = 0
-        self._in_render_phase = False
+        self._staged_bindings: set[int] = set()
         self._primed_render_data: set[Any] = set()
 
-    def _begin_staging_phase(self) -> None:
-        """Start the next frame when the call pattern returns from rendering to staging."""
-        if self._in_render_phase:
-            self._in_render_phase = False
+    def _note_staged_binding(self, binding: Any) -> None:
+        """Start the next frame when ``binding`` stages for the second time.
+
+        A binding stages at most once per frame, so its repeat belongs to the next frame. That
+        frame stages into the other slot, whose renders have all drained by now.
+        """
+        if id(binding) in self._staged_bindings:
+            self._staged_bindings.clear()
             self._frame += 1
             self._advance_slot()
+        self._staged_bindings.add(id(binding))
 
-    def _begin_render_phase(self, render_data: OVRTXCameraRenderData | None) -> None:
-        """Enter the render phase of the current frame.
+    def _note_rendered_camera(self, render_data: OVRTXCameraRenderData | None) -> None:
+        """Start the next frame when the same camera renders again without staging in between.
 
-        A second render for the same camera means the caller skipped the staging phase, so it
-        starts the next frame here instead. The staging slot keeps its buffers: nothing was
-        staged, so the frame renders from the previous transforms.
+        The staging slot keeps its buffers in this case: nothing was staged, so the new frame
+        renders from the previous transforms.
         """
-        self._in_render_phase = True
         if render_data is None:
             return
-        # Only a same-frame duplicate signals a skipped staging phase. Older entries for this
-        # camera are the normal pipeline: they drain after this call, in _enqueue_render_op.
+        # Only a same-frame duplicate starts a frame. Older entries for this camera are the
+        # normal pipeline: they drain after this call, in _enqueue_render_op.
         pending_renders_for_camera = (entry for entry in self._ring if entry.render_data is render_data)
         already_rendered_this_frame = any(entry.frame == self._frame for entry in pending_renders_for_camera)
         if already_rendered_this_frame:
+            self._staged_bindings.clear()
             self._frame += 1
 
     def _has_pending_ops(self) -> bool:
@@ -320,7 +361,7 @@ class _AsyncRenderStrategy(_RenderStrategy):
         self, op: _AsyncRenderOp, render_data: OVRTXCameraRenderData | None, consume_products: _RenderProductConsumer
     ) -> _AsyncRenderEntry:
         """Queue a render op for the current frame and deliver the renders of earlier frames."""
-        self._begin_render_phase(render_data)
+        self._note_rendered_camera(render_data)
         entry = _AsyncRenderEntry(op, render_data, consume_products, self._frame)
         self._ring.append(entry)
         while self._ring and self._ring[0].frame < self._frame:
@@ -344,7 +385,7 @@ class _AsyncRenderStrategy(_RenderStrategy):
         self._slot_index = 0
         self._current_slot = None
         self._frame = 0
-        self._in_render_phase = False
+        self._staged_bindings.clear()
         self._primed_render_data.clear()
         self._ring.clear()
 
@@ -355,17 +396,17 @@ class _AsyncRenderStrategy(_RenderStrategy):
         # drained, so they are already complete.
         self._slots = [_AsyncRenderSlot() for _ in range(self._NUM_SLOTS)]
 
-    def _staging_slot(self) -> _AsyncRenderSlot:
-        """The slot that receives this frame's staged transforms, in any staging order.
+    def _staging_slot(self, binding: Any) -> _AsyncRenderSlot:
+        """The slot that receives ``binding``'s staged transforms this frame.
 
-        The slot pool is built on first use. The frame's first staging call rotates to the other
-        slot (see :meth:`_begin_staging_phase`). Further staging calls in the same frame, from any
-        camera, share that slot.
+        The slot pool is built on first use. A repeat staging of the same binding starts the next
+        frame and rotates to the other slot (see :meth:`_note_staged_binding`). All bindings of
+        one frame share that frame's slot, in any staging order.
         """
         if not self._slots:
             self._create_slots()
             self._current_slot = self._slots[self._slot_index]
-        self._begin_staging_phase()
+        self._note_staged_binding(binding)
         assert self._current_slot is not None
         return self._current_slot
 
@@ -393,7 +434,7 @@ class _AsyncRenderStrategy(_RenderStrategy):
         frame cannot share one array with the frame still in flight, so the slot provides a
         double-buffered replacement.
         """
-        slot = self._staging_slot()
+        slot = self._staging_slot(binding)
         object_transforms = slot.object_transforms
         if object_transforms is None or object_transforms.shape[0] != num_rows:
             object_transforms = wp.zeros(num_rows, dtype=wp.mat44d, device=self._warp_device)
@@ -409,12 +450,13 @@ class _AsyncRenderStrategy(_RenderStrategy):
         frame's slot in any order. Each camera's pose binding gets its own buffers, allocated on
         first use and reallocated when ``num_rows`` changes.
         """
-        slot = self._staging_slot()
+        slot = self._staging_slot(binding)
         buffers = slot.camera_buffers.get(id(binding))
         if buffers is None or buffers[1].shape[0] != num_rows:
+            # ``wp.empty`` suffices: the fill kernels write every component of every row.
             buffers = (
                 wp.empty(num_rows, dtype=wp.quatf, device=self._warp_device),
-                wp.zeros(num_rows, dtype=wp.mat44d, device=self._warp_device),
+                wp.empty(num_rows, dtype=wp.mat44d, device=self._warp_device),
             )
             slot.camera_buffers[id(binding)] = buffers
         camera_quats, camera_transforms = buffers
@@ -457,6 +499,17 @@ class _AsyncRenderStrategy(_RenderStrategy):
         """Complete the oldest queued render and deliver it. Returns False when nothing was queued."""
         return bool(self._ring) and self._ring.popleft().deliver()
 
+    def drain_pending_renders(self) -> list[Exception]:
+        """Deliver every queued render, collecting failures. See :meth:`_RenderStrategy.drain_pending_renders`."""
+        errors: list[Exception] = []
+        while self._has_pending_ops():
+            try:
+                self._try_drain_one()
+            except Exception as e:
+                logger.warning("Error draining OVRTX async render op: %s", e, exc_info=True)
+                errors.append(e)
+        return errors
+
     def release_render_data(self, render_data: OVRTXCameraRenderData) -> None:
         """Stop delivering queued frames into ``render_data``.
 
@@ -476,13 +529,7 @@ class _AsyncRenderStrategy(_RenderStrategy):
         raised. The caller re-raises them after it has released its backend resources. See
         :meth:`_RenderStrategy.cleanup`.
         """
-        errors: list[Exception] = []
-        while self._has_pending_ops():
-            try:
-                self._try_drain_one()
-            except Exception as e:
-                logger.warning("Error draining OVRTX async render op: %s", e, exc_info=True)
-                errors.append(e)
+        errors = self.drain_pending_renders()
 
         # Same collect-and-continue rule for the slots' binding writes. ``wait_for_writes`` clears
         # a slot's ops even on failure, so the reset below cannot raise out of the teardown.

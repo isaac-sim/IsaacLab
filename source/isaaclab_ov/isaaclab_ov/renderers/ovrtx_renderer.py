@@ -189,13 +189,13 @@ def ovrtx_use_ovstage_enabled() -> bool:
 def _resolve_render_strategy(cfg: OVRTXRendererCfg, use_ovstage: bool = False) -> _RenderStrategy:
     """Return the asynchronous strategy when ``cfg`` enables it, else the synchronous one.
 
-    The ovstage path does not support asynchronous rendering yet and always renders synchronously.
+    The ovstage path does not support asynchronous rendering and always renders synchronously.
     The legacy path pipelines exactly one frame deep.
     """
     strategy = _AsyncRenderStrategy.try_create(cfg)
     if strategy is not None and use_ovstage:
         logger.warning(
-            "Asynchronous rendering is not supported on the OVRTX ovstage path yet. Rendering"
+            "Asynchronous rendering is not supported on the OVRTX ovstage path. Rendering"
             " synchronously. Use the legacy stage path to pipeline renders."
         )
         return _SyncRenderStrategy()
@@ -681,6 +681,9 @@ class OVRTXRenderer(BaseRenderer):
 
         Their per-frame blocking writes queue behind the in-flight render on the OVRTX op thread.
         The host then stalls until that render completes, so the pipelining gain is largely lost.
+        The blocking write is also the correctness fence: the written slices alias live physics
+        buffers, and only work on the device's Warp stream is ordered against the render's read.
+        A producer on any other stream would tear frames.
         """
         if not isinstance(self._strategy, _AsyncRenderStrategy):
             return
@@ -1847,6 +1850,8 @@ class OVRTXRenderer(BaseRenderer):
 
     def update_camera_intrinsics(self, render_data: OVRTXCameraRenderData, intrinsics: wp.array, parameters: wp.array):
         """Publish calibration columns from GPU memory into the renderer-owned scene."""
+        # A runtime calibration change is a scene write, so any in-flight render must finish first.
+        self._strategy.settle_before_scene_write()
         stream = wp.get_stream(parameters.device).cuda_stream
         if self._use_ovstage:
             self.backend.stage.write_attributes(
@@ -1900,7 +1905,11 @@ class OVRTXRenderer(BaseRenderer):
         ovstage.population.apply_usd_changes(self.backend.stage, ordinal=self._current_ordinal)
 
     def close(self) -> None:
-        """Release this renderer's bindings; the registry closes shared native resources at simulation shutdown."""
+        """Release this renderer's bindings; the registry closes shared native resources at simulation shutdown.
+
+        A drain failure is raised only after the release, so the renderer is already closed when
+        this method raises. Close the backend in a nested ``finally`` when both must run.
+        """
         # Drain in-flight renders before the bindings they read are released below.
         # Drain failures are re-raised only after the release, so a bad final frame
         # cannot leak resources and cannot exit the run silently either.

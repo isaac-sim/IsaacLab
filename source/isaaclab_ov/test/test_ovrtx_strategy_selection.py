@@ -35,7 +35,7 @@ def test_strategy_matches_cfg():
 
 
 def test_ovstage_forces_sync_and_warns_only_when_async_requested(caplog):
-    """The ovstage path renders synchronously for now. A requested async must warn, not silently apply."""
+    """The ovstage path renders synchronously. A requested async must warn, not silently apply."""
     with caplog.at_level("WARNING"):
         strategy = _resolve_render_strategy(OVRTXRendererCfg(async_rendering=False), use_ovstage=True)
     assert isinstance(strategy, _SyncRenderStrategy)
