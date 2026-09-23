@@ -19,3 +19,5 @@ Fixed
 * Kept terminal non-finite rigid-object states from propagating into Lift and Reorient reward batches.
 * Made Franka Reorient train from scratch by starting its ADR goal curriculum from stable, shape-aware
   pre-grasps with a 1 mm contact preload.
+* Retained aligned Franka Lift pre-grasps in the reset bank and applied their finger opening after the
+  generic gripper reset. Re-evaluate existing Lift checkpoints because the training reset distribution changed.

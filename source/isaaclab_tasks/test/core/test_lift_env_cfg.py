@@ -161,22 +161,26 @@ def test_franka_tasks_use_distinct_lift_and_reorient_bootstraps() -> None:
     assert lift.terminations.abnormal_robot.func is mdp.abnormal_robot_state
     lift_reset = lift.events.conditional_reset.params
     lift_reset_terms = list(lift_reset["terms"])
-    assert lift_reset_terms.index("reset_object_to_target") > lift_reset_terms.index("reset_robot_wrist_joint")
+    assert lift_reset_terms.index("reset_object_to_target") > lift_reset_terms.index("reset_gripper_width")
     lift_target_reset = lift_reset["terms"]["reset_object_to_target"]
-    assert lift_target_reset.func == "isaaclab_tasks.core.lift.mdp.events:reset_to_target"
-    assert lift_target_reset.params["probability"] == pytest.approx(0.25)
+    assert lift_target_reset.func is mdp.reset_to_grasp
+    assert lift_target_reset.params["probability"] == pytest.approx(0.75)
     assert lift_target_reset.params["pose_range"] == {
-        "x": [-0.02, 0.02],
-        "y": [-0.02, 0.02],
-        "z": [0.08, 0.12],
+        "x": (-0.002, 0.002),
+        "y": (-0.002, 0.002),
+        "z": (0.1, 0.1),
     }
-    assert lift_target_reset.params["velocity_range"] == {}
+    assert lift_target_reset.params["gripper_cfg"].joint_names == "panda_finger_joint.*"
+    assert len(lift_target_reset.params["gripper_joint_positions"]) == 8
+    assert len(lift_target_reset.params["asset_orientations"]) == 8
     assert "object_robot_clearance" in lift_reset["valid_criteria"]
+    assert lift_reset["diversity_feature"] is None
+    assert lift_reset["success_monitor"].target_success_rate == pytest.approx(0.5)
 
     lift.play_mode()
     assert lift.events.conditional_reset.params["terms"]["reset_object_to_target"].params[
         "probability"
-    ] == pytest.approx(0.25)
+    ] == pytest.approx(0.75)
 
 
 def test_pose_command_curriculum_preserves_full_difficulty_goal() -> None:

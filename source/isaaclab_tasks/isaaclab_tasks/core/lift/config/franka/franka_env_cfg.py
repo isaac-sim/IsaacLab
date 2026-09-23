@@ -318,6 +318,25 @@ class FrankaReorientEnvCfg(FrankaMixinCfg, lift.ReorientEnvCfg):
 class FrankaLiftEnvCfg(FrankaMixinCfg, lift.LiftEnvCfg):
     """Franka object lifting environment."""
 
+    def __post_init__(self):
+        super().__post_init__()
+        reset = self.events.conditional_reset.params
+        terms = reset["terms"]
+        # The aligned opening must be written after the generic gripper-width reset.
+        pregrasp = terms.pop("reset_object_to_target")
+        terms["reset_object_to_target"] = pregrasp
+        pregrasp.func = mdp.reset_to_grasp
+        pregrasp.params.update(
+            probability=0.75,
+            gripper_cfg=SceneEntityCfg("robot", joint_names="panda_finger_joint.*"),
+            pose_range={"x": (-0.002, 0.002), "y": (-0.002, 0.002), "z": (0.1, 0.1)},
+            gripper_joint_positions=[0.026, 0.026, 0.0135, 0.026, 0.021, 0.026, 0.026, 0.011],
+            asset_orientations=[(0.0, 0.0, 0.0, 1.0)] * 5 + [(0.0, 2.0**-0.5, 0.0, 2.0**-0.5)] * 3,
+        )
+        pregrasp.params.pop("velocity_range")
+        # Farthest-point thinning discards valid near-grasp starts.
+        reset["diversity_feature"] = None
+
     def play_mode(self):
         super().play_mode()
         # evaluate at the datasheet gripper speed: without the closing-speed randomization the hand
