@@ -425,3 +425,27 @@ def test_mask_guidance_support_is_detected_not_assumed():
     assert _supports_mask_guidance(Args(Patched)) is True
     # An unexpected API shape is unsupported rather than an exception.
     assert _supports_mask_guidance(object()) is False
+
+
+def test_a_checkpoint_path_that_does_not_exist_is_named_early(tmp_path):
+    from isaaclab_contrib.visual_dr.cfg import CosmosBackendCfg, PromptBankCfg
+    from isaaclab_contrib.visual_dr.cosmos import CosmosBackend
+
+    cfg = CosmosBackendCfg(
+        class_type=CosmosBackend,
+        checkpoint=str(tmp_path / "Cosmos3-Nano-Transfer-DMD2-4Step"),
+        prompts=PromptBankCfg(variants=("a lab",)),
+    )
+    backend = CosmosBackend(cfg)
+    with pytest.raises(FileNotFoundError, match="looks like a path"):
+        backend._build()
+
+
+def test_a_registered_checkpoint_name_is_not_mistaken_for_a_path():
+    from isaaclab_contrib.visual_dr.cfg import CosmosBackendCfg, PromptBankCfg
+    from isaaclab_contrib.visual_dr.cosmos import CosmosBackend
+
+    cfg = CosmosBackendCfg(class_type=CosmosBackend, prompts=PromptBankCfg(variants=("a lab",)))
+    # The default is a registered name; it carries no slash and must not be
+    # rejected by the path check.
+    assert "/" not in cfg.checkpoint

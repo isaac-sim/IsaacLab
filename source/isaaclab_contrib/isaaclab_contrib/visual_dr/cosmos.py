@@ -235,6 +235,18 @@ class CosmosBackend:
         from cosmos_framework.inference.args import OmniSetupOverrides
         from PIL import Image
 
+        # A checkpoint is a registered name, an s3:// URI, or a directory. A path
+        # that does not exist otherwise fails deep inside Cosmos with a message
+        # about config resolution, so name the real problem here.
+        checkpoint = str(self.cfg.checkpoint)
+        if ("/" in checkpoint or checkpoint.startswith(".")) and not checkpoint.startswith("s3://"):
+            if not Path(checkpoint).expanduser().is_dir():
+                raise FileNotFoundError(
+                    f"checkpoint {checkpoint!r} looks like a path but is not a directory. Registered "
+                    "names carry no slash (for example 'Cosmos3-Nano'); a downloaded checkpoint should "
+                    "point at the directory holding its config.json."
+                )
+
         _install_patches()
         if _install_attention_fallback(self.device):
             print(
