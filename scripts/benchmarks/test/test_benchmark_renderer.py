@@ -83,7 +83,15 @@ _PHYSICS_SCOPE = "IsaacLab::Physics::step"
 
 def _write_profile(path: Path, timings_ms: list[tuple[str, float]]) -> None:
     """Write ordered scope timings [ms] in the runtime benchmark's structured format."""
-    path.write_text(json.dumps({"timings_ms": timings_ms}))
+    path.write_text(
+        json.dumps(
+            {
+                "runtime": {
+                    "scope_timings": [{"scope": scope, "elapsed_ms": elapsed_ms} for scope, elapsed_ms in timings_ms]
+                }
+            }
+        )
+    )
 
 
 def test_parse_profile_skips_padding_and_keeps_num_frames(benchmark_renderer, tmp_path):
@@ -109,9 +117,10 @@ def test_parse_profile_skips_padding_and_keeps_num_frames(benchmark_renderer, tm
     [
         (None, FileNotFoundError),
         ("{", json.JSONDecodeError),
-        ("{}", ValueError),
-        (json.dumps({"timings_ms": [(_PHYSICS_SCOPE, 1.0)]}), None),
-        (json.dumps({"timings_ms": [(_RENDER_SCOPE, 1.0)]}), None),
+        ("{}", KeyError),
+        (json.dumps({"runtime": {"scope_timings": None}}), None),
+        (json.dumps({"runtime": {"scope_timings": [{"scope": _PHYSICS_SCOPE, "elapsed_ms": 1.0}]}}), None),
+        (json.dumps({"runtime": {"scope_timings": [{"scope": _RENDER_SCOPE, "elapsed_ms": 1.0}]}}), None),
     ],
 )
 def test_parse_profile_handles_unusable_timings(benchmark_renderer, tmp_path, contents, error):
@@ -173,10 +182,10 @@ def test_parse_profile_takes_an_arbitrary_scope_mapping(benchmark_renderer, tmp_
 def test_run_profile_reads_fresh_structured_output(benchmark_renderer, tmp_path, monkeypatch, write_timings):
     """The run consumes its own profiling artifact; stale artifacts and timing logs cannot satisfy it."""
     profile = {"name": "p", "preset": "newton_renderer,rgb", "settings": {"tlas": "sah", "blas": "lbvh"}}
-    profile_path = tmp_path / "p" / "profile_timings.json"
+    profile_path = tmp_path / "p" / "benchmark_runtime_fresh.json"
     profile_path.parent.mkdir()
     frames = benchmark_renderer.FRAME_PADDING + 2
-    _write_profile(profile_path, [(_RENDER_SCOPE, 99.0)] * frames)
+    _write_profile(profile_path.with_name("benchmark_runtime_stale.json"), [(_RENDER_SCOPE, 99.0)] * frames)
     monkeypatch.setattr(benchmark_renderer, "OUTPUT_PATH", str(tmp_path))
 
     def launch(cmd, **kwargs):
@@ -192,7 +201,7 @@ def test_run_profile_reads_fresh_structured_output(benchmark_renderer, tmp_path,
     monkeypatch.setattr(benchmark_renderer.subprocess, "Popen", launch)
     args = benchmark_renderer._build_arg_parser().parse_args(["--num_frames", "2"])
 
-    with nullcontext() if write_timings else pytest.raises(FileNotFoundError):
+    with nullcontext() if write_timings else pytest.raises(ValueError):
         results = benchmark_renderer.run_profile(profile, args)
 
     assert (tmp_path / "p.log").read_text() == f"{_RENDER_SCOPE} took 50.00 ms\n" * frames

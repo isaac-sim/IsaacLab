@@ -6,6 +6,7 @@
 """Tests for BaseIsaacLabBenchmark."""
 
 import json
+import math
 import os
 from dataclasses import replace
 
@@ -303,14 +304,40 @@ def test_formatter_selection_and_output_filenames(tmp_path):
 
 
 def test_attached_bundles_are_projected_to_flat_formatters(tmp_path):
+    from isaaclab.benchmark.schema import ScopeTiming
+
+    bundle = _minimal_runtime_bundle()
+    physics_scope = "IsaacLab::Physics::step"
+    render_scope = "IsaacLab::Renderer::render"
+    render_ms = 2.123456789
+    scope_timings = [
+        ScopeTiming(scope=physics_scope, elapsed_ms=1.0),
+        ScopeTiming(scope=render_scope, elapsed_ms=render_ms),
+        ScopeTiming(scope=physics_scope, elapsed_ms=3.0),
+    ]
     cases = [
-        (_minimal_runtime_bundle(), "runtime", "Mean Total FPS", 100.0),
-        (_minimal_training_bundle(), "train", "Last Reward", 3.0),
-        (_minimal_play_bundle(), "play", "Mean Reward", 4.0),
-        (_minimal_startup_bundle(), "python_imports", "Wall Clock Time", 0.25),
+        (bundle, "runtime", {"Mean Total FPS": 100.0}),
+        (replace(bundle, runtime=replace(bundle.runtime, scope_timings=[])), "runtime", {"Mean Total FPS": 100.0}),
+        (
+            replace(bundle, runtime=replace(bundle.runtime, scope_timings=scope_timings)),
+            "runtime",
+            {
+                f"Mean {physics_scope} Time per Call": 2.0,
+                f"Std {physics_scope} Time per Call": math.sqrt(2.0),
+                f"Max {physics_scope} Time per Call": 3.0,
+                f"{physics_scope} Calls": 2,
+                f"Mean {render_scope} Time per Call": render_ms,
+                f"Std {render_scope} Time per Call": 0.0,
+                f"Max {render_scope} Time per Call": render_ms,
+                f"{render_scope} Calls": 1,
+            },
+        ),
+        (_minimal_training_bundle(), "train", {"Last Reward": 3.0}),
+        (_minimal_play_bundle(), "play", {"Mean Reward": 4.0}),
+        (_minimal_startup_bundle(), "python_imports", {"Wall Clock Time": 0.25}),
     ]
 
-    for index, (bundle, phase, metric, expected) in enumerate(cases):
+    for index, (bundle, phase, expected) in enumerate(cases):
         benchmark = BaseIsaacLabBenchmark(
             f"bundle_{index}",
             formatter_type="omniperf",
@@ -323,7 +350,9 @@ def test_attached_bundles_are_projected_to_flat_formatters(tmp_path):
 
         with open(benchmark.output_file_path) as f:
             data = json.load(f)
-        assert data[phase][metric] == expected
+        assert {metric: data[phase][metric] for metric in expected} == expected
+        if hasattr(bundle, "runtime") and not bundle.runtime.scope_timings:
+            assert not any(physics_scope in metric or render_scope in metric for metric in data["runtime"])
 
 
 def test_environment_step_timing_flat_labels_describe_measurement_mode():

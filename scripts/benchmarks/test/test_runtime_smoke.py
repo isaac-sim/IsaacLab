@@ -62,6 +62,7 @@ def test_runtime_writes_all_requested_formats(tmp_path, monkeypatch, measure_syn
     schema_data = json.loads(schema_files[0].read_text())
     assert schema_data["run"]["config"]["physics_backend"] == "newton_mjwarp"
     assert schema_data["runtime"]["iterations_completed"] == 20
+    assert schema_data["runtime"]["scope_timings"] is None
     assert schema_data["extra"] is None
     assert schema_data["runtime"]["startup_time_s"]["first_step"] > 0.0
     timing = schema_data["runtime"]["environment_step_timing"]
@@ -90,3 +91,48 @@ def test_runtime_writes_all_requested_formats(tmp_path, monkeypatch, measure_syn
     else:
         assert "Mean Total FPS" in omniperf_data["runtime"]
         assert "Mean Serialized Diagnostic Total FPS" not in omniperf_data["runtime"]
+
+
+def test_runtime_api_returns_scope_timings(tmp_path, monkeypatch):
+    """The API bundle and both output formats retain the collected physics/render timings."""
+    monkeypatch.setenv("ISAACLAB_RENDER_PROFILE", "1")
+    monkeypatch.setenv("ISAACLAB_PHYSICS_PROFILE", "1")
+    monkeypatch.setenv("BENCHMARK_RENDER_RESOLUTION", "64")
+    script = tmp_path / "run_profile.py"
+    script.write_text("""
+import json
+import sys
+from dataclasses import asdict
+from pathlib import Path
+
+from isaaclab.benchmark import BenchmarkOutputConfig, BenchmarkRuntimeRequest, run_runtime_benchmark
+from isaaclab.benchmark.schema import SCHEMA_VERSION
+from isaaclab.benchmark.stepping import PHYSICS_PROFILE_SCOPE, RENDER_PROFILE_SCOPE
+
+result = run_runtime_benchmark(BenchmarkRuntimeRequest(
+    task="Isaac-RenderBenchmark-Franka-Cabinet",
+    num_envs=1,
+    num_steps=2,
+    warmup_steps=1,
+    presets=("newton_renderer", "rgb"),
+    hydra_args=("env.benchmark_mode=physics_render",),
+    output=BenchmarkOutputConfig(path=Path(sys.argv[1]), formatters=("schema", "omniperf")),
+))
+timings = result.bundle.runtime.scope_timings
+assert {sample.scope for sample in timings} == {PHYSICS_PROFILE_SCOPE, RENDER_PROFILE_SCOPE}
+assert all(sample.elapsed_ms >= 0.0 for sample in timings)
+assert len(result.output_paths) == 2
+schema_path = next(path for path in result.output_paths if path.name.endswith("_schema.json"))
+schema = json.loads(schema_path.read_text())
+assert schema == json.loads(json.dumps(asdict(result.bundle)))
+assert schema["schema_version"] == SCHEMA_VERSION
+omniperf_path = next(path for path in result.output_paths if path.name.endswith("_omniperf.json"))
+metrics = json.loads(omniperf_path.read_text())["runtime"]
+for scope in (PHYSICS_PROFILE_SCOPE, RENDER_PROFILE_SCOPE):
+    assert metrics[f"{scope} Calls"] == sum(sample.scope == scope for sample in timings)
+    assert metrics[f"Mean {scope} Time per Call"] > 0.0
+""")
+    res = subprocess.run(
+        [sys.executable, str(script), str(tmp_path)], cwd=ROOT, capture_output=True, text=True, timeout=900
+    )
+    assert res.returncode == 0, f"STDOUT:\n{res.stdout[-2000:]}\nSTDERR:\n{res.stderr[-2000:]}"

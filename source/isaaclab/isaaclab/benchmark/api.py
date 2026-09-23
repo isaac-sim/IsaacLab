@@ -264,7 +264,8 @@ class BenchmarkResult(Generic[_BenchmarkBundleT]):
     """Completed benchmark result.
 
     Args:
-        bundle: Typed benchmark result bundle.
+        bundle: Typed benchmark result bundle. Runtime scope profiling, when enabled,
+            is included in ``bundle.runtime.scope_timings`` in capture order [ms].
         output_paths: Files written by the selected formatters.
     """
 
@@ -302,6 +303,11 @@ def run_benchmark(request: BenchmarkRequest) -> BenchmarkResult:
 
 def run_runtime_benchmark(request: BenchmarkRuntimeRequest) -> BenchmarkResult[RuntimeBundle]:
     """Run an environment runtime benchmark.
+
+    A task with a non-``None`` ``benchmark_mode`` can collect synchronized scope
+    timings through ``ISAACLAB_RENDER_PROFILE`` and ``ISAACLAB_PHYSICS_PROFILE``.
+    The returned bundle includes these samples in ``runtime.scope_timings``;
+    without profiling, that field is ``None``.
 
     Args:
         request: Runtime benchmark request.

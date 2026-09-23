@@ -75,7 +75,10 @@ def _stat_measurements(name: str, stats: "MeanStd", unit: str, scale: float = 1.
 
 
 def _runtime_measurements(runtime: "Runtime") -> dict[str, list[Measurement]]:
-    """Convert schema runtime metrics to startup and runtime phases."""
+    """Convert schema runtime metrics to startup and runtime phases.
+
+    Scope timing aggregates describe individual calls and include every collected sample.
+    """
     startup_fields = (
         ("app_launch", "App Launch Time"),
         ("python_imports", "Python Imports Time"),
@@ -144,6 +147,15 @@ def _runtime_measurements(runtime: "Runtime") -> dict[str, list[Measurement]]:
     runtime_metrics.extend(
         _stat_measurements(f"{metric_prefix}Iterations per Second", runtime.iterations_per_s, "iterations/s")
     )
+    if runtime.scope_timings:
+        from isaaclab.benchmark.metrics import mean_std_peak
+
+        samples_by_scope: dict[str, list[float]] = {}
+        for sample in runtime.scope_timings:
+            samples_by_scope.setdefault(sample.scope, []).append(sample.elapsed_ms)
+        for scope, samples in samples_by_scope.items():
+            runtime_metrics.extend(_stat_measurements(f"{scope} Time per Call", mean_std_peak(samples), "ms"))
+            runtime_metrics.append(SingleMeasurement(name=f"{scope} Calls", value=len(samples), unit="count"))
     return {"startup": startup, "runtime": runtime_metrics}
 
 

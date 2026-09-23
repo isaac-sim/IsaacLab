@@ -29,6 +29,7 @@ from isaaclab.benchmark.schema import (
     RunIdentity,
     Runtime,
     RuntimeBundle,
+    ScopeTiming,
     StartupBundle,
     StartupConfig,
     StartupPhase,
@@ -136,6 +137,7 @@ def build_runtime(
     environment_step_times_s: Sequence[float] | None = None,
     simulation_step_times_s: Sequence[float] | None = None,
     simulation_step_calls: int | None = None,
+    scope_timings: Sequence[tuple[str, float]] | None = None,
 ) -> Runtime:
     """Assemble a :class:`~isaaclab.benchmark.schema.Runtime` from raw series.
 
@@ -155,6 +157,9 @@ def build_runtime(
         environment_step_times_s: Positive per-environment-step wall times [s].
         simulation_step_times_s: Synchronized simulation wall times per environment step [s].
         simulation_step_calls: Number of measured simulation-step calls.
+        scope_timings: Scope names and synchronized elapsed times [ms] in completion order.
+            ``None`` means profiling was disabled; an empty sequence means profiling was
+            enabled but no samples were collected.
 
     Returns:
         Populated :class:`~isaaclab.benchmark.schema.Runtime` with
@@ -245,6 +250,11 @@ def build_runtime(
         total_fps=total_fps_agg,
         iterations_per_s=iterations_per_s_agg,
         environment_step_timing=environment_step_timing,
+        scope_timings=(
+            [ScopeTiming(scope=scope, elapsed_ms=elapsed_ms) for scope, elapsed_ms in scope_timings]
+            if scope_timings is not None
+            else None
+        ),
     )
 
 

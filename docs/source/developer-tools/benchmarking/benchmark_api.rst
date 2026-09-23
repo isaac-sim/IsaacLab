@@ -58,6 +58,14 @@ The command prints the summary report. The paths in ``result.output_paths``
 identify the schema and summary JSON files that were written. Use these paths in
 automation instead of reconstructing the timestamped names.
 
+With a non-``None`` task ``benchmark_mode`` and ``ISAACLAB_RENDER_PROFILE=1`` or
+``ISAACLAB_PHYSICS_PROFILE=1``, the runtime workflow also includes ordered
+:class:`~isaaclab.benchmark.ScopeTiming` samples in ``result.bundle.runtime.scope_timings``.
+Each sample contains a ``scope`` name and ``elapsed_ms`` duration [ms]. The same samples
+are serialized in schema 1.5 output; no separate profiling file is needed. This field is
+``None`` when profiling is disabled. OmniPerf output projects the samples into per-scope
+mean, standard deviation, maximum time per call [ms], and call count.
+
 Choose a request
 ----------------
 

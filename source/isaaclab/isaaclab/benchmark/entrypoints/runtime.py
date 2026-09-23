@@ -32,7 +32,6 @@ if TYPE_CHECKING:
 import argparse
 import os
 import sys
-from pathlib import Path
 
 
 def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
@@ -116,7 +115,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     )
     from isaaclab.benchmark.distributed import DistributedContext
     from isaaclab.benchmark.schema import StartupTime
-    from isaaclab.benchmark.serialize import write_bundle_file
 
     # Importing the task packages registers their gym environments so the
     # requested ``--task`` can be resolved.
@@ -233,6 +231,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                 environment_step_times_s=environment_step_timer.step_times_s,
                 simulation_step_times_s=environment_step_timer.simulation_step_times_s,
                 simulation_step_calls=environment_step_timer.simulation_step_calls,
+                scope_timings=profile_timings if profile_render or profile_physics else None,
             )
 
             versions = capture.capture_versions(benchmark)
@@ -272,10 +271,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             benchmark.attach_bundle(bundle)
 
             output_paths = benchmark.finalize()
-            if profile_render or profile_physics:
-                profile_path = Path(args.output_path) / "profile_timings.json"
-                write_bundle_file({"timings_ms": profile_timings}, str(profile_path))
-                output_paths += (profile_path,)
             result = BenchmarkResult(bundle=bundle, output_paths=output_paths)
             console.print_runtime_report(bundle, output_paths)
 

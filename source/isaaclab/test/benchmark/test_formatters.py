@@ -8,6 +8,7 @@
 import json
 import os
 import re
+from dataclasses import replace
 from datetime import datetime
 
 import pytest
@@ -23,6 +24,7 @@ from isaaclab.benchmark.schema import (
     RunIdentity,
     Runtime,
     RuntimeBundle,
+    ScopeTiming,
     StartupTime,
     Versions,
 )
@@ -111,7 +113,14 @@ def test_schema_bundle_file_serializes_bundle_and_rejects_missing_bundle(tmp_pat
     phase = TestPhase(phase_name="runtime")
     phase.measurements.append(SingleMeasurement(name="Test FPS", value=60.0, unit="FPS"))
     formatter.add_metrics(phase)
-    formatter.finalize(str(tmp_path), "runtime", bundle=_minimal_runtime_bundle())
+    scope_timings = [
+        ScopeTiming(scope="IsaacLab::Physics::step", elapsed_ms=1.123456789),
+        ScopeTiming(scope="IsaacLab::Renderer::render", elapsed_ms=2.234567891),
+        ScopeTiming(scope="IsaacLab::Physics::step", elapsed_ms=3.345678912),
+    ]
+    bundle = _minimal_runtime_bundle()
+    bundle = replace(bundle, runtime=replace(bundle.runtime, scope_timings=scope_timings))
+    formatter.finalize(str(tmp_path), "runtime", bundle=bundle)
 
     with open(os.path.join(str(tmp_path), "runtime.json")) as f:
         data = json.load(f)
@@ -119,6 +128,9 @@ def test_schema_bundle_file_serializes_bundle_and_rejects_missing_bundle(tmp_pat
     assert data["run"]["task"] == "Isaac-Ant-Direct-v0"
     assert data["run"]["framework"] is None
     assert data["runtime"]["total_fps"]["mean"] == pytest.approx(100.0)
+    assert data["runtime"]["scope_timings"] == [
+        {"scope": timing.scope, "elapsed_ms": timing.elapsed_ms} for timing in scope_timings
+    ]
     assert data["resources"]["gpu_mem_gb"]["peak"] == pytest.approx(12.0)
     assert data["schema_version"]
     assert "Test FPS" not in json.dumps(data)
