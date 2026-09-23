@@ -9,7 +9,7 @@ Fixed
   kitless OvPhysX fast replication path.
 * Fixed absolute differential-IK Reach actions to cover the configured Cartesian command workspace.
 * Fixed Franka operational-space control to retain the asset's solver limits and joint properties.
-* Restored continuous Reach tracking by removing the early success termination and restoring the
+* Restored continuous Franka Reach tracking by removing the early success termination and restoring the
   fine-grained position reward, while retaining position-and-orientation success metrics.
 * Restored symmetric point-cloud noise in the Lift and Reorient ADR curriculum.
 * Restored success-driven action-rate and joint-velocity regularization for rigid Lift and Reorient
@@ -17,7 +17,5 @@ Fixed
 * Kept Franka Lift and Reorient's abnormal-state termination from penalizing ordinary exploration
   at the actuator's nominal velocity limits.
 * Kept terminal non-finite rigid-object states from propagating into Lift and Reorient reward batches.
-* Made Franka Reorient train from scratch by starting its ADR goal curriculum from stable, shape-aware
-  pre-grasps with a 1 mm contact preload.
 * Retained aligned Franka Lift pre-grasps in the reset bank and applied their finger opening after the
   generic gripper reset. Re-evaluate existing Lift checkpoints because the training reset distribution changed.

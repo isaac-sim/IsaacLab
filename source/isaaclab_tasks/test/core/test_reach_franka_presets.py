@@ -135,6 +135,10 @@ def test_reach_ur10_physics_presets_change_only_physics():
     physx = _load_reach_env_cfg("Isaac-Reach-UR10", "isaacsim_physx")
     newton = _load_reach_env_cfg("Isaac-Reach-UR10", "newton_mjwarp")
 
+    assert physx.rewards.success.func is mdp.is_terminated_term
+    assert physx.terminations.success.func is mdp.pose_command_success
+    assert not hasattr(physx.rewards, "end_effector_position_tracking_fine_grained")
+
     physx_cfg = physx.to_dict()
     newton_cfg = newton.to_dict()
     physx_cfg["sim"].pop("physics")
@@ -230,9 +234,9 @@ def test_reach_tracks_success_without_terminating():
 
     assert cfg.commands.ee_pose.position_success_threshold == pytest.approx(0.05)
     assert cfg.commands.ee_pose.orientation_success_threshold == pytest.approx(0.2)
-    assert not hasattr(cfg.terminations, "success")
+    assert cfg.terminations.success is None
     assert cfg.terminations.time_out.func is mdp.time_out
-    assert not hasattr(cfg.rewards, "success")
+    assert cfg.rewards.success is None
     assert cfg.rewards.end_effector_position_tracking_fine_grained.func is mdp.position_command_error_tanh
     assert cfg.rewards.end_effector_position_tracking_fine_grained.weight == pytest.approx(0.1)
     assert cfg.rewards.end_effector_position_tracking_fine_grained.params["std"] == pytest.approx(0.1)

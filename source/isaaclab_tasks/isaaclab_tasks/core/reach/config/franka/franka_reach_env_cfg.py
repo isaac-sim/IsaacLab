@@ -21,6 +21,9 @@ from isaaclab.devices.gamepad import Se3GamepadCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
+from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import PresetCfg, preset
@@ -30,7 +33,7 @@ from isaaclab_tasks.utils import PresetCfg, preset
 ##
 from isaaclab_assets import FRANKA_PANDA_CFG  # isort: skip
 
-from ...reach_env_cfg import ReachEnvCfg
+from ...reach_env_cfg import ReachEnvCfg, RewardsCfg, TerminationsCfg
 
 ##
 # Environment configuration
@@ -87,8 +90,30 @@ class FrankaArmActionCfg(PresetCfg):
 
 
 @configclass
+class FrankaReachRewardsCfg(RewardsCfg):
+    """Keep continuous pose-tracking rewards specific to Franka Reach."""
+
+    end_effector_position_tracking_fine_grained = RewTerm(
+        func=mdp.position_command_error_tanh,
+        weight=0.1,
+        params={"asset_cfg": SceneEntityCfg("robot", body_names="panda_hand"), "std": 0.1, "command_name": "ee_pose"},
+    )
+    success: RewTerm | None = None
+
+
+@configclass
+class FrankaReachTerminationsCfg(TerminationsCfg):
+    """Track Franka Reach success without ending the episode early."""
+
+    success: DoneTerm | None = None
+
+
+@configclass
 class FrankaReachEnvCfg(ReachEnvCfg):
     """Franka Reach configuration with selectable arm and physics presets."""
+
+    rewards: FrankaReachRewardsCfg = FrankaReachRewardsCfg()
+    terminations: FrankaReachTerminationsCfg = FrankaReachTerminationsCfg()
 
     def validate_config(self) -> None:
         """Validate the selected controller and physics backend."""
@@ -116,7 +141,6 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         ]
         # override rewards
         self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = ["panda_hand"]
-        self.rewards.end_effector_position_tracking_fine_grained.params["asset_cfg"].body_names = ["panda_hand"]
         self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["panda_hand"]
         self.rewards.joint_vel.params["asset_cfg"].joint_names = ["panda_joint.*"]
         self.rewards.action_magnitude.weight = preset(

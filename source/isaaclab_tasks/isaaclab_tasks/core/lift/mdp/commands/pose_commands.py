@@ -16,15 +16,7 @@ from isaaclab.assets import Asset, AssetBase
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
-from isaaclab.utils.math import (
-    combine_frame_transforms,
-    compute_pose_error,
-    quat_box_minus,
-    quat_box_plus,
-    quat_from_euler_xyz,
-    quat_unique,
-    subtract_frame_transforms,
-)
+from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject
@@ -171,35 +163,6 @@ class ObjectUniformPoseCommand(CommandTerm):
         quat = quat_from_euler_xyz(euler_angles[:, 0], euler_angles[:, 1], euler_angles[:, 2])
         # make sure the quaternion has real part as positive
         self.pose_command_b[env_ids, 3:] = quat_unique(quat) if self.cfg.make_quat_unique else quat
-        if self.cfg.difficulty_term is not None:
-            self._apply_difficulty_curriculum(env_ids)
-
-    def _apply_difficulty_curriculum(self, env_ids: Sequence[int]) -> None:
-        """Expand sampled goals from a local displacement to the full configured workspace."""
-        if isinstance(env_ids, slice):
-            ids = torch.arange(self.num_envs, device=self.device)[env_ids]
-        else:
-            ids = torch.as_tensor(env_ids, device=self.device, dtype=torch.long)
-        scheduler = getattr(self._env.curriculum_manager.cfg, self.cfg.difficulty_term).func
-        minimum = scheduler.cfg.params.get("min_difficulty", 0)
-        maximum = scheduler.cfg.params.get("max_difficulty", 1)
-        fraction = ((scheduler.current_difficulties[ids] - minimum) / max(maximum - minimum, 1)).clamp(0.0, 1.0)
-
-        object_pos_b, object_quat_b = subtract_frame_transforms(
-            self.robot.data.root_pos_w.torch[ids],
-            self.robot.data.root_quat_w.torch[ids],
-            self.object.data.root_pos_w.torch[ids],
-            self.object.data.root_quat_w.torch[ids],
-        )
-        full_position = self.pose_command_b[ids, :3].clone()
-        position_delta = full_position - object_pos_b
-        position_direction = position_delta / torch.linalg.norm(position_delta, dim=-1, keepdim=True).clamp_min(1.0e-6)
-        initial_position = object_pos_b + self.cfg.initial_position_distance * position_direction
-        self.pose_command_b[ids, :3] = torch.lerp(initial_position, full_position, fraction.unsqueeze(-1))
-
-        full_orientation = self.pose_command_b[ids, 3:].clone()
-        orientation_delta = quat_box_minus(full_orientation, object_quat_b)
-        self.pose_command_b[ids, 3:] = quat_box_plus(object_quat_b, orientation_delta * fraction.unsqueeze(-1))
 
     def _update_command(self):
         pass

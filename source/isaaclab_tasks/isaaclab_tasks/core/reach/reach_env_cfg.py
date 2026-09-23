@@ -176,16 +176,12 @@ class RewardsCfg:
         weight=-0.2,
         params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "command_name": "ee_pose"},
     )
-    end_effector_position_tracking_fine_grained = RewTerm(
-        func=mdp.position_command_error_tanh,
-        weight=0.1,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "std": 0.1, "command_name": "ee_pose"},
-    )
     end_effector_orientation_tracking = RewTerm(
         func=mdp.orientation_command_error,
         weight=-0.1,
         params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "command_name": "ee_pose"},
     )
+    success = RewTerm(func=mdp.is_terminated_term, weight=10.0, params={"term_keys": ["success"]})
 
     # control and physical motion penalties
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.0001)
@@ -201,6 +197,10 @@ class RewardsCfg:
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
+    success = DoneTerm(
+        func=mdp.pose_command_success,
+        params={"command_name": "ee_pose"},
+    )
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
 
