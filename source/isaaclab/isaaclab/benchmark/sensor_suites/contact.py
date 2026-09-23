@@ -16,7 +16,7 @@ from ..micro import LatencyBenchmarkRunner, LatencySample, measure_latency
 from .timing import SensorLatencySamples, add_sensor_latency_measurements
 
 if TYPE_CHECKING:
-    from isaaclab.scene import InteractiveSceneCfg
+    from ...scene import InteractiveSceneCfg
 
 
 def create_contact_sensor_scene_cfg(
@@ -34,12 +34,12 @@ def create_contact_sensor_scene_cfg(
     """
     from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
-    import isaaclab.sim as sim_utils
-    from isaaclab.assets import RigidObjectCfg
-    from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.sensors import ContactSensorCfg
-    from isaaclab.terrains import TerrainImporterCfg
-    from isaaclab.utils import configclass
+    from ... import sim as sim_utils
+    from ...assets import RigidObjectCfg
+    from ...scene import InteractiveSceneCfg
+    from ...sensors import ContactSensorCfg
+    from ...terrains import TerrainImporterCfg
+    from ...utils import configclass
 
     @configclass
     class ContactSensorBenchmarkSceneCfg(InteractiveSceneCfg):

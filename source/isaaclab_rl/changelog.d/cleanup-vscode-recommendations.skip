@@ -1,1 +1,0 @@
-Extended editor setup test coverage to interpreter paths containing backslashes. No user-visible behavior changed.

@@ -8,11 +8,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import MISSING
 
-from isaaclab.sim import converters, schemas
-from isaaclab.sim.spawners import materials
-from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg, SpawnerCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+
+from ... import converters, schemas
+from .. import materials
+from ..spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg, SpawnerCfg
 
 _DEFAULT_GROUND_PLANE_USD = (
     f"{ISAACLAB_NUCLEUS_DIR}/Environments/Grid/default_ground_plane_checker_v1/default_ground_plane.usda"

@@ -25,14 +25,14 @@ from typing import Any
 
 from pxr import Sdf, Usd, UsdPhysics
 
-from isaaclab.actuators._compat import _resolve_limit_aliases
-from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
-from isaaclab.utils.string import _resolve_matching_values_dense, resolve_matching_names, string_to_callable
+from ...actuators._compat import _resolve_limit_aliases
+from ...actuators.actuator_base_cfg import _is_implicit_actuator_cfg
+from ...utils.string import _resolve_matching_values_dense, resolve_matching_names, string_to_callable
 
 
 def _resolve_actuator_class(class_type: type | str) -> type:
     """Resolve and validate an actuator class reference for authoring identity checks."""
-    from isaaclab.actuators import ActuatorBase  # noqa: PLC0415
+    from ...actuators import ActuatorBase  # noqa: PLC0415
 
     if isinstance(class_type, str):
         try:
@@ -46,16 +46,16 @@ def _resolve_actuator_class(class_type: type | str) -> type:
 
 def _is_newton_native_actuator_cfg(cfg: Any) -> bool:
     """Return whether an actuator config can be authored as a Newton actuator."""
-    from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
-    from isaaclab.actuators.actuator_net import ActuatorNetLSTM, ActuatorNetMLP  # noqa: PLC0415
-    from isaaclab.actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
-    from isaaclab.actuators.actuator_pd import (  # noqa: PLC0415
+    from ...actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
+    from ...actuators.actuator_net import ActuatorNetLSTM, ActuatorNetMLP  # noqa: PLC0415
+    from ...actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
+    from ...actuators.actuator_pd import (  # noqa: PLC0415
         DCMotor,
         DelayedPDActuator,
         IdealPDActuator,
         RemotizedPDActuator,
     )
-    from isaaclab.actuators.actuator_pd_cfg import IdealPDActuatorCfg, RemotizedPDActuatorCfg  # noqa: PLC0415
+    from ...actuators.actuator_pd_cfg import IdealPDActuatorCfg, RemotizedPDActuatorCfg  # noqa: PLC0415
 
     supported_cfg_types = (
         (ActuatorNetMLPCfg, ActuatorNetMLP),
@@ -175,15 +175,15 @@ def define_actuator_properties(
     Raises:
         ValueError: If Newton-native execution is enabled and an explicit actuator config is unsupported.
     """
-    from isaaclab.sim import SimulationContext  # noqa: PLC0415
+    from .. import SimulationContext  # noqa: PLC0415
 
     sim_ctx = SimulationContext.instance()
     sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
     if sim_cfg is None or not getattr(sim_cfg, "use_newton_actuators", False):
         return
 
-    from isaaclab.sim.utils.queries import find_first_matching_prim  # noqa: PLC0415
-    from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
+    from ..utils.queries import find_first_matching_prim  # noqa: PLC0415
+    from ..utils.stage import get_current_stage  # noqa: PLC0415
 
     if stage is None:
         stage = get_current_stage()
@@ -232,9 +232,9 @@ def _author_actuator_prims(
 
     _remove_actuator_prims_for_joints(art_prim, covered_joint_paths)
 
-    from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
-    from isaaclab.actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
-    from isaaclab.actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
+    from ...actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
+    from ...actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
+    from ...actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
 
     for group_name, cfg, joint_names in cfg_entries:
         stiffness_map = resolve_per_dof(getattr(cfg, "stiffness", None), joint_names)
@@ -431,7 +431,7 @@ def _resave_checkpoint_with_metadata(
 
     import torch  # noqa: PLC0415
 
-    from isaaclab.utils.assets import retrieve_file_path  # noqa: PLC0415
+    from ...utils.assets import retrieve_file_path  # noqa: PLC0415
 
     local_path = retrieve_file_path(original_path)
 

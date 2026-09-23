@@ -220,7 +220,7 @@ class Timer(ContextDecorator):
         """Start timing and return this `Timer` instance."""
         if self._activity is not None:
             # imported here so that timers without an activity pay nothing for the hook
-            from isaaclab.app.loading_screen import report_activity
+            from ..app.loading_screen import report_activity
 
             report_activity(self._activity)
         self.start()
@@ -230,7 +230,7 @@ class Timer(ContextDecorator):
         """Stop timing."""
         self.stop()
         if self._activity is not None:
-            from isaaclab.app.loading_screen import report_activity
+            from ..app.loading_screen import report_activity
 
             report_activity(None)
         # print message

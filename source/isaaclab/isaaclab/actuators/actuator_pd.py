@@ -12,9 +12,8 @@ from typing import TYPE_CHECKING, ClassVar
 
 import torch
 
-from isaaclab.utils import DelayBuffer, LinearInterpolation
-from isaaclab.utils.types import ArticulationActions
-
+from ..utils import DelayBuffer, LinearInterpolation
+from ..utils.types import ArticulationActions
 from ._compat import _limits_equal
 from .actuator_base import ActuatorBase, resolve_joint_parameter
 

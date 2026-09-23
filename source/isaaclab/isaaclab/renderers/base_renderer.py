@@ -20,8 +20,8 @@ if TYPE_CHECKING:
     import torch
     import warp as wp
 
-    from isaaclab.sensors.camera.camera_data import CameraData
-    from isaaclab.utils.warp import ProxyArray
+    from ..sensors.camera.camera_data import CameraData
+    from ..utils.warp import ProxyArray
 
 
 @dataclass(frozen=True)

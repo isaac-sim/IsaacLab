@@ -9,8 +9,8 @@ import subprocess
 
 import torch
 
-from isaaclab.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
-from isaaclab.benchmark.measurements import (
+from ..interfaces import MeasurementData, MeasurementDataRecorder
+from ..measurements import (
     DictMetadata,
     IntMetadata,
     SingleMeasurement,

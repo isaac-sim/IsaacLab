@@ -16,25 +16,25 @@ from typing import TYPE_CHECKING, Any
 import torch
 import warp as wp
 
-import isaaclab.sim as sim_utils
-import isaaclab.sim.utils.stage as stage_utils
-from isaaclab.app.settings_manager import SettingsManager
-from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
-from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager
-from isaaclab.physics.physics_manager_cfg import _resolve_physx_auto_cfg
-from isaaclab.renderers.render_context import RenderContext
-from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
-from isaaclab.sim.utils import create_new_stage
-from isaaclab.utils.string import clear_resolve_matching_names_cache
-from isaaclab.utils.version import has_kit
-from isaaclab.visualizers.base_visualizer import BaseVisualizer
-from isaaclab.visualizers.visualizer_cfg import _get_visualizer_install_hint
+from .. import sim as sim_utils
+from ..app.settings_manager import SettingsManager
+from ..markers.vis_marker_registry import VisMarkerRegistry
+from ..physics import PhysicsCfg, PhysicsEvent, PhysicsManager
+from ..physics.physics_manager_cfg import _resolve_physx_auto_cfg
+from ..renderers.render_context import RenderContext
+from ..renderers.renderer_cfg import RendererCfg
+from ..scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
+from ..utils.string import clear_resolve_matching_names_cache
+from ..utils.version import has_kit
+from ..visualizers.base_visualizer import BaseVisualizer
+from ..visualizers.visualizer_cfg import _get_visualizer_install_hint
+from .utils import create_new_stage
+from .utils import stage as stage_utils
 
 if TYPE_CHECKING:
     from pxr import Usd
 
-    from isaaclab.cloner.clone_plan import ClonePlan
+    from ..cloner.clone_plan import ClonePlan
 
 from .simulation_cfg import BackendCfg, SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
@@ -445,7 +445,7 @@ class SimulationContext:
         ``streaming_view=False`` from stomping backend-specific defaults like
         ``NewtonGLVisualizerCfg.streaming_view=True``.
         """
-        from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+        from ..visualizers.visualizer_cfg import VisualizerCfg
 
         default_cfg = getattr(self.cfg, "default_visualizer_cfg", None)
         if default_cfg is None:
@@ -569,6 +569,10 @@ class SimulationContext:
         cli_explicit = self._is_cli_visualizer_explicit()
         cli_disable_all = self._is_cli_visualizer_disable_all()
 
+        # cli_requested holds raw, possibly-aliased strings (e.g. "newton"); resolved cfgs carry
+        # the canonical visualizer_type (e.g. "newton_gl"). Compare via this instead of directly.
+        canonical_requested = [_VISUALIZER_ALIASES.get(t, t) for t in cli_requested]
+
         if cli_disable_all:
             resolved = []
         elif not cli_explicit:
@@ -581,15 +585,15 @@ class SimulationContext:
             self._apply_visualizer_cli_overrides(resolved)
         else:
             # CLI selection is explicit: keep only requested cfg types, then add defaults for missing.
-            cli_requested_set = set(cli_requested)
+            cli_requested_set = set(canonical_requested)
             resolved = [cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) in cli_requested_set]
             for cfg in resolved:
                 self._apply_default_visualizer_cfg(cfg)
             existing_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
             for viz_type in cli_requested:
-                if viz_type not in existing_types and viz_type in _VISUALIZER_TYPES:
+                if _VISUALIZER_ALIASES.get(viz_type, viz_type) not in existing_types:
                     resolved.extend(self._create_default_visualizer_configs([viz_type]))
-                    existing_types.add(viz_type)
+                    existing_types.add(_VISUALIZER_ALIASES.get(viz_type, viz_type))
             self._apply_visualizer_cli_overrides(resolved)
 
         # When visualizers were explicitly requested via CLI, verify all
@@ -598,7 +602,11 @@ class SimulationContext:
         # skips.
         if cli_explicit and cli_requested:
             resolved_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
-            missing = [t for t in cli_requested if t not in resolved_types]
+            missing = [
+                t
+                for t, canonical in zip(cli_requested, canonical_requested, strict=True)
+                if canonical not in resolved_types
+            ]
             if missing:
                 install_hints = " ".join(
                     _get_visualizer_install_hint(visualizer_type)

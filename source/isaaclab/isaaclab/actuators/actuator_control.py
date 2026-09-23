@@ -14,8 +14,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.utils.warp import ProxyArray
-
+from ..utils.warp import ProxyArray
 from .actuator_base_cfg import ActuatorBaseCfg
 
 if TYPE_CHECKING:
