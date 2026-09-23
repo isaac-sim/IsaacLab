@@ -36,6 +36,24 @@ def _release_simulation_context():
 # -------------------------------------------------------------------------------------
 
 
+def test_deformable_symbols_are_reexported_from_isaaclab_sim():
+    """The deformable family is reachable through ``isaaclab.sim`` like every other fragment family.
+
+    Users write ``sim_utils.UsdPhysicsRigidBodyCfg(...)`` for the other families, so the deformable
+    marker, core fragment, and writers must resolve the same way, to the very same objects.
+    """
+    import isaaclab.sim as sim_utils
+    import isaaclab.sim.schemas as schemas
+
+    for name in (
+        "DeformableBodyFragment",
+        "OmniPhysicsDeformableBodyCfg",
+        "apply_volume_deformable_properties",
+        "apply_surface_deformable_properties",
+    ):
+        assert getattr(sim_utils, name) is getattr(schemas, name), name
+
+
 def test_deformable_body_fragment_metadata_defaults():
     from isaaclab.sim.schemas import DeformableBodyFragment, OmniPhysicsDeformableBodyCfg, SchemaFragment
 
