@@ -7,14 +7,16 @@ SPDX-License-Identifier: BSD-3-Clause
 
 # Browser simulations
 
-`export.py` is the source for the interactive examples in
-[`browser_simulations.rst`](../source/concepts/browser_simulations.rst). Each demo is an
+`export.py` is the source for the interactive examples in the
+[VBD tuning](../source/concepts/solver-tuning/tune_vbd.rst),
+[MJWarp tuning](../source/concepts/solver-tuning/tune_mjwarp.rst),
+[actuator](../source/concepts/actuators.rst), and
+[reinforcement learning](../source/concepts/reinforcement_learning.rst) guides. Each demo is an
 independent manifest, WebAssembly module, and optional policy and visual files. The shared
 documentation widget lazy loads the bundle when it enters the viewport. To add
 another physics example, export another bundle and add a view in `browser-demo.js`. The
 3D views use a locally vendored Three.js module, loaded only when needed.
-The VBD, rigid friction, and Cartpole widgets are also embedded beside the corresponding
-guidance in `tune_vbd.rst` and `tune_mjwarp.rst`.
+Each widget appears beside the guidance it illustrates.
 All 3D views use the albedo and roughness textures from Isaac Lab's
 [`GroundPlaneCfg`](../../source/isaaclab/isaaclab/sim/spawners/from_files/from_files_cfg.py)
 default USD asset. Its 2 m repeat gives 1 m checker cells and green landmarks
@@ -29,9 +31,9 @@ tool). It requires Emscripten 5.0.3. The compiled assets are checked into
 compiler or external robot and policy assets.
 Bundles larger than 2 MB are stored as gzip files. The shared browser widget
 decompresses them with `DecompressionStream` before initializing WebAssembly.
-The gallery presents stiffness, damping, and gravity controls in one VBD widget
-and one WebAssembly instance. The VBD guide embeds the same bundle in its own
-widget. Locomotion robots share the policy evaluator, joystick controls, and
+The VBD widget exposes shear, volume, damping, and gravity in one WebAssembly
+instance. The joint PD widget exposes the target and both drive gains. Locomotion
+robots share the policy evaluator, joystick controls, and
 mesh viewer. Each robot still needs its own reviewed asset, policy, and exported graph.
 The cloth demo adapts the three-value bend-stiffness comparison in
 `deformables.rst`. Three free sheets fall across pairs of horizontal rollers;
@@ -44,7 +46,8 @@ demo draws a solid ramp aligned to its inclined Newton plane and leaves the
 default checker ground visible below.
 Three MJWarp boxes begin at rest on the ramp; the middle slider writes its
 MuJoCo geom friction. The incline has low friction so each box's coefficient
-determines the comparison. Both bundles are under 1 MB of WebAssembly and
+determines the comparison. The joint PD demo changes the target and implicit
+drive gains of one pendulum. These bundles are under 1 MB of WebAssembly and
 need no robot asset.
 The ground textures are checked into `docs/source/_static/browser_demos/shared/`
 from the same hosted asset selected by `GroundPlaneCfg`. The Three.js r170 module
@@ -66,7 +69,7 @@ uv pip install --python .venv/bin/python -e /tmp/newton-web
 
 Install Emscripten 5.0.3 using its
 [`emsdk` instructions](https://emscripten.org/docs/getting_started/downloads.html).
-Then build the stiffness example:
+Then build the physics-only examples:
 
 ```bash
 uv run --no-sync python docs/browser_demos/export.py stiffness \
@@ -74,6 +77,8 @@ uv run --no-sync python docs/browser_demos/export.py stiffness \
 uv run --no-sync python docs/browser_demos/export.py cloth_bending \
     --output /tmp/isaaclab-browser-build --emxx /path/to/emsdk/upstream/emscripten/em++
 uv run --no-sync python docs/browser_demos/export.py rigid_friction \
+    --output /tmp/isaaclab-browser-build --emxx /path/to/emsdk/upstream/emscripten/em++
+uv run --no-sync python docs/browser_demos/export.py joint_pd \
     --output /tmp/isaaclab-browser-build --emxx /path/to/emsdk/upstream/emscripten/em++
 ```
 
@@ -159,7 +164,7 @@ Expected input SHA-256 values for this build:
 | ANYmal-D instanceable meshes | `a864b5b9e192592595490f4116319476090f6789830057854c6532020dfc3d33` |
 | ANYmal-D flat Newton checkpoint | `0654295241696cdc7855f517a8d94a4951a243f6b21d73152225162ea01aeaaa` |
 
-Copy the contents of `stiffness-web/`, `cloth_bending-web/`, `rigid_friction-web/`, `cartpole-web/`, `g1-web/`, and `anymal-web/` into the corresponding
+Copy the contents of `stiffness-web/`, `cloth_bending-web/`, `rigid_friction-web/`, `joint_pd-web/`, `cartpole-web/`, `g1-web/`, and `anymal-web/` into the corresponding
 `docs/source/_static/browser_demos/` directories. Verify the widgets through
 an HTTP server, since `file://` URLs cannot load the WebAssembly modules. The
 G1 bundle contains compiled Newton code, the actor weights, and decimated

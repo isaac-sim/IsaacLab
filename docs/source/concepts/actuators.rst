@@ -313,6 +313,24 @@ targets. Units are [N·m·s/rad] for revolute joints and [N·s/m] for prismatic 
     :width: 80%
     :alt: Position step response for a damping sweep.
 
+.. _browser-demo-joint-pd:
+
+Try a joint response in the browser
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This one-joint pendulum uses an implicit position drive in Newton MJWarp at
+240 Hz. The orange silhouette marks the target and the blue link shows the
+simulated angle. Change the target angle, stiffness, or damping, then press
+**Reset** to compare responses from the same initial pose. Gravity acts on the
+link, so low gains can leave a steady tracking error. The example isolates
+drive behavior; it is separate from the five-pendulum recordings above.
+
+.. raw:: html
+
+   <link rel="stylesheet" href="../../_static/css/browser-demo.css">
+   <script type="module" src="../../_static/css/browser-demo.js"></script>
+   <isaaclab-browser-demo class="compact" src="../../_static/browser_demos/joint_pd/manifest.json"></isaaclab-browser-demo>
+
 
 Armature
 ^^^^^^^^

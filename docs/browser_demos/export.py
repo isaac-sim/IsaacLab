@@ -57,10 +57,12 @@ CARTPOLE_CHECKPOINT_SHA256 = "251c836e5b6fb9b229ec5e542b7a9071ec49e2da3ebeb3dc23
 
 
 @wp.kernel
-def _set_stiffness(value: wp.array(dtype=float), materials: wp.array2d(dtype=float), first_tet: int):
+def _set_lame_parameters(
+    shear: wp.array(dtype=float), volume: wp.array(dtype=float), materials: wp.array2d(dtype=float), first_tet: int
+):
     tet = first_tet + wp.tid()
-    materials[tet, 0] = value[0]
-    materials[tet, 1] = value[0]
+    materials[tet, 0] = shear[0]
+    materials[tet, 1] = volume[0]
 
 
 @wp.kernel
@@ -88,6 +90,17 @@ def _set_cart_force(value: wp.array(dtype=float), joint_f: wp.array(dtype=float)
     joint_f[0] = value[0]
 
 
+@wp.kernel
+def _set_joint_pd(
+    stiffness: wp.array(dtype=float),
+    damping: wp.array(dtype=float),
+    target_ke: wp.array(dtype=float),
+    target_kd: wp.array(dtype=float),
+):
+    target_ke[0] = stiffness[0]
+    target_kd[0] = damping[0]
+
+
 def _write_manifest(bundle: Path, demo: dict[str, object]) -> None:
     manifest_path = bundle / "manifest.json"
     manifest = json.loads(manifest_path.read_text())
@@ -96,7 +109,7 @@ def _write_manifest(bundle: Path, demo: dict[str, object]) -> None:
 
 
 def export_stiffness(output: Path) -> None:
-    """Export three falling VBD cubes with a live middle-cube stiffness control.
+    """Export three falling VBD cubes with independent Lamé controls for the middle cube.
 
     Args:
         output: Directory for the intermediate simulation bundle.
@@ -153,14 +166,15 @@ def export_stiffness(output: Path) -> None:
     state_in, state_out = model.state(), model.state()
     collision = newton.CollisionPipeline(model, deterministic=True)
     contacts = collision.contacts()
-    stiffness = wp.array([2.0e4], dtype=float, device="cpu")
+    shear = wp.array([2.0e4], dtype=float, device="cpu")
+    volume = wp.array([2.0e4], dtype=float, device="cpu")
     damping = wp.array([10.0], dtype=float, device="cpu")
     gravity = wp.array([9.81], dtype=float, device="cpu")
     with wp.ScopedCapture(device="cpu", apic=True) as capture:
         wp.launch(
-            _set_stiffness,
+            _set_lame_parameters,
             dim=middle_tets[1] - middle_tets[0],
-            inputs=[stiffness, model.tet_materials, middle_tets[0]],
+            inputs=[shear, volume, model.tet_materials, middle_tets[0]],
             device="cpu",
         )
         wp.launch(_set_damping, dim=len(builder.tet_indices), inputs=[damping, model.tet_materials], device="cpu")
@@ -176,7 +190,8 @@ def export_stiffness(output: Path) -> None:
         inputs={
             "particle_q": state_in.particle_q,
             "particle_qd": state_in.particle_qd,
-            "stiffness": stiffness,
+            "shear": shear,
+            "volume": volume,
             "damping": damping,
             "gravity": gravity,
         },
@@ -184,11 +199,12 @@ def export_stiffness(output: Path) -> None:
         output=output,
         timestep=STIFFNESS_DT,
         parameters=(
-            Parameter("stiffness", 0, "Middle cube stiffness [Pa]", 1000.0, 100000.0, 1000.0),
+            Parameter("shear", 0, "Shear μ [Pa]", 1000.0, 200000.0, 1000.0),
+            Parameter("volume", 0, "Volume λ [Pa]", 1000.0, 200000.0, 1000.0),
             Parameter("damping", 0, "Material damping", 0.0, 30.0, 0.5),
             Parameter("gravity", 0, "Gravity [m/s²]", 0.0, 20.0, 0.1),
         ),
-        persistent=("stiffness", "damping", "gravity"),
+        persistent=("shear", "volume", "damping", "gravity"),
     )
     _write_manifest(output, {"kind": "stiffness", "title": "Stiffness with VBD"})
     for _ in range(480):
@@ -395,6 +411,90 @@ def export_rigid_friction(output: Path) -> None:
         wp.capture_launch(capture.graph)
     if not np.isfinite(state_in.body_q.numpy()).all():
         raise RuntimeError("MJWarp friction reference trajectory is not finite")
+
+
+def export_joint_pd(output: Path) -> None:
+    """Export a single revolute pendulum with live implicit-drive gains.
+
+    Args:
+        output: Directory for the intermediate simulation bundle.
+    """
+    builder = newton.ModelBuilder()
+    pivot_height = 1.4
+    link = builder.add_link(xform=wp.transform(wp.vec3(0.0, 0.0, pivot_height), wp.quat_identity()))
+    joint = builder.add_joint_revolute(
+        parent=-1,
+        child=link,
+        parent_xform=wp.transform(wp.vec3(0.0, 0.0, pivot_height), wp.quat_identity()),
+        axis=wp.vec3(0.0, 1.0, 0.0),
+        target_ke=30.0,
+        target_kd=2.0,
+        label="pendulum_hinge",
+    )
+    builder.add_articulation([joint])
+    builder.add_shape_box(
+        body=link,
+        xform=wp.transform(wp.vec3(0.0, 0.0, -0.48), wp.quat_identity()),
+        hx=0.07,
+        hy=0.09,
+        hz=0.48,
+        cfg=newton.ModelBuilder.ShapeConfig(density=75.0),
+        color=wp.vec3(0.28, 0.46, 0.88),
+    )
+    builder.joint_target_q[0] = 0.8
+    model = builder.finalize(device="cpu")
+    solver = newton.solvers.SolverMuJoCo(model, iterations=8, disable_sensors=True)
+    state_in, state_out = model.state(), model.state()
+    control = model.control()
+    stiffness = wp.array([30.0], dtype=float, device="cpu")
+    damping = wp.array([2.0], dtype=float, device="cpu")
+    newton.eval_fk(model, model.joint_q, model.joint_qd, state_in)
+    with wp.ScopedCapture(device="cpu", apic=True) as capture:
+        wp.launch(
+            _set_joint_pd,
+            dim=1,
+            inputs=[stiffness, damping, model.joint_target_ke, model.joint_target_kd],
+            device="cpu",
+        )
+        solver._update_joint_dof_properties()
+        state_in.clear_forces()
+        solver.step(state_in, state_out, control, None, 1.0 / 240.0)
+        wp.copy(state_in.body_q, state_out.body_q)
+        wp.copy(state_in.body_qd, state_out.body_qd)
+        wp.copy(state_in.joint_q, state_out.joint_q)
+        wp.copy(state_in.joint_qd, state_out.joint_qd)
+    export_graph(
+        capture.graph,
+        model=model,
+        inputs={
+            "body_q": state_in.body_q,
+            "body_qd": state_in.body_qd,
+            "joint_q": state_in.joint_q,
+            "joint_qd": state_in.joint_qd,
+            "target_q": control.joint_target_q,
+            "stiffness": stiffness,
+            "damping": damping,
+        },
+        outputs={
+            "body_q": state_in.body_q,
+            "body_qd": state_in.body_qd,
+            "joint_q": state_in.joint_q,
+            "joint_qd": state_in.joint_qd,
+        },
+        output=output,
+        timestep=1.0 / 240.0,
+        parameters=(
+            Parameter("target_q", 0, "Target angle [rad]", -1.2, 1.2, 0.05),
+            Parameter("stiffness", 0, "Stiffness [N·m/rad]", 0.0, 120.0, 1.0),
+            Parameter("damping", 0, "Damping [N·m·s/rad]", 0.0, 20.0, 0.1),
+        ),
+        persistent=("target_q", "stiffness", "damping"),
+    )
+    _write_manifest(output, {"kind": "joint_pd", "title": "Joint PD step response", "pivotHeight": pivot_height})
+    for _ in range(480):
+        wp.capture_launch(capture.graph)
+    if not np.isfinite(state_in.joint_q.numpy()).all():
+        raise RuntimeError("MJWarp joint PD reference trajectory is not finite")
 
 
 def export_cartpole(output: Path, usd: Path, checkpoint: Path) -> None:
@@ -1069,7 +1169,9 @@ def export_anymal(output: Path, usd: Path, checkpoint: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("demo", choices=("stiffness", "cloth_bending", "rigid_friction", "cartpole", "g1", "anymal"))
+    parser.add_argument(
+        "demo", choices=("stiffness", "cloth_bending", "rigid_friction", "joint_pd", "cartpole", "g1", "anymal")
+    )
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--usd", type=Path, help="Local task USD asset; required for Cartpole and ANYmal-D")
     parser.add_argument("--checkpoint", type=Path, help="Local policy checkpoint (ONNX for G1, RSL-RL for others)")
@@ -1086,6 +1188,8 @@ def main() -> None:
         export_cloth_bending(bundle)
     elif args.demo == "rigid_friction":
         export_rigid_friction(bundle)
+    elif args.demo == "joint_pd":
+        export_joint_pd(bundle)
     elif args.demo == "cartpole":
         if args.usd is None or args.checkpoint is None:
             parser.error("Cartpole requires --usd and --checkpoint")

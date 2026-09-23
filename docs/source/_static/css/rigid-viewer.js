@@ -78,9 +78,34 @@ export class RigidViewer {
       this.geometries.push(geometry);
       this.materials.push(material);
     }
+    if (simulation.manifest.isaacLabDemo.kind === 'joint_pd') {
+      const pivotHeight = simulation.manifest.isaacLabDemo.pivotHeight;
+      const supportMaterial = new THREE.MeshStandardMaterial({ color: '#54656d', metalness: 0.35, roughness: 0.35 });
+      const ghostMaterial = new THREE.MeshStandardMaterial({ color: '#e68838', transparent: true, opacity: 0.4, depthWrite: false });
+      const supportGeometry = new THREE.BoxGeometry(0.08, 0.08, pivotHeight);
+      const support = new THREE.Mesh(supportGeometry, supportMaterial);
+      support.position.set(0, -0.28, pivotHeight / 2);
+      support.castShadow = true;
+      this.stage.add(support);
+      const axleGeometry = new THREE.CylinderGeometry(0.11, 0.11, 0.44, 24);
+      const axle = new THREE.Mesh(axleGeometry, supportMaterial);
+      axle.position.set(0, -0.1, pivotHeight);
+      axle.castShadow = true;
+      this.stage.add(axle);
+      this.targetGhost = new THREE.Group();
+      this.targetGhost.position.z = pivotHeight;
+      const ghostGeometry = new THREE.BoxGeometry(0.15, 0.19, 0.96);
+      const ghost = new THREE.Mesh(ghostGeometry, ghostMaterial);
+      ghost.position.z = -0.48;
+      this.targetGhost.add(ghost);
+      this.stage.add(this.targetGhost);
+      this.geometries.push(supportGeometry, axleGeometry, ghostGeometry);
+      this.materials.push(supportMaterial, ghostMaterial);
+    }
     this.camera = new THREE.PerspectiveCamera(42, 1, 0.05, 35);
-    this.target = new THREE.Vector3(0, 0.85, 0);
-    this.orbit = new OrbitCamera(canvas, this.camera, 1.25, 0.35, 5.2);
+    const jointPd = simulation.manifest.isaacLabDemo.kind === 'joint_pd';
+    this.target = new THREE.Vector3(0, jointPd ? 0.9 : 0.85, 0);
+    this.orbit = new OrbitCamera(canvas, this.camera, jointPd ? Math.PI / 2 : 1.25, jointPd ? 0.15 : 0.35, jointPd ? 3.8 : 5.2);
   }
 
   render() {
@@ -92,6 +117,7 @@ export class RigidViewer {
       body.position.fromArray(position);
       body.quaternion.fromArray(poses.subarray(offset + 3, offset + 7));
     });
+    if (this.targetGhost) this.targetGhost.rotation.y = this.simulation.binding('target_q')[0];
     const width = this.canvas.clientWidth;
     const height = this.canvas.clientHeight;
     if (!width || !height) return;

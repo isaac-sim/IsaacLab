@@ -162,12 +162,12 @@ class IsaacLabBrowserDemo extends HTMLElement {
       }
       this.simulation = simulation;
       this.demo = this.simulation.manifest.isaacLabDemo;
-      if (!this.demo || !['stiffness', 'cloth_bending', 'rigid_friction', 'cartpole', 'g1', 'anymal'].includes(this.demo.kind)) throw new Error('Unknown Isaac Lab demo');
+      if (!this.demo || !['stiffness', 'cloth_bending', 'rigid_friction', 'joint_pd', 'cartpole', 'g1', 'anymal'].includes(this.demo.kind)) throw new Error('Unknown Isaac Lab demo');
       this.querySelector('.browser-demo').classList.add(`browser-demo-${this.demo.kind}`);
       const title = this.getAttribute('demo-title') || this.demo.title;
       this.querySelector('.browser-demo-head strong').textContent = title;
       this.canvas.setAttribute('aria-label', `${title} interactive simulation`);
-      if (this.demo.kind === 'rigid_friction') {
+      if (this.demo.kind === 'rigid_friction' || this.demo.kind === 'joint_pd') {
         const { RigidViewer } = await import('./rigid-viewer.js');
         const viewer = await RigidViewer.load(this.canvas, this.simulation);
         if (this.generation !== generation) {
@@ -244,7 +244,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
         ? [['Reference · 0.001 N·m', '#297ad9'], ['Adjustable · 1.00 N·m', '#9154d9'], ['Reference · 10 N·m', '#e37a38']]
         : this.demo.kind === 'rigid_friction'
           ? [['Reference · μ 0.05', '#236bdb'], ['Adjustable · μ 0.15', '#8648ce'], ['Reference · μ 0.8', '#e34c31']]
-          : [['Reference · 2 kPa', '#76b900'], ['Adjustable · 20 kPa', '#55880a'], ['Reference · 100 kPa', '#88cc22']];
+          : [['Reference · μ = λ = 2 kPa', '#76b900'], ['Adjustable · μ = λ = 20 kPa', '#55880a'], ['Reference · μ = λ = 100 kPa', '#88cc22']];
       for (const [label, color] of references) {
         const item = document.createElement('span');
         const dot = document.createElement('i');
@@ -257,18 +257,18 @@ class IsaacLabBrowserDemo extends HTMLElement {
       }
       panel.append(legend);
       const selected = (this.getAttribute('parameters') || (this.demo.kind === 'stiffness'
-        ? 'stiffness,damping,gravity' : this.demo.kind === 'cloth_bending' ? 'bending,gravity' : 'middle_friction')).split(',');
+        ? 'shear,volume,damping,gravity' : this.demo.kind === 'cloth_bending' ? 'bending,gravity' : 'middle_friction')).split(',');
       for (const name of selected) {
         const parameter = this.simulation.manifest.parameters.find((item) => item.binding === name);
         if (!parameter) throw new Error(`Unknown simulation parameter: ${name}`);
         const logarithmic = name === 'bending' && this.demo.bendingScale === 'log10';
         const physical = (value) => logarithmic ? 10 ** value : value;
-        const format = name === 'stiffness' ? (value) => `${(value / 1000).toFixed(0)} kPa`
+        const format = ['shear', 'volume'].includes(name) ? (value) => `${(value / 1000).toFixed(0)} kPa`
           : name === 'bending' ? (value) => `${value < 0.01 ? value.toFixed(3) : value.toFixed(2)} N·m`
             : name === 'middle_friction' ? (value) => `μ ${value.toFixed(2)}`
           : name === 'gravity' ? (value) => `${value.toFixed(1)} m/s²`
             : (value) => value.toFixed(1);
-        this.addSlider(panel, name === 'stiffness' ? 'Middle cube stiffness' : parameter.label,
+        this.addSlider(panel, parameter.label,
           logarithmic ? Math.log10(parameter.minimum) : parameter.minimum,
           logarithmic ? Math.log10(parameter.maximum) : parameter.maximum,
           logarithmic ? 0.01 : parameter.step,
@@ -276,10 +276,26 @@ class IsaacLabBrowserDemo extends HTMLElement {
             : this.simulation.binding(parameter.binding)[parameter.index], (input) => {
             const value = physical(input);
             this.simulation.binding(parameter.binding)[parameter.index] = value;
-            if (['stiffness', 'bending', 'middle_friction'].includes(name)) {
-              this.middleLegend.textContent = `Adjustable · ${format(value)}`;
+            if (['shear', 'volume', 'bending', 'middle_friction'].includes(name)) {
+              this.middleLegend.textContent = this.demo.kind === 'stiffness'
+                ? `Adjustable · μ ${format(this.simulation.binding('shear')[0])} · λ ${format(this.simulation.binding('volume')[0])}`
+                : `Adjustable · ${format(value)}`;
             }
           }, (value) => format(physical(value)));
+      }
+    } else if (this.demo.kind === 'joint_pd') {
+      const readout = document.createElement('div');
+      readout.className = 'browser-demo-legend';
+      const measured = document.createElement('output');
+      readout.append('Blue: actual angle · Orange: target angle · Actual ', measured);
+      this.jointReadout = measured;
+      panel.append(readout);
+      for (const name of ['target_q', 'stiffness', 'damping']) {
+        const parameter = this.simulation.manifest.parameters.find((item) => item.binding === name);
+        const binding = this.simulation.binding(name);
+        this.addSlider(panel, parameter.label, parameter.minimum, parameter.maximum, parameter.step,
+          binding[parameter.index], (value) => { binding[parameter.index] = value; },
+          (value) => name === 'target_q' ? `${value.toFixed(2)} rad` : value.toFixed(name === 'damping' ? 1 : 0));
       }
     } else if (this.demo.kind === 'cartpole') {
       this.policyForce = 0;
@@ -577,6 +593,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
   }
 
   render() {
+    if (this.jointReadout) this.jointReadout.value = `${this.simulation.binding('joint_q')[0].toFixed(2)} rad`;
     this.viewer.render();
   }
 

@@ -57,22 +57,6 @@ task metric, and runtime before changing one variable at a time. Turn off
 ``debug_mode`` only after the solver budget has been validated for the
 full reset, command, and randomization distribution.
 
-Try the Cartpole baseline
--------------------------
-
-This interactive ``Isaac-Cartpole-Direct`` scene uses the task's Cartpole USD,
-MJWarp solver settings, 120 Hz physics timestep, and published Newton policy.
-Hold the slider to add up to 300 N of cart force; release it to watch the
-policy respond. **Reset** restores the same initial pole angle
-of 0.2 rad. The cart resets when it passes the task's 3 m travel limit.
-Use the task configuration linked above when reproducing behavior in Isaac Lab.
-
-.. raw:: html
-
-   <link rel="stylesheet" href="../../../_static/css/browser-demo.css">
-   <script type="module" src="../../../_static/css/browser-demo.js"></script>
-   <isaaclab-browser-demo class="compact" src="../../../_static/browser_demos/cartpole/manifest.json"></isaaclab-browser-demo>
-
 Size contact and constraint capacity
 ------------------------------------
 
@@ -113,6 +97,8 @@ metrics plateau. More iterations cannot compensate for bad inertia, penetration
 at reset, missing collision geometry, unsupported constraints, or excessive
 drive stiffness.
 
+.. _browser-demo-rigid-friction:
+
 Tune friction and contact behavior
 ----------------------------------
 
@@ -124,6 +110,8 @@ result with the task's own geometry, mass, contact settings, and solver budget.
 
 .. raw:: html
 
+   <link rel="stylesheet" href="../../../_static/css/browser-demo.css">
+   <script type="module" src="../../../_static/css/browser-demo.js"></script>
    <isaaclab-browser-demo class="compact" src="../../../_static/browser_demos/rigid_friction/manifest.json"></isaaclab-browser-demo>
 
 Validate colliders, contact locations, normal force, material friction, and

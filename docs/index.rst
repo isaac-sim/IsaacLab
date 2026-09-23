@@ -116,7 +116,6 @@ Table of Contents
    source/concepts/visualization
    source/concepts/reinforcement_learning
    source/concepts/deformables
-   source/concepts/browser_simulations
    source/concepts/schema_cfgs
    source/concepts/schema_fragments
    source/concepts/task_workflows
