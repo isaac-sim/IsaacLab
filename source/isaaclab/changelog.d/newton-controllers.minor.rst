@@ -8,6 +8,13 @@ Added
   float32. Newton operational-space control applies motion-axis selection before inertia
   decoupling, so hybrid force/motion tasks must revalidate their gains before opting in.
 
+Changed
+^^^^^^^
+
+* Improved :meth:`~isaaclab.controllers.OperationalSpaceController.set_command` performance by reusing a
+  preallocated identity task frame and rotating the gains and selection matrices into the root frame in one
+  batched step. The cost no longer grows with the number of environments.
+
 Fixed
 ^^^^^
 

@@ -127,8 +127,10 @@ class OperationalSpaceController:
         self._selection_matrix_force_b = torch.zeros_like(self._selection_matrix_force_task)
         # -- commands
         self._task_space_target_task = torch.zeros(self.num_envs, self.target_dim, device=self._device)
-        self._task_frame_pose_b = torch.zeros(self.num_envs, 7, device=self._device)
-        self._task_frame_pose_b[:, 6] = 1.0
+        # -- task frame pose in the root frame, which defaults to the root frame itself (x, y, z, qx, qy, qz, qw)
+        self._root_frame_pose_b = torch.zeros(self.num_envs, 7, device=self._device)
+        self._root_frame_pose_b[:, 6] = 1.0
+        self._task_frame_pose_b = self._root_frame_pose_b.clone()
         # -- Placeholders for motion/force control
         self.desired_ee_pose_task = None
         self.desired_ee_pose_b = None
@@ -164,6 +166,16 @@ class OperationalSpaceController:
         else:
             self._contact_wrench_p_gains_task = None
             self._contact_wrench_p_gains_b = None
+        # -- (task frame, root frame) matrix pairs rotated together by set_command, and their rotation
+        self._frame_matrices = [
+            (self._motion_p_gains_task, self._motion_p_gains_b),
+            (self._motion_d_gains_task, self._motion_d_gains_b),
+            (self._selection_matrix_motion_task, self._selection_matrix_motion_b),
+            (self._selection_matrix_force_task, self._selection_matrix_force_b),
+        ]
+        if self._contact_wrench_p_gains_task is not None:
+            self._frame_matrices.append((self._contact_wrench_p_gains_task, self._contact_wrench_p_gains_b))
+        self._frame_rotation = torch.zeros(self.num_envs, 1, 6, 6, device=self._device)
         # -- position gain limits
         self._motion_p_gains_limits = torch.zeros(self.num_envs, 6, 2, device=self._device)
         self._motion_p_gains_limits[..., 0], self._motion_p_gains_limits[..., 1] = (
@@ -311,10 +323,7 @@ class OperationalSpaceController:
             raise ValueError(f"Invalid impedance mode: {self.cfg.impedance_mode}.")
 
         if current_task_frame_pose_b is None:
-            # xyzw format: identity quat is [0, 0, 0, 1]
-            current_task_frame_pose_b = torch.tensor(
-                [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]] * self.num_envs, device=self._device
-            )
+            current_task_frame_pose_b = self._root_frame_pose_b
 
         self._task_frame_pose_b.copy_(current_task_frame_pose_b)
 
@@ -352,7 +361,7 @@ class OperationalSpaceController:
                         current_ee_pose_b[:, 3:],
                     )
                 else:
-                    fallback_quat = current_task_frame_pose_b.new_tensor([0.0, 0.0, 0.0, 1.0]).expand(self.num_envs, 4)
+                    fallback_quat = self._root_frame_pose_b[:, 3:7]
                 desired_ee_pose_task[:, 3:7] = torch.where(is_valid, normalized_quat, fallback_quat)
             elif command_type == "wrench_abs":
                 # compute targets
@@ -368,39 +377,15 @@ class OperationalSpaceController:
 
         # Rotation of task frame wrt root frame, converts a coordinate from task frame to root frame.
         R_task_b = matrix_from_quat(current_task_frame_pose_b[:, 3:])
-        # Rotation of root frame wrt task frame, converts a coordinate from root frame to task frame.
-        R_b_task = R_task_b.mT
 
-        # Transform motion control stiffness gains from task frame to root frame
-        self._motion_p_gains_b[:, 0:3, 0:3] = R_task_b @ self._motion_p_gains_task[:, 0:3, 0:3] @ R_b_task
-        self._motion_p_gains_b[:, 3:6, 3:6] = R_task_b @ self._motion_p_gains_task[:, 3:6, 3:6] @ R_b_task
-
-        # Transform motion control damping gains from task frame to root frame
-        self._motion_d_gains_b[:, 0:3, 0:3] = R_task_b @ self._motion_d_gains_task[:, 0:3, 0:3] @ R_b_task
-        self._motion_d_gains_b[:, 3:6, 3:6] = R_task_b @ self._motion_d_gains_task[:, 3:6, 3:6] @ R_b_task
-
-        # Transform contact wrench gains from task frame to root frame (if applicable)
-        if self._contact_wrench_p_gains_task is not None and self._contact_wrench_p_gains_b is not None:
-            self._contact_wrench_p_gains_b[:, 0:3, 0:3] = (
-                R_task_b @ self._contact_wrench_p_gains_task[:, 0:3, 0:3] @ R_b_task
-            )
-            self._contact_wrench_p_gains_b[:, 3:6, 3:6] = (
-                R_task_b @ self._contact_wrench_p_gains_task[:, 3:6, 3:6] @ R_b_task
-            )
-
-        # Transform selection matrices from target frame to base frame
-        self._selection_matrix_motion_b[:, 0:3, 0:3] = (
-            R_task_b @ self._selection_matrix_motion_task[:, 0:3, 0:3] @ R_b_task
-        )
-        self._selection_matrix_motion_b[:, 3:6, 3:6] = (
-            R_task_b @ self._selection_matrix_motion_task[:, 3:6, 3:6] @ R_b_task
-        )
-        self._selection_matrix_force_b[:, 0:3, 0:3] = (
-            R_task_b @ self._selection_matrix_force_task[:, 0:3, 0:3] @ R_b_task
-        )
-        self._selection_matrix_force_b[:, 3:6, 3:6] = (
-            R_task_b @ self._selection_matrix_force_task[:, 3:6, 3:6] @ R_b_task
-        )
+        # Transform the gains and selection matrices from task frame to root frame. They are block diagonal, so
+        # rotating each 3x3 block by R_task_b is a single 6x6 rotation by blockdiag(R_task_b, R_task_b).
+        self._frame_rotation[:, 0, 0:3, 0:3] = R_task_b
+        self._frame_rotation[:, 0, 3:6, 3:6] = R_task_b
+        matrices_task = torch.stack([task for task, _ in self._frame_matrices], dim=1)
+        matrices_b = self._frame_rotation @ matrices_task @ self._frame_rotation.mT
+        for (_, root), rotated in zip(self._frame_matrices, matrices_b.unbind(dim=1)):
+            root.copy_(rotated)
 
         # Transform desired pose from task frame to root frame
         if self.desired_ee_pose_task is not None:
