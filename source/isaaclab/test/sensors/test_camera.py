@@ -1144,6 +1144,12 @@ def test_camera_raises_on_unsupported_data_types(setup_sim_camera):
         def update_geometries(self):
             pass
 
+        def update_particle_field_transforms(self, prim_paths, local_transforms):
+            raise NotImplementedError
+
+        def update_particle_field_particles(self, prim_paths, positions=None, orientations=None, scales=None):
+            raise NotImplementedError
+
         def update_camera(self, render_data, positions, orientations, intrinsics):
             pass
 

@@ -35,6 +35,20 @@ class VisualMaterialBatch:
     values: torch.Tensor
 
 
+class RendererSync(ABC):
+    """Backend-neutral completion handle for a renderer operation.
+
+    A renderer may borrow a caller-owned device buffer while applying an update. The caller must
+    call :meth:`wait` before it overwrites or releases that buffer. Implementations may complete
+    eagerly, in which case ``wait()`` is a no-op.
+    """
+
+    @abstractmethod
+    def wait(self) -> None:
+        """Block until the renderer no longer accesses the borrowed inputs."""
+        pass
+
+
 class BaseRenderer(ABC):
     """Abstract base class for renderer implementations."""
 
@@ -130,6 +144,30 @@ class BaseRenderer(ABC):
 
         Called to sync physics-driven geometry such as mesh points, extents, or other
         per-frame geometry buffers into the renderer's scene representation.
+        """
+        pass
+
+    @abstractmethod
+    def update_particle_field_transforms(self, prim_paths: list[str], local_transforms: Any) -> RendererSync:
+        """Update local transforms of particle-field prims.
+
+        The returned handle must be waited before ``local_transforms`` is reused or released.
+        Renderers that do not support direct particle-field updates raise :class:`NotImplementedError`.
+        """
+        pass
+
+    @abstractmethod
+    def update_particle_field_particles(
+        self,
+        prim_paths: list[str],
+        positions: list[Any] | None = None,
+        orientations: list[Any] | None = None,
+        scales: list[Any] | None = None,
+    ) -> RendererSync:
+        """Update per-particle position, orientation, and scale columns.
+
+        The returned handle must be waited before any supplied array is reused or released.
+        Renderers that do not support direct particle-field updates raise :class:`NotImplementedError`.
         """
         pass
 

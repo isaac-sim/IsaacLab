@@ -83,6 +83,30 @@ class OVRTXRendererCfg(RendererCfg):
     does not change ``rgb`` and the other AOV outputs.
     """
 
+    render_mode: str | None = None
+    """Optional OVRTX render-mode override for generated render products.
+
+    When ``None``, the renderer selects RTX Minimal for simple-shading outputs and Real-Time
+    Path-Tracing otherwise. ``"Minimal"`` requires a simple-shading output so its minimal mode can
+    be determined; ``"RealTimePathTracing"`` and ``"PathTracing"`` are valid for color outputs.
+    """
+
+    enable_accumulation: bool = False
+    """Whether to author RTX accumulation on generated render products."""
+
+    accumulation_limit: int | None = None
+    """Optional RTX accumulation-iteration limit authored on generated render products."""
+
+    gaussian_accumulated_albedo: bool = False
+    """Whether RTPT accumulates Gaussian SH0 color into the diffuse-albedo AOV."""
+
+    gaussian_skip_tonemapping: bool = False
+    """Whether RTPT skips tonemapping for Gaussian pixels.
+
+    This is currently authored through OVRTX's schema-gap RenderProduct attribute. It is expected
+    to gain a generated OVRTX setting in the next OVRTX release.
+    """
+
     colorize_semantic_segmentation: bool = True
     """Whether to colorize semantic segmentation output. Defaults to True.
 

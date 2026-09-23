@@ -1,0 +1,2 @@
+
+Added the internal particle-field renderer hook required by the shared renderer interface; the Newton renderer does not support particle fields yet.

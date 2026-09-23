@@ -127,6 +127,39 @@ def test_render_product_solid_background_color(camera_spec, render_data):
     assert 'token omni:rtx:background:source:type = "domeLight"' not in render_scope
 
 
+def test_build_render_scope_usd_authors_ovrtx_rtx_settings(camera_spec, render_data):
+    """OVRTX settings are authored on the RenderProduct without its settings extension."""
+    render_scope = build_render_scope_usd(
+        camera_spec,
+        render_data,
+        render_mode="PathTracing",
+        enable_accumulation=True,
+        accumulation_limit=7,
+        gaussian_accumulated_albedo=True,
+        gaussian_skip_tonemapping=True,
+    )
+
+    assert (
+        'prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAPI_1", '
+        '"OmniRtxSettingsParticleFieldAPI_1"]'
+    ) in render_scope
+    assert 'token omni:rtx:rendermode = "PathTracing"' in render_scope
+    assert "bool omni:rtx:rt:accumulation:enabled = true" in render_scope
+    assert "int omni:rtx:rt:accumulationLimit = 7" in render_scope
+    assert "bool omni:rtx:rtpt:gaussian:accumulatedAlbedo:enabled = true" in render_scope
+    assert "bool omni:rtx:rtpt:gaussian:skipTonemapping:enabled = true" in render_scope
+
+
+def test_build_render_scope_usd_rejects_minimal_without_simple_shading(camera_spec, render_data):
+    """Minimal mode needs the simple-shading mode that selects its output."""
+    with pytest.raises(ValueError, match="requires a simple-shading output"):
+        build_render_scope_usd(
+            camera_spec,
+            render_data,
+            render_mode="Minimal",
+        )
+
+
 def test_ovrtx_rgb_hdr_uses_hdr_color_render_var():
     """Requesting RGB_HDR from OVRTX selects the HdrColor render variable."""
     assert get_render_var_config(["rgb_hdr"], render_scope_name="RenderCamera_0") == (
@@ -380,6 +413,15 @@ def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars(camera_spec, render_data)
     assert "rel orderedVars = [</RenderCamera_0/Vars/LdrColor>, </RenderCamera_0/Vars/HdrColor>]" in render_scope
     assert 'def RenderVar "LdrColor"' in render_scope
     assert 'def RenderVar "HdrColor"' in render_scope
+
+
+def test_ovrtx_hdr_render_product_disables_gaussian_skip_tonemapping(camera_spec, render_data):
+    """OVRTX 0.5 reads Gaussian tonemapping from the RenderProduct, not global settings."""
+    camera_spec.cfg.data_types = ["rgb_hdr"]
+
+    render_scope = build_render_scope_usd(camera_spec, render_data, gaussian_skip_tonemapping=True)
+
+    assert "bool omni:rtx:rtpt:gaussian:skipTonemapping:enabled = false" in render_scope
 
 
 def test_ovrtx_semantic_segmentation_authors_semantic_and_id_map_render_vars(camera_spec, render_data):

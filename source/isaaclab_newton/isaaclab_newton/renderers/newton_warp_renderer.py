@@ -591,6 +591,14 @@ class NewtonWarpRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_geometries`."""
         pass
 
+    def update_particle_field_transforms(self, prim_paths, local_transforms):
+        """Newton Warp does not expose authored particle-field prim updates."""
+        raise NotImplementedError("Newton Warp does not support direct particle-field renderer updates.")
+
+    def update_particle_field_particles(self, prim_paths, positions=None, orientations=None, scales=None):
+        """Newton Warp does not expose authored particle-field prim updates."""
+        raise NotImplementedError("Newton Warp does not support direct particle-field renderer updates.")
+
     def update_camera(
         self,
         render_data: RenderData,

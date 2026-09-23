@@ -1,0 +1,2 @@
+Only removed the private ``_demo_utils`` module, whose helpers were folded into the single PPISP
+camera demo script that was its only caller; no public API change.
