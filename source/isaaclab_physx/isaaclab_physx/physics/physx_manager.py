@@ -522,7 +522,7 @@ class PhysxManager(PhysicsManager):
         if cls._fabric is not None:
             provider = sim.get_scene_data_provider()
             provider._prepare_fabric(sim.stage, str(PhysicsManager._device))
-            provider.request_transforms(SceneDataFormat.FabricMatrix44)
+            provider.get_transforms(SceneDataFormat.FabricMatrix44())
 
     @classmethod
     def invalidate_transforms(cls, *, kinematics: bool = False) -> None:

@@ -41,16 +41,21 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     monkeypatch.setattr(PhysicsManager, "_device", "cpu")
     monkeypatch.setattr(physx_manager.omni.physx, "get_physx_simulation_interface", Mock(return_value=Mock()))
     provider = SceneDataProvider(backend)
-    provider._fabric_output = Mock(matrices=object())
+    provider._fabric_output = SceneDataFormat.FabricMatrix44()
+    provider._fabric_output.matrices = wp.fabricarray(dtype=wp.mat44d)
     provider._fabric_selection = Mock(PrepareForReuse=Mock(return_value=False))
     monkeypatch.setattr(PhysicsManager._sim, "get_scene_data_provider", lambda: provider, raising=False)
-    provider.request_transforms(SceneDataFormat.FabricMatrix44)
-    provider.request_transforms(SceneDataFormat.FabricMatrix44)
+    provider.get_transforms(SceneDataFormat.FabricMatrix44())
+    provider.get_transforms(SceneDataFormat.FabricMatrix44())
     fabric.force_update.assert_called_once_with(0.0, 0.0)
     view.get_transforms.assert_not_called()
     assert backend.transforms_dirty
-    assert provider.request_transforms(SceneDataFormat.Transform).transforms.ptr == transforms.ptr
-    matrices = provider.request_transforms(SceneDataFormat.Matrix44)
+    native = SceneDataFormat.Transform()
+    assert provider.get_transforms(native)
+    assert native.transforms.ptr == transforms.ptr
+    output = SceneDataFormat.Matrix44()
+    assert provider.get_transforms(output)
+    matrices = output.matrices
     view.get_transforms.assert_called_once_with()
 
     transforms.fill_(wp.transformf(wp.vec3f(1, 2, 3), wp.quat_identity()))
@@ -58,21 +63,22 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     manager.pre_render()
     manager.pre_render()
     assert sim_view.update_articulations_kinematic.call_count == int(operation == "forward")
-    assert provider.request_transforms(SceneDataFormat.Matrix44) is matrices
-    np.testing.assert_array_equal(matrices.matrices.numpy()[0, :3, 3], [1, 2, 3])
+    assert provider.get_transforms(output)
+    assert output.matrices is matrices
+    np.testing.assert_array_equal(matrices.numpy()[0, :3, 3], [1, 2, 3])
     assert view.get_transforms.call_count == 2
-    provider.request_transforms(SceneDataFormat.FabricMatrix44)
-    provider.request_transforms(SceneDataFormat.FabricMatrix44)
+    provider.get_transforms(SceneDataFormat.FabricMatrix44())
+    provider.get_transforms(SceneDataFormat.FabricMatrix44())
     assert fabric.force_update.call_count == 2
 
     manager.invalidate_transforms(kinematics=True)
     assert backend.transforms_dirty and backend.fabric_dirty
-    provider.request_transforms(SceneDataFormat.FabricMatrix44)
-    provider.request_transforms(SceneDataFormat.FabricMatrix44)
+    provider.get_transforms(SceneDataFormat.FabricMatrix44())
+    provider.get_transforms(SceneDataFormat.FabricMatrix44())
     assert sim_view.update_articulations_kinematic.call_count == 1 + int(operation == "forward")
     assert fabric.force_update.call_count == 3
     assert backend.transforms_dirty and not backend.fabric_dirty
-    provider.request_transforms(SceneDataFormat.Transform)
+    provider.get_transforms(native)
     assert view.get_transforms.call_count == 3
     assert not backend.transforms_dirty
 

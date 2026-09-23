@@ -72,84 +72,106 @@ class SceneDataProvider:
         """Generation of the last consumed transform publication."""
         return self._transform_generation
 
-    def request_transforms(
+    def get_transforms(
         self,
-        output_format: Any,
+        output: SceneDataFormat.Vec3_Quat
+        | SceneDataFormat.Transform
+        | SceneDataFormat.Matrix44
+        | SceneDataFormat.Vec3_Matrix33
+        | SceneDataFormat.TransposedMatrix44d
+        | SceneDataFormat.FabricMatrix44,
         mapping: wp.array | None = None,
-        count: int | None = None,
+        allow_passthrough: bool = True,
         *,
+        count: int | None = None,
         scales: wp.array | None = None,
-    ) -> Any | None:
-        """Request shared transforms, converting at most once per dirty generation and layout.
+    ) -> bool:
+        """Bind shared transforms or write them directly into caller-owned output arrays.
 
-        A matching native format and ordering returns the producer's pointer without a copy.
-        Converted outputs belong to SDP and are reused across consumers and clean requests.
+        With passthrough enabled, matching native arrays are borrowed without a copy; other
+        layouts share SDP-owned buffers converted once per dirty generation. Treat these arrays
+        as read-only. With passthrough disabled, conversion writes directly into ``output``.
         Fabric consumers bind their stage during initialization with ``_prepare_fabric``.
 
         Args:
-            output_format: Requested :class:`SceneDataFormat` type.
+            output: A :class:`SceneDataFormat` struct instance specifying the requested format.
+                Missing arrays are allocated when passthrough is disabled.
             mapping: Native-to-output indices from :meth:`create_mapping`, or identity ordering.
+            allow_passthrough: Whether to bind shared arrays instead of writing caller-owned arrays.
             count: Destination count when remapping, or the native transform count.
             scales: Static output scales for ``TransposedMatrix44d``, shape [count].
 
         Returns:
-            The requested format, or None when no transforms are published. Treat its arrays as read-only.
+            True if transforms are available in ``output``, False if no transforms are published
+            or the format conversion is unsupported.
         """
+        output_format = output._cls
         fabric = output_format is SceneDataFormat.FabricMatrix44
         if fabric:
-            if mapping is not None or count is not None or scales is not None:
-                raise ValueError("Fabric destinations already specify native ordering, count, and authored scale.")
-            native_fabric = self.backend.fabric
-            if native_fabric is not None:
-                if self.backend.fabric_dirty:
-                    native_fabric.force_update(0.0, 0.0)
-                    self.backend.fabric_dirty = False
-                return self._prepare_fabric_output()
+            if not allow_passthrough or mapping is not None or count is not None or scales is not None:
+                raise ValueError("Fabric uses bound destinations with native ordering, count, and authored scale.")
+        native_fabric = self.backend.fabric if fabric else None
+        if native_fabric is not None and self.backend.fabric_dirty:
+            native_fabric.force_update(0.0, 0.0)
+            self.backend.fabric_dirty = False
         fabric_output = self._prepare_fabric_output() if fabric else None
-        source = self.backend.transforms
-        if self.backend.transforms_dirty:
+        source = fabric_output if native_fabric is not None else self.backend.transforms
+        if native_fabric is None and self.backend.transforms_dirty:
             self._transform_generation += 1
             self.backend.transforms_dirty = False
-        native_count = self.transform_count
-        if native_count == 0:
-            return None
+        native_count = len(source.matrices) if native_fabric is not None else self.transform_count
+        if native_fabric is None and native_count == 0:
+            return False
         count = native_count if count is None else count
         if mapping is None and count != native_count:
             raise ValueError("A different destination count requires an explicit transform mapping.")
         if scales is not None and output_format is not SceneDataFormat.TransposedMatrix44d:
             raise ValueError("Static scales are supported only for TransposedMatrix44d destinations.")
         if source._cls is output_format and mapping is None and scales is None:
-            return source
-        key = (output_format, mapping, count, scales)
-        cached = self._transform_cache.get(key)
-        if (
-            cached is not None
-            and cached[0] == self._transform_generation
-            and (fabric_output is None or cached[1] is fabric_output)
-        ):
-            return cached[1]
-        device = _publication_device(source)
-        if fabric:
-            self._fabric_write_selection.PrepareForReuse()
-            output = fabric_output
+            result = source
+            if not allow_passthrough:
+                _init_output(output, count, _publication_device(source))
+                for name in output_format.vars:
+                    wp.copy(getattr(output, name), getattr(source, name))
+                return True
         else:
-            output = cached[1] if cached is not None else output_format()
-            _init_output(output, count, device)
-        inputs = [source] if fabric else [source, mapping]
-        if output_format is SceneDataFormat.TransposedMatrix44d:
-            inputs.append(scales)
-        kernel = getattr(ConversionKernels, f"convert_{source._cls.__name__}_to_{output_format.__name__}")
-        wp.launch(
-            kernel, dim=len(output.indices) if fabric else native_count, inputs=inputs, outputs=[output], device=device
-        )
-        if fabric:
-            wp.synchronize_stream(device)
-            # PrepareForReuse rebuilds the output on any Fabric structural change, not just rigid changes.
-            if not self._fabric_hierarchy.update_world_xforms_gpu(cached is not None and cached[1] is output):
-                raise RuntimeError("Fabric GPU transform hierarchy update failed.")
-            wp.synchronize_device(device)
-        self._transform_cache[key] = (self._transform_generation, output)
-        return output
+            kernel = getattr(ConversionKernels, f"convert_{source._cls.__name__}_to_{output_format.__name__}", None)
+            if kernel is None:
+                return False
+            key = (output_format, mapping, count, scales)
+            cached = self._transform_cache.get(key) if allow_passthrough else None
+            if not allow_passthrough:
+                result = output
+            elif fabric:
+                result = fabric_output
+            else:
+                result = cached[1] if cached is not None else output_format()
+            if cached is None or cached[0] != self._transform_generation or cached[1] is not result:
+                device = _publication_device(source)
+                if fabric:
+                    self._fabric_write_selection.PrepareForReuse()
+                else:
+                    _init_output(result, count, device)
+                inputs = [source] if fabric else [source, mapping]
+                if output_format is SceneDataFormat.TransposedMatrix44d:
+                    inputs.append(scales)
+                wp.launch(
+                    kernel,
+                    dim=len(result.indices) if fabric else native_count,
+                    inputs=inputs,
+                    outputs=[result],
+                    device=device,
+                )
+                if fabric:
+                    wp.synchronize_stream(device)
+                    if not self._fabric_hierarchy.update_world_xforms_gpu(cached is not None and cached[1] is result):
+                        raise RuntimeError("Fabric GPU transform hierarchy update failed.")
+                    wp.synchronize_device(device)
+                if allow_passthrough:
+                    self._transform_cache[key] = (self._transform_generation, result)
+        for name in output_format.vars:
+            setattr(output, name, getattr(result, name))
+        return True
 
     def _prepare_fabric(self, stage: Usd.Stage, device: str) -> None:
         """Bind shared Fabric matrices once, preserving engine-owned poses when available."""
@@ -303,65 +325,6 @@ class SceneDataProvider:
             ``None`` when no USD stage is available.
         """
         return _walk_camera_prims(self.usd_stage)
-
-    def get_transforms(
-        self,
-        output: SceneDataFormat.Vec3_Quat
-        | SceneDataFormat.Transform
-        | SceneDataFormat.Matrix44
-        | SceneDataFormat.Vec3_Matrix33,
-        mapping: wp.array(dtype=wp.int32) | None = None,
-        allow_passthrough: bool = True,
-    ) -> bool:
-        """Convert sim backend transforms into the requested output format.
-
-        When the backend's native format matches ``output``, data is either passed
-        through by reference (``allow_passthrough=True``) or deep-copied. Otherwise a
-        Warp conversion kernel is launched to transform the data, applying ``mapping``
-        to reorder the output if provided.
-
-        Args:
-            output: A pre-allocated :class:`SceneDataFormat` struct that determines the
-                target format. Uninitialized (``None``) fields are allocated automatically
-                when a conversion kernel is needed.
-            mapping: Optional index remapping array produced by
-                :meth:`create_mapping`. When ``None``, input and output indices are
-                identical.
-            allow_passthrough: If ``True`` and the formats already match, the output
-                struct's fields are set to reference the input arrays directly
-                (zero-copy). If ``False``, the data is always copied.
-
-        Returns:
-            ``True`` if the conversion succeeded, ``False`` if no suitable conversion
-            kernel exists for the input/output format pair.
-        """
-        input = self.backend.transforms
-
-        if mapping is None and type(input) is type(output):
-            if allow_passthrough:
-                for field_name in input._cls.vars:
-                    setattr(output, field_name, getattr(input, field_name))
-            else:
-                _init_output(output, self.transform_count, _publication_device(input))
-                for field_name in input._cls.vars:
-                    wp.copy(getattr(output, field_name), getattr(input, field_name))
-            return True
-
-        conversion_kernel_name = f"convert_{input._cls.__name__}_to_{output._cls.__name__}"
-
-        if conversion_kernel := getattr(ConversionKernels, conversion_kernel_name, None):
-            device = _publication_device(input)
-            _init_output(output, self.transform_count, device)
-            wp.launch(
-                kernel=conversion_kernel,
-                dim=self.transform_count,
-                inputs=[input, mapping],
-                outputs=[output],
-                device=device,
-            )
-            return True
-
-        return False
 
     def init_output(
         self,
@@ -923,5 +886,6 @@ if __name__ == "__main__":
     sim = ExampleSceneDataBackend()
     sdp = SceneDataProvider(sim)
     mapping = sdp.create_mapping(sim.transform_paths[::-1])
-    output_data = sdp.request_transforms(SceneDataFormat.Vec3_Matrix33, mapping)
+    output_data = SceneDataFormat.Vec3_Matrix33()
+    sdp.get_transforms(output_data, mapping)
     print(output_data.positions.numpy())

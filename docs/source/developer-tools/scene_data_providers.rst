@@ -51,11 +51,10 @@ The system has three layers:
 2. :class:`~isaaclab.scene_data.SceneDataProvider`: wraps a backend and offers format conversion
    plus index re-mapping.
 
-   - :meth:`SceneDataProvider.request_transforms`: returns the native pointer when format and
-     ordering match, or converts once per dirty generation and destination layout. Converted
-     buffers belong to SDP and are shared by repeated requests. Consumers treat them as read-only.
-   - :meth:`SceneDataProvider.get_transforms`: retains the caller-owned output-buffer interface
-     for tools that explicitly need a copy. Rendering consumers use ``request_transforms``.
+   - :meth:`SceneDataProvider.get_transforms`: binds native arrays when format and ordering match,
+     or SDP-owned buffers converted once per dirty generation and destination layout. These shared
+     arrays are read-only, including when they replace preallocated output fields. Pass
+     ``allow_passthrough=False`` to write directly into caller-owned arrays instead.
    - :meth:`SceneDataProvider.create_mapping`: builds a remap array from the backend's prim
      paths to a consumer's desired ordering. Used when a renderer or visualizer wants
      transforms indexed by its own body list rather than by the physics view order.

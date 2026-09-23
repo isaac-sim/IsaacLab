@@ -464,15 +464,15 @@ def test_transforms_finish_dirty_kinematics_before_native_reads(monkeypatch):
     backend._rigid_bindings = [(SimpleNamespace(read_into=lambda *args: calls.append("read")), poses)]
     sdp = SceneDataProvider(backend)
     monkeypatch.setattr(OvPhysxManager, "_kinematics_dirty", True)
-    sdp.request_transforms(SceneDataFormat.Transform)
-    sdp.request_transforms(SceneDataFormat.Transform)
+    sdp.get_transforms(SceneDataFormat.Transform())
+    sdp.get_transforms(SceneDataFormat.Transform())
     assert calls == ["fk", "read"]
     assert not OvPhysxManager._kinematics_dirty
 
     OvPhysxManager.forward()
     assert backend.transforms_dirty
-    sdp.request_transforms(SceneDataFormat.Transform)
-    sdp.request_transforms(SceneDataFormat.Transform)
+    sdp.get_transforms(SceneDataFormat.Transform())
+    sdp.get_transforms(SceneDataFormat.Transform())
     assert calls == ["fk", "read", "fk", "read"]
 
 
@@ -909,17 +909,21 @@ def test_transforms_read_native_slices_only_when_dirty(monkeypatch):
     backend.setup(FakePhysX(), stage, "cpu")
     sdp = SceneDataProvider(backend)
 
-    native = sdp.request_transforms(SceneDataFormat.Transform)
+    native = SceneDataFormat.Transform()
+    assert sdp.get_transforms(native)
     assert backend.transform_count == len(paths)
     assert backend.transform_paths == paths
     assert reads == [(0, native.transforms.ptr), (2, native.transforms.ptr + 2 * 7 * 4)]
     np.testing.assert_array_equal(native.transforms.numpy(), expected)
-    assert sdp.request_transforms(SceneDataFormat.Transform).transforms is native.transforms
+    second_output = SceneDataFormat.Transform()
+    assert sdp.get_transforms(second_output)
+    assert second_output.transforms is native.transforms
     assert len(reads) == 2
 
     expected[:, 0] += 10
     backend.transforms_dirty = True
-    assert sdp.request_transforms(SceneDataFormat.Transform).transforms is native.transforms
+    assert sdp.get_transforms(second_output)
+    assert second_output.transforms is native.transforms
     assert len(reads) == 4
     np.testing.assert_array_equal(native.transforms.numpy(), expected)
 
@@ -955,7 +959,7 @@ def test_failed_rigid_read_keeps_transforms_dirty():
     sdp = SceneDataProvider(backend)
 
     with pytest.raises(RuntimeError, match="simulated read failure"):
-        sdp.request_transforms(SceneDataFormat.Transform)
+        sdp.get_transforms(SceneDataFormat.Transform())
     assert backend.transforms_dirty
 
 

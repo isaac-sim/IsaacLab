@@ -355,28 +355,36 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
     monkeypatch.setattr(NewtonManager, "_reset_solver_internals_delegate", Mock())
     monkeypatch.setattr(wp, "launch", Mock(wraps=wp.launch))
 
-    output = provider.request_transforms(SceneDataFormat.Matrix44)
+    output = SceneDataFormat.Matrix44()
+    assert provider.get_transforms(output)
+    matrices = output.matrices
     NewtonManager.pre_render()
     NewtonManager._eval_fk.assert_not_called()
     NewtonManager.get_state(provider)
-    assert provider.request_transforms(SceneDataFormat.Matrix44) is output
+    assert provider.get_transforms(output)
+    assert output.matrices is matrices
     assert wp.launch.call_count == 1
     NewtonManager._eval_fk.assert_not_called()
 
     state.body_q.assign([[1, 2, 3, 0, 0, 0, 1]])
     getattr(NewtonXPBDManager, invalidate)()
-    assert provider.request_transforms(SceneDataFormat.Matrix44) is output
+    assert provider.get_transforms(output)
+    assert output.matrices is matrices
     np.testing.assert_allclose(output.matrices.numpy()[0, :3, 3], [1, 2, 3])
     NewtonManager._eval_fk.assert_called_once()
-    assert provider.request_transforms(SceneDataFormat.Matrix44) is output
+    assert provider.get_transforms(output)
+    assert output.matrices is matrices
     NewtonManager.pre_render()
     NewtonManager._eval_fk.assert_called_once()
     assert wp.launch.call_count == 2
 
     replacement = wp.array([[3, 2, 1, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
     NewtonManager.backend.state_0 = SimpleNamespace(body_q=replacement)
-    assert provider.request_transforms(SceneDataFormat.Transform).transforms is replacement
-    assert provider.request_transforms(SceneDataFormat.Matrix44) is output
+    native = SceneDataFormat.Transform()
+    assert provider.get_transforms(native)
+    assert native.transforms is replacement
+    assert provider.get_transforms(output)
+    assert output.matrices is matrices
     assert wp.launch.call_count == 3
     np.testing.assert_allclose(output.matrices.numpy()[0, :3, 3], [3, 2, 1])
 

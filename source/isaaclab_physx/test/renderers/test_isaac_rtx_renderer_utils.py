@@ -180,9 +180,7 @@ class TestEnsureIsaacRtxRenderUpdate:
         mock_omni_kit_app.get_app.return_value = mock_app
         mock_sim_context.instance.return_value = mock_sim
         provider = mock_sim.get_scene_data_provider.return_value
-        mock_app.update.side_effect = lambda: provider.request_transforms.assert_called_once_with(
-            SceneDataFormat.FabricMatrix44
-        )
+        mock_app.update.side_effect = provider.get_transforms.assert_called_once
 
         with patch.object(rtx_utils, "_get_stage_streaming_busy", return_value=False):
             rtx_utils.ensure_isaac_rtx_render_update()
@@ -193,7 +191,8 @@ class TestEnsureIsaacRtxRenderUpdate:
             rtx_utils.ensure_isaac_rtx_render_update()
 
         mock_app.update.assert_not_called()
-        provider.request_transforms.assert_called_once_with(SceneDataFormat.FabricMatrix44)
+        provider.get_transforms.assert_called_once()
+        assert provider.get_transforms.call_args.args[0]._cls is SceneDataFormat.FabricMatrix44
         mock_sim.physics_manager.forward.assert_not_called()
 
     def test_no_sim_is_noop(self, mock_sim_context, mock_omni_kit_app):
@@ -236,5 +235,5 @@ class TestEnsureIsaacRtxRenderUpdate:
 
         assert mock_app.update.call_count == int(force)
         provider = mock_sim.get_scene_data_provider.return_value
-        assert provider.request_transforms.call_count == int(force)
+        assert provider.get_transforms.call_count == int(force)
         mock_sim.physics_manager.forward.assert_not_called()

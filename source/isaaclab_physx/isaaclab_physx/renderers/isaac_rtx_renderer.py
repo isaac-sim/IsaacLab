@@ -580,7 +580,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
     def update_transforms(self) -> None:
         """Request shared Fabric transforms and propagate the visual hierarchy."""
-        self._sdp.request_transforms(SceneDataFormat.FabricMatrix44)
+        self._sdp.get_transforms(SceneDataFormat.FabricMatrix44())
 
     def update_geometries(self) -> None:
         """No-op for Isaac RTX - uses USD scene directly.

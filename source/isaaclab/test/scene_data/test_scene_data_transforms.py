@@ -31,6 +31,7 @@ def test_get_transforms_matches_backend_device_when_warp_default_is_cuda():
     provider = SceneDataProvider(
         SimpleNamespace(
             transforms=transforms,
+            transforms_dirty=True,
             transform_count=3,
             transform_paths=["/World/a", "/World/b", "/World/c"],
         )
@@ -55,29 +56,69 @@ def test_publication_aliases_native_pointer_and_converts_once_per_write(monkeypa
     data.transforms = wp.array([[1, 2, 3, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
     backend = SimpleNamespace(transforms=data, transforms_dirty=True, transform_count=1)
     provider = SceneDataProvider(backend)
+    native = SceneDataFormat.Transform()
+    converted = SceneDataFormat.Vec3_Quat()
+    other = SceneDataFormat.Vec3_Quat()
     with pytest.raises(ValueError, match="destination count"):
-        provider.request_transforms(SceneDataFormat.Transform, count=2)
+        provider.get_transforms(native, count=2)
     launch = Mock(wraps=wp.launch)
     monkeypatch.setattr(wp, "launch", launch)
-    assert provider.request_transforms(SceneDataFormat.Transform).transforms is data.transforms
+    assert provider.get_transforms(native)
+    assert native.transforms is data.transforms
     launch.assert_not_called()
-    converted = provider.request_transforms(SceneDataFormat.Vec3_Quat)
-    assert provider.request_transforms(SceneDataFormat.Vec3_Quat) is converted
+    assert provider.get_transforms(converted)
+    assert provider.get_transforms(other)
+    assert other.positions is converted.positions
     assert launch.call_count == 1
     np.testing.assert_array_equal(converted.positions.numpy(), [[1, 2, 3]])
+    # A consumer can rebind its wrapper without changing another consumer's arrays.
+    converted.positions = None
+    assert provider.get_transforms(converted)
+    assert converted.positions is other.positions
 
     data.transforms.assign([[4, 5, 6, 0, 0, 0, 1]])
     backend.transforms_dirty = True
-    assert provider.request_transforms(SceneDataFormat.Vec3_Quat) is converted
+    assert provider.get_transforms(converted)
+    assert converted.positions is other.positions
     assert launch.call_count == 2
     np.testing.assert_array_equal(converted.positions.numpy(), [[4, 5, 6]])
 
     data.transforms = wp.array([[7, 8, 9, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
     backend.transforms_dirty = True
-    assert provider.request_transforms(SceneDataFormat.Transform).transforms is data.transforms
-    assert provider.request_transforms(SceneDataFormat.Vec3_Quat) is converted
+    assert provider.get_transforms(native)
+    assert native.transforms is data.transforms
+    assert provider.get_transforms(converted)
+    assert converted.positions is other.positions
     assert launch.call_count == 3
     np.testing.assert_array_equal(converted.positions.numpy(), [[7, 8, 9]])
+
+
+@pytest.mark.parametrize("format_name", ["Transform", "Vec3_Quat"])
+def test_owned_transform_buffers_are_written_directly_and_do_not_alias_cache(format_name, monkeypatch):
+    data = SceneDataFormat.Transform()
+    data.transforms = wp.array([[1, 2, 3, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
+    backend = SimpleNamespace(transforms=data, transforms_dirty=True, transform_count=1)
+    provider = SceneDataProvider(backend)
+    shared, owned = (getattr(SceneDataFormat, format_name)() for _ in range(2))
+    assert provider.get_transforms(shared)
+    provider.init_output(owned)
+    arrays = [getattr(owned, name) for name in owned._cls.vars]
+    launch, copy = Mock(wraps=wp.launch), Mock(wraps=wp.copy)
+    monkeypatch.setattr(wp, "launch", launch)
+    monkeypatch.setattr(wp, "copy", copy)
+    for x in (4, 7):
+        data.transforms.assign([[x, 5, 6, 0, 0, 0, 1]])
+        backend.transforms_dirty = True
+        launch.reset_mock()
+        copy.reset_mock()
+        assert provider.get_transforms(owned, allow_passthrough=False)
+        assert launch.call_count == int(format_name != "Transform")
+        assert copy.call_count == int(format_name == "Transform")
+        assert provider.get_transforms(shared)
+        for name, array in zip(owned._cls.vars, arrays):
+            assert getattr(owned, name) is array
+            assert array is not getattr(shared, name)
+            np.testing.assert_array_equal(array.numpy(), getattr(shared, name).numpy())
 
 
 @pytest.mark.parametrize("format_name", ["Transform", "Vec3_Quat", "Vec3_Matrix33", "Matrix44"])
@@ -104,27 +145,30 @@ def test_transposed_matrices_fuse_format_mapping_and_scale(format_name, scaled):
     provider = SceneDataProvider(SimpleNamespace(transforms=data, transforms_dirty=True, transform_count=2))
     mapping = wp.array([1, 0], dtype=wp.int32, device="cpu")
     scales = wp.array([[2, 3, 4], [5, 6, 7]], dtype=wp.vec3f, device="cpu") if scaled else None
-    output = provider.request_transforms(SceneDataFormat.TransposedMatrix44d, mapping, scales=scales)
+    output = SceneDataFormat.TransposedMatrix44d()
+    assert provider.get_transforms(output, mapping, scales=scales)
     expected = matrices[::-1].transpose(0, 2, 1).copy()
     if scaled:
         expected[:, :3, :3] *= scales.numpy()[:, :, None]
     np.testing.assert_allclose(output.matrices.numpy(), expected)
-    assert provider.request_transforms(SceneDataFormat.TransposedMatrix44d, mapping, scales=scales) is output
+    matrices = output.matrices
+    assert provider.get_transforms(output, mapping, scales=scales)
+    assert output.matrices is matrices
 
 
 @pytest.mark.parametrize("format_name", ["Transform", "Vec3_Quat", "Vec3_Matrix33", "Matrix44"])
 @pytest.mark.parametrize("device", test_devices())
-def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destinations(
-    format_name, device, monkeypatch
-):
+def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destinations(format_name, device, monkeypatch):
     """Fabric conversion skips solver-only bodies and preserves scales across buffer reallocations."""
     poses = [[1, 2, 3, 0, 0, 0, 1], [7, 8, 9, 0, 0, 0, 1], [4, 5, 6, 0, 0, 1, 0]]
     data = SceneDataFormat.Transform()
     data.transforms = wp.array(poses, dtype=wp.transformf, device=device)
     native = SceneDataProvider(SimpleNamespace(transforms=data, transforms_dirty=True, transform_count=len(poses)))
+    source = getattr(SceneDataFormat, format_name)()
+    assert native.get_transforms(source)
     provider = SceneDataProvider(
         SimpleNamespace(
-            transforms=native.request_transforms(getattr(SceneDataFormat, format_name)),
+            transforms=source,
             transforms_dirty=True,
             transform_count=len(poses),
             fabric=None,
@@ -188,12 +232,15 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
             },
             PrepareForReuse=lambda: changes.pop() if changes else False,
         )
-        output = provider.request_transforms(SceneDataFormat.FabricMatrix44)
+        output = SceneDataFormat.FabricMatrix44()
+        assert provider.get_transforms(output)
         assert output.scales is scales
         provider._fabric_hierarchy.update_world_xforms_gpu.assert_called_once_with(False)
         provider._fabric_hierarchy.reset_mock()
         provider._fabric_write_selection.PrepareForReuse.reset_mock()
-        assert provider.request_transforms(SceneDataFormat.FabricMatrix44) is output
+        previous_matrices = output.matrices
+        assert provider.get_transforms(output)
+        assert output.matrices is previous_matrices
         assert provider._fabric_hierarchy.mock_calls == []
         provider._fabric_write_selection.PrepareForReuse.assert_not_called()
         assert launch.call_count == allocation + 2
@@ -207,7 +254,7 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
             poses[:, 3:] = rotation
             data.transforms.assign(poses)
             provider.backend.transforms_dirty = True
-            provider.request_transforms(SceneDataFormat.FabricMatrix44)
+            provider.get_transforms(output)
         np.testing.assert_allclose(
             np.linalg.norm(matrices.numpy()[:, :3, :3], axis=-1),
             np.linalg.norm(expected[:, :3, :3], axis=-1),

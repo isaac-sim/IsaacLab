@@ -163,7 +163,9 @@ def test_sdp_native_gpu_fabric_binding_preserves_live_physx_pose(device, request
     torch.testing.assert_close(before[0], torch.tensor([[1, 2, 3]], dtype=torch.float32, device=device))
     provider = SceneDataProvider(sim.get_scene_data_provider().backend)
     provider._prepare_fabric(sim.stage, device)
-    assert provider.request_transforms(SceneDataFormat.FabricMatrix44).matrices.shape == (1,)
+    output = SceneDataFormat.FabricMatrix44()
+    assert provider.get_transforms(output)
+    assert output.matrices.shape == (1,)
     for value, expected in zip(frame_view.get_world_poses(), before, strict=True):
         torch.testing.assert_close(value.torch, expected, rtol=0, atol=0)
 
@@ -173,7 +175,7 @@ def test_sdp_native_gpu_fabric_binding_preserves_live_physx_pose(device, request
         indices=wp.array([0], dtype=wp.int32, device=device),
     )
     sim.physics_manager.invalidate_transforms()
-    provider.request_transforms(SceneDataFormat.FabricMatrix44)
+    provider.get_transforms(output)
     torch.testing.assert_close(
         frame_view.get_world_poses()[0].torch, torch.tensor([[-2, 0.5, 4]], dtype=torch.float32, device=device)
     )

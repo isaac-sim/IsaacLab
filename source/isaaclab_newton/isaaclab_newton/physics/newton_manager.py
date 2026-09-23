@@ -656,7 +656,7 @@ class NewtonManager(PhysicsManager):
             return
         provider = cls.get_scene_data_provider()
         provider._prepare_fabric(PhysicsManager._sim.stage, str(PhysicsManager._device))
-        provider.request_transforms(SceneDataFormat.FabricMatrix44)
+        provider.get_transforms(SceneDataFormat.FabricMatrix44())
 
     @classmethod
     def sync_transforms_to_usd(cls) -> None:
@@ -2557,7 +2557,7 @@ class NewtonManager(PhysicsManager):
         if scene_data_provider is None:
             scene_data_provider = cls.get_scene_data_provider()
         if cls._backend_is_newton(scene_data_provider):
-            scene_data_provider.request_transforms(SceneDataFormat.Transform)
+            scene_data_provider.get_transforms(SceneDataFormat.Transform())
         else:
             cls.update_visualization_state(scene_data_provider)
         return cls.get_state_0()
@@ -2814,10 +2814,10 @@ class NewtonManager(PhysicsManager):
                     raise ValueError("Every Newton render body must have one unique SDP transform path.")
                 cls._scene_data_mapping = scene_data_provider.create_mapping(body_paths)
 
-            transforms = scene_data_provider.request_transforms(
-                SceneDataFormat.Transform, mapping=cls._scene_data_mapping, count=cls.backend.model.body_count
-            )
-            if transforms is not None:
+            transforms = SceneDataFormat.Transform()
+            if scene_data_provider.get_transforms(
+                transforms, mapping=cls._scene_data_mapping, count=cls.backend.model.body_count
+            ):
                 if cls.backend.state_0.body_q is not transforms.transforms:
                     cls.backend.state_0.body_q = transforms.transforms
                     cls._invalidate_sensor_graph()

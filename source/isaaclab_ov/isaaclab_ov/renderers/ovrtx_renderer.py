@@ -1050,7 +1050,9 @@ class OVRTXRenderer(BaseRenderer):
         """Write SDP's requested matrix layout without another conversion."""
         if self._object_xform_binding is None:
             return
-        transforms = self._sdp.request_transforms(SceneDataFormat.TransposedMatrix44d, scales=self._object_scales)
+        transforms = SceneDataFormat.TransposedMatrix44d()
+        if not self._sdp.get_transforms(transforms, scales=self._object_scales):
+            return
         if self._transform_generation == self._sdp.transform_generation:
             return
         # Blocking ``write()`` so the buffer stays valid until OVRTX finishes reading it.
@@ -2261,7 +2263,9 @@ class OVRTXRenderer(BaseRenderer):
         """Write SDP's matrix layout through the active ovstage ordinal."""
         if self._object_xform_query is None:
             return
-        transforms = self._sdp.request_transforms(SceneDataFormat.TransposedMatrix44d, scales=self._object_scales)
+        transforms = SceneDataFormat.TransposedMatrix44d()
+        if not self._sdp.get_transforms(transforms, scales=self._object_scales):
+            return
         if self._transform_generation == self._sdp.transform_generation:
             return
         # Stream-ordered zero-copy handoff; wait until OVStage has consumed the shared buffer.

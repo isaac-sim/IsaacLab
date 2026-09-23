@@ -236,7 +236,7 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
 
     provider = sim.get_scene_data_provider()
     provider._prepare_fabric(sim.stage, sim.device)
-    provider.request_transforms(SceneDataFormat.FabricMatrix44)
+    provider.get_transforms(SceneDataFormat.FabricMatrix44())
 
     import omni.kit.app
 

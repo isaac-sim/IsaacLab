@@ -34,11 +34,12 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
     visualizer.step(0.1)
 
     assert tracking.call_count == int(not headless)
-    request = visualizer._scene_data_provider.request_transforms
+    request = visualizer._scene_data_provider.get_transforms
     if headless:
         request.assert_not_called()
     else:
-        request.assert_called_once_with(SceneDataFormat.FabricMatrix44)
+        request.assert_called_once()
+        assert request.call_args.args[0]._cls is SceneDataFormat.FabricMatrix44
 
 
 @pytest.mark.parametrize("generated", [False, True])

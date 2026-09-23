@@ -1450,7 +1450,7 @@ def test_initialize_solver_prepares_picking_before_graph_capture(
 
         def on_physics_ready(_):
             events.append("ready")
-            sim.get_scene_data_provider().request_transforms(SceneDataFormat.Transform)
+            sim.get_scene_data_provider().get_transforms(SceneDataFormat.Transform())
 
         def build_solver_with_actuator_mode(cls, model, solver_cfg):
             build_solver(model, solver_cfg)
