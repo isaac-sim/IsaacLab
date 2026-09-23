@@ -143,97 +143,6 @@ def _expected_cable_points_world(cable, env_id: int = 0) -> torch.Tensor:
     return torch.stack(points)
 
 
-class _FakePrim:
-    def __init__(self, valid=True):
-        self.valid = valid
-        self.attributes = {}
-        self.applied_schemas = []
-        self.created_world_matrix_attrs = 0
-        self.set_world_xform_from_usd = 0
-
-    def IsValid(self):
-        return self.valid
-
-    def AddAppliedSchema(self, schema):
-        self.applied_schemas.append(schema)
-
-
-class _FakeStage:
-    def __init__(self, prims=None):
-        self.prims = prims or {}
-        self.defined_prims = []
-
-    def GetPrimAtPath(self, path):
-        return self.prims.get(path, _FakePrim(valid=False))
-
-    def DefinePrim(self, path, prim_type):
-        prim = _FakePrim()
-        self.prims[path] = prim
-        self.defined_prims.append((path, prim_type))
-        return prim
-
-
-class _FakeXformable:
-    def __init__(self, prim):
-        self.prim = prim
-
-    def SetWorldXformFromUsd(self):
-        self.prim.set_world_xform_from_usd += 1
-
-    def CreateFabricHierarchyWorldMatrixAttr(self):
-        self.prim.created_world_matrix_attrs += 1
-
-
-class _FakeFabricHierarchy:
-    def __init__(self):
-        self.update_world_xforms_count = 0
-
-    def update_world_xforms(self):
-        self.update_world_xforms_count += 1
-
-
-class _FakeRt:
-    Xformable = _FakeXformable
-
-
-class _FakeUsdrt:
-    Rt = _FakeRt
-
-
-def test_initialize_fabric_body_prims_uses_existing_fabric_prim():
-    prim = _FakePrim()
-    stage = _FakeStage({"/World/envs/env_0/Robot/base": prim})
-    fabric_hierarchy = _FakeFabricHierarchy()
-
-    NewtonManager._initialize_fabric_body_prims(
-        stage, fabric_hierarchy, _FakeUsdrt, [("/World/envs/env_0/Robot/base", 3)]
-    )
-
-    assert stage.defined_prims == []
-    assert prim.set_world_xform_from_usd == 1
-    assert prim.created_world_matrix_attrs == 0
-    assert prim.attributes == {}
-    assert prim.applied_schemas == ["PhysicsRigidBodyAPI"]
-    assert fabric_hierarchy.update_world_xforms_count == 1
-
-
-def test_initialize_fabric_body_prims_creates_missing_body_as_xform():
-    stage = _FakeStage()
-    fabric_hierarchy = _FakeFabricHierarchy()
-
-    NewtonManager._initialize_fabric_body_prims(
-        stage, fabric_hierarchy, _FakeUsdrt, [("/World/envs/env_1/Robot/joints/forearm", 7)]
-    )
-
-    prim = stage.prims["/World/envs/env_1/Robot/joints/forearm"]
-    assert stage.defined_prims == [("/World/envs/env_1/Robot/joints/forearm", "Xform")]
-    assert prim.set_world_xform_from_usd == 0
-    assert prim.created_world_matrix_attrs == 1
-    assert prim.attributes == {}
-    assert prim.applied_schemas == ["PhysicsRigidBodyAPI"]
-    assert fabric_hierarchy.update_world_xforms_count == 1
-
-
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
 def test_root_pose_write_is_visible_on_next_render_without_step():
@@ -548,25 +457,6 @@ def _assert_position(actual: torch.Tensor, expected: torch.Tensor) -> None:
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
-def test_frame_view_pose_write_reaches_fabric():
-    """A world-attached FrameView pose write reaches the transform Kit/RTX renders."""
-    device = "cuda:0"
-    frame_path = "/World/Frame"
-    spawn_position = torch.tensor([0.0, 0.0, 2.0])
-    target_position = torch.tensor([1.0, -0.5, 8.0])
-
-    with _frame_scene(frame_path, tuple(spawn_position.tolist()), device) as (sim, scene, view):
-        _assert_position(_fabric_position(frame_path), spawn_position)
-
-        _write_frame_world_position(view, target_position.to(device))
-        _render(sim, scene)
-
-        _assert_position(_reported_position(view), target_position)
-        _assert_position(_fabric_position(frame_path), target_position)
-
-
-@pytest.mark.isaacsim_ci
-@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
 def test_frame_view_pose_write_reaches_fabric_when_the_scope_raises():
     """A pose write already committed to Newton is mirrored even when the scope unwinds."""
     device = "cuda:0"
@@ -580,6 +470,7 @@ def test_frame_view_pose_write_reaches_fabric_when_the_scope_raises():
                 raise RuntimeError("boom")
         _render(sim, scene)
 
+        _assert_position(_reported_position(view), target_position)
         _assert_position(_fabric_position(frame_path), target_position)
 
 

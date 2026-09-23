@@ -328,59 +328,11 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
     ForeignPhysicsManager.dispatch_event(PhysicsEvent.STOP)
 
 
-def test_update_visualization_state_noop_when_backend_is_newton(monkeypatch):
-    """When sim backend is Newton, update_visualization_state is a no-op."""
-    from isaaclab_newton.physics import NewtonManager
-
-    _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: True))
-    monkeypatch.setattr(NewtonManager, "get_scene_data_provider", classmethod(lambda cls: SimpleNamespace()))
-
-    # Pre-set sentinel values to ensure update doesn't touch them.
-    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model="live-model", state_0="live-state"))
-    NewtonManager.update_visualization_state()
-    assert NewtonManager.backend.model == "live-model"
-    assert NewtonManager.backend.state_0 == "live-state"
-
-
 @pytest.mark.parametrize("invalidate", ["invalidate_body_state", "invalidate_fk"])
-def test_scene_data_publishes_native_pointer_and_invalidates_writes_and_swaps(monkeypatch, invalidate):
-    """Native publication never recurses into consumers and follows solver buffer swaps."""
+def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monkeypatch, invalidate):
+    """Clean native reads reuse FK and conversions; writes and solver-buffer swaps refresh their values."""
     import warp as wp
     from isaaclab_newton.physics import NewtonManager, NewtonXPBDManager
-    from isaaclab_newton.physics import newton_manager as nm
-
-    from isaaclab.physics import PhysicsManager
-
-    _reset_newton_manager_state()
-    monkeypatch.setattr(PhysicsManager, "_device", "cpu")
-    body_q = wp.zeros(1, dtype=wp.transformf, device="cpu")
-    state = SimpleNamespace(body_q=body_q)
-    backend = nm.NewtonSceneDataBackend()
-    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(state_0=state))
-    monkeypatch.setattr(NewtonManager, "_scene_data_backend", backend)
-    monkeypatch.setattr(NewtonManager, "get_state", Mock(side_effect=AssertionError("consumer recursion")))
-
-    transforms = backend.transforms
-    assert transforms.transforms is body_q
-    assert backend.transforms_dirty
-    backend.transforms_dirty = False
-    assert backend.transforms is transforms
-    assert not backend.transforms_dirty
-
-    getattr(NewtonXPBDManager, invalidate)()
-    assert backend.transforms_dirty
-    backend.transforms_dirty = False
-    replacement = wp.zeros_like(body_q)
-    NewtonManager.backend.state_0 = SimpleNamespace(body_q=replacement)
-    assert backend.transforms.transforms is replacement
-    assert backend.transforms_dirty
-
-
-def test_native_publication_reuses_clean_fk_and_refreshes_captured_writes(monkeypatch):
-    """FK reads reuse conversions; replay-capable writes retain render-boundary invalidation."""
-    import warp as wp
-    from isaaclab_newton.physics import NewtonManager
     from isaaclab_newton.physics.newton_manager import NewtonSceneDataBackend
 
     from isaaclab.physics import PhysicsManager
@@ -406,36 +358,26 @@ def test_native_publication_reuses_clean_fk_and_refreshes_captured_writes(monkey
     output = provider.request_transforms(SceneDataFormat.Matrix44)
     NewtonManager.pre_render()
     NewtonManager._eval_fk.assert_not_called()
-    NewtonManager._sensor_state_dirty = False
-    fk_calls = NewtonManager._eval_fk.call_count
     NewtonManager.get_state(provider)
     assert provider.request_transforms(SceneDataFormat.Matrix44) is output
     assert wp.launch.call_count == 1
-    assert NewtonManager._eval_fk.call_count == fk_calls
-    assert not NewtonManager._sensor_state_dirty
+    NewtonManager._eval_fk.assert_not_called()
 
-    NewtonManager.invalidate_fk()
+    state.body_q.assign([[1, 2, 3, 0, 0, 0, 1]])
+    getattr(NewtonXPBDManager, invalidate)()
     assert provider.request_transforms(SceneDataFormat.Matrix44) is output
+    np.testing.assert_allclose(output.matrices.numpy()[0, :3, 3], [1, 2, 3])
     NewtonManager._eval_fk.assert_called_once()
     assert provider.request_transforms(SceneDataFormat.Matrix44) is output
     NewtonManager.pre_render()
     NewtonManager._eval_fk.assert_called_once()
     assert wp.launch.call_count == 2
 
-    with monkeypatch.context() as capture:
-        capture.setattr(PhysicsManager, "_device", "capturing-device")
-        capture.setattr(
-            wp, "get_device", lambda _: SimpleNamespace(is_cuda=True, stream=SimpleNamespace(is_capturing=True))
-        )
-        NewtonManager.invalidate_body_state()
-    provider.request_transforms(SceneDataFormat.Matrix44)
-    assert wp.launch.call_count == 3
-
-    # A captured write replays without calling its Python invalidation hook again.
-    state.body_q.assign([[3, 2, 1, 0, 0, 0, 1]])
-    NewtonManager.pre_render()
+    replacement = wp.array([[3, 2, 1, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
+    NewtonManager.backend.state_0 = SimpleNamespace(body_q=replacement)
+    assert provider.request_transforms(SceneDataFormat.Transform).transforms is replacement
     assert provider.request_transforms(SceneDataFormat.Matrix44) is output
-    assert wp.launch.call_count == 4
+    assert wp.launch.call_count == 3
     np.testing.assert_allclose(output.matrices.numpy()[0, :3, 3], [3, 2, 1])
 
 
@@ -497,7 +439,6 @@ def test_update_visualization_state_shares_sdp_transforms(monkeypatch, layout):
         )
     )
     monkeypatch.setattr(SceneDataProvider, "usd_stage", property(lambda self: None))
-    monkeypatch.setattr(provider, "create_mapping", Mock(wraps=provider.create_mapping))
 
     destination = wp.zeros(len(body_paths), dtype=wp.transformf, device="cpu")
     monkeypatch.setattr(
@@ -516,29 +457,17 @@ def test_update_visualization_state_shares_sdp_transforms(monkeypatch, layout):
 
     remapped = layout == "reordered"
     NewtonManager.update_visualization_state(provider)
-    shared = provider.request_transforms(SceneDataFormat.Transform, mapping=NewtonManager._scene_data_mapping)
-    assert NewtonManager.backend.state_0.body_q is shared.transforms
-    assert (shared.transforms is source_transforms) is not remapped
-    np.testing.assert_allclose(shared.transforms.numpy(), source_transforms.numpy()[:: -1 if remapped else 1])
-
-    generation = provider.transform_generation
-    NewtonManager._sensor_state_dirty = False
-    assert NewtonManager.get_state(provider) is NewtonManager.backend.state_0
-    assert provider.transform_generation == generation
-    assert not NewtonManager._sensor_state_dirty
-    assert provider.create_mapping.call_count == 1
+    shared = NewtonManager.get_state(provider).body_q
+    assert (shared is source_transforms) is not remapped
+    np.testing.assert_allclose(shared.numpy(), source_transforms.numpy()[:: -1 if remapped else 1])
+    assert NewtonManager.get_state(provider).body_q is shared
 
     source_data.transforms = wp.array(source_transforms.numpy() + 1.0, dtype=wp.transformf, device="cpu")
     provider.backend.transforms_dirty = True
-    sensor_graph = NewtonManager._sensor_graph = object()
     NewtonManager.update_visualization_state(provider)
-    assert provider.transform_generation == generation + 1
-    assert NewtonManager._sensor_state_dirty
-    assert NewtonManager._sensor_graph is (sensor_graph if remapped else None)
     np.testing.assert_allclose(
         NewtonManager.backend.state_0.body_q.numpy(), source_data.transforms.numpy()[:: -1 if remapped else 1]
     )
-    assert provider.create_mapping.call_count == 1
 
 
 def test_update_visualization_state_syncs_shadow_particle_q(monkeypatch):

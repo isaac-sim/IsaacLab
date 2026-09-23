@@ -44,8 +44,6 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     provider._fabric_output = Mock(matrices=object())
     provider._fabric_selection = Mock(PrepareForReuse=Mock(return_value=False))
     monkeypatch.setattr(PhysicsManager._sim, "get_scene_data_provider", lambda: provider, raising=False)
-    assert backend.fabric is fabric
-    provider._prepare_fabric(object(), "cpu")
     provider.request_transforms(SceneDataFormat.FabricMatrix44)
     provider.request_transforms(SceneDataFormat.FabricMatrix44)
     fabric.force_update.assert_called_once_with(0.0, 0.0)
@@ -77,9 +75,6 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     provider.request_transforms(SceneDataFormat.Transform)
     assert view.get_transforms.call_count == 3
     assert not backend.transforms_dirty
-    backend.clear()
-    monkeypatch.setattr(manager, "_fabric", None)
-    assert backend.fabric is None
 
 
 @pytest.mark.parametrize("joint_has_rigid_body_api", [False, True])

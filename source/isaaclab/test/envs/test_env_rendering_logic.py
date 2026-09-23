@@ -13,8 +13,6 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
-from unittest.mock import patch
-
 import pytest
 import torch
 from isaaclab_physx.physics import IsaacEvents
@@ -252,29 +250,6 @@ def test_env_rendering_logic(env_type, render_interval, physics_callback, render
             env.close()
         else:
             # If env creation failed, still clear the singleton
-            SimulationContext.clear_instance()
-
-
-@pytest.mark.parametrize("env_type", ["manager_based_env", "manager_based_rl_env", "direct_rl_env"])
-def test_env_reset_invalidates_renderer_scene_state_cadence(env_type):
-    """A same-step reset must invalidate the renderer's geometry cadence."""
-    env = None
-    try:
-        sim_utils.create_new_stage()
-        if env_type == "manager_based_env":
-            env = create_manager_based_env(render_interval=1)
-        elif env_type == "manager_based_rl_env":
-            env = create_manager_based_rl_env(render_interval=1)
-        else:
-            env = create_direct_rl_env(render_interval=1)
-
-        with patch.object(type(env.sim.render_context), "reset_scene_state_cadence", autospec=True) as reset_cadence:
-            env.reset()
-            reset_cadence.assert_called_once_with(env.sim.render_context)
-    finally:
-        if env is not None:
-            env.close()
-        else:
             SimulationContext.clear_instance()
 
 

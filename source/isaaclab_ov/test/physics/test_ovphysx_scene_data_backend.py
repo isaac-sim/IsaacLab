@@ -924,43 +924,6 @@ def test_transforms_read_native_slices_only_when_dirty(monkeypatch):
     np.testing.assert_array_equal(native.transforms.numpy(), expected)
 
 
-def test_transforms_are_empty_before_setup():
-    """An unwired backend publishes no poses or paths."""
-    from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
-
-    backend = OvPhysxSceneDataBackend()
-    assert backend.transforms.transforms is None
-    assert backend.transform_count == 0
-    assert backend.transform_paths == []
-
-
-def test_manager_returns_scene_data_backend_instance():
-    """``OvPhysxManager.get_scene_data_backend()`` returns the cached singleton."""
-    from isaaclab_ov.physics import OvPhysxManager
-    from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
-
-    # Reset class state and inject a fresh backend instance.
-    OvPhysxManager._scene_data_backend = OvPhysxSceneDataBackend()
-    try:
-        out = OvPhysxManager.get_scene_data_backend()
-        assert isinstance(out, OvPhysxSceneDataBackend)
-        assert out is OvPhysxManager._scene_data_backend
-    finally:
-        OvPhysxManager._scene_data_backend = None
-
-
-def test_manager_returns_none_when_backend_uninitialized():
-    """Before warmup, ``get_scene_data_backend`` returns the uninitialized ``None``."""
-    from isaaclab_ov.physics import OvPhysxManager
-
-    saved = OvPhysxManager._scene_data_backend
-    OvPhysxManager._scene_data_backend = None
-    try:
-        assert OvPhysxManager.get_scene_data_backend() is None
-    finally:
-        OvPhysxManager._scene_data_backend = saved
-
-
 def test_setup_propagates_failed_rigid_binding(monkeypatch):
     """A failed binding cannot silently remove a body from the publication."""
     import isaaclab_ov.physics.ovphysx_manager as module
@@ -996,8 +959,8 @@ def test_failed_rigid_read_keeps_transforms_dirty():
     assert backend.transforms_dirty
 
 
-def test_setup_deformable_bindings_passes_surface_tensor_types(monkeypatch):
-    """Surface SceneData views must pass OVPhysX deformable tensor-type kwargs.
+def test_deformable_only_setup_publishes_surface_geometry(monkeypatch):
+    """Surface SceneData views publish geometry even without rigid bodies.
 
     Regression: constructing ``OvPhysxDeformableBodyView`` without
     ``simulation_nodal_position_type`` / ``simulation_element_indices_type``
@@ -1055,13 +1018,16 @@ def test_setup_deformable_bindings_passes_surface_tensor_types(monkeypatch):
         ],
     )
 
-    b._setup_deformable_bindings(physx=object(), stage=object(), device="cpu")
+    stage = SimpleNamespace(Traverse=lambda: iter(()))
+    b.setup(physx=object(), stage=stage, device="cpu")
 
     assert captured["simulation_nodal_position_type"] == TT.SURFACE_DEFORMABLE_SIM_POSITION
     assert captured["simulation_element_indices_type"] == TT.SURFACE_DEFORMABLE_SIM_ELEMENT_INDICES
     assert TT.SURFACE_DEFORMABLE_SIM_POSITION in captured["tensor_types"]
     assert TT.SURFACE_DEFORMABLE_SIM_ELEMENT_INDICES in captured["tensor_types"]
     assert b.point_count == 8
+    assert b.transform_count == 0
+    assert b.transform_paths == []
     assert b.geometry_paths == [
         "/World/envs/env_0/Deformable",
         "/World/envs/env_1/Deformable",
@@ -1070,32 +1036,3 @@ def test_setup_deformable_bindings_passes_surface_tensor_types(monkeypatch):
 
     _ = b.points
     assert captured["read_tensor_type"] == TT.SURFACE_DEFORMABLE_SIM_POSITION
-
-
-def test_setup_runs_deformable_bindings_without_rigid_bodies(monkeypatch):
-    """Deformable-only scenes must still create SceneData geometry bindings."""
-    import isaaclab_ov.physics.ovphysx_manager as om_mod
-    from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
-
-    b = OvPhysxSceneDataBackend()
-    called: dict[str, object] = {}
-
-    def _fake_setup_deformable_bindings(self, physx, stage, device):
-        called["physx"] = physx
-        called["stage"] = stage
-        called["device"] = device
-
-    monkeypatch.setattr(om_mod, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
-    monkeypatch.setattr(
-        OvPhysxSceneDataBackend,
-        "_setup_deformable_bindings",
-        _fake_setup_deformable_bindings,
-    )
-
-    stage = SimpleNamespace(Traverse=lambda: iter(()))
-    physx = object()
-    b.setup(physx, stage, "cpu")
-
-    assert called == {"physx": physx, "stage": stage, "device": "cpu"}
-    assert b.transform_count == 0
-    assert b._rigid_bindings == []

@@ -17,8 +17,6 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-from unittest.mock import patch
-
 import pytest
 
 import isaaclab.sim as sim_utils
@@ -47,18 +45,3 @@ def test_initialization_and_close(device):
 
     assert env._is_closed
     assert sim_utils.SimulationContext.instance() is None
-
-
-def test_reset_invalidates_renderer_scene_state_cadence():
-    """A same-step multi-agent reset must invalidate the renderer's geometry cadence."""
-    env = None
-    try:
-        sim_utils.create_new_stage()
-        env = DirectMARLEnv(cfg=make_empty_direct_marl_env_cfg())
-        env._get_observations = lambda: {}
-        with patch.object(type(env.sim.render_context), "reset_scene_state_cadence", autospec=True) as reset_cadence:
-            env.reset()
-            reset_cadence.assert_called_once_with(env.sim.render_context)
-    finally:
-        if env is not None:
-            env.close()

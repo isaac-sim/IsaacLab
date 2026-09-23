@@ -366,10 +366,12 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     assert status["rendered"]
 
 
-def test_non_graph_capturable_sensor_task_runs_eagerly(monkeypatch):
-    """Sensor tasks with allocation-backed work should not attempt CUDA graph capture."""
+def test_newton_warp_renderer_runs_triangle_mesh_refit_eagerly(monkeypatch):
+    """Allocation-backed triangle-mesh rendering runs without attempting CUDA graph capture."""
     state = object()
-    model = SimpleNamespace(shape_count=0, particle_count=0, bvh_shapes=None, bvh_particles=None)
+    model = SimpleNamespace(
+        shape_count=0, particle_count=0, bvh_shapes=None, bvh_particles=None, tri_indices=SimpleNamespace(shape=(1, 3))
+    )
     calls: list[str] = []
 
     monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: model))
@@ -392,42 +394,12 @@ def test_non_graph_capturable_sensor_task_runs_eagerly(monkeypatch):
         classmethod(lambda cls: pytest.fail("Non-graph-capturable task attempted CUDA graph capture.")),
     )
 
-    NewtonManager._register_sensor_task("render", lambda: calls.append("render"), graph_capturable=False)
-    NewtonManager._update_sensor_tasks("render")
+    renderer = object.__new__(NewtonWarpRenderer)
+    renderer.newton_sensor = SimpleNamespace(model=model)
+    monkeypatch.setattr(renderer, "_launch_render", lambda _data: calls.append("render"))
+    renderer.render(SimpleNamespace(sensor_task_name=None, ppisp_pipeline=None))
 
     assert calls == ["render"]
-    assert NewtonManager._sensor_graph is None
-    assert NewtonManager._sensor_graph_capture_failed is False
-
-
-@pytest.mark.parametrize(
-    ("triangle_count", "expected_graph_capturable"),
-    [
-        pytest.param(None, True, id="no-triangle-array"),
-        pytest.param(0, True, id="empty-triangle-array"),
-        pytest.param(1, False, id="deformable-triangle-mesh"),
-    ],
-)
-def test_newton_warp_renderer_marks_triangle_mesh_refit_as_eager(
-    monkeypatch, triangle_count, expected_graph_capturable
-):
-    """Deformable triangle-mesh rendering should opt out of conditional CUDA graph capture."""
-    registration: dict[str, object] = {}
-
-    def register_task(cls, name, update_fn, *, graph_capturable=True):
-        registration.update(name=name, update_fn=update_fn, graph_capturable=graph_capturable)
-
-    monkeypatch.setattr(NewtonManager, "_register_sensor_task", classmethod(register_task))
-    monkeypatch.setattr(NewtonManager, "_update_sensor_tasks", classmethod(lambda cls, *names: None))
-
-    tri_indices = None if triangle_count is None else SimpleNamespace(shape=(triangle_count, 3))
-    renderer = object.__new__(NewtonWarpRenderer)
-    renderer.newton_sensor = SimpleNamespace(model=SimpleNamespace(tri_indices=tri_indices))
-    render_data = SimpleNamespace(sensor_task_name=None, ppisp_pipeline=None)
-
-    renderer.render(render_data)
-
-    assert registration["graph_capturable"] is expected_graph_capturable
 
 
 def test_sensor_bvh_shape_flags_are_fixed_before_builder_creation(monkeypatch):

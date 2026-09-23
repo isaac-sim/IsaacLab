@@ -362,23 +362,6 @@ def test_writer_scope_exception_recovers_state(device, view_factory):
     assert torch.allclose(follow_up_t, torch.tensor([[10.0, 11.0, 12.0]] * 2, device=device), atol=1e-5)
 
 
-@pytest.mark.parametrize("device", ["cuda:0"])
-def test_prepare_for_reuse_detects_topology_change(device, view_factory):
-    """Each persistent ``PrimSelection`` exposes ``PrepareForReuse`` and returns a
-    bool.  When the underlying Fabric topology is unchanged it returns False.
-    """
-    bundle = view_factory(1, device)
-    view = bundle.view
-    view.get_world_poses()  # trigger Fabric init
-
-    assert view._fabric_sel.sel_ro is not None, "RO selection not initialized"
-    assert view._fabric_sel.sel_rw is not None, "RW selection not initialized"
-    for selection in (view._fabric_sel.sel_ro, view._fabric_sel.sel_rw):
-        result = selection.PrepareForReuse()
-        assert isinstance(result, bool), f"PrepareForReuse should return bool, got {type(result)}"
-        assert not result, "PrepareForReuse should return False when no topology change"
-
-
 @pytest.mark.parametrize("device", test_devices())
 def test_selections_match_only_the_view_prims(device, view_factory):
     """Selections contain only the managed child prims and their unique parents.

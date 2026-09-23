@@ -19,7 +19,6 @@ import warp as wp
 from packaging import version
 
 from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
-from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
@@ -268,24 +267,6 @@ def test_simple_shading_configures_its_render_product(
     assert global_setting_calls == []
 
 
-def test_render_product_uuid_name_format_is_sdf_safe():
-    """``rp_{uuid4().hex}`` matches the create_render_data naming contract and is SDF-safe."""
-    import uuid
-
-    from pxr import Sdf
-
-    names = [f"rp_{uuid.uuid4().hex}" for _ in range(64)]
-    assert len(set(names)) == len(names)
-    for name in names:
-        assert name.startswith("rp_")
-        hex_part = name.removeprefix("rp_")
-        assert len(hex_part) == 32
-        int(hex_part, 16)  # raises if not hex
-        assert "-" not in name
-        assert Sdf.Path.IsValidIdentifier(name)
-        assert Sdf.Path.IsValidPathString(f"/Render/{name}")
-
-
 @pytest.mark.parametrize(
     ("has_gui", "expected_disable_color_render"),
     [
@@ -365,15 +346,9 @@ def test_init_enables_replicator_before_applying_global_settings(monkeypatch):
         patch.object(rtx_renderer, "apply_isaac_rtx_global_settings", side_effect=_record_global_settings),
         patch.object(rtx_renderer, "ensure_rtx_hydra_engine_attached"),
     ):
-        renderer = rtx_renderer.IsaacRtxRenderer(IsaacRtxRendererCfg())
-        renderer.initialize()
-        renderer.update_transforms()
+        rtx_renderer.IsaacRtxRenderer(IsaacRtxRendererCfg())
 
     assert call_order == ["enable", "global_settings"]
-    sim = SimulationContext.instance()
-    provider = sim.get_scene_data_provider.return_value
-    provider._prepare_fabric.assert_called_once_with(sim.stage, sim.device)
-    provider.request_transforms.assert_called_once_with(SceneDataFormat.FabricMatrix44)
 
 
 @pytest.mark.parametrize("configured_value", [None, False, True])

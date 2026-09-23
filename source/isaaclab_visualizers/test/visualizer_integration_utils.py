@@ -1652,10 +1652,7 @@ _FRANKA_CLOTH_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH = "/World/envs/*/Robot"
 _FRANKA_CLOTH_WARMUP_STEPS = 1
 """Steps after reset before capturing the franka cloth scene.
 
-One step lets Newton propagate articulation FK so all robot arm links are visible at the
-correct positions.  At 0 steps, Newton has not yet synced body positions to USD Fabric,
-leaving the arm links at the origin and invisible in the Kit viewport.  One step also lets
-the cloth begin falling under gravity while remaining in a nearly-deterministic pose — the
+One step lets the cloth begin falling under gravity while remaining in a nearly-deterministic pose — the
 VBD solver's non-deterministic parallel reductions accumulate over many steps, so capturing
 at 1 step keeps inter-run pixel variance much lower than at 20 steps.
 This mirrors the approach used in the kitless rendering tests in
