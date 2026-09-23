@@ -5,16 +5,22 @@
 
 """Tests for the Newton JointWrenchSensor."""
 
+import re
 import sys
 from pathlib import Path
+from unittest.mock import Mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import newton
+import numpy as np
 import pytest
 import torch
 import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.sim.schemas import PhysxJointCfg
+
+from pxr import Gf, Usd, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -486,3 +492,124 @@ def test_no_stale_data_after_scene_reset(sim):
     post_reset_torque = sensor.data.torque.torch
     torch.testing.assert_close(post_reset_force, torch.zeros_like(post_reset_force))
     torch.testing.assert_close(post_reset_torque, torch.zeros_like(post_reset_torque))
+
+
+@pytest.mark.parametrize("rotated_joint_frame", [False, True])
+def test_fixed_tool_wrench(sim, tmp_path, rotated_joint_frame):
+    """A welded tool reports its weight and moment with the same analytic result on both backends."""
+    usd_path = Path(__file__).resolve().parents[3] / "isaaclab/test/sensors/data/welded_tool.usda"
+    if rotated_joint_frame:
+        rotated_path = tmp_path / "rotated_tool.usda"
+        rotated_path.write_text(usd_path.read_text())
+        usd_path = rotated_path
+        asset_stage = Usd.Stage.Open(str(usd_path))
+        joint = UsdPhysics.FixedJoint.Get(asset_stage, "/Robot/wrist")
+        rotation = Gf.Quatf(2.0**-0.5, 0.0, 0.0, 2.0**-0.5)
+        joint.CreateLocalRot0Attr(rotation)
+        joint.CreateLocalRot1Attr(rotation)
+        asset_stage.GetRootLayer().Save()
+    scene_cfg = InteractiveSceneCfg(num_envs=2, env_spacing=3.0)
+    scene_cfg.robot = ArticulationCfg(
+        prim_path="{ENV_REGEX_NS}/Robot",
+        spawn=sim_utils.UsdFileCfg(usd_path=str(usd_path)),
+        actuators={"hinge": ImplicitActuatorCfg(joint_names_expr=["hinge"], stiffness=0.0, damping=0.0)},
+    )
+    scene_cfg.wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+    scene = InteractiveScene(scene_cfg)
+    sim.reset()
+
+    robot, sensor = scene["robot"], scene["wrench"]
+    assert robot.joint_names == ["hinge"]
+    assert sensor.find_bodies("tool")[1] == ["tool"]
+    assert sensor.body_names == ["arm", "tool"]
+    assert sensor._root_view is robot.root_view
+    assert robot.root_view.joint_names == ["hinge"]
+    for _ in range(10):
+        sim.step()
+        scene.update(sim.get_physics_dt())
+
+    # The hinge supports both masses. The wrist supports only the tool, with a 0.15 m lever arm.
+    gravity = -sim.cfg.gravity[2]
+    moment = -0.5 * gravity * 0.15
+    tool_torque = (moment, 0.0, 0.0) if rotated_joint_frame else (0.0, moment, 0.0)
+    for body_name, mass, torque in (
+        ("arm", 1.5, (0.0, -(1.0 * 0.3 + 0.5 * 0.75) * gravity, 0.0)),
+        ("tool", 0.5, tool_torque),
+    ):
+        body_id = sensor.find_bodies(body_name)[0][0]
+        expected_force = torch.tensor((0.0, 0.0, mass * gravity), device=sim.device).expand(2, -1)
+        expected_torque = torch.tensor(torque, device=sim.device).expand(2, -1)
+        torch.testing.assert_close(sensor.data.force.torch[:, body_id], expected_force, atol=1e-3, rtol=1e-3)
+        torch.testing.assert_close(sensor.data.torque.torch[:, body_id], expected_torque, atol=1e-3, rtol=1e-3)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("cached_view", [False, True])
+@pytest.mark.parametrize("root_type", [newton.JointType.FREE, newton.JointType.FIXED, newton.JointType.REVOLUTE])
+def test_fixed_joint_selection(sim, monkeypatch, device, cached_view, root_type):
+    """Select tree welds independently of control joints, with world roots and loops excluded."""
+    from isaaclab_newton.sensors.joint_wrench import joint_wrench_sensor as sensor_module
+    from newton.selection import ArticulationView
+
+    # Another articulation precedes the sensor's target in each world. The target has no
+    # movable internal joints; base, mount, and tool form a tree with an additional loop weld.
+    world = newton.ModelBuilder()
+    unrelated = world.add_link(label="unrelated")
+    world.add_articulation([world.add_joint_revolute(-1, unrelated)], label="Other")
+    base = world.add_link(label="base")
+    tool = world.add_link(label="tool")
+    mount = world.add_link(label="mount")
+    if root_type == newton.JointType.FREE:
+        root_joint = world.add_joint_free(base)
+    elif root_type == newton.JointType.FIXED:
+        root_joint = world.add_joint_fixed(-1, base)
+    else:
+        root_joint = world.add_joint_revolute(-1, base)
+    mount_joint = world.add_joint_fixed(base, mount, label="mount_joint")
+    wrist_joint = world.add_joint_fixed(mount, tool, label="wrist")
+    world.add_articulation([root_joint, mount_joint, wrist_joint], label="Robot")
+    world.add_joint_fixed(tool, base, label="loop_weld")
+
+    builder = newton.ModelBuilder()
+    builder.request_state_attributes("body_parent_f")
+    for env in range(2):
+        # Distinct anchors catch accidental broadcasting of the first world's joint frames.
+        world.joint_X_c[wrist_joint] = wp.transform(wp.vec3(0.1 * (env + 1), 0.0, 0.0), wp.quat_identity())
+        builder.add_world(world, label_prefix=f"/World/envs/env_{env}")
+    model = builder.finalize(device=device)
+    state = model.state()
+    root_expr = "/World/envs/env_.*/Robot"
+    views = {}
+    if cached_view:
+        views[sensor_module.NewtonManager, root_expr] = ArticulationView(
+            model, re.compile(root_expr), exclude_joint_types=[newton.JointType.FREE, newton.JointType.FIXED]
+        )
+    original_view = views.get((sensor_module.NewtonManager, root_expr))
+    view_factory = Mock(wraps=ArticulationView)
+    monkeypatch.setattr(sensor_module, "ArticulationView", view_factory)
+    monkeypatch.setattr(sensor_module.NewtonManager, "views", views)
+    monkeypatch.setattr(sensor_module.NewtonManager, "get_model", lambda: model)
+    monkeypatch.setattr(sensor_module.NewtonManager, "get_state_0", lambda: state)
+    monkeypatch.setattr(sensor_module.BaseJointWrenchSensor, "_initialize_impl", lambda self: None)
+    monkeypatch.setattr(sensor_module, "resolve_matching_prims_from_source", lambda *a, **kw: [(None, root_expr)])
+    sensor = sensor_module.JointWrenchSensor(JointWrenchSensorCfg(prim_path=root_expr))
+    sensor._device, sensor._num_envs = device, 2
+    sensor._initialize_impl()
+
+    expected_names = ["base", "mount", "tool"] if root_type == newton.JointType.REVOLUTE else ["mount", "tool"]
+    assert sensor.body_names == expected_names
+    assert sensor._data._force.shape == (2, len(expected_names))
+    tool_index = sensor.find_bodies("tool")[0][0]
+    np.testing.assert_allclose(sensor._sim_bind_joint_X_c.numpy()[:, tool_index, 0], [0.1, 0.2])
+    np.testing.assert_array_equal(
+        sensor._joint_child.numpy(), [0, 2, 1] if root_type == newton.JointType.REVOLUTE else [2, 1]
+    )
+    # The sensor must neither replace the cached view nor add welds to its control-joint selection.
+    view = views[sensor_module.NewtonManager, root_expr]
+    assert sensor._root_view is view
+    if cached_view:
+        assert view is original_view
+    assert view_factory.call_count == int(not cached_view)
+    assert view.joint_count == int(root_type == newton.JointType.REVOLUTE)
+    assert len(views) == 1
+    assert sensor._sim_bind_body_parent_f.ptr == view.get_attribute("body_parent_f", state).ptr

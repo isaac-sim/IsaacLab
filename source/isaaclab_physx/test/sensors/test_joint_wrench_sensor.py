@@ -13,6 +13,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import math
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -610,3 +611,37 @@ def test_joint_wrench_invalidation_drops_cached_launch_state(monkeypatch):
     assert sensor._root_view is None
     assert sensor._raw_incoming_joint_wrench is None
     assert sensor._update_cmd is None
+
+
+def test_fixed_tool_wrench(sim):
+    """A welded tool reports its weight and moment with the same analytic result on both backends."""
+    usd_path = Path(__file__).resolve().parents[3] / "isaaclab/test/sensors/data/welded_tool.usda"
+    scene_cfg = InteractiveSceneCfg(num_envs=2, env_spacing=3.0)
+    scene_cfg.robot = ArticulationCfg(
+        prim_path="{ENV_REGEX_NS}/Robot",
+        spawn=sim_utils.UsdFileCfg(usd_path=str(usd_path)),
+        actuators={"hinge": ImplicitActuatorCfg(joint_names_expr=["hinge"], stiffness=0.0, damping=0.0)},
+    )
+    scene_cfg.wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+    scene = InteractiveScene(scene_cfg)
+    sim.reset()
+
+    robot, sensor = scene["robot"], scene["wrench"]
+    assert robot.joint_names == ["hinge"]
+    assert sensor.find_bodies("tool")[1] == ["tool"]
+
+    for _ in range(10):
+        sim.step()
+        scene.update(sim.get_physics_dt())
+
+    # The hinge supports both masses. The wrist supports only the tool, with a 0.15 m lever arm.
+    gravity = -sim.cfg.gravity[2]
+    for body_name, mass, torque in (
+        ("arm", 1.5, (0.0, -(1.0 * 0.3 + 0.5 * 0.75) * gravity, 0.0)),
+        ("tool", 0.5, (0.0, -0.5 * gravity * 0.15, 0.0)),
+    ):
+        body_id = sensor.find_bodies(body_name)[0][0]
+        expected_force = torch.tensor((0.0, 0.0, mass * gravity), device=sim.device).expand(2, -1)
+        expected_torque = torch.tensor(torque, device=sim.device).expand(2, -1)
+        torch.testing.assert_close(sensor.data.force.torch[:, body_id], expected_force, atol=1e-3, rtol=1e-3)
+        torch.testing.assert_close(sensor.data.torque.torch[:, body_id], expected_torque, atol=1e-3, rtol=1e-3)

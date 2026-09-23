@@ -10,6 +10,8 @@
 - Use modern Python type hints, including `X | None` instead of `Optional[X]`.
 - Use `snake_case` for methods, functions, and CLI arguments.
 - Keep related public symbols discoverable through consistent prefixes.
+- Keep joint-wrench sensor coverage separate from articulation control-joint selection. Reuse cached
+  body bindings without changing the shared view's joint filters or creating a second view for sensing.
 - Use concrete types for public interfaces where practical.
 - Use Google-style docstrings for public APIs.
 - Document SI units for public physical quantities in docstrings using inline `[unit]` notation (e.g. `Particle positions [m], shape [N, 3]`); use `[m or rad, depending on joint type]` where applicable, and skip non-physical fields (indices, counts, flags).
