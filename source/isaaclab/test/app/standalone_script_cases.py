@@ -25,9 +25,9 @@ from pathlib import Path
 from isaaclab._programs import DEMOS, EXAMPLES
 
 ROOT = Path(__file__).resolve().parents[4]
-DEMO_ROOT = ROOT / "demos"
 EXAMPLE_ROOT = ROOT / "examples"
-SCRIPT_ROOTS = (DEMO_ROOT, EXAMPLE_ROOT, ROOT / "scripts" / "tutorials")
+DEMO_ROOT = EXAMPLE_ROOT / "demos"
+SCRIPT_ROOTS = (EXAMPLE_ROOT, ROOT / "scripts" / "tutorials")
 # ``scripts/tools`` is not a root because most of its scripts are not simulator launches. The asset
 # converters are: they build a SimulationContext to preview the converted asset.
 EXTRA_SCRIPTS = (
@@ -44,9 +44,6 @@ PROGRAMS_BY_PATH = {
     **{ROOT / program.relative_path: ("demo", program.name) for program in DEMOS},
     **{ROOT / program.relative_path: ("example", program.name) for program in EXAMPLES},
 }
-DEMO_PATHS = {ROOT / program.relative_path for program in DEMOS}
-EXAMPLE_PATHS = {ROOT / program.relative_path for program in EXAMPLES}
-
 _FATAL_PATTERNS = (
     "Traceback (most recent call last):",
     "Segmentation fault",
@@ -177,8 +174,8 @@ class SmokeResult:
 _NEWTON_MJCF = str(Path(importlib.util.find_spec("newton").origin).parent / "examples" / "assets" / "nv_ant.xml")
 
 OVERRIDES = {
-    "demos/zoo.py": ScriptOverride(readiness_pattern=r"Robot zoo ready"),
-    "demos/h1_locomotion.py": ScriptOverride(
+    "examples/demos/zoo.py": ScriptOverride(readiness_pattern=r"Robot zoo ready"),
+    "examples/demos/h1_locomotion.py": ScriptOverride(
         skip_reason="downloads a published policy and requires interactive viewport input",
         visualizers=("kit",),
     ),
@@ -218,24 +215,24 @@ OVERRIDES = {
         visualizers=("newton_gl",),
         required_modules=("isaaclab_contrib",),
     ),
-    "demos/mpm/snowball_smash.py": ScriptOverride(
+    "examples/demos/snowball_smash.py": ScriptOverride(
         args=("--max_steps", "20"),
         readiness_pattern=r"Newton snowball-smash demo ready",
         fixed_physics_backend="newton_mpm",
     ),
-    "demos/mpm/teapot_fill.py": ScriptOverride(
+    "examples/demos/teapot_fill.py": ScriptOverride(
         args=("--max_steps", "20"),
         readiness_pattern=r"Newton teapot-fill MPM demo ready",
         fixed_physics_backend="newton_mpm",
     ),
     "examples/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
-    "demos/newton_viewer_block_and_tackle.py": ScriptOverride(
+    "examples/demos/newton_viewer_block_and_tackle.py": ScriptOverride(
         args=("--max_steps", "20"),
         fixed_physics_backend="newton_vbd",
         visualizers=("newton_gl",),
         required_modules=("isaaclab_contrib",),
     ),
-    "demos/newton_viewer_dominoes.py": ScriptOverride(
+    "examples/newton_viewer_dominoes.py": ScriptOverride(
         args=("--max_steps", "20"),
         fixed_physics_backend="newton_xpbd",
         visualizers=("newton_gl",),
@@ -253,7 +250,7 @@ OVERRIDES = {
         fixed_physics_backend="newton_mjwarp",
         visualizers=("none", "newton_gl", "rerun", "viser"),
     ),
-    "demos/pick_and_place.py": ScriptOverride(
+    "examples/demos/pick_and_place.py": ScriptOverride(
         readiness_pattern=r"Gym action space|Press the 'A' key", visualizers=("kit",)
     ),
     "examples/sensors/ppisp_camera.py": ScriptOverride(
@@ -365,8 +362,8 @@ def select_script_scope(specs: list[ScriptSpec], scope: str) -> list[ScriptSpec]
 
     Args:
         specs: Discovered standalone script specifications.
-        scope: Program category, directory below ``scripts``, or ``"all"`` for every script. The ``"demos"``
-            scope selects both packaged catalogs for compatibility with the existing CI job.
+        scope: Program category, directory below ``examples`` or ``scripts``, or ``"all"`` for every script.
+            The ``"demos"`` scope selects both packaged catalogs for compatibility with the existing CI job.
 
     Returns:
         Specifications selected by the requested scope.
@@ -378,12 +375,10 @@ def select_script_scope(specs: list[ScriptSpec], scope: str) -> list[ScriptSpec]
         return specs
     if scope == "demos":
         selected_specs = [spec for spec in specs if spec.path in PROGRAMS_BY_PATH]
-    elif scope.startswith(("demos/", "examples/")):
-        catalog, _, subdirectory = scope.partition("/")
-        catalog_paths = DEMO_PATHS if catalog == "demos" else EXAMPLE_PATHS
-        relative_root = (DEMO_ROOT if catalog == "demos" else EXAMPLE_ROOT) / subdirectory
+    elif scope.startswith("examples/"):
+        relative_root = ROOT / scope
         selected_specs = [
-            spec for spec in specs if spec.path in catalog_paths and spec.path.is_relative_to(relative_root)
+            spec for spec in specs if spec.path in PROGRAMS_BY_PATH and spec.path.is_relative_to(relative_root)
         ]
     else:
         relative_root = f"scripts/{scope}"

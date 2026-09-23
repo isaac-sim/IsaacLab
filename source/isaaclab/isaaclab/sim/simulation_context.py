@@ -758,6 +758,9 @@ class SimulationContext:
         self.physics_manager.play()
         self._is_playing = True
         self._is_stopped = False
+        from isaaclab.app.loading_screen import _close_program_loading_screen
+
+        _close_program_loading_screen()
 
     def step(self, render: bool = True) -> None:
         """Step physics and optionally render.

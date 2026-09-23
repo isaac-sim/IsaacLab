@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from dataclasses import dataclass
 from importlib.util import find_spec
@@ -26,6 +27,7 @@ class ProgramSpec:
     summary: str
     extras: tuple[str, ...] = ()
     required_modules: tuple[str, ...] = ()
+    newton_gl_args: tuple[str, ...] | None = ()
 
     def uvx_command(self, command: str) -> str:
         """Return the command for running the program from a released package."""
@@ -76,35 +78,32 @@ _TELEOP = {"extras": ("teleop",), "required_modules": ("isaaclab_teleop", "webso
 
 
 DEMOS = (
-    ProgramSpec("zoo", "demos/zoo.py", "Explore Isaac Lab robots and simulation features."),
+    ProgramSpec("zoo", "examples/demos/zoo.py", "Explore Isaac Lab robots and simulation features."),
     ProgramSpec(
         "h1-locomotion",
-        "demos/h1_locomotion.py",
+        "examples/demos/h1_locomotion.py",
         "Control a trained H1 locomotion policy.",
         **_ISAACSIM,
+        newton_gl_args=None,
     ),
     ProgramSpec(
         "pick-and-place",
-        "demos/pick_and_place.py",
+        "examples/demos/pick_and_place.py",
         "Interactively pick and place a cube.",
         **_ISAACSIM,
-    ),
-    ProgramSpec(
-        "newton-dominoes",
-        "demos/newton_viewer_dominoes.py",
-        "Interact with Newton XPBD dominoes.",
+        newton_gl_args=None,
     ),
     ProgramSpec(
         "newton-block-and-tackle",
-        "demos/newton_viewer_block_and_tackle.py",
+        "examples/demos/newton_viewer_block_and_tackle.py",
         "Interact with a Newton VBD block-and-tackle scene.",
     ),
     ProgramSpec(
         "snowball-smash",
-        "demos/mpm/snowball_smash.py",
+        "examples/demos/snowball_smash.py",
         "Smash rigid crates with MPM snowballs.",
     ),
-    ProgramSpec("teapot-fill", "demos/mpm/teapot_fill.py", "Fill and pour a teapot with MPM fluid."),
+    ProgramSpec("teapot-fill", "examples/demos/teapot_fill.py", "Fill and pour a teapot with MPM fluid."),
 )
 
 
@@ -121,6 +120,7 @@ EXAMPLES = (
         "examples/deformables.py",
         "Compare deformable objects across backends.",
         **_TETRAHEDRALIZATION,
+        newton_gl_args=("--physics", "newton_vbd"),
     ),
     ProgramSpec(
         "heterogeneous-scene",
@@ -130,6 +130,7 @@ EXAMPLES = (
     ),
     ProgramSpec("markers", "examples/markers.py", "Render reusable visualization markers.", **_ISAACSIM),
     ProgramSpec("multi-asset", "examples/multi_asset.py", "Spawn different assets across cloned environments."),
+    ProgramSpec("newton-dominoes", "examples/newton_viewer_dominoes.py", "Interact with Newton XPBD dominoes."),
     ProgramSpec(
         "procedural-terrain",
         "examples/procedural_terrain.py",
@@ -213,12 +214,14 @@ EXAMPLES = (
         "examples/haply_teleoperation.py",
         "Teleoperate a Franka with Haply hardware.",
         **_TELEOP,
+        newton_gl_args=None,
     ),
     ProgramSpec(
         "ppisp-camera",
         "examples/sensors/ppisp_camera.py",
         "Compare PPISP camera renderers.",
         **_ISAACSIM,
+        newton_gl_args=None,
     ),
     ProgramSpec(
         "tactile-sensor",
@@ -251,12 +254,47 @@ def run_program(command: str, program: ProgramSpec, args: list[str] | None = Non
     if not path.is_file():
         raise FileNotFoundError(f"{command} {program.name!r} is not installed at {path}")
 
+    from isaaclab import _program_browser
+
     original_argv = sys.argv
+    _program_browser.start_program()
     try:
-        sys.argv = [f"isaaclab {command} {program.name}", *(args or [])]
-        _run_script(path)
+        forwarded_args = list(args or [])
+        sys.argv = [f"isaaclab {command} {program.name}", *forwarded_args]
+        if any(arg in ("-h", "--help") for arg in forwarded_args):
+            _run_script(path)
+        else:
+            from isaaclab.app.loading_screen import LoadingScreen
+
+            verbose = any(arg in ("--info", "--verbose") for arg in forwarded_args)
+            with LoadingScreen(1, enabled=False if verbose else None, close_on_simulation_reset=True) as screen:
+                screen.summary(
+                    f"Isaac Lab · {command}",
+                    {"Program": program.name, "Description": program.summary},
+                )
+                screen.stage("Launching simulation")
+                _run_script(path)
+                screen.close()
     finally:
         sys.argv = original_argv
+        selected = _program_browser.finish_program()
+    if selected is not None:
+        next_command, next_program = selected
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os.execv(
+            sys.executable,
+            [
+                sys.executable,
+                "-m",
+                "isaaclab",
+                next_command,
+                next_program.name,
+                *(next_program.newton_gl_args or ()),
+                "--viz",
+                "newton_gl",
+            ],
+        )
 
 
 def run_program_cli(command: str, catalog: tuple[ProgramSpec, ...], args: list[str] | None = None) -> None:

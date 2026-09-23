@@ -15,6 +15,7 @@ import pytest
 
 import isaaclab
 import isaaclab.__main__ as package_main
+import isaaclab._program_browser as browser
 import isaaclab._programs as programs
 import isaaclab.cli as cli
 import isaaclab.paths as paths
@@ -102,6 +103,7 @@ def test_demo_catalog_lists_packaged_demos(capsys):
     output = capsys.readouterr().out
     assert "zoo" in output
     assert "teapot-fill" in output
+    assert "newton-dominoes" not in output
     assert "bin-packing" not in output
 
 
@@ -111,14 +113,74 @@ def test_example_catalog_lists_packaged_examples(capsys):
 
     output = capsys.readouterr().out
     assert "bin-packing" in output
+    assert "newton-dominoes" in output
     assert "mpm-two-way-coupling" in output
     assert "uvx --from 'isaaclab[isaacsim]' isaaclab example camera" in output
     assert "teapot-fill" not in output
 
 
-@pytest.mark.parametrize(("catalog", "directory"), [(programs.DEMOS, "demos"), (programs.EXAMPLES, "examples")])
+def test_browse_is_not_a_program_command():
+    """Program selection lives in Newton GL, not in a separate CLI mode."""
+    with pytest.raises(SystemExit, match="2"):
+        cli.demo(["browse"])
+
+
+def test_newton_gl_selector_omits_incompatible_programs():
+    """The selector must feature GL-compatible showcases and omit Kit-only programs."""
+    browser.start_program()
+    viewer = mock.Mock()
+    imgui = mock.Mock()
+    imgui.collapsing_header.return_value = True
+    imgui.tree_node.return_value = True
+    imgui.selectable.return_value = (False, False)
+    imgui.is_item_hovered.return_value = False
+    try:
+        browser.register_newton_browser(viewer)
+        viewer.register_ui_callback.call_args.args[0](imgui)
+    finally:
+        browser.finish_program()
+
+    labels = {call.args[0] for call in imgui.selectable.call_args_list}
+    assert viewer.register_ui_callback.call_args.kwargs == {"position": "panel"}
+    assert "Zoo##demo:zoo" in labels
+    assert "Cables##example:cables" in labels
+    assert "Newton Dominoes##example:newton-dominoes" in labels
+    assert "Newton Dominoes##demo:newton-dominoes" not in labels
+    assert "H1 Locomotion##demo:h1-locomotion" not in labels
+    assert "Pick And Place##demo:pick-and-place" not in labels
+    assert "Ppisp Camera##example:ppisp-camera" not in labels
+    assert "Haply Teleoperation##example:haply-teleoperation" not in labels
+    assert imgui.set_next_item_open.call_count == 2
+
+
+def test_newton_gl_selector_switches_programs_after_script_returns(monkeypatch):
+    """A GL selection must restart with GL after the current program finishes."""
+    viewer = mock.Mock()
+    imgui = mock.Mock()
+    imgui.collapsing_header.return_value = True
+    imgui.tree_node.return_value = True
+    imgui.selectable.side_effect = lambda label, _selected: (label == "Cables##example:cables", False)
+    imgui.is_item_hovered.return_value = False
+
+    def run_script(_path):
+        browser.register_newton_browser(viewer)
+        viewer.register_ui_callback.call_args.args[0](imgui)
+
+    monkeypatch.setattr(programs, "_run_script", run_script)
+    with mock.patch.object(programs.os, "execv") as execv:
+        cli.demo(["zoo", "--viz", "newton_gl"])
+
+    assert viewer._program_switch_requested is True
+    execv.assert_called_once_with(
+        sys.executable, [sys.executable, "-m", "isaaclab", "example", "cables", "--viz", "newton_gl"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("catalog", "directory"), [(programs.DEMOS, "examples/demos"), (programs.EXAMPLES, "examples")]
+)
 def test_program_catalog_resolves_paths(catalog, directory):
-    """Every catalog entry must resolve inside its repository directory."""
+    """Both catalogs must resolve inside the single examples tree."""
     assert all(program.relative_path.startswith(f"{directory}/") for program in catalog)
     assert all(program.path.is_file() for program in catalog)
 
@@ -128,6 +190,7 @@ def test_integration_examples_use_root_example_paths():
     paths_by_name = {program.name: program.relative_path for program in programs.EXAMPLES}
     assert paths_by_name["arl-robot-1"] == "examples/arl_robot_1.py"
     assert paths_by_name["haply-teleoperation"] == "examples/haply_teleoperation.py"
+    assert paths_by_name["newton-dominoes"] == "examples/newton_viewer_dominoes.py"
     assert paths_by_name["ppisp-camera"] == "examples/sensors/ppisp_camera.py"
     assert paths_by_name["tactile-sensor"] == "examples/sensors/tacsl_sensor.py"
 
@@ -172,9 +235,10 @@ def test_program_command_forwards_help_to_selected_module():
 def test_program_runner_preserves_command_name_and_restores_process_arguments(tmp_path):
     """Running a program must not leak its arguments to the caller."""
     original_argv = sys.argv
-    script = tmp_path / "example.py"
+    script = tmp_path / "demos" / "example.py"
+    script.parent.mkdir()
     script.write_text("import sys\nassert sys.argv[0] == 'isaaclab demo temporary'\n", encoding="utf-8")
-    program = programs.ProgramSpec("temporary", f"demos/{script.name}", "Temporary test program.")
+    program = programs.ProgramSpec("temporary", f"examples/demos/{script.name}", "Temporary test program.")
     with mock.patch.object(programs, "_program_root", return_value=tmp_path):
         programs.run_program("demo", program, ["--physics", "newton_mjwarp"])
 

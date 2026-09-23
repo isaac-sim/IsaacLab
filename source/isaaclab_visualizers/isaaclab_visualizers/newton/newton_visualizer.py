@@ -778,6 +778,10 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
             self._patch_image_logger()
 
         self.register_ui_callback(self._render_training_controls, position="side")
+        self._program_switch_requested = False
+        from isaaclab._program_browser import register_newton_browser
+
+        register_newton_browser(self)
 
     def is_training_paused(self) -> bool:
         """Return whether simulation is paused by viewer controls."""
@@ -790,6 +794,12 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
         in-place, outside the Isaac Lab "Pause Rendering" button.
         """
         return self._paused
+
+    def end_frame(self) -> None:
+        """Close the window after the UI frame when switching programs."""
+        super().end_frame()
+        if self._program_switch_requested:
+            self.renderer.close()
 
     def on_key_press(self, symbol, modifiers):
         """Forward key presses unless UI is currently capturing input."""

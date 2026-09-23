@@ -133,6 +133,12 @@ def report_activity(activity: str | None) -> None:
         _active_screen.set_activity(activity)
 
 
+def _close_program_loading_screen() -> None:
+    """Finish a program loading screen after its simulation is ready."""
+    if _active_screen is not None and _active_screen._close_on_simulation_reset:
+        _active_screen.close()
+
+
 def _format_run_summary(title: str, fields: dict[str, str], *, width: int, ascii_only: bool = False) -> str:
     """Render a boxed run summary at an exact outer width."""
     if width < 4:
@@ -308,7 +314,14 @@ class LoadingScreen:
                 renderable = self._screen._render(options.max_width)
             yield renderable
 
-    def __init__(self, num_stages: int, *, enabled: bool | None = None, logo: bool = True) -> None:
+    def __init__(
+        self,
+        num_stages: int,
+        *,
+        enabled: bool | None = None,
+        logo: bool = True,
+        close_on_simulation_reset: bool = False,
+    ) -> None:
         """Initialize the screen.
 
         Args:
@@ -318,8 +331,10 @@ class LoadingScreen:
                 output is a terminal.
             logo: Whether :meth:`summary` shows a responsive greeting beside
                 the run summary. Defaults to True.
+            close_on_simulation_reset: Close when the first simulation reset completes.
         """
         self._num_stages = num_stages
+        self._close_on_simulation_reset = close_on_simulation_reset
         self._logos = random.choice(_LOGO_PAIRS) if logo else ()
         self._enabled = _console_is_interactive() if enabled is None else enabled
         self._console: IO[str] = sys.stdout

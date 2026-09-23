@@ -118,18 +118,17 @@ def test_script_scope_rejects_empty_selection():
     """A stale or misspelled scope must not produce a vacuously green launch matrix."""
     assert select_script_scope(SPECS, "all") is SPECS
     assert {spec.path for spec in select_script_scope(SPECS, "demos")} == set(script_cases.PROGRAMS_BY_PATH)
+    assert {spec.path for spec in select_script_scope(SPECS, "examples/demos")} == {
+        spec.path for spec in SPECS if spec.program is not None and spec.program[0] == "demo"
+    }
     assert all(spec.relative_path.startswith("examples/mpm/") for spec in select_script_scope(SPECS, "examples/mpm"))
     with pytest.raises(ValueError, match="selected no scripts"):
         select_script_scope(SPECS, "missing")
 
 
 def test_every_packaged_script_is_registered_for_cli_launch():
-    """Every executable script in the root demo and example directories must have one CLI entry."""
-    packaged_specs = [
-        spec
-        for spec in SPECS
-        if spec.path.is_relative_to(script_cases.DEMO_ROOT) or spec.path.is_relative_to(script_cases.EXAMPLE_ROOT)
-    ]
+    """Every executable script in the root examples tree must have one CLI entry."""
+    packaged_specs = [spec for spec in SPECS if spec.path.is_relative_to(script_cases.EXAMPLE_ROOT)]
     assert all(spec.program is not None for spec in packaged_specs)
     assert {spec.path for spec in packaged_specs} == set(script_cases.PROGRAMS_BY_PATH)
 
@@ -168,11 +167,11 @@ def test_demo_browser_documents_options_for_each_demo():
 
 def test_commands_respect_script_launcher_capabilities():
     """Commands must enable cameras and avoid unsupported launcher arguments."""
-    h1_case = next(case for case in build_cases(SPECS) if case.spec.relative_path == "demos/h1_locomotion.py")
+    h1_case = next(case for case in build_cases(SPECS) if case.spec.relative_path == "examples/demos/h1_locomotion.py")
     assert h1_case.command()[-4:] == ["--physics", "isaacsim_physx", "--visualizer", "kit"]
 
     pick_and_place_case = next(
-        case for case in build_cases(SPECS) if case.spec.relative_path == "demos/pick_and_place.py"
+        case for case in build_cases(SPECS) if case.spec.relative_path == "examples/demos/pick_and_place.py"
     )
     assert pick_and_place_case.command()[-4:] == ["--physics", "isaacsim_physx", "--visualizer", "kit"]
 
@@ -357,7 +356,7 @@ def test_h1_locomotion_uses_backend_aware_checkpoint_and_rejects_missing_policy(
 
 def test_launch_case_reports_script_and_combination_exemptions():
     """Whole-script and individual-combination exemptions must remain distinguishable."""
-    skipped_script = next(spec for spec in SPECS if spec.relative_path == "demos/h1_locomotion.py")
+    skipped_script = next(spec for spec in SPECS if spec.relative_path == "examples/demos/h1_locomotion.py")
     assert build_cases([skipped_script])[0].skip_reason == skipped_script.skip_reason
     spec = next(spec for spec in SPECS if spec.skip_reason is None)
     case = build_cases([spec])[0]

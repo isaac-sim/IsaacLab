@@ -163,7 +163,7 @@ dynamic topology in one reusable helper:
 .. dropdown:: ``FluidSurfaceRenderer`` implementation
    :icon: code
 
-   .. literalinclude:: ../../../demos/mpm/teapot_fill.py
+   .. literalinclude:: ../../../examples/demos/teapot_fill.py
       :language: python
       :pyobject: FluidSurfaceRenderer
 

@@ -10,7 +10,7 @@ across all rows.
 
 .. code-block:: bash
 
-    uvx isaaclab demo newton-dominoes
+    uvx isaaclab example newton-dominoes
 """
 
 import argparse
@@ -18,7 +18,7 @@ from pathlib import Path
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
-parser = argparse.ArgumentParser(description="NVIDIA-logo domino dragging demo (XPBD).")
+parser = argparse.ArgumentParser(description="NVIDIA-logo domino dragging example (XPBD).")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])
@@ -40,7 +40,7 @@ DOMINO_SPACING = 0.12
 LOGO_FOOTPRINT = (29.4, 8.4)
 NVIDIA_GREEN = (0.24, 0.50, 0.0)
 
-_POSES_PATH = Path(__file__).with_name("assets") / "nvidia_logo_domino_poses.pth"
+_POSES_PATH = Path(__file__).resolve().parent / "assets" / "nvidia_logo_domino_poses.pth"
 _POSES = torch.load(_POSES_PATH, map_location="cpu", weights_only=True).tolist()
 LOGO_DOMINO_POSES = [(tuple(pose[:3]), tuple(pose[3:])) for pose in _POSES]
 
@@ -135,7 +135,7 @@ def run_simulator(sim: sim_utils.SimulationContext) -> None:
 
 
 def main() -> None:
-    """Launch the Newton XPBD domino dragging demo."""
+    """Launch the Newton XPBD domino dragging example."""
     physics_cfg = NewtonCfg(
         num_substeps=10,
         collision_decimation=1,
