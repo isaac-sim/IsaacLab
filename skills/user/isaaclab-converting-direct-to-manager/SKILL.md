@@ -22,7 +22,7 @@ Do not use this skill when the direct environment still fails to construct, rese
 
 1. Keep the direct environment as a parity baseline until the manager-based task passes equivalent smoke tests.
 2. Read the task workflow overview, manager-based RL tutorial, and the closest direct/manager pair before proposing code.
-   If a new package scaffold is needed, follow the [environment-building skill](../create-environments/SKILL.md#scaffold-a-new-task) and select **Manager-based | single-agent** in `uv run isaaclab --new`. For an existing project, add the manager variant within its layout; generate any reference scaffold in a fresh directory to preserve the direct baseline.
+   If a new package scaffold is needed, follow the [environment-building skill](../isaaclab-building-environments/SKILL.md#scaffold-a-new-task) and select **Manager-based | single-agent** in `uv run isaaclab --new`. For an existing project, add the manager variant within its layout; generate any reference scaffold in a fresh directory to preserve the direct baseline.
 3. Split scene construction into an `InteractiveSceneCfg` subclass with assets, terrain, sensors, and lights.
 4. Move action application into action configs such as joint position, velocity, or effort action terms.
 5. Move observation assembly into `ObservationGroupCfg` and `ObservationTermCfg` entries, preserving block order and scaling unless the user accepts a policy interface change.

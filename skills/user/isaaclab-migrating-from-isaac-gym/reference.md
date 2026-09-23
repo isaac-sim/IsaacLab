@@ -31,7 +31,7 @@ Use this mapping as the default starting point:
 
 ## External Template Projects
 
-For a new external migration, follow the [template scaffolding workflow](../create-environments/SKILL.md#scaffold-a-new-task) and the maintained [generator guide](../../../docs/source/developer-tools/template_generator.rst). Select **Direct | single-agent** for a typical Isaac Gym parity pass and the target RL library. Use a fresh project directory outside Isaac Lab; preserve an established project when one already exists.
+For a new external migration, follow the [template scaffolding workflow](../isaaclab-building-environments/SKILL.md#scaffold-a-new-task) and the maintained [generator guide](../../../docs/source/developer-tools/template_generator.rst). Select **Direct | single-agent** for a typical Isaac Gym parity pass and the target RL library. Use a fresh project directory outside Isaac Lab; preserve an established project when one already exists.
 
 Replace the generated Cartpole implementation with the migrated environment and agent config. Preserve the current `src/<project>/tasks/<family>/config/<robot>/` layout and `isaaclab.tasks` entry point. UI extension metadata is optional, not required for task registration.
 

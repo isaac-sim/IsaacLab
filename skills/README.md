@@ -16,7 +16,7 @@ User skills:
 - `user/migrate-from-isaac-gym/`: migrate Isaac Gym tasks, assets, and training workflows to Isaac Lab.
 - `user/migrate-2x-to-3x/`: migrate Isaac Lab 2.x projects to Isaac Lab 3.0 using the official migration guide.
 - `user/domain-randomization-events/`: implement fixed and adaptive domain randomization through event and curriculum terms.
-- `user/create-environments/`: create manager-based Isaac Lab environments by default, with direct environments for special cases.
+- `user/isaaclab-building-environments/`: create manager-based Isaac Lab environments by default, with direct environments for special cases.
 - `user/convert-direct-to-manager/`: convert validated direct Isaac Lab environments into manager-based task configurations.
 - `user/train-rl-agents/`: configure and run Isaac Lab reinforcement learning workflows.
 - `user/train-multi-gpu/`: launch and debug multi-GPU and multi-node RL training, including NCCL hangs and collective failures.
