@@ -229,6 +229,30 @@ def _write_file(output_dir: Path, file_name: str, content: str) -> None:
         logger.info("Wrote USD file: %s", output_path)
 
 
+def _env_camera_prim_paths(spec: CameraRenderSpec) -> list[str]:
+    """Per-env camera prim paths derived from the env 0 prototype.
+
+    ``spec.camera_prim_paths`` names only the camera prims authored on the USD stage, which is
+    one prototype per spawn variant whenever USD replication does not run. That is the kitless
+    case: the clone plan routes ``UsdReplicateContext`` only under Kit, so OvPhysx, Newton and
+    OVRTX each replicate the prototype themselves. OVRTX still needs one path per environment,
+    which is safe to synthesize because :meth:`OVRTXRenderer.prepare_stage` requires env ids
+    ordered from zero.
+
+    Args:
+        spec: Tiled camera description whose prototype path is expanded.
+
+    Returns:
+        One absolute camera prim path per environment, in env id order.
+
+    Raises:
+        ValueError: If the camera prototype does not live under ``/World/envs/env_0/``.
+    """
+    if not spec.camera_path_relative_to_env_0:
+        raise ValueError("OVRTX cameras must be under /World/envs/env_0/.")
+    return [f"/World/envs/env_{i}/{spec.camera_path_relative_to_env_0}" for i in range(spec.num_instances)]
+
+
 def _write_combined_stage(output_dir: Path, scene_usd: str, render_product_usd: str) -> None:
     """Write the scene and render product prims in one debug layer, preserving scene metadata."""
     from pxr import Sdf
@@ -957,9 +981,10 @@ class OVRTXRenderer(BaseRenderer):
             else:
                 self._register_camera(spec, render_data)
             if not self._use_ovstage:
+                intrinsic_prim_paths = _env_camera_prim_paths(spec)
                 for name in _CAMERA_INTRINSIC_ATTRIBUTES:
                     binding = self.backend.renderer.bind_attribute(
-                        prim_paths=list(spec.camera_prim_paths),
+                        prim_paths=intrinsic_prim_paths,
                         attribute_name=name,
                         dtype="float32",
                         prim_mode=PrimMode.EXISTING_ONLY,
@@ -976,9 +1001,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def _register_camera(self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData) -> None:
         """Add another tiled product and camera binding without reloading the shared scene."""
-        camera_paths = list(spec.camera_prim_paths)
-        if not camera_paths or not camera_paths[0].startswith("/World/envs/env_0/"):
-            raise ValueError("OVRTX cameras must be under /World/envs/env_0/.")
+        camera_paths = _env_camera_prim_paths(spec)
         scope = render_data.render_scope_name
         product_path = render_data.render_product_path
         usd = build_render_product_as_string(
