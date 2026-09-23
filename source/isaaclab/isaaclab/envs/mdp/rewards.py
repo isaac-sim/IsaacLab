@@ -15,15 +15,15 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.managers import SceneEntityCfg
-from isaaclab.managers.manager_base import ManagerTermBase
-from isaaclab.managers.manager_term_cfg import RewardTermCfg
-from isaaclab.utils.math import combine_frame_transforms, quat_error_magnitude, quat_mul, wrap_to_pi
+from ...managers import SceneEntityCfg
+from ...managers.manager_base import ManagerTermBase
+from ...managers.manager_term_cfg import RewardTermCfg
+from ...utils.math import combine_frame_transforms, quat_error_magnitude, quat_mul, wrap_to_pi
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, RigidObject
-    from isaaclab.envs import ManagerBasedRLEnv
-    from isaaclab.sensors import ContactSensor, RayCaster
+    from ...assets import Articulation, RigidObject
+    from ...sensors import ContactSensor, RayCaster
+    from .. import ManagerBasedRLEnv
 
 """
 General.

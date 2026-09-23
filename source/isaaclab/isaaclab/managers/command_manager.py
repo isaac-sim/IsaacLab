@@ -19,7 +19,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CommandTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from ..envs import ManagerBasedRLEnv
 
 
 class CommandTerm(ManagerTermBase):

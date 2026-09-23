@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.utils.math import apply_delta_pose, compute_pose_error
+from ..utils.math import apply_delta_pose, compute_pose_error
 
 if TYPE_CHECKING:
     from .differential_ik_cfg import DifferentialIKControllerCfg

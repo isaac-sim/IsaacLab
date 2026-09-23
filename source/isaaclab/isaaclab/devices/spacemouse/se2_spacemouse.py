@@ -16,8 +16,7 @@ import hid
 import numpy as np
 import torch
 
-from isaaclab.utils.array import convert_to_torch
-
+from ...utils.array import convert_to_torch
 from ..device_base import DeviceBase
 from .utils import convert_buffer, describe_open_failure, device_not_found_message, resolve_device_name
 

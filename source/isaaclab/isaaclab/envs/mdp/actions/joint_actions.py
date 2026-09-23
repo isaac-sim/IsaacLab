@@ -16,9 +16,8 @@ from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
-
+    from ... import ManagerBasedEnv
+    from ...utils.io_descriptors import GenericActionIODescriptor
     from . import actions_cfg
 
 logger = logging.getLogger(__name__)

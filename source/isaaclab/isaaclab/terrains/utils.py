@@ -12,9 +12,9 @@ import warp as wp
 
 from pxr import UsdGeom
 
-import isaaclab.sim as sim_utils
-from isaaclab.sim.spawners.materials import spawn_physics_material
-from isaaclab.utils.warp import raycast_mesh
+from .. import sim as sim_utils
+from ..sim.spawners.materials import spawn_physics_material
+from ..utils.warp import raycast_mesh
 
 
 def color_meshes_by_height(meshes: list[trimesh.Trimesh], **kwargs) -> trimesh.Trimesh:

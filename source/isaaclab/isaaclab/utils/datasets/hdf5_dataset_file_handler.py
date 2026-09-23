@@ -12,8 +12,7 @@ from collections.abc import Iterable
 import numpy as np
 import torch
 
-from isaaclab.utils.math import convert_quat
-
+from ..math import convert_quat
 from .dataset_file_handler_base import DatasetFileHandlerBase
 from .episode_data import EpisodeData
 

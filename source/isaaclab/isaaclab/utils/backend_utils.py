@@ -10,7 +10,7 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from isaaclab.renderers.renderer_cfg import RendererCfg
+    from ..renderers.renderer_cfg import RendererCfg
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ class FactoryBase:
         Falls back to ``"newton"`` when no simulation context is initialized yet.
         """
         # Import lazily to avoid import cycles at module load time.
-        from isaaclab.sim.simulation_context import SimulationContext
+        from ..sim.simulation_context import SimulationContext
 
         sim_context = SimulationContext.instance()
         if sim_context is None:

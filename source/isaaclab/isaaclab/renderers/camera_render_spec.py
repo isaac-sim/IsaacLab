@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from isaaclab.sensors.camera.camera_cfg import CameraCfg
+from ..sensors.camera.camera_cfg import CameraCfg
 
 
 @dataclass(frozen=True)

@@ -22,17 +22,17 @@ from typing import TYPE_CHECKING, Literal
 import torch
 import warp as wp
 
-import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
-from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
-from isaaclab.utils.version import compare_versions
+from ... import sim as sim_utils
+from ...managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
+from ...utils import math as math_utils
+from ...utils.version import compare_versions
 
 if TYPE_CHECKING:
     from isaaclab_physx.assets import DeformableObject
 
-    from isaaclab.assets import Articulation, RigidObject
-    from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.terrains import TerrainImporter
+    from ...assets import Articulation, RigidObject
+    from ...terrains import TerrainImporter
+    from .. import ManagerBasedEnv
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -154,7 +154,7 @@ class _RandomizeRigidBodyMaterialPhysx:
     def __init__(
         self, cfg: EventTermCfg, env: ManagerBasedEnv, asset: RigidObject | Articulation, asset_cfg: SceneEntityCfg
     ):
-        from isaaclab.assets import BaseArticulation
+        from ...assets import BaseArticulation
 
         # obtain parameters for sampling friction and restitution values
         static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
@@ -384,7 +384,7 @@ class _RandomizeRigidBodyMaterialOvPhysx:
         import isaaclab_ov.tensor_types as ovphysx_tt  # noqa: PLC0415
         from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView  # noqa: PLC0415
 
-        from isaaclab.assets import BaseArticulation  # noqa: PLC0415
+        from ...assets import BaseArticulation  # noqa: PLC0415
 
         # sample material buckets once (PhysX-style; the 64000 unique-material limit applies)
         static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
@@ -592,7 +592,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         Raises:
             ValueError: If the asset is not a RigidObject or an Articulation.
         """
-        from isaaclab.assets import BaseArticulation, BaseRigidObject
+        from ...assets import BaseArticulation, BaseRigidObject
 
         super().__init__(cfg, env)
 
@@ -797,7 +797,7 @@ class randomize_rigid_body_inertia(ManagerTermBase):
             ValueError: If the lower bound is negative or zero when not allowed for scale operation.
             ValueError: If the upper bound is less than the lower bound.
         """
-        from isaaclab.assets import BaseArticulation, BaseRigidObject, BaseRigidObjectCollection
+        from ...assets import BaseArticulation, BaseRigidObject, BaseRigidObjectCollection
 
         super().__init__(cfg, env)
 
@@ -1036,7 +1036,7 @@ class _RandomizeRigidBodyColliderOffsetsOvPhysx:
     def __init__(self, asset: RigidObject | Articulation):
         import isaaclab_ov.tensor_types as ovphysx_tt  # noqa: PLC0415
 
-        from isaaclab.assets import BaseArticulation  # noqa: PLC0415
+        from ...assets import BaseArticulation  # noqa: PLC0415
 
         self.asset = asset
         if isinstance(asset, BaseArticulation):
@@ -1208,7 +1208,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
         Raises:
             ValueError: If the asset is not a RigidObject or an Articulation.
         """
-        from isaaclab.assets import BaseArticulation, BaseRigidObject
+        from ...assets import BaseArticulation, BaseRigidObject
 
         super().__init__(cfg, env)
 
@@ -1470,7 +1470,7 @@ class randomize_actuator_gains(ManagerTermBase):
         # Ownership decides the gain source and write path per group: implicit groups are
         # articulation-owned, Newton-executed groups are controller-owned (their mapping
         # entries are the Newton actuator objects), and Lab explicit groups own their tensors.
-        from isaaclab.actuators import IdealPDActuator  # noqa: PLC0415
+        from ...actuators import IdealPDActuator  # noqa: PLC0415
 
         collection = self.asset.actuators
         self._native_group_names = getattr(collection, "_native_group_names", set())
@@ -1488,7 +1488,7 @@ class randomize_actuator_gains(ManagerTermBase):
         }
         self.default_actuator_stiffness: dict[str, torch.Tensor] = {}
         self.default_actuator_damping: dict[str, torch.Tensor] = {}
-        from isaaclab.actuators.newton import read_group_parameter  # noqa: PLC0415
+        from ...actuators.newton import read_group_parameter  # noqa: PLC0415
 
         for name, actuator in self._gain_actuators.items():
             joint_ids = self._group_joint_indices[name]
@@ -1529,7 +1529,7 @@ class randomize_actuator_gains(ManagerTermBase):
         operation: Literal["add", "scale", "abs"] = "abs",
         distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
     ):
-        from isaaclab.actuators.newton import write_group_parameter  # noqa: PLC0415
+        from ...actuators.newton import write_group_parameter  # noqa: PLC0415
 
         # Resolve environment ids
         if env_ids is None:

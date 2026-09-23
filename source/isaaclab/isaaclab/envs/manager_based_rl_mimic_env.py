@@ -8,8 +8,8 @@ from collections.abc import Sequence
 
 import torch
 
-import isaaclab.utils.math as PoseUtils
-from isaaclab.envs import ManagerBasedRLEnv
+from ..utils import math as PoseUtils
+from . import ManagerBasedRLEnv
 
 
 def optional_method(func):

@@ -13,10 +13,10 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
-from isaaclab.benchmark.measurements import SingleMeasurement, StatisticalMeasurement, TestPhase, TestPhaseEncoder
+from .measurements import SingleMeasurement, StatisticalMeasurement, TestPhase, TestPhaseEncoder
 
 if TYPE_CHECKING:
-    from isaaclab.benchmark.schema import PlayBundle, RuntimeBundle, StartupBundle, TrainingBundle
+    from .schema import PlayBundle, RuntimeBundle, StartupBundle, TrainingBundle
 
 logger = logging.getLogger(__name__)
 
@@ -676,7 +676,7 @@ class SchemaBundleFile(MetricsFormatterInterface):
             raise RuntimeError("The schema formatter requires a benchmark bundle.")
 
         # Lazy import keeps formatters.py free of the schema layer at module import time.
-        from isaaclab.benchmark.serialize import write_bundle_file
+        from .serialize import write_bundle_file
 
         path = os.path.join(output_path, f"{output_filename}.json")
         write_bundle_file(bundle, path)

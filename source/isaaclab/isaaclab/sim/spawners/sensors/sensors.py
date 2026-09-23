@@ -10,8 +10,9 @@ from typing import TYPE_CHECKING
 
 from pxr import Gf, Sdf, Usd
 
-from isaaclab.sim.utils import change_prim_property, clone, create_prim, get_current_stage
 from isaaclab.utils import to_camel_case
+
+from ...utils import change_prim_property, clone, create_prim, get_current_stage
 
 if TYPE_CHECKING:
     from . import sensors_cfg

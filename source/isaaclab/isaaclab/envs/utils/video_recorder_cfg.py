@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from isaaclab.utils import configclass
+from ...utils import configclass
 
 
 @configclass
@@ -60,18 +60,20 @@ class VideoRecorderCfg:
     """
 
     video_length: int = 200
-    """Number of env steps captured per clip."""
+    """Number of env steps captured per clip.  Must be positive."""
 
     video_interval: int = 0
     """Start a new clip every ``video_interval`` env steps after :attr:`step_offset`.
 
     ``0`` means a single clip starts at :attr:`step_offset` and the recorder is inactive
     afterwards.  Set to a positive integer to record recurring clips at that cadence.
+    Must be non-negative.
     """
 
     step_offset: int = 0
     """Number of env steps to skip before the first clip starts.  Defaults to 0 (record
     from the very first step).  Applies to both one-shot and recurring recordings.
+    Must be non-negative.
     """
 
     frame_stride: int = 1
@@ -79,7 +81,7 @@ class VideoRecorderCfg:
     (capture every step).  Increase to sub-sample the recording — e.g. ``frame_stride=2``
     records half as many frames, halving file size at the cost of temporal resolution.
     A clip that captures ``video_length // frame_stride`` unique frames is still triggered
-    and closed after ``video_length`` env steps.
+    and closed after ``video_length`` env steps.  Must be positive.
     """
 
     output_filename_prefix: str = "clip"
@@ -122,3 +124,17 @@ class VideoRecorderCfg:
             keep_last_n_clips=3,
         )
     """
+
+    def validate_config(self) -> None:
+        """Reject clip schedules the recorder cannot honor.
+
+        Raises:
+            ValueError: If a clip timing field is outside its documented range.
+        """
+        minimums = {"video_length": 1, "frame_stride": 1, "video_interval": 0, "step_offset": 0}
+        invalid = [f"{name}={getattr(self, name)!r}" for name, low in minimums.items() if getattr(self, name) < low]
+        if invalid:
+            raise ValueError(
+                f"Invalid VideoRecorderCfg for source={self.source!r}: {', '.join(invalid)}. "
+                "video_length and frame_stride must be positive; video_interval and step_offset must be non-negative."
+            )

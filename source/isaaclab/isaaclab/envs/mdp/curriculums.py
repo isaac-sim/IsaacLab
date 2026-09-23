@@ -17,10 +17,10 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
 
-from isaaclab.managers import CurriculumTermCfg, ManagerTermBase
+from ...managers import CurriculumTermCfg, ManagerTermBase
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from .. import ManagerBasedRLEnv
 
 
 class modify_reward_weight(ManagerTermBase):

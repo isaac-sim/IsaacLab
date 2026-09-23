@@ -22,7 +22,7 @@ import socket
 from datetime import datetime, timezone
 from typing import Any
 
-from isaaclab.benchmark.schema import (
+from .schema import (
     GpuDeviceInfo,
     GpuResources,
     Hardware,

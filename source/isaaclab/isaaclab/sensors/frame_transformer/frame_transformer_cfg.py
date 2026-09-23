@@ -8,9 +8,8 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from isaaclab.markers.config import FRAME_MARKER_CFG, VisualizationMarkersCfg
-from isaaclab.utils import configclass
-
+from ...markers.config import FRAME_MARKER_CFG, VisualizationMarkersCfg
+from ...utils import configclass
 from ..sensor_base_cfg import SensorBaseCfg
 
 if TYPE_CHECKING:

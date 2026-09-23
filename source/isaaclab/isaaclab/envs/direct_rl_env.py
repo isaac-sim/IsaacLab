@@ -19,13 +19,12 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-from isaaclab.managers import EventManager
-from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.stage import use_stage
-from isaaclab.utils.noise import NoiseModel
-from isaaclab.utils.seed import configure_seed
-from isaaclab.utils.timer import Timer
-
+from ..managers import EventManager
+from ..sim import SimulationContext
+from ..sim.utils.stage import use_stage
+from ..utils.noise import NoiseModel
+from ..utils.seed import configure_seed
+from ..utils.timer import Timer
 from .common import VecEnvObs, VecEnvStepReturn, _apply_deprecated_viewer_cfg
 from .direct_rl_env_cfg import DirectRLEnvCfg
 from .utils.spaces import sample_space, spec_to_gym_space

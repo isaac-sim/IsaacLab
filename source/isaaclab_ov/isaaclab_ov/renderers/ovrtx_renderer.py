@@ -106,7 +106,7 @@ from isaaclab_ov.stage import (
 
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
-    from ovrtx import AttributeBinding, FrameOutput, RenderVarOutput
+    from ovrtx import AttributeBinding
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
     from isaaclab.sensors.camera.camera_data import CameraData
@@ -290,6 +290,11 @@ class OVRTXCameraRenderData:
         self.render_scope_name = render_scope_name
         self.render_product_name = "RenderProduct"
         self.render_product_path = f"/{render_scope_name}/{self.render_product_name}"
+        self.render_var_keys: dict[str, str] = (
+            {source: f"/{render_scope_name}/Vars/{name}" for source, name in _RENDER_VAR_PRIM_NAMES.items()}
+            if uses_prim_path_render_vars(OVRTX_VERSION)
+            else {source: source for source in _RENDER_VAR_PRIM_NAMES}
+        )
         self.camera_xform_binding = None
         self.camera_xform_query = None
         self.resources = contextlib.ExitStack()
@@ -458,12 +463,19 @@ class OVRTXRenderer(BaseRenderer):
 
         # The clone plan already identifies every source row. Keep those rows independent so
         # backend bindings for dynamic assets retain the paths they were compiled against.
+        # A homogeneous plan clones the env roots themselves, so they must be trimmed: OVRTX 0.6
+        # refuses to clone onto a prim that already exists. Sub-path rows still need the roots,
+        # which carry the env transform that clone does not recreate.
         self._exported_usd_string = export_stage_to_string(
             stage,
             num_envs,
             source_paths=self._clone_plan.sources,
-            keep_env_roots=not self._use_ovstage,
+            keep_env_roots=not self._use_ovstage and not self._clone_targets_env_roots(),
         )
+
+    def _clone_targets_env_roots(self) -> bool:
+        """Return whether any clone row replicates an environment root rather than a prim beneath it."""
+        return any(destination.format(0) == "/World/envs/env_0" for destination in self._clone_plan.destinations)
 
     def _capture_object_scales(self, stage: Any, plan: ClonePlan) -> None:
         """Record composed world scales of scaled environment prims before the stage is exported.
@@ -1269,17 +1281,6 @@ class OVRTXRenderer(BaseRenderer):
         )
         return output_colors
 
-    @staticmethod
-    def _get_render_var_output(
-        render_data: OVRTXCameraRenderData, frame: FrameOutput, source_name: str
-    ) -> RenderVarOutput | None:
-        """Resolve a render-var source name to the installed OVRTX frame key and read its output."""
-        render_var_key = source_name
-        if uses_prim_path_render_vars(OVRTX_VERSION):
-            prim_name = _RENDER_VAR_PRIM_NAMES[source_name]
-            render_var_key = f"/{render_data.render_scope_name}/Vars/{prim_name}"
-        return frame.render_vars.get(render_var_key)
-
     @contextlib.contextmanager
     def _map_render_var_to_dlpack(self, render_var: Any) -> Iterator[wp.array]:
         """Map ``render_var`` for CUDA reads and yield it as a Warp array.
@@ -1337,7 +1338,7 @@ class OVRTXRenderer(BaseRenderer):
             buffer_key: Data type key into ``output_buffers``.
             colorize: If True, IDs are mapped to RGBA colors; otherwise raw uint32 IDs are copied.
         """
-        render_var = self._get_render_var_output(render_data, frame, render_var_key)
+        render_var = frame.render_vars.get(render_data.render_var_keys[render_var_key])
         if render_var is None or buffer_key not in output_buffers:
             return
 
@@ -1378,7 +1379,7 @@ class OVRTXRenderer(BaseRenderer):
             render_data: OVRTX render data for the current frame.
             frame: OVRTX frame holding the mapped render vars.
         """
-        semantic_id_map = self._get_render_var_output(render_data, frame, _SEMANTIC_ID_MAP_VAR)
+        semantic_id_map = frame.render_vars.get(render_data.render_var_keys[_SEMANTIC_ID_MAP_VAR])
         if semantic_id_map is None:
             return
 
@@ -1416,7 +1417,7 @@ class OVRTXRenderer(BaseRenderer):
             frame: OVRTX frame holding the mapped render vars.
         """
         resolved = {
-            key: self._get_render_var_output(render_data, frame, key) for key in _INSTANCE_SEGMENTATION_MAP_VARS
+            key: frame.render_vars.get(render_data.render_var_keys[key]) for key in _INSTANCE_SEGMENTATION_MAP_VARS
         }
         missing = [key for key, render_var in resolved.items() if render_var is None]
         if missing:
@@ -1554,7 +1555,7 @@ class OVRTXRenderer(BaseRenderer):
         # is available, so without this a missing SemanticIdMap on a later frame would leave a stale mapping.
         render_data.renderer_info.clear()
 
-        ldr_color = self._get_render_var_output(render_data, frame, _LDR_COLOR_VAR)
+        ldr_color = frame.render_vars.get(render_data.render_var_keys[_LDR_COLOR_VAR])
         if ldr_color is not None:
             buffer_key = None
 
@@ -1573,7 +1574,7 @@ class OVRTXRenderer(BaseRenderer):
                     self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
 
         for depth_var, buffer_keys in _DEPTH_VAR_BUFFER_KEYS.items():
-            depth_render_var = self._get_render_var_output(render_data, frame, depth_var)
+            depth_render_var = frame.render_vars.get(render_data.render_var_keys[depth_var])
             if depth_render_var is None:
                 continue
             if not any(buffer_key in output_buffers for buffer_key in buffer_keys):
@@ -1585,12 +1586,12 @@ class OVRTXRenderer(BaseRenderer):
                     )
                 self._extract_depth_tiles(render_data, tiled_depth_data, output_buffers, buffer_keys)
 
-        albedo_var = self._get_render_var_output(render_data, frame, _ALBEDO_VAR)
+        albedo_var = frame.render_vars.get(render_data.render_var_keys[_ALBEDO_VAR])
         if albedo_var is not None and "albedo" in output_buffers:
             with self._map_render_var_to_dlpack(albedo_var) as tiled_albedo_data:
                 self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
 
-        hdr_color = self._get_render_var_output(render_data, frame, _HDR_COLOR_VAR)
+        hdr_color = frame.render_vars.get(render_data.render_var_keys[_HDR_COLOR_VAR])
         if hdr_color is not None and "rgb_hdr" in output_buffers:
             with self._map_render_var_to_dlpack(hdr_color) as tiled_hdr_data:
                 tiled_hdr_data = self._prepare_ppisp_hdr_source(render_data, tiled_hdr_data, output_buffers)
@@ -1621,7 +1622,7 @@ class OVRTXRenderer(BaseRenderer):
         if "instance_segmentation" in output_buffers:
             self._process_instance_segmentation_maps(render_data, frame)
 
-        normals_var = self._get_render_var_output(render_data, frame, _NORMALS_VAR)
+        normals_var = frame.render_vars.get(render_data.render_var_keys[_NORMALS_VAR])
         if normals_var is not None and "normals" in output_buffers:
             with self._map_render_var_to_dlpack(normals_var) as tiled_normals_data:
                 self._launch_extract_all_tiles(render_data, tiled_normals_data, output_buffers["normals"])
@@ -1629,7 +1630,7 @@ class OVRTXRenderer(BaseRenderer):
         # For motion vectors, extract only the first two (u, v) channels from the tiled buffer.
         # Note: mirrors the Isaac RTX renderer's handling of the "TargetMotionSD" AOV
         # (check: https://github.com/isaac-sim/IsaacLab/issues/2003).
-        motion_var = self._get_render_var_output(render_data, frame, _MOTION_VECTORS_VAR)
+        motion_var = frame.render_vars.get(render_data.render_var_keys[_MOTION_VECTORS_VAR])
         if motion_var is not None and "motion_vectors" in output_buffers:
             with self._map_render_var_to_dlpack(motion_var) as tiled_motion_vectors_data:
                 self._launch_extract_all_tiles(render_data, tiled_motion_vectors_data, output_buffers["motion_vectors"])

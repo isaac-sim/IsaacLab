@@ -13,11 +13,11 @@ from typing import TYPE_CHECKING
 
 from filelock import FileLock
 
-from isaaclab.sim import converters, schemas
-from isaaclab.sim.spawners._utils import bare_fragments, fragment_mapping, props_expr, subtree_carries_api
-from isaaclab.sim.spawners.materials import SurfaceDeformableBodyMaterialBaseCfg
-from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
-from isaaclab.sim.utils import (
+from isaaclab.utils.assets import check_file_path, retrieve_file_path
+from isaaclab.utils.version import has_kit
+
+from ... import converters, schemas
+from ...utils import (
     add_labels,
     bind_physics_material,
     bind_visual_material,
@@ -31,8 +31,9 @@ from isaaclab.sim.utils import (
     select_usd_variants,
     set_prim_visibility,
 )
-from isaaclab.utils.assets import check_file_path, retrieve_file_path
-from isaaclab.utils.version import has_kit
+from .._utils import bare_fragments, fragment_mapping, props_expr, subtree_carries_api
+from ..materials import SurfaceDeformableBodyMaterialBaseCfg
+from ..materials.physics_materials import spawn_physics_material
 
 if TYPE_CHECKING:
     from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: F401

@@ -8,9 +8,9 @@ import os
 import subprocess
 import sys
 
-from isaaclab.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
-from isaaclab.benchmark.measurements import DictMetadata, StringMetadata
-from isaaclab.paths import ISAACLAB_ROOT
+from ...paths import ISAACLAB_ROOT
+from ..interfaces import MeasurementData, MeasurementDataRecorder
+from ..measurements import DictMetadata, StringMetadata
 
 # Path to the source checkout or installed wheel resources.
 _REPO_ROOT = str(ISAACLAB_ROOT)

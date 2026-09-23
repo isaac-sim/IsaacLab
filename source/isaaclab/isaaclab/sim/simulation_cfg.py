@@ -14,10 +14,10 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import Literal
 
-from isaaclab.physics import PhysicsCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
-from isaaclab.visualizers import VisualizerCfg
+from ..physics import PhysicsCfg
+from ..utils import configclass
+from ..visualizers import VisualizerCfg
+from .spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
 
 
 @configclass

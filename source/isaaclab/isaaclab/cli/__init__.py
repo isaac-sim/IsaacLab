@@ -87,7 +87,7 @@ def leapp(args: list[str] | None = None) -> None:
 
         _exit_on_error(run_export_cli(command_args))
     else:
-        from isaaclab.cli.commands.deploy import command_deploy_leapp
+        from .commands.deploy import command_deploy_leapp
 
         _exit_on_error(command_deploy_leapp(command_args))
 
@@ -138,14 +138,14 @@ def benchmark(args: list[str] | None = None) -> None:
     Args:
         args: Command-line arguments. Uses sys.argv when omitted.
     """
-    from isaaclab.benchmark import run_benchmark_cli
+    from ..benchmark import run_benchmark_cli
 
     _exit_on_error(run_benchmark_cli(args))
 
 
 def microbenchmark(args: list[str] | None = None) -> None:
     """Run a component micro-benchmark with an exact physics variant."""
-    from isaaclab.benchmark import run_microbenchmark_cli
+    from ..benchmark import run_microbenchmark_cli
 
     _exit_on_error(run_microbenchmark_cli(args))
 

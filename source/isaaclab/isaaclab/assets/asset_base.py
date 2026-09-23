@@ -15,11 +15,10 @@ from typing import TYPE_CHECKING, Any, Literal
 import torch
 import warp as wp
 
-import isaaclab.sim as sim_utils
-from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.sim.simulation_context import SimulationContext
-from isaaclab.utils.warp import ProxyArray
-
+from .. import sim as sim_utils
+from ..physics import PhysicsEvent, PhysicsManager
+from ..sim.simulation_context import SimulationContext
+from ..utils.warp import ProxyArray
 from .asset import Asset
 
 if TYPE_CHECKING:

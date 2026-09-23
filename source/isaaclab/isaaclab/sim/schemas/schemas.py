@@ -16,9 +16,7 @@ from typing_extensions import deprecated
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
-from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.utils.string import string_to_callable, to_camel_case
-
+from ...utils.string import string_to_callable, to_camel_case
 from ..utils import (
     apply_nested,
     create_prim,
@@ -29,6 +27,7 @@ from ..utils import (
     safe_set_attribute_on_usd_prim,
     safe_set_attribute_on_usd_schema,
 )
+from ..utils.stage import get_current_stage
 from . import schemas_cfg
 from ._backend_hooks import _skip_joint_drive
 
@@ -352,7 +351,7 @@ def apply_articulation_root_properties(
         return False
 
     if fix_root_link:
-        from isaaclab.sim import SimulationContext
+        from .. import SimulationContext
 
         sim = SimulationContext.instance()
         if sim is None:

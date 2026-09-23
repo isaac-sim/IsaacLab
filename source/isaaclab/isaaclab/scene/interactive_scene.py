@@ -15,14 +15,18 @@ import numpy as np
 if TYPE_CHECKING:
     from isaaclab_physx.assets import SurfaceGripper
 
-    from isaaclab.terrains.terrain_importer import TerrainImporter
+    from ..terrains.terrain_importer import TerrainImporter
 
 import torch
 import warp as wp
 
-import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.assets import (
+# Note: This is a temporary import for the VisuoTactileSensorCfg class.
+# It will be removed once the VisuoTactileSensor class is added to the core Isaac Lab framework.
+from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensorCfg
+
+from .. import cloner
+from .. import sim as sim_utils
+from ..assets import (
     Articulation,
     ArticulationCfg,
     Asset,
@@ -38,15 +42,10 @@ from isaaclab.assets import (
     VisualMaterial,
     VisualMaterialCfg,
 )
-from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
-from isaaclab.sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, RayCasterCfg, SensorBase, SensorBaseCfg
-from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
-
-# Note: This is a temporary import for the VisuoTactileSensorCfg class.
-# It will be removed once the VisuoTactileSensor class is added to the core Isaac Lab framework.
-from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensorCfg
-
+from ..markers import VisualizationMarkers, VisualizationMarkersCfg
+from ..sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, RayCasterCfg, SensorBase, SensorBaseCfg
+from ..sim import SimulationContext
+from ..sim.utils.stage import get_current_stage, get_current_stage_id
 from .interactive_scene_cfg import InteractiveSceneCfg
 
 if TYPE_CHECKING:
@@ -767,7 +766,7 @@ class InteractiveScene:
         """Add scene entities from the config."""
         from isaaclab_physx.assets import SurfaceGripperCfg  # noqa: PLC0415
 
-        from isaaclab.terrains.terrain_importer_cfg import TerrainImporterCfg  # noqa: PLC0415
+        from ..terrains.terrain_importer_cfg import TerrainImporterCfg  # noqa: PLC0415
 
         # store paths that are in global collision filter
         self._global_prim_paths = list()

@@ -14,13 +14,12 @@ from typing import TYPE_CHECKING, Any
 import torch
 import warp as wp
 
-from isaaclab.sensors.camera.camera_data import CameraData
-
+from ..sensors.camera.camera_data import CameraData
 from .base_renderer import BaseRenderer, VisualMaterialBatch
 from .renderer_cfg import RendererCfg
 
 if TYPE_CHECKING:
-    from isaaclab.sim import BackendCfg
+    from ..sim import BackendCfg
 
 logger = logging.getLogger(__name__)
 

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import os
 import sys
 from collections.abc import Callable
 from typing import Any, Literal
@@ -27,7 +28,14 @@ from isaaclab.utils import math as math_utils
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
-from .common import apply_env_overrides
+from .common import (
+    add_video_args,
+    apply_env_overrides,
+    apply_video_recording,
+    enable_cameras_for_video,
+    normalize_task_name,
+    video_playback_steps,
+)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -64,6 +72,9 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
     apply_env_overrides(args_cli, env_cfg)
     # pass the resolved task device through to the launcher
     args_cli.device = env_cfg.sim.device
+    # configure recorders before validation so invalid clip settings fail before the launch
+    log_dir = os.path.abspath(os.path.join("logs", f"{policy}_agent", normalize_task_name(args_cli.task)))
+    apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
     # reject unsupported configurations before launching Kit or initializing a native physics backend
     try:
         env_cfg.validate()
@@ -82,11 +93,14 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
                     action_policy = create_random_action_policy(env)
                 print(f"[INFO] {policy.capitalize()} agent is running, press Ctrl+C to exit...")
 
+                budgets = [n for n in (args_cli.max_steps, video_playback_steps(args_cli, env_cfg)) if n is not None]
+                max_steps = min(budgets, default=None)
+
                 # keep running while any visualizer is open and the step budget is not exhausted
                 sim = env.unwrapped.sim
                 step = 0
                 while sim.is_headless_or_exist_active_visualizer():
-                    if args_cli.max_steps is not None and step >= args_cli.max_steps:
+                    if max_steps is not None and step >= max_steps:
                         break
                     step += 1
                     with torch.inference_mode():
@@ -237,9 +251,11 @@ def _parse_args(argv: list[str] | None, policy: PolicyName) -> argparse.Namespac
     parser.add_argument(
         "--max_steps", type=int, default=None, help="Number of environment steps to run. Runs unbounded when omitted."
     )
+    add_video_args(parser, action=f"the {policy} agent run")
     add_launcher_args(parser)
     # let task configs select the simulation device and keep checkpoint-free agents on the kitless default path
     parser.set_defaults(device=None, visualizer=["newton_gl"])
     args_cli, hydra_args = setup_preset_cli(parser, argv)
+    enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + hydra_args
     return args_cli

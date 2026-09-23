@@ -23,9 +23,8 @@ from isaaclab.sensors import ContactSensor, ContactSensorCfg, FrameTransformer, 
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
-
+    from ... import ManagerBasedEnv
+    from ...utils.io_descriptors import GenericActionIODescriptor
     from . import actions_cfg
 
 logger = logging.getLogger(__name__)

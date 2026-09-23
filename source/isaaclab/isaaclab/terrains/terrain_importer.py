@@ -12,10 +12,9 @@ import numpy as np
 import torch
 import trimesh
 
-import isaaclab.sim as sim_utils
-from isaaclab.markers import VisualizationMarkers
-from isaaclab.markers.config import FRAME_MARKER_CFG
-
+from .. import sim as sim_utils
+from ..markers import VisualizationMarkers
+from ..markers.config import FRAME_MARKER_CFG
 from .utils import create_prim_from_mesh
 
 if TYPE_CHECKING:
@@ -293,7 +292,7 @@ class TerrainImporter:
         """
         from pxr import Sdf
 
-        from isaaclab.sim.utils.stage import get_current_stage
+        from ..sim.utils.stage import get_current_stage
 
         prim = get_current_stage().GetPrimAtPath(prim_path)
         if not prim.IsValid():
@@ -403,7 +402,7 @@ class TerrainImporter:
 
     def _compute_env_origins_grid(self, num_envs: int, env_spacing: float) -> torch.Tensor:
         """Compute the origins of the environments in a grid based on configured spacing."""
-        from isaaclab.cloner import grid_transforms
+        from ..cloner import grid_transforms
 
         env_origins, _ = grid_transforms(num_envs, env_spacing)
         return torch.as_tensor(env_origins, device=self.device)

@@ -5,8 +5,8 @@
 
 from typing import Any
 
-from isaaclab.ui.xr_widgets import DataCollector, TriggerType, VisualizationManager
-from isaaclab.ui.xr_widgets.instruction_widget import hide_instruction
+from . import DataCollector, TriggerType, VisualizationManager
+from .instruction_widget import hide_instruction
 
 
 class TeleopVisualizationManager(VisualizationManager):

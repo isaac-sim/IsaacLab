@@ -17,9 +17,8 @@ from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils.math import euler_xyz_from_quat
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
-
+    from ... import ManagerBasedEnv
+    from ...utils.io_descriptors import GenericActionIODescriptor
     from . import actions_cfg
 
 logger = logging.getLogger(__name__)

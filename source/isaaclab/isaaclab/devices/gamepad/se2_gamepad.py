@@ -18,8 +18,7 @@ import carb
 import carb.input
 import omni
 
-from isaaclab.app.settings_manager import get_settings_manager
-
+from ...app.settings_manager import get_settings_manager
 from ..device_base import DeviceBase
 
 if TYPE_CHECKING:

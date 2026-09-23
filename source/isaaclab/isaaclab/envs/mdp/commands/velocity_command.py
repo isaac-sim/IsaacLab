@@ -19,8 +19,7 @@ from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-
+    from ... import ManagerBasedEnv
     from .commands_cfg import NormalVelocityCommandCfg, UniformVelocityCommandCfg
 
 logger = logging.getLogger(__name__)

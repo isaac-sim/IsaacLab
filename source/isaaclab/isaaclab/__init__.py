@@ -171,6 +171,6 @@ def bootstrap_kernel():
 
 def main():
     """Run the ``isaaclab`` command through its compatibility dispatcher."""
-    from isaaclab.__main__ import main as _main
+    from .__main__ import main as _main
 
     sys.exit(_main())
