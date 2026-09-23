@@ -171,13 +171,15 @@ def test_parse_profile_takes_an_arbitrary_scope_mapping(benchmark_renderer, tmp_
 def test_run_profile_reads_fresh_structured_output(benchmark_renderer, tmp_path, monkeypatch, write_timings):
     """The run consumes its own profiling artifact; stale artifacts and timing logs cannot satisfy it."""
     profile = {"name": "p", "preset": "newton_renderer,rgb", "settings": {"tlas": "sah", "blas": "lbvh"}}
-    profile_path = tmp_path / "p.profile.json"
+    profile_path = tmp_path / "p" / "profile_timings.json"
+    profile_path.parent.mkdir()
     frames = benchmark_renderer.FRAME_PADDING + 2
     _write_profile(profile_path, [(_RENDER_SCOPE, 99.0)] * frames)
     monkeypatch.setattr(benchmark_renderer, "OUTPUT_PATH", str(tmp_path))
 
     def launch(cmd, **kwargs):
-        assert cmd[cmd.index("--profile_output_path") + 1] == str(profile_path)
+        assert cmd[cmd.index("--output_path") + 1] == str(profile_path.parent)
+        assert "--profile_output_path" not in cmd
         assert kwargs["env"]["ISAACLAB_RENDER_PROFILE"] == "1"
         assert kwargs["env"]["ISAACLAB_PHYSICS_PROFILE"] == "1"
         assert not profile_path.exists()

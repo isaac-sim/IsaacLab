@@ -86,9 +86,9 @@ renderers through :func:`~isaaclab.benchmark.stepping.profile_renderers`, timing
 ``render()`` and excluding scene updates and output readback. Render wrappers are installed
 after warmup and remain on those instances for the rest of the benchmark. The render sweep
 enables both flags automatically. Timings are written to ``<output_path>/profile_timings.json``
-as ordered ``[scope, elapsed_ms]`` pairs under ``timings_ms``; use ``--profile_output_path``
-to choose a different file. Device synchronization changes execution overlap, so these profiled runs are diagnostics
-rather than throughput measurements.
+as ordered ``[scope, elapsed_ms]`` pairs under ``timings_ms``. The render sweep uses a separate
+output directory for each profile. Device synchronization changes execution overlap, so these
+profiled runs are diagnostics rather than throughput measurements.
 
 .. dropdown:: Canonical workstation output and provenance
 

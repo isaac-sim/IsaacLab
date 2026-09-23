@@ -71,15 +71,6 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
-        "--profile_output_path",
-        type=Path,
-        default=None,
-        help=(
-            "JSON file for ordered timings enabled by ISAACLAB_RENDER_PROFILE / ISAACLAB_PHYSICS_PROFILE."
-            " Defaults to <output_path>/profile_timings.json when either profiling flag is enabled."
-        ),
-    )
-    parser.add_argument(
         "--benchmark_formatter",
         type=str,
         default="schema",
@@ -280,8 +271,8 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             benchmark.attach_bundle(bundle)
 
             output_paths = benchmark.finalize()
-            if profile_render or profile_physics or args.profile_output_path is not None:
-                profile_path = args.profile_output_path or Path(args.output_path) / "profile_timings.json"
+            if profile_render or profile_physics:
+                profile_path = Path(args.output_path) / "profile_timings.json"
                 write_bundle_file({"timings_ms": profile_timings}, str(profile_path))
                 output_paths += (profile_path,)
             result = BenchmarkResult(bundle=bundle, output_paths=output_paths)

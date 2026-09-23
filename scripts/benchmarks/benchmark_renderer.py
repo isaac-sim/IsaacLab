@@ -305,9 +305,10 @@ def run_profile(profile: dict, args: argparse.Namespace):
         env["NEWTON_BVH_SCENE"] = profile["settings"]["tlas"]
         env["NEWTON_BVH_GEOMETRY"] = profile["settings"]["blas"]
 
-    os.makedirs(OUTPUT_PATH, exist_ok=True)
+    output_path = os.path.join(OUTPUT_PATH, profile_name)
+    os.makedirs(output_path, exist_ok=True)
     log_filename = os.path.join(OUTPUT_PATH, profile_name + ".log")
-    profile_filename = os.path.join(OUTPUT_PATH, profile_name + ".profile.json")
+    profile_filename = os.path.join(output_path, "profile_timings.json")
     # A successful subprocess must produce its own measurements, never reuse a previous run's.
     Path(profile_filename).unlink(missing_ok=True)
 
@@ -323,9 +324,7 @@ def run_profile(profile: dict, args: argparse.Namespace):
         "--num_steps",
         f"{args.num_frames + FRAME_PADDING * 2}",
         "--output_path",
-        OUTPUT_PATH,
-        "--profile_output_path",
-        profile_filename,
+        output_path,
         f"presets={preset}",
     ]
 
