@@ -433,7 +433,7 @@ def test_a_checkpoint_path_that_does_not_exist_is_named_early(tmp_path):
 
     cfg = CosmosBackendCfg(
         class_type=CosmosBackend,
-        checkpoint=str(tmp_path / "Cosmos3-Nano-Transfer-DMD2-4Step"),
+        checkpoint=str(tmp_path / "Cosmos3-Nano-Transfer-Example"),
         prompts=PromptBankCfg(variants=("a lab",)),
     )
     backend = CosmosBackend(cfg)

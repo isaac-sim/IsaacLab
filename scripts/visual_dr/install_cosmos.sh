@@ -20,7 +20,7 @@
 #   an ssh git URL      ssh://git@host:port/group/cosmos-framework.git
 #
 # A git source may be pinned by appending '.git@<ref>', for example
-#   ssh://git@gitlab-master.nvidia.com:12051/dlmed/cosmos-framework.git@524728a
+#   ssh://git@<host>:<port>/<group>/cosmos-framework.git@<ref>
 #
 # Re-run this after any plain `uv sync`, which removes the overlay. Passing
 # `--inexact` to uv sync avoids that.
