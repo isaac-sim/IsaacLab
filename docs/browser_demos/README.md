@@ -81,7 +81,8 @@ instanceable mesh file in the sibling `Props` directory. It uses the
 `Isaac-Cartpole-Direct` MJWarp preset, the task's 120 Hz timestep, a fixed
 0.2 rad initial pole angle, and the published Newton MJWarp RSL-RL policy.
 The policy observes cart position, pole angle, cart velocity, and pole velocity
-every two physics steps. The user can temporarily add up to 300 N of cart force.
+every two physics steps. The user can temporarily add up to 300 N of cart force;
+large sustained pushes can take the cart past its 3 m reset limit.
 The viewer uses the USD's collision boxes and adds visual rail supports; the
 simulation itself uses only the task asset's collision geometry.
 

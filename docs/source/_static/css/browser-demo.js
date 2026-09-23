@@ -288,13 +288,13 @@ class IsaacLabBrowserDemo extends HTMLElement {
       forceCard.className = 'browser-demo-force';
       const slider = this.addSlider(forceCard, 'Push cart', -this.demo.perturbationLimit,
         this.demo.perturbationLimit, 5, 0, (value) => {
-          this.perturbation = value;
+          this.perturbation = -value;
           this.updateCartpoleForce();
-        }, (value) => `${value > 0 ? '+' : ''}${value.toFixed(0)} N`);
+        }, (value) => `${value < 0 ? '+' : value > 0 ? '−' : ''}${Math.abs(value).toFixed(0)} N`);
       slider.setAttribute('aria-label', 'Cart perturbation force; release to stop pushing');
       const scale = document.createElement('div');
       scale.className = 'browser-demo-force-scale';
-      for (const label of [`−${this.demo.perturbationLimit} N`, '0', `+${this.demo.perturbationLimit} N`]) {
+      for (const label of [`+${this.demo.perturbationLimit} N`, '0', `−${this.demo.perturbationLimit} N`]) {
         const mark = document.createElement('span');
         mark.textContent = label;
         scale.append(mark);
@@ -307,7 +307,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
       for (const name of ['pointerup', 'pointercancel', 'keyup', 'blur']) slider.addEventListener(name, release);
       this.resetSticks = release;
       const hint = document.createElement('small');
-      hint.textContent = 'Hold to push the cart. Release to let the policy recover.';
+      hint.textContent = 'Hold to perturb the cart. Release to see the policy respond.';
       forceCard.append(hint);
       panel.append(forceCard);
     } else {

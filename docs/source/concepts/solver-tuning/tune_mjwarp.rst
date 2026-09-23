@@ -62,8 +62,8 @@ Try the Cartpole baseline
 
 This interactive ``Isaac-Cartpole-Direct`` scene uses the task's Cartpole USD,
 MJWarp solver settings, 120 Hz physics timestep, and published Newton policy.
-Hold the slider to add up to 300 N of horizontal force to the cart; release it
-to watch the policy recover. **Reset** restores the same initial pole angle
+Hold the slider to add up to 300 N of cart force; release it to watch the
+policy respond. **Reset** restores the same initial pole angle
 of 0.2 rad. The cart resets when it passes the task's 3 m travel limit.
 Use the task configuration linked above when reproducing behavior in Isaac Lab.
 

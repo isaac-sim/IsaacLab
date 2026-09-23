@@ -64,9 +64,9 @@ Cartpole policy with MJWarp
 ---------------------------
 
 The published ``Isaac-Cartpole-Direct`` Newton MJWarp policy balances the pole from
-a repeatable 0.2 rad initial angle. Hold the slider to add up to 300 N of horizontal force to
-the cart, then release it to watch the policy recover. **Reset** restores the
-starting state. The cart resets beyond 3 m of travel.
+a repeatable 0.2 rad initial angle. Hold the slider to add up to 300 N of cart
+force, then release it to watch the policy respond.
+**Reset** restores the starting state. The cart resets beyond 3 m of travel.
 See :doc:`solver-tuning/tune_mjwarp` for
 the corresponding solver tuning guide.
 
