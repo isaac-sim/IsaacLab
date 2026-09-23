@@ -272,6 +272,9 @@ class FrankaMixinCfg:
         self.commands.object_pose.body_name = "panda_hand"
         # Franka base is rotated 180 deg about z, so the workspace mirrors to positive x.
         self.commands.object_pose.ranges.pos_x = (0.3, 0.7)
+        # The actuator limits are nominal policy limits, not evidence of unstable physics.
+        # Reserve the abnormal-state termination for velocities beyond the solver contract.
+        self.terminations.abnormal_robot.func = mdp.abnormal_robot_state
         self.terminations.abnormal_robot.params["asset_cfg"] = SceneEntityCfg("robot", joint_names="panda_joint.*")
 
 
@@ -314,24 +317,6 @@ class FrankaReorientEnvCfg(FrankaMixinCfg, lift.ReorientEnvCfg):
 @configclass
 class FrankaLiftEnvCfg(FrankaMixinCfg, lift.LiftEnvCfg):
     """Franka object lifting environment."""
-
-    def __post_init__(self):
-        super().__post_init__()
-        # Keep one quarter of the reset bank as collision-free, aligned pre-grasps. The
-        # remaining candidates retain the task's broad object and robot distribution.
-        reset_terms = self.events.conditional_reset.params["terms"]
-        pregrasp = reset_terms.pop("reset_object_to_target")
-        reset_terms["reset_object_to_target"] = pregrasp
-        pregrasp.func = mdp.reset_to_grasp
-        pregrasp.params.update(
-            probability=0.25,
-            target_cfg=SceneEntityCfg("robot", body_names="panda_hand"),
-            gripper_cfg=SceneEntityCfg("robot", joint_names="panda_finger_joint.*"),
-            pose_range={"x": (-0.002, 0.002), "y": (-0.002, 0.002), "z": (0.1, 0.1)},
-            gripper_joint_positions=[0.026, 0.026, 0.0135, 0.026, 0.021, 0.026, 0.026, 0.011],
-            asset_orientations=[(0.0, 0.0, 0.0, 1.0)] * 5 + [(0.0, 2.0**-0.5, 0.0, 2.0**-0.5)] * 3,
-        )
-        pregrasp.params.pop("velocity_range")
 
     def play_mode(self):
         super().play_mode()

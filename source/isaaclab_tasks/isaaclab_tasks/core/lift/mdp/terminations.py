@@ -72,8 +72,8 @@ def abnormal_robot_state(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Sce
     Such violations indicate unstable physics, typically caused by aggressive actions.
     """
     robot: Articulation = env.scene[asset_cfg.name]
-    joint_vel = robot.data.joint_vel.torch
-    joint_vel_limits = robot.data.joint_vel_limits.torch
+    joint_vel = robot.data.joint_vel.torch[:, asset_cfg.joint_ids]
+    joint_vel_limits = robot.data.joint_vel_limits.torch[:, asset_cfg.joint_ids]
     return (joint_vel.abs() > (joint_vel_limits * 2)).any(dim=1)
 
 

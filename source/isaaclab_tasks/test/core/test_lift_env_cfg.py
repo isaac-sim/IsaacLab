@@ -70,6 +70,20 @@ def test_rigid_lift_smoothing_weights_follow_adr_continuously() -> None:
             assert getattr(rewards, name).weight == pytest.approx(expected)
 
 
+def test_abnormal_robot_state_ignores_nominal_velocity_excursions() -> None:
+    """The instability guard should leave policy exploration below twice the solver limit intact."""
+    robot = SimpleNamespace(
+        data=SimpleNamespace(
+            joint_vel=SimpleNamespace(torch=torch.tensor([[15.0, 100.0], [20.0, 100.0], [20.1, 0.0]])),
+            joint_vel_limits=SimpleNamespace(torch=torch.full((3, 2), 10.0)),
+        )
+    )
+    env = SimpleNamespace(scene={"robot": robot})
+    arm_only = SimpleNamespace(name="robot", joint_ids=[0])
+
+    assert mdp.abnormal_robot_state(env, arm_only).tolist() == [False, False, True]
+
+
 @pytest.mark.parametrize(
     ("selected_presets", "expected_physics"),
     [
@@ -86,6 +100,19 @@ def test_franka_soft_robot_physics_variant_matches_backend(
     cfg = resolve_presets(FrankaSoftEnvCfg(), selected=selected_presets)
 
     assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics, "Colliders": "gripper_only"}
+
+
+def test_franka_lift_physx_runtimes_share_the_same_mdp() -> None:
+    """Isaac Sim PhysX and OvPhysX should differ only in runtime configuration."""
+    isaacsim_cfg = resolve_presets(FrankaLiftEnvCfg(), selected=("isaacsim_physx", "cube"))
+    ovphysx_cfg = resolve_presets(FrankaLiftEnvCfg(), selected=("ovphysx", "cube"))
+    assert isaacsim_cfg.sim.physics.enable_external_forces_every_iteration
+    assert ovphysx_cfg.sim.physics.enable_external_forces_every_iteration
+    isaacsim = isaacsim_cfg.to_dict()
+    ovphysx = ovphysx_cfg.to_dict()
+
+    for section in ("scene", "observations", "actions", "commands", "rewards", "terminations", "events", "curriculum"):
+        assert ovphysx[section] == isaacsim[section], section
 
 
 @pytest.mark.parametrize("cfg_type", [FrankaLiftEnvCfg, FrankaReorientEnvCfg])
@@ -127,14 +154,28 @@ def test_franka_tasks_use_distinct_lift_and_reorient_bootstraps() -> None:
     assert reorient.actions.arm_action.joint_names == ["panda_joint.*"]
     assert reorient.actions.arm_action.scale == pytest.approx(0.03)
     assert reorient.actions.gripper_action.joint_names == ["panda_finger_joint1"]
+    assert reorient.terminations.abnormal_robot.func is mdp.abnormal_robot_state
     assert lift.commands.object_pose.difficulty_term is None
     assert lift.actions.action.joint_names == [".*"]
+    assert lift.terminations.abnormal_robot.func is mdp.abnormal_robot_state
     lift_reset = lift.events.conditional_reset.params
-    assert list(lift_reset["terms"])[-1] == "reset_object_to_target"
-    assert lift_reset["terms"]["reset_object_to_target"].func is mdp.reset_to_grasp
-    assert lift_reset["terms"]["reset_object_to_target"].params["probability"] == pytest.approx(0.25)
-    assert lift_reset["terms"]["reset_object_to_target"].params["gripper_joint_positions"][0] == pytest.approx(0.026)
+    lift_reset_terms = list(lift_reset["terms"])
+    assert lift_reset_terms.index("reset_object_to_target") > lift_reset_terms.index("reset_robot_wrist_joint")
+    lift_target_reset = lift_reset["terms"]["reset_object_to_target"]
+    assert lift_target_reset.func == "isaaclab_tasks.core.lift.mdp.events:reset_to_target"
+    assert lift_target_reset.params["probability"] == pytest.approx(0.25)
+    assert lift_target_reset.params["pose_range"] == {
+        "x": [-0.02, 0.02],
+        "y": [-0.02, 0.02],
+        "z": [0.08, 0.12],
+    }
+    assert lift_target_reset.params["velocity_range"] == {}
     assert "object_robot_clearance" in lift_reset["valid_criteria"]
+
+    lift.play_mode()
+    assert lift.events.conditional_reset.params["terms"]["reset_object_to_target"].params[
+        "probability"
+    ] == pytest.approx(0.25)
 
 
 def test_pose_command_curriculum_preserves_full_difficulty_goal() -> None:
