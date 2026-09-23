@@ -229,29 +229,76 @@ def test_visualizer_source_auto_picks_first_with_render_rgb_array():
     assert viz.render_calls == 1
 
 
-def test_visualizer_source_refreshes_physics_before_on_demand_capture():
-    """On-demand capture reads a frame after physics transforms are synchronized."""
-    synchronized = False
+@pytest.mark.parametrize("source", ["visualizer:kit", "visualizer:kit:streaming_view"])
+@pytest.mark.parametrize("is_rendering", [False, True], ids=["on-demand", "continuous"])
+def test_visualizer_source_refreshes_render_state_before_on_demand_capture(source, is_rendering):
+    """Every capture sees fresh state; continuous rendering needs no extra refresh."""
+    physics_value = 0
+    published_value = 0
 
     class _FreshFrameViz(_FakeViz):
         def render_rgb_array(self) -> np.ndarray:
-            return np.full_like(self._frame, 255 if synchronized else 0)
+            return np.full_like(self._frame, published_value)
+
+        def render_tiled_rgb_array(self) -> np.ndarray:
+            return self.render_rgb_array()
 
     viz = _FreshFrameViz("kit")
+    viz.cfg.streaming_view = True
+    env = _make_env(visualizers=[viz])
+    env.sim.is_rendering = is_rendering
+
+    def publish_render_state() -> None:
+        nonlocal published_value
+        published_value = physics_value
+
+    env.sim.pre_render.side_effect = publish_render_state
+    recorder = VideoRecorder(_cfg(source=source), env)
+
+    for physics_value in (64, 128, 192):
+        if is_rendering:
+            # The environment has already published this step's state.
+            publish_render_state()
+        frame = recorder._get_frame()
+
+        assert frame is not None
+        assert np.all(frame == physics_value)
+
+    if is_rendering:
+        env.sim.forward.assert_not_called()
+        env.sim.pre_render.assert_not_called()
+        env.sim.refresh_visualizer.assert_not_called()
+    else:
+        # refresh_visualizer must target only the captured visualizer -- it must never step
+        # every visualizer via a full render()/update_visualizers() sweep.
+        assert env.sim.refresh_visualizer.call_args_list == [((viz,),)] * 3
+    # Capture must never fall back to a full render(): that would also step every other
+    # visualizer, fire every registered render callback, and advance the shared render
+    # generation instead of only publishing this recorder's transforms.
+    env.sim.render.assert_not_called()
+
+
+def test_on_demand_rendering_stops_between_recording_windows():
+    """Headless synchronization should only run on steps that capture a frame."""
+    viz = _FakeViz("kit")
     env = _make_env(visualizers=[viz])
     env.sim.is_rendering = False
+    recorder = VideoRecorder(_cfg(source="visualizer:kit", video_length=2, video_interval=5), env)
 
-    def synchronize_physics() -> None:
-        nonlocal synchronized
-        synchronized = True
-
-    env.sim.forward.side_effect = synchronize_physics
-    recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
-
-    frame = recorder._get_frame()
-
-    assert frame is not None
-    assert np.all(frame == 255)
+    for step in range(1, 8):
+        env.sim.forward.reset_mock()
+        env.sim.pre_render.reset_mock()
+        env.sim.refresh_visualizer.reset_mock()
+        recorder.step()
+        if step in (1, 2, 6, 7):
+            env.sim.forward.assert_called_once_with()
+            env.sim.pre_render.assert_called_once_with()
+            env.sim.refresh_visualizer.assert_called_once_with(viz)
+        else:
+            env.sim.forward.assert_not_called()
+            env.sim.pre_render.assert_not_called()
+            env.sim.refresh_visualizer.assert_not_called()
+    env.sim.render.assert_not_called()
 
 
 def test_visualizer_source_auto_no_visualizer_logs_and_returns_none(caplog):
