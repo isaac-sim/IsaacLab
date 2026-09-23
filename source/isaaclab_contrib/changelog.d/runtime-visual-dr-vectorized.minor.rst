@@ -172,3 +172,13 @@ Fixed
   around fifty packages unless ``--inexact`` is passed; and Cosmos cannot yet be
   locked alongside Isaac Lab, though only its ``transformers<5`` base pin stands in
   the way -- its base dependencies do not pin torch at all.
+
+* Added ``scripts/visual_dr/install_cosmos.sh``, which installs a cosmos-framework
+  checkout from a local path or an https or ssh git URL, optionally pinned with
+  ``.git@<ref>``, always with ``--no-deps`` and alongside the ``cosmos-runtime``
+  extra. It reports which checkout was installed and whether that checkout supports
+  guided generation, so a checkout without it does not silently fall back.
+* Added an early check that a checkpoint path exists. ``CosmosBackendCfg.checkpoint``
+  already accepted a local directory as well as a registered name or ``s3://`` URI,
+  but a mistyped path failed deep inside Cosmos with a message about config
+  resolution rather than about the path.

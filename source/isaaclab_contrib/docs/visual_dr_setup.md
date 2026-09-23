@@ -68,3 +68,40 @@ hurts. `RemoteCosmosBackendCfg` runs it in worker processes on their own GPUs,
 passing frames by CUDA IPC so image data never goes through host memory. Device
 indices are indices into what the process can see, so `CUDA_VISIBLE_DEVICES` must
 cover the union of the workers' GPUs and the simulator's.
+
+## A different Cosmos checkout, or a different checkpoint
+
+Both are supported without touching the code.
+
+```bash
+# any local path, https URL, or ssh URL, optionally pinned with '.git@<ref>'
+scripts/visual_dr/install_cosmos.sh \
+    ssh://git@gitlab-master.nvidia.com:12051/dlmed/cosmos-framework.git@524728a
+```
+
+The script installs the `cosmos-runtime` extra, then Cosmos itself with
+`--no-deps`, and reports which checkout it ended up with and whether that checkout
+supports guided generation. Splitting on `.git@` keeps the `@` in an ssh URL's
+`git@host` from being mistaken for a ref.
+
+`CosmosBackendCfg.checkpoint` accepts a registered name, an `s3://` URI, or a local
+directory, so a downloaded checkpoint needs no special handling:
+
+```bash
+hf download nvidia/<repo> --revision <rev> \
+    --include 'Cosmos3-Nano-Transfer-DMD2-4Step-LoRA-256p480p-iter8000/**' \
+    --local-dir <local-path>
+```
+
+```python
+checkpoint = "<local-path>/Cosmos3-Nano-Transfer-DMD2-4Step-LoRA-256p480p-iter8000"
+```
+
+### Distilled checkpoints want different sampling
+
+The defaults here -- 16 sampler steps at `guidance=3.0` -- are tuned for the base
+`Cosmos3-Nano`. A DMD2-distilled checkpoint is trained to run in about four steps
+*without* classifier-free guidance, so it wants roughly `num_steps=4` and
+`guidance=1.0`. Leaving the base defaults in place is both slower and wrong: high
+guidance on a model distilled without it tends to produce hard contrast rather than
+detail.
