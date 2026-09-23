@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--backend", choices=("isaacsim_physx", "ovphysx"), required=True)
-    parser.add_argument("--mode", choices=("contact", "training"), default="contact")
+    parser.add_argument("--mode", choices=("contact", "rollout", "training"), default="contact")
     return parser.parse_args()
 
 
@@ -109,6 +109,76 @@ def _run_training_trace(env: Any, backend: str, cfg: Any) -> dict:
     }
 
 
+def _run_random_policy_rollout(env: Any, backend: str, cfg: Any) -> dict:
+    """Exercise reset, contact, and termination behavior over complete Lift episodes."""
+    import torch
+
+    unwrapped = env.unwrapped
+    robot = unwrapped.scene["robot"]
+    obj = unwrapped.scene["object"]
+    left_sensor = unwrapped.scene.sensors["panda_leftfinger_object_s"]
+    right_sensor = unwrapped.scene.sensors["panda_rightfinger_object_s"]
+    finger_joint_ids = torch.tensor(
+        [robot.joint_names.index(f"panda_finger_joint{i}") for i in (1, 2)], device=unwrapped.device
+    )
+
+    env.reset(seed=42)
+    generator = torch.Generator(device=unwrapped.device).manual_seed(43)
+    num_steps = 720
+    reward_sum = torch.zeros(unwrapped.num_envs, device=unwrapped.device)
+    reward_term_sum = torch.zeros(len(unwrapped.reward_manager.active_terms), device=unwrapped.device)
+    termination_counts = torch.zeros(len(unwrapped.termination_manager.active_terms), device=unwrapped.device)
+    dual_contact_count = torch.tensor(0, device=unwrapped.device, dtype=torch.long)
+    object_above_table_count = torch.tensor(0, device=unwrapped.device, dtype=torch.long)
+    nonfinite_state_count = torch.tensor(0, device=unwrapped.device, dtype=torch.long)
+    max_joint_velocity = torch.tensor(0.0, device=unwrapped.device)
+    finger_separation_sum = torch.tensor(0.0, device=unwrapped.device)
+
+    with torch.inference_mode():
+        for _ in range(num_steps):
+            actions = torch.randn(env.action_space.shape, generator=generator, device=unwrapped.device)
+            _, rewards, _, _, _ = env.step(actions)
+            reward_sum += rewards
+            reward_term_sum += unwrapped.reward_manager._step_reward.sum(dim=0)
+            termination_counts += unwrapped.termination_manager._term_dones.sum(dim=0)
+            left_force = _force_magnitude(left_sensor)
+            right_force = _force_magnitude(right_sensor)
+            dual_contact_count += ((left_force > 0.01) & (right_force > 0.01)).sum()
+            object_above_table_count += (obj.data.root_pos_w.torch[:, 2] > 0.35).sum()
+            state = torch.cat(
+                (
+                    robot.data.joint_pos.torch,
+                    robot.data.joint_vel.torch,
+                    obj.data.root_pose_w.torch,
+                    obj.data.root_vel_w.torch,
+                ),
+                dim=-1,
+            )
+            nonfinite_state_count += (~torch.isfinite(state).all(dim=-1)).sum()
+            max_joint_velocity = torch.maximum(max_joint_velocity, robot.data.joint_vel.torch.abs().max())
+            finger_separation_sum += robot.data.joint_pos.torch[:, finger_joint_ids].sum(dim=-1).mean()
+
+    num_env_steps = unwrapped.num_envs * num_steps
+    return {
+        "backend": backend,
+        "mode": "rollout",
+        "asset_path": cfg.scene.robot.spawn.usd_path,
+        "asset_variants": cfg.scene.robot.spawn.variants,
+        "num_envs": unwrapped.num_envs,
+        "num_steps": num_steps,
+        "mean_return": float(reward_sum.mean().item()),
+        "reward_terms": unwrapped.reward_manager.active_terms,
+        "mean_reward_terms": (reward_term_sum / num_env_steps).cpu().tolist(),
+        "termination_terms": unwrapped.termination_manager.active_terms,
+        "termination_counts": termination_counts.cpu().tolist(),
+        "dual_contact_fraction": float(dual_contact_count.item() / num_env_steps),
+        "object_above_table_fraction": float(object_above_table_count.item() / num_env_steps),
+        "nonfinite_state_count": int(nonfinite_state_count.item()),
+        "max_joint_velocity": float(max_joint_velocity.item()),
+        "mean_finger_separation": float((finger_separation_sum / num_steps).item()),
+    }
+
+
 def main() -> None:
     args = _parse_args()
     simulation_app = None
@@ -130,10 +200,10 @@ def main() -> None:
     cfg = load_cfg_from_registry("Isaac-Lift-Franka", "env_cfg_entry_point")
     cfg = resolve_presets(cfg, selected=(args.backend, "cube"))
     cfg.seed = 42
-    cfg.scene.num_envs = 4
+    cfg.scene.num_envs = 256 if args.mode == "rollout" else 4
     cfg.scene.env_spacing = 2.0
     reset_cfg = cfg.events.conditional_reset.params
-    reset_cfg["buffer_size_per_group"] = 4
+    reset_cfg["buffer_size_per_group"] = cfg.scene.num_envs
     reset_cfg["oversample_factor"] = 1.0
     if args.mode == "contact":
         cfg.curriculum = None
@@ -162,6 +232,10 @@ def main() -> None:
     try:
         if args.mode == "training":
             result = _run_training_trace(env, args.backend, cfg)
+            print("LIFT_PHYSX_BACKEND_PROBE=" + json.dumps(result, sort_keys=True))
+            return
+        if args.mode == "rollout":
+            result = _run_random_policy_rollout(env, args.backend, cfg)
             print("LIFT_PHYSX_BACKEND_PROBE=" + json.dumps(result, sort_keys=True))
             return
 

@@ -20,7 +20,6 @@ from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.core.lift.adr_curriculum import CurriculumCfg
 from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg, FrankaReorientEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
-from isaaclab_tasks.core.lift.lift_env_cfg import RewardsCfg
 from isaaclab_tasks.core.lift.mdp.commands import pose_commands
 from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
     CableUniformPoseCommand,
@@ -49,25 +48,14 @@ class _FakeScene(dict):
         self.env_origins = torch.zeros((len(environment_ids), 3))
 
 
-def test_rigid_lift_smoothing_weights_follow_adr_continuously() -> None:
-    """Motion penalties should strengthen with competence without a fixed-step weight cliff."""
-    rewards = RewardsCfg()
+def test_rigid_lift_motion_regularization_uses_shared_training_schedule() -> None:
+    """Motion penalties should become effective at the same training step on every backend."""
     curriculum = CurriculumCfg()
-    scheduler = SimpleNamespace(difficulty_frac=0.0)
-    env = SimpleNamespace(
-        reward_manager=SimpleNamespace(cfg=rewards),
-        curriculum_manager=SimpleNamespace(cfg=SimpleNamespace(adr=SimpleNamespace(func=scheduler))),
-    )
-    terms = {name: mdp.modify_term_cfg(getattr(curriculum, name), env) for name in ("action_rate", "joint_vel")}
 
-    assert rewards.action_rate.weight == pytest.approx(-1e-4)
-    assert rewards.joint_vel.weight == pytest.approx(-1e-4)
-    for fraction in (0.0, 0.099, 0.1, 0.5, 1.0):
-        scheduler.difficulty_frac = fraction
-        expected = -1e-4 + fraction * (-1e-1 + 1e-4)
-        for name, term in terms.items():
-            term(env, slice(None), **getattr(curriculum, name).params)
-            assert getattr(rewards, name).weight == pytest.approx(expected)
+    for term_name in ("action_rate", "joint_vel"):
+        term = getattr(curriculum, term_name)
+        assert term.func is mdp.modify_reward_weight
+        assert term.params == {"term_name": term_name, "weight": -1e-1, "num_steps": 10000}
 
 
 def test_abnormal_robot_state_ignores_nominal_velocity_excursions() -> None:

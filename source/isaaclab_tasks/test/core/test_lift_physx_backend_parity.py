@@ -188,3 +188,47 @@ def test_franka_lift_physx_runtimes_match_randomized_training_trace() -> None:
     assert ovphysx_result["terminated_trajectory"] == isaacsim_result["terminated_trajectory"]
     assert ovphysx_result["truncated_trajectory"] == isaacsim_result["truncated_trajectory"]
     assert ovphysx_result["termination_term_trajectory"] == isaacsim_result["termination_term_trajectory"]
+
+
+@pytest.mark.isaacsim_ci
+def test_franka_lift_physx_runtimes_match_complete_random_policy_rollouts() -> None:
+    """Complete randomized episodes should preserve aggregate contact and reset behavior across runtimes."""
+    _skip_without_physx_runtimes()
+
+    results = {backend: _run_backend_probe(backend, "rollout") for backend in ("isaacsim_physx", "ovphysx")}
+    isaacsim_result = results["isaacsim_physx"]
+    ovphysx_result = results["ovphysx"]
+    for result in results.values():
+        assert result["mode"] == "rollout"
+        assert result["asset_variants"] == {"Physics": "physx", "Colliders": "gripper_only"}
+        assert result["num_envs"] == 256
+        assert result["num_steps"] == 720
+        assert result["nonfinite_state_count"] == 0
+        assert result["dual_contact_fraction"] > 0.0
+        assert sum(result["termination_counts"]) > result["num_envs"]
+
+    assert ovphysx_result["reward_terms"] == isaacsim_result["reward_terms"]
+    assert ovphysx_result["termination_terms"] == isaacsim_result["termination_terms"]
+    assert ovphysx_result["mean_return"] == pytest.approx(isaacsim_result["mean_return"], abs=0.1)
+    torch.testing.assert_close(
+        torch.tensor(ovphysx_result["mean_reward_terms"]),
+        torch.tensor(isaacsim_result["mean_reward_terms"]),
+        rtol=0.0,
+        atol=5.0e-4,
+    )
+    torch.testing.assert_close(
+        torch.tensor(ovphysx_result["termination_counts"]),
+        torch.tensor(isaacsim_result["termination_counts"]),
+        rtol=0.0,
+        atol=24.0,
+    )
+    assert ovphysx_result["dual_contact_fraction"] == pytest.approx(
+        isaacsim_result["dual_contact_fraction"], abs=5.0e-5
+    )
+    assert ovphysx_result["object_above_table_fraction"] == pytest.approx(
+        isaacsim_result["object_above_table_fraction"], abs=1.0e-3
+    )
+    assert ovphysx_result["mean_finger_separation"] == pytest.approx(
+        isaacsim_result["mean_finger_separation"], abs=1.0e-3
+    )
+    assert ovphysx_result["max_joint_velocity"] == pytest.approx(isaacsim_result["max_joint_velocity"], abs=2.0)

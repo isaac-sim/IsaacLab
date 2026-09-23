@@ -12,8 +12,7 @@ Fixed
 * Restored continuous Reach tracking by removing the early success termination and restoring the
   fine-grained position reward, while retaining position-and-orientation success metrics.
 * Restored symmetric point-cloud noise in the Lift and Reorient ADR curriculum.
-* Restored action-rate and joint-velocity regularization for rigid Lift and Reorient training, with
-  penalty weights ramped continuously by task difficulty instead of training time.
+* Restored action-rate and joint-velocity regularization for rigid Lift and Reorient training.
 * Kept Franka Lift and Reorient's abnormal-state termination from penalizing ordinary exploration
   at the actuator's nominal velocity limits.
 * Kept terminal non-finite rigid-object states from propagating into Lift and Reorient reward batches.

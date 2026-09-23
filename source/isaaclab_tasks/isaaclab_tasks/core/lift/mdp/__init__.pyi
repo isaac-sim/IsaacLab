@@ -31,7 +31,6 @@ __all__ = [
     "deformable_ee_distance",
     "deformable_lifting",
     "deformable_outside_bounds",
-    "difficulty_interpolate_float",
     "ee_below_minimum",
     "fingers_contact_force_b",
     "get_reset_state",
@@ -63,7 +62,7 @@ __all__ = [
 from isaaclab_tasks.utils.success_monitor import SuccessMonitor, SuccessMonitorCfg
 
 from .commands import CableUniformPoseCommandCfg, DeformableUniformPoseCommandCfg, ObjectUniformPoseCommandCfg
-from .curriculums import difficulty_interpolate_float, gravity_range_linear
+from .curriculums import gravity_range_linear
 from .events import (
     conditional_reset,
     grasp_travel_distance,
