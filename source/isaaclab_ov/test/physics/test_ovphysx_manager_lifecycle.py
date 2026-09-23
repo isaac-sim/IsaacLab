@@ -501,6 +501,15 @@ def test_construct_physx_forwards_cooked_collider_cache_dir(monkeypatch, manager
         assert backend.physx.config.cooked_collider_cache_dir == cache_dir
 
 
+def test_external_forces_every_iteration_matches_physx_default():
+    """OvPhysX should use the same TGS external-force integration default as PhysX."""
+    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_physx.physics import PhysxCfg
+
+    assert OvPhysxCfg().enable_external_forces_every_iteration
+    assert OvPhysxCfg().enable_external_forces_every_iteration == PhysxCfg().enable_external_forces_every_iteration
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX ownership and mode semantics")
 def test_default_cache_dir_is_created_owner_only(manager_module, tmp_path, monkeypatch):
     """The default directory is created ``0o700`` so another user cannot pre-own or read it."""
