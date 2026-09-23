@@ -182,3 +182,9 @@ Fixed
   already accepted a local directory as well as a registered name or ``s3://`` URI,
   but a mistyped path failed deep inside Cosmos with a message about config
   resolution rather than about the path.
+
+* Documented that a custom Cosmos checkout may require FlashAttention and so may not
+  run under Isaac Lab's Python and torch. Models using variable-length attention have
+  no cuDNN path, and the Cosmos dependency index publishes FlashAttention only for
+  CPython 3.13 against torch 2.9 or 2.10. The base ``Cosmos3-Nano`` path is unaffected,
+  needing no FlashAttention at all.
