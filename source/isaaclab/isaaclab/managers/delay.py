@@ -14,13 +14,12 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.utils import DelayBuffer, configclass, string_to_callable
-
+from ..utils import DelayBuffer, configclass, string_to_callable
 from .manager_base import ManagerTermBase
 from .manager_term_cfg import ManagerTermBaseCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
+    from ..envs import ManagerBasedEnv
 
 
 class Delay(ManagerTermBase):

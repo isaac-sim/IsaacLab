@@ -15,15 +15,14 @@ import numpy as np
 import torch
 from prettytable import PrettyTable
 
-from isaaclab.envs.utils.io_descriptors import _warn_io_descriptors_deprecated
-from isaaclab.utils import class_to_dict, modifiers, noise
-from isaaclab.utils.buffers import CircularBuffer
-
+from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
+from ..utils import class_to_dict, modifiers, noise
+from ..utils.buffers import CircularBuffer
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
+    from ..envs import ManagerBasedEnv
 
 
 class ObservationManager(ManagerBase):

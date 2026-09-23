@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.utils.math import (
+from ..utils.math import (
     apply_delta_pose,
     combine_frame_transforms,
     compute_pose_error,

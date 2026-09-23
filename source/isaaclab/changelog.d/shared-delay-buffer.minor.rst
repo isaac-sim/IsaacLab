@@ -14,5 +14,4 @@ Changed
 Fixed
 ^^^^^
 
-* Fixed invalid ``DelayBuffer.set_time_lag`` updates changing live state before raising, and accepted integer
-  tensor subset updates consistently across integer dtypes.
+* Fixed ``DelayBuffer.set_time_lag`` tensor subset updates to accept both supported integer dtypes.

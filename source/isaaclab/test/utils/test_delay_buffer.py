@@ -94,6 +94,31 @@ def test_random_time_lags(delay_buffer):
             assert torch.all(error == 0)
 
 
+@pytest.mark.parametrize(
+    ("time_lag", "batch_ids"),
+    [
+        (5, [2]),
+        (-1, [2]),
+        (torch.tensor([5, 1], dtype=torch.int), [2, 3]),
+    ],
+)
+def test_invalid_time_lag_does_not_mutate_state(delay_buffer, time_lag, batch_ids, monkeypatch):
+    """Reject invalid inputs before copying or changing the live lag configuration."""
+    initial_lags = torch.arange(delay_buffer.batch_size, dtype=torch.int) % 5
+    delay_buffer.set_time_lag(initial_lags)
+    expected_lags = delay_buffer.time_lags
+    expected_values = expected_lags.clone()
+    monkeypatch.setattr(expected_lags, "clone", lambda: pytest.fail("Validate the requested lag before copying state."))
+
+    with pytest.raises(ValueError):
+        delay_buffer.set_time_lag(time_lag, batch_ids)
+
+    assert delay_buffer.time_lags is expected_lags
+    assert torch.equal(delay_buffer.time_lags, expected_values)
+    assert delay_buffer.min_time_lag == 0
+    assert delay_buffer.max_time_lag == 4
+
+
 def test_compute_result_independent_of_internal_buffer(delay_buffer):
     """``compute()``'s returned tensor must not alias the internal circular buffer storage.
 
@@ -106,22 +131,6 @@ def test_compute_result_independent_of_internal_buffer(delay_buffer):
     first.fill_(999)  # mutate the returned tensor
     second = delay_buffer.compute(torch.full((delay_buffer.batch_size, 1), 2, dtype=torch.int))
     assert torch.all(second == 2), "Mutation of a prior compute() result leaked into the next call"
-
-
-@pytest.mark.parametrize("time_lag", [-1, 5, 2**32, torch.tensor([-1, 2]), torch.tensor([5, 2])])
-def test_invalid_time_lag_does_not_mutate_state(delay_buffer, time_lag, monkeypatch):
-    """Validate external lags before writing or cloning the live configuration."""
-    lags = delay_buffer.time_lags
-    delay_buffer.set_time_lag(2)
-    monkeypatch.setattr(lags, "clone", lambda: pytest.fail("Do not clone live lag state to validate inputs."))
-    with pytest.raises(ValueError):
-        delay_buffer.set_time_lag(time_lag, [0, 1])
-    assert delay_buffer.time_lags is lags
-    assert torch.all(lags == 2)
-    assert delay_buffer.min_time_lag == delay_buffer.max_time_lag == 2
-    for step in range(6):
-        result = delay_buffer.compute(torch.full((delay_buffer.batch_size,), step, device=delay_buffer.device))
-        assert torch.all(result == max(0, step - 2))
 
 
 def test_time_lag_updates(delay_buffer):

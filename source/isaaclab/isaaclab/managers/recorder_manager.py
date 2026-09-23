@@ -15,14 +15,13 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from isaaclab.utils import configclass
-from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
-
+from ..utils import configclass
+from ..utils.datasets import EpisodeData, HDF5DatasetFileHandler
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import RecorderTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
+    from ..envs import ManagerBasedEnv
 
 
 class DatasetExportMode(enum.IntEnum):

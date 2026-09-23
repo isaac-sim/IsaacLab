@@ -21,6 +21,6 @@ Currently, the sub-package provides the following classes:
 
 """
 
-from isaaclab.utils.module import lazy_export
+from ..utils.module import lazy_export
 
 lazy_export()

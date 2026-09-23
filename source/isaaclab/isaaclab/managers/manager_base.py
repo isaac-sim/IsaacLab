@@ -13,16 +13,15 @@ from collections.abc import Sequence
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
-import isaaclab.utils.string as string_utils
-from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.utils import class_to_dict, string_to_callable
-from isaaclab.utils.modifiers import ModifierCfg
-
+from ..physics import PhysicsEvent, PhysicsManager
+from ..utils import class_to_dict, string_to_callable
+from ..utils import string as string_utils
+from ..utils.modifiers import ModifierCfg
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
+    from ..envs import ManagerBasedEnv
 
 
 class ManagerTermBase(ABC):

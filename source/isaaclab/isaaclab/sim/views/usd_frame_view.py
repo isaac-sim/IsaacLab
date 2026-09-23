@@ -13,9 +13,8 @@ import warp as wp
 
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
-import isaaclab.sim as sim_utils
-from isaaclab.utils.warp import ProxyArray
-
+from ... import sim as sim_utils
+from ...utils.warp import ProxyArray
 from .base_frame_view import BaseFrameView
 from .xform_space_writer import FrameViewLocalSpaceWriter, FrameViewWorldSpaceWriter
 

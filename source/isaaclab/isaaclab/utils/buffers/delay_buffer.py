@@ -124,7 +124,7 @@ class DelayBuffer:
         if batch_ids is None:
             batch_ids = slice(None)
 
-        # Reject invalid inputs before changing live state, without copying the lag tensor.
+        # Validate the requested values before changing the live configuration.
         if isinstance(time_lag, int):
             min_time_lag = max_time_lag = time_lag
         elif isinstance(time_lag, torch.Tensor):

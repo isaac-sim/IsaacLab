@@ -11,10 +11,10 @@ from typing import TYPE_CHECKING
 
 from pxr import Usd, UsdGeom
 
-from isaaclab.sim import schemas
-from isaaclab.sim.spawners._utils import fragment_mapping, props_expr
-from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
-from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
+from ... import schemas
+from ...utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
+from .._utils import fragment_mapping, props_expr
+from ..materials.physics_materials import spawn_physics_material
 
 if TYPE_CHECKING:
     from . import shapes_cfg

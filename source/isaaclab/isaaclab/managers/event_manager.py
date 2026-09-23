@@ -19,7 +19,7 @@ from .manager_base import ManagerBase
 from .manager_term_cfg import EventTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
+    from ..envs import ManagerBasedEnv
 
 # import logger
 logger = logging.getLogger(__name__)

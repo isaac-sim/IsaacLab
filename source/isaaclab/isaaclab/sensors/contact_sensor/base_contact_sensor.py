@@ -12,9 +12,8 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
-import isaaclab.utils.string as string_utils
-from isaaclab.utils.warp import ProxyArray
-
+from ...utils import string as string_utils
+from ...utils.warp import ProxyArray
 from ..sensor_base import SensorBase
 from .base_contact_sensor_data import BaseContactSensorData
 

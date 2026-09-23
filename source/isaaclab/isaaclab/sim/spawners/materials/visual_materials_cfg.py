@@ -8,8 +8,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import MISSING
 
-from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
 from isaaclab.utils import configclass
+
+from ..spawner_cfg import SpawnerCfg
 
 
 @configclass

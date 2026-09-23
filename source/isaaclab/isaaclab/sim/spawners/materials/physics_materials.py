@@ -9,11 +9,11 @@ import dataclasses
 
 from pxr import Usd, UsdPhysics, UsdShade
 
-from isaaclab.sim.schemas.schemas import _apply_namespaced_schemas
-from isaaclab.sim.utils import clone
-from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.string import string_to_callable
 
+from ...schemas.schemas import _apply_namespaced_schemas
+from ...utils import clone
+from ...utils.stage import get_current_stage
 from . import physics_materials_cfg
 
 

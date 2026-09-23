@@ -21,18 +21,16 @@ from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
-import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.cloner.cloner_cfg import expand_env_regex_ns
-from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.sim.utils.queries import get_first_matching_ancestor_prim
-from isaaclab.sim.utils.transforms import resolve_prim_pose
-
+from .. import cloner
+from .. import sim as sim_utils
+from ..cloner.cloner_cfg import expand_env_regex_ns
+from ..physics import PhysicsEvent, PhysicsManager
+from ..sim.utils.queries import get_first_matching_ancestor_prim
+from ..sim.utils.transforms import resolve_prim_pose
 from .kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
 if TYPE_CHECKING:
-    from isaaclab.cloner import ClonePlan
-
+    from ..cloner import ClonePlan
     from .sensor_base_cfg import SensorBaseCfg
 
 logger = logging.getLogger(__name__)
