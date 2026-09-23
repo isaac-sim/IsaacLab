@@ -76,7 +76,7 @@ Both are supported without touching the code.
 ```bash
 # any local path, https URL, or ssh URL, optionally pinned with '.git@<ref>'
 scripts/visual_dr/install_cosmos.sh \
-    ssh://git@gitlab-master.nvidia.com:12051/dlmed/cosmos-framework.git@524728a
+    ssh://git@<host>:<port>/<group>/cosmos-framework.git@<ref>
 ```
 
 The script installs the `cosmos-runtime` extra, then Cosmos itself with
@@ -89,12 +89,12 @@ directory, so a downloaded checkpoint needs no special handling:
 
 ```bash
 hf download nvidia/<repo> --revision <rev> \
-    --include 'Cosmos3-Nano-Transfer-DMD2-4Step-LoRA-256p480p-iter8000/**' \
+    --include '<checkpoint-name>/**' \
     --local-dir <local-path>
 ```
 
 ```python
-checkpoint = "<local-path>/Cosmos3-Nano-Transfer-DMD2-4Step-LoRA-256p480p-iter8000"
+checkpoint = "<local-path>/<checkpoint-name>"
 ```
 
 ### A custom checkout may need FlashAttention
