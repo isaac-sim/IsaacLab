@@ -262,7 +262,7 @@ hand joints and RGB axes at tracked controller aim poses. See
 For fixed-base G1 upper-body manipulation, select
 ``IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs`` instead. Both G1 tasks enable a head-locked
 robot-camera PiP panel by default in XR. See :ref:`isaac-teleop-xr-camera-feedback` for a fixed-base
-launch example, camera-recording differences, and the required Kit scene-partition fixes.
+launch example, camera-recording differences, and scene-partition isolation behavior.
 
 .. attention::
 
