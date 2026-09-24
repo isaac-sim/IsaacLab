@@ -101,7 +101,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         self._poses_version = -1
         self.geometry_version = 0
         self._points_version = -1
-        self._geometry_batches = []
+        self._geometry_batches: list | None = None
         self._deformable_bindings: list[tuple[OvPhysxView, Any, wp.array]] = []
 
     @property
@@ -115,14 +115,15 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         """Concatenated ``prim_paths`` across all bindings, in registration order."""
         return [path for view, _ in self._rigid_bindings for path in view.prim_paths]
 
-    def setup(self, physx, stage, device: str, entries: Sequence[DeformableStageEntry] = ()) -> None:
+    def setup(self, physx, stage, device: str, entries: Sequence[DeformableStageEntry] | None = None) -> None:
         """Discover RigidBodyAPI prims, dedup by env-wildcard form, create one binding per pattern.
 
         Args:
             physx: Live ``ovphysx.PhysX`` instance (the wheel handle).
             stage: USD stage to traverse for RigidBodyAPI prims.
             device: Warp device string used to allocate the published buffers.
-            entries: Declared deformables captured before native stage import.
+            entries: Declared deformables captured before native stage import. ``None`` leaves
+                scene geometry uninitialized; an empty sequence declares no deformables.
         """
         from isaaclab_ov import tensor_types as TT  # local: keep heavy ovphysx out of module load
 
@@ -131,7 +132,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         self.transforms_version += 1
         self._deformable_bindings = []
         self.geometry_version += 1
-        self._geometry_batches = []
+        self._geometry_batches = None
 
         if stage is None:
             return
@@ -167,7 +168,8 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
                 self._rigid_bindings.append((view, buffer))
                 offset += view.count
 
-        self._setup_deformable_bindings(physx, entries, device)
+        if entries is not None:
+            self._setup_deformable_bindings(physx, entries, device)
 
     def _setup_deformable_bindings(self, physx, entries: Sequence[DeformableStageEntry], device: str) -> None:
         """Bind exact planned deformables directly into one flat publication buffer."""
@@ -199,6 +201,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             views.append((view, tensor_type, count))
 
         if not views:
+            self._geometry_batches = []
             return
         counts = [entry.vertex_count for entry in native_entries]
         points = wp.empty(sum(counts), dtype=wp.vec3f, device=device)
@@ -217,7 +220,13 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         self._geometry_batches = deformable_geometry_batches(native_entries, points, offsets)
 
     def get_geometry_batches(self, output_format: Any = SceneDataFormat.Points) -> list:
-        """Publish native positions with exact visual paths and interpolation metadata."""
+        """Publish native positions with exact visual paths and interpolation metadata.
+
+        Raises:
+            RuntimeError: If scene geometry was not initialized from a clone plan.
+        """
+        if self._geometry_batches is None:
+            raise RuntimeError("Declare and replicate a ClonePlan before requesting scene geometry.")
         if self._points_version != self.geometry_version:
             for view, tensor_type, buffer in self._deformable_bindings:
                 view.read_into(tensor_type, buffer)
@@ -226,7 +235,13 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
     @property
     def native_geometry_formats(self) -> tuple[Any, ...]:
-        """Return the native geometry formats compiled from the declared prototypes."""
+        """Return the native geometry formats compiled from the declared prototypes.
+
+        Raises:
+            RuntimeError: If scene geometry was not initialized from a clone plan.
+        """
+        if self._geometry_batches is None:
+            raise RuntimeError("Declare and replicate a ClonePlan before requesting scene geometry.")
         return tuple(dict.fromkeys(publication._cls for publication, _ in self._geometry_batches))
 
     @property
@@ -856,8 +871,9 @@ class OvPhysxManager(PhysicsManager):
         if sim is None:
             raise RuntimeError("OvPhysxManager: SimulationContext is not set.")
 
-        plan = sim.get_clone_plan()
-        entries = deformable_entries(plan, deformable_prototypes(sim.stage, plan))
+        entries = None
+        if (plan := sim.get_clone_plan()) is not None:
+            entries = deformable_entries(plan, deformable_prototypes(sim.stage, plan))
 
         ovphysx_device = "gpu" if "cuda" in PhysicsManager._device else "cpu"
 

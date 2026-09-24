@@ -873,6 +873,24 @@ def test_failed_rigid_read_is_retried():
             sdp.get_transforms(SceneDataFormat.Transform())
 
 
+@pytest.mark.parametrize("declared", [False, True])
+def test_geometry_publication_distinguishes_undeclared_and_empty_scenes(declared):
+    """Native setup without a geometry declaration cannot publish an empty scene."""
+    from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
+
+    backend = OvPhysxSceneDataBackend()
+    stage = SimpleNamespace(Traverse=lambda: iter(()))
+    backend.setup(None, stage, "cpu", () if declared else None)
+    if declared:
+        assert backend.get_geometry_batches() == []
+        assert backend.native_geometry_formats == ()
+        backend.setup(None, stage, "cpu")
+    with pytest.raises(RuntimeError, match="ClonePlan"):
+        backend.get_geometry_batches()
+    with pytest.raises(RuntimeError, match="ClonePlan"):
+        _ = backend.native_geometry_formats
+
+
 @pytest.mark.parametrize("node_padding", [0, 1])
 def test_deformable_only_setup_publishes_declared_geometry_in_native_order(node_padding):
     """Mixed native views fill declared geometry slices without a packing pass."""

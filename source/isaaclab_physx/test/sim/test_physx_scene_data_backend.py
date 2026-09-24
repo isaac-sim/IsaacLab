@@ -121,6 +121,7 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
             },
         },
     )
+    backend._setup_deformable_geometry(())
     geometry = provider.get_geometry_points(output=SceneDataFormat.FabricPoints())
     assert geometry._cls is SceneDataFormat.FabricPoints and geometry.points is not None
     backend.geometry_version += 1
@@ -170,6 +171,24 @@ def test_rigid_body_view_uses_exact_path_for_joint_name_collision(monkeypatch, j
         "/World/envs/env_*/Robot/torso",
         "/World/envs/env_0/Robot/robot0_forearm",
     ]
+
+
+@pytest.mark.parametrize("declared", [False, True])
+def test_geometry_publication_distinguishes_undeclared_and_empty_scenes(monkeypatch, declared):
+    """Only an explicitly initialized, empty geometry declaration publishes no batches."""
+    from isaaclab_physx.physics import physx_manager
+
+    monkeypatch.setattr(physx_manager.PhysxManager, "_fabric", None)
+    backend = physx_manager.PhysxSceneDataBackend()
+    if declared:
+        backend._setup_deformable_geometry(())
+        assert backend.get_geometry_batches() == []
+        assert backend.native_geometry_formats == ()
+    else:
+        with pytest.raises(RuntimeError, match="ClonePlan"):
+            backend.get_geometry_batches()
+        with pytest.raises(RuntimeError, match="ClonePlan"):
+            _ = backend.native_geometry_formats
 
 
 @pytest.mark.parametrize("capacity", [3, 8])
@@ -238,4 +257,7 @@ def test_deformable_geometry_uses_declared_counts_and_native_order(monkeypatch, 
     provider.get_geometry_points()
     assert len(reads) == read_count + 2
     backend.clear()
-    assert backend.get_geometry_batches() == []
+    with pytest.raises(RuntimeError, match="ClonePlan"):
+        backend.get_geometry_batches()
+    with pytest.raises(RuntimeError, match="ClonePlan"):
+        _ = backend.native_geometry_formats

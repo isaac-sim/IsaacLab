@@ -196,7 +196,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
         """Drop the native binding and its derived views after simulation stops."""
         self.backend = None
         self._rigid_body_view: omni.physics.tensors.RigidBodyView | None = None
-        self._deformable_bindings: list[tuple[Any, list]] = []
+        self._deformable_bindings: list[tuple[Any, list]] | None = None
         self._transforms.transforms = None
         self.transforms_version += 1
         self.geometry_version += 1
@@ -252,6 +252,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
 
     def _setup_deformable_geometry(self, entries: Sequence[DeformableStageEntry]) -> None:
         """Bind exact visual mesh paths directly to padded native nodal buffers."""
+        bindings = []
         for deformable_type in ("volume", "surface"):
             declared = [entry for entry in entries if entry.deformable_type == deformable_type]
             if not declared:
@@ -271,16 +272,29 @@ class PhysxSceneDataBackend(SceneDataBackend):
             points = view.get_simulation_nodal_positions().view(wp.vec3f).flatten()
             native_offsets = np.arange(view.count) * view.max_simulation_nodes_per_body
             batches = deformable_geometry_batches(ordered, points, native_offsets)
-            self._deformable_bindings.append((view, batches))
+            bindings.append((view, batches))
+        self._deformable_bindings = bindings
 
     @property
     def native_geometry_formats(self) -> tuple[Any, ...]:
-        """Expose native Fabric points when PhysX updates the render stage directly."""
+        """Expose initialized geometry formats, including native Fabric points when available.
+
+        Raises:
+            RuntimeError: If scene geometry was not initialized from a clone plan.
+        """
+        if self._deformable_bindings is None:
+            raise RuntimeError("Declare and replicate a ClonePlan before requesting scene geometry.")
         formats = tuple(dict.fromkeys(batch[0]._cls for _, batches in self._deformable_bindings for batch in batches))
         return (*formats, SceneDataFormat.FabricPoints) if PhysxManager._fabric is not None else formats
 
     def get_geometry_batches(self, output_format: Any = SceneDataFormat.Points) -> Any:
-        """Publish padded native nodes or native Fabric points without an intermediate copy."""
+        """Publish padded native nodes or native Fabric points without an intermediate copy.
+
+        Raises:
+            RuntimeError: If scene geometry was not initialized from a clone plan.
+        """
+        if self._deformable_bindings is None:
+            raise RuntimeError("Declare and replicate a ClonePlan before requesting scene geometry.")
         if output_format is SceneDataFormat.FabricPoints and PhysxManager._fabric is not None:
             self._update_fabric()
             if self._fabric_points_selection is None:
@@ -954,8 +968,9 @@ class PhysxManager(PhysicsManager):
         stage_id = get_current_stage_id()
 
         sim = PhysicsManager._sim
-        plan = sim.get_clone_plan()
-        entries = deformable_entries(plan, deformable_prototypes(sim.stage, plan))
+        entries = None
+        if (plan := sim.get_clone_plan()) is not None:
+            entries = deformable_entries(plan, deformable_prototypes(sim.stage, plan))
 
         is_gpu = "cuda" in PhysicsManager.get_device()
 
@@ -987,7 +1002,8 @@ class PhysxManager(PhysicsManager):
 
         # Final update after view creation
         physx.update_simulation(cls.get_physics_dt(), 0.0)
-        cls._scene_data_backend._setup_deformable_geometry(entries)
+        if entries is not None:
+            cls._scene_data_backend._setup_deformable_geometry(entries)
         cls._view_created = True
 
         cls._event_bus.dispatch_event(IsaacEvents.SIMULATION_VIEW_CREATED.value, payload={})
