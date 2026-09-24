@@ -335,10 +335,8 @@ class RenderContext:
         camera_data: CameraData,
         physics_step_count: int,
     ) -> None:
-        """Sync scene state, render, and read outputs into ``camera_data``."""
-        self.update_scene_state(physics_step_count)
-        renderer.render(render_data)
-        renderer.read_output(render_data, camera_data)
+        """Sync scene state and capture one camera through :meth:`render_into_cameras`."""
+        self.render_into_cameras([(renderer, render_data, camera_data)], physics_step_count)
 
     def render_into_cameras(
         self,
@@ -355,12 +353,16 @@ class RenderContext:
                 An empty sequence performs no work.
             physics_step_count: Current physics step for shared scene synchronization.
         """
+        if not requests:
+            return
+
+        self.update_scene_state(physics_step_count)
+
         groups: dict[int, tuple[BaseRenderer, list[tuple[Any, CameraData]]]] = {}
         for renderer, render_data, camera_data in requests:
             groups.setdefault(id(renderer), (renderer, []))[1].append((render_data, camera_data))
 
         for renderer, cameras in groups.values():
-            self.update_scene_state(physics_step_count)
             renderer.render_batch([render_data for render_data, _ in cameras])
             for render_data, camera_data in cameras:
                 renderer.read_output(render_data, camera_data)
