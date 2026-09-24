@@ -164,6 +164,79 @@ def test_ovrtx_supported_output_types_key_set():
     assert specs[RenderBufferKind.MOTION_VECTORS] == RenderBufferSpec(2, wp.float32)
 
 
+@pytest.mark.parametrize("use_ovstage", [False, True])
+@pytest.mark.parametrize("missing_output", [None, "product", "frame"])
+@pytest.mark.parametrize("batch", [False, True])
+def test_ovrtx_render_submits_requested_products_and_routes_outputs(monkeypatch, use_ovstage, missing_output, batch):
+    """A submission fills each camera from its product and rejects incomplete results."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._use_ovstage = use_ovstage
+    renderer._initialized_scene = True
+    renderer._visual_material_writer_ref = None
+    renderer._current_ordinal = 7
+    cameras = [_make_ovrtx_camera_render_data() for _ in range(2 if batch else 1)]
+    products = {}
+    processed = []
+    postprocessed = []
+    submissions = []
+    published_ordinals = []
+    for index, camera in enumerate(cameras):
+        camera.render_product_path = f"/Render/Camera{index}"
+        camera.warp_buffers = {str(RenderBufferKind.RGB_HDR): object(), str(RenderBufferKind.RGBA): object()}
+        camera.ppisp_pipeline = types.SimpleNamespace(apply=lambda *buffers: postprocessed.append(buffers))
+        products[camera.render_product_path] = types.SimpleNamespace(frames=[object()])
+    renderer._render_product_paths = [*products, "/Render/UnrequestedCamera"]
+    if missing_output == "product":
+        del products[cameras[-1].render_product_path]
+    elif missing_output == "frame":
+        products[cameras[-1].render_product_path].frames.clear()
+
+    def step(**kwargs):
+        submissions.append(kwargs)
+        return products
+
+    def advance_write_floor(*, ordinal):
+        published_ordinals.append(ordinal)
+        return types.SimpleNamespace(wait=lambda: None)
+
+    renderer.backend.renderer = types.SimpleNamespace(step=step)
+    renderer.backend.stage = types.SimpleNamespace(advance_write_floor=advance_write_floor)
+    monkeypatch.setattr(renderer, "_process_render_frame", lambda *args: processed.append(args))
+
+    render = renderer.render_batch if batch else renderer.render
+    request = cameras if batch else cameras[0]
+    if missing_output is None:
+        render(request)
+        assert processed == [
+            (camera, products[camera.render_product_path].frames[0], camera.warp_buffers) for camera in cameras
+        ]
+        assert postprocessed == [
+            (camera.warp_buffers[str(RenderBufferKind.RGB_HDR)], camera.warp_buffers[str(RenderBufferKind.RGBA)])
+            for camera in cameras
+        ]
+    else:
+        with pytest.raises(RuntimeError, match=cameras[-1].render_product_path):
+            render(request)
+        assert not processed
+        assert not postprocessed
+
+    assert len(submissions) == 1
+    assert submissions[0]["render_products"] == {camera.render_product_path for camera in cameras}
+    if use_ovstage:
+        assert submissions[0]["ordinal"] == 7
+        assert published_ordinals == [7]
+        assert renderer._current_ordinal == 8
+    else:
+        assert "ordinal" not in submissions[0]
+        assert not published_ordinals
+
+
+def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend():
+    """An empty render request has no backend work or initialization precondition."""
+    renderer = OVRTXRenderer.__new__(OVRTXRenderer)
+    renderer.render_batch([])
+
+
 @pytest.mark.integration
 @pytest.mark.rendering
 @pytest.mark.parametrize("use_ovstage", [False, True])
@@ -228,7 +301,6 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         return any(path.startswith(scope) for path in renderer.backend.renderer.query_prims())
 
     def check_depth(rd, data, expected, label):
-        renderer.render(rd)
         depth = data.output["distance_to_image_plane"].torch
         for env_id in range(rd.num_envs):
             prefix = tmp_path / f"{label}_env{env_id}"
@@ -271,6 +343,7 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
             renderer.set_outputs(rd, data.output)
             cameras.append((rd, data))
             # Register the next camera after rendering has already started.
+            renderer.render(rd)
             check_depth(rd, data, 5.0 - index - 0.5, f"initial_cam{index}")
             if index == 1:
                 normals = data.output["normals"].torch[:, height // 2, width // 2, :3]
@@ -285,11 +358,13 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         )
         orientations = ProxyArray(wp.from_torch(quats, dtype=wp.quatf))
         renderer.update_camera(cameras[1][0], positions, orientations, cameras[1][1].intrinsic_matrices)
+        renderer.render_batch([rd for rd, _ in cameras])
         check_depth(*cameras[0], 4.5, "after_move_cam0")
         check_depth(*cameras[1], 5.5, "after_move_cam1")
         assert all(camera_scope_exists(rd) for rd, _ in cameras)
         renderer.cleanup(cameras[0][0])
         assert not camera_scope_exists(cameras[0][0])
+        renderer.render(cameras[1][0])
         check_depth(*cameras[1], 5.5, "after_cleanup_cam1")
         renderer.cleanup(cameras[1][0])
         renderer.cleanup(cameras[1][0])
