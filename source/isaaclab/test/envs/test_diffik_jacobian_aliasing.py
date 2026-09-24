@@ -38,6 +38,16 @@ class _Stub:
         self._offset_rot = torch.tensor(body_offset_rot, dtype=torch.float32).repeat(num_envs, 1)
         self._jacobian_b = torch.zeros(num_envs, 6, num_joints)
         self._backing_buffer = backing_buffer
+        # Non-trivial root and body orientations, so the offset must be rotated into the root frame.
+        self._body_idx = 0
+        root_quat_w = math_utils.quat_from_euler_xyz(torch.tensor(0.3), torch.tensor(-0.2), torch.tensor(0.5))
+        body_quat_w = math_utils.quat_from_euler_xyz(torch.tensor(-1.1), torch.tensor(0.4), torch.tensor(2.0))
+        self._asset = SimpleNamespace(
+            data=SimpleNamespace(
+                root_quat_w=SimpleNamespace(torch=root_quat_w.repeat(num_envs, 1)),
+                body_quat_w=SimpleNamespace(torch=body_quat_w.repeat(num_envs, 1, 1)),
+            )
+        )
 
     @property
     def jacobian_b(self):
@@ -91,12 +101,13 @@ def test_compute_frame_jacobian_applies_offset_once():
 
     stub = _make_stub(num_envs, num_joints, offset_pos, offset_rot, backing)
 
-    # Reference: out-of-place computation, no aliasing.
-    skew = math_utils.skew_symmetric_matrix(stub._offset_pos)
-    rot = math_utils.matrix_from_quat(stub._offset_rot)
-    ref_trans = backing[:, 0:3, :] + torch.bmm(-skew, backing[:, 3:, :])
-    ref_rot = torch.bmm(rot, backing[:, 3:, :])
-    reference = torch.cat([ref_trans, ref_rot], dim=1)
+    # Reference: out-of-place computation, no aliasing. The offset is rotated into the root frame
+    # and the angular rows are unchanged, since the offset frame is rigidly attached to the body.
+    root_rot = math_utils.matrix_from_quat(stub._asset.data.root_quat_w.torch)
+    body_rot = math_utils.matrix_from_quat(stub._asset.data.body_quat_w.torch[:, 0])
+    offset_b = torch.bmm(root_rot.mT @ body_rot, stub._offset_pos.unsqueeze(-1)).squeeze(-1)
+    ref_trans = backing[:, 0:3, :] + torch.bmm(-math_utils.skew_symmetric_matrix(offset_b), backing[:, 3:, :])
+    reference = torch.cat([ref_trans, backing[:, 3:, :]], dim=1)
 
     actual = DifferentialInverseKinematicsAction._compute_frame_jacobian(stub)
     torch.testing.assert_close(actual, reference)
