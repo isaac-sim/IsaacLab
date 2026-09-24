@@ -5,8 +5,8 @@
 
 """Runtime Newton IK objective implementations.
 
-Each class is built by :class:`~isaaclab_newton.ik.NewtonIKSolver` from the
-matching :class:`~isaaclab_newton.ik.newton_ik_objectives_cfg.NewtonIKObjectiveCfg`
+Each class is built by :class:`~isaaclab_newton.controllers.ik.NewtonIKSolver` from the
+matching :class:`~isaaclab_newton.controllers.ik.newton_ik_objectives_cfg.NewtonIKObjectiveCfg`
 and owns the concrete :class:`newton.ik.IKObjective` instances appended to the
 solver. Pose objectives also describe their action contribution as Warp data:
 an :attr:`~NewtonIKObjective.action_dim`, the coordinate names for that slice,

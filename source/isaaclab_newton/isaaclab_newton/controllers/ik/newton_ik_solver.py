@@ -19,9 +19,9 @@ class NewtonIKSolver:
     """Batched wrapper around Newton's inverse-kinematics solver.
 
     The solver is configured by an ordered list of
-    :class:`~isaaclab_newton.ik.newton_ik_objectives_cfg.NewtonIKObjectiveCfg`.
+    :class:`~isaaclab_newton.controllers.ik.newton_ik_objectives_cfg.NewtonIKObjectiveCfg`.
     Each cfg is resolved to its runtime
-    :class:`~isaaclab_newton.ik.newton_ik_objectives.NewtonIKObjective` and its
+    :class:`~isaaclab_newton.controllers.ik.newton_ik_objectives.NewtonIKObjective` and its
     concrete Newton objectives are appended to the underlying
     :class:`newton.ik.IKSolver`. The built objectives are exposed via
     :attr:`objectives` / :attr:`objectives_by_name`; callers update a pose
