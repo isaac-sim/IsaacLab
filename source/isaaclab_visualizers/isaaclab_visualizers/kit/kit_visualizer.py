@@ -200,7 +200,8 @@ class KitVisualizer(BaseVisualizer):
         self._setup_streaming_view(num_envs)
 
         sim = SimulationContext.instance()
-        self._fabric = sim.get_or_create_backend(sim.fabric_transforms_cfg)
+        self._fabric = sim.get_or_create_backend(sim.fabric_cfg)
+        self._fabric.bind_transforms(scene_data_provider)
         self._is_initialized = True
         self._setup_initial_camera_view()
 
@@ -219,7 +220,7 @@ class KitVisualizer(BaseVisualizer):
         # triggered on demand by render_rgb_array() / render_tiled_rgb_array().
         if self._runtime_headless:
             return
-        self._fabric.update()
+        self._fabric.update_transforms(self._scene_data_provider)
         if self.cfg.origin_type == "asset":
             self._update_asset_tracking_camera()
         _externally_paused = self.is_training_paused()
@@ -291,7 +292,7 @@ class KitVisualizer(BaseVisualizer):
         import omni.kit.app
         import omni.replicator.core as rep
 
-        self._fabric.update()
+        self._fabric.update_transforms(self._scene_data_provider)
         if self._runtime_headless and self.cfg.origin_type == "asset":
             self._update_asset_tracking_camera()
         camera_path = self._controlled_camera_path or "/OmniverseKit_Persp"

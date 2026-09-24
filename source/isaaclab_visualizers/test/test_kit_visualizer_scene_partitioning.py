@@ -24,6 +24,7 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
     visualizer = KitVisualizer(KitVisualizerCfg(headless=headless, origin_type="asset"))
     visualizer._is_initialized = True
     visualizer._fabric = MagicMock()
+    visualizer._scene_data_provider = MagicMock()
     monkeypatch.setattr(visualizer, "is_training_paused", lambda: True)
     tracking = MagicMock()
     monkeypatch.setattr(visualizer, "_update_asset_tracking_camera", tracking)
@@ -33,11 +34,11 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
     visualizer.step(0.1)
 
     assert tracking.call_count == int(not headless)
-    request = visualizer._fabric.update
+    request = visualizer._fabric.update_transforms
     if headless:
         request.assert_not_called()
     else:
-        request.assert_called_once_with()
+        request.assert_called_once_with(visualizer._scene_data_provider)
 
 
 @pytest.mark.parametrize("generated", [False, True])

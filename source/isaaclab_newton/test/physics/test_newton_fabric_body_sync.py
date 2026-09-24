@@ -20,7 +20,7 @@ import warp as wp
 from isaaclab_newton.physics import NewtonCfg, NewtonManager, VBDSolverCfg, XPBDSolverCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
-from isaaclab_physx.renderers.fabric import FabricTransforms
+from isaaclab_physx.renderers.fabric import FabricBackend, FabricBackendCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_visualizers.kit import KitVisualizerCfg
 
@@ -173,8 +173,9 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
             scene.reset()
             _render(sim, scene)
 
-            assert sim.visualizers[0]._fabric is scene["camera"]._renderer._fabric
-            assert sum(isinstance(resource, FabricTransforms) for _, resource in sim._backend_registry) == 1
+            fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
+            assert sim.visualizers[0]._fabric is scene["camera"]._renderer._fabric is fabric
+            assert sum(isinstance(resource, FabricBackend) for _, resource in sim._backend_registry) == 1
 
             cube = scene["cube"]
             body_path = "/World/envs/env_0/Cube"

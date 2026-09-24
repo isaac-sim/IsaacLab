@@ -656,7 +656,7 @@ class NewtonManager(PhysicsManager):
         if cls._usdrt_stage is None or cls.backend is None:
             return
         sim = PhysicsManager._sim
-        sim.get_or_create_backend(sim.fabric_transforms_cfg).update()
+        sim.get_or_create_backend(sim.fabric_cfg).update_transforms(sim.get_scene_data_provider())
 
     @classmethod
     def sync_transforms_to_usd(cls) -> None:

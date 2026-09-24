@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Simulation-owned Fabric transform bindings shared by Kit and Isaac RTX."""
+"""Simulation-owned Fabric resource shared by Kit and Isaac RTX."""
 
 from __future__ import annotations
 
@@ -35,49 +35,62 @@ def _capture_scales(
     )
 
 
-class FabricTransforms:
-    """Bind one stage's rendering transforms; the simulation registry owns their lifetime."""
+class FabricBackend:
+    """Own one stage's native Fabric handles and shared transform bindings.
 
-    def __init__(self, cfg: FabricTransformsCfg):
-        self._provider = cfg.provider
-        self._output = SceneDataFormat.FabricMatrix44()
-        self._selection = self._write_selection = self._hierarchy = None
+    Consumers supply the simulation's SDP explicitly. Its producer layout stays fixed for the
+    binding's lifetime; it is not part of the native stage/device identity.
+    """
+
+    def __init__(self, cfg: FabricBackendCfg):
+        self.device = cfg.device
+        self.stage = usdrt.Usd.Stage.Attach(UsdUtils.StageCache.Get().GetId(cfg.stage).ToLongInt())
+        self.hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
+            self.stage.GetFabricId(), self.stage.GetStageIdAsStageId()
+        )
+        self.transforms: SceneDataFormat.FabricMatrix44 | None = None
+        self._selection = self._write_selection = None
         self._mapping = self._scales = None
         self._version = -1
-        if SceneDataFormat.FabricMatrix44 in cfg.provider.backend.native_transform_formats:
+
+    def bind_transforms(self, provider: SceneDataProvider) -> None:
+        """Bind the initialized simulation's rigid destinations once; native Fabric needs no conversion binding."""
+        if self.transforms is not None:
+            return
+        if SceneDataFormat.FabricMatrix44 in provider.backend.native_transform_formats:
+            self.transforms = SceneDataFormat.FabricMatrix44()
             return
 
-        stage = usdrt.Usd.Stage.Attach(UsdUtils.StageCache.Get().GetId(cfg.stage).ToLongInt())
+        stage = self.stage
         stage.SynchronizeToFabric()
-        self._hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-            stage.GetFabricId(), stage.GetStageIdAsStageId()
-        )
-        self._hierarchy.update_world_xforms()
-        for index, path in enumerate(cfg.provider.backend.transform_paths):
+        self.hierarchy.update_world_xforms()
+        for index, path in enumerate(provider.backend.transform_paths):
             prim = stage.GetPrimAtPath(path)
             if not prim or not prim.HasAPI("PhysicsRigidBodyAPI"):
                 continue
             prim.CreateAttribute("isaaclab:transformIndex", usdrt.Sdf.ValueTypeNames.Int, custom=True).Set(index)
             # Physics publishes absolute body poses; only visual descendants inherit them.
-            self._hierarchy.set_reset_xform_stack(prim.GetPath().fabricPath, True)
+            self.hierarchy.set_reset_xform_stack(prim.GetPath().fabricPath, True)
         attrs = [
             (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.Read),
             (usdrt.Sdf.ValueTypeNames.Int, "isaaclab:transformIndex", usdrt.Usd.Access.Read),
             (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:localMatrix", usdrt.Usd.Access.Read),
         ]
-        self._selection = stage.SelectPrims(require_attrs=attrs, device=cfg.device)
+        self._selection = stage.SelectPrims(require_attrs=attrs, device=self.device)
         self._write_selection = stage.SelectPrims(
-            require_attrs=[*attrs[:-1], (*attrs[-1][:2], usdrt.Usd.Access.ReadWrite)], device=cfg.device
+            require_attrs=[*attrs[:-1], (*attrs[-1][:2], usdrt.Usd.Access.ReadWrite)], device=self.device
         )
-        self._scales = wp.empty(cfg.provider.transform_count, dtype=wp.vec3f, device=cfg.device)
+        self._scales = wp.empty(provider.transform_count, dtype=wp.vec3f, device=self.device)
+        self.transforms = SceneDataFormat.FabricMatrix44()
 
-    def update(self) -> None:
+    def update_transforms(self, provider: SceneDataProvider) -> None:
         """Request SDP transforms and propagate converted body matrices to visual descendants."""
+        self.bind_transforms(provider)
         changed = self._selection is not None and self._selection.PrepareForReuse()
-        if self._selection is not None and (changed or self._output.matrices is None):
+        if self._selection is not None and (changed or self.transforms.matrices is None):
             self._write_selection.PrepareForReuse()
             self._mapping = wp.fabricarray(self._selection, "isaaclab:transformIndex")
-            if self._output.matrices is None:
+            if self.transforms.matrices is None:
                 wp.launch(
                     _capture_scales,
                     dim=len(self._mapping),
@@ -85,30 +98,29 @@ class FabricTransforms:
                     outputs=[self._scales],
                     device=self._scales.device,
                 )
-            self._output = SceneDataFormat.FabricMatrix44()
-            self._output.matrices = wp.fabricarray(self._write_selection, "omni:fabric:localMatrix")
-        self._provider.get_transforms(self._output, self._mapping, scales=self._scales)
-        version = self._provider.backend.transforms_version
-        if self._hierarchy is not None and (changed or self._version != version):
+            self.transforms = SceneDataFormat.FabricMatrix44()
+            self.transforms.matrices = wp.fabricarray(self._write_selection, "omni:fabric:localMatrix")
+        provider.get_transforms(self.transforms, self._mapping, scales=self._scales)
+        version = provider.backend.transforms_version
+        if self._selection is not None and (changed or self._version != version):
             self._write_selection.PrepareForReuse()
             device = self._scales.device
             wp.synchronize_stream(device)
-            if not self._hierarchy.update_world_xforms_gpu(not changed and self._version != -1):
+            if not self.hierarchy.update_world_xforms_gpu(not changed and self._version != -1):
                 raise RuntimeError("Fabric GPU transform hierarchy update failed.")
             wp.synchronize_device(device)
         self._version = version
 
     def close(self) -> None:
         """Release stage-bound selections and borrowed SDP buffers."""
-        self._output = self._selection = self._write_selection = self._hierarchy = None
-        self._mapping = self._scales = self._provider = None
+        self.transforms = self._selection = self._write_selection = None
+        self._mapping = self._scales = self.hierarchy = self.stage = None
 
 
 @configclass
-class FabricTransformsCfg(BackendCfg):
-    """Native binding inputs, borrowed without copying from the active simulation."""
+class FabricBackendCfg(BackendCfg):
+    """Native Fabric identity; the stage is borrowed from the active simulation."""
 
-    class_type: type = FabricTransforms
+    class_type: type = FabricBackend
     stage: Usd.Stage = field(kw_only=True, metadata={"copy": False})
-    provider: SceneDataProvider = field(kw_only=True, metadata={"copy": False})
     device: str = field(kw_only=True)
