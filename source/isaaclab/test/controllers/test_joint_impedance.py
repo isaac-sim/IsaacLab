@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the joint impedance controller: Isaac Lab == Newton == reference."""
+"""Tests for the joint impedance controller against an independent impedance-law reference."""
 
 import math
 
@@ -27,7 +27,7 @@ _NUM_DOF = 7
 def test_compute_matches_impedance_law(
     mode: str, command_type: str, inertial: bool, gravity: bool, dtype: torch.dtype
 ) -> None:
-    """Both implementations match each other and an independent impedance-law reference."""
+    """The controller matches an independent impedance-law reference."""
     device = "cpu"
     generator = torch.Generator(device=device).manual_seed(0)
     stiffness, damping_ratio, offset = 50.0, 1.0, 0.1
@@ -82,18 +82,8 @@ def test_compute_matches_impedance_law(
     if gravity:
         expected = expected + gravity_vec
 
-    efforts = []
-    for implementation in ("isaaclab", "newton"):
-        controller = JointImpedanceController(cfg.replace(implementation=implementation), _NUM_ROBOTS, limits, device)
-        controller.set_command(command)
-        torques = controller.compute(
-            dof_pos, dof_vel, mass_matrix if inertial else None, gravity_vec if gravity else None
-        )
-        assert torques.dtype == dtype
-        torch.testing.assert_close(torques, expected, atol=1e-4, rtol=1e-4)
-
-        # Returned efforts remain a snapshot when the next control step overwrites the controller's buffers.
-        controller.compute(dof_pos + 0.1, dof_vel, mass_matrix if inertial else None, gravity_vec if gravity else None)
-        torch.testing.assert_close(torques, expected, atol=1e-4, rtol=1e-4)
-        efforts.append(torques)
-    torch.testing.assert_close(efforts[1], efforts[0], atol=1e-4, rtol=1e-4)
+    controller = JointImpedanceController(cfg, _NUM_ROBOTS, limits, device)
+    controller.set_command(command)
+    torques = controller.compute(dof_pos, dof_vel, mass_matrix if inertial else None, gravity_vec if gravity else None)
+    assert torques.dtype == dtype
+    torch.testing.assert_close(torques, expected, atol=1e-4, rtol=1e-4)

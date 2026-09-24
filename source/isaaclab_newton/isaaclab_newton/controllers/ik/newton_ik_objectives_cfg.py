@@ -22,7 +22,7 @@ command (if any) maps onto its target.
 This module imports only the standard library and Isaac Lab's config utilities;
 it must stay free of ``import newton`` so action/env configs remain importable
 before Kit has launched. Matching runtime implementations live in
-:mod:`isaaclab_newton.ik.newton_ik_objectives`.
+:mod:`isaaclab_newton.controllers.ik.newton_ik_objectives`.
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ class NewtonIKPoseObjectiveCfg(NewtonIKObjectiveCfg):
     with its own body, command convention, weights and scale.
     """
 
-    class_type: type | str = "isaaclab_newton.ik.newton_ik_objectives:NewtonIKPoseObjective"
+    class_type: type | str = "isaaclab_newton.controllers.ik.newton_ik_objectives:NewtonIKPoseObjective"
 
     body_name: str = MISSING  # type: ignore[assignment]
     """Name of the controlled end-effector body."""
@@ -97,7 +97,7 @@ class NewtonIKJointLimitObjectiveCfg(NewtonIKObjectiveCfg):
     dimensions.
     """
 
-    class_type: type | str = "isaaclab_newton.ik.newton_ik_objectives:NewtonIKJointLimitObjective"
+    class_type: type | str = "isaaclab_newton.controllers.ik.newton_ik_objectives:NewtonIKJointLimitObjective"
 
     weight: float = 0.1
     """Residual weight [unitless] applied to limit violations."""

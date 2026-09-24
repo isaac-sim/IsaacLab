@@ -8,7 +8,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from isaaclab.utils.math import apply_delta_pose, compute_pose_error
 
@@ -53,18 +52,13 @@ class DifferentialIKController:
 
     """
 
-    def __init__(self, cfg: DifferentialIKControllerCfg, num_envs: int, device: str, num_joints: int | None = None):
+    def __init__(self, cfg: DifferentialIKControllerCfg, num_envs: int, device: str):
         """Initialize the controller.
 
         Args:
             cfg: The configuration for the controller.
             num_envs: The number of environments.
             device: The device to use for computations.
-            num_joints: The number of controlled joints. Required when
-                :attr:`~DifferentialIKControllerCfg.implementation` is ``"newton"``.
-
-        Raises:
-            ValueError: If the Newton implementation is selected without :paramref:`num_joints`.
         """
 
         self.cfg = cfg
@@ -95,9 +89,6 @@ class DifferentialIKController:
         self._joint_pos_upper = None
         # identity quaternion (x, y, z, w), the last-resort fallback for a degenerate command
         self._identity_quat = torch.tensor([0.0, 0.0, 0.0, 1.0], device=self._device).repeat(self.num_envs, 1)
-
-        if self.cfg.implementation == "newton":
-            self._init_newton(num_joints)
 
     """
     Properties.
@@ -199,11 +190,6 @@ class DifferentialIKController:
         """
         self._joint_pos_lower = lower.to(self._device, torch.float32)
         self._joint_pos_upper = upper.to(self._device, torch.float32)
-        if self.cfg.implementation == "newton" and self.cfg.joint_limit_avoidance_gain > 0.0:
-            self._newton_controller.set_joint_limits(
-                joint_pos_lower=wp.from_torch(self._joint_pos_lower.repeat(self.num_envs)),
-                joint_pos_upper=wp.from_torch(self._joint_pos_upper.repeat(self.num_envs)),
-            )
 
     def compute(
         self, ee_pos: torch.Tensor, ee_quat: torch.Tensor, jacobian: torch.Tensor, joint_pos: torch.Tensor
@@ -219,21 +205,6 @@ class DifferentialIKController:
         Returns:
             The target joint positions commands in shape (N, num_joints).
         """
-        if self.cfg.implementation == "newton":
-            return self._compute_newton(ee_pos, ee_quat, jacobian, joint_pos)
-        elif self.cfg.implementation == "isaaclab":
-            return self._compute_lab(ee_pos, ee_quat, jacobian, joint_pos)
-        else:
-            raise ValueError(f"Unsupported implementation: {self.cfg.implementation}")
-
-    """
-    Helper functions.
-    """
-
-    def _compute_lab(
-        self, ee_pos: torch.Tensor, ee_quat: torch.Tensor, jacobian: torch.Tensor, joint_pos: torch.Tensor
-    ) -> torch.Tensor:
-        """Compute the target joint positions with the Isaac Lab implementation."""
         # assemble the task Jacobian and task-space error
         if "position" in self.cfg.command_type:
             task_jacobian = jacobian[:, 0:3]
@@ -246,6 +217,10 @@ class DifferentialIKController:
         delta_joint_pos = delta_joint_pos + self._joint_limit_avoidance(joint_pos, task_jacobian)
         # return the desired joint positions
         return joint_pos + delta_joint_pos
+
+    """
+    Helper functions.
+    """
 
     def _compute_delta_joint_pos(self, delta_pose: torch.Tensor, jacobian: torch.Tensor) -> torch.Tensor:
         """Computes the change in joint position that yields the desired change in pose.
@@ -385,80 +360,3 @@ class DifferentialIKController:
         num_joints = task_jacobian.shape[2]
         null_proj = torch.eye(num_joints, device=self._device) - torch.bmm(j_pos_pinv, j_pos)
         return torch.bmm(null_proj, dq_center.unsqueeze(-1)).squeeze(-1)
-
-    def _compute_newton(
-        self, ee_pos: torch.Tensor, ee_quat: torch.Tensor, jacobian: torch.Tensor, joint_pos: torch.Tensor
-    ) -> torch.Tensor:
-        """Compute the target joint positions with the Newton implementation.
-
-        Newton reads the Jacobian and joint positions in place. A captured CUDA graph keeps their memory,
-        so recapture if later calls pass different tensors.
-        """
-        torch.cat((ee_pos, ee_quat), dim=-1, out=self._newton_tool_pose)
-        torch.cat((self.ee_pos_des, self.ee_quat_des), dim=-1, out=self._newton_desired_pose)
-        self._newton_inputs.jacobian_tool_world = wp.from_torch(jacobian.float())
-        self._newton_inputs.joint_q = wp.from_torch(joint_pos.float().reshape(-1))
-        # a unit time step preserves q_target = q + delta_q
-        self._newton_controller.step(inputs=self._newton_inputs, outputs=self._newton_outputs, dt=1.0)
-        return self._newton_joint_pos_des.to(dtype=joint_pos.dtype, copy=True)
-
-    def _init_newton(self, num_joints: int | None) -> None:
-        """Construct the Newton solver and bind its ports to the controller buffers."""
-        from newton.controllers import ControllerDifferentialIKModelFree, DifferentialIKMethod
-
-        if num_joints is None:
-            raise ValueError("The Newton implementation requires 'num_joints' at construction.")
-        # translate the Isaac Lab solver configuration
-        method_map = {
-            "pinv": DifferentialIKMethod.PSEUDO_INVERSE,
-            "svd": DifferentialIKMethod.TRUNCATED_SVD,
-            "trans": DifferentialIKMethod.TRANSPOSE,
-            "dls": DifferentialIKMethod.DAMPED_LEAST_SQUARES,
-            "adaptive_dls": DifferentialIKMethod.ADAPTIVE_DAMPING,
-        }
-        params = self.cfg.ik_params
-        axis_weight = [1.0] * 6
-        if self.cfg.command_type == "position":
-            axis_weight[3:] = [0.0] * 3
-        elif self._orientation_weight is not None:
-            axis_weight[3:] = self._orientation_weight.tolist()
-        # The Isaac Lab adaptive solver includes zero-weight rows in its SVD. Newton drops them;
-        # preserve maximum damping when those rows make the task rank-deficient.
-        task_dim = 3 if self.cfg.command_type == "position" else 6
-        rank_deficient_weights = sum(weight != 0.0 for weight in axis_weight) < min(task_dim, num_joints)
-        fixed_adaptive = self.cfg.ik_method == "adaptive_dls" and (
-            rank_deficient_weights or params["lambda_min"] == params["lambda_max"]
-        )
-        method = "dls" if fixed_adaptive else self.cfg.ik_method
-        adaptive = method == "adaptive_dls"
-        # wide placeholder limits keep avoidance inactive until set_joint_pos_limits() provides real ones
-        use_joint_limits = self.cfg.joint_limit_avoidance_gain > 0.0
-        num_dofs = self.num_envs * num_joints
-        # construct the Newton controller
-        self._newton_controller = ControllerDifferentialIKModelFree(
-            controlled_dofs_per_robot=wp.full(self.num_envs, num_joints, dtype=wp.int32, device=self._device),
-            axis_weight=wp.spatial_vector(*axis_weight),
-            bandwidth=params.get("k_val", 1.0),
-            damping=params["lambda_max"] if fixed_adaptive else params.get("lambda_val"),
-            ik_method=method_map[method],
-            adaptive_damping_min=params.get("lambda_min") if adaptive else None,
-            adaptive_damping_max=params.get("lambda_max") if adaptive else None,
-            adaptive_damping_threshold=params.get("sigma_thresh") if adaptive else None,
-            truncated_svd_threshold=params.get("min_singular_value"),
-            use_joint_limit_avoidance=use_joint_limits,
-            joint_limit_avoidance_gain=self.cfg.joint_limit_avoidance_gain,
-            joint_limit_avoidance_margin=self.cfg.joint_limit_avoidance_margin,
-            joint_pos_lower=wp.full(num_dofs, -1.0e9, device=self._device) if use_joint_limits else None,
-            joint_pos_upper=wp.full(num_dofs, 1.0e9, device=self._device) if use_joint_limits else None,
-            # preserve the position-only null-space projector used by Isaac Lab's limit avoidance
-            null_space_axes=wp.spatial_vector(1, 1, 1, 0, 0, 0) if use_joint_limits else None,
-            null_space_damping=0.0 if use_joint_limits else None,
-            device=self._device,
-        )
-        # bind ports: the poses are packed into Newton's buffers on each compute, and the Jacobian and joint
-        # positions are bound to the caller's tensors
-        self._newton_inputs = self._newton_controller.input()
-        self._newton_outputs = self._newton_controller.output()
-        self._newton_tool_pose = wp.to_torch(self._newton_inputs.tool_pose_world)
-        self._newton_desired_pose = wp.to_torch(self._newton_inputs.desired_tool_pose_world)
-        self._newton_joint_pos_des = wp.to_torch(self._newton_outputs.joint_q_target).view(self.num_envs, num_joints)

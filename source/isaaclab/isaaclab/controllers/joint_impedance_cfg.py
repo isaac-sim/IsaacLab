@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import MISSING
-from typing import Literal
 
 from isaaclab.utils import configclass
 
@@ -18,9 +17,6 @@ class JointImpedanceControllerCfg:
 
     class_type: type | str = "isaaclab.controllers.joint_impedance:JointImpedanceController"
     """The associated controller class."""
-
-    implementation: Literal["isaaclab", "newton"] = "isaaclab"
-    """Controller implementation to use, independent of the physics backend."""
 
     command_type: str = "p_abs"
     """Type of command: p_abs (absolute) or p_rel (relative)."""

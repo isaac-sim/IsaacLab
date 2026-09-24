@@ -15,25 +15,6 @@
     pink_ik.PinkIKControllerCfg
     pink_ik.NullSpacePostureTask
 
-Newton controllers
-------------------
-
-The differential IK, joint impedance, and operational-space controllers use their Isaac Lab
-implementations by default. Set ``implementation="newton"`` in the controller configuration to use
-Newton's model-free solver instead, for example to compare the two. The command and compute APIs are
-unchanged, and the choice is independent of the physics backend.
-
-The Newton path differs in a few ways:
-
-* Differential IK and operational-space control require ``num_joints`` at construction, since Newton
-  sizes its buffers once. The action terms pass it automatically.
-* It computes in float32 and reads the ``compute()`` inputs in place, without copies. Call ``compute()``
-  once before capturing CUDA graphs, and recapture if later calls pass different tensors.
-* Operational-space control applies motion-axis selection before inertia decoupling, so hybrid
-  force/motion tasks need their gains revalidated. Inertia decoupling requires at least six
-  controlled joints, and null-space posture efforts are mass-weighted only when inertia decoupling
-  is enabled.
-
 Differential Inverse Kinematics
 -------------------------------
 

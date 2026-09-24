@@ -17,7 +17,6 @@ import math
 import numpy as np
 import pytest
 import torch
-import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
@@ -39,7 +38,6 @@ from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG, UR10_CFG  # isort:skip
 
 pytestmark = pytest.mark.integration
 
-_IMPLEMENTATIONS = ("isaaclab", "newton")
 _IK_METHODS = ("pinv", "svd", "trans", "dls", "adaptive_dls")
 _NUM_ENVS = 4
 _NUM_JOINTS = 7
@@ -56,19 +54,7 @@ def _make_cfg(ik_method: str = "dls", **kwargs) -> DifferentialIKControllerCfg:
     return DifferentialIKControllerCfg(ik_method=ik_method, **kwargs)
 
 
-def _make_controllers(
-    cfg: DifferentialIKControllerCfg, num_envs: int = _NUM_ENVS, num_joints: int = _NUM_JOINTS, device: str = "cpu"
-) -> list[DifferentialIKController]:
-    """Build one controller per implementation from the same configuration."""
-    return [
-        DifferentialIKController(
-            cfg.replace(implementation=implementation), num_envs=num_envs, device=device, num_joints=num_joints
-        )
-        for implementation in _IMPLEMENTATIONS
-    ]
-
-
-def _compute_both(
+def _compute(
     cfg: DifferentialIKControllerCfg,
     ee_pos: torch.Tensor,
     ee_quat: torch.Tensor,
@@ -77,15 +63,12 @@ def _compute_both(
     command: torch.Tensor,
     joint_limits: tuple[torch.Tensor, torch.Tensor] | None = None,
 ) -> torch.Tensor:
-    """Run both implementations on the same inputs, check that they agree, and return the result."""
-    results = []
-    for controller in _make_controllers(cfg, num_envs=joint_pos.shape[0], num_joints=joint_pos.shape[1]):
-        if joint_limits is not None:
-            controller.set_joint_pos_limits(*joint_limits)
-        controller.set_command(command, ee_pos, ee_quat)
-        results.append(controller.compute(ee_pos, ee_quat, jacobian, joint_pos))
-    torch.testing.assert_close(results[1], results[0], atol=2.0e-4, rtol=2.0e-4)
-    return results[0]
+    """Set the command on a fresh controller and return its joint-position targets."""
+    controller = DifferentialIKController(cfg, num_envs=joint_pos.shape[0], device="cpu")
+    if joint_limits is not None:
+        controller.set_joint_pos_limits(*joint_limits)
+    controller.set_command(command, ee_pos, ee_quat)
+    return controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
 
 
 def _quat_xyzw(axis: list[float], angle: float) -> list[float]:
@@ -245,7 +228,7 @@ def test_set_command_tiny_normalizable_quat_is_still_normalized(scale):
 
 
 ##
-# Solver results: Isaac Lab == Newton == reference
+# Solver results: controller == reference
 ##
 
 
@@ -257,7 +240,7 @@ def test_compute_pose_matches_reference(ik_method: str, orientation_weight):
     ee_pos, ee_quat, command, joint_pos = _pose_inputs()
     jacobian = _well_conditioned_jacobian()
 
-    actual = _compute_both(cfg, ee_pos, ee_quat, jacobian, joint_pos, command)
+    actual = _compute(cfg, ee_pos, ee_quat, jacobian, joint_pos, command)
 
     task_jacobian, task_error = _reference_pose_task(cfg, ee_pos, ee_quat, command, jacobian)
     expected = joint_pos + _reference_delta_joint_pos(cfg, task_error, task_jacobian)
@@ -272,7 +255,7 @@ def test_compute_position_matches_reference(ik_method: str):
     command = ee_pos + torch.tensor([0.01, -0.02, 0.03])
     jacobian = _well_conditioned_jacobian()
 
-    actual = _compute_both(cfg, ee_pos, ee_quat, jacobian, joint_pos, command)
+    actual = _compute(cfg, ee_pos, ee_quat, jacobian, joint_pos, command)
 
     expected = joint_pos + _reference_delta_joint_pos(cfg, command - ee_pos, jacobian[:, :3])
     torch.testing.assert_close(actual, expected, atol=2.0e-4, rtol=2.0e-4)
@@ -287,7 +270,7 @@ def test_pinv_handles_rank_deficient_jacobian():
     jacobian[:, 1, 0] = 2.0
     jacobian[:, 2, 1] = 1.0
 
-    actual = _compute_both(cfg, ee_pos, ee_quat, jacobian, joint_pos, command)
+    actual = _compute(cfg, ee_pos, ee_quat, jacobian, joint_pos, command)
 
     task_jacobian, task_error = _reference_pose_task(cfg, ee_pos, ee_quat, command, jacobian)
     expected = joint_pos + torch.bmm(torch.linalg.pinv(task_jacobian), task_error.unsqueeze(-1)).squeeze(-1)
@@ -304,7 +287,7 @@ def test_compute_quat_convention_xyzw():
     joint_pos = torch.zeros(1, _NUM_JOINTS)
     cfg = _make_cfg("adaptive_dls", orientation_weight=1.0)
 
-    actual = _compute_both(cfg, ee_pos, ee_quat, torch.ones(1, 6, _NUM_JOINTS), joint_pos, command)
+    actual = _compute(cfg, ee_pos, ee_quat, torch.ones(1, 6, _NUM_JOINTS), joint_pos, command)
 
     torch.testing.assert_close(actual, joint_pos, atol=1e-6, rtol=0.0)
 
@@ -321,7 +304,7 @@ def test_adaptive_dls_damps_singularity():
     ee_quat = torch.tensor([_ID_QUAT])
     command = torch.tensor([[0.0, 0.0, 0.0] + _quat_xyzw([1.0, 1.0, 0.0], math.sqrt(2.0))])
 
-    dq = _compute_both(cfg, ee_pos, ee_quat, j_task, torch.zeros(1, _NUM_JOINTS), command)
+    dq = _compute(cfg, ee_pos, ee_quat, j_task, torch.zeros(1, _NUM_JOINTS), command)
 
     # reference: fixed lambda_min damped least squares
     err = torch.tensor([[0.0, 0.0, 0.0, 1.0, 1.0, 0.0]])
@@ -341,7 +324,7 @@ def test_joint_limit_avoidance_inactive_when_disabled_or_without_limits(gain: fl
     joint_pos = torch.linspace(-0.5, 0.5, _NUM_JOINTS).unsqueeze(0)
     cfg = _make_cfg("adaptive_dls", joint_limit_avoidance_gain=gain)
 
-    actual = _compute_both(cfg, ee_pos, ee_quat, torch.ones(1, 6, _NUM_JOINTS), joint_pos, command)
+    actual = _compute(cfg, ee_pos, ee_quat, torch.ones(1, 6, _NUM_JOINTS), joint_pos, command)
 
     torch.testing.assert_close(actual, joint_pos)
 
@@ -358,7 +341,7 @@ def test_joint_limit_avoidance_stays_in_position_nullspace():
     ee_quat = torch.tensor([_ID_QUAT])
     command = torch.tensor([[0.0, 0.0, 0.0] + _ID_QUAT])
 
-    correction = _compute_both(cfg, ee_pos, ee_quat, j_task, joint_pos, command, limits) - joint_pos
+    correction = _compute(cfg, ee_pos, ee_quat, j_task, joint_pos, command, limits) - joint_pos
 
     assert correction.norm().item() > 0.0  # bias is active
     residual = torch.bmm(j_task[:, :3, :], correction.unsqueeze(-1)).squeeze(-1)
@@ -374,7 +357,7 @@ def test_orientation_weight_and_joint_limit_avoidance_match_reference():
     lower = torch.full((_NUM_JOINTS,), -1.0)
     upper = torch.full((_NUM_JOINTS,), 1.0)
 
-    actual = _compute_both(cfg, ee_pos, ee_quat, jacobian, joint_pos, command, (lower, upper))
+    actual = _compute(cfg, ee_pos, ee_quat, jacobian, joint_pos, command, (lower, upper))
 
     task_jacobian, task_error = _reference_pose_task(cfg, ee_pos, ee_quat, command, jacobian)
     expected = joint_pos + _reference_delta_joint_pos(cfg, task_error, task_jacobian)
@@ -387,47 +370,11 @@ def test_orientation_weight_and_joint_limit_avoidance_match_reference():
 ##
 
 
-@pytest.mark.parametrize("implementation", _IMPLEMENTATIONS)
-def test_output_is_an_independent_snapshot(implementation: str):
-    """Returned results remain independent of later calls and caller mutations."""
-    cfg = _make_cfg("trans", implementation=implementation)
-    controller = DifferentialIKController(cfg, num_envs=_NUM_ENVS, device="cpu", num_joints=_NUM_JOINTS)
-    ee_pos, ee_quat, command, joint_pos = _pose_inputs()
-    jacobian = _well_conditioned_jacobian()
-    controller.set_command(command)
-
-    first = controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
-    first_snapshot = first.clone()
-    controller.set_command(command + torch.tensor([0.02, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]))
-    second = controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
-    assert first.data_ptr() != second.data_ptr()
-    torch.testing.assert_close(first, first_snapshot)
-
-    assert first.data_ptr() != joint_pos.data_ptr()
-    second.zero_()
-    torch.testing.assert_close(first, first_snapshot)
-
-
-@pytest.mark.parametrize("implementation", _IMPLEMENTATIONS)
-@pytest.mark.parametrize("use_relative_mode", [False, True])
-def test_floating_input_and_output_dtypes_are_preserved_at_public_boundary(implementation: str, use_relative_mode):
-    """Float64 inputs are accepted and the result keeps the joint-position dtype."""
-    cfg = _make_cfg("trans", implementation=implementation, use_relative_mode=use_relative_mode)
-    controller = DifferentialIKController(cfg, num_envs=_NUM_ENVS, device="cpu", num_joints=_NUM_JOINTS)
-    ee_pos, ee_quat, command, joint_pos = (value.to(torch.float64) for value in _pose_inputs())
-    jacobian = _well_conditioned_jacobian().to(torch.float64)
-    controller.set_command(command[:, :6] if use_relative_mode else command, ee_pos, ee_quat)
-
-    result = controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
-    assert result.dtype == torch.float64
-
-
-@pytest.mark.parametrize("implementation", _IMPLEMENTATIONS)
 @pytest.mark.parametrize("device", ["cpu"] + (["cuda:0"] if torch.cuda.is_available() else []))
-def test_joint_limits_accept_float64_cpu_tensors_and_later_updates(implementation: str, device: str):
+def test_joint_limits_accept_float64_cpu_tensors_and_later_updates(device: str):
     """Float64 CPU limits are accepted before the first compute and can be updated afterwards."""
-    cfg = _make_cfg("trans", implementation=implementation, joint_limit_avoidance_gain=0.2)
-    controller = DifferentialIKController(cfg, num_envs=_NUM_ENVS, device=device, num_joints=_NUM_JOINTS)
+    cfg = _make_cfg("trans", joint_limit_avoidance_gain=0.2)
+    controller = DifferentialIKController(cfg, num_envs=_NUM_ENVS, device=device)
     ee_pos, ee_quat, command, joint_pos = _pose_inputs(device)
     joint_pos[:, 0] = 0.95
     jacobian = _well_conditioned_jacobian(device)
@@ -441,42 +388,6 @@ def test_joint_limits_accept_float64_cpu_tensors_and_later_updates(implementatio
     controller.set_joint_pos_limits(lower - 0.5, upper + 0.5)
     away_from_limit = controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
     assert not torch.allclose(near_limit, away_from_limit)
-
-
-def test_newton_joint_limit_count_matches_initialized_controller():
-    """The Newton setter rejects limits that do not match the controlled joint count."""
-    cfg = _make_cfg("trans", implementation="newton", joint_limit_avoidance_gain=0.2)
-    controller = DifferentialIKController(cfg, num_envs=_NUM_ENVS, device="cpu", num_joints=_NUM_JOINTS)
-    with pytest.raises(ValueError, match="joint_pos_lower must have shape"):
-        controller.set_joint_pos_limits(torch.full((_NUM_JOINTS - 1,), -1.0), torch.full((_NUM_JOINTS - 1,), 1.0))
-
-
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is required for Warp graph capture")
-@pytest.mark.parametrize("use_relative_mode", [False, True])
-def test_newton_dls_captures_with_stable_bridge_buffers(use_relative_mode):
-    """The graphable Newton DLS solver captures and replays through the wrapper's stable buffers."""
-    device = "cuda:0"
-    cfg = _make_cfg("dls", implementation="newton", use_relative_mode=use_relative_mode)
-    controller = DifferentialIKController(cfg, num_envs=_NUM_ENVS, device=device, num_joints=_NUM_JOINTS)
-    ee_pos, ee_quat, command, joint_pos = _pose_inputs(device)
-    jacobian = _well_conditioned_jacobian(device)
-    controller.set_command(command[:, :6] if use_relative_mode else command, ee_pos, ee_quat)
-    controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
-    wp.synchronize_device(device)
-
-    stream = torch.cuda.Stream()
-    stream.wait_stream(torch.cuda.current_stream())
-    with torch.cuda.stream(stream), wp.ScopedStream(wp.stream_from_torch(stream)):
-        with wp.ScopedCapture(device=device) as capture:
-            result = controller.compute(ee_pos, ee_quat, jacobian, joint_pos)
-        controller.set_command(
-            torch.zeros(_NUM_ENVS, 6, device=device) if use_relative_mode else torch.cat((ee_pos, ee_quat), dim=-1),
-            ee_pos,
-            ee_quat,
-        )
-        wp.capture_launch(capture.graph)
-    wp.synchronize_device(device)
-    torch.testing.assert_close(result, joint_pos)
 
 
 ##
@@ -534,12 +445,14 @@ def test_franka_ik_pose_abs(sim):
     robot_cfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     robot = Articulation(cfg=robot_cfg)
 
-    # Create IK controllers
+    # Create IK controller
     diff_ik_cfg = DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls")
-    controllers = _make_controllers(diff_ik_cfg, num_envs=num_envs, num_joints=7, device=sim_context.device)
+    diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=num_envs, device=sim_context.device)
 
-    # Run the controllers and check that they agree and converge to the goal
-    _run_ik_controller(robot, controllers, "panda_hand", ["panda_joint.*"], sim_context, num_envs, ee_pose_b_des_set)
+    # Run the controller and check that it converges to the goal
+    _run_ik_controller(
+        robot, diff_ik_controller, "panda_hand", ["panda_joint.*"], sim_context, num_envs, ee_pose_b_des_set
+    )
 
 
 def test_ur10_ik_pose_abs(sim):
@@ -551,31 +464,28 @@ def test_ur10_ik_pose_abs(sim):
     robot_cfg.spawn.rigid_props.disable_gravity = True
     robot = Articulation(cfg=robot_cfg)
 
-    # Create IK controllers
+    # Create IK controller
     diff_ik_cfg = DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls")
-    controllers = _make_controllers(diff_ik_cfg, num_envs=num_envs, num_joints=6, device=sim_context.device)
+    diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=num_envs, device=sim_context.device)
 
-    # Run the controllers and check that they agree and converge to the goal
-    _run_ik_controller(robot, controllers, "ee_link", [".*"], sim_context, num_envs, ee_pose_b_des_set)
+    # Run the controller and check that it converges to the goal
+    _run_ik_controller(robot, diff_ik_controller, "ee_link", [".*"], sim_context, num_envs, ee_pose_b_des_set)
 
 
 def _run_ik_controller(
     robot: Articulation,
-    controllers: list[DifferentialIKController],
+    diff_ik_controller: DifferentialIKController,
     ee_frame_name: str,
     arm_joint_names: list[str],
     sim: sim_utils.SimulationContext,
     num_envs: int,
     ee_pose_b_des_set: torch.Tensor,
 ):
-    """Run the IK controllers with the given parameters.
-
-    Every step, all controllers receive the same inputs and must produce the same joint targets; the
-    first controller's targets drive the robot.
+    """Run the IK controller with the given parameters.
 
     Args:
         robot (Articulation): The robot to control.
-        controllers (list[DifferentialIKController]): The differential IK controllers to compare.
+        diff_ik_controller (DifferentialIKController): The differential IK controller.
         ee_frame_name (str): The name of the end-effector frame.
         arm_joint_names (list[str]): The names of the arm joints.
         sim (sim_utils.SimulationContext): The simulation context.
@@ -599,7 +509,7 @@ def _run_ik_controller(
     # Track the given command
     current_goal_idx = 0
     # Current goal for the arm
-    ee_pose_b_des = torch.zeros(num_envs, controllers[0].action_dim, device=sim.device)
+    ee_pose_b_des = torch.zeros(num_envs, diff_ik_controller.action_dim, device=sim.device)
     ee_pose_b_des[:] = ee_pose_b_des_set[current_goal_idx]
     # Compute current pose of the end-effector
     ee_pose_w = robot.data.body_pose_w.torch[:, ee_frame_idx]
@@ -643,9 +553,8 @@ def _run_ik_controller(
             # update goal for next iteration
             current_goal_idx = (current_goal_idx + 1) % len(ee_pose_b_des_set)
             # set the controller commands
-            for controller in controllers:
-                controller.reset()
-                controller.set_command(ee_pose_b_des)
+            diff_ik_controller.reset()
+            diff_ik_controller.set_command(ee_pose_b_des)
         else:
             # at reset, the jacobians are not updated to the latest state
             # so we MUST skip the first step
@@ -662,10 +571,8 @@ def _run_ik_controller(
             ee_pos_b, ee_quat_b = subtract_frame_transforms(
                 root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]
             )
-            # compute the joint commands and check that every implementation agrees
-            joint_pos_des, *others = (c.compute(ee_pos_b, ee_quat_b, jacobian, joint_pos) for c in controllers)
-            for other in others:
-                torch.testing.assert_close(other, joint_pos_des, atol=1e-4, rtol=1e-4)
+            # compute the joint commands
+            joint_pos_des = diff_ik_controller.compute(ee_pos_b, ee_quat_b, jacobian, joint_pos)
 
         # apply actions
         robot.set_joint_position_target(joint_pos_des, arm_joint_ids)
