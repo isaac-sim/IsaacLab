@@ -1003,8 +1003,6 @@ class TestCollectionWritersPose:
             method(body_velocities=_make_bad_data_warp((num_instances, num_bodies), device, wp.spatial_vectorf))
 
     # -- mask variants for pose --
-    # Note: write_body_pose_to_sim_mask accepts body_mask, but write_body_link_pose_to_sim_mask
-    # and write_body_com_pose_to_sim_mask use body_ids instead. We only test body_mask on body_pose.
 
     @_backends
     @_default_dims
@@ -1018,8 +1016,6 @@ class TestCollectionWritersPose:
         obj.data.update(dt=0.01)
         method = getattr(obj, f"write_{method_suffix}_to_sim_mask")
 
-        has_body_mask = method_suffix == "body_pose"
-
         # torch, no mask (all)
         method(body_poses=_make_data_torch((num_instances, num_bodies), device, wp.transformf))
         # torch, partial env_mask
@@ -1027,18 +1023,17 @@ class TestCollectionWritersPose:
             body_poses=_make_data_torch((num_instances, num_bodies), device, wp.transformf),
             env_mask=_make_env_mask(num_instances, device, True),
         )
-        if has_body_mask:
-            # torch, partial body_mask
-            method(
-                body_poses=_make_data_torch((num_instances, num_bodies), device, wp.transformf),
-                body_mask=_make_item_mask(num_bodies, [0], device),
-            )
-            # torch, both masks
-            method(
-                body_poses=_make_data_torch((num_instances, num_bodies), device, wp.transformf),
-                env_mask=_make_env_mask(num_instances, device, True),
-                body_mask=_make_item_mask(num_bodies, [0], device),
-            )
+        # torch, partial body_mask
+        method(
+            body_poses=_make_data_torch((num_instances, num_bodies), device, wp.transformf),
+            body_mask=_make_item_mask(num_bodies, [0], device),
+        )
+        # torch, both masks
+        method(
+            body_poses=_make_data_torch((num_instances, num_bodies), device, wp.transformf),
+            env_mask=_make_env_mask(num_instances, device, True),
+            body_mask=_make_item_mask(num_bodies, [0], device),
+        )
         # warp, no mask
         method(body_poses=_make_data_warp((num_instances, num_bodies), device, wp.transformf))
         # warp, partial env_mask
@@ -1054,7 +1049,6 @@ class TestCollectionWritersPose:
             method(body_poses=_make_bad_data_warp((num_instances, num_bodies), device, wp.transformf))
 
     # -- mask variants for velocity --
-    # Note: write_body_velocity_to_sim_mask accepts body_mask, but the _link_/_com_ variants use body_ids.
 
     @_backends
     @_default_dims
@@ -1068,8 +1062,6 @@ class TestCollectionWritersPose:
         obj.data.update(dt=0.01)
         method = getattr(obj, f"write_{method_suffix}_to_sim_mask")
 
-        has_body_mask = method_suffix == "body_velocity"
-
         # torch, no mask
         method(body_velocities=_make_data_torch((num_instances, num_bodies), device, wp.spatial_vectorf))
         # torch, partial env_mask
@@ -1077,12 +1069,11 @@ class TestCollectionWritersPose:
             body_velocities=_make_data_torch((num_instances, num_bodies), device, wp.spatial_vectorf),
             env_mask=_make_env_mask(num_instances, device, True),
         )
-        if has_body_mask:
-            # torch, partial body_mask
-            method(
-                body_velocities=_make_data_torch((num_instances, num_bodies), device, wp.spatial_vectorf),
-                body_mask=_make_item_mask(num_bodies, [0], device),
-            )
+        # torch, partial body_mask
+        method(
+            body_velocities=_make_data_torch((num_instances, num_bodies), device, wp.spatial_vectorf),
+            body_mask=_make_item_mask(num_bodies, [0], device),
+        )
         # warp, no mask
         method(body_velocities=_make_data_warp((num_instances, num_bodies), device, wp.spatial_vectorf))
         # warp, partial env_mask
