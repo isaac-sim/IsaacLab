@@ -14,7 +14,7 @@ class NewtonIKSolverCfg:
 
     Holds solver hyperparameters only. Objectives (and their residual weights)
     are configured separately as a list of
-    :class:`~isaaclab_newton.ik.newton_ik_objectives_cfg.NewtonIKObjectiveCfg`
+    :class:`~isaaclab_newton.controllers.ik.newton_ik_objectives_cfg.NewtonIKObjectiveCfg`
     passed to the solver. Command semantics for manager-based actions
     (``command_type``, ``use_relative_mode``) live on the action cfg.
 
@@ -22,7 +22,7 @@ class NewtonIKSolverCfg:
     solver can be dropped in via config without changing callers.
     """
 
-    class_type: type | str = "isaaclab_newton.ik.newton_ik_solver:NewtonIKSolver"
+    class_type: type | str = "isaaclab_newton.controllers.ik.newton_ik_solver:NewtonIKSolver"
     """Solver implementation, as a type or a ``"module:Class"`` string.
 
     Instantiated as ``class_type(cfg, model=..., num_envs=..., device=...,
