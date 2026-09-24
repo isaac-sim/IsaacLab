@@ -126,8 +126,6 @@ importers = [
 test = [
     "pytest",
     "pytest-mock",
-    # Splits a test file across worker processes; see TEST_PYTEST_WORKERS in tools/conftest.py.
-    "pytest-xdist",
     "junitparser",
     "flaky",
     # numba subclasses coverage.types.Tracer at import; >=7.6.1 restores that shim

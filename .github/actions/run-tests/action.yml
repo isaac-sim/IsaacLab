@@ -49,12 +49,6 @@ inputs:
       can deselect parametrized cases (e.g. "not ovphysx").
     default: ''
     required: false
-  pytest-workers:
-    description: >-
-      Number of pytest-xdist worker processes each per-file pytest run spawned by
-      tools/conftest.py splits its tests across. Empty or 1 runs every file serially.
-    default: ''
-    required: false
   curobo-only:
     description: 'Run only cuRobo and SkillGen tests (requires the cuRobo Docker image)'
     default: 'false'
@@ -161,14 +155,13 @@ runs:
         TEST_NODE_IDS_KEY: ${{ inputs.test-node-ids-key }}
         TEST_PATH: ${{ inputs.test-path }}
         TEST_K_EXPR_INPUT: ${{ inputs.test-k-expr }}
-        PYTEST_WORKERS_INPUT: ${{ inputs.pytest-workers }}
         CI_MARKER_INPUT: ${{ inputs.ci-marker }}
         VOLUME_MOUNT_SOURCE: ${{ inputs.volume-mount-source }}
         WARP_CACHE_HOST_DIR: ${{ inputs.warp-cache-host-dir }}
         WHEELHOUSE_HOST_DIR: ${{ inputs.wheelhouse-host-dir }}
         WHEELHOUSE_PACKAGES: ${{ inputs.wheelhouse-packages }}
       run: |
-        bash .github/actions/run-tests/run_tests.sh "$TEST_PATH" "$RESULT_FILE" "$CONTAINER_NAME" "$IMAGE_TAG" "$REPORTS_DIR" "$PYTEST_OPTIONS" "$FILTER_PATTERN" "$EXCLUDE_PATTERN" "$CUROBO_ONLY" "$INCLUDE_FILES" "$QUARANTINED_ONLY" "$SHARD_INDEX" "$SHARD_COUNT" "$VOLUME_MOUNT_SOURCE" "$EXTRA_PIP_PACKAGES" "$TEST_NODE_IDS_FILE" "$TEST_NODE_IDS_KEY" "$WHEELHOUSE_HOST_DIR" "$WHEELHOUSE_PACKAGES" "$TEST_K_EXPR_INPUT" "$CI_MARKER_INPUT" "$STANDALONE_SCRIPT_SCOPE" "$STANDALONE_SCRIPT_VISUALIZER" "$STANDALONE_SCRIPT_RUNTIME_GROUP" "$WARP_CACHE_HOST_DIR" "$EXTRA_UV_PACKAGES" "$OVRTX_SHADER_CACHE_HOST_DIR" "$PYTEST_WORKERS_INPUT"
+        bash .github/actions/run-tests/run_tests.sh "$TEST_PATH" "$RESULT_FILE" "$CONTAINER_NAME" "$IMAGE_TAG" "$REPORTS_DIR" "$PYTEST_OPTIONS" "$FILTER_PATTERN" "$EXCLUDE_PATTERN" "$CUROBO_ONLY" "$INCLUDE_FILES" "$QUARANTINED_ONLY" "$SHARD_INDEX" "$SHARD_COUNT" "$VOLUME_MOUNT_SOURCE" "$EXTRA_PIP_PACKAGES" "$TEST_NODE_IDS_FILE" "$TEST_NODE_IDS_KEY" "$WHEELHOUSE_HOST_DIR" "$WHEELHOUSE_PACKAGES" "$TEST_K_EXPR_INPUT" "$CI_MARKER_INPUT" "$STANDALONE_SCRIPT_SCOPE" "$STANDALONE_SCRIPT_VISUALIZER" "$STANDALONE_SCRIPT_RUNTIME_GROUP" "$WARP_CACHE_HOST_DIR" "$EXTRA_UV_PACKAGES" "$OVRTX_SHADER_CACHE_HOST_DIR"
     - name: Kill container on cancellation
       if: cancelled()
       shell: bash

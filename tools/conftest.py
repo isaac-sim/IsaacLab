@@ -49,19 +49,10 @@ startup hang.
 
 AppLauncher prints ``[ISAACLAB] AppLauncher initialization complete`` to
 ``sys.__stderr__`` (never suppressed) when Kit finishes initializing, and pytest
-prints ``collected N items`` to stdout after collection (``N workers [M items]``
-under ``pytest-xdist``, once every worker has collected).  If none appears
+prints ``collected N items`` to stdout after collection.  If neither appears
 within this deadline the process is treated as hung.  Kit startup can exceed
 60 s on cold CI workers, so this catches real startup hangs without killing
 legitimate slow launches.
-"""
-
-PYTEST_WORKERS_ENV_VAR = "TEST_PYTEST_WORKERS"
-"""Environment variable naming the number of ``pytest-xdist`` workers for each test file.
-
-Each file still runs in its own pytest process; the workers split that file's tests between them, each in
-its own process with its own simulation (and Kit app, for files that launch one). Unset or ``1`` runs
-the file serially.
 """
 
 STARTUP_HANG_RETRIES = 2
@@ -211,32 +202,6 @@ def _drain_ready_output(process, stdout_fd, stderr_fd, timeout=0.1):
     return stdout_chunk, stderr_chunk
 
 
-def _pytest_workers(env) -> int:
-    """Return the ``pytest-xdist`` worker count configured in ``env``, or 0 to run serially."""
-    try:
-        workers = int(env.get(PYTEST_WORKERS_ENV_VAR, "") or 0)
-    except ValueError:
-        return 0
-    return workers if workers > 1 else 0
-
-
-def _child_pids(pid: int) -> list[int]:
-    """Return the direct children of ``pid``, or an empty list where ``/proc`` is unavailable."""
-    children = []
-    for entry in os.listdir("/proc") if os.path.isdir("/proc") else []:
-        if not entry.isdigit():
-            continue
-        try:
-            with open(f"/proc/{entry}/stat") as handle:
-                # The command name is parenthesized and may contain spaces; the parent PID follows it.
-                parent = int(handle.read().rsplit(")", 1)[1].split()[1])
-        except (OSError, IndexError, ValueError):
-            continue
-        if parent == pid:
-            children.append(int(entry))
-    return sorted(children)
-
-
 def _dump_hung_process_stacks(process, stdout_fd, stderr_fd, env):
     """Ask a hung process for a stack of every thread, and collect what it writes.
 
@@ -246,9 +211,7 @@ def _dump_hung_process_stacks(process, stdout_fd, stderr_fd, env):
 
     The signal goes to the test process itself rather than its group.  The handler is registered there, and
     a standalone script the test launched as a grandchild has no handler -- ``SIGUSR1`` would simply kill it,
-    losing it from the process tree the caller has already recorded.  Under ``pytest-xdist`` the tests run in
-    the worker processes, the controller's direct children, so each worker is asked in turn as well; one at
-    a time, because they all append to the same dump file.
+    losing it from the process tree the caller has already recorded.
 
     Args:
         process: The hung child.
@@ -270,28 +233,23 @@ def _dump_hung_process_stacks(process, stdout_fd, stderr_fd, env):
     if hang_dump.DUMP_SIGNAL is None or not dump_file:
         return "", stdout_data, stderr_data
 
-    targets = [process.pid]
-    if _pytest_workers(env):
-        targets += _child_pids(process.pid)
-
     for _ in range(HANG_DUMP_PASSES):
-        for pid in targets:
-            # Only this request's share of the file is the dump it asked for.
-            start = hang_dump.size(dump_file)
-            try:
-                os.kill(pid, hang_dump.DUMP_SIGNAL)
-            except OSError:
-                continue
+        # Only this pass's share of the file is the dump it asked for.
+        start = hang_dump.size(dump_file)
+        try:
+            os.kill(process.pid, hang_dump.DUMP_SIGNAL)
+        except OSError:
+            break
 
-            # Keep draining while the handler runs, so a full pipe cannot be what stops it answering.
-            deadline = time.time() + HANG_DUMP_GRACE
-            while time.time() < deadline:
-                stdout_chunk, stderr_chunk = _drain_ready_output(process, stdout_fd, stderr_fd)
-                stdout_data += stdout_chunk
-                stderr_data += stderr_chunk
+        # Keep draining while the handler runs, so a full pipe cannot be what stops it answering.
+        deadline = time.time() + HANG_DUMP_GRACE
+        while time.time() < deadline:
+            stdout_chunk, stderr_chunk = _drain_ready_output(process, stdout_fd, stderr_fd)
+            stdout_data += stdout_chunk
+            stderr_data += stderr_chunk
 
-            if dumped := hang_dump.read_since(dump_file, start):
-                dumps.append(dumped if len(targets) == 1 else f"(pid {pid})\n{dumped}")
+        if dumped := hang_dump.read_since(dump_file, start):
+            dumps.append(dumped)
         # exit early if the process died
         if process.poll() is not None:
             break
@@ -362,11 +320,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
             elapsed = time.time() - start_time
 
             if not startup_done:
-                if (
-                    b"AppLauncher initialization complete" in stderr_data
-                    or b"collected " in stdout_data
-                    or b" workers [" in stdout_data
-                ):
+                if b"AppLauncher initialization complete" in stderr_data or b"collected " in stdout_data:
                     startup_done = True
 
             if report_file and not shutdown_deadline and os.path.exists(report_file):
@@ -1039,8 +993,6 @@ def _run_one_pass(
         cmd += ["-p", "mgpu_shard_select"]
     if ctx.ci_marker:
         cmd += ["-m", ctx.ci_marker]
-    if workers := _pytest_workers(ctx.env):
-        cmd += ["-n", str(workers)]
     if k_expr is not None:
         cmd += ["-k", k_expr]
     cmd += ctx.pytest_targets

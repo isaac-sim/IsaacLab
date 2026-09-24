@@ -47,12 +47,6 @@ inputs:
       spawned by tools/conftest.py (combined with device-split selectors).
     default: ''
     required: false
-  pytest-workers:
-    description: >-
-      Number of pytest-xdist worker processes each per-file pytest run spawned by
-      tools/conftest.py splits its tests across. Empty or 1 runs every file serially.
-    default: ''
-    required: false
   shard-index:
     description: 'Zero-based shard index'
     default: ''
@@ -339,7 +333,6 @@ runs:
         filter-pattern: ${{ inputs.filter-pattern }}
         exclude-pattern: ${{ inputs.exclude-pattern }}
         test-k-expr: ${{ inputs.test-k-expr }}
-        pytest-workers: ${{ inputs.pytest-workers }}
         shard-index: ${{ inputs.shard-index }}
         shard-count: ${{ inputs.shard-count }}
         curobo-only: ${{ inputs.curobo-only }}
