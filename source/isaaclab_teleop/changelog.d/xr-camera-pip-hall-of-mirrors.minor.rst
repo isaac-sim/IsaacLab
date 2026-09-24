@@ -2,10 +2,11 @@ Added
 ^^^^^
 
 * Added opt-in ``XrCameraFeedLayoutCfg.use_scene_partition`` to exclude shared SceneUI
-  from robot cameras using their existing environment partitions. The unpartitioned
-  XR camera retained its all-partitions spectator view. Only the ``/ui`` partition
-  was temporarily authored and restored after the final isolated panel closed;
-  camera configuration and global renderer settings remained unchanged.
+  from robot cameras. Preparation disabled environment partitioning and all-partitions
+  rendering before camera initialization, keeping the single environment shared while
+  the XR camera and SceneUI used a dedicated PiP partition. Prior camera, renderer, and
+  session-layer settings were restored after the final owner closed, including failures
+  during environment construction.
 
 Fixed
 ^^^^^

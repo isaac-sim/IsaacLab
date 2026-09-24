@@ -1394,21 +1394,18 @@ camera view follows robot motion:
    the panel outside the camera's field of view.
 
 Both G1 tasks enable :attr:`~isaaclab_teleop.XrCameraFeedLayoutCfg.use_scene_partition`
-to avoid this recursion. Robot cameras keep their existing environment partition, such as
-``env_0``. The SceneUI adapter assigns the entire ``/ui`` root to a different partition,
-``isaaclab_teleop_xr_camera_pip``, so those cameras exclude the panels. The XR presentation camera
-stays unpartitioned and sees both the environment and UI through
-``/rtx/scenePartitioning/showAllPartitionsByDefault=True``, which :class:`~isaaclab.app.AppLauncher`
-already enables at startup for ``--xr``.
+to avoid this recursion. Before environment construction, preparation temporarily disables
+per-environment partitioning on selected Isaac RTX camera renderers and sets
+``/rtx/scenePartitioning/showAllPartitionsByDefault=False``. Geometry must start as shared,
+unpartitioned background; clearing its partition after camera initialization can hide it from XR.
+Other scene cameras must also set ``enable_scene_partitioning=False``.
 
-PiP leaves camera configuration and global renderer settings unchanged. Selected Isaac RTX
-cameras must be beneath ``{ENV_REGEX_NS}`` with the default ``enable_scene_partitioning=True``;
-binding rejects cameras without a partition. Custom launchers must enable the all-partitions
-spectator setting before starting Kit and leave the XR camera unpartitioned. This requires a
-runtime supporting that setting (Kit 110.3 or later).
-
-Only the shared ``/ui`` partition is authored in the stage's session layer. Its prior opinion is
-restored when the final isolated panel closes, unless another owner changed it. Panels remain
+The SceneUI adapter assigns the XR camera and ``/ui`` to ``isaaclab_teleop_xr_camera_pip`` and
+refreshes inheritance when SceneUI children appear. Robot cameras see shared background without
+UI; XR sees both. XR/UI overrides use the session layer. Prior camera, renderer, and partition
+settings are restored after the final owner closes, unless changed externally. Prepared sessions
+must close even if environment construction fails; the teleoperation and recording scripts handle
+this cleanup. Panels remain
 hidden while tracking or isolation is unavailable and reappear after recovery. Other tasks retain
 their existing behavior because ``use_scene_partition`` defaults to ``False``.
 

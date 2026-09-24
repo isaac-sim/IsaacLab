@@ -12,7 +12,7 @@ _SCENE_UI_KIT_ARGS = " ".join(
         "--enable omni.kit.xr.core",
         "--enable omni.kit.scene_view.xr",
         "--enable omni.kit.scene_view.xr_utils",
-        "--/rtx/scenePartitioning/showAllPartitionsByDefault=true",
+        "--/rtx/scenePartitioning/showAllPartitionsByDefault=false",
     )
 )
 simulation_app = AppLauncher(
@@ -23,12 +23,11 @@ simulation_app = AppLauncher(
 ).app
 
 import pytest
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_teleop import XrCameraFeedCfg
 from isaaclab_teleop.camera_feed import _PanelDescriptor
 from isaaclab_teleop.camera_feed_kit_scene_ui import _KitSceneUiCameraFeedPresenter
-from packaging.version import Version
 
-import omni.kit.app
 import omni.replicator.core as rep
 import usdrt.Usd as UsdRtUsd
 from pxr import Sdf, UsdUtils
@@ -74,7 +73,7 @@ def test_real_scene_ui_imports_and_constructs_world_panel(use_scene_partition):
         assert panel._component is not None
         if use_scene_partition:
             assert panel._partition_ready
-            assert not camera.GetAttribute("omni:scenePartition").IsValid()
+            assert camera.GetAttribute("omni:scenePartition").Get() == "isaaclab_teleop_xr_camera_pip"
             assert stage.GetPrimAtPath("/ui").GetAttribute("primvars:omni:scenePartition").Get() == (
                 "isaaclab_teleop_xr_camera_pip"
             )
@@ -90,8 +89,6 @@ def test_real_scene_ui_imports_and_constructs_world_panel(use_scene_partition):
 @pytest.mark.parametrize("use_scene_partition", [False, True])
 def test_real_feed_source_applies_local_policy_and_reads_cuda_from_cpu_camera(use_scene_partition):
     """Late PiP attachment authors only its RenderProduct and keeps camera pixels on CPU."""
-    if use_scene_partition and Version(omni.kit.app.get_app().get_build_version().split("+")[0]) < Version("110.3"):
-        pytest.skip("The all-partitions spectator view requires Kit 110.3 or later.")
     sim_utils.create_new_stage()
     sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device="cpu", dt=1.0 / 60.0))
     stage = sim_utils.get_current_stage()
@@ -102,6 +99,7 @@ def test_real_feed_source_applies_local_policy_and_reads_cuda_from_cpu_camera(us
             height=64,
             width=64,
             data_types=["rgb"],
+            renderer_cfg=IsaacRtxRendererCfg(enable_scene_partitioning=False),
             spawn=sim_utils.PinholeCameraCfg(),
             offset=CameraCfg.OffsetCfg(rot=(0.0, 0.0, 0.0, 1.0), convention="opengl"),
         )
@@ -112,10 +110,15 @@ def test_real_feed_source_applies_local_policy_and_reads_cuda_from_cpu_camera(us
             height=64,
             width=64,
             data_types=["rgb"],
+            renderer_cfg=IsaacRtxRendererCfg(enable_scene_partitioning=False),
             spawn=sim_utils.PinholeCameraCfg(),
             offset=CameraCfg.OffsetCfg(rot=(0.0, 0.0, 0.0, 1.0), convention="opengl"),
         )
     )
+    if use_scene_partition:
+        stage.GetPrimAtPath(bystander_camera.cfg.prim_path).CreateAttribute(
+            "omni:scenePartition", Sdf.ValueTypeNames.Token
+        ).Set("isaaclab_teleop_xr_camera_pip")
     source = None
     if use_scene_partition:
         for path, position, color in (
@@ -189,7 +192,7 @@ def test_real_feed_source_applies_local_policy_and_reads_cuda_from_cpu_camera(us
         assert image.data_ptr() == source._annotator.get_data().ptr
         assert image.dtype == fallback.dtype
         if use_scene_partition:
-            # The source camera sees the robot, while an unpartitioned spectator also sees the UI.
+            # The source camera sees the robot, while the XR partition also sees the UI.
             for sensor, sees_ui in ((camera, False), (bystander_camera, True)):
                 rgb = sensor.data.output["rgb"].torch[0].float()
                 red = (rgb[..., 0] > 50) & (rgb[..., 0] > 1.5 * rgb[..., 1])
