@@ -135,6 +135,7 @@ jobs:
         env:
           NVIDIA_API_KEY: ${{ secrets.SKILLEVALUATOR_API_KEY }}
           NVIDIA_INFERENCE_KEY: ${{ secrets.SKILLEVALUATOR_API_KEY }}
+          SKILL_EVAL_EMBEDDING_MODEL: "nvidia/nv-embedqa-mistral-7b-v2"
           SKILL_DIRS: ${{ steps.touched.outputs.dirs }}
         run: |
           set -euo pipefail
