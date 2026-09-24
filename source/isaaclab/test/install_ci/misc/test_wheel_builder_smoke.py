@@ -18,14 +18,14 @@ Tests:
     - from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG -> verify importable
     - from isaaclab.scene import InteractiveSceneCfg -> verify importable
     - python -m isaaclab --help -> verify CLI functional
-    - python -c "from isaaclab._programs import DEMOS, EXAMPLES;
+    - python -c "from isaaclab.programs import DEMOS, EXAMPLES;
         assert all(program.path.is_file() for program in (*DEMOS, *EXAMPLES))"
         -> verify packaged program catalogs resolve private script resources
     - python -c "import contextlib
         import io
         import sys
         import isaaclab.app as app
-        from isaaclab._programs import DEMOS, EXAMPLES, _run_script
+        from isaaclab.programs import DEMOS, EXAMPLES, _run_script
         def fail_launch(*args, **kwargs):
             raise AssertionError(f'{sys.argv[0]} launched simulation while handling --help')
         app.AppLauncher.__init__ = fail_launch
@@ -136,12 +136,12 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
 
         assert "isaaclab/app/__init__.py" in names
         assert "isaaclab/apps/isaaclab.python.kit" in names
-        assert "isaaclab/_programs.py" in names
-        assert "isaaclab/_examples/demos/zoo.py" in names
-        assert "isaaclab/_examples/assets/nvidia_logo_domino_poses.pth" in names
-        assert "isaaclab/_examples/cables.py" in names
-        assert "isaaclab/_examples/newton_viewer_dominoes.py" in names
-        assert "isaaclab/_examples/mpm/newton_mpm_granular.py" in names
+        assert "isaaclab/programs.py" in names
+        assert "isaaclab/examples/demos/zoo.py" in names
+        assert "isaaclab/examples/assets/nvidia_logo_domino_poses.pth" in names
+        assert "isaaclab/examples/cables.py" in names
+        assert "isaaclab/examples/newton_viewer_dominoes.py" in names
+        assert "isaaclab/examples/mpm/newton_mpm_granular.py" in names
         assert not any(name.startswith(("isaaclab/_demos/", "isaaclab/demos/", "isaaclab/examples/")) for name in names)
         nested_prefix = "isaaclab/source/isaaclab/isaaclab/"
         assert not any(name.startswith(nested_prefix) for name in names)
@@ -201,7 +201,7 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
             [
                 "python",
                 "-c",
-                "from isaaclab._programs import DEMOS, EXAMPLES; "
+                "from isaaclab.programs import DEMOS, EXAMPLES; "
                 "assert all(program.path.is_file() for program in (*DEMOS, *EXAMPLES))",
             ]
         )
@@ -215,7 +215,7 @@ import io
 import sys
 
 import isaaclab.app as app
-from isaaclab._programs import DEMOS, EXAMPLES, _run_script
+from isaaclab.programs import DEMOS, EXAMPLES, _run_script
 
 
 def fail_launch(*args, **kwargs):

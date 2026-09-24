@@ -72,7 +72,10 @@ Command Builder
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="H1 Locomotion" data-demo-id="h1-locomotion"
-               data-demo-physics="isaacsim_physx" data-demo-visualizers="kit"
+               data-demo-physics="isaacsim_physx,newton_mjwarp"
+               data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
+               data-demo-visualizers-isaacsim-physx="none,kit,newton_gl,rerun,viser"
+               data-demo-visualizers-newton-mjwarp="none,kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-description="Select H1 robots and control a trained rough-terrain policy with the keyboard and follow camera.">
          <img src="../../_static/demos/h1_locomotion.jpg" alt="H1 locomotion in Isaac Lab" loading="lazy">
          <span>H1 Locomotion</span>
@@ -111,5 +114,5 @@ Command Builder
      </div>
    </div>
 
-H1 locomotion uses a published policy and provides keyboard, mouse-selection, and camera controls
-in Kit. Pick and place also requires Kit input. For autonomous H1 task playback, use ``isaaclab play``.
+H1 locomotion uses a published policy. In the Newton viewer, press N to select a robot, I/J/L to walk
+forward or turn, K to stop, and C to toggle the follow camera. Pick and place requires Kit input. For autonomous H1 task playback, use ``isaaclab play``.

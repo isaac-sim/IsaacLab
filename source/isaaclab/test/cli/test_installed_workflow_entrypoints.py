@@ -15,10 +15,11 @@ import pytest
 
 import isaaclab
 import isaaclab.__main__ as package_main
-import isaaclab._program_browser as browser
-import isaaclab._programs as programs
 import isaaclab.cli as cli
 import isaaclab.paths as paths
+import isaaclab.program_browser as browser
+import isaaclab.programs as programs
+from isaaclab.sim import SimulationContext
 
 pytestmark = pytest.mark.unit
 
@@ -125,28 +126,37 @@ def test_browse_is_not_a_program_command():
         cli.demo(["browse"])
 
 
+def _visualizer(visualizer_type: str) -> mock.Mock:
+    """Return a visualizer stand-in of the given type."""
+    visualizer = mock.Mock()
+    visualizer.cfg.visualizer_type = visualizer_type
+    return visualizer
+
+
 def test_newton_gl_selector_omits_incompatible_programs():
     """The selector must feature GL-compatible showcases and omit Kit-only programs."""
-    browser.start_program()
-    viewer = mock.Mock()
+    gl_visualizer = _visualizer("newton_gl")
+    kit_visualizer = _visualizer("kit")
+    sim = mock.Mock(visualizers=[gl_visualizer, kit_visualizer])
     imgui = mock.Mock()
     imgui.collapsing_header.return_value = True
     imgui.tree_node.return_value = True
     imgui.selectable.return_value = (False, False)
     imgui.is_item_hovered.return_value = False
-    try:
-        browser.register_newton_browser(viewer)
-        viewer.register_ui_callback.call_args.args[0](imgui)
-    finally:
-        browser.finish_program()
+    program_browser = browser.ProgramBrowser({"demo": programs.DEMOS, "example": programs.EXAMPLES})
+    program_browser.attach(sim)
+    program_browser.attach(sim)
+    gl_visualizer.register_ui_callback.call_args.args[0](imgui)
 
     labels = {call.args[0] for call in imgui.selectable.call_args_list}
-    assert viewer.register_ui_callback.call_args.kwargs == {"position": "panel"}
+    gl_visualizer.register_ui_callback.assert_called_once()
+    assert gl_visualizer.register_ui_callback.call_args.kwargs == {"position": "panel"}
+    kit_visualizer.register_ui_callback.assert_not_called()
     assert "Zoo##demo:zoo" in labels
     assert "Cables##example:cables" in labels
     assert "Newton Dominoes##example:newton-dominoes" in labels
     assert "Newton Dominoes##demo:newton-dominoes" not in labels
-    assert "H1 Locomotion##demo:h1-locomotion" not in labels
+    assert "H1 Locomotion##demo:h1-locomotion" in labels
     assert "Pick And Place##demo:pick-and-place" not in labels
     assert "Ppisp Camera##example:ppisp-camera" not in labels
     assert "Haply Teleoperation##example:haply-teleoperation" not in labels
@@ -155,7 +165,7 @@ def test_newton_gl_selector_omits_incompatible_programs():
 
 def test_newton_gl_selector_switches_programs_after_script_returns(monkeypatch):
     """A GL selection must restart with GL after the current program finishes."""
-    viewer = mock.Mock()
+    visualizer = _visualizer("newton_gl")
     imgui = mock.Mock()
     imgui.collapsing_header.return_value = True
     imgui.tree_node.return_value = True
@@ -163,14 +173,17 @@ def test_newton_gl_selector_switches_programs_after_script_returns(monkeypatch):
     imgui.is_item_hovered.return_value = False
 
     def run_script(_path):
-        browser.register_newton_browser(viewer)
-        viewer.register_ui_callback.call_args.args[0](imgui)
+        # Stand in for the program's simulation reset, which fires the launcher's callback.
+        for callback in tuple(SimulationContext._reset_callbacks.values()):
+            callback(mock.Mock(visualizers=[visualizer]))
+        visualizer.register_ui_callback.call_args.args[0](imgui)
 
     monkeypatch.setattr(programs, "_run_script", run_script)
     with mock.patch.object(programs.os, "execv") as execv:
         cli.demo(["zoo", "--viz", "newton_gl"])
 
-    assert viewer._program_switch_requested is True
+    visualizer.request_close.assert_called_once_with()
+    assert not SimulationContext._reset_callbacks
     execv.assert_called_once_with(
         sys.executable, [sys.executable, "-m", "isaaclab", "example", "cables", "--viz", "newton_gl"]
     )

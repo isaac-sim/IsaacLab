@@ -6,6 +6,9 @@ Added
 * Added the ``zoo`` demo, which animates several robot families and rigid objects in one deterministic scene.
 * Added a Newton GL program selector that puts curated demos ahead of focused examples.
 * Reused the Isaac Lab terminal startup screen for packaged demos and examples.
+* Added :meth:`~isaaclab.sim.SimulationContext.add_reset_callback` and
+  :meth:`~isaaclab.sim.SimulationContext.remove_reset_callback` for callbacks that must be registered before a
+  script creates its simulation context.
 
 Changed
 ^^^^^^^
@@ -19,6 +22,8 @@ Changed
   ``mpm-granular``, ``mpm-two-way-coupling``, ``camera``, ``contact-sensor``, ``frame-transformer``, ``imu``,
   ``multi-mesh-ray-caster``, ``multi-mesh-ray-caster-camera``, ``ppisp-camera``, ``pva``, ``ray-caster``, and
   ``tactile-sensor``. Replace direct ``scripts/demos`` invocations with ``isaaclab example <name>``.
+* Changed ``isaaclab demo h1-locomotion`` to run on Newton with the Newton GL viewer by default. Robots are driven
+  with I/J/K/L, selected with N, and followed with C. Pass ``--physics isaacsim_physx`` for PhysX.
 * **Breaking:** Consolidated ``scripts/demos/sensors/newton_raycast_heightfield.py`` and
   ``scripts/demos/sensors/newton_raycast_moving_geometry.py`` as
   ``isaaclab example newton-raycast --scene {heightfield,moving-geometry}``.

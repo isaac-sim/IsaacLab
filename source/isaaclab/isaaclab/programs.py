@@ -49,7 +49,7 @@ class ProgramSpec:
 
 def _program_root(directory: str) -> Path:
     """Return the root containing executable programs."""
-    installed_root = Path(__file__).resolve().parent / f"_{directory}"
+    installed_root = Path(__file__).resolve().parent / directory
     if installed_root.is_dir():
         return installed_root
     return ISAACLAB_ROOT / directory
@@ -72,6 +72,9 @@ def _run_script(path: Path) -> None:
             sys.modules["__main__"] = original_main
 
 
+_RESET_CALLBACK_NAME = "isaaclab.programs"
+"""Name of the simulation reset callback installed while a program runs."""
+
 _ISAACSIM = {"extras": ("isaacsim",), "required_modules": ("isaacsim",)}
 _TETRAHEDRALIZATION = {"extras": ("tetrahedralization",), "required_modules": ("pytetwild",)}
 _TELEOP = {"extras": ("teleop",), "required_modules": ("isaaclab_teleop", "websockets")}
@@ -79,13 +82,7 @@ _TELEOP = {"extras": ("teleop",), "required_modules": ("isaaclab_teleop", "webso
 
 DEMOS = (
     ProgramSpec("zoo", "examples/demos/zoo.py", "Explore Isaac Lab robots and simulation features."),
-    ProgramSpec(
-        "h1-locomotion",
-        "examples/demos/h1_locomotion.py",
-        "Control a trained H1 locomotion policy.",
-        **_ISAACSIM,
-        newton_gl_args=None,
-    ),
+    ProgramSpec("h1-locomotion", "examples/demos/h1_locomotion.py", "Control a trained H1 locomotion policy."),
     ProgramSpec(
         "pick-and-place",
         "examples/demos/pick_and_place.py",
@@ -254,10 +251,10 @@ def run_program(command: str, program: ProgramSpec, args: list[str] | None = Non
     if not path.is_file():
         raise FileNotFoundError(f"{command} {program.name!r} is not installed at {path}")
 
-    from isaaclab import _program_browser
+    from isaaclab.program_browser import ProgramBrowser
 
+    browser = ProgramBrowser({"demo": DEMOS, "example": EXAMPLES})
     original_argv = sys.argv
-    _program_browser.start_program()
     try:
         forwarded_args = list(args or [])
         sys.argv = [f"isaaclab {command} {program.name}", *forwarded_args]
@@ -265,21 +262,31 @@ def run_program(command: str, program: ProgramSpec, args: list[str] | None = Non
             _run_script(path)
         else:
             from isaaclab.app.loading_screen import LoadingScreen
+            from isaaclab.sim import SimulationContext
 
             verbose = any(arg in ("--info", "--verbose") for arg in forwarded_args)
-            with LoadingScreen(1, enabled=False if verbose else None, close_on_simulation_reset=True) as screen:
+            with LoadingScreen(1, enabled=False if verbose else None) as screen:
                 screen.summary(
                     f"Isaac Lab · {command}",
                     {"Program": program.name, "Description": program.summary},
                 )
                 screen.stage("Launching simulation")
-                _run_script(path)
+
+                def on_reset(sim: SimulationContext) -> None:
+                    # Hand the console to the program once its simulation is ready.
+                    screen.close()
+                    browser.attach(sim)
+
+                SimulationContext.add_reset_callback(_RESET_CALLBACK_NAME, on_reset)
+                try:
+                    _run_script(path)
+                finally:
+                    SimulationContext.remove_reset_callback(_RESET_CALLBACK_NAME)
                 screen.close()
     finally:
         sys.argv = original_argv
-        selected = _program_browser.finish_program()
-    if selected is not None:
-        next_command, next_program = selected
+    if browser.selected is not None:
+        next_command, next_program = browser.selected
         sys.stdout.flush()
         sys.stderr.flush()
         os.execv(

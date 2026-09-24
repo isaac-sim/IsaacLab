@@ -167,9 +167,6 @@ def test_demo_browser_documents_options_for_each_demo():
 
 def test_commands_respect_script_launcher_capabilities():
     """Commands must enable cameras and avoid unsupported launcher arguments."""
-    h1_case = next(case for case in build_cases(SPECS) if case.spec.relative_path == "examples/demos/h1_locomotion.py")
-    assert h1_case.command()[-4:] == ["--physics", "isaacsim_physx", "--visualizer", "kit"]
-
     pick_and_place_case = next(
         case for case in build_cases(SPECS) if case.spec.relative_path == "examples/demos/pick_and_place.py"
     )

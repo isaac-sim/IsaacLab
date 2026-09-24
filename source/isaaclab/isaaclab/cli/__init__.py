@@ -117,7 +117,7 @@ def demo(args: list[str] | None = None) -> None:
     Args:
         args: Command-line arguments. Uses ``sys.argv`` when omitted.
     """
-    from isaaclab._programs import DEMOS, run_program_cli
+    from isaaclab.programs import DEMOS, run_program_cli
 
     run_program_cli("demo", DEMOS, args)
 
@@ -128,7 +128,7 @@ def example(args: list[str] | None = None) -> None:
     Args:
         args: Command-line arguments. Uses ``sys.argv`` when omitted.
     """
-    from isaaclab._programs import EXAMPLES, run_program_cli
+    from isaaclab.programs import EXAMPLES, run_program_cli
 
     run_program_cli("example", EXAMPLES, args)
 

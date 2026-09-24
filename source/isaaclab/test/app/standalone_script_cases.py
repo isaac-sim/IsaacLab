@@ -22,7 +22,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from isaaclab._programs import DEMOS, EXAMPLES
+from isaaclab.programs import DEMOS, EXAMPLES
 
 ROOT = Path(__file__).resolve().parents[4]
 EXAMPLE_ROOT = ROOT / "examples"
@@ -176,8 +176,7 @@ _NEWTON_MJCF = str(Path(importlib.util.find_spec("newton").origin).parent / "exa
 OVERRIDES = {
     "examples/demos/zoo.py": ScriptOverride(readiness_pattern=r"Robot zoo ready"),
     "examples/demos/h1_locomotion.py": ScriptOverride(
-        skip_reason="downloads a published policy and requires interactive viewport input",
-        visualizers=("kit",),
+        skip_reason="downloads a published policy and requires interactive viewer input",
     ),
     "examples/haply_teleoperation.py": ScriptOverride(
         skip_reason="requires a physical Haply device and its WebSocket service"

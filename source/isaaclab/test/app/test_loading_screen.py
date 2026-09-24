@@ -105,17 +105,6 @@ def test_live_lifecycle_restores_normal_screen(monkeypatch: pytest.MonkeyPatch):
     assert "Ready in" in rendered
 
 
-def test_program_screen_closes_on_simulation_reset():
-    """Only screens opened for packaged programs close when a simulation starts."""
-    with loading_screen.LoadingScreen(1, enabled=False, logo=False) as play_screen:
-        loading_screen._close_program_loading_screen()
-        assert loading_screen._active_screen is play_screen
-
-    with loading_screen.LoadingScreen(1, enabled=False, logo=False, close_on_simulation_reset=True):
-        loading_screen._close_program_loading_screen()
-        assert loading_screen._active_screen is None
-
-
 def test_shutdown_restores_output_when_live_rendering_fails(monkeypatch: pytest.MonkeyPatch):
     screen = loading_screen.LoadingScreen(1, enabled=True)
     screen._live = Mock()
