@@ -153,6 +153,7 @@ class ArticulationData(BaseArticulationData):
         """
         if self._fk_timestamp < self._sim_timestamp:
             self._physics_sim_view.update_articulations_kinematic()
+            SimulationManager._kinematics_dirty = False
             self._fk_timestamp = self._sim_timestamp
 
     def _reset_pose(self, from_link: bool = True) -> None:

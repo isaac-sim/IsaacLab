@@ -200,6 +200,7 @@ def _make_mock_env(**extra_env):
     return env
 
 
+@pytest.mark.usefixtures("source_checkout_root")
 class TestCommandInstallDispatch:
     """Test that command_install() calls the right functions with the right args."""
 
