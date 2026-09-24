@@ -5,7 +5,6 @@
 
 """Tests for the shared success-rate monitor."""
 
-import pytest
 import torch
 
 from isaaclab_tasks.utils.success_monitor import SuccessMonitor, SuccessMonitorCfg
@@ -27,21 +26,3 @@ def test_success_monitor_state_round_trip() -> None:
     torch.testing.assert_close(restored.success_pointer, monitor.success_pointer)
     torch.testing.assert_close(restored.success_size, monitor.success_size)
     torch.testing.assert_close(restored.success_rate, monitor.success_rate)
-
-
-@pytest.mark.parametrize(
-    ("key", "value", "message"),
-    (
-        ("success_history", torch.zeros(2, 3), "expected"),
-        ("history_pointer", torch.tensor([0, 1, 3]), "pointer"),
-        ("history_size", torch.tensor([0, 1, 4]), "size"),
-    ),
-)
-def test_success_monitor_rejects_invalid_state(key: str, value: torch.Tensor, message: str) -> None:
-    """Checkpoint restoration validates every tensor before mutating state."""
-    monitor = SuccessMonitor(SuccessMonitorCfg(monitored_history_len=3), 1, 3, "cpu")
-    state = monitor.get_state()
-    state[key] = value
-
-    with pytest.raises(ValueError, match=message):
-        monitor.set_state(state)

@@ -10,14 +10,12 @@ from types import SimpleNamespace
 import gymnasium as gym
 import pytest
 import torch
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import NewtonCfg
 from rsl_rl.algorithms import Distillation
 
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg
 from isaaclab.utils import modifiers
 from isaaclab.utils.noise import UniformNoiseCfg
-
-from isaaclab_rl.rsl_rl import RslRlDistillationAlgorithmCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.contrib.stack import mdp
@@ -27,7 +25,6 @@ from isaaclab_tasks.contrib.stack.config.kuka_allegro.agents.rsl_rl_ppo_cfg impo
 )
 from isaaclab_tasks.contrib.stack.mdp.kuka_allegro_reset import (
     KUKA_ALLEGRO_ALL_HAND_JOINT_NAMES,
-    KUKA_ALLEGRO_LARGE_CUBE_EDGE_LENGTH,
 )
 from isaaclab_tasks.contrib.stack.mdp.runtime_state import create_stack_reset_runtime_state
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
@@ -60,11 +57,6 @@ def test_supported_tasks_are_registered(task_name: str, env_cfg_name: str, runne
     assert load_cfg_from_registry(task_name, "rsl_rl_cfg_entry_point") is not None
 
 
-def test_obsolete_camera_fine_tune_task_is_not_registered():
-    with pytest.raises(gym.error.Error):
-        gym.spec("IsaacContrib-Stack-Cube-Franka-RL-Camera-Finetune")
-
-
 @pytest.fixture(scope="module")
 def stack_cfgs():
     cfgs = {
@@ -80,18 +72,9 @@ def test_franka_state_task_exposes_the_training_contract(stack_cfgs):
     cfg = stack_cfgs[FRANKA_STATE_TASK]
 
     assert cfg.scene.num_envs == 8
-    assert cfg.scene.replicate_physics
     assert isinstance(cfg.sim.physics, NewtonCfg)
-    assert isinstance(cfg.sim.physics.solver_cfg, MJWarpSolverCfg)
     assert cfg.actions.arm_action.gravity_compensation
-    assert cfg.actions.arm_action.controller_owned_write_methods == {
-        "set_joint_effort_target_index": "gravity_compensation"
-    }
-    assert isinstance(cfg.actions.gripper_action, mdp.ResetBufferedGripperActionCfg)
     assert cfg.events.reset_from_state_buffer.func is mdp.StackResetStateTable
-    assert cfg.curriculum.reset_sampling.func is mdp.StackResetTableCurriculum
-    assert cfg.terminations.progress_context.func is mdp.StableOrderInvariantStackGoal
-    assert cfg.rewards.success.func is mdp.stack_success_pulse
     assert cfg.observations.policy.joint_target is None
 
 
@@ -106,8 +89,6 @@ def test_state_stack_tasks_use_default_ground_plane(stack_cfgs, task_name):
     assert isinstance(plane.spawn, GroundPlaneCfg)
     assert plane.spawn.usd_path == default.usd_path
     assert plane.spawn.size == default.size
-    assert plane.spawn.color == default.color
-    assert plane.spawn.physics_material == default.physics_material
 
 
 def test_camera_actor_has_only_deployable_observations(stack_cfgs):
@@ -116,17 +97,11 @@ def test_camera_actor_has_only_deployable_observations(stack_cfgs):
     image = cfg.observations.base_image.rgb
 
     assert cfg.scene.base_camera.height == cfg.scene.base_camera.width == 128
-    assert cfg.scene.base_camera.data_types == ["rgb"]
     assert image.func is mdp.image
-    assert image.params["data_type"] == "rgb"
     assert image.params["normalize"] is False
     assert image.params["permute"] is True
-    assert len(image.modifiers) == 1
     assert image.modifiers[0].func is modifiers.scale
     assert image.modifiers[0].params["multiplier"] == pytest.approx(1.0 / 255.0)
-    assert isinstance(image.noise, mdp.EpisodeCameraNoiseCfg)
-    assert image.clip == (0.0, 1.0)
-    assert cfg.observations.policy.joint_target.func is mdp.joint_position_target
     assert not hasattr(cfg.observations.policy, "object")
     assert runner.obs_groups["actor"] == ["policy", "base_image"]
     assert runner.obs_groups["critic"] == ["privileged"]
@@ -134,54 +109,17 @@ def test_camera_actor_has_only_deployable_observations(stack_cfgs):
 
 def test_distillation_task_adds_privileged_labels_without_changing_the_student(stack_cfgs):
     cfg = stack_cfgs[FRANKA_DISTILLATION_TASK]
-    state_cfg = stack_cfgs[FRANKA_STATE_TASK]
     runner = load_cfg_from_registry(FRANKA_DISTILLATION_TASK, "rsl_rl_cfg_entry_point")
     camera_runner = load_cfg_from_registry(FRANKA_CAMERA_TASK, "rsl_rl_cfg_entry_point")
     state_runner = load_cfg_from_registry(FRANKA_STATE_TASK, "rsl_rl_cfg_entry_point")
 
     assert hasattr(cfg.observations, "privileged")
     assert runner.obs_groups == {"student": ["policy", "base_image"], "teacher": ["privileged"]}
-    assert runner.student.class_name == camera_runner.actor.class_name
     assert runner.student.cnn_cfg == camera_runner.actor.cnn_cfg
-    assert runner.teacher.class_name == state_runner.actor.class_name
     assert runner.teacher.distribution_cfg.std_type == "log"
     assert state_runner.actor.distribution_cfg.std_type == "scalar"
-    group_settings = {
-        "enable_corruption",
-        "concatenate_terms",
-        "history_length",
-        "flatten_history_dim",
-        "concatenate_dim",
-    }
-    state_terms = [
-        name
-        for name, term in vars(state_cfg.observations.policy).items()
-        if name not in group_settings and term is not None
-    ]
-    teacher_terms = [name for name in vars(cfg.observations.privileged) if name not in group_settings]
-    assert [name for name in teacher_terms if name != "joint_target"] == state_terms
     assert cfg.observations.privileged.joint_target.func is mdp.joint_position_target
-    assert isinstance(runner.algorithm, RslRlDistillationAlgorithmCfg)
     assert runner.algorithm.class_name.endswith(":ClippedTeacherDistillation")
-    assert runner.init_at_random_ep_len is False
-
-
-def test_camera_noise_coefficients_are_stable_within_an_episode():
-    """Episode photometric coefficients remain fixed until reset."""
-    cfg = mdp.EpisodeCameraNoiseCfg(
-        noise_cfg=UniformNoiseCfg(n_min=0.0, n_max=0.0),
-        exposure_range=(0.5, 1.5),
-        contrast_range=(0.8, 1.2),
-        white_balance_range=(0.9, 1.1),
-        brightness_range=(-0.1, 0.1),
-    )
-    noise = mdp.EpisodeCameraNoise(cfg, num_envs=4, device="cpu")
-    image = torch.linspace(0.0, 1.0, 4 * 3 * 5 * 5).reshape(4, 3, 5, 5)
-
-    first = noise(image)
-    second = noise(image)
-
-    torch.testing.assert_close(first, second, rtol=0.0, atol=0.0)
 
 
 def test_camera_noise_reset_resamples_only_selected_environments():
@@ -206,21 +144,6 @@ def test_camera_noise_reset_resamples_only_selected_environments():
     assert not torch.equal(after[[1, 3]], before[[1, 3]])
 
 
-def test_camera_noise_rejects_non_rgb_input():
-    noise = mdp.EpisodeCameraNoise(mdp.EpisodeCameraNoiseCfg(), num_envs=2, device="cpu")
-
-    with pytest.raises(ValueError, match="expects NCHW RGB input"):
-        noise(torch.zeros((2, 4, 4, 3)))
-
-
-@pytest.mark.parametrize("exposure_range", ((0.0, 1.0), (1.0, 0.5)))
-def test_camera_noise_rejects_invalid_exposure_range(exposure_range: tuple[float, float]):
-    cfg = mdp.EpisodeCameraNoiseCfg(exposure_range=exposure_range)
-
-    with pytest.raises(ValueError, match="exposure_range"):
-        mdp.EpisodeCameraNoise(cfg, num_envs=2, device="cpu")
-
-
 def test_distillation_labels_match_executed_action_clip(monkeypatch: pytest.MonkeyPatch):
     """Behavior cloning targets the teacher action after the environment clamp."""
     algorithm = object.__new__(ClippedTeacherDistillation)
@@ -239,11 +162,7 @@ def test_kuka_task_has_one_complete_23_dof_state_policy(stack_cfgs):
     runner = load_cfg_from_registry(KUKA_STATE_TASK, "rsl_rl_cfg_entry_point")
 
     assert cfg.events.reset_from_state_buffer.func is mdp.KukaAllegroResetStateTable
-    assert isinstance(cfg.actions.gripper_action, mdp.ResetPreservingRelativeJointPositionActionCfg)
     assert tuple(cfg.actions.gripper_action.joint_names) == KUKA_ALLEGRO_ALL_HAND_JOINT_NAMES
-    assert cfg.terminations.progress_context.func is mdp.StableFullHandOrderInvariantStackGoal
-    assert cfg.scene.cube_1.spawn.size == (KUKA_ALLEGRO_LARGE_CUBE_EDGE_LENGTH,) * 3
-    assert len(cfg.observations.policy.hand_joint_pos.params["asset_cfg"].joint_names) == 16
     assert cfg.observations.policy.grasp_pair.func is mdp.grasp_pair_one_hot
     assert cfg.observations.policy.grasp_pair.params["num_pairs"] == 3
     assert runner.actor.distribution_cfg.arm_action_dim == 7

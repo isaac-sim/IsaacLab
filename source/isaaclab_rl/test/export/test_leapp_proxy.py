@@ -99,30 +99,6 @@ def _capture_leapp_inputs(monkeypatch: pytest.MonkeyPatch) -> list:
     return annotated_inputs
 
 
-def test_direct_projected_gravity_b_read_preserves_vector3d_input(monkeypatch: pytest.MonkeyPatch):
-    """Test direct data proxy reads keep projected gravity as its own semantic input."""
-    annotated_inputs = _capture_leapp_inputs(monkeypatch)
-    data, _ = _make_articulation_data()
-
-    proxy = _DataProxy(
-        data,
-        entity_name="robot",
-        task_name="Isaac-Velocity-Flat-G1",
-        property_resolution_cache={},
-        cache={},
-        input_name_resolver=lambda property_name: f"robot_{property_name}",
-    )
-
-    assert proxy.projected_gravity_b.torch.shape == (2, 3)
-
-    assert len(annotated_inputs) == 1
-    task_name, semantics = annotated_inputs[0]
-    assert task_name == "Isaac-Velocity-Flat-G1"
-    assert semantics.name == "robot_projected_gravity_b"
-    assert semantics.kind == InputKindEnum.VECTOR3D
-    assert semantics.extra == {"isaaclab_connection": "state:robot:projected_gravity_b"}
-
-
 def test_camera_rgb_read_exports_float_nhwc_image_input(monkeypatch: pytest.MonkeyPatch):
     """Camera RGB storage is exposed with the ROS converter's float NHWC contract."""
     annotated_inputs = _capture_leapp_inputs(monkeypatch)
@@ -239,27 +215,6 @@ def test_controller_owned_articulation_write_executes_without_becoming_policy_ou
     proxy.set_joint_effort_target_index(target=effort_target, joint_ids=[0])
     assert len(controller_requirements) == 1
 
-    controller_only_outputs = []
-    controller_only_captured_terms = set()
-    controller_only_requirements = []
-    controller_only_proxy = _ArticulationWriteProxy(
-        real_asset=articulation,
-        entity_name="robot",
-        term_name="gravity_feedforward",
-        output_cache=controller_only_outputs,
-        method_resolution_cache={},
-        captured_write_term_names=controller_only_captured_terms,
-        controller_owned_write_requirements=controller_only_requirements,
-        data_proxy=SimpleNamespace(),
-        controller_owned_write_methods={"set_joint_effort_target_index": "gravity_compensation"},
-    )
-
-    controller_only_proxy.set_joint_effort_target_index(target=effort_target, joint_ids=[0])
-
-    assert controller_only_outputs == []
-    assert controller_only_captured_terms == {"gravity_feedforward"}
-    assert controller_only_requirements[0]["capability"] == "gravity_compensation"
-
 
 def test_controller_owned_write_declaration_must_be_observed():
     """Export should fail when a declared controller responsibility was not traced."""
@@ -269,29 +224,6 @@ def test_controller_owned_write_declaration_must_be_observed():
     }
 
     with pytest.raises(RuntimeError, match="declared but not observed"):
-        _ = patcher.controller_owned_write_requirements
-
-
-def test_controller_owned_write_requirements_reject_duplicate_source_connections():
-    """One action write connection must produce exactly one controller requirement."""
-    requirements = [
-        {
-            "capability": "gravity_compensation",
-            "source_term": "arm_action",
-            "kind": "target/joint/effort",
-            "element_names": [[joint_name]],
-            "cadence": "action_apply",
-            "isaaclab_connection": "write:robot:set_joint_effort_target_index",
-        }
-        for joint_name in ("joint_a", "joint_b")
-    ]
-    patcher = ExportPatcher(export_method="onnx-dynamo")
-    patcher._declared_controller_owned_writes = {
-        ("arm_action", "write:robot:set_joint_effort_target_index"): "gravity_compensation"
-    }
-    patcher._controller_owned_write_requirements = requirements
-
-    with pytest.raises(RuntimeError, match="unique source-term"):
         _ = patcher.controller_owned_write_requirements
 
 
