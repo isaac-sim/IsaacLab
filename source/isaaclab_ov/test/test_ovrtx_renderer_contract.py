@@ -302,6 +302,31 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         SimulationContext.instance().close_backend(renderer.backend)
 
 
+def test_cleanup_completes_when_a_queued_render_fails():
+    """A failed queued delivery must not abort the camera release and bookkeeping."""
+    from isaaclab_ov.renderers.ovrtx_renderer_strategies import _AsyncRenderStrategy
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._strategy = _AsyncRenderStrategy()
+    renderer._render_product_paths = []
+    render_data = _make_ovrtx_camera_render_data()
+    render_data.render_product_path = "/RenderCamera_0/RenderProduct"
+    renderer._camera_render_data.append(render_data)
+    renderer._render_product_paths.append(render_data.render_product_path)
+
+    class _FailingOp:
+        def wait(self):
+            raise RuntimeError("device lost")
+
+    renderer._strategy._enqueue_render_op(_FailingOp(), render_data, lambda *_args: None)
+
+    renderer.cleanup(render_data)
+
+    assert render_data not in renderer._camera_render_data
+    assert render_data.render_product_path not in renderer._render_product_paths
+    assert not renderer._strategy._has_pending_ops()
+
+
 @pytest.mark.integration
 @pytest.mark.rendering
 def test_ovrtx_async_cameras_share_the_pipeline(monkeypatch):
