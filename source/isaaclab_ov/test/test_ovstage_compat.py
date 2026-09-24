@@ -27,11 +27,13 @@ pytestmark = [
 
 if not _MISSING_MODULES:
     from isaaclab_ov.ovstage_compat import (  # noqa: E402
+        HIERARCHY_COMPUTATION_MODEL,
         detect_ovstage_version,
         resolve_hierarchy_computation_model,
         supports_gpu_hierarchy_computation,
     )
 else:
+    HIERARCHY_COMPUTATION_MODEL = None
     detect_ovstage_version = None
     resolve_hierarchy_computation_model = None
     supports_gpu_hierarchy_computation = None
@@ -80,6 +82,11 @@ def test_ovstage_01_uses_the_host_hierarchy_model(version: Version | None):
 @pytest.mark.parametrize("version", [Version("0.2"), Version("0.2.0.377349"), Version("1.0")])
 def test_ovstage_02_uses_the_device_hierarchy_model(version: Version):
     assert resolve_hierarchy_computation_model(version) == "GPU_INCREMENTAL"
+
+
+def test_installed_model_matches_the_installed_version():
+    """The published name is baked from the installed OVStage version at import."""
+    assert resolve_hierarchy_computation_model(detect_ovstage_version()) == HIERARCHY_COMPUTATION_MODEL
 
 
 @pytest.mark.skipif(importlib.util.find_spec("ovstage") is None, reason="requires optional module: ovstage")
