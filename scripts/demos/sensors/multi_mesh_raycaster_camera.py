@@ -55,6 +55,7 @@ simulation_app = app_launcher.app
 import random
 
 import torch
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 from pxr import Gf, Sdf
 
@@ -165,11 +166,9 @@ elif args_cli.asset_type == "objects":
                 ),
             ],
             random_choice=True,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            ),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
     )

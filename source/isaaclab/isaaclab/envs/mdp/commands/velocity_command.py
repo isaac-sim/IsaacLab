@@ -22,7 +22,6 @@ if TYPE_CHECKING:
     from ... import ManagerBasedEnv
     from .commands_cfg import NormalVelocityCommandCfg, UniformVelocityCommandCfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 

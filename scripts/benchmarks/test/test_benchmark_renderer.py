@@ -6,14 +6,16 @@
 """Unit tests for the pure helpers in ``scripts/benchmarks/benchmark_renderer.py``.
 
 The script drives a rendering backend end-to-end, so that path is not covered here. These tests
-exercise the record-building, log-parsing, and CLI-parsing logic that does not require a GPU.
+exercise the record-building, structured timing, and CLI-parsing logic that does not require a GPU.
 """
 
 import importlib.util
 import json
 import subprocess
 import sys
+from contextlib import nullcontext
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -34,11 +36,12 @@ def benchmark_renderer():
     return _load_module()
 
 
-def test_render_scope_matches_render_context(benchmark_renderer):
-    """The script's timer name must match the one the renderer prints, or nothing is parsed."""
-    from isaaclab.renderers.render_context import RENDER_PROFILE_SCOPE
+def test_profile_scopes_match_benchmark_wrappers(benchmark_renderer):
+    """The script's timer names must match the ones collected by the profiling shims."""
+    from isaaclab.benchmark.stepping import PHYSICS_PROFILE_SCOPE, RENDER_PROFILE_SCOPE
 
     assert benchmark_renderer.RENDER_SCOPE == RENDER_PROFILE_SCOPE
+    assert benchmark_renderer.PHYSICS_SCOPE == PHYSICS_PROFILE_SCOPE
 
 
 def test_pixels_per_second(benchmark_renderer):
@@ -75,42 +78,130 @@ def test_build_record_failed(benchmark_renderer):
 
 
 _RENDER_SCOPE = "IsaacLab::Renderer::render"
+_PHYSICS_SCOPE = "IsaacLab::Physics::step"
 
 
-def _write_log(path: Path, timings_ms: list[float]) -> None:
-    """Write a synthetic run log with one ``wp.ScopedTimer`` print line per timing.
-
-    Interleaves unrelated lines to mimic real subprocess output (warp init banner, other timers),
-    so the parser is exercised against noise rather than a file with only matching lines.
-    """
-    lines = ["Warp 1.17.0 initialized:", "SomeOtherScope took 0.10 ms"]
-    for value in timings_ms:
-        lines.append(f"{_RENDER_SCOPE} took {value:.2f} ms")
-    path.write_text("\n".join(lines) + "\n")
+def _write_profile(path: Path, timings_ms: list[tuple[str, float]]) -> None:
+    """Write ordered scope timings [ms] in the runtime benchmark's structured format."""
+    path.write_text(json.dumps({"timings_ms": timings_ms}))
 
 
-def test_parse_log_skips_padding_and_keeps_num_frames(benchmark_renderer, tmp_path):
-    """Only the ``num_frames`` timings after :data:`FRAME_PADDING` warm-up frames are summarized."""
-    log_path = tmp_path / "profile.log"
+def test_parse_profile_skips_padding_and_keeps_num_frames(benchmark_renderer, tmp_path):
+    """Summarize only the requested frames after warm-up, preserving unrounded timings."""
+    profile_path = tmp_path / "profile.json"
     padding = benchmark_renderer.FRAME_PADDING
-    # padding warm-up frames of 1ms each, then 4 measured frames of 2ms each (only 3 are kept).
-    timings = [1.0] * padding + [2.0] * 4
-    _write_log(log_path, timings)
+    measured_ms = 2.123456789
+    timings = [1.0] * padding + [measured_ms] * 3 + [99.0]
+    _write_profile(profile_path, [(_RENDER_SCOPE, value) for value in timings])
 
-    results = benchmark_renderer.parse_log(str(log_path), num_frames=3)
+    results = benchmark_renderer.parse_profile(str(profile_path), num_frames=3)
 
     assert results["size"] == 3
-    assert results["median"] == pytest.approx(2.0)
-    assert results["min"] == pytest.approx(2.0)
-    assert results["max"] == pytest.approx(2.0)
+    assert results["median"] == measured_ms
+    assert results["min"] == measured_ms
+    assert results["max"] == measured_ms
+    assert results["physics"]["median"] == pytest.approx(0.0)
+    assert results["total"]["median"] == measured_ms
 
 
-def test_parse_log_returns_none_without_matching_lines(benchmark_renderer, tmp_path):
-    """A log with no ``RENDER_SCOPE`` timings means profiling was never enabled for that run."""
-    log_path = tmp_path / "profile.log"
-    _write_log(log_path, [])
+@pytest.mark.parametrize(
+    ("contents", "error"),
+    [
+        (None, FileNotFoundError),
+        ("{", json.JSONDecodeError),
+        ("{}", ValueError),
+        (json.dumps({"timings_ms": [(_PHYSICS_SCOPE, 1.0)]}), None),
+        (json.dumps({"timings_ms": [(_RENDER_SCOPE, 1.0)]}), None),
+    ],
+)
+def test_parse_profile_handles_unusable_timings(benchmark_renderer, tmp_path, contents, error):
+    """Invalid files raise; valid files without measured frames return no result."""
+    profile_path = tmp_path / "profile.json"
+    if contents is not None:
+        profile_path.write_text(contents)
 
-    assert benchmark_renderer.parse_log(str(log_path), num_frames=3) is None
+    with pytest.raises(error) if error else nullcontext():
+        assert benchmark_renderer.parse_profile(str(profile_path), num_frames=3) is None
+
+
+def test_parse_profile_sums_physics_steps_within_one_frame(benchmark_renderer, tmp_path):
+    """Frame boundaries group a variable number of steps and ignore an unfinished frame."""
+    profile_path = tmp_path / "profile.json"
+    render_ms = [2.1, 3.2, 4.3]
+    physics_ms = [[0.123456789, 0.234567891, 0.345678912], [], [0.456789123]]
+    timings = [(_RENDER_SCOPE, 99.0)] * benchmark_renderer.FRAME_PADDING
+    for render, steps in zip(render_ms, physics_ms):
+        timings.extend((_PHYSICS_SCOPE, value) for value in steps)
+        timings.append(("Unreported::scope", 100.0))
+        timings.append((_RENDER_SCOPE, render))
+    timings.append((_PHYSICS_SCOPE, 999.0))
+    _write_profile(profile_path, timings)
+
+    frames = benchmark_renderer.parse_frames(str(profile_path))[benchmark_renderer.FRAME_PADDING :]
+    results = benchmark_renderer.parse_profile(str(profile_path), num_frames=3)
+
+    assert results["size"] == 3
+    assert [frame["render"] for frame in frames] == render_ms
+    assert [frame["physics"] for frame in frames] == [sum(steps) for steps in physics_ms]
+    assert results["median"] == render_ms[1]
+    assert results["physics"]["median"] == sum(physics_ms[2])
+    assert results["total"]["mean"] == pytest.approx(
+        sum(render + sum(steps) for render, steps in zip(render_ms, physics_ms)) / len(render_ms)
+    )
+
+
+def test_parse_profile_takes_an_arbitrary_scope_mapping(benchmark_renderer, tmp_path):
+    """Scopes are data, so a caller can summarize a timer the script does not know about."""
+    profile_path = tmp_path / "profile.json"
+    timings = [("Custom::scope", 4.0), (_RENDER_SCOPE, 2.0)] * (benchmark_renderer.FRAME_PADDING + 3)
+    _write_profile(profile_path, timings)
+
+    results = benchmark_renderer.parse_profile(
+        str(profile_path),
+        num_frames=3,
+        scopes={
+            benchmark_renderer.FRAME_SCOPE: _RENDER_SCOPE,
+            "custom": "Custom::scope",
+        },
+    )
+
+    assert results["custom"]["median"] == pytest.approx(4.0)
+    assert "physics" not in results
+
+
+@pytest.mark.parametrize("write_timings", [False, True])
+def test_run_profile_reads_fresh_structured_output(benchmark_renderer, tmp_path, monkeypatch, write_timings):
+    """The run consumes its own profiling artifact; stale artifacts and timing logs cannot satisfy it."""
+    profile = {"name": "p", "preset": "newton_renderer,rgb", "settings": {"tlas": "sah", "blas": "lbvh"}}
+    profile_path = tmp_path / "p" / "profile_timings.json"
+    profile_path.parent.mkdir()
+    frames = benchmark_renderer.FRAME_PADDING + 2
+    _write_profile(profile_path, [(_RENDER_SCOPE, 99.0)] * frames)
+    monkeypatch.setattr(benchmark_renderer, "OUTPUT_PATH", str(tmp_path))
+
+    def launch(cmd, **kwargs):
+        assert cmd[cmd.index("--output_path") + 1] == str(profile_path.parent)
+        assert "--profile_output_path" not in cmd
+        assert kwargs["env"]["ISAACLAB_RENDER_PROFILE"] == "1"
+        assert kwargs["env"]["ISAACLAB_PHYSICS_PROFILE"] == "1"
+        assert not profile_path.exists()
+        if write_timings:
+            _write_profile(profile_path, [(_PHYSICS_SCOPE, 1.234567), (_RENDER_SCOPE, 2.345678)] * frames)
+        return SimpleNamespace(stdout=iter([f"{_RENDER_SCOPE} took 50.00 ms\n"] * frames), returncode=0, wait=lambda: 0)
+
+    monkeypatch.setattr(benchmark_renderer.subprocess, "Popen", launch)
+    args = benchmark_renderer._build_arg_parser().parse_args(["--num_frames", "2"])
+
+    with nullcontext() if write_timings else pytest.raises(FileNotFoundError):
+        results = benchmark_renderer.run_profile(profile, args)
+
+    assert (tmp_path / "p.log").read_text() == f"{_RENDER_SCOPE} took 50.00 ms\n" * frames
+    if write_timings:
+        record = benchmark_renderer.build_record(profile, results, args.num_envs, args.resolution)
+        assert record["median_ms"] == 2.345678
+        assert record["physics_median_ms"] == 1.234567
+        assert record["total_median_ms"] == 2.345678 + 1.234567
+        assert "p" in "\n".join(benchmark_renderer.format_table([record]))
 
 
 def _run_cli(args: list[str]) -> subprocess.CompletedProcess:
@@ -126,6 +217,26 @@ def test_cli_lists_available_profiles_as_json(benchmark_renderer):
     assert result.returncode == 0
     payload = json.loads(result.stdout)
     assert payload["available_profiles"] == [profile["name"] for profile in benchmark_renderer.PROFILES]
+
+
+def test_cli_reports_grouped_timings_as_json(benchmark_renderer, monkeypatch, capsys):
+    """Grouped physics and total statistics are reported without contaminating JSON stdout."""
+    profile = benchmark_renderer.PROFILES[0]
+    stats = {key: 2.0 for key in benchmark_renderer.STAT_KEYS}
+    results = {"size": 1, **stats, "physics": stats, "total": stats}
+    monkeypatch.setattr(benchmark_renderer, "run_profile", lambda profile, args: results)
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT_PATH), "--json", profile["name"]])
+    monkeypatch.setattr(benchmark_renderer, "log_stream", sys.stdout)
+
+    with pytest.raises(SystemExit) as error:
+        benchmark_renderer.main()
+
+    assert error.value.code == 0
+    captured = capsys.readouterr()
+    record = json.loads(captured.out)["profiles"][0]
+    assert record["physics_median_ms"] == results["physics"]["median"]
+    assert record["total_median_ms"] == results["total"]["median"]
+    assert "physics_median:" in captured.err
 
 
 def test_cli_rejects_unmatched_profile_glob():

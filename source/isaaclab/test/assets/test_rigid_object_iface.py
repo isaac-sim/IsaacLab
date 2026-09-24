@@ -13,11 +13,15 @@ the base rigid object class advertises. All rigid object interfaces need to comp
 The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
 """
 
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
 import torch
 import warp as wp
 from _rigid_object_iface_test_utils import BACKENDS, get_rigid_object
+
+from isaaclab.utils.math import quat_apply
 
 pytestmark = pytest.mark.integration
 
@@ -953,6 +957,46 @@ _BODY_METHODS = [
 
 class TestRigidObjectWritersBody:
     """Test body property writers/setters with all input combinations."""
+
+    @_production_backends
+    @_default_devices
+    def test_external_wrench_frames(self, backend, device):
+        """Forward local and world wrenches through the real writer in each backend's frame."""
+        obj, raw_backend = get_rigid_object(backend, num_instances=2, device=device)
+        composer = obj.permanent_wrench_composer
+        forces = torch.arange(1.0, 7.0, device=device).reshape(2, 1, 3)
+        torques = forces + 10.0
+        if backend == "physx":
+            raw_backend.apply_forces_and_torques_at_position = MagicMock()
+
+        for is_global in (False, True):
+            composer.reset()
+            composer.set_forces_and_torques_index(forces=forces, torques=torques, is_global=is_global)
+            with patch.object(composer, "compose_to_body_frame", wraps=composer.compose_to_body_frame) as compose:
+                obj.write_data_to_sim()
+            assert compose.call_count == int(is_global and backend == "newton")
+
+            expected_force, expected_torque = forces, torques
+            if backend == "physx":
+                call = raw_backend.apply_forces_and_torques_at_position.call_args.kwargs
+                assert call["is_global"] is is_global
+                assert call["position_data"] is None
+                actual_force = call["force_data"].numpy().reshape(2, 1, 3)
+                actual_torque = call["torque_data"].numpy().reshape(2, 1, 3)
+            else:
+                if not is_global:
+                    quat = obj.data.body_link_quat_w.torch
+                    expected_force, expected_torque = quat_apply(quat, forces), quat_apply(quat, torques)
+                if backend == "newton":
+                    packed = obj.data._sim_bind_body_external_wrench.numpy()
+                else:
+                    from isaaclab_ov import tensor_types as TT
+
+                    packed = raw_backend.bindings[TT.RIGID_BODY_WRENCH]._data.reshape(2, 1, 9)
+                    np.testing.assert_allclose(packed[..., 6:9], obj.data.body_link_pos_w.warp.numpy())
+                actual_force, actual_torque = packed[..., :3], packed[..., 3:6]
+            np.testing.assert_allclose(actual_force, expected_force.cpu().numpy(), atol=1e-5, rtol=1e-5)
+            np.testing.assert_allclose(actual_torque, expected_torque.cpu().numpy(), atol=1e-5, rtol=1e-5)
 
     @_backends
     @_default_dims

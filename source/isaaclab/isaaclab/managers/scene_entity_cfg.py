@@ -133,7 +133,6 @@ class SceneEntityCfg:
             ValueError: If both ``object_collection_names`` and ``object_collection_ids`` are specified and
                 are not consistent.
         """
-        # check if the entity is valid
         if self.name not in scene.keys():
             raise ValueError(f"The scene entity '{self.name}' does not exist. Available entities: {scene.keys()}.")
 

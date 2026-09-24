@@ -70,7 +70,7 @@ class Timer(ContextDecorator):
     Reference: https://gist.github.com/sumeet/1123871
     """
 
-    timing_info: ClassVar[dict[str, dict[str, float]]] = dict()
+    timing_info: ClassVar[dict[str, dict[str, float]]] = {}
     """Dictionary for storing the elapsed time per timer instances globally.
 
     This dictionary logs the timer information. The keys are the names given to the timer class
@@ -78,7 +78,7 @@ class Timer(ContextDecorator):
     is recorded in the dictionary.
     """
 
-    _welford_state: ClassVar[dict[str, float]] = dict()
+    _welford_state: ClassVar[dict[str, float]] = {}
     """Internal accumulator (m2) for Welford's online algorithm, keyed by timer name."""
 
     enable: ClassVar[bool] = True

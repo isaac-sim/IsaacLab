@@ -78,6 +78,8 @@ def test_mpm_object_initializes_from_interactive_scene():
 
 
 def test_mpm_solver_refreshes_kinematic_rigid_body_transforms():
+    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: PLC0415
+
     import isaaclab.sim as sim_utils  # noqa: PLC0415
 
     @configclass
@@ -86,12 +88,11 @@ def test_mpm_solver_refreshes_kinematic_rigid_body_transforms():
             prim_path="{ENV_REGEX_NS}/KinematicBox",
             spawn=sim_utils.CuboidCfg(
                 size=(0.1, 0.1, 0.1),
-                rigid_props=sim_utils.NewtonRigidBodyPropertiesCfg(
-                    rigid_body_enabled=True,
-                    kinematic_enabled=True,
-                    disable_gravity=True,
-                ),
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(collision_enabled=True),
+                rigid_props=[
+                    sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=True),
+                    PhysxRigidBodyCfg(disable_gravity=True),
+                ],
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.2)),
         )
