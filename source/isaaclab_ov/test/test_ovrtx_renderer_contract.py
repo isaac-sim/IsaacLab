@@ -330,7 +330,6 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
                 num_instances=2,
                 camera_prim_paths=tuple(f"/World/envs/env_{i}/cam{index}" for i in range(2)),
                 view_count=2,
-                camera_path_relative_to_env_0=f"cam{index}",
             )
             rd = renderer.create_render_data(spec)
             data = CameraData.allocate(
@@ -531,7 +530,6 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
                 device="cpu",
                 num_instances=2,
                 camera_prim_paths=[f"/World/envs/env_{i}/cam{camera_id}" for i in range(2)],
-                camera_path_relative_to_env_0=f"cam{camera_id}",
             )
         )
         stage = stages[render_data.render_product_path]
@@ -940,7 +938,6 @@ def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
                 device="cpu",
                 num_instances=2,
                 camera_prim_paths=camera_paths,
-                camera_path_relative_to_env_0=camera_paths[0].rsplit("/", 1)[1],
             )
         )
         for camera_paths in paths
@@ -998,7 +995,6 @@ def test_registered_camera_expands_env_0_prototype_to_every_env(monkeypatch, use
             device="cpu",
             num_instances=3,
             camera_prim_paths=(f"/World/envs/env_0/{relative_path}",),
-            camera_path_relative_to_env_0=relative_path,
         )
     )
     expected_paths = [f"/World/envs/env_{i}/{relative_path}" for i in range(3)]
