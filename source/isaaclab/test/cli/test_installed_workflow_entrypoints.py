@@ -163,6 +163,19 @@ def test_newton_gl_selector_omits_incompatible_programs():
     assert imgui.set_next_item_open.call_count == 2
 
 
+def test_programs_run_without_warp_backward_kernels(monkeypatch):
+    """Programs only run inference, so their kernels must skip backward code generation."""
+    import warp as wp
+
+    monkeypatch.setattr(wp.config, "enable_backward", True)
+    observed = []
+    monkeypatch.setattr(programs, "_run_script", lambda _path: observed.append(wp.config.enable_backward))
+
+    cli.demo(["zoo"])
+
+    assert observed == [False]
+
+
 def test_newton_gl_selector_switches_programs_after_script_returns(monkeypatch):
     """A GL selection must restart with GL after the current program finishes."""
     visualizer = _visualizer("newton_gl")

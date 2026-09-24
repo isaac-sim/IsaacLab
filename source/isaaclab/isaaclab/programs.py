@@ -251,6 +251,12 @@ def run_program(command: str, program: ProgramSpec, args: list[str] | None = Non
     if not path.is_file():
         raise FileNotFoundError(f"{command} {program.name!r} is not installed at {path}")
 
+    import warp as wp
+
+    # Programs only run inference. Warp fixes this option when each kernel module is imported, so set it
+    # before anything below imports one; it also matches the kernel cache keys produced by the test suites.
+    wp.config.enable_backward = False
+
     from isaaclab.program_browser import ProgramBrowser
 
     browser = ProgramBrowser({"demo": DEMOS, "example": EXAMPLES})

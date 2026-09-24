@@ -24,6 +24,8 @@ Changed
   ``tactile-sensor``. Replace direct ``scripts/demos`` invocations with ``isaaclab example <name>``.
 * Changed ``isaaclab demo h1-locomotion`` to run on Newton with the Newton GL viewer by default. Robots are driven
   with I/J/K/L, selected with N, and followed with C. Pass ``--physics isaacsim_physx`` for PhysX.
+* Changed ``isaaclab demo`` and ``isaaclab example`` to compile Warp kernels without backward passes, since
+  packaged programs only run inference.
 * **Breaking:** Consolidated ``scripts/demos/sensors/newton_raycast_heightfield.py`` and
   ``scripts/demos/sensors/newton_raycast_moving_geometry.py`` as
   ``isaaclab example newton-raycast --scene {heightfield,moving-geometry}``.
