@@ -29,23 +29,6 @@ OVPHYSX_SIM_CFG = SimulationCfg(physics=OvPhysxCfg())
 pytestmark = pytest.mark.device_split
 
 
-# Dispatch reads only the physics manager, so one device covers it.
-@pytest.mark.parametrize("device", ["cpu"])
-def test_factory_dispatches_to_ovphysx_frame_view(device):
-    """``FrameView(...)`` under an OVPhysX ``SimulationContext`` returns an ``OvPhysxFrameView``."""
-    OVPHYSX_SIM_CFG.device = device
-    with build_simulation_context(device=device, sim_cfg=OVPHYSX_SIM_CFG, add_ground_plane=True):
-        # Define a plain Xform prim so the pattern matches at least one prim.
-        stage = sim_utils.get_current_stage()
-        prim = stage.DefinePrim("/World/marker", "Xform")
-        sim_utils.standardize_xform_ops(prim)
-
-        from isaaclab_ov.sim.views import OvPhysxFrameView
-
-        view = FrameView("/World/marker", device=device)
-        assert isinstance(view, OvPhysxFrameView), f"Expected OvPhysxFrameView, got {type(view).__name__}"
-
-
 def test_view_raises_before_physics_ready():
     """A view constructed before PHYSICS_READY raises a clear error on pose-method calls."""
     device = "cpu"
@@ -55,14 +38,16 @@ def test_view_raises_before_physics_ready():
         prim = stage.DefinePrim("/World/marker_pre", "Xform")
         sim_utils.standardize_xform_ops(prim)
         view = FrameView("/World/marker_pre", device=device)
-        if hasattr(view, "_site_body"):
-            pytest.skip("PHYSICS_READY already fired; cannot exercise the deferred-init path here.")
+        # Nothing has played the simulation yet, so the view must still be uninitialized.
+        assert not hasattr(view, "_site_body")
         with pytest.raises(RuntimeError, match="used before initialization"):
             view.get_world_poses()
 
 
 def test_world_attached_source_prim_expands_from_clone_plan():
     """A source-only world frame expands across cloned environments without USD replication."""
+    from isaaclab_ov.sim.views import OvPhysxFrameView
+
     device = "cpu"
     OVPHYSX_SIM_CFG.device = device
     with build_simulation_context(
@@ -87,6 +72,7 @@ def test_world_attached_source_prim_expands_from_clone_plan():
 
         view = FrameView("/World/envs/env_[^/]+/WorldCamera", device=device)
 
+        assert isinstance(view, OvPhysxFrameView)
         assert not stage.GetPrimAtPath(f"/World/envs/env_{target_env_ids[1]}").IsValid()
         assert not stage.GetPrimAtPath(f"/World/envs/env_{target_env_ids[1]}/WorldCamera").IsValid()
         assert view.count == scene.num_envs

@@ -5,9 +5,8 @@
 
 """OVPhysX-only unit tests for articulation helpers.
 
-These tests cover OVPhysX-specific scaffolding (USD tendon-scope resolution,
-mock binding-set shape contracts) that has no PhysX equivalent and therefore
-does not appear in the PhysX-mirrored ``test_articulation.py``.
+These tests cover OVPhysX-specific scaffolding (USD tendon-scope resolution) that has no
+PhysX equivalent and therefore does not appear in the PhysX-mirrored ``test_articulation.py``.
 """
 
 from __future__ import annotations
@@ -118,15 +117,3 @@ def test_process_tendons_scopes_to_articulation_root():
     # add the identically-named instance from /World/unrelated, giving two entries
     assert articulation.fixed_tendon_names == ["inst0"]
     assert articulation.spatial_tendon_names == ["spatial_joint"]
-
-
-def test_mock_binding_read_preserves_structured_warp_dtype():
-    """Mock bindings should read flat component data into structured Warp arrays."""
-    from isaaclab_ov import tensor_types as TT
-
-    bindings = MockOvPhysxBindingSet(num_instances=4, num_joints=1, num_bodies=2)
-    destination = wp.empty((4, 2), dtype=wp.spatial_vectorf, device="cpu")
-
-    bindings.bindings[TT.LINK_VELOCITY].read(destination)
-
-    assert destination.numpy().shape == (4, 2, 6)

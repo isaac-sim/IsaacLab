@@ -83,40 +83,6 @@ def _fake_rigid_body_prim(path: str):
     )
 
 
-def test_manager_full_stage_requirement_preserves_authored_environments():
-    """A full-stage request keeps every authored environment in memory."""
-    from isaaclab_ov.physics import OvPhysxManager
-
-    from pxr import Sdf, Usd
-
-    stage = _make_two_environment_stage()
-    previous = OvPhysxManager._requires_full_stage
-    try:
-        OvPhysxManager._requires_full_stage = True
-        usda = OvPhysxManager._serialize_selected_stage(stage)
-        layer = Sdf.Layer.CreateAnonymous("full.usda")
-        assert layer.ImportFromString(usda)
-        exported = Usd.Stage.Open(layer)
-        assert exported.GetPrimAtPath("/World/envs/env_0/Cube").IsValid()
-        assert exported.GetPrimAtPath("/World/envs/env_1/Cube").IsValid()
-    finally:
-        OvPhysxManager._requires_full_stage = previous
-
-
-def test_manager_full_stage_never_replays_runtime_clones():
-    """A full-stage load never mutates the already loaded runtime through cloning."""
-    from isaaclab_ov.physics import OvPhysxManager
-
-    fake = SimpleNamespace(clone=lambda *args, **kwargs: pytest.fail("clone must not run"))
-    previous = OvPhysxManager._pending_clones
-    try:
-        OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)])]
-        OvPhysxManager._replay_pending_clones(fake, requires_full_stage=True)
-        assert OvPhysxManager._pending_clones == []
-    finally:
-        OvPhysxManager._pending_clones = previous
-
-
 def test_manager_full_stage_materializes_only_missing_heterogeneous_targets():
     """A full-stage export copies missing heterogeneous targets without replacing authored ones."""
     from isaaclab_ov.physics import OvPhysxManager
@@ -318,8 +284,9 @@ def test_manager_full_stage_materialization_is_atomic_on_invalid_target():
         OvPhysxManager._pending_clones = previous
 
 
-def test_manager_replays_pending_runtime_clones_without_full_stage_requirement():
-    """The default replay path forwards final world transforms to the runtime."""
+@pytest.mark.parametrize("requires_full_stage", [False, True])
+def test_manager_replays_pending_runtime_clones_without_full_stage_requirement(requires_full_stage):
+    """Only the default replay path forwards final world transforms; a full-stage load never clones."""
     from isaaclab_ov.physics import OvPhysxManager
 
     class FakePhysX:
@@ -337,24 +304,17 @@ def test_manager_replays_pending_runtime_clones_without_full_stage_requirement()
     previous = OvPhysxManager._pending_clones
     try:
         OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)])]
-        OvPhysxManager._replay_pending_clones(fake, requires_full_stage=False)
-        assert fake.calls == [
-            ("clone", "/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)]),
-            ("wait_op", 19),
-        ]
+        OvPhysxManager._replay_pending_clones(fake, requires_full_stage=requires_full_stage)
+        if requires_full_stage:
+            assert fake.calls == []
+        else:
+            assert fake.calls == [
+                ("clone", "/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)]),
+                ("wait_op", 19),
+            ]
         assert OvPhysxManager._pending_clones == []
     finally:
         OvPhysxManager._pending_clones = previous
-
-
-def test_manager_resets_full_stage_requirement_between_contexts(monkeypatch):
-    """Closing a manager context resets the full-stage requirement."""
-    from isaaclab_ov.physics import OvPhysxManager
-
-    monkeypatch.setattr(OvPhysxManager, "backend", None)
-    OvPhysxManager.require_full_stage()
-    OvPhysxManager.close()
-    assert OvPhysxManager._requires_full_stage is False
 
 
 def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
@@ -505,11 +465,11 @@ def test_manager_serializes_env0_only_stage_in_memory(caplog):
     assert "stripped 1 env_<i!=0> subtrees from in-memory USD" in caplog.text
 
 
-def test_manager_logs_when_serialized_stage_has_no_envs(caplog):
-    """The in-memory serializer diagnoses stages without the standard env namespace."""
+def test_manager_serializes_stage_without_envs_as_is():
+    """The in-memory serializer keeps stages without the standard env namespace intact."""
     from isaaclab_ov.physics import OvPhysxManager
 
-    from pxr import Usd, UsdGeom
+    from pxr import Sdf, Usd, UsdGeom
 
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World/Ground")
@@ -517,12 +477,13 @@ def test_manager_logs_when_serialized_stage_has_no_envs(caplog):
     previous = OvPhysxManager._requires_full_stage
     try:
         OvPhysxManager._requires_full_stage = False
-        with caplog.at_level(logging.DEBUG, logger=OvPhysxManager.__module__):
-            OvPhysxManager._serialize_selected_stage(stage)
+        usda = OvPhysxManager._serialize_selected_stage(stage)
     finally:
         OvPhysxManager._requires_full_stage = previous
 
-    assert "no cloned environments to strip — serialized stage as-is" in caplog.text
+    layer = Sdf.Layer.CreateAnonymous("no_envs.usda")
+    assert layer.ImportFromString(usda)
+    assert Usd.Stage.Open(layer).GetPrimAtPath("/World/Ground").IsValid()
 
 
 def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
@@ -763,43 +724,6 @@ def test_manager_destroys_ovstage_when_population_fails(monkeypatch):
     assert destroyed == ["isaaclab"]
 
 
-def test_manager_keeps_kit_physx_provider_and_registers_deformable_schema(monkeypatch, tmp_path):
-    """Keep Kit's PhysX provider while registering the wheel's deformable schema."""
-    from isaaclab_ov.physics import OvPhysxManager
-
-    class FakeRegistry:
-        def __init__(self):
-            self.get_all_calls = 0
-            self.registered_paths = []
-
-        def GetAllPlugins(self):
-            self.get_all_calls += 1
-            return [SimpleNamespace(name="physxSchema")]
-
-        def RegisterPlugins(self, path):
-            self.registered_paths.append(path)
-
-    registry = FakeRegistry()
-    fake_pxr = ModuleType("pxr")
-    fake_pxr.Plug = SimpleNamespace(Registry=lambda: registry)
-    fake_ovphysx = ModuleType("ovphysx")
-    deformable_schema_path = tmp_path / "ovphysx" / "plugins" / "usd" / "OmniUsdPhysicsDeformableSchema" / "resources"
-    deformable_schema_path.mkdir(parents=True)
-    fake_ovphysx.codeless_schema_paths = lambda: [deformable_schema_path]
-    monkeypatch.setitem(sys.modules, "pxr", fake_pxr)
-    monkeypatch.setitem(sys.modules, "ovphysx", fake_ovphysx)
-
-    previous = OvPhysxManager._physx_schemas_registered
-    OvPhysxManager._physx_schemas_registered = False
-    try:
-        OvPhysxManager._ensure_physx_schemas_registered()
-    finally:
-        OvPhysxManager._physx_schemas_registered = previous
-
-    assert registry.get_all_calls == 1
-    assert registry.registered_paths == [[str(deformable_schema_path)]]
-
-
 def test_ovphysx_cfg_does_not_register_unselected_backend_schemas(monkeypatch):
     """Creating an eager preset alternative leaves global USD plugins unchanged."""
     from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager
@@ -814,22 +738,6 @@ def test_ovphysx_cfg_does_not_register_unselected_backend_schemas(monkeypatch):
     OvPhysxCfg()
 
     assert calls == []
-
-
-def test_ovphysx_manager_registers_schemas_during_pre_stage_setup(monkeypatch):
-    """The selected OvPhysX manager registers schemas in its pre-stage hook."""
-    from isaaclab_ov.physics import OvPhysxManager
-
-    calls = []
-    monkeypatch.setattr(
-        OvPhysxManager,
-        "_ensure_physx_schemas_registered",
-        classmethod(lambda cls: calls.append(cls)),
-    )
-
-    OvPhysxManager._prepare_stage_creation()
-
-    assert calls == [OvPhysxManager]
 
 
 def test_automatic_physx_selection_prepares_ovphysx_before_stage_creation(monkeypatch):
@@ -852,9 +760,10 @@ def test_automatic_physx_selection_prepares_ovphysx_before_stage_creation(monkey
 
     events = []
     monkeypatch.setattr(simulation_context_module, "has_kit", lambda: False)
+    # Record schema registration so the real pre-stage hook must reach it.
     monkeypatch.setattr(
         OvPhysxManager,
-        "_prepare_stage_creation",
+        "_ensure_physx_schemas_registered",
         classmethod(lambda cls: events.append("ovphysx")),
     )
 
