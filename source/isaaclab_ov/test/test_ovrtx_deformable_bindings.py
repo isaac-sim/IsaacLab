@@ -410,7 +410,7 @@ def test_write_particle_q_slices_ovstage_passes_device_slices_zero_copy():
 
 
 @pytest.mark.parametrize("use_ovstage", [False, True])
-def test_update_transforms_consumes_sdp_matrices_once_per_generation(monkeypatch, use_ovstage):
+def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatch, use_ovstage):
     """Both OVRTX paths bind published bodies and consume SDP's scaled, transposed matrices."""
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
@@ -425,10 +425,10 @@ def test_update_transforms_consumes_sdp_matrices_once_per_generation(monkeypatch
     poses = np.array([[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 0, 0, 0, 1]], dtype=np.float32)
     transforms = SceneDataFormat.Transform()
     transforms.transforms = wp.array(poses, dtype=wp.transformf, device="cpu")
-    backend = SimpleNamespace(transforms=transforms, transforms_dirty=True, transform_count=2, transform_paths=paths)
+    backend = SimpleNamespace(transforms=transforms, transforms_version=0, transform_count=2, transform_paths=paths)
     backend.get_transforms = lambda _format: transforms
     renderer._sdp = SceneDataProvider(backend)
-    renderer._transform_generation = -1
+    renderer._transform_version = -1
     renderer._object_scales_by_path = {paths[0]: (2, 3, 4)}
     renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=99))
     renderer._use_ovstage = use_ovstage
@@ -468,7 +468,7 @@ def test_update_transforms_consumes_sdp_matrices_once_per_generation(monkeypatch
 
     poses[:, 0] += 10
     transforms.transforms.assign(poses)
-    backend.transforms_dirty = True
+    backend.transforms_version += 1
     renderer.update_transforms()
     assert len(writes) == 2
     updated = writes[1][2]["tensors"] if use_ovstage else writes[1][1]

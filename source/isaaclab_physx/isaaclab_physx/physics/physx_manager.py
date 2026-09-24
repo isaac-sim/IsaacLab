@@ -189,6 +189,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
 
     def __init__(self):
         self._transforms = SceneDataFormat.Transform()
+        self.transforms_version = 0
         self._points_data = SceneDataFormat.Points()
         self.clear()
 
@@ -199,7 +200,8 @@ class PhysxSceneDataBackend(SceneDataBackend):
         self._volume_deformable_view: omni.physics.tensors.DeformableBodyView | None = None
         self._surface_deformable_view: omni.physics.tensors.DeformableBodyView | None = None
         self._transforms.transforms = None
-        self.transforms_dirty = self._poses_dirty = self._fabric_dirty = True
+        self.transforms_version += 1
+        self._poses_version = self._fabric_version = -1
         self._fabric_transforms = SceneDataFormat.FabricMatrix44()
         self._fabric_selection = None
         self._points_data.points = None
@@ -373,9 +375,9 @@ class PhysxSceneDataBackend(SceneDataBackend):
     def transforms(self) -> SceneDataFormat.Transform:
         """Publish native rigid-body poses [m, xyzw]."""
         PhysxManager.pre_render()
-        if self._poses_dirty and (view := self.get_rigid_body_view()):
+        if self._poses_version != self.transforms_version and (view := self.get_rigid_body_view()):
             self._transforms.transforms = view.get_transforms().view(wp.transformf)
-            self._poses_dirty = False
+            self._poses_version = self.transforms_version
         return self._transforms
 
     @property
@@ -397,9 +399,8 @@ class PhysxSceneDataBackend(SceneDataBackend):
         if output_format is not SceneDataFormat.FabricMatrix44 or PhysxManager._fabric is None:
             return self.transforms
         PhysxManager.pre_render()
-        if self._fabric_dirty:
+        if self._fabric_version != self.transforms_version:
             PhysxManager._fabric.force_update(0.0, 0.0)
-            self._fabric_dirty = False
         if self._fabric_selection is None:
             stage = usdrt.Usd.Stage.Attach(PhysxManager._stage_id)
             self._fabric_selection = stage.SelectPrims(
@@ -409,7 +410,8 @@ class PhysxSceneDataBackend(SceneDataBackend):
             )
         if self._fabric_selection.PrepareForReuse() or self._fabric_transforms.matrices is None:
             self._fabric_transforms.matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
-            self.transforms_dirty = True
+            self.transforms_version += 1
+        self._fabric_version = self.transforms_version
         return self._fabric_transforms
 
 
@@ -551,8 +553,7 @@ class PhysxManager(PhysicsManager):
     def invalidate_transforms(cls, *, kinematics: bool = False) -> None:
         """Invalidate both native pose representations after writes; defer FK when needed."""
         cls._kinematics_dirty |= kinematics
-        backend = cls._scene_data_backend
-        backend.transforms_dirty = backend._poses_dirty = backend._fabric_dirty = True
+        cls._scene_data_backend.transforms_version += 1
 
     @classmethod
     def pre_render(cls) -> None:

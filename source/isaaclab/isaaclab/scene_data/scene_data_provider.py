@@ -13,8 +13,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import warp as wp
 
-import isaaclab.sim as sim_utils
-
+from .. import sim as sim_utils
 from .scene_data_backend import SceneDataBackend, SceneDataFormat
 
 logger = logging.getLogger(__name__)
@@ -37,12 +36,13 @@ REQUIRES_STAGE_AND_MODEL: dict[str, tuple[bool, bool]] = {
 
 def _publication_device(data: Any) -> wp.Device:
     """Return the common device of a populated scene-data publication."""
-    arrays = tuple(array for name in data._cls.vars if (array := getattr(data, name)) is not None)
+    data_format = data._cls
+    arrays = tuple(array for name in data_format.vars if (array := getattr(data, name)) is not None)
     if not arrays:
-        raise ValueError(f"{data._cls.__name__} contains no published arrays.")
+        raise ValueError(f"{data_format.__name__} contains no published arrays.")
     device = arrays[0].device
     if any(array.device != device for array in arrays[1:]):
-        raise ValueError(f"{data._cls.__name__} arrays must share one device.")
+        raise ValueError(f"{data_format.__name__} arrays must share one device.")
     return device
 
 
@@ -54,6 +54,8 @@ def _init_output(output: Any, count: int, device: wp.Device) -> None:
 
 
 class SceneDataProvider:
+    """Borrow or convert published arrays; producers own native refresh, renderers own destination lifecycle."""
+
     def __init__(self, backend: SceneDataBackend):
         """Initialize the scene data provider.
 
@@ -63,13 +65,7 @@ class SceneDataProvider:
         self.backend = backend
         self._num_envs_cache: int | None = None
         self._interactive_scene: Any | None = None
-        self._transform_generation = 0
         self._transform_cache: dict[tuple, tuple[int, Any]] = {}
-
-    @property
-    def transform_generation(self) -> int:
-        """Generation of the last consumed transform publication."""
-        return self._transform_generation
 
     def get_transforms(
         self,
@@ -88,7 +84,7 @@ class SceneDataProvider:
         """Bind shared transforms or write them directly into caller-owned output arrays.
 
         With passthrough enabled, matching native arrays are borrowed without a copy; other
-        layouts share SDP-owned buffers converted once per dirty generation. Treat these arrays
+        layouts share SDP-owned buffers converted once per producer version. Treat these arrays
         as read-only. With passthrough disabled, conversion writes directly into ``output``.
         Fabric destinations must already be bound by their rendering owner.
 
@@ -107,14 +103,14 @@ class SceneDataProvider:
             True if transforms are available in ``output``, False if no transforms are published
             or the format conversion is unsupported.
         """
+        # Warp exposes the struct's field/type descriptor as _cls, not its Python type.
         output_format = output._cls
         fabric = output_format is SceneDataFormat.FabricMatrix44
         source = self.backend.get_transforms(output_format)
-        if self.backend.transforms_dirty:
-            self._transform_generation += 1
-            self.backend.transforms_dirty = False
+        source_format = source._cls
+        version = self.backend.transforms_version
         native_count = next(
-            (len(array) for name in source._cls.vars if (array := getattr(source, name)) is not None), 0
+            (len(array) for name in source_format.vars if (array := getattr(source, name)) is not None), 0
         )
         if native_count == 0:
             return False
@@ -126,7 +122,7 @@ class SceneDataProvider:
             SceneDataFormat.FabricMatrix44,
         ):
             raise ValueError("Static scales require double-precision row-vector matrix destinations.")
-        if source._cls is output_format and mapping is None and scales is None:
+        if source_format is output_format and mapping is None and scales is None:
             result = source
             if not allow_passthrough:
                 _init_output(output, count, _publication_device(source))
@@ -134,11 +130,6 @@ class SceneDataProvider:
                     wp.copy(getattr(output, name), getattr(source, name))
                 return True
         else:
-            # Fabric changes storage and indexing, not the matrix conversion.
-            format_name = "TransposedMatrix44d" if fabric else output_format.__name__
-            kernel = getattr(ConversionKernels, f"convert_{source._cls.__name__}_to_{format_name}", None)
-            if kernel is None:
-                return False
             # A Fabric binding keeps its authored scales across selection reallocations.
             key = (output_format, scales) if fabric else (output_format, mapping, count, scales)
             cached = self._transform_cache.get(key) if allow_passthrough else None
@@ -146,7 +137,12 @@ class SceneDataProvider:
                 result = output
             else:
                 result = cached[1] if cached is not None else output_format()
-            if cached is None or cached[0] != self._transform_generation or cached[1] is not result:
+            if cached is None or cached[0] != version or cached[1] is not result:
+                # Fabric changes storage and indexing, not the matrix conversion.
+                format_name = "TransposedMatrix44d" if fabric else output_format.__name__
+                kernel = getattr(ConversionKernels, f"convert_{source_format.__name__}_to_{format_name}", None)
+                if kernel is None:
+                    return False
                 device = _publication_device(source)
                 _init_output(result, count, device)
                 inputs = [source, mapping if mapping is not None else wp.array(dtype=wp.int32)]
@@ -160,7 +156,7 @@ class SceneDataProvider:
                     device=device,
                 )
                 if allow_passthrough:
-                    self._transform_cache[key] = (self._transform_generation, result)
+                    self._transform_cache[key] = (version, result)
         for name in output_format.vars:
             setattr(output, name, getattr(result, name))
         return True
@@ -736,31 +732,3 @@ def _walk_camera_prims(stage: Usd.Stage | None) -> dict[str, Any] | None:
         orientations.append(per_world_ori)
 
     return {"order": shared_paths, "positions": positions, "orientations": orientations, "num_envs": num_envs}
-
-
-if __name__ == "__main__":
-
-    class ExampleSceneDataBackend(SceneDataBackend):
-        def __init__(self):
-            self._transforms = SceneDataFormat.Transform()
-            self._transforms.transforms = wp.array([[x, 0, 0, 0, 0, 0, 1] for x in range(10)], dtype=wp.transformf)
-            self.transforms_dirty = True
-
-        @property
-        def transforms(self) -> SceneDataFormat.Transform:
-            return self._transforms
-
-        @property
-        def transform_count(self) -> int:
-            return len(self._transforms.transforms)
-
-        @property
-        def transform_paths(self) -> list[str]:
-            return [f"/world/shape_{index}" for index in range(self.transform_count)]
-
-    sim = ExampleSceneDataBackend()
-    sdp = SceneDataProvider(sim)
-    mapping = sdp.create_mapping(sim.transform_paths[::-1])
-    output_data = SceneDataFormat.Vec3_Matrix33()
-    sdp.get_transforms(output_data, mapping)
-    print(output_data.positions.numpy())

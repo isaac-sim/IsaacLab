@@ -373,10 +373,11 @@ def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
         lambda event, payload=None: calls.append(event),
     )
 
+    version = OvPhysxManager._scene_data_backend.transforms_version
     OvPhysxManager.reset()
 
     assert calls == [PhysicsEvent.STOP, "warmup", PhysicsEvent.PHYSICS_READY]
-    assert OvPhysxManager._scene_data_backend.transforms_dirty
+    assert OvPhysxManager._scene_data_backend.transforms_version > version
     assert OvPhysxManager._kinematics_dirty
 
 
@@ -435,7 +436,7 @@ def test_manager_supports_pinned_runtime_api(
     OvPhysxManager.backend.physx = physx
     monkeypatch.setattr(OvPhysxManager, "get_physics_dt", lambda: 0.02)
     monkeypatch.setattr(PhysicsManager, "_sim_time", 0.0)
-    OvPhysxManager._scene_data_backend.transforms_dirty = False
+    version = OvPhysxManager._scene_data_backend.transforms_version
     OvPhysxManager.step()
     OvPhysxManager._prepare_physx_for_stage_reuse()
 
@@ -445,7 +446,7 @@ def test_manager_supports_pinned_runtime_api(
     assert physx.constructor["config"].cooked_collider_cache_dir == cache_dir
     assert physx.calls == [("step_sync", 0.02), ("update_articulations_kinematic",), ("reset_stage",), ("wait_op", 23)]
     assert PhysicsManager._sim_time == 0.02
-    assert OvPhysxManager._scene_data_backend.transforms_dirty
+    assert OvPhysxManager._scene_data_backend.transforms_version > version
     assert not OvPhysxManager._kinematics_dirty
 
 
@@ -469,8 +470,9 @@ def test_transforms_finish_dirty_kinematics_before_native_reads(monkeypatch):
     assert calls == ["fk", "read"]
     assert not OvPhysxManager._kinematics_dirty
 
+    version = backend.transforms_version
     OvPhysxManager.forward()
-    assert backend.transforms_dirty
+    assert backend.transforms_version > version
     sdp.get_transforms(SceneDataFormat.Transform())
     sdp.get_transforms(SceneDataFormat.Transform())
     assert calls == ["fk", "read", "fk", "read"]
@@ -921,7 +923,7 @@ def test_transforms_read_native_slices_only_when_dirty(monkeypatch):
     assert len(reads) == 2
 
     expected[:, 0] += 10
-    backend.transforms_dirty = True
+    backend.transforms_version += 1
     assert sdp.get_transforms(second_output)
     assert second_output.transforms is native.transforms
     assert len(reads) == 4
@@ -943,7 +945,7 @@ def test_setup_propagates_failed_rigid_binding(monkeypatch):
         backend.setup(FailingPhysX(), stage, "cpu")
 
 
-def test_failed_rigid_read_keeps_transforms_dirty():
+def test_failed_rigid_read_is_retried():
     """A read failure propagates rather than caching a partial or stale publication."""
     import warp as wp
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
@@ -958,9 +960,9 @@ def test_failed_rigid_read_keeps_transforms_dirty():
     backend._rigid_bindings = [(SimpleNamespace(read_into=fail_read), backend._transforms.transforms)]
     sdp = SceneDataProvider(backend)
 
-    with pytest.raises(RuntimeError, match="simulated read failure"):
-        sdp.get_transforms(SceneDataFormat.Transform())
-    assert backend.transforms_dirty
+    for _ in range(2):
+        with pytest.raises(RuntimeError, match="simulated read failure"):
+            sdp.get_transforms(SceneDataFormat.Transform())
 
 
 def test_deformable_only_setup_publishes_surface_geometry(monkeypatch):

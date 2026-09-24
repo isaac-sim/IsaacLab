@@ -305,7 +305,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
 
     def __init__(self):
         self._transforms = SceneDataFormat.Transform()
-        self.transforms_dirty = True
+        self.transforms_version = 0
 
     @property
     def transforms(self) -> SceneDataFormat.Transform:
@@ -313,7 +313,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
         transforms = self.state.body_q
         if self._transforms.transforms is not transforms:
             self._transforms.transforms = transforms
-            self.transforms_dirty = True
+            self.transforms_version += 1
         return self._transforms
 
     @property
@@ -336,7 +336,8 @@ class NewtonSceneDataBackend(SceneDataBackend):
     def state(self) -> State:
         """Return native physics state without entering the rendering consumer path."""
         if NewtonManager._transforms_may_change_on_graph_replay:
-            self.transforms_dirty = True
+            # Raw external graph replays bypass Python invalidation, so these reads must stay conservative.
+            self.transforms_version += 1
         if NewtonManager._eval_fk is not _eval_fk_unbound:
             NewtonManager.forward()
         return NewtonManager.get_state_0()
@@ -485,7 +486,7 @@ class NewtonManager(PhysicsManager):
     # from the clone plan in :meth:`_initialize_visualization_model` and updated each render
     # frame in :meth:`update_visualization_state`.
     _scene_data_mapping: wp.array | None = None
-    _scene_data_generation: int | None = None
+    _scene_data_version: int | None = None
     _scene_data_points: SceneDataFormat.Points | None = None
     _scene_data_geometry_mapping: wp.array | None = None
     _shadow_deformable_entities: list | None = None
@@ -792,10 +793,10 @@ class NewtonManager(PhysicsManager):
         return len(due) < len(cls._particle_visual_prims)
 
     @classmethod
-    def _mark_transforms_dirty(cls) -> None:
+    def _mark_transforms_changed(cls) -> None:
         """Publish authored rigid-body changes and invalidate cable geometry."""
         if NewtonManager._scene_data_backend is not None:
-            NewtonManager._scene_data_backend.transforms_dirty = True
+            NewtonManager._scene_data_backend.transforms_version += 1
         NewtonManager._cables_dirty = True
         device = PhysicsManager._device
         if device is not None:
@@ -935,7 +936,7 @@ class NewtonManager(PhysicsManager):
                     cls._simulate_physics_only()
             PhysicsManager._sim_time += physics_dt
 
-        cls._mark_transforms_dirty()
+        cls._mark_transforms_changed()
         if cls._usdrt_stage is not None or cls._particle_visual_prims:
             cls._mark_particles_dirty()
         cls._mark_sensor_state_dirty()
@@ -1036,7 +1037,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._per_world_builder_hooks = []
         NewtonManager._up_axis = "Z"
         NewtonManager._scene_data_mapping = None
-        NewtonManager._scene_data_generation = None
+        NewtonManager._scene_data_version = None
         NewtonManager._scene_data_points = None
         NewtonManager._scene_data_geometry_mapping = None
         NewtonManager._shadow_deformable_entities = None
@@ -1321,7 +1322,7 @@ class NewtonManager(PhysicsManager):
                 index. Shape ``(world_count, count_per_world)``. Obtained from
                 ``ArticulationView.articulation_ids``.
         """
-        cls._mark_transforms_dirty()
+        cls._mark_transforms_changed()
 
         if cls._world_reset_mask is None or cls._fk_reset_mask is None:
             return
@@ -1360,7 +1361,7 @@ class NewtonManager(PhysicsManager):
             env_ids: Integer indices of dirtied environments. Used by index write methods.
             env_mask: Boolean mask of dirtied environments. Used by mask write methods.
         """
-        cls._mark_transforms_dirty()
+        cls._mark_transforms_changed()
         if cls._world_reset_mask is None:
             return
         NewtonManager._reconciliation_pending = True
@@ -1529,7 +1530,7 @@ class NewtonManager(PhysicsManager):
                 NewtonManager._particle_visual_prims,
             )
 
-            cls._mark_transforms_dirty()
+            cls._mark_transforms_changed()
             cls._mark_particles_dirty()
             cls.sync_cables_to_usd()
             cls.sync_particles_to_usd()
@@ -2215,7 +2216,7 @@ class NewtonManager(PhysicsManager):
         # solver-specialized FK delegate, now that the solver and the delegate both exist.
         # Runs before graph capture below so the capture warmup sees a valid body_q.
         cls._eval_fk(None, None)
-        cls._mark_transforms_dirty()
+        cls._mark_transforms_changed()
 
         # Fully graphable Newton actuators defer capture until ``set_decimation``
         # provides the environment's final decimation value. Other paths capture
@@ -2751,7 +2752,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._num_envs = cls.backend.model.num_envs
         shadow_entities, registry_groups = geometry
         NewtonManager._scene_data_mapping = None
-        NewtonManager._scene_data_generation = None
+        NewtonManager._scene_data_version = None
         NewtonManager._shadow_deformable_entities = shadow_entities
         NewtonManager._scene_data_geometry_mapping = None
         NewtonManager._mapped_sim_particle_offsets = None
@@ -2806,7 +2807,7 @@ class NewtonManager(PhysicsManager):
             return
 
         if cls.backend.state_0.body_q is not None:
-            if cls._scene_data_generation is None:
+            if cls._scene_data_version is None:
                 body_labels = list(cls.backend.model.body_label)
                 body_paths = cls._resolve_scene_data_body_paths(body_labels, scene_data_provider.usd_stage)
                 if len(set(body_paths)) != cls.backend.model.body_count or not set(body_paths).issubset(
@@ -2822,9 +2823,9 @@ class NewtonManager(PhysicsManager):
                 if cls.backend.state_0.body_q is not transforms.transforms:
                     cls.backend.state_0.body_q = transforms.transforms
                     cls._invalidate_sensor_graph()
-                if cls._scene_data_generation != scene_data_provider.transform_generation:
+                if cls._scene_data_version != scene_data_provider.backend.transforms_version:
                     cls._mark_sensor_state_dirty()
-            cls._scene_data_generation = scene_data_provider.transform_generation
+            cls._scene_data_version = scene_data_provider.backend.transforms_version
 
         if cls.backend.state_0.particle_q is not None and scene_data_provider.point_count > 0:
             if cls._scene_data_points is None:

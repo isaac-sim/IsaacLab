@@ -86,7 +86,7 @@ class RenderContext:
         "_physics_initialized",
         "_prepared_renderer_ids",
         "_prepared_num_envs",
-        "_last_geometry_step",
+        "_last_geometry_update_step",
         "_visual_materials",
         "_visual_material_batches",
         "_visual_material_batches_by_channel",
@@ -101,7 +101,7 @@ class RenderContext:
         "_fabric_hierarchy",
         "_fabric_mapping",
         "_fabric_scales",
-        "_fabric_generation",
+        "_fabric_version",
     )
 
     def __init__(self, backend_registry: list[tuple[BackendCfg, Any]]) -> None:
@@ -111,7 +111,7 @@ class RenderContext:
         self._physics_initialized: bool = False  # Set to True after the first PHYSICS_READY callback fires.
         self._prepared_renderer_ids: set[int] = set()
         self._prepared_num_envs: int | None = None
-        self._last_geometry_step: int | None = None
+        self._last_geometry_update_step: int | None = None  # Physics step of the last renderer geometry update.
         self._visual_materials: list[Any] = []
         self._visual_material_batches: tuple[VisualMaterialBatch, ...] = ()
         self._visual_material_batches_by_channel: dict[str, VisualMaterialBatch] = {}
@@ -122,7 +122,7 @@ class RenderContext:
         self._consumers_finalized = False
         self._fabric_output = self._fabric_selection = self._fabric_write_selection = self._fabric_hierarchy = None
         self._fabric_mapping = self._fabric_scales = None
-        self._fabric_generation = -1
+        self._fabric_version = -1
 
     @property
     def _renderer_entries(self) -> tuple[tuple[RendererCfg, BaseRenderer], ...]:
@@ -152,7 +152,7 @@ class RenderContext:
     def register_renderer(self, cfg: RendererCfg, renderer: BaseRenderer) -> None:
         """Include a newly registry-owned renderer in cloning and post-physics initialization."""
         self.clone_contexts.update(cfg.cloning_contexts)
-        self._last_geometry_step = None
+        self._last_geometry_update_step = None
         if self._physics_initialized:
             renderer.initialize()
 
@@ -217,14 +217,15 @@ class RenderContext:
             self._fabric_output = SceneDataFormat.FabricMatrix44()
             self._fabric_output.matrices = wp.fabricarray(self._fabric_write_selection, "omni:fabric:localMatrix")
         provider.get_transforms(self._fabric_output, self._fabric_mapping, scales=self._fabric_scales)
-        if self._fabric_hierarchy is not None and (changed or self._fabric_generation != provider.transform_generation):
+        version = provider.backend.transforms_version
+        if self._fabric_hierarchy is not None and (changed or self._fabric_version != version):
             self._fabric_write_selection.PrepareForReuse()
             device = self._fabric_scales.device
             wp.synchronize_stream(device)
-            if not self._fabric_hierarchy.update_world_xforms_gpu(not changed and self._fabric_generation != -1):
+            if not self._fabric_hierarchy.update_world_xforms_gpu(not changed and self._fabric_version != -1):
                 raise RuntimeError("Fabric GPU transform hierarchy update failed.")
             wp.synchronize_device(device)
-        self._fabric_generation = provider.transform_generation
+        self._fabric_version = version
 
     def register_visual_material(self, material: Any) -> None:
         """Register one initialized material asset for flat channel composition."""
@@ -405,15 +406,15 @@ class RenderContext:
             self._prepared_num_envs = num_envs
 
     def update_scene_state(self, physics_step_count: int) -> None:
-        """Publish physics state and refresh renderers through SDP's dirty generations.
+        """Publish physics state and refresh renderers through SDP's producer versions.
 
         Transforms follow SDP freshness; geometry updates retain their once-per-step cadence.
         """
         for _cfg, renderer in self._renderer_entries:
             renderer.update_transforms()
-            if self._last_geometry_step != physics_step_count:
+            if self._last_geometry_update_step != physics_step_count:
                 renderer.update_geometries()
-        self._last_geometry_step = physics_step_count
+        self._last_geometry_update_step = physics_step_count
 
     def render_into_camera(
         self,
@@ -434,7 +435,7 @@ class RenderContext:
 
     def reset_scene_state_cadence(self) -> None:
         """Invalidate geometry updates after resets that do not advance the physics step."""
-        self._last_geometry_step = None
+        self._last_geometry_update_step = None
 
     def close(self) -> None:
         """Release material writers and lifecycle bookkeeping, not registry-owned renderers.
@@ -452,7 +453,7 @@ class RenderContext:
         self.clone_contexts.clear()
         self._prepared_renderer_ids.clear()
         self._prepared_num_envs = None
-        self._last_geometry_step = None
+        self._last_geometry_update_step = None
         self._physics_initialized = False
         self._visual_materials.clear()
         self._visual_material_batches = ()
@@ -464,7 +465,7 @@ class RenderContext:
         self._consumers_finalized = False
         self._fabric_output = self._fabric_selection = self._fabric_write_selection = self._fabric_hierarchy = None
         self._fabric_mapping = self._fabric_scales = None
-        self._fabric_generation = -1
+        self._fabric_version = -1
 
         if errors:
             # TODO: Use ExceptionGroup when ruff target-version is bumped to py311+

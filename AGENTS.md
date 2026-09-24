@@ -78,10 +78,3 @@
   belongs on the spawner.
 - For file-spawned fixtures that must only tune existing physics bodies, use explicit fragment
   target mappings. A bare fragment or list may create a missing body and change the fixture's validity.
-
-## Scene-data ownership
-
-- Keep native SDK refresh and publication in the physics backend, and destination binding and
-  hierarchy updates in the shared rendering context. SDP only borrows or converts published arrays.
-- Keep scene-data format structs limited to array storage. Do not put engine handles, selection
-  lifecycle, mapping, or authored-scale ownership into format structs or duplicate conversion paths.

@@ -31,14 +31,15 @@ The system has three layers:
 1. :class:`~isaaclab.scene_data.SceneDataBackend`: a small interface implemented by each physics
    manager. It exposes the backend's transform array directly as one of the
    :class:`~isaaclab.scene_data.SceneDataFormat` Warp structs, plus the per-transform prim paths
-   and total count. Producers set ``transforms_dirty`` after native state writes or buffer swaps;
-   SDP calls ``get_transforms(output_format)`` before consuming the flag, since resolving the pointer
+   and total count. Producers increment ``transforms_version`` after native state writes or buffer swaps;
+   SDP calls ``get_transforms(output_format)`` before reading the version, since resolving the pointer
    can itself detect a swap. The default implementation returns the existing ``transforms`` property.
+   The version never resets, so independent readers cannot hide changes from one another.
 
    - :attr:`SceneDataBackend.transforms`: the native data as a Warp struct (one of
      :class:`SceneDataFormat.Vec3_Quat`, :class:`SceneDataFormat.Transform`,
      :class:`SceneDataFormat.Matrix44`, :class:`SceneDataFormat.Vec3_Matrix33`).
-   - :attr:`SceneDataBackend.transforms_dirty`: whether SDP needs to refresh its converted outputs.
+   - :attr:`SceneDataBackend.transforms_version`: monotonic version of the native transforms.
    - :attr:`SceneDataBackend.transform_count`: number of transforms.
    - :attr:`SceneDataBackend.transform_paths`: list of USD prim paths, one per transform.
    - :attr:`SceneDataBackend.native_transform_formats`: formats published without conversion.
@@ -53,7 +54,7 @@ The system has three layers:
    plus index re-mapping.
 
    - :meth:`SceneDataProvider.get_transforms`: binds native arrays when format and ordering match,
-     or SDP-owned buffers converted once per dirty generation and destination layout. These shared
+     or SDP-owned buffers converted once per producer version and destination layout. These shared
      arrays are read-only, including when they replace preallocated output fields. Pass
      ``allow_passthrough=False`` to write directly into caller-owned arrays instead.
    - :meth:`SceneDataProvider.create_mapping`: builds a remap array from the backend's prim

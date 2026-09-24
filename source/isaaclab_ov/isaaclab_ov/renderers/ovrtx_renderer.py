@@ -390,7 +390,7 @@ class OVRTXRenderer(BaseRenderer):
         # _init_fields_legacy instead; the ovstage path drives the same offsets and counts
         # through its stage queries.
         self._sdp = SimulationContext.instance().get_scene_data_provider()
-        self._transform_generation = -1
+        self._transform_version = -1
         self._object_scales: wp.array | None = None
         self._object_scales_by_path: dict[str, tuple[float, float, float]] = {}
         self._deformable_particle_offsets: list[int] = []
@@ -1082,7 +1082,7 @@ class OVRTXRenderer(BaseRenderer):
         transforms = SceneDataFormat.TransposedMatrix44d()
         if not self._sdp.get_transforms(transforms, scales=self._object_scales):
             return
-        if self._transform_generation == self._sdp.transform_generation:
+        if self._transform_version == self._sdp.backend.transforms_version:
             return
         # Blocking ``write()`` so the buffer stays valid until OVRTX finishes reading it.
         # ``DataAccess.ASYNC`` + the Warp CUDA stream let OVRTX read in place and wait
@@ -1092,7 +1092,7 @@ class OVRTXRenderer(BaseRenderer):
             data_access=DataAccess.ASYNC,
             cuda_stream=self._warp_device.stream.cuda_stream,
         )
-        self._transform_generation = self._sdp.transform_generation
+        self._transform_version = self._sdp.backend.transforms_version
 
     def _update_geometries_legacy(self) -> None:
         """Sync geometries to OVRTX."""
@@ -2284,7 +2284,7 @@ class OVRTXRenderer(BaseRenderer):
         transforms = SceneDataFormat.TransposedMatrix44d()
         if not self._sdp.get_transforms(transforms, scales=self._object_scales):
             return
-        if self._transform_generation == self._sdp.transform_generation:
+        if self._transform_version == self._sdp.backend.transforms_version:
             return
         # Stream-ordered zero-copy handoff; wait until OVStage has consumed the shared buffer.
         self.backend.stage.write_attribute(
@@ -2296,7 +2296,7 @@ class OVRTXRenderer(BaseRenderer):
             semantic=ovstage.AttributeSemantic.MATRIX,
             cuda_stream=self._warp_device.stream.cuda_stream,
         ).wait()
-        self._transform_generation = self._sdp.transform_generation
+        self._transform_version = self._sdp.backend.transforms_version
 
     def _update_geometries_ovstage(self) -> None:
         if self._deformable_points_query is not None or self._particle_points_query is not None:

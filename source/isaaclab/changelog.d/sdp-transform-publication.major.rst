@@ -1,9 +1,9 @@
 Changed
 ^^^^^^^
 
-* **Breaking:** Added ``transforms_dirty`` to scene-data backends. Custom backends must initialize
-  it to ``True`` and set it after native pose writes or buffer swaps; SDP reads the existing
-  ``transforms`` property through ``get_transforms(output_format)`` before clearing it. Backends
+* **Breaking:** Added ``transforms_version`` to scene-data backends. Custom backends must initialize
+  it to zero and increment it after native pose writes or buffer swaps. SDP reads the existing
+  ``transforms`` property through ``get_transforms(output_format)`` without resetting the version. Backends
   publishing multiple native formats may override that method and ``native_transform_formats``.
   ``SceneDataProvider.get_transforms`` bound shared,
   read-only arrays by default: matching layouts aliased native data and other layouts converted

@@ -58,11 +58,12 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
         },
     )
     assert provider.get_transforms(SceneDataFormat.FabricMatrix44())
+    version = backend.transforms_version
     assert provider.get_transforms(SceneDataFormat.FabricMatrix44())
     fabric.force_update.assert_called_once_with(0.0, 0.0)
     backend.get_rigid_body_view.assert_not_called()
     view.get_transforms.assert_not_called()
-    assert not backend.transforms_dirty
+    assert backend.transforms_version == version
     native = SceneDataFormat.Transform()
     assert provider.get_transforms(native)
     assert native.transforms.ptr == transforms.ptr
@@ -73,6 +74,8 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
 
     transforms.fill_(wp.transformf(wp.vec3f(1, 2, 3), wp.quat_identity()))
     getattr(manager, operation)()
+    assert backend.transforms_version > version
+    version = backend.transforms_version
     manager.pre_render()
     manager.pre_render()
     assert sim_view.update_articulations_kinematic.call_count == int(operation == "forward")
@@ -86,16 +89,20 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
 
     transforms.fill_(wp.transformf(wp.vec3f(4, 5, 6), wp.quat_identity()))
     manager.invalidate_transforms(kinematics=True)
+    assert backend.transforms_version > version
+    version = backend.transforms_version
     provider.get_transforms(SceneDataFormat.FabricMatrix44())
     provider.get_transforms(SceneDataFormat.FabricMatrix44())
     assert sim_view.update_articulations_kinematic.call_count == 1 + int(operation == "forward")
     assert fabric.force_update.call_count == 3
-    assert not backend.transforms_dirty
+    assert backend.transforms_version == version
     provider.get_transforms(native)
     assert provider.get_transforms(output)
     np.testing.assert_array_equal(output.matrices.numpy()[0, :3, 3], [4, 5, 6])
     assert view.get_transforms.call_count == 3
-    assert not backend.transforms_dirty
+    assert backend.transforms_version == version
+    backend.clear()
+    assert backend.transforms_version > version
 
 
 @pytest.mark.parametrize("joint_has_rigid_body_api", [False, True])

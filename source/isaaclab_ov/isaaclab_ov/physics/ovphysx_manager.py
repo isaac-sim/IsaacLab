@@ -97,7 +97,8 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
     def __init__(self):
         self._rigid_bindings: list[tuple[OvPhysxView, wp.array]] = []
         self._transforms = SceneDataFormat.Transform()
-        self.transforms_dirty = True
+        self.transforms_version = 0
+        self._poses_version = -1
         self._points_data = SceneDataFormat.Points()
         self._deformable_bindings: list[dict[str, Any]] = []
         self._geometry_paths: list[str] = []
@@ -127,7 +128,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
         self._rigid_bindings = []
         self._transforms.transforms = None
-        self.transforms_dirty = True
+        self.transforms_version += 1
         self._deformable_bindings = []
         self._geometry_paths = []
         self._geometry_counts = []
@@ -310,10 +311,11 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
     @property
     def transforms(self) -> SceneDataFormat.Transform:
         """Publish native rigid-body poses [m, xyzw]."""
-        if self.transforms_dirty:
+        if self._poses_version != self.transforms_version:
             OvPhysxManager.pre_render()
             for view, buffer in self._rigid_bindings:
                 view.read_into("rigid_body_pose", buffer)
+            self._poses_version = self.transforms_version
         return self._transforms
 
 
@@ -573,7 +575,8 @@ class OvPhysxManager(PhysicsManager):
                     cls.dispatch_event(PhysicsEvent.STOP, payload={})
                 cls._warmup_and_load()
             cls.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
-        cls._kinematics_dirty = cls._scene_data_backend.transforms_dirty = True
+        cls._kinematics_dirty = True
+        cls._scene_data_backend.transforms_version += 1
 
     @classmethod
     def forward(cls) -> None:
@@ -581,7 +584,7 @@ class OvPhysxManager(PhysicsManager):
         if cls.backend is not None and cls.backend.physx is not None:
             cls.backend.physx.update_articulations_kinematic()
             cls._kinematics_dirty = False
-        cls._scene_data_backend.transforms_dirty = True
+        cls._scene_data_backend.transforms_version += 1
 
     @classmethod
     def pre_render(cls) -> None:
@@ -599,7 +602,7 @@ class OvPhysxManager(PhysicsManager):
         cls.backend.physx.step_sync(dt=dt)
         cls.backend.physx.update_articulations_kinematic()
         cls._kinematics_dirty = False
-        cls._scene_data_backend.transforms_dirty = True
+        cls._scene_data_backend.transforms_version += 1
         PhysicsManager._sim_time += dt
 
     @staticmethod
