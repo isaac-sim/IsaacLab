@@ -15,7 +15,7 @@ from .camera_render_spec import CameraRenderSpec
 from .output_contract import RenderBufferKind, RenderBufferSpec
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     import torch
     import warp as wp
@@ -182,6 +182,20 @@ class BaseRenderer(ABC):
             render_data: The render data object from :meth:`create_render_data`.
         """
         pass
+
+    def render_batch(self, render_data: Sequence[Any]) -> None:
+        """Render a collection of cameras into their bound output buffers.
+
+        All camera poses and shared scene state must be prepared before calling this method.
+        An empty sequence is a no-op. Each object must belong to this renderer and appear once.
+        The default implementation calls :meth:`render` for each camera; subclasses may override
+        this method to submit all cameras together.
+
+        Args:
+            render_data: Renderer-specific objects from :meth:`create_render_data`.
+        """
+        for data in render_data:
+            self.render(data)
 
     @abstractmethod
     def read_output(self, render_data: Any, camera_data: CameraData) -> None:

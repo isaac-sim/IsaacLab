@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import warnings
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import torch
@@ -338,10 +339,37 @@ class RenderContext:
         camera_data: CameraData,
         physics_step_count: int,
     ) -> None:
-        """Sync scene state, render, and read outputs into ``camera_data``."""
+        """Sync scene state and capture one camera through :meth:`render_into_cameras`."""
+        self.render_into_cameras([(renderer, render_data, camera_data)], physics_step_count)
+
+    def render_into_cameras(
+        self,
+        requests: Sequence[tuple[BaseRenderer, Any, CameraData]],
+        physics_step_count: int,
+    ) -> None:
+        """Render prepared cameras in batches grouped by renderer instance.
+
+        Camera poses must be updated before this call. Requests are used only for this
+        submission; the context does not retain cameras or manage sensor timing.
+
+        Args:
+            requests: Tuples of renderer, renderer-specific render data, and output camera data.
+                An empty sequence performs no work.
+            physics_step_count: Current physics step for shared scene synchronization.
+        """
+        if not requests:
+            return
+
         self.update_scene_state(physics_step_count)
-        renderer.render(render_data)
-        renderer.read_output(render_data, camera_data)
+
+        groups: dict[int, tuple[BaseRenderer, list[tuple[Any, CameraData]]]] = {}
+        for renderer, render_data, camera_data in requests:
+            groups.setdefault(id(renderer), (renderer, []))[1].append((render_data, camera_data))
+
+        for renderer, cameras in groups.values():
+            renderer.render_batch([render_data for render_data, _ in cameras])
+            for render_data, camera_data in cameras:
+                renderer.read_output(render_data, camera_data)
 
     def reset_stage_prepare_flag(self) -> None:
         """Allow :meth:`ensure_prepare_stage` to run ``prepare_stage`` again (e.g. a new USD stage)."""

@@ -517,8 +517,19 @@ class InteractiveScene:
         for surface_gripper in self._surface_grippers.values():
             surface_gripper.update(dt)
         # -- sensors
+        force_recompute = not self.cfg.lazy_sensor_update
+        batched_sensors: list[SensorBase] = []
         for sensor in self._sensors.values():
-            sensor.update(dt, force_recompute=not self.cfg.lazy_sensor_update)
+            if force_recompute and sensor.supports_batch_update:
+                # Defer buffer refresh until all sensors have advanced.
+                sensor.update(dt, force_recompute=False)
+                batched_sensors.append(sensor)
+            else:
+                sensor.update(dt, force_recompute=force_recompute)
+
+        # Process batched sensors only during eager updates.
+        if batched_sensors:
+            SensorBase._process_batch(batched_sensors)
 
     """
     Operations: Scene State.
