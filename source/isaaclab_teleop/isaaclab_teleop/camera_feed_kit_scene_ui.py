@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import math
 from collections.abc import Callable
-from contextlib import suppress
+from contextlib import ExitStack, suppress
 from typing import Any
 
 import torch
@@ -32,7 +32,6 @@ logger = logging.getLogger(__name__)
 _XR_CAMERA_PATH = "/_xr/stage/xrCamera"
 _SCENE_UI_ROOT_PATH = "/ui"
 _XR_CAMERA_PIP_PARTITION = "isaaclab_teleop_xr_camera_pip"
-_MISSING_SESSION_DEFAULT = object()
 
 
 def _subscribe_to_kit_frame_updates(callback: Callable[[Any], None], observer_name: str) -> _KitFrameSubscription:
@@ -47,212 +46,6 @@ def _subscribe_to_kit_frame_updates(callback: Callable[[Any], None], observer_na
         observer_name=observer_name,
     )
     return _KitFrameSubscription(observer)
-
-
-class _KitSceneUiScenePartition:
-    """Keep SceneUI visible to XR eyes while excluding it from robot cameras."""
-
-    _TARGETS = (
-        (_XR_CAMERA_PATH, "omni:scenePartition"),
-        (_SCENE_UI_ROOT_PATH, "primvars:omni:scenePartition"),
-    )
-
-    def __init__(
-        self,
-        *,
-        stage_getter: Callable[[], Any] | None = None,
-    ):
-        self._stage_getter = stage_getter or get_current_stage
-        self._registrations: dict[int, Callable[[bool], None] | None] = {}
-        self._next_registration = 0
-        self._current_stage = None
-        self._ready_stage = None
-        self._ready = False
-        self._authored: dict[Any, tuple[str, str, bool, Any]] = {}
-        self._created_ui_root = None
-        self._ui_inheritance_root = None
-
-    def acquire(self, readiness_callback: Callable[[bool], None] | None = None) -> int:
-        """Acquire one panel reference and start maintaining its scene partition."""
-        token = self._next_registration
-        self._next_registration += 1
-        self._registrations[token] = readiness_callback
-        try:
-            if readiness_callback is not None:
-                readiness_callback(self._ready)
-            if len(self._registrations) == 1:
-                self.refresh()
-        except Exception:
-            self.release(token)
-            raise
-        return token
-
-    def release(self, token: int) -> None:
-        """Release one panel reference and restore state after the final panel."""
-        self._registrations.pop(token, None)
-        if self._registrations:
-            return
-        self._restore_stage()
-
-    def refresh(self) -> None:
-        """Apply the partition to currently materialized XR presentation prims."""
-        if not self._registrations:
-            return
-        stage = self._stage_getter()
-        if stage is not self._current_stage:
-            self._restore_stage()
-            self._current_stage = stage
-        if stage is None:
-            return
-        try:
-            # Other renderers can change these after bind(); hide panels until isolation is restored.
-            if get_settings_manager().get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING) is not False:
-                raise RuntimeError("Isolated XR PiP requires showAllPartitionsByDefault=False.")
-            env_root = stage.GetPrimAtPath("/World/envs/env_0")
-            if env_root.IsValid():
-                partition = env_root.GetAttribute("primvars:omni:scenePartition")
-                if partition.IsValid() and partition.Get() not in (None, ""):
-                    raise RuntimeError(
-                        "Isolated XR PiP cannot display a partitioned environment; disable camera partitioning."
-                    )
-            target_ready = [self._author_target(stage, *target) for target in self._TARGETS]
-        except Exception:
-            self._restore_stage()
-            raise
-        ready = all(target_ready)
-        self._set_ready(ready)
-        if ready and self._ready_stage is not stage:
-            logger.info(
-                "XR camera PiP scene partition %r is active on the XR camera and SceneUI root.",
-                _XR_CAMERA_PIP_PARTITION,
-            )
-            self._ready_stage = stage
-
-    def _set_ready(self, ready: bool) -> None:
-        if self._ready == ready:
-            return
-        self._ready = ready
-        for callback in tuple(self._registrations.values()):
-            if callback is not None:
-                callback(ready)
-
-    def _author_target(self, stage: Any, prim_path: str, attribute_name: str) -> bool:
-        prim = stage.GetPrimAtPath(prim_path)
-        if not prim.IsValid() and prim_path == _SCENE_UI_ROOT_PATH:
-            # SceneUI creates /ui on its first draw, but panels must be partitioned before showing.
-            with Usd.EditContext(stage, stage.GetSessionLayer()):
-                prim = stage.OverridePrim(prim_path)
-            self._created_ui_root = stage.GetSessionLayer().GetPrimAtPath(prim_path)
-        if not prim.IsValid():
-            return False
-        refresh_inheritance = (
-            prim_path == _SCENE_UI_ROOT_PATH and prim != self._ui_inheritance_root and bool(prim.GetChildren())
-        )
-        attribute = prim.GetAttribute(attribute_name)
-        current_value = attribute.Get() if attribute.IsValid() else None
-        if attribute.IsValid():
-            if current_value == _XR_CAMERA_PIP_PARTITION and not refresh_inheritance:
-                return True
-            if current_value not in (None, "", _XR_CAMERA_PIP_PARTITION):
-                raise RuntimeError(
-                    f"XR camera PiP cannot replace existing scene partition {current_value!r} "
-                    f"on {prim_path!r} ({attribute_name!r})."
-                )
-
-        session_layer = stage.GetSessionLayer()
-        attribute_path = Sdf.Path(prim_path).AppendProperty(attribute_name)
-        key = attribute_path
-        if key not in self._authored:
-            attribute_spec = session_layer.GetAttributeAtPath(attribute_path)
-            had_session_property = attribute_spec is not None
-            previous_default = _MISSING_SESSION_DEFAULT
-            if attribute_spec is not None and attribute_spec.HasDefaultValue():
-                previous_default = attribute_spec.default
-            self._authored[key] = (prim_path, attribute_name, had_session_property, previous_default)
-
-        with Usd.EditContext(stage, session_layer):
-            if not attribute.IsValid():
-                attribute = prim.CreateAttribute(attribute_name, Sdf.ValueTypeNames.Token)
-            attribute_spec = session_layer.GetAttributeAtPath(attribute_path)
-            if refresh_inheritance and current_value == _XR_CAMERA_PIP_PARTITION and attribute_spec is not None:
-                # Fabric skips inheritance on childless roots. Notify it once descendants exist;
-                # setting the same value alone emits no notice. Batch edits to keep the token visible.
-                with Sdf.ChangeBlock():
-                    attribute_spec.ClearDefaultValue()
-                    attribute_spec.default = _XR_CAMERA_PIP_PARTITION
-            elif not attribute.Set(_XR_CAMERA_PIP_PARTITION):
-                raise RuntimeError(f"Failed to author {attribute_name!r} on {prim_path!r}.")
-        if refresh_inheritance:
-            self._ui_inheritance_root = prim
-        return True
-
-    def _restore_stage(self) -> None:
-        self._set_ready(False)
-        stage = self._current_stage
-        if stage is None:
-            self._authored.clear()
-            return
-        session_layer = stage.GetSessionLayer()
-        first_error = None
-        try:
-            for attribute_path, state in tuple(self._authored.items()):
-                try:
-                    self._restore_target(stage, session_layer, attribute_path, state)
-                except Exception as exc:
-                    if first_error is None:
-                        first_error = exc
-            if self._created_ui_root:
-                # Retain any definition, metadata or children subsequently authored by SceneUI/others.
-                session_layer.ScheduleRemoveIfInert(self._created_ui_root)
-        finally:
-            self._authored.clear()
-            self._created_ui_root = None
-            self._ui_inheritance_root = None
-            self._current_stage = None
-            self._ready_stage = None
-        if first_error is not None:
-            raise first_error
-
-    @staticmethod
-    def _restore_target(
-        stage: Any,
-        session_layer: Any,
-        attribute_path: Any,
-        state: tuple[str, str, bool, Any],
-    ) -> None:
-        prim_path, attribute_name, had_session_property, previous_default = state
-        attribute_spec = session_layer.GetAttributeAtPath(attribute_path)
-        if (
-            attribute_spec is None
-            or not attribute_spec.HasDefaultValue()
-            or attribute_spec.default != _XR_CAMERA_PIP_PARTITION
-        ):
-            return
-        if had_session_property:
-            if previous_default is _MISSING_SESSION_DEFAULT:
-                attribute_spec.ClearDefaultValue()
-            else:
-                attribute_spec.default = previous_default
-            return
-        prim = stage.GetPrimAtPath(prim_path)
-        if prim.IsValid():
-            with Usd.EditContext(stage, session_layer):
-                prim.RemoveProperty(attribute_name)
-            return
-        prim_spec = session_layer.GetPrimAtPath(Sdf.Path(prim_path))
-        if prim_spec is not None:
-            prim_spec.RemoveProperty(attribute_spec)
-
-
-_shared_scene_partition: _KitSceneUiScenePartition | None = None
-
-
-def _get_shared_scene_partition() -> _KitSceneUiScenePartition:
-    """Return the module-wide SceneUI partition owner used by all presenters."""
-    global _shared_scene_partition
-    if _shared_scene_partition is None:
-        _shared_scene_partition = _KitSceneUiScenePartition()
-    return _shared_scene_partition
 
 
 def _replicator_output_to_torch(output: Any) -> torch.Tensor:
@@ -565,7 +358,7 @@ class KitSceneUiCameraFeedPanel:
         image_height: int,
         viewer_start_anchor: KitSceneUiViewerStartAnchor | None = None,
         head_locked_anchor: KitSceneUiHeadLockedAnchor | None = None,
-        scene_partition: _KitSceneUiScenePartition | None = None,
+        presenter: _KitSceneUiCameraFeedPresenter | None = None,
     ):
         """Create the image provider and attach its panel to the XR scene."""
         self._closed = False
@@ -576,10 +369,9 @@ class KitSceneUiCameraFeedPanel:
             descriptor.placement
         )
         self._pose_registration = None
-        self._scene_partition = scene_partition
-        self._scene_partition_registration = None
+        self._presenter = presenter
         self._pose_ready = descriptor.placement == "world"
-        self._partition_ready = scene_partition is None
+        self._partition_ready = presenter is None
 
         if descriptor.placement not in {"viewer_start", "head_locked", "world"}:
             raise ValueError(f"Unknown XR camera-feed placement {descriptor.placement!r}.")
@@ -609,8 +401,6 @@ class KitSceneUiCameraFeedPanel:
                 )
             ]
         try:
-            if self._scene_partition is not None:
-                self._scene_partition_registration = self._scene_partition.acquire(self._on_partition_readiness_changed)
             self._provider = ui.ByteImageProvider()
             self._component = WidgetComponent(
                 _CameraImageWidget,
@@ -634,8 +424,9 @@ class KitSceneUiCameraFeedPanel:
                     descriptor.distance_m,
                     self._on_pose_readiness_changed,
                 )
-            if self._scene_partition is not None:
-                self._scene_partition.refresh()
+            if self._presenter is not None:
+                self._presenter._partition_panels.add(self)
+                self._presenter._refresh_scene_partition()
         except Exception:
             with suppress(Exception):
                 self.close()
@@ -643,10 +434,6 @@ class KitSceneUiCameraFeedPanel:
 
     def _on_pose_readiness_changed(self, ready: bool) -> None:
         self._pose_ready = ready
-        self._update_visibility()
-
-    def _on_partition_readiness_changed(self, ready: bool) -> None:
-        self._partition_ready = ready
         self._update_visibility()
 
     def _update_visibility(self) -> None:
@@ -695,10 +482,11 @@ class KitSceneUiCameraFeedPanel:
                 finally:
                     container.root.clear()
         finally:
-            if self._scene_partition is not None and self._scene_partition_registration is not None:
-                self._scene_partition.release(self._scene_partition_registration)
-            self._scene_partition_registration = None
-            self._scene_partition = None
+            if self._presenter is not None:
+                self._presenter._partition_panels.discard(self)
+                if not self._presenter._partition_panels:
+                    self._presenter._clear_scene_partition()
+                self._presenter = None
 
 
 class _ReplicatorCameraFeedSource:
@@ -816,11 +604,18 @@ class _ReplicatorCameraFeedSource:
 class _KitSceneUiCameraFeedPresenter:
     """Private adapter from camera buffers to Kit SceneUI panels."""
 
-    def __init__(self, scene_partition: _KitSceneUiScenePartition | None = None):
+    # All presenters share Kit's XR camera and /ui root. Track the panels themselves,
+    # and keep temporary USD edits in one cleanup stack for their combined lifetime.
+    _partition_panels: set[KitSceneUiCameraFeedPanel] = set()
+    _partition_stage = None
+    _partition_cleanup = ExitStack()
+    _partition_attributes: set[Sdf.Path] = set()
+    _partition_ui_root = None
+
+    def __init__(self):
         self._viewer_start_anchor = None
         self._head_locked_anchor = None
         self._cpu_upload_warnings: set[str] = set()
-        self._scene_partition = scene_partition
         self._scene_partition_update_error_reported = False
 
     @staticmethod
@@ -875,11 +670,6 @@ class _KitSceneUiCameraFeedPresenter:
         return torch.empty_like(image, device=previous_source.device, memory_format=torch.contiguous_format)
 
     def create_panel(self, descriptor: Any, width: int, height: int) -> KitSceneUiCameraFeedPanel:
-        scene_partition = None
-        if descriptor.use_scene_partition:
-            if self._scene_partition is None:
-                self._scene_partition = _get_shared_scene_partition()
-            scene_partition = self._scene_partition
         viewer_start_anchor = None
         head_locked_anchor = None
         if descriptor.placement == "viewer_start":
@@ -896,8 +686,109 @@ class _KitSceneUiCameraFeedPresenter:
             image_height=height,
             viewer_start_anchor=viewer_start_anchor,
             head_locked_anchor=head_locked_anchor,
-            scene_partition=scene_partition,
+            presenter=self if descriptor.use_scene_partition else None,
         )
+
+    @classmethod
+    def _refresh_scene_partition(cls) -> None:
+        """Keep the shared XR camera and SceneUI root isolated while panels are open."""
+        if not cls._partition_panels:
+            return
+        stage = get_current_stage()
+        if stage is not cls._partition_stage:
+            cls._clear_scene_partition()
+            cls._partition_stage = stage
+        if stage is None:
+            return
+        try:
+            if get_settings_manager().get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING) is not False:
+                raise RuntimeError("Isolated XR PiP requires showAllPartitionsByDefault=False.")
+            env_root = stage.GetPrimAtPath("/World/envs/env_0")
+            partition = env_root.GetAttribute("primvars:omni:scenePartition") if env_root else None
+            if partition and partition.Get() not in (None, ""):
+                raise RuntimeError(
+                    "Isolated XR PiP cannot display a partitioned environment; disable camera partitioning."
+                )
+
+            layer = stage.GetSessionLayer()
+            targets = ((_XR_CAMERA_PATH, "omni:scenePartition"), (_SCENE_UI_ROOT_PATH, "primvars:omni:scenePartition"))
+            ready = True
+            for prim_path, name in targets:
+                prim = stage.GetPrimAtPath(prim_path)
+                if not prim and prim_path == _SCENE_UI_ROOT_PATH:
+                    # SceneUI creates /ui only after drawing a visible panel. Seed an over to break that dependency.
+                    with Usd.EditContext(stage, layer):
+                        prim = stage.OverridePrim(prim_path)
+                    cls._partition_cleanup.callback(layer.ScheduleRemoveIfInert, layer.GetPrimAtPath(prim_path))
+                if not prim:
+                    ready = False
+                    continue
+                attribute = prim.GetAttribute(name)
+                value = attribute.Get() if attribute else None
+                if value not in (None, "", _XR_CAMERA_PIP_PARTITION):
+                    raise RuntimeError(
+                        f"XR camera PiP cannot replace existing scene partition {value!r} on {prim_path!r}."
+                    )
+                path = Sdf.Path(prim_path).AppendProperty(name)
+                if path not in cls._partition_attributes:
+                    spec = layer.GetAttributeAtPath(path)
+                    had_property = spec is not None
+                    previous = spec.default if spec is not None else None
+
+                    def restore(path=path, had_property=had_property, previous=previous, layer=layer):
+                        spec = layer.GetAttributeAtPath(path)
+                        if spec is None or spec.default != _XR_CAMERA_PIP_PARTITION:
+                            return
+                        if not had_property:
+                            spec.owner.RemoveProperty(spec)
+                        elif previous is None:
+                            spec.ClearDefaultValue()
+                        else:
+                            spec.default = previous
+
+                    cls._partition_cleanup.callback(restore)
+                    cls._partition_attributes.add(path)
+                ui_root = prim if prim_path == _SCENE_UI_ROOT_PATH and prim.GetChildren() else None
+                refresh_inheritance = ui_root is not None and ui_root != cls._partition_ui_root
+                if value != _XR_CAMERA_PIP_PARTITION or refresh_inheritance:
+                    # Fabric skips inheritance on childless roots. Send one notice when descendants appear.
+                    with Usd.EditContext(stage, layer):
+                        if not attribute:
+                            attribute = prim.CreateAttribute(name, Sdf.ValueTypeNames.Token)
+                        spec = layer.GetAttributeAtPath(path)
+                        if refresh_inheritance and value == _XR_CAMERA_PIP_PARTITION and spec is not None:
+                            with Sdf.ChangeBlock():
+                                spec.ClearDefaultValue()
+                                spec.default = _XR_CAMERA_PIP_PARTITION
+                        elif not attribute.Set(_XR_CAMERA_PIP_PARTITION):
+                            raise RuntimeError(f"Failed to author {name!r} on {prim_path!r}.")
+                if prim_path == _SCENE_UI_ROOT_PATH:
+                    cls._partition_ui_root = ui_root
+            became_ready = ready and any(not panel._partition_ready for panel in cls._partition_panels)
+            for panel in tuple(cls._partition_panels):
+                if panel._partition_ready != ready:
+                    panel._partition_ready = ready
+                    panel._update_visibility()
+            if became_ready:
+                logger.info(
+                    "XR camera PiP scene partition %r is active on the XR camera and SceneUI root.",
+                    _XR_CAMERA_PIP_PARTITION,
+                )
+        except Exception:
+            cls._clear_scene_partition()
+            raise
+
+    @classmethod
+    def _clear_scene_partition(cls) -> None:
+        for panel in tuple(cls._partition_panels):
+            panel._partition_ready = False
+            panel._update_visibility()
+        try:
+            cls._partition_cleanup.close()
+        finally:
+            cls._partition_attributes.clear()
+            cls._partition_stage = None
+            cls._partition_ui_root = None
 
     @staticmethod
     def stage_upload_image(image: torch.Tensor, upload_image: torch.Tensor) -> None:
@@ -907,8 +798,7 @@ class _KitSceneUiCameraFeedPresenter:
     def subscribe_to_frame_updates(self, callback: Callable[[Any], None]) -> _KitFrameSubscription:
         def on_frame(event: Any) -> None:
             try:
-                if self._scene_partition is not None:
-                    self._scene_partition.refresh()
+                self._refresh_scene_partition()
                 self._scene_partition_update_error_reported = False
             except Exception as exc:
                 if not self._scene_partition_update_error_reported:

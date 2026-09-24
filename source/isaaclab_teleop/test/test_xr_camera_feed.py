@@ -147,7 +147,7 @@ def test_isolation_restores_after_initialization_failure(monkeypatch, isolated_s
         session.bind(object())
     assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is True
     assert renderer.enable_scene_partitioning is True
-    assert camera_feed._ScenePartitionPolicy._users == 0
+    assert XrCameraFeedSession._partition_users == 0
 
 
 def test_isolation_preserves_external_change_and_can_rebind(monkeypatch, isolated_settings):
