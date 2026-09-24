@@ -137,61 +137,6 @@ def _validate_scene_partition_configs(env_cfg: Any, feeds: list[XrCameraFeedCfg]
     return list(renderers.values())
 
 
-class _ScenePartitionPolicy:
-    """Share temporary process and source-camera overrides across isolated sessions."""
-
-    _users = 0
-    _settings = None
-    _previous = None
-    _renderers: dict[int, tuple[Any, bool, int]] = {}
-
-    def __init__(self, renderers: list[Any]):
-        from isaaclab.app.settings_manager import get_settings_manager
-
-        self._closed = False
-        cls = type(self)
-        if not cls._users:
-            settings = get_settings_manager()
-            previous = settings.get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING)
-            if type(previous) is not bool:
-                raise RuntimeError("Isolated XR PiP requires the Kit showAllPartitionsByDefault setting.")
-            settings.set(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING, False)
-            cls._settings, cls._previous = settings, previous
-        cls._users += 1
-        self._owned_renderers = renderers
-        for cfg in renderers:
-            _, previous, count = cls._renderers.get(id(cfg), (cfg, cfg.enable_scene_partitioning, 0))
-            cls._renderers[id(cfg)] = (cfg, previous, count + 1)
-            cfg.enable_scene_partitioning = False
-
-    def validate(self) -> None:
-        if self._settings.get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING) is not False:
-            raise RuntimeError(
-                "showAllPartitionsByDefault was overridden after PiP preparation; isolated XR PiP requires False."
-            )
-
-    def close(self) -> None:
-        if self._closed:
-            return
-        self._closed = True
-        cls = type(self)
-        for cfg in self._owned_renderers:
-            _, previous, count = cls._renderers[id(cfg)]
-            if count > 1:
-                cls._renderers[id(cfg)] = (cfg, previous, count - 1)
-            else:
-                if cfg.enable_scene_partitioning is False:
-                    cfg.enable_scene_partitioning = previous
-                del cls._renderers[id(cfg)]
-        cls._users -= 1
-        if not cls._users:
-            try:
-                if cls._settings.get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING) is False:
-                    cls._settings.set(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING, cls._previous)
-            finally:
-                cls._settings = cls._previous = None
-
-
 class XrCameraFeedSession:
     """Manage the two-phase XR camera-feed lifecycle.
 
@@ -200,6 +145,12 @@ class XrCameraFeedSession:
     Close prepared sessions even when environment construction fails, for
     example with :func:`contextlib.closing` around preparation and construction.
     """
+
+    # Kit visibility is process-wide; camera overrides are shared by configuration identity.
+    _partition_users = 0
+    _partition_settings = None
+    _partition_previous = None
+    _partition_renderer_state: dict[int, tuple[Any, bool, int]] = {}
 
     def __init__(
         self,
@@ -216,7 +167,7 @@ class XrCameraFeedSession:
         self._manager = None
         self._bound = False
         self._partition_renderers = []
-        self._partition_policy = None
+        self._partition_active = False
 
     @classmethod
     def prepare(
@@ -268,7 +219,7 @@ class XrCameraFeedSession:
         )
         if teleop_cfg.xr_camera_feed_layout.use_scene_partition:
             session._partition_renderers = _validate_scene_partition_configs(env_cfg, cfgs)
-            session._partition_policy = _ScenePartitionPolicy(session._partition_renderers)
+            session._enable_scene_partition()
         return session
 
     @property
@@ -296,9 +247,7 @@ class XrCameraFeedSession:
         try:
             if self.enabled:
                 if self._layout_cfg.use_scene_partition:
-                    if self._partition_policy is None:
-                        self._partition_policy = _ScenePartitionPolicy(self._partition_renderers)
-                    self._partition_policy.validate()
+                    self._enable_scene_partition()
                 self._manager = _XrCameraFeedManager(env, self._cfgs, self._layout_cfg, self._presenter)
         except Exception:
             self.close()
@@ -325,9 +274,53 @@ class XrCameraFeedSession:
         finally:
             self._manager = None
             self._bound = False
-            if self._partition_policy is not None:
-                self._partition_policy.close()
-                self._partition_policy = None
+            if self._partition_active:
+                self._partition_active = False
+                cls = XrCameraFeedSession
+                for cfg in self._partition_renderers:
+                    _, previous, count = cls._partition_renderer_state[id(cfg)]
+                    if count > 1:
+                        cls._partition_renderer_state[id(cfg)] = (cfg, previous, count - 1)
+                    else:
+                        if cfg.enable_scene_partitioning is False:
+                            cfg.enable_scene_partitioning = previous
+                        del cls._partition_renderer_state[id(cfg)]
+                cls._partition_users -= 1
+                if not cls._partition_users:
+                    try:
+                        if cls._partition_settings.get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING) is False:
+                            cls._partition_settings.set(
+                                ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING, cls._partition_previous
+                            )
+                    finally:
+                        cls._partition_settings = cls._partition_previous = None
+
+    def _enable_scene_partition(self) -> None:
+        from isaaclab.app.settings_manager import get_settings_manager
+
+        cls = XrCameraFeedSession
+        if (
+            cls._partition_users
+            and cls._partition_settings.get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING) is not False
+        ):
+            raise RuntimeError(
+                "showAllPartitionsByDefault was overridden after PiP preparation; isolated XR PiP requires False."
+            )
+        if self._partition_active:
+            return
+        if not cls._partition_users:
+            settings = get_settings_manager()
+            previous = settings.get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING)
+            if type(previous) is not bool:
+                raise RuntimeError("Isolated XR PiP requires the Kit showAllPartitionsByDefault setting.")
+            settings.set(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING, False)
+            cls._partition_settings, cls._partition_previous = settings, previous
+        for cfg in self._partition_renderers:
+            _, previous, count = cls._partition_renderer_state.get(id(cfg), (cfg, cfg.enable_scene_partitioning, 0))
+            cls._partition_renderer_state[id(cfg)] = (cfg, previous, count + 1)
+            cfg.enable_scene_partitioning = False
+        cls._partition_users += 1
+        self._partition_active = True
 
     def __enter__(self) -> XrCameraFeedSession:
         if not self._bound:

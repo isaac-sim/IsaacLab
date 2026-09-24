@@ -31,7 +31,9 @@ import usdrt.Usd as UsdRtUsd
 from pxr import UsdUtils
 
 import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sensors.camera import Camera, CameraCfg
+from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
@@ -45,9 +47,17 @@ def _read_feed_render_settings(prim) -> tuple[str, bool]:
     return str(exec_mode), bool(ray_reconstruction)
 
 
-def test_real_scene_ui_imports_and_constructs_world_panel():
+@pytest.mark.parametrize("use_scene_partition", [False, True])
+def test_real_scene_ui_imports_and_constructs_world_panel(use_scene_partition):
     """The real Scene UI extensions provide the signatures used by PiP."""
     sim_utils.create_new_stage()
+    stage = sim_utils.get_current_stage()
+    camera = stage.DefinePrim("/_xr/stage/xrCamera", "Camera")
+    root_before = stage.GetRootLayer().ExportToString()
+    settings = get_settings_manager()
+    previous = settings.get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING)
+    if use_scene_partition:
+        settings.set(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING, False)
     presenter = _KitSceneUiCameraFeedPresenter()
     descriptor = _PanelDescriptor(
         label="Camera",
@@ -57,16 +67,31 @@ def test_real_scene_ui_imports_and_constructs_world_panel():
         placement="world",
         world_position_m=(0.0, 0.8, 1.6),
         world_orientation_xyzw=(0.0, 0.0, 0.0, 1.0),
+        use_scene_partition=use_scene_partition,
     )
 
-    panel = presenter.create_panel(descriptor, width=720, height=450)
+    panel = None
     try:
+        panel = presenter.create_panel(descriptor, width=720, height=450)
         assert panel._container is not None
         assert panel._component is not None
+        if use_scene_partition:
+            assert panel._partition_ready
+            assert camera.GetAttribute("omni:scenePartition").Get() == "isaaclab_teleop_xr_camera_pip"
+            assert stage.GetPrimAtPath("/ui").GetAttribute("primvars:omni:scenePartition").Get() == (
+                "isaaclab_teleop_xr_camera_pip"
+            )
     finally:
-        panel.close()
+        try:
+            if panel is not None:
+                panel.close()
+        finally:
+            if use_scene_partition:
+                settings.set(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING, previous)
 
     assert panel._closed
+    assert not camera.GetAttribute("omni:scenePartition").IsValid()
+    assert stage.GetRootLayer().ExportToString() == root_before
 
 
 def test_real_feed_source_applies_local_policy_and_reads_cuda_from_cpu_camera():
