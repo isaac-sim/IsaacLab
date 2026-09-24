@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Render-only benchmark scene for OVRTX / Newton-Warp comparison."""
+"""Renderer and physics benchmark scene for OVRTX / Newton-Warp comparison."""
 
 import gymnasium as gym
 

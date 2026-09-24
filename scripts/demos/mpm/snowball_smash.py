@@ -231,9 +231,9 @@ def create_scene_cfg():
             prim_path=f"{{ENV_REGEX_NS}}/Crate_{index}",
             spawn=sim_utils.CuboidCfg(
                 size=(CRATE_SIZE, CRATE_SIZE, CRATE_SIZE),
-                rigid_props=sim_utils.NewtonRigidBodyPropertiesCfg(rigid_body_enabled=True),
-                mass_props=sim_utils.MassPropertiesCfg(mass=args_cli.crate_mass),
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(collision_enabled=True),
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
+                mass_props=sim_utils.MassCfg(mass=args_cli.crate_mass),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                     static_friction=CRATE_FRICTION,
                     dynamic_friction=CRATE_FRICTION,
@@ -289,11 +289,11 @@ def create_scene_cfg():
             prim_path="{ENV_REGEX_NS}/MPMGround",
             spawn=sim_utils.CuboidCfg(
                 size=(12.0, 12.0, 0.10),
-                rigid_props=sim_utils.NewtonRigidBodyPropertiesCfg(
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(
                     rigid_body_enabled=True,
                     kinematic_enabled=True,
                 ),
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(collision_enabled=True),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                     static_friction=CRATE_FRICTION,
                     dynamic_friction=CRATE_FRICTION,

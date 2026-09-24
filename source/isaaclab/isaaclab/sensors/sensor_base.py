@@ -21,18 +21,16 @@ from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
-import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.cloner.cloner_cfg import expand_env_regex_ns
-from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.sim.utils.queries import get_first_matching_ancestor_prim
-from isaaclab.sim.utils.transforms import resolve_prim_pose
-
+from .. import cloner
+from .. import sim as sim_utils
+from ..cloner.cloner_cfg import expand_env_regex_ns
+from ..physics import PhysicsEvent, PhysicsManager
+from ..sim.utils.queries import get_first_matching_ancestor_prim
+from ..sim.utils.transforms import resolve_prim_pose
 from .kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
 if TYPE_CHECKING:
-    from isaaclab.cloner import ClonePlan
-
+    from ..cloner import ClonePlan
     from .sensor_base_cfg import SensorBaseCfg
 
 logger = logging.getLogger(__name__)
@@ -56,25 +54,19 @@ class SensorBase(ABC):
         Args:
             cfg: The configuration parameters for the sensor.
         """
-        # check that the config is valid
         cfg.validate()
         cfg.prim_path = expand_env_regex_ns(cfg.prim_path)
-        # store inputs
         self.cfg = cfg.copy()
-        # flag for whether the sensor is initialized
         self._is_initialized = False
-        # flag for whether the sensor is in visualization mode
         self._is_visualizing = False
         # clone plan used for this sensor's latest initialization
         self._clone_plan: ClonePlan | None = None
         self.stage = sim_utils.get_current_stage()
 
-        # register various callback functions
         self._register_callbacks()
 
         # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
         self._debug_vis_handle = None
-        # set initial state of debug visualization
         self.set_debug_vis(self.cfg.debug_vis)
 
     def __del__(self, _sys=sys):

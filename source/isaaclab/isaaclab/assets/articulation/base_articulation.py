@@ -27,9 +27,8 @@ from .ordering import ArticulationNameMap, ArticulationOrderingConvention, build
 from .ordering_resolvers import _resolve_articulation_ordering_names
 
 if TYPE_CHECKING:
-    from isaaclab.actuators import ActuatorCollection
-    from isaaclab.utils.wrench_composer import WrenchComposer
-
+    from ...actuators import ActuatorCollection
+    from ...utils.wrench_composer import WrenchComposer
     from .articulation_cfg import ArticulationCfg
     from .base_articulation_data import BaseArticulationData
 
@@ -1684,7 +1683,7 @@ class BaseArticulation(AssetBase):
         joint_ids: torch.Tensor,
     ) -> None:
         """Warn and forward a legacy native-controller gain write."""
-        from isaaclab.actuators.newton import write_group_parameter  # noqa: PLC0415
+        from ...actuators.newton import write_group_parameter  # noqa: PLC0415
 
         warnings.warn(
             f"{writer_name} is deprecated in 3.x and will be removed in 3.1. Use "

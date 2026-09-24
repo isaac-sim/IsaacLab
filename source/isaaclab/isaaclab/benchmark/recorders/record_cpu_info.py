@@ -10,8 +10,8 @@ import platform
 
 import psutil
 
-from isaaclab.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
-from isaaclab.benchmark.measurements import IntMetadata, SingleMeasurement, StringMetadata
+from ..interfaces import MeasurementData, MeasurementDataRecorder
+from ..measurements import IntMetadata, SingleMeasurement, StringMetadata
 
 
 class CPUInfoRecorder(MeasurementDataRecorder):

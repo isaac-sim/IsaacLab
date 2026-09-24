@@ -13,13 +13,129 @@ no heavy-weight side effects.
 from __future__ import annotations
 
 import time
-from contextlib import AbstractContextManager
-from typing import TYPE_CHECKING
+from collections.abc import Iterator
+from contextlib import AbstractContextManager, contextmanager
+from functools import wraps
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import torch
 
+    from ..physics import PhysicsManager
+    from ..renderers.render_context import RenderContext
+    from ..utils.string import ResolvableString
     from .schema import MeanStd
+
+
+PHYSICS_PROFILE_SCOPE = "IsaacLab::Physics::step"
+"""Scope name for benchmark physics-step timings [ms]."""
+
+RENDER_PROFILE_SCOPE = "IsaacLab::Renderer::render"
+"""Scope name for benchmark render timings [ms], excluding scene updates and output readback."""
+
+
+@contextmanager
+def profile_renderers(
+    render_context: RenderContext, *, active: bool = True, timings: list[tuple[str, float]] | None = None
+) -> Iterator[list[tuple[str, float]]]:
+    """Temporarily time the benchmark's currently registered renderers.
+
+    Original methods are restored when the context exits, including on failure.
+    Enabled timings synchronize device work on entry and exit and perturb throughput.
+
+    Args:
+        render_context: Simulation rendering context whose renderers will be timed.
+        active: Whether to install the timing wrappers.
+        timings: Shared list of scope names and elapsed times [ms], in call order.
+            A new list is created if omitted. Timings are collected without printing.
+
+    Yields:
+        The list populated by the wrappers, including timings of calls that raise.
+    """
+    if timings is None:
+        timings = []
+    if not active:
+        yield timings
+        return
+
+    import warp as wp  # noqa: PLC0415
+
+    scope_timings = {RENDER_PROFILE_SCOPE: _ProfileScopeTimings(RENDER_PROFILE_SCOPE, timings)}
+    missing = object()
+    originals = []
+    try:
+        for _, renderer in render_context._renderer_entries:
+            render = renderer.render
+            original = vars(renderer).get("render", missing)
+
+            @wraps(render)
+            def timed_render(render_data: Any, _render=render) -> None:
+                with wp.ScopedTimer(RENDER_PROFILE_SCOPE, dict=scope_timings, print=False, synchronize=True):
+                    return _render(render_data)
+
+            renderer.render = timed_render
+            originals.append((renderer, original))
+
+        yield timings
+    finally:
+        for renderer, original in reversed(originals):
+            if original is missing:
+                del renderer.render
+            else:
+                renderer.render = original
+
+
+@contextmanager
+def profile_physics_steps(
+    physics_manager: type[PhysicsManager] | ResolvableString,
+    *,
+    active: bool = True,
+    timings: list[tuple[str, float]] | None = None,
+) -> Iterator[list[tuple[str, float]]]:
+    """Temporarily time the benchmark's selected physics manager.
+
+    Only the selected manager is wrapped, so inherited ``super().step()`` calls
+    are included in one timing record. The original class method is restored when
+    the context exits, including on failure.
+    Enabled timings synchronize device work on entry and exit and perturb throughput.
+
+    Args:
+        physics_manager: Concrete physics manager selected by the environment, or its lazy class reference.
+        active: Whether to install the timing wrapper.
+        timings: Shared list of scope names and elapsed times [ms], in call order.
+            A new list is created if omitted. Timings are collected without printing.
+
+    Yields:
+        The list populated by the wrapper, including timings of calls that raise.
+    """
+    if timings is None:
+        timings = []
+    if not active:
+        yield timings
+        return
+
+    import warp as wp  # noqa: PLC0415
+
+    # The bound method identifies the concrete class even through a lazy class reference.
+    physics_manager = physics_manager.step.__self__
+    step = physics_manager.step.__func__
+    missing = object()
+    original = vars(physics_manager).get("step", missing)
+    scope_timings = {PHYSICS_PROFILE_SCOPE: _ProfileScopeTimings(PHYSICS_PROFILE_SCOPE, timings)}
+
+    @wraps(step)
+    def timed_step(cls: type[PhysicsManager]) -> None:
+        with wp.ScopedTimer(PHYSICS_PROFILE_SCOPE, dict=scope_timings, print=False, synchronize=True):
+            return step(cls)
+
+    physics_manager.step = classmethod(timed_step)
+    try:
+        yield timings
+    finally:
+        if original is missing:
+            del physics_manager.step
+        else:
+            physics_manager.step = original
 
 
 def sample_random_actions(env) -> torch.Tensor | dict[str, torch.Tensor]:
@@ -151,7 +267,7 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
             import torch  # noqa: PLC0415
             import warp as wp  # noqa: PLC0415
 
-            from isaaclab.utils.timer import Timer  # noqa: PLC0415
+            from ..utils.timer import Timer  # noqa: PLC0415
 
             assert self.simulation_step_times_s is not None
             self.simulation_step_times_s.clear()
@@ -352,7 +468,7 @@ def run_play_loop(env, policy, num_steps: int) -> tuple[list[float], MeanStd | N
     """
     import torch  # noqa: PLC0415
 
-    from isaaclab.benchmark.metrics import mean_std_peak  # noqa: PLC0415
+    from .metrics import mean_std_peak  # noqa: PLC0415
 
     u = env.unwrapped
     num_envs = u.num_envs
@@ -409,3 +525,17 @@ def run_play_loop(env, policy, num_steps: int) -> tuple[list[float], MeanStd | N
     success_rate = round(sum(successes) / len(successes), 4) if successes else None
 
     return step_times, reward_agg, ep_length_agg, success_rate
+
+
+class _ProfileScopeTimings(list[float]):
+    """Keep Warp's per-scope timings [ms] in a shared sequence for frame grouping."""
+
+    def __init__(self, scope: str, timings: list[tuple[str, float]]):
+        super().__init__()
+        self._scope = scope
+        self._timings = timings
+
+    def append(self, elapsed_ms: float) -> None:
+        """Record one scope timing [ms] in completion order."""
+        super().append(elapsed_ms)
+        self._timings.append((self._scope, elapsed_ms))

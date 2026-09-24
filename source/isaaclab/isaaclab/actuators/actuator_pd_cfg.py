@@ -6,8 +6,7 @@
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
-
+from ..utils import configclass
 from .actuator_base_cfg import ActuatorBaseCfg
 
 if TYPE_CHECKING:
