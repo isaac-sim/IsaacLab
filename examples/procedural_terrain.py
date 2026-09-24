@@ -58,9 +58,12 @@ parser.add_argument(
     help="Whether to show the flat patches computed during the terrain generation.",
 )
 parser.add_argument("--physics", default="isaacsim_physx", choices=["isaacsim_physx"], help="Physics backend.")
+parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
+if args_cli.max_steps == 0 or args_cli.max_steps < -1:
+    parser.error("--max_steps must be positive or -1.")
 
 import random
 
@@ -143,10 +146,12 @@ def design_scene() -> tuple[dict, torch.Tensor]:
 
 def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, AssetBase], origins: torch.Tensor):
     """Runs the simulation loop."""
+    step_count = 0
     # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
-    while sim.is_headless_or_exist_active_visualizer():
+    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         # perform step
         sim.step()
+        step_count += 1
 
 
 def main():

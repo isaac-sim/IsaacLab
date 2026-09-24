@@ -38,6 +38,8 @@ VISUALIZERS = ("none", "kit", "newton_gl", "newton_rtx", "rerun", "viser")
 DEFAULT_READINESS_PATTERN = r"Setup complete"
 MAX_OUTPUT_BYTES = 4 * 1024 * 1024
 DEFAULT_BATCHED_NUM_ENVS = 2
+DEFAULT_MAX_STEPS = 10
+"""Steps a script with a ``--max_steps`` option runs before it must exit cleanly."""
 
 
 PROGRAMS_BY_PATH = {
@@ -88,6 +90,11 @@ class ScriptSpec:
     def program(self) -> tuple[str, str] | None:
         """Return the CLI command and public name for a packaged program."""
         return PROGRAMS_BY_PATH.get(self.path)
+
+    @property
+    def finite(self) -> bool:
+        """Return whether the script can stop itself after a bounded number of steps."""
+        return "--max_steps" in self.options
 
     @property
     def relative_path(self) -> str:
@@ -150,6 +157,8 @@ class LaunchCase:
             ]
         if "--num_envs" in self.spec.options and "--num_envs" not in self.spec.args:
             command.extend(("--num_envs", str(DEFAULT_BATCHED_NUM_ENVS)))
+        if self.spec.finite and "--max_steps" not in self.spec.args:
+            command.extend(("--max_steps", str(DEFAULT_MAX_STEPS)))
         if self.physics_option is not None:
             command.extend((self.physics_option, self.physics_backend))
         if self.renderer_option is not None:
@@ -174,18 +183,10 @@ class SmokeResult:
 _NEWTON_MJCF = str(Path(importlib.util.find_spec("newton").origin).parent / "examples" / "assets" / "nv_ant.xml")
 
 OVERRIDES = {
-    "examples/demos/zoo.py": ScriptOverride(readiness_pattern=r"Robot zoo ready"),
-    "examples/demos/h1_locomotion.py": ScriptOverride(
-        skip_reason="downloads a published policy and requires interactive viewer input",
-    ),
     "examples/haply_teleoperation.py": ScriptOverride(
         skip_reason="requires a physical Haply device and its WebSocket service"
     ),
-    "examples/arl_robot_1.py": ScriptOverride(readiness_pattern=r"Starting example with Lee Position Controller"),
-    "examples/heterogeneous_scene.py": ScriptOverride(
-        args=("--num_task", "2"),
-        readiness_pattern=r"Composed \d+ task scenes into \d+ environments",
-    ),
+    "examples/heterogeneous_scene.py": ScriptOverride(args=("--num_task", "2")),
     "examples/deformables.py": ScriptOverride(
         case_skip_reasons={
             (
@@ -202,37 +203,22 @@ OVERRIDES = {
             ("isaacsim_physx", "default", "viser"): "Viser cannot import PhysX deformable attributes",
         }
     ),
-    "examples/mpm/newton_mpm_granular.py": ScriptOverride(
-        args=("--max_steps", "20"),
-        readiness_pattern=r"Newton granular MPM example ready",
-        fixed_physics_backend="newton_mpm",
-    ),
+    "examples/mpm/newton_mpm_granular.py": ScriptOverride(fixed_physics_backend="newton_mpm"),
     "examples/mpm/newton_mpm_twoway_coupling.py": ScriptOverride(
         args=("--max_steps", "2", "--voxel_size", "0.2"),
-        readiness_pattern=r"Newton two-way MPM example ready",
         fixed_physics_backend="newton_coupler",
         visualizers=("newton_gl",),
         required_modules=("isaaclab_contrib",),
     ),
-    "examples/demos/snowball_smash.py": ScriptOverride(
-        args=("--max_steps", "20"),
-        readiness_pattern=r"Newton snowball-smash demo ready",
-        fixed_physics_backend="newton_mpm",
-    ),
-    "examples/demos/teapot_fill.py": ScriptOverride(
-        args=("--max_steps", "20"),
-        readiness_pattern=r"Newton teapot-fill MPM demo ready",
-        fixed_physics_backend="newton_mpm",
-    ),
+    "examples/demos/snowball_smash.py": ScriptOverride(fixed_physics_backend="newton_mpm"),
+    "examples/demos/teapot_fill.py": ScriptOverride(fixed_physics_backend="newton_mpm"),
     "examples/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
     "examples/demos/newton_viewer_block_and_tackle.py": ScriptOverride(
-        args=("--max_steps", "20"),
         fixed_physics_backend="newton_vbd",
         visualizers=("newton_gl",),
         required_modules=("isaaclab_contrib",),
     ),
     "examples/newton_viewer_dominoes.py": ScriptOverride(
-        args=("--max_steps", "20"),
         fixed_physics_backend="newton_xpbd",
         visualizers=("newton_gl",),
     ),
@@ -245,13 +231,10 @@ OVERRIDES = {
         },
     ),
     "examples/sensors/newton_raycast.py": ScriptOverride(
-        args=("--max_steps", "20"),
         fixed_physics_backend="newton_mjwarp",
         visualizers=("none", "newton_gl", "rerun", "viser"),
     ),
-    "examples/demos/pick_and_place.py": ScriptOverride(
-        readiness_pattern=r"Gym action space|Press the 'A' key", visualizers=("kit",)
-    ),
+    "examples/demos/pick_and_place.py": ScriptOverride(visualizers=("kit",)),
     "examples/sensors/ppisp_camera.py": ScriptOverride(
         args=("--max_steps", "3", "--warmup_steps", "1", "--image_width", "64", "--image_height", "64"),
         startup_timeout=600.0,
@@ -443,7 +426,7 @@ def gui_is_available() -> bool:
 
 def run_until_ready(
     command: list[str],
-    readiness_pattern: str,
+    readiness_pattern: str | None,
     *,
     startup_timeout: float = 180.0,
     soak_time: float = 5.0,
@@ -453,7 +436,9 @@ def run_until_ready(
     """Run a script until it exits or remains healthy after becoming ready.
 
     Infinite programs are terminated as a process group after the readiness marker
-    has been observed and the soak interval has elapsed.
+    has been observed and the soak interval has elapsed. Without a readiness pattern
+    the script must exit on its own before ``startup_timeout``, and fatal output is
+    monitored through its shutdown.
     """
     start_time = time.monotonic()
     process = subprocess.Popen(
@@ -497,7 +482,7 @@ def run_until_ready(
         while True:
             read_available_output(timeout=0.1)
             decoded = output.decode(errors="replace")
-            if ready_at is None and re.search(readiness_pattern, decoded):
+            if ready_at is None and readiness_pattern and re.search(readiness_pattern, decoded):
                 ready_at = time.monotonic()
 
             returncode = process.poll()
@@ -544,7 +529,7 @@ def run_until_ready(
             record_output(remainder or b"")
 
     decoded = output.decode(errors="replace")
-    if ready_at is None and re.search(readiness_pattern, decoded):
+    if ready_at is None and readiness_pattern and re.search(readiness_pattern, decoded):
         ready_at = time.monotonic()
 
     return SmokeResult(
@@ -558,9 +543,18 @@ def run_until_ready(
 
 
 def assert_smoke_passed(result: SmokeResult, case: LaunchCase) -> None:
-    """Assert that a supervised script reached readiness without a fatal error."""
+    """Assert that a supervised script ran without a fatal error.
+
+    Finite scripts must exit cleanly after their bounded steps; others must reach readiness and survive the soak.
+    """
     tail = result.output[-30000:]
     assert not result.fatal_patterns, f"{case.id} emitted fatal output {result.fatal_patterns}:\n{tail}"
+    if case.spec.finite:
+        assert result.returncode == 0, (
+            f"{case.id} did not exit cleanly after its steps "
+            f"(exit {result.returncode} in {result.elapsed:.1f}s):\n{tail}"
+        )
+        return
     assert result.ready, f"{case.id} did not reach {case.spec.readiness_pattern!r} in {result.elapsed:.1f}s:\n{tail}"
     assert result.stopped_after_soak or result.returncode == 0, (
         f"{case.id} exited with {result.returncode} before completing the soak:\n{tail}"

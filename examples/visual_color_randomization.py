@@ -36,9 +36,12 @@ parser.add_argument("--num_envs", type=int, default=512, help="Number of environ
 parser.add_argument(
     "--physics", default="newton_mjwarp", choices=["isaacsim_physx", "newton_mjwarp"], help="Physics backend."
 )
+parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
+if args_cli.max_steps == 0 or args_cli.max_steps < -1:
+    parser.error("--max_steps must be positive or -1.")
 
 import torch
 
@@ -285,7 +288,9 @@ def main() -> None:
         count = 0
         env.reset()
         print("[INFO]: Setup complete.")
-        while env.sim.is_headless_or_exist_active_visualizer():
+        while env.sim.is_headless_or_exist_active_visualizer() and (
+            args_cli.max_steps < 0 or count < args_cli.max_steps
+        ):
             if count > 0 and count % 50 == 0:
                 num_reset = int(torch.randint(1, env.num_envs + 1, ()).item())
                 env_ids = torch.randperm(env.num_envs, dtype=torch.int32, device=env.device)[:num_reset]

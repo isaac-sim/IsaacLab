@@ -24,9 +24,12 @@ parser = argparse.ArgumentParser(
     conflict_handler="resolve",
 )
 parser.add_argument("--physics", default="isaacsim_physx", choices=["isaacsim_physx"], help="Physics backend.")
+parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
+if args_cli.max_steps == 0 or args_cli.max_steps < -1:
+    parser.error("--max_steps must be positive or -1.")
 
 import torch
 
@@ -91,8 +94,11 @@ def main():
         # Simulation loop
         print("[INFO] Starting example with Lee Position Controller. Press Ctrl+C to stop.")
 
+        step_count = 0
         # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
-        while sim.is_headless_or_exist_active_visualizer():
+        while sim.is_headless_or_exist_active_visualizer() and (
+            args_cli.max_steps < 0 or step_count < args_cli.max_steps
+        ):
             # Compute wrench from position controller
             wrench = controller.compute(pos_command)  # Shape: (1, 6)
 
@@ -106,6 +112,7 @@ def main():
             # Step simulation
             robot.write_data_to_sim()
             sim.step()
+            step_count += 1
 
             # Update robot
             robot.update(sim_cfg.dt)

@@ -43,9 +43,12 @@ parser = argparse.ArgumentParser(
 )
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to spawn.")
 parser.add_argument("--physics", default="isaacsim_physx", choices=["isaacsim_physx"], help="Physics backend.")
+parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
+if args_cli.max_steps == 0 or args_cli.max_steps < -1:
+    parser.error("--max_steps must be positive or -1.")
 
 import math
 from dataclasses import MISSING
@@ -335,8 +338,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
     sim_dt = sim.get_physics_dt()
     count = 0
 
+    step_count = 0
     # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
-    while sim.is_headless_or_exist_active_visualizer():
+    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         if count % 250 == 0:
             # reset counter
             count = 0
@@ -364,6 +368,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
         scene.write_data_to_sim()
         # Perform step
         sim.step()
+        step_count += 1
         # Bring out-of-bounds objects back to the bin.
         transforms = root_view.get_transforms()
         transforms_t = wp.to_torch(transforms) if isinstance(transforms, wp.array) else transforms

@@ -49,9 +49,12 @@ parser.add_argument(
 parser.add_argument(
     "--physics", default="newton_mjwarp", choices=["isaacsim_physx", "newton_mjwarp"], help="Physics backend."
 )
+parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
+if args_cli.max_steps == 0 or args_cli.max_steps < -1:
+    parser.error("--max_steps must be positive or -1.")
 if args_cli.physics == "newton_mjwarp":
     if not getattr(args_cli, "visualizer_explicit", False):
         args_cli.visualizer = ["newton_gl"]
@@ -263,7 +266,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     count = 0
 
     # Simulate physics
-    while sim.is_headless_or_exist_active_visualizer():
+    step_count = 0
+    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         if count % 500 == 0:
             # reset counter
             count = 0
@@ -298,6 +302,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         scene.write_data_to_sim()
         # perform step
         sim.step()
+        step_count += 1
         # update sim-time
         sim_time += sim_dt
         count += 1

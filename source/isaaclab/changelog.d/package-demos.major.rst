@@ -6,6 +6,9 @@ Added
 * Added the ``zoo`` demo, which animates several robot families and rigid objects in one deterministic scene.
 * Added a Newton GL program selector that puts curated demos ahead of focused examples.
 * Reused the Isaac Lab terminal startup screen for packaged demos and examples.
+* Added ``--max_steps`` to the ``arl-robot-1``, ``bin-packing``, ``deformables``, ``markers``, ``multi-asset``,
+  ``procedural-terrain``, ``multi-mesh-ray-caster``, and ``visual-color-randomization`` examples so every packaged
+  program can stop after a fixed number of steps.
 * Added :meth:`~isaaclab.sim.SimulationContext.add_reset_callback` and
   :meth:`~isaaclab.sim.SimulationContext.remove_reset_callback` for callbacks that must be registered before a
   script creates its simulation context.

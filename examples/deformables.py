@@ -26,6 +26,7 @@ parser.add_argument(
     choices=["isaacsim_physx", "newton_vbd", "ovphysx"],
     help="Physics backend.",
 )
+parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
 backend_args, _ = parser.parse_known_args()
 default_visualizer = None if backend_args.physics == "ovphysx" else ["newton_gl"]
@@ -33,6 +34,8 @@ if backend_args.physics == "isaacsim_physx":
     default_visualizer = ["kit"]
 parser.set_defaults(visualizer=default_visualizer)
 args_cli = parser.parse_args()
+if args_cli.max_steps == 0 or args_cli.max_steps < -1:
+    parser.error("--max_steps must be positive or -1.")
 
 if args_cli.visualizer and "newton" in args_cli.visualizer and args_cli.physics != "newton_vbd":
     raise ValueError(
@@ -222,8 +225,9 @@ def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Defor
     sim_time = 0.0
     count = 0
 
+    step_count = 0
     # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
-    while sim.is_headless_or_exist_active_visualizer():
+    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         # reset
         if count % int(3.0 / sim_dt) == 0:
             # reset counters
@@ -238,6 +242,7 @@ def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Defor
             print("[INFO]: Resetting deformable object state...")
         # perform step
         sim.step()
+        step_count += 1
         # update sim-time
         sim_time += sim_dt
         count += 1

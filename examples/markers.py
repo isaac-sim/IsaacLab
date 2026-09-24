@@ -22,9 +22,12 @@ parser = argparse.ArgumentParser(
     conflict_handler="resolve",
 )
 parser.add_argument("--physics", default="isaacsim_physx", choices=["isaacsim_physx"], help="Physics backend.")
+parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
+if args_cli.max_steps == 0 or args_cli.max_steps < -1:
+    parser.error("--max_steps must be positive or -1.")
 
 import torch
 
@@ -131,8 +134,11 @@ def main():
 
         # Yaw angle
         yaw = torch.zeros_like(marker_locations[:, 0])
+        step_count = 0
         # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
-        while sim.is_headless_or_exist_active_visualizer():
+        while sim.is_headless_or_exist_active_visualizer() and (
+            args_cli.max_steps < 0 or step_count < args_cli.max_steps
+        ):
             # rotate the markers around the z-axis for visualization
             marker_orientations = quat_from_angle_axis(yaw, torch.tensor([0.0, 0.0, 1.0]))
             # visualize
@@ -142,6 +148,7 @@ def main():
                 marker_indices = torch.roll(marker_indices, 1)
             # perform step
             sim.step()
+            step_count += 1
             # increment yaw
             yaw += 0.01
 
