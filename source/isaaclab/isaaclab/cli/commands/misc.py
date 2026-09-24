@@ -29,7 +29,6 @@ def command_run_isaacsim(sim_args: list[str]) -> None:
     Args:
         sim_args: Additional arguments passed to the Isaac Sim executable.
     """
-
     isaacsim_exe = extract_isaacsim_exe()
     print_info(f"Running Isaac Sim from: {isaacsim_exe}")
 
@@ -49,7 +48,7 @@ def command_new(new_args: list[str]) -> None:
 
     print_info("Running template generator...")
     cli_script = ISAACLAB_ROOT / "tools" / "template" / "cli.py"
-    run_python_command(cli_script, new_args)
+    run_python_command(cli_script, new_args, check=True)
 
 
 def command_test(test_args: list[str]) -> None:
@@ -58,7 +57,7 @@ def command_test(test_args: list[str]) -> None:
     Args:
         test_args: Additional pytest arguments.
     """
-    run_python_command("-m", ["pytest", str(ISAACLAB_ROOT / "tools")] + test_args)
+    run_python_command("-m", ["pytest", str(ISAACLAB_ROOT / "tools")] + test_args, check=True)
 
 
 def command_editor(editor_args: list[str], project_dir: Path | None = None) -> None:
@@ -210,4 +209,4 @@ def command_run_docker(args: list[str]) -> None:
     """
     script_path = ISAACLAB_ROOT / "docker" / "container.py"
     print_info(f"Running docker utility script from: {script_path}")
-    run_python_command(script_path, args)
+    run_python_command(script_path, args, check=True)

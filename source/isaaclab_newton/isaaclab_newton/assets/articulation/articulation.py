@@ -397,7 +397,7 @@ class Articulation(BaseArticulation):
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            composer.compose_to_body_frame()
+            force_b, torque_b, _ = composer.get_forces_and_torques()
             # Kept separate from the joint-target gather below: this scatter runs
             # over bodies while the target gather runs over joints (mismatched
             # item axes), and it must precede the actuator compute/submit below,
@@ -409,8 +409,8 @@ class Articulation(BaseArticulation):
                     dim=(self.num_instances, self.num_bodies),
                     device=self.device,
                     inputs=[
-                        composer.out_force_b.warp,
-                        composer.out_torque_b.warp,
+                        force_b,
+                        torque_b,
                         self._data.body_link_pose_w.warp,
                         self._body_user_to_backend_map(),
                         self._data._sim_bind_body_external_wrench,
@@ -424,8 +424,8 @@ class Articulation(BaseArticulation):
                     dim=(self.num_instances, self.num_bodies),
                     device=self.device,
                     inputs=[
-                        composer.out_force_b,
-                        composer.out_torque_b,
+                        force_b,
+                        torque_b,
                         self._data.body_link_pose_w.warp,
                         self._data._sim_bind_body_external_wrench,
                         self._ALL_ENV_MASK,
@@ -1714,7 +1714,7 @@ class Articulation(BaseArticulation):
         .. deprecated:: 3.0
             Use :func:`isaaclab.envs.mdp.events.randomize_actuator_gains` for
             managed randomization. Direct controller-gain writes have no public
-            replacement. This method will be removed in 4.0.
+            replacement. This method will be removed in 3.1.
 
         Args:
             stiffness: Controller stiffness [N/m or N·m/rad, depending on joint type].
@@ -1737,7 +1737,7 @@ class Articulation(BaseArticulation):
         .. deprecated:: 3.0
             Use :func:`isaaclab.envs.mdp.events.randomize_actuator_gains` for
             managed randomization. Direct controller-gain writes have no public
-            replacement. This method will be removed in 4.0.
+            replacement. This method will be removed in 3.1.
 
         Args:
             damping: Controller damping [N·s/m or N·m·s/rad, depending on joint type].

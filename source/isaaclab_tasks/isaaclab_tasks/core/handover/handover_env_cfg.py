@@ -3,10 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the direct-workflow Shadow Hand handover environment."""
+
 import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -21,7 +24,6 @@ from isaaclab.utils import configclass
 from isaaclab.utils import math as math_utils
 from isaaclab.visualizers import VisualizerCfg
 
-from isaaclab_tasks.core.handover.handover_common import GOAL_MARKER_CFG, OBJECT_RADIUS
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.shadow_hand import (
@@ -33,6 +35,8 @@ from isaaclab_assets.robots.shadow_hand import (
     TENDON_POSITION_LIMITS,
 )
 
+from .handover_common import GOAL_MARKER_CFG, OBJECT_RADIUS
+
 
 def _hand_cfg(
     base: ArticulationCfg,
@@ -42,24 +46,22 @@ def _hand_cfg(
 ) -> ArticulationCfg:
     """Place one engine's Shadow Hand at this task's pose for one hand.
 
-    The catch needs more joint authority than reorientation, but the hand's gains belong to the
-    hand, so both tasks take them as the asset configuration supplies them. This task used to raise
-    every actuator to stiffness 20 / damping 2, which also drove the tendon-coupled joints -- they
-    take no position command, and MEASURED, giving them one costs the tendon most of its travel:
-    11.1 rad falls to 1.0 rad.
+    The hand's actuator gains are taken as the asset configuration supplies them. Raising the gains
+    of every actuator also drives the tendon-coupled joints, which take no position command, and
+    costs the tendon most of its travel.
 
     Args:
         base: The hand on the engine's asset variant.
         prim_path: Scene path the hand spawns at.
         init_pos: Spawn position [m].
-        init_rot: Spawn orientation as ``(w, x, y, z)``.
+        init_rot: Spawn orientation as an ``(x, y, z, w)`` quaternion.
 
     Returns:
-        That configuration at *prim_path* with the given pose.
+        That configuration at ``prim_path`` with the given pose.
     """
-    # The asset's own spawn rotation is shared by both engines, so the per-hand rotation COMPOSES
-    # with it rather than replacing it -- replacing leaves both palms turned 90 degrees. See
-    # SHADOW_HAND_PHYSX_CFG's init_state for why the asset carries that rotation.
+    # The asset's own spawn rotation is shared by both engines, so the per-hand rotation composes with
+    # it rather than replacing it; replacing leaves both palms turned 90 degrees. See the init_state
+    # of SHADOW_HAND_PHYSX_CFG for why the asset carries that rotation.
     hand_rot = tuple(
         math_utils.quat_mul(
             torch.tensor(init_rot, dtype=torch.float64),
@@ -72,8 +74,7 @@ def _hand_cfg(
     )
 
 
-# Per-hand poses. The rotations are composed with the asset's own; they are unchanged from the
-# previous Newton asset, which the two assets being identical geometry makes valid.
+# per-hand poses, composed with the asset's own rotation
 _RIGHT_POSE = ("{ENV_REGEX_NS}/RightRobot", (0.0, 0.0, 0.5), (0.0, 0.0, 0.0, 1.0))
 _LEFT_POSE = ("{ENV_REGEX_NS}/LeftRobot", (0.0, -1.0, 0.5), (0.0, 0.0, 1.0, 0.0))
 
@@ -106,18 +107,20 @@ BALL_CFG = RigidObjectCfg(
         radius=OBJECT_RADIUS,
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 1.0, 0.0)),
         physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.7),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            kinematic_enabled=False,
-            disable_gravity=False,
-            enable_gyroscopic_forces=True,
-            solver_position_iteration_count=8,
-            solver_velocity_iteration_count=0,
-            sleep_threshold=0.005,
-            stabilization_threshold=0.0025,
-            max_depenetration_velocity=1000.0,
-        ),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
-        mass_props=sim_utils.MassPropertiesCfg(density=500.0),
+        rigid_props=[
+            sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=False),
+            PhysxRigidBodyCfg(
+                disable_gravity=False,
+                enable_gyroscopic_forces=True,
+                solver_position_iteration_count=8,
+                solver_velocity_iteration_count=0,
+                sleep_threshold=0.005,
+                stabilization_threshold=0.0025,
+                max_depenetration_velocity=1000.0,
+            ),
+        ],
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        mass_props=sim_utils.MassCfg(density=500.0),
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.39, 0.54), rot=(0.0, 0.0, 0.0, 1.0)),
 )
@@ -175,6 +178,8 @@ class HandoverSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class HandoverEnvCfg(DirectMARLEnvCfg):
+    """Configuration for the direct-workflow two-hand handover environment."""
+
     # env
     decimation = 2
     episode_length_s = 7.5
@@ -183,7 +188,7 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     observation_spaces = {"right_hand": 157, "left_hand": 157}
     state_space = 290
 
-    # simulation — values mirrored by the manager cfg
+    # simulation, mirrored by the manager-based configuration
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
         render_interval=decimation,

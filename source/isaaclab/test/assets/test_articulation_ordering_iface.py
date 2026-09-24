@@ -7,7 +7,7 @@
 
 """Mocked cross-backend articulation ordering interface tests."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -17,7 +17,6 @@ from _articulation_iface_test_utils import BACKEND_UNAVAILABLE_REASONS, BACKENDS
 from _pytest.mark.structures import ParameterSet
 
 from isaaclab.utils.buffers import TimestampedBufferWarp
-from isaaclab.utils.wrench_composer import WrenchComposer
 
 
 def _make_body_ordering_backend_data(num_instances: int, num_bodies: int) -> tuple[np.ndarray, ...]:
@@ -679,24 +678,21 @@ def _set_body_ordering_backend_data(
         raise AssertionError(f"Unsupported backend for body-ordering test: {backend}")
 
 
-def _set_identity_body_poses(backend: str, art, raw_backend) -> None:
-    """Give wrench transforms deterministic identity rotations."""
+def _set_rotated_body_poses(backend: str, art, raw_backend) -> None:
+    """Use a known 90-degree Z rotation and nonzero positions for wrench packing."""
+    poses = np.zeros((art.num_instances, art.num_bodies, 7), dtype=np.float32)
+    poses[..., 0] = np.arange(art.num_bodies) + 10.0
+    poses[..., 5:7] = 2.0**-0.5
     if backend == "newton":
-        poses = np.zeros((art.num_instances, art.num_bodies, 7), dtype=np.float32)
-        poses[..., 6] = 1.0
         poses_wp = wp.array(poses[:, None], dtype=wp.transformf, device=art.device)
         raw_backend.set_mock_link_transforms(poses_wp)
         art.data._sim_bind_body_link_pose_w.assign(poses_wp[:, 0])
         art.data._refresh_user_order_body_state()
-        return
-    if backend != "ovphysx":
-        return
-    from isaaclab_ov import tensor_types as TT
+    elif backend == "ovphysx":
+        from isaaclab_ov import tensor_types as TT
 
-    poses = np.zeros((art.num_instances, art.num_bodies, 7), dtype=np.float32)
-    poses[..., 6] = 1.0
-    raw_backend.bindings[TT.LINK_POSE]._data = poses
-    art.data._reset_pose()
+        raw_backend.bindings[TT.LINK_POSE]._data = poses
+        art.data._reset_pose()
 
 
 def _read_backend_wrench(backend: str, art, raw_backend, captured: dict) -> tuple[np.ndarray, np.ndarray]:
@@ -2011,13 +2007,13 @@ class TestArticulationOperations:
             is_fixed_base=is_fixed_base,
             body_ordering=body_ordering,
         )
-        _set_identity_body_poses(backend, art, raw_backend)
-        object.__setattr__(art, "_instantaneous_wrench_composer", WrenchComposer(art))
-        object.__setattr__(art, "_permanent_wrench_composer", WrenchComposer(art))
+        _set_rotated_body_poses(backend, art, raw_backend)
         captured = {}
         if backend == "physx":
 
             def capture_wrench(*, force_data, torque_data, position_data, indices, is_global):
+                captured["is_global"] = is_global
+                assert position_data is None
                 captured["force"] = force_data.numpy().reshape(num_instances, num_bodies, 3).copy()
                 captured["torque"] = torque_data.numpy().reshape(num_instances, num_bodies, 3).copy()
 
@@ -2025,17 +2021,32 @@ class TestArticulationOperations:
 
         forces = np.arange(num_instances * num_bodies * 3, dtype=np.float32).reshape(num_instances, num_bodies, 3)
         torques = forces + 100.0
-        art.instantaneous_wrench_composer.set_forces_and_torques_index(
-            forces=wp.array(forces, dtype=wp.vec3f, device=device),
-            torques=wp.array(torques, dtype=wp.vec3f, device=device),
-        )
-
-        art.write_data_to_sim()
-
         backend_to_user = _expected_backend_to_user(body_ordering, backend_body_names)
-        backend_force, backend_torque = _read_backend_wrench(backend, art, raw_backend, captured)
-        np.testing.assert_allclose(backend_force, forces[:, backend_to_user])
-        np.testing.assert_allclose(backend_torque, torques[:, backend_to_user])
+        composer = art.instantaneous_wrench_composer
+        for is_global in (False, True):
+            composer.set_forces_and_torques_index(
+                forces=wp.array(forces, dtype=wp.vec3f, device=device),
+                torques=wp.array(torques, dtype=wp.vec3f, device=device),
+                is_global=is_global,
+            )
+            with patch.object(composer, "compose_to_body_frame", wraps=composer.compose_to_body_frame) as compose:
+                art.write_data_to_sim()
+            assert compose.call_count == int(is_global and backend == "newton")
+
+            expected_force, expected_torque = forces, torques
+            if backend == "physx":
+                assert captured["is_global"] is is_global
+            elif not is_global:
+                expected_force = np.stack((-forces[..., 1], forces[..., 0], forces[..., 2]), axis=-1)
+                expected_torque = np.stack((-torques[..., 1], torques[..., 0], torques[..., 2]), axis=-1)
+            backend_force, backend_torque = _read_backend_wrench(backend, art, raw_backend, captured)
+            np.testing.assert_allclose(backend_force, expected_force[:, backend_to_user], atol=1e-4)
+            np.testing.assert_allclose(backend_torque, expected_torque[:, backend_to_user], atol=1e-4)
+            if backend == "ovphysx":
+                from isaaclab_ov import tensor_types as TT
+
+                packed_positions = raw_backend.bindings[TT.LINK_WRENCH]._data[..., 6:9]
+                np.testing.assert_array_equal(packed_positions, raw_backend.bindings[TT.LINK_POSE]._data[..., :3])
 
     @_requires_ovphysx
     def test_ovphysx_configured_defaults_use_public_joint_names(self):

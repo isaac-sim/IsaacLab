@@ -58,6 +58,7 @@ import torch
 import tqdm
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 
 ##
 # Pre-defined configs
@@ -283,7 +284,12 @@ def main():
         sim.set_camera_view([4.0, 4.0, 3.0], [0.5, 0.5, 0.0])
 
         # Design scene by adding assets to it
+        plan = cloner.make_clone_plan(
+            (), 1, 0.0, global_paths=("/World/defaultGroundPlane", "/World/light", "/World/Origin")
+        )
+        sim.set_clone_plan(plan)
         scene_entities, _ = design_scene()
+        cloner.replicate(plan, replicate_physics=False)
         # Play the simulator
         sim.reset()
         # Now we are ready!

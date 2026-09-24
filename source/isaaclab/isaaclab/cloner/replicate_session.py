@@ -12,12 +12,10 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from isaaclab.sim import SimulationContext
-
+from ..sim import SimulationContext
 from .clone_plan import make_clone_plan
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE
 from .cloner_strategies import sequential
-from .usd import UsdReplicateContext
 
 if TYPE_CHECKING:
     from .clone_plan import ClonePlan
@@ -32,8 +30,8 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
 
     Args:
         plan: Replication layout to dispatch.
-        replicate_physics: Whether physics replication clones each environment. If False,
-            cloning is USD-only; an asset whose contexts are all physics-based is not cloned.
+        replicate_physics: Whether the active physics context clones each environment.
+            Other declared contexts still build their scene representations when False.
     """
     sim = SimulationContext.instance()
     if sim is None:
@@ -41,14 +39,16 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
     if sim.get_clone_plan() is not plan:
         raise ValueError("replicate() requires the active SimulationContext's ClonePlan.")
     context_types = tuple(
-        context_type for context_type in plan.context_rows if replicate_physics or context_type is UsdReplicateContext
+        context_type
+        for context_type in plan.context_rows
+        if replicate_physics or context_type is not sim.physics_manager.clone_context_type
     )
-    missing = [context_type for context_type in context_types if context_type not in sim._backend_registry]
+    missing = [context_type for context_type in context_types if context_type not in sim.clone_contexts]
     if missing:
         names = ", ".join(f"{context_type.__module__}.{context_type.__qualname__}" for context_type in missing)
         raise RuntimeError(f"Clone contexts must be registered before plan dispatch: {names}.")
 
-    contexts = [sim._backend_registry[context_type] for context_type in context_types]
+    contexts = [sim.clone_contexts[context_type] for context_type in context_types]
     for context in sorted(contexts, key=lambda item: item.replicate_priority):
         context.replicate(plan)
 

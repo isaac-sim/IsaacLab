@@ -28,9 +28,8 @@ from isaaclab.utils.math import (
     skew_symmetric_matrix,
 )
 
-from isaaclab_tasks.core.lift.mdp.events import SuccessMonitor
-from isaaclab_tasks.core.lift.mdp.events_cfg import SuccessMonitorCfg
 from isaaclab_tasks.core.lift.mdp.utils import get_reset_state, set_reset_state
+from isaaclab_tasks.utils.success_monitor import SuccessMonitor, SuccessMonitorCfg
 
 from . import typing_vis
 
@@ -952,7 +951,7 @@ class LetterTypingCommand(CommandTerm):
         position, so it need not be exactly reachable on the 5-DoF arm.
 
         Args:
-            ee_quat_w: Current moving-jaw link orientation (w, x, y, z), shape ``(num_envs, 4)``.
+            ee_quat_w: Current moving-jaw link orientation (x, y, z, w), shape ``(num_envs, 4)``.
         """
         finger = quat_apply(ee_quat_w, self._ik_finger_axis)  # current finger axis in world
         heading = finger[:, :2] / torch.linalg.norm(finger[:, :2], dim=-1, keepdim=True).clamp_min(1.0e-6)

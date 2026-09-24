@@ -16,8 +16,10 @@ run the corresponding backend-runtime group.
 """
 
 import ast
+import fcntl
 import os
 import re
+import struct
 import subprocess
 import sys
 from dataclasses import replace
@@ -395,6 +397,7 @@ def test_subprocess_supervisor_completes_soak_after_startup_deadline(monkeypatch
     monkeypatch.setattr(script_cases.selectors, "DefaultSelector", lambda: selector)
     monkeypatch.setattr(script_cases.os, "read", lambda *args: b"READY\n")
     monkeypatch.setattr(script_cases.time, "monotonic", lambda: now)
+    monkeypatch.setattr(fcntl, "ioctl", lambda *args: struct.pack("i", 0))
     monkeypatch.setattr(script_cases, "_terminate_process_group", lambda process: setattr(process, "returncode", -15))
 
     result = run_until_ready(["demo.py"], r"READY", startup_timeout=300.0, soak_time=5.0)
@@ -440,6 +443,7 @@ def test_subprocess_supervisor_ignores_fatal_output_after_intentional_teardown(m
     monkeypatch.setattr(script_cases.subprocess, "Popen", lambda *args, **kwargs: process)
     monkeypatch.setattr(script_cases.selectors, "DefaultSelector", FakeSelector)
     monkeypatch.setattr(script_cases.os, "read", lambda *args: b"READY\n")
+    monkeypatch.setattr(fcntl, "ioctl", lambda *args: struct.pack("i", 0))
     monkeypatch.setattr(script_cases, "_terminate_process_group", lambda process: setattr(process, "returncode", -15))
 
     result = run_until_ready(["demo.py"], r"READY", startup_timeout=2.0, soak_time=0.0)
@@ -449,49 +453,38 @@ def test_subprocess_supervisor_ignores_fatal_output_after_intentional_teardown(m
     assert not result.fatal_patterns
 
 
-def test_subprocess_supervisor_classifies_buffered_fatal_output_before_intentional_teardown(monkeypatch):
-    """Fatal output already buffered at the soak deadline must remain test-failing."""
+@pytest.mark.parametrize("continuous_output", [False, True])
+def test_subprocess_supervisor_classifies_buffered_fatal_output_before_intentional_teardown(
+    monkeypatch, continuous_output
+):
+    """Drain pre-teardown errors without letting a continuous producer extend the soak."""
+    process = mock.Mock(returncode=None)
+    process.poll.side_effect = lambda: process.returncode
+    process.communicate.return_value = (b"post-teardown output\n", None)
+    selector = mock.Mock()
+    chunks = [b"READY\n", b"x" * 65536, b"Traceback (most recent call last):\n"]
+    pending_bytes = sum(map(len, chunks[1:]))
+    reads = 0
 
-    class FakeStdout:
-        def fileno(self):
-            return 1
+    def read(fd, size):
+        nonlocal reads
+        reads += 1
+        assert reads <= 4, "Continuous output prevented the supervisor from terminating the process"
+        return chunks.pop(0) if chunks else b"still running\n"
 
-    class FakeProcess:
-        stdout = FakeStdout()
-        returncode = None
-
-        def poll(self):
-            return self.returncode
-
-        def communicate(self, timeout):
-            return b"post-teardown output\n", None
-
-    class FakeSelector:
-        selections = 0
-
-        def register(self, fileobj, events):
-            self.fileobj = fileobj
-
-        def select(self, timeout):
-            self.selections += 1
-            if self.selections > 2:
-                return []
-            key = type("Key", (), {"fileobj": self.fileobj})()
-            return [(key, script_cases.selectors.EVENT_READ)]
-
-        def close(self):
-            pass
-
-    process = FakeProcess()
-    chunks = iter((b"READY\n", b"Traceback (most recent call last):\n"))
+    selector.select.side_effect = lambda timeout: (
+        [(mock.Mock(fileobj=process.stdout), script_cases.selectors.EVENT_READ)] if chunks or continuous_output else []
+    )
     monkeypatch.setattr(script_cases.subprocess, "Popen", lambda *args, **kwargs: process)
-    monkeypatch.setattr(script_cases.selectors, "DefaultSelector", FakeSelector)
-    monkeypatch.setattr(script_cases.os, "read", lambda *args: next(chunks))
+    monkeypatch.setattr(script_cases.selectors, "DefaultSelector", lambda: selector)
+    monkeypatch.setattr(script_cases.os, "read", read)
+    monkeypatch.setattr(fcntl, "ioctl", lambda *args: struct.pack("i", pending_bytes))
     monkeypatch.setattr(script_cases, "_terminate_process_group", lambda process: setattr(process, "returncode", -15))
 
     result = run_until_ready(["demo.py"], r"READY", startup_timeout=2.0, soak_time=0.0)
     assert result.ready
     assert result.stopped_after_soak
+    assert not chunks
     assert "Traceback (most recent call last):" in result.fatal_patterns
 
 

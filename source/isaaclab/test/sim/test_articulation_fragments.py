@@ -22,6 +22,13 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 
+@pytest.fixture(autouse=True)
+def cleanup_simulation_context():
+    """Release the simulation context after each test."""
+    yield
+    SimulationContext.clear_instance()
+
+
 def _make_xform(stage, path="/World/Art"):
     UsdGeom.Xform.Define(stage, path)
     return stage.GetPrimAtPath(path)

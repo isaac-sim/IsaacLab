@@ -1,6 +1,121 @@
 Changelog
 ---------
 
+3.3.2 (2026-09-24)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Cached OVRTX render-var frame keys during camera initialization, avoiding repeated version checks and
+  path construction during frame processing. Existing camera output behavior and APIs remained unchanged.
+* Derived OVRTX cloned camera paths from the authored absolute source path in
+  ``CameraRenderSpec.camera_prim_paths``. Remove the ``camera_path_relative_to_env_0`` argument
+  when constructing render specs; OVRTX validated the source path under
+  ``/World/envs/env_0/`` and resolved the per-environment paths internally.
+* Changed the external-wrench writers to submit through
+  :meth:`~isaaclab.utils.wrench_composer.WrenchComposer.get_forces_and_torques`. A wrench that is already
+  global-frame at the center of mass is now packed without rotating it into the body frame and back,
+  and an all-local-frame wrench no longer reads the body transforms before packing.
+* Published OVPhysX rigid poses directly into shared scene-data storage and invalidated cached transforms after
+  physics steps and manual pose writes. Binding failures were surfaced instead of publishing incomplete poses.
+* Routed OVRTX rigid transforms through cached SDP matrix requests, preserving authored scales without a Newton
+  rigid-state intermediary. Existing renderer configurations remained valid; Newton-backed deformable, particle,
+  and cable geometry transport remained unchanged.
+* Captured OVRTX authored scales from clone-plan prototypes and shared roots, including bodies outside the
+  default environment namespace.
+
+Fixed
+^^^^^
+
+* Fixed OVRTX scenes with more than one camera failing at startup with
+  ``Layout-compatible non-array tensor shape[0] (N) must equal binding prim count (1)``. Cameras
+  registered after the first one bound the camera prims authored on the USD stage, which is one
+  prototype per spawn variant rather than one per environment whenever USD replication does not
+  run, as in kitless runs on OvPhysx and Newton. Every camera now binds one prim per environment,
+  for both its transform and its calibration columns.
+
+
+3.3.1 (2026-09-23)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Centralized camera identity and simplified USD helper inputs. Pass ``render_scope_name``
+  explicitly to ``OVRTXCameraRenderData`` and render-var configuration helpers. Pass ``spec`` and ``render_data``
+  to ``build_render_scope_usd`` and ``build_render_product_as_string`` instead of individual camera fields.
+  The product builder returns a complete USD layer string; pass it directly to USD loaders without adding
+  a header or default-prim metadata, and use ``OVRTXCameraRenderData.render_product_path`` instead of
+  unpacking a path from the builder's return value.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``build_render_var_frame_keys`` and ``RENDER_VAR_FRAME_KEYS``.
+  Use ``render_var_prim_names_by_source()`` for the static source-to-prim-name mapping. Direct frame readers
+  must use source names on OVRTX 0.4 and ``/<camera scope>/Vars/<prim name>`` paths on OVRTX 0.5 and later.
+
+Fixed
+^^^^^
+
+* Fixed OVRTX 0.5 camera output and segmentation metadata lookups to use each camera's
+  authored RenderVar paths, preventing empty images and missing segmentation maps.
+  Kept OVRTX 0.4 support by resolving frame keys in the shared output lookup helper.
+* Fixed OVRTX cloning of homogeneous scenes, where every spawner is single-variant and the clone plan replicates the
+  environment roots themselves. The exported stage retained those roots, so cloning targeted prims that already
+  existed. The env roots were trimmed for such plans and kept for plans whose rows target prims beneath them.
+
+
+3.3.0 (2026-09-22)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated the optional OV dependencies to ``ovrtx==0.5.0.377615``,
+  ``ovstage==0.2.0.377349``, ``ovphysx==0.6.3``, and ``omniverseclient==2.74.0``. Upgrade
+  them together with ``uv sync --inexact --extra ov``.
+* **Breaking:** OvPhysX CPU-backed property writes require CPU-resident ``values``,
+  ``indices``, and ``mask`` arrays.
+* Declared OVRTX's Newton geometry adapter before cloning so it used the shared clone plan.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX ``FrameTransformer`` reusing the last offset when distinct bodies
+  share the same implicit frame name.
+* Fixed OVRTX cameras sharing a renderer to use separate tiled render products and pose bindings,
+  preserving each sensor's resolution, output types, and camera poses across environment copies.
+  Released each camera's render product during cleanup.
+* Applied runtime camera calibration through bulk device writes in both OVRTX binding and ovstage
+  paths. Previously camera updates only synchronized poses, leaving calibration changes unapplied
+  in the renderer-owned scene. Native tiled-projection restrictions were unchanged.
+* Scoped calibration bindings and queries to each camera's render data so cameras sharing a renderer
+  no longer overwrote each other's calibration. Accessed native resources through the shared backend
+  for calibration binding, updates, and cleanup.
+
+
+3.2.0 (2026-09-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``OvPhysxBackendCfg`` and ``OVRTXBackendCfg`` for cfg-only native resource acquisition through the registry.
+  ``OvPhysxCfg`` continued to configure the physics manager and its scene policy.
+* Exposed ``OvPhysxManager.backend`` and ``OVRTXRenderer.backend`` as borrowed native resources owned by the registry.
+
+Changed
+^^^^^^^
+
+* Moved OVPhysX runtime and attached OVStage ownership into the simulation backend registry, preserving
+  the existing reset, native teardown order, and public ``OvPhysxManager.get_physx_instance()`` API.
+* Moved OVRTX engine and detached-stage ownership into the same registry. Camera bindings stayed on the renderer;
+  renderer closure released only its bindings, leaving shared native resources alive until simulation shutdown.
+  Native engine destruction preceded detached-stage release, including cleanup before scene attachment.
+
+
 3.1.3 (2026-09-17)
 ~~~~~~~~~~~~~~~~~~
 

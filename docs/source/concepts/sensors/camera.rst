@@ -50,6 +50,13 @@ the scene configuration:
 See :doc:`/source/concepts/backends_and_presets` for preset discovery and
 :ref:`renderer-visual-comparison` for a same-scene comparison of the renderer outputs.
 
+With OVRTX, separate camera sensors share the scene and renderer when their renderer
+configurations match, while each sensor owns a separate tiled render product. For example,
+``env_0/head_camera`` and ``env_1/head_camera`` form one product, while
+``env_0/wrist_camera`` and ``env_1/wrist_camera`` form another. The sensors can use different
+resolutions and output types, and their poses update independently. Define all camera prims
+before initializing the simulation so they are included in the scene exported to OVRTX.
+
 .. _camera-configuration:
 
 Configure a camera
@@ -339,5 +346,5 @@ A runnable camera example is available in ``scripts/demos/sensors/cameras.py``:
 
    uv run --extra isaacsim python scripts/demos/sensors/cameras.py
 
-For saving output to disk, see :doc:`/source/how-to/save_camera_output`. For camera-capacity
-estimation, see :doc:`/source/how-to/estimate_how_many_cameras_can_run`.
+For saving output to disk, see :doc:`/source/how-to/save_camera_output`. For renderer selection
+and customization, see :doc:`/source/how-to/configure_rendering`.

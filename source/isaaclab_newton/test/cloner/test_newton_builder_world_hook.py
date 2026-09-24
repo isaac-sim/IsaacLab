@@ -13,7 +13,7 @@ import newton
 import numpy as np
 import pytest
 from isaaclab_newton.cloner import copy_newton_clone_source, newton_builder_world_hook
-from isaaclab_newton.physics import NewtonManager
+from isaaclab_newton.physics import NewtonCfg, NewtonManager
 
 from pxr import Gf, Usd, UsdGeom, UsdLux, UsdPhysics
 
@@ -66,9 +66,21 @@ def test_copy_newton_clone_source_owns_mutable_geometry(monkeypatch):
     assert copied.shape_source[0] is not source.shape_source[0]
 
 
-@pytest.mark.parametrize("load_visual_shapes", [False, True])
-def test_scene_import_preserves_global_and_prototype_ownership(monkeypatch, load_visual_shapes):
-    """Global lights stay shared; prototype lights follow geometry into selected worlds."""
+@pytest.mark.parametrize(
+    "load_visual_shapes,is_rendering,rgb_array,visual_shapes_required,expected",
+    [
+        pytest.param(None, False, False, False, False, id="headless"),
+        pytest.param(None, True, False, False, True, id="viewer"),
+        pytest.param(None, False, True, False, True, id="offscreen"),
+        pytest.param(None, False, False, True, True, id="camera"),
+        pytest.param(True, False, False, False, True, id="force-visuals"),
+        pytest.param(False, True, True, True, False, id="skip-visuals"),
+    ],
+)
+def test_scene_import_preserves_global_and_prototype_ownership(
+    monkeypatch, load_visual_shapes, is_rendering, rgb_array, visual_shapes_required, expected
+):
+    """Global imports honor visual requirements and keep colliders in Newton world -1."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.SetStageUpAxis(stage, "Z")
     UsdPhysics.Scene.Define(stage, "/physicsScene")
@@ -95,7 +107,15 @@ def test_scene_import_preserves_global_and_prototype_ownership(monkeypatch, load
     monkeypatch.setattr(
         replicate_module.PhysicsManager,
         "_sim",
-        SimpleNamespace(physics_manager=manager, cfg=SimpleNamespace(physics_prim_path="/physicsScene")),
+        SimpleNamespace(
+            physics_manager=manager,
+            cfg=SimpleNamespace(
+                physics=NewtonCfg(load_visual_shapes=load_visual_shapes), physics_prim_path="/physicsScene"
+            ),
+            is_rendering=is_rendering,
+            can_render_rgb_array=lambda: rgb_array,
+            visual_shapes_required=visual_shapes_required,
+        ),
     )
     monkeypatch.setattr(replicate_module.NewtonManager, "_deformable_registry", ())
     monkeypatch.setattr(replicate_module.NewtonManager, "_cl_inject_sites", mock.Mock(return_value=({}, {}, {})))
@@ -105,8 +125,14 @@ def test_scene_import_preserves_global_and_prototype_ownership(monkeypatch, load
         (lambda builder, index, *_args: builder.add_body(label=f"/World/envs/env_{index}/Anchor"),),
     )
     monkeypatch.setattr(replicate_module, "replace_newton_builder_shape_colors", mock.Mock())
+    monkeypatch.setattr(NewtonManager, "_builder", None)
+    monkeypatch.setattr(NewtonManager, "_cl_site_index_map", {})
+    monkeypatch.setattr(NewtonManager, "_cl_fabric_body_bindings", [])
+    monkeypatch.setattr(NewtonManager, "_world_xforms", None)
+    monkeypatch.setattr(NewtonManager, "_cl_protos", {})
+    monkeypatch.setattr(NewtonManager, "_num_envs", 0)
 
-    builder, *_ = replicate_module._build_newton_builder_from_mapping(
+    builder, _ = replicate_module.newton_physics_replicate(
         stage,
         (source, unused_source),
         ("/World/envs/env_{}/Lamp", "/World/envs/env_{}/Unused"),
@@ -115,10 +141,10 @@ def test_scene_import_preserves_global_and_prototype_ownership(monkeypatch, load
         positions=np.asarray([[10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [30.0, 0.0, 0.0]], dtype=np.float32),
         quaternions=np.asarray([[0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 2**-0.5, 2**-0.5]], dtype=np.float32),
         global_paths=global_paths,
-        load_visual_shapes=load_visual_shapes,
     )
 
     assert [call.kwargs["root_path"] for call in add_usd.call_args_list] == ["/physicsScene", *global_paths]
+    assert all(call.kwargs["load_visual_shapes"] is expected for call in add_usd.call_args_list)
     manager._inject_terrain_heightfields.assert_called_once_with(
         stage, builder, root_paths=("/physicsScene", *global_paths)
     )
@@ -127,7 +153,7 @@ def test_scene_import_preserves_global_and_prototype_ownership(monkeypatch, load
     assert model.shape_world.numpy()[ground_index] == -1
     assert model.world_count == 3
     assert "/World/Light" not in model.shape_label  # USD lights are not Newton physics entities.
-    if load_visual_shapes:
+    if expected:
         lights = Usd.Stage.CreateInMemory()
         lights.GetRootLayer().ImportFromString(model.isaaclab.scene_lights[0])
         imported = [UsdLux.DistantLight(prim) for prim in lights.Traverse() if prim.IsA(UsdLux.DistantLight)]

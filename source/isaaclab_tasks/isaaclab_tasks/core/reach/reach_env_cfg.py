@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Base configuration for the end-effector reach environments."""
+
 from dataclasses import MISSING
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
@@ -36,6 +38,8 @@ from isaaclab_tasks.utils import PresetCfg
 
 @configclass
 class ReachPhysicsCfg(PresetCfg):
+    """Physics backend presets for the reach environments."""
+
     isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
     ovphysx: OvPhysxCfg = OvPhysxCfg()
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
@@ -77,7 +81,7 @@ class ReachSceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0.0, -0.5)),
         spawn=sim_utils.CuboidCfg(
             size=(0.9, 1.3, 1.0),
-            collision_props=sim_utils.CollisionBaseCfg(),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
     )
 
@@ -140,7 +144,7 @@ class ObservationsCfg:
         pose_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "ee_pose"})
         actions = ObsTerm(func=mdp.last_action)
 
-        def __post_init__(self) -> None:
+        def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
 
@@ -234,13 +238,14 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
     events: EventCfg = EventCfg()
     curriculum: CurriculumCfg = CurriculumCfg()
 
-    def __post_init__(self) -> None:
+    def __post_init__(self):
         """Post initialization."""
         # general settings
         self.decimation = 4
-        self.sim.render_interval = self.decimation
         self.episode_length_s = 12.0
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(3.5, 3.5, 3.5))
         # simulation settings
-        self.sim.dt = 1.0 / 120.0
+        self.sim.dt = 1 / 120
+        self.sim.render_interval = self.decimation
         self.sim.physics = ReachPhysicsCfg()
+        # visualizer settings
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(3.5, 3.5, 3.5))
