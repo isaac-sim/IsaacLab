@@ -15,6 +15,8 @@ import statistics
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+import torch
+import torch.distributed as dist
 from tensorboard.backend.event_processing import event_accumulator
 
 from .schema import Framework, MeanStd
@@ -190,6 +192,24 @@ class SuccessRateTracker:
             self._iter_sum += val
             self._iter_count += 1
         self._step_count += 1
+
+    def all_reduce_iteration(self, device: str) -> None:
+        """Sum the current iteration's success samples across distributed ranks.
+
+        Every rank must call this at the same iteration boundary, before :meth:`end_iteration`, so
+        all ranks record the same global history and reach the same convergence decision. Does
+        nothing when no :mod:`torch.distributed` process group is initialized.
+
+        Args:
+            device: Device of the tensor exchanged by the collective, which must match the
+                process-group backend (a CUDA device for NCCL).
+        """
+        if not (dist.is_available() and dist.is_initialized()):
+            return
+        stats = torch.tensor([self._iter_sum, float(self._iter_count)], dtype=torch.float64, device=device)
+        dist.all_reduce(stats, op=dist.ReduceOp.SUM)
+        self._iter_sum = stats[0].item()
+        self._iter_count = int(stats[1].item())
 
     def end_iteration(self) -> float | None:
         """Finalize the current iteration. Returns mean metric, or ``None`` if no data."""
