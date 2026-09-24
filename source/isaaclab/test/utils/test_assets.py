@@ -528,6 +528,7 @@ def asset_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(assets_utils, "_ANNOUNCED_MIRROR_DIRS", set())
     monkeypatch.setattr(assets_utils, "_ANNOUNCED_MIRRORS", set())
     monkeypatch.setattr(assets_utils, "_MIRRORED_URLS", {})
+    monkeypatch.setattr(assets_utils, "_LOCALIZED_ASSETS", {})
     return tmp_path
 
 
@@ -560,6 +561,123 @@ def _cache_asset(cache_dir, url: str, payload: bytes, fingerprint: dict | None) 
             json.dumps(fingerprint), encoding="utf-8"
         )
     return mirrored
+
+
+@pytest.mark.parametrize("layout", ["local", "direct", "nested", "remote"])
+def test_local_usd_mirrors_remote_sublayer_without_editing_source(asset_cache, monkeypatch, layout):
+    """Compose local and remote dependency chains without editing the authored layers."""
+    import omni.client
+    from pxr import Usd
+
+    scene = asset_cache / "scene.usda"
+    robot = asset_cache / "robot.usda"
+    local = asset_cache / "local.usda"
+    local.write_text('#usda 1.0\ndef Xform "local" {}\n', encoding="utf-8")
+    cartpole = '#usda 1.0\ndef Xform "cartpole" {}\n'
+    robot.write_text(
+        cartpole if layout == "local" else f"#usda 1.0\n(subLayers = [@{_REMOTE_URL}@])\n",
+        encoding="utf-8",
+    )
+    if layout == "nested":
+        # An asset-valued property closes the dependency cycle without cyclic composition.
+        with robot.open("a", encoding="utf-8") as layer:
+            layer.write('def Scope "links" {\n    asset source = @scene.usda@\n}\n')
+    reference = _REMOTE_URL if layout == "direct" else "robot.usda"
+    scene.write_text(f"#usda 1.0\n(subLayers = [@{reference}@, @local.usda@])\n", encoding="utf-8")
+    originals = {path: path.read_bytes() for path in (scene, robot, local)}
+    root_url = "https://example.com/custom/scene.usda"
+    payloads = {
+        _REMOTE_URL: cartpole.encode(),
+        root_url: scene.read_bytes(),
+        "https://example.com/custom/robot.usda": robot.read_bytes(),
+        "https://example.com/custom/local.usda": local.read_bytes(),
+    }
+    revision = {"hash": "abc123", "version": "", "size": 32, "modified_time": "2026-07-01 10:00:00"}
+    _serve(monkeypatch, dict.fromkeys(payloads, revision))
+
+    def fake_copy(url, target_path, behavior):
+        Path(target_path).write_bytes(payloads[url])
+        return omni.client.Result.OK
+
+    monkeypatch.setattr(omni.client, "copy", fake_copy)
+    source = root_url if layout == "remote" else str(scene)
+    resolved_path = assets_utils.retrieve_file_path(source)
+    stage = Usd.Stage.Open(resolved_path)
+    assert stage.GetPrimAtPath("/cartpole").IsValid()
+    assert stage.GetPrimAtPath("/local").IsValid()
+    assert {path: path.read_bytes() for path in originals} == originals
+    if layout == "nested":
+        assert stage.GetPrimAtPath("/links").GetAttribute("source").Get().resolvedPath == resolved_path
+    if layout == "remote":
+        assert assets_utils.unmirror_file_path(resolved_path) == root_url
+        assert assets_utils.read_file(root_url).read() == payloads[root_url]
+
+    if layout == "local":
+        assert resolved_path == str(scene)
+        # Ordinary local files must be inspected again after an edit.
+        robot.write_text(f"#usda 1.0\n(subLayers = [@{_REMOTE_URL}@])\n", encoding="utf-8")
+        resolved_path = assets_utils.retrieve_file_path(source)
+        stage = Usd.Stage.Open(resolved_path)
+        assert stage.GetPrimAtPath("/cartpole").IsValid()
+    else:
+        # A completed local tree can be consumed without parsing its dependencies again.
+        with monkeypatch.context() as cached:
+            cached.setattr(assets_utils, "_find_asset_dependencies", lambda _: pytest.fail("walked a completed tree"))
+            assert assets_utils.retrieve_file_path(resolved_path) == resolved_path
+
+    # Deleting a cached dependency invalidates completion and retrieval repairs the tree.
+    mirrored = Path(assets_utils._mirror_path(_REMOTE_URL, str(asset_cache)))
+    mirrored.unlink()
+    repaired = assets_utils.retrieve_file_path(resolved_path)
+    assert mirrored.is_file()
+    stage = Usd.Stage.Open(repaired)
+    assert stage.GetPrimAtPath("/cartpole").IsValid()
+
+    if layout == "remote":
+        payloads[_REMOTE_URL] = b'#usda 1.0\ndef Xform "updated_cartpole" {}\n'
+        stage = None
+        refreshed = assets_utils.retrieve_file_path(repaired, force_download=True)
+        stage = Usd.Stage.Open(refreshed)
+        assert stage.GetPrimAtPath("/updated_cartpole").IsValid()
+        assert not stage.GetPrimAtPath("/cartpole").IsValid()
+
+
+@pytest.mark.parametrize("interrupted", [False, True])
+def test_retrieve_file_path_retries_incomplete_tree(asset_cache, monkeypatch, interrupted):
+    """A downloaded root is not a completed tree when a dependency fails to download."""
+    import omni.client
+    from pxr import Usd
+
+    child_url = "https://example.com/Assets/Isaac/Robots/child.usda"
+    revision = {"hash": "abc123", "version": "", "size": 32, "modified_time": "2026-07-01 10:00:00"}
+    _serve(monkeypatch, {_REMOTE_URL: revision, child_url: revision})
+    fail_child = True
+
+    def fake_copy(url, target_path, behavior):
+        if url == child_url and fail_child:
+            Path(target_path).write_text("partial download", encoding="utf-8")
+            if interrupted:
+                raise RuntimeError("download interrupted")
+            return omni.client.Result.ERROR_NOT_FOUND
+        content = (
+            "#usda 1.0\n(subLayers = [@child.usda@])\n" if url == _REMOTE_URL else '#usda 1.0\ndef Xform "child" {}\n'
+        )
+        Path(target_path).write_text(content, encoding="utf-8")
+        return omni.client.Result.OK
+
+    monkeypatch.setattr(omni.client, "copy", fake_copy)
+    if interrupted:
+        with pytest.raises(RuntimeError, match="download interrupted"):
+            assets_utils.retrieve_file_path(_REMOTE_URL)
+    else:
+        assets_utils.retrieve_file_path(_REMOTE_URL)
+    assert not list(asset_cache.rglob("*.partial"))
+
+    fail_child = False
+    raw_root = assets_utils._mirror_path(_REMOTE_URL, str(asset_cache))
+    resolved = assets_utils.retrieve_file_path(raw_root)
+    stage = Usd.Stage.Open(resolved)
+    assert stage.GetPrimAtPath("/child").IsValid()
 
 
 def test_read_file_uses_the_local_copy_when_it_matches_the_server(asset_cache, monkeypatch):

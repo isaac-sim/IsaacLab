@@ -720,8 +720,7 @@ def _spawn_from_usd_file(
     else:
         lock = nullcontext()
     with lock:
-        if file_status == 2:
-            usd_path = retrieve_file_path(usd_path, force_download=False)
+        usd_path = retrieve_file_path(usd_path, force_download=False)
         stage = get_current_stage()
         if not stage.GetPrimAtPath(prim_path).IsValid():
             create_prim(
