@@ -31,17 +31,13 @@ Use this mapping as the default starting point:
 
 ## External Template Projects
 
-When validating a migration outside the Isaac Lab tree, start with the template generator instead of hand-rolling the external package structure. From the Isaac Lab checkout, run `uv run isaaclab -n`, then choose:
+For a new external migration, follow the [template scaffolding workflow](../create-environments/SKILL.md#scaffold-a-new-task) and the maintained [generator guide](../../../docs/source/developer-tools/template_generator.rst). Select **Direct | single-agent** for a typical Isaac Gym parity pass and the target RL library. Use a fresh project directory outside Isaac Lab; preserve an established project when one already exists.
 
-- `External` project.
-- The scratch directory as the project path.
-- A valid Python identifier for the project name, such as `isaacgym_anymal_migration`.
-- `Direct | single-agent` for the first Isaac Gym parity pass.
-- The target RL library, usually `rsl_rl` for locomotion validation.
+Replace the generated Cartpole implementation with the migrated environment and agent config. Preserve the current `src/<project>/tasks/<family>/config/<robot>/` layout and `isaaclab.tasks` entry point. UI extension metadata is optional, not required for task registration.
 
-Replace the generated task implementation with the migrated environment, config, registration, and agent config, preserving the generated project layout. The generated project gives agents a known `source/<project>/<project>/tasks/...` structure, `pyproject.toml`, extension metadata, scripts, and task registration pattern.
+Run `uv sync` from the generated project root. Source-generated projects record editable paths to the originating Isaac Lab checkout in `[tool.uv.sources]`; verify these resolve to the intended checkout. Use `uv run python scripts/list_envs.py --show_presets` to check task discovery. Normal CLI use requires neither `PYTHONPATH` overrides nor external callbacks. A standalone Gym validation script must import `<project>.tasks` before Gym lookup; importing the passive top-level package alone does not register tasks.
 
-For validation, install the generated extension in editable mode with `uv pip` for the target Isaac Lab environment, or keep it importable through `PYTHONPATH`. If using `PYTHONPATH`, put the generated project's extension package first, then every package directory under the target Isaac Lab checkout's `source/` directory. This prevents Python from mixing the active checkout with another installed Isaac Lab checkout and causing duplicate Gym registration or stale task imports. If editable install makes task registration available automatically, omit external callbacks. For uninstalled scratch validation, use a small wrapper for scripts without `--external_callback`, and use the callback option when a training script exposes one.
+For PhysX parity, use `uv run --extra isaacsim isaaclab random_agent --task <TASK_NAME> physics=isaacsim_physx --num_envs 16`. Keep the extra and physics selection on subsequent simulation commands. The default generated environment uses Newton, so an unqualified smoke test does not establish PhysX parity.
 
 Do not treat successful config loading as training success. Import/register, config resolution, static compilation, reset/step, random-agent, and short training are separate gates.
 
@@ -81,46 +77,23 @@ Use this loop for each implementation iteration:
 7. Load the saved checkpoint in `play` or an equivalent bounded rollout and collect rollout metrics.
 8. If the policy fails, modify the migration and rerun the shortest affected gate. Continue until success or until a concrete blocker is documented.
 
-For an external template project, use commands like these as templates. Replace the task id, callback, project path, extension path, and log paths with the migrated package names:
+For an external template project, run from its root. Replace the task ID and log paths with the migrated task's values; the validation helper scripts below are project-owned scripts to create as needed, not generator outputs:
 
 ```bash
-export LAB=/path/to/IsaacLab
-export PROJECT=/path/to/migration-scratch/isaacgym_anymal_migration
-export EXTENSION="$PROJECT/source/isaacgym_anymal_migration"
-export PYTHONPATH="$EXTENSION:$(find "$LAB/source" -mindepth 1 -maxdepth 1 -type d | paste -sd: -)"
-cd "$LAB"
-
-# Optional when validating as an installed template project:
-uv pip install -e "$EXTENSION"
-
-uv run python -c "import gymnasium as gym; import my_migration; tid='My-Migrated-Task-v0'; spec=gym.spec(tid); print(spec.entry_point); print(spec.kwargs)"
-
-uv run python "$PROJECT/validation/smoke_my_task.py" --device cuda:0 --num_envs 16 --steps 8
-
-uv run isaaclab train --rl_library rsl_rl \
-  --task My-Migrated-Task-v0 \
-  --external_callback my_migration.register.register \
+uv sync
+uv run pytest tests/test_registration.py
+uv run --extra isaacsim isaaclab random_agent \
+  --task <TASK_NAME> physics=isaacsim_physx --num_envs 16
+uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
+  --task <TASK_NAME> physics=isaacsim_physx \
   --device cuda:0 --num_envs 4096 --max_iterations 500
-
-uv run python "$PROJECT/validation/parse_tensorboard.py" logs/path/to/run --output "$PROJECT/validation/train_metrics.json"
-
-uv run python "$PROJECT/validation/evaluate_checkpoint.py" \
+uv run python validation/parse_tensorboard.py logs/path/to/run --output validation/train_metrics.json
+uv run --extra isaacsim python validation/evaluate_checkpoint.py \
   --checkpoint logs/path/to/run/model_499.pt \
   --num_envs 64 --steps 256 --device cuda:0
 ```
 
-Omit `--viz` for headless validation. Use `--viz none` only when a config or command would otherwise enable visualizers.
-
-On Windows, use the same `uv` commands from PowerShell and set the same path order:
-
-```powershell
-$lab = "C:/path/to/IsaacLab"
-$project = "C:/path/to/migration-scratch/isaacgym_anymal_migration"
-$extension = "$project/source/isaacgym_anymal_migration"
-$srcs = Get-ChildItem "$lab/source" -Directory | ForEach-Object { $_.FullName }
-$env:PYTHONPATH = $extension + ";" + ($srcs -join ";")
-Set-Location $lab
-```
+Ensure standalone simulation helpers explicitly select the same physics preset as training. Omit `--viz` for headless validation. Use `--viz none` only when a config or command would otherwise enable visualizers. These project-root `uv` commands also work from PowerShell without platform-specific import-path setup.
 
 If no validation helper scripts exist, create the smallest scratch-only smoke, scalar parsing, and checkpoint evaluation scripts needed for the migration task. Do not add those helpers to Isaac Lab unless the user asks for committed validation files.
 

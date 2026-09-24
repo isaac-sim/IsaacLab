@@ -201,6 +201,8 @@ class VideoRecorder:
                 )
 
         viz = candidates[0]
+        if not sim.is_rendering:
+            sim.forward()
         if sub == "streaming_view":
             if not hasattr(viz, "render_tiled_rgb_array"):
                 raise RuntimeError(
@@ -239,7 +241,7 @@ class VideoRecorder:
         return frame
 
     def _frame_from_sensor(self, name: str, gt_type: str = "rgb") -> np.ndarray | None:
-        from isaaclab.envs.utils.camera_colorizer import (
+        from .camera_colorizer import (
             SUPPORTED_GT_TYPES,
             CameraFrameColorizer,
             sensor_key_for_gt_type,

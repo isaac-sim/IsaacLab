@@ -9,10 +9,9 @@ import warnings
 from dataclasses import MISSING, field
 from typing import TYPE_CHECKING, Any, Literal
 
-from isaaclab.renderers import RendererCfg
-from isaaclab.sim import FisheyeCameraCfg, PinholeCameraCfg
-from isaaclab.utils import configclass
-
+from ...renderers import RendererCfg
+from ...sim import FisheyeCameraCfg, PinholeCameraCfg
+from ...utils import configclass
 from ..sensor_base_cfg import SensorBaseCfg
 from .camera_isp import CameraISPMode
 
@@ -232,7 +231,7 @@ class CameraCfg(SensorBaseCfg):
         """
         renderer_type = getattr(self.renderer_cfg, "renderer_type", None)
         if renderer_type == "default":
-            from isaaclab.utils.backend_utils import get_default_renderer_cfg
+            from ...utils.backend_utils import get_default_renderer_cfg
 
             self.renderer_cfg = get_default_renderer_cfg()
         # Forwarded by name: any same-named field on ``renderer_cfg`` will receive the value.
@@ -251,3 +250,19 @@ class CameraCfg(SensorBaseCfg):
             # Reset to default so re-runs of ``__post_init__`` (via ``SensorBase.__init__``'s
             # ``cfg.copy()``) don't re-forward and clobber a user-set ``renderer_cfg`` field.
             setattr(self, field_name, default)
+
+    def validate_config(self) -> None:
+        """Validate the requested data types against the selected renderer contract."""
+        if self.renderer_cfg is None:
+            return
+        supported_specs = self.renderer_cfg.supported_output_types()
+        if supported_specs is None:
+            return
+        supported = {str(kind) for kind in supported_specs}
+        unsupported = sorted(set(self.data_types) - supported)
+        if unsupported:
+            raise ValueError(
+                f"Renderer {type(self.renderer_cfg).__name__} only supports data types {sorted(supported)}, "
+                f"but the camera is configured with unsupported types: {unsupported}. "
+                "Choose supported data types or select a different renderer."
+            )

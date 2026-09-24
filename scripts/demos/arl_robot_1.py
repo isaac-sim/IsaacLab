@@ -33,6 +33,7 @@ args_cli = parser.parse_args()
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 
 ##
 # Pre-defined configs
@@ -57,6 +58,9 @@ def main():
             use_newton_actuators=False,
         )
         sim = sim_utils.SimulationContext(sim_cfg)
+        global_paths = ("/World/DomeLight", "/World/defaultGroundPlane", "/World/Robot")
+        plan = cloner.make_clone_plan((), 1, 0.0, global_paths=global_paths)
+        sim.set_clone_plan(plan)
 
         # Create a dome light with light blue color
         light_cfg = sim_utils.DomeLightCfg(intensity=1000.0, color=(0.53, 0.81, 0.92))
@@ -70,6 +74,7 @@ def main():
         robot_cfg = ARL_ROBOT_1_CFG.replace(prim_path="/World/Robot")
         robot_cfg.actuators["thrusters"].dt = sim_cfg.dt
         robot = robot_cfg.class_type(robot_cfg)
+        cloner.replicate(plan, replicate_physics=False)
 
         # Play the simulator
         sim.reset()

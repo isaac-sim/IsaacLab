@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
-from isaaclab.sim.schemas import schemas_cfg
-from isaaclab.utils import configclass
+from ...utils import configclass
+from ..schemas import schemas_cfg
+from .asset_converter_base_cfg import AssetConverterBaseCfg
 
 
 @configclass

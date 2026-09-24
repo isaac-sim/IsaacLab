@@ -23,12 +23,10 @@ from isaaclab.sensors import ContactSensor, ContactSensorCfg, FrameTransformer, 
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
-
+    from ... import ManagerBasedEnv
+    from ...utils.io_descriptors import GenericActionIODescriptor
     from . import actions_cfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -620,7 +618,6 @@ class OperationalSpaceControllerAction(ActionTerm):
             ValueError: If the nullspace joint pos targets are not set when null space control is set to 'position'.
             ValueError: If an invalid value is set for nullspace joint pos targets.
         """
-
         if self.cfg.nullspace_joint_pos_target != "none" and self.cfg.controller_cfg.nullspace_control != "position":
             raise ValueError("Nullspace joint targets can only be set when null space control is set to 'position'.")
 
@@ -712,10 +709,10 @@ class OperationalSpaceControllerAction(ActionTerm):
 
     def _compute_ee_velocity(self):
         """Computes the velocity of the ee frame in root frame."""
-        # Extract end-effector velocity in the world frame
-        self._ee_vel_w[:] = self._asset.data.body_vel_w.torch[:, self._ee_body_idx, :]
+        # Match the link-origin reference point used by the pose and Jacobian.
+        self._ee_vel_w[:] = self._asset.data.body_link_vel_w.torch[:, self._ee_body_idx, :]
         # Compute the relative velocity in the world frame
-        relative_vel_w = self._ee_vel_w - self._asset.data.root_vel_w.torch
+        relative_vel_w = self._ee_vel_w - self._asset.data.root_link_vel_w.torch
 
         # Convert ee velocities from world to root frame
         root_quat_w = self._asset.data.root_quat_w.torch

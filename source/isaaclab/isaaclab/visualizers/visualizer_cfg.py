@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from ..utils import configclass
 
 if TYPE_CHECKING:
     from .base_visualizer import BaseVisualizer
@@ -43,6 +43,9 @@ class VisualizerCfg:
 
     class_type: type[BaseVisualizer] | str | None = None
     """Visualizer implementation class. Concrete configs must set this field."""
+
+    cloning_contexts: tuple[type | str, ...] = ()
+    """Clone contexts that build this visualizer's scene representation from the asset plan."""
 
     # Primary interactive camera settings
     eye: tuple[float, float, float] = (4.0, -4.0, 3.0)

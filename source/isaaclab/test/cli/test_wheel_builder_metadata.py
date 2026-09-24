@@ -109,6 +109,25 @@ def test_wheel_builder_includes_isaacsim_extra(source_checkout_root: Path, tmp_p
     assert any(dep.startswith("isaacsim[") for dep in optional_dependencies["isaacsim"])
 
 
+def test_wheel_builder_omits_integrations_without_published_wheels(source_checkout_root: Path, tmp_path):
+    """Git-only RL-Games and Robomimic requirements must stay out of published metadata."""
+    with (source_checkout_root / "pyproject.toml").open("rb") as f:
+        source_project = tomllib.load(f)["project"]
+    generated_project = _generate_wheel_pyproject(source_checkout_root, tmp_path)["project"]
+
+    # Source checkouts retain the integrations through their Git requirements.
+    assert any(dep.startswith("rl-games @ git+") for dep in source_project["optional-dependencies"]["rl-games"])
+    assert any(dep.startswith("robomimic @ git+") for dep in source_project["optional-dependencies"]["mimic"])
+
+    # The published wheel cannot expose the RL-Games extra or reference either Git-only distribution.
+    assert "rl-games" not in generated_project["optional-dependencies"]
+    generated_requirements = generated_project["dependencies"] + [
+        dep for requirements in generated_project["optional-dependencies"].values() for dep in requirements
+    ]
+    assert not any(dep.startswith("rl-games") for dep in generated_requirements)
+    assert not any(dep.startswith("robomimic") for dep in generated_requirements)
+
+
 def test_wheel_builder_keeps_standalone_importers_explicit(source_checkout_root: Path, tmp_path):
     """The wheel must expose standalone importers only through their explicit extra."""
     generated = _generate_wheel_pyproject(source_checkout_root, tmp_path)
@@ -135,6 +154,7 @@ def test_wheel_builder_expands_all_extra_into_concrete_requirements(source_check
         "isaacsim[",
         "isaacsim-asset-isolated",
         "ray",
+        "rl-games",
         "robomimic",
         "isaacteleop",
         "pytetwild",

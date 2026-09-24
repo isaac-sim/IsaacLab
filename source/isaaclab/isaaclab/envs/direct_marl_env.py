@@ -18,20 +18,17 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-from isaaclab.managers import EventManager
-from isaaclab.scene import InteractiveScene
-from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.stage import use_stage
-from isaaclab.utils.noise import NoiseModel
-from isaaclab.utils.seed import configure_seed
-from isaaclab.utils.timer import Timer
-
+from ..managers import EventManager
+from ..sim import SimulationContext
+from ..sim.utils.stage import use_stage
+from ..utils.noise import NoiseModel
+from ..utils.seed import configure_seed
+from ..utils.timer import Timer
 from .common import ActionType, AgentID, EnvStepReturn, ObsType, StateType, _apply_deprecated_viewer_cfg
 from .direct_marl_env_cfg import DirectMARLEnvCfg
 from .utils.spaces import sample_space, spec_to_gym_space
 from .utils.video_recorder import VideoRecorder
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -142,7 +139,7 @@ class DirectMARLEnv(gym.Env):
         with Timer("[INFO]: Time taken for scene creation", "scene_creation", activity="Creating scene"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
-                self.scene = InteractiveScene(self.cfg.scene)
+                self.scene = self.cfg.scene.class_type(self.cfg.scene)
                 self._setup_scene()
             self.sim.register_interactive_scene(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
@@ -189,14 +186,12 @@ class DirectMARLEnv(gym.Env):
         if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
-            # if no window, then we don't need to store the window
             self._window = None
 
         # allocate dictionary to store metrics
         self.extras = {agent: {} for agent in self.cfg.possible_agents}
 
         # initialize data and constants
-        # -- counter for simulation steps
         self._sim_step_counter = 0
         # -- controls camera/Kit rendering in step().
         # When False, the Kit app loop (app.update()) and camera/RTX sensor updates are
@@ -213,7 +208,6 @@ class DirectMARLEnv(gym.Env):
 
         # setup the observation, state and action spaces
         self._configure_env_spaces()
-
         # setup noise cfg for adding action and observation noise
         if self.cfg.action_noise_model:
             self._action_noise_model: dict[AgentID, NoiseModel] = {
@@ -236,7 +230,7 @@ class DirectMARLEnv(gym.Env):
             if "startup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="startup")
         self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
-        # print the environment information
+
         print("[INFO]: Completed setting up the environment...")
 
     def __del__(self, _sys=sys):
@@ -495,7 +489,6 @@ class DirectMARLEnv(gym.Env):
                 if agent in self._observation_noise_model:
                     self.obs_dict[agent] = self._observation_noise_model[agent](obs)
 
-        # return observations, rewards, resets and extras
         return self.obs_dict, self.reward_dict, self.terminated_dict, self.time_out_dict, self.extras
 
     def state(self) -> StateType | None:
@@ -690,7 +683,7 @@ class DirectMARLEnv(gym.Env):
         # set up state space
         if not self.cfg.state_space:
             self.state_space = None
-        if isinstance(self.cfg.state_space, int) and self.cfg.state_space < 0:
+        elif isinstance(self.cfg.state_space, int) and self.cfg.state_space < 0:
             self.state_space = gym.spaces.flatten_space(
                 gym.spaces.Tuple([self.observation_spaces[agent] for agent in self.cfg.possible_agents])
             )
@@ -717,7 +710,6 @@ class DirectMARLEnv(gym.Env):
                 env_step_count = self._sim_step_counter // self.cfg.decimation
                 self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 
-        # reset noise models
         if self.cfg.action_noise_model:
             for noise_model in self._action_noise_model.values():
                 noise_model.reset(env_ids)
@@ -725,7 +717,6 @@ class DirectMARLEnv(gym.Env):
             for noise_model in self._observation_noise_model.values():
                 noise_model.reset(env_ids)
 
-        # reset the episode length buffer
         self.episode_length_buf[env_ids] = 0
 
         self.sim.render_context.reset_scene_state_cadence()
@@ -735,14 +726,10 @@ class DirectMARLEnv(gym.Env):
     """
 
     def _setup_scene(self):
-        """Setup the scene for the environment.
+        """Perform optional task-specific setup after the configured scene is constructed.
 
-        This function is responsible for creating the scene objects and setting up the scene for the environment.
-        The scene creation can happen through :class:`isaaclab.scene.InteractiveSceneCfg` or through
-        directly creating the scene objects and registering them with the scene manager.
-
-        We leave the implementation of this function to the derived classes. If the environment does not require
-        any explicit scene setup, the function can be left empty.
+        Normal workflows declare assets and sensors on :attr:`DirectMARLEnvCfg.scene`. Override this
+        hook only for setup that cannot be represented by the scene configuration.
         """
         pass
 

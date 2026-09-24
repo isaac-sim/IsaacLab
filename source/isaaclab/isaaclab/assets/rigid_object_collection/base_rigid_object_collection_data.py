@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 
 import warp as wp
 
-from isaaclab.utils.leapp import (
+from ...utils.leapp import (
     InputKindEnum,
     body_pose6_resolver,
     body_pose_resolver,
@@ -16,8 +16,8 @@ from isaaclab.utils.leapp import (
     body_xyz_resolver,
     leapp_tensor_semantics,
 )
-from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
+from ...utils.warp import ProxyArray
+from ...utils.warp.launch_cache import _WarpLaunchCache
 
 
 class BaseRigidObjectCollectionData(ABC):

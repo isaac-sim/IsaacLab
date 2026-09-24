@@ -519,6 +519,28 @@ def test_orthogonalize_perspective_depth(device):
 
 
 @pytest.mark.parametrize("device", test_devices())
+def test_unproject_depth(device):
+    """Test unproject_depth against the pinhole camera model, including the first image row and column."""
+    height, width = 3, 4
+    fx, fy, cx, cy = 50.0, 40.0, 1.5, 1.0
+    depth = torch.rand(height, width, device=device) + 0.5
+    intrinsics = torch.tensor([[fx, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]], device=device)
+
+    points = math_utils.unproject_depth(depth, intrinsics)
+
+    # points are ordered column by column: index = u * height + v
+    expected = torch.tensor(
+        [
+            [(u - cx) * depth[v, u].item() / fx, (v - cy) * depth[v, u].item() / fy, depth[v, u].item()]
+            for u in range(width)
+            for v in range(height)
+        ],
+        device=device,
+    )
+    torch.testing.assert_close(points, expected)
+
+
+@pytest.mark.parametrize("device", test_devices())
 def test_combine_frame_transform(device):
     """Test combine_frame_transforms function."""
     # create random poses
@@ -870,11 +892,14 @@ def test_quat_slerp(device):
         key_times = [0, 1]
         slerp = scipy_tf.Slerp(key_times, key_rots)
 
+        q2_tensor = torch.tensor(q2, device=device)
         for tau in tau_values:
             expected = slerp(tau).as_quat()  # (x, y, z, w)
-            result = math_utils.quat_slerp(torch.tensor(q1, device=device), torch.tensor(q2, device=device), tau)
+            result = math_utils.quat_slerp(torch.tensor(q1, device=device), q2_tensor, tau)
             # Assert that the result is almost equal to the expected quaternion
             np.testing.assert_array_almost_equal(result.cpu(), expected, decimal=DECIMAL_PRECISION)
+        # the input quaternion is not modified when interpolating along the shorter arc
+        np.testing.assert_array_equal(q2_tensor.cpu().numpy(), q2)
 
 
 @pytest.mark.parametrize("device", test_devices())

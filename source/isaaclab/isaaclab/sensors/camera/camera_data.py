@@ -11,10 +11,10 @@ import torch
 import warp as wp
 
 # Re-exported as part of the public isaaclab.sensors.camera API
-from isaaclab.renderers.output_contract import RenderBufferKind, RenderBufferSpec
-from isaaclab.utils.leapp.leapp_semantics import leapp_tensor_semantics
-from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
+from ...renderers.output_contract import RenderBufferKind, RenderBufferSpec
+from ...utils.leapp.leapp_semantics import leapp_tensor_semantics
+from ...utils.warp import ProxyArray
+from ...utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
 __all__ = ["CameraData", "RenderBufferKind", "RenderBufferSpec"]
 

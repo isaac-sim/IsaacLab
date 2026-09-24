@@ -14,7 +14,7 @@ from typing import Any
 
 import warp as wp
 
-from isaaclab.utils.array import convert_to_torch
+from ..array import convert_to_torch
 
 try:
     from leapp import InputKindEnum, OutputKindEnum

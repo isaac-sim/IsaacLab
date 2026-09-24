@@ -75,7 +75,6 @@ def _install_system_deps() -> None:
     if is_windows():
         return
 
-    # Check if cmake is already installed.
     if shutil.which("cmake"):
         print_info("cmake is already installed.")
     else:
@@ -274,7 +273,6 @@ def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], 
     )
     if probe_result.returncode == 0:
         return
-
     print_info("Pink IK dependency probe failed. Force-installing the cmeel pinocchio and DAQP stack.")
     pink_ik_stack = _pink_ik_stack()
     install_result = _run_package_install(
@@ -302,12 +300,7 @@ def _ensure_cuda_torch() -> None:
     torch_ver = _pinned_version("torch")
     tv_ver = _pinned_version("torchvision")
 
-    if is_arm():
-        cuda_ver = "130"
-    else:
-        cuda_ver = "128"
-
-    cuda_tag = f"cu{cuda_ver}"
+    cuda_tag = "cu130"
     index_url = f"{base_index}/{cuda_tag}"
 
     want_torch = f"{torch_ver}+{cuda_tag}"
@@ -334,7 +327,6 @@ def _ensure_cuda_torch() -> None:
         print_info(f"PyTorch {want_torch} already installed.")
         return
 
-    # Clean install torch.
     print_info(f"Installing torch=={torch_ver} and torchvision=={tv_ver} ({cuda_tag}) from {index_url}...")
 
     # uv pip uninstall does not accept -y
@@ -385,7 +377,6 @@ def _ensure_newton() -> None:
     _run_package_install(pip_cmd + ["install", requirement, *([schemas] if schemas else [])])
 
 
-# Isaac Sim install settings.
 NVIDIA_INDEX_URL = "https://pypi.nvidia.com"
 
 
@@ -1106,7 +1097,6 @@ def _repoint_prebundle_packages() -> None:
                 print_debug(f"Repointed {prebundled} -> {venv_pkg}")
             except OSError as exc:
                 print_warning(f"Could not repoint {prebundled}: {exc} — skipping.")
-
     if repointed:
         print_info(
             f"Repointed {repointed} prebundled package(s) in Isaac Sim to the active environment's site-packages."
@@ -1170,7 +1160,6 @@ def command_install(install_type: str = "all") -> None:
     os.environ.setdefault("PIP_RETRIES", _PACKAGE_INDEX_RETRIES)
     os.environ.setdefault("UV_HTTP_RETRIES", _PACKAGE_INDEX_RETRIES)
 
-    # Install system dependencies first.
     _install_system_deps()
 
     print_info("Installing extensions inside the Isaac Lab repository...")
@@ -1298,7 +1287,7 @@ def command_install(install_type: str = "all") -> None:
             if install_isaacsim:
                 _install_isaacsim()
 
-            # Install pytorch (version based on arch).
+            # Install the pinned PyTorch CUDA build.
             _ensure_cuda_torch()
 
             # Install all submodules (core set + any explicitly requested optional ones).

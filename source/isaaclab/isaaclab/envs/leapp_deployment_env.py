@@ -28,11 +28,11 @@ try:
 except ImportError as e:
     raise ImportError("LEAPP package is required for policy deployment testing. Install with: pip install leapp") from e
 
-from isaaclab.managers import CommandManager, EventManager
-from isaaclab.scene import InteractiveScene
-from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.stage import use_stage
-from isaaclab.utils.seed import configure_seed
+from ..managers import CommandManager, EventManager
+from ..scene import InteractiveScene
+from ..sim import SimulationContext
+from ..sim.utils.stage import use_stage
+from ..utils.seed import configure_seed
 
 logger = logging.getLogger(__name__)
 

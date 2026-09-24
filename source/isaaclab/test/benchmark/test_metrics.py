@@ -98,6 +98,8 @@ def test_success_rate_tracker_convergence():
     t = SuccessRateTracker(threshold=0.5, window=2, num_steps_per_env=1)
     for v in (0.6, 0.7):
         t.record_step({"log": {"Metrics/success_rate": v}})
+        # No process group is initialized, so the reduction leaves the local samples unchanged.
+        t.all_reduce_iteration("cpu")
         t.end_iteration()
     assert t.converged is True
     assert t.tail_mean == pytest.approx(0.65)

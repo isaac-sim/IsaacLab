@@ -806,6 +806,20 @@ def test_multiple_instances_with_replace():
     assert cfg1.to_dict() == cfg2.to_dict()
 
 
+def test_borrowed_field_preserves_identity_without_changing_ordinary_copying():
+    @configclass
+    class NativeCfg(ViewerCfg):
+        handle: object = field(kw_only=True, metadata={"copy": False})
+
+    handle = object()
+    cfg = NativeCfg(handle=handle)
+    assert cfg.handle is handle
+    for copied in (cfg.copy(), cfg.replace(eye=[1.0, 2.0, 3.0])):
+        assert copied.handle is handle
+        assert copied.eye is not cfg.eye
+        assert copied.lookat is not cfg.lookat
+
+
 def test_alter_values_multiple_instances_wth_replace():
     """Test alterations in multiple instances through replace function."""
     # create two config instances
@@ -1153,6 +1167,56 @@ def test_validity():
 
     # check that no more than the expected missing fields are in the error message
     assert len(error_message.split("\n")) - 2 == len(validity_expected_fields)
+
+
+def test_nested_configclass_custom_validation():
+    """Custom validation hooks run for nested configclass instances."""
+
+    @configclass
+    class ChildCfg:
+        value: int = 0
+
+        def validate_config(self) -> None:
+            if self.value == 0:
+                raise ValueError("nested validation ran")
+
+    @configclass
+    class ParentCfg:
+        child: ChildCfg = ChildCfg()
+
+    with pytest.raises(ValueError, match="nested validation ran"):
+        ParentCfg().validate()
+
+
+def test_nested_non_configclass_custom_validation_is_not_called():
+    """Arbitrary nested objects do not participate in configclass custom validation."""
+
+    class Child:
+        def validate_config(self) -> None:
+            raise ValueError("must not run")
+
+    @configclass
+    class ParentCfg:
+        child: Child = Child()
+
+    ParentCfg().validate()
+
+
+def test_missing_fields_precede_nested_custom_validation():
+    """Missing-field reporting remains the first validation phase for the whole tree."""
+
+    @configclass
+    class ChildCfg:
+        def validate_config(self) -> None:
+            raise ValueError("must run only after missing-field checks")
+
+    @configclass
+    class ParentCfg:
+        child: ChildCfg = ChildCfg()
+        required: int = MISSING
+
+    with pytest.raises(TypeError, match="required"):
+        ParentCfg().validate()
 
 
 def test_dir_resolution_in_subclass():

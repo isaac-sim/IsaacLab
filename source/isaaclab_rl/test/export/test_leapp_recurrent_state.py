@@ -8,8 +8,8 @@
 from __future__ import annotations
 
 import importlib
-import types
 from types import ModuleType
+from typing import Any, Literal
 
 import numpy as np
 import pytest
@@ -50,19 +50,19 @@ class TestSharedRecurrentState:
         assert resolved == str(expected)
 
     def test_lstm_state_detection_requires_two_tensors(self):
-        """Check that only two-tensor recurrent state is treated as LSTM feedback."""
+        """Only two-tensor recurrent state is treated as LSTM feedback."""
         export_common = _load_export_common_module()
-        h = torch.zeros(1, 1, 4)
-        c = torch.zeros(1, 1, 4)
+        hidden_state = torch.zeros(1, 1, 4)
+        cell_state = torch.zeros(1, 1, 4)
 
-        assert export_common.is_two_tensor_lstm_state([h, c])
-        assert export_common.is_two_tensor_lstm_state((h, c))
-        assert not export_common.is_two_tensor_lstm_state([h])
-        assert not export_common.is_two_tensor_lstm_state([h, c, c])
-        assert not export_common.is_two_tensor_lstm_state([h, object()])
+        assert export_common.is_two_tensor_lstm_state([hidden_state, cell_state])
+        assert export_common.is_two_tensor_lstm_state((hidden_state, cell_state))
+        assert not export_common.is_two_tensor_lstm_state([hidden_state])
+        assert not export_common.is_two_tensor_lstm_state([hidden_state, cell_state, cell_state])
+        assert not export_common.is_two_tensor_lstm_state([hidden_state, object()])
 
     def test_state_sequence_round_trip_from_dict(self):
-        """Check named LEAPP state maps back to framework state order."""
+        """Named LEAPP state maps back to framework state order."""
         export_common = _load_export_common_module()
         states = [torch.zeros(1, 1, 4), torch.ones(1, 1, 4)]
         state_dict = export_common.state_dict_from_sequence(states)
@@ -102,41 +102,50 @@ class TestSharedRecurrentState:
         }
 
 
-class TestRlGamesRecurrentState:
-    """Tests for RL-Games recurrent-state adaptation."""
+@pytest.mark.parametrize("rnn_type", ["lstm", "gru"])
+def test_rl_games_recurrent_state(rnn_type: Literal["lstm", "gru"]) -> None:
+    """RL-Games accepts LSTM feedback and rejects GRU feedback."""
+    pytest.importorskip("rl_games")
+    import gymnasium as gym
+    from rl_games.algos_torch.players import PpoPlayerContinuous
 
-    def test_lstm_feedback_detection(self):
-        """Verify RL-Games LSTM feedback can be detected from player state."""
-        export_module = _load_backend_export_module("rl_games")
-        agent = types.SimpleNamespace(
-            is_rnn=True,
-            states=[torch.zeros(1, 1, 7), torch.zeros(1, 1, 7)],
-        )
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import load_cfg_from_registry
 
-        assert export_module.is_rl_games_lstm_policy(agent)
-        assert [tuple(tensor.shape) for tensor in export_module.get_rl_games_policy_states(agent)] == [
-            (1, 1, 7),
-            (1, 1, 7),
-        ]
-
-    def test_recurrent_non_lstm_is_rejected(self):
-        """Verify recurrent RL-Games policies without two LSTM tensors are rejected."""
-        export_module = _load_backend_export_module("rl_games")
-        agent = types.SimpleNamespace(is_rnn=True, states=[torch.zeros(1, 1, 7)])
-
+    params = load_cfg_from_registry("Isaac-Cartpole", "rl_games_cfg_entry_point")["params"]
+    params["network"]["rnn"] = {"name": rnn_type, "units": 7, "layers": 1}
+    params["config"].update(
+        device_name="cpu",
+        env_info={
+            "observation_space": gym.spaces.Box(-1.0, 1.0, shape=(4,)),
+            "action_space": gym.spaces.Box(-1.0, 1.0, shape=(1,)),
+        },
+    )
+    agent = PpoPlayerContinuous(params)
+    agent.reset()
+    export_module = _load_backend_export_module("rl_games")
+    if rnn_type == "gru":
         assert not export_module.is_rl_games_lstm_policy(agent)
         with pytest.raises(NotImplementedError, match="Only RL-Games LSTM"):
             export_module._validate_rl_games_recurrent_support(agent)
+    else:
+        assert export_module.is_rl_games_lstm_policy(agent)
+        agent.get_action(torch.zeros(4), is_deterministic=True)
+        states = export_module.get_rl_games_policy_states(agent)
+        assert len(states) == 2
+        for actual, expected in zip(states, agent.states):
+            torch.testing.assert_close(actual, expected)
+            assert actual.shape == (1, 1, 7)
 
 
-def _make_skrl_lstm_agent():
+def _make_skrl_recurrent_agent(rnn_type: Literal["lstm", "gru"] = "lstm") -> Any:
     pytest.importorskip("skrl")
     import gymnasium as gym
     from skrl.agents.torch.ppo.ppo_rnn import PPO_RNN
     from skrl.models.torch import GaussianMixin, Model
 
-    class _TinySkrlLstmPolicy(GaussianMixin, Model):
-        """Minimal skrl Gaussian policy with LSTM state specification."""
+    class _TinySkrlRecurrentPolicy(GaussianMixin, Model):
+        """Recurrent Gaussian policy used by the skrl tests."""
 
         def __init__(self, observation_space, action_space, device):
             Model.__init__(self, observation_space=observation_space, action_space=action_space, device=device)
@@ -149,19 +158,22 @@ def _make_skrl_lstm_agent():
                 reduction="sum",
                 role="policy",
             )
-            self.lstm = torch.nn.LSTM(self.num_observations, 5, 1)
+            rnn_cls = torch.nn.LSTM if rnn_type == "lstm" else torch.nn.GRU
+            self.rnn = rnn_cls(self.num_observations, 5, 1)
             self.head = torch.nn.Linear(5, self.num_actions)
             self.log_std_parameter = torch.nn.Parameter(torch.zeros(self.num_actions))
 
         def get_specification(self):
-            return {"rnn": {"sizes": [(1, 1, 5), (1, 1, 5)], "sequence_length": 1}}
+            return {"rnn": {"sizes": [(1, 1, 5)] * (2 if rnn_type == "lstm" else 1), "sequence_length": 1}}
 
         def compute(self, inputs, role):
-            out, rnn = self.lstm(inputs["observations"].unsqueeze(0), tuple(inputs["rnn"]))
-            return self.head(out.squeeze(0)), {"log_std": self.log_std_parameter, "rnn": list(rnn)}
+            state = tuple(inputs["rnn"]) if rnn_type == "lstm" else inputs["rnn"][0]
+            out, state = self.rnn(inputs["observations"].unsqueeze(0), state)
+            states = list(state) if rnn_type == "lstm" else [state]
+            return self.head(out.squeeze(0)), {"log_std": self.log_std_parameter, "rnn": states}
 
     class _TinySkrlValue(Model):
-        """Minimal skrl value model."""
+        """Value model used by the skrl tests."""
 
         def __init__(self, observation_space, action_space, device):
             super().__init__(observation_space=observation_space, action_space=action_space, device=device)
@@ -175,7 +187,7 @@ def _make_skrl_lstm_agent():
 
     obs_space = gym.spaces.Box(-1.0, 1.0, shape=(3,), dtype=np.float32)
     act_space = gym.spaces.Box(-1.0, 1.0, shape=(2,), dtype=np.float32)
-    policy = _TinySkrlLstmPolicy(obs_space, act_space, "cpu")
+    policy = _TinySkrlRecurrentPolicy(obs_space, act_space, "cpu")
     value = _TinySkrlValue(obs_space, act_space, "cpu")
     agent = PPO_RNN(
         models={"policy": policy, "value": value},
@@ -199,9 +211,9 @@ class TestSkrlRecurrentState:
     """Tests for skrl recurrent-state adaptation."""
 
     def test_lstm_feedback_detection_and_output_state(self):
-        """Verify skrl LSTM feedback can be detected and updated from action output."""
+        """skrl LSTM feedback is detected and updated from action output."""
         export_module = _load_backend_export_module("skrl")
-        agent = _make_skrl_lstm_agent()
+        agent = _make_skrl_recurrent_agent()
 
         assert export_module.is_skrl_lstm_policy(agent)
         assert [tuple(tensor.shape) for tensor in export_module.get_skrl_policy_states(agent)] == [
@@ -216,14 +228,10 @@ class TestSkrlRecurrentState:
         assert [tuple(tensor.shape) for tensor in output_states] == [(1, 1, 5), (1, 1, 5)]
 
     def test_recurrent_non_lstm_is_rejected(self):
-        """Verify recurrent skrl policies without two LSTM tensors are rejected."""
+        """skrl recurrent policies without two LSTM tensors are rejected."""
         pytest.importorskip("skrl")
         export_module = _load_backend_export_module("skrl")
-        agent = types.SimpleNamespace(
-            _rnn=True,
-            _rnn_initial_states={"policy": [torch.zeros(1, 1, 5)]},
-            policy=types.SimpleNamespace(get_specification=lambda: {"rnn": {"sizes": [(1, 1, 5)]}}),
-        )
+        agent = _make_skrl_recurrent_agent("gru")
 
         assert not export_module.is_skrl_lstm_policy(agent)
         with pytest.raises(NotImplementedError, match="Only skrl LSTM"):
@@ -234,26 +242,20 @@ class TestRslRlRecurrentState:
     """Tests for RSL-RL recurrent-state adaptation."""
 
     def test_modular_rnn_model_lstm_round_trip(self):
-        """Verify LSTM state registration helpers support RSL-RL 5.x RNNModel."""
-
-        class _Memory(torch.nn.Module):
-            def __init__(self):
-                super().__init__()
-                self.rnn = torch.nn.LSTM(input_size=2, hidden_size=4, num_layers=2)
-                self.hidden_state = None
-
-        class _Policy(torch.nn.Module):
-            is_recurrent = True
-
-            def __init__(self):
-                super().__init__()
-                self.rnn = _Memory()
-
-            def get_hidden_state(self):
-                return self.rnn.hidden_state
+        """LSTM state registration supports the RSL-RL 5.x RNNModel."""
+        from rsl_rl.models import RNNModel
+        from tensordict import TensorDict
 
         export_module = _load_backend_export_module("rsl_rl")
-        policy = _Policy()
+        policy = RNNModel(
+            TensorDict({"policy": torch.zeros(1, 2)}, batch_size=[1]),
+            {"actor": ["policy"]},
+            "actor",
+            output_dim=1,
+            hidden_dims=[4],
+            rnn_hidden_dim=4,
+            rnn_num_layers=2,
+        )
 
         actor_state = export_module.ensure_actor_hidden_state_initialized(
             policy, batch_size=1, device=torch.device("cpu"), dtype=torch.float32

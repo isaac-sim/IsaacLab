@@ -11,12 +11,24 @@ configuring the environment instances, viewer settings, and simulation parameter
 
 from __future__ import annotations
 
+from dataclasses import MISSING
 from typing import Literal
 
-from isaaclab.physics import PhysicsCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
-from isaaclab.visualizers import VisualizerCfg
+from ..physics import PhysicsCfg
+from ..utils import configclass
+from ..visualizers import VisualizerCfg
+from .spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
+
+
+@configclass
+class BackendCfg:
+    """Construction inputs and value identity for a simulation-owned resource.
+
+    Finalize all fields before registration and treat them as read-only afterward.
+    """
+
+    class_type: type = MISSING
+    """Resource class constructed as ``class_type(cfg)``; must implement ``close()``."""
 
 
 @configclass

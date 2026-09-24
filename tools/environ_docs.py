@@ -49,7 +49,7 @@ _BACKEND_MIRROR_NAMES = frozenset(
 )
 
 # RL libraries listed in a stable order across generated docs.
-_RL_LIBRARY_ORDER = ("rl_games", "rsl_rl", "skrl", "sb3", "rlinf")
+_RL_LIBRARY_ORDER = ("rl_games", "rsl_rl", "skrl", "sb3", "rlinf", "torchrl")
 _ALGORITHM_LABELS = {"": "PPO", "ppo": "PPO", "amp": "AMP", "ippo": "IPPO", "mappo": "MAPPO"}
 
 # Gym IDs excluded from the training list. The ``-Eval`` suffix marks dedicated
@@ -60,6 +60,12 @@ _EVAL_TASK_SUFFIXES = ("-Eval",)
 # RL libraries not discoverable from Gym ``kwargs`` (e.g. RLinf YAML-based workflows).
 RL_LIBRARY_OVERRIDES: dict[str, dict[str, list[str]]] = {
     "IsaacContrib-Assemble-Trocar-G129-Dex3": {"rlinf": ["PPO"]},
+}
+
+# Optional dependency groups required to launch specific tasks from a source checkout.
+TASK_REQUIRED_EXTRAS: dict[str, tuple[str, ...]] = {
+    "Isaac-Lift-Soft-Franka": ("tetrahedralization",),
+    "Isaac-Lift-Soft-Franka-Camera": ("tetrahedralization",),
 }
 
 # Legacy markers retained for the table-formatting helpers. The public
@@ -126,6 +132,7 @@ class EnvironmentDocRow:
     presets: dict[PresetTarget, list[str]] | None
     supports_warp_frontend: bool = False
     pretrained_checkpoint_preset_compatibility: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    required_extras: tuple[str, ...] = ()
 
 
 def _supports_warp_frontend(task_name: str, workflow: str, presets: dict[PresetTarget, list[str]] | None) -> bool:
@@ -642,6 +649,7 @@ def collect_environment_doc_rows(
                 presets=preset_map,
                 supports_warp_frontend=_supports_warp_frontend(spec.id, workflow, preset_map),
                 pretrained_checkpoint_preset_compatibility=checkpoint_preset_compatibility,
+                required_extras=TASK_REQUIRED_EXTRAS.get(spec.id, ()),
             )
         )
 
@@ -732,8 +740,9 @@ def render_environment_browser_task_rows(
             row.supports_warp_frontend,
             row.pretrained_checkpoint_preset_compatibility,
             default_algorithms,
+            ",".join(row.required_extras),
         ]
-        optional_defaults = ["", False, {}, {}]
+        optional_defaults = ["", False, {}, {}, ""]
         last_value = next(
             (
                 index

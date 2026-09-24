@@ -13,10 +13,10 @@ from pathlib import Path
 
 import torch
 
-from isaaclab.app import AppLauncher, launch_simulation
-
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import resolve_task_config
+
+from ...app import AppLauncher, launch_simulation
 
 
 def command_deploy_leapp(argv: list[str] | None = None) -> int:

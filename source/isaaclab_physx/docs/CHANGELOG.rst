@@ -1,6 +1,110 @@
 Changelog
 ---------
 
+7.2.2 (2026-09-24)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the external-wrench writers to submit through
+  :meth:`~isaaclab.utils.wrench_composer.WrenchComposer.get_forces_and_torques`, so a wrench that is
+  already local-frame, or already global-frame at the center of mass, is sent to PhysX without
+  reading the body transforms.
+* Published PhysX rigid transforms and their producer-owned version through SDP, and routed Isaac RTX
+  transform updates through one simulation-owned ``FabricBackend`` shared with Kit while preserving
+  native PhysX Fabric updates. Stage/device identified the resource; transforms remained binding state,
+  with SDP passed explicitly to updates. Fabric selection and hierarchy state moved out of core ``RenderContext``.
+  Kit app updates requested current SDP transforms without an additional physics ``forward()`` call.
+
+Fixed
+^^^^^
+
+* Fixed joint-wrench sensors applying an extra frame transformation to PhysX readings, which already used
+  the child-side joint frame and anchor. Removed the redundant USD frame buffers. Force and torque values
+  changed for joints with non-identity child frames; the sensor's documented frame convention was preserved.
+* Replaced circular frame-conversion checks with a shared Newton/PhysX integration test using a known mass,
+  gravity, and lever arm to calculate the expected nonzero wrench independently.
+
+
+7.2.1 (2026-09-22)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Applied runtime camera calibration directly to Fabric columns with Warp, removing per-camera USD
+  writes and matrix-batch host transfers. Cached camera selections were released with render data.
+  Compiled the write kernel on first use, avoiding its compilation during camera initialization.
+  This did not change the native RTX tiled renderer's restrictions on independent view projections.
+* Released Fabric camera tags on stop and restored authored calibration on reinitialization so
+  rendered projections matched the reported intrinsic matrices after stop/reset.
+
+Fixed
+^^^^^
+
+* Fixed PhysX ``FrameTransformer`` reusing the last offset when distinct bodies
+  share the same implicit frame name.
+
+
+7.2.0 (2026-09-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``PhysxBackendCfg`` to share a native simulation view by its stage identifier through
+  ``SimulationContext.get_or_create_backend(cfg)``.
+* Exposed the registry-owned resource as ``PhysxManager.backend`` and ``PhysxSceneDataBackend.backend``.
+
+Changed
+^^^^^^^
+
+* Shared one registry-owned native simulation view between physics and scene data, removing an
+  unused duplicate Warp view. Existing physics-view access remained unchanged.
+
+
+7.1.4 (2026-09-20)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the announced removal release in deprecation warnings, docstrings and forwarding-shim
+  messages to ``3.1``, so every deprecated symbol names the same release. Some notices said
+  ``4.0`` and others ``5.0``, leftovers from earlier numbering, so a deprecated class and the
+  shim or alias forwarding to it could advertise different removals. No symbol was added,
+  renamed or removed.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the PhysX schema cfg classes in favor of the single-namespace schema fragments. Each
+  class now raises a ``DeprecationWarning`` on instantiation and will be removed in 3.2. The warning
+  names *every* fragment the class's fields need, including the fields it inherits from a legacy
+  base, so following it does not drop authored properties. Replace
+  :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg` with
+  ``[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]``;
+  :class:`~isaaclab_physx.sim.schemas.PhysxJointDrivePropertiesCfg` with
+  ``[UsdPhysicsDriveCfg(...), PhysxJointCfg(...)]``;
+  :class:`~isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg` with
+  ``[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)]``;
+  :class:`~isaaclab_physx.sim.schemas.PhysxArticulationRootPropertiesCfg` with
+  :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg`; and the
+  ``Physx*MeshPropertiesCfg`` cooking classes with their ``Physx*Cfg`` fragments
+  (:class:`~isaaclab_physx.sim.schemas.PhysxConvexHullCfg`,
+  :class:`~isaaclab_physx.sim.schemas.PhysxConvexDecompositionCfg`,
+  :class:`~isaaclab_physx.sim.schemas.PhysxTriangleMeshCfg`,
+  :class:`~isaaclab_physx.sim.schemas.PhysxTriangleMeshSimplificationCfg`,
+  :class:`~isaaclab_physx.sim.schemas.PhysxSDFMeshCfg`). Pass fragments as a list in the matching
+  spawner slot. The PhysX deformable and tendon cfgs are unaffected.
+* Reworded the Isaac Lab 2.x schema aliases (``RigidBodyPropertiesCfg``, ``JointDrivePropertiesCfg``,
+  ``CollisionPropertiesCfg``, ``ArticulationRootPropertiesCfg``, ``MeshCollisionPropertiesCfg`` and
+  the mesh-cooking aliases) to point their ``DeprecationWarning`` at the fragment replacement rather
+  than at the now also-deprecated ``Physx*PropertiesCfg`` classes. The material and tendon aliases
+  are unaffected.
+
+
 7.1.3 (2026-09-12)
 ~~~~~~~~~~~~~~~~~~
 
