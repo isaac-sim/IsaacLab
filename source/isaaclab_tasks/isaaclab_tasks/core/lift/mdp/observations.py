@@ -7,13 +7,11 @@
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.envs.mdp import image
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
@@ -191,27 +189,6 @@ def fingers_contact_force_b(
     robot: Articulation = env.scene[asset_cfg.name]
     root_quat_w = robot.data.root_link_quat_w.torch.unsqueeze(1).expand(-1, force_w.shape[1], -1)
     return quat_apply_inverse(root_quat_w, force_w).view(env.num_envs, -1)
-
-
-class vision_camera(ManagerTermBase):
-    """Normalized, channel-first camera images from a single-data-type camera sensor.
-
-    .. deprecated::
-        Use :func:`isaaclab.envs.mdp.image` with ``data_type=None``, ``permute=True``, and
-        ``stationary=True`` instead.
-    """
-
-    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        warnings.warn(
-            "The observation term 'vision_camera' is deprecated. Use 'isaaclab.envs.mdp.image' with"
-            " data_type=None, permute=True, and stationary=True instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-    def __call__(self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, normalize: bool = True) -> torch.Tensor:
-        return image(env, sensor_cfg, data_type=None, normalize=normalize, permute=normalize, stationary=True)
 
 
 def deformable_com_in_robot_root_frame(
