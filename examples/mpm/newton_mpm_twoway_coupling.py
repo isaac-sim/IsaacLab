@@ -185,10 +185,7 @@ def create_scene_cfg():
                     else sim_utils.spawn_cuboid
                 ),
                 size=size,
-                collision_props=[
-                    sim_utils.UsdPhysicsCollisionCfg(),
-                    NewtonCollisionCfg(contact_margin=COLLIDER_MARGIN),
-                ],
+                collision_props=NewtonCollisionCfg(contact_margin=COLLIDER_MARGIN),
                 physics_material=UsdPhysicsRigidBodyMaterialCfg(
                     static_friction=0.6,
                     dynamic_friction=0.6,

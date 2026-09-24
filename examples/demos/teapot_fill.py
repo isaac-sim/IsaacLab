@@ -434,21 +434,19 @@ def spawn_demo_mesh(
     if not cfg.visible:
         UsdGeom.Imageable(stage.GetPrimAtPath(mesh_prim_path)).MakeInvisible()
 
+    def as_fragments(value) -> list:
+        # the schema slots accept a bare fragment or a list of fragments
+        return list(value) if isinstance(value, (list, tuple)) else [value]
+
     if cfg.collision_props is not None:
         schemas.apply_collision_properties(
-            mesh_prim_path,
-            cfg.collision_props,
-            create_if_missing=True,
-            stage=stage,
+            mesh_prim_path, as_fragments(cfg.collision_props), create_if_missing=True, stage=stage
         )
     if cfg.mesh_collision_props is not None:
-        schemas.apply_mesh_collision_properties(mesh_prim_path, cfg.mesh_collision_props, stage=stage)
+        schemas.apply_mesh_collision_properties(mesh_prim_path, as_fragments(cfg.mesh_collision_props), stage=stage)
     if cfg.rigid_props is not None:
         schemas.apply_rigid_body_properties(
-            prim_path,
-            cfg.rigid_props,
-            create_if_missing=True,
-            stage=stage,
+            prim_path, as_fragments(cfg.rigid_props), create_if_missing=True, stage=stage
         )
 
     if cfg.visual_material is not None:
@@ -596,14 +594,13 @@ def create_sim_cfg():
 def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str | None):
     """Create the teapot-fill scene using declarative Isaac Lab assets."""
     from isaaclab_newton.assets import MPMObjectCfg
-    from isaaclab_newton.sim.schemas import NewtonCollisionCfg, NewtonMeshCollisionCfg
+    from isaaclab_newton.sim.schemas import NewtonCollisionCfg
     from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
     from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
     from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.sim.schemas import CollisionFragment, MeshCollisionFragment, RigidBodyFragment
     from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
     from isaaclab.sim.utils import clone
     from isaaclab.utils import configclass
@@ -620,9 +617,12 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
         func: Callable | str = clone(spawn_demo_mesh)
         vertices: list[list[float]] = MISSING
         faces: list[list[int]] = MISSING
-        collision_props: list[CollisionFragment] | None = None
-        mesh_collision_props: list[MeshCollisionFragment] | None = None
-        rigid_props: list[RigidBodyFragment] | None = None
+        mesh_collision_props: sim_utils.UsdPhysicsMeshCollisionCfg | None = None
+
+    # The visual assets only disable rigid bodies and colliders they already carry; the explicit
+    # target mappings keep an asset without physics from gaining a body on its spawn prim.
+    disable_asset_rigid_bodies = {"(/.*)?": [sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=False)]}
+    disable_asset_colliders = {"(/.*)?": [sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False)]}
 
     island_cfg = None
     if island_usd is not None:
@@ -632,8 +632,8 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
                 usd_path=island_usd,
                 variants={"Physics": "none"},
                 make_uninstanceable=True,
-                rigid_props={"(/.*)?": [sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=False)]},
-                collision_props={"(/.*)?": [sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False)]},
+                rigid_props=disable_asset_rigid_bodies,
+                collision_props=disable_asset_colliders,
             ),
             init_state=AssetBaseCfg.InitialStateCfg(rot=TABLE_ORIENTATION),
         )
@@ -647,8 +647,8 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
                 scale=(BOWL_SCALE,) * 3,
                 variants={"Physics": "none"},
                 make_uninstanceable=True,
-                rigid_props={"(/.*)?": [sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=False)]},
-                collision_props={"(/.*)?": [sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False)]},
+                rigid_props=disable_asset_rigid_bodies,
+                collision_props=disable_asset_colliders,
             ),
             init_state=AssetBaseCfg.InitialStateCfg(pos=BOWL_BASE_POS),
         )
@@ -695,10 +695,7 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
                     sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
                     NewtonCollisionCfg(contact_margin=COLLIDER_MARGIN),
                 ],
-                mesh_collision_props=[
-                    sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="none"),
-                    NewtonMeshCollisionCfg(),
-                ],
+                mesh_collision_props=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="none"),
                 physics_material=UsdPhysicsRigidBodyMaterialCfg(
                     static_friction=BOWL_FRICTION,
                     dynamic_friction=BOWL_FRICTION,
@@ -722,20 +719,14 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
                 vertices=container_vertices.tolist(),
                 faces=container_faces.tolist(),
                 rigid_props=[
-                    sim_utils.UsdPhysicsRigidBodyCfg(
-                        rigid_body_enabled=True,
-                        kinematic_enabled=True,
-                    ),
+                    sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=True),
                     PhysxRigidBodyCfg(disable_gravity=True),
                 ],
                 collision_props=[
                     sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
                     NewtonCollisionCfg(contact_margin=COLLIDER_MARGIN),
                 ],
-                mesh_collision_props=[
-                    sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="none"),
-                    NewtonMeshCollisionCfg(),
-                ],
+                mesh_collision_props=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="none"),
                 physics_material=UsdPhysicsRigidBodyMaterialCfg(
                     static_friction=CONTAINER_FRICTION,
                     dynamic_friction=CONTAINER_FRICTION,

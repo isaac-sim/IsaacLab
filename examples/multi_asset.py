@@ -32,6 +32,7 @@ args_cli = parser.parse_args()
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
@@ -138,9 +139,12 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
                 max_angular_velocity=1000.0,
                 max_depenetration_velocity=1.0,
             ),
-            articulation_props=PhysxArticulationCfg(
-                enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            ),
+            articulation_props=[
+                PhysxArticulationCfg(
+                    enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+                ),
+                NewtonArticulationCfg(self_collision_enabled=True),
+            ],
             activate_contact_sensors=True,
         ),
         init_state=ArticulationCfg.InitialStateCfg(

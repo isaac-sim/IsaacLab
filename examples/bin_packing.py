@@ -56,7 +56,7 @@ from random import Random
 
 import torch
 import warp as wp
-from isaaclab_physx.sim.schemas import PhysxConvexHullCfg, PhysxRigidBodyCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -146,10 +146,10 @@ def spawn_grocery(
 ) -> Usd.Prim:
     """Spawn a visual YCB model and author the physics schemas it does not ship with.
 
-    These models carry no physics schemas, so the ``rigid_props`` and ``collision_props`` of a
-    spawner configuration would find nothing to modify. This spawner defines each schema
-    instead: the rigid body on the asset root and a convex-hull collider on the mesh, matching
-    how the physics-ready YCB models are authored.
+    These models carry no physics schemas, so the ``collision_props`` of a spawner configuration
+    would author the collider on the asset root rather than on its meshes. This spawner defines
+    each schema instead: the rigid body on the asset root and a convex-hull collider on the mesh,
+    matching how the physics-ready YCB models are authored.
 
     Args:
         prim_path: Prim path to spawn the asset at.
@@ -168,14 +168,11 @@ def spawn_grocery(
         schemas.apply_collision_properties(
             mesh_path, [schemas.UsdPhysicsCollisionCfg(collision_enabled=True)], create_if_missing=True
         )
-        schemas.apply_mesh_collision_properties(mesh_path, [PhysxConvexHullCfg()])
+        schemas.apply_mesh_collision_properties(
+            mesh_path, [schemas.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull")]
+        )
     schemas.apply_rigid_body_properties(
-        root_path,
-        [
-            schemas.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
-            PhysxRigidBodyCfg(solver_position_iteration_count=4),
-        ],
-        create_if_missing=True,
+        root_path, [PhysxRigidBodyCfg(solver_position_iteration_count=4)], create_if_missing=True
     )
     schemas.apply_mass_properties(root_path, [schemas.MassCfg(mass=GROCERY_MASS)], create_if_missing=True)
     return prim

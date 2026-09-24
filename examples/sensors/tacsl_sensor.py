@@ -88,6 +88,7 @@ simulation_app = app_launcher.app
 import cv2
 import numpy as np
 import torch
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
 from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
@@ -133,7 +134,8 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
                         enabled_self_collisions=False,
                         solver_position_iteration_count=12,
                         solver_velocity_iteration_count=1,
-                    )
+                    ),
+                    NewtonArticulationCfg(self_collision_enabled=False),
                 ]
             },
             collision_props={"(/.*)?": [PhysxCollisionCfg(contact_offset=0.001, rest_offset=-0.0005)]},
