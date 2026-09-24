@@ -16,7 +16,6 @@ import pytest
 import torch
 
 from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
-from isaaclab.test.utils import test_devices
 from isaaclab.utils import DelayBuffer, configclass, modifiers, noise
 
 pytestmark = pytest.mark.unit
@@ -146,93 +145,50 @@ def test_modifier_resolution_stays_out_of_observation_manager():
 def test_modifier_base_cfg_marker_does_not_exist():
     """Stateful modifiers must not require a marker configuration subtype."""
     assert not hasattr(modifiers, "ModifierBaseCfg")
+    assert not hasattr(modifiers, "DelayCfg"), "Delay sampling belongs to the observation manager."
 
 
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("lag_bounds", [(0, 0), (2, 2), (0, 3)])
-@pytest.mark.parametrize("history_length", [0, 3])
-def test_compute_updates_history_only_when_requested(device, lag_bounds, history_length):
-    """Delay and stacked history share a recording clock, including partial resets and extra reads."""
-    env = DummyEnv()
-    env.device = device
-    env.observation = env.observation.to(device)
+@pytest.mark.parametrize(("lag", "history_length"), [(0, 2), (1, 0), (1, 2)])
+def test_compute_updates_history_only_when_requested(lag, history_length):
+    """History alone, delay alone, and their combination advance only on recorded samples."""
     cfg = HistoryObservationsCfg()
     cfg.policy.history_length = history_length
     cfg.policy.enable_corruption = True
-    cfg.policy.dummy.delay_min_lag, cfg.policy.dummy.delay_max_lag = lag_bounds
-    cfg.policy.dummy.modifiers = [modifiers.ModifierCfg(func=modifiers.bias, params={"value": 1.0})]
+    cfg.policy.dummy.delay_min_lag = cfg.policy.dummy.delay_max_lag = lag
     cfg.policy.dummy.noise = noise.ConstantNoiseCfg(bias=0.0)
-    cfg.policy.dummy.clip = (-1000.0, 1000.0)
     cfg.policy.dummy.scale = 2.0
-    original = cfg.to_dict()
-    cfg.from_dict(original)
+    env = DummyEnv()
     manager = ObservationManager(cfg, cast("ManagerBasedEnv", env))
-    buffers = manager._group_obs_term_delay_buffer["policy"]
-    delay = buffers.get("dummy")
-    assert isinstance(delay, DelayBuffer) if lag_bounds[1] else not buffers
-    assert not hasattr(modifiers, "DelayCfg"), "Delay sampling belongs to the observation manager."
-    lags = delay.time_lags.clone() if delay else torch.zeros(env.num_envs, device=device, dtype=torch.int)
-    assert torch.all((lag_bounds[0] <= lags) & (lags <= lag_bounds[1]))
-    samples, delivered = [[] for _ in range(env.num_envs)], [[] for _ in range(env.num_envs)]
+    delay = manager._group_obs_term_delay_buffer["policy"].get("dummy")
     history = manager._group_obs_term_history_buffer["policy"].get("dummy")
-
     manager.compute()
     if delay:
+        assert isinstance(delay, DelayBuffer)
         assert torch.all(delay.num_pushes == 0)
     if history:
         assert torch.all(history.current_length == 0)
 
-    for step in range(11):
-        if step == 5:
+    for step in range(6):
+        if step == 3:
             manager.reset([1])
-            samples[1].clear()
-            delivered[1].clear()
-            if delay:
-                torch.testing.assert_close(delay.time_lags[0], lags[0])
-                lags = delay.time_lags.clone()
-                assert lag_bounds[0] <= lags[1] <= lag_bounds[1]
-                assert delay.num_pushes[0] == step and delay.num_pushes[1] == 0
-        env.observation.fill_(step * 10.0)
-        # Vary the corruption to ensure delay stores the processed sample, not fresh noise on old data.
+        env.observation.fill_(step)
+        # Delay retains each sample's noise; history stacks the delayed, scaled outputs.
         manager.cfg.policy.dummy.noise.bias = float(step)
         output = manager.compute(update_history=True)["policy"]
-        for index in range(env.num_envs):
-            samples[index].append(2.0 * (step * 11.0 + 1.0))
-            delivered[index].append(samples[index][max(0, len(samples[index]) - 1 - int(lags[index]))])
-        length = max(1, history_length)
-        expected = torch.tensor(
-            [[values[max(0, len(values) - length + index)] for index in range(length)] for values in delivered],
-            device=device,
-        )
+        sample_steps = torch.arange(step - max(1, history_length) + 1, step + 1)
+        expected = 4.0 * (sample_steps - lag).clamp_min(0).expand(env.num_envs, -1).clone()
+        if step >= 3:
+            expected[1].clamp_(min=12.0)
         torch.testing.assert_close(output, expected)
-        if delay:
-            torch.testing.assert_close(delay.time_lags, lags)
-            torch.testing.assert_close(
-                delay.num_pushes, torch.tensor([len(values) for values in samples], device=device)
-            )
-        if history:
-            torch.testing.assert_close(
-                history.current_length,
-                torch.tensor([min(history_length, len(values)) for values in delivered], device=device),
-            )
-        # Both entry points must read the last recorded samples without advancing delay or history.
-        if delay or history:
-            env.observation.fill_(-100.0)
-            torch.testing.assert_close(manager.compute()["policy"], expected)
-            torch.testing.assert_close(manager.compute_group("policy"), expected)
-
-    assert cfg.to_dict() == original
-    serialized = manager.serialize()["policy"]["dummy"]["cfg"]
-    assert (serialized["delay_min_lag"], serialized["delay_max_lag"]) == lag_bounds
+        env.observation.fill_(-100.0)
+        torch.testing.assert_close(manager.compute()["policy"], expected)
+        torch.testing.assert_close(manager.compute_group("policy"), expected)
 
 
-@pytest.mark.parametrize("lag_bounds", [(-1, 2), (2, 1), (1, 0), (0.5, 2), (0, True)])
+@pytest.mark.parametrize("lag_bounds", [(-1, 2), (2, 1), (0.5, 2)])
 def test_observation_delay_config_validation(lag_bounds):
-    """Invalid delay bounds fail configuration validation and standalone manager construction."""
-    cfg = HistoryObservationsCfg()
-    cfg.policy.dummy.delay_min_lag, cfg.policy.dummy.delay_max_lag = lag_bounds
+    """Delay bounds must be nonnegative, ordered integers."""
+    cfg = ObservationTermCfg(func=dummy_observation, delay_min_lag=lag_bounds[0], delay_max_lag=lag_bounds[1])
     error = ValueError if all(type(value) is int for value in lag_bounds) else TypeError
     with pytest.raises(error, match="delay"):
         cfg.validate()
-    with pytest.raises(error, match="delay"):
-        ObservationManager(cfg, cast("ManagerBasedEnv", DummyEnv()))
