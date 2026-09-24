@@ -11,6 +11,7 @@ import json
 import logging
 import math
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -612,18 +613,34 @@ class IsaacRtxRenderer(BaseRenderer):
             device=parameters.device,
         )
 
-    def render(self, render_data: IsaacRtxRenderData):
-        """Extract data from annotators and write to output buffers.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
-        spec = render_data.spec
-        output_data = render_data.output_data
-        if output_data is None or spec is None:
+    def render(self, render_data: IsaacRtxRenderData) -> None:
+        """Render one camera product into its bound output buffers."""
+        self.render_batch((render_data,))
+
+    def render_batch(self, render_data: Sequence[IsaacRtxRenderData]) -> None:
+        """Ensure a shared RTX update once, then extract each camera's annotator outputs.
+
+        Args:
+            render_data: Cameras whose poses and output buffers have been prepared. Entries
+                without a spec or output buffers are skipped. An empty sequence performs no work.
+        """
+        cameras = [data for data in render_data if data.output_data is not None and data.spec is not None]
+        if not cameras:
             return
 
         # Ensure the RTX renderer has been pumped so annotator buffers are fresh.
         # This is a no-op if another camera instance already triggered the update
         # for the current physics step, or if a visualizer already pumped it.
         ensure_isaac_rtx_render_update()
+
+        for data in cameras:
+            self._read_annotator_output(data)
+
+    def _read_annotator_output(self, render_data: IsaacRtxRenderData) -> None:
+        """Extract one camera's annotator data into its bound output buffers."""
+        spec = render_data.spec
+        output_data = render_data.output_data
+        assert output_data is not None and spec is not None
 
         view_count = spec.view_count
         cfg = spec.cfg
