@@ -49,7 +49,7 @@ from isaaclab.assets import AssetBaseCfg
 # Pre-defined configs
 ##
 from isaaclab.physics import PhysicsCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.scene import InteractiveSceneCfg
 
 from isaaclab_assets.robots.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG  # isort:skip
 from isaaclab_assets.robots.spot import SPOT_CFG  # isort:skip
@@ -57,6 +57,7 @@ from isaaclab_assets.robots.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNIT
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
+    from isaaclab.scene import InteractiveScene
 
 
 def define_origins(num_origins: int, spacing: float) -> torch.Tensor:
@@ -74,7 +75,7 @@ def define_origins(num_origins: int, spacing: float) -> torch.Tensor:
     return env_origins
 
 
-def design_scene() -> InteractiveScene:
+def design_scene() -> "InteractiveScene":
     """Designs the scene."""
     scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0, filter_collisions=False)
     scene_cfg.ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
@@ -95,7 +96,7 @@ def design_scene() -> InteractiveScene:
         cfg = cfg.replace(prim_path=f"/World/Origin{index + 1}/Robot")
         cfg.init_state.pos = tuple(p + float(o) for p, o in zip(cfg.init_state.pos, origins[index], strict=True))
         setattr(scene_cfg, name, cfg)
-    return InteractiveScene(scene_cfg)
+    return scene_cfg.class_type(scene_cfg)
 
 
 def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Articulation"]):

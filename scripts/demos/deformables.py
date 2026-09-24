@@ -59,7 +59,7 @@ import tqdm
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.scene import InteractiveSceneCfg
 
 ##
 # Pre-defined configs
@@ -70,6 +70,7 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR  # isort:skip
 
 if TYPE_CHECKING:
     from isaaclab.assets import DeformableObject
+    from isaaclab.scene import InteractiveScene
 
 if args_cli.physics == "newton_vbd":
     from isaaclab_newton.physics import NewtonSoftContactCfg  # isort:skip
@@ -109,7 +110,7 @@ def define_origins(num_origins: int, radius: float = 2.0, center_height: float =
     return env_origins.tolist()
 
 
-def design_scene() -> InteractiveScene:
+def design_scene() -> "InteractiveScene":
     """Designs the scene."""
     scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0, filter_collisions=False)
     scene_cfg.ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
@@ -210,7 +211,7 @@ def design_scene() -> InteractiveScene:
                 init_state=DeformableObjectCfg.InitialStateCfg(pos=origin),
             ),
         )
-    return InteractiveScene(scene_cfg)
+    return scene_cfg.class_type(scene_cfg)
 
 
 def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "DeformableObject"]):

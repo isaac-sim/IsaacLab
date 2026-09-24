@@ -52,7 +52,7 @@ The tutorial corresponds to the ``run_deformable_object.py`` script in the ``scr
 
    .. literalinclude:: ../../../scripts/tutorials/01_assets/run_deformable_object.py
       :language: python
-      :emphasize-lines: 62-110, 133-149, 154-165, 171-176
+      :emphasize-lines: 63-111, 134-150, 155-166, 172-177
       :linenos:
 
 
@@ -86,7 +86,7 @@ The simulation loop accesses the resulting asset through ``scene["cube_object"]`
 .. literalinclude:: ../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
    :start-at: scene_cfg = InteractiveSceneCfg(
-   :end-at: return InteractiveScene(scene_cfg)
+   :end-at: return scene_cfg.class_type(scene_cfg)
 
 Running the simulation loop
 ---------------------------

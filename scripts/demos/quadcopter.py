@@ -47,7 +47,7 @@ from isaaclab.assets import AssetBaseCfg
 # Pre-defined configs
 ##
 from isaaclab.physics import PhysicsCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.scene import InteractiveSceneCfg
 
 from isaaclab_assets import CRAZYFLIE_CFG  # isort:skip
 
@@ -66,7 +66,7 @@ def main():
             prim_path="/World/Light", spawn=sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
         )
         scene_cfg.robot = CRAZYFLIE_CFG.replace(prim_path="/World/Crazyflie")
-        scene = InteractiveScene(scene_cfg)
+        scene = scene_cfg.class_type(scene_cfg)
         robot = scene["robot"]
 
         # Play the simulator

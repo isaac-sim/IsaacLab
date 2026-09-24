@@ -49,7 +49,7 @@ from isaaclab.assets import AssetBaseCfg
 # Pre-defined configs
 ##
 from isaaclab.physics import PhysicsCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
@@ -60,6 +60,7 @@ from isaaclab_assets.robots.universal_robots import UR10_CFG  # isort:skip
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
+    from isaaclab.scene import InteractiveScene
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
@@ -77,7 +78,7 @@ def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
     return env_origins.tolist()
 
 
-def design_scene() -> InteractiveScene:
+def design_scene() -> "InteractiveScene":
     """Designs the scene."""
     scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0, filter_collisions=False)
     scene_cfg.ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
@@ -114,7 +115,7 @@ def design_scene() -> InteractiveScene:
         robot_cfg = robot_cfg.replace(prim_path=f"{root}/Robot")
         robot_cfg.init_state.pos = (x, y, height)
         setattr(scene_cfg, name, robot_cfg)
-    return InteractiveScene(scene_cfg)
+    return scene_cfg.class_type(scene_cfg)
 
 
 def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Articulation"]):

@@ -92,15 +92,34 @@ def test_overrides_only_reference_discovered_standalone_scripts():
     ],
 )
 def test_scene_examples_delegate_replication_to_interactive_scene(path):
-    """User-facing examples construct a scene; explicit clone orchestration belongs in cloner tests/docs."""
+    """Examples declare scene cfgs before startup without importing USD or orchestrating cloning."""
     tree = ast.parse((script_cases.ROOT / path).read_text(encoding="utf-8"))
     calls = {
         node.func.id if isinstance(node.func, ast.Name) else node.func.attr
         for node in ast.walk(tree)
         if isinstance(node, ast.Call) and isinstance(node.func, (ast.Name, ast.Attribute))
     }
-    assert "InteractiveScene" in calls
+    assert "InteractiveSceneCfg" in calls
     assert calls.isdisjoint({"clone_plan_from_env_0", "make_clone_plan", "set_clone_plan", "replicate"})
+    args = ["input", "output"] if path.startswith("scripts/tools/convert_") else []
+    # Only import the scripts; converter availability is irrelevant without executing their main function.
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import runpy, sys\nfrom unittest.mock import patch\nsys.argv = sys.argv[1:]\n"
+            "with patch('isaaclab.utils.version.standalone_importers_available', return_value=True):\n"
+            "    runpy.run_path(sys.argv[0], run_name='prelaunch_check')\n"
+            "assert 'pxr.Tf' not in sys.modules, 'USD loaded before runtime startup'",
+            path,
+            *args,
+        ],
+        cwd=script_cases.ROOT,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_launch_matrix_covers_declared_backends_and_visualizers():

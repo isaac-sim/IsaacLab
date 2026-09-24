@@ -9,6 +9,8 @@
 - Follow the existing style and abstractions in the affected package.
 - Use `InteractiveScene` for scene construction in maintained demos, tutorials, and asset previews.
   Keep explicit clone-plan construction and replication in tests and documentation that teaches the cloner API.
+- Before `launch_simulation`, import scene cfgs, not the runtime `InteractiveScene` class. Construct
+  the scene with `scene_cfg.class_type(scene_cfg)` after launch so Kit selects its own USD bindings.
 - Use modern Python type hints, including `X | None` instead of `Optional[X]`.
 - Use `snake_case` for methods, functions, and CLI arguments.
 - Keep related public symbols discoverable through consistent prefixes.

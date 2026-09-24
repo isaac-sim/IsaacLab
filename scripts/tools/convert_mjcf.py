@@ -102,7 +102,7 @@ import os  # noqa: E402
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.assets import AssetBaseCfg  # noqa: E402
 from isaaclab.physics import PhysicsCfg  # noqa: E402
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
+from isaaclab.scene import InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg  # noqa: E402
 from isaaclab.utils.assets import check_file_path  # noqa: E402
 from isaaclab.utils.dict import print_dict  # noqa: E402
@@ -134,7 +134,7 @@ def preview(usd_path: str, physics_cfg: PhysicsCfg) -> None:
         prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     )
     scene_cfg.asset = AssetBaseCfg(prim_path="/World/ConvertedAsset", spawn=sim_utils.UsdFileCfg(usd_path=usd_path))
-    _scene = InteractiveScene(scene_cfg)
+    _scene = scene_cfg.class_type(scene_cfg)
     sim.reset()
 
     # Checked per visualizer rather than through ``SimulationContext.is_headless_or_exist_active_visualizer``:

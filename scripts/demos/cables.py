@@ -45,10 +45,11 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, CableObjectCfg
 from isaaclab.cloner import CloneCfg
 from isaaclab.physics import PhysicsCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.scene import InteractiveSceneCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import CableObject
+    from isaaclab.scene import InteractiveScene
 
 
 def design_scene(num_cables: int, num_segments: int, colorize: bool) -> InteractiveScene:
@@ -109,7 +110,7 @@ def design_scene(num_cables: int, num_segments: int, colorize: bool) -> Interact
         )
         setattr(scene_cfg, f"cable_{index:03d}", cfg)
 
-    return InteractiveScene(scene_cfg)
+    return scene_cfg.class_type(scene_cfg)
 
 
 def reset_cables(entities: dict[str, CableObject]) -> None:

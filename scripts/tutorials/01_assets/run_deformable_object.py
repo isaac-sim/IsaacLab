@@ -51,10 +51,11 @@ import isaaclab.utils.math as math_utils
 from isaaclab.assets import AssetBaseCfg, DeformableObjectCfg
 from isaaclab.cloner import CloneCfg
 from isaaclab.physics import PhysicsCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.scene import InteractiveSceneCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import DeformableObject
+    from isaaclab.scene import InteractiveScene
 
 
 def design_scene():
@@ -107,10 +108,10 @@ def design_scene():
         debug_vis=True,
     )
 
-    return InteractiveScene(scene_cfg)
+    return scene_cfg.class_type(scene_cfg)
 
 
-def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
+def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene"):
     """Runs the simulation loop."""
     # Extract scene entities
     cube_object: DeformableObject = scene["cube_object"]

@@ -48,7 +48,7 @@ from isaaclab.assets import AssetBaseCfg
 # Pre-defined configs
 ##
 from isaaclab.physics import PhysicsCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.scene import InteractiveSceneCfg
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 from isaaclab_assets.robots.cassie import CASSIE_CFG  # isort:skip
@@ -56,9 +56,10 @@ from isaaclab_assets.robots.unitree import G1_CFG, H1_CFG  # isort:skip
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
+    from isaaclab.scene import InteractiveScene
 
 
-def design_scene(sim: "sim_utils.SimulationContext") -> tuple[InteractiveScene, torch.Tensor]:
+def design_scene(sim: "sim_utils.SimulationContext") -> tuple["InteractiveScene", torch.Tensor]:
     """Designs the scene."""
     scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0, filter_collisions=False)
     scene_cfg.ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
@@ -79,7 +80,7 @@ def design_scene(sim: "sim_utils.SimulationContext") -> tuple[InteractiveScene, 
     scene_cfg.cassie = CASSIE_CFG.replace(prim_path="/World/Cassie")
     scene_cfg.h1 = H1_CFG.replace(prim_path="/World/H1")
     scene_cfg.g1 = G1_CFG.replace(prim_path="/World/G1")
-    return InteractiveScene(scene_cfg), origins
+    return scene_cfg.class_type(scene_cfg), origins
 
 
 def run_simulator(sim: "sim_utils.SimulationContext", robots: list["Articulation"], origins: torch.Tensor):

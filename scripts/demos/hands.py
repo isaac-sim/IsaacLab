@@ -49,7 +49,7 @@ from isaaclab.assets import AssetBaseCfg
 # Pre-defined configs
 ##
 from isaaclab.physics import PhysicsCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.scene import InteractiveSceneCfg
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG  # isort:skip
@@ -61,6 +61,7 @@ from isaaclab_assets.robots.shadow_hand import (
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
+    from isaaclab.scene import InteractiveScene
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
@@ -78,7 +79,7 @@ def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
     return env_origins.tolist()
 
 
-def design_scene() -> InteractiveScene:
+def design_scene() -> "InteractiveScene":
     """Designs the scene."""
     scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0, filter_collisions=False)
     scene_cfg.ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
@@ -98,7 +99,7 @@ def design_scene() -> InteractiveScene:
     )
     for cfg, origin in zip((scene_cfg.allegro, scene_cfg.shadow_hand), origins, strict=True):
         cfg.init_state.pos = tuple(p + o for p, o in zip(cfg.init_state.pos, origin, strict=True))
-    return InteractiveScene(scene_cfg)
+    return scene_cfg.class_type(scene_cfg)
 
 
 def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Articulation"]):
