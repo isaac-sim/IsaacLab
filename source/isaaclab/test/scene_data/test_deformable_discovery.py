@@ -50,6 +50,7 @@ def test_transform_points_matches_usd_matrix4d_transform():
 
 
 def test_discover_volume_tet_mesh_deformable():
+    """Classify tetrahedra and prefer the named visual over unrelated child meshes."""
     stage = Usd.Stage.CreateInMemory()
     root = UsdGeom.Xform.Define(stage, "/World/envs/env_0/SoftBody").GetPrim()
     _add_api_schemas(root, ["OmniPhysicsDeformableBodyAPI"])
@@ -58,10 +59,11 @@ def test_discover_volume_tet_mesh_deformable():
     points = [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0), Gf.Vec3f(0.0, 0.0, 1.0)]
     tet.CreatePointsAttr(points)
     tet.CreateTetVertexIndicesAttr([Gf.Vec4i(0, 1, 2, 3)])
-    visual = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/SoftBody/visual")
-    visual.CreatePointsAttr(points)
-    visual.CreateFaceVertexCountsAttr([3])
-    visual.CreateFaceVertexIndicesAttr([0, 1, 2])
+    for name in ("decoration", "visual", "props/unrelated"):
+        mesh = UsdGeom.Mesh.Define(stage, f"/World/envs/env_0/SoftBody/{name}")
+        mesh.CreatePointsAttr(points)
+        mesh.CreateFaceVertexCountsAttr([3])
+        mesh.CreateFaceVertexIndicesAttr([0, 1, 2])
 
     entries = discover_deformables_on_stage(stage)
     assert len(entries) == 1
@@ -222,37 +224,3 @@ def test_backend_geometry_nearest_owner_partial_rows_and_shared_roots():
     for ordered in (prototypes, prototypes[::-1]):
         expanded = {entry.root_path: entry for entry in deformable_entries(override_plan, ordered)}
         assert expanded["/Lab/Cell3/Nested/Cloth"].vertices is shared.vertices
-
-
-def test_discover_volume_prefers_named_visual_over_unrelated_child_mesh():
-    """When several child meshes exist under the BodyAPI root, select the visual mesh."""
-    stage = Usd.Stage.CreateInMemory()
-    root = UsdGeom.Xform.Define(stage, "/World/envs/env_0/SoftBody").GetPrim()
-    _add_api_schemas(root, ["OmniPhysicsDeformableBodyAPI"])
-    tet = UsdGeom.TetMesh.Define(stage, "/World/envs/env_0/SoftBody/simulation")
-    _add_api_schemas(tet.GetPrim(), ["OmniPhysicsVolumeDeformableSimAPI"])
-    points = [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0), Gf.Vec3f(0.0, 0.0, 1.0)]
-    tet.CreatePointsAttr(points)
-    tet.CreateTetVertexIndicesAttr([Gf.Vec4i(0, 1, 2, 3)])
-
-    # Lexicographically first child mesh (must not win over the named visual).
-    deco = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/SoftBody/decoration")
-    deco.CreatePointsAttr([Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0)])
-    deco.CreateFaceVertexCountsAttr([3])
-    deco.CreateFaceVertexIndicesAttr([0, 1, 2])
-
-    visual = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/SoftBody/visual")
-    visual.CreatePointsAttr(points)
-    visual.CreateFaceVertexCountsAttr([3])
-    visual.CreateFaceVertexIndicesAttr([0, 1, 2])
-
-    # Nested under an unrelated child branch — scoring must prefer the named visual.
-    nested = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/SoftBody/props/unrelated")
-    nested.CreatePointsAttr(points)
-    nested.CreateFaceVertexCountsAttr([3])
-    nested.CreateFaceVertexIndicesAttr([0, 1, 2])
-
-    entries = discover_deformables_on_stage(stage)
-    assert len(entries) == 1
-    assert entries[0].vis_mesh_path.endswith("/visual")
-    assert entries[0].vis_vertex_count == 4

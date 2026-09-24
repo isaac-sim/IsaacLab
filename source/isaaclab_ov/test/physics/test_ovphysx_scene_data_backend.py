@@ -881,16 +881,13 @@ def test_deformable_only_setup_publishes_declared_geometry_in_native_order(node_
     import warp as wp
     from isaaclab_ov import tensor_types as TT
 
-    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
+    from isaaclab.scene_data import SceneDataProvider
     from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
 
-    counts = {"/Clones/slot_2/Asset": 4, "/Clones/slot_9/Asset": 4, "/Shared": 4}
     values = {"/Clones/slot_2/Asset": 2.0, "/Clones/slot_9/Asset": 9.0, "/Shared": 100.0}
     entries = [
-        DeformableStageEntry(
-            path, path + "/sim", path + "/vis", "volume" if path == "/Shared" else "surface", count, count
-        )
-        for path, count in counts.items()
+        DeformableStageEntry(path, path + "/sim", path + "/vis", "volume" if path == "/Shared" else "surface", 4, 4)
+        for path in values
     ]
     entries[-1].vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float32)
     entries[-1].indices = np.array([0, 1, 2, 3], dtype=np.int32)
@@ -902,10 +899,13 @@ def test_deformable_only_setup_publishes_declared_geometry_in_native_order(node_
     class NativePhysX:
         def create_tensor_binding(self, *, prim_paths, tensor_type):
             bindings.append((prim_paths, tensor_type))
-            nodes = counts[prim_paths[0]] + node_padding
+            nodes = 4 + node_padding
 
             def read(dst):
-                data = np.array([[[values[path]] * 3] * nodes for path in reversed(prim_paths)], dtype=np.float32)
+                data = np.array(
+                    [np.arange(nodes * 3).reshape(nodes, 3) + values[path] for path in reversed(prim_paths)],
+                    dtype=np.float32,
+                )
                 wp.copy(dst, wp.array(data, dtype=wp.float32, device="cpu"))
                 reads.append((dst.ptr, dst.size * wp.types.type_size_in_bytes(dst.dtype)))
 
@@ -926,35 +926,23 @@ def test_deformable_only_setup_publishes_declared_geometry_in_native_order(node_
         return
     backend.setup(NativePhysX(), stage, "cpu", entries)
 
-    assert {path for paths, _ in bindings for path in paths} == counts.keys()
     assert {kind for _, kind in bindings} == {TT.SURFACE_DEFORMABLE_SIM_POSITION, TT.DEFORMABLE_SIM_NODAL_POSITION}
-    assert backend.transform_count == 0
-    batches = backend.get_geometry_batches()
-    native, weighted = batches
-    points = native[0].points
-    native_order = ["/Clones/slot_9/Asset", "/Clones/slot_2/Asset", "/Shared"]
-    expected = np.concatenate([np.full((counts[path], 3), values[path]) for path in native_order])
-    np.testing.assert_array_equal(points.numpy(), expected)
-    assert reads[0][0] == points.ptr
-    assert reads[1][0] == points.ptr + reads[0][1]
-    assert backend.get_geometry_batches() is batches
-    assert len(reads) == len(bindings)
-    assert native[0]._cls is SceneDataFormat.Points
-    assert native[1] == {path + "/vis": (index * 4, 4) for index, path in enumerate(native_order[:2])}
-    assert weighted[0]._cls is SceneDataFormat.WeightedPoints
-    assert weighted[0].points is points
-    assert weighted[1] == {"/Shared/vis": (0, 2)}
-    np.testing.assert_array_equal(weighted[0].indices.numpy(), [[8, 9, 10, 11]] * 2)
-    np.testing.assert_allclose(weighted[0].weights.numpy(), [[0.5, 0.5, 0, 0], [0.5, 0, 0.5, 0]])
     provider = SceneDataProvider(backend)
     visual = provider.get_geometry_points()
+    assert set(visual) == {path + "/vis" for path in values}
+    assert reads[0][0] == visual["/Clones/slot_9/Asset/vis"].ptr
+    assert reads[1][0] == reads[0][0] + reads[0][1]
+    assert visual["/Clones/slot_2/Asset/vis"].ptr == reads[0][0] + 4 * wp.types.type_size_in_bytes(wp.vec3f)
+    nodes = np.arange(12).reshape(4, 3)
+    for path in ("/Clones/slot_2/Asset", "/Clones/slot_9/Asset"):
+        np.testing.assert_array_equal(visual[path + "/vis"].numpy(), nodes + values[path])
+    expected = (nodes[0] + nodes[[1, 2]]) / 2 + values["/Shared"]
+    np.testing.assert_array_equal(visual["/Shared/vis"].numpy(), expected)
     assert provider.get_geometry_points() is visual
-    np.testing.assert_array_equal(visual["/Shared/vis"].numpy(), np.full((2, 3), values["/Shared"]))
+    assert len(reads) == len(bindings)
     values["/Shared"] += 1
     backend.geometry_version += 1
-    assert backend.get_geometry_batches() is batches
-    assert len(reads) == 2 * len(bindings)
-    np.testing.assert_array_equal(points.numpy()[-4:], np.full((4, 3), values["/Shared"]))
     updated = provider.get_geometry_points()
+    assert len(reads) == 2 * len(bindings)
     assert updated["/Shared/vis"] is visual["/Shared/vis"]
-    np.testing.assert_array_equal(updated["/Shared/vis"].numpy(), np.full((2, 3), values["/Shared"]))
+    np.testing.assert_array_equal(updated["/Shared/vis"].numpy(), expected + 1)

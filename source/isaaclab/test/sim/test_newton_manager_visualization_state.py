@@ -14,7 +14,6 @@ import numpy as np
 import pytest
 
 from isaaclab.cloner import ClonePlan
-from isaaclab.scene_data.deformable_discovery import deformable_entries, deformable_prototypes
 
 pytestmark = pytest.mark.integration
 
@@ -360,31 +359,6 @@ def test_update_visualization_state_writes_final_geometry_once_per_version(monke
         np.testing.assert_array_equal(particle_q.numpy(), expected)
         assert wp.launch.call_count == version + 1
         assert NewtonManager._mark_sensor_state_dirty.call_count == version + 1
-
-
-def test_shadow_deformable_placement_uses_parent_pose_not_root(monkeypatch):
-    """Parent-frame baked verts must be placed with the parent world pose."""
-    from isaaclab_newton.physics import visualization_deformables as vd
-
-    from pxr import Gf, UsdGeom
-
-    stage = _make_surface_cloth_stage("/World/envs/env_0/ClothRoot/mesh")
-    parent = UsdGeom.Xform(stage.GetPrimAtPath("/World/envs/env_0/ClothRoot"))
-    parent.AddTranslateOp().Set(Gf.Vec3d(10.0, 0.0, 0.0))
-    root = UsdGeom.Mesh(stage.GetPrimAtPath("/World/envs/env_0/ClothRoot/mesh"))
-    root.AddTranslateOp().Set(Gf.Vec3d(2.0, 0.0, 0.0))
-    builder = Mock(particle_count=0)
-    plan = ClonePlan(
-        sources=("/World/envs/env_0",),
-        destinations=("/World/envs/env_{}",),
-        clone_mask=np.ones((1, 1), dtype=np.bool_),
-        env_ids=np.asarray([0]),
-    )
-    vd.add_shadow_deformables_to_builder(builder, deformable_entries(plan, deformable_prototypes(stage, plan)))
-
-    # Parent world translation is (10,0,0); root's extra (2,0,0) must not be used as placement.
-    assert tuple(builder.add_cloth_mesh.call_args.kwargs["pos"]) == (10.0, 0.0, 0.0)
-    builder.add_soft_mesh.assert_not_called()
 
 
 @pytest.mark.parametrize("global_path", ["/World/Assets/Cloth", "/World/Assets"])

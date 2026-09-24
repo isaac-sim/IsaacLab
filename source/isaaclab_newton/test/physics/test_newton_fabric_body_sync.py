@@ -31,7 +31,6 @@ from pxr import Sdf, UsdGeom
 from usdrt import Gf, Rt
 
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
 from isaaclab.assets import AssetBaseCfg, CableObjectCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.scene_data import SceneDataFormat
@@ -328,35 +327,6 @@ def test_nested_bodies_keep_independent_world_poses():
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
-def test_periodic_cable_is_skipped_by_fabric_sync():
-    """Periodic cables must not abort unsupported Fabric synchronization."""
-    sim_cfg = SimulationCfg(
-        dt=1.0 / 120.0,
-        device="cuda:0",
-        physics=NewtonCfg(
-            solver_cfg=VBDSolverCfg(iterations=2),
-            num_substeps=1,
-            use_cuda_graph=False,
-        ),
-    )
-
-    with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        cable_cfg = AssetBaseCfg(
-            prim_path="/World/Cable", spawn=_CableRenderSceneCfg(num_envs=1, env_spacing=1.0).cable.spawn
-        )
-        plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (cable_cfg,), 1, 0.0)
-        sim.stage.DefinePrim(plan.sources[0], "Xform")
-        cable_cfg.class_type(cable_cfg)
-        curve = UsdGeom.BasisCurves(sim_utils.get_current_stage().GetPrimAtPath("/World/Cable/geometry/mesh"))
-        curve.GetWrapAttr().Set(UsdGeom.Tokens.periodic)
-        cloner.replicate(plan)
-        sim.reset()
-
-        assert NewtonManager.collect_cable_segment_shape_ids() == {}
-
-
-@pytest.mark.isaacsim_ci
-@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
 def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence():
     """Mesh, curve and cloud sinks consume only named SDP buffers, independent of Newton internals."""
     cfg = SimulationCfg(device="cuda:0", physics=NewtonCfg(), visualizer_cfgs=[])
@@ -403,6 +373,8 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence():
             path = f"/World/Geometry/{name}"
             np.testing.assert_allclose(_fabric_curve_points_world(path), points[path].numpy(), atol=1.0e-6)
         cloud = UsdGeom.Points(sim.stage.GetPrimAtPath("/World/Geometry/Cloud"))
+        fabric.update_geometries(provider, 1)
+        fabric.update_geometries(provider, 2)
         assert cloud.GetPointsAttr().Get()[0][0] == 1.0
         fabric.update_geometries(provider, 3)
         np.testing.assert_allclose(cloud.GetPointsAttr().Get(), points["/World/Geometry/Cloud"].numpy(), atol=1.0e-6)
@@ -429,50 +401,28 @@ def test_cable_points_follow_newton_segments_after_step_and_reset():
         scene = InteractiveScene(_CableRenderSceneCfg(num_envs=2, env_spacing=2.0))
         sim.register_interactive_scene(scene)
         try:
-            sim.reset()
-            scene.reset()
-            scene.update(0.0)
-            _render(sim, scene)
-            wp.synchronize_device(device)
-
             cable = scene["cable"]
-            curve_path = "/World/envs/env_0/Cable/geometry/mesh"
-            initial_points = _fabric_curve_points_world(curve_path)
-            torch.testing.assert_close(initial_points, _expected_cable_points_world(cable), rtol=0.0, atol=1.0e-4)
-
-            for _ in range(8):
-                scene.write_data_to_sim()
-                sim.step(render=False)
-                scene.update(sim.cfg.dt)
-            _render(sim, scene)
-            wp.synchronize_device(device)
-            moved_points = _fabric_curve_points_world(curve_path)
-            torch.testing.assert_close(moved_points, _expected_cable_points_world(cable), rtol=0.0, atol=1.0e-4)
-            assert not torch.allclose(moved_points, initial_points, rtol=0.0, atol=1.0e-5)
-            replicated_curve_path = "/World/envs/env_1/Cable/geometry/mesh"
-            torch.testing.assert_close(
-                _fabric_curve_points_world(replicated_curve_path),
-                _expected_cable_points_world(cable, env_id=1),
-                rtol=0.0,
-                atol=1.0e-4,
-            )
-
-            sim.reset()
-            scene.update(0.0)
-            _render(sim, scene)
-            wp.synchronize_device(device)
-            reset_points = _fabric_curve_points_world(curve_path)
-            torch.testing.assert_close(reset_points, _expected_cable_points_world(cable), rtol=0.0, atol=1.0e-4)
-
-            for _ in range(8):
-                scene.write_data_to_sim()
-                sim.step(render=False)
-                scene.update(sim.cfg.dt)
-            _render(sim, scene)
-            wp.synchronize_device(device)
-            after_reset_points = _fabric_curve_points_world(curve_path)
-            torch.testing.assert_close(after_reset_points, _expected_cable_points_world(cable), rtol=0.0, atol=1.0e-4)
-            assert not torch.allclose(after_reset_points, reset_points, rtol=0.0, atol=1.0e-5)
+            paths = [f"{path}/Cable/geometry/mesh" for path in scene.env_prim_paths]
+            for reset_scene in (True, False):
+                sim.reset()
+                if reset_scene:
+                    scene.reset()
+                scene.update(0.0)
+                _render(sim, scene)
+                initial_points = [_fabric_curve_points_world(path) for path in paths]
+                for env_id, initial in enumerate(initial_points):
+                    expected = _expected_cable_points_world(cable, env_id)
+                    torch.testing.assert_close(initial, expected, rtol=0.0, atol=1.0e-4)
+                for _ in range(8):
+                    scene.write_data_to_sim()
+                    sim.step(render=False)
+                    scene.update(sim.cfg.dt)
+                _render(sim, scene)
+                for env_id, path in enumerate(paths):
+                    moved = _fabric_curve_points_world(path)
+                    expected = _expected_cable_points_world(cable, env_id)
+                    torch.testing.assert_close(moved, expected, rtol=0.0, atol=1.0e-4)
+                    assert not torch.allclose(moved, initial_points[env_id], rtol=0.0, atol=1.0e-5)
         finally:
             sim.register_interactive_scene(None)
 

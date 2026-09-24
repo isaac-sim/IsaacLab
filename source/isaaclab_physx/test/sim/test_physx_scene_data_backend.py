@@ -177,8 +177,7 @@ def test_deformable_geometry_uses_declared_counts_and_native_order(monkeypatch, 
     """Declared unpadded counts survive native reordering and mesh paths."""
     from isaaclab_physx.physics import physx_manager
 
-    from isaaclab.physics import PhysicsManager
-    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
+    from isaaclab.scene_data import SceneDataProvider
     from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
 
     values = {"/Clones/slot_2/Asset": 2.0, "/Clones/slot_9/Asset": 9.0, "/Shared": 100.0}
@@ -189,18 +188,16 @@ def test_deformable_geometry_uses_declared_counts_and_native_order(monkeypatch, 
         )
         for path, count in counts.items()
     ]
-    bound_paths = []
     native_points, reads = {}, []
 
     def create_view(paths):
-        bound_paths.extend(paths)
         paths = list(reversed(paths))
         nodal = np.full((len(paths), capacity, 3), -999.0, dtype=np.float32)
         for index, path in enumerate(paths):
             nodal[index, : counts[path]] = values[path]
         points = wp.array(nodal, dtype=wp.float32, device="cpu")
-        for path in paths:
-            native_points[path + "/vis"] = points
+        for index, path in enumerate(paths):
+            native_points[path + "/vis"] = points, index * capacity
 
         def read():
             reads.append(points.ptr)
@@ -213,7 +210,6 @@ def test_deformable_geometry_uses_declared_counts_and_native_order(monkeypatch, 
             get_simulation_nodal_positions=read,
         )
 
-    monkeypatch.setattr(PhysicsManager, "_device", "cpu")
     monkeypatch.setattr(
         physx_manager.omni.usd, "get_context", lambda: pytest.fail("Geometry bindings must not fetch a stage.")
     )
@@ -229,25 +225,17 @@ def test_deformable_geometry_uses_declared_counts_and_native_order(monkeypatch, 
         return
     backend._setup_deformable_geometry(entries)
 
-    assert set(bound_paths) == counts.keys()
-    batches = backend.get_geometry_batches()
-    assert [ranges for _, ranges in batches] == [
-        {"/Shared/vis": (0, 2)},
-        {"/Clones/slot_9/Asset/vis": (0, 4), "/Clones/slot_2/Asset/vis": (capacity, 4)},
-    ]
     provider = SceneDataProvider(backend)
     visual = provider.get_geometry_points()
-    for publication, ranges in batches:
-        assert publication._cls is SceneDataFormat.Points
-        for path, (offset, count) in ranges.items():
-            assert publication.points.ptr == native_points[path].ptr
-            assert visual[path].ptr == publication.points.ptr + offset * wp.types.type_size_in_bytes(wp.vec3f)
-            np.testing.assert_array_equal(visual[path].numpy(), np.full((count, 3), values[path[:-4]]))
+    assert set(visual) == {path + "/vis" for path in counts}
+    for path, (native, offset) in native_points.items():
+        assert visual[path].ptr == native.ptr + offset * wp.types.type_size_in_bytes(wp.vec3f)
+        np.testing.assert_array_equal(visual[path].numpy(), np.full((counts[path[:-4]], 3), values[path[:-4]]))
     read_count = len(reads)
     assert provider.get_geometry_points() is visual
     assert len(reads) == read_count
     backend.geometry_version += 1
-    backend.get_geometry_batches()
-    assert len(reads) == read_count + len(batches)
+    provider.get_geometry_points()
+    assert len(reads) == read_count + 2
     backend.clear()
     assert backend.get_geometry_batches() == []

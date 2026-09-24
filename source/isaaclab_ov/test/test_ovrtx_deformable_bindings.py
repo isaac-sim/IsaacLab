@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib.util
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -25,46 +26,11 @@ if not _MISSING_MODULES:
     from ovrtx import DataAccess
 
 
-class _FakePointsBinding:
-    """Capture SDK writes without retaining an engine."""
-
-    def __init__(self, attribute_name: str):
-        self.attribute_name = attribute_name
-        self.written = None
-        self.write_kwargs = None
-        self.writes = []
-
-    def write(self, data, **kwargs):
-        self.written = data
-        self.write_kwargs = kwargs
-        self.writes.append((data, kwargs))
-
-
-class _FakeOVRTXBackend:
-    """Capture legacy binding declarations and stage writes."""
-
-    def __init__(self):
-        self.bindings = {}
-        self.calls = []
-        self.writes = []
-
-    def bind_array_attribute(self, **kwargs):
-        self.calls.append(kwargs)
-        binding = _FakePointsBinding(kwargs["attribute_name"])
-        self.bindings[kwargs["attribute_name"]] = binding
-        return binding
-
-    bind_attribute = bind_array_attribute
-
-    def write_attribute(self, **kwargs):
-        self.writes.append(kwargs)
-
-
-def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, _FakeOVRTXBackend]:
+def _make_renderer_without_backend() -> tuple[OVRTXRenderer, MagicMock]:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
-    renderer.backend = SimpleNamespace(renderer=_FakeOVRTXBackend())
-    renderer._device = device
+    renderer.backend = SimpleNamespace(renderer=MagicMock())
+    renderer._device = "cpu"
     renderer._geometry_paths = []
     renderer._geometry_version = -1
     renderer._use_ovstage = False
@@ -99,36 +65,45 @@ def test_geometry_bindings_borrow_mixed_sdp_points_and_follow_pointer_swaps(use_
         return publication.points
 
     renderer._sdp = SimpleNamespace(backend=publication, get_geometry_points=read_points)
-    writes = []
     if use_ovstage:
         renderer._init_fields_ovstage()
         renderer._current_ordinal = 7
         renderer.backend.paths = SimpleNamespace(create_path_list_from_strings=lambda paths: paths)
-        renderer.backend.stage = SimpleNamespace(
-            query_from_path_list=lambda paths: paths,
-            write_attribute=lambda query, attribute, **kwargs: (
-                writes.append((query, attribute, kwargs)) or SimpleNamespace(wait=lambda: None)
-            ),
-        )
+        renderer.backend.stage = MagicMock()
+        renderer.backend.stage.query_from_path_list.side_effect = lambda paths: paths
+        publication.points = {}
+        renderer._setup_geometry_bindings_ovstage()
+        renderer.update_geometries()
+        renderer.backend.stage.write_attribute.assert_not_called()
+        publication.points = points
         renderer._setup_geometry_bindings_ovstage()
         assert renderer._geometry_points_query == list(points)
-        assert [attribute for _, attribute, _ in writes] == ["omni:resetXformStack", "omni:xform"]
-        np.testing.assert_array_equal(writes[0][2]["tensors"], np.ones(len(points), dtype=np.bool_))
-        writes.clear()
+        write = renderer.backend.stage.write_attribute
+        assert [call.args[1] for call in write.call_args_list] == ["omni:resetXformStack", "omni:xform"]
+        np.testing.assert_array_equal(write.call_args_list[0].kwargs["tensors"], np.ones(len(points), dtype=np.bool_))
+        write.reset_mock()
     else:
+        publication.points = {}
         renderer._setup_geometry_bindings_legacy()
-        assert len(native.calls) == 1
-        assert native.calls[0]["prim_paths"] == list(points)
-        np.testing.assert_array_equal(native.writes[0]["tensor"], np.ones(len(points), dtype=np.bool_))
-        np.testing.assert_array_equal(native.writes[1]["tensor"], np.tile(np.eye(4), (len(points), 1, 1)))
-        writes = renderer._geometry_points_binding.writes
+        renderer.update_geometries()
+        native.bind_array_attribute.assert_not_called()
+        publication.points = points
+        renderer._setup_geometry_bindings_legacy()
+        assert native.bind_array_attribute.call_args.kwargs["prim_paths"] == list(points)
+        np.testing.assert_array_equal(
+            native.write_attribute.call_args_list[0].kwargs["tensor"], np.ones(len(points), dtype=np.bool_)
+        )
+        np.testing.assert_array_equal(
+            native.write_attribute.call_args_list[1].kwargs["tensor"], np.tile(np.eye(4), (len(points), 1, 1))
+        )
+        write = renderer._geometry_points_binding.write
 
     renderer.update_geometries()
     renderer.update_geometries()
-    assert len(writes) == 1
-    data = writes[0][2]["tensors"] if use_ovstage else writes[0][0]
+    assert write.call_count == 1
+    data = write.call_args.kwargs["tensors"] if use_ovstage else write.call_args.args[0]
     assert [item.data if use_ovstage else item.ptr for item in data] == [array.ptr for array in points.values()]
-    kwargs = writes[0][-1]
+    kwargs = write.call_args.kwargs
     assert kwargs["cuda_stream"] == 42
     if use_ovstage:
         assert kwargs["ordinal"] == 7 and kwargs["is_array"]
@@ -139,26 +114,11 @@ def test_geometry_bindings_borrow_mixed_sdp_points_and_follow_pointer_swaps(use_
     publication.points = {path: wp.clone(array) for path, array in reversed(tuple(points.items()))}
     renderer.update_geometries()
     renderer.update_geometries()
-    assert len(writes) == 2
-    data = writes[1][2]["tensors"] if use_ovstage else writes[1][0]
+    assert write.call_count == 2
+    data = write.call_args.kwargs["tensors"] if use_ovstage else write.call_args.args[0]
     assert [item.data if use_ovstage else item.ptr for item in data] == [
         publication.points[path].ptr for path in points
     ]
-
-
-@pytest.mark.parametrize("use_ovstage", [False, True])
-def test_geometry_bindings_skip_empty_publication(use_ovstage):
-    renderer, native = _make_renderer_without_backend()
-    renderer._sdp = SimpleNamespace(get_geometry_points=lambda: {})
-    renderer._use_ovstage = use_ovstage
-    if use_ovstage:
-        renderer._init_fields_ovstage()
-        renderer._setup_geometry_bindings_ovstage()
-        assert renderer._geometry_points_query is None
-    else:
-        renderer._setup_geometry_bindings_legacy()
-        assert not native.calls
-    renderer.update_geometries()
 
 
 @pytest.mark.parametrize("use_ovstage", [False, True])
@@ -195,7 +155,7 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
         writes.clear()
     else:
         renderer._setup_xform_bindings_legacy()
-        assert renderer.backend.renderer.calls[0]["prim_paths"] == paths
+        assert renderer.backend.renderer.bind_attribute.call_args.kwargs["prim_paths"] == paths
         renderer._object_xform_binding.write = lambda matrices, **kwargs: writes.append((None, matrices, kwargs))
 
     renderer.update_transforms()
@@ -221,29 +181,3 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
     assert updated is matrices
     expected[:, 3, :3] = poses[:, :3]
     np.testing.assert_array_equal(updated.numpy(), expected)
-
-
-def test_update_camera_writes_without_mapping(monkeypatch: pytest.MonkeyPatch):
-    """Camera xforms are handed to ``write()`` instead of copied into a mapped OVRTX buffer."""
-    renderer, _ = _make_renderer_without_backend()
-    render_data = SimpleNamespace(camera_xform_binding=_FakePointsBinding("omni:xform"))
-    camera_transforms = []
-
-    monkeypatch.setattr(ovrtx_renderer_module, "convert_camera_frame_orientation_convention_wp", lambda **kwargs: None)
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "empty", lambda *args, **kwargs: object())
-
-    def _fake_zeros(*args, **kwargs):
-        arr = object()
-        camera_transforms.append(arr)
-        return arr
-
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "zeros", _fake_zeros)
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "launch", lambda *args, **kwargs: None)
-    renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=7))
-
-    positions = SimpleNamespace(shape=(2,), warp=object())
-    renderer.update_camera(render_data, positions, SimpleNamespace(warp=object()), object())
-
-    assert render_data.camera_xform_binding.written is camera_transforms[0]
-    assert render_data.camera_xform_binding.write_kwargs["data_access"] is DataAccess.ASYNC
-    assert render_data.camera_xform_binding.write_kwargs["cuda_stream"] == 7

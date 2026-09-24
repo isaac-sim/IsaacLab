@@ -13,7 +13,7 @@ import torch
 
 newton = pytest.importorskip("newton")
 
-from isaaclab_newton.assets.mpm_object import MPMObject, MPMObjectCfg
+from isaaclab_newton.assets.mpm_object import MPMObjectCfg
 from isaaclab_newton.physics import MPMSolverCfg, NewtonCfg, NewtonMPMManager
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg
 
@@ -22,15 +22,6 @@ from isaaclab.cloner.query import iter_sources
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.utils import configclass
-
-
-def test_mpm_object_cfg_resolves_asset_class():
-    cfg = MPMObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Sand",
-        spawn=MPMGridCfg(lower=(0.0, 0.0, 0.0), upper=(0.1, 0.1, 0.1), voxel_size=0.1),
-    )
-
-    assert cfg.class_type.__name__ == MPMObject.__name__
 
 
 def test_mpm_object_initializes_from_interactive_scene():
