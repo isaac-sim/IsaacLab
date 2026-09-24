@@ -191,17 +191,15 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            composer.compose_to_body_frame()
+            force_user, torque_user, is_global = composer.get_forces_and_torques()
             self.root_view.apply_forces_and_torques_at_position(
-                force_data=self.reshape_data_to_view_2d(composer.out_force_b.warp, device=self.device).view(wp.float32),
-                torque_data=self.reshape_data_to_view_2d(composer.out_torque_b.warp, device=self.device).view(
-                    wp.float32
-                ),
+                force_data=self.reshape_data_to_view_2d(force_user, device=self.device).view(wp.float32),
+                torque_data=self.reshape_data_to_view_2d(torque_user, device=self.device).view(wp.float32),
                 position_data=None,
                 indices=self._env_body_ids_to_view_ids(
                     self._ALL_ENV_INDICES, self._ALL_BODY_INDICES, device=self.device
                 ),
-                is_global=False,
+                is_global=is_global,
             )
         self._instantaneous_wrench_composer.reset()
 
@@ -1394,8 +1392,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._cpu_view_ids_views: dict[int, wp.array] = {}
 
         # external wrench composer
-        self._instantaneous_wrench_composer = WrenchComposer(self)
-        self._permanent_wrench_composer = WrenchComposer(self)
+        self._instantaneous_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
+        self._permanent_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
 
         # set information about rigid body into data
         self._data.body_names = self.body_names
