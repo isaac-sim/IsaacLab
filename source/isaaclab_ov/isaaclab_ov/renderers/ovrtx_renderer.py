@@ -106,7 +106,7 @@ from isaaclab_ov.stage import (
 
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
-    from ovrtx import AttributeBinding
+    from ovrtx import AttributeBinding, RenderProductSetOutputs
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
     from isaaclab.sensors.camera.camera_data import CameraData
@@ -1606,8 +1606,8 @@ class OVRTXRenderer(BaseRenderer):
             with self._map_render_var_to_dlpack(motion_var) as tiled_motion_vectors_data:
                 self._launch_extract_all_tiles(render_data, tiled_motion_vectors_data, output_buffers["motion_vectors"])
 
-    def _render_legacy(self, render_data: OVRTXCameraRenderData) -> None:
-        """Render the scene into the provided RenderData."""
+    def _render_legacy(self, render_data: Sequence[OVRTXCameraRenderData]) -> None:
+        """Render the requested camera products in one native submission."""
         if not self._initialized_scene:
             raise RuntimeError("Scene not initialized. Call initialize() first.")
         if self.backend.renderer is None or len(self._render_product_paths) == 0:
@@ -1617,7 +1617,7 @@ class OVRTXRenderer(BaseRenderer):
             if material_writer is not None:
                 material_writer.publish()
             products = self.backend.renderer.step(
-                render_products={render_data.render_product_path},
+                render_products={data.render_product_path for data in render_data},
                 delta_time=1.0 / 60.0,
             )
         finally:
@@ -1625,21 +1625,28 @@ class OVRTXRenderer(BaseRenderer):
                 drain_errors = contextlib.nullcontext() if sys.exc_info()[0] is None else contextlib.suppress(Exception)
                 with drain_errors:
                     material_writer.drain()
-        product_path = render_data.render_product_path
-        if product_path in products and len(products[product_path].frames) > 0:
+        self._process_render_products(render_data, products)
+
+    def _process_render_products(
+        self, render_data: Sequence[OVRTXCameraRenderData], products: RenderProductSetOutputs
+    ) -> None:
+        """Populate camera outputs only after every requested product returned a frame."""
+        for data in render_data:
+            if data.render_product_path not in products or not products[data.render_product_path].frames:
+                raise RuntimeError(f"OVRTX returned no frame for render product {data.render_product_path!r}.")
+        for data in render_data:
             self._process_render_frame(
-                render_data,
-                products[product_path].frames[0],
-                render_data.warp_buffers,
+                data,
+                products[data.render_product_path].frames[0],
+                data.warp_buffers,
             )
 
-        # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
-        # buffers are the same warp buffer map used by extraction.
-        if render_data.ppisp_pipeline is not None:
-            render_data.ppisp_pipeline.apply(
-                render_data.warp_buffers[str(RenderBufferKind.RGB_HDR)],
-                render_data.warp_buffers[str(RenderBufferKind.RGBA)],
-            )
+            # Post-render PPISP uses each camera's own HDR source and RGBA destination.
+            if data.ppisp_pipeline is not None:
+                data.ppisp_pipeline.apply(
+                    data.warp_buffers[str(RenderBufferKind.RGB_HDR)],
+                    data.warp_buffers[str(RenderBufferKind.RGBA)],
+                )
 
     def _close_legacy(self) -> None:
         """Release the renderer's tensor bindings. See :meth:`close`."""
@@ -1801,7 +1808,21 @@ class OVRTXRenderer(BaseRenderer):
                     operation.wait()
 
     def render(self, render_data: OVRTXCameraRenderData) -> None:
-        """Render the scene into the provided RenderData."""
+        """Render one camera product into its bound output buffers."""
+        self.render_batch((render_data,))
+
+    def render_batch(self, render_data: Sequence[OVRTXCameraRenderData]) -> None:
+        """Render all requested camera products in one native submission.
+
+        Args:
+            render_data: Cameras whose poses and output buffers have been prepared. An empty
+                sequence performs no work.
+
+        Raises:
+            RuntimeError: If the scene is uninitialized or a requested product returns no frame.
+        """
+        if not render_data:
+            return
         if self._use_ovstage:
             self._render_ovstage(render_data)
         else:
@@ -2424,7 +2445,7 @@ class OVRTXRenderer(BaseRenderer):
                 cuda_stream=self._warp_device.stream.cuda_stream,
             ).wait()
 
-    def _render_ovstage(self, render_data: OVRTXCameraRenderData) -> None:
+    def _render_ovstage(self, render_data: Sequence[OVRTXCameraRenderData]) -> None:
         if not self._initialized_scene:
             raise RuntimeError("Scene not initialized. Call initialize() first.")
         if self.backend.renderer is None or len(self._render_product_paths) == 0:
@@ -2442,26 +2463,12 @@ class OVRTXRenderer(BaseRenderer):
                 with drain_errors:
                     material_writer.drain()
         products = self.backend.renderer.step(
-            render_products={render_data.render_product_path},
+            render_products={data.render_product_path for data in render_data},
             delta_time=1.0 / 60.0,
             ordinal=self._current_ordinal,
         )
         self._current_ordinal += 1
-        product_path = render_data.render_product_path
-        if product_path in products and len(products[product_path].frames) > 0:
-            self._process_render_frame(
-                render_data,
-                products[product_path].frames[0],
-                render_data.warp_buffers,
-            )
-
-        # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
-        # buffers are the same warp buffer map used by extraction.
-        if render_data.ppisp_pipeline is not None:
-            render_data.ppisp_pipeline.apply(
-                render_data.warp_buffers[str(RenderBufferKind.RGB_HDR)],
-                render_data.warp_buffers[str(RenderBufferKind.RGBA)],
-            )
+        self._process_render_products(render_data, products)
 
     def _close_ovstage(self) -> None:
         """Release the renderer's stage queries and path lists. See :meth:`close`."""
