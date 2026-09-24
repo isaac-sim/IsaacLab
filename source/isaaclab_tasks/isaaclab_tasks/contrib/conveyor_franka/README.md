@@ -149,11 +149,12 @@ on first use, so the first launch takes longer.
 
 ### Asset and visual references
 
-The asset survey covered [SimReady Central](https://simready-central.nvidia.com/),
+The asset survey covered SimReady Central (`simready-central.nvidia.com`),
 `omniverse://ov-isaac-dev.nvidia.com/Isaac/SimReady/Industrial/Warehouse`,
 `Isaac/Environments/{Digital_Twin_Warehouse,Modular_Warehouse}`, `Isaac/Props/Conveyors`, and
 `NVIDIA/Assets/DigitalTwin/Assets/Warehouse`. The composition references publicly accessible
-Omniverse counterparts so playback does not require internal Nucleus credentials.
+Omniverse counterparts so playback does not require internal Nucleus credentials. Public catalog
+usage is described in the [SimReady Explorer documentation](https://docs.omniverse.nvidia.com/extensions/latest/ext_core/ext_browser-extensions/simready-explorer.html).
 
 Selected assets are the Omniverse A03/A09/A12/A24/A29/A38 conveyors, `RackLarge_A1`, SimReady
 `bulkstoragerack_a01` and `cardbox_a1`, the Isaac packing table, and loaded pallets. NVIDIA assets

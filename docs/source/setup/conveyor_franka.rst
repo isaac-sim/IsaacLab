@@ -94,5 +94,5 @@ four-cube training and CPU reference configurations retain their compact layout.
 `Download the warehouse preview <https://github.com/maxkra15/IsaacLab/releases/download/conveyor-franka-preview/conveyor_franka.mp4>`__.
 
 The task's
-`README <https://github.com/isaac-sim/IsaacLab/tree/develop/source/isaaclab_tasks/isaaclab_tasks/contrib/conveyor_franka>`__
+:download:`README <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/conveyor_franka/README.md>`
 describes the USD assets, collision ownership, slot adapter, and sorting metrics.
