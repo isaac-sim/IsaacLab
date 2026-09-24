@@ -882,6 +882,8 @@ def test_ovrtx_cleanup_without_render_data_keeps_renderer_state():
 
     assert renderer._render_product_paths == ["/RenderCamera_0/RenderProduct_camera"]
     assert renderer._initialized_scene is True
+
+
 @pytest.mark.parametrize(
     "camera_path",
     [
