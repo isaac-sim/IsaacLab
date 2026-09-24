@@ -32,10 +32,12 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation
+from isaaclab.assets import Articulation, AssetBaseCfg
+from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.sim import SimulationContext
 
 ##
@@ -47,24 +49,29 @@ from isaaclab_assets import CARTPOLE_CFG  # isort:skip
 def design_scene() -> tuple[dict, list[list[float]]]:
     """Designs the scene."""
     # Ground-plane
-    cfg = sim_utils.GroundPlaneCfg()
-    cfg.func("/World/defaultGroundPlane", cfg)
-    # Lights
-    cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
-    cfg.func("/World/Light", cfg)
+    ground_cfg = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    light_cfg = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    )
 
-    # Create separate groups called "Origin1", "Origin2"
-    # Each group will have a robot in it
+    # Each clone uses one of these environment origins.
     origins = [[0.0, 0.0, 0.0], [-1.0, 0.0, 0.0]]
-    # Origin 1
-    sim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
-    # Origin 2
-    sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
 
     # Articulation
     cartpole_cfg = CARTPOLE_CFG.copy()
     cartpole_cfg.prim_path = "/World/Origin.*/Robot"
+    plan = clone_plan_from_env_0(
+        CloneCfg(clone_template="/World/Origin{}"),
+        (cartpole_cfg, ground_cfg, light_cfg),
+        len(origins),
+        1.0,
+        positions=np.asarray(origins, dtype=np.float32),
+    )
+    sim_utils.create_prim(plan.sources[0], "Xform")
+    ground_cfg.class_type(ground_cfg)
+    light_cfg.class_type(light_cfg)
     cartpole = Articulation(cfg=cartpole_cfg)
+    replicate(plan)
 
     # return the scene information
     scene_entities = {"cartpole": cartpole}

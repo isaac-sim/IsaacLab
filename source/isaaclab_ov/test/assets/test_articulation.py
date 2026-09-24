@@ -86,6 +86,7 @@ from isaaclab_physx.sim.schemas import PhysxJointCfg  # noqa: E402
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
 import isaaclab.utils.string as string_utils  # noqa: E402
+from isaaclab import cloner  # noqa: E402
 from isaaclab.actuators import DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg  # noqa: E402
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering  # noqa: E402
 from isaaclab.assets.articulation import ordering_kernels  # noqa: E402
@@ -470,7 +471,7 @@ def generate_articulation_cfg(
 
 
 def generate_articulation(
-    articulation_cfg: ArticulationCfg, num_articulations: int, device: str
+    articulation_cfg: ArticulationCfg, num_articulations: int, device: str, global_paths: tuple[str, ...] = ()
 ) -> tuple[Articulation, torch.tensor]:
     """Generate an articulation from a configuration.
 
@@ -481,11 +482,16 @@ def generate_articulation(
         articulation_cfg: Articulation configuration.
         num_articulations: Number of articulations to generate.
         device: Device to use for the tensors.
+        global_paths: Other shared scene roots authored by the calling fixture.
 
     Returns:
         The articulation and environment translations.
 
     """
+    plan = cloner.make_clone_plan(
+        (), num_articulations, 2.5, global_paths=(*global_paths, *(f"/World/Env_{i}" for i in range(num_articulations)))
+    )
+    sim_utils.SimulationContext.instance().set_clone_plan(plan)
     # Generate translations of 2.5 m in x for each articulation
     translations = torch.zeros(num_articulations, 3, device=device)
     translations[:, 0] = torch.arange(num_articulations) * 2.5
@@ -494,6 +500,7 @@ def generate_articulation(
     for i in range(num_articulations):
         sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
     articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_[^/]*/Robot"))
+    cloner.replicate(plan)
 
     return articulation, translations
 
@@ -749,6 +756,8 @@ def test_write_joint_state_accepts_int64_selector(sim, device, gravity_enabled):
 @pytest.mark.parametrize("dt", [1e-4])
 def test_reversed_joint_dynamics_use_public_joint_basis(sim, device, gravity_enabled, user_ordering, dt):
     """Check velocity, kinetic energy and gravity in the public joint basis."""
+    plan = cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Robot",))
+    sim.set_clone_plan(plan)
     articulation = Articulation(
         ArticulationCfg(
             prim_path="/World/Robot",
@@ -773,6 +782,7 @@ def test_reversed_joint_dynamics_use_public_joint_basis(sim, device, gravity_ena
             mass.CreateCenterOfMassAttr(Gf.Vec3f(0.2, 0.0, 0.0))
             # Isotropic inertia makes the energy check independent of body rotation.
             mass.CreateDiagonalInertiaAttr(Gf.Vec3f(0.1))
+    cloner.replicate(plan)
     sim.reset()
 
     velocity = torch.zeros((1, articulation.num_joints), device=device)
@@ -1188,6 +1198,8 @@ def test_branching_fixture_physx_ordering_is_identity_on_ovphysx(sim, device):
     requesting ``physx`` must expose the public joint/body axes verbatim in backend order with no
     reorder map.
     """
+    plan = cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Robot",))
+    sim.set_clone_plan(plan)
     articulation = Articulation(
         ArticulationCfg(
             prim_path="/World/Robot",
@@ -1199,6 +1211,7 @@ def test_branching_fixture_physx_ordering_is_identity_on_ovphysx(sim, device):
             body_ordering="physx",
         )
     )
+    cloner.replicate(plan)
     sim.reset()
     assert articulation.is_initialized
 
@@ -1225,6 +1238,8 @@ def test_branching_fixture_mjwarp_ordering_reorders_ovphysx_to_dfs(sim, device):
     MJWarp/DFS ground truth is the same tuple isaaclab_newton's
     ``test_mjwarp_ordering_resolver_matches_newton_backend_names`` pins for its live Newton backend.
     """
+    plan = cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Robot",))
+    sim.set_clone_plan(plan)
     articulation = Articulation(
         ArticulationCfg(
             prim_path="/World/Robot",
@@ -1236,6 +1251,7 @@ def test_branching_fixture_mjwarp_ordering_reorders_ovphysx_to_dfs(sim, device):
             body_ordering="mjwarp",
         )
     )
+    cloner.replicate(plan)
     sim.reset()
     assert articulation.is_initialized
 
@@ -1365,6 +1381,8 @@ def test_articulation_dynamics_refresh_after_same_timestamp_model_writes(sim, de
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_articulation_dynamics_reorder_body_rows_and_joint_axes(sim, device):
     """Gather computed dynamics into MJWarp body and joint order."""
+    plan = cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Robot",))
+    sim.set_clone_plan(plan)
     articulation = Articulation(
         ArticulationCfg(
             prim_path="/World/Robot",
@@ -1376,6 +1394,7 @@ def test_articulation_dynamics_reorder_body_rows_and_joint_axes(sim, device):
             body_ordering="mjwarp",
         )
     )
+    cloner.replicate(plan)
     sim.reset()
 
     joint_ordering = articulation.joint_ordering
@@ -1473,7 +1492,9 @@ def test_initialization_floating_base_non_root(sim, num_articulations, device, a
         device: The device to run the simulation on
     """
     articulation_cfg = generate_articulation_cfg(articulation_type="humanoid", stiffness=0.0, damping=0.0)
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+    articulation, _ = generate_articulation(
+        articulation_cfg, num_articulations, device=sim.device, global_paths=("/World/defaultGroundPlane",)
+    )
 
     # Check that the framework doesn't hold excessive strong references.
     assert sys.getrefcount(articulation) < 10
@@ -1538,7 +1559,9 @@ def test_initialization_floating_base(sim, num_articulations, device, add_ground
         device: The device to run the simulation on
     """
     articulation_cfg = generate_articulation_cfg(articulation_type="anymal", stiffness=0.0, damping=0.0)
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    articulation, _ = generate_articulation(
+        articulation_cfg, num_articulations, device=device, global_paths=("/World/defaultGroundPlane",)
+    )
 
     # Check that the framework doesn't hold excessive strong references.
     assert sys.getrefcount(articulation) < 10
@@ -1678,7 +1701,9 @@ def test_initialization_fixed_base_single_joint(sim, num_articulations, device, 
         device: The device to run the simulation on
     """
     articulation_cfg = generate_articulation_cfg(articulation_type="single_joint_implicit")
-    articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
+    articulation, translations = generate_articulation(
+        articulation_cfg, num_articulations, device=device, global_paths=("/World/defaultGroundPlane",)
+    )
 
     # Check that the framework doesn't hold excessive strong references.
     assert sys.getrefcount(articulation) < 10
@@ -1856,7 +1881,9 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
     articulation_cfg = generate_articulation_cfg(articulation_type="anymal").copy()
     # Fix root link by making it kinematic
     articulation_cfg.spawn.fix_root_link = True
-    articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
+    articulation, translations = generate_articulation(
+        articulation_cfg, num_articulations, device=device, global_paths=("/World/defaultGroundPlane",)
+    )
 
     # Check that the framework doesn't hold excessive strong references.
     assert sys.getrefcount(articulation) < 10
@@ -1965,7 +1992,9 @@ def test_initialization_fixed_base_made_floating_base(sim, num_articulations, de
     articulation_cfg = generate_articulation_cfg(articulation_type="panda")
     # Unfix root link by making it non-kinematic
     articulation_cfg.spawn.fix_root_link = False
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+    articulation, _ = generate_articulation(
+        articulation_cfg, num_articulations, device=sim.device, global_paths=("/World/defaultGroundPlane",)
+    )
 
     # Check that the framework doesn't hold excessive strong references.
     assert sys.getrefcount(articulation) < 10
@@ -2027,7 +2056,9 @@ def test_out_of_range_default_joint_pos(sim, num_articulations, device, add_grou
         "panda_joint[2, 4]": -20.0,
     }
 
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    articulation, _ = generate_articulation(
+        articulation_cfg, num_articulations, device=device, global_paths=("/World/defaultGroundPlane",)
+    )
 
     # Check that the framework doesn't hold excessive strong references.
     assert sys.getrefcount(articulation) < 10
@@ -2050,7 +2081,10 @@ def test_out_of_range_default_joint_vel(sim, device):
         "panda_joint1": 100.0,
         "panda_joint[2, 4]": -60.0,
     }
+    plan = cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Robot",))
+    sim.set_clone_plan(plan)
     articulation = Articulation(articulation_cfg)
+    cloner.replicate(plan)
 
     # Check that the framework doesn't hold excessive strong references.
     assert sys.getrefcount(articulation) < 10
@@ -2078,7 +2112,9 @@ def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane):
     """
     # Create articulation
     articulation_cfg = generate_articulation_cfg(articulation_type="panda")
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
+    articulation, _ = generate_articulation(
+        articulation_cfg, num_articulations, device, global_paths=("/World/defaultGroundPlane",)
+    )
 
     # Play sim
     sim.reset()
@@ -2142,7 +2178,9 @@ def test_joint_effort_limits(sim, num_articulations, device, add_ground_plane):
     """Validate joint effort limits via joint_effort_out_of_limit()."""
     # Create articulation
     articulation_cfg = generate_articulation_cfg(articulation_type="panda")
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
+    articulation, _ = generate_articulation(
+        articulation_cfg, num_articulations, device, global_paths=("/World/defaultGroundPlane",)
+    )
 
     # Minimal env wrapper exposing scene["robot"]
     class _Env:
@@ -2635,7 +2673,10 @@ def test_setting_gains_from_cfg(sim, num_articulations, device, add_ground_plane
     """
     articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
     articulation, _ = generate_articulation(
-        articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=sim.device
+        articulation_cfg=articulation_cfg,
+        num_articulations=num_articulations,
+        device=sim.device,
+        global_paths=("/World/defaultGroundPlane",),
     )
 
     # Play sim
@@ -2840,7 +2881,10 @@ def test_apply_joint_command(sim, num_articulations, device, add_ground_plane):
     """Test applying of joint position target functions correctly for a robotic arm."""
     articulation_cfg = generate_articulation_cfg(articulation_type="panda")
     articulation, _ = generate_articulation(
-        articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
+        articulation_cfg=articulation_cfg,
+        num_articulations=num_articulations,
+        device=device,
+        global_paths=("/World/defaultGroundPlane",),
     )
 
     # Play the simulator
@@ -3485,7 +3529,10 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
     """Test applying of joint position target functions correctly for a robotic arm."""
     articulation_cfg = generate_articulation_cfg(articulation_type="panda")
     articulation, _ = generate_articulation(
-        articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
+        articulation_cfg=articulation_cfg,
+        num_articulations=num_articulations,
+        device=device,
+        global_paths=("/World/defaultGroundPlane",),
     )
 
     # Play the simulator
@@ -3590,7 +3637,10 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
 
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(
-        articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
+        articulation_cfg=articulation_cfg,
+        num_articulations=num_articulations,
+        device=device,
+        global_paths=("/World/defaultGroundPlane",),
     )
 
     # Play the simulator

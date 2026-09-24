@@ -19,6 +19,7 @@ from isaaclab_physx.physics import PhysxCfg
 import omni.replicator.core as rep
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.envs import ManagerBasedEnv, mdp
 from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
@@ -72,10 +73,10 @@ def setup_sim(device):
     sim_cfg = sim_utils.SimulationCfg(dt=dt, device=device)
     sim = sim_utils.SimulationContext(sim_cfg)
     # populate scene
-    _populate_scene()
+    scene_roots = _populate_scene()
     # load stage
     sim_utils.update_stage()
-    yield sim, dt
+    yield sim, dt, scene_roots
     # Teardown
     rep.vp_manager.destroy_hydra_textures("Replicator")
     sim.stop()
@@ -109,7 +110,7 @@ def _assert_first_frame_textured(first_frame: torch.Tensor, stable_frame: torch.
 @pytest.mark.isaacsim_ci
 def test_first_frame_is_textured_camera(setup_sim, device):
     """First RTX frame from a USD Camera must show loaded textures, not a grey placeholder."""
-    sim, dt = setup_sim
+    sim, dt, scene_roots = setup_sim
     camera_cfg = CameraCfg(
         height=HEIGHT,
         width=WIDTH,
@@ -127,6 +128,9 @@ def test_first_frame_is_textured_camera(setup_sim, device):
     # Create camera
     camera = Camera(camera_cfg)
 
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     # The first sim step + camera update should produce textured output
@@ -236,7 +240,7 @@ Helper functions.
 
 
 def _populate_scene():
-    """Add prims to the scene."""
+    """Populate the scene and return its declared roots."""
     # Ground-plane
     cfg = sim_utils.GroundPlaneCfg()
     cfg.func("/World/defaultGroundPlane", cfg)
@@ -252,3 +256,4 @@ def _populate_scene():
         orientation=CUBE_ORIENTATION,
         scale=CUBE_SCALE,
     )
+    return ("/World/defaultGroundPlane", "/World/Light", "/World/Objects")

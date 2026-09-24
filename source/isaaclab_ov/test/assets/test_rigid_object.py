@@ -43,6 +43,7 @@ from isaaclab_ov.assets import RigidObject  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab import cloner  # noqa: E402
 from isaaclab.assets import RigidObjectCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.sim.spawners import materials  # noqa: E402
@@ -115,6 +116,7 @@ def generate_cubes_scene(
     api: Literal["none", "rigid_body", "articulation_root"] = "rigid_body",
     kinematic_enabled: bool = False,
     device: str = "cuda:0",
+    global_paths: tuple[str, ...] = (),
 ) -> tuple[RigidObject, torch.Tensor]:
     """Generate a scene with the provided number of cubes.
 
@@ -124,11 +126,16 @@ def generate_cubes_scene(
         api: The type of API that the cubes should have.
         kinematic_enabled: Whether the cubes are kinematic.
         device: Device to use for the simulation.
+        global_paths: Other shared scene roots authored by the calling fixture.
 
     Returns:
         A tuple containing the rigid object representing the cubes and the origins of the cubes.
 
     """
+    plan = cloner.make_clone_plan(
+        (), num_cubes, 1.0, global_paths=(*global_paths, *(f"/World/Table_{i}" for i in range(num_cubes)))
+    )
+    sim_utils.SimulationContext.instance().set_clone_plan(plan)
     origins = torch.tensor([(i * 1.0, 0, height) for i in range(num_cubes)]).to(device)
     # Create Top-level Xforms, one for each cube
     for i, origin in enumerate(origins):
@@ -163,6 +170,7 @@ def generate_cubes_scene(
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height)),
     )
     cube_object = RigidObject(cfg=cube_object_cfg)
+    cloner.replicate(plan)
 
     return cube_object, origins
 
@@ -304,7 +312,9 @@ def test_external_force_buffer(device):
 
     # Generate cubes scene
     with _ovphysx_sim_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
-        cube_object, origins = generate_cubes_scene(num_cubes=1, device=device)
+        cube_object, origins = generate_cubes_scene(
+            num_cubes=1, device=device, global_paths=("/World/defaultGroundPlane",)
+        )
 
         # play the simulator
         sim.reset()
@@ -373,7 +383,9 @@ def test_external_force_on_single_body(num_cubes, device):
     """
     # Generate cubes scene
     with _ovphysx_sim_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
-        cube_object, origins = generate_cubes_scene(num_cubes=num_cubes, device=device)
+        cube_object, origins = generate_cubes_scene(
+            num_cubes=num_cubes, device=device, global_paths=("/World/defaultGroundPlane",)
+        )
 
         # Play the simulator
         sim.reset()
@@ -449,7 +461,9 @@ def test_external_force_on_single_body_at_position(num_cubes, device):
     """
     # Generate cubes scene
     with _ovphysx_sim_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
-        cube_object, origins = generate_cubes_scene(num_cubes=num_cubes, device=device)
+        cube_object, origins = generate_cubes_scene(
+            num_cubes=num_cubes, device=device, global_paths=("/World/defaultGroundPlane",)
+        )
 
         # Play the simulator
         sim.reset()
@@ -650,7 +664,9 @@ def test_reset_rigid_object(num_cubes, device):
 def test_rigid_body_set_material_properties(num_cubes, device):
     """Test getting and setting per-shape material properties of a rigid object."""
     with _ovphysx_sim_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
-        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
+        cube_object, _ = generate_cubes_scene(
+            num_cubes=num_cubes, device=device, global_paths=("/World/defaultGroundPlane",)
+        )
 
         # Play sim
         sim.reset()
@@ -678,7 +694,9 @@ def test_rigid_body_set_material_properties(num_cubes, device):
 def test_set_material_properties_via_view(num_cubes, device):
     """Test setting per-shape material via the OvPhysxView binding API."""
     with _ovphysx_sim_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
-        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
+        cube_object, _ = generate_cubes_scene(
+            num_cubes=num_cubes, device=device, global_paths=("/World/defaultGroundPlane",)
+        )
 
         # Play sim
         sim.reset()
@@ -701,8 +719,6 @@ def test_set_material_properties_via_view(num_cubes, device):
 def test_rigid_body_no_friction(num_cubes, device):
     """Test that a rigid object with no friction will maintain its velocity when sliding across a plane."""
     with _ovphysx_sim_context(device=device, auto_add_lighting=True) as sim:
-        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
-
         # Create a ground plane with no friction
         cfg = sim_utils.GroundPlaneCfg(
             physics_material=materials.RigidBodyMaterialBaseCfg(
@@ -710,6 +726,9 @@ def test_rigid_body_no_friction(num_cubes, device):
             )
         )
         cfg.func("/World/GroundPlane", cfg)
+        cube_object, _ = generate_cubes_scene(
+            num_cubes=num_cubes, height=0.0, device=device, global_paths=("/World/GroundPlane",)
+        )
 
         # Play sim
         sim.reset()
@@ -752,14 +771,15 @@ def test_rigid_body_with_static_friction(num_cubes, device):
     applied is above mu, the object should move.
     """
     with _ovphysx_sim_context(device=device, dt=0.01, auto_add_lighting=True) as sim:
-        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.03125, device=device)
-
         # Create ground plane. Dynamic friction is set equal to static friction to work around a PhysX bug.
         mu = 0.5
         cfg = sim_utils.GroundPlaneCfg(
             physics_material=materials.RigidBodyMaterialBaseCfg(static_friction=mu, dynamic_friction=mu)
         )
         cfg.func("/World/GroundPlane", cfg)
+        cube_object, _ = generate_cubes_scene(
+            num_cubes=num_cubes, height=0.03125, device=device, global_paths=("/World/GroundPlane",)
+        )
 
         # Play sim
         sim.reset()
@@ -817,8 +837,6 @@ def test_rigid_body_with_restitution(num_cubes, device):
     """
     for expected_collision_type in "partially_elastic", "inelastic":
         with _ovphysx_sim_context(device=device, auto_add_lighting=True) as sim:
-            cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=1.0, device=device)
-
             restitution_coefficient = 0.0 if expected_collision_type == "inelastic" else 0.5
 
             # Create ground plane with the matching restitution.
@@ -826,6 +844,9 @@ def test_rigid_body_with_restitution(num_cubes, device):
                 physics_material=materials.RigidBodyMaterialBaseCfg(restitution=restitution_coefficient)
             )
             cfg.func("/World/GroundPlane", cfg)
+            cube_object, _ = generate_cubes_scene(
+                num_cubes=num_cubes, height=1.0, device=device, global_paths=("/World/GroundPlane",)
+            )
 
             # Play sim
             sim.reset()
@@ -877,7 +898,9 @@ def test_rigid_body_set_mass(num_cubes, device):
         device=device, gravity_enabled=False, add_ground_plane=True, auto_add_lighting=True
     ) as sim:
         # Create a scene with random cubes
-        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=1.0, device=device)
+        cube_object, _ = generate_cubes_scene(
+            num_cubes=num_cubes, height=1.0, device=device, global_paths=("/World/defaultGroundPlane",)
+        )
 
         # Play sim
         sim.reset()
@@ -1283,7 +1306,7 @@ def test_warmup_attach_stage_not_called_for_cpu(monkeypatch):
 
     with _ovphysx_sim_context(device="cpu", add_ground_plane=True, dt=0.01, auto_add_lighting=True) as sim:
         # Allocate a single rigid body so the manager has something to load.
-        generate_cubes_scene(num_cubes=1, height=1.0, device="cpu")
+        generate_cubes_scene(num_cubes=1, height=1.0, device="cpu", global_paths=("/World/defaultGroundPlane",))
 
         # First reset constructs (or reuses) the real ovphysx.PhysX instance.
         sim.reset()

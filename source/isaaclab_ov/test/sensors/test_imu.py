@@ -59,6 +59,7 @@ import omni.client  # noqa: E402,F401
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
+from isaaclab import cloner  # noqa: E402
 from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors.imu import Imu, ImuCfg  # noqa: E402
@@ -88,15 +89,18 @@ ROT_OFFSET = (0, 0, 0.7071068, 0.7071068)
 # ---------------------------------------------------------------------------
 
 
-def _spawn_envs(num_envs: int) -> None:
+def _spawn_envs(num_envs: int) -> cloner.ClonePlan:
     """Create per-env Xform containers at ``/World/env_<i>``.
 
     These match the prim-path layout the IMU's attachment-validity test
     expects, and provide a parent for per-env asset spawns.
     """
+    plan = cloner.make_clone_plan((), num_envs, 5.0, global_paths=tuple(f"/World/env_{i}" for i in range(num_envs)))
+    sim_utils.SimulationContext.instance().set_clone_plan(plan)
     # /World/env_<i> Xforms are siblings under /World — no envs container needed
     for i in range(num_envs):
         sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i * 5.0, 0.0, 0.0))
+    return plan
 
 
 def _spawn_balls(num_envs: int, height: float = 0.5) -> RigidObject:
@@ -246,11 +250,12 @@ def test_constant_velocity(sim_ctx, device):
     same at every time step: in each step we set the same velocity, so the
     finite-difference derivative settles to zero (plus the gravity bias).
     """
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
     cubes = _spawn_cubes(NUM_ENVS)
     imu_ball = _make_imu("/World/env_[^/]+/ball")
     imu_cube = _make_imu("/World/env_[^/]+/cube")
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     prev_lin_acc_ball = torch.zeros((NUM_ENVS, 3), dtype=torch.float32, device=device)
@@ -302,9 +307,10 @@ def test_constant_acceleration(sim_ctx, device):
     The IMU reports proper acceleration, so for a ball that is otherwise in free fall the
     ``-g`` of the fall cancels the ``+g`` accelerometer bias and only ``F/m`` remains.
     """
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
     imu_ball = _make_imu("/World/env_[^/]+/ball")
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -363,13 +369,14 @@ def test_offset_calculation(sim_ctx, device):
     matching the location of ``imu_link``, and one directly at ``imu_link``
     — should produce identical readings.
     """
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     robot = _spawn_anymal(NUM_ENVS)
     imu_robot_imu_link = _make_imu("/World/env_[^/]+/robot/base/imu_link")
     imu_robot_base = _make_imu(
         "/World/env_[^/]+/robot/base",
         offset=ImuCfg.OffsetCfg(pos=POS_OFFSET, rot=ROT_OFFSET),
     )
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -407,9 +414,10 @@ def test_offset_calculation(sim_ctx, device):
 @pytest.mark.parametrize("device", _DEVICES)
 def test_env_ids_propagation(sim_ctx, device):
     """Test that ``env_ids`` argument propagates through update and reset methods."""
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     robot = _spawn_anymal(NUM_ENVS)
     imu_robot_imu_link = _make_imu("/World/env_[^/]+/robot/base/imu_link")
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -439,9 +447,10 @@ def test_env_ids_propagation(sim_ctx, device):
 @pytest.mark.parametrize("device", _DEVICES)
 def test_sensor_initialization(sim_ctx, device):
     """Test that the OVPhysX IMU sensor initializes correctly."""
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     _spawn_balls(NUM_ENVS)
     imu_ball = _make_imu("/World/env_[^/]+/ball")
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     assert imu_ball.num_instances == NUM_ENVS
@@ -463,9 +472,10 @@ def test_gravity_at_rest(sim_ctx, device):
     bias alone -- the reading a real IMU gives sitting on a table. A ball left to fall
     instead reads zero (see :func:`test_freefall_acceleration`).
     """
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
     imu_ball = _make_imu("/World/env_[^/]+/ball")
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -508,9 +518,10 @@ def test_freefall_acceleration(sim_ctx, device):
     In freefall the finite-difference world-frame acceleration (~``-g``) cancels
     the IMU's gravity bias (``+g``), so the reading converges to ``[0, 0, 0]``.
     """
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS, height=5.0)
     imu_ball = _make_imu("/World/env_[^/]+/ball")
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -540,9 +551,10 @@ def test_reset(sim_ctx, device):
     buffers are zero.  We read the raw warp arrays directly because accessing
     ``imu.data`` triggers a lazy re-fill that masks reset bugs.
     """
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
     imu_ball = _make_imu("/World/env_[^/]+/ball")
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -619,7 +631,7 @@ def test_indirect_attachment_usd(sim_ctx, device):
     IMU at it.  The composed offset should match the directly-configured
     offset; ``ang_vel_b`` and ``lin_acc_b`` should agree.
     """
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
     # Add a non-physics Xform child under each ball at a known offset; the IMU
     # must resolve the rigid-body ancestor (the ball) and recover the offset.
@@ -629,6 +641,7 @@ def test_indirect_attachment_usd(sim_ctx, device):
         sim_utils.create_prim(f"/World/env_{i}/ball/imu_sub", "Xform", translation=sub_pos, orientation=sub_rot)
     imu_indirect = _make_imu("/World/env_[^/]+/ball/imu_sub")
     imu_direct = _make_imu("/World/env_[^/]+/ball", offset=ImuCfg.OffsetCfg(pos=sub_pos, rot=sub_rot))
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     torch.testing.assert_close(
@@ -681,7 +694,8 @@ def test_attachment_validity(sim_ctx, device):
     An IMU cannot be attached directly to the world Xform — it must have a
     rigid-body ancestor in its prim tree.
     """
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     imu_world_cfg = ImuCfg(prim_path="/World/env_0")
@@ -694,9 +708,10 @@ def test_attachment_validity(sim_ctx, device):
 @pytest.mark.parametrize("device", _DEVICES)
 def test_sensor_print(sim_ctx, device):
     """Test ``__str__`` is implemented and exposes the prim path and binding pattern."""
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     _spawn_balls(NUM_ENVS)
     imu_ball = _make_imu("/World/env_[^/]+/ball")
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     s = str(imu_ball)

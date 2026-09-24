@@ -758,6 +758,8 @@ class SimulationContext:
         Args:
             soft: If True, skip full reinitialization.
         """
+        if self._clone_plan is None:
+            raise RuntimeError("Declare and replicate a ClonePlan before resetting the simulation.")
         self.physics_manager.reset(soft)
         for viz in self._visualizers:
             viz.reset(soft)
@@ -885,6 +887,8 @@ class SimulationContext:
 
     def play(self) -> None:
         """Start or resume the simulation."""
+        if self._clone_plan is None:
+            raise RuntimeError("Declare and replicate a ClonePlan before playing the simulation.")
         self.physics_manager.play()
         for viz in self._visualizers:
             viz.play()

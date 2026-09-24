@@ -20,6 +20,7 @@ simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).ap
 import sys
 from typing import Literal
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -31,7 +32,8 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 from newton import ModelFlags
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.math import (
@@ -70,6 +72,7 @@ def generate_cubes_scene(
     api: Literal["none", "rigid_body", "articulation_root"] = "rigid_body",
     kinematic_enabled: bool = False,
     device: str = "cuda:0",
+    add_ground_plane: bool = False,
 ) -> tuple[RigidObject, torch.Tensor]:
     """Generate a scene with the provided number of cubes.
 
@@ -79,15 +82,14 @@ def generate_cubes_scene(
         api: The type of API that the cubes should have.
         kinematic_enabled: Whether the cubes are kinematic.
         device: Device to use for the simulation.
+        add_ground_plane: Whether the simulation context authored a shared ground plane.
 
     Returns:
         A tuple containing the rigid object representing the cubes and the origins of the cubes.
 
     """
-    origins = torch.tensor([(i * 1.0, 0, height) for i in range(num_cubes)]).to(device)
-    # Create Top-level Xforms, one for each cube
-    for i, origin in enumerate(origins):
-        sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=origin)
+    origins = np.asarray([(i * 1.0, 0, height) for i in range(num_cubes)], dtype=np.float32)
+    sim_utils.create_prim("/World/Env_0", "Xform", translation=origins[0])
 
     # Resolve spawn configuration
     if api == "none":
@@ -116,9 +118,13 @@ def generate_cubes_scene(
         spawn=spawn_cfg,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height)),
     )
+    cfgs = [cube_object_cfg]
+    if add_ground_plane:
+        cfgs.append(AssetBaseCfg(prim_path="/World/defaultGroundPlane"))
+    clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), cfgs, num_cubes, 1.0, positions=origins)
     cube_object = RigidObject(cfg=cube_object_cfg)
 
-    return cube_object, origins
+    return cube_object, torch.as_tensor(origins, device=device)
 
 
 @pytest.mark.isaacsim_ci
@@ -135,6 +141,7 @@ def test_initialization(num_cubes, device):
         assert sys.getrefcount(cube_object) < 10
 
         # Play sim
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         # Check if object is initialized
@@ -166,6 +173,7 @@ def test_initialization_rejects_non_rigid_body_prims(api):
         # Check that the framework doesn't hold excessive strong references.
         assert sys.getrefcount(cube_object) < 10
 
+        replicate(sim.get_clone_plan())
         with pytest.raises(RuntimeError):
             sim.reset()
 
@@ -182,9 +190,10 @@ def test_external_force_buffer(device):
     # Generate cubes scene
     with _newton_sim_context(device, add_ground_plane=True, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
-        cube_object, origins = generate_cubes_scene(num_cubes=1, device=device)
+        cube_object, origins = generate_cubes_scene(num_cubes=1, device=device, add_ground_plane=True)
 
         # play the simulator
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         # find bodies to apply the force
@@ -253,9 +262,10 @@ def test_external_force_on_single_body(num_cubes, device):
     # Generate cubes scene
     with _newton_sim_context(device, add_ground_plane=True, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
-        cube_object, origins = generate_cubes_scene(num_cubes=num_cubes, device=device)
+        cube_object, origins = generate_cubes_scene(num_cubes=num_cubes, device=device, add_ground_plane=True)
 
         # Play the simulator
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         # Find bodies to apply the force
@@ -328,9 +338,10 @@ def test_external_force_on_single_body_at_position(num_cubes, device):
     # Generate cubes scene
     with _newton_sim_context(device, add_ground_plane=True, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
-        cube_object, origins = generate_cubes_scene(num_cubes=num_cubes, device=device)
+        cube_object, origins = generate_cubes_scene(num_cubes=num_cubes, device=device, add_ground_plane=True)
 
         # Play the simulator
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         # Find bodies to apply the force
@@ -420,6 +431,7 @@ def test_set_rigid_object_state(num_cubes, device):
         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
         # Play the simulator
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         state_types = ["root_pos_w", "root_quat_w", "root_lin_vel_w", "root_ang_vel_w"]
@@ -481,6 +493,7 @@ def test_reset_rigid_object(num_cubes, device):
         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
 
         # Play the simulator
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         for i in range(5):
@@ -520,21 +533,22 @@ def test_rigid_body_set_mass(num_cubes, device):
     """Test that selected mass writes update inverse mass and inertia across static transitions."""
     with _newton_sim_context(device, gravity_enabled=False, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
-        for index in range(num_cubes):
-            sim_utils.create_prim(f"/World/Env_{index}", "Xform", translation=(float(index), 0.0, 1.0))
-        cube_object = RigidObject(
-            RigidObjectCfg(
-                prim_path="/World/Env_[^/]*/Object",
-                spawn=sim_utils.CuboidCfg(
-                    size=(0.2, 0.2, 0.2),
-                    rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
-                    mass_props=sim_utils.MassCfg(mass=1.0),
-                    collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-                ),
-            )
+        origins = np.asarray([(float(index), 0.0, 1.0) for index in range(num_cubes)], dtype=np.float32)
+        sim_utils.create_prim("/World/Env_0", "Xform", translation=origins[0])
+        cfg = RigidObjectCfg(
+            prim_path="/World/Env_[^/]*/Object",
+            spawn=sim_utils.CuboidCfg(
+                size=(0.2, 0.2, 0.2),
+                rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+                mass_props=sim_utils.MassCfg(mass=1.0),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+            ),
         )
+        clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), (cfg,), num_cubes, 1.0, positions=origins)
+        cube_object = RigidObject(cfg)
 
         # Play sim
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         # Get masses before updating one environment.
@@ -611,6 +625,7 @@ def test_gravity_vec_w(num_cubes, device, gravity_enabled):
             expected_g = (0.0, 0.0, 0.0)
 
         # Play sim
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         # Check that gravity is set correctly
@@ -644,6 +659,7 @@ def test_gravity_vec_w_tracks_model_gravity(num_cubes, device):
     with _newton_sim_context(device, gravity_enabled=True) as sim:
         sim._app_control_on_stop_handle = None
         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         # GRAVITY_VEC_W must share storage with Newton's per-env gravity array.
@@ -686,6 +702,7 @@ def test_body_root_state_properties(num_cubes, device, with_offset):
         cube_object, env_pos = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
 
         # Play sim
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         # Check if cube_object is initialized
@@ -798,6 +815,7 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
         env_idx = torch.tensor([x for x in range(num_cubes)], dtype=torch.int32, device=device)
 
         # Play sim
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         # Check if cube_object is initialized
@@ -884,6 +902,7 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
         cube_object, env_pos = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
 
         # Play sim
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         # Check if cube_object is initialized
@@ -1015,6 +1034,7 @@ def test_body_link_pose_w_fresh_after_root_pose_write(device, writer):
         sim._app_control_on_stop_handle = None
         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.5, device=device)
 
+        replicate(sim.get_clone_plan())
         sim.reset()
         assert cube_object.is_initialized
 

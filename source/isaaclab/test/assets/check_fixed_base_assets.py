@@ -35,6 +35,7 @@ simulation_app = app_launcher.app
 import numpy as np
 import torch
 
+import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 
@@ -153,6 +154,9 @@ def main():
     scene_entities, scene_origins = design_scene()
     scene_origins = torch.tensor(scene_origins, device=sim.device)
     # Play the simulator
+    roots = ("/World/defaultGroundPlane", "/World/Light", "/World/Origin1", "/World/Origin2")
+    sim.set_clone_plan(cloner.make_clone_plan((), 2, 0.0, global_paths=roots))
+    cloner.replicate(sim.get_clone_plan())
     sim.reset()
     # Now we are ready!
     print("[INFO]: Setup complete...")

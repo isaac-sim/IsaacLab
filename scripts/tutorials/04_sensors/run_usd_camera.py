@@ -71,6 +71,7 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 import omni.replicator.core as rep
 
+import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.markers import VisualizationMarkers
@@ -282,6 +283,9 @@ def main():
     # Design scene
     scene_entities = design_scene()
     # Play simulator
+    roots = ("/World/defaultGroundPlane", "/World/Light", "/World/Objects", "/World/Origin_00", "/World/Origin_01")
+    sim.set_clone_plan(cloner.make_clone_plan((), 2, 0.0, global_paths=roots))
+    cloner.replicate(sim.get_clone_plan())
     sim.reset()
     # Now we are ready!
     print("[INFO]: Setup complete...")

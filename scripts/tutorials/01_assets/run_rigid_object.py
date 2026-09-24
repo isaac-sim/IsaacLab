@@ -33,28 +33,26 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
+from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.sim import SimulationContext
 
 
 def design_scene():
     """Designs the scene."""
     # Ground-plane
-    cfg = sim_utils.GroundPlaneCfg()
-    cfg.func("/World/defaultGroundPlane", cfg)
-    # Lights
-    cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.8, 0.8, 0.8))
-    cfg.func("/World/Light", cfg)
+    ground_cfg = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    light_cfg = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.8, 0.8, 0.8))
+    )
 
-    # Create separate groups called "Origin1", "Origin2", "Origin3"
-    # Each group will have a robot in it
+    # Each clone uses one of these environment origins.
     origins = [[0.25, 0.25, 0.0], [-0.25, 0.25, 0.0], [0.25, -0.25, 0.0], [-0.25, -0.25, 0.0]]
-    for i, origin in enumerate(origins):
-        sim_utils.create_prim(f"/World/Origin{i}", "Xform", translation=origin)
 
     # Rigid Object
     cone_cfg = RigidObjectCfg(
@@ -69,7 +67,18 @@ def design_scene():
         ),
         init_state=RigidObjectCfg.InitialStateCfg(),
     )
+    plan = clone_plan_from_env_0(
+        CloneCfg(clone_template="/World/Origin{}"),
+        (cone_cfg, ground_cfg, light_cfg),
+        len(origins),
+        1.0,
+        positions=np.asarray(origins, dtype=np.float32),
+    )
+    sim_utils.create_prim(plan.sources[0], "Xform")
+    ground_cfg.class_type(ground_cfg)
+    light_cfg.class_type(light_cfg)
     cone_object = RigidObject(cfg=cone_cfg)
+    replicate(plan)
 
     # return the scene information
     scene_entities = {"cone": cone_object}

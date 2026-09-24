@@ -23,6 +23,7 @@ simulation_app = app_launcher.app
 
 import sys
 
+import isaaclab.cloner as cloner
 from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 
@@ -59,6 +60,8 @@ def main():
     teleop_interface.reset()
 
     # Play simulation
+    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0))
+    cloner.replicate(sim.get_clone_plan())
     sim.reset()
 
     # Simulate

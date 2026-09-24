@@ -29,6 +29,7 @@ from isaaclab_ov.assets import RigidObject  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab import cloner  # noqa: E402
 from isaaclab.assets import RigidObjectCfg  # noqa: E402
 from isaaclab.envs.mdp.events import _RandomizeRigidBodyMaterialOvPhysx  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
@@ -67,6 +68,8 @@ def _ovphysx_sim_context(device: str, **kwargs):
 
 def _make_cubes(num_cubes: int, device: str) -> RigidObject:
     """Spawn ``num_cubes`` rigid-body cubes as a single RigidObject."""
+    plan = cloner.make_clone_plan((), num_cubes, 1.0, global_paths=tuple(f"/World/Table_{i}" for i in range(num_cubes)))
+    sim_utils.SimulationContext.instance().set_clone_plan(plan)
     for i in range(num_cubes):
         sim_utils.create_prim(f"/World/Table_{i}", "Xform", translation=(i * 1.0, 0.0, 1.0))
     cfg = RigidObjectCfg(
@@ -74,7 +77,9 @@ def _make_cubes(num_cubes: int, device: str) -> RigidObject:
         spawn=sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd"),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
     )
-    return RigidObject(cfg=cfg)
+    cubes = RigidObject(cfg=cfg)
+    cloner.replicate(plan)
+    return cubes
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])

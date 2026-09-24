@@ -318,6 +318,12 @@ def test_reset_initializes_visualizers_before_playing_timeline():
     ctx._render_context = _RenderContext()
     ctx.initialize_visualizers = _initialize_visualizers
 
+    ctx._clone_plan = None
+    for start in (ctx.reset, ctx.play):
+        with pytest.raises(RuntimeError, match="Declare and replicate a ClonePlan"):
+            start()
+    assert events == []
+    ctx._clone_plan = object()
     ctx.reset()
 
     assert events == ["reset:False", "initialize_visualizers", "finalize_consumers:1:True", "play"]

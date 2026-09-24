@@ -44,10 +44,13 @@ args_cli.physics = args_cli.backend
 
 """Rest everything follows."""
 
+import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.physics import PhysicsCfg
 
 if TYPE_CHECKING:
@@ -59,21 +62,16 @@ def design_scene():
     from isaaclab.assets import DeformableObject, DeformableObjectCfg
 
     # Ground-plane
-    cfg = sim_utils.GroundPlaneCfg()
-    cfg.func("/World/defaultGroundPlane", cfg)
-    # Lights
-    cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.8, 0.8, 0.8))
-    cfg.func("/World/Light", cfg)
+    ground_cfg = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    light_cfg = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.8, 0.8, 0.8))
+    )
 
     # Create a dictionary for the scene entities
     scene_entities = {}
 
-    # Create separate groups called "env_0", "env_1", ...
-    # Newton's scene loader requires the "env_\d+" naming convention to
-    # detect per-environment Xforms and replicate them as separate worlds.
+    # The plan assigns each clone its environment origin.
     origins = [[0.25, 0.25, 0.0], [-0.25, 0.25, 0.0], [0.25, -0.25, 0.0], [-0.25, -0.25, 0.0]]
-    for i, origin in enumerate(origins):
-        sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=origin)
 
     youngs_modulus = 1e5
     poissons_ratio = 0.4
@@ -114,7 +112,18 @@ def design_scene():
         debug_vis=True,
     )
 
+    plan = clone_plan_from_env_0(
+        CloneCfg(clone_template="/World/env_{}"),
+        (cfg, ground_cfg, light_cfg),
+        len(origins),
+        1.0,
+        positions=np.asarray(origins, dtype=np.float32),
+    )
+    sim_utils.create_prim(plan.sources[0], "Xform")
+    ground_cfg.class_type(ground_cfg)
+    light_cfg.class_type(light_cfg)
     cube_object = DeformableObject(cfg=cfg)
+    replicate(plan)
     scene_entities["cube_object"] = cube_object
 
     # return the scene information

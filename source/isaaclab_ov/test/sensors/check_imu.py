@@ -24,6 +24,7 @@ import torch
 from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sensors.imu import Imu, ImuCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
@@ -42,6 +43,8 @@ def main() -> None:
         )
         # /World/env_<i> Xforms are siblings under /World — no envs container needed
         num_envs = 2
+        plan = cloner.make_clone_plan((), num_envs, 5.0, global_paths=tuple(f"/World/env_{i}" for i in range(num_envs)))
+        sim.set_clone_plan(plan)
         for i in range(num_envs):
             sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i * 5.0, 0.0, 0.0))
             spawn_cfg.func(f"/World/env_{i}/ball", spawn_cfg, translation=(0.0, 0.0, 1.0))
@@ -54,6 +57,7 @@ def main() -> None:
             )
         )
         imu = Imu(ImuCfg(prim_path="/World/env_[^/]+/ball"))
+        cloner.replicate(plan)
         sim.reset()
 
         dt = sim.get_physics_dt()

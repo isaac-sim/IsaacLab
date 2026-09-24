@@ -26,6 +26,7 @@ from isaaclab_visualizers.newton.newton_visualizer_cfg import NewtonGLVisualizer
 from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
+import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG, POSITION_GOAL_MARKER_CFG
@@ -330,6 +331,8 @@ def test_usd_marker(sim):
     test_marker = VisualizationMarkers(config)
 
     # play the simulation
+    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=(config.prim_path,)))
+    cloner.replicate(sim.get_clone_plan())
     sim.reset()
     # create a buffer
     num_frames = 0
@@ -356,6 +359,8 @@ def test_multiple_prototypes_marker(sim):
     test_marker = VisualizationMarkers(config)
 
     # play the simulation
+    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=(config.prim_path,)))
+    cloner.replicate(sim.get_clone_plan())
     sim.reset()
     # run with randomization of poses
     for count in range(1000):
@@ -379,6 +384,8 @@ def test_visualization_skips_updates_when_invisible(sim):
     test_marker = VisualizationMarkers(config)
 
     # play the simulation
+    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=(config.prim_path,)))
+    cloner.replicate(sim.get_clone_plan())
     sim.reset()
 
     # check that visibility is true

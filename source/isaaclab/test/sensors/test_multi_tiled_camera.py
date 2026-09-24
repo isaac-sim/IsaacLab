@@ -28,6 +28,7 @@ import omni.replicator.core as rep
 from pxr import Gf, UsdGeom
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.sensors.camera import TiledCamera, TiledCameraCfg
 
 # Deprecation warnings from TiledCamera/TiledCameraCfg are expected in this file;
@@ -57,10 +58,10 @@ def setup_camera():
     sim_cfg = sim_utils.SimulationCfg(dt=dt)
     sim = sim_utils.SimulationContext(sim_cfg)
     # populate scene
-    _populate_scene()
+    scene_roots = _populate_scene()
     # load stage
     sim_utils.update_stage()
-    yield camera_cfg, sim, dt
+    yield camera_cfg, sim, dt, scene_roots
     # Teardown
     rep.vp_manager.destroy_hydra_textures("Replicator")
     # stop simulation
@@ -72,14 +73,16 @@ def setup_camera():
 @pytest.mark.isaacsim_ci
 def test_multi_tiled_camera_init(setup_camera):
     """Test initialization of multiple tiled cameras."""
-    camera_cfg, sim, dt = setup_camera
+    camera_cfg, sim, dt, scene_roots = setup_camera
     num_tiled_cameras = 3
     num_cameras_per_tiled_camera = 7
 
     tiled_cameras = []
     for i in range(num_tiled_cameras):
         for j in range(num_cameras_per_tiled_camera):
-            sim_utils.create_prim(f"/World/Origin_{i}_{j}", "Xform")
+            prim_path = f"/World/Origin_{i}_{j}"
+            sim_utils.create_prim(prim_path, "Xform")
+            scene_roots += (prim_path,)
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
@@ -91,6 +94,9 @@ def test_multi_tiled_camera_init(setup_camera):
         assert sim.get_setting("/isaaclab/render/rtx_sensors")
 
     # Play sim
+    plan = cloner.make_clone_plan([], num_cameras_per_tiled_camera, 0.0, global_paths=scene_roots)
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     for i, camera in enumerate(tiled_cameras):
@@ -148,7 +154,7 @@ def test_multi_tiled_camera_init(setup_camera):
 @pytest.mark.isaacsim_ci
 def test_all_annotators_multi_tiled_camera(setup_camera):
     """Test initialization of multiple tiled cameras with all supported annotators."""
-    camera_cfg, sim, dt = setup_camera
+    camera_cfg, sim, dt, scene_roots = setup_camera
     all_annotator_types = [
         "rgb",
         "rgba",
@@ -169,7 +175,9 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
     tiled_cameras = []
     for i in range(num_tiled_cameras):
         for j in range(num_cameras_per_tiled_camera):
-            sim_utils.create_prim(f"/World/Origin_{i}_{j}", "Xform")
+            prim_path = f"/World/Origin_{i}_{j}"
+            sim_utils.create_prim(prim_path, "Xform")
+            scene_roots += (prim_path,)
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
@@ -182,6 +190,9 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
         assert sim.get_setting("/isaaclab/render/rtx_sensors")
 
     # Play sim
+    plan = cloner.make_clone_plan([], num_cameras_per_tiled_camera, 0.0, global_paths=scene_roots)
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     for i, camera in enumerate(tiled_cameras):
@@ -258,7 +269,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
 @pytest.mark.isaacsim_ci
 def test_different_resolution_multi_tiled_camera(setup_camera):
     """Test multiple tiled cameras with different resolutions."""
-    camera_cfg, sim, dt = setup_camera
+    camera_cfg, sim, dt, scene_roots = setup_camera
     num_tiled_cameras = 2
     num_cameras_per_tiled_camera = 6
 
@@ -266,7 +277,9 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
     resolutions = [(16, 16), (23, 765)]
     for i in range(num_tiled_cameras):
         for j in range(num_cameras_per_tiled_camera):
-            sim_utils.create_prim(f"/World/Origin_{i}_{j}", "Xform")
+            prim_path = f"/World/Origin_{i}_{j}"
+            sim_utils.create_prim(prim_path, "Xform")
+            scene_roots += (prim_path,)
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
@@ -279,6 +292,9 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
         assert sim.get_setting("/isaaclab/render/rtx_sensors")
 
     # Play sim
+    plan = cloner.make_clone_plan([], num_cameras_per_tiled_camera, 0.0, global_paths=scene_roots)
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     for i, camera in enumerate(tiled_cameras):
@@ -325,14 +341,16 @@ def test_different_resolution_multi_tiled_camera(setup_camera):
 @flaky(max_runs=3, min_passes=1)
 def test_frame_offset_multi_tiled_camera(setup_camera):
     """Test frame offset issue with multiple tiled cameras"""
-    camera_cfg, sim, dt = setup_camera
+    camera_cfg, sim, dt, scene_roots = setup_camera
     num_tiled_cameras = 4
     num_cameras_per_tiled_camera = 4
 
     tiled_cameras = []
     for i in range(num_tiled_cameras):
         for j in range(num_cameras_per_tiled_camera):
-            sim_utils.create_prim(f"/World/Origin_{i}_{j}", "Xform")
+            prim_path = f"/World/Origin_{i}_{j}"
+            sim_utils.create_prim(prim_path, "Xform")
+            scene_roots += (prim_path,)
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
@@ -348,6 +366,9 @@ def test_frame_offset_multi_tiled_camera(setup_camera):
         UsdGeom.Gprim(prim).GetDisplayColorAttr().Set([color])
 
     # play sim
+    plan = cloner.make_clone_plan([], num_cameras_per_tiled_camera, 0.0, global_paths=scene_roots)
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     # simulate some steps first to make sure objects are settled
@@ -391,7 +412,7 @@ def test_frame_offset_multi_tiled_camera(setup_camera):
 @pytest.mark.isaacsim_ci
 def test_frame_different_poses_multi_tiled_camera(setup_camera):
     """Test multiple tiled cameras placed at different poses render different images."""
-    camera_cfg, sim, dt = setup_camera
+    camera_cfg, sim, dt, scene_roots = setup_camera
     num_tiled_cameras = 3
     num_cameras_per_tiled_camera = 4
     positions = [(0.0, 0.0, 4.0), (0.0, 0.0, 2.0), (0.0, 0.0, 3.0)]
@@ -400,7 +421,9 @@ def test_frame_different_poses_multi_tiled_camera(setup_camera):
     tiled_cameras = []
     for i in range(num_tiled_cameras):
         for j in range(num_cameras_per_tiled_camera):
-            sim_utils.create_prim(f"/World/Origin_{i}_{j}", "Xform")
+            prim_path = f"/World/Origin_{i}_{j}"
+            sim_utils.create_prim(prim_path, "Xform")
+            scene_roots += (prim_path,)
 
         # Create camera
         camera_cfg = copy.deepcopy(camera_cfg)
@@ -410,6 +433,9 @@ def test_frame_different_poses_multi_tiled_camera(setup_camera):
         tiled_cameras.append(camera)
 
     # Play sim
+    plan = cloner.make_clone_plan([], num_cameras_per_tiled_camera, 0.0, global_paths=scene_roots)
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     # Simulate physics
@@ -455,7 +481,7 @@ Helper functions.
 
 
 def _populate_scene():
-    """Add prims to the scene."""
+    """Populate the scene and return its declared roots."""
     # TODO: this causes hang with Kit 107.3???
     # # Ground-plane
     # cfg = sim_utils.GroundPlaneCfg()
@@ -490,3 +516,4 @@ def _populate_scene():
         sim_utils.apply_rigid_body_properties(prim_path, [sim_utils.UsdPhysicsRigidBodyCfg()], create_if_missing=True)
         sim_utils.apply_mass_properties(prim_path, [sim_utils.MassCfg(mass=5.0)], create_if_missing=True)
         sim_utils.apply_collision_properties(prim_path, [sim_utils.UsdPhysicsCollisionCfg()], create_if_missing=True)
+    return ("/World/Light", "/World/Objects")

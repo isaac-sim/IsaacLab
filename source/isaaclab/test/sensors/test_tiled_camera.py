@@ -34,13 +34,14 @@ import omni.replicator.core as rep
 from pxr import Gf, UsdGeom
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.sensors.camera import Camera, CameraCfg, TiledCamera, TiledCameraCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
 
 @pytest.fixture(scope="function")
-def setup_camera(device) -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
+def setup_camera(device) -> tuple[sim_utils.SimulationContext, CameraCfg, float, tuple[str, ...]]:
     """Fixture to set up and tear down the camera simulation environment."""
     camera_cfg = CameraCfg(
         height=128,
@@ -61,10 +62,10 @@ def setup_camera(device) -> tuple[sim_utils.SimulationContext, CameraCfg, float]
     sim_cfg = sim_utils.SimulationCfg(dt=dt, device=device)
     sim: sim_utils.SimulationContext = sim_utils.SimulationContext(sim_cfg)
     # populate scene
-    _populate_scene()
+    scene_roots = _populate_scene()
     # load stage
     sim_utils.update_stage()
-    yield sim, camera_cfg, dt
+    yield sim, camera_cfg, dt, scene_roots
     # Teardown
     rep.vp_manager.destroy_hydra_textures("Replicator")
     sim.stop()
@@ -75,7 +76,7 @@ def setup_camera(device) -> tuple[sim_utils.SimulationContext, CameraCfg, float]
 @pytest.mark.isaacsim_ci
 def test_tiled_camera_deprecation_warning(setup_camera, device):
     """TiledCamera instantiation emits a DeprecationWarning."""
-    sim, camera_cfg, dt = setup_camera
+    sim, camera_cfg, dt, scene_roots = setup_camera
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
         camera = TiledCamera(camera_cfg)
@@ -110,7 +111,7 @@ def test_tiled_camera_cfg_deprecation_warning(setup_camera, device):
 @pytest.mark.isaacsim_ci
 def test_tiled_camera_is_camera_subclass(setup_camera, device):
     """TiledCamera is a subclass of Camera, so isinstance checks work."""
-    sim, camera_cfg, dt = setup_camera
+    sim, camera_cfg, dt, scene_roots = setup_camera
     camera = TiledCamera(camera_cfg)
     assert isinstance(camera, Camera)
     assert isinstance(camera, TiledCamera)
@@ -122,10 +123,13 @@ def test_tiled_camera_is_camera_subclass(setup_camera, device):
 @pytest.mark.isaacsim_ci
 def test_tiled_camera_basic_functionality(setup_camera, device):
     """TiledCamera produces correct output (proving it delegates to Camera)."""
-    sim, camera_cfg, dt = setup_camera
+    sim, camera_cfg, dt, scene_roots = setup_camera
     # Create camera
     camera = TiledCamera(camera_cfg)
     # Play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
     # Check if camera is initialized
     assert camera.is_initialized
@@ -161,7 +165,7 @@ Helper functions.
 
 
 def _populate_scene():
-    """Add prims to the scene."""
+    """Populate the scene and return its declared roots."""
     # Ground-plane
     cfg = sim_utils.GroundPlaneCfg()
     cfg.func("/World/defaultGroundPlane", cfg)
@@ -197,3 +201,4 @@ def _populate_scene():
         sim_utils.apply_rigid_body_properties(prim_path, [sim_utils.UsdPhysicsRigidBodyCfg()], create_if_missing=True)
         sim_utils.apply_mass_properties(prim_path, [sim_utils.MassCfg(mass=5.0)], create_if_missing=True)
         sim_utils.apply_collision_properties(prim_path, [sim_utils.UsdPhysicsCollisionCfg()], create_if_missing=True)
+    return ("/World/defaultGroundPlane", "/World/Light", "/World/Objects")

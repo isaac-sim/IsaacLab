@@ -26,6 +26,7 @@ import omni.replicator.core as rep
 from pxr import Gf
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, patterns
 from isaaclab.sim import PinholeCameraCfg
@@ -56,7 +57,7 @@ def _assert_quat_close(actual, expected, **kwargs):
 DEBUG_PLOTS = False
 
 
-def setup() -> tuple[sim_utils.SimulationContext, RayCasterCameraCfg, float]:
+def setup() -> tuple[sim_utils.SimulationContext, RayCasterCameraCfg, float, tuple[str, ...]]:
     # Create a blank new stage
     camera_pattern_cfg = patterns.PinholeCameraPatternCfg(
         focal_length=24.0,
@@ -93,7 +94,8 @@ def setup() -> tuple[sim_utils.SimulationContext, RayCasterCameraCfg, float]:
     light_cfg.func("/World/Light", light_cfg)
     # load stage
     sim_utils.update_stage()
-    return sim, camera_cfg, dt
+    scene_roots = ("/World/defaultGroundPlane", "/World/Light", "/World/Camera")
+    return sim, camera_cfg, dt, scene_roots
 
 
 def teardown(sim: sim_utils.SimulationContext):
@@ -109,18 +111,21 @@ def teardown(sim: sim_utils.SimulationContext):
 @pytest.fixture
 def setup_sim():
     """Setup and teardown for each test."""
-    sim, camera_cfg, dt = setup()
-    yield sim, camera_cfg, dt
+    sim, camera_cfg, dt, scene_roots = setup()
+    yield sim, camera_cfg, dt, scene_roots
     teardown(sim)
 
 
 @pytest.mark.isaacsim_ci
 def test_camera_init(setup_sim):
     """Test camera initialization."""
-    sim, camera_cfg, dt = setup_sim
+    sim, camera_cfg, dt, scene_roots = setup_sim
     # Create camera
     camera = RayCasterCamera(cfg=camera_cfg)
     # Play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
     # Check if camera is initialized
     assert camera.is_initialized
@@ -154,10 +159,13 @@ def test_camera_init(setup_sim):
 @pytest.mark.isaacsim_ci
 def test_camera_resolution(setup_sim):
     """Test camera resolution is correctly set."""
-    sim, camera_cfg, dt = setup_sim
+    sim, camera_cfg, dt, scene_roots = setup_sim
     # Create camera
     camera = RayCasterCamera(cfg=camera_cfg)
     # Play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
     camera.update(dt)
     # access image data and compare shapes
@@ -173,7 +181,7 @@ def test_depth_clipping(setup_sim):
 
         This test is the same for all camera models to enforce the same clipping behavior.
     """
-    sim, camera_cfg, dt = setup_sim
+    sim, camera_cfg, dt, scene_roots = setup_sim
     sim_utils.create_prim("/World/CameraZero", "Xform")
     sim_utils.create_prim("/World/CameraNone", "Xform")
     sim_utils.create_prim("/World/CameraMax", "Xform")
@@ -206,6 +214,10 @@ def test_depth_clipping(setup_sim):
     camera_max = RayCasterCamera(camera_cfg_max)
 
     # Play sim
+    scene_roots += camera_zero.cfg.prim_path, camera_none.cfg.prim_path, camera_max.cfg.prim_path
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=scene_roots)
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     camera_zero.update(dt)
@@ -264,7 +276,7 @@ def test_depth_clipping(setup_sim):
 @pytest.mark.isaacsim_ci
 def test_camera_init_offset(setup_sim):
     """Test camera initialization with offset using different conventions."""
-    sim, camera_cfg, dt = setup_sim
+    sim, camera_cfg, dt, scene_roots = setup_sim
     # define the same offset in all conventions
     # -- ROS convention
     cam_cfg_offset_ros = copy.deepcopy(camera_cfg)
@@ -298,6 +310,10 @@ def test_camera_init_offset(setup_sim):
     camera_world = RayCasterCamera(cam_cfg_offset_world)
 
     # play sim
+    scene_roots += camera_ros.cfg.prim_path, camera_opengl.cfg.prim_path, camera_world.cfg.prim_path
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=scene_roots)
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     # update cameras
@@ -320,15 +336,18 @@ def test_camera_init_offset(setup_sim):
 @pytest.mark.isaacsim_ci
 def test_camera_init_intrinsic_matrix(setup_sim):
     """Test camera initialization from intrinsic matrix."""
-    sim, camera_cfg, dt = setup_sim
+    sim, camera_cfg, dt, scene_roots = setup_sim
     # get the first camera
     camera_1 = RayCasterCamera(cfg=camera_cfg)
     # get intrinsic matrix
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera_1.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
     intrinsic_matrix = camera_1.data.intrinsic_matrices.torch[0].cpu().flatten().tolist()
     teardown(sim)
     # reinit the first camera
-    sim, camera_cfg, dt = setup()
+    sim, camera_cfg, dt, scene_roots = setup()
     camera_1 = RayCasterCamera(cfg=camera_cfg)
     # initialize from intrinsic matrix
     intrinsic_camera_cfg = RayCasterCameraCfg(
@@ -350,6 +369,11 @@ def test_camera_init_intrinsic_matrix(setup_sim):
     camera_2 = RayCasterCamera(cfg=intrinsic_camera_cfg)
 
     # play sim
+    plan = cloner.make_clone_plan(
+        [], 1, 0.0, global_paths=(*scene_roots, camera_1.cfg.prim_path, camera_2.cfg.prim_path)
+    )
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
     sim.play()
 
@@ -372,7 +396,7 @@ def test_camera_init_intrinsic_matrix(setup_sim):
 @pytest.mark.isaacsim_ci
 def test_multi_camera_init(setup_sim):
     """Test multi-camera initialization."""
-    sim, camera_cfg, dt = setup_sim
+    sim, camera_cfg, dt, scene_roots = setup_sim
     # create two cameras with different prim paths
     # -- camera 1
     cam_cfg_1 = copy.deepcopy(camera_cfg)
@@ -390,6 +414,9 @@ def test_multi_camera_init(setup_sim):
     assert cam_1.meshes == cam_2.meshes
 
     # play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, cam_1.cfg.prim_path, cam_2.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     # Simulate for a few steps
@@ -411,9 +438,12 @@ def test_multi_camera_init(setup_sim):
 @pytest.mark.isaacsim_ci
 def test_camera_set_world_poses(setup_sim):
     """Test camera function to set specific world pose."""
-    sim, camera_cfg, dt = setup_sim
+    sim, camera_cfg, dt, scene_roots = setup_sim
     camera = RayCasterCamera(camera_cfg)
     # play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     # convert to torch tensors
@@ -430,9 +460,12 @@ def test_camera_set_world_poses(setup_sim):
 @pytest.mark.isaacsim_ci
 def test_camera_set_world_poses_from_view(setup_sim):
     """Test camera function to set specific world pose from view."""
-    sim, camera_cfg, dt = setup_sim
+    sim, camera_cfg, dt, scene_roots = setup_sim
     camera = RayCasterCamera(camera_cfg)
     # play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     # convert to torch tensors
@@ -450,12 +483,15 @@ def test_camera_set_world_poses_from_view(setup_sim):
 @pytest.mark.isaacsim_ci
 def test_intrinsic_matrix(setup_sim):
     """Checks that the camera's set and retrieve methods work for intrinsic matrix."""
-    sim, camera_cfg, dt = setup_sim
+    sim, camera_cfg, dt, scene_roots = setup_sim
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.pattern_cfg.height = 240
     camera_cfg.pattern_cfg.width = 320
     camera = RayCasterCamera(camera_cfg)
     # play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
     # Desired properties (obtained from realsense camera at 320x240 resolution)
     rs_intrinsic_matrix = [229.31640625, 0.0, 164.810546875, 0.0, 229.826171875, 122.1650390625, 0.0, 0.0, 1.0]
@@ -474,7 +510,7 @@ def test_intrinsic_matrix(setup_sim):
 
 @pytest.mark.isaacsim_ci
 def test_output_equal_to_usdcamera(setup_sim):
-    sim, camera_cfg, dt = setup_sim
+    sim, camera_cfg, dt, scene_roots = setup_sim
     camera_pattern_cfg = patterns.PinholeCameraPatternCfg(
         focal_length=24.0,
         horizontal_aperture=20.955,
@@ -509,6 +545,11 @@ def test_output_equal_to_usdcamera(setup_sim):
     camera_usd = Camera(camera_cfg_usd)
 
     # play sim
+    plan = cloner.make_clone_plan(
+        [], 1, 0.0, global_paths=(*scene_roots, "/World/Camera_warp", camera_usd.cfg.prim_path)
+    )
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
     sim.play()
 
@@ -574,7 +615,7 @@ def test_output_equal_to_usdcamera(setup_sim):
 
 @pytest.mark.isaacsim_ci
 def test_output_equal_to_usdcamera_offset(setup_sim):
-    sim, camera_cfg, dt = setup_sim
+    sim, camera_cfg, dt, scene_roots = setup_sim
     offset_rot = [0.3617, 0.8731, -0.3020, -0.1251]
 
     camera_pattern_cfg = patterns.PinholeCameraPatternCfg(
@@ -613,6 +654,11 @@ def test_output_equal_to_usdcamera_offset(setup_sim):
     camera_usd = Camera(camera_cfg_usd)
 
     # play sim
+    plan = cloner.make_clone_plan(
+        [], 1, 0.0, global_paths=(*scene_roots, "/World/Camera_warp", camera_usd.cfg.prim_path)
+    )
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
     sim.play()
 
@@ -653,7 +699,7 @@ def test_output_equal_to_usdcamera_prim_offset(setup_sim):
     """Test that the output of the ray caster camera is equal to the output of the usd camera when both are placed
     under an XForm prim that is translated and rotated from the world origin
     ."""
-    sim, camera_cfg, dt = setup_sim
+    sim, camera_cfg, dt, scene_roots = setup_sim
     offset_rot = (0.3617, 0.8731, -0.3020, -0.1251)
 
     # gf quat
@@ -703,6 +749,9 @@ def test_output_equal_to_usdcamera_prim_offset(setup_sim):
     camera_usd = Camera(camera_cfg_usd)
 
     # play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, "/World/Camera_warp", "/World/Camera_usd"))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
     sim.play()
 
@@ -750,7 +799,7 @@ def test_output_equal_to_usd_camera_intrinsics(setup_sim, focal_length):
     initialized with the same intrinsic matrix.
     """
 
-    sim, camera_cfg, dt = setup_sim
+    sim, camera_cfg, dt, scene_roots = setup_sim
     # create cameras
     offset_rot = (0.3617, 0.8731, -0.3020, -0.1251)
     offset_pos = (2.5, 2.5, 4.0)
@@ -798,6 +847,11 @@ def test_output_equal_to_usd_camera_intrinsics(setup_sim, focal_length):
     camera_usd = Camera(camera_usd_cfg)
 
     # play sim
+    plan = cloner.make_clone_plan(
+        [], 1, 0.0, global_paths=(*scene_roots, camera_warp.cfg.prim_path, camera_usd.cfg.prim_path)
+    )
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
     sim.play()
 
@@ -884,7 +938,7 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim, focal_length_
     # unpack focal length and aperture
     focal_length, aperture = focal_length_aperture
 
-    sim, camera_cfg, dt = setup_sim
+    sim, camera_cfg, dt, scene_roots = setup_sim
     camera_pattern_cfg = patterns.PinholeCameraPatternCfg(
         focal_length=focal_length,
         horizontal_aperture=aperture,
@@ -917,6 +971,11 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim, focal_length_
     camera_usd = Camera(camera_cfg_usd)
 
     # play sim
+    plan = cloner.make_clone_plan(
+        [], 1, 0.0, global_paths=(*scene_roots, camera_warp.cfg.prim_path, camera_usd.cfg.prim_path)
+    )
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
     sim.play()
 
@@ -991,10 +1050,13 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim, focal_length_
 @pytest.mark.isaacsim_ci
 def test_sensor_print(setup_sim):
     """Test sensor print is working correctly."""
-    sim, camera_cfg, dt = setup_sim
+    sim, camera_cfg, dt, scene_roots = setup_sim
     # Create sensor
     sensor = RayCasterCamera(cfg=camera_cfg)
     # Play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, sensor.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
     # print info
     print(sensor)
@@ -1009,7 +1071,7 @@ def test_depth_clipping_d2ip_and_d2c_are_independent(setup_sim):
     requesting both data types simultaneously gives results consistent with requesting
     each one alone.
     """
-    sim, camera_cfg, dt = setup_sim
+    sim, camera_cfg, dt, scene_roots = setup_sim
 
     base_cfg = RayCasterCameraCfg(
         prim_path="/World/Camera",
@@ -1047,6 +1109,11 @@ def test_depth_clipping_d2ip_and_d2c_are_independent(setup_sim):
     cfg_d2c.data_types = ["distance_to_camera"]
     cam_d2c = RayCasterCamera(cfg_d2c)
 
+    plan = cloner.make_clone_plan(
+        [], 1, 0.0, global_paths=(*scene_roots, cam_joint.cfg.prim_path, cam_d2ip.cfg.prim_path, cam_d2c.cfg.prim_path)
+    )
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     cam_joint.update(dt)
@@ -1070,8 +1137,11 @@ def test_depth_clipping_d2ip_and_d2c_are_independent(setup_sim):
 @pytest.mark.isaacsim_ci
 def test_frame_counter_increments_per_update(setup_sim):
     """frame counter must increment by exactly 1 per update() call and reset to 0 on reset()."""
-    sim, camera_cfg, dt = setup_sim
+    sim, camera_cfg, dt, scene_roots = setup_sim
     camera = RayCasterCamera(cfg=camera_cfg)
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     assert torch.all(camera.frame == 0), "Frame must start at 0"
@@ -1101,13 +1171,16 @@ def test_set_intrinsic_matrices_updates_output(setup_sim):
     This tests that the warp view refresh in set_intrinsic_matrices() actually takes
     effect: stale warp views would cause subsequent images to use the old ray pattern.
     """
-    sim, camera_cfg, dt = setup_sim
+    sim, camera_cfg, dt, scene_roots = setup_sim
 
     # Place camera looking straight down at the ground
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.offset = RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 5.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world")
     camera_cfg.data_types = ["distance_to_camera"]
     camera = RayCasterCamera(cfg=camera_cfg)
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     # Capture output with default focal length (24 mm → 20.955 mm aperture)

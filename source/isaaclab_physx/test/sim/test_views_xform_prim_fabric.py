@@ -32,6 +32,7 @@ from isaaclab_physx.sim.views import FabricFrameView as FrameView  # noqa: E402
 from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab.cloner import make_clone_plan, replicate  # noqa: E402
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider  # noqa: E402
 
 pytestmark = pytest.mark.isaacsim_ci
@@ -148,6 +149,10 @@ def test_sdp_native_gpu_fabric_binding_preserves_live_physx_pose(device, request
         sim_utils.SimulationCfg(physics=PhysxCfg(), device=device, gravity=(0, 0, 0), use_fabric=True)
     )
     sim.set_setting("/physics/fabricUpdateTransformations", True)
+
+    plan = make_clone_plan((), 1, 0.0, global_paths=("/World/Cube",))
+    sim.set_clone_plan(plan)
+    replicate(plan, replicate_physics=False)
     sim.reset()
     frame_view = FrameView("/World/Cube", device=device)
     request.addfinalizer(frame_view.close)

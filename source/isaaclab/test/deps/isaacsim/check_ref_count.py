@@ -46,6 +46,7 @@ enable_extension("isaacsim.core.experimental.prims")
 
 from isaacsim.core.experimental.prims import Articulation
 
+import isaaclab.cloner as cloner
 import isaaclab.sim.utils.nucleus as nucleus_utils
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -123,6 +124,9 @@ def main():
     print("---" * 10)
 
     # Play the simulator
+    roots = ("/World/Robot",)
+    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=roots))
+    cloner.replicate(sim.get_clone_plan())
     sim.reset()
 
     print("Reference count of the robot view: ", ctypes.c_long.from_address(id(robot)).value)

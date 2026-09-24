@@ -47,6 +47,7 @@ from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
+from isaaclab import cloner  # noqa: E402
 from isaaclab.assets import RigidObject, RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors.pva import Pva, PvaCfg  # noqa: E402
@@ -76,15 +77,18 @@ MOUNT_ROT_OFFSET = (0.5, 0.5, 0.5, 0.5)
 # ---------------------------------------------------------------------------
 
 
-def _spawn_envs(num_envs: int) -> None:
+def _spawn_envs(num_envs: int) -> cloner.ClonePlan:
     """Create per-env Xform containers at ``/World/env_<i>``.
 
     These match the prim-path layout the PVA's attachment-validity test
     expects, and provide a parent for per-env asset spawns.
     """
     # /World/env_<i> Xforms are siblings under /World — no envs container needed
+    plan = cloner.make_clone_plan((), num_envs, 5.0, global_paths=tuple(f"/World/env_{i}" for i in range(num_envs)))
+    sim_utils.SimulationContext.instance().set_clone_plan(plan)
     for i in range(num_envs):
         sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=(i * 5.0, 0.0, 0.0))
+    return plan
 
 
 def _spawn_balls(num_envs: int, height: float = 0.5) -> RigidObject:
@@ -229,11 +233,12 @@ def test_constant_velocity(sim_ctx, device):
     linear acceleration is the coordinate acceleration and does not include
     gravity (the IMU's gravity bias is absent here).
     """
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
     cubes = _spawn_cubes(NUM_ENVS)
     pva_ball = _make_pva("/World/env_[^/]+/ball")
     pva_cube = _make_pva("/World/env_[^/]+/cube")
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     prev_lin_acc_ball = torch.zeros((NUM_ENVS, 3), dtype=torch.float32, device=device)
@@ -320,9 +325,10 @@ def test_constant_acceleration(sim_ctx, device):
     The PVA linear acceleration is a coordinate acceleration (no gravity bias), so the
     vertical component stays at the free-fall ``-g`` (the kitless scene has no ground).
     """
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
     pva_ball = _make_pva("/World/env_[^/]+/ball")
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -375,7 +381,7 @@ def test_offset_calculation(sim_ctx, device):
     Xform and one attached to the cube with the same configured offset -- should
     produce identical readings across all outputs.
     """
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     cubes = _spawn_cubes(NUM_ENVS)
     _add_pva_mount_xforms(NUM_ENVS)
     pva_child = _make_pva("/World/env_[^/]+/cube/pva_mount")
@@ -383,6 +389,7 @@ def test_offset_calculation(sim_ctx, device):
         "/World/env_[^/]+/cube",
         offset=PvaCfg.OffsetCfg(pos=MOUNT_POS_OFFSET, rot=MOUNT_ROT_OFFSET),
     )
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -453,9 +460,10 @@ def test_offset_calculation(sim_ctx, device):
 @pytest.mark.parametrize("device", _DEVICES)
 def test_env_ids_propagation(sim_ctx, device):
     """Test that ``env_ids`` argument propagates through update and reset methods."""
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     cubes = _spawn_cubes(NUM_ENVS)
     pva_cube = _make_pva("/World/env_[^/]+/cube")
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -493,9 +501,10 @@ def test_env_ids_propagation(sim_ctx, device):
 @pytest.mark.parametrize("device", _DEVICES)
 def test_sensor_initialization(sim_ctx, device):
     """Test that the OVPhysX PVA sensor initializes correctly."""
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     _spawn_balls(NUM_ENVS)
     pva_ball = _make_pva("/World/env_[^/]+/ball")
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     assert pva_ball.num_instances == NUM_ENVS
@@ -525,9 +534,10 @@ def test_pose_w_packing(sim_ctx, device):
     checked, and a regression that, say, swaps the kernel inputs or returns
     stale data would not be caught.
     """
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
     pva_ball = _make_pva("/World/env_[^/]+/ball")
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -554,9 +564,10 @@ def test_projected_gravity_at_rest(sim_ctx, device):
     which for a body whose orientation is identity is also ``(0, 0, -1)`` in
     the body frame.
     """
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
     pva_ball = _make_pva("/World/env_[^/]+/ball")
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -581,9 +592,10 @@ def test_freefall_lin_acc(sim_ctx, device):
     freefall this is ``-g`` (the body is accelerating downward at ``g``), so
     the magnitude of ``lin_acc_b`` should converge to ``g ≈ 9.81 m/s^2``.
     """
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS, height=5.0)
     pva_ball = _make_pva("/World/env_[^/]+/ball")
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -613,9 +625,10 @@ def test_reset(sim_ctx, device):
     buffers are zero.  We read the raw warp arrays directly because accessing
     ``pva.data`` triggers a lazy re-fill that masks reset bugs.
     """
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
     pva_ball = _make_pva("/World/env_[^/]+/ball")
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -701,7 +714,7 @@ def test_indirect_attachment_usd(sim_ctx, device):
     PVA at it.  The composed offset should match the directly-configured
     offset; all output channels should agree.
     """
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
     # Add a non-physics Xform child under each ball at a known offset; the PVA
     # must resolve the rigid-body ancestor (the ball) and recover the offset.
@@ -711,6 +724,7 @@ def test_indirect_attachment_usd(sim_ctx, device):
         sim_utils.create_prim(f"/World/env_{i}/ball/pva_sub", "Xform", translation=sub_pos, orientation=sub_rot)
     pva_indirect = _make_pva("/World/env_[^/]+/ball/pva_sub")
     pva_direct = _make_pva("/World/env_[^/]+/ball", offset=PvaCfg.OffsetCfg(pos=sub_pos, rot=sub_rot))
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     torch.testing.assert_close(
@@ -793,7 +807,8 @@ def test_attachment_validity(sim_ctx, device):
     A PVA sensor cannot be attached directly to the world Xform — it must have
     a rigid-body ancestor in its prim tree.
     """
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     pva_world_cfg = PvaCfg(prim_path="/World/env_0")
@@ -806,9 +821,10 @@ def test_attachment_validity(sim_ctx, device):
 @pytest.mark.parametrize("device", _DEVICES)
 def test_sensor_print(sim_ctx, device):
     """Test ``__str__`` is implemented and exposes the prim path and binding pattern."""
-    _spawn_envs(NUM_ENVS)
+    plan = _spawn_envs(NUM_ENVS)
     _spawn_balls(NUM_ENVS)
     pva_ball = _make_pva("/World/env_[^/]+/ball")
+    cloner.replicate(plan)
     sim_ctx.reset()
 
     s = str(pva_ball)

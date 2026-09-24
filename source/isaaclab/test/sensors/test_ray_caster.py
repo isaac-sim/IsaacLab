@@ -18,6 +18,7 @@ import trimesh
 # Import after app launch
 import warp as wp
 
+from isaaclab import cloner
 from isaaclab.sensors.ray_caster.kernels import quat_yaw_only as _quat_yaw_only_func
 from isaaclab.utils.math import matrix_from_quat, quat_from_euler_xyz, random_orientation, yaw_quat
 from isaaclab.utils.warp.kernels import raycast_mesh_masked_kernel as _raycast_mesh_masked_kernel
@@ -290,6 +291,9 @@ def test_raycaster_offset_does_not_affect_pos_w():
     sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=dt))
 
     sensor = RayCaster(cfg)
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=("/World/ground", cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
     sensor.update(dt)
 

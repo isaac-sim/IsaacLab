@@ -38,14 +38,13 @@ simulation_app = SimulationApp(config)
 import logging
 import traceback
 
-import numpy as np
 import torch
 from isaaclab_physx.renderers.kit_viewport_utils import _set_kit_camera_view
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
 from isaaclab import cloner as lab_cloner
-from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
 from isaaclab.sensors.pva import Pva, PvaCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
@@ -74,13 +73,10 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
     # Create interface to clone the scene
     # Create environment clones using Lab's cloner utilities
     env_fmt = "/World/envs/env_{}"
-    env_ids = np.arange(num_envs, dtype=np.int64)
     env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=2.0)
     envs_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
     # create source prim
     stage.DefinePrim(envs_prim_paths[0], "Xform")
-    # clone the env xform
-    lab_cloner.usd_replicate(stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
     # Define the scene
     # -- Light
     cfg = sim_utils.DistantLightCfg(intensity=2000)
@@ -97,7 +93,15 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
         prim_path="{ENV_REGEX_NS}/ball",
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5.0)),
     )
+    plan = lab_cloner.clone_plan_from_env_0(
+        lab_cloner.CloneCfg(clone_template=env_fmt),
+        (cfg, terrain_importer_cfg, AssetBaseCfg(prim_path="/World/light")),
+        num_envs,
+        2.0,
+        positions=env_origins,
+    )
     balls = RigidObject(cfg)
+    lab_cloner.replicate(plan, replicate_physics=False)
     # Clone the scene
     # obtain the current physics scene
     physics_scene_prim_path = None

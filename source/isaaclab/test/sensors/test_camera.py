@@ -28,6 +28,7 @@ import omni.replicator.core as rep
 from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.sensors.camera import Camera, CameraCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacsim_ci]
@@ -59,7 +60,7 @@ HEIGHT = 240
 WIDTH = 320
 
 
-def setup() -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
+def setup() -> tuple[sim_utils.SimulationContext, CameraCfg, float, tuple[str, ...]]:
     camera_cfg = CameraCfg(
         height=HEIGHT,
         width=WIDTH,
@@ -78,10 +79,10 @@ def setup() -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
     sim_cfg = sim_utils.SimulationCfg(dt=dt)
     sim = sim_utils.SimulationContext(sim_cfg)
     # populate scene
-    _populate_scene()
+    scene_roots = _populate_scene()
     # load stage
     sim_utils.update_stage()
-    return sim, camera_cfg, dt
+    return sim, camera_cfg, dt, scene_roots
 
 
 def teardown(sim: sim_utils.SimulationContext):
@@ -97,15 +98,15 @@ def teardown(sim: sim_utils.SimulationContext):
 @pytest.fixture
 def setup_sim_camera():
     """Create a simulation context."""
-    sim, camera_cfg, dt = setup()
-    yield sim, camera_cfg, dt
+    sim, camera_cfg, dt, scene_roots = setup()
+    yield sim, camera_cfg, dt, scene_roots
     teardown(sim)
 
 
 def test_camera_init(setup_sim_camera):
     """Test camera initialization."""
     # Create camera configuration
-    sim, camera_cfg, dt = setup_sim_camera
+    sim, camera_cfg, dt, scene_roots = setup_sim_camera
     sim.set_setting("/physics/fabricUpdateTransformations", False)
     # Create camera
     camera = Camera(camera_cfg)
@@ -113,6 +114,9 @@ def test_camera_init(setup_sim_camera):
     assert sim.get_setting("/isaaclab/render/rtx_sensors")
     assert sim.get_setting("/physics/fabricUpdateTransformations")
     # Play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
     # Check if camera is initialized
     assert camera.is_initialized
@@ -142,7 +146,7 @@ def test_camera_init(setup_sim_camera):
 
 def test_camera_init_offset(setup_sim_camera):
     """Test camera initialization with offset using different conventions."""
-    sim, camera_cfg, dt = setup_sim_camera
+    sim, camera_cfg, dt, scene_roots = setup_sim_camera
     # define the same offset in all conventions
     # -- ROS convention
     cam_cfg_offset_ros = copy.deepcopy(camera_cfg)
@@ -176,6 +180,10 @@ def test_camera_init_offset(setup_sim_camera):
     camera_world = Camera(cam_cfg_offset_world)
 
     # play sim
+    scene_roots += camera_ros.cfg.prim_path, camera_opengl.cfg.prim_path, camera_world.cfg.prim_path
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=scene_roots)
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     # retrieve camera pose using USD API
@@ -217,7 +225,7 @@ def test_camera_init_offset(setup_sim_camera):
 
 def test_multi_camera_init(setup_sim_camera):
     """Test multi-camera initialization."""
-    sim, camera_cfg, dt = setup_sim_camera
+    sim, camera_cfg, dt, scene_roots = setup_sim_camera
     # create two cameras with different prim paths
     # -- camera 1
     cam_cfg_1 = copy.deepcopy(camera_cfg)
@@ -229,6 +237,9 @@ def test_multi_camera_init(setup_sim_camera):
     cam_2 = Camera(cam_cfg_2)
 
     # play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, cam_1.cfg.prim_path, cam_2.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     # Simulate physics
@@ -246,7 +257,7 @@ def test_multi_camera_init(setup_sim_camera):
 
 def test_multi_camera_with_different_resolution(setup_sim_camera):
     """Test multi-camera initialization with cameras having different image resolutions."""
-    sim, camera_cfg, dt = setup_sim_camera
+    sim, camera_cfg, dt, scene_roots = setup_sim_camera
     # create two cameras with different prim paths
     # -- camera 1
     cam_cfg_1 = copy.deepcopy(camera_cfg)
@@ -260,6 +271,9 @@ def test_multi_camera_with_different_resolution(setup_sim_camera):
     cam_2 = Camera(cam_cfg_2)
 
     # play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, cam_1.cfg.prim_path, cam_2.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     # perform rendering
@@ -274,15 +288,18 @@ def test_multi_camera_with_different_resolution(setup_sim_camera):
 
 def test_camera_init_intrinsic_matrix(setup_sim_camera):
     """Test camera initialization from intrinsic matrix."""
-    sim, camera_cfg, dt = setup_sim_camera
+    sim, camera_cfg, dt, scene_roots = setup_sim_camera
     # get the first camera
     camera_1 = Camera(cfg=camera_cfg)
     # get intrinsic matrix
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera_1.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
     intrinsic_matrix = camera_1.data.intrinsic_matrices[0].cpu().flatten().tolist()
     teardown(sim)
     # reinit the first camera
-    sim, camera_cfg, dt = setup()
+    sim, camera_cfg, dt, scene_roots = setup()
     camera_1 = Camera(cfg=camera_cfg)
     # initialize from intrinsic matrix
     intrinsic_camera_cfg = CameraCfg(
@@ -303,6 +320,11 @@ def test_camera_init_intrinsic_matrix(setup_sim_camera):
     camera_2 = Camera(cfg=intrinsic_camera_cfg)
 
     # play sim
+    plan = cloner.make_clone_plan(
+        [], 1, 0.0, global_paths=(*scene_roots, camera_1.cfg.prim_path, camera_2.cfg.prim_path)
+    )
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     # update cameras
@@ -328,11 +350,14 @@ def test_camera_init_intrinsic_matrix(setup_sim_camera):
 @pytest.mark.parametrize("update_latest_camera_pose", [False, True])
 def test_camera_set_world_poses(setup_sim_camera, update_latest_camera_pose):
     """Test that an explicitly set world pose is reflected in the data buffers."""
-    sim, camera_cfg, dt = setup_sim_camera
+    sim, camera_cfg, dt, scene_roots = setup_sim_camera
     camera_cfg.update_latest_camera_pose = update_latest_camera_pose
     # init camera
     camera = Camera(camera_cfg)
     # play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     position = np.asarray([POSITION], dtype=np.float32)
@@ -348,11 +373,14 @@ def test_camera_set_world_poses(setup_sim_camera, update_latest_camera_pose):
 @pytest.mark.parametrize("update_latest_camera_pose", [False, True])
 def test_camera_set_world_poses_from_view(setup_sim_camera, update_latest_camera_pose):
     """Test that a pose set from eye/target is reflected in the data buffers."""
-    sim, camera_cfg, dt = setup_sim_camera
+    sim, camera_cfg, dt, scene_roots = setup_sim_camera
     camera_cfg.update_latest_camera_pose = update_latest_camera_pose
     # init camera
     camera = Camera(camera_cfg)
     # play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     eyes_np = np.asarray([POSITION], dtype=np.float32)
@@ -369,12 +397,17 @@ def test_camera_set_world_poses_from_view(setup_sim_camera, update_latest_camera
 
 def test_intrinsic_matrix(setup_sim_camera):
     """Runtime calibration changes pixels without USD authoring and resets with the camera."""
-    sim, camera_cfg, dt = setup_sim_camera
+    sim, camera_cfg, dt, scene_roots = setup_sim_camera
     camera_cfg.update_latest_camera_pose = True
     camera_cfg.offset = CameraCfg.OffsetCfg(pos=(0.0, 0.0, 15.0), convention="opengl")
     target = sim_utils.CuboidCfg(size=(1.0, 1.0, 1.0))
     target.func("/World/CalibrationTarget", target, translation=(0.0, 0.0, 10.0))
     camera = Camera(camera_cfg)
+    plan = cloner.make_clone_plan(
+        [], 1, 0.0, global_paths=(*scene_roots, "/World/CalibrationTarget", camera.cfg.prim_path)
+    )
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     def width():
@@ -413,7 +446,7 @@ def test_depth_clipping(setup_sim_camera):
         This test is the same for all camera models to enforce the same clipping behavior.
     """
     # get camera cfgs
-    sim, _, dt = setup_sim_camera
+    sim, _, dt, scene_roots = setup_sim_camera
     camera_cfg_zero = CameraCfg(
         prim_path="/World/CameraZero",
         offset=CameraCfg.OffsetCfg(pos=(2.5, 2.5, 6.0), rot=(0.362, 0.873, -0.302, -0.125), convention="ros"),
@@ -442,6 +475,10 @@ def test_depth_clipping(setup_sim_camera):
     camera_max = Camera(camera_cfg_max)
 
     # Play sim
+    scene_roots += camera_zero.cfg.prim_path, camera_none.cfg.prim_path, camera_max.cfg.prim_path
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=scene_roots)
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     camera_zero.update(dt)
@@ -515,7 +552,7 @@ def test_depth_clipping(setup_sim_camera):
 def test_camera_resolution_all_colorize(setup_sim_camera):
     """Test camera resolution is correctly set for all types with colorization enabled."""
     # Add all types
-    sim, camera_cfg, dt = setup_sim_camera
+    sim, camera_cfg, dt, scene_roots = setup_sim_camera
     camera_cfg.data_types = [
         "rgb",
         "rgba",
@@ -536,6 +573,9 @@ def test_camera_resolution_all_colorize(setup_sim_camera):
     camera = Camera(camera_cfg)
 
     # Play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     camera.update(dt)
@@ -577,7 +617,7 @@ def test_camera_resolution_all_colorize(setup_sim_camera):
 def test_camera_resolution_no_colorize(setup_sim_camera):
     """Test camera resolution is correctly set for all types with no colorization enabled."""
     # Add all types
-    sim, camera_cfg, dt = setup_sim_camera
+    sim, camera_cfg, dt, scene_roots = setup_sim_camera
     camera_cfg.data_types = [
         "rgb",
         "rgba",
@@ -598,6 +638,9 @@ def test_camera_resolution_no_colorize(setup_sim_camera):
     camera = Camera(camera_cfg)
 
     # Play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
     camera.update(dt)
 
@@ -638,7 +681,7 @@ def test_camera_resolution_no_colorize(setup_sim_camera):
 def test_camera_large_resolution_all_colorize(setup_sim_camera):
     """Test camera resolution is correctly set for all types with colorization enabled."""
     # Add all types
-    sim, camera_cfg, dt = setup_sim_camera
+    sim, camera_cfg, dt, scene_roots = setup_sim_camera
     camera_cfg.data_types = [
         "rgb",
         "rgba",
@@ -661,6 +704,9 @@ def test_camera_large_resolution_all_colorize(setup_sim_camera):
     camera = Camera(camera_cfg)
 
     # Play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     camera.update(dt)
@@ -702,12 +748,15 @@ def test_camera_large_resolution_all_colorize(setup_sim_camera):
 def test_camera_resolution_rgb_only(setup_sim_camera):
     """Test camera resolution is correctly set for RGB only."""
     # Add all types
-    sim, camera_cfg, dt = setup_sim_camera
+    sim, camera_cfg, dt, scene_roots = setup_sim_camera
     camera_cfg.data_types = ["rgb"]
     # Create camera
     camera = Camera(camera_cfg)
 
     # Play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     camera.update(dt)
@@ -724,12 +773,15 @@ def test_camera_resolution_rgb_only(setup_sim_camera):
 def test_camera_resolution_rgba_only(setup_sim_camera):
     """Test camera resolution is correctly set for RGBA only."""
     # Add all types
-    sim, camera_cfg, dt = setup_sim_camera
+    sim, camera_cfg, dt, scene_roots = setup_sim_camera
     camera_cfg.data_types = ["rgba"]
     # Create camera
     camera = Camera(camera_cfg)
 
     # Play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     camera.update(dt)
@@ -746,12 +798,15 @@ def test_camera_resolution_rgba_only(setup_sim_camera):
 def test_camera_resolution_albedo_only(setup_sim_camera):
     """Test camera resolution is correctly set for albedo only."""
     # Add all types
-    sim, camera_cfg, dt = setup_sim_camera
+    sim, camera_cfg, dt, scene_roots = setup_sim_camera
     camera_cfg.data_types = ["albedo"]
     # Create camera
     camera = Camera(camera_cfg)
 
     # Play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     camera.update(dt)
@@ -772,12 +827,15 @@ def test_camera_resolution_albedo_only(setup_sim_camera):
 def test_camera_resolution_simple_shading_only(setup_sim_camera, data_type):
     """Test camera resolution is correctly set for simple shading only."""
     # Add all types
-    sim, camera_cfg, dt = setup_sim_camera
+    sim, camera_cfg, dt, scene_roots = setup_sim_camera
     camera_cfg.data_types = [data_type]
     # Create camera
     camera = Camera(camera_cfg)
 
     # Play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     camera.update(dt)
@@ -794,12 +852,15 @@ def test_camera_resolution_simple_shading_only(setup_sim_camera, data_type):
 def test_camera_resolution_depth_only(setup_sim_camera):
     """Test camera resolution is correctly set for depth only."""
     # Add all types
-    sim, camera_cfg, dt = setup_sim_camera
+    sim, camera_cfg, dt, scene_roots = setup_sim_camera
     camera_cfg.data_types = ["depth"]
     # Create camera
     camera = Camera(camera_cfg)
 
     # Play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     camera.update(dt)
@@ -816,15 +877,18 @@ def test_camera_resolution_depth_only(setup_sim_camera):
 def test_sensor_print(setup_sim_camera):
     """Test sensor print is working correctly."""
     # Create sensor
-    sim, camera_cfg, dt = setup_sim_camera
+    sim, camera_cfg, dt, scene_roots = setup_sim_camera
     sensor = Camera(cfg=camera_cfg)
     # Play sim
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, sensor.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
     # print info
     print(sensor)
 
 
-def setup_with_device(device) -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
+def setup_with_device(device) -> tuple[sim_utils.SimulationContext, CameraCfg, float, tuple[str, ...]]:
     camera_cfg = CameraCfg(
         height=128,
         width=256,
@@ -840,32 +904,37 @@ def setup_with_device(device) -> tuple[sim_utils.SimulationContext, CameraCfg, f
     dt = 0.01
     sim_cfg = sim_utils.SimulationCfg(dt=dt, device=device)
     sim = sim_utils.SimulationContext(sim_cfg)
-    _populate_scene()
+    scene_roots = _populate_scene()
     sim_utils.update_stage()
-    return sim, camera_cfg, dt
+    return sim, camera_cfg, dt, scene_roots
 
 
 @pytest.fixture(scope="function")
 def setup_camera_device(device):
     """Fixture with explicit device parametrization for GPU/CPU testing."""
-    sim, camera_cfg, dt = setup_with_device(device)
-    yield sim, camera_cfg, dt
+    sim, camera_cfg, dt, scene_roots = setup_with_device(device)
+    yield sim, camera_cfg, dt, scene_roots
     teardown(sim)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_camera_multi_regex_init(setup_camera_device, device):
     """Test multi-camera initialization with regex prim paths and content validation."""
-    sim, camera_cfg, dt = setup_camera_device
+    sim, camera_cfg, dt, scene_roots = setup_camera_device
 
     num_cameras = 9
     for i in range(num_cameras):
-        sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+        prim_path = f"/World/Origin_{i}"
+        sim_utils.create_prim(prim_path, "Xform")
+        scene_roots += (prim_path,)
 
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.prim_path = "/World/Origin_[^/]*/CameraSensor"
     camera = Camera(camera_cfg)
 
+    plan = cloner.make_clone_plan([], num_cameras, 0.0, global_paths=scene_roots)
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     assert camera.is_initialized
@@ -906,7 +975,7 @@ def test_camera_multi_regex_init(setup_camera_device, device):
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_camera_all_annotators(setup_camera_device, device):
     """Test all supported annotators produce correct shapes, dtypes, content, and info."""
-    sim, camera_cfg, dt = setup_camera_device
+    sim, camera_cfg, dt, scene_roots = setup_camera_device
     all_annotator_types = [
         "rgb",
         "rgba",
@@ -923,13 +992,18 @@ def test_camera_all_annotators(setup_camera_device, device):
 
     num_cameras = 9
     for i in range(num_cameras):
-        sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+        prim_path = f"/World/Origin_{i}"
+        sim_utils.create_prim(prim_path, "Xform")
+        scene_roots += (prim_path,)
 
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = all_annotator_types
     camera_cfg.prim_path = "/World/Origin_[^/]*/CameraSensor"
     camera = Camera(camera_cfg)
 
+    plan = cloner.make_clone_plan([], num_cameras, 0.0, global_paths=scene_roots)
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     assert camera.is_initialized
@@ -983,10 +1057,12 @@ def test_camera_all_annotators(setup_camera_device, device):
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_camera_segmentation_non_colorize(setup_camera_device, device):
     """Test segmentation outputs with colorization disabled produce correct dtypes and info."""
-    sim, camera_cfg, dt = setup_camera_device
+    sim, camera_cfg, dt, scene_roots = setup_camera_device
     num_cameras = 9
     for i in range(num_cameras):
-        sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+        prim_path = f"/World/Origin_{i}"
+        sim_utils.create_prim(prim_path, "Xform")
+        scene_roots += (prim_path,)
 
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["semantic_segmentation", "instance_segmentation", "instance_id_segmentation_fast"]
@@ -996,6 +1072,9 @@ def test_camera_segmentation_non_colorize(setup_camera_device, device):
     camera_cfg.renderer_cfg.colorize_instance_id_segmentation = False
     camera = Camera(camera_cfg)
 
+    plan = cloner.make_clone_plan([], num_cameras, 0.0, global_paths=scene_roots)
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     for _ in range(5):
@@ -1013,16 +1092,21 @@ def test_camera_segmentation_non_colorize(setup_camera_device, device):
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_camera_normals_unit_length(setup_camera_device, device):
     """Test that normals output vectors have approximately unit length."""
-    sim, camera_cfg, dt = setup_camera_device
+    sim, camera_cfg, dt, scene_roots = setup_camera_device
     num_cameras = 9
     for i in range(num_cameras):
-        sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
+        prim_path = f"/World/Origin_{i}"
+        sim_utils.create_prim(prim_path, "Xform")
+        scene_roots += (prim_path,)
 
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["normals"]
     camera_cfg.prim_path = "/World/Origin_[^/]*/CameraSensor"
     camera = Camera(camera_cfg)
 
+    plan = cloner.make_clone_plan([], num_cameras, 0.0, global_paths=scene_roots)
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     for _ in range(10):
@@ -1042,7 +1126,7 @@ def test_camera_normals_unit_length(setup_camera_device, device):
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_camera_data_types_ordering(setup_camera_device, device):
     """Test that requesting specific data types produces the expected output keys."""
-    sim, camera_cfg, dt = setup_camera_device
+    sim, camera_cfg, dt, scene_roots = setup_camera_device
     camera_cfg_distance = copy.deepcopy(camera_cfg)
     camera_cfg_distance.data_types = ["distance_to_camera"]
     camera_cfg_distance.prim_path = "/World/CameraDistance"
@@ -1058,6 +1142,10 @@ def test_camera_data_types_ordering(setup_camera_device, device):
     camera_cfg_both.prim_path = "/World/CameraBoth"
     camera_both = Camera(camera_cfg_both)
 
+    scene_roots += camera_distance.cfg.prim_path, camera_depth.cfg.prim_path, camera_both.cfg.prim_path
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=scene_roots)
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     assert camera_distance.is_initialized
@@ -1075,7 +1163,7 @@ def test_camera_data_types_ordering(setup_camera_device, device):
 @pytest.mark.parametrize("device", ["cuda:0"])
 def test_camera_frame_offset(setup_camera_device, device):
     """Test that camera reflects scene color changes without frame-offset lag."""
-    sim, camera_cfg, dt = setup_camera_device
+    sim, camera_cfg, dt, scene_roots = setup_camera_device
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.height = 480
     camera_cfg.width = 480
@@ -1087,6 +1175,9 @@ def test_camera_frame_offset(setup_camera_device, device):
         color = Gf.Vec3f(1, 1, 1)
         UsdGeom.Gprim(prim).GetDisplayColorAttr().Set([color])
 
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     for _ in range(100):
@@ -1114,7 +1205,7 @@ def test_camera_raises_on_unsupported_data_types(setup_sim_camera):
     """Test Camera rejects data types its runtime renderer cannot produce."""
     from isaaclab.renderers.base_renderer import BaseRenderer
 
-    sim, camera_cfg, dt = setup_sim_camera
+    sim, camera_cfg, dt, scene_roots = setup_sim_camera
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["rgba", "depth", "normals"]
 
@@ -1158,6 +1249,9 @@ def test_camera_raises_on_unsupported_data_types(setup_sim_camera):
 
     camera_cfg.renderer_cfg.class_type = _PartialRenderer
     camera = Camera(camera_cfg)
+    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan, replicate_physics=False)
     with pytest.raises(ValueError, match="_PartialRenderer") as exc_info:
         sim.reset()
     assert "Hint:" not in str(exc_info.value)
@@ -1167,7 +1261,7 @@ def test_camera_raises_on_unsupported_data_types(setup_sim_camera):
 
 def test_camera_raises_on_instance_segmentation_fast(setup_sim_camera):
     """Camera raises ValueError when the renamed data type 'instance_segmentation_fast' is used."""
-    sim, camera_cfg, dt = setup_sim_camera
+    sim, camera_cfg, dt, scene_roots = setup_sim_camera
     camera_cfg = copy.deepcopy(camera_cfg)
     camera_cfg.data_types = ["instance_segmentation_fast"]
     with pytest.raises(ValueError, match="instance_segmentation"):
@@ -1185,7 +1279,7 @@ def test_camera_pose_update_reflected_in_render(setup_camera_device, device):
     PrepareForReuse) and USD writes are correctly propagated to the RTX
     renderer.
     """
-    sim, _unused_cam_cfg, dt = setup_camera_device
+    sim, _unused_cam_cfg, dt, scene_roots = setup_camera_device
 
     cam_cfg = CameraCfg(
         prim_path="/World/PoseTestCam",
@@ -1203,6 +1297,9 @@ def test_camera_pose_update_reflected_in_render(setup_camera_device, device):
     )
     camera = Camera(cam_cfg)
     try:
+        plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(*scene_roots, camera.cfg.prim_path))
+        sim.set_clone_plan(plan)
+        cloner.replicate(plan, replicate_physics=False)
         sim.reset()
 
         target = np.asarray([[0.0, 0.0, 0.0]], dtype=np.float32)
@@ -1242,7 +1339,7 @@ def test_camera_pose_update_reflected_in_render(setup_camera_device, device):
 
 def test_camera_invalidate_before_initialize(setup_sim_camera):
     """Invalidation on a camera that never initialized does not raise."""
-    _, camera_cfg, _ = setup_sim_camera
+    _, camera_cfg, _, scene_roots = setup_sim_camera
     camera = Camera(camera_cfg.replace(prim_path="/World/NeverInitialized", spawn=None))
     try:
         assert camera._view is None
@@ -1252,7 +1349,7 @@ def test_camera_invalidate_before_initialize(setup_sim_camera):
 
 
 def _populate_scene():
-    """Add prims to the scene."""
+    """Populate the scene and return its declared roots."""
     # Ground-plane
     cfg = sim_utils.GroundPlaneCfg()
     cfg.func("/World/defaultGroundPlane", cfg)
@@ -1286,3 +1383,4 @@ def _populate_scene():
         sim_utils.apply_rigid_body_properties(prim_path, [sim_utils.UsdPhysicsRigidBodyCfg()], create_if_missing=True)
         sim_utils.apply_mass_properties(prim_path, [sim_utils.MassCfg(mass=5.0)], create_if_missing=True)
         sim_utils.apply_collision_properties(prim_path, [sim_utils.UsdPhysicsCollisionCfg()], create_if_missing=True)
+    return ("/World/defaultGroundPlane", "/World/Light", "/World/Objects")

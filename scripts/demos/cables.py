@@ -42,6 +42,8 @@ if args_cli.num_segments < 2:
     parser.error("--num_segments must be at least 2.")
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.physics import PhysicsCfg
 
 if TYPE_CHECKING:
@@ -58,10 +60,10 @@ def design_scene(num_cables: int, num_segments: int, colorize: bool) -> dict[str
     """
     from isaaclab.assets import CableObject, CableObjectCfg
 
-    ground_cfg = sim_utils.GroundPlaneCfg()
-    ground_cfg.func("/World/defaultGroundPlane", ground_cfg)
-    light_cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
-    light_cfg.func("/World/light", light_cfg)
+    ground_cfg = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    light_cfg = AssetBaseCfg(
+        prim_path="/World/light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    )
 
     cable_length = 0.5
     segment_length = cable_length / num_segments
@@ -77,7 +79,7 @@ def design_scene(num_cables: int, num_segments: int, colorize: bool) -> dict[str
     positions = [(index * segment_length, 0.0, 0.0) for index in range(num_segments + 1)]
 
     print(f"[INFO]: Spawning {num_cables} cables...")
-    entities: dict[str, CableObject] = {}
+    cable_cfgs = {}
     for index in range(num_cables):
         angle = random.uniform(0.0, 2.0 * math.pi)
         position = (
@@ -106,8 +108,16 @@ def design_scene(num_cables: int, num_segments: int, colorize: bool) -> dict[str
             ),
             init_state=CableObjectCfg.InitialStateCfg(pos=position, rot=orientation),
         )
-        entities[f"cable_{index:03d}"] = CableObject(cfg=cfg)
+        cable_cfgs[f"cable_{index:03d}"] = cfg
 
+    plan = clone_plan_from_env_0(
+        CloneCfg(clone_template="/World/Env_{}"), (*cable_cfgs.values(), ground_cfg, light_cfg), 1, 0.0
+    )
+    sim_utils.create_prim(plan.sources[0], "Xform")
+    ground_cfg.class_type(ground_cfg)
+    light_cfg.class_type(light_cfg)
+    entities = {name: CableObject(cfg) for name, cfg in cable_cfgs.items()}
+    replicate(plan)
     return entities
 
 

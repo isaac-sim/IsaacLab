@@ -14,6 +14,8 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+from dataclasses import replace
+
 import numpy as np
 import pytest
 import torch
@@ -26,6 +28,8 @@ from isaaclab.cloner import (
     ClonePlan,
     _fabric_notices,
     disabled_fabric_change_notifies,
+    make_clone_plan,
+    replicate,
     sequential,
     usd_replicate,
 )
@@ -213,6 +217,8 @@ def test_physx_replicate_isolated_source_loaded_without_replication(sim):
     replication entirely. The prim already exists from USD, so after ``sim.reset()``
     PhysX must still be able to find the rigid body at the env path.
     """
+    plan = make_clone_plan((), 1, 0.0, global_paths=("/World/envs",))
+    sim.set_clone_plan(plan)
     stage = sim_utils.get_current_stage()
 
     sim_utils.create_prim("/World/envs", "Xform")
@@ -233,6 +239,7 @@ def test_physx_replicate_isolated_source_loaded_without_replication(sim):
         mapping=np.ones((1, 1), dtype=np.bool_),
     )
 
+    replicate(plan, replicate_physics=False)
     sim.reset()
 
     physics_sim_view = sim.physics_manager.get_physics_sim_view()
@@ -296,6 +303,8 @@ def test_physx_replicate_heterogeneous_isolated_sources(sim):
 def test_direct_clone_plan_multi_asset(sim):
     """Clone representative env sources directly and exercise both USD and PhysX."""
     num_clones = 32
+    plan = make_clone_plan((), num_clones, 0.0, global_paths=("/World/envs",))
+    sim.set_clone_plan(plan)
     sim_utils.create_prim("/World/envs", "Xform")
     for i in range(num_clones):
         sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=(0, 0, 0))
@@ -348,6 +357,7 @@ def test_direct_clone_plan_multi_asset(sim):
         else:
             assert primitive_prim.GetTypeName() == "Sphere"
 
+    replicate(plan, replicate_physics=False)
     sim.reset()
     physics_sim_view = sim.physics_manager.get_physics_sim_view()
     physx_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/Object")
@@ -357,6 +367,8 @@ def test_direct_clone_plan_multi_asset(sim):
 def _run_colocation_collision_filter(sim, asset_cfg, expected_types, assert_count=False):
     """Shared harness for colocated collision filter checks across devices."""
     num_clones = 32
+    plan = make_clone_plan((), num_clones, 0.0, global_paths=("/World/envs",))
+    sim.set_clone_plan(plan)
     sim_utils.create_prim("/World/envs", "Xform")
     for i in range(num_clones):
         sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=(0, 0, 0))
@@ -389,6 +401,7 @@ def _run_colocation_collision_filter(sim, asset_cfg, expected_types, assert_coun
     for i, primitive_prim in enumerate(primitive_prims):
         assert primitive_prim.GetTypeName() == expected_types[i % len(expected_types)]
 
+    replicate(plan, replicate_physics=False)
     sim.reset()
     physics_sim_view = sim.physics_manager.get_physics_sim_view()
     physx_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/Object")
@@ -463,6 +476,9 @@ def _run_sphere_velocity_sim(sim, use_physx_replicate: bool, num_steps: int = 10
     """
     num_envs = 2
     spacing = 5.0
+    positions = np.array([[0.0, 0.0, 0.0], [spacing, 0.0, 0.0]], dtype=np.float32)
+    plan = replace(make_clone_plan((), num_envs, spacing, global_paths=("/World/envs",)), positions=positions)
+    sim.set_clone_plan(plan)
     stage = sim_utils.get_current_stage()
 
     sim_utils.create_prim("/World/envs", "Xform")
@@ -477,7 +493,6 @@ def _run_sphere_velocity_sim(sim, use_physx_replicate: bool, num_steps: int = 10
     sphere_cfg.func("/World/envs/env_0/ball", sphere_cfg, translation=(0.0, 0.0, 0.5))
 
     env_ids = np.arange(num_envs, dtype=np.int64)
-    positions = np.array([[0.0, 0.0, 0.0], [spacing, 0.0, 0.0]], dtype=np.float32)
     mapping = np.ones((1, num_envs), dtype=np.bool_)
 
     if use_physx_replicate:
@@ -498,6 +513,7 @@ def _run_sphere_velocity_sim(sim, use_physx_replicate: bool, num_steps: int = 10
         positions=positions,
     )
 
+    replicate(plan, replicate_physics=False)
     sim.reset()
 
     physics_sim_view = sim.physics_manager.get_physics_sim_view()
