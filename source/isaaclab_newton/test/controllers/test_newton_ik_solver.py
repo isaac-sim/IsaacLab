@@ -5,18 +5,22 @@
 
 from __future__ import annotations
 
-import isaaclab_newton.ik.newton_ik_objectives as objectives_module
-import isaaclab_newton.ik.newton_ik_solver as ik_solver_module
+import isaaclab_newton.controllers.ik.newton_ik_objectives as objectives_module
+import isaaclab_newton.controllers.ik.newton_ik_solver as ik_solver_module
 import torch
 import warp as wp
-from isaaclab_newton.ik.newton_ik_objectives import NewtonIKBuildContext, NewtonIKObjective, NewtonIKPoseObjective
-from isaaclab_newton.ik.newton_ik_objectives_cfg import (
+from isaaclab_newton.controllers.ik.newton_ik_objectives import (
+    NewtonIKBuildContext,
+    NewtonIKObjective,
+    NewtonIKPoseObjective,
+)
+from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import (
     NewtonIKJointLimitObjectiveCfg,
     NewtonIKObjectiveCfg,
     NewtonIKPoseObjectiveCfg,
 )
-from isaaclab_newton.ik.newton_ik_solver import NewtonIKSolver
-from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
+from isaaclab_newton.controllers.ik.newton_ik_solver import NewtonIKSolver
+from isaaclab_newton.controllers.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 
 from isaaclab.utils import configclass
 
