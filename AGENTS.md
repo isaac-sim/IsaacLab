@@ -7,6 +7,8 @@
 - Follow a more-specific `AGENTS.md` in the directory being changed.
 - Use the repository's current SPDX header template for new source files; do not change existing file headers.
 - Follow the existing style and abstractions in the affected package.
+- Use `InteractiveScene` for scene construction in maintained demos, tutorials, and asset previews.
+  Keep explicit clone-plan construction and replication in tests and documentation that teaches the cloner API.
 - Use modern Python type hints, including `X | None` instead of `Optional[X]`.
 - Use `snake_case` for methods, functions, and CLI arguments.
 - Keep related public symbols discoverable through consistent prefixes.

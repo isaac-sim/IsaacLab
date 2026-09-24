@@ -43,12 +43,13 @@ import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
+from isaaclab.assets import AssetBaseCfg
 
 ##
 # Pre-defined configs
 ##
 from isaaclab.physics import PhysicsCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG  # isort:skip
@@ -77,48 +78,30 @@ def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
     return env_origins.tolist()
 
 
-def design_scene() -> tuple[dict, list[list[float]]]:
+def design_scene() -> InteractiveScene:
     """Designs the scene."""
-    # Ground-plane
-    cfg = sim_utils.GroundPlaneCfg()
-    cfg.func("/World/defaultGroundPlane", cfg)
-    # Lights
-    cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-    cfg.func("/World/Light", cfg)
-
-    # Create separate groups called "Origin1", "Origin2", "Origin3"
-    # Each group will have a mount and a robot on top of it
+    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0, filter_collisions=False)
+    scene_cfg.ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    scene_cfg.light = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+    )
     origins = define_origins(num_origins=2, spacing=0.5)
-
-    # Origin 1 with Allegro Hand
-    sim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
-    # -- Robot
-    allegro_cfg = ALLEGRO_HAND_CFG.replace(prim_path="/World/Origin1/Robot")
-    allegro = allegro_cfg.class_type(allegro_cfg)
-
-    # Origin 2 with Shadow Hand
-    sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
-    # -- Robot
+    scene_cfg.allegro = ALLEGRO_HAND_CFG.replace(prim_path="/World/Origin1/Robot")
     shadow_hand_cfg = SHADOW_HAND_NEWTON_CFG if args_cli.physics == "newton_mjwarp" else SHADOW_HAND_PHYSX_CFG
     # Pose for this side-by-side scene; the asset's own pose is the reorientation task's.
-    shadow_hand_cfg = shadow_hand_cfg.replace(
+    scene_cfg.shadow_hand = shadow_hand_cfg.replace(
         prim_path="/World/Origin2/Robot",
         init_state=shadow_hand_cfg.init_state.replace(
             pos=(0.0, 0.2, 0.5),
             rot=(0.52296271, -0.47593067, 0.47593067, 0.52296271),
         ),
     )
-    shadow_hand = shadow_hand_cfg.class_type(shadow_hand_cfg)
-
-    # return the scene information
-    scene_entities = {
-        "allegro": allegro,
-        "shadow_hand": shadow_hand,
-    }
-    return scene_entities, origins
+    for cfg, origin in zip((scene_cfg.allegro, scene_cfg.shadow_hand), origins, strict=True):
+        cfg.init_state.pos = tuple(p + o for p, o in zip(cfg.init_state.pos, origin, strict=True))
+    return InteractiveScene(scene_cfg)
 
 
-def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Articulation"], origins: torch.Tensor):
+def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Articulation"]):
     """Runs the simulation loop."""
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -134,10 +117,9 @@ def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Artic
             sim_time = 0.0
             count = 0
             # reset robots
-            for index, robot in enumerate(entities.values()):
+            for robot in entities.values():
                 # root state
                 root_pose = robot.data.default_root_pose.torch.clone()
-                root_pose[:, :3] += origins[index]
                 robot.write_root_pose_to_sim_index(root_pose=root_pose)
                 root_vel = robot.data.default_root_vel.torch.clone()
                 robot.write_root_velocity_to_sim_index(root_velocity=root_vel)
@@ -204,18 +186,13 @@ def main():
         # Set main camera
         sim.set_camera_view(eye=[0.0, -0.5, 1.5], target=[0.0, -0.05, 0.45])
         # design scene
-        global_paths = ("/World/defaultGroundPlane", "/World/Light", "/World/Origin1", "/World/Origin2")
-        plan = cloner.make_clone_plan((), 1, 0.0, global_paths=global_paths)
-        sim.set_clone_plan(plan)
-        scene_entities, scene_origins = design_scene()
-        cloner.replicate(plan)
-        scene_origins = torch.tensor(scene_origins, device=sim.device)
+        scene = design_scene()
         # Play the simulator
         sim.reset()
         # Now we are ready!
         print("[INFO]: Setup complete...")
         # Run the simulator
-        run_simulator(sim, scene_entities, scene_origins)
+        run_simulator(sim, scene.articulations)
 
 
 if __name__ == "__main__":

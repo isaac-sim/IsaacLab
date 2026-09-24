@@ -58,7 +58,8 @@ import torch
 import tqdm
 
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 
 ##
 # Pre-defined configs
@@ -108,18 +109,13 @@ def define_origins(num_origins: int, radius: float = 2.0, center_height: float =
     return env_origins.tolist()
 
 
-def design_scene() -> tuple[dict, list[list[float]]]:
+def design_scene() -> InteractiveScene:
     """Designs the scene."""
-    # Ground-plane
-    cfg_ground = sim_utils.GroundPlaneCfg()
-    cfg_ground.func("/World/defaultGroundPlane", cfg_ground)
-
-    # spawn distant light
-    cfg_light = sim_utils.DomeLightCfg(
-        intensity=3000.0,
-        color=(0.75, 0.75, 0.75),
+    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0, filter_collisions=False)
+    scene_cfg.ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    scene_cfg.light = AssetBaseCfg(
+        prim_path="/World/light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     )
-    cfg_light.func("/World/light", cfg_light)
 
     # spawn a red cone
     cfg_sphere = sim_utils.MeshSphereCfg(
@@ -183,14 +179,10 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     # Create separate groups of deformable objects
     origins = define_origins(num_origins=12, radius=1.5, center_height=2.0)
     print("[INFO]: Spawning objects...")
-    # Iterate over all the origins, spawn objects, and create a view for all the deformables
-    # note: since we manually spawned random deformable meshes above, we don't need to
-    #   specify the spawn configuration for the deformable object
-    scene_entities = {}
     for idx, origin in tqdm.tqdm(enumerate(origins), total=len(origins)):
         # randomly select an object to spawn
         obj_name = random.choice(list(objects_cfg.keys()))
-        obj_cfg = objects_cfg[obj_name]
+        obj_cfg = objects_cfg[obj_name].copy()
         # randomize the deformable material stiffness
         if args_cli.physics == "newton_vbd" and obj_name == "cloth":
             obj_cfg.physics_material.tri_ke = random.uniform(5e3, 5e4)
@@ -208,26 +200,17 @@ def design_scene() -> tuple[dict, list[list[float]]]:
                 obj_cfg.physics_material.poissons_ratio = poissons_ratio
         # randomize the color
         obj_cfg.visual_material.diffuse_color = (random.random(), random.random(), random.random())
-        # spawn the object, separate groups for surface and volume deformables
-        if obj_name in ["cloth"]:
-            prim_path = f"/World/Origin/Surface{idx:02d}"
-            cfg = DeformableObjectCfg(
-                prim_path=prim_path,
+        name = f"{'Surface' if obj_name == 'cloth' else 'Volume'}{idx:02d}"
+        setattr(
+            scene_cfg,
+            name,
+            DeformableObjectCfg(
+                prim_path=f"/World/Origin/{name}",
                 spawn=obj_cfg,
                 init_state=DeformableObjectCfg.InitialStateCfg(pos=origin),
-            )
-            scene_entities[f"Surface{idx:02d}"] = cfg.class_type(cfg)
-        else:
-            prim_path = f"/World/Origin/Volume{idx:02d}"
-            cfg = DeformableObjectCfg(
-                prim_path=prim_path,
-                spawn=obj_cfg,
-                init_state=DeformableObjectCfg.InitialStateCfg(pos=origin),
-            )
-            scene_entities[f"Volume{idx:02d}"] = cfg.class_type(cfg)
-
-    # return the scene information
-    return scene_entities, origins
+            ),
+        )
+    return InteractiveScene(scene_cfg)
 
 
 def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "DeformableObject"]):
@@ -284,17 +267,12 @@ def main():
         sim.set_camera_view([4.0, 4.0, 3.0], [0.5, 0.5, 0.0])
 
         # Design scene by adding assets to it
-        plan = cloner.make_clone_plan(
-            (), 1, 0.0, global_paths=("/World/defaultGroundPlane", "/World/light", "/World/Origin")
-        )
-        sim.set_clone_plan(plan)
-        scene_entities, _ = design_scene()
-        cloner.replicate(plan)
+        scene = design_scene()
         # Play the simulator
         sim.reset()
         # Now we are ready!
         print("[INFO]: Setup complete...")
-        run_simulator(sim, scene_entities)
+        run_simulator(sim, scene.deformable_objects)
         print("[INFO]: Simulation complete...")
 
 

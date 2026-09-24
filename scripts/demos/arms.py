@@ -43,12 +43,13 @@ import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
+from isaaclab.assets import AssetBaseCfg
 
 ##
 # Pre-defined configs
 ##
 from isaaclab.physics import PhysicsCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
@@ -76,97 +77,47 @@ def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
     return env_origins.tolist()
 
 
-def design_scene() -> tuple[dict, list[list[float]]]:
+def design_scene() -> InteractiveScene:
     """Designs the scene."""
-    # Ground-plane
-    cfg = sim_utils.GroundPlaneCfg()
-    cfg.func("/World/defaultGroundPlane", cfg)
-    # Lights
-    cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-    cfg.func("/World/Light", cfg)
-
-    # Create separate groups called "Origin1", "Origin2", "Origin3"
-    # Each group will have a mount and a robot on top of it
+    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0, filter_collisions=False)
+    scene_cfg.ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    scene_cfg.light = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+    )
     origins = define_origins(num_origins=6, spacing=2.0)
-
-    # Origin 1 with Franka Panda
-    sim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
-    # -- Table
-    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
-    cfg.func("/World/Origin1/Table", cfg, translation=(0.55, 0.0, 1.05))
-    # -- Robot
-    franka_arm_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Origin1/Robot")
+    franka_arm_cfg = FRANKA_PANDA_CFG.copy()
     franka_arm_cfg.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
-    franka_arm_cfg.init_state.pos = (0.0, 0.0, 1.05)
-    franka_panda = franka_arm_cfg.class_type(franka_arm_cfg)
-
-    # Origin 2 with UR10
-    sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
-    # -- Table
-    cfg = sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/Stand/stand_instanceable.usd", scale=(2.0, 2.0, 2.0)
+    seattle_rotation = (0.0, 0.0, np.sqrt(0.5), np.sqrt(0.5))  # Authored 90-degree rotation around Z.
+    mounts = (
+        ("franka_panda", franka_arm_cfg, "SeattleLabTable", 1.05, 0.55, None, seattle_rotation),
+        ("ur10", UR10_CFG, "Stand", 1.03, 0.0, (2.0, 2.0, 2.0), (0.0, 0.0, 0.0, 1.0)),
+        ("kinova_j2n7s300", KINOVA_JACO2_N7S300_CFG, "ThorlabsTable", 0.8, 0.0, None, (0.0, 0.0, 0.0, 1.0)),
+        ("kinova_j2n6s300", KINOVA_JACO2_N6S300_CFG, "ThorlabsTable", 0.8, 0.0, None, (0.0, 0.0, 0.0, 1.0)),
+        ("kinova_gen3n7", KINOVA_GEN3_N7_CFG, "SeattleLabTable", 1.05, 0.55, None, seattle_rotation),
+        ("sawyer", SAWYER_CFG, "Stand", 1.03, 0.0, (2.0, 2.0, 2.0), (0.0, 0.0, 0.0, 1.0)),
     )
-    cfg.func("/World/Origin2/Table", cfg, translation=(0.0, 0.0, 1.03))
-    # -- Robot
-    ur10_cfg = UR10_CFG.replace(prim_path="/World/Origin2/Robot")
-    ur10_cfg.init_state.pos = (0.0, 0.0, 1.03)
-    ur10 = ur10_cfg.class_type(ur10_cfg)
-
-    # Origin 3 with Kinova JACO2 (7-Dof) arm
-    sim_utils.create_prim("/World/Origin3", "Xform", translation=origins[2])
-    # -- Table
-    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/ThorlabsTable/table_instanceable.usd")
-    cfg.func("/World/Origin3/Table", cfg, translation=(0.0, 0.0, 0.8))
-    # -- Robot
-    kinova_arm_cfg = KINOVA_JACO2_N7S300_CFG.replace(prim_path="/World/Origin3/Robot")
-    kinova_arm_cfg.init_state.pos = (0.0, 0.0, 0.8)
-    kinova_j2n7s300 = kinova_arm_cfg.class_type(kinova_arm_cfg)
-
-    # Origin 4 with Kinova JACO2 (6-Dof) arm
-    sim_utils.create_prim("/World/Origin4", "Xform", translation=origins[3])
-    # -- Table
-    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/ThorlabsTable/table_instanceable.usd")
-    cfg.func("/World/Origin4/Table", cfg, translation=(0.0, 0.0, 0.8))
-    # -- Robot
-    kinova_arm_cfg = KINOVA_JACO2_N6S300_CFG.replace(prim_path="/World/Origin4/Robot")
-    kinova_arm_cfg.init_state.pos = (0.0, 0.0, 0.8)
-    kinova_j2n6s300 = kinova_arm_cfg.class_type(kinova_arm_cfg)
-
-    # Origin 5 with Sawyer
-    sim_utils.create_prim("/World/Origin5", "Xform", translation=origins[4])
-    # -- Table
-    cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
-    cfg.func("/World/Origin5/Table", cfg, translation=(0.55, 0.0, 1.05))
-    # -- Robot
-    kinova_arm_cfg = KINOVA_GEN3_N7_CFG.replace(prim_path="/World/Origin5/Robot")
-    kinova_arm_cfg.init_state.pos = (0.0, 0.0, 1.05)
-    kinova_gen3n7 = kinova_arm_cfg.class_type(kinova_arm_cfg)
-
-    # Origin 6 with Kinova Gen3 (7-Dof) arm
-    sim_utils.create_prim("/World/Origin6", "Xform", translation=origins[5])
-    # -- Table
-    cfg = sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/Stand/stand_instanceable.usd", scale=(2.0, 2.0, 2.0)
-    )
-    cfg.func("/World/Origin6/Table", cfg, translation=(0.0, 0.0, 1.03))
-    # -- Robot
-    sawyer_arm_cfg = SAWYER_CFG.replace(prim_path="/World/Origin6/Robot")
-    sawyer_arm_cfg.init_state.pos = (0.0, 0.0, 1.03)
-    sawyer = sawyer_arm_cfg.class_type(sawyer_arm_cfg)
-
-    # return the scene information
-    scene_entities = {
-        "franka_panda": franka_panda,
-        "ur10": ur10,
-        "kinova_j2n7s300": kinova_j2n7s300,
-        "kinova_j2n6s300": kinova_j2n6s300,
-        "kinova_gen3n7": kinova_gen3n7,
-        "sawyer": sawyer,
-    }
-    return scene_entities, origins
+    for index, (name, robot_cfg, mount, height, table_x, scale, rotation) in enumerate(mounts):
+        x, y, _ = origins[index]
+        root = f"/World/Origin{index + 1}"
+        table_file = "stand_instanceable.usd" if mount == "Stand" else "table_instanceable.usd"
+        setattr(
+            scene_cfg,
+            f"{name}_table",
+            AssetBaseCfg(
+                prim_path=f"{root}/Table",
+                spawn=sim_utils.UsdFileCfg(
+                    usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/{mount}/{table_file}", scale=scale
+                ),
+                init_state=AssetBaseCfg.InitialStateCfg(pos=(x + table_x, y, height), rot=rotation),
+            ),
+        )
+        robot_cfg = robot_cfg.replace(prim_path=f"{root}/Robot")
+        robot_cfg.init_state.pos = (x, y, height)
+        setattr(scene_cfg, name, robot_cfg)
+    return InteractiveScene(scene_cfg)
 
 
-def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Articulation"], origins: torch.Tensor):
+def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Articulation"]):
     """Runs the simulation loop."""
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -180,10 +131,9 @@ def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Artic
             sim_time = 0.0
             count = 0
             # reset the scene entities
-            for index, robot in enumerate(entities.values()):
+            for robot in entities.values():
                 # root state
                 root_pose = robot.data.default_root_pose.torch.clone()
-                root_pose[:, :3] += origins[index]
                 robot.write_root_pose_to_sim_index(root_pose=root_pose)
                 root_vel = robot.data.default_root_vel.torch.clone()
                 robot.write_root_velocity_to_sim_index(root_velocity=root_vel)
@@ -237,18 +187,13 @@ def main():
         # Set main camera
         sim.set_camera_view([3.5, 0.0, 3.2], [0.0, 0.0, 0.5])
         # design scene
-        global_paths = ("/World/defaultGroundPlane", "/World/Light", *(f"/World/Origin{i}" for i in range(1, 7)))
-        plan = cloner.make_clone_plan((), 1, 0.0, global_paths=global_paths)
-        sim.set_clone_plan(plan)
-        scene_entities, scene_origins = design_scene()
-        cloner.replicate(plan)
-        scene_origins = torch.tensor(scene_origins, device=sim.device)
+        scene = design_scene()
         # Play the simulator
         sim.reset()
         # Now we are ready!
         print("[INFO]: Setup complete...")
         # Run the simulator
-        run_simulator(sim, scene_entities, scene_origins)
+        run_simulator(sim, scene.articulations)
 
 
 if __name__ == "__main__":

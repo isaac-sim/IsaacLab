@@ -41,12 +41,13 @@ args_cli = parser.parse_args()
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
+from isaaclab.assets import AssetBaseCfg
 
 ##
 # Pre-defined configs
 ##
 from isaaclab.physics import PhysicsCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 
 from isaaclab_assets import CRAZYFLIE_CFG  # isort:skip
 
@@ -59,24 +60,14 @@ def main():
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[0.25, -0.25, 0.7], target=[0.0, 0.0, 0.5])
-        global_paths = ("/World/defaultGroundPlane", "/World/Light", "/World/Crazyflie")
-        plan = cloner.make_clone_plan((), 1, 0.0, global_paths=global_paths)
-        sim.set_clone_plan(plan)
-
-        # Spawn things into stage
-        # Ground-plane
-        cfg = sim_utils.GroundPlaneCfg()
-        cfg.func("/World/defaultGroundPlane", cfg)
-        # Lights
-        cfg = sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
-        cfg.func("/World/Light", cfg)
-
-        # Robots
-        robot_cfg = CRAZYFLIE_CFG.replace(prim_path="/World/Crazyflie")
-
-        # create handles for the robots
-        robot = robot_cfg.class_type(robot_cfg)
-        cloner.replicate(plan)
+        scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0, filter_collisions=False)
+        scene_cfg.ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+        scene_cfg.light = AssetBaseCfg(
+            prim_path="/World/Light", spawn=sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+        )
+        scene_cfg.robot = CRAZYFLIE_CFG.replace(prim_path="/World/Crazyflie")
+        scene = InteractiveScene(scene_cfg)
+        robot = scene["robot"]
 
         # Play the simulator
         sim.reset()

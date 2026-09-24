@@ -52,7 +52,7 @@ The tutorial corresponds to the ``run_deformable_object.py`` script in the ``scr
 
    .. literalinclude:: ../../../scripts/tutorials/01_assets/run_deformable_object.py
       :language: python
-      :emphasize-lines: 73-126, 155-171, 176-187, 193-198
+      :emphasize-lines: 62-110, 133-149, 154-165, 171-176
       :linenos:
 
 
@@ -62,10 +62,9 @@ The Code Explained
 Designing the scene
 -------------------
 
-Similar to the :ref:`tutorial-interact-rigid-object` tutorial, we populate the scene with a ground plane
-and a light source. In addition, we add a deformable object to the scene using the :class:`assets.DeformableObject`
-class. This class is responsible for spawning the prims at the input path and initializes their corresponding
-deformable body physics handles.
+We declare the ground plane, light, and deformable cube on an :class:`scene.InteractiveSceneCfg`.
+:class:`scene.InteractiveScene` constructs the assets and handles replication internally.
+The four environment origins form a centered grid with 0.5 m spacing.
 
 In this tutorial, we create a cubical soft object using the spawn configuration similar to the deformable cube
 in the :ref:`Spawn Objects <tutorial-spawn-prims>` tutorial. The only difference is that now we wrap
@@ -81,14 +80,13 @@ when the simulation is played.
     implementation.
 
 
-As seen in the rigid body tutorial, we can spawn the deformable object into the scene in a similar fashion by creating
-an instance of the :class:`assets.DeformableObject` class by passing the configuration object to its constructor.
-We declare the clone plan before constructing the assets, then replicate the prototype at the planned origins.
+The scene constructs the deformable objects from their cfg and owns their clone lifecycle.
+The simulation loop accesses the resulting asset through ``scene["cube_object"]``.
 
 .. literalinclude:: ../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
-   :start-at: # The plan assigns each clone its environment origin.
-   :end-at: replicate(plan)
+   :start-at: scene_cfg = InteractiveSceneCfg(
+   :end-at: return InteractiveScene(scene_cfg)
 
 Running the simulation loop
 ---------------------------
@@ -105,7 +103,7 @@ are defined in the **simulation world frame** and are stored in the :attr:`asset
 
 We use the :attr:`assets.DeformableObject.data.default_nodal_state_w` attribute to get the default nodal state of the
 spawned object prims. This default state can be configured from the :attr:`assets.DeformableObjectCfg.init_state`
-attribute, which we left as identity in this tutorial.
+attribute, which places the cube 1 m above its environment origin in this tutorial.
 
 .. attention::
    The initial state in the configuration :attr:`assets.DeformableObjectCfg` specifies the pose
@@ -149,7 +147,7 @@ method.
 
 .. literalinclude:: ../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
-   :start-at: # update the kinematic target for cubes at index 0 and 3
+   :start-at: # update the kinematic target for cubes at the positive and negative diagonal corners
    :end-at: cube_object.write_nodal_kinematic_target_to_sim_index(nodal_kinematic_target)
 
 Similar to the rigid object and articulation, we perform the :meth:`assets.DeformableObject.write_data_to_sim` method
@@ -226,8 +224,7 @@ To stop the simulation, you can either close the window, or press ``Ctrl+C`` in 
 
 This tutorial showed how to spawn deformable objects and wrap them in a :class:`DeformableObject` class to initialize their
 physics handles which allows setting and obtaining their state. We also saw how to apply kinematic commands to the
-deformable object to move the mesh nodes in a controlled manner. An advanced demo of deformable objects, including surface deformables and loading USD assets and applying deformable material on them, can be found in ``scripts/demos/deformables.py``. In the next tutorial, we will see how to create
-a scene using the :class:`InteractiveScene` class.
+deformable object to move the mesh nodes in a controlled manner. An advanced demo of deformable objects, including surface deformables and loading USD assets and applying deformable material on them, can be found in ``scripts/demos/deformables.py``.
 
 .. _PhysX documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/SoftBodies.html
 .. _partial kinematic: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/SoftBodies.html#kinematic-soft-bodies

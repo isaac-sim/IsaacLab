@@ -44,14 +44,14 @@ args_cli.physics = args_cli.backend
 
 """Rest everything follows."""
 
-import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import AssetBaseCfg
-from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
+from isaaclab.assets import AssetBaseCfg, DeformableObjectCfg
+from isaaclab.cloner import CloneCfg
 from isaaclab.physics import PhysicsCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import DeformableObject
@@ -59,19 +59,14 @@ if TYPE_CHECKING:
 
 def design_scene():
     """Designs the scene."""
-    from isaaclab.assets import DeformableObject, DeformableObjectCfg
-
+    scene_cfg = InteractiveSceneCfg(
+        num_envs=4, env_spacing=0.5, filter_collisions=False, clone_cfg=CloneCfg(clone_template="/World/env_{}")
+    )
     # Ground-plane
-    ground_cfg = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
-    light_cfg = AssetBaseCfg(
+    scene_cfg.ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    scene_cfg.light = AssetBaseCfg(
         prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.8, 0.8, 0.8))
     )
-
-    # Create a dictionary for the scene entities
-    scene_entities = {}
-
-    # The plan assigns each clone its environment origin.
-    origins = [[0.25, 0.25, 0.0], [-0.25, 0.25, 0.0], [0.25, -0.25, 0.0], [-0.25, -0.25, 0.0]]
 
     youngs_modulus = 1e5
     poissons_ratio = 0.4
@@ -99,8 +94,8 @@ def design_scene():
         )
 
     # 3D Deformable Object
-    cfg = DeformableObjectCfg(
-        prim_path="/World/env_.*/Cube",
+    scene_cfg.cube_object = DeformableObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Cube",
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.2, 0.2, 0.2),
             deformable_props=deformable_props,
@@ -112,30 +107,13 @@ def design_scene():
         debug_vis=True,
     )
 
-    plan = clone_plan_from_env_0(
-        CloneCfg(clone_template="/World/env_{}"),
-        (cfg, ground_cfg, light_cfg),
-        len(origins),
-        1.0,
-        positions=np.asarray(origins, dtype=np.float32),
-    )
-    sim_utils.create_prim(plan.sources[0], "Xform")
-    ground_cfg.class_type(ground_cfg)
-    light_cfg.class_type(light_cfg)
-    cube_object = DeformableObject(cfg=cfg)
-    replicate(plan)
-    scene_entities["cube_object"] = cube_object
-
-    # return the scene information
-    return scene_entities, origins
+    return InteractiveScene(scene_cfg)
 
 
-def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: torch.Tensor):
+def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     """Runs the simulation loop."""
     # Extract scene entities
-    # note: we only do this here for readability. In general, it is better to access the entities directly from
-    #   the dictionary. This dictionary is replaced by the InteractiveScene class in the next tutorial.
-    cube_object: DeformableObject = entities["cube_object"]
+    cube_object: DeformableObject = scene["cube_object"]
 
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -155,7 +133,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: tor
             # reset the nodal state of the object
             nodal_state = cube_object.data.default_nodal_state_w.torch.clone()
             # apply random pose to the object
-            pos_w = torch.rand(cube_object.num_instances, 3, device=sim.device) * 0.1 + origins
+            pos_w = torch.rand(cube_object.num_instances, 3, device=sim.device) * 0.1 + scene.env_origins
             quat_w = math_utils.random_orientation(cube_object.num_instances, device=sim.device)
             nodal_state[..., :3] = cube_object.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
 
@@ -173,8 +151,8 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: tor
             print("----------------------------------------")
             print("[INFO]: Resetting object state...")
 
-        # update the kinematic target for cubes at index 0 and 3
-        kinematic_cubes = [0, 3]
+        # update the kinematic target for cubes at the positive and negative diagonal corners
+        kinematic_cubes = [1, 2]
         # we slightly move the cube in the z-direction by picking the vertex at index 0
         nodal_kinematic_target[kinematic_cubes, 0, 2] += 0.2 * sim_dt
         # set vertex at index 0 to be kinematically constrained
@@ -209,14 +187,13 @@ def main():
         # Set main camera
         sim.set_camera_view(eye=[2.0, 2.0, 2.0], target=[0.0, 0.0, 0.75])
         # Design scene
-        scene_entities, scene_origins = design_scene()
-        scene_origins = torch.tensor(scene_origins, device=sim.device)
+        scene = design_scene()
         # Play the simulator
         sim.reset()
         # Now we are ready!
         print("[INFO]: Setup complete...")
         # Run the simulator
-        run_simulator(sim, scene_entities, scene_origins)
+        run_simulator(sim, scene)
         print("[INFO]: Simulation complete...")
 
 

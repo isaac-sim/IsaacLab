@@ -42,15 +42,16 @@ if args_cli.num_segments < 2:
     parser.error("--num_segments must be at least 2.")
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg
-from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
+from isaaclab.assets import AssetBaseCfg, CableObjectCfg
+from isaaclab.cloner import CloneCfg
 from isaaclab.physics import PhysicsCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import CableObject
 
 
-def design_scene(num_cables: int, num_segments: int, colorize: bool) -> dict[str, CableObject]:
+def design_scene(num_cables: int, num_segments: int, colorize: bool) -> InteractiveScene:
     """Spawn a ground plane, light, and randomly oriented cable pile.
 
     Args:
@@ -58,10 +59,9 @@ def design_scene(num_cables: int, num_segments: int, colorize: bool) -> dict[str
         num_segments: Number of segments per cable.
         colorize: Whether to give each cable a random visual material.
     """
-    from isaaclab.assets import CableObject, CableObjectCfg
-
-    ground_cfg = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
-    light_cfg = AssetBaseCfg(
+    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0, clone_cfg=CloneCfg(clone_template="/World/Env_{}"))
+    scene_cfg.ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    scene_cfg.light = AssetBaseCfg(
         prim_path="/World/light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     )
 
@@ -79,7 +79,6 @@ def design_scene(num_cables: int, num_segments: int, colorize: bool) -> dict[str
     positions = [(index * segment_length, 0.0, 0.0) for index in range(num_segments + 1)]
 
     print(f"[INFO]: Spawning {num_cables} cables...")
-    cable_cfgs = {}
     for index in range(num_cables):
         angle = random.uniform(0.0, 2.0 * math.pi)
         position = (
@@ -94,7 +93,7 @@ def design_scene(num_cables: int, num_segments: int, colorize: bool) -> dict[str
                 diffuse_color=(random.random(), random.random(), random.random())
             )
         cfg = CableObjectCfg(
-            prim_path=f"/World/Env_0/Cable{index:03d}",
+            prim_path=f"{{ENV_REGEX_NS}}/Cable{index:03d}",
             spawn=sim_utils.CableCfg(
                 positions=positions,
                 visual_material=visual_material,
@@ -108,17 +107,9 @@ def design_scene(num_cables: int, num_segments: int, colorize: bool) -> dict[str
             ),
             init_state=CableObjectCfg.InitialStateCfg(pos=position, rot=orientation),
         )
-        cable_cfgs[f"cable_{index:03d}"] = cfg
+        setattr(scene_cfg, f"cable_{index:03d}", cfg)
 
-    plan = clone_plan_from_env_0(
-        CloneCfg(clone_template="/World/Env_{}"), (*cable_cfgs.values(), ground_cfg, light_cfg), 1, 0.0
-    )
-    sim_utils.create_prim(plan.sources[0], "Xform")
-    ground_cfg.class_type(ground_cfg)
-    light_cfg.class_type(light_cfg)
-    entities = {name: CableObject(cfg) for name, cfg in cable_cfgs.items()}
-    replicate(plan)
-    return entities
+    return InteractiveScene(scene_cfg)
 
 
 def reset_cables(entities: dict[str, CableObject]) -> None:
@@ -128,7 +119,7 @@ def reset_cables(entities: dict[str, CableObject]) -> None:
         cable.write_segment_velocity_to_sim_index(segment_velocity=cable.data.default_segment_velocity_w)
 
 
-def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, CableObject], max_steps: int = -1) -> None:
+def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene, max_steps: int = -1) -> None:
     """Run the simulation and periodically restore the cable pile."""
     sim_dt = sim.get_physics_dt()
     reset_steps = max(1, int(2.0 / sim_dt))
@@ -136,12 +127,11 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, CableObj
 
     while (max_steps < 0 or count < max_steps) and sim.is_headless_or_exist_active_visualizer():
         if count > 0 and count % reset_steps == 0:
-            reset_cables(entities)
+            reset_cables(scene.cable_objects)
             print("[INFO]: Resetting cable state...")
 
         sim.step(render=False)
-        for cable in entities.values():
-            cable.update(sim_dt)
+        scene.update(sim_dt)
         if sim.is_rendering:
             sim.render()
         count += 1
@@ -156,10 +146,10 @@ def main() -> None:
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=(2.0, 2.0, 1.0), target=(0.0, 0.0, 0.25))
         colorize = bool(args_cli.visualizer and "kit" in args_cli.visualizer)
-        entities = design_scene(args_cli.num_cables, args_cli.num_segments, colorize)
+        scene = design_scene(args_cli.num_cables, args_cli.num_segments, colorize)
         sim.reset()
         print("[INFO]: Setup complete...")
-        run_simulator(sim, entities, args_cli.max_steps)
+        run_simulator(sim, scene, args_cli.max_steps)
 
 
 if __name__ == "__main__":

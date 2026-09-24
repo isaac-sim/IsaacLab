@@ -79,6 +79,30 @@ def test_overrides_only_reference_discovered_standalone_scripts():
     assert not stale, f"stale standalone script overrides: {stale}"
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        *(
+            f"scripts/demos/{name}.py"
+            for name in ("arms", "bipeds", "cables", "deformables", "hands", "quadcopter", "quadrupeds")
+        ),
+        "scripts/tutorials/01_assets/run_deformable_object.py",
+        "scripts/tools/convert_mjcf.py",
+        "scripts/tools/convert_urdf.py",
+    ],
+)
+def test_scene_examples_delegate_replication_to_interactive_scene(path):
+    """User-facing examples construct a scene; explicit clone orchestration belongs in cloner tests/docs."""
+    tree = ast.parse((script_cases.ROOT / path).read_text(encoding="utf-8"))
+    calls = {
+        node.func.id if isinstance(node.func, ast.Name) else node.func.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, (ast.Name, ast.Attribute))
+    }
+    assert "InteractiveScene" in calls
+    assert calls.isdisjoint({"clone_plan_from_env_0", "make_clone_plan", "set_clone_plan", "replicate"})
+
+
 def test_launch_matrix_covers_declared_backends_and_visualizers():
     """Each script must expand across every declared backend and visualizer."""
     for spec in SPECS:

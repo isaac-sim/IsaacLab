@@ -43,12 +43,13 @@ import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
+from isaaclab.assets import AssetBaseCfg
 
 ##
 # Pre-defined configs
 ##
 from isaaclab.physics import PhysicsCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 
 from isaaclab_assets.robots.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG  # isort:skip
 from isaaclab_assets.robots.spot import SPOT_CFG  # isort:skip
@@ -73,75 +74,31 @@ def define_origins(num_origins: int, spacing: float) -> torch.Tensor:
     return env_origins
 
 
-def design_scene() -> tuple[dict, torch.Tensor]:
+def design_scene() -> InteractiveScene:
     """Designs the scene."""
-    # Ground-plane
-    cfg = sim_utils.GroundPlaneCfg()
-    cfg.func("/World/defaultGroundPlane", cfg)
-    # Lights
-    cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-    cfg.func("/World/Light", cfg)
-
-    # Create separate groups called "Origin1", "Origin2", "Origin3"
-    # Each group will have a mount and a robot on top of it
+    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0, filter_collisions=False)
+    scene_cfg.ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    scene_cfg.light = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+    )
     origins = define_origins(num_origins=7, spacing=1.25)
-
-    # Origin 1 with Anymal B
-    sim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
-    # -- Robot
-    anymal_b_cfg = ANYMAL_B_CFG.replace(prim_path="/World/Origin1/Robot")
-    anymal_b = anymal_b_cfg.class_type(anymal_b_cfg)
-
-    # Origin 2 with Anymal C
-    sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
-    # -- Robot
-    anymal_c_cfg = ANYMAL_C_CFG.replace(prim_path="/World/Origin2/Robot")
-    anymal_c = anymal_c_cfg.class_type(anymal_c_cfg)
-
-    # Origin 3 with Anymal D
-    sim_utils.create_prim("/World/Origin3", "Xform", translation=origins[2])
-    # -- Robot
-    anymal_d_cfg = ANYMAL_D_CFG.replace(prim_path="/World/Origin3/Robot")
-    anymal_d = anymal_d_cfg.class_type(anymal_d_cfg)
-
-    # Origin 4 with Unitree A1
-    sim_utils.create_prim("/World/Origin4", "Xform", translation=origins[3])
-    # -- Robot
-    unitree_a1_cfg = UNITREE_A1_CFG.replace(prim_path="/World/Origin4/Robot")
-    unitree_a1 = unitree_a1_cfg.class_type(unitree_a1_cfg)
-
-    # Origin 5 with Unitree Go1
-    sim_utils.create_prim("/World/Origin5", "Xform", translation=origins[4])
-    # -- Robot
-    unitree_go1_cfg = UNITREE_GO1_CFG.replace(prim_path="/World/Origin5/Robot")
-    unitree_go1 = unitree_go1_cfg.class_type(unitree_go1_cfg)
-
-    # Origin 6 with Unitree Go2
-    sim_utils.create_prim("/World/Origin6", "Xform", translation=origins[5])
-    # -- Robot
-    unitree_go2_cfg = UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot")
-    unitree_go2 = unitree_go2_cfg.class_type(unitree_go2_cfg)
-
-    # Origin 7 with Boston Dynamics Spot
-    sim_utils.create_prim("/World/Origin7", "Xform", translation=origins[6])
-    # -- Robot
-    spot_cfg = SPOT_CFG.replace(prim_path="/World/Origin7/Robot")
-    spot = spot_cfg.class_type(spot_cfg)
-
-    # return the scene information
-    scene_entities = {
-        "anymal_b": anymal_b,
-        "anymal_c": anymal_c,
-        "anymal_d": anymal_d,
-        "unitree_a1": unitree_a1,
-        "unitree_go1": unitree_go1,
-        "unitree_go2": unitree_go2,
-        "spot": spot,
+    robots = {
+        "anymal_b": ANYMAL_B_CFG,
+        "anymal_c": ANYMAL_C_CFG,
+        "anymal_d": ANYMAL_D_CFG,
+        "unitree_a1": UNITREE_A1_CFG,
+        "unitree_go1": UNITREE_GO1_CFG,
+        "unitree_go2": UNITREE_GO2_CFG,
+        "spot": SPOT_CFG,
     }
-    return scene_entities, origins
+    for index, (name, cfg) in enumerate(robots.items()):
+        cfg = cfg.replace(prim_path=f"/World/Origin{index + 1}/Robot")
+        cfg.init_state.pos = tuple(p + float(o) for p, o in zip(cfg.init_state.pos, origins[index], strict=True))
+        setattr(scene_cfg, name, cfg)
+    return InteractiveScene(scene_cfg)
 
 
-def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Articulation"], origins: torch.Tensor):
+def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Articulation"]):
     """Runs the simulation loop."""
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -153,10 +110,9 @@ def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Artic
             # reset counters
             count = 0
             # reset robots
-            for index, robot in enumerate(entities.values()):
+            for robot in entities.values():
                 # root state
                 root_pose = robot.data.default_root_pose.torch.clone()
-                root_pose[:, :3] += origins[index]
                 robot.write_root_pose_to_sim_index(root_pose=root_pose)
                 root_vel = robot.data.default_root_vel.torch.clone()
                 robot.write_root_velocity_to_sim_index(root_velocity=root_vel)
@@ -192,15 +148,10 @@ def main():
         sim_cfg: sim_utils.SimulationCfg = sim_utils.SimulationCfg(dt=dt, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
-        global_paths = ("/World/defaultGroundPlane", "/World/Light", *(f"/World/Origin{i}" for i in range(1, 8)))
-        plan = cloner.make_clone_plan((), 1, 0.0, global_paths=global_paths)
-        sim.set_clone_plan(plan)
-        scene_entities, scene_origins = design_scene()
-        cloner.replicate(plan)
-        scene_origins = scene_origins.to(sim.device)
+        scene = design_scene()
         sim.reset()
         print("[INFO]: Setup complete...")
-        run_simulator(sim, scene_entities, scene_origins)
+        run_simulator(sim, scene.articulations)
 
 
 if __name__ == "__main__":

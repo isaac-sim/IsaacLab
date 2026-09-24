@@ -42,12 +42,13 @@ args_cli = parser.parse_args()
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
+from isaaclab.assets import AssetBaseCfg
 
 ##
 # Pre-defined configs
 ##
 from isaaclab.physics import PhysicsCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 from isaaclab_assets.robots.cassie import CASSIE_CFG  # isort:skip
@@ -57,14 +58,13 @@ if TYPE_CHECKING:
     from isaaclab.assets import Articulation
 
 
-def design_scene(sim: "sim_utils.SimulationContext") -> tuple[list, torch.Tensor]:
+def design_scene(sim: "sim_utils.SimulationContext") -> tuple[InteractiveScene, torch.Tensor]:
     """Designs the scene."""
-    # Ground-plane
-    cfg = sim_utils.GroundPlaneCfg()
-    cfg.func("/World/defaultGroundPlane", cfg)
-    # Lights
-    cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-    cfg.func("/World/Light", cfg)
+    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0, filter_collisions=False)
+    scene_cfg.ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    scene_cfg.light = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+    )
 
     # Define origins
     origins = torch.tensor(
@@ -76,15 +76,10 @@ def design_scene(sim: "sim_utils.SimulationContext") -> tuple[list, torch.Tensor
     ).to(device=sim.device)
 
     # Robots
-    cassie_cfg = CASSIE_CFG.replace(prim_path="/World/Cassie")
-    cassie = cassie_cfg.class_type(cassie_cfg)
-    h1_cfg = H1_CFG.replace(prim_path="/World/H1")
-    h1 = h1_cfg.class_type(h1_cfg)
-    g1_cfg = G1_CFG.replace(prim_path="/World/G1")
-    g1 = g1_cfg.class_type(g1_cfg)
-    robots = [cassie, h1, g1]
-
-    return robots, origins
+    scene_cfg.cassie = CASSIE_CFG.replace(prim_path="/World/Cassie")
+    scene_cfg.h1 = H1_CFG.replace(prim_path="/World/H1")
+    scene_cfg.g1 = G1_CFG.replace(prim_path="/World/G1")
+    return InteractiveScene(scene_cfg), origins
 
 
 def run_simulator(sim: "sim_utils.SimulationContext", robots: list["Articulation"], origins: torch.Tensor):
@@ -150,11 +145,7 @@ def main():
         sim.set_camera_view(eye=[3.0, 0.0, 2.25], target=[0.0, 0.0, 1.0])
 
         # design scene
-        global_paths = ("/World/defaultGroundPlane", "/World/Light", "/World/Cassie", "/World/H1", "/World/G1")
-        plan = cloner.make_clone_plan((), 1, 0.0, global_paths=global_paths)
-        sim.set_clone_plan(plan)
-        robots, origins = design_scene(sim)
-        cloner.replicate(plan)
+        scene, origins = design_scene(sim)
 
         # Play the simulator
         sim.reset()
@@ -163,7 +154,7 @@ def main():
         print("[INFO]: Setup complete...")
 
         # Run the simulator
-        run_simulator(sim, robots, origins)
+        run_simulator(sim, list(scene.articulations.values()), origins)
 
 
 if __name__ == "__main__":
