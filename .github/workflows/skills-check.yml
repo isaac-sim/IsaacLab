@@ -72,7 +72,7 @@ jobs:
       - name: Install skillevaluator and gitleaks
         id: install_skillevaluator
         env:
-          SKILLEVALUATOR_REF: "v0.1.0"
+          SKILLEVALUATOR_REF: "v0.3.0"
           GITLEAKS_VERSION: "8.27.2"
           NVIDIA_API_KEY: ${{ secrets.SKILLEVALUATOR_API_KEY }}
           NVIDIA_INFERENCE_KEY: ${{ secrets.SKILLEVALUATOR_API_KEY }}
