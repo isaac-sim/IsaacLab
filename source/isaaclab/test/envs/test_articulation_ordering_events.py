@@ -273,3 +273,37 @@ def test_newton_joint_parameter_randomization_writes_static_and_viscous_friction
     torch.testing.assert_close(viscous_write["joint_viscous_friction_coeff"], torch.full((1, 2), 0.5))
     torch.testing.assert_close(static_write["env_ids"], torch.tensor([0], dtype=torch.int32))
     torch.testing.assert_close(viscous_write["env_ids"], torch.tensor([0], dtype=torch.int32))
+
+
+def test_physx_fixed_tendon_randomization_writes_limit_stiffness_and_rest_length():
+    """PhysX randomization writes the fixed tendon properties that Newton does not support."""
+    tendon_values = torch.zeros((_NUM_ENVS, 2))
+    writes = {}
+    asset = SimpleNamespace(
+        device="cpu",
+        data=SimpleNamespace(
+            fixed_tendon_limit_stiffness=SimpleNamespace(torch=tendon_values.clone()),
+            fixed_tendon_rest_length=SimpleNamespace(torch=tendon_values.clone()),
+        ),
+        set_fixed_tendon_limit_stiffness_index=lambda **kwargs: writes.update(limit_stiffness=kwargs),
+        set_fixed_tendon_rest_length_index=lambda **kwargs: writes.update(rest_length=kwargs),
+        write_fixed_tendon_properties_to_sim_index=lambda **kwargs: writes.update(sim=kwargs),
+    )
+    asset_cfg = SimpleNamespace(name="robot", fixed_tendon_ids=slice(None))
+    cfg = SimpleNamespace(params={"asset_cfg": asset_cfg, "operation": "abs"})
+    env = SimpleNamespace(
+        scene=_FakeScene(robot=asset), sim=SimpleNamespace(physics_manager=type("PhysxManager", (), {}))
+    )
+
+    term = events_module.randomize_fixed_tendon_parameters(cfg, env)
+    term(
+        env,
+        torch.tensor([0]),
+        asset_cfg,
+        limit_stiffness_distribution_params=(2.0, 2.0),
+        rest_length_distribution_params=(0.5, 0.5),
+    )
+
+    torch.testing.assert_close(writes["limit_stiffness"]["limit_stiffness"], torch.full((1, 2), 2.0))
+    torch.testing.assert_close(writes["rest_length"]["rest_length"], torch.full((1, 2), 0.5))
+    assert "sim" in writes

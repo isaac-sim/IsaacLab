@@ -10,6 +10,8 @@ from isaaclab.app import AppLauncher
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
 
+from types import SimpleNamespace
+
 import pytest
 import torch
 
@@ -162,3 +164,14 @@ def test_curriculum_modify_env_param(device):
             env.step(actions)
 
     env.close()
+
+
+def test_modify_env_param_indexes_into_dict_values():
+    """An indexed address part resolves through a dictionary key, e.g. ``params.ranges[1].high``."""
+    env = SimpleNamespace(params={"ranges": [SimpleNamespace(high=1.0), SimpleNamespace(high=2.0)]})
+    cfg = CurrTerm(func=mdp.modify_env_param, params={"address": "params.ranges[1].high"})
+    term = mdp.modify_env_param(cfg, env)
+
+    term(env, None, "params.ranges[1].high", modify_fn=lambda env, env_ids, value: value * 10)
+
+    assert env.params["ranges"][1].high == 20.0

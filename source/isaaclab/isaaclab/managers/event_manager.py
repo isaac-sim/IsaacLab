@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 import torch
 from prettytable import PrettyTable
 
-from .manager_base import ManagerBase
+from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import EventTermCfg
 
 if TYPE_CHECKING:
@@ -388,8 +388,8 @@ class EventManager(ManagerBase):
             self._mode_term_names[term_cfg.mode].append(term_name)
             self._mode_term_cfgs[term_cfg.mode].append(term_cfg)
 
-            # check if the term is a class
-            if inspect.isclass(term_cfg.func):
+            # check if the term is a class; it is already instantiated if the simulation is playing
+            if inspect.isclass(term_cfg.func) or isinstance(term_cfg.func, ManagerTermBase):
                 self._mode_class_term_cfgs[term_cfg.mode].append(term_cfg)
 
             # resolve the mode of the events
