@@ -11,19 +11,19 @@ Example usage:
 .. code-block:: bash
 
     # Generate terrain with height color scheme
-    uvx --from 'isaaclab[isaacsim]' isaaclab example procedural-terrain --color_scheme height
+    uvx isaaclab example procedural-terrain --color_scheme height
 
     # Generate terrain with random color scheme
-    uvx --from 'isaaclab[isaacsim]' isaaclab example procedural-terrain --color_scheme random
+    uvx isaaclab example procedural-terrain --color_scheme random
 
     # Generate terrain with no color scheme
-    uvx --from 'isaaclab[isaacsim]' isaaclab example procedural-terrain --color_scheme none
+    uvx isaaclab example procedural-terrain --color_scheme none
 
     # Generate terrain with curriculum
-    uvx --from 'isaaclab[isaacsim]' isaaclab example procedural-terrain --use_curriculum
+    uvx isaaclab example procedural-terrain --use_curriculum
 
     # Generate terrain with curriculum along with flat patches
-    uvx --from 'isaaclab[isaacsim]' isaaclab example procedural-terrain --use_curriculum --show_flat_patches
+    uvx isaaclab example procedural-terrain --use_curriculum --show_flat_patches
 
 """
 
@@ -57,10 +57,12 @@ parser.add_argument(
     default=False,
     help="Whether to show the flat patches computed during the terrain generation.",
 )
-parser.add_argument("--physics", default="isaacsim_physx", choices=["isaacsim_physx"], help="Physics backend.")
+parser.add_argument(
+    "--physics", default="newton_vbd", choices=["isaacsim_physx", "newton_vbd"], help="Physics backend."
+)
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
+parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")

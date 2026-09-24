@@ -7,11 +7,11 @@
 
 .. code-block:: bash
 
-    # Usage
-    uvx --from 'isaaclab[isaacsim]' isaaclab example camera
+    # Usage with Newton physics and camera rendering
+    uvx isaaclab example camera
 
     # Usage in headless mode
-    uvx --from 'isaaclab[isaacsim]' isaaclab example camera --headless
+    uvx isaaclab example camera --viz none --max_steps 20
 
 """
 
@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import AppLauncher, add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Example on using the different camera sensor implementations.")
 parser.add_argument("--num_envs", type=int, default=4, help="Number of environments to spawn.")
@@ -34,12 +34,12 @@ parser.add_argument("--save_interval", type=int, default=100, help="Steps betwee
 parser.add_argument("--output_dir", type=Path, default=Path("output/camera"), help="Directory for saved images.")
 parser.add_argument(
     "--physics",
-    default="isaacsim_physx",
-    choices=["isaacsim_physx"],
+    default="newton_mjwarp",
+    choices=["isaacsim_physx", "newton_mjwarp"],
     help="Physics backend.",
 )
-AppLauncher.add_app_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
+add_launcher_args(parser)
+parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
 if args_cli.log_interval < 1:
     parser.error("--log_interval must be at least 1.")
@@ -47,16 +47,15 @@ if args_cli.save_interval < 1:
     parser.error("--save_interval must be at least 1.")
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
-# Camera sensors require the rendering extensions in headless and viewport-free launches.
-args_cli.enable_cameras = True
+if args_cli.physics == "isaacsim_physx":
+    args_cli.enable_cameras = True
+    app_launcher = AppLauncher(args_cli)
+else:
+    app_launcher = None
 
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-
-# Simulator-dependent imports must follow AppLauncher initialization.
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, RayCasterCameraCfg
 from isaaclab.sensors.ray_caster import patterns
@@ -65,6 +64,14 @@ from isaaclab.utils import configclass
 
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort:skip
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
+if args_cli.physics == "isaacsim_physx":
+    from isaaclab_physx.renderers import IsaacRtxRendererCfg
+
+    camera_renderer_cfg = IsaacRtxRendererCfg()
+else:
+    camera_renderer_cfg = NewtonWarpRendererCfg()
 
 
 @configclass
@@ -92,6 +99,7 @@ class SensorsSceneCfg(InteractiveSceneCfg):
     # sensors
     camera = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base/front_cam",
+        renderer_cfg=camera_renderer_cfg,
         update_period=0.1,
         height=480,
         width=640,
@@ -170,7 +178,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
     if args_cli.save:
         args_cli.output_dir.mkdir(parents=True, exist_ok=True)
 
-    while simulation_app.is_running() and (args_cli.max_steps < 0 or count < args_cli.max_steps):
+    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or count < args_cli.max_steps):
         # Reset
         if count % 500 == 0:
             # reset the scene entities
@@ -237,23 +245,22 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
 def main() -> None:
     """Run the camera example."""
     # Initialize the simulation context
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, use_fabric=not args_cli.disable_fabric)
-    sim = sim_utils.SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
-    # design scene
     scene_cfg = SensorsSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
-    scene = InteractiveScene(scene_cfg)
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # Run the simulator
-    run_simulator(sim, scene)
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        sim_cfg = sim_utils.SimulationCfg(
+            dt=0.005, device=args_cli.device, physics=physics_cfg, use_fabric=not args_cli.disable_fabric
+        )
+        sim = sim_utils.SimulationContext(sim_cfg)
+        sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        print("[INFO]: Setup complete...")
+        run_simulator(sim, scene)
 
 
 if __name__ == "__main__":
-    # run the main function
-    main()
-    # close sim app
-    simulation_app.close()
+    try:
+        main()
+    finally:
+        if app_launcher is not None:
+            app_launcher.app.close()

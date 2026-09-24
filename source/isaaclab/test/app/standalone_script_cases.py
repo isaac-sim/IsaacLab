@@ -223,6 +223,9 @@ OVERRIDES = {
         visualizers=("newton_gl",),
     ),
     "examples/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=900.0),
+    "examples/sensors/multi_mesh_raycaster_camera.py": ScriptOverride(
+        args=("--num_envs", "1", "--asset_type", "objects")
+    ),
     "examples/sensors/multi_mesh_raycaster.py": ScriptOverride(
         args=("--flat_ground",),
         startup_timeout=600.0,

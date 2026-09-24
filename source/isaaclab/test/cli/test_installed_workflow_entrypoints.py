@@ -116,7 +116,8 @@ def test_example_catalog_lists_packaged_examples(capsys):
     assert "bin-packing" in output
     assert "newton-dominoes" in output
     assert "mpm-two-way-coupling" in output
-    assert "uvx --from 'isaaclab[isaacsim]' isaaclab example camera" in output
+    camera_line = next(line for line in output.splitlines() if line.startswith("camera "))
+    assert "uvx --from" not in camera_line
     assert "teapot-fill" not in output
 
 
@@ -154,6 +155,7 @@ def test_newton_gl_selector_omits_incompatible_programs():
     kit_visualizer.register_ui_callback.assert_not_called()
     assert "Zoo##demo:zoo" in labels
     assert "Cables##example:cables" in labels
+    assert "Camera##example:camera" in labels
     assert "Newton Dominoes##example:newton-dominoes" in labels
     assert "Newton Dominoes##demo:newton-dominoes" not in labels
     assert "H1 Locomotion##demo:h1-locomotion" in labels
@@ -209,6 +211,23 @@ def test_program_catalog_resolves_paths(catalog, directory):
     """Both catalogs must resolve inside the single examples tree."""
     assert all(program.relative_path.startswith(f"{directory}/") for program in catalog)
     assert all(program.path.is_file() for program in catalog)
+
+
+def test_program_path_ignores_stale_installed_directory(tmp_path):
+    """A source checkout must win when a package data directory contains no selected script."""
+    package_root = tmp_path / "package"
+    (package_root / "examples").mkdir(parents=True)
+    source_root = tmp_path / "source"
+    source_script = source_root / "examples" / "demos" / "zoo.py"
+    source_script.parent.mkdir(parents=True)
+    source_script.write_text("", encoding="utf-8")
+    program = programs.ProgramSpec("zoo", "examples/demos/zoo.py", "Robot gallery.")
+
+    with (
+        mock.patch.object(programs, "__file__", str(package_root / "programs.py")),
+        mock.patch.object(programs, "ISAACLAB_ROOT", source_root),
+    ):
+        assert program.path == source_script
 
 
 def test_integration_examples_use_root_example_paths():
@@ -281,9 +300,9 @@ def test_program_command_rejects_unknown_name(command):
 def test_program_command_reports_missing_optional_dependencies(capsys):
     """A program with missing extras must print its complete uvx installation command."""
     with mock.patch.object(programs, "find_spec", return_value=None), pytest.raises(SystemExit, match="2"):
-        cli.example(["camera"])
+        cli.example(["tactile-sensor"])
 
-    assert "uvx --from 'isaaclab[isaacsim]' isaaclab example camera" in capsys.readouterr().err
+    assert "uvx --from 'isaaclab[isaacsim]' isaaclab example tactile-sensor" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(("command_name", "args"), [("demo", ["zoo", "--headless"]), ("example", ["cables"])])

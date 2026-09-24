@@ -17,6 +17,12 @@ focused programs for learning an API or tuning a feature in directories such as 
 ``examples/sensors/``, and shared data in ``examples/assets/``. List focused programs with
 ``uvx isaaclab example list`` and run one with ``uvx isaaclab example <name>``.
 
+Newton with the Newton GL viewer is the default for portable programs. The marker and procedural-terrain examples
+use Newton VBD; articulated sensor examples use Newton MJWarp, and ``camera`` uses Newton Warp rendering. Select
+``--physics isaacsim_physx --viz kit`` to use the previous PhysX/Kit path. ``pick-and-place``, ``bin-packing``,
+``heterogeneous-scene``, ``arl-robot-1``, and ``tactile-sensor`` retain PhysX-only features; ``ppisp-camera``
+retains its Kit-based launch for the Gaussian-scene workflow, even with Newton rendering.
+
 Demo and example commands show the same Isaac Lab startup screen as task playback while
 their simulation initializes. Pass ``--info`` to keep startup messages visible.
 
