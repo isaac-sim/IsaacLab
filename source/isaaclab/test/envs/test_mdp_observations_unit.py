@@ -35,6 +35,8 @@ def test_body_projected_gravity_b_stacks_every_selected_body():
     expected = torch.tensor([[0.0, -math.sin(a), -math.cos(a)] for a in angles]).reshape(1, -1).repeat(num_envs, 1)
     torch.testing.assert_close(body_projected_gravity_b(env, SceneEntityCfg("robot")), expected)
 
-    asset_cfg = SceneEntityCfg("robot")
-    asset_cfg.body_ids = [1]
-    torch.testing.assert_close(body_projected_gravity_b(env, asset_cfg), expected[:, 3:6])
+    # A single body selected as a list or as an integer index.
+    for body_ids in ([1], 1):
+        asset_cfg = SceneEntityCfg("robot")
+        asset_cfg.body_ids = body_ids
+        torch.testing.assert_close(body_projected_gravity_b(env, asset_cfg), expected[:, 3:6])
