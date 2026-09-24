@@ -74,17 +74,16 @@ def test_isaac_rtx_supported_output_types_include_rgb_hdr(monkeypatch, isaac_sim
     assert all((kind in specs) is is_supported for kind in requires_6_0)
 
 
-def test_fabric_native_geometry_is_borrowed_without_point_copies(monkeypatch):
+def test_native_fabric_geometry_needs_no_separate_publication(monkeypatch):
     _install_omni_stubs(monkeypatch)
     from isaaclab_physx.renderers.fabric import FabricBackend
 
     provider = SimpleNamespace(
-        backend=SimpleNamespace(native_geometry_formats=(SceneDataFormat.FabricPoints,)),
+        backend=SimpleNamespace(native_transform_formats=(SceneDataFormat.FabricMatrix44,)),
         get_geometry_points=MagicMock(),
     )
     FabricBackend.__new__(FabricBackend).update_geometries(provider, 0)
-    provider.get_geometry_points.assert_called_once()
-    assert provider.get_geometry_points.call_args.kwargs["output"]._cls is SceneDataFormat.FabricPoints
+    provider.get_geometry_points.assert_not_called()
 
 
 def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch):

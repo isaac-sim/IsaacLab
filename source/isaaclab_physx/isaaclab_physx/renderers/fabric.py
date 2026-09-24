@@ -114,8 +114,8 @@ class FabricBackend:
 
     def update_geometries(self, provider: SceneDataProvider, frame: int) -> None:
         """Request world-space visual vertices [m] directly into due Fabric destinations."""
-        if SceneDataFormat.FabricPoints in provider.backend.native_geometry_formats:
-            provider.get_geometry_points(output=SceneDataFormat.FabricPoints())
+        # The native transform request refreshes the whole Fabric stage, including geometry.
+        if SceneDataFormat.FabricMatrix44 in provider.backend.native_transform_formats:
             return
         batches = provider.backend.get_geometry_batches()
         if self._geometry_bindings is None:

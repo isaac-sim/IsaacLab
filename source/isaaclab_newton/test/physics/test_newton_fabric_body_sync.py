@@ -357,7 +357,7 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence():
             batches.append((source, {path: (0, len(values))}))
         provider = SceneDataProvider(
             SimpleNamespace(
-                native_geometry_formats=(SceneDataFormat.Points,),
+                native_transform_formats=(),
                 geometry_version=0,
                 get_geometry_batches=lambda _format=SceneDataFormat.Points: batches,
             )
