@@ -23,15 +23,6 @@ from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.utils import configclass
 
 
-def test_mpm_object_cfg_resolves_asset_class():
-    cfg = MPMObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Sand",
-        spawn=MPMGridCfg(lower=(0.0, 0.0, 0.0), upper=(0.1, 0.1, 0.1), voxel_size=0.1),
-    )
-
-    assert cfg.class_type.__name__ == MPMObject.__name__
-
-
 def test_mpm_object_initializes_from_interactive_scene():
     @configclass
     class MPMSceneCfg(InteractiveSceneCfg):
@@ -58,6 +49,7 @@ def test_mpm_object_initializes_from_interactive_scene():
         sim.reset()
 
         media = scene["media"]
+        assert isinstance(media, MPMObject)
         assert media.num_instances == 2
         assert media.particles_per_object == 1
         assert media.data.particle_pos_w.torch.shape == (2, 1, 3)
@@ -178,46 +170,17 @@ def test_mpm_object_creates_usd_points_without_kit_visualizer(monkeypatch):
             assert len(points.GetWidthsAttr().Get()) == media.particles_per_object
             assert tuple(points.GetDisplayColorAttr().Get()[0]) == pytest.approx((0.1, 0.2, 0.3))
 
-
-def test_mpm_usd_points_follow_particle_state(monkeypatch):
-    @configclass
-    class MPMSceneCfg(InteractiveSceneCfg):
-        media = MPMObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Sand",
-            spawn=MPMGridCfg(
-                lower=(0.0, 0.0, 0.1),
-                upper=(0.1, 0.1, 0.2),
-                voxel_size=0.05,
-                visual_color=(0.1, 0.2, 0.3),
-            ),
-        )
-
-    sim_cfg = SimulationCfg(
-        dt=1.0 / 60.0,
-        device="cuda:0",
-        gravity=(0.0, 0.0, -9.81),
-        physics=NewtonCfg(solver_cfg=MPMSolverCfg(max_iterations=2, voxel_size=0.05), use_cuda_graph=False),
-    )
-
-    with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        monkeypatch.setattr(sim, "resolve_visualizer_types", lambda: ["newton"])
-        scene = InteractiveScene(MPMSceneCfg(num_envs=1, env_spacing=0.0))
-        sim.reset()
-
-        from pxr import UsdGeom  # noqa: PLC0415
-
-        media = scene["media"]
-        prim_path = next(iter(NewtonMPMManager._particle_visual_prims))
-        points = UsdGeom.Points(media.stage.GetPrimAtPath(prim_path))
-        points_before = np.asarray(points.GetPointsAttr().Get(), dtype=np.float32)
+        # The USD points follow the simulated particles of their own environment.
+        points_prims = [UsdGeom.Points(media.stage.GetPrimAtPath(prim_path)) for prim_path in expected_paths]
+        points_before = [np.asarray(points.GetPointsAttr().Get(), dtype=np.float32) for points in points_prims]
 
         for _ in range(3):
             sim.step(render=False)
             scene.update(sim.get_physics_dt())
             sim.render()
 
-        points_after = np.asarray(points.GetPointsAttr().Get(), dtype=np.float32)
-        particle_pos = media.data.particle_pos_w.torch.detach().cpu().numpy()[0]
-
-        assert np.max(np.abs(points_after - points_before)) > 0.0
-        np.testing.assert_allclose(points_after, particle_pos, rtol=1.0e-5, atol=1.0e-6)
+        particle_pos = media.data.particle_pos_w.torch.detach().cpu().numpy()
+        for env_idx, points in enumerate(points_prims):
+            points_after = np.asarray(points.GetPointsAttr().Get(), dtype=np.float32)
+            assert np.max(np.abs(points_after - points_before[env_idx])) > 0.0
+            np.testing.assert_allclose(points_after, particle_pos[env_idx], rtol=1.0e-5, atol=1.0e-6)

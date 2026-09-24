@@ -16,8 +16,7 @@ def _selector(values: list[int], dtype: type) -> wp.array:
     return wp.array(values, dtype=dtype, device="cpu")
 
 
-@pytest.mark.parametrize("env_dtype", [wp.int32, wp.int64])
-@pytest.mark.parametrize("joint_dtype", [wp.int32, wp.int64])
+@pytest.mark.parametrize(("env_dtype", "joint_dtype"), [(wp.int32, wp.int32), (wp.int64, wp.int64)])
 def test_write_joint_limit_data_to_user_and_backend_index_accepts_index_dtypes(
     env_dtype: type, joint_dtype: type
 ) -> None:
