@@ -113,14 +113,16 @@ Use **Kit/RTX** to see the authored MDL textures, USD lights, and background ani
 ```bash
 DISPLAY=:1 uv run --extra isaacsim isaaclab play --rl_library rsl_rl \
   --task IsaacContrib-Conveyor-Franka-Newton-Play-v0 \
-  --checkpoint https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/PretrainedCheckpoints/rsl_rl/IsaacContrib-Conveyor-Franka-Newton-v0_newtonmjwarp_none_rsl_rl.pt --num_envs 1 --device cuda:0 --viz kit --real-time
+  --checkpoint https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/PretrainedCheckpoints/rsl_rl/IsaacContrib-Conveyor-Franka-Newton-v0_newtonmjwarp_none_rsl_rl.pt --num_envs 1 --device cuda:0 --viz kit --real-time \
+  --kit_args=--/UJITSO/geometry=false
 ```
 
 Kit renders the USD directly, so the Play configuration excludes visual-only meshes from the
 Newton model (`sim.physics.load_visual_shapes=False`). This avoids importing warehouse dressing
 into the physics model. For a static approximation in `--viz newton_gl`, explicitly pass
 `env.sim.physics.load_visual_shapes=True`; materials and lighting are simplified in that viewer.
-Presentation defaults to one environment. Asset references and textures are downloaded and cached
+The launch override disables experimental geometry streaming to prevent disappearing meshes with
+Fabric transforms. Presentation defaults to one environment. Asset references and textures are downloaded and cached
 on first use, so the first launch takes longer.
 
 ### Editing the presentation

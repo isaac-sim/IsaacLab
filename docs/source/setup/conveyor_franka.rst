@@ -35,10 +35,13 @@ Use the standard Isaac Lab installation with the Isaac Sim extra for Kit/RTX vis
 
    uv run --extra isaacsim isaaclab play --rl_library rsl_rl \
      --task IsaacContrib-Conveyor-Franka-Newton-Play-v0 \
-     --checkpoint https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/PretrainedCheckpoints/rsl_rl/IsaacContrib-Conveyor-Franka-Newton-v0_newtonmjwarp_none_rsl_rl.pt --num_envs 1 --device cuda:0 --viz kit --real-time
+     --checkpoint https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/PretrainedCheckpoints/rsl_rl/IsaacContrib-Conveyor-Franka-Newton-v0_newtonmjwarp_none_rsl_rl.pt --num_envs 1 --device cuda:0 --viz kit --real-time \
+     --kit_args=--/UJITSO/geometry=false
 
 The first launch downloads the referenced Omniverse assets. The warehouse uses USD-authored
-materials and lighting; Kit/RTX is the intended viewer. For compact, lightweight playback:
+materials and lighting; Kit/RTX is the intended viewer. The launch override disables experimental
+geometry streaming, including saved Kit preferences, which can hide meshes updated through Fabric.
+For compact, lightweight playback:
 
 .. code-block:: bash
 
