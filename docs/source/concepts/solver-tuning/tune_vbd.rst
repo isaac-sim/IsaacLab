@@ -357,37 +357,6 @@ coupling between the same named solver entries. Set ``contact_pairs`` to select
 entry pairs explicitly, or leave it as ``None`` to detect every distinct pair.
 Use ``iterations`` and ``rho`` to tune the ADMM solve.
 
-ADMM creates an internal collision pipeline for cross-entry contacts, separate
-from the outer pipeline configured by ``NewtonCfg.collision_cfg``. Set
-``CouplerAdmmCfg.contact_max_triangle_pairs`` to budget its triangle-pair and
-contact-reduction buffers, and
-``CouplerAdmmCfg.contact_reduction_hashtable_size_factor`` to increase only the
-reduction hashtable. Both default to ``None`` to preserve Newton's defaults.
-These capacities cover all environments in one process; multi-GPU jobs allocate
-them independently on every rank. Changes take effect when the solver is created,
-before CUDA graph capture. For example:
-
-.. code-block:: python
-
-    coupling_cfg = CouplerAdmmCfg(
-        entries=entries,
-        contact_max_triangle_pairs=1_000_000,
-        contact_reduction_hashtable_size_factor=2.0,
-    )
-
-Tune these budgets when the internal pipeline reports triangle-pair overflow,
-hashtable fill above 80%, or hashtable insertion failures. Increasing only the
-outer collision budget does not resize ADMM's internal buffers. Isaac Lab adapts
-the pinned Newton solver by rebuilding its internal pipeline before stepping,
-preserving its pair filters, contact output capacities, and matching settings.
-With ``rigid_contact_matching`` set to ``"latest"`` or ``"sticky"``, Newton 1.6
-uses deterministic contact packing. Isaac Lab validates this configuration before
-solver construction and rejects ``contact_max_triangle_pairs >= 2**20``. Larger
-capacities are allowed when matching is ``"disabled"``. For hashtable warnings
-with matching enabled, increase the size factor without increasing the triangle-pair
-budget past that limit. The example above allocates 2,097,152 hashtable slots while
-preserving contact matching.
-
 Try the demo:
 
 .. tab-set::

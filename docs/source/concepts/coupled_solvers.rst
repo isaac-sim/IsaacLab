@@ -200,6 +200,35 @@ runtime and cannot repair an unstable entry. The generated
 default; Newton's concept page explains the underlying algorithms.
 
 
+ADMM Contact Capacity
+^^^^^^^^^^^^^^^^^^^^^
+
+ADMM detects cross-entry contacts separately from the outer pipeline configured
+by ``NewtonCfg.collision_cfg``. Set
+``CouplerAdmmCfg.contact_max_triangle_pairs`` to budget its triangle-pair storage
+and ``CouplerAdmmCfg.contact_reduction_hashtable_size_factor`` to scale the
+contact-reduction hash table independently. Both default to ``None`` to preserve
+Newton's defaults. These capacities cover all environments in one process and
+are allocated independently on each rank in multi-GPU jobs.
+
+Increase the triangle-pair capacity for triangle-pair overflow, or the hash table
+size factor for contact-reduction fill or insertion warnings. Increasing the outer
+collision budget does not resize ADMM's internal buffers. With
+``rigid_contact_matching="latest"`` or ``"sticky"``, the triangle-pair capacity
+must be less than ``2**20``; larger capacities are allowed when matching is
+``"disabled"``. To grow the hash table while retaining matching, increase the
+size factor independently:
+
+.. code-block:: python
+
+    coupling_cfg = CouplerAdmmCfg(
+        entries=entries,
+        rigid_contact_matching="latest",
+        contact_max_triangle_pairs=1_000_000,
+        contact_reduction_hashtable_size_factor=2.0,
+    )
+
+
 Start from a maintained task
 ----------------------------
 

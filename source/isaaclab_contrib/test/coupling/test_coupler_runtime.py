@@ -49,7 +49,12 @@ def isolated_newton_manager(monkeypatch: pytest.MonkeyPatch):
 
 
 def _build_overlapping_body_model(*, mesh_contact: bool = False) -> Model:
-    """Build two labeled free bodies with one rigid contact on the CPU."""
+    """Build two labeled free bodies with one rigid contact on the CPU.
+
+    Args:
+        mesh_contact: Replace the source sphere with a triangle mesh to exercise
+            triangle-pair allocation and contact reduction in the capacity test.
+    """
     builder = ModelBuilder(gravity=-9.81)
     for x, label in ((-0.09, "/World/Source/body"), (0.09, "/World/Destination/body")):
         body = builder.add_body(

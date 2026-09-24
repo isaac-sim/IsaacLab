@@ -977,6 +977,30 @@ def test_admm_build_forwards_multiple_pairs_matching_and_proximal_options(monkey
     assert solver.coupling.contact_matching_force_scale == pytest.approx(0.7)
 
 
+def test_admm_build_forwards_native_contact_capacity_without_fallback(monkeypatch):
+    @dataclass(frozen=True)
+    class NativeCapacityConfig(_RecordingAdmm.Config):
+        contact_max_triangle_pairs: int | None = None
+        contact_reduction_hashtable_size_factor: float | None = None
+
+    def reject_fallback(*args):
+        pytest.fail("Native ADMM capacity support must bypass the compatibility adapter")
+
+    monkeypatch.setattr(_RecordingAdmm, "Config", NativeCapacityConfig)
+    monkeypatch.setattr(coupler, "SolverCoupledADMM", _RecordingAdmm)
+    monkeypatch.setattr(NewtonCouplerManager, "_configure_admm_contact_capacity", reject_fallback)
+    cfg = CouplerAdmmCfg(
+        contact_pairs=[],
+        contact_max_triangle_pairs=8192,
+        contact_reduction_hashtable_size_factor=2.0,
+    )
+
+    solver = NewtonCouplerManager._build_admm_coupled_solver(_FakeModel(), [], cfg)
+
+    assert solver.coupling.contact_max_triangle_pairs == 8192
+    assert solver.coupling.contact_reduction_hashtable_size_factor == 2.0
+
+
 def test_admm_build_auto_detects_symmetric_contact_pairs_by_default(monkeypatch):
     model = _FakeModel()
     resolved_entries = [

@@ -432,9 +432,9 @@ class NewtonCouplerManager(NewtonVBDManager):
             ]
         coupling = SolverCoupledADMM.Config(**values)
         solver = SolverCoupledADMM(model=model, entries=entries, coupling=coupling)
-        if (
-            solver_cfg.contact_max_triangle_pairs is not None
-            or solver_cfg.contact_reduction_hashtable_size_factor is not None
+        if any(
+            getattr(solver_cfg, name) is not None and name not in values
+            for name in ("contact_max_triangle_pairs", "contact_reduction_hashtable_size_factor")
         ):
             cls._configure_admm_contact_capacity(solver, solver_cfg)
         return solver
@@ -442,7 +442,8 @@ class NewtonCouplerManager(NewtonVBDManager):
     @staticmethod
     def _configure_admm_contact_capacity(solver: SolverCoupledADMM, solver_cfg: CouplerAdmmCfg) -> None:
         """Apply internal collision budgets before any stepping or CUDA graph capture."""
-        # Newton 1.6 creates this pipeline internally without a capacity configuration hook.
+        # Compatibility with the pinned Newton version; skipped when Config accepts both budgets.
+        # Remove after the minimum Newton version includes https://github.com/newton-physics/newton/pull/4309.
         # Rebuild it while preserving ADMM's pair filters, output capacities, and matching mode.
         previous = solver._admm_collision_pipeline
         if previous is None:
