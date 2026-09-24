@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -425,8 +424,7 @@ class RenderData:
                 k2=_coefficient(cfg.k2),
                 k3=_coefficient(cfg.k3),
                 k4=_coefficient(cfg.k4),
-                # Limit fisheye rays to the forward hemisphere.
-                max_fov=math.pi,
+                max_fov=cfg.max_fov,
             )
 
         return self.newton_sensor.utils.compute_camera_rays_pinhole_opencv(
