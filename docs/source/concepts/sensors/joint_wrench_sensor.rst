@@ -17,6 +17,10 @@ The ``incoming_joint_frame`` convention expresses the wrench in the child-side j
 child-side joint anchor. This matches the placement of a six-axis force/torque sensor mounted at the
 joint. Backend implementations convert their native solver output to this common convention.
 
+PhysX's ``get_link_incoming_joint_force()`` already returns the wrench in the child-side joint frame,
+referenced at its anchor, so the PhysX sensor exposes those components directly. Applying the USD
+``localPos1`` and ``localRot1`` again would shift and rotate the wrench twice.
+
 Configure the sensor
 --------------------
 
