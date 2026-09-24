@@ -21,3 +21,4 @@ Fixed
 * Fixed variable joint-impedance gain clamping for robot batches with more than two joints.
 * Fixed batched joint-impedance inertia compensation when the robot and joint counts differed.
 * Fixed the differential IK SVD solver for position-only and under-actuated tasks.
+* Fixed Isaac Lab differential IK joint-limit avoidance failing when joint limits were given as float64.

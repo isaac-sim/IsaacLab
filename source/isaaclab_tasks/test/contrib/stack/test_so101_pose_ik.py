@@ -9,7 +9,7 @@ The SO-101 controller is a thin subclass of the core
 :class:`~isaaclab.controllers.DifferentialIKController`; the only SO-101-specific behavior is the
 wrist-only orientation joint mask. The generic IK features it relies on (the ``adaptive_dls``
 ik-method, per-axis orientation weighting, and null-space joint-limit avoidance) are tested in
-``source/isaaclab/test/controllers/test_differential_ik_features.py``. These tests cover the mask
+``source/isaaclab/test/controllers/test_differential_ik.py``. These tests cover the mask
 plus the IK-Abs env/action wiring with hand-built tensors -- no gym.make, USD, or GPU.
 """
 

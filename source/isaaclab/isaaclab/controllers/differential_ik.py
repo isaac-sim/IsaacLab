@@ -197,12 +197,12 @@ class DifferentialIKController:
             lower: Lower joint-position limits [m or rad, depending on joint type] in shape (num_joints,).
             upper: Upper joint-position limits [m or rad, depending on joint type] in shape (num_joints,).
         """
-        self._joint_pos_lower = lower.to(self._device)
-        self._joint_pos_upper = upper.to(self._device)
+        self._joint_pos_lower = lower.to(self._device, torch.float32)
+        self._joint_pos_upper = upper.to(self._device, torch.float32)
         if self.cfg.implementation == "newton" and self.cfg.joint_limit_avoidance_gain > 0.0:
             self._newton_controller.set_joint_limits(
-                joint_pos_lower=wp.from_torch(self._joint_pos_lower.float().repeat(self.num_envs)),
-                joint_pos_upper=wp.from_torch(self._joint_pos_upper.float().repeat(self.num_envs)),
+                joint_pos_lower=wp.from_torch(self._joint_pos_lower.repeat(self.num_envs)),
+                joint_pos_upper=wp.from_torch(self._joint_pos_upper.repeat(self.num_envs)),
             )
 
     def compute(
