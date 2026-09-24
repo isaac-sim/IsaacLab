@@ -130,22 +130,22 @@ def test_mpm_config_imports_do_not_load_pxr():
 @pytest.mark.parametrize(
     "module",
     [
-        "scripts.demos.mpm.newton_mpm_granular",
-        "scripts.demos.mpm.newton_mpm_twoway_coupling",
-        "scripts.demos.mpm.snowball_smash",
-        "scripts.demos.mpm.teapot_fill",
+        "examples.mpm.newton_mpm_granular",
+        "examples.mpm.newton_mpm_twoway_coupling",
+        "examples.demos.snowball_smash",
+        "examples.demos.teapot_fill",
     ],
 )
-def test_mpm_demo_configs_do_not_load_pxr_before_simulation_launch(module):
-    """Every MPM demo must delay USD imports until after ``AppLauncher`` starts."""
+def test_mpm_program_configs_do_not_load_pxr_before_simulation_launch(module):
+    """Every MPM program must delay USD imports until after ``AppLauncher`` starts."""
     code = textwrap.dedent(
         f"""
         import importlib
         import sys
 
-        sys.argv = ["demo.py", "--max_steps", "0", "--visualizer", "none", "--device", "cuda:0"]
-        demo = importlib.import_module({module!r})
-        demo.create_sim_cfg()
+        sys.argv = ["program.py", "--max_steps", "0", "--visualizer", "none", "--device", "cuda:0"]
+        program = importlib.import_module({module!r})
+        program.create_sim_cfg()
 
         loaded_pxr_modules = [name for name in sys.modules if name == "pxr" or name.startswith("pxr.")]
         if loaded_pxr_modules:

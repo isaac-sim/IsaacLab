@@ -147,6 +147,22 @@ def test_release_viewer_does_not_close_gl_viewer() -> None:
     assert visualizer._viewer is None
 
 
+@pytest.mark.parametrize("requested", [False, True])
+def test_gl_close_request_closes_after_frame(monkeypatch: pytest.MonkeyPatch, requested: bool) -> None:
+    """A close request must not destroy the GL context inside the UI render callback."""
+    events: list[str] = []
+    monkeypatch.setattr(newton_visualizer.ViewerGL, "end_frame", lambda self: events.append("frame"))
+    viewer = object.__new__(newton_visualizer.NewtonViewerGL)
+    viewer._close_requested = False
+    if requested:
+        viewer.request_close()
+    viewer.renderer = type("Renderer", (), {"close": lambda self: events.append("close")})()
+
+    viewer.end_frame()
+
+    assert events == (["frame", "close"] if requested else ["frame"])
+
+
 def test_close_releases_the_viewer() -> None:
     """``close()`` must release the viewer through the shared path."""
     viewer = _SpyRTXViewer()
