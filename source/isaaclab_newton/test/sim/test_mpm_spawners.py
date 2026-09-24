@@ -132,8 +132,8 @@ def test_mpm_config_imports_do_not_load_pxr():
     [
         "examples.mpm.newton_mpm_granular",
         "examples.mpm.newton_mpm_twoway_coupling",
-        "demos.mpm.snowball_smash",
-        "demos.mpm.teapot_fill",
+        "examples.demos.snowball_smash",
+        "examples.demos.teapot_fill",
     ],
 )
 def test_mpm_program_configs_do_not_load_pxr_before_simulation_launch(module):
