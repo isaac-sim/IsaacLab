@@ -365,7 +365,6 @@ def test_ovrtx_async_cameras_share_the_pipeline(monkeypatch):
                 num_instances=2,
                 camera_prim_paths=tuple(f"/World/envs/env_{i}/cam{index}" for i in range(2)),
                 view_count=2,
-                camera_path_relative_to_env_0=f"cam{index}",
             )
             rd = renderer.create_render_data(spec)
             data = CameraData.allocate(
