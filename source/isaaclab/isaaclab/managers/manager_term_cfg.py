@@ -189,7 +189,8 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     """Minimum observation delay, counted in recorded samples. Defaults to zero.
 
     Each environment samples an integer lag uniformly from ``[delay_min_lag, delay_max_lag]`` at
-    initialization and reset, and keeps it until its next reset, as with :class:`~isaaclab.actuators.DelayedPDActuator`.
+    initialization and reset. With the default :attr:`delay_hold_prob` of 1.0, it keeps that lag until
+    its next reset, as with :class:`~isaaclab.actuators.DelayedPDActuator`.
     Observation samples advance with ``ObservationManager.compute(update_history=True)``; actuator delays
     instead count physics steps. Extra observation reads do not advance the delay.
     """
@@ -200,6 +201,15 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     Set both lag bounds equal for a constant delay. Delay is applied after modifiers, noise, clipping, and
     scaling, before observation history. Until enough samples have been recorded, the oldest available
     sample is returned. After reset, no data from the previous episode is returned.
+    """
+
+    delay_hold_prob: float = 1.0
+    """Probability of retaining the current lag on each recorded observation sample.
+
+    Defaults to 1.0, keeping the reset-sampled lag for the episode. Zero redraws the lag on every recorded
+    sample. Intermediate values retain the lag independently per environment with this probability,
+    otherwise sampling uniformly from the configured bounds. Holding the lag keeps the latency constant
+    while observation frames continue to advance. Extra reads do not resample the lag.
     """
 
     history_length: int = 0
@@ -221,6 +231,8 @@ class ObservationTermCfg(ManagerTermBaseCfg):
             raise TypeError("Observation delay bounds must be integers.")
         if not 0 <= self.delay_min_lag <= self.delay_max_lag:
             raise ValueError("Observation delay requires 0 <= delay_min_lag <= delay_max_lag.")
+        if not 0.0 <= self.delay_hold_prob <= 1.0:
+            raise ValueError("delay_hold_prob must be in [0, 1].")
 
 
 @configclass

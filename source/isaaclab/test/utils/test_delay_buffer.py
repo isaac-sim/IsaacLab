@@ -74,26 +74,31 @@ def test_reset(delay_buffer, feature_shape):
         torch.testing.assert_close(delay_buffer.compute(data), expected.view(shape).expand_as(data))
 
 
-def test_random_time_lags(delay_buffer):
-    """Test random delays."""
-    max_lag: int = 3
-    time_lags = torch.randint(
-        low=0, high=max_lag + 1, size=(delay_buffer.batch_size,), dtype=torch.long, device=delay_buffer.device
-    )
-
+@pytest.mark.parametrize("hold_prob", [0.0, 0.5, 1.0])
+def test_random_time_lags(delay_buffer, hold_prob, monkeypatch):
+    """Each batch retains its lag or resamples; reset always starts a new episode."""
+    delay_buffer = DelayBuffer(4, delay_buffer.batch_size, delay_buffer.device, min_lag=1, hold_prob=hold_prob)
+    time_lags = torch.randint(1, 5, (delay_buffer.batch_size,), device=delay_buffer.device)
     # Indexed assignment must accept int64 lags as well as the buffer's int32 dtype.
     delay_buffer.set_time_lag(time_lags, list(range(delay_buffer.batch_size)))
+    expected_lags = time_lags.int()
+    first_step = torch.zeros_like(expected_lags)
+    draws = torch.tensor([0.25, 0.75] * (delay_buffer.batch_size // 2), device=delay_buffer.device)
+    monkeypatch.setattr(torch, "rand", lambda *args, **kwargs: draws)
+    monkeypatch.setattr(torch, "randint", lambda low, high, size, **kwargs: torch.full(size, sampled_lag, **kwargs))
 
-    all_data = []
-    for i, data in enumerate(_generate_data(delay_buffer.batch_size, 20, delay_buffer.device)):
-        all_data.append(data)
-        # apply delay
-        delayed_data = delay_buffer.compute(data)
-        true_delayed_index = torch.maximum(i - delay_buffer.time_lags, torch.zeros_like(delay_buffer.time_lags))
-        true_delayed_index = true_delayed_index.tolist()
-        for i in range(delay_buffer.batch_size):
-            error = delayed_data[i] - all_data[true_delayed_index[i]][i]
-            assert torch.all(error == 0)
+    for step, data in enumerate(_generate_data(delay_buffer.batch_size, 12, delay_buffer.device)):
+        sampled_lag = 1 + step % 4
+        if step == 7:
+            delay_buffer.reset([0])
+            expected_lags[0] = sampled_lag
+            first_step[0] = step
+        expected_lags[draws >= hold_prob] = sampled_lag
+        result = delay_buffer.compute(data)
+        torch.testing.assert_close(delay_buffer.time_lags, expected_lags)
+        expected = torch.maximum(step - expected_lags, first_step).unsqueeze(-1)
+        torch.testing.assert_close(result, expected)
+        torch.testing.assert_close(delay_buffer.compute(data + 100, update_history=False), expected)
 
 
 @pytest.mark.parametrize(
@@ -131,12 +136,12 @@ def test_compute_result_independent_of_internal_buffer(delay_buffer):
 
 
 def test_delay_buffer_cuda_graph(delay_buffer):
-    """The write index advances on every replay, including across partial resets."""
+    """Sampling and ring writes work during graph replay, including across partial resets."""
     if not delay_buffer.device.startswith("cuda"):
         pytest.skip("CUDA graph replay requires CUDA.")
     with torch.cuda.device(delay_buffer.device):
+        delay_buffer = DelayBuffer(4, delay_buffer.batch_size, delay_buffer.device, min_lag=1, hold_prob=0.5)
         data = torch.zeros(delay_buffer.batch_size, 1, device=delay_buffer.device)
-        delay_buffer.set_time_lag(2)
         delay_buffer.compute(data)
         graph = torch.cuda.CUDAGraph()
         with torch.cuda.graph(graph):
@@ -148,8 +153,8 @@ def test_delay_buffer_cuda_graph(delay_buffer):
                 delay_buffer.reset([1])
             data.fill_(step)
             graph.replay()
-            expected = torch.full_like(data, max(0, step - 2))
+            expected = (step - delay_buffer.time_lags).clamp_min(0).unsqueeze(-1).to(data.dtype)
             if step >= 4:
-                expected[1] = max(4, step - 2)
+                expected[1].clamp_(min=4)
             torch.testing.assert_close(result, expected)
             torch.testing.assert_close(read, expected)

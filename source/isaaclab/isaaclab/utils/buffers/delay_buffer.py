@@ -16,14 +16,17 @@ class DelayBuffer:
 
     Each updating call writes one frame and retrieves a per-batch delayed frame. Storage is allocated
     on the first call and never shifted. The write index and per-batch history lengths stay on the device,
-    including during CUDA graph replay. Lag sampling and update cadence belong to the caller.
+    including during CUDA graph replay. Callers select lags explicitly, or enable buffer-owned sampling
+    with ``hold_prob``. The caller determines when to record a sample.
 
     When recording, a lag of zero returns the current input. Until enough samples exist after initialization or reset,
     the oldest available sample is returned. Reset only invalidates the selected batches' history;
     no previous-episode data can be read, and the remaining batches continue uninterrupted.
     """
 
-    def __init__(self, history_length: int, batch_size: int, device: str):
+    def __init__(
+        self, history_length: int, batch_size: int, device: str, *, min_lag: int = 0, hold_prob: float | None = None
+    ):
         """Initialize the delay buffer.
 
         Args:
@@ -32,8 +35,20 @@ class DelayBuffer:
                 is expected. The minimum acceptable value is zero, which means only the latest data is stored.
             batch_size: The batch dimension of the data.
             device: The device used for processing.
+            min_lag: Minimum lag to sample, with :attr:`history_length` as the inclusive maximum.
+                Defaults to zero. Used when ``hold_prob`` enables automatic sampling.
+            hold_prob: Probability of retaining the current lag on each recorded sample. Defaults to None,
+                preserving lags selected externally through :meth:`set_time_lag`. Setting a probability enables
+                independent per-batch sampling at initialization and reset: 1.0 keeps that lag until reset,
+                and 0.0 resamples on every recorded sample. Holding a lag keeps latency constant as frames advance.
         """
         self._history_length = max(0, history_length)
+        if type(min_lag) is not int or not 0 <= min_lag <= self._history_length:
+            raise ValueError("min_lag must be an integer in [0, history_length].")
+        if hold_prob is not None and not 0.0 <= hold_prob <= 1.0:
+            raise ValueError("hold_prob must be in [0, 1].")
+        self._min_lag = min_lag
+        self._hold_prob = hold_prob
         self._batch_size = batch_size
         self._device = device
         self._buffer: torch.Tensor | None = None
@@ -41,6 +56,8 @@ class DelayBuffer:
         self._num_pushes = torch.zeros(batch_size, dtype=torch.long, device=device)
         self._ALL_INDICES = torch.arange(batch_size, device=device)
         self._time_lags = torch.zeros(batch_size, dtype=torch.int, device=device)
+        if hold_prob is not None:
+            self.reset()
 
     """
     Properties.
@@ -148,10 +165,22 @@ class DelayBuffer:
     def reset(self, batch_ids: Sequence[int] | None = None):
         """Reset the data in the delay buffer at the specified batch indices.
 
+        Automatically sampled lags are redrawn for those batches regardless of ``hold_prob``.
+        Externally selected lags are preserved.
+
         Args:
             batch_ids: Elements to reset in the batch dimension. Default is None, which resets all the batch indices.
         """
-        self._num_pushes[slice(None) if batch_ids is None else batch_ids] = 0
+        indices = slice(None) if batch_ids is None else batch_ids
+        self._num_pushes[indices] = 0
+        if self._hold_prob is not None:
+            self._time_lags[indices] = torch.randint(
+                self._min_lag,
+                self.history_length + 1,
+                self._time_lags[indices].shape,
+                dtype=self._time_lags.dtype,
+                device=self.device,
+            )
 
     def compute(self, data: torch.Tensor, *, update_history: bool = True) -> torch.Tensor:
         """Return delayed data, optionally recording the input as a new sample.
@@ -183,6 +212,19 @@ class DelayBuffer:
             read_index = (self._write_index - 1 - lag) % (self.history_length + 1)
             has_history = (self._num_pushes > 0).view(self.batch_size, *([1] * (data.ndim - 1)))
             return torch.where(has_history, self._buffer[read_index, self._ALL_INDICES], data)
+
+        if self._hold_prob is not None and self._hold_prob < 1.0:
+            lags = torch.randint(
+                self._min_lag,
+                self.history_length + 1,
+                (self.batch_size,),
+                dtype=self._time_lags.dtype,
+                device=self.device,
+            )
+            if self._hold_prob > 0.0:
+                resample = torch.rand(self.batch_size, device=self.device) >= self._hold_prob
+                lags = torch.where(resample, lags, self._time_lags)
+            self._time_lags.copy_(lags)
 
         self._buffer.index_copy_(0, self._write_index, data.unsqueeze(0))
         lag = torch.minimum(self._time_lags, self._num_pushes)

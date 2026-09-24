@@ -145,7 +145,7 @@ def test_modifier_resolution_stays_out_of_observation_manager():
 def test_modifier_base_cfg_marker_does_not_exist():
     """Stateful modifiers must not require a marker configuration subtype."""
     assert not hasattr(modifiers, "ModifierBaseCfg")
-    assert not hasattr(modifiers, "DelayCfg"), "Delay sampling belongs to the observation manager."
+    assert not hasattr(modifiers, "DelayCfg"), "Observation delay uses the shared buffer directly."
 
 
 @pytest.mark.parametrize(("lag", "history_length"), [(0, 2), (1, 0), (1, 2)])
@@ -155,6 +155,7 @@ def test_compute_updates_history_only_when_requested(lag, history_length):
     cfg.policy.history_length = history_length
     cfg.policy.enable_corruption = True
     cfg.policy.dummy.delay_min_lag = cfg.policy.dummy.delay_max_lag = lag
+    cfg.policy.dummy.delay_hold_prob = 0.5 if history_length == 0 else 1.0
     cfg.policy.dummy.noise = noise.ConstantNoiseCfg(bias=0.0)
     cfg.policy.dummy.scale = 2.0
     env = DummyEnv()
@@ -181,14 +182,24 @@ def test_compute_updates_history_only_when_requested(lag, history_length):
             expected[1].clamp_(min=12.0)
         torch.testing.assert_close(output, expected)
         env.observation.fill_(-100.0)
+        rng_state = torch.get_rng_state()
         torch.testing.assert_close(manager.compute()["policy"], expected)
         torch.testing.assert_close(manager.compute_group("policy"), expected)
+        assert torch.equal(torch.get_rng_state(), rng_state)
 
 
-@pytest.mark.parametrize("lag_bounds", [(-1, 2), (2, 1), (0.5, 2)])
-def test_observation_delay_config_validation(lag_bounds):
-    """Delay bounds must be nonnegative, ordered integers."""
-    cfg = ObservationTermCfg(func=dummy_observation, delay_min_lag=lag_bounds[0], delay_max_lag=lag_bounds[1])
-    error = ValueError if all(type(value) is int for value in lag_bounds) else TypeError
+@pytest.mark.parametrize(
+    ("params", "error"),
+    [
+        ({"delay_min_lag": -1}, ValueError),
+        ({"delay_min_lag": 2, "delay_max_lag": 1}, ValueError),
+        ({"delay_min_lag": 0.5}, TypeError),
+        ({"delay_hold_prob": -0.1}, ValueError),
+        ({"delay_hold_prob": 1.1}, ValueError),
+    ],
+)
+def test_observation_delay_config_validation(params, error):
+    """Delay requires ordered nonnegative integer bounds and a probability in [0, 1]."""
+    cfg = ObservationTermCfg(func=dummy_observation, **params)
     with pytest.raises(error, match="delay"):
         cfg.validate()

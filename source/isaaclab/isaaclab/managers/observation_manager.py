@@ -276,6 +276,7 @@ class ObservationManager(ManagerBase):
                             "scale",
                             "delay_min_lag",
                             "delay_max_lag",
+                            "delay_hold_prob",
                             "history_length",
                             "flatten_history_dim",
                         ]:
@@ -303,6 +304,7 @@ class ObservationManager(ManagerBase):
                         "clip",
                         "delay_min_lag",
                         "delay_max_lag",
+                        "delay_hold_prob",
                         "history_length",
                         "flatten_history_dim",
                     ]:
@@ -324,22 +326,10 @@ class ObservationManager(ManagerBase):
         for group_name, group_cfg in self._group_obs_class_term_cfgs.items():
             for term_cfg in group_cfg:
                 term_cfg.func.reset(env_ids=env_ids)
-            # reset histories and sample episode lags for the selected environments
-            for term_name, term_cfg in zip(
-                self._group_obs_term_names[group_name], self._group_obs_term_cfgs[group_name]
-            ):
+            # reset delay and observation histories for the selected environments
+            for term_name in self._group_obs_term_names[group_name]:
                 if term_name in self._group_obs_term_delay_buffer[group_name]:
-                    delay_buffer = self._group_obs_term_delay_buffer[group_name][term_name]
-                    indices = slice(None) if env_ids is None else env_ids
-                    time_lags = torch.randint(
-                        term_cfg.delay_min_lag,
-                        term_cfg.delay_max_lag + 1,
-                        delay_buffer.time_lags[indices].shape,
-                        device=self.device,
-                        dtype=torch.int,
-                    )
-                    delay_buffer.set_time_lag(time_lags, env_ids)
-                    delay_buffer.reset(env_ids)
+                    self._group_obs_term_delay_buffer[group_name][term_name].reset(env_ids)
                 if term_name in self._group_obs_term_history_buffer[group_name]:
                     self._group_obs_term_history_buffer[group_name][term_name].reset(batch_ids=env_ids)
         # call all modifiers that are classes
@@ -677,16 +667,13 @@ class ObservationManager(ManagerBase):
                     self._group_obs_class_instances.append(term_cfg.noise.func)
 
                 if term_cfg.delay_max_lag > 0:
-                    delay_buffer = DelayBuffer(term_cfg.delay_max_lag, self.num_envs, self.device)
-                    time_lags = torch.randint(
-                        term_cfg.delay_min_lag,
-                        term_cfg.delay_max_lag + 1,
-                        (self.num_envs,),
-                        device=self.device,
-                        dtype=torch.int,
+                    group_entry_delay_buffer[term_name] = DelayBuffer(
+                        term_cfg.delay_max_lag,
+                        self.num_envs,
+                        self.device,
+                        min_lag=term_cfg.delay_min_lag,
+                        hold_prob=term_cfg.delay_hold_prob,
                     )
-                    delay_buffer.set_time_lag(time_lags)
-                    group_entry_delay_buffer[term_name] = delay_buffer
 
                 # create history buffers and calculate history term dimensions
                 if term_cfg.history_length > 0:
