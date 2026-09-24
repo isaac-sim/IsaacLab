@@ -86,7 +86,7 @@ Record every field below before editing a candidate. A missing field means it is
 - exact test name and location;
 - what failure it can actually detect;
 - non-test callers of the covered production seam;
-- stronger remaining owner-boundary proof, or why no proof is needed;
+- stronger remaining owner-boundary proof, or why no proof is needed. Unless the keeper carries the removed assertions verbatim, prove it with a mutation of the production owner that turns the keeper red; a keeper that looks equivalent can still pass with the contract broken;
 - relevant history and the reason the test exists;
 - production or test-support deletion unlocked;
 - risk and the focused validation command.
