@@ -68,11 +68,3 @@
   belongs on the spawner.
 - For file-spawned fixtures that must only tune existing physics bodies, use explicit fragment
   target mappings. A bare fragment or list may create a missing body and change the fixture's validity.
-
-## XR camera feed ownership
-
-- Keep temporary renderer settings in `XrCameraFeedSession` and shared XR/SceneUI attributes
-  in `_KitSceneUiCameraFeedPresenter`. Do not add separate partition policy or registry classes.
-- Track the actual panels and use standard cleanup callbacks for temporary USD edits; do not
-  introduce a second registration-token or readiness-callback lifecycle for scene partitioning.
-- Extend the existing camera-feed lifecycle and presenter tests when changing this behavior.
