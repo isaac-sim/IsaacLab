@@ -193,8 +193,7 @@ def build_render_scope_usd(
     trimmed stage. Multi-environment rendering rewrites it after runtime cloning.
 
     Args:
-        spec: Camera configuration, environment count, and camera paths. ISP configurations
-            automatically request the HDR render variable in addition to the configured outputs.
+        spec: Camera configuration, required render buffers, environment count, and camera paths.
         render_data: Camera's render scope and product identity.
         device_id: CUDA device index the render product is pinned to via ``deviceIds``. When ``None``,
             OVRTX assigns the device automatically.
@@ -204,9 +203,7 @@ def build_render_scope_usd(
     Returns:
         The USD snippet for the render scope, without a layer header or metadata.
     """
-    data_types = list(spec.cfg.data_types or ["rgb"])
-    if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
-        data_types.append("rgb_hdr")
+    data_types = spec.data_types
     tiled_width, tiled_height = _tiled_resolution(spec.num_instances, spec.cfg.width, spec.cfg.height)
     camera_path = spec.camera_prim_paths[0]
     render_var_configs = get_render_var_configs(data_types, render_data.render_scope_name)

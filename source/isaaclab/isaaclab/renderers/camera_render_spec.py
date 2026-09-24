@@ -34,3 +34,14 @@ class CameraRenderSpec:
     num_instances: int
     camera_prim_paths: tuple[str, ...]
     view_count: int
+
+    render_data_types: tuple[str, ...] | None = None
+    """Resolved renderer inputs, including private processing buffers. Defaults to the camera outputs."""
+
+    neutral_exposure: bool = False
+    """Whether the renderer must disable physical-camera and automatic exposure for scene-linear input."""
+
+    @property
+    def data_types(self) -> tuple[str, ...]:
+        """Return the buffer names the renderer must produce."""
+        return tuple(self.cfg.data_types) if self.render_data_types is None else self.render_data_types

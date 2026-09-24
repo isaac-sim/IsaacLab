@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import importlib.util
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -349,16 +350,15 @@ def test_render_product_omits_device_ids_when_no_device_is_given(camera_spec, re
 
 
 @pytest.mark.parametrize("data_types", [["rgb"], ["rgb", "rgb_hdr"], []])
-def test_render_product_isp_requests_hdr_without_mutating_camera_outputs(camera_spec, render_data, data_types):
-    """ISP receives one HDR source while the camera's requested outputs remain unchanged."""
+def test_render_product_uses_resolved_inputs_without_mutating_camera_outputs(camera_spec, render_data, data_types):
+    """Processors can request HDR independently of the camera's public output names."""
     camera_spec.cfg.data_types = data_types.copy()
-    camera_spec.cfg.isp_cfg = object()
+    camera_spec = replace(camera_spec, render_data_types=("rgb_hdr",))
     render_product = build_render_product_as_string(camera_spec, render_data)
     layer = Sdf.Layer.CreateAnonymous(".usda")
     assert layer.ImportFromString(render_product)
     ordered_vars = layer.GetRelationshipAtPath("/RenderCamera_0/RenderProduct.orderedVars")
     assert list(ordered_vars.targetPathList.explicitItems) == [
-        Sdf.Path("/RenderCamera_0/Vars/LdrColor"),
         Sdf.Path("/RenderCamera_0/Vars/HdrColor"),
     ]
     assert camera_spec.cfg.data_types == data_types

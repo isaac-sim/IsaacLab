@@ -7,6 +7,8 @@ import pytest
 import warp as wp
 from isaaclab_ppisp import (
     PpispCfg,
+    PpispPipeline,
+    PpispProcessorCfg,
     apply_ppisp_to_rgba,
     apply_ppisp_to_rgba_with_controller_params,
     compute_ppisp_controller_params,
@@ -37,6 +39,7 @@ from isaaclab_ppisp.kernels import (
     PPISP_CONTROLLER_PARAM_COUNT,
 )
 
+from isaaclab.sensors.camera.post_processing import VisualProcessingPipeline, VisualProcessorContext
 from isaaclab.sensors.camera.tiled_camera_cfg import TiledCameraCfg
 
 wp.init()
@@ -331,3 +334,40 @@ def test_tiled_camera_cfg_accepts_ppisp_cfg():
     )
 
     assert cfg.isp_cfg == ppisp_cfg
+
+
+@pytest.mark.parametrize("controller", [False, True])
+def test_ppisp_processor_preserves_pipeline_output_and_bindings(controller):
+    import numpy as np
+
+    if controller and not wp.is_cuda_available():
+        pytest.skip("PPISP controller requires CUDA.")
+    device = "cuda:0" if wp.is_cuda_available() else "cpu"
+    ppisp_cfg = PpispCfg(
+        inputs={"exposureOffset": 0.5, "responsivity": 1.3},
+        controller_weights=(0.0,) * PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN if controller else None,
+    )
+    cfg = PpispProcessorCfg(isp_cfg=ppisp_cfg)
+    context = VisualProcessorContext(stage=None, camera_prim_paths=(), num_views=2, height=4, width=4, device=device)
+    processing = VisualProcessingPipeline([cfg], context, cfg.inputs, ["rgb"])
+    outputs = processing.allocate()
+    assert set(outputs) == {"rgb", "rgba"}
+    assert outputs["rgb"].warp.ptr == outputs["rgba"].warp.ptr
+    assert processing.neutral_exposure
+    assert cfg.outputs["rgb"].color_space == "camera_response"
+    hdr = processing.render_outputs["rgb_hdr"].warp
+    rgba = outputs["rgba"].warp
+    expected = wp.empty_like(rgba)
+    mask = wp.array([True, False], dtype=wp.bool, device=device)
+    bindings = hdr.ptr, rgba.ptr
+    reference = PpispPipeline(ppisp_cfg.copy())
+
+    for fill in (0.25, 0.5):
+        hdr.fill_(fill)
+        processing.process(mask)
+        reference.apply(hdr, expected)
+        np.testing.assert_array_equal(rgba.numpy(), expected.numpy())
+        assert (hdr.ptr, rgba.ptr) == bindings
+
+    processing.close()
+    processing.close()

@@ -218,9 +218,9 @@ class IsaacRtxRendererCfg(RendererCfg):
             return RenderBufferSpec(4, wp.uint8) if colorize else RenderBufferSpec(1, wp.int32)
 
         specs = {
-            RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
-            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
-            RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32),
+            RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8, color_space="srgb"),
+            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8, color_space="srgb"),
+            RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32, color_space="scene_linear"),
             RenderBufferKind.ALBEDO: RenderBufferSpec(4, wp.uint8),
             RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),

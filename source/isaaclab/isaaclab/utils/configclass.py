@@ -251,7 +251,10 @@ def _wrap_resolvable_strings(value: Any, module_dir: str | None = None, _seen: s
     if is_dataclass_instance:
         for key, item in value.__dict__.items():
             nested_module_dir = _field_module_dir(value, key)
-            setattr(value, key, _wrap_resolvable_strings(item, module_dir=nested_module_dir, _seen=_seen))
+            wrapped = _wrap_resolvable_strings(item, module_dir=nested_module_dir, _seen=_seen)
+            # Immutable value dataclasses need no mutation when none of their fields resolve.
+            if wrapped is not item:
+                setattr(value, key, wrapped)
     return value
 
 

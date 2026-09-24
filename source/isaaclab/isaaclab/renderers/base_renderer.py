@@ -178,6 +178,10 @@ class BaseRenderer(ABC):
     def render(self, render_data: Any) -> None:
         """Perform rendering and write to output buffers.
 
+        Writes must complete on, or establish a dependency with, the current Warp
+        stream for the output device. Sensor processors consume these persistent
+        buffers immediately after :meth:`read_output` without a host synchronization.
+
         Args:
             render_data: The render data object from :meth:`create_render_data`.
         """
@@ -186,6 +190,9 @@ class BaseRenderer(ABC):
     @abstractmethod
     def read_output(self, render_data: Any, camera_data: CameraData) -> None:
         """Read rendered outputs from the renderer into the camera data container.
+
+        Bound pixel buffers must not be replaced. The container includes private
+        processor inputs as well as any public outputs supplied by the renderer.
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.
