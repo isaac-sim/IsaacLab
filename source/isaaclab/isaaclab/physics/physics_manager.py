@@ -14,11 +14,11 @@ from collections.abc import Callable
 from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from isaaclab.sim.utils.stage import get_current_stage
+from ..sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
-    from isaaclab.scene_data import SceneDataBackend
-    from isaaclab.sim.simulation_context import SimulationContext
+    from ..scene_data import SceneDataBackend
+    from ..sim.simulation_context import SimulationContext
 
 logger = logging.getLogger(__name__)
 
@@ -123,8 +123,8 @@ class PhysicsManager(ABC):
         # managers.manager_base before the simulation app starts.
         from pxr import UsdPhysics  # noqa: PLC0415
 
-        from isaaclab.sim.schemas.schemas import create_world_fixed_joint  # noqa: PLC0415
-        from isaaclab.sim.utils import find_global_fixed_joint_prim  # noqa: PLC0415
+        from ..sim.schemas.schemas import create_world_fixed_joint  # noqa: PLC0415
+        from ..sim.utils import find_global_fixed_joint_prim  # noqa: PLC0415
 
         if stage is None:
             stage = get_current_stage()
@@ -158,7 +158,7 @@ class PhysicsManager(ABC):
             )
 
         # Keep this import local for the same reason as the pxr imports above.
-        from isaaclab.sim.schemas._backend_hooks import _articulation_root_companion_namespace  # noqa: PLC0415
+        from ..sim.schemas._backend_hooks import _articulation_root_companion_namespace  # noqa: PLC0415
 
         registry = Usd.SchemaRegistry()
         root_schema = UsdPhysics.Tokens.PhysicsArticulationRootAPI

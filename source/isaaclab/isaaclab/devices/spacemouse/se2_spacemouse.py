@@ -16,8 +16,7 @@ import hid
 import numpy as np
 import torch
 
-from isaaclab.utils.array import convert_to_torch
-
+from ...utils.array import convert_to_torch
 from ..device_base import DeviceBase
 from .utils import convert_buffer, describe_open_failure, device_not_found_message, resolve_device_name
 
@@ -64,7 +63,7 @@ class Se2SpaceMouse(DeviceBase):
         # command buffers
         self._base_command = np.zeros(3)
         # dictionary for additional callbacks
-        self._additional_callbacks = dict()
+        self._additional_callbacks = {}
         # run a thread for listening to device updates
         self._thread = threading.Thread(target=self._run_device)
         self._thread.daemon = True

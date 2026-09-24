@@ -11,12 +11,12 @@ import omni
 import omni.kit.commands
 from pxr import Gf, Tf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
-from isaaclab.sim.converters.asset_converter_base import AssetConverterBase
-from isaaclab.sim.converters.mesh_converter_cfg import MeshConverterCfg
-from isaaclab.sim.schemas import schemas
-from isaaclab.sim.schemas.schemas_cfg import SchemaFragment
-from isaaclab.sim.spawners._utils import fragment_mapping, props_expr
-from isaaclab.sim.utils import delete_prim, enable_extension, export_prim_to_file
+from ..schemas import schemas
+from ..schemas.schemas_cfg import SchemaFragment
+from ..spawners._utils import fragment_mapping, props_expr
+from ..utils import delete_prim, enable_extension, export_prim_to_file
+from .asset_converter_base import AssetConverterBase
+from .mesh_converter_cfg import MeshConverterCfg
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -83,8 +83,7 @@ class MeshConverter(AssetConverterBase):
             RuntimeError: If the conversion using the Omniverse asset converter fails.
         """
         # resolve mesh name and format
-        mesh_file_basename, mesh_file_format = os.path.basename(cfg.asset_path).split(".")
-        mesh_file_format = mesh_file_format.lower()
+        mesh_file_basename = os.path.splitext(os.path.basename(cfg.asset_path))[0]
 
         # Check if mesh_file_basename is a valid USD identifier
         if not Tf.IsValidIdentifier(mesh_file_basename):

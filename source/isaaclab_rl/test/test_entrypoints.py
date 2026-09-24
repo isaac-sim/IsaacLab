@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 import torch
 
-from isaaclab_rl.entrypoints import PlaybackRequest, TrainingRequest, api, dispatch, simple_agents
+from isaaclab_rl.entrypoints import PlaybackRequest, SimpleAgentRequest, TrainingRequest, api, dispatch, simple_agents
 from isaaclab_rl.entrypoints.simple_agents import create_zero_action_policy
 
 
@@ -374,6 +374,72 @@ def test_random_agent_closes_environment_after_keyboard_interrupt(
 
     env.close.assert_called_once_with()
     assert "Random agent stopped." in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("video_length", "max_steps", "expected_steps"),
+    [(None, None, 55), (None, 40, 40), (0, None, None)],
+    ids=["last_recorder_clip", "max_steps_caps_clip", "invalid_length_fails_before_launch"],
+)
+def test_simple_agent_video_step_budget(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    video_length: int | None,
+    max_steps: int | None,
+    expected_steps: int | None,
+) -> None:
+    """``--video`` steps until the last recorder's first clip ends (25 + 30), capped by ``--max_steps``;
+    an invalid ``--video_length`` fails config validation before the simulation launches."""
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+
+    recorders = [
+        VideoRecorderCfg(output_dir=str(tmp_path), video_length=20),
+        VideoRecorderCfg(output_dir=str(tmp_path), video_length=30, step_offset=25),
+    ]
+    cfg = SimpleNamespace(
+        scene=SimpleNamespace(num_envs=1),
+        sim=SimpleNamespace(device="cpu", use_fabric=True),
+        video_recorders=recorders,
+        validate=lambda: [recorder.validate() for recorder in recorders],
+    )
+    env = SimpleNamespace(
+        observation_space="observations",
+        action_space=SimpleNamespace(shape=(1, 1)),
+        unwrapped=SimpleNamespace(
+            sim=SimpleNamespace(is_headless_or_exist_active_visualizer=lambda: True),
+            device="cpu",
+        ),
+        reset=lambda: None,
+        step=mock.Mock(),
+        close=mock.Mock(),
+    )
+    args = SimpleNamespace(
+        max_steps=max_steps, task="Example", device=None, video=True, video_length=video_length, video_interval=None
+    )
+    launched = mock.Mock(return_value=contextlib.nullcontext())
+    monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
+    monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (cfg, None))
+    monkeypatch.setattr(simple_agents, "launch_simulation", launched)
+    monkeypatch.setattr(simple_agents.gym, "make", lambda task, cfg: env)
+    monkeypatch.setattr(simple_agents, "create_random_action_policy", lambda environment: lambda: None)
+
+    if expected_steps is None:
+        with pytest.raises(SystemExit, match=f"video_length={video_length}"):
+            simple_agents.run([], policy="random")
+        launched.assert_not_called()
+    else:
+        simple_agents.run([], policy="random")
+        assert env.step.call_count == expected_steps
+
+
+def test_simple_agent_request_forwards_video(monkeypatch) -> None:
+    """Checkpoint-free requests forward the video flag to the agent CLI."""
+    received: list[str] = []
+    monkeypatch.setattr(api, "run_zero_agent_cli", lambda argv: received.extend(argv) or 0)
+
+    api.zero_agent(SimpleAgentRequest(task="Isaac-Task", max_steps=5, video=True))
+
+    assert received == ["--task", "Isaac-Task", "--max_steps", "5", "--video"]
 
 
 def test_train_request_adapts_typed_parameters_to_cli(monkeypatch) -> None:

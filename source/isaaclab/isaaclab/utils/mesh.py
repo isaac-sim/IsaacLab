@@ -59,7 +59,6 @@ def create_trimesh_from_geom_shape(prim: Usd.Prim) -> trimesh.Trimesh:
     Raises:
         ValueError: If the prim is not a supported primitive. Check PRIMITIVE_MESH_TYPES for supported primitives.
     """
-
     if prim.GetTypeName() not in PRIMITIVE_MESH_TYPES:
         raise ValueError(f"Prim at path '{prim.GetPath()}' is not a primitive mesh. Cannot convert to trimesh.")
 
