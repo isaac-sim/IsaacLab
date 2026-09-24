@@ -202,7 +202,6 @@ def export_sb3_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: dict
         if not isinstance(env.unwrapped, ManagerBasedRLEnv):
             raise NotImplementedError("SB3 LEAPP export currently supports manager-based environments only.")
 
-
         print(f"[INFO] Loading model checkpoint from: {checkpoint_path}")
         policy = _load_agent(checkpoint_path, device=env.unwrapped.device).policy
         vec_normalize_path = _vec_normalize_path(checkpoint_path)

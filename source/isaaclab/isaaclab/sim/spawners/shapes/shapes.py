@@ -12,7 +12,14 @@ from typing import TYPE_CHECKING
 from pxr import Usd, UsdGeom
 
 from ... import schemas
-from ...utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage, set_prim_visibility
+from ...utils import (
+    bind_physics_material,
+    bind_visual_material,
+    clone,
+    create_prim,
+    get_current_stage,
+    set_prim_visibility,
+)
 from .._utils import fragment_mapping, props_expr
 from ..materials.physics_materials import spawn_physics_material
 

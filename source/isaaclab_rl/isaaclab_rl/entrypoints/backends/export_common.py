@@ -148,7 +148,9 @@ def run_export(
     return 0 if exported else 1
 
 
-def prepare_export_env(env: Any, args_cli: argparse.Namespace, *, required_obs_groups: set[str]) -> tuple[str, Any | None]:
+def prepare_export_env(
+    env: Any, args_cli: argparse.Namespace, *, required_obs_groups: set[str]
+) -> tuple[str, Any | None]:
     """Patch a Gymnasium environment for LEAPP tracing and return its policy node and patcher.
 
     Manager-based environments are patched to export only the observation groups the actor consumes.

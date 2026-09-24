@@ -120,6 +120,9 @@
             ["IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen", "", "isaacsim_physx", "", "", "tasks/manipulation/franka_stack.jpg"],
             ["IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor", "", "isaacsim_physx,newton_mjwarp", "", "", "tasks/manipulation/franka_stack.jpg"],
             ["IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos", "", "isaacsim_physx,newton_mjwarp", "", "", "tasks/manipulation/franka_stack.jpg"],
+            ["IsaacContrib-Stack-Cube-Franka-RL", "rsl_rl", "", "", "", "tasks/manipulation/franka_stack.jpg"],
+            ["IsaacContrib-Stack-Cube-Franka-RL-Camera", "rsl_rl", "", "isaacsim_rtx,newton_renderer,ovrtx", "", "tasks/manipulation/franka_stack.jpg"],
+            ["IsaacContrib-Stack-Cube-Franka-RL-Camera-Distillation", "rsl_rl", "", "isaacsim_rtx,newton_renderer,ovrtx", "", "tasks/manipulation/franka_stack.jpg"],
             ["IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow", "", "isaacsim_physx", "", "", "tasks/manipulation/galbot_stack_cube.jpg"],
             ["IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor", "", "isaacsim_physx", "isaacsim_rtx,newton_renderer,ovrtx", ""],
             ["IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position", "", "isaacsim_physx", "isaacsim_rtx,newton_renderer,ovrtx", ""],
@@ -127,6 +130,7 @@
             ["IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow", "", "isaacsim_physx", "", ""],
             ["IsaacContrib-Stack-Cube-Instance-Randomize-Franka", "", "", "", ""],
             ["IsaacContrib-Stack-Cube-Instance-Randomize-Franka-IK-Rel", "", "", "", ""],
+            ["IsaacContrib-Stack-Cube-KukaAllegro-RL", "rsl_rl", "", "", "", "tasks/manipulation/kuka_allegro_lift.jpg"],
             ["IsaacContrib-Stack-Cube-RedGreen-Franka-IK-Rel", "", "isaacsim_physx", "", ""],
             ["IsaacContrib-Stack-Cube-RedGreenBlue-Franka-IK-Rel", "", "isaacsim_physx", "", ""],
             ["IsaacContrib-Stack-Cube-SO101-IK-Abs-v0", "", "isaacsim_physx", "", ""],
@@ -361,7 +365,15 @@
         "Isaac-Ant": "ant-newton-mjwarp-rsl-rl.mp4",
         "Isaac-Velocity-Rough-G1": "velocity-rough-g1-newton-mjwarp-rsl-rl.mp4",
         "Isaac-Lift-KukaAllegro": "lift-kuka-allegro-newton-mjwarp-rsl-rl.mp4",
+        "IsaacContrib-Stack-Cube-Franka-RL": "stack-franka-newton-mjwarp-rsl-rl.mp4",
+        "IsaacContrib-Stack-Cube-KukaAllegro-RL": "stack-kuka-allegro-newton-mjwarp-rsl-rl.mp4",
+        "IsaacContrib-Stack-Cube-Franka-RL-Camera-Distillation": "stack-franka-camera-newton-mjwarp-rsl-rl.mp4",
     };
+    const fixedNewtonPreviewTasks = new Set([
+        "IsaacContrib-Stack-Cube-Franka-RL",
+        "IsaacContrib-Stack-Cube-KukaAllegro-RL",
+        "IsaacContrib-Stack-Cube-Franka-RL-Camera-Distillation",
+    ]);
     const previewImageBaseUrl = "https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/";
     const failedPreviewVideos = new Set();
 
@@ -473,7 +485,8 @@
     const updatePreview = () => {
         const previewImage = preview.querySelector("[data-preview-image]");
         const previewVideo = preview.querySelector("[data-preview-video]");
-        const videoName = fields.rl.value === "rsl_rl" && fields.physics.value === "newton_mjwarp"
+        const videoName = fields.rl.value === "rsl_rl" &&
+            (fields.physics.value === "newton_mjwarp" || fixedNewtonPreviewTasks.has(state.task))
             ? previewVideos[state.task]
             : undefined;
         const videoUrl = videoName

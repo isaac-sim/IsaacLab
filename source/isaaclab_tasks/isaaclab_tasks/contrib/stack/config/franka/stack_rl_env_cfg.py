@@ -184,6 +184,11 @@ class FrankaCubeStackRLEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
     def __post_init__(self) -> None:
         super().__post_init__()
 
+        # Preserve the published state-policy input contract. The camera task
+        # supplies commanded targets to its separate actor and teacher groups.
+        if isinstance(self.observations, FrankaStackObservationsCfg):
+            self.observations.policy.joint_target = None
+
         robot_init_state = self.scene.robot.init_state
         robot_semantic_tags = self.scene.robot.spawn.semantic_tags
         self.scene.robot = FRANKA_PANDA_DEXSUITE_CFG.replace(

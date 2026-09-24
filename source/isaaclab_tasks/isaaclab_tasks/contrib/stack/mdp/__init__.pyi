@@ -38,6 +38,7 @@ __all__ = [
     "grasp_pair_end_effector_pose",
     "grasp_pair_end_effector_velocity",
     "grasp_pair_gripper_posture",
+    "grasp_pair_one_hot",
     "grasp_pair_tool_velocity",
     "gripper_pos",
     "instance_randomize_cube_orientations_in_world_frame",
@@ -117,6 +118,7 @@ from .robot_state import (
     end_effector_velocity,
     grasp_pair_end_effector_pose,
     grasp_pair_end_effector_velocity,
+    grasp_pair_one_hot,
 )
 from .runtime_state import StackResetRuntimeState
 from .terminations import (

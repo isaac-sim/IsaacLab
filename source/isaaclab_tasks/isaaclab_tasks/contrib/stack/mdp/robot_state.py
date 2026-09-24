@@ -26,6 +26,14 @@ def _active_grasp_pair_ids(env: ManagerBasedRLEnv) -> torch.Tensor:
     return get_stack_reset_runtime_state(env).grasp_pair_ids.long()
 
 
+def grasp_pair_one_hot(env: ManagerBasedRLEnv, num_pairs: int = 3) -> torch.Tensor:
+    """Return the selected grasp pair as a one-hot policy observation."""
+    if num_pairs < 1:
+        raise ValueError("num_pairs must be positive.")
+    pair_ids = _active_grasp_pair_ids(env)
+    return torch.nn.functional.one_hot(pair_ids, num_classes=num_pairs).float()
+
+
 def _resolve_grasp_pair_entity_ids(
     env: ManagerBasedRLEnv,
     robot_cfg: SceneEntityCfg,

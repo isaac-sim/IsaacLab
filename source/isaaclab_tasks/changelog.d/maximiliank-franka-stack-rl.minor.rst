@@ -32,11 +32,12 @@ Changed
   fixed ``uint8 / 255`` normalization, fixed visible cube roles, extrinsic and
   photometric randomization, commanded joint targets, and RSL-RL's standard CNN
   model.
-* Reused one canonical full-state group for state PPO, the asymmetric camera
-  critic, and the distillation teacher to prevent observation-order drift.
-* Configured state and camera PPO with bounded log-standard-deviation
-  exploration and configured camera distillation to regress the clipped
-  teacher action that the environment executes.
+* Preserved the published 100-input Franka and 171-input KUKA state-policy
+  contracts; the camera teacher retains commanded targets in its 109-input
+  privileged observation group.
+* Kept the published state's scalar-standard-deviation exploration and used
+  bounded log-standard-deviation exploration for camera policies. Camera
+  distillation regresses the clipped teacher action executed by the environment.
 * Configured the KUKA-Allegro policy to observe the complete hand state,
   fingertip geometry, and continuous cube orientation while reset-authored
   grasps use the validated index-thumb pinch.

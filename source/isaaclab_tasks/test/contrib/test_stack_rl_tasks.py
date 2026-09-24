@@ -107,7 +107,7 @@ def test_franka_state_task_exposes_the_training_contract(stack_cfgs):
     assert cfg.terminations.progress_context.func is mdp.StableOrderInvariantStackGoal
     assert cfg.rewards.success.func is mdp.stack_success_pulse
     assert cfg.observations.policy.object.func is mdp.role_conditioned_stack_obs
-    assert cfg.observations.policy.joint_target.func is mdp.joint_position_target
+    assert cfg.observations.policy.joint_target is None
     assert not hasattr(cfg.observations.policy, "cube_positions")
     assert not hasattr(cfg.observations.policy, "cube_orientations")
     assert cfg.scene.cube_1.spawn.size == (0.04, 0.04, 0.04)
@@ -184,7 +184,8 @@ def test_distillation_task_adds_privileged_labels_without_changing_the_student(s
     assert runner.student.cnn_cfg == camera_runner.actor.cnn_cfg
     assert runner.teacher.class_name == state_runner.actor.class_name
     assert runner.teacher.hidden_dims == state_runner.actor.hidden_dims
-    assert runner.teacher.to_dict() == state_runner.actor.to_dict()
+    assert runner.teacher.distribution_cfg.std_type == "log"
+    assert state_runner.actor.distribution_cfg.std_type == "scalar"
     group_settings = {
         "enable_corruption",
         "concatenate_terms",
@@ -192,9 +193,14 @@ def test_distillation_task_adds_privileged_labels_without_changing_the_student(s
         "flatten_history_dim",
         "concatenate_dim",
     }
-    state_terms = [name for name in vars(state_cfg.observations.policy) if name not in group_settings]
+    state_terms = [
+        name
+        for name, term in vars(state_cfg.observations.policy).items()
+        if name not in group_settings and term is not None
+    ]
     teacher_terms = [name for name in vars(cfg.observations.privileged) if name not in group_settings]
-    assert teacher_terms == state_terms
+    assert [name for name in teacher_terms if name != "joint_target"] == state_terms
+    assert cfg.observations.privileged.joint_target.func is mdp.joint_position_target
     assert isinstance(runner.algorithm, RslRlDistillationAlgorithmCfg)
     assert runner.algorithm.class_name.endswith(":ClippedTeacherDistillation")
     assert runner.num_steps_per_env == 8
@@ -293,7 +299,8 @@ def test_franka_policies_use_stock_rsl_rl_algorithms():
     assert isinstance(camera_runner.actor.distribution_cfg, RslRlMLPModelCfg.GaussianDistributionCfg)
     assert state_runner.actor.distribution_cfg.class_name == "GaussianDistribution"
     assert camera_runner.actor.distribution_cfg.class_name == "GaussianDistribution"
-    assert state_runner.actor.distribution_cfg.std_type == camera_runner.actor.distribution_cfg.std_type == "log"
+    assert state_runner.actor.distribution_cfg.std_type == "scalar"
+    assert camera_runner.actor.distribution_cfg.std_type == "log"
     assert (
         state_runner.actor.distribution_cfg.std_range == camera_runner.actor.distribution_cfg.std_range == (0.05, 0.3)
     )
@@ -318,7 +325,8 @@ def test_kuka_task_has_one_complete_23_dof_state_policy(stack_cfgs):
     assert len(cfg.observations.policy.hand_joint_pos.params["asset_cfg"].joint_names) == 16
     assert len(cfg.observations.policy.hand_joint_vel.params["asset_cfg"].joint_names) == 16
     assert len(cfg.observations.policy.hand_tip_positions.params["body_cfg"].body_names) == 4
-    assert not hasattr(cfg.observations.policy, "grasp_pair")
+    assert cfg.observations.policy.grasp_pair.func is mdp.grasp_pair_one_hot
+    assert cfg.observations.policy.grasp_pair.params["num_pairs"] == 3
     assert runner.actor.distribution_cfg.arm_action_dim == 7
 
 
@@ -359,6 +367,16 @@ def test_reset_runtime_state_has_one_typed_owner():
     assert state.role_to_cube.shape == (3, 3)
     with pytest.raises(AttributeError):
         get_stack_reset_runtime_state(SimpleNamespace())
+
+
+def test_grasp_pair_observation_preserves_three_pair_checkpoint_contract():
+    env = SimpleNamespace(num_envs=3, device="cpu")
+    state = create_stack_reset_runtime_state(env)
+    state.grasp_pair_ids[:] = torch.tensor([0, 1, 2])
+
+    torch.testing.assert_close(mdp.grasp_pair_one_hot(env, num_pairs=3), torch.eye(3))
+    with pytest.raises(ValueError, match="num_pairs must be positive"):
+        mdp.grasp_pair_one_hot(env, num_pairs=0)
 
 
 def _cube(positions: torch.Tensor):

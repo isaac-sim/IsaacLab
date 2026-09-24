@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import importlib
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from typing import Any, Literal
 
 import numpy as np
@@ -76,7 +76,7 @@ class TestSharedRecurrentState:
         """Preserve controller responsibilities in graph-level LEAPP metadata."""
         pytest.importorskip("leapp")
         export_common = _load_export_common_module()
-        env_cfg = types.SimpleNamespace(sim=types.SimpleNamespace(dt=0.01), decimation=2)
+        env_cfg = SimpleNamespace(sim=SimpleNamespace(dt=0.01), decimation=2)
         requirement = {
             "capability": "gravity_compensation",
             "source_term": "arm_action",

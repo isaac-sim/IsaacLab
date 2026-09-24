@@ -245,6 +245,12 @@ class KukaAllegroCubeStackRLEnvCfg(FrankaCubeStackRLEnvCfg):
                 "tool_offset": (0.0, 0.0, 0.0),
             },
         )
+        self.observations.policy.grasp_pair = ObsTerm(
+            func=mdp.grasp_pair_one_hot,
+            # Keep the published three-pair policy input even though the
+            # current reset sampler deliberately uses index/thumb only.
+            params={"num_pairs": 3},
+        )
 
     def _configure_objective(self) -> None:
         """Configure full-hand success, reset progress, and global epsilon sampling."""

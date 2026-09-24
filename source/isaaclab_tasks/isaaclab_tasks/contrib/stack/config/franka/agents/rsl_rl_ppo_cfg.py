@@ -14,7 +14,13 @@ from isaaclab_rl.rsl_rl import (
     RslRlPpoAlgorithmCfg,
 )
 
-EXPLORATION_CFG = RslRlMLPModelCfg.GaussianDistributionCfg(
+STATE_EXPLORATION_CFG = RslRlMLPModelCfg.GaussianDistributionCfg(
+    init_std=0.2,
+    std_range=(0.05, 0.3),
+    std_type="scalar",
+)
+
+CAMERA_EXPLORATION_CFG = RslRlMLPModelCfg.GaussianDistributionCfg(
     init_std=0.2,
     std_range=(0.05, 0.3),
     std_type="log",
@@ -24,7 +30,7 @@ STATE_POLICY_CFG = RslRlMLPModelCfg(
     hidden_dims=[512, 256, 128],
     activation="elu",
     obs_normalization=True,
-    distribution_cfg=EXPLORATION_CFG,
+    distribution_cfg=STATE_EXPLORATION_CFG,
 )
 
 STATE_CRITIC_CFG = RslRlMLPModelCfg(
@@ -37,7 +43,7 @@ CAMERA_POLICY_CFG = RslRlCNNModelCfg(
     hidden_dims=[512, 256, 128],
     activation="elu",
     obs_normalization=True,
-    distribution_cfg=EXPLORATION_CFG,
+    distribution_cfg=CAMERA_EXPLORATION_CFG,
     cnn_cfg=RslRlCNNModelCfg.CNNCfg(
         output_channels=[16, 32, 32],
         kernel_size=[8, 4, 3],

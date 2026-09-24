@@ -9,7 +9,7 @@ from isaaclab.utils import configclass
 
 from isaaclab_rl.rsl_rl import RslRlDistillationAlgorithmCfg, RslRlDistillationRunnerCfg, RslRlMLPModelCfg
 
-from .rsl_rl_ppo_cfg import CAMERA_POLICY_CFG, STATE_POLICY_CFG
+from .rsl_rl_ppo_cfg import CAMERA_EXPLORATION_CFG, CAMERA_POLICY_CFG, STATE_POLICY_CFG
 
 
 @configclass
@@ -39,7 +39,7 @@ class FrankaStackCameraDistillationRunnerCfg(RslRlDistillationRunnerCfg):
     )
     # Keep this architecture identical to the state actor so a PPO checkpoint
     # can be loaded as the frozen teacher with strict state-dict validation.
-    teacher = STATE_POLICY_CFG
+    teacher = STATE_POLICY_CFG.replace(distribution_cfg=CAMERA_EXPLORATION_CFG)
     algorithm = RslRlDistillationAlgorithmCfg(
         class_name=("isaaclab_tasks.contrib.stack.config.franka.agents.distillation:ClippedTeacherDistillation"),
         num_learning_epochs=2,
