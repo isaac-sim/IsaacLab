@@ -52,8 +52,9 @@ jobs:
       # flaky, so they run without an Isaac Sim install or a full project sync. flaky drives the
       # rerun in test_crash_during_a_flaky_retry_is_blamed_on_the_retried_test; without it
       # installed that test skips itself rather than failing, so keep it in this list.
+      # pytest-xdist likewise drives test_an_xdist_run_journals_each_event_once.
       - name: Install test dependencies
-        run: bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" python3 -m pip install pytest junitparser flaky pyyaml
+        run: bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" python3 -m pip install pytest pytest-xdist junitparser flaky pyyaml
 
       - name: Run tools tests
         env:

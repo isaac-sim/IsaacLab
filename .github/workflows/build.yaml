@@ -631,6 +631,9 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_newton"
+        # Split each test file across worker processes. Four fit the g7.4xlarge runner:
+        # each worker holds its own simulation, ~1 GB of GPU and ~3.5 GB of host memory.
+        pytest-workers: "4"
         warp-cache: restore
         container-name: isaac-lab-newton-test
 
