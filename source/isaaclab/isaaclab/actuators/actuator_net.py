@@ -76,6 +76,9 @@ class ActuatorNetLSTM(DCMotor):
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
+        # save current joint vel for dc-motor clipping
+        self._joint_vel[:] = joint_vel
+
         # compute network inputs
         self.sea_input[:, 0, 0] = (control_action.joint_positions - joint_pos).flatten()
         self.sea_input[:, 0, 1] = joint_vel.flatten()
