@@ -236,6 +236,7 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
     monkeypatch, body_count, particle_count
 ):
     """Cloning owns parsing; READY owns native allocation; getters never discover or allocate."""
+    import warp as wp
     from isaaclab_newton.cloner import NewtonReplicateContext
     from isaaclab_newton.cloner import replicate as replicate_module
     from isaaclab_newton.physics import NewtonManager
@@ -244,6 +245,7 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
     from pxr import Usd, UsdGeom
 
     from isaaclab.physics import PhysicsEvent, PhysicsManager
+    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
     from isaaclab.sim import SimulationContext
 
     class ForeignPhysicsManager(PhysicsManager):
@@ -265,15 +267,30 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
     UsdGeom.Xform.Define(sim.stage, "/Scene/Source")
     sim.physics_manager = ForeignPhysicsManager
     sim._backend_registry = []
-    sim._scene_data_provider = SimpleNamespace(backend=object(), point_count=0)
+    body_paths = [f"/Scene/Body_{index}" for index in range(body_count)]
+    transforms = SceneDataFormat.Transform()
+    transforms.transforms = wp.zeros(body_count, dtype=wp.transformf, device="cpu")
+    sim._scene_data_provider = SceneDataProvider(
+        SimpleNamespace(
+            transforms=transforms,
+            get_transforms=lambda _format: transforms,
+            transforms_version=0,
+            transform_paths=body_paths,
+            transform_count=body_count,
+            point_count=0,
+        )
+    )
     monkeypatch.setattr(SimulationContext, "_instance", sim)
 
     finalize = Mock(
         side_effect=lambda device: SimpleNamespace(
             body_count=body_count,
+            body_label=body_paths,
             particle_count=particle_count,
             world_count=2,
-            state=lambda: SimpleNamespace(body_q=None, particle_q=None),
+            state=lambda: SimpleNamespace(
+                body_q=wp.empty(body_count, dtype=wp.transformf, device="cpu") if body_count else None, particle_q=None
+            ),
         )
     )
     monkeypatch.setattr(ModelBuilder, "finalize", finalize)
@@ -291,6 +308,8 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
     assert not sim._backend_registry
 
     ForeignPhysicsManager.dispatch_event(PhysicsEvent.PHYSICS_READY)
+    if body_count:
+        assert NewtonManager.get_state_0().body_q is transforms.transforms
     first_model = NewtonManager.get_model()
     first_state = NewtonManager.get_state()
     ForeignPhysicsManager.dispatch_event(PhysicsEvent.PHYSICS_READY)
@@ -310,67 +329,65 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
     ForeignPhysicsManager.dispatch_event(PhysicsEvent.STOP)
 
 
-def test_update_visualization_state_noop_when_backend_is_newton(monkeypatch):
-    """When sim backend is Newton, update_visualization_state is a no-op."""
-    from isaaclab_newton.physics import NewtonManager
+@pytest.mark.parametrize("invalidate", ["invalidate_body_state", "invalidate_fk"])
+def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monkeypatch, invalidate):
+    """Clean native reads reuse FK and conversions; writes and solver-buffer swaps refresh their values."""
+    import warp as wp
+    from isaaclab_newton.physics import NewtonManager, NewtonXPBDManager
+    from isaaclab_newton.physics.newton_manager import NewtonSceneDataBackend
+
+    from isaaclab.physics import PhysicsManager
+    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
     _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: True))
-    monkeypatch.setattr(NewtonManager, "get_scene_data_provider", classmethod(lambda cls: SimpleNamespace()))
-
-    # Pre-set sentinel values to ensure update doesn't touch them.
-    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model="live-model", state_0="live-state"))
-    NewtonManager.update_visualization_state()
-    assert NewtonManager.backend.model == "live-model"
-    assert NewtonManager.backend.state_0 == "live-state"
-
-
-@pytest.mark.parametrize("newton_active", [True, False])
-def test_get_state_forwards_only_for_live_newton_state(monkeypatch, newton_active):
-    """PhysX shadow state keeps its visualization update without entering Newton FK."""
-    from isaaclab_newton.physics import NewtonManager
-
-    events: list[str] = []
-    state = object()
-    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", object(), raising=False)
+    monkeypatch.setattr(PhysicsManager, "_device", "cpu")
+    state = SimpleNamespace(body_q=wp.array([[0, 0, 0, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu"))
+    backend = NewtonSceneDataBackend()
+    provider = SceneDataProvider(backend)
     monkeypatch.setattr(
-        NewtonManager,
-        "_backend_is_newton",
-        classmethod(lambda cls, provider=None: newton_active),
+        NewtonManager, "backend", SimpleNamespace(model=SimpleNamespace(body_count=1, world_count=1), state_0=state)
     )
-    monkeypatch.setattr(NewtonManager, "forward", classmethod(lambda cls: events.append("forward")))
-    monkeypatch.setattr(
-        NewtonManager,
-        "update_visualization_state",
-        classmethod(lambda cls, provider=None: events.append("visualization")),
-    )
-    monkeypatch.setattr(NewtonManager, "get_state_0", classmethod(lambda cls: state))
+    monkeypatch.setattr(NewtonManager, "_scene_data_backend", backend)
+    monkeypatch.setattr(NewtonManager, "_world_reset_mask", wp.zeros(2, dtype=wp.bool, device="cpu"))
+    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", wp.zeros(1, dtype=wp.bool, device="cpu"))
+    # Fabric may bind between native allocation and the solver's FK-hook initialization.
+    assert backend.transforms.transforms is state.body_q
+    monkeypatch.setattr(NewtonManager, "_eval_fk", Mock())
+    monkeypatch.setattr(NewtonManager, "_reset_solver_internals_delegate", Mock())
+    monkeypatch.setattr(wp, "launch", Mock(wraps=wp.launch))
 
-    assert NewtonManager.get_state() is state
-    expected = ["forward", "visualization"] if newton_active else ["visualization"]
-    assert events == expected
+    output = SceneDataFormat.Matrix44()
+    assert provider.get_transforms(output)
+    matrices = output.matrices
+    NewtonManager.pre_render()
+    NewtonManager._eval_fk.assert_not_called()
+    NewtonManager.get_state(provider)
+    assert provider.get_transforms(output)
+    assert output.matrices is matrices
+    assert wp.launch.call_count == 1
+    NewtonManager._eval_fk.assert_not_called()
 
+    state.body_q.assign([[1, 2, 3, 0, 0, 0, 1]])
+    getattr(NewtonXPBDManager, invalidate)()
+    assert provider.get_transforms(output)
+    assert output.matrices is matrices
+    np.testing.assert_allclose(output.matrices.numpy()[0, :3, 3], [1, 2, 3])
+    NewtonManager._eval_fk.assert_called_once()
+    assert provider.get_transforms(output)
+    assert output.matrices is matrices
+    NewtonManager.pre_render()
+    NewtonManager._eval_fk.assert_called_once()
+    assert wp.launch.call_count == 2
 
-def test_scene_data_reads_through_public_state_boundary(monkeypatch):
-    """SceneData does not bypass the coherent Newton state accessor."""
-    import warp as wp
-    from isaaclab_newton.physics import NewtonManager
-    from isaaclab_newton.physics import newton_manager as nm
-
-    events: list[str] = []
-    body_q = wp.zeros(1, dtype=wp.transformf, device="cpu")
-    state = SimpleNamespace(body_q=body_q)
-    backend = nm.NewtonSceneDataBackend()
-    monkeypatch.setattr(
-        NewtonManager,
-        "get_state",
-        classmethod(lambda cls, provider=None: events.append("state") or state),
-    )
-
-    transforms = backend.transforms
-
-    assert events == ["state"]
-    assert transforms.transforms is body_q
+    replacement = wp.array([[3, 2, 1, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
+    NewtonManager.backend.state_0 = SimpleNamespace(body_q=replacement)
+    native = SceneDataFormat.Transform()
+    assert provider.get_transforms(native)
+    assert native.transforms is replacement
+    assert provider.get_transforms(output)
+    assert output.matrices is matrices
+    assert wp.launch.call_count == 3
+    np.testing.assert_allclose(output.matrices.numpy()[0, :3, 3], [3, 2, 1])
 
 
 def test_resolve_scene_data_body_paths_uses_joint_body_targets():
@@ -392,8 +409,9 @@ def test_resolve_scene_data_body_paths_uses_joint_body_targets():
     assert resolved_paths == ["/World/envs/env_0/Robot/robot0_forearm"]
 
 
-def test_update_visualization_state_copies_identity_mapped_transforms(monkeypatch):
-    """Identity-mapped transforms update the persistent Newton shadow buffer."""
+@pytest.mark.parametrize("layout", ["identity", "reordered", "missing", "duplicate"])
+def test_update_visualization_state_shares_sdp_transforms(monkeypatch, layout):
+    """Native and reordered layouts bind shared output once and refresh only on publication."""
     import numpy as np
     import warp as wp
     from isaaclab_newton.physics import NewtonManager
@@ -404,6 +422,12 @@ def test_update_visualization_state_copies_identity_mapped_transforms(monkeypatc
     monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, provider=None: False))
 
     body_paths = ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
+    render_paths = {
+        "identity": body_paths,
+        "reordered": body_paths[::-1],
+        "missing": [body_paths[0], "/World/Missing"],
+        "duplicate": [body_paths[0], body_paths[0]],
+    }[layout]
     source_transforms = wp.array(
         [
             [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0],
@@ -414,31 +438,46 @@ def test_update_visualization_state_copies_identity_mapped_transforms(monkeypatc
     )
     source_data = SceneDataFormat.Transform()
     source_data.transforms = source_transforms
-    provider_impl = SceneDataProvider(
-        SimpleNamespace(transforms=source_data, transform_paths=body_paths, transform_count=len(body_paths))
+    provider = SceneDataProvider(
+        SimpleNamespace(
+            transforms=source_data,
+            get_transforms=lambda _format: source_data,
+            transforms_version=0,
+            transform_paths=body_paths,
+            transform_count=len(body_paths),
+            point_count=0,
+        )
     )
-    provider = SimpleNamespace(
-        usd_stage=None,
-        create_mapping=provider_impl.create_mapping,
-        get_transforms=provider_impl.get_transforms,
-        point_count=0,
-    )
+    monkeypatch.setattr(SceneDataProvider, "usd_stage", property(lambda self: None))
 
     destination = wp.zeros(len(body_paths), dtype=wp.transformf, device="cpu")
     monkeypatch.setattr(
         NewtonManager,
         "backend",
         SimpleNamespace(
-            model=SimpleNamespace(body_label=body_paths, body_count=len(body_paths)),
+            model=SimpleNamespace(body_label=render_paths, body_count=len(body_paths)),
             state_0=SimpleNamespace(body_q=destination, particle_q=None),
         ),
     )
 
-    NewtonManager.update_visualization_state(provider)
+    if layout in ("missing", "duplicate"):
+        with pytest.raises(ValueError, match="one unique SDP transform path"):
+            NewtonManager.update_visualization_state(provider)
+        return
 
-    assert NewtonManager.backend.state_0.body_q is destination
-    assert NewtonManager._scene_data.transforms is destination
-    np.testing.assert_allclose(destination.numpy(), source_transforms.numpy())
+    remapped = layout == "reordered"
+    NewtonManager.update_visualization_state(provider)
+    shared = NewtonManager.get_state(provider).body_q
+    assert (shared is source_transforms) is not remapped
+    np.testing.assert_allclose(shared.numpy(), source_transforms.numpy()[:: -1 if remapped else 1])
+    assert NewtonManager.get_state(provider).body_q is shared
+
+    source_data.transforms = wp.array(source_transforms.numpy() + 1.0, dtype=wp.transformf, device="cpu")
+    provider.backend.transforms_version += 1
+    NewtonManager.update_visualization_state(provider)
+    np.testing.assert_allclose(
+        NewtonManager.backend.state_0.body_q.numpy(), source_data.transforms.numpy()[:: -1 if remapped else 1]
+    )
 
 
 def test_update_visualization_state_syncs_shadow_particle_q(monkeypatch):
@@ -460,14 +499,13 @@ def test_update_visualization_state_syncs_shadow_particle_q(monkeypatch):
             [2],
         )
     )
-    monkeypatch.setattr(provider, "get_transforms", lambda output, mapping=None, allow_passthrough=True: True)
 
     particle_q = wp.zeros(2, dtype=wp.vec3f, device="cpu")
     NewtonManager = _prepare_physx_shadow_sync(
         monkeypatch,
         provider,
         model=SimpleNamespace(body_label=["/World/envs/env_0/Robot"]),
-        state_0=SimpleNamespace(body_q=wp.zeros(1, dtype=wp.transformf, device="cpu"), particle_q=particle_q),
+        state_0=SimpleNamespace(body_q=None, particle_q=particle_q),
         entities=[_make_shadow_entity(cloth_path, sim_particle_count=2)],
         sim_particle_count=2,
     )
@@ -504,14 +542,13 @@ def test_update_visualization_state_remaps_volume_vis_positions(monkeypatch):
             [4],
         )
     )
-    monkeypatch.setattr(provider, "get_transforms", lambda output, mapping=None, allow_passthrough=True: True)
 
     particle_q = wp.zeros(1, dtype=wp.vec3f, device="cpu")
     NewtonManager = _prepare_physx_shadow_sync(
         monkeypatch,
         provider,
         model=SimpleNamespace(body_label=["/World/envs/env_0/Robot"]),
-        state_0=SimpleNamespace(body_q=wp.zeros(1, dtype=wp.transformf, device="cpu"), particle_q=particle_q),
+        state_0=SimpleNamespace(body_q=None, particle_q=particle_q),
         entities=[
             _make_shadow_entity(
                 soft_path,
@@ -542,7 +579,6 @@ def test_sync_skips_unmapped_deformable_rest_pose(monkeypatch):
             [2],
         )
     )
-    monkeypatch.setattr(provider, "get_transforms", lambda output, mapping=None, allow_passthrough=True: True)
 
     particle_q = wp.array(
         [
@@ -558,7 +594,7 @@ def test_sync_skips_unmapped_deformable_rest_pose(monkeypatch):
         monkeypatch,
         provider,
         model=SimpleNamespace(body_label=["/World/envs/env_0/Robot"]),
-        state_0=SimpleNamespace(body_q=wp.zeros(1, dtype=wp.transformf, device="cpu"), particle_q=particle_q),
+        state_0=SimpleNamespace(body_q=None, particle_q=particle_q),
         entities=[
             _make_shadow_entity("/World/envs/env_0/ClothA", sim_particle_count=2),
             _make_shadow_entity(
@@ -596,7 +632,6 @@ def test_sync_skips_mismatched_volume_without_remap(monkeypatch):
             [4],
         )
     )
-    monkeypatch.setattr(provider, "get_transforms", lambda output, mapping=None, allow_passthrough=True: True)
 
     # Vis-sized render buffer initialized to a sentinel rest pose.
     particle_q = wp.array([wp.vec3(9.0, 9.0, 9.0)], dtype=wp.vec3f, device="cpu")
@@ -604,7 +639,7 @@ def test_sync_skips_mismatched_volume_without_remap(monkeypatch):
         monkeypatch,
         provider,
         model=SimpleNamespace(body_label=["/World/envs/env_0/Robot"]),
-        state_0=SimpleNamespace(body_q=wp.zeros(1, dtype=wp.transformf, device="cpu"), particle_q=particle_q),
+        state_0=SimpleNamespace(body_q=None, particle_q=particle_q),
         entities=[
             _make_shadow_entity(
                 soft_path,
