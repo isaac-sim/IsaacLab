@@ -6,7 +6,9 @@ Added
   the ``"isaaclab"`` implementations remain the default. The Newton differential IK and
   operational-space controllers require the new ``num_joints`` constructor argument and compute in
   float32. Newton operational-space control applies motion-axis selection before inertia
-  decoupling, so hybrid force/motion tasks must revalidate their gains before opting in.
+  decoupling, so hybrid force/motion tasks must revalidate their gains before opting in. It also skips the
+  mass matrix in null-space posture control without inertial decoupling and ignores
+  ``inertia_conditioning_thresholds``, so near-singular configurations are not damped.
 
 Changed
 ^^^^^^^

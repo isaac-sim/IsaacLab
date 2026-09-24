@@ -23,7 +23,13 @@ class OperationalSpaceControllerCfg:
     """The associated controller class."""
 
     implementation: Literal["isaaclab", "newton"] = "isaaclab"
-    """Controller implementation to use, independent of the physics backend."""
+    """Controller implementation to use, independent of the physics backend.
+
+    The ``"newton"`` implementation differs from ``"isaaclab"`` in three ways: it applies
+    :attr:`motion_control_axes_task` before inertial decoupling, it skips the mass matrix in null-space
+    posture control without inertial decoupling, and it ignores :attr:`inertia_conditioning_thresholds`,
+    inverting the task-space inertia without damping near singularities.
+    """
 
     target_types: Sequence[str] = MISSING
     """Type of task-space targets.
