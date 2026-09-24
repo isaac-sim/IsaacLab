@@ -16,6 +16,7 @@ import torch
 
 from ..app.loading_screen import report_activity
 from ..managers import ActionManager, EventManager, ObservationManager, RecorderManager
+from ..managers.observation_manager import _close_terms
 from ..scene import InteractiveScene
 from ..sim import SimulationContext
 from ..sim.utils.stage import use_stage
@@ -124,6 +125,10 @@ class ManagerBasedEnv:
         try:
             self._init_sim()
         except Exception:
+            try:
+                self._close_observation_terms()
+            except Exception:
+                logger.exception("Failed to close observation terms after environment initialization failed.")
             if created_sim:
                 self.sim.clear_instance()
             raise
@@ -184,6 +189,8 @@ class ManagerBasedEnv:
         # apply USD-related randomization events
         if "prestartup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="prestartup")
+
+        self._prepared_observation_terms = ObservationManager.prepare_scene(self.cfg.observations, self)
 
         self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
 
@@ -363,7 +370,9 @@ class ManagerBasedEnv:
         self.action_manager = ActionManager(self.cfg.actions, self)
         print("[INFO] Action Manager: ", self.action_manager)
         # -- observation manager
-        self.observation_manager = ObservationManager(self.cfg.observations, self)
+        self.observation_manager = ObservationManager(
+            self.cfg.observations, self, prepared_terms=self._prepared_observation_terms
+        )
         print("[INFO] Observation Manager:", self.observation_manager)
 
         # perform events at the start of the simulation
@@ -610,6 +619,11 @@ class ManagerBasedEnv:
     def close(self):
         """Cleanup for the environment."""
         if not self._is_closed:
+            close_error = None
+            try:
+                self._close_observation_terms()
+            except Exception as exc:
+                close_error = exc
             # Stop simulation first to allow physics to clean up properly
             self.sim.stop()
 
@@ -637,6 +651,19 @@ class ManagerBasedEnv:
                 self._window = None
             # update closing status
             self._is_closed = True
+            if close_error is not None:
+                raise close_error
+
+    def _close_observation_terms(self) -> None:
+        """Close prepared or adopted terms while their scene inputs remain available."""
+        prepared = getattr(self, "_prepared_observation_terms", {})
+        self._prepared_observation_terms = {}
+        try:
+            manager = getattr(self, "observation_manager", None)
+            if manager is not None:
+                manager.close()
+        finally:
+            _close_terms(prepared.values())
 
     """
     Helper functions.

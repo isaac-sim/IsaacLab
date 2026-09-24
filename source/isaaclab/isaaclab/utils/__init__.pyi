@@ -56,6 +56,10 @@ __all__ = [
     "compare_versions",
     "configclass",
     "checked_apply",
+    "VisualProcessor",
+    "VisualProcessorCfg",
+    "VisualProcessorContext",
+    "VisualProcessingPipeline",
 ]
 
 from .timer import Timer
@@ -107,3 +111,4 @@ from .string import (
 from .types import ArticulationActions
 from .version import has_kit, get_isaac_sim_version, compare_versions
 from .configclass import checked_apply, configclass
+from .visual_processing import VisualProcessor, VisualProcessorCfg, VisualProcessorContext, VisualProcessingPipeline

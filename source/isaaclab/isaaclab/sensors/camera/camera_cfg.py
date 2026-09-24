@@ -14,7 +14,6 @@ from ...sim import FisheyeCameraCfg, PinholeCameraCfg
 from ...utils import configclass
 from ..sensor_base_cfg import SensorBaseCfg
 from .camera_isp import CameraISPMode
-from .post_processing import VisualProcessorCfg
 
 if TYPE_CHECKING:
     from .camera import Camera
@@ -200,24 +199,15 @@ class CameraCfg(SensorBaseCfg):
     renderer_cfg: RendererCfg = field(default_factory=RendererCfg)
     """Renderer configuration for camera sensor."""
 
-    post_processors: list[VisualProcessorCfg] = []
-    """Ordered sensor-owned pixel operations, applied once after each fresh camera render.
-
-    Each factory creates independent state for this camera. Required renderer inputs and
-    intermediate buffers are allocated even when absent from :attr:`data_types`.
-    See :class:`VisualProcessorCfg` for the callable factory interface.
-    """
-
     isp_cfg: Any | CameraISPMode | None = None
-    """Compatibility entry point for a PPISP processor prepended to :attr:`post_processors`.
+    """Compatibility entry point for PPISP processing of camera color outputs.
 
     Defaults to ``None`` (ISP disabled). Auto-discovery is opt-in via a
     :class:`CameraISPMode` sentinel — see below.
 
     Accepted values:
 
-    * ``None`` — no compatibility PPISP stage is added. Other processors and
-      explicitly requested HDR outputs still apply.
+    * ``None`` — no PPISP processing is applied to camera outputs.
     * A :class:`CameraISPMode` sentinel — the PPISP processor walks the USD stage to
       discover an ISP shader (e.g. via the :mod:`isaaclab_ppisp` package).
     * A concrete ISP cfg dataclass (e.g. :class:`isaaclab_ppisp.PpispCfg`) — used directly.
@@ -226,9 +216,9 @@ class CameraCfg(SensorBaseCfg):
     scalar coefficients, so every cloned view in a tiled batch shares the same
     ISP configuration — there is no per-view ISP today.
 
-    Equivalent to ``post_processors=[PpispProcessorCfg(isp_cfg=value), ...]``.
+    New processing chains belong to observation terms. This compatibility entry point
+    preserves processed ``camera.data.output`` values for existing applications.
     The optional :mod:`isaaclab_ppisp` implementation is loaded only when requested.
-    Use either entry point for PPISP, not both.
     """
 
     def __post_init__(self):
@@ -262,9 +252,6 @@ class CameraCfg(SensorBaseCfg):
 
     def validate_config(self) -> None:
         """Validate the requested data types against the selected renderer contract."""
-        # Processor outputs and auto-discovered requirements are validated together at initialization.
-        if self.post_processors:
-            return
         if self.renderer_cfg is None:
             return
         supported_specs = self.renderer_cfg.supported_output_types()

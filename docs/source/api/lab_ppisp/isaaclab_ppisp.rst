@@ -26,5 +26,5 @@ The following classes are part of the public :mod:`isaaclab_ppisp` API.
 .. autoclass:: PpispProcessorCfg
    :show-inheritance:
 
-See :ref:`camera-post-processing` for camera configuration, compatibility with ``CameraCfg.isp_cfg``,
+See :ref:`camera-post-processing` for observation configuration, compatibility with ``CameraCfg.isp_cfg``,
 and composing PPISP with additional processors.

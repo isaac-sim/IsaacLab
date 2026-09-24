@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""PPISP configuration and callbacks for the visual sensor processing chain."""
+"""PPISP configuration and callbacks for visual observation processing."""
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ import warp as wp
 
 from isaaclab.renderers import RenderBufferSpec
 from isaaclab.sensors.camera.camera_isp import CameraISPMode
-from isaaclab.sensors.camera.post_processing import VisualProcessor, VisualProcessorCfg, VisualProcessorContext
 from isaaclab.utils import configclass
+from isaaclab.utils.visual_processing import VisualProcessor, VisualProcessorCfg, VisualProcessorContext
 from isaaclab.utils.warp import ProxyArray
 
 from .cfg import PpispCfg, resolve_and_normalize
@@ -20,7 +20,7 @@ from .pipeline import PpispPipeline
 
 
 def resolve_ppisp_processor(cfg: PpispProcessorCfg, context: VisualProcessorContext) -> VisualProcessor | None:
-    """Resolve camera PPISP attributes and create sensor-owned processing callbacks.
+    """Resolve camera PPISP attributes and create independent processing callbacks.
 
     Args:
         cfg: PPISP configuration or camera discovery mode.
@@ -71,12 +71,12 @@ def resolve_ppisp_processor(cfg: PpispProcessorCfg, context: VisualProcessorCont
 
 @configclass
 class PpispProcessorCfg(VisualProcessorCfg):
-    """PPISP stage for :attr:`~isaaclab.sensors.camera.CameraCfg.post_processors`.
+    """PPISP stage for :class:`~isaaclab.envs.mdp.visual_observations.processed_image`.
 
     Consumes scene-linear HDR and produces RGB/RGBA with PPISP's camera response
     function (``color_space="camera_response"``). The RGB output aliases the first three channels of RGBA. Inputs
     and intermediate outputs are allocated even when omitted from the camera's
-    requested public outputs.
+    requested public outputs. Each observation term owns independent processing state.
     """
 
     func = resolve_ppisp_processor

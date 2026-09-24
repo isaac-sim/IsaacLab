@@ -1,6 +1,6 @@
 Changed
 ^^^^^^^
 
-* Routed Isaac RTX image processing through the sensor-owned processor chain. Renderer inputs and
-  neutral exposure were selected through generic sensor requirements. Existing ``CameraCfg.isp_cfg``
-  configurations remained supported; new pipelines used ``CameraCfg.post_processors``.
+* Removed PPISP execution from Isaac RTX. Generic camera input requirements selected HDR and neutral
+  exposure for processing in ``mdp.processed_image`` observation terms. Existing ``CameraCfg.isp_cfg``
+  configurations remained supported through a compatibility adapter.

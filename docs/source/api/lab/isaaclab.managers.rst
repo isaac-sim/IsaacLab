@@ -47,6 +47,13 @@ Manager Base
 .. autoclass:: ManagerTermBase
     :members:
 
+Observation term classes can override ``prepare_scene(cfg, env)`` to request scene inputs after
+spawning and prestartup events, before simulation reset. Returning an instance transfers it to the
+observation manager; returning ``None`` uses normal construction after startup. A hook that fails
+before returning must release its own incomplete allocations. Implement ``close()`` for owned
+resources and make repeated calls safe. See :ref:`camera-post-processing` for image processing that
+uses these hooks.
+
 .. autoclass:: ManagerTermBaseCfg
     :members:
     :exclude-members: __init__

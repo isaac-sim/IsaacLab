@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Composable pixel operations and persistent buffers owned by a visual sensor."""
+"""Composable pixel operations and persistent buffers for image observations."""
 
 from __future__ import annotations
 
@@ -13,9 +13,9 @@ from typing import Any
 
 import warp as wp
 
-from ...renderers.output_contract import RenderBufferSpec
-from ...utils import configclass
-from ...utils.warp import ProxyArray
+from ..renderers.output_contract import RenderBufferSpec
+from . import configclass
+from .warp import ProxyArray
 
 
 @dataclass(frozen=True)
@@ -35,7 +35,8 @@ class VisualProcessor:
     """Resolved buffer declarations and callbacks for one pixel operation.
 
     Factories may return closures or bound methods; no processor inheritance is required.
-    ``initialize(inputs, outputs)`` binds persistent buffers once. ``process(env_mask)``
+    ``initialize(inputs, outputs)`` binds persistent buffers once. Inputs are read-only
+    unless also bound as an output. ``process(env_mask)``
     runs after rendering on the current Warp stream. Callbacks using another stream must
     order their work with that stream before returning. Buffers must never be replaced.
     ``reset(env_mask)`` resets selected environments, and ``close()`` releases owned state.
@@ -66,7 +67,7 @@ class VisualProcessor:
 
 @configclass
 class VisualProcessorCfg:
-    """Configure a factory that creates independent state for each camera.
+    """Configure a factory that creates independent state for each observation term.
 
     ``func(cfg, context)`` resolves configuration before renderer setup and returns a
     :class:`VisualProcessor`, or ``None`` to disable this operation. Static ``inputs``
@@ -81,7 +82,7 @@ class VisualProcessorCfg:
 
 
 class VisualProcessingPipeline:
-    """Resolve an ordered processor chain and bind storage once per visual sensor.
+    """Resolve an ordered processor chain and bind storage once per observation term.
 
     Resolution validates every input against the preceding output or renderer contract.
     Allocation keeps intermediate buffers private and preserves the camera's RGB/RGBA
@@ -91,7 +92,7 @@ class VisualProcessingPipeline:
         configs: Ordered processor factory configurations.
         context: Camera dimensions, device, and stage for configuration discovery.
         renderer_specs: Buffers supported by the selected renderer.
-        requested_outputs: Public camera output names, including processor-produced names.
+        requested_outputs: Output names, including processor-produced names.
     """
 
     def __init__(
@@ -134,7 +135,7 @@ class VisualProcessingPipeline:
             for name in self._requested_outputs:
                 if name not in available:
                     if name not in renderer_specs:
-                        raise ValueError(f"Camera output {name!r} is not produced by the renderer or processor chain.")
+                        raise ValueError(f"Output {name!r} is not produced by the renderer or processor chain.")
                     self._renderer_specs[name] = renderer_specs[name]
                     available[name] = renderer_specs[name]
             color_names = {"rgb", "rgba"}
@@ -159,12 +160,34 @@ class VisualProcessingPipeline:
         """Whether any active processor requires neutral renderer exposure."""
         return any(processor.neutral_exposure for processor in self._processors)
 
-    def allocate(self) -> dict[str, ProxyArray]:
-        """Allocate and bind persistent buffers, returning only the public camera outputs."""
+    def allocate(self, render_outputs: dict[str, ProxyArray] | None = None) -> dict[str, ProxyArray]:
+        """Bind inputs and allocate persistent intermediates and requested outputs.
+
+        Args:
+            render_outputs: Existing camera buffers. These are borrowed read-only, so
+                even in-place processors cannot alter inputs shared by other terms.
+                If omitted, allocate owned renderer inputs for the legacy ISP adapter.
+        """
         if self._outputs is not None:
             return self._outputs
         try:
-            self.render_outputs = self._allocate_buffers(self._renderer_specs)
+            if render_outputs is None:
+                self.render_outputs = self._allocate_buffers(self._renderer_specs)
+                borrowed_pointers = set()
+            else:
+                self.render_outputs = {}
+                for name, spec in self._renderer_specs.items():
+                    buffer = render_outputs.get(name)
+                    shape = (self.context.num_views, self.context.height, self.context.width, spec.channels)
+                    if (
+                        buffer is None
+                        or buffer.warp.shape != shape
+                        or buffer.warp.dtype != spec.dtype
+                        or buffer.warp.device != wp.get_device(self.context.device)
+                    ):
+                        raise ValueError(f"Renderer input {name!r} does not match the resolved buffer contract {spec}.")
+                    self.render_outputs[name] = buffer
+                borrowed_pointers = {buffer.warp.ptr for buffer in self.render_outputs.values()}
             current = dict(self.render_outputs)
             for processor in self._processors:
                 inputs = {name: current[name] for name in processor.inputs}
@@ -172,7 +195,7 @@ class VisualProcessingPipeline:
                 outputs: dict[str, ProxyArray] = {}
                 for name, spec in specs.items():
                     buffer = current.get(name)
-                    if processor.in_place and buffer is not None:
+                    if processor.in_place and buffer is not None and buffer.warp.ptr not in borrowed_pointers:
                         if buffer.warp.dtype == spec.dtype and buffer.warp.shape[-1] == spec.channels:
                             outputs[name] = buffer
                 # Allocate RGB and RGBA together to retain their alias even when only one is declared.

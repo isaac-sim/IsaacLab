@@ -59,6 +59,10 @@ class BaseRenderer(ABC):
         — e.g. authoring stage attributes on the resolved camera prims,
         configuring per-tile GPU buffers, or any other state setup.
 
+        This hook may run while consumers collect camera input requirements and again during
+        camera initialization. Implementations must be idempotent. Early calls allow shared
+        renderers to export all per-camera stage overrides together.
+
         Args:
             stage: Scene stage the camera prims live on, or ``None``
                 when no stage context applies. Stage-less backends ignore it.
