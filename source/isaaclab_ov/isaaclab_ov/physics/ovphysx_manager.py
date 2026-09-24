@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import atexit
 import contextlib
+import importlib.util
 import logging
 import math
 import os
@@ -85,6 +86,17 @@ def _prepare_default_cache_dir(cache_dir: str) -> str:
 
 
 logger = logging.getLogger(__name__)
+
+
+def _newton_schema_root() -> str | None:
+    """Return the installed Newton USD schema plugin root, if available."""
+    spec = importlib.util.find_spec("newton_usd_schemas")
+    if spec is None or spec.origin is None:
+        return None
+    schema_root = os.path.dirname(spec.origin)
+    if not os.path.isfile(os.path.join(schema_root, "plugInfo.json")):
+        return None
+    return schema_root
 
 
 class OvPhysxSceneDataBackend(SceneDataBackend):
@@ -577,12 +589,13 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def _ensure_physx_schemas_registered(cls) -> None:
-        """Register the codeless USD schemas published by the OVPhysX wheel.
+        """Register the USD schemas consumed by the OVPhysX runtime.
 
         OVStage maintains its own USD schema registry, so register the wheel's
-        schema root there even when the host USD runtime already provides the
-        same plugins. For the host USD registry, only register providers that
-        are not already available from a compiled plugin.
+        schema root and the separately packaged Newton schemas there even when
+        the host USD runtime already provides the same plugins. For the host USD
+        registry, only register providers that are not already available from a
+        compiled plugin.
         """
         if cls._physx_schemas_registered:
             return
@@ -599,8 +612,11 @@ class OvPhysxManager(PhysicsManager):
         else:
             schema_root = getattr(ovphysx, "codeless_schema_root", None)
             register_ovstage_schemas = getattr(getattr(ovstage, "population", None), "register_usd_schemas", None)
-            if callable(schema_root) and callable(register_ovstage_schemas):
-                register_ovstage_schemas(str(schema_root()))
+            if callable(register_ovstage_schemas):
+                if callable(schema_root):
+                    register_ovstage_schemas(str(schema_root()))
+                if (newton_schema_root := _newton_schema_root()) is not None:
+                    register_ovstage_schemas(newton_schema_root)
         registry = Plug.Registry()
         registered_names = {plugin.name.casefold() for plugin in registry.GetAllPlugins()}
         # The wheel documents ``<module>/resources`` as its stable layout and its

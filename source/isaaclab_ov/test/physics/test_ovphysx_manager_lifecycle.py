@@ -156,11 +156,18 @@ def test_schema_registration_skips_providers_already_supplied_by_host(
     # A None entry makes importing OVStage raise ModuleNotFoundError.
     monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage if has_registration_api is not None else None)
     monkeypatch.setitem(sys.modules, "pxr", fake_pxr)
+    newton_schema_root = "/schemas/newton"
+    monkeypatch.setattr(manager_module, "_newton_schema_root", lambda: newton_schema_root, raising=False)
 
     manager._ensure_physx_schemas_registered()
     manager._ensure_physx_schemas_registered()
 
-    assert ovstage_registrations == ([schema_root] if schema_root is not None and has_registration_api else [])
+    expected_ovstage_registrations = []
+    if has_registration_api:
+        if schema_root is not None:
+            expected_ovstage_registrations.append(schema_root)
+        expected_ovstage_registrations.append(newton_schema_root)
+    assert ovstage_registrations == expected_ovstage_registrations
     assert host_registrations == ([expected_paths] if expected_paths else [])
 
 
