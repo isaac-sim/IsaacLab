@@ -363,11 +363,12 @@ def imu_lin_acc(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg
 def image(
     env: ManagerBasedEnv,
     sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
-    data_type: str = "rgb",
+    data_type: str | None = "rgb",
     convert_perspective_to_orthogonal: bool = False,
     normalize: bool = True,
     permute: bool = False,
-    clone: bool = True,
+    clone: bool = False,
+    stationary: bool = False,
 ) -> torch.Tensor:
     """Images of a specific datatype from the camera sensor.
 
@@ -377,31 +378,47 @@ def image(
     - "rgb": Scales the image to (0, 1) and subtracts with the mean of the current image batch.
     - "depth" or "distance_to_camera" or "distance_to_plane": Replaces infinity values with zero.
 
+    See :func:`~isaaclab.utils.images.normalize_camera_image` for all data types and for the
+    fixed-range normalization selected by :attr:`stationary`.
+
     Args:
         env: The environment the cameras are placed within.
         sensor_cfg: The desired sensor to read from. Defaults to SceneEntityCfg("tiled_camera").
-        data_type: The data type to pull from the desired camera. Defaults to "rgb".
+        data_type: The data type to pull from the desired camera. If None, the camera must have
+            exactly one configured data type, which is used. Defaults to "rgb".
         convert_perspective_to_orthogonal: Whether to orthogonalize perspective depth images.
             This is used only when the data type is "distance_to_camera". Defaults to False.
         normalize: Whether to normalize the images. This depends on the selected data type.
             Defaults to True.
         permute: Whether to permute the image to (num_envs, channel, height, width). Defaults to False.
-        clone: Whether to return a fresh clone of the result. Defaults to True (defensive: protects
-            against downstream in-place mutation of the camera buffer). Callers that immediately
-            copy the result into their own storage (e.g. a frame-stack buffer) can pass ``False``
-            to skip the redundant allocation.
+        clone: Whether to return a fresh clone of the result. Defaults to False, since the
+            observation manager already copies every term's output. Without normalization, the
+            result then shares storage with the camera buffer; callers outside the manager that
+            mutate it should pass ``True``.
+        stationary: Whether to normalize to a fixed range, independent of per-frame statistics.
+            Used only when :attr:`normalize` is True. Defaults to False.
 
     Returns:
         The images produced at the last time-step
     """
     sensor: Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
+    if data_type is None:
+        if len(sensor.cfg.data_types) != 1:
+            raise ValueError(
+                f"Camera '{sensor_cfg.name}' has data types {sensor.cfg.data_types};"
+                " data_type can be None only for a camera with a single data type."
+            )
+        data_type = sensor.cfg.data_types[0]
     images = sensor.data.output[data_type]
     # depth image conversion
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
         images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
     if normalize:
-        images = normalize_camera_image(images, data_type)
-    if permute:
+        # permute while normalizing to avoid a separate layout copy
+        images = normalize_camera_image(
+            images, data_type, output_channel_dim=1 if permute else None, stationary=stationary
+        )
+    elif permute:
         images = images.permute(0, 3, 1, 2)
 
     return images.clone() if clone else images

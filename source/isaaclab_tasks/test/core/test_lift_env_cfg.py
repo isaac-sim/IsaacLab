@@ -18,6 +18,7 @@ from isaaclab.sim import select_usd_variants
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg, FrankaReorientEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
+from isaaclab_tasks.core.lift.config.kuka_allegro.camera_cfg import SingleCameraObservationsCfg
 from isaaclab_tasks.core.lift.mdp.commands import pose_commands
 from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
     CableUniformPoseCommand,
@@ -86,32 +87,25 @@ def test_franka_rigid_tasks_select_collision_meshes_for_reset_clearance(cfg_type
     assert not stage.GetPrimAtPath("/Robot/link1_capsule").IsValid()
 
 
-def _make_vision_camera(data_type: str, images: torch.Tensor) -> mdp.vision_camera:
-    """Build a ``vision_camera`` term around a fake single-data-type camera sensor."""
-    sensor = SimpleNamespace(
-        cfg=SimpleNamespace(data_types=[data_type]), data=SimpleNamespace(output={data_type: images})
-    )
-    term = object.__new__(mdp.vision_camera)
-    term.sensor = sensor
-    term.sensor_type = data_type
-    term._is_depth = data_type in ("distance_to_image_plane", "depth")
-    return term
-
-
 def test_camera_normalization_is_stationary() -> None:
     """RGB and depth normalization must map fixed inputs to fixed outputs, independent of per-frame statistics."""
-    rgb = torch.tensor([0.0, 127.5, 255.0]).view(1, 1, 1, 3)
-    depth = torch.tensor([0.0, 2.0]).view(1, 1, 2, 1)
-    env = SimpleNamespace()
+    term = SingleCameraObservationsCfg().base_image.object_observation_b
+    rgb = torch.tensor([0, 51, 255], dtype=torch.uint8).view(1, 1, 1, 3)
+    depth = torch.tensor([0.0, 2.0, float("nan")]).view(1, 1, 3, 1)
 
-    rgb_obs = _make_vision_camera("rgb", rgb)(env, sensor_cfg=None)
-    depth_obs = _make_vision_camera("depth", depth)(env, sensor_cfg=None)
+    outputs = {}
+    for data_type, images in (("rgb", rgb), ("depth", depth)):
+        sensor = SimpleNamespace(
+            cfg=SimpleNamespace(data_types=[data_type]), data=SimpleNamespace(output={data_type: images})
+        )
+        env = SimpleNamespace(scene=SimpleNamespace(sensors={"base_camera": sensor}))
+        outputs[data_type] = term.func(env, **term.params)
 
-    # channel-first output with the value range mapped to [-0.5, 0.5)
-    assert rgb_obs.shape == (1, 3, 1, 1)
-    assert torch.allclose(rgb_obs.flatten(), torch.tensor([-0.5, 0.0, 0.5]))
-    assert depth_obs.shape == (1, 1, 1, 2)
-    assert torch.allclose(depth_obs.flatten(), torch.tanh(torch.tensor([0.0, 2.0]) / 2) - 0.5)
+    # channel-first output with the value range mapped to [-0.5, 0.5]
+    assert outputs["rgb"].shape == (1, 3, 1, 1)
+    torch.testing.assert_close(outputs["rgb"].flatten(), torch.tensor([-0.5, -0.3, 0.5]))
+    assert outputs["depth"].shape == (1, 1, 1, 3)
+    torch.testing.assert_close(outputs["depth"].flatten(), torch.tanh(torch.tensor([0.0, 1.0, 20.0])) - 0.5)
 
 
 def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPatch) -> None:

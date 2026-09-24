@@ -7,11 +7,13 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
 
+from isaaclab.envs.mdp import image
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
@@ -22,7 +24,6 @@ from .utils import sample_object_point_cloud
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
-    from isaaclab.sensors import Camera
 
 
 def object_quat_b(
@@ -195,28 +196,22 @@ def fingers_contact_force_b(
 class vision_camera(ManagerTermBase):
     """Normalized, channel-first camera images from a single-data-type camera sensor.
 
-    RGB-like images are mapped to ``[-0.5, 0.5)``. Depth images are mapped onto the same span with
-    ``tanh(depth / 2) - 0.5``: a wider depth range would double the encoder's effective input scale
-    and halve the stable learning-rate budget.
+    .. deprecated::
+        Use :func:`isaaclab.envs.mdp.image` with ``data_type=None``, ``permute=True``, and
+        ``stationary=True`` instead.
     """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        sensor_cfg: SceneEntityCfg = cfg.params.get("sensor_cfg", SceneEntityCfg("tiled_camera"))
-        self.sensor: Camera = env.scene.sensors[sensor_cfg.name]
-        self.sensor_type = self.sensor.cfg.data_types[0]
-        self._is_depth = self.sensor_type in ("distance_to_image_plane", "depth")
+        warnings.warn(
+            "The observation term 'vision_camera' is deprecated. Use 'isaaclab.envs.mdp.image' with"
+            " data_type=None, permute=True, and stationary=True instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     def __call__(self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, normalize: bool = True) -> torch.Tensor:
-        images = self.sensor.data.output[self.sensor_type]
-        torch.nan_to_num_(images, nan=1e6)
-        if normalize:
-            if self._is_depth:
-                images = torch.tanh(images / 2) - 0.5
-            else:
-                images = images.float() / 255.0 - 0.5
-            images = images.permute(0, 3, 1, 2).contiguous()
-        return images
+        return image(env, sensor_cfg, data_type=None, normalize=normalize, permute=normalize, stationary=True)
 
 
 def deformable_com_in_robot_root_frame(

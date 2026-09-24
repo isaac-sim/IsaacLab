@@ -203,12 +203,7 @@ class ObservationsCfg:
 
         robot_pov_cam = ObsTerm(
             func=mdp.image,
-            params={
-                "sensor_cfg": SceneEntityCfg("robot_pov_cam"),
-                "data_type": "rgb",
-                "normalize": False,
-                "clone": False,
-            },
+            params={"sensor_cfg": SceneEntityCfg("robot_pov_cam"), "data_type": "rgb", "normalize": False},
         )
 
         def __post_init__(self):

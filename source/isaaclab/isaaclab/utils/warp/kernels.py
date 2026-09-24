@@ -734,7 +734,7 @@ def normalize_image_uint8(
     Args:
         src: Input uint8 image. Shape is ``(B, H, W, C)`` or ``(B, C, H, W)``.
         mean: Per-(batch, channel) mean of ``src / 255.0``. Shape is ``(B, C)``.
-        out: Output float32 tensor. Same shape as ``src``.
+        out: Output float32 tensor. Same as ``src`` with the channel axis at ``out_channel_dim``.
         src_channel_dim: Resolved position of the source channel axis -- ``1`` (BCHW) or
             ``3`` (BHWC).
         out_channel_dim: Resolved position of the output channel axis -- ``1`` (BCHW) or

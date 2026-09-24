@@ -169,6 +169,7 @@ def test_compute_updates_history_only_when_requested(lag, history_length):
     if history:
         assert torch.all(history.current_length == 0)
 
+    outputs = []
     for step in range(6):
         if step == 3:
             manager.reset([1])
@@ -181,11 +182,15 @@ def test_compute_updates_history_only_when_requested(lag, history_length):
         if step >= 3:
             expected[1].clamp_(min=12.0)
         torch.testing.assert_close(output, expected)
+        outputs.append((output, expected))
         env.observation.fill_(-100.0)
         rng_state = torch.get_rng_state()
         torch.testing.assert_close(manager.compute()["policy"], expected)
         torch.testing.assert_close(manager.compute_group("policy"), expected)
         assert torch.equal(torch.get_rng_state(), rng_state)
+    # returned observations must not alias the manager's history or delay storage
+    for output, expected in outputs:
+        torch.testing.assert_close(output, expected)
 
 
 @pytest.mark.parametrize(
