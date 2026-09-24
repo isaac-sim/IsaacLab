@@ -25,6 +25,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
@@ -51,7 +52,7 @@ def _generate_single_joint_articulations(num_articulations: int, device: str) ->
     return Articulation(articulation_cfg)
 
 
-@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_env_reset_clears_selected_mjwarp_solver_internals(device):
     """An env reset clears the flagged world's MuJoCo warm-start history and keeps the others.
 

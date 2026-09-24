@@ -23,6 +23,7 @@ from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
 
 from isaaclab.sim import build_simulation_context
+from isaaclab.test.utils import DeviceScope, test_devices
 
 _CONTRACT_DIR = Path(__file__).resolve().parents[3] / "isaaclab" / "test" / "renderers"
 if str(_CONTRACT_DIR) not in sys.path:
@@ -48,7 +49,7 @@ def test_kinematic_rigid_object_scale_and_pose_are_rendered() -> None:
     )
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_intrinsic_updates_preserve_shared_ray_storage(device):
     """Uniform updates reuse the ray field; nonuniform calibration fails without changing rays."""
     data = SimpleNamespace(

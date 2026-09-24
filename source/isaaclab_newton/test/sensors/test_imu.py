@@ -64,8 +64,11 @@ def sim():
         yield sim
 
 
-def test_initialization_and_data_shapes(sim):
-    """The Newton IMU sensor initializes and exposes correctly shaped buffers after one step."""
+def test_at_rest_measures_gravity_and_zero_angular_velocity(sim):
+    """A settled IMU measures gravity (~9.81 m/s^2 upward) and near-zero angular velocity.
+
+    While the cube still falls, the accelerometer reads near zero (proper, not coordinate, acceleration).
+    """
     scene_cfg = ImuTestSceneCfg(num_envs=2)
     scene = InteractiveScene(scene_cfg)
     sim.reset()
@@ -73,25 +76,20 @@ def test_initialization_and_data_shapes(sim):
     imu: Imu = scene["imu"]
     assert imu.num_instances == 2
 
-    sim.step()
-    scene.update(sim.get_physics_dt())
-
-    assert imu.data.ang_vel_b.torch.shape == (2, 3)
-    assert imu.data.lin_acc_b.torch.shape == (2, 3)
-
-
-def test_at_rest_measures_gravity_and_zero_angular_velocity(sim):
-    """A settled IMU measures gravity (~9.81 m/s^2 upward) and near-zero angular velocity."""
-    scene_cfg = ImuTestSceneCfg(num_envs=2)
-    scene = InteractiveScene(scene_cfg)
-    sim.reset()
-
-    # Step enough for the cube to settle on the ground
-    for _ in range(500):
+    # The cube falls from z=1.0 and lands after ~86 steps; 10 steps are still in freefall.
+    for _ in range(10):
         sim.step()
         scene.update(sim.get_physics_dt())
 
-    imu: Imu = scene["imu"]
+    # In freefall, gravity and inertial acceleration cancel.
+    acc_magnitude = torch.norm(imu.data.lin_acc_b.torch, dim=-1)
+    torch.testing.assert_close(acc_magnitude, torch.zeros_like(acc_magnitude), atol=0.5, rtol=0.0)
+
+    # Step enough for the cube to settle on the ground
+    for _ in range(490):
+        sim.step()
+        scene.update(sim.get_physics_dt())
+
     lin_acc = imu.data.lin_acc_b.torch
     ang_vel = imu.data.ang_vel_b.torch
 
@@ -110,53 +108,6 @@ def test_at_rest_measures_gravity_and_zero_angular_velocity(sim):
         rtol=0.0,
     )
     torch.testing.assert_close(ang_vel, torch.zeros_like(ang_vel), atol=0.1, rtol=0.0)
-
-
-@configclass
-class FreefallSceneCfg(InteractiveSceneCfg):
-    """Scene with a rigid cube and IMU but no ground plane (freefall)."""
-
-    env_spacing = 2.0
-    cube = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
-            mass_props=sim_utils.MassCfg(mass=1.0),
-            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5.0)),
-    )
-
-    imu = ImuCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-    )
-
-
-def test_freefall_acceleration(sim):
-    """Test that a freefalling IMU measures near-zero acceleration."""
-    scene_cfg = FreefallSceneCfg(num_envs=2)
-    scene = InteractiveScene(scene_cfg)
-    sim.reset()
-
-    # Step a few times while the cube is in freefall (no ground contact)
-    for _ in range(10):
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    imu: Imu = scene["imu"]
-    lin_acc = imu.data.lin_acc_b.torch
-
-    # In freefall, accelerometer should read near zero (gravity and inertial acceleration cancel)
-    acc_magnitude = torch.norm(lin_acc, dim=-1)
-    torch.testing.assert_close(
-        acc_magnitude,
-        torch.zeros_like(acc_magnitude),
-        atol=0.5,
-        rtol=0.0,
-    )
 
 
 def test_no_stale_data_after_scene_reset(sim):

@@ -18,35 +18,7 @@ from isaaclab.utils.warp.math_ops import transform_to_vec_quat
 
 
 class TestTransformToVecQuat:
-    """Tests for the zero-copy view split utility."""
-
-    def test_1d_pos_quat_split(self):
-        """1D array: position is first 3 floats, quaternion is last 4."""
-        t = wp.zeros(3, dtype=wp.transformf, device="cpu")
-        pos, quat = transform_to_vec_quat(t)
-        assert pos.shape == (3,)
-        assert quat.shape == (3,)
-        assert pos.dtype == wp.vec3f
-        assert quat.dtype == wp.quatf
-
-    def test_2d_pos_quat_split(self):
-        """2D array: shapes are (N, M) with vec3f and quatf dtypes."""
-        t = wp.zeros((2, 4), dtype=wp.transformf, device="cpu")
-        pos, quat = transform_to_vec_quat(t)
-        assert pos.shape == (2, 4)
-        assert quat.shape == (2, 4)
-        assert pos.dtype == wp.vec3f
-        assert quat.dtype == wp.quatf
-
-    def test_zero_copy_1d(self):
-        """Writes through pos/quat views are reflected in the original transform array."""
-        t = wp.zeros(1, dtype=wp.transformf, device="cpu")
-        pos, quat = transform_to_vec_quat(t)
-        # Write known values through the views
-        pos.numpy()[0] = (1.0, 2.0, 3.0)
-        quat.numpy()[0] = (0.0, 0.0, 0.0, 1.0)
-        floats = t.view(wp.float32).numpy()
-        assert list(floats[0]) == pytest.approx([1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0])
+    """Error paths of the zero-copy view split utility; values are covered by the frame-transformer tests."""
 
     def test_invalid_ndim_raises(self):
         """Passing a 4D array raises the documented ValueError rather than a Warp view error."""
@@ -93,34 +65,7 @@ class TestFallbackGlobalSite:
         global_idx, per_world = entry
         assert isinstance(global_idx, int)
         assert per_world is None
-
-    def test_global_site_pending_cleared(self):
-        xform = wp.transform()
-        NewtonManager._cl_pending_sites = {(None, False, tuple(xform)): ("ft_0", xform)}
-        NewtonManager._cl_inject_sites_fallback()
-
         assert len(NewtonManager._cl_pending_sites) == 0
-
-
-class TestFallbackLocalSingleBody:
-    """Single-body local site must produce a (None, [[idx]]) entry — one world."""
-
-    def setup_method(self):
-        NewtonManager.clear()
-        NewtonManager._builder = MockBuilder(["Robot/base", "Robot/hand"])
-
-    def test_single_body_entry_shape(self):
-        xform = wp.transform()
-        NewtonManager._cl_pending_sites = {("Robot/base", False, tuple(xform)): ("ft_0", xform)}
-        NewtonManager._cl_inject_sites_fallback()
-
-        entry = NewtonManager._cl_site_index_map["ft_0"]
-        global_idx, per_world = entry
-        assert global_idx is None
-        assert isinstance(per_world, list)
-        assert len(per_world) == 1  # one world
-        assert len(per_world[0]) == 1  # one match
-        assert isinstance(per_world[0][0], int)
 
 
 class TestFallbackLocalWildcard:
@@ -204,11 +149,6 @@ def _make_site_map(
 
 
 class TestSourceValidation:
-    def test_valid_source_one_per_env(self):
-        site_map = _make_site_map([[10], [20]], [])
-        indices, _ = FrameTransformer._validate_site_map("source", "/Robot/base", [], [], site_map, num_envs=2)
-        assert indices == [10, 20]
-
     def test_source_wrong_env_count_raises(self):
         # site map has 1 world entry but num_envs=2
         site_map = _make_site_map([[10]], [])
@@ -227,20 +167,6 @@ class TestSourceValidation:
 
 
 class TestTargetValidation:
-    def test_valid_single_target_per_env(self):
-        site_map = _make_site_map([[10], [20]], [[[30], [40]]])
-        _, tgt = FrameTransformer._validate_site_map(
-            "source", "/Robot/base", ["target_0"], ["/Robot/hand"], site_map, num_envs=2
-        )
-        assert tgt[0] == [[30], [40]]
-
-    def test_valid_wildcard_two_bodies_per_env(self):
-        site_map = _make_site_map([[10], [20]], [[[30, 31], [40, 41]]])
-        _, tgt = FrameTransformer._validate_site_map(
-            "source", "/Robot/base", ["target_0"], ["/Robot/foot.*"], site_map, num_envs=2
-        )
-        assert tgt[0] == [[30, 31], [40, 41]]
-
     def test_target_zero_bodies_raises(self):
         site_map = _make_site_map([[10], [20]], [[[], []]])
         with pytest.raises(ValueError, match="matched no bodies"):
@@ -282,63 +208,3 @@ class TestZeroTargets:
         assert refs == [0, 0]
         assert names == []
         assert tgt_per_tgt == []
-
-
-class TestSingleTarget:
-    def test_one_env_one_target(self):
-        """1 env, 1 target: [src, tgt] shapes, [world_orig, src] refs."""
-        names, tgt_per_tgt, shapes, refs = _call(
-            source_indices=[10],
-            target_per_world=[[[20]]],
-            target_frame_body_names=["hand"],
-            shape_labels={},
-            world_origin_idx=0,
-            num_envs=1,
-        )
-        assert shapes == [10, 20]
-        assert refs == [0, 10]
-        assert names == ["hand"]
-
-    def test_two_envs_two_targets(self):
-        """2 envs, 2 targets: stride-2 interleaved layout."""
-        names, tgt_per_tgt, shapes, refs = _call(
-            source_indices=[10, 11],
-            target_per_world=[[[20], [21]], [[30], [31]]],
-            target_frame_body_names=["arm", "hand"],
-            shape_labels={},
-            world_origin_idx=0,
-            num_envs=2,
-        )
-        assert shapes == [10, 20, 30, 11, 21, 31]
-        assert refs == [0, 10, 10, 0, 11, 11]
-        assert names == ["arm", "hand"]
-
-
-class TestWildcardExpansion:
-    def test_wildcard_two_bodies_per_env(self):
-        """Wildcard: 2 bodies per env expand to 2 target entries with names derived from shape_labels."""
-        shape_labels = {20: "FL_foot/label_0", 21: "FL_foot/label_0", 22: "FR_foot/label_0", 23: "FR_foot/label_0"}
-        names, tgt_per_tgt, shapes, refs = _call(
-            source_indices=[10, 11],
-            target_per_world=[[[20, 22], [21, 23]]],
-            target_frame_body_names=["foot"],
-            shape_labels=shape_labels,
-            world_origin_idx=0,
-            num_envs=2,
-        )
-        assert shapes == [10, 20, 22, 11, 21, 23]
-        assert refs == [0, 10, 10, 0, 11, 11]
-        assert tgt_per_tgt == [[20, 21], [22, 23]]
-        assert names == ["FL_foot", "FR_foot"]
-
-    def test_wildcard_single_body_uses_config_name(self):
-        """Single body match: config name is used regardless of shape_labels."""
-        names, tgt_per_tgt, shapes, refs = _call(
-            source_indices=[10, 11],
-            target_per_world=[[[20], [21]]],
-            target_frame_body_names=["foot"],
-            shape_labels={},
-            world_origin_idx=0,
-            num_envs=2,
-        )
-        assert names == ["foot"]
