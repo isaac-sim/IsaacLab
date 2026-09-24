@@ -10,6 +10,11 @@
 - Use modern Python type hints, including `X | None` instead of `Optional[X]`.
 - Use `snake_case` for methods, functions, and CLI arguments.
 - Keep related public symbols discoverable through consistent prefixes.
+- For external wrenches, follow the asset API's `is_global` boolean and `_b`/`_w` buffer naming. Keep
+  frame conversion decisions in `WrenchComposer` and track pending contributions with plain booleans;
+  do not introduce frame enums, content bitmasks, or a classification layer.
+- Name wrench reads `get_forces_and_torques`, matching the existing add/set methods; avoid a separate
+  "submission" API or compatibility alias for the unreleased `resolve_submission` method.
 - Use concrete types for public interfaces where practical.
 - Use Google-style docstrings for public APIs.
 - Document SI units for public physical quantities in docstrings using inline `[unit]` notation (e.g. `Particle positions [m], shape [N, 3]`); use `[m or rad, depending on joint type]` where applicable, and skip non-physical fields (indices, counts, flags).
