@@ -3,12 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from types import SimpleNamespace
-
 import pytest
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
-from isaaclab_teleop import XrCameraFeedSession
 
 from isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg import (
     FixedBaseUpperBodyIKG1EnvCfg,
@@ -62,33 +59,6 @@ def test_g1_xr_camera_uses_calibration_and_head_locked_panel(env_cfg_type):
     assert feed_cfg.max_update_hz == 0.0
     assert camera_cfg.renderer_cfg.default == IsaacRtxRendererCfg()
     assert camera_cfg.renderer_cfg.isaacsim_rtx == IsaacRtxRendererCfg()
-
-
-@pytest.mark.parametrize("env_cfg_type", [LocomanipulationG1EnvCfg, FixedBaseUpperBodyIKG1EnvCfg])
-def test_g1_partition_overrides_apply_only_during_enabled_pip_preparation(monkeypatch, env_cfg_type):
-    monkeypatch.setattr("isaaclab_teleop.camera_feed._load_kit_scene_ui_presenter", lambda: object())
-    values = {"/rtx/scenePartitioning/showAllPartitionsByDefault": True}
-    settings = SimpleNamespace(get=lambda key: values.get(key), set=lambda key, value: values.__setitem__(key, value))
-    monkeypatch.setattr("isaaclab.app.settings_manager.get_settings_manager", lambda: settings)
-    cfg = env_cfg_type()
-    cfg.scene.num_envs = 1
-    camera = cfg.scene.robot_pov_cam
-
-    XrCameraFeedSession.prepare(cfg, enabled=False, camera_rendering_enabled=True)
-    assert camera.renderer_cfg.default == IsaacRtxRendererCfg()
-    assert camera.renderer_cfg.isaacsim_rtx == IsaacRtxRendererCfg()
-
-    session = XrCameraFeedSession.prepare(cfg, enabled=True, camera_rendering_enabled=True)
-    try:
-        for renderer in (camera.renderer_cfg.default, camera.renderer_cfg.isaacsim_rtx):
-            assert renderer.enable_scene_partitioning is False
-            assert renderer.global_settings.show_all_partitions_by_default is None
-        assert values["/rtx/scenePartitioning/showAllPartitionsByDefault"] is False
-    finally:
-        session.close()
-    assert values["/rtx/scenePartitioning/showAllPartitionsByDefault"] is True
-    assert camera.renderer_cfg.default == IsaacRtxRendererCfg()
-    assert camera.renderer_cfg.isaacsim_rtx == IsaacRtxRendererCfg()
 
 
 def test_fixed_base_g1_pip_preserves_policy_observations_and_fixed_root():

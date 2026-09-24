@@ -1,14 +1,11 @@
 Added
 ^^^^^
 
-* Added opt-in ``XrCameraFeedLayoutCfg.use_scene_partition`` to isolate shared SceneUI
-  and the XR presentation camera from robot-camera rendering. Enabled PiP preparation
-  temporarily disables per-environment partitioning for selected Isaac RTX
-  cameras and owns ``showAllPartitionsByDefault=False`` until the final isolated session
-  closes. Additional cameras must disable per-environment partitioning; conflicting
-  renderer visibility overrides are rejected. Custom launchers must close prepared
-  sessions even when environment construction fails. Other tasks and non-XR runs
-  retain their defaults.
+* Added opt-in ``XrCameraFeedLayoutCfg.use_scene_partition`` to exclude shared SceneUI
+  from robot cameras using their existing environment partitions. The unpartitioned
+  XR camera retained its all-partitions spectator view. Only the ``/ui`` partition
+  was temporarily authored and restored after the final isolated panel closed;
+  camera configuration and global renderer settings remained unchanged.
 
 Fixed
 ^^^^^

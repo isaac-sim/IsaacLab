@@ -5,10 +5,9 @@
 
 from __future__ import annotations
 
-from contextlib import ExitStack
 from dataclasses import asdict
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 import isaaclab_teleop.camera_feed as camera_feed
 import pytest
@@ -17,7 +16,6 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_teleop import IsaacTeleopCfg, XrCameraFeedCfg, XrCameraFeedLayoutCfg, XrCameraFeedSession
 
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 
 def test_layout_preserves_positional_constructor():
@@ -31,142 +29,6 @@ def test_layout_preserves_positional_constructor():
     descriptor = asdict(camera_feed._panel_descriptor(XrCameraFeedCfg(camera_name="camera"), layout))
     descriptor.pop("use_scene_partition")
     assert camera_feed._PanelDescriptor(**descriptor).use_scene_partition is False
-
-
-@pytest.fixture
-def isolated_settings(monkeypatch):
-    values = {ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING: True}
-    settings = SimpleNamespace(get=lambda key: values.get(key), set=lambda key, value: values.__setitem__(key, value))
-    monkeypatch.setattr("isaaclab.app.settings_manager.get_settings_manager", lambda: settings)
-    return values
-
-
-@pytest.mark.parametrize("initial", [True, False])
-def test_isolated_session_restores_global_and_camera_state(monkeypatch, isolated_settings, initial):
-    isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] = initial
-    monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", lambda: _FakePresenter())
-    renderer = IsaacRtxRendererCfg(enable_scene_partitioning=True)
-    cfg = _teleop_env_cfg(
-        [XrCameraFeedCfg(camera_name="robot_pov_cam")],
-        camera=_camera_cfg(renderer),
-        layout=XrCameraFeedLayoutCfg(use_scene_partition=True),
-    )
-    renderer = cfg.scene.robot_pov_cam.renderer_cfg
-    first = XrCameraFeedSession.prepare(cfg, enabled=True, camera_rendering_enabled=True)
-    second = XrCameraFeedSession.prepare(cfg, enabled=True, camera_rendering_enabled=True)
-    try:
-        assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is False
-        assert renderer.enable_scene_partitioning is False
-        first.close()
-        assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is False
-        assert renderer.enable_scene_partitioning is False
-    finally:
-        first.close()
-        second.close()
-    assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is initial
-    assert renderer.enable_scene_partitioning is True
-    assert renderer.global_settings.show_all_partitions_by_default is None
-
-
-@pytest.mark.parametrize(
-    "raw_key",
-    [
-        ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING,
-        "rtx.scenePartitioning.showAllPartitionsByDefault",
-        "rtx_scenePartitioning_showAllPartitionsByDefault",
-    ],
-)
-def test_isolation_rejects_raw_global_conflicts(monkeypatch, isolated_settings, raw_key):
-    monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", lambda: _FakePresenter())
-    renderer = IsaacRtxRendererCfg()
-    renderer.global_settings.carb_settings = {raw_key: True}
-    cfg = _teleop_env_cfg(
-        [XrCameraFeedCfg(camera_name="robot_pov_cam")],
-        camera=_camera_cfg(renderer),
-        layout=XrCameraFeedLayoutCfg(use_scene_partition=True),
-    )
-    with pytest.raises(ValueError, match="showAllPartitionsByDefault"):
-        XrCameraFeedSession.prepare(cfg, enabled=True, camera_rendering_enabled=True)
-    assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is True
-    assert renderer.enable_scene_partitioning is True
-
-
-def test_isolation_rejects_another_partitioning_camera(monkeypatch, isolated_settings):
-    monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", lambda: _FakePresenter())
-    cfg = _teleop_env_cfg(
-        [XrCameraFeedCfg(camera_name="robot_pov_cam")],
-        camera=_camera_cfg(),
-        layout=XrCameraFeedLayoutCfg(use_scene_partition=True),
-    )
-    cfg.scene.other_camera = _camera_cfg(IsaacRtxRendererCfg(enable_scene_partitioning=True))
-    with pytest.raises(ValueError, match="other_camera.*enable_scene_partitioning"):
-        XrCameraFeedSession.prepare(cfg, enabled=True, camera_rendering_enabled=True)
-    assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is True
-
-
-def test_isolation_accepts_effective_raw_false_and_unpartitioned_extra_camera(monkeypatch, isolated_settings):
-    monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", lambda: _FakePresenter())
-    renderer = IsaacRtxRendererCfg()
-    renderer.global_settings.show_all_partitions_by_default = True
-    renderer.global_settings.carb_settings = {ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING: False}
-    cfg = _teleop_env_cfg(
-        [XrCameraFeedCfg(camera_name="robot_pov_cam")],
-        camera=_camera_cfg(renderer),
-        layout=XrCameraFeedLayoutCfg(use_scene_partition=True),
-    )
-    cfg.scene.other_camera = _camera_cfg(IsaacRtxRendererCfg(enable_scene_partitioning=False))
-    session = XrCameraFeedSession.prepare(cfg, enabled=True, camera_rendering_enabled=True)
-    try:
-        assert session.enabled
-        assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is False
-    finally:
-        session.close()
-
-
-@pytest.mark.parametrize("failure", ["environment", "bind", "override", "close"])
-def test_isolation_restores_after_initialization_failure(monkeypatch, isolated_settings, failure):
-    monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", lambda: _FakePresenter())
-    renderer = IsaacRtxRendererCfg(enable_scene_partitioning=True)
-    cfg = _teleop_env_cfg(
-        [XrCameraFeedCfg(camera_name="robot_pov_cam")],
-        camera=_camera_cfg(renderer),
-        layout=XrCameraFeedLayoutCfg(use_scene_partition=True),
-    )
-    renderer = cfg.scene.robot_pov_cam.renderer_cfg
-    monkeypatch.setattr(camera_feed, "_XrCameraFeedManager", Mock(side_effect=RuntimeError("bind failure")))
-    if failure == "close":
-        manager = SimpleNamespace(close=Mock(side_effect=RuntimeError("close failure")))
-        monkeypatch.setattr(camera_feed, "_XrCameraFeedManager", lambda *args: manager)
-    with pytest.raises(RuntimeError), ExitStack() as cleanup:
-        session = XrCameraFeedSession.prepare(cfg, enabled=True, camera_rendering_enabled=True)
-        cleanup.callback(session.close)
-        if failure == "environment":
-            raise RuntimeError("environment failure")
-        if failure == "override":
-            isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] = True
-        session.bind(object())
-    assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is True
-    assert renderer.enable_scene_partitioning is True
-    assert XrCameraFeedSession._partition_users == 0
-
-
-def test_isolation_preserves_external_change_and_can_rebind(monkeypatch, isolated_settings):
-    monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", lambda: _FakePresenter())
-    monkeypatch.setattr(camera_feed, "_XrCameraFeedManager", lambda *args: SimpleNamespace(close=lambda: None))
-    cfg = _teleop_env_cfg(
-        [XrCameraFeedCfg(camera_name="robot_pov_cam")],
-        camera=_camera_cfg(),
-        layout=XrCameraFeedLayoutCfg(use_scene_partition=True),
-    )
-    key = ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
-    isolated_settings[key] = False
-    session = XrCameraFeedSession.prepare(cfg, enabled=True, camera_rendering_enabled=True)
-    isolated_settings[key] = True
-    session.close()
-    assert isolated_settings[key] is True
-    with session.bind(object()):
-        assert isolated_settings[key] is False
-    assert isolated_settings[key] is True
 
 
 class _FakeImage:
@@ -261,6 +123,7 @@ class _FakePresenter:
         self.source_images = source_images or {}
         self.sources = []
         self.source_cfgs = []
+        self.validate_camera_partition = Mock()
 
     def create_image_source(self, name, _camera, cfg=None):
         source = _FakeImageSource(self.source_images.get(name))
@@ -286,7 +149,7 @@ class _FakePresenter:
 
 
 def _camera_cfg(renderer_cfg=None):
-    renderer_cfg = renderer_cfg or IsaacRtxRendererCfg(enable_scene_partitioning=False)
+    renderer_cfg = renderer_cfg or IsaacRtxRendererCfg()
     return CameraCfg(
         prim_path="{ENV_REGEX_NS}/Camera",
         height=8,
@@ -335,60 +198,32 @@ def test_pip_rejects_multiple_environments_before_camera_creation(monkeypatch):
     load_presenter.assert_called_once_with()
 
 
-def test_default_pip_accepts_default_partitioned_renderer(monkeypatch):
-    monkeypatch.delenv("ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION", raising=False)
-    renderer_cfg = IsaacRtxRendererCfg()
-    assert renderer_cfg.enable_scene_partitioning is True
-    env_cfg = _teleop_env_cfg([XrCameraFeedCfg(camera_name="robot_pov_cam")], camera=_camera_cfg(renderer_cfg))
-    monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", lambda: _FakePresenter())
-
-    session = XrCameraFeedSession.prepare(env_cfg, enabled=True, camera_rendering_enabled=True)
-
-    assert session.enabled
-    assert renderer_cfg.enable_scene_partitioning is True
-
-
-@pytest.mark.parametrize("enabled,camera_rendering_enabled", [(True, True), (False, True), (True, False)])
-def test_isolated_pip_configures_camera_only_when_enabled(
-    monkeypatch, isolated_settings, enabled, camera_rendering_enabled
-):
+@pytest.mark.parametrize("use_scene_partition", [False, True])
+def test_pip_preserves_camera_and_global_renderer_settings(monkeypatch, use_scene_partition):
+    renderer = IsaacRtxRendererCfg(enable_scene_partitioning=True)
+    expected = renderer.copy()
     env_cfg = _teleop_env_cfg(
         [XrCameraFeedCfg(camera_name="robot_pov_cam")],
-        camera=_camera_cfg(IsaacRtxRendererCfg(enable_scene_partitioning=True)),
-        layout=XrCameraFeedLayoutCfg(use_scene_partition=True),
+        camera=_camera_cfg(renderer),
+        layout=XrCameraFeedLayoutCfg(use_scene_partition=use_scene_partition),
     )
-    load_presenter = Mock(return_value=_FakePresenter())
-    monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", load_presenter)
-
-    session = XrCameraFeedSession.prepare(env_cfg, enabled=enabled, camera_rendering_enabled=camera_rendering_enabled)
-
-    renderer = env_cfg.scene.robot_pov_cam.renderer_cfg
-    if enabled and camera_rendering_enabled:
-        assert renderer.enable_scene_partitioning is False
-        assert renderer.global_settings.show_all_partitions_by_default is None
-        assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is False
-        load_presenter.assert_called_once_with()
-    else:
-        assert renderer.enable_scene_partitioning is True
-        assert renderer.global_settings.show_all_partitions_by_default is None
-        load_presenter.assert_not_called()
-    session.close()
-    assert renderer.enable_scene_partitioning is True
-    assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is True
-
-
-def test_partitioned_pip_accepts_unpartitioned_camera_and_passes_panel_opt_in(monkeypatch, isolated_settings):
-    feed = XrCameraFeedCfg(camera_name="robot_pov_cam")
-    layout = XrCameraFeedLayoutCfg(use_scene_partition=True)
-    env_cfg = _teleop_env_cfg([feed], camera=_camera_cfg(), layout=layout)
-    monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", lambda: _FakePresenter())
-
+    env_cfg.scene.other_camera = _camera_cfg(renderer.copy())
+    presenter = _FakePresenter()
+    monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", lambda: presenter)
+    monkeypatch.setattr(camera_feed, "_camera_type", lambda: _FakeCamera)
+    settings = SimpleNamespace(get=lambda key: True, set=Mock(side_effect=AssertionError("Global settings changed")))
+    monkeypatch.setattr("isaaclab.app.settings_manager.get_settings_manager", lambda: settings)
+    camera = _FakeCamera(_FakeImage())
+    env = SimpleNamespace(scene=SimpleNamespace(sensors={"robot_pov_cam": camera}))
     session = XrCameraFeedSession.prepare(env_cfg, enabled=True, camera_rendering_enabled=True)
-
     assert session.enabled
-    assert camera_feed._panel_descriptor(feed, layout).use_scene_partition is True
-    assert camera_feed._panel_descriptor(feed, XrCameraFeedLayoutCfg()).use_scene_partition is False
-    session.close()
+    assert env_cfg.scene.robot_pov_cam.renderer_cfg == expected
+    with session.bind(env):
+        assert presenter.panels[0].descriptor.use_scene_partition is use_scene_partition
+        assert env_cfg.scene.robot_pov_cam.renderer_cfg == expected
+    assert env_cfg.scene.robot_pov_cam.renderer_cfg == expected
+    assert env_cfg.scene.other_camera.renderer_cfg == expected
+    settings.set.assert_not_called()
 
 
 def test_xr_without_pip_preserves_multiple_environments(monkeypatch):
@@ -423,18 +258,6 @@ def test_kitless_xr_with_configured_pip_preserves_multiple_environments(monkeypa
 
     assert not session.enabled
     assert env_cfg.scene.num_envs == 2
-
-
-def test_empty_camera_feed_selection_skips_pip(monkeypatch):
-    env_cfg = _teleop_env_cfg([])
-    load_presenter = Mock()
-    monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", load_presenter)
-
-    session = XrCameraFeedSession.prepare(env_cfg, enabled=True, camera_rendering_enabled=True)
-
-    assert not session.enabled
-    load_presenter.assert_not_called()
-    assert vars(env_cfg.scene) == {"num_envs": 1}
 
 
 @pytest.mark.parametrize("ray_reconstruction", [None, False, True])
@@ -647,7 +470,8 @@ def test_manager_refresh_rebinds_reset_camera_output(monkeypatch):
     assert presenter.panels[0].uploads == [after]
 
 
-def test_manager_rebinds_source_when_camera_instance_changes(monkeypatch):
+@pytest.mark.parametrize("use_scene_partition", [False, True])
+def test_manager_rebinds_source_when_camera_instance_changes(monkeypatch, use_scene_partition):
     cfg = XrCameraFeedCfg(
         camera_name="robot_pov_cam",
         enable_dlss_ray_reconstruction=True,
@@ -656,7 +480,10 @@ def test_manager_rebinds_source_when_camera_instance_changes(monkeypatch):
     )
     before = _FakeImage(data_ptr=100)
     after = _FakeImage(data_ptr=200)
-    manager, presenter, cameras = _manager(monkeypatch, [cfg], {"robot_pov_cam": before})
+    manager, presenter, cameras = _manager(
+        monkeypatch, [cfg], {"robot_pov_cam": before}, XrCameraFeedLayoutCfg(use_scene_partition=use_scene_partition)
+    )
+    old_camera = cameras["robot_pov_cam"]
     old_source = presenter.sources[0]
     cameras["robot_pov_cam"] = _FakeCamera(after)
 
@@ -667,6 +494,13 @@ def test_manager_rebinds_source_when_camera_instance_changes(monkeypatch):
     assert presenter.source_cfgs == [cfg, cfg]
     assert presenter.sources[1].expected_shapes == [after.shape]
     assert presenter.panels[0].uploads == [after]
+    if use_scene_partition:
+        assert presenter.validate_camera_partition.call_args_list == [
+            call("robot_pov_cam", old_camera),
+            call("robot_pov_cam", cameras["robot_pov_cam"]),
+        ]
+    else:
+        presenter.validate_camera_partition.assert_not_called()
     manager.close()
 
 
@@ -710,12 +544,7 @@ def test_public_api_exports_camera_feed_types():
     assert isaaclab_teleop.XrCameraFeedCfg is XrCameraFeedCfg
     assert isaaclab_teleop.XrCameraFeedLayoutCfg is XrCameraFeedLayoutCfg
     assert isaaclab_teleop.XrCameraFeedSession is XrCameraFeedSession
-    # Lifecycle state belongs to the session, without an additional policy owner.
-    assert {
-        name
-        for name, value in vars(camera_feed).items()
-        if isinstance(value, type) and value.__module__ == camera_feed.__name__
-    } == {"XrCameraFeedSession", "_PanelDescriptor", "_ActiveFeed", "_XrCameraFeedManager"}
+    assert not hasattr(camera_feed, "_ScenePartitionPolicy")
     for removed_name in (
         "XrCameraFeedManager",
         "XrCameraFeedPresentationBackend",

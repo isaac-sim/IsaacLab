@@ -274,7 +274,7 @@ def scene_ui_module(monkeypatch):
     monkeypatch.setitem(sys.modules, module_name, loaded_module)
     spec.loader.exec_module(loaded_module)
     loaded_module.Usd = SimpleNamespace(EditContext=_EditContext)
-    monkeypatch.setattr(loaded_module, "get_settings_manager", lambda: SimpleNamespace(get=lambda key: False))
+    monkeypatch.setattr(loaded_module, "get_settings_manager", lambda: SimpleNamespace(get=lambda key: True))
     return loaded_module
 
 
@@ -326,47 +326,6 @@ def create_partition_panel(scene_ui_module, monkeypatch):
     assert not scene_ui_module._KitSceneUiCameraFeedPresenter._partition_panels
 
 
-def test_scene_partition_authors_late_camera_and_recreated_prims_once_in_session_layer(
-    scene_ui_module, monkeypatch, create_partition_panel
-):
-    stage = Usd.Stage.CreateInMemory()
-    monkeypatch.setattr(scene_ui_module, "get_current_stage", lambda: stage)
-    ui_root = stage.DefinePrim("/ui", "Xform")
-    presenter = scene_ui_module._KitSceneUiCameraFeedPresenter()
-    panel = create_partition_panel(presenter)
-    assert ui_root.GetAttribute("primvars:omni:scenePartition").Get() == scene_ui_module._XR_CAMERA_PIP_PARTITION
-    assert not panel._partition_ready
-    camera = stage.DefinePrim(scene_ui_module._XR_CAMERA_PATH, "Camera")
-    root_before = stage.GetRootLayer().ExportToString()
-    presenter._refresh_scene_partition()
-    assert camera.GetAttribute("omni:scenePartition").Get() == scene_ui_module._XR_CAMERA_PIP_PARTITION
-    assert panel._partition_ready
-    changes = []
-    listener = Tf.Notice.Register(Usd.Notice.ObjectsChanged, lambda notice, sender: changes.append(notice), stage)
-    try:
-        presenter._refresh_scene_partition()
-        assert changes == []
-    finally:
-        listener.Revoke()
-    assert stage.GetRootLayer().ExportToString() == root_before
-
-    for layer in (stage.GetRootLayer(), stage.GetSessionLayer()):
-        with Usd.EditContext(stage, layer):
-            stage.RemovePrim(scene_ui_module._XR_CAMERA_PATH)
-            stage.RemovePrim("/ui")
-    camera = stage.DefinePrim(scene_ui_module._XR_CAMERA_PATH, "Camera")
-    ui_root = stage.DefinePrim("/ui", "Xform")
-    root_before = stage.GetRootLayer().ExportToString()
-    presenter._refresh_scene_partition()
-    assert camera.GetAttribute("omni:scenePartition").Get() == scene_ui_module._XR_CAMERA_PIP_PARTITION
-    assert ui_root.GetAttribute("primvars:omni:scenePartition").Get() == scene_ui_module._XR_CAMERA_PIP_PARTITION
-    panel.close()
-    assert not camera.GetAttribute("omni:scenePartition").IsValid()
-    assert not ui_root.GetAttribute("primvars:omni:scenePartition").IsValid()
-    assert stage.GetRootLayer().ExportToString() == root_before
-    assert stage.GetEditTarget().GetLayer() == stage.GetRootLayer()
-
-
 @pytest.mark.parametrize("previous", [None, "", "no_default"])
 def test_scene_partition_real_usd_keeps_root_layer_clean_and_restores_session_opinions(
     scene_ui_module, monkeypatch, create_partition_panel, previous
@@ -388,7 +347,7 @@ def test_scene_partition_real_usd_keeps_root_layer_clean_and_restores_session_op
     session_before = session_layer.ExportToString()
     panel = create_partition_panel()
     assert stage.GetRootLayer().ExportToString() == root_before
-    assert camera.GetAttribute("omni:scenePartition").Get() == scene_ui_module._XR_CAMERA_PIP_PARTITION
+    assert not camera.GetAttribute("omni:scenePartition").IsValid()
     assert ui_root.GetAttribute("primvars:omni:scenePartition").Get() == scene_ui_module._XR_CAMERA_PIP_PARTITION
     panel.close()
     assert stage.GetRootLayer().ExportToString() == root_before
@@ -488,7 +447,7 @@ def test_scene_partition_notifies_inheritance_once_after_ui_children_appear(
     )
 
 
-@pytest.mark.parametrize("replacement", ["ui_root", "stage", "no_stage"])
+@pytest.mark.parametrize("replacement", ["ui_root", "stage"])
 def test_scene_partition_refreshes_inheritance_after_replacement(
     scene_ui_module, monkeypatch, create_partition_panel, replacement
 ):
@@ -501,7 +460,7 @@ def test_scene_partition_refreshes_inheritance_after_replacement(
         stage.DefinePrim("/ui/draw_system_0/mesh", "Mesh")
     presenter._refresh_scene_partition()
     old_stage = stage
-    if replacement == "no_stage":
+    if replacement == "stage":
         stage = None
         presenter._refresh_scene_partition()
         assert not panel._partition_ready
@@ -531,92 +490,66 @@ def test_scene_partition_refreshes_inheritance_after_replacement(
         listener.Revoke()
 
 
-@pytest.mark.parametrize(
-    ("prim_path", "attribute_name"),
-    [("/_xr/stage/xrCamera", "omni:scenePartition"), ("/ui", "primvars:omni:scenePartition")],
-)
-def test_scene_partition_refuses_to_replace_nonempty_target_partition(
-    scene_ui_module, monkeypatch, create_partition_panel, prim_path, attribute_name
-):
-    stage = Usd.Stage.CreateInMemory()
-    monkeypatch.setattr(scene_ui_module, "get_current_stage", lambda: stage)
-    stage.DefinePrim(scene_ui_module._XR_CAMERA_PATH, "Camera")
-    prim = stage.DefinePrim(prim_path)
-    prim.CreateAttribute(attribute_name, Sdf.ValueTypeNames.Token).Set("existing_partition")
-    with pytest.raises(RuntimeError, match="cannot replace existing scene partition"):
-        create_partition_panel()
-    assert prim.GetAttribute(attribute_name).Get() == "existing_partition"
-    assert not scene_ui_module._KitSceneUiCameraFeedPresenter._partition_panels
-    assert not stage.GetSessionLayer().GetAttributeAtPath(Sdf.Path(prim_path).AppendProperty(attribute_name))
-
-
-def test_scene_partition_cleanup_preserves_external_changes(scene_ui_module, monkeypatch, create_partition_panel):
-    stage = Usd.Stage.CreateInMemory()
-    monkeypatch.setattr(scene_ui_module, "get_current_stage", lambda: stage)
-    camera = stage.DefinePrim(scene_ui_module._XR_CAMERA_PATH, "Camera")
-    panel = create_partition_panel()
-    with Usd.EditContext(stage, stage.GetSessionLayer()):
-        camera.GetAttribute("omni:scenePartition").Set("external_partition")
-    panel.close()
-    assert camera.GetAttribute("omni:scenePartition").Get() == "external_partition"
-
-
-def test_late_partition_conflict_restores_camera_and_recovers(scene_ui_module, monkeypatch, create_partition_panel):
+@pytest.mark.parametrize("conflict", ["global", "xr_camera", "ui"])
+def test_partition_conflicts_hide_panels_and_recover(scene_ui_module, monkeypatch, create_partition_panel, conflict):
     stage = Usd.Stage.CreateInMemory()
     monkeypatch.setattr(scene_ui_module, "get_current_stage", lambda: stage)
     camera = stage.DefinePrim(scene_ui_module._XR_CAMERA_PATH, "Camera")
     ui_root = stage.DefinePrim("/ui", "Xform")
     presenter = scene_ui_module._KitSceneUiCameraFeedPresenter()
+    show_all = True
+    monkeypatch.setattr(scene_ui_module, "get_settings_manager", lambda: SimpleNamespace(get=lambda key: show_all))
     panel = create_partition_panel(presenter)
     assert panel._partition_ready
     with Usd.EditContext(stage, stage.GetSessionLayer()):
-        ui_root.GetAttribute("primvars:omni:scenePartition").Set("external")
-    with pytest.raises(RuntimeError, match="cannot replace"):
+        if conflict == "global":
+            show_all = False
+        elif conflict == "xr_camera":
+            camera.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set("external")
+        else:
+            ui_root.GetAttribute("primvars:omni:scenePartition").Set("external")
+    with pytest.raises(RuntimeError, match="partition|Partitions"):
         presenter._refresh_scene_partition()
     assert not panel._partition_ready
-    assert not camera.GetAttribute("omni:scenePartition").IsValid()
-    assert ui_root.GetAttribute("primvars:omni:scenePartition").Get() == "external"
+    panel._container.hide.assert_called()
+    if conflict == "ui":
+        assert ui_root.GetAttribute("primvars:omni:scenePartition").Get() == "external"
+    else:
+        assert not ui_root.GetAttribute("primvars:omni:scenePartition").IsValid()
+    # The same conflict must fail panel construction, without retaining a panel.
+    with pytest.raises(RuntimeError, match="partition|Partitions"):
+        create_partition_panel(presenter)
+    assert presenter._partition_panels == {panel}
     with Usd.EditContext(stage, stage.GetSessionLayer()):
-        ui_root.GetAttribute("primvars:omni:scenePartition").Set("")
+        show_all = True
+        if conflict == "xr_camera":
+            camera.GetAttribute("omni:scenePartition").Set("")
+        elif conflict == "ui":
+            ui_root.GetAttribute("primvars:omni:scenePartition").Set("")
     presenter._refresh_scene_partition()
     assert panel._partition_ready
 
 
-@pytest.mark.parametrize("conflict", ["global", "environment"])
-def test_partition_readiness_lost_on_late_renderer_override(
-    scene_ui_module, monkeypatch, create_partition_panel, conflict
-):
+@pytest.mark.parametrize("partition", [None, "env_0", "isaaclab_teleop_xr_camera_pip"])
+def test_isolation_requires_an_existing_camera_partition(scene_ui_module, monkeypatch, partition):
     stage = Usd.Stage.CreateInMemory()
     monkeypatch.setattr(scene_ui_module, "get_current_stage", lambda: stage)
-    stage.DefinePrim(scene_ui_module._XR_CAMERA_PATH, "Camera")
-    env_root = stage.DefinePrim("/World/envs/env_0", "Xform")
+    path = "/World/envs/env_0/Camera"
+    prim = stage.DefinePrim(path, "Camera")
+    if partition is not None:
+        prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set(partition)
+    camera = SimpleNamespace(
+        _render_data=SimpleNamespace(render_product=object(), spec=SimpleNamespace(camera_prim_paths=[path]))
+    )
     presenter = scene_ui_module._KitSceneUiCameraFeedPresenter()
-    panel = create_partition_panel(presenter)
-    assert panel._partition_ready
-    if conflict == "global":
-        monkeypatch.setattr(scene_ui_module, "get_settings_manager", lambda: SimpleNamespace(get=lambda key: True))
+    before = stage.GetRootLayer().ExportToString()
+    if partition == "env_0":
+        presenter.validate_camera_partition("robot_pov_cam", camera)
     else:
-        env_root.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set("env_0")
-    with pytest.raises(RuntimeError, match="Isolated XR PiP"):
-        presenter._refresh_scene_partition()
-    assert not panel._partition_ready
-    assert not stage.GetPrimAtPath("/ui").IsValid()
-
-
-def test_panel_requires_both_pose_and_partition_readiness(scene_ui_module):
-    panel = scene_ui_module.KitSceneUiCameraFeedPanel.__new__(scene_ui_module.KitSceneUiCameraFeedPanel)
-    panel._container = SimpleNamespace(show=Mock(), hide=Mock())
-    panel._pose_ready = False
-    panel._partition_ready = False
-    panel._on_pose_readiness_changed(True)
-    panel._container.show.assert_not_called()
-    panel._partition_ready = True
-    panel._update_visibility()
-    panel._container.show.assert_called_once()
-    panel._container.show.reset_mock()
-    panel._partition_ready = False
-    panel._on_pose_readiness_changed(True)
-    panel._container.show.assert_not_called()
+        with pytest.raises(ValueError, match="environment partition"):
+            presenter.validate_camera_partition("robot_pov_cam", camera)
+    assert stage.GetRootLayer().ExportToString() == before
+    assert stage.GetSessionLayer().empty
 
 
 @pytest.mark.parametrize(
@@ -1000,39 +933,30 @@ def test_panel_converts_metric_geometry_in_selected_coordinate_system(
 
 
 @pytest.mark.parametrize("use_scene_partition", [False, True])
-@pytest.mark.parametrize("close_first", [0, 1])
 def test_presenters_share_scene_partition_lifecycle(
-    scene_ui_module, monkeypatch, create_partition_panel, use_scene_partition, close_first
+    scene_ui_module, monkeypatch, create_partition_panel, use_scene_partition
 ):
     stage = Usd.Stage.CreateInMemory()
     monkeypatch.setattr(scene_ui_module, "get_current_stage", lambda: stage)
     camera = stage.DefinePrim(scene_ui_module._XR_CAMERA_PATH, "Camera")
     camera.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set("")
+    ui_root = stage.DefinePrim("/ui", "Xform")
+    ui_partition = ui_root.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token)
+    ui_partition.Set("")
     panels = [create_partition_panel(use_scene_partition=use_scene_partition) for _ in range(2)]
     expected = scene_ui_module._XR_CAMERA_PIP_PARTITION if use_scene_partition else ""
-    assert camera.GetAttribute("omni:scenePartition").Get() == expected
-    panels[close_first].close()
-    assert camera.GetAttribute("omni:scenePartition").Get() == expected
-    # Cleanup still restores the shared state when the last widget fails to clear.
-    panels[1 - close_first]._container.root.clear.side_effect = RuntimeError("widget clear failed")
-    with pytest.raises(RuntimeError, match="widget clear failed"):
-        panels[1 - close_first].close()
+    assert ui_partition.Get() == expected
     assert camera.GetAttribute("omni:scenePartition").Get() == ""
-    assert not stage.GetPrimAtPath("/ui").IsValid()
-    # The existing presenter owns shared presentation state; no second owner or alias.
-    assert {
-        name
-        for name, value in vars(scene_ui_module).items()
-        if isinstance(value, type) and value.__module__ == scene_ui_module.__name__
-    } == {
-        "KitSceneUiViewerStartAnchor",
-        "KitSceneUiHeadLockedAnchor",
-        "_CameraImageWidget",
-        "KitSceneUiCameraFeedPanel",
-        "_ReplicatorCameraFeedSource",
-        "_KitSceneUiCameraFeedPresenter",
-        "_KitFrameSubscription",
-    }
+    panels[0].close()
+    assert ui_partition.Get() == expected
+    assert camera.GetAttribute("omni:scenePartition").Get() == ""
+    # Cleanup still restores the shared state when the last widget fails to clear.
+    panels[1]._container.root.clear.side_effect = RuntimeError("widget clear failed")
+    with pytest.raises(RuntimeError, match="widget clear failed"):
+        panels[1].close()
+    assert camera.GetAttribute("omni:scenePartition").Get() == ""
+    assert ui_partition.Get() == ""
+    assert not hasattr(scene_ui_module, "_KitSceneUiScenePartition")
     assert not hasattr(scene_ui_module, "_get_shared_scene_partition")
 
 
@@ -1112,6 +1036,8 @@ def test_image_source_is_absent_without_existing_render_product(scene_ui_module)
     source = presenter.create_image_source("robot_pov_cam", SimpleNamespace())
 
     assert source is None
+    with pytest.raises(ValueError, match="requires an Isaac RTX camera"):
+        presenter.validate_camera_partition("robot_pov_cam", SimpleNamespace())
 
 
 def test_image_source_attaches_rgb_cuda_annotator_and_detaches(scene_ui_module, monkeypatch):

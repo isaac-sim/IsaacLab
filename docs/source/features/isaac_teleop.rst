@@ -1394,25 +1394,23 @@ camera view follows robot motion:
    the panel outside the camera's field of view.
 
 Both G1 tasks enable :attr:`~isaaclab_teleop.XrCameraFeedLayoutCfg.use_scene_partition`
-to avoid this recursion. The SceneUI adapter assigns the entire ``/ui`` root and the XR
-presentation camera to ``isaaclab_teleop_xr_camera_pip`` in the stage's session layer, restoring
-prior opinions when the final isolated panel closes. This is shared XR/SceneUI state, not
-independent per-panel visibility.
+to avoid this recursion. Robot cameras keep their existing environment partition, such as
+``env_0``. The SceneUI adapter assigns the entire ``/ui`` root to a different partition,
+``isaaclab_teleop_xr_camera_pip``, so those cameras exclude the panels. The XR presentation camera
+stays unpartitioned and sees both the environment and UI through
+``/rtx/scenePartitioning/showAllPartitionsByDefault=True``, which :class:`~isaaclab.app.AppLauncher`
+already enables at startup for ``--xr``.
 
-Enabled PiP preparation temporarily sets selected Isaac RTX cameras' ``enable_scene_partitioning``
-to ``False`` and owns the process-global ``/rtx/scenePartitioning/showAllPartitionsByDefault=False``
-override. The final isolated session restores prior values on close, including initialization
-failure, unless another owner has changed them. Additional cameras must disable per-environment
-partitioning, and named or raw renderer settings must not override the visibility policy. PiP
-rejects conflicting configurations instead of hiding the environment or enabling recursion.
-Panels are hidden while tracking or the shared partition is unavailable, and shown again when
-both are ready. Non-XR runs and disabled feeds retain their camera defaults. Other tasks retain
+PiP leaves camera configuration and global renderer settings unchanged. Selected Isaac RTX
+cameras must be beneath ``{ENV_REGEX_NS}`` with the default ``enable_scene_partitioning=True``;
+binding rejects cameras without a partition. Custom launchers must enable the all-partitions
+spectator setting before starting Kit and leave the XR camera unpartitioned. This requires a
+runtime supporting that setting (Kit 110.3 or later).
+
+Only the shared ``/ui`` partition is authored in the stage's session layer. Its prior opinion is
+restored when the final isolated panel closes, unless another owner changed it. Panels remain
+hidden while tracking or isolation is unavailable and reappear after recovery. Other tasks retain
 their existing behavior because ``use_scene_partition`` defaults to ``False``.
-
-Custom launchers must close a prepared :class:`~isaaclab_teleop.XrCameraFeedSession` even if
-environment construction fails, for example by wrapping preparation and environment creation in
-``contextlib.closing(XrCameraFeedSession.prepare(...))``. The teleoperation and recording scripts
-already arrange this cleanup.
 
 .. code-block:: bash
 

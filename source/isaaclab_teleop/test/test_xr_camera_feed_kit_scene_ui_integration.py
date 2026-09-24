@@ -12,6 +12,7 @@ _SCENE_UI_KIT_ARGS = " ".join(
         "--enable omni.kit.xr.core",
         "--enable omni.kit.scene_view.xr",
         "--enable omni.kit.scene_view.xr_utils",
+        "--/rtx/scenePartitioning/showAllPartitionsByDefault=true",
     )
 )
 simulation_app = AppLauncher(
@@ -25,15 +26,15 @@ import pytest
 from isaaclab_teleop import XrCameraFeedCfg
 from isaaclab_teleop.camera_feed import _PanelDescriptor
 from isaaclab_teleop.camera_feed_kit_scene_ui import _KitSceneUiCameraFeedPresenter
+from packaging.version import Version
 
+import omni.kit.app
 import omni.replicator.core as rep
 import usdrt.Usd as UsdRtUsd
-from pxr import UsdUtils
+from pxr import Sdf, UsdUtils
 
 import isaaclab.sim as sim_utils
-from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sensors.camera import Camera, CameraCfg
-from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
@@ -54,10 +55,6 @@ def test_real_scene_ui_imports_and_constructs_world_panel(use_scene_partition):
     stage = sim_utils.get_current_stage()
     camera = stage.DefinePrim("/_xr/stage/xrCamera", "Camera")
     root_before = stage.GetRootLayer().ExportToString()
-    settings = get_settings_manager()
-    previous = settings.get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING)
-    if use_scene_partition:
-        settings.set(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING, False)
     presenter = _KitSceneUiCameraFeedPresenter()
     descriptor = _PanelDescriptor(
         label="Camera",
@@ -77,34 +74,36 @@ def test_real_scene_ui_imports_and_constructs_world_panel(use_scene_partition):
         assert panel._component is not None
         if use_scene_partition:
             assert panel._partition_ready
-            assert camera.GetAttribute("omni:scenePartition").Get() == "isaaclab_teleop_xr_camera_pip"
+            assert not camera.GetAttribute("omni:scenePartition").IsValid()
             assert stage.GetPrimAtPath("/ui").GetAttribute("primvars:omni:scenePartition").Get() == (
                 "isaaclab_teleop_xr_camera_pip"
             )
     finally:
-        try:
-            if panel is not None:
-                panel.close()
-        finally:
-            if use_scene_partition:
-                settings.set(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING, previous)
+        if panel is not None:
+            panel.close()
 
     assert panel._closed
     assert not camera.GetAttribute("omni:scenePartition").IsValid()
     assert stage.GetRootLayer().ExportToString() == root_before
 
 
-def test_real_feed_source_applies_local_policy_and_reads_cuda_from_cpu_camera():
+@pytest.mark.parametrize("use_scene_partition", [False, True])
+def test_real_feed_source_applies_local_policy_and_reads_cuda_from_cpu_camera(use_scene_partition):
     """Late PiP attachment authors only its RenderProduct and keeps camera pixels on CPU."""
+    if use_scene_partition and Version(omni.kit.app.get_app().get_build_version().split("+")[0]) < Version("110.3"):
+        pytest.skip("The all-partitions spectator view requires Kit 110.3 or later.")
     sim_utils.create_new_stage()
     sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device="cpu", dt=1.0 / 60.0))
+    stage = sim_utils.get_current_stage()
+    stage.DefinePrim("/World/envs/env_0", "Xform")
     camera = Camera(
         CameraCfg(
-            prim_path="/World/Camera",
+            prim_path="/World/envs/env_0/Camera",
             height=64,
             width=64,
             data_types=["rgb"],
             spawn=sim_utils.PinholeCameraCfg(),
+            offset=CameraCfg.OffsetCfg(rot=(0.0, 0.0, 0.0, 1.0), convention="opengl"),
         )
     )
     bystander_camera = Camera(
@@ -114,9 +113,23 @@ def test_real_feed_source_applies_local_policy_and_reads_cuda_from_cpu_camera():
             width=64,
             data_types=["rgb"],
             spawn=sim_utils.PinholeCameraCfg(),
+            offset=CameraCfg.OffsetCfg(rot=(0.0, 0.0, 0.0, 1.0), convention="opengl"),
         )
     )
     source = None
+    if use_scene_partition:
+        for path, position, color in (
+            ("/World/envs/env_0/Robot", (-0.55, 0.0, -3.0), (1.0, 0.0, 0.0)),
+            ("/ui/Panel", (0.55, 0.0, -3.0), (0.0, 1.0, 0.0)),
+        ):
+            cfg = sim_utils.CuboidCfg(
+                size=(0.5, 0.5, 0.5),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=color, emissive_color=color),
+            )
+            cfg.func(path, cfg, translation=position)
+        stage.GetPrimAtPath("/ui").CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(
+            "isaaclab_teleop_xr_camera_pip"
+        )
 
     try:
         sim.reset()
@@ -136,6 +149,8 @@ def test_real_feed_source_applies_local_policy_and_reads_cuda_from_cpu_camera():
         )
 
         presenter = _KitSceneUiCameraFeedPresenter()
+        if use_scene_partition:
+            presenter.validate_camera_partition("camera", camera)
         source = presenter.create_image_source(
             "camera",
             camera,
@@ -147,7 +162,7 @@ def test_real_feed_source_applies_local_policy_and_reads_cuda_from_cpu_camera():
         )
         assert source is not None
 
-        for _ in range(2):
+        for _ in range(12):
             sim.step()
             camera.update(sim.cfg.dt)
             bystander_camera.update(sim.cfg.dt)
@@ -173,6 +188,14 @@ def test_real_feed_source_applies_local_policy_and_reads_cuda_from_cpu_camera():
         assert tuple(image.shape) == tuple(fallback.shape)
         assert image.data_ptr() == source._annotator.get_data().ptr
         assert image.dtype == fallback.dtype
+        if use_scene_partition:
+            # The source camera sees the robot, while an unpartitioned spectator also sees the UI.
+            for sensor, sees_ui in ((camera, False), (bystander_camera, True)):
+                rgb = sensor.data.output["rgb"].torch[0].float()
+                red = (rgb[..., 0] > 50) & (rgb[..., 0] > 1.5 * rgb[..., 1])
+                green = (rgb[..., 1] > 50) & (rgb[..., 1] > 1.5 * rgb[..., 0])
+                assert red.sum() > 20, sensor.cfg.prim_path
+                assert bool(green.sum() > 20) is sees_ui, sensor.cfg.prim_path
     finally:
         if source is not None:
             source.close()

@@ -140,14 +140,13 @@ class XrCameraFeedLayoutCfg:
     """
 
     use_scene_partition: bool = False
-    """Isolate the XR camera and entire SceneUI root from robot-camera rendering.
+    """Isolate the entire SceneUI root from partitioned robot cameras. Defaults to False.
 
-    Enabled PiP temporarily disables per-environment partitioning on selected Isaac RTX
-    cameras and owns the process-global ``showAllPartitionsByDefault=False`` override.
-    Prior settings are restored when the final isolated session closes. Other cameras
-    must disable per-environment partitioning, and renderer settings must not override
-    the global visibility policy. Isolation affects the shared XR camera and ``/ui``
-    stage root, not just individual panels. Defaults to False.
+    Selected Isaac RTX cameras must retain their environment partitions. The unpartitioned
+    XR camera sees both the environment and UI through the launcher's default
+    ``showAllPartitionsByDefault=True``. Only the shared ``/ui`` partition is temporarily
+    authored; its prior session-layer opinion is restored when the final isolated panel
+    closes. Camera configuration and global renderer settings are left unchanged.
     """
 
 
