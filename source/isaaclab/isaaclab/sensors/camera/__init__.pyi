@@ -12,6 +12,10 @@ __all__ = [
     "RenderBufferSpec",
     "TiledCamera",
     "TiledCameraCfg",
+    "VisualProcessor",
+    "VisualProcessorCfg",
+    "VisualProcessorContext",
+    "VisualProcessingPipeline",
     "transform_points",
     "create_pointcloud_from_depth",
     "create_pointcloud_from_rgbd",
@@ -22,6 +26,7 @@ from .camera import Camera
 from .camera_cfg import CameraCfg
 from .camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from .camera_isp import CameraISPMode
+from .post_processing import VisualProcessor, VisualProcessorCfg, VisualProcessorContext, VisualProcessingPipeline
 from .tiled_camera import TiledCamera
 from .tiled_camera_cfg import TiledCameraCfg
 from .utils import (

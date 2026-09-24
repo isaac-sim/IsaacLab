@@ -58,7 +58,24 @@ def test_isaac_rtx_supported_output_types_include_rgb_hdr(monkeypatch):
         specs = renderer.supported_output_types()
 
     assert specs == renderer.cfg.supported_output_types()
-    assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)
+    assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32, color_space="scene_linear")
+
+
+@pytest.mark.parametrize("neutral_exposure", [False, True])
+def test_prepare_cameras_honors_sensor_exposure_requirement(monkeypatch, neutral_exposure):
+    """Scene-linear inputs disable authored exposure without any processor configuration."""
+    _install_omni_stubs(monkeypatch)
+    from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer
+
+    from pxr import Sdf, Usd, UsdGeom
+
+    stage = Usd.Stage.CreateInMemory()
+    camera = UsdGeom.Camera.Define(stage, "/World/Camera").GetPrim()
+    camera.CreateAttribute("exposure:iso", Sdf.ValueTypeNames.Float).Set(100.0)
+    spec = SimpleNamespace(neutral_exposure=neutral_exposure, camera_prim_paths=("/World/Camera",))
+    IsaacRtxRenderer.__new__(IsaacRtxRenderer).prepare_cameras(stage, spec)
+
+    assert camera.GetAttribute("exposure:iso").Get() == (0.0 if neutral_exposure else 100.0)
 
 
 def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch):
@@ -103,6 +120,7 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
     spec = SimpleNamespace(
         camera_prim_paths=["/World/envs/env_0/Camera"],
         device="cpu",
+        data_types=["rgb"],
         cfg=SimpleNamespace(
             data_types=["rgb"],
             width=64,
@@ -220,6 +238,7 @@ def test_simple_shading_configures_its_render_product(
     spec = SimpleNamespace(
         camera_prim_paths=["/World/envs/env_0/Camera"],
         device="cpu",
+        data_types=data_types,
         cfg=SimpleNamespace(
             data_types=data_types,
             width=64,
@@ -300,6 +319,7 @@ def test_depth_only_camera_color_render_setting(monkeypatch, has_gui, expected_d
     spec = SimpleNamespace(
         camera_prim_paths=["/World/NotACamera"],
         cfg=SimpleNamespace(data_types=["depth"]),
+        data_types=["depth"],
     )
     renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
     renderer.cfg = IsaacRtxRendererCfg()
@@ -443,8 +463,6 @@ def test_render_treats_empty_annotator_frame_as_not_ready(monkeypatch, data_type
             cfg=SimpleNamespace(width=64, height=64),
         ),
         renderer_info={},
-        ppisp_pipeline=None,
-        _hdr_scratch_wp=None,
     )
     renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
     renderer.cfg = IsaacRtxRendererCfg()

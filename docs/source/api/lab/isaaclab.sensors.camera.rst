@@ -14,6 +14,22 @@ The following classes are part of the public :mod:`isaaclab.sensors.camera` API.
    :nosignatures:
 
    CameraISPMode
+   VisualProcessorCfg
+   VisualProcessorContext
+   VisualProcessor
+   VisualProcessingPipeline
 
 .. autoclass:: CameraISPMode
    :show-inheritance:
+
+.. autoclass:: VisualProcessorCfg
+   :members:
+
+.. autoclass:: VisualProcessorContext
+   :members:
+
+.. autoclass:: VisualProcessor
+   :members:
+
+.. autoclass:: VisualProcessingPipeline
+   :members:

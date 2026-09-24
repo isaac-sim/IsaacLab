@@ -5,13 +5,10 @@
 
 """Post-render PPISP (Physically Plausible Image Signal Processing) for IsaacLab.
 
-Provides the renderer-backend-agnostic ISP pipeline that converts the renderer's
-HDR scene-linear AOV to LDR RGBA at the end of a render tick. Renderer backends
-(:class:`~isaaclab_physx.renderers.IsaacRtxRenderer`,
-:class:`~isaaclab_ov.renderers.OVRTXRenderer`,
-:class:`~isaaclab_newton.renderers.NewtonWarpRenderer`) compose
-:class:`PpispPipeline` internally when the camera's
-:attr:`~isaaclab.sensors.camera.CameraCfg.isp_cfg` is set.
+Provides the sensor-owned ISP processor that converts rendered scene-linear
+HDR to LDR RGB/RGBA. Configure :class:`PpispProcessorCfg` in the camera's
+processing chain, or use the compatible
+:attr:`~isaaclab.sensors.camera.CameraCfg.isp_cfg` entry point.
 """
 
 import importlib.metadata

@@ -28,7 +28,7 @@ import sys
 import weakref
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NoReturn, cast
+from typing import TYPE_CHECKING, Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +69,7 @@ except ModuleNotFoundError as exc:
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import query as clone_query
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
+from isaaclab.renderers.rtx_camera_overrides import apply_rtx_exposure_overrides
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
@@ -105,7 +106,6 @@ from isaaclab_ov.stage import (
 )
 
 if TYPE_CHECKING:
-    from isaaclab_ppisp import PpispPipeline
     from ovrtx import AttributeBinding
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
@@ -142,11 +142,6 @@ _DEPTH_VAR_BUFFER_KEYS: dict[str, tuple[str, ...]] = {
     "DistanceToCameraSD": ("distance_to_camera",),
 }
 
-_PPISP_IMPORT_ERROR_MESSAGE = (
-    "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
-    "It ships with the Isaac Lab wheel (`pip install isaaclab`); otherwise install the "
-    "isaaclab-ppisp extension from the Isaac Lab source checkout."
-)
 _READ_GPU_TRANSFORMS_ENV = "ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS"
 
 
@@ -172,14 +167,6 @@ def ovrtx_use_ovstage_enabled() -> bool:
     if value not in {"0", "1"}:
         raise ValueError(f"Invalid value for environment variable `{_USE_OVSTAGE_ENV}`: {value}. Expected 0 or 1.")
     return value == "1"
-
-
-def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
-    # Only translate missing isaaclab_ppisp imports into the optional-dependency hint;
-    # unrelated missing modules should surface unchanged for easier debugging.
-    if exc.name != "isaaclab_ppisp" and not (exc.name and exc.name.startswith("isaaclab_ppisp.")):
-        raise exc
-    raise ModuleNotFoundError(_PPISP_IMPORT_ERROR_MESSAGE, name="isaaclab_ppisp") from exc
 
 
 def _read_gpu_transforms_enabled() -> bool:
@@ -325,7 +312,7 @@ class OVRTXCameraRenderData:
         self.width = spec.cfg.width
         self.height = spec.cfg.height
         self.num_envs = spec.num_instances
-        self.data_types = spec.cfg.data_types if spec.cfg.data_types else ["rgb"]
+        self.data_types = spec.data_types
         self.num_cols = math.ceil(math.sqrt(self.num_envs))
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
         self.warp_buffers: dict[str, wp.array] = {}
@@ -334,16 +321,7 @@ class OVRTXCameraRenderData:
         # Populated for "semantic_segmentation" (with an "idToLabels" mapping) and
         # "instance_segmentation" (with "idToLabels" and "idToSemantics" mappings).
         self.renderer_info: dict[str, Any] = {}
-        # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
-        # ``isp_cfg`` is already fully normalized by ``prepare_cameras`` by the time it reaches here.
-        self.ppisp_pipeline: PpispPipeline | None = None
-        if spec.cfg.isp_cfg is not None:
-            try:
-                from isaaclab_ppisp import PpispPipeline
-            except ModuleNotFoundError as exc:
-                _raise_missing_ppisp_error(exc)
-
-            self.ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
+        self._hdr_transfer_buffer: wp.array | None = None
 
     def cleanup(self) -> None:
         """Release this camera's native resources and buffers. Safe to call repeatedly.
@@ -359,7 +337,7 @@ class OVRTXCameraRenderData:
             self.intrinsic_bindings.clear()
             self.warp_buffers.clear()
             self.renderer_info.clear()
-            self.ppisp_pipeline = None
+            self._hdr_transfer_buffer = None
 
 
 class OVRTXRenderer(BaseRenderer):
@@ -439,27 +417,9 @@ class OVRTXRenderer(BaseRenderer):
         return self._create_visual_material_writer
 
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
-        """Resolve the camera's PPISP cfg and apply OVRTX-specific USD overrides.
-
-        When ``spec.cfg.isp_cfg`` is set, resolves it (sentinel discovery +
-        normalization) via :func:`isaaclab_ppisp.resolve_and_normalize` so
-        :mod:`isaaclab` does not need to know about PPISP. Then pins
-        ``exposure:*`` to neutral and applies ``OmniRtxCameraExposureAPI_1`` so
-        the RTX exposure model OVRTX embeds does not compound on top of the
-        ISP. Without an ISP, the camera prim's authored exposure is left alone.
-        """
-        if spec.cfg.isp_cfg is None:
-            return
-        try:
-            from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
-        except ModuleNotFoundError as exc:
-            _raise_missing_ppisp_error(exc)
-
-        camera_prim_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else None
-        spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
-        if spec.cfg.isp_cfg is None or not spec.camera_prim_paths:
-            return
-        apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
+        """Apply neutral exposure when the sensor requests scene-linear rendering."""
+        if spec.neutral_exposure:
+            apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Prepare the USD stage for OVRTX before :meth:`create_render_data`.
@@ -1058,23 +1018,6 @@ class OVRTXRenderer(BaseRenderer):
         render_data.warp_buffers = {
             name: proxy.warp for name, proxy in output_data.items() if name != str(RenderBufferKind.RGB)
         }
-        # When PPISP is composed but the user did not request the raw HDR AOV,
-        # allocate an internal HDR scratch buffer under "rgb_hdr" so both the
-        # HdrColor extractor and PPISP dispatch can use the same buffer map.
-        if render_data.ppisp_pipeline is not None and str(RenderBufferKind.RGB_HDR) not in render_data.warp_buffers:
-            ref_proxy = next(iter(output_data.values()))
-            render_data.warp_buffers[str(RenderBufferKind.RGB_HDR)] = wp.zeros(
-                (render_data.num_envs, render_data.height, render_data.width, 3),
-                dtype=wp.float32,
-                device=ref_proxy.device,
-            )
-        if render_data.ppisp_pipeline is not None:
-            if str(RenderBufferKind.RGBA) not in render_data.warp_buffers:
-                raise ValueError(
-                    "OVRTX renderer ISP requires 'rgba' (or 'rgb', which aliases into rgba) as the"
-                    " LDR output destination, but neither was provided. Add 'rgb' or 'rgba' to"
-                    " Camera.cfg.data_types when isp_cfg is set."
-                )
 
     def _update_transforms_legacy(self) -> None:
         """Write SDP's requested matrix layout without another conversion."""
@@ -1503,13 +1446,10 @@ class OVRTXRenderer(BaseRenderer):
             raise TypeError(f"Unsupported OVRTX HdrColor dtype: {tiled_data.dtype}.")
         self._launch_extract_all_tiles(render_data, tiled_data, output_buffers["rgb_hdr"])
 
-    def _prepare_ppisp_hdr_source(
+    def _prepare_hdr_source(
         self, render_data: OVRTXCameraRenderData, tiled_data: wp.array, output_buffers: dict
     ) -> wp.array:
-        """Return the PPISP HdrColor source on the output buffer device."""
-        if render_data.ppisp_pipeline is None:
-            return tiled_data
-
+        """Return HdrColor on the output device, reusing transfer storage when needed."""
         output_device = str(output_buffers[str(RenderBufferKind.RGB_HDR)].device)
         if str(tiled_data.device) == output_device:
             return tiled_data
@@ -1518,7 +1458,12 @@ class OVRTXRenderer(BaseRenderer):
         # normally lands on the output device already. This stays as a fallback for the case OVRTX
         # reports as "deviceIds ... not in the active device set" and falls back to automatic
         # assignment.
-        return wp.clone(tiled_data, device=output_device)
+        buffer = render_data._hdr_transfer_buffer
+        if buffer is None or buffer.shape != tiled_data.shape or buffer.dtype != tiled_data.dtype:
+            buffer = wp.empty(tiled_data.shape, dtype=tiled_data.dtype, device=output_device)
+            render_data._hdr_transfer_buffer = buffer
+        wp.copy(buffer, tiled_data, stream=wp.get_stream(output_device))
+        return buffer
 
     def _process_render_frame(self, render_data: OVRTXCameraRenderData, frame, output_buffers: dict) -> None:
         """Extract RGB, depth, albedo, and semantic from a single render frame into output_buffers."""
@@ -1531,7 +1476,7 @@ class OVRTXRenderer(BaseRenderer):
         if ldr_color is not None:
             buffer_key = None
 
-            if render_data.ppisp_pipeline is None and "rgba" in output_buffers:
+            if "rgba" in output_buffers:
                 buffer_key = "rgba"
             else:
                 # The output buffers must contain only one simple shading data type at most after resolution of the data
@@ -1566,7 +1511,7 @@ class OVRTXRenderer(BaseRenderer):
         hdr_color = frame.render_vars.get(render_data.render_var_keys[_HDR_COLOR_VAR])
         if hdr_color is not None and "rgb_hdr" in output_buffers:
             with self._map_render_var_to_dlpack(hdr_color) as tiled_hdr_data:
-                tiled_hdr_data = self._prepare_ppisp_hdr_source(render_data, tiled_hdr_data, output_buffers)
+                tiled_hdr_data = self._prepare_hdr_source(render_data, tiled_hdr_data, output_buffers)
                 self._extract_hdr_color_tiles(render_data, tiled_hdr_data, output_buffers)
 
         self._process_id_segmentation_render_var(
@@ -1632,14 +1577,6 @@ class OVRTXRenderer(BaseRenderer):
                 render_data,
                 products[product_path].frames[0],
                 render_data.warp_buffers,
-            )
-
-        # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
-        # buffers are the same warp buffer map used by extraction.
-        if render_data.ppisp_pipeline is not None:
-            render_data.ppisp_pipeline.apply(
-                render_data.warp_buffers[str(RenderBufferKind.RGB_HDR)],
-                render_data.warp_buffers[str(RenderBufferKind.RGBA)],
             )
 
     def _close_legacy(self) -> None:
@@ -2454,14 +2391,6 @@ class OVRTXRenderer(BaseRenderer):
                 render_data,
                 products[product_path].frames[0],
                 render_data.warp_buffers,
-            )
-
-        # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
-        # buffers are the same warp buffer map used by extraction.
-        if render_data.ppisp_pipeline is not None:
-            render_data.ppisp_pipeline.apply(
-                render_data.warp_buffers[str(RenderBufferKind.RGB_HDR)],
-                render_data.warp_buffers[str(RenderBufferKind.RGBA)],
             )
 
     def _close_ovstage(self) -> None:
