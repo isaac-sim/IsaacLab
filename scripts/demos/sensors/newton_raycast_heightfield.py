@@ -70,8 +70,8 @@ class HeightfieldSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/SensorBody",
         spawn=sim_utils.CuboidCfg(
             size=(0.4, 0.25, 0.1),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=1.0),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.9, 0.6, 0.1)),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.5)),

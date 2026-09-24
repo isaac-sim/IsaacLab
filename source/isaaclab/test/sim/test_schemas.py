@@ -37,7 +37,7 @@ from isaaclab_physx.sim.spawners.materials import (
     RigidBodyMaterialCfg,
 )
 
-from pxr import UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.schemas as schemas
@@ -503,6 +503,27 @@ def test_articulation_root_base_no_physx_schema_when_only_fix_root_link_set(setu
     assert "PhysxArticulationAPI" not in applied, (
         f"PhysxArticulationAPI should not be applied when only fix_root_link is set; got {list(applied)}"
     )
+
+
+@pytest.mark.isaacsim_ci
+def test_modify_articulation_root_fix_root_link_uses_given_stage(setup_simulation):
+    """``fix_root_link`` looks up the existing fixed joint on the stage that is passed in, not the current stage."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World")
+    root = UsdGeom.Xform.Define(stage, "/World/Robot").GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(root)
+    UsdPhysics.ArticulationRootAPI.Apply(root)
+    joint = UsdPhysics.FixedJoint.Define(stage, "/World/Robot/FixedJoint")
+    joint.CreateBody1Rel().SetTargets(["/World/Robot"])
+    joint.CreateJointEnabledAttr(True)
+    assert not sim_utils.get_current_stage().GetPrimAtPath("/World/Robot").IsValid()
+
+    with pytest.warns(DeprecationWarning, match="modify_articulation_root_properties"):
+        schemas.modify_articulation_root_properties(
+            "/World/Robot", schemas.ArticulationRootBaseCfg(fix_root_link=False), stage=stage
+        )
+
+    assert joint.GetJointEnabledAttr().Get() is False
 
 
 @pytest.mark.isaacsim_ci

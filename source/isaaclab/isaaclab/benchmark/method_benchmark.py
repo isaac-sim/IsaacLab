@@ -194,7 +194,6 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
             benchmarks: List of benchmark definitions to run.
             target_object: Object containing the methods to benchmark.
         """
-
         print(f"\nBenchmarking {len(benchmarks)} methods...")
         print(f"Config: {self._config.num_iterations} iterations, {self._config.warmup_steps} warmup steps")
         print(
@@ -437,7 +436,6 @@ class MethodBenchmarkRunner(BaseIsaacLabBenchmark):
         Returns:
             Dict with timing results, or None if property not found.
         """
-        # Check if property exists
         if inspect.getattr_static(target_data, prop_name, None) is None:
             return None
 

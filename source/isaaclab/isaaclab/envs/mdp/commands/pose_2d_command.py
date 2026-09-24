@@ -19,8 +19,7 @@ from isaaclab.terrains import TerrainImporter
 from isaaclab.utils.math import quat_apply_inverse, quat_from_euler_xyz, wrap_to_pi, yaw_quat
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-
+    from ... import ManagerBasedEnv
     from .commands_cfg import TerrainBasedPose2dCommandCfg, UniformPose2dCommandCfg
 
 

@@ -83,11 +83,8 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-from isaaclab_physx.sim.schemas import (
-    PhysxArticulationRootPropertiesCfg,
-    PhysxCollisionPropertiesCfg,
-    PhysxRigidBodyPropertiesCfg,
-)
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
 from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
@@ -121,19 +118,22 @@ class TactileSensorsSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileWithCompliantContactCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/TacSL/gelsight_r15_finger/gelsight_r15_finger.usd",
-            rigid_props=PhysxRigidBodyPropertiesCfg(
+            rigid_props=PhysxRigidBodyCfg(
                 disable_gravity=True,
                 max_depenetration_velocity=5.0,
             ),
             compliant_contact_stiffness=args_cli.tactile_compliance_stiffness,
             compliant_contact_damping=args_cli.tactile_compliant_damping,
             physics_material_prim_path="elastomer",
-            articulation_props=PhysxArticulationRootPropertiesCfg(
-                enabled_self_collisions=False,
-                solver_position_iteration_count=12,
-                solver_velocity_iteration_count=1,
-            ),
-            collision_props=PhysxCollisionPropertiesCfg(contact_offset=0.001, rest_offset=-0.0005),
+            articulation_props=[
+                PhysxArticulationCfg(
+                    enabled_self_collisions=False,
+                    solver_position_iteration_count=12,
+                    solver_velocity_iteration_count=1,
+                ),
+                NewtonArticulationCfg(self_collision_enabled=False),
+            ],
+            collision_props=PhysxCollisionCfg(contact_offset=0.001, rest_offset=-0.0005),
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.5),
@@ -188,9 +188,9 @@ class CubeTactileSceneCfg(TactileSensorsSceneCfg):
         prim_path="{ENV_REGEX_NS}/contact_object",
         spawn=sim_utils.CuboidCfg(
             size=(0.01, 0.01, 0.01),
-            rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.00327211),
-            collision_props=PhysxCollisionPropertiesCfg(),
+            rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+            mass_props=sim_utils.MassCfg(mass=0.00327211),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             physics_material=PhysxRigidBodyMaterialCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.1, 0.1)),
         ),
@@ -207,15 +207,15 @@ class NutTactileSceneCfg(TactileSensorsSceneCfg):
         prim_path="{ENV_REGEX_NS}/contact_object",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Factory/factory_nut_m16.usd",
-            rigid_props=PhysxRigidBodyPropertiesCfg(
+            rigid_props=PhysxRigidBodyCfg(
                 disable_gravity=True,
                 solver_position_iteration_count=12,
                 solver_velocity_iteration_count=1,
                 max_angular_velocity=180.0,
             ),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.1),
-            collision_props=PhysxCollisionPropertiesCfg(contact_offset=0.005, rest_offset=0),
-            articulation_props=PhysxArticulationRootPropertiesCfg(articulation_enabled=False),
+            mass_props=sim_utils.MassCfg(mass=0.1),
+            collision_props=PhysxCollisionCfg(contact_offset=0.005, rest_offset=0),
+            articulation_props=PhysxArticulationCfg(articulation_enabled=False),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
             pos=(0.0, 0.0 + 0.06776, 0.498),

@@ -10,6 +10,11 @@
 - Use modern Python type hints, including `X | None` instead of `Optional[X]`.
 - Use `snake_case` for methods, functions, and CLI arguments.
 - Keep related public symbols discoverable through consistent prefixes.
+- For external wrenches, follow the asset API's `is_global` boolean and `_b`/`_w` buffer naming. Keep
+  frame conversion decisions in `WrenchComposer` and track pending contributions with plain booleans;
+  do not introduce frame enums, content bitmasks, or a classification layer.
+- Name wrench reads `get_forces_and_torques`, matching the existing add/set methods; avoid a separate
+  "submission" API or compatibility alias for the unreleased `resolve_submission` method.
 - Use concrete types for public interfaces where practical.
 - Use Google-style docstrings for public APIs.
 - Document SI units for public physical quantities in docstrings using inline `[unit]` notation (e.g. `Particle positions [m], shape [N, 3]`); use `[m or rad, depending on joint type]` where applicable, and skip non-physical fields (indices, counts, flags).
@@ -22,6 +27,16 @@
 - Use `uv run isaaclab` for Isaac Lab CLI commands.
 - Use `./isaaclab.sh` only for installer workflows that require it.
 - Do not define Warp kernels in `python -c`; write a temporary Python file instead so Warp can inspect the source.
+
+## Code style
+
+- Group imports in PEP 8 order, separated by blank lines: `__future__`, standard library, third-party,
+  Omniverse runtime packages (`isaacsim`, `omni`, `pxr`, `carb`, ...), Isaac Lab packages, then local relative imports.
+  Ruff enforces this order through `uv run isaaclab -f`; do not sort imports by hand.
+- Import from the same package with relative imports when the target is at most three leading dots away
+  (e.g. `from ...utils import math as math_utils`). Use absolute imports for deeper targets and for other packages.
+- Keep absolute imports in modules that can run as scripts (with an `if __name__ == "__main__":` block),
+  since relative imports fail there.
 
 ## Testing and validation
 

@@ -2479,7 +2479,7 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
         num_articulations: Number of articulations to test
     """
     articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+    articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
     # Play the simulator
     sim.reset()
@@ -2499,8 +2499,10 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
 
     # Now we are ready!
     for i in range(5):
-        # reset root state
-        articulation.write_root_pose_to_sim_index(root_pose=articulation.data.default_root_pose.torch.clone())
+        # Preserve environment separation when converting the default root pose to world coordinates.
+        root_pose = articulation.data.default_root_pose.torch.clone()
+        root_pose[:, :3] += translations
+        articulation.write_root_pose_to_sim_index(root_pose=root_pose)
         articulation.write_root_velocity_to_sim_index(root_velocity=articulation.data.default_root_vel.torch.clone())
         # reset dof state
         joint_pos, joint_vel = (

@@ -28,7 +28,6 @@ def command_format() -> None:
 
     if result.returncode == 0:
         pre_commit_module = True
-
     # If pre-commit is not installed, install it.
     if not pre_commit_module:
         print_info('Pre-commit not found. Installing "pre-commit" module...')

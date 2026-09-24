@@ -388,7 +388,7 @@ def run_visualizer_golden_cartpole(
             return _viz_utils._capture_visualizer_tiled_camera_rgb(_get_active_visualizer(env, viz_type))
         if viz_type == "kit":
             return _viz_utils._capture_kit_viewport_with_pose_reapply(
-                env, _get_active_visualizer(env, "kit"), physics_backend=backend, prior_physics_steps=buffer_steps
+                env, _get_active_visualizer(env, "kit"), physics_backend=backend
             )
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
@@ -463,7 +463,6 @@ def run_visualizer_golden_shadow_hand(
                 _get_active_visualizer(env, "kit"),
                 resolution=_viz_utils._SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION,
                 physics_backend=backend,
-                prior_physics_steps=0,
             )
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
@@ -539,7 +538,6 @@ def run_visualizer_golden_anymal_d(
                 _get_active_visualizer(env, "kit"),
                 resolution=_viz_utils._ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION,
                 physics_backend=backend,
-                prior_physics_steps=_viz_utils._START_BUFFER_STEPS,
             )
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
@@ -602,13 +600,7 @@ def run_visualizer_golden_franka_cloth(
         if capture_mode == "tiled":
             return _viz_utils._capture_visualizer_tiled_camera_rgb(_get_active_visualizer(env, viz_type))
         if viz_type == "kit":
-            # Do NOT call env.sim.render() here: the VBD cloth solver never sets
-            # NewtonManager._newton_fabric_ready, so env.sim.render() blocks in
-            # the Fabric sync path indefinitely on some GPU/driver combinations
-            # (observed 48+ min hang on RTX PRO 4500 Blackwell).  Instead use
-            # app_updates_only=True which drives RTX TAA via lightweight app.update()
-            # ticks without triggering Newton Fabric sync.  The 12%/SSIM-0.85
-            # thresholds are loose enough to accept the resulting frame quality.
+            # Warm up RTX TAA without advancing the cloth simulation.
             return _viz_utils._capture_kit_viewport_with_pose_reapply(
                 env,
                 _get_active_visualizer(env, "kit"),

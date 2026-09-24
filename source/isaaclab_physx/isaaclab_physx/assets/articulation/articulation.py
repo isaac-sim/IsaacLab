@@ -251,7 +251,7 @@ class Articulation(BaseArticulation):
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            composer.compose_to_body_frame()
+            force_user, torque_user, is_global = composer.get_forces_and_torques()
             if self.data.has_body_ordering:
                 force_backend = self._body_wrench_force_backend
                 torque_backend = self._body_wrench_torque_backend
@@ -259,8 +259,8 @@ class Articulation(BaseArticulation):
                     ordering_kernels.reorder_body_wrench_user_to_backend,
                     dim=(self.num_instances, self.num_bodies),
                     inputs=[
-                        composer.out_force_b.warp,
-                        composer.out_torque_b.warp,
+                        force_user,
+                        torque_user,
                         self.data.body_ordering.backend_to_user,
                     ],
                     outputs=[force_backend, torque_backend],
@@ -269,14 +269,13 @@ class Articulation(BaseArticulation):
                 force_data = force_backend
                 torque_data = torque_backend
             else:
-                force_data = composer.out_force_b.warp
-                torque_data = composer.out_torque_b.warp
+                force_data, torque_data = force_user, torque_user
             self.root_view.apply_forces_and_torques_at_position(
                 force_data=force_data.flatten().view(wp.float32),
                 torque_data=torque_data.flatten().view(wp.float32),
                 position_data=None,
                 indices=self._ALL_INDICES,
-                is_global=False,
+                is_global=is_global,
             )
         if self._instantaneous_wrench_composer.active:
             self._instantaneous_wrench_composer.reset()
@@ -561,6 +560,7 @@ class Articulation(BaseArticulation):
             self.data._reset_pose()
         # set into simulation
         self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids)
+        SimulationManager.invalidate_transforms(kinematics=True)
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -658,6 +658,7 @@ class Articulation(BaseArticulation):
             self.data._reset_pose(from_link=False)
         # set into simulation
         self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids)
+        SimulationManager.invalidate_transforms(kinematics=True)
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -1058,6 +1059,7 @@ class Articulation(BaseArticulation):
             self.data._reset_velocity()
         # set into simulation
         self.root_view.set_dof_positions(joint_pos_backend, indices=sim_env_ids)
+        SimulationManager.invalidate_transforms(kinematics=True)
         self.root_view.set_dof_velocities(joint_vel_backend, indices=sim_env_ids)
 
     def write_joint_state_to_sim_mask(
@@ -1162,6 +1164,7 @@ class Articulation(BaseArticulation):
             self.data._reset_velocity()
         # set into simulation
         self.root_view.set_dof_positions(joint_pos_backend, indices=sim_env_ids)
+        SimulationManager.invalidate_transforms(kinematics=True)
 
     def write_joint_position_to_sim_mask(
         self,
@@ -4003,8 +4006,8 @@ class Articulation(BaseArticulation):
         self._cpu_env_ids_views: dict[int, wp.array] = {}
 
         # external wrench composer
-        self._instantaneous_wrench_composer = WrenchComposer(self)
-        self._permanent_wrench_composer = WrenchComposer(self)
+        self._instantaneous_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
+        self._permanent_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
 
         # asset named data
         self._joint_pos_target_backend: wp.array | None = None

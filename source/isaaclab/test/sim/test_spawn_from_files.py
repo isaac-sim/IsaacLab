@@ -153,6 +153,54 @@ def test_spawn_ground_plane(sim):
     assert tuple(shader.GetInput("diffuse_tint").Get()) == pytest.approx((0.1, 0.1, 0.1))
 
 
+# tetrahedron with one color per vertex
+_TET_VERTICES = [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)]
+_TET_FACES = [(0, 2, 1), (0, 1, 3), (0, 3, 2), (1, 2, 3)]
+_CONVEX_HULL_COLLIDER = dict(
+    collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
+    mesh_collision_props=[sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull")],
+)
+
+
+@pytest.mark.isaacsim_ci
+def test_spawn_mesh_from_triangle_data(sim):
+    """Test spawning in-memory triangle data as a colored rigid body with a convex-hull collider."""
+    cfg = sim_utils.MeshFileCfg(
+        mesh=sim_utils.MeshFileCfg.TriangleMeshCfg(
+            vertices=_TET_VERTICES, faces=_TET_FACES, vertex_colors=[(255, 0, 0)] * len(_TET_VERTICES)
+        ),
+        rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)],
+        mass_props=[sim_utils.MassCfg(mass=2.0)],
+        **_CONVEX_HULL_COLLIDER,
+    )
+    prim = cfg.func("/World/Object", cfg)
+
+    assert prim.HasAPI(UsdPhysics.RigidBodyAPI)
+    assert UsdPhysics.MassAPI(prim).GetMassAttr().Get() == pytest.approx(2.0)
+    mesh_prim = sim.stage.GetPrimAtPath("/World/Object/mesh")
+    assert mesh_prim.HasAPI(UsdPhysics.CollisionAPI)
+    assert UsdPhysics.MeshCollisionAPI(mesh_prim).GetApproximationAttr().Get() == "convexHull"
+    assert list(UsdGeom.Mesh(mesh_prim).GetDisplayColorAttr().Get()[0]) == [1.0, 0.0, 0.0]
+
+
+@pytest.mark.isaacsim_ci
+def test_spawn_mesh_from_obj_file(sim, tmp_path):
+    """Test spawning an OBJ mesh file with a convex-hull collider."""
+    obj_path = tmp_path / "tetrahedron.obj"
+    obj_path.write_text(
+        "".join(f"v {x} {y} {z}\n" for x, y, z in _TET_VERTICES)
+        + "".join(f"f {a + 1} {b + 1} {c + 1}\n" for a, b, c in _TET_FACES)
+    )
+    cfg = sim_utils.MeshFileCfg(mesh=str(obj_path), **_CONVEX_HULL_COLLIDER)
+    prim = cfg.func("/World/FileMesh", cfg)
+
+    # the converted geometry is instanceable, so its meshes are instance proxies
+    meshes = [p for p in Usd.PrimRange(prim, Usd.TraverseInstanceProxies()) if p.IsA(UsdGeom.Mesh)]
+    assert meshes
+    assert all(p.HasAPI(UsdPhysics.CollisionAPI) for p in meshes)
+    assert all(UsdPhysics.MeshCollisionAPI(p).GetApproximationAttr().Get() == "convexHull" for p in meshes)
+
+
 @pytest.mark.isaacsim_ci
 def test_spawn_usd_with_compliant_contact_material(sim):
     """Test loading prim from USD file with physics material applied to specific prim."""

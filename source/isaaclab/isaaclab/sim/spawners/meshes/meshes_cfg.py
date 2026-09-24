@@ -9,9 +9,10 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import Literal
 
-from isaaclab.sim.spawners import materials
-from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg
 from isaaclab.utils import configclass
+
+from .. import materials
+from ..spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg
 
 
 @configclass

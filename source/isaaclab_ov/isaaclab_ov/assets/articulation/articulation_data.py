@@ -200,6 +200,7 @@ class ArticulationData(BaseArticulationData):
             physx_instance = OvPhysxManager.get_physx_instance()
             if physx_instance is not None:
                 physx_instance.update_articulations_kinematic()
+                OvPhysxManager._kinematics_dirty = False
             self._fk_timestamp = self._sim_timestamp
 
     def _reset_pose(self, from_link: bool = True) -> None:

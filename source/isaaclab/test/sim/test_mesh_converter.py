@@ -15,6 +15,7 @@ simulation_app = AppLauncher(headless=True).app
 import math
 import os
 import random
+import shutil
 import tempfile
 
 import pytest
@@ -26,7 +27,7 @@ from isaaclab_physx.sim.schemas import (
     PhysxTriangleMeshSimplificationCfg,
 )
 
-from pxr import UsdGeom, UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -204,10 +205,13 @@ def test_config_change(assets):
     assert time_usd_file_created != new_time_usd_file_created
 
 
-def test_convert_obj(assets):
-    """Convert an OBJ file"""
+def test_convert_obj(assets, tmp_path):
+    """Convert an OBJ file whose name has extra dots; the prim name is made a valid identifier."""
+    for key in ("mtl", "png"):
+        shutil.copy(assets[key], tmp_path)
+    asset_path = shutil.copy(assets["obj"], tmp_path / "duck.v2.obj")
     mesh_config = MeshConverterCfg(
-        asset_path=assets["obj"],
+        asset_path=str(asset_path),
         scale=(random.uniform(0.1, 2.0), random.uniform(0.1, 2.0), random.uniform(0.1, 2.0)),
         translation=(random.uniform(-10.0, 10.0), random.uniform(-10.0, 10.0), random.uniform(-10.0, 10.0)),
         rotation=random_quaternion(),
@@ -216,6 +220,7 @@ def test_convert_obj(assets):
 
     # check that mesh conversion is successful
     check_mesh_conversion(mesh_converter)
+    assert Usd.Stage.Open(mesh_converter.usd_path).GetDefaultPrim().GetName() == "duck_v2"
 
 
 def test_convert_stl(assets):
