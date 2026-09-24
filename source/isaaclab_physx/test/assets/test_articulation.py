@@ -381,6 +381,14 @@ def test_live_manual_root_preserving_ordering_reorders_backend_reads_and_writes(
         body_user_to_backend,
     )
 
+    # The split accessors must be sliced from the reordered public poses, not from a stale backend-order cache.
+    torch.testing.assert_close(articulation.data.body_com_pos_b.torch, articulation.data.body_com_pose_b.torch[..., :3])
+    torch.testing.assert_close(
+        articulation.data.body_com_quat_b.torch, articulation.data.body_com_pose_b.torch[..., 3:]
+    )
+    torch.testing.assert_close(articulation.data.body_pos_w.torch, articulation.data.body_link_pose_w.torch[..., :3])
+    torch.testing.assert_close(articulation.data.body_quat_w.torch, articulation.data.body_link_pose_w.torch[..., 3:])
+
 
 @pytest.mark.parametrize("device", ["cpu"])
 @pytest.mark.parametrize("gravity_enabled", [False])

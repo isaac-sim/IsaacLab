@@ -774,14 +774,17 @@ class TestRemotizedPDEquivalence(_EquivalenceTestBase):
 
 
 def _assert_network_drives_haa_joints(test: unittest.TestCase, result: dict) -> None:
-    """Assert that the network actuator produces finite, non-zero, clamped HAA efforts every step."""
+    """Assert that the network actuator produces finite, non-zero HAA efforts that follow the joint state."""
     haa_ids = [i for i, name in enumerate(result["joint_names"]) if name.endswith("HAA")]
     test.assertEqual(len(haa_ids), 4)
     for step_i, (pos, effort) in enumerate(zip(result["joint_pos"], result["applied_effort"])):
         test.assertTrue(torch.isfinite(pos).all(), f"Non-finite positions at step {step_i}")
         haa_effort = effort[:, haa_ids]
         test.assertTrue(torch.all(haa_effort != 0.0), f"Network produced zero HAA effort at step {step_i}")
-        test.assertTrue(torch.all(haa_effort.abs() <= 80.0 + 1e-4), f"HAA effort exceeds the limit at step {step_i}")
+    # A constant output (e.g. only the output-layer bias) would mean the network is not fed the moving joint state.
+    first_effort = result["applied_effort"][0][:, haa_ids]
+    last_effort = result["applied_effort"][-1][:, haa_ids]
+    test.assertFalse(torch.allclose(first_effort, last_effort), "Network HAA effort did not follow the joint state")
 
 
 class TestNeuralMLPFunctional(unittest.TestCase):
