@@ -560,6 +560,7 @@ class Articulation(BaseArticulation):
             self.data._reset_pose()
         # set into simulation
         self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids)
+        SimulationManager.invalidate_transforms(kinematics=True)
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -657,6 +658,7 @@ class Articulation(BaseArticulation):
             self.data._reset_pose(from_link=False)
         # set into simulation
         self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids)
+        SimulationManager.invalidate_transforms(kinematics=True)
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -1057,6 +1059,7 @@ class Articulation(BaseArticulation):
             self.data._reset_velocity()
         # set into simulation
         self.root_view.set_dof_positions(joint_pos_backend, indices=sim_env_ids)
+        SimulationManager.invalidate_transforms(kinematics=True)
         self.root_view.set_dof_velocities(joint_vel_backend, indices=sim_env_ids)
 
     def write_joint_state_to_sim_mask(
@@ -1161,6 +1164,7 @@ class Articulation(BaseArticulation):
             self.data._reset_velocity()
         # set into simulation
         self.root_view.set_dof_positions(joint_pos_backend, indices=sim_env_ids)
+        SimulationManager.invalidate_transforms(kinematics=True)
 
     def write_joint_position_to_sim_mask(
         self,

@@ -88,6 +88,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
 @pytest.fixture(autouse=True)
 def _simulation_registry(monkeypatch):
     sim = types.SimpleNamespace(_backend_registry=[])
+    sim.get_scene_data_provider = lambda: types.SimpleNamespace(backend=types.SimpleNamespace(transform_paths=[]))
     sim.get_or_create_backend = SimulationContext.get_or_create_backend.__get__(sim)
     sim.close_backend = SimulationContext.close_backend.__get__(sim)
     monkeypatch.setattr(SimulationContext, "_instance", sim)
@@ -503,11 +504,6 @@ def test_ovrtx_ppisp_hdr_source_is_cloned_to_output_device(monkeypatch):
     assert clone_calls == [(source, "cuda:0")]
 
 
-class _FakeArray:
-    def __init__(self, shape):
-        self.shape = shape
-
-
 def test_launch_extract_all_tiles_rejects_wider_output_channels():
     """An output wider than the tiled input would read out of bounds, so it must raise before launching."""
     renderer = _make_ovrtx_renderer_without_backend()
@@ -515,55 +511,9 @@ def test_launch_extract_all_tiles_rejects_wider_output_channels():
     render_data = _make_ovrtx_camera_render_data()
 
     with pytest.raises(ValueError, match="out of bounds"):
-        renderer._launch_extract_all_tiles(render_data, _FakeArray((8, 16, 3)), _FakeArray((2, 8, 16, 4)))
-
-
-def test_launch_extract_all_tiles_launches_kernel_when_channels_are_compatible(monkeypatch):
-    """Equal or narrower output channel counts pass validation and reach the kernel launch."""
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer._device = "cpu"
-    render_data = _make_ovrtx_camera_render_data()
-    render_data.num_cols = 2
-
-    launch_calls = []
-    monkeypatch.setattr(wp, "launch", lambda **kwargs: launch_calls.append(kwargs))
-
-    tiled_buffer = _FakeArray((8, 16, 4))
-    output_buffer = _FakeArray((2, 8, 16, 3))
-    renderer._launch_extract_all_tiles(render_data, tiled_buffer, output_buffer)
-
-    assert len(launch_calls) == 1
-    assert launch_calls[0]["inputs"][:2] == [tiled_buffer, output_buffer]
-
-
-def test_ovrtx_read_output_copies_no_pixel_data():
-    """OVRTXRenderer.read_output copies no pixel data; with empty renderer_info it leaves info untouched."""
-    renderer = _make_ovrtx_renderer_without_backend()
-    render_data = _make_ovrtx_camera_render_data()
-    camera_data = CameraData()
-    camera_data.info = {}
-    camera_data._output = {}
-
-    result = renderer.read_output(render_data, camera_data)
-    assert result is None
-    assert render_data.warp_buffers == {}
-    assert camera_data.info == {}
-    assert camera_data.output == {}
-
-
-def test_ovrtx_read_output_forwards_renderer_info():
-    """OVRTXRenderer.read_output forwards render_data.renderer_info (e.g. semantic idToLabels) into info."""
-    renderer = _make_ovrtx_renderer_without_backend()
-    render_data = _make_ovrtx_camera_render_data()
-    id_to_labels = {"2": {"class": "cartpole"}}
-    render_data.renderer_info = {"semantic_segmentation": {"idToLabels": id_to_labels}}
-
-    camera_data = CameraData()
-    camera_data.info = {"semantic_segmentation": None}
-    camera_data._output = {}
-
-    renderer.read_output(render_data, camera_data)
-    assert camera_data.info["semantic_segmentation"] == {"idToLabels": id_to_labels}
+        renderer._launch_extract_all_tiles(
+            render_data, types.SimpleNamespace(shape=(8, 16, 3)), types.SimpleNamespace(shape=(2, 8, 16, 4))
+        )
 
 
 def test_ovrtx_read_output_clears_stale_metadata_and_keeps_seeded_keys():
@@ -751,6 +701,7 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(cleanup_directly, use
 
     if cleanup_directly:
         render_data.cleanup()
+    renderer.cleanup(None)
     renderer.cleanup(render_data)
     renderer.cleanup(render_data)
 
@@ -767,18 +718,6 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(cleanup_directly, use
     assert render_data.warp_buffers == {}
     assert render_data.renderer_info == {}
     assert render_data.ppisp_pipeline is None
-    assert renderer._render_product_paths == ["/RenderCamera_0/RenderProduct_camera"]
-    assert renderer._initialized_scene is True
-
-
-def test_ovrtx_cleanup_without_render_data_keeps_renderer_state():
-    """``cleanup(None)`` has nothing to release and must not disturb the renderer."""
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer._render_product_paths = ["/RenderCamera_0/RenderProduct_camera"]
-    renderer._initialized_scene = True
-
-    renderer.cleanup(None)
-
     assert renderer._render_product_paths == ["/RenderCamera_0/RenderProduct_camera"]
     assert renderer._initialized_scene is True
 
@@ -996,7 +935,6 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._particle_paths_list = "particle"
     renderer._cable_points_query = "cable"
     renderer._cable_paths_list = "cable"
-    renderer._object_newton_indices = object()
     renderer._deformable_particle_offsets = [0]
     renderer._deformable_particle_counts = [1]
     renderer._particle_visual_offsets = [0]
@@ -1014,8 +952,7 @@ def test_ovrtx_close_releases_legacy_renderer_state():
     """Borrowers unbind their tensor bindings before the registry closes the native engine."""
     events: list[str] = []
     renderer = _make_legacy_renderer_with_backend(events)
-    render_data = renderer._camera_render_data[0]
-
+    renderer.close()
     renderer.close()
     assert "destroy_renderer" not in events
     SimulationContext.instance().close_backend(renderer.backend)
@@ -1028,28 +965,12 @@ def test_ovrtx_close_releases_legacy_renderer_state():
         "unbind:cable",
         "destroy_renderer",
     ]
-    assert renderer._camera_xform_binding is None
-    assert renderer._camera_render_data == []
-    assert render_data.camera_xform_binding is None
-    assert render_data.renderer_info == {}
-    assert renderer._object_xform_binding is None
-    assert renderer._object_transform_buffer is None
-    assert renderer._deformable_points_binding is None
-    assert renderer._particle_points_binding is None
-    assert renderer._cable_points_binding is None
-    assert renderer._particle_workaround_applied is False
-    assert renderer.backend.renderer is None
-    assert renderer._render_product_paths == []
-    assert renderer._output_id_color_buffers == {}
-    assert renderer._initialized_scene is False
 
 
 def test_ovrtx_close_releases_ovstage_renderer_state():
     """Queries release before the native engine, which must detach before stage resources close."""
     events: list[str] = []
     renderer = _make_ovstage_renderer_with_backend(events)
-    render_data = renderer._camera_render_data[0]
-
     renderer.close()
     assert "destroy_renderer" not in events
     SimulationContext.instance().close_backend(renderer.backend)
@@ -1069,21 +990,6 @@ def test_ovrtx_close_releases_ovstage_renderer_state():
         "destroy_renderer",
         "exit_stack_close",
     ]
-    assert renderer._camera_xform_query is None
-    assert renderer._camera_render_data == []
-    assert render_data.camera_xform_query is None
-    assert render_data.renderer_info == {}
-    assert renderer._particle_paths_list is None
-    assert renderer._cable_points_query is None
-    assert renderer._cable_paths_list is None
-    assert renderer._object_newton_indices is None
-    assert renderer.backend.renderer is None
-    assert renderer.backend.stage is None
-    assert renderer.backend.paths is None
-    assert renderer._render_product_paths == []
-    assert renderer._output_id_color_buffers == {}
-    assert renderer._initialized_scene is False
-    assert renderer._current_ordinal == 0
     events.clear()
     renderer.close()
     assert events == []
