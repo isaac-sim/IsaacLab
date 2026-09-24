@@ -767,21 +767,6 @@ def test_mpm_prepare_builder_converts_convex_mesh_before_solver_construction():
     assert isinstance(solver, SolverImplicitMPM)
 
 
-def test_active_manager_create_builder_registers_mpm_attributes():
-    """The active MPM manager registers solver-specific builder attributes."""
-    sim_cfg = SimulationCfg(
-        dt=1.0 / 120.0,
-        device="cuda:0",
-        gravity=(0.0, 0.0, -9.81),
-        physics=NewtonCfg(solver_cfg=MPMSolverCfg(max_iterations=2, voxel_size=0.05), use_cuda_graph=False),
-    )
-
-    with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        builder = sim.physics_manager.create_builder()
-
-    assert builder.has_custom_attribute("mpm:young_modulus")
-
-
 @pytest.mark.parametrize("import_path", ["clone", "standalone"])
 @pytest.mark.parametrize(
     ("manager_cls", "solver_cfg", "expected_friction", "expected_damping"),
@@ -915,46 +900,6 @@ def test_schema_resolver_policy_and_precedence(manager_cls, imports_mujoco, auth
     assert model.joint_armature.numpy()[-1] == pytest.approx(expected_armature)
 
 
-def test_mpm_end_to_end_with_particle_custom_attributes():
-    """End-to-end MPM step using ``add_particles(custom_attributes=...)`` — the production path."""
-    sim_cfg = SimulationCfg(
-        dt=1.0 / 120.0,
-        device="cuda:0",
-        gravity=(0.0, 0.0, -9.81),
-        physics=NewtonCfg(
-            solver_cfg=MPMSolverCfg(max_iterations=2, voxel_size=0.05),
-            use_cuda_graph=False,
-        ),
-    )
-
-    with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        builder = sim.physics_manager.create_builder()
-        # MPM custom attrs must exist on the builder before particles use them.
-        assert builder.has_custom_attribute("mpm:young_modulus")
-
-        positions = [(0.0, 0.0, 0.10), (0.05, 0.0, 0.10), (0.0, 0.05, 0.10)]
-        builder.add_particles(
-            pos=positions,
-            vel=[(0.0, 0.0, 0.0)] * len(positions),
-            mass=[0.01] * len(positions),
-            radius=[0.02] * len(positions),
-            custom_attributes={
-                "mpm:viscosity": 50.0,
-                "mpm:friction": 0.0,
-                "mpm:tensile_yield_ratio": 1.0,
-                "mpm:yield_pressure": 1.0e15,
-                "mpm:yield_stress": 0.0,
-                "mpm:young_modulus": 1.0e15,
-                "mpm:damping": 0.0,
-            },
-        )
-        NewtonManager.set_builder(builder)
-
-        sim.reset()
-        assert isinstance(NewtonManager._solver, SolverImplicitMPM)
-        sim.step(render=False)
-
-
 @pytest.mark.parametrize("project_outside", [True, False])
 def test_mpm_project_outside_colliders_gates_projection(project_outside):
     """``project_outside_colliders`` controls whether ``project_outside`` runs per substep.
@@ -975,6 +920,8 @@ def test_mpm_project_outside_colliders_gates_projection(project_outside):
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         builder = sim.physics_manager.create_builder()
+        # MPM custom attrs must exist on the builder before particles use them (the production path).
+        assert builder.has_custom_attribute("mpm:young_modulus")
         builder.add_particles(
             pos=[(0.0, 0.0, 0.10), (0.05, 0.0, 0.10), (0.0, 0.05, 0.10)],
             vel=[(0.0, 0.0, 0.0)] * 3,
@@ -992,6 +939,7 @@ def test_mpm_project_outside_colliders_gates_projection(project_outside):
         )
         NewtonManager.set_builder(builder)
         sim.reset()
+        assert isinstance(NewtonManager._solver, SolverImplicitMPM)
 
         calls = {"n": 0}
         original_project = NewtonManager._solver.project_outside

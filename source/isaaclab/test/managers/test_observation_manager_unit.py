@@ -22,7 +22,7 @@ from isaaclab.managers import (
     ObservationTermCfg,
     SceneEntityCfg,
 )
-from isaaclab.utils import configclass, modifiers
+from isaaclab.utils import DelayBuffer, configclass, modifiers, noise
 
 pytestmark = pytest.mark.unit
 
@@ -153,34 +153,47 @@ def test_modifier_resolution_stays_out_of_observation_manager():
 def test_modifier_base_cfg_marker_does_not_exist():
     """Stateful modifiers must not require a marker configuration subtype."""
     assert not hasattr(modifiers, "ModifierBaseCfg")
+    assert not hasattr(modifiers, "DelayCfg"), "Observation delay uses the shared buffer directly."
 
 
-def test_compute_updates_history_only_when_requested():
-    """Observation history changes only when ``update_history`` is enabled."""
+@pytest.mark.parametrize(("lag", "history_length"), [(0, 2), (1, 0), (1, 2)])
+def test_compute_updates_history_only_when_requested(lag, history_length):
+    """History alone, delay alone, and their combination advance only on recorded samples."""
+    cfg = HistoryObservationsCfg()
+    cfg.policy.history_length = history_length
+    cfg.policy.enable_corruption = True
+    cfg.policy.dummy.delay_min_lag = cfg.policy.dummy.delay_max_lag = lag
+    cfg.policy.dummy.delay_hold_prob = 0.5 if history_length == 0 else 1.0
+    cfg.policy.dummy.noise = noise.ConstantNoiseCfg(bias=0.0)
+    cfg.policy.dummy.scale = 2.0
     env = DummyEnv()
-    manager = ObservationManager(HistoryObservationsCfg(), cast("ManagerBasedEnv", env))
-    history = manager._group_obs_term_history_buffer["policy"]["dummy"]
-
-    torch.testing.assert_close(history.current_length, torch.zeros(env.num_envs, dtype=torch.int64))
-
+    manager = ObservationManager(cfg, cast("ManagerBasedEnv", env))
+    delay = manager._group_obs_term_delay_buffer["policy"].get("dummy")
+    history = manager._group_obs_term_history_buffer["policy"].get("dummy")
     manager.compute()
-    torch.testing.assert_close(history.current_length, torch.zeros(env.num_envs, dtype=torch.int64))
+    if delay:
+        assert isinstance(delay, DelayBuffer)
+        assert torch.all(delay.num_pushes == 0)
+    if history:
+        assert torch.all(history.current_length == 0)
 
-    manager.compute(update_history=True)
-    torch.testing.assert_close(history.current_length, torch.ones(env.num_envs, dtype=torch.int64))
-    history_after_update = history.buffer.clone()
-
-    env.observation.add_(10.0)
-    observations = manager.compute()
-    policy_observation = observations["policy"]
-    assert isinstance(policy_observation, torch.Tensor)
-    torch.testing.assert_close(history.current_length, torch.ones(env.num_envs, dtype=torch.int64))
-    torch.testing.assert_close(history.buffer, history_after_update)
-    torch.testing.assert_close(policy_observation, history_after_update.reshape(env.num_envs, -1))
-
-    manager.compute(update_history=True)
-    torch.testing.assert_close(history.current_length, torch.full((env.num_envs,), 2, dtype=torch.int64))
-    torch.testing.assert_close(history.buffer[:, -1], env.observation)
+    for step in range(6):
+        if step == 3:
+            manager.reset([1])
+        env.observation.fill_(step)
+        # Delay retains each sample's noise; history stacks the delayed, scaled outputs.
+        manager.cfg.policy.dummy.noise.bias = float(step)
+        output = manager.compute(update_history=True)["policy"]
+        sample_steps = torch.arange(step - max(1, history_length) + 1, step + 1)
+        expected = 4.0 * (sample_steps - lag).clamp_min(0).expand(env.num_envs, -1).clone()
+        if step >= 3:
+            expected[1].clamp_(min=12.0)
+        torch.testing.assert_close(output, expected)
+        env.observation.fill_(-100.0)
+        rng_state = torch.get_rng_state()
+        torch.testing.assert_close(manager.compute()["policy"], expected)
+        torch.testing.assert_close(manager.compute_group("policy"), expected)
+        assert torch.equal(torch.get_rng_state(), rng_state)
 
 
 class PreparedObservation(ManagerTermBase):
@@ -333,3 +346,20 @@ def test_scene_preparation_does_not_mutate_user_configuration():
     assert cfg.policy.dummy.params["gain"] == 1.0
     assert prepared["policy/dummy"].cfg.params["gain"] == 3.0
     prepared["policy/dummy"].close()
+
+
+@pytest.mark.parametrize(
+    ("params", "error"),
+    [
+        ({"delay_min_lag": -1}, ValueError),
+        ({"delay_min_lag": 2, "delay_max_lag": 1}, ValueError),
+        ({"delay_min_lag": 0.5}, TypeError),
+        ({"delay_hold_prob": -0.1}, ValueError),
+        ({"delay_hold_prob": 1.1}, ValueError),
+    ],
+)
+def test_observation_delay_config_validation(params, error):
+    """Delay requires ordered nonnegative integer bounds and a probability in [0, 1]."""
+    cfg = ObservationTermCfg(func=dummy_observation, **params)
+    with pytest.raises(error, match="delay"):
+        cfg.validate()

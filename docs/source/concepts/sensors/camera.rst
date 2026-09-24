@@ -362,11 +362,11 @@ move its value to ``PpispProcessorCfg(isp_cfg=value)`` in a ``processed_image`` 
 set ``CameraCfg.isp_cfg=None``. Configure PPISP through one entry point for that observation. Using
 the generic pipeline without PPISP does not import the optional ``isaaclab_ppisp`` package.
 
-Run ``scripts/demos/sensors/ppisp_camera.py`` for a PPISP workflow using the compatible camera entry point:
+Run the ``ppisp-camera`` example for a PPISP workflow using the compatible camera entry point:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim python scripts/demos/sensors/ppisp_camera.py \
+   uv run --extra isaacsim isaaclab example ppisp-camera \
       --renderer newton_renderer --max_steps 60
 
 Add a processor
@@ -456,7 +456,7 @@ environment closes. Cleanup must also tolerate partial initialization. These cal
 declarations are sufficient to add another processor without changing renderer code.
 
 The observation manager takes its usual snapshot before applying modifiers, noise, clipping,
-scaling, and history. Code that calls the term directly should clone its result before modifying
+scaling, delay, and history. Code that calls the term directly should clone its result before modifying
 it or retaining it beyond the next rendered frame.
 
 Preparation and ownership
@@ -494,11 +494,11 @@ cost of the de-tiled outputs or downstream vision models. The camera follows the
 ``update_period`` contract; choose a period that matches the observation cadence instead of rendering
 at every physics step by default.
 
-A runnable camera example is available in ``scripts/demos/sensors/cameras.py``:
+A runnable camera example is available as ``camera``:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim python scripts/demos/sensors/cameras.py
+   uv run --extra isaacsim isaaclab example camera
 
 For saving output to disk, see :doc:`/source/how-to/save_camera_output`. For renderer selection
 and customization, see :doc:`/source/how-to/configure_rendering`.

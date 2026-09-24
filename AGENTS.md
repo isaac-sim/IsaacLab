@@ -10,6 +10,8 @@
 - Use modern Python type hints, including `X | None` instead of `Optional[X]`.
 - Use `snake_case` for methods, functions, and CLI arguments.
 - Keep related public symbols discoverable through consistent prefixes.
+- Keep joint-wrench sensor coverage separate from articulation control-joint selection. Reuse cached
+  body bindings without changing the shared view's joint filters or creating a second view for sensing.
 - For external wrenches, follow the asset API's `is_global` boolean and `_b`/`_w` buffer naming. Keep
   frame conversion decisions in `WrenchComposer` and track pending contributions with plain booleans;
   do not introduce frame enums, content bitmasks, or a classification layer.
@@ -48,6 +50,8 @@
 - Find and extend the closest existing test before creating a new test file or test case.
 - Add a test only when it covers a distinct behavior, regression, boundary, or failure mode that existing tests do not cover clearly.
 - Test observable behavior and public contracts, not implementation details.
+- Validate joint-wrench frames with the same physical fixture and analytic load expectations across backends.
+  Do not derive the expected wrench by repeating the production transformation on the backend's raw output.
 - Use hard-coded values only when they are the intended contract or a small, independently verified example; otherwise derive the expected result from a separate, simple reference calculation.
 - Keep tests focused and remove or consolidate redundant coverage instead of growing overlapping test suites.
 - Do not add debug output to production Warp kernels. Use temporary standalone reproductions and remove debug output before committing.

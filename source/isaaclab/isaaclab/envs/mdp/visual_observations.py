@@ -36,11 +36,12 @@ class processed_image(ManagerTermBase):
     manager prepares this term after scene spawning and before simulation reset,
     allowing processors to request renderer inputs and neutral exposure. Each term
     owns its chain, intermediate buffers, and state, even when sharing a camera.
-    The camera's public outputs remain unchanged.
+    Processed pixels are returned through this term; camera outputs retain their
+    raw renderer buffers. Exposure requirements apply to the entire source camera.
 
     Processor inputs are borrowed read-only. The returned tensor persists until the
     next rendered frame; the observation manager makes its usual snapshot copy
-    before modifiers, noise, clipping, scaling, and history. Direct callers should
+    before modifiers, noise, clipping, scaling, delay, and history. Direct callers should
     clone the result if they need to retain a frame or modify its contents.
     """
 

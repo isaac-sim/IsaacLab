@@ -556,20 +556,31 @@ def test_visual_processor_cleanup_continues_after_callback_failure():
 
 
 @pytest.mark.parametrize("legacy_isp", [False, True])
-def test_camera_render_freshness_and_legacy_resets(monkeypatch, legacy_isp):
+@pytest.mark.parametrize("use_batch", [False, True])
+def test_camera_render_freshness_and_legacy_resets(monkeypatch, legacy_isp, use_batch):
     """Raw reads publish one generation per render and preserve legacy ISP reset behavior."""
+    from isaaclab.renderers.render_context import RenderContext
     from isaaclab.sensors.camera import Camera
+    from isaaclab.sensors.sensor_base import SensorBase
     from isaaclab.sim import SimulationContext
 
     processed = []
     reset = []
     rendered = []
+    events = []
+
+    def process(mask):
+        assert events[-1] == "read"
+        np.testing.assert_array_equal(camera._render_camera_data.output["rgb"].warp.numpy(), len(rendered))
+        processed.append(mask.numpy().copy())
+        events.append("process")
+
     rgb = RenderBufferSpec(3, wp.uint8)
     config = VisualProcessorCfg(
         func=lambda cfg, context: VisualProcessor(
             inputs={"rgb": rgb},
             outputs={"rgb": rgb},
-            process=lambda mask: processed.append(mask.numpy().copy()),
+            process=process,
             reset=lambda mask: reset.append(mask.numpy().copy()),
             in_place=True,
         )
@@ -593,27 +604,50 @@ def test_camera_render_freshness_and_legacy_resets(monkeypatch, legacy_isp):
     camera._reset_mask_torch = wp.to_torch(camera._reset_mask)
     camera._legacy_isp = pipeline if legacy_isp else None
     camera._render_generation = 0
-    camera._data = SimpleNamespace(output=pipeline.allocate(), info={})
-    camera._render_camera_data = SimpleNamespace(output=pipeline.render_outputs, info={})
+    camera._data = SimpleNamespace(output=pipeline.allocate(), info={"rgb": None})
+    private_hdr = wp.zeros((2, 2, 3, 3), dtype=wp.float32, device="cpu")
+    camera._render_camera_data = SimpleNamespace(
+        output={**pipeline.render_outputs, "rgb_hdr": private_hdr}, info={"rgb": None}
+    )
     camera._render_data = object()
+
+    def read_output(data, camera_data):
+        assert camera_data is camera._render_camera_data
+        assert camera_data.output["rgb_hdr"] is private_hdr
+        camera_data.output["rgb"].warp.fill_(len(rendered))
+        camera_data.info["rgb"] = len(rendered)
+        events.append("read")
+
     camera._renderer = SimpleNamespace(
         render=lambda data: rendered.append(data),
-        read_output=lambda data, camera_data: None,
+        render_batch=lambda data: rendered.extend(data),
+        read_output=read_output,
         cleanup=lambda data: None,
     )
     camera._update_camera_state = lambda **kwargs: None
     camera._update_poses = lambda *args, **kwargs: None
-    monkeypatch.setattr(SimulationContext, "instance", staticmethod(lambda: None))
+    sim = SimpleNamespace(render_context=RenderContext([]), get_physics_step_count=lambda: 0) if use_batch else None
+    monkeypatch.setattr(SimulationContext, "instance", staticmethod(lambda: sim))
+
+    def update(dt):
+        if use_batch:
+            SensorBase.update_batch([camera], dt)
+        else:
+            camera.update(dt)
 
     raw = camera.render_outputs
     first_data = camera.data
     assert camera.data is first_data
     assert camera.render_outputs is raw
+    assert raw["rgb_hdr"] is private_hdr
+    assert "rgb_hdr" not in first_data.output
     assert camera.render_generation == len(rendered) == 1
-    camera.update(0.05)
+    update(0.05)
     assert camera.data is first_data
     assert camera.render_generation == 1
-    camera.update(0.05)
+    update(0.05)
+    if use_batch:
+        assert camera.render_generation == len(rendered) == 2
     assert camera.data is first_data
     assert camera.render_generation == len(rendered) == 2
     camera.reset(env_ids=[1])
@@ -630,8 +664,12 @@ def test_camera_render_freshness_and_legacy_resets(monkeypatch, legacy_isp):
     if legacy_isp:
         np.testing.assert_array_equal(processed[-1], [True, False])
     assert camera.render_generation == len(rendered) == 4
+    assert camera.data.info["rgb"] == 4
+    assert camera.render_outputs is raw
+    assert raw["rgb_hdr"] is private_hdr
+    assert events == (["read", "process"] if legacy_isp else ["read"]) * 4
     assert len(processed) == (4 if legacy_isp else 0)
-    del camera
+    camera.__del__()
 
 
 @pytest.mark.parametrize("supports_rgba", [False, True])
