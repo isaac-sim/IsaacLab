@@ -52,6 +52,9 @@
 - Test observable behavior and public contracts, not implementation details.
 - Validate joint-wrench frames with the same physical fixture and analytic load expectations across backends.
   Do not derive the expected wrench by repeating the production transformation on the backend's raw output.
+- Keep shared joint-wrench contracts as `test_*` functions under `source/isaaclab/test/sensors`, imported
+  by every backend's existing sensor suite with backend-owned `sim` fixtures. Do not put complete
+  integration tests in runtime test utilities or add forwarding test functions per backend.
 - Use hard-coded values only when they are the intended contract or a small, independently verified example; otherwise derive the expected result from a separate, simple reference calculation.
 - Keep tests focused and remove or consolidate redundant coverage instead of growing overlapping test suites.
 - Do not add debug output to production Warp kernels. Use temporary standalone reproductions and remove debug output before committing.

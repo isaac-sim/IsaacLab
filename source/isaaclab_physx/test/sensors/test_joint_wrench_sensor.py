@@ -5,6 +5,11 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test" / "sensors"))
+
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
@@ -22,6 +27,7 @@ from isaaclab_physx.sensors.joint_wrench import joint_wrench_sensor as joint_wre
 from isaaclab_physx.sensors.joint_wrench.joint_wrench_sensor import JointWrenchSensor as PhysxJointWrenchSensor
 from isaaclab_physx.sensors.joint_wrench.joint_wrench_sensor_data import JointWrenchSensorData
 from isaaclab_physx.sim.schemas import PhysxJointCfg
+from joint_wrench_contract import test_joint_wrench_frame  # noqa: F401
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -31,7 +37,6 @@ from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.test.utils.joint_wrench import check_joint_wrench_frame
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
@@ -248,11 +253,6 @@ def test_force_and_torque_components_at_rest(sim):
     arm_idx = robot.body_names.index("Arm")
     raw_wrench = _physx_incoming_joint_wrench(sensor)
     assert torch.any(raw_wrench[:, arm_idx, :] != 0.0)
-
-
-def test_non_identity_joint_frame_transform(tmp_path):
-    """PhysX must satisfy the same physical joint-frame contract as Newton."""
-    check_joint_wrench_frame(PhysxCfg(), tmp_path)
 
 
 def test_wrench_with_external_force_and_torque(sim):

@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test" / "sensors"))
 
 import newton
 import numpy as np
@@ -18,6 +19,7 @@ import torch
 import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.sim.schemas import PhysxJointCfg
+from joint_wrench_contract import test_joint_wrench_frame  # noqa: F401
 
 from pxr import Usd, UsdPhysics
 
@@ -28,7 +30,6 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.joint_wrench import JointWrenchSensor, JointWrenchSensorCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.test.utils.joint_wrench import check_joint_wrench_frame
 from isaaclab.utils import configclass
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
@@ -346,11 +347,6 @@ def test_force_and_torque_components_at_rest(sim):
 
     torch.testing.assert_close(force, expected_force, atol=1e-2, rtol=1e-3)
     torch.testing.assert_close(torque, expected_torque, atol=1e-2, rtol=1e-3)
-
-
-def test_non_identity_joint_frame_transform(tmp_path):
-    """Newton must satisfy the same physical joint-frame contract as PhysX."""
-    check_joint_wrench_frame(NewtonCfg(solver_cfg=MJWarpSolverCfg(), num_substeps=1), tmp_path)
 
 
 def test_wrench_with_external_force_and_torque(sim):

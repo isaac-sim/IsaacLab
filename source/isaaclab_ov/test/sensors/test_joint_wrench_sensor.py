@@ -22,6 +22,11 @@ unlocked device so single-device runs finish cleanly.
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test" / "sensors"))
+
 import pytest
 import torch
 import warp as wp
@@ -32,6 +37,7 @@ pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_physx.sim.schemas import PhysxJointCfg  # noqa: E402
+from joint_wrench_contract import test_joint_wrench_frame  # noqa: E402, F401
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.actuators import ImplicitActuatorCfg  # noqa: E402
@@ -40,13 +46,14 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
-from isaaclab.test.utils.joint_wrench import check_joint_wrench_frame  # noqa: E402
 from isaaclab.utils import configclass  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR  # noqa: E402
 
 from isaaclab_assets.robots.ant import ANT_CFG  # noqa: E402
 
 wp.init()
+
+pytestmark = pytest.mark.device_split
 
 # OVPhysX/Warp and the PyTorch reference use different float32 operation order on CUDA. The
 # relative gap grows with the wrench magnitude: the Ant scenes see contact wrenches on the order
@@ -191,6 +198,12 @@ def sim(device):
         yield sim_ctx
 
 
+@pytest.fixture(params=["cuda:0", "cpu"])
+def device(request):
+    """Supply the device to imported contract tests as well as backend-local tests."""
+    return request.param
+
+
 # ---------------------------------------------------------------------------
 # Raw-tensor helpers
 # ---------------------------------------------------------------------------
@@ -327,12 +340,6 @@ def test_force_and_torque_components_at_rest(sim, device):
     arm_idx = robot.body_names.index("Arm")
     raw_wrench = _ovphysx_incoming_joint_wrench(sensor)
     assert torch.any(raw_wrench[:, arm_idx, :] != 0.0)
-
-
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_non_identity_joint_frame_transform(tmp_path, device):
-    """OVPhysX must satisfy the same physical joint-frame contract as Newton and PhysX."""
-    check_joint_wrench_frame(OvPhysxCfg(), tmp_path, device=device)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
