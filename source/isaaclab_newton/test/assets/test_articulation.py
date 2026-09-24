@@ -42,7 +42,7 @@ from isaaclab_newton.assets.articulation.articulation import _configure_builder_
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 from isaaclab_physx.sim.schemas import PhysxJointCfg
-from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags
+from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags, ShapeFlags
 from newton.solvers import SolverMuJoCo
 
 from pxr import UsdPhysics
@@ -1520,7 +1520,7 @@ def test_fixed_base_reports_body_velocities(sim, num_articulations, device, arti
 
 
 @pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("articulation_type", ["shadow_hand"])
 def test_hand_with_tendons_initializes_and_targets_only_given_envs(sim, num_articulations, device, articulation_type):
     """Initialize a fixed-base hand with tendons; a tendon command for one environment must leave the others alone.
@@ -2406,16 +2406,17 @@ def test_write_joint_state_data_consistency(sim, num_articulations, device, grav
 
 
 @pytest.mark.parametrize("selector_kind", ["index", "mask"])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("articulation_type", ["panda"])
 @pytest.mark.parametrize("device", test_devices())
-def test_write_joint_viscous_friction_to_sim(sim, device, articulation_type, selector_kind):
+def test_write_joint_viscous_friction_to_sim(sim, num_articulations, device, articulation_type, selector_kind):
     """Test passive viscous joint damping is distinct from actuator derivative gains.
 
     Static joint friction writes also propagate directly to the Newton model.
     """
     articulation_cfg = generate_articulation_cfg(articulation_type)
     articulation_cfg.actuators["panda_shoulder"].viscous_friction = 0.25
-    articulation, _ = generate_articulation(articulation_cfg, 1, device)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
     sim.reset()
 
     shoulder_joint_ids = articulation.actuators["panda_shoulder"].joint_indices
@@ -2455,7 +2456,9 @@ def test_write_joint_viscous_friction_to_sim(sim, device, articulation_type, sel
         values,
     )
 
+    # Distinct per-env rows catch writers that ignore the env index
     friction = torch.rand(articulation.num_instances, articulation.num_joints, device=device)
+    assert not torch.allclose(friction[0], friction[1])
     articulation.write_joint_friction_coefficient_to_sim_index(joint_friction_coeff=friction)
     joint_friction_coeff_sim = wp.to_torch(
         articulation.root_view.get_attribute("joint_friction", SimulationManager.get_model())
@@ -2557,8 +2560,9 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
             marks=pytest.mark.xfail(
                 strict=True,
                 reason=(
-                    "The Newton material randomization assumes each body's shapes are contiguous, but the model"
-                    " stores all visual shapes before all collision shapes, so a body subset hits other shapes."
+                    "The Newton material randomization assumes each body's shapes are contiguous in the view's"
+                    " shape binding, but Newton sorts shape ids across bodies, so a body subset misses collision"
+                    " shapes of the selected bodies and hits those of other bodies."
                 ),
             ),
         ),
@@ -2568,7 +2572,8 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
     """Material and collider-offset randomization write through to the robot's shapes in the Newton model.
 
     The event terms write the asset's view-level shape bindings; the assertions read the flat Newton model
-    arrays at the shapes of the selected bodies and environments.
+    arrays at the collision shapes of the selected bodies and environments. Visual shapes are ignored because
+    their materials and offsets have no physical effect.
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(
@@ -2583,6 +2588,7 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
     body_world = model.body_world.numpy()
     body_names = [label.rsplit("/", 1)[-1] for label in model.body_label]
     shape_body = model.shape_body.numpy()
+    is_collision_shape = (model.shape_flags.numpy() & int(ShapeFlags.COLLIDE_SHAPES)) != 0
 
     def robot_shapes(env_index: int, selected_body_names: list[str] | None = None) -> np.ndarray:
         bodies = [
@@ -2590,7 +2596,7 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
             for body in np.flatnonzero(body_world == env_index)
             if selected_body_names is None or body_names[body] in selected_body_names
         ]
-        return np.flatnonzero(np.isin(shape_body, bodies))
+        return np.flatnonzero(np.isin(shape_body, bodies) & is_collision_shape)
 
     env = SimpleNamespace(scene={"robot": articulation}, sim=sim, device=device, num_envs=num_articulations)
     env_ids = torch.tensor([num_articulations - 1], device=device)

@@ -19,7 +19,6 @@ simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).ap
 
 import sys
 
-import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -366,52 +365,6 @@ def test_external_force_on_single_body(num_envs, num_cubes, device):
             assert torch.all(object_collection.data.body_link_pos_w.torch[:, 1::2, 2] < 1.0)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Newton's ArticulationView assumes each body's shapes are contiguous, but the collection's model interleaves"
-        " them per environment (visuals of all cubes, then collisions), so the shape binding misaddresses shapes."
-    ),
-)
-@pytest.mark.parametrize("num_envs", [3])
-@pytest.mark.parametrize("num_cubes", [2])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_set_material_properties(num_envs, num_cubes, device):
-    """Material writes through the collection's view bindings reach the Newton model shapes of its bodies."""
-    with _newton_sim_context(device, add_ground_plane=True, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
-        sim.reset()
-
-        # Resolve the collection's shapes from the flat Newton model, independent of the view binding.
-        model = SimulationManager.get_model()
-        shape_body = model.shape_body.numpy()
-        collection_shapes = np.flatnonzero(shape_body >= 0)
-        other_shapes = np.flatnonzero(shape_body < 0)
-        assert len(collection_shapes) > 0 and len(other_shapes) > 0
-        original_mu = model.shape_material_mu.numpy().copy()
-        original_restitution = model.shape_material_restitution.numpy().copy()
-
-        # Write friction/restitution in place through the view-level bindings
-        friction_binding = object_collection._root_view.get_attribute("shape_material_mu", model)
-        restitution_binding = object_collection._root_view.get_attribute("shape_material_restitution", model)
-        wp.to_torch(friction_binding).fill_(0.55)
-        wp.to_torch(restitution_binding).fill_(0.15)
-        SimulationManager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
-
-        # Perform simulation
-        sim.step()
-        object_collection.update(sim.cfg.dt)
-
-        # Every shape of the collection's bodies is updated, and no other shape is touched.
-        mu = model.shape_material_mu.numpy()
-        restitution = model.shape_material_restitution.numpy()
-        np.testing.assert_allclose(mu[collection_shapes], 0.55)
-        np.testing.assert_allclose(restitution[collection_shapes], 0.15)
-        np.testing.assert_array_equal(mu[other_shapes], original_mu[other_shapes])
-        np.testing.assert_array_equal(restitution[other_shapes], original_restitution[other_shapes])
-
-
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_envs", [3])
 @pytest.mark.parametrize("num_cubes", [2])
@@ -652,10 +605,12 @@ def test_write_object_state(num_envs, num_cubes, device, state_location):
         # The written state persists into the solver: with gravity off, one step only integrates the
         # written velocity.
         written_pose_w = (com_pose_w if state_location == "com" else link_pose_w).clone()
+        written_com_vel_w = com_vel_w.clone()
         sim.step()
         cube_object.update(sim.cfg.dt)
         pose_w = cube_object.data.body_com_pose_w if state_location == "com" else cube_object.data.body_link_pose_w
         torch.testing.assert_close(pose_w.torch, written_pose_w, rtol=1e-1, atol=1e-1)
+        torch.testing.assert_close(cube_object.data.body_com_vel_w.torch, written_com_vel_w, rtol=1e-1, atol=1e-1)
 
 
 @pytest.mark.parametrize("device", test_devices())

@@ -278,7 +278,7 @@ def test_external_force_on_single_body(num_cubes, device):
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_cubes", [2])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("device", test_devices())
 def test_rigid_body_set_material_properties(num_cubes, device):
     """Material randomization writes friction and restitution into the Newton model shapes of the selected envs."""
     with _newton_sim_context(device, gravity_enabled=True, add_ground_plane=True, auto_add_lighting=True) as sim:
@@ -560,9 +560,10 @@ def test_body_root_state_properties(num_cubes, device):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("num_cubes", [2])
+@pytest.mark.parametrize(
+    ("num_cubes", "state_location"), [(2, "com"), (2, "link"), (2, "root"), (1, "root")]
+)  # num_cubes=1 covers single-instance initialization
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("state_location", ["com", "link", "root"])
 def test_write_root_state(num_cubes, device, state_location):
     """Test the root state setters in the center-of-mass frame, the link frame, and the default root frames.
 
@@ -679,10 +680,12 @@ def test_write_root_state(num_cubes, device, state_location):
         # The written state persists into the solver: with gravity off, one step only integrates the
         # written velocity.
         written_pose_w = (root_com_pose_w if state_location == "com" else root_link_pose_w).clone()
+        written_com_vel_w = root_com_vel_w.clone()
         sim.step()
         cube_object.update(sim.cfg.dt)
         pose_w = cube_object.data.root_com_pose_w if state_location == "com" else cube_object.data.root_link_pose_w
         torch.testing.assert_close(pose_w.torch, written_pose_w, rtol=1e-1, atol=1e-1)
+        torch.testing.assert_close(cube_object.data.root_com_vel_w.torch, written_com_vel_w, rtol=1e-1, atol=1e-1)
 
 
 @pytest.mark.parametrize("device", test_devices())
