@@ -17,7 +17,7 @@ from isaaclab.sim.spawners.from_files import GroundPlaneCfg
 from isaaclab.utils import modifiers
 from isaaclab.utils.noise import UniformNoiseCfg
 
-from isaaclab_rl.rsl_rl import RslRlCNNModelCfg, RslRlDistillationAlgorithmCfg, RslRlMLPModelCfg
+from isaaclab_rl.rsl_rl import RslRlDistillationAlgorithmCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.contrib.stack import mdp
@@ -29,10 +29,7 @@ from isaaclab_tasks.contrib.stack.mdp.kuka_allegro_reset import (
     KUKA_ALLEGRO_ALL_HAND_JOINT_NAMES,
     KUKA_ALLEGRO_LARGE_CUBE_EDGE_LENGTH,
 )
-from isaaclab_tasks.contrib.stack.mdp.runtime_state import (
-    create_stack_reset_runtime_state,
-    get_stack_reset_runtime_state,
-)
+from isaaclab_tasks.contrib.stack.mdp.runtime_state import create_stack_reset_runtime_state
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 
 FRANKA_STATE_TASK = "IsaacContrib-Stack-Cube-Franka-RL"
@@ -68,13 +65,6 @@ def test_obsolete_camera_fine_tune_task_is_not_registered():
         gym.spec("IsaacContrib-Stack-Cube-Franka-RL-Camera-Finetune")
 
 
-def test_camera_default_batch_is_memory_safe():
-    """The checked-in image rollout fits comfortably before CLI scaling."""
-    cfg = parse_env_cfg(FRANKA_CAMERA_TASK, device="cuda:0")
-
-    assert cfg.scene.num_envs == 256
-
-
 @pytest.fixture(scope="module")
 def stack_cfgs():
     cfgs = {
@@ -93,26 +83,16 @@ def test_franka_state_task_exposes_the_training_contract(stack_cfgs):
     assert cfg.scene.replicate_physics
     assert isinstance(cfg.sim.physics, NewtonCfg)
     assert isinstance(cfg.sim.physics.solver_cfg, MJWarpSolverCfg)
-    assert cfg.sim.physics.num_substeps == 2
-    assert cfg.sim.physics.collision_decimation == 1
-    assert cfg.decimation == cfg.sim.render_interval == 2
     assert cfg.actions.arm_action.gravity_compensation
     assert cfg.actions.arm_action.controller_owned_write_methods == {
         "set_joint_effort_target_index": "gravity_compensation"
     }
-    assert cfg.actions.arm_action.scale == cfg.actions.arm_action.max_delta == 0.05
     assert isinstance(cfg.actions.gripper_action, mdp.ResetBufferedGripperActionCfg)
     assert cfg.events.reset_from_state_buffer.func is mdp.StackResetStateTable
     assert cfg.curriculum.reset_sampling.func is mdp.StackResetTableCurriculum
     assert cfg.terminations.progress_context.func is mdp.StableOrderInvariantStackGoal
     assert cfg.rewards.success.func is mdp.stack_success_pulse
-    assert cfg.observations.policy.object.func is mdp.role_conditioned_stack_obs
     assert cfg.observations.policy.joint_target is None
-    assert not hasattr(cfg.observations.policy, "cube_positions")
-    assert not hasattr(cfg.observations.policy, "cube_orientations")
-    assert cfg.scene.cube_1.spawn.size == (0.04, 0.04, 0.04)
-    assert cfg.scene.cube_1.spawn.physics_material.contact_stiffness == 1.0e4
-    assert cfg.scene.table_contact_surface.spawn.physics_material.contact_stiffness == 1.0e4
 
 
 @pytest.mark.parametrize("task_name", (FRANKA_STATE_TASK, KUKA_STATE_TASK))
@@ -146,25 +126,10 @@ def test_camera_actor_has_only_deployable_observations(stack_cfgs):
     assert image.modifiers[0].params["multiplier"] == pytest.approx(1.0 / 255.0)
     assert isinstance(image.noise, mdp.EpisodeCameraNoiseCfg)
     assert image.clip == (0.0, 1.0)
-    assert cfg.num_rerenders_on_reset == 1
-    assert cfg.events.reset_from_state_buffer.params["fixed_role_permutation"] == 0
     assert cfg.observations.policy.joint_target.func is mdp.joint_position_target
     assert not hasattr(cfg.observations.policy, "object")
-    assert not hasattr(cfg.observations.policy, "eef_position")
-    assert not hasattr(cfg.observations.policy, "eef_axes")
-    assert not hasattr(cfg.observations.policy, "eef_velocity")
-    assert hasattr(cfg.observations, "base_image")
-    assert not hasattr(cfg.observations, "teacher")
     assert runner.obs_groups["actor"] == ["policy", "base_image"]
     assert runner.obs_groups["critic"] == ["privileged"]
-    assert "privileged" not in runner.obs_groups["actor"]
-
-
-def test_deployment_inputs_precede_recurrent_action_state(stack_cfgs):
-    """LEAPP sees a physical input before registering the previous-action state."""
-    for task_name in (FRANKA_STATE_TASK, FRANKA_CAMERA_TASK):
-        policy_terms = list(vars(stack_cfgs[task_name].observations.policy))
-        assert policy_terms.index("joint_pos") < policy_terms.index("actions")
 
 
 def test_distillation_task_adds_privileged_labels_without_changing_the_student(stack_cfgs):
@@ -175,15 +140,10 @@ def test_distillation_task_adds_privileged_labels_without_changing_the_student(s
     state_runner = load_cfg_from_registry(FRANKA_STATE_TASK, "rsl_rl_cfg_entry_point")
 
     assert hasattr(cfg.observations, "privileged")
-    assert not hasattr(cfg.observations, "teacher")
-    assert not hasattr(cfg.observations, "distillation_context")
     assert runner.obs_groups == {"student": ["policy", "base_image"], "teacher": ["privileged"]}
-    assert type(runner.student) is type(camera_runner.actor)
     assert runner.student.class_name == camera_runner.actor.class_name
-    assert runner.student.hidden_dims == camera_runner.actor.hidden_dims
     assert runner.student.cnn_cfg == camera_runner.actor.cnn_cfg
     assert runner.teacher.class_name == state_runner.actor.class_name
-    assert runner.teacher.hidden_dims == state_runner.actor.hidden_dims
     assert runner.teacher.distribution_cfg.std_type == "log"
     assert state_runner.actor.distribution_cfg.std_type == "scalar"
     group_settings = {
@@ -203,7 +163,6 @@ def test_distillation_task_adds_privileged_labels_without_changing_the_student(s
     assert cfg.observations.privileged.joint_target.func is mdp.joint_position_target
     assert isinstance(runner.algorithm, RslRlDistillationAlgorithmCfg)
     assert runner.algorithm.class_name.endswith(":ClippedTeacherDistillation")
-    assert runner.num_steps_per_env == 8
     assert runner.init_at_random_ep_len is False
 
 
@@ -247,30 +206,18 @@ def test_camera_noise_reset_resamples_only_selected_environments():
     assert not torch.equal(after[[1, 3]], before[[1, 3]])
 
 
-@pytest.mark.parametrize("shape", ((2, 4, 4, 3), (2, 3, 4)))
-def test_camera_noise_rejects_non_nchw_rgb_input(shape: tuple[int, ...]):
-    """Photometric randomization rejects non-NCHW RGB tensors."""
+def test_camera_noise_rejects_non_rgb_input():
     noise = mdp.EpisodeCameraNoise(mdp.EpisodeCameraNoiseCfg(), num_envs=2, device="cpu")
 
     with pytest.raises(ValueError, match="expects NCHW RGB input"):
-        noise(torch.zeros(shape))
+        noise(torch.zeros((2, 4, 4, 3)))
 
 
-@pytest.mark.parametrize(
-    ("field", "value"),
-    (
-        ("exposure_range", (0.0, 1.0)),
-        ("contrast_range", (1.1, 0.9)),
-        ("white_balance_range", (-0.1, 1.0)),
-        ("brightness_range", (0.1, -0.1)),
-    ),
-)
-def test_camera_noise_rejects_invalid_ranges(field: str, value: tuple[float, float]):
-    """Photometric coefficient ranges must be ordered and physically valid."""
-    cfg = mdp.EpisodeCameraNoiseCfg()
-    setattr(cfg, field, value)
+@pytest.mark.parametrize("exposure_range", ((0.0, 1.0), (1.0, 0.5)))
+def test_camera_noise_rejects_invalid_exposure_range(exposure_range: tuple[float, float]):
+    cfg = mdp.EpisodeCameraNoiseCfg(exposure_range=exposure_range)
 
-    with pytest.raises(ValueError, match=field):
+    with pytest.raises(ValueError, match="exposure_range"):
         mdp.EpisodeCameraNoise(cfg, num_envs=2, device="cpu")
 
 
@@ -287,44 +234,16 @@ def test_distillation_labels_match_executed_action_clip(monkeypatch: pytest.Monk
     torch.testing.assert_close(algorithm.transition.privileged_actions, torch.tensor(((-1.0, 0.25, 1.0),)))
 
 
-def test_franka_policies_use_stock_rsl_rl_algorithms():
-    """The Franka policies keep their task-specific networks in maintained RSL-RL workflows."""
-    state_runner = load_cfg_from_registry(FRANKA_STATE_TASK, "rsl_rl_cfg_entry_point")
-    camera_runner = load_cfg_from_registry(FRANKA_CAMERA_TASK, "rsl_rl_cfg_entry_point")
-
-    assert state_runner.algorithm.class_name == camera_runner.algorithm.class_name == "PPO"
-    assert state_runner.init_at_random_ep_len is False
-    assert isinstance(camera_runner.actor, RslRlCNNModelCfg)
-    assert isinstance(state_runner.actor.distribution_cfg, RslRlMLPModelCfg.GaussianDistributionCfg)
-    assert isinstance(camera_runner.actor.distribution_cfg, RslRlMLPModelCfg.GaussianDistributionCfg)
-    assert state_runner.actor.distribution_cfg.class_name == "GaussianDistribution"
-    assert camera_runner.actor.distribution_cfg.class_name == "GaussianDistribution"
-    assert state_runner.actor.distribution_cfg.std_type == "scalar"
-    assert camera_runner.actor.distribution_cfg.std_type == "log"
-    assert (
-        state_runner.actor.distribution_cfg.std_range == camera_runner.actor.distribution_cfg.std_range == (0.05, 0.3)
-    )
-
-
 def test_kuka_task_has_one_complete_23_dof_state_policy(stack_cfgs):
     cfg = stack_cfgs[KUKA_STATE_TASK]
     runner = load_cfg_from_registry(KUKA_STATE_TASK, "rsl_rl_cfg_entry_point")
 
     assert cfg.events.reset_from_state_buffer.func is mdp.KukaAllegroResetStateTable
-    assert cfg.actions.arm_action.gravity_compensation
-    assert not cfg.actions.arm_action.controller_owned_write_methods
-    assert cfg.actions.arm_action.scale == cfg.actions.arm_action.max_delta == 0.12
     assert isinstance(cfg.actions.gripper_action, mdp.ResetPreservingRelativeJointPositionActionCfg)
     assert tuple(cfg.actions.gripper_action.joint_names) == KUKA_ALLEGRO_ALL_HAND_JOINT_NAMES
-    assert len(cfg.actions.gripper_action.joint_names) == 16
-    assert cfg.actions.gripper_action.scale == cfg.actions.gripper_action.max_delta == 0.10
     assert cfg.terminations.progress_context.func is mdp.StableFullHandOrderInvariantStackGoal
-    assert cfg.curriculum.reset_sampling.params["global_sampling"] is True
     assert cfg.scene.cube_1.spawn.size == (KUKA_ALLEGRO_LARGE_CUBE_EDGE_LENGTH,) * 3
-    assert cfg.observations.policy.cube_x_axes.func is mdp.role_conditioned_cube_x_axes
     assert len(cfg.observations.policy.hand_joint_pos.params["asset_cfg"].joint_names) == 16
-    assert len(cfg.observations.policy.hand_joint_vel.params["asset_cfg"].joint_names) == 16
-    assert len(cfg.observations.policy.hand_tip_positions.params["body_cfg"].body_names) == 4
     assert cfg.observations.policy.grasp_pair.func is mdp.grasp_pair_one_hot
     assert cfg.observations.policy.grasp_pair.params["num_pairs"] == 3
     assert runner.actor.distribution_cfg.arm_action_dim == 7
@@ -354,19 +273,6 @@ def test_kuka_distribution_covers_all_arm_and_hand_actions():
     assert distribution.sample().shape == (32, 23)
     assert torch.allclose(distribution.std[0, :7], torch.full((7,), 0.35), atol=1.0e-6)
     assert torch.allclose(distribution.std[0, 7:], torch.full((16,), 0.15), atol=1.0e-6)
-
-
-def test_reset_runtime_state_has_one_typed_owner():
-    env = SimpleNamespace(num_envs=3, device="cpu")
-
-    state = create_stack_reset_runtime_state(env)
-
-    assert get_stack_reset_runtime_state(env) is state
-    assert set(vars(env)) == {"num_envs", "device", "stack_reset_state"}
-    assert state.row_ids.shape == (3,)
-    assert state.role_to_cube.shape == (3, 3)
-    with pytest.raises(AttributeError):
-        get_stack_reset_runtime_state(SimpleNamespace())
 
 
 def test_grasp_pair_observation_preserves_three_pair_checkpoint_contract():

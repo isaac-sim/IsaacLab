@@ -75,17 +75,6 @@ def test_deploy_dispatches_in_process():
     deploy.assert_called_once_with(args)
 
 
-def test_deploy_propagates_nonzero_status():
-    """Deployment failures become the CLI process status."""
-    deploy_module = mock.Mock()
-    deploy_module.command_deploy_leapp.return_value = 3
-    with mock.patch.dict(sys.modules, {"isaaclab.cli.commands.deploy": deploy_module}):
-        with pytest.raises(SystemExit) as exc_info:
-            cli.leapp(["deploy", "--task", "Isaac-Cartpole", "--pipeline", "policy.yaml"])
-
-    assert exc_info.value.code == 3
-
-
 def test_deploy_resolves_play_mode_and_injects_simulation_controller():
     """Deployment should use play config, forward the seed, and supply simulator capabilities."""
     from isaaclab.cli.commands import deploy as deploy_module

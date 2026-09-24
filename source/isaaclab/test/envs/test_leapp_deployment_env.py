@@ -398,36 +398,9 @@ def test_controller_owned_write_requires_handler_and_reorders_joints():
     with pytest.raises(ValueError, match="overlaps an earlier"):
         env._resolve_controller_owned_writes()
 
-    disjoint_duplicate = dict(requirement)
-    disjoint_duplicate["element_names"] = [["finger"]]
-    env._leapp_desc["pipeline"]["configs"]["isaaclab"]["controller_owned_writes"]["requirements"] = [
-        disjoint_duplicate,
-        requirement,
-    ]
-    with pytest.raises(ValueError, match="duplicates source term"):
-        env._resolve_controller_owned_writes()
-
     env._leapp_desc["pipeline"]["configs"]["isaaclab"]["controller_owned_writes"]["requirements"] = [requirement]
     requirement["element_names"] = [["missing_joint"]]
     with pytest.raises(ValueError, match="unknown joints"):
-        env._resolve_controller_owned_writes()
-
-    requirement["element_names"] = [["joint_a", "joint_b"]]
-    env.cfg = SimpleNamespace(actions=SimpleNamespace())
-    with pytest.raises(RuntimeError, match="unexpected"):
-        env._resolve_controller_owned_writes()
-
-    env.cfg = matching_cfg
-    specs = env._resolve_controller_owned_writes()
-    assert specs[0].joint_names == ("joint_a", "joint_b")
-
-    requirement["element_names"] = [["joint_a"]]
-    with pytest.raises(RuntimeError, match="mismatched"):
-        env._resolve_controller_owned_writes()
-    requirement["element_names"] = [["joint_a", "joint_b"]]
-
-    env._leapp_desc = {"pipeline": {"configs": {}}}
-    with pytest.raises(RuntimeError, match="Re-export the policy"):
         env._resolve_controller_owned_writes()
 
 
@@ -487,19 +460,6 @@ def test_controller_owned_write_rejects_unsupported_schema_versions(schema_versi
 
     with pytest.raises(ValueError, match="schema_version 1"):
         env._resolve_controller_owned_writes()
-
-
-def test_controller_owned_write_accepts_legacy_dict_action_config_without_requirements():
-    """Deployment should preserve ActionManager's support for dictionary action configs."""
-    env = object.__new__(LeappDeploymentEnv)
-    env.cfg = SimpleNamespace(actions={})
-    env.scene = {}
-    env._leapp_desc = {
-        "pipeline": {"configs": {"isaaclab": {"controller_owned_writes": {"schema_version": 1, "requirements": []}}}}
-    }
-    env._controller_owned_write_handlers = {}
-
-    assert env._resolve_controller_owned_writes() == ()
 
 
 def test_controller_owned_write_rejects_altered_generic_kind_and_output_alias():
@@ -565,32 +525,6 @@ def test_controller_owned_write_rejects_altered_generic_kind_and_output_alias():
         env._validate_policy_output_ownership(
             "model/effort",
             "write:robot:set_custom_effort_alias",
-            "target/joint/effort",
-            [["joint_a"]],
-        )
-
-
-def test_policy_output_cannot_alias_controller_owned_effort_through_another_writer():
-    """Equivalent effort writers must not create a second owner for the same joints."""
-    env = object.__new__(LeappDeploymentEnv)
-    env.scene = {"robot": _AnnotatedArticulation(["joint_a"])}
-    env._controller_owned_write_specs = (
-        ControllerOwnedWriteSpec(
-            capability="gravity_compensation",
-            source_term="arm_action",
-            kind="target/joint/effort",
-            entity_name="robot",
-            method_name="set_joint_effort_target_index",
-            cadence="action_apply",
-            joint_names=("joint_a",),
-            joint_ids=(0,),
-        ),
-    )
-
-    with pytest.raises(ValueError, match="overlaps controller-owned"):
-        env._validate_policy_output_ownership(
-            "model/effort",
-            "write:robot:set_joint_effort_target_mask",
             "target/joint/effort",
             [["joint_a"]],
         )

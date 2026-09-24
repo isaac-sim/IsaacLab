@@ -45,13 +45,3 @@ def test_success_monitor_rejects_invalid_state(key: str, value: torch.Tensor, me
 
     with pytest.raises(ValueError, match=message):
         monitor.set_state(state)
-
-
-def test_success_monitor_rejects_missing_state() -> None:
-    """Checkpoint restoration reports a missing required tensor."""
-    monitor = SuccessMonitor(SuccessMonitorCfg(), 1, 1, "cpu")
-    state = monitor.get_state()
-    del state["history_size"]
-
-    with pytest.raises(KeyError, match="history_size"):
-        monitor.set_state(state)

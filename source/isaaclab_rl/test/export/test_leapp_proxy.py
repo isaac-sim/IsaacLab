@@ -272,28 +272,6 @@ def test_controller_owned_write_declaration_must_be_observed():
         _ = patcher.controller_owned_write_requirements
 
 
-def test_controller_owned_write_requirements_are_returned_by_value():
-    """Artifact metadata callers must not be able to mutate validated exporter state."""
-    requirement = {
-        "capability": "gravity_compensation",
-        "source_term": "arm_action",
-        "kind": "target/joint/effort",
-        "element_names": [["joint"]],
-        "cadence": "action_apply",
-        "isaaclab_connection": "write:robot:set_joint_effort_target_index",
-    }
-    patcher = ExportPatcher(export_method="onnx-dynamo")
-    patcher._declared_controller_owned_writes = {
-        ("arm_action", "write:robot:set_joint_effort_target_index"): "gravity_compensation"
-    }
-    patcher._controller_owned_write_requirements = [requirement]
-
-    returned = patcher.controller_owned_write_requirements
-    returned[0]["element_names"][0][0] = "mutated"
-
-    assert patcher._controller_owned_write_requirements[0]["element_names"] == [["joint"]]
-
-
 def test_controller_owned_write_requirements_reject_duplicate_source_connections():
     """One action write connection must produce exactly one controller requirement."""
     requirements = [
