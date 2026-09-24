@@ -19,7 +19,7 @@ from isaaclab_newton.cloner import replicate as replicate_module
 from isaaclab_newton.cloner.newton_clone_utils import rename_builder_labels, replicate_builder_mapping
 from isaaclab_newton.physics import visualization_deformables as visualization_deformables_module
 
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+from pxr import Sdf, Usd, UsdGeom, UsdLux, UsdPhysics
 
 from isaaclab.cloner import ClonePlan
 from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
@@ -379,11 +379,12 @@ class TestVisualizationClonePlan(unittest.TestCase):
         stage = Usd.Stage.CreateInMemory()
         self.sim.stage = stage
         self._define_xform(stage, "/World")
-        for path in ("/World/Declared", "/World/Undeclared"):
+        for path in ("/World/Declared", "/World/Undeclared", "/World/Excluded"):
             body = UsdGeom.Cube.Define(stage, path)
             body.CreateSizeAttr(0.2)
             UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
             UsdPhysics.CollisionAPI.Apply(body.GetPrim())
+            UsdLux.SphereLight.Define(stage, f"{path}/Light")
         plan = ClonePlan(
             sources=(),
             destinations=(),
@@ -397,11 +398,14 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self.assertEqual(builder.body_label, ["/World/Declared"])
         self.assertIsNone(stage_info)
         self.assertEqual(site_index_map, {})
+        lighting = Usd.Stage.CreateInMemory()
+        lighting.GetRootLayer().ImportFromString(builder.custom_attributes["isaaclab:scene_lights"].values[0])
+        self.assertEqual(sum(prim.IsA(UsdLux.SphereLight) for prim in lighting.Traverse()), 1)
 
         plan = ClonePlan(
-            sources=("/World/Declared",),
-            destinations=("/Copies/env_{}/Body",),
-            clone_mask=np.ones((1, 2), dtype=np.bool_),
+            sources=("/World/Declared", "/World/Excluded"),
+            destinations=("/Copies/env_{}/Body", "/Copies/env_{}/Excluded"),
+            clone_mask=np.ones((2, 2), dtype=np.bool_),
             env_ids=np.arange(2, dtype=np.int64),
             positions=np.array([[0.0, 0.0, 0.0], [2.0, 0.0, 0.0]], dtype=np.float32),
             global_paths=("/World",),
@@ -417,6 +421,8 @@ class TestVisualizationClonePlan(unittest.TestCase):
                 target_position = np.asarray(builder.body_q[builder.body_label.index("/Copies/env_1/Body")])[:3]
                 offset = np.zeros(3) if positions is None else positions[1] - positions[0]
                 np.testing.assert_allclose(target_position - source_position, offset)
+                lighting.GetRootLayer().ImportFromString(builder.custom_attributes["isaaclab:scene_lights"].values[0])
+                self.assertEqual(sum(prim.IsA(UsdLux.SphereLight) for prim in lighting.Traverse()), 3)
 
     def test_visualization_builder_disables_collision_pairs(self):
         stage = Usd.Stage.CreateInMemory()
@@ -426,6 +432,8 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self._define_xform(stage, "/World/envs")
         self._define_xform(stage, "/World/envs/env_0")
         self._define_xform(stage, "/World/envs/env_1", (2.0, 0.0, 0.0))
+        UsdLux.DomeLight.Define(stage, "/World/Sky")
+        UsdLux.SphereLight.Define(stage, f"{robot_path}/Light")
         robot = UsdGeom.Xform.Define(stage, robot_path).GetPrim()
         UsdPhysics.ArticulationRootAPI.Apply(robot)
         robot.CreateAttribute("physxArticulation:enabledSelfCollisions", Sdf.ValueTypeNames.Bool).Set(False)
@@ -447,6 +455,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
             clone_mask=np.ones((1, 2), dtype=np.bool_),
             env_ids=np.arange(2, dtype=np.int64),
             positions=np.asarray(((0.0, 0.0, 0.0), (2.0, 0.0, 0.0)), dtype=np.float32),
+            global_paths=("/World/Sky",),
             context_rows={NewtonReplicateContext: (0,)},
         )
         builder, _, _ = NewtonReplicateContext(self.sim).replicate(clone_plan)
@@ -455,6 +464,11 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self.assertEqual(model.shape_count, 4)
         self.assertEqual(len(model.shape_collision_filter_pairs), 0)
         self.assertEqual(model.shape_contact_pair_count, 0)
+
+        lighting = Usd.Stage.CreateInMemory()
+        lighting.GetRootLayer().ImportFromString(model.isaaclab.scene_lights[0])
+        self.assertEqual(sum(prim.IsA(UsdLux.DomeLight) for prim in lighting.Traverse()), 1)
+        self.assertEqual(sum(prim.IsA(UsdLux.SphereLight) for prim in lighting.Traverse()), 2)
 
     def test_visualization_builder_uses_clone_plan_sources_and_rewrites_labels(self):
         stage = Usd.Stage.CreateInMemory()
@@ -482,6 +496,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
             mock.patch.object(replicate_module, "ModelBuilder", _FakeVisualizationModelBuilder),
             mock.patch.object(newton_clone_utils_module, "ModelBuilder", _FakeVisualizationModelBuilder),
             mock.patch.object(replicate_module, "import_builder_visual_material_paths"),
+            mock.patch.object(replicate_module, "import_scene_lights"),
             mock.patch.object(newton_clone_utils_module, "import_builder_visual_material_paths"),
             mock.patch.object(newton_clone_utils_module, "replace_newton_builder_shape_colors"),
         ):

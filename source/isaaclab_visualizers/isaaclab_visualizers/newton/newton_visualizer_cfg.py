@@ -162,8 +162,12 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     """Visualizer selector identifier. Do not change."""
 
     rtx_environment: str = "default"
-    """OVRTX lighting environment.  One of ``"default"`` (dome + distant light),
-    ``"studio"`` (three-point rig for cleaner highlights), or ``"none"``."""
+    """OVRTX lighting environment.
+
+    ``"default"`` uses the scene lights imported by the cloner and falls back to Newton's default
+    rig when none exist. ``"studio"`` uses Newton's three-point rig, and ``"none"`` disables
+    environment lighting.
+    """
 
     render_settings: dict[str, Any] = dict()
     """RTX attributes to author on the OVRTX render product, as ``{name: (usd_type_name, value)}``.

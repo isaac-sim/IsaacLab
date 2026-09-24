@@ -797,10 +797,24 @@ For migration context, see :doc:`/source/migration/migrating_to_isaaclab_3-0`.
 Scene Background
 ~~~~~~~~~~~~~~~~
 
-Kit, Newton GL, and Newton RTX use the shared solid sky-blue background from
-``VisualizerCfg.background_color`` by default. This changes only the visible background; scene
-lights continue to illuminate objects and contribute reflections. Set a different normalized RGB
-color directly, or set the field to ``None`` to preserve the backend's native background:
+Kit and Newton RTX show the scene's authored dome light by default. Configure the HDR environment
+once through the scene's :class:`~isaaclab.sim.spawners.lights.DomeLightCfg`; both visualizers then
+use its texture, intensity, color, and transform:
+
+.. code-block:: python
+
+    env_cfg.scene.sky_light.spawn.texture_file = "/path/to/evening.hdr"
+    env_cfg.scene.sky_light.spawn.intensity = 1000.0
+
+The Newton cloner imports lighting alongside physics and geometry. Global lights are shared;
+lights inside a prototype follow its clone placements. Newton RTX loads that prepared lighting
+from the model, including resolved HDR textures and initial transforms. No renderer-specific HDR
+configuration is required. Subsequent changes to source USD lights are not synchronized. Newton GL
+cannot display HDR environment textures and uses its procedural ``sky_upper_color`` /
+``sky_lower_color`` gradient instead.
+
+To replace only the visible background with a solid color while retaining the scene lighting and
+reflections, set one shared visualizer default:
 
 .. code-block:: python
 

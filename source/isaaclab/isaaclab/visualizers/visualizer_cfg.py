@@ -57,11 +57,11 @@ class VisualizerCfg:
     focal_length: float = 12.0
     """Camera focal length in millimeters for visualizer camera views."""
 
-    background_color: tuple[float, float, float] | None = (0.30, 0.55, 0.82)
+    background_color: tuple[float, float, float] | None = None
     """Solid background color as normalized RGB values in ``[0, 1]``.
 
-    Kit, Newton GL, and Newton RTX honor this field. Set it to ``None`` to preserve the
-    backend's native background. Scene lighting remains independent of the visible background.
+    Kit, Newton GL, and Newton RTX honor this field. Set it to ``None`` to show the scene's
+    native background. Scene lighting remains independent of an explicit solid background.
     """
 
     # ── Streaming view ────────────────────────────────────────────────────────

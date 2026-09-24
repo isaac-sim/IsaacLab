@@ -26,6 +26,7 @@ from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_c
 from isaaclab_newton.cloner.newton_clone_utils import (
     _restore_visible_colliders_without_visual_shapes,
     build_source_builders,
+    import_scene_lights,
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonCfg, NewtonManager
@@ -226,6 +227,16 @@ def _replicate_newton(
         if simulation and NewtonManager._mpm_object_registry
         else None,
     )
+    if load_visual_shapes:
+        import_scene_lights(
+            builder,
+            stage,
+            global_paths=plan.global_paths,
+            sources=sources,
+            mapping=plan.clone_mask[list(rows)],
+            world_xforms=world_xforms,
+            ignore_paths=plan.sources,
+        )
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
     if simulation:

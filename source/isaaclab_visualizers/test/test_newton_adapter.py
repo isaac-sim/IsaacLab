@@ -3,10 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for Newton viewer adapter helpers."""
+"""Tests for Newton viewer adapters and rendered output."""
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -895,9 +896,10 @@ def test_infer_newton_marker_cfg_generic_usd_loads_mesh():
     assert spec.preloaded_mesh.vertices.shape[0] > 0
 
 
-def test_infer_newton_marker_cfg_missing_usd_falls_back_to_renderer_none():
+def test_infer_newton_marker_cfg_missing_usd_falls_back_to_renderer_none(monkeypatch):
     from isaaclab_visualizers.newton.newton_visualization_markers import _infer_newton_marker_cfg
 
+    monkeypatch.setattr("isaaclab.utils.assets.retrieve_file_path", Mock(side_effect=FileNotFoundError))
     spec = _infer_newton_marker_cfg(UsdFileCfg("/nonexistent/missing.usd"))
 
     assert spec.renderer == "none"
@@ -966,10 +968,81 @@ def test_newton_visualizer_cfg_distinct_types():
     # shared fields present on both
     assert NewtonGLVisualizerCfg().show_particles is False
     assert NewtonRTXVisualizerCfg().show_particles is False
-    assert NewtonGLVisualizerCfg().background_color == (0.3, 0.55, 0.82)
-    assert NewtonRTXVisualizerCfg().background_color == (0.3, 0.55, 0.82)
+    assert NewtonGLVisualizerCfg().background_color is None
+    assert NewtonRTXVisualizerCfg().background_color is None
     with pytest.raises(ValueError, match="three normalized RGB values"):
         NewtonGLVisualizerCfg(background_color=(0.0, -0.1, 1.0))
+
+
+@pytest.mark.rendering
+@pytest.mark.kitless
+def test_newton_rtx_renders_scene_sky_and_solid_background(tmp_path: Path) -> None:
+    """A solid background replaces the sky without changing the object's HDR illumination."""
+    import cv2
+    import newton
+    from isaaclab_newton.cloner.newton_clone_utils import import_scene_lights
+    from pyglet.math import Vec3
+
+    from pxr import Usd, UsdGeom
+
+    import isaaclab.sim as sim_utils
+
+    # OpenCV uses BGR. A red HDR makes ignored textures and fallback lighting visibly different.
+    hdr_path = tmp_path / "red.hdr"
+    assert cv2.imwrite(str(hdr_path), np.full((8, 16, 3), (0.0, 0.0, 1.0), dtype=np.float32))
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageUpAxis(stage, "Z")
+    with sim_utils.use_stage(stage):
+        sim_utils.spawn_light("/World/Sky", sim_utils.DomeLightCfg(texture_file=str(hdr_path), intensity=750.0))
+    UsdGeom.Cube.Define(stage, "/World/Cube").GetSizeAttr().Set(1.0)
+    builder = newton.ModelBuilder()
+    builder.add_usd(stage)
+    import_scene_lights(builder, stage)
+    model = builder.finalize("cuda:0")
+    state = model.state()
+    stage.GetRootLayer().Clear()
+
+    object_colors = []
+    for background_color, background_channel in ((None, 0), ((0.0, 0.0, 1.0), 2)):
+        visualizer = NewtonRTXVisualizer(
+            NewtonRTXVisualizerCfg(background_color=background_color, window_width=128, window_height=128)
+        )
+        visualizer._model = model
+        viewer = visualizer._create_viewer(True, {})
+        try:
+            viewer.set_model(model)
+            viewer.set_camera(Vec3(0.0, -4.0, 0.0), 0.0, 90.0)
+            for index in range(8):
+                viewer.begin_frame(index / 60)
+                viewer.log_state(state)
+                viewer.end_frame()
+            pixels = viewer.get_frame()
+            assert pixels.shape == (128, 128, 3)
+            # Sample away from the cube silhouette, where antialiasing mixes foreground and sky.
+            background = pixels[8:24, 8:24].mean(axis=(0, 1))
+            object_color = pixels[56:72, 56:72].mean(axis=(0, 1))
+            assert background[background_channel] > 180, background
+            assert np.delete(background, background_channel).max() < 10, background
+            assert object_color[0] > 80 and object_color[1:].max() < 10, object_color
+            object_colors.append(object_color)
+        finally:
+            viewer.close()
+    # Allow path-tracing noise while catching a background override that changes illumination.
+    np.testing.assert_allclose(object_colors[0], object_colors[1], atol=12, rtol=0)
+
+
+def test_newton_rtx_default_environment_falls_back_without_imported_lights(monkeypatch: pytest.MonkeyPatch) -> None:
+    from pxr import Usd
+
+    calls = []
+    monkeypatch.setattr(newton_visualizer_module.ViewerRTX, "_add_default_lights", lambda _self: calls.append(True))
+    viewer = object.__new__(NewtonViewerRTX)
+    viewer.stage = Usd.Stage.CreateInMemory()
+    viewer._scene_lights = ""
+
+    viewer._add_default_lights()
+
+    assert calls == [True]
 
 
 @pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
@@ -988,22 +1061,6 @@ def test_newton_gl_background_color(color: tuple[float, float, float] | None) ->
     expected_lower = cfg.sky_lower_color if color is None else color
     assert visualizer._viewer.renderer.sky_upper == expected_upper
     assert visualizer._viewer.renderer.sky_lower == expected_lower
-
-
-@pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
-def test_newton_rtx_receives_background_color(
-    monkeypatch: pytest.MonkeyPatch, color: tuple[float, float, float] | None
-) -> None:
-    kwargs = {}
-    monkeypatch.setattr(
-        newton_visualizer_module,
-        "NewtonViewerRTX",
-        lambda **viewer_kwargs: kwargs.update(viewer_kwargs) or object(),
-    )
-
-    NewtonRTXVisualizer(NewtonRTXVisualizerCfg(background_color=color))._create_viewer(False, {})
-
-    assert kwargs["background_color"] == color
 
 
 def test_eye_lookat_to_pitch_yaw_horizontal():

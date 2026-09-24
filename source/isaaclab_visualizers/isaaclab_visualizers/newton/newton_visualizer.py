@@ -636,6 +636,7 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         *args,
         metadata: dict | None = None,
         update_frequency: int = 1,
+        scene_lights: str = "",
         background_color: tuple[float, float, float] | None = None,
         render_settings: dict[str, Any] | None = None,
         **kwargs,
@@ -646,17 +647,19 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
             *args: Positional arguments forwarded to ``ViewerRTX``.
             metadata: Optional metadata shown in viewer panels.
             update_frequency: Viewer refresh cadence in simulation frames.
+            scene_lights: USD lighting layer prepared by the cloner alongside the Newton model.
             background_color: Optional solid background color RGB [0, 1].
             render_settings: Extra RTX attributes to author on the render product. See
                 :attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.render_settings`.
             **kwargs: Keyword arguments forwarded to ``ViewerRTX``.
         """
-        # Assigned before super().__init__(): ViewerRTX reaches
-        # _add_camera_lights_and_render_product() during initialization, and the override reads
-        # these values. The render settings are copied so a caller cannot mutate them afterwards.
+        # Assigned before super().__init__(): ViewerRTX reaches the light and render-product
+        # authoring hooks during initialization, and the overrides read these values.
+        self._scene_lights = scene_lights
         self._background_color = (
             tuple(float(value) for value in background_color) if background_color is not None else None
         )
+        # The render settings are copied so a caller cannot mutate them afterwards.
         self._render_settings = dict(render_settings or {})
 
         super().__init__(*args, **kwargs)
@@ -679,6 +682,17 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # exist.  Register the training controls now (they are buffered by ViewerRTX until
         # the GUI is available); the panel patch is applied in _init_window() below.
         self.register_ui_callback(self._render_training_controls, position="side")
+
+    def _add_default_lights(self) -> None:
+        """Load the cloner's lighting into the private OVRTX stage."""
+        from pxr import Sdf
+
+        if not self._scene_lights:
+            super()._add_default_lights()
+            return
+        layer = Sdf.Layer.CreateAnonymous(".usda")
+        layer.ImportFromString(self._scene_lights)
+        Sdf.CopySpec(layer, "/Lights", self.stage.GetRootLayer(), "/root/_IsaacLabLights")
 
     def log_points(self, name, points, radii=None, colors=None, hidden=False):
         """Apply the configured color to Newton's canonical particle batch."""
@@ -2305,8 +2319,9 @@ class NewtonRTXVisualizer(NewtonVisualizer):
     The tiled camera panel remains disabled because ``ViewerRTX.log_image`` has no
     display sink.
 
-    A solid background can be configured through :class:`NewtonRTXVisualizerCfg`. Other RTX
-    settings use ``ViewerRTX`` defaults unless supplied through ``render_settings``.
+    The default lighting environment uses scene lights imported by the cloner. A solid
+    background can be configured through :class:`NewtonRTXVisualizerCfg` without replacing those
+    lights. Other RTX settings use ``ViewerRTX`` defaults unless supplied through ``render_settings``.
     """
 
     def __init__(self, cfg: NewtonRTXVisualizerCfg):
@@ -2331,6 +2346,7 @@ class NewtonRTXVisualizer(NewtonVisualizer):
             metadata=metadata,
             update_frequency=self.cfg.update_frequency,
             environment=self.cfg.rtx_environment,
+            scene_lights=getattr(getattr(self._model, "isaaclab", None), "scene_lights", ("",))[0],
             background_color=self.cfg.background_color,
             render_settings=self.cfg.render_settings,
         )
