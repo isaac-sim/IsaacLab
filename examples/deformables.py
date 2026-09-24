@@ -133,16 +133,50 @@ OBJECT_CFGS = {
 
 @configclass
 class DeformablesSceneCfg(InteractiveSceneCfg):
-    """Ground and lighting for a randomized set of deformable objects."""
+    """Randomized deformable objects with ground and lighting."""
 
-    num_envs = 1
-    env_spacing = 0.0
     filter_collisions = False
 
     ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
     light = AssetBaseCfg(
         prim_path="/World/light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     )
+
+    def __post_init__(self):
+        """Sample object shapes, positions, stiffnesses, and colors."""
+        origins = define_origins(num_origins=12, radius=1.5, center_height=2.0)
+        print("[INFO]: Spawning objects...")
+        for idx, origin in tqdm.tqdm(enumerate(origins), total=len(origins)):
+            # randomly select an object to spawn
+            obj_name = random.choice(list(OBJECT_CFGS.keys()))
+            obj_cfg = OBJECT_CFGS[obj_name].copy()
+            # randomize the deformable material stiffness
+            if args_cli.physics == "newton_vbd" and obj_name == "cloth":
+                obj_cfg.physics_material.tri_ke = random.uniform(5e3, 5e4)
+                obj_cfg.physics_material.tri_ka = random.uniform(5e3, 5e4)
+            else:
+                youngs_modulus = random.uniform(5e5, 1e7)
+                poissons_ratio = random.uniform(0.25, 0.45)
+                if args_cli.physics == "newton_vbd":
+                    obj_cfg.physics_material.k_mu = youngs_modulus / (2.0 * (1.0 + poissons_ratio))
+                    obj_cfg.physics_material.k_lambda = (
+                        youngs_modulus * poissons_ratio / ((1.0 + poissons_ratio) * (1.0 - 2.0 * poissons_ratio))
+                    )
+                else:
+                    obj_cfg.physics_material.youngs_modulus = youngs_modulus
+                    obj_cfg.physics_material.poissons_ratio = poissons_ratio
+            # randomize the color
+            obj_cfg.visual_material.diffuse_color = (random.random(), random.random(), random.random())
+            name = f"{'Surface' if obj_name == 'cloth' else 'Volume'}{idx:02d}"
+            setattr(
+                self,
+                name,
+                DeformableObjectCfg(
+                    prim_path=f"/World/Origin/{name}",
+                    spawn=obj_cfg,
+                    init_state=DeformableObjectCfg.InitialStateCfg(pos=origin),
+                ),
+            )
 
 
 def define_origins(num_origins: int, radius: float = 2.0, center_height: float = 3.0) -> list[list[float]]:
@@ -219,40 +253,7 @@ def main():
         # Set main camera
         sim.set_camera_view([4.0, 4.0, 3.0], [0.5, 0.5, 0.0])
 
-        scene_cfg = DeformablesSceneCfg()
-        origins = define_origins(num_origins=12, radius=1.5, center_height=2.0)
-        print("[INFO]: Spawning objects...")
-        for idx, origin in tqdm.tqdm(enumerate(origins), total=len(origins)):
-            # randomly select an object to spawn
-            obj_name = random.choice(list(OBJECT_CFGS.keys()))
-            obj_cfg = OBJECT_CFGS[obj_name].copy()
-            # randomize the deformable material stiffness
-            if args_cli.physics == "newton_vbd" and obj_name == "cloth":
-                obj_cfg.physics_material.tri_ke = random.uniform(5e3, 5e4)
-                obj_cfg.physics_material.tri_ka = random.uniform(5e3, 5e4)
-            else:
-                youngs_modulus = random.uniform(5e5, 1e7)
-                poissons_ratio = random.uniform(0.25, 0.45)
-                if args_cli.physics == "newton_vbd":
-                    obj_cfg.physics_material.k_mu = youngs_modulus / (2.0 * (1.0 + poissons_ratio))
-                    obj_cfg.physics_material.k_lambda = (
-                        youngs_modulus * poissons_ratio / ((1.0 + poissons_ratio) * (1.0 - 2.0 * poissons_ratio))
-                    )
-                else:
-                    obj_cfg.physics_material.youngs_modulus = youngs_modulus
-                    obj_cfg.physics_material.poissons_ratio = poissons_ratio
-            # randomize the color
-            obj_cfg.visual_material.diffuse_color = (random.random(), random.random(), random.random())
-            name = f"{'Surface' if obj_name == 'cloth' else 'Volume'}{idx:02d}"
-            setattr(
-                scene_cfg,
-                name,
-                DeformableObjectCfg(
-                    prim_path=f"/World/Origin/{name}",
-                    spawn=obj_cfg,
-                    init_state=DeformableObjectCfg.InitialStateCfg(pos=origin),
-                ),
-            )
+        scene_cfg = DeformablesSceneCfg(num_envs=1, env_spacing=0.0)
         scene = scene_cfg.class_type(scene_cfg)
         # Play the simulator
         sim.reset()

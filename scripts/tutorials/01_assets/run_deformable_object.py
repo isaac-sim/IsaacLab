@@ -87,10 +87,8 @@ else:
 
 @configclass
 class DeformableSceneCfg(InteractiveSceneCfg):
-    """Four soft cubes on a shared ground plane."""
+    """Soft cubes on a shared ground plane."""
 
-    num_envs = 4
-    env_spacing = 0.5
     filter_collisions = False
     clone_cfg = CloneCfg(clone_template="/World/env_{}")
 
@@ -190,7 +188,7 @@ def main():
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[2.0, 2.0, 2.0], target=[0.0, 0.0, 0.75])
-        scene_cfg = DeformableSceneCfg()
+        scene_cfg = DeformableSceneCfg(num_envs=4, env_spacing=0.5)
         scene = scene_cfg.class_type(scene_cfg)
         # Play the simulator
         sim.reset()

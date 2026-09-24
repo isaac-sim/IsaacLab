@@ -127,20 +127,28 @@ def test_scene_examples_delegate_replication_to_interactive_scene(path):
         assert scenes, "Declare the scene as an InteractiveSceneCfg subclass."
         for scene in scenes:
             assert any(isinstance(node, ast.Name) and node.id == "configclass" for node in scene.decorator_list)
-            assert not any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) for node in scene.body)
+            assert all(
+                node.name == "__post_init__"
+                for node in scene.body
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            )
         assert not any(isinstance(node, ast.FunctionDef) and node.name == "design_scene" for node in tree.body)
     else:
         assert "InteractiveSceneCfg" in calls
     assert calls.isdisjoint({"clone_plan_from_env_0", "make_clone_plan", "set_clone_plan", "replicate"})
     args = ["input", "output"] if path.startswith("scripts/tools/convert_") else []
-    # Only import the scripts; converter availability is irrelevant without executing their main function.
+    # Construct cfgs without a runtime; converter availability is irrelevant without executing main.
     result = subprocess.run(
         [
             sys.executable,
             "-c",
             "import runpy, sys\nfrom unittest.mock import patch\nsys.argv = sys.argv[1:]\n"
             "with patch('isaaclab.utils.version.standalone_importers_available', return_value=True):\n"
-            "    runpy.run_path(sys.argv[0], run_name='prelaunch_check')\n"
+            "    namespace = runpy.run_path(sys.argv[0], run_name='prelaunch_check')\n"
+            "from isaaclab.scene import InteractiveSceneCfg as SceneCfg\n"
+            "for cls in namespace.values():\n"
+            "    if isinstance(cls, type) and cls is not SceneCfg and issubclass(cls, SceneCfg):\n"
+            "        cls(num_envs=1, env_spacing=0.0)\n"
             "assert 'pxr.Tf' not in sys.modules, 'USD loaded before runtime startup'",
             path,
             *args,

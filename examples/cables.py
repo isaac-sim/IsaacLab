@@ -51,10 +51,8 @@ if TYPE_CHECKING:
 
 @configclass
 class CablesSceneCfg(InteractiveSceneCfg):
-    """Ground and lighting for a configurable cable pile."""
+    """A randomized cable pile with ground and lighting."""
 
-    num_envs = 1
-    env_spacing = 0.0
     clone_cfg = CloneCfg(clone_template="/World/Env_{}")
 
     ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
@@ -62,42 +60,8 @@ class CablesSceneCfg(InteractiveSceneCfg):
         prim_path="/World/light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     )
 
-
-def reset_cables(entities: dict[str, CableObject]) -> None:
-    """Restore every cable to its initial segment state."""
-    for cable in entities.values():
-        cable.write_segment_pose_to_sim_index(segment_pose=cable.data.default_segment_pose_w)
-        cable.write_segment_velocity_to_sim_index(segment_velocity=cable.data.default_segment_velocity_w)
-
-
-def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene, max_steps: int = -1) -> None:
-    """Run the simulation and periodically restore the cable pile."""
-    sim_dt = sim.get_physics_dt()
-    reset_steps = max(1, int(2.0 / sim_dt))
-    count = 0
-
-    while (max_steps < 0 or count < max_steps) and sim.is_headless_or_exist_active_visualizer():
-        if count > 0 and count % reset_steps == 0:
-            reset_cables(scene.cable_objects)
-            print("[INFO]: Resetting cable state...")
-
-        sim.step(render=False)
-        scene.update(sim_dt)
-        if sim.is_rendering:
-            sim.render()
-        count += 1
-
-
-def main() -> None:
-    """Launch and run the cable pile example."""
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        physics_cfg.solver_cfg.iterations = 20
-        physics_cfg.num_substeps = 8
-        sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
-        sim = sim_utils.SimulationContext(sim_cfg)
-        sim.set_camera_view(eye=(2.0, 2.0, 1.0), target=(0.0, 0.0, 0.25))
-
-        scene_cfg = CablesSceneCfg()
+    def __post_init__(self):
+        """Configure cable geometry and sample the initial pile."""
         colorize = bool(args_cli.visualizer and "kit" in args_cli.visualizer)
         cable_length = 0.5
         segment_length = cable_length / args_cli.num_segments
@@ -141,7 +105,44 @@ def main() -> None:
                 ),
                 init_state=CableObjectCfg.InitialStateCfg(pos=position, rot=orientation),
             )
-            setattr(scene_cfg, f"cable_{index:03d}", cfg)
+            setattr(self, f"cable_{index:03d}", cfg)
+
+
+def reset_cables(entities: dict[str, CableObject]) -> None:
+    """Restore every cable to its initial segment state."""
+    for cable in entities.values():
+        cable.write_segment_pose_to_sim_index(segment_pose=cable.data.default_segment_pose_w)
+        cable.write_segment_velocity_to_sim_index(segment_velocity=cable.data.default_segment_velocity_w)
+
+
+def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene, max_steps: int = -1) -> None:
+    """Run the simulation and periodically restore the cable pile."""
+    sim_dt = sim.get_physics_dt()
+    reset_steps = max(1, int(2.0 / sim_dt))
+    count = 0
+
+    while (max_steps < 0 or count < max_steps) and sim.is_headless_or_exist_active_visualizer():
+        if count > 0 and count % reset_steps == 0:
+            reset_cables(scene.cable_objects)
+            print("[INFO]: Resetting cable state...")
+
+        sim.step(render=False)
+        scene.update(sim_dt)
+        if sim.is_rendering:
+            sim.render()
+        count += 1
+
+
+def main() -> None:
+    """Launch and run the cable pile example."""
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        physics_cfg.solver_cfg.iterations = 20
+        physics_cfg.num_substeps = 8
+        sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
+        sim = sim_utils.SimulationContext(sim_cfg)
+        sim.set_camera_view(eye=(2.0, 2.0, 1.0), target=(0.0, 0.0, 0.25))
+
+        scene_cfg = CablesSceneCfg(num_envs=1, env_spacing=0.0)
         scene = scene_cfg.class_type(scene_cfg)
         sim.reset()
         print("[INFO]: Setup complete...")

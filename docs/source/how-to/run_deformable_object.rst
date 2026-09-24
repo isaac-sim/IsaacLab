@@ -52,7 +52,7 @@ The tutorial corresponds to the ``run_deformable_object.py`` script in the ``scr
 
    .. literalinclude:: ../../../scripts/tutorials/01_assets/run_deformable_object.py
       :language: python
-      :emphasize-lines: 88-114, 137-153, 158-166, 175-180, 193-194
+      :emphasize-lines: 88-112, 135-151, 156-164, 173-178, 191-192
       :linenos:
 
 
@@ -64,7 +64,8 @@ Designing the scene
 
 We declare the ground plane, light, and deformable cube in a subclass of :class:`scene.InteractiveSceneCfg`.
 :class:`scene.InteractiveScene` constructs the assets and handles replication internally.
-The four environment origins form a centered grid with 0.5 m spacing.
+``DeformableSceneCfg(num_envs=4, env_spacing=0.5)`` selects four environment origins on a centered grid
+with 0.5 m spacing.
 
 In this tutorial, we create a cubical soft object using the spawn configuration similar to the deformable cube
 in the :ref:`Spawn Objects <tutorial-spawn-prims>` tutorial. The only difference is that now we wrap
