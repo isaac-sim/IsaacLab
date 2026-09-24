@@ -372,8 +372,16 @@ def test_frame_transformer_feet_wrt_base(sim):
     # the recorded-launch optimization must be active on CUDA; a recording failure would only
     # warn and silently fall back to eager launches, defeating the optimization.
     if "cuda" in str(sim.device):
-        for sensor in (ft, ft_thigh, ft_cube, ft_cube_offsets, ft_all):
+        sensors = (ft, ft_thigh, ft_cube, ft_cube_offsets, ft_all)
+        for sensor in sensors:
             assert sensor._update_cmd is not None
+        # The recorded launch is reused across updates rather than re-recorded every step.
+        recorded = [sensor._update_cmd for sensor in sensors]
+        scene.write_data_to_sim()
+        sim.step()
+        scene.update(sim_dt)
+        for sensor, update_cmd in zip(sensors, recorded):
+            assert sensor._update_cmd is update_cmd
 
 
 @pytest.mark.isaacsim_ci
