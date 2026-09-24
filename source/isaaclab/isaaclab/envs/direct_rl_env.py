@@ -314,6 +314,7 @@ class DirectRLEnv(gym.Env):
         This function calls the :meth:`_reset_idx` function to reset all the environments.
         However, certain operations, such as procedural terrain generation, that happened during initialization
         are not repeated.
+        Configured observation noise is applied to the policy observation before returning.
 
         Args:
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
@@ -350,7 +351,7 @@ class DirectRLEnv(gym.Env):
 
         # return observations
         # store the buffer like step() does, so consumers can read the latest observations
-        self.obs_buf = self._get_observations()
+        self.obs_buf = self._compute_observations()
         return self.obs_buf, self.extras
 
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
@@ -477,12 +478,7 @@ class DirectRLEnv(gym.Env):
         for recorder in self.video_recorders:
             recorder.step()
 
-        self.obs_buf = self._get_observations()
-
-        # add observation noise
-        # note: we apply no noise to the state space (since it is used for critic networks)
-        if self.cfg.observation_noise_model:
-            self.obs_buf["policy"] = self._observation_noise_model(self.obs_buf["policy"])
+        self.obs_buf = self._compute_observations()
 
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
 
@@ -704,10 +700,7 @@ class DirectRLEnv(gym.Env):
             # apply the same observation noise as the returned obs (policy space only) so the
             # bootstrapped terminal value matches the distribution the policy is trained on.
             if self.cfg.compute_final_obs:
-                terminal_obs = self._get_observations()
-                if self.cfg.observation_noise_model:
-                    terminal_obs["policy"] = self._observation_noise_model(terminal_obs["policy"])
-                self.extras["final_obs"] = terminal_obs
+                self.extras["final_obs"] = self._compute_observations()
             self._reset_idx(reset_env_ids)
         return reset_env_ids
 
@@ -766,6 +759,13 @@ class DirectRLEnv(gym.Env):
         physics time-step.
         """
         raise NotImplementedError(f"Please implement the '_apply_action' method for {self.__class__.__name__}.")
+
+    def _compute_observations(self) -> VecEnvObs:
+        """Compute observations and apply configured noise to the policy observation."""
+        obs = self._get_observations()
+        if self.cfg.observation_noise_model:
+            obs["policy"] = self._observation_noise_model(obs["policy"])
+        return obs
 
     @abstractmethod
     def _get_observations(self) -> VecEnvObs:
