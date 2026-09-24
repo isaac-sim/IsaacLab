@@ -3095,21 +3095,13 @@ class Articulation(BaseArticulation):
         """
         env_ids = self._resolve_env_ids(env_ids)
         fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        rows, cols = self._to_torch_ids(env_ids)[:, None], self._to_torch_ids(fixed_tendon_ids)
         for staged, sim_bind in (
             (self.data._fixed_tendon_stiffness, self.data._sim_bind_fixed_tendon_stiffness),
             (self.data._fixed_tendon_damping, self.data._sim_bind_fixed_tendon_damping),
+            (self.data._fixed_tendon_pos_limits, self.data._sim_bind_fixed_tendon_pos_limits),
         ):
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-                dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[staged, env_ids, fixed_tendon_ids],
-                outputs=[sim_bind],
-                device=self.device,
-            )
-        rows, cols = self._to_torch_ids(env_ids)[:, None], self._to_torch_ids(fixed_tendon_ids)
-        wp.to_torch(self.data._sim_bind_fixed_tendon_pos_limits)[rows, cols] = wp.to_torch(
-            self.data._fixed_tendon_pos_limits
-        )[rows, cols]
+            wp.to_torch(sim_bind)[rows, cols] = wp.to_torch(staged)[rows, cols]
         # the solver keeps its own copy of the tendon properties and only re-reads them when notified
         SimulationManager.add_model_change(ModelFlags.TENDON_PROPERTIES)
 

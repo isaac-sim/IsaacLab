@@ -9,6 +9,8 @@ Added
 Fixed
 ^^^^^
 
+* Fixed selected tendon property writes reading staged values from the first environment or tendon instead
+  of the selected indices.
 * Fixed :meth:`~isaaclab_newton.assets.Articulation.set_fixed_tendon_stiffness_mask` and
   :meth:`~isaaclab_newton.assets.Articulation.set_fixed_tendon_damping_mask` raising ``AttributeError``.
 * Fixed :meth:`~isaaclab_newton.assets.Articulation.write_fixed_tendon_properties_to_sim_mask` raising

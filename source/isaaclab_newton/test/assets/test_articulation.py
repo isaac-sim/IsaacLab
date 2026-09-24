@@ -1970,7 +1970,7 @@ def test_fixed_tendon_position_target_reaches_only_given_envs(sim, num_articulat
         assert commanded[joint_ids].sum() > untouched[joint_ids].sum()
 
 
-@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.parametrize("articulation_type", ["shadow_hand"])
 def test_fixed_tendon_properties_reach_solver(sim, num_articulations, device, articulation_type):
@@ -1978,9 +1978,11 @@ def test_fixed_tendon_properties_reach_solver(sim, num_articulations, device, ar
 
     Covers both the index and the mask setters and writers.
     """
-    articulation, _ = generate_articulation(generate_articulation_cfg(articulation_type=articulation_type), 1, device)
+    articulation, _ = generate_articulation(
+        generate_articulation_cfg(articulation_type=articulation_type), num_articulations, device
+    )
     sim.reset()
-    shape = (1, articulation.num_fixed_tendons)
+    shape = (num_articulations, articulation.num_fixed_tendons)
     limits = torch.tensor([-0.1, 0.2], device=device).expand(*shape, 2)
 
     articulation.set_fixed_tendon_stiffness_mask(stiffness=torch.full(shape, 12.0, device=device))
@@ -1992,8 +1994,19 @@ def test_fixed_tendon_properties_reach_solver(sim, num_articulations, device, ar
     solver_model = SimulationManager._solver.mjw_model
     np.testing.assert_allclose(solver_model.tendon_stiffness.numpy(), 12.0)
     np.testing.assert_allclose(solver_model.tendon_damping.numpy(), 3.0)
-    np.testing.assert_allclose(solver_model.tendon_range.numpy().reshape(-1, 2), [[-0.1, 0.2]] * shape[1], rtol=1e-6)
+    np.testing.assert_allclose(solver_model.tendon_range.numpy(), limits.cpu().numpy(), rtol=1e-6)
     torch.testing.assert_close(articulation.data.fixed_tendon_pos_limits.torch, limits)
+
+    articulation.set_fixed_tendon_stiffness_index(stiffness=42.0, env_ids=[1], fixed_tendon_ids=[1])
+    articulation.set_fixed_tendon_damping_index(damping=6.0, env_ids=[1], fixed_tendon_ids=[1])
+    articulation.write_fixed_tendon_properties_to_sim_index(env_ids=[1], fixed_tendon_ids=[1])
+    sim.step()
+    expected_stiffness = np.full(shape, 12.0)
+    expected_damping = np.full(shape, 3.0)
+    expected_stiffness[1, 1] = 42.0
+    expected_damping[1, 1] = 6.0
+    np.testing.assert_allclose(solver_model.tendon_stiffness.numpy(), expected_stiffness)
+    np.testing.assert_allclose(solver_model.tendon_damping.numpy(), expected_damping)
 
 
 @pytest.mark.parametrize("device", ["cpu"])
