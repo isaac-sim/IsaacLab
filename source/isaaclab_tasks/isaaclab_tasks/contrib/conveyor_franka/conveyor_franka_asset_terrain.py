@@ -22,3 +22,9 @@ class ConveyorFrankaGroundPlaneTerrainImporter(TerrainImporter):
         """Create the ground plane and translate its policy-facing origins."""
         super().__init__(cfg)
         self.env_origins.add_(self.env_origins.new_tensor(cfg.workspace_origin_offset))
+        # The authored warehouse floor replaces the default calibration-grid visual.
+        from pxr import UsdGeom
+
+        from isaaclab.sim.utils.stage import get_current_stage
+
+        UsdGeom.Imageable(get_current_stage().GetPrimAtPath(cfg.prim_path)).MakeInvisible()

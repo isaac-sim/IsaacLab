@@ -43,3 +43,4 @@ include = ["isaaclab_tasks", "isaaclab_tasks.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.pyi"]
+"isaaclab_tasks.contrib.conveyor_franka" = ["assets/*.usda", "assets/*.usd"]

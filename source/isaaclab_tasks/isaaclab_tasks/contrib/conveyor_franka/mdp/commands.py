@@ -15,13 +15,14 @@ import torch
 from isaaclab.managers import CommandTerm, CommandTermCfg
 from isaaclab.utils.configclass import configclass
 
+from ..conveyor_cube_pool import cube_values
 from ..conveyor_geometry import BELT_CENTER_X, BELT_HALF_STRAIGHT
 from .kinematics import end_effector_pose
 from .reset_events import CUBE_COUNT, ConveyorResetRecipe, select_next_transfer_cube, side_inner_y
 from .rewards import current_transfer_potential, physical_cube_acquisition_mask
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, RigidObject
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
 
 
@@ -62,7 +63,6 @@ class ConveyorTransferCommand(CommandTerm):
             raise RuntimeError("ConveyorTransferCommand requires ConveyorResetStateTable reset metadata.")
         self._reset_term = reset_term
         self._robot: Articulation = env.scene["robot"]
-        self._cubes: tuple[RigidObject, ...] = tuple(env.scene[f"cube_{cube_id}"] for cube_id in range(CUBE_COUNT))
         self._finger_joint_ids = self._robot.find_joints("panda_finger_joint[1-2]", preserve_order=True)[0]
 
         self.target_cube_ids = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
@@ -149,8 +149,8 @@ class ConveyorTransferCommand(CommandTerm):
         if not bool(torch.any(evaluate_mask)):
             return
 
-        positions = torch.stack(tuple(cube.data.root_pos_w.torch for cube in self._cubes), dim=1)
-        velocities = torch.stack(tuple(cube.data.root_lin_vel_w.torch for cube in self._cubes), dim=1)
+        positions = cube_values(self._env, "root_pos_w")
+        velocities = cube_values(self._env, "root_lin_vel_w")
         index = self.target_cube_ids.view(self.num_envs, 1, 1).expand(-1, 1, 3)
         active_position = torch.gather(positions, 1, index).squeeze(1) - self._env.scene.env_origins
         active_velocity = torch.gather(velocities, 1, index).squeeze(1)
@@ -184,6 +184,9 @@ class ConveyorTransferCommand(CommandTerm):
             source_sides = self.source_side_ids[success_ids]
             self.transfer_counts[success_ids] += 1
             self.direction_transfer_counts[success_ids, source_sides] += 1
+            pool = getattr(self._env, "conveyor_cube_pool", None)
+            if pool is not None:
+                pool.record_transfers(success_ids, self.target_cube_ids[success_ids])
 
         potential = current_transfer_potential(self._env, command=self)
         progressed = (potential >= self._target_potential) & (evaluation_steps >= self.cfg.minimum_progress_steps)
@@ -213,8 +216,7 @@ class ConveyorTransferCommand(CommandTerm):
         ids = self._resolve_env_ids(env_ids)
         if ids.numel() == 0:
             return
-        cube = self._cubes[target_cube_id]
-        local_y = cube.data.root_pos_w.torch[ids, 1] - self._env.scene.env_origins[ids, 1]
+        local_y = cube_values(self._env, "root_pos_w")[ids, target_cube_id, 1] - self._env.scene.env_origins[ids, 1]
         source_side_ids = (local_y < 0.0).long()
         target_cube_ids = torch.full_like(ids, target_cube_id)
         self._assign_goal(ids, target_cube_ids, source_side_ids)
@@ -241,7 +243,7 @@ class ConveyorTransferCommand(CommandTerm):
             self.subgoal_start_steps[ids] = 0
             return
 
-        positions = torch.stack(tuple(cube.data.root_pos_w.torch[ids] for cube in self._cubes), dim=1)
+        positions = cube_values(self._env, "root_pos_w")[ids]
         positions -= self._env.scene.env_origins[ids].unsqueeze(1)
         next_source_side_ids = 1 - self.source_side_ids[ids]
         next_cube_ids = select_next_transfer_cube(

@@ -15,6 +15,7 @@ import torch
 
 from isaaclab.managers import SceneEntityCfg
 
+from ..conveyor_cube_pool import cube_values
 from ..conveyor_geometry import (
     BELT_CENTER_X,
     BELT_HALF_STRAIGHT,
@@ -22,10 +23,10 @@ from ..conveyor_geometry import (
     BELT_WIDTH,
     GUARD_THICKNESS,
 )
-from .reset_events import CUBE_COUNT, CUBE_SIZE
+from .reset_events import CUBE_SIZE
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, RigidObject
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
 
 
@@ -93,8 +94,7 @@ def cube_out_of_workspace(
     ),
 ) -> torch.Tensor:
     """Terminate when any cube leaves the complete guarded racetrack workspace."""
-    cubes: tuple[RigidObject, ...] = tuple(env.scene[f"cube_{cube_id}"] for cube_id in range(CUBE_COUNT))
-    positions = torch.stack(tuple(cube.data.root_pos_w.torch for cube in cubes), dim=1)
+    positions = cube_values(env, "root_pos_w", all_cubes=True)
     positions -= env.scene.env_origins.unsqueeze(1)
     lower = positions.new_tensor(minimum)
     upper = positions.new_tensor(maximum)
@@ -109,7 +109,5 @@ def nonfinite_scene_state(
     robot: Articulation = env.scene[robot_cfg.name]
     invalid = ~torch.all(torch.isfinite(robot.data.joint_pos.torch), dim=1)
     invalid |= ~torch.all(torch.isfinite(robot.data.joint_vel.torch), dim=1)
-    for cube_id in range(CUBE_COUNT):
-        cube: RigidObject = env.scene[f"cube_{cube_id}"]
-        invalid |= ~torch.all(torch.isfinite(cube.data.root_state_w.torch), dim=1)
+    invalid |= ~torch.isfinite(cube_values(env, "root_state_w", all_cubes=True)).all(dim=(1, 2))
     return invalid

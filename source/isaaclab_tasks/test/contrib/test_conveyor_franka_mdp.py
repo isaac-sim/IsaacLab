@@ -8,6 +8,7 @@
 from collections import Counter
 from types import SimpleNamespace
 
+import pytest
 import torch
 
 from isaaclab_tasks.contrib.conveyor_franka.agents.rsl_rl_ppo_cfg import (
@@ -446,7 +447,8 @@ def test_next_transfer_cube_is_random_among_eligible_alternatives():
     assert torch.all(torch.abs(frequencies[1:3] - 0.5) < 0.05)
 
 
-def test_manual_transfer_goal_uses_selected_cube_current_side():
+@pytest.mark.parametrize("use_pool", [False, True])
+def test_manual_transfer_goal_uses_selected_cube_current_side(use_pool):
     """Viewer goal changes preserve cube identity and infer the opposite destination."""
 
     class _Scene(dict):
@@ -473,7 +475,16 @@ def test_manual_transfer_goal_uses_selected_cube_current_side():
         scene=scene,
         episode_length_buf=torch.tensor((11, 19)),
     )
-    command._cubes = cubes
+    for cube_id, cube in enumerate(cubes):
+        scene[f"cube_{cube_id}"] = cube
+    if use_pool:
+        from isaaclab_tasks.contrib.conveyor_franka.conveyor_cube_pool import ConveyorCubePool
+
+        extra_cube = SimpleNamespace(data=SimpleNamespace(root_pos_w=SimpleNamespace(torch=selected_cube_positions)))
+        cubes[2].data.root_pos_w.torch = 2 * origins - selected_cube_positions
+        pool = ConveyorCubePool((*cubes, extra_cube), 2, "cpu")
+        pool.slot_ids[:, 2] = 4
+        command._env.conveyor_cube_pool = pool
     command.target_cube_ids = torch.tensor((0, 1))
     command.source_side_ids = torch.tensor((1, 0))
     command.held_cube_ids = torch.tensor((0, 1))
@@ -561,3 +572,77 @@ def test_deployment_layout_uses_each_racetrack_straight_run_once():
         side_x = torch.where(cube_sides == side_id, cube_x, torch.nan)
         expected_sum = torch.full((source_side_ids.numel(),), 2 * BELT_CENTER_X, dtype=cube_x.dtype)
         torch.testing.assert_close(torch.nansum(side_x, dim=1), expected_sum)
+
+
+def test_sort_dispatch_preserves_grasp_and_never_reverses_a_sorted_parcel(monkeypatch):
+    """Dispatch changes logical slots, never physical state, and leaves completed batches circulating."""
+    from isaaclab_tasks.contrib.conveyor_franka.conveyor_cube_pool import ConveyorCubePool
+    from isaaclab_tasks.contrib.conveyor_franka.conveyor_franka_warehouse_env import ConveyorFrankaWarehouseEnv
+    from isaaclab_tasks.contrib.conveyor_franka.mdp import sorting
+
+    count = 6
+    positions = torch.tensor([[[2.0, 0.8, 0.46]] * count] * 2)
+    # The wrong-class arrival is outside the initial four slots; the nearby natural carton is already sorted.
+    positions[0, 0] = torch.tensor([0.7, 0.27, 0.06])
+    positions[0, 5] = torch.tensor([0.8, 0.27, 0.06])
+    positions[1, 1] = torch.tensor([0.5, -0.1, 0.25])  # Active grasp crossing between loops.
+    assets = tuple(
+        SimpleNamespace(
+            data=SimpleNamespace(
+                root_pos_w=SimpleNamespace(torch=positions[:, i]),
+                root_lin_vel_w=SimpleNamespace(torch=torch.zeros(2, 3)),
+            )
+        )
+        for i in range(count)
+    )
+    pool = ConveyorCubePool(assets, 2, "cpu")
+    env = SimpleNamespace(
+        num_envs=2,
+        device="cpu",
+        scene=SimpleNamespace(env_origins=torch.zeros(2, 3)),
+        conveyor_cube_pool=pool,
+        _in_workcell=ConveyorFrankaWarehouseEnv._in_workcell,
+        episode_length_buf=torch.tensor([20, 20]),
+    )
+    command = object.__new__(sorting.ConveyorSortCommand)
+    command._env = env
+    command.cfg = sorting.ConveyorSortCommandCfg(parcel_destinations=(0, 1) * 3)
+    command.parcel_destinations = torch.tensor(command.cfg.parcel_destinations)
+    command.has_target = torch.tensor([False, True])
+    command.target_cube_ids = torch.tensor([0, 1])
+    command.source_side_ids = torch.tensor([0, 0])
+    command.held_cube_ids = torch.full((2,), -1)
+    command.subgoal_start_steps = torch.zeros(2, dtype=torch.long)
+    command.command_counter = torch.ones(2, dtype=torch.long)
+    command._stable_steps = torch.zeros(2, dtype=torch.long)
+    command._last_evaluation_steps = torch.full((2,), -1)
+    command.is_success = torch.zeros(2, dtype=torch.bool)
+    command.new_success = torch.zeros(2, dtype=torch.bool)
+    command.pending_success = torch.zeros(2, dtype=torch.bool)
+    command.metrics = {name: torch.zeros(2) for name in ("sorted_parcels", "batch_complete")}
+    monkeypatch.setattr(sorting, "physical_cube_acquisition_mask", lambda *args, **kwargs: torch.tensor([False, True]))
+    before = positions.clone()
+    command._update_command()
+    assert command.has_target.tolist() == [True, True]
+    assert pool.slot_ids[0, command.target_cube_ids[0]] == 5
+    assert pool.slot_ids[1, command.target_cube_ids[1]] == 1
+    assert command.command[0, -2:].tolist() == [0.0, 1.0]
+    assert command.metrics["sorted_parcels"].tolist() == [1.0, 0.0]
+    torch.testing.assert_close(positions, before)
+    # Every parcel is now on its class's loop. Stable completion must end dispatch, not reverse direction.
+    positions[0, :, 0] = 0.6
+    positions[0, :, 1] = torch.tensor([0.27, -0.27] * 3)
+    positions[0, :, 2] = 0.06
+    command.pending_success[0] = True
+    command._update_command()
+    assert command.has_target.tolist() == [False, True]
+    assert command.metrics["batch_complete"].tolist() == [1.0, 0.0]
+    command._update_command()
+    assert not command.has_target[0]
+    # An idle command must not keep paying the preceding placement reward.
+    command.has_target.zero_()
+    command.new_success.fill_(True)
+    command.is_success.fill_(True)
+    command.evaluate()
+    assert not command.new_success.any()
+    assert not command.is_success.any()

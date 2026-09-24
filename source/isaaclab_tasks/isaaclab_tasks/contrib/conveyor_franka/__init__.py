@@ -20,10 +20,9 @@ gym.register(
 )
 
 gym.register(
-    # The conventional Play suffix lets the pretrained-checkpoint resolver
-    # reuse the base Newton task's published policy automatically.
+    # This presentation variant uses the base Newton checkpoint through an explicit URL.
     id="IsaacContrib-Conveyor-Franka-Newton-Play-v0",
-    entry_point=f"{__name__}.conveyor_franka_env:ConveyorFrankaEnv",
+    entry_point=f"{__name__}.conveyor_franka_warehouse_env:ConveyorFrankaWarehouseEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.conveyor_franka_asset_env_cfg:ConveyorFrankaA09A12EnvCfg",

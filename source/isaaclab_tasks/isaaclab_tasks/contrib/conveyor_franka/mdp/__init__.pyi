@@ -76,4 +76,4 @@ from .terminations import (
     transfer_sequence_time_out,
 )
 from isaaclab.envs.mdp import *
-from isaaclab_tasks.core.lift.mdp.events_cfg import SuccessMonitorCfg
+from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg

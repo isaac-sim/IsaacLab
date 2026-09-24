@@ -14,11 +14,12 @@ import torch
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import math as math_utils
 
+from ..conveyor_cube_pool import cube_values
 from .kinematics import end_effector_pose, tool_velocity
 from .reset_events import CUBE_COUNT, TRANSFER_X, side_inner_y
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, RigidObject
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
 
 
@@ -27,19 +28,15 @@ def _transfer_command(env: ManagerBasedRLEnv, command_name: str = "transfer"):
     return env.command_manager.get_term(command_name)
 
 
-def _cube_assets(env: ManagerBasedRLEnv) -> tuple[RigidObject, ...]:
-    """Return the four cubes in stable identity order."""
-    return tuple(env.scene[f"cube_{cube_id}"] for cube_id in range(CUBE_COUNT))
-
-
 def _cube_state(env: ManagerBasedRLEnv) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Stack cube world positions, orientations, and spatial velocities."""
-    cubes = _cube_assets(env)
-    return (
-        torch.stack(tuple(cube.data.root_pos_w.torch for cube in cubes), dim=1),
-        torch.stack(tuple(cube.data.root_quat_w.torch for cube in cubes), dim=1),
-        torch.stack(tuple(cube.data.root_vel_w.torch for cube in cubes), dim=1),
+    state = (
+        cube_values(env, "root_pos_w"),
+        cube_values(env, "root_quat_w"),
+        cube_values(env, "root_vel_w"),
     )
+    adapter = getattr(env, "_adapt_policy_cube_state", None)
+    return state if adapter is None else adapter(*state)
 
 
 def _active_cube_values(values: torch.Tensor, target_cube_ids: torch.Tensor) -> torch.Tensor:
@@ -82,8 +79,9 @@ def transfer_object_observation(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Describe all four cubes in stable identity slots.
 
     The observation contains local positions, tool-relative positions, local
-    up axes, and linear/angular velocities. Cube identity does not change
-    during an episode; :func:`target_cube_one_hot` selects the active slot.
+    up axes, and linear/angular velocities. The base task keeps fixed identities;
+    warehouse playback can refill remote slots from its physical parcel pool.
+    :func:`target_cube_one_hot` selects the active slot.
     """
     positions, quaternions, velocities = _cube_state(env)
     local_positions = positions - env.scene.env_origins.unsqueeze(1)

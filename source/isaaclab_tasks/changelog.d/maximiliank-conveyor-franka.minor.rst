@@ -1,21 +1,18 @@
 Added
 ^^^^^
 
-* Added a contributed manager-based environment with guarded, counter-rotating force-driven racetrack
-  conveyors, robust primitive and closed-mesh belt colliders, a MuJoCo Menagerie Franka, and an interactive
-  Newton-viewer cube-goal selector.
-* Used the reusable surface-velocity physics interfaces while retaining a single, kitless Newton force owner with
-  CUDA-graph and hard-reset-safe lifecycle binding.
-* Added a checkpoint-compatible Newton Play variant rendered with A09/A12 functional-loop visuals, a render-only
-  Thor robot table, packing station, pallet bays, and warehouse dressing while retaining the task's lightweight
-  collision and traction surfaces.
-* Added the opt-in ``IsaacContrib-Conveyor-Franka-PhysX-CPU-v0`` reference task, which explicitly
-  rejects GPU dynamics because the supported native surface-velocity path can drop conveyor contacts.
+* Added contributed Franka conveyor tasks with Newton GPU training, CPU-only native PhysX
+  playback, reusable surface-velocity interfaces, and an interactive Newton-viewer goal selector.
+* Added a USD-authored warehouse Play variant with textured 40 mm cartons, gravity infeeds,
+  compact elevated returns, and 24 physical parcels mapped into the checkpoint's four policy slots.
+  Added seeded four-color batches, two destination loops, and sorting metrics. Preserved the
+  original manipulation geometry and 123-observation, eight-action policy interface. Complete-batch
+  reliability with the unchanged policy was not established. Use ``--viz kit`` for authored visuals
+  and the explicit base-task checkpoint URL documented in the conveyor guide.
+* Added a user guide, preview, and environment-browser entries for the conveyor variants.
 
 Changed
 ^^^^^^^
 
-* Allowed :func:`isaaclab_tasks.utils.parse_env_cfg` callers to preserve a task's configured simulation device by
-  passing ``device=None``.
-* Kept action-rate penalties finite for rejected NaN or infinite policy commands by tracking the sanitized
-  commands accepted by the task's action terms.
+* Kept action-rate penalties finite for rejected NaN or infinite policy commands by tracking the
+  sanitized commands accepted by the task's action terms.

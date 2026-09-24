@@ -229,15 +229,18 @@ def _straight_collision_cuboid(name: str, center_y: float) -> CuboidSpec:
     )
 
 
-def _turn_collision_mesh(name: str, pivot_x: float, center_y: float, start_angle: float) -> MeshSpec:
-    """Build one closed annular half-turn prism with a +Z top surface."""
+def _turn_collision_mesh(
+    name: str, pivot_x: float, center_y: float, start_angle: float, angle_span: float = math.pi
+) -> MeshSpec:
+    """Build a closed annular turn with a +Z top surface and an angular span [rad]."""
     half_width = 0.5 * BELT_WIDTH + BELT_COLLISION_OVERHANG
     inner_radius = BELT_TURN_RADIUS - half_width
     outer_radius = BELT_TURN_RADIUS + half_width
     angle_overlap = BELT_COLLISION_SEAM_OVERLAP / BELT_TURN_RADIUS
     angle_start = start_angle - angle_overlap
-    angle_step = (math.pi + 2.0 * angle_overlap) / TURN_SEGMENT_COUNT
-    angles = tuple(angle_start + index * angle_step for index in range(TURN_SEGMENT_COUNT + 1))
+    segment_count = round(TURN_SEGMENT_COUNT * angle_span / math.pi)
+    angle_step = (angle_span + 2.0 * angle_overlap) / segment_count
+    angles = tuple(angle_start + index * angle_step for index in range(segment_count + 1))
 
     inner_top = tuple(
         (pivot_x + inner_radius * math.cos(angle), center_y + inner_radius * math.sin(angle), BELT_TOP_Z)
@@ -256,7 +259,7 @@ def _turn_collision_mesh(name: str, pivot_x: float, center_y: float, start_angle
     inner_bottom_offset = 2 * count
     outer_bottom_offset = 3 * count
     faces: list[tuple[int, int, int]] = []
-    for index in range(TURN_SEGMENT_COUNT):
+    for index in range(segment_count):
         next_index = index + 1
         inner_top_i = index
         inner_top_j = next_index
@@ -281,7 +284,7 @@ def _turn_collision_mesh(name: str, pivot_x: float, center_y: float, start_angle
         )
 
     # Close both radial ends of the annular prism.
-    end = TURN_SEGMENT_COUNT
+    end = segment_count
     faces.extend(
         (
             (0, inner_bottom_offset, outer_bottom_offset),

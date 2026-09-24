@@ -13,11 +13,12 @@ import torch
 
 from isaaclab.managers import SceneEntityCfg
 
+from ..conveyor_cube_pool import cube_values
 from .kinematics import end_effector_pose
-from .reset_events import CUBE_COUNT, CUBE_REST_Z, TRANSFER_X, side_inner_y
+from .reset_events import CUBE_REST_Z, TRANSFER_X, side_inner_y
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, RigidObject
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
 
     from .commands import ConveyorTransferCommand
@@ -63,8 +64,7 @@ def current_transfer_potential(
     """Gather current task state and evaluate the shaping potential."""
     if command is None:
         command = env.command_manager.get_term(command_name)
-    cubes: tuple[RigidObject, ...] = tuple(env.scene[f"cube_{cube_id}"] for cube_id in range(CUBE_COUNT))
-    positions = torch.stack(tuple(cube.data.root_pos_w.torch for cube in cubes), dim=1)
+    positions = cube_values(env, "root_pos_w")
     index = command.target_cube_ids.view(env.num_envs, 1, 1).expand(-1, 1, 3)
     active_position = torch.gather(positions, 1, index).squeeze(1) - env.scene.env_origins
     tool_position, _ = end_effector_pose(env)
@@ -127,8 +127,7 @@ def physical_cube_acquisition_mask(
         raise ValueError("Physical acquisition thresholds must be positive.")
     if command is None:
         command = env.command_manager.get_term(command_name)
-    cubes: tuple[RigidObject, ...] = tuple(env.scene[f"cube_{cube_id}"] for cube_id in range(CUBE_COUNT))
-    positions = torch.stack(tuple(cube.data.root_pos_w.torch for cube in cubes), dim=1)
+    positions = cube_values(env, "root_pos_w")
     index = command.target_cube_ids.view(env.num_envs, 1, 1).expand(-1, 1, 3)
     active_position = torch.gather(positions, 1, index).squeeze(1)
     tool_position, _ = end_effector_pose(env)

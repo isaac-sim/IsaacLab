@@ -15,7 +15,7 @@ import torch
 
 from isaaclab.managers import CurriculumTermCfg, ManagerTermBase
 
-from isaaclab_tasks.core.lift.mdp.events_cfg import SuccessMonitorCfg
+from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg
 
 from .reset_events import BELT_DEPLOYMENT_VARIANT, CUBE_COUNT, ConveyorResetRecipe, reset_variant_counts
 
