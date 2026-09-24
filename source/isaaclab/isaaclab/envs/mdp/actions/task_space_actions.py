@@ -254,18 +254,14 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         self._jacobian_b[:] = self.jacobian_b
         # account for the offset
         if self.cfg.body_offset is not None:
-            # Modify the jacobian to account for the offset
-            # -- translational part
-            # v_link = v_ee + w_ee x r_link_ee = v_J_ee * q + w_J_ee * q x r_link_ee
-            #        = (v_J_ee + w_J_ee x r_link_ee ) * q
-            #        = (v_J_ee - r_link_ee_[x] @ w_J_ee) * q
-            self._jacobian_b[:, 0:3, :] += torch.bmm(
-                -math_utils.skew_symmetric_matrix(self._offset_pos), self._jacobian_b[:, 3:, :]
+            # Express the lever arm in root axes; a rigid offset leaves angular velocity unchanged.
+            body_quat_b = math_utils.quat_mul(
+                math_utils.quat_inv(self._asset.data.root_quat_w.torch),
+                self._asset.data.body_quat_w.torch[:, self._body_idx],
             )
-            # -- rotational part
-            # w_link = R_link_ee @ w_ee
-            self._jacobian_b[:, 3:, :] = torch.bmm(
-                math_utils.matrix_from_quat(self._offset_rot), self._jacobian_b[:, 3:, :]
+            offset_pos_b = math_utils.quat_apply(body_quat_b, self._offset_pos)
+            self._jacobian_b[:, 0:3, :] += torch.bmm(
+                -math_utils.skew_symmetric_matrix(offset_pos_b), self._jacobian_b[:, 3:, :]
             )
 
         return self._jacobian_b
@@ -673,19 +669,15 @@ class OperationalSpaceControllerAction(ActionTerm):
 
         # account for the offset
         if self.cfg.body_offset is not None:
-            # Modify the jacobian to account for the offset
-            # -- translational part
-            # v_link = v_ee + w_ee x r_link_ee = v_J_ee * q + w_J_ee * q x r_link_ee
-            #        = (v_J_ee + w_J_ee x r_link_ee ) * q
-            #        = (v_J_ee - r_link_ee_[x] @ w_J_ee) * q
+            # Express the lever arm in root axes; a rigid offset leaves angular velocity unchanged.
+            body_quat_b = math_utils.quat_mul(
+                math_utils.quat_inv(self._asset.data.root_quat_w.torch),
+                self._asset.data.body_quat_w.torch[:, self._ee_body_idx],
+            )
+            offset_pos_b = math_utils.quat_apply(body_quat_b, self._offset_pos)
             self._jacobian_b[:, 0:3, :] += torch.bmm(
-                -math_utils.skew_symmetric_matrix(self._offset_pos), self._jacobian_b[:, 3:, :]
-            )  # type: ignore
-            # -- rotational part
-            # w_link = R_link_ee @ w_ee
-            self._jacobian_b[:, 3:, :] = torch.bmm(
-                math_utils.matrix_from_quat(self._offset_rot), self._jacobian_b[:, 3:, :]
-            )  # type: ignore
+                -math_utils.skew_symmetric_matrix(offset_pos_b), self._jacobian_b[:, 3:, :]
+            )
 
     def _compute_ee_pose(self):
         """Computes the pose of the ee frame in root frame."""
