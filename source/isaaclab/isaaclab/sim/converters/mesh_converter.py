@@ -83,8 +83,7 @@ class MeshConverter(AssetConverterBase):
             RuntimeError: If the conversion using the Omniverse asset converter fails.
         """
         # resolve mesh name and format
-        mesh_file_basename, mesh_file_format = os.path.basename(cfg.asset_path).split(".")
-        mesh_file_format = mesh_file_format.lower()
+        mesh_file_basename = os.path.splitext(os.path.basename(cfg.asset_path))[0]
 
         # Check if mesh_file_basename is a valid USD identifier
         if not Tf.IsValidIdentifier(mesh_file_basename):
