@@ -82,11 +82,9 @@ PER_TEST_STARTUP_TIMEOUTS = {
 
 PYTEST_WORKER_LIMITS = {
     "test_isaac_rtx_renderer_rigid_object_rendering.py": 2,
-    "test_visuotactile_render.py": 1,
-    "test_teleop_scripts_smoke.py": 1,
-    "test_xr_camera_feed_kit_scene_ui_integration.py": 1,
+    "test_isaac_rtx_renderer_scene_partitioning.py": 2,
 }
-"""Per-file xdist limits for tests slowed by concurrent renderer or Kit startup."""
+"""Per-file xdist limits for renderer tests slowed by four concurrent Kit startups."""
 
 CUROBO_PLANNER_TESTS = [
     "test_curobo_planner_franka.py",
