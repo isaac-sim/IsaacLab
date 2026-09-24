@@ -175,9 +175,9 @@ class FrankaHaplySceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Cube",
         spawn=sim_utils.CuboidCfg(
             size=(0.06, 0.06, 0.06),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.5, dynamic_friction=0.5),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.8, 0.2), metallic=0.2),
         ),

@@ -115,6 +115,7 @@ def create_sim_cfg():
 def create_scene_cfg():
     """Create an Isaac Lab scene config using declarative assets."""
     from isaaclab_newton.assets import MPMObjectCfg
+    from isaaclab_newton.sim.schemas import NewtonCollisionCfg
     from isaaclab_newton.sim.spawners.mpm import MPMGridCfg
 
     import isaaclab.sim as sim_utils
@@ -127,10 +128,10 @@ def create_scene_cfg():
             prim_path=prim_path,
             spawn=sim_utils.CuboidCfg(
                 size=(2.0 * half_extents[0], 2.0 * half_extents[1], 2.0 * half_extents[2]),
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(
-                    collision_enabled=True,
-                    contact_margin=COLLIDER_MARGIN,
-                ),
+                collision_props=[
+                    sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                    NewtonCollisionCfg(contact_margin=COLLIDER_MARGIN),
+                ],
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                     static_friction=friction,
                     dynamic_friction=friction,

@@ -45,6 +45,9 @@ parser.set_defaults(visualizer=["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 
 ##
@@ -71,11 +74,9 @@ BLUE_MATERIAL = {"visual_material": sim_utils.PreviewSurfaceCfg(diffuse_color=(0
 GOLD_MATERIAL = {"visual_material": sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.75, 0.0), metallic=0.2)}
 PURPLE_MATERIAL = {"visual_material": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 1.0), metallic=0.2)}
 OBJECT_PHYSICS = {
-    "rigid_props": sim_utils.RigidBodyPropertiesCfg(
-        solver_position_iteration_count=4, solver_velocity_iteration_count=0
-    ),
-    "mass_props": sim_utils.MassPropertiesCfg(mass=1.0),
-    "collision_props": sim_utils.CollisionPropertiesCfg(),
+    "rigid_props": PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0),
+    "mass_props": sim_utils.MassCfg(mass=1.0),
+    "collision_props": sim_utils.UsdPhysicsCollisionCfg(),
 }
 
 ##
@@ -146,7 +147,7 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
                 f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
             ],
             random_choice=False,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            rigid_props=PhysxRigidBodyCfg(
                 disable_gravity=False,
                 retain_accelerations=False,
                 linear_damping=0.0,
@@ -155,9 +156,12 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
                 max_angular_velocity=1000.0,
                 max_depenetration_velocity=1.0,
             ),
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            ),
+            articulation_props=[
+                PhysxArticulationCfg(
+                    enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+                ),
+                NewtonArticulationCfg(self_collision_enabled=True),
+            ],
             activate_contact_sensors=True,
         ),
         init_state=ArticulationCfg.InitialStateCfg(
