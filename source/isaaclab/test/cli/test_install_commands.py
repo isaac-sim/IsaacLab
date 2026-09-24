@@ -420,6 +420,7 @@ class TestMaybeUninstallTorch:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("source_checkout_root")
 class TestEnsureCudaTorch:
     """Tests for :func:`_ensure_cuda_torch` across architectures and environment types.
 
@@ -973,14 +974,14 @@ class TestRePointPrebundlePackages:
 class TestInstallRootExtraExcludesIsaacSim:
     """The ``teleop`` extra lists Isaac Sim for uv, but pip must never resolve it inline."""
 
-    def test_root_extra_dependencies_exclude_isaacsim(self):
+    def test_root_extra_dependencies_exclude_isaacsim(self, source_checkout_root: Path):
         """pip has no override mechanism, so isaacsim + isaacteleop in one pass cannot resolve."""
         dependencies = install_cmd._root_extra_dependencies("teleop")
 
         assert not any(d.startswith("isaacsim") for d in dependencies)
         assert any(d.startswith("isaacteleop") for d in dependencies)
 
-    def test_install_root_extra_omits_isaacsim_from_the_pip_command(self, tmp_path):
+    def test_install_root_extra_omits_isaacsim_from_the_pip_command(self, source_checkout_root: Path, tmp_path):
         """``./isaaclab.sh -i teleop`` must not hand Isaac Sim to pip alongside Isaac Teleop."""
         python_exe = str(tmp_path / "python")
         pip_cmd = [python_exe, "-m", "pip"]
