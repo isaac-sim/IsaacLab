@@ -41,6 +41,9 @@ Use the standard Isaac Lab installation with the Isaac Sim extra for Kit/RTX vis
 The first launch downloads the referenced Omniverse assets. The warehouse uses USD-authored
 materials and lighting; Kit/RTX is the intended viewer. The launch override disables experimental
 geometry streaming, including saved Kit preferences, which can hide meshes updated through Fabric.
+To record this view, append ``--video --video_length 1440 env.sim.physics.use_cuda_graph=False``.
+Disable CUDA graphs for this Kit recording path; compact training retains its graph-enabled default.
+
 For compact, lightweight playback:
 
 .. code-block:: bash
