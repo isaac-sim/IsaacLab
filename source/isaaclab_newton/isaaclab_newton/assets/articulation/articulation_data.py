@@ -42,19 +42,28 @@ _LAZY_CAPTURE_REASON = (
 )
 
 
-# fixed tendon properties that MuJoCo, and hence Newton, cannot set at runtime
+# Shared tendon properties that Isaac Lab's Newton backend does not implement.
 _UNSUPPORTED_FIXED_TENDON_PROPERTIES = {
-    "limit_stiffness": "MuJoCo models tendon limits with 'solref' (a time constant and damping ratio), not a stiffness",
-    "rest_length": "the MuJoCo solver does not update the tendon spring length ('springlength') at runtime",
-    "offset": "MuJoCo tendons have no length offset",
+    "limit_stiffness": (
+        "the tendon path has no force-gain conversion for MuJoCo solreflimit/solimplimit; "
+        "Newton already provides such a conversion for joint limits"
+    ),
+    "rest_length": (
+        "Isaac Lab does not expose MuJoCo springlength through this property, and Newton's SolverMuJoCo "
+        "does not propagate springlength changes in its runtime tendon update"
+    ),
+    "offset": (
+        "MuJoCo has no equivalent length-offset field; Isaac Lab does not implement a mapping that "
+        "preserves the PhysX spring and limit behavior"
+    ),
 }
 
 
 def _unsupported_fixed_tendon_property(name: str) -> NotImplementedError:
-    """Return the error for a fixed tendon property that the Newton backend cannot set."""
+    """Explain an unimplemented shared property without implying that Newton lacks tendons."""
     reason = _UNSUPPORTED_FIXED_TENDON_PROPERTIES[name]
     label = name.replace("_", " ")
-    return NotImplementedError(f"Fixed tendon {label} is not supported by the Newton backend: {reason}.")
+    return NotImplementedError(f"Fixed tendon {label} is not implemented in Isaac Lab's Newton backend: {reason}.")
 
 
 class ArticulationData(BaseArticulationData):
@@ -552,6 +561,9 @@ class ArticulationData(BaseArticulationData):
     def fixed_tendon_damping(self) -> ProxyArray:
         """Fixed tendon damping provided to the simulation.
 
+        MuJoCo uses this for passive tendon damping. Its limit response uses separate ``solreflimit``
+        parameters; PhysX's tendon damping parameter also affects its limit response.
+
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
         """
@@ -560,6 +572,10 @@ class ArticulationData(BaseArticulationData):
     @property
     def fixed_tendon_limit_stiffness(self) -> ProxyArray:
         """Fixed tendon limit stiffness provided to the simulation.
+
+        Not implemented in this backend. MuJoCo's ``solreflimit`` supports stiffness/damping, but
+        force gains require an inverse-inertia and impedance conversion. Newton already applies
+        this conversion to joint limits; the tendon path does not yet implement it.
 
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
@@ -570,6 +586,9 @@ class ArticulationData(BaseArticulationData):
     def fixed_tendon_rest_length(self) -> ProxyArray:
         """Fixed tendon rest length provided to the simulation.
 
+        Not exposed by this backend. MuJoCo has ``springlength``, but Newton's runtime tendon update
+        does not propagate changes to it.
+
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
         """
@@ -578,6 +597,9 @@ class ArticulationData(BaseArticulationData):
     @property
     def fixed_tendon_offset(self) -> ProxyArray:
         """Fixed tendon offset provided to the simulation.
+
+        Not implemented in this backend. Preserving a PhysX accumulated-length offset would require
+        coordinated changes to MuJoCo's spring reference and limit range.
 
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
@@ -588,7 +610,9 @@ class ArticulationData(BaseArticulationData):
     def fixed_tendon_pos_limits(self) -> ProxyArray:
         """Fixed tendon position limits provided to the simulation.
 
-        Shape is (num_instances, num_fixed_tendons, 2), dtype = wp.vec2f. In torch this resolves to
+        MuJoCo enforces this range only for tendons whose limits were enabled in the model.
+
+        Shape is (num_instances, num_fixed_tendons), dtype = wp.vec2f. In torch this resolves to
         (num_instances, num_fixed_tendons, 2).
         """
         return self._fixed_tendon_pos_limits_ta

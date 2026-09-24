@@ -14,3 +14,6 @@ Fixed
 * Fixed :meth:`~isaaclab_newton.assets.Articulation.write_fixed_tendon_properties_to_sim_mask` raising
   ``TypeError``, and added the ``fixed_tendon_ids`` and ``fixed_tendon_mask`` arguments that the base class
   declares to the fixed tendon writers.
+* Corrected fixed tendon errors and documentation to distinguish unimplemented Isaac Lab properties from
+  Newton's MuJoCo tendon support. Identified the missing tendon force-gain conversion and the existing
+  Newton joint-limit conversion that provides a reference implementation.

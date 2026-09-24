@@ -2813,23 +2813,17 @@ class Articulation(BaseArticulation):
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set fixed tendon limit stiffness into internal buffers using indices.
+        """Set fixed tendon limit stiffness (unimplemented in this backend).
 
-        This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon limit stiffness, call the
-        :meth:`write_fixed_tendon_properties_to_sim_index` method.
-
-        .. note::
-            This method expects partial data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+        See :attr:`ArticulationData.fixed_tendon_limit_stiffness` for the backend limitation.
 
         Args:
             limit_stiffness: Fixed tendon limit stiffness. Shape is (len(env_ids), len(fixed_tendon_ids)).
             fixed_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
+
+        Raises:
+            NotImplementedError: This shared property has no implementation in Isaac Lab's Newton backend.
         """
         raise _unsupported_fixed_tendon_property("limit_stiffness")
 
@@ -2840,24 +2834,18 @@ class Articulation(BaseArticulation):
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set fixed tendon limit stiffness into internal buffers using masks.
+        """Set fixed tendon limit stiffness (unimplemented in this backend).
 
-        This function does not apply the tendon limit stiffness to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon limit stiffness, call the
-        :meth:`write_fixed_tendon_properties_to_sim_mask` method.
-
-        .. note::
-            This method expects full data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+        See :attr:`ArticulationData.fixed_tendon_limit_stiffness` for the backend limitation.
 
         Args:
             limit_stiffness: Fixed tendon limit stiffness. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
                 Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+
+        Raises:
+            NotImplementedError: This shared property has no implementation in Isaac Lab's Newton backend.
         """
         raise _unsupported_fixed_tendon_property("limit_stiffness")
 
@@ -2873,6 +2861,8 @@ class Articulation(BaseArticulation):
         This function does not apply the tendon position limit to the simulation. It only fills the buffers with
         the desired values. To apply the tendon position limit, call the
         :meth:`write_fixed_tendon_properties_to_sim_index` method.
+
+        This updates MuJoCo's tendon range; limits must already be enabled in the model.
 
         .. note::
             This method expects partial data.
@@ -2910,6 +2900,8 @@ class Articulation(BaseArticulation):
         the desired values. To apply the tendon position limit, call the
         :meth:`write_fixed_tendon_properties_to_sim_mask` method.
 
+        This updates MuJoCo's tendon range; limits must already be enabled in the model.
+
         .. note::
             This method expects full data.
 
@@ -2938,23 +2930,17 @@ class Articulation(BaseArticulation):
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set fixed tendon rest length into internal buffers using indices.
+        """Set fixed tendon rest length (unimplemented in this backend).
 
-        This function does not apply the tendon rest length to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon rest length, call the
-        :meth:`write_fixed_tendon_properties_to_sim_index` method.
-
-        .. note::
-            This method expects partial data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+        See :attr:`ArticulationData.fixed_tendon_rest_length` for the backend limitation.
 
         Args:
             rest_length: Fixed tendon rest length. Shape is (len(env_ids), len(fixed_tendon_ids)).
             fixed_tendon_ids: The tendon indices to set the rest length for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
+
+        Raises:
+            NotImplementedError: This shared property has no implementation in Isaac Lab's Newton backend.
         """
         raise _unsupported_fixed_tendon_property("rest_length")
 
@@ -2965,24 +2951,18 @@ class Articulation(BaseArticulation):
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set fixed tendon rest length into internal buffers using masks.
+        """Set fixed tendon rest length (unimplemented in this backend).
 
-        This function does not apply the tendon rest length to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon rest length, call the
-        :meth:`write_fixed_tendon_properties_to_sim_mask` method.
-
-        .. note::
-            This method expects full data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+        See :attr:`ArticulationData.fixed_tendon_rest_length` for the backend limitation.
 
         Args:
             rest_length: Fixed tendon rest length. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
                 Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+
+        Raises:
+            NotImplementedError: This shared property has no implementation in Isaac Lab's Newton backend.
         """
         raise _unsupported_fixed_tendon_property("rest_length")
 
@@ -3027,23 +3007,17 @@ class Articulation(BaseArticulation):
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Set fixed tendon offset into internal buffers using indices.
+        """Set fixed tendon offset (unimplemented in this backend).
 
-        This function does not apply the tendon offset to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon offset, call the
-        :meth:`write_fixed_tendon_properties_to_sim_index` method.
-
-        .. note::
-            This method expects partial data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+        See :attr:`ArticulationData.fixed_tendon_offset` for the backend limitation.
 
         Args:
             offset: Fixed tendon offset. Shape is (len(env_ids), len(fixed_tendon_ids)).
             fixed_tendon_ids: The tendon indices to set the offset for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
+
+        Raises:
+            NotImplementedError: This shared property has no implementation in Isaac Lab's Newton backend.
         """
         raise _unsupported_fixed_tendon_property("offset")
 
@@ -3085,24 +3059,18 @@ class Articulation(BaseArticulation):
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
-        """Set fixed tendon offset into internal buffers using masks.
+        """Set fixed tendon offset (unimplemented in this backend).
 
-        This function does not apply the tendon offset to the simulation. It only fills the buffers with
-        the desired values. To apply the tendon offset, call the
-        :meth:`write_fixed_tendon_properties_to_sim_mask` method.
-
-        .. note::
-            This method expects full data.
-
-        .. tip::
-            Both the index and mask methods have dedicated optimized implementations. Performance is similar for both.
-            However, to allow graphed pipelines, the mask method must be used.
+        See :attr:`ArticulationData.fixed_tendon_offset` for the backend limitation.
 
         Args:
             offset: Fixed tendon offset. Shape is (num_instances, num_fixed_tendons).
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
                 Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+
+        Raises:
+            NotImplementedError: This shared property has no implementation in Isaac Lab's Newton backend.
         """
         raise _unsupported_fixed_tendon_property("offset")
 

@@ -2012,7 +2012,8 @@ class TestArticulationDataAliases:
 # Tendon tests — parametrize, properties, finders, data, writers
 # ---------------------------------------------------------------------------
 
-# Newton does not support tendons (always 0), so exclude it from tendon tests.
+# Newton's fixed-tendon solver integration is covered in isaaclab_newton/test/assets/test_articulation.py.
+# This fixture matrix also requires spatial tendons and PhysX-specific properties.
 _tendon_backends = pytest.mark.parametrize("backend", [b for b in BACKENDS if b != "newton"], indirect=False)
 
 _tendon_dims = pytest.mark.parametrize(
