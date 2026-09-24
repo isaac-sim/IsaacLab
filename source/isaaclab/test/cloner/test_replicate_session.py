@@ -177,11 +177,15 @@ def test_replicate_dispatches_the_same_plan_in_priority_order(simulation):
         replicate_priority = -1
 
         def replicate(self, plan):
-            assert plan.point_clouds[0] == (("/World/envs/env_0/Particles", 1),)
+            assert plan.cables[0] == (("/World/envs/env_0/Cable", 2),)
             super().replicate(plan)
 
     plan = _plan(Late, Early)
-    UsdGeom.Points.Define(simulation.stage, "/World/envs/env_0/Particles").CreatePointsAttr([(0.0, 0.0, 0.0)])
+    curve = UsdGeom.BasisCurves.Define(simulation.stage, "/World/envs/env_0/Cable")
+    curve.GetPrim().AddAppliedSchema("PhysicsCurvesDeformableSimAPI")
+    curve.CreateCurveVertexCountsAttr([3])
+    curve.CreateTypeAttr(UsdGeom.Tokens.linear)
+    curve.CreateWrapAttr(UsdGeom.Tokens.nonperiodic)
     simulation.physics_manager.clone_context_type = Late
     simulation.clone_contexts = {Late: Late(simulation), Early: Early(simulation)}
     simulation.plan = plan

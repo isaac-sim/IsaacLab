@@ -30,7 +30,6 @@ def compile_geometry(plan: ClonePlan, stage: Usd.Stage) -> None:
         return
     deformables = {row: [] for row in (*range(len(plan.sources)), None)}
     cables = {row: [] for row in deformables}
-    point_clouds = {row: [] for row in deformables}
     source_rows = defaultdict(list)
     active = plan.clone_mask.any(axis=1)
     for row, source in enumerate(plan.sources):
@@ -41,9 +40,9 @@ def compile_geometry(plan: ClonePlan, stage: Usd.Stage) -> None:
     for root in roots:
         for prim in Usd.PrimRange(stage.GetPrimAtPath(root), Usd.TraverseInstanceProxies()):
             path = prim.GetPath()
-            is_points, is_curve = prim.IsA(UsdGeom.Points), prim.IsA(UsdGeom.BasisCurves)
-            is_deformable = not (is_points or is_curve) and has_deformable_body_api(prim)
-            if not (is_deformable or is_curve or is_points):
+            is_curve = prim.IsA(UsdGeom.BasisCurves)
+            is_deformable = not (is_curve or prim.IsA(UsdGeom.Points)) and has_deformable_body_api(prim)
+            if not (is_deformable or is_curve):
                 continue
             owner = path
             while owner != Sdf.Path.absoluteRootPath and owner not in source_rows:
@@ -67,10 +66,5 @@ def compile_geometry(plan: ClonePlan, stage: Usd.Stage) -> None:
                 ):
                     for row in rows:
                         cables[row].append((str(path), int(counts[0]) - 1))
-            elif is_points:
-                points = UsdGeom.Points(prim).GetPointsAttr().Get()
-                for row in rows:
-                    point_clouds[row].append((str(path), len(points) if points is not None else 0))
     plan.deformables.update((row, tuple(entries)) for row, entries in deformables.items())
     plan.cables.update((row, tuple(entries)) for row, entries in cables.items())
-    plan.point_clouds.update((row, tuple(entries)) for row, entries in point_clouds.items())

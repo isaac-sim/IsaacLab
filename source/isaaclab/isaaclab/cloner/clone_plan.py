@@ -82,9 +82,6 @@ class ClonePlan:
     cables: dict[int | None, tuple[tuple[str, int], ...]] = field(default_factory=dict)
     """Supported cable paths and segment counts by source row; ``None`` contains shared cables."""
 
-    point_clouds: dict[int | None, tuple[tuple[str, int], ...]] = field(default_factory=dict)
-    """Authored point-cloud paths and point counts by source row; ``None`` contains shared clouds."""
-
 
 def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z") -> tuple[np.ndarray, np.ndarray]:
     """Create centered grid transforms as host arrays.

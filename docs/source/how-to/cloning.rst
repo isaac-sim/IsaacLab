@@ -158,7 +158,7 @@ fields listed below are that table's columns:
      - Unique prim paths for scene assets shared by every env and therefore not replicated.
    * - ``context_rows``
      - Clone-context types mapped to the rows they consume.
-   * - ``deformables``, ``cables``, ``point_clouds``
+   * - ``deformables``, ``cables``
      - Prototype geometry keyed by source row; ``None`` holds shared geometry.
 
 The plan does not own a stage. Simulation-owned contexts supply their own runtime

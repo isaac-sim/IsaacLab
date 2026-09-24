@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 newton = pytest.importorskip("newton")
-from isaaclab_newton.assets.mpm_object.mpm_object import _resolve_particle_asset_paths
+from isaaclab_newton.assets import MPMObject
 from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.physics import newton_manager as manager_module
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg, MPMPointsCfg
@@ -24,7 +24,6 @@ from pxr import UsdGeom, UsdPhysics, UsdShade
 
 import isaaclab.sim as sim_utils
 from isaaclab.cloner import ClonePlan
-from isaaclab.cloner.geometry import compile_geometry
 
 pytestmark = pytest.mark.unit
 
@@ -94,29 +93,37 @@ def test_mpm_points_author_and_import_through_usd(stage, monkeypatch):
     np.testing.assert_allclose(
         [transform.Transform(point) for point in visual_points.GetPointsAttr().Get()], builder.particle_q, atol=2.0e-7
     )
-    cfg.func("/World/Shared", cfg, translation=(-2.0, 0.0, 0.0))
+    shared_cfg = cfg.copy()
+    shared_cfg.func("/World/Shared", shared_cfg, translation=(-2.0, 0.0, 0.0))
     plan = ClonePlan(
-        sources=("/World/Media",),
-        destinations=("/Scene/copy_{}/Media",),
-        clone_mask=np.ones((1, 2), dtype=np.bool_),
-        env_ids=np.array([7, 12]),
+        sources=("/World/Media", "/World/Other"),
+        destinations=("/Scene/copy_{}/Media",) * 2,
+        clone_mask=np.array([[True, False, True], [False, True, False]]),
+        env_ids=np.array([12, 99, 7]),
         global_paths=("/World/Shared",),
     )
-    compile_geometry(plan, stage)
-    assert dict(plan.point_clouds[0])["/World/Media/Particles"] == 2
-    assert dict(plan.point_clouds[None])["/World/Shared/Particles"] == 2
     monkeypatch.setattr(sim_utils.SimulationContext, "instance", lambda: SimpleNamespace(get_clone_plan=lambda: plan))
-    assert _resolve_particle_asset_paths("/Scene/copy_[^/]+/Media", 2) == [
-        "/Scene/copy_7/Media",
-        "/Scene/copy_12/Media",
-    ]
-    assert _resolve_particle_asset_paths("/World/Shared", 1) == ["/World/Shared"]
     monkeypatch.setattr(manager_module, "has_kit", lambda: False)
     monkeypatch.setattr(NewtonManager, "_particle_visual_prims", {})
-    NewtonManager.register_particle_visual_prim("/Scene/copy_12/Media/Particles", 4, 2)
+    asset = SimpleNamespace(
+        cfg=SimpleNamespace(prim_path="/Scene/copy_[^/]+/Media", spawn=cfg),
+        _recorded_particle_offsets=[4, 10],
+        _particles_per_object=2,
+    )
+    MPMObject._bind_particle_visualization(asset)
+    asset.cfg.prim_path = "/World/Shared"
+    asset.cfg.spawn = shared_cfg
+    asset._recorded_particle_offsets = [0]
+    MPMObject._bind_particle_visualization(asset)
     assert not stage.GetPrimAtPath("/Scene/copy_12/Media/Particles")
-    record = NewtonManager._particle_visual_prims["/Scene/copy_12/Media/Particles"]
-    assert (record.points_attr, record.offset, record.count) == (None, 4, 2)
+    assert {
+        path: (record.points_attr, record.offset, record.count)
+        for path, record in NewtonManager._particle_visual_prims.items()
+    } == {
+        "/Scene/copy_12/Media/Particles": (None, 4, 2),
+        "/Scene/copy_7/Media/Particles": (None, 10, 2),
+        "/World/Shared/Particles": (None, 0, 2),
+    }
 
 
 @pytest.mark.parametrize("visible", [False, True])

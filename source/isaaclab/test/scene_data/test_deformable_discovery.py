@@ -188,8 +188,6 @@ def test_plan_geometry_nearest_owner_partial_rows_and_shared_roots():
     assert [entry.root_path for entry in plan.deformables[0]] == ["/Lab/Cell3/Cloth"]
     assert [entry.root_path for entry in plan.deformables[1]] == ["/Lab/Cell3/Nested/Cloth"]
     assert plan.deformables[2] == plan.deformables[3] == ()
-    assert plan.point_clouds[None] == (("/Shared/Particles", 1),)
-    assert plan.point_clouds[0] == (("/Lab/Cell3/SimulationPoints", 2),)
     stage.RemovePrim("/Lab")
     compile_geometry(plan, stage)
     assert plan.deformables[0][0] is prototype

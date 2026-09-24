@@ -417,11 +417,20 @@ class MPMObject(BaseDeformableObject):
         if not self.cfg.spawn.visible:
             return
 
-        asset_prim_paths = _resolve_particle_asset_paths(self.cfg.prim_path, self._num_instances)
-        for env_idx, prim_path in enumerate(asset_prim_paths):
+        plan = SimulationContext.instance().get_clone_plan()
+        source = self.cfg.spawn.spawn_path
+        asset_prim_paths = [
+            cloner_path.rebase(source, root, template.format(env_id))
+            for root, template, source_path, env_ids in iter_sources(plan, self.cfg.prim_path)
+            if source_path == source
+            for env_id in env_ids
+        ]
+        if not asset_prim_paths and any(cloner_path.under(source, root) for root in plan.global_paths):
+            asset_prim_paths.append(source)
+        for prim_path, offset in zip(asset_prim_paths, self._recorded_particle_offsets, strict=True):
             SimulationManager.register_particle_visual_prim(
                 f"{prim_path}/Particles",
-                particle_offset=self._recorded_particle_offsets[env_idx],
+                particle_offset=offset,
                 particle_count=self._particles_per_object,
                 sync_frequency=self.cfg.spawn.visual_update_frequency,
             )
@@ -478,21 +487,3 @@ class MPMObject(BaseDeformableObject):
         registry = SimulationManager._mpm_object_registry
         if self._registry_entry in registry:
             registry.remove(self._registry_entry)
-
-
-def _resolve_particle_asset_paths(prim_path: str, num_instances: int) -> list[str]:
-    """Resolve native MPM instances from the plan, including kitless destinations."""
-    plan = SimulationContext.instance().get_clone_plan()
-    paths_by_env_id: dict[int, str] = {}
-    for source_root, template, source_path, env_ids in iter_sources(plan, prim_path):
-        paths_by_env_id.update(
-            (env_id, cloner_path.rebase(source_path, source_root, template.format(env_id))) for env_id in env_ids
-        )
-    paths = [paths_by_env_id[int(env_id)] for env_id in plan.env_ids if int(env_id) in paths_by_env_id]
-    if any(cloner_path.under(prim_path, root) for root in plan.global_paths):
-        paths.append(prim_path)
-    if len(paths) != num_instances:
-        raise RuntimeError(
-            f"Expected {num_instances} planned MPM instances matching '{prim_path}', found {len(paths)}."
-        )
-    return paths
