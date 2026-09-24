@@ -2438,12 +2438,15 @@ class Articulation(BaseArticulation):
         Args:
             coms: Center of mass position of all bodies. Shape is (len(env_ids), len(body_ids), 3). In warp
                 the expected shape is (num_instances, num_bodies), with dtype wp.vec3f.
+                Poses with a trailing dimension of 7 (dtype wp.transformf) are also accepted; their
+                orientation is ignored.
             body_ids: Body indices. If None, then all bodies are used.
             env_ids: Environment indices. If None, then all indices are used.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        coms = shared_kernels.com_positions(coms)
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.vec3f, "coms")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         has_body_ordering = self.data.has_body_ordering
@@ -2488,12 +2491,15 @@ class Articulation(BaseArticulation):
             coms: Center of mass position of all bodies. Shape is (num_instances, num_bodies, 3) or
                 (num_instances, num_bodies, 7) (transformf convention — only position is used). In warp
                 the expected shape is (num_instances, num_bodies), with dtype wp.vec3f or wp.transformf.
+                Poses with a trailing dimension of 7 (dtype wp.transformf) are also accepted; their
+                orientation is ignored.
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
         # resolve masks
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         body_mask = self._resolve_mask(body_mask, self._ALL_BODY_MASK)
+        coms = shared_kernels.com_positions(coms)
         self.assert_shape_and_dtype_mask(coms, (env_mask, body_mask), wp.vec3f, "coms")
         has_body_ordering = self.data.has_body_ordering
         ordering_kernels.write_2d_user_to_backend_with_mask(

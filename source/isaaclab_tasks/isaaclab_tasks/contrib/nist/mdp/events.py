@@ -237,7 +237,6 @@ class reset_end_effector_around_asset(ManagerTermBase):
         )
         self.solver: DifferentialInverseKinematicsAction = None  # type: ignore
         self.grasp_angle_range = (0.3, 0.7)
-        self.is_physx = "physx" in env.sim.physics_manager.__name__.lower()
 
     def __call__(
         self,
@@ -284,5 +283,7 @@ class reset_end_effector_around_asset(ManagerTermBase):
                 joint_ids=self.joint_ids,
                 env_ids=env_ids,  # type: ignore
             )
-        if self.is_physx:
-            self.robot.root_physx_view.get_jacobians()
+        # only the PhysX articulation exposes the tensor view whose Jacobians are refreshed after joint writes
+        physx_view = getattr(self.robot, "root_physx_view", None)
+        if physx_view is not None:
+            physx_view.get_jacobians()
