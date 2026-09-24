@@ -21,8 +21,14 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 
 
-def check_joint_wrench_frame(physics: PhysicsCfg, tmp_path: Path) -> None:
-    """Compare a loaded joint's wrench with gravity equilibrium using either physics backend."""
+def check_joint_wrench_frame(physics: PhysicsCfg, tmp_path: Path, device: str | None = None) -> None:
+    """Compare a loaded joint's wrench with gravity equilibrium using any physics backend.
+
+    Args:
+        physics: Physics backend configuration.
+        tmp_path: Directory for the generated USD file.
+        device: Simulation device. Defaults to the :class:`~isaaclab.sim.SimulationCfg` default.
+    """
     source = retrieve_file_path(f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd")
     usd_path = str(tmp_path / "joint_wrench.usda")
     stage = Usd.Stage.CreateNew(usd_path)
@@ -46,7 +52,8 @@ def check_joint_wrench_frame(physics: PhysicsCfg, tmp_path: Path) -> None:
             UsdPhysics.CollisionAPI(prim).GetCollisionEnabledAttr().Set(False)
     stage.GetRootLayer().Save()
 
-    with sim_utils.build_simulation_context(sim_cfg=SimulationCfg(dt=1.0 / 200.0, physics=physics)) as sim:
+    sim_cfg = SimulationCfg(dt=1.0 / 200.0, physics=physics)
+    with sim_utils.build_simulation_context(device=device, sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
         cfg = InteractiveSceneCfg(num_envs=1, env_spacing=2.0)
         cfg.robot = ArticulationCfg(

@@ -22,13 +22,9 @@ unlocked device so single-device runs finish cleanly.
 
 from __future__ import annotations
 
-import math
-
 import pytest
 import torch
 import warp as wp
-
-from pxr import Gf, UsdPhysics
 
 # OVRTX-only CI jobs collect the consolidated isaaclab_ov test suite without
 # the optional ovphysx wheel. Skip the OVPhysX tests gracefully in that case.
@@ -44,8 +40,8 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
+from isaaclab.test.utils.joint_wrench import check_joint_wrench_frame  # noqa: E402
 from isaaclab.utils import configclass  # noqa: E402
-from isaaclab.utils import math as math_utils  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR  # noqa: E402
 
 from isaaclab_assets.robots.ant import ANT_CFG  # noqa: E402
@@ -223,53 +219,14 @@ def _ovphysx_incoming_joint_wrench(sensor: JointWrenchSensor) -> torch.Tensor:
 
 
 def _assert_sensor_matches_ovphysx_tensor(sensor: JointWrenchSensor) -> None:
-    """Compare sensor buffers to the raw OVPhysX tensor transformed into joint frames."""
+    """The sensor exposes the OVPhysX tensor's existing child-joint-frame components."""
     raw_wrench = _ovphysx_incoming_joint_wrench(sensor)
-    sensor_data = sensor.data
-
-    expected_force, expected_torque = _ovphysx_incoming_joint_wrench_in_joint_frame(sensor, raw_wrench)
     torch.testing.assert_close(
-        sensor_data.force.torch, expected_force, rtol=_OVPHYSX_WRENCH_RTOL, atol=_OVPHYSX_WRENCH_ATOL
+        sensor.data.force.torch, raw_wrench[..., :3], rtol=_OVPHYSX_WRENCH_RTOL, atol=_OVPHYSX_WRENCH_ATOL
     )
     torch.testing.assert_close(
-        sensor_data.torque.torch, expected_torque, rtol=_OVPHYSX_WRENCH_RTOL, atol=_OVPHYSX_WRENCH_ATOL
+        sensor.data.torque.torch, raw_wrench[..., 3:], rtol=_OVPHYSX_WRENCH_RTOL, atol=_OVPHYSX_WRENCH_ATOL
     )
-
-
-def _ovphysx_incoming_joint_wrench_in_joint_frame(
-    sensor: JointWrenchSensor, raw_wrench: torch.Tensor
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Transform raw OVPhysX body-frame incoming joint wrenches into the configured convention."""
-    force_b = raw_wrench[..., :3]
-    torque_b = raw_wrench[..., 3:]
-    joint_pos_b = wp.to_torch(sensor._joint_pos_b).unsqueeze(0)
-    joint_quat_b = wp.to_torch(sensor._joint_quat_b).unsqueeze(0)
-    torque_joint_anchor_b = torque_b - torch.cross(joint_pos_b.expand_as(force_b), force_b, dim=-1)
-
-    flat_joint_quat_b = joint_quat_b.expand_as(raw_wrench[..., :4]).reshape(-1, 4)
-    expected_force = math_utils.quat_apply_inverse(flat_joint_quat_b, force_b.reshape(-1, 3)).reshape(force_b.shape)
-    expected_torque = math_utils.quat_apply_inverse(flat_joint_quat_b, torque_joint_anchor_b.reshape(-1, 3)).reshape(
-        torque_b.shape
-    )
-    return expected_force, expected_torque
-
-
-def _set_child_joint_frame(scene: InteractiveScene, child_body_name: str) -> None:
-    """Set a non-identity child-side joint frame for the requested body in env 0."""
-    for prim in scene.stage.Traverse():
-        if not prim.GetPath().pathString.startswith("/World/envs/env_0/Robot"):
-            continue
-        joint = UsdPhysics.Joint(prim)
-        if joint and any(target.name == child_body_name for target in joint.GetBody1Rel().GetTargets()):
-            joint.GetLocalPos1Attr().Set(Gf.Vec3f(0.25, -0.15, 0.1))
-            joint.GetLocalRot1Attr().Set(
-                Gf.Quatf(
-                    math.cos(math.pi / 4.0),
-                    Gf.Vec3f(math.sin(math.pi / 4.0), 0.0, 0.0),
-                )
-            )
-            return
-    raise RuntimeError(f"Failed to find a USD joint with child body '{child_body_name}'.")
 
 
 # ---------------------------------------------------------------------------
@@ -373,33 +330,9 @@ def test_force_and_torque_components_at_rest(sim, device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_non_identity_joint_frame_transform(sim, device):
-    """OVPhysX raw body-frame wrench is converted to the child-side joint frame."""
-    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=1))
-    _set_child_joint_frame(scene, "Arm")
-    sim.reset()
-
-    sensor: JointWrenchSensor = scene["wrench"]
-    robot: Articulation = scene["robot"]
-    arm_idx = robot.body_names.index("Arm")
-
-    for _ in range(400):
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    raw_wrench = _ovphysx_incoming_joint_wrench(sensor)
-    expected_force, expected_torque = _ovphysx_incoming_joint_wrench_in_joint_frame(sensor, raw_wrench)
-    torch.testing.assert_close(
-        sensor.data.force.torch, expected_force, rtol=_OVPHYSX_WRENCH_RTOL, atol=_OVPHYSX_WRENCH_ATOL
-    )
-    torch.testing.assert_close(
-        sensor.data.torque.torch, expected_torque, rtol=_OVPHYSX_WRENCH_RTOL, atol=_OVPHYSX_WRENCH_ATOL
-    )
-
-    raw_force = raw_wrench[:, arm_idx, :3]
-    raw_torque = raw_wrench[:, arm_idx, 3:]
-    assert not torch.allclose(sensor.data.force.torch[:, arm_idx], raw_force)
-    assert not torch.allclose(sensor.data.torque.torch[:, arm_idx], raw_torque)
+def test_non_identity_joint_frame_transform(tmp_path, device):
+    """OVPhysX must satisfy the same physical joint-frame contract as Newton and PhysX."""
+    check_joint_wrench_frame(OvPhysxCfg(), tmp_path, device=device)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
