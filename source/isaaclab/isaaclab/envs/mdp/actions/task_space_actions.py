@@ -30,25 +30,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _apply_body_offset_to_jacobian(
-    jacobian_b: torch.Tensor, root_quat_w: torch.Tensor, body_quat_w: torch.Tensor, offset_pos: torch.Tensor
-) -> None:
-    """Shift a body-origin Jacobian in the root frame to a point fixed on the body, in place.
-
-    The offset frame is rigidly attached to the body, so it shares the body's angular velocity and only the
-    translational rows change: ``v_ee = v_body + w_body x (R_body_b @ offset_pos)``.
-
-    Args:
-        jacobian_b: Geometric Jacobian of the body origin in the root frame, rows ``[v; w]``. Shape is (N, 6, num_dofs).
-        root_quat_w: Root orientation in the world frame (x, y, z, w). Shape is (N, 4).
-        body_quat_w: Body orientation in the world frame (x, y, z, w). Shape is (N, 4).
-        offset_pos: Offset position in the body frame [m]. Shape is (N, 3).
-    """
-    body_quat_b = math_utils.quat_mul(math_utils.quat_inv(root_quat_w), body_quat_w)
-    offset_pos_b = math_utils.quat_apply(body_quat_b, offset_pos)
-    jacobian_b[:, 0:3, :] += torch.bmm(-math_utils.skew_symmetric_matrix(offset_pos_b), jacobian_b[:, 3:, :])
-
-
 class DifferentialInverseKinematicsAction(ActionTerm):
     r"""Inverse Kinematics action term.
 
@@ -273,11 +254,14 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         self._jacobian_b[:] = self.jacobian_b
         # account for the offset
         if self.cfg.body_offset is not None:
-            _apply_body_offset_to_jacobian(
-                self._jacobian_b,
-                self._asset.data.root_quat_w.torch,
+            # Express the lever arm in root axes; a rigid offset leaves angular velocity unchanged.
+            body_quat_b = math_utils.quat_mul(
+                math_utils.quat_inv(self._asset.data.root_quat_w.torch),
                 self._asset.data.body_quat_w.torch[:, self._body_idx],
-                self._offset_pos,
+            )
+            offset_pos_b = math_utils.quat_apply(body_quat_b, self._offset_pos)
+            self._jacobian_b[:, 0:3, :] += torch.bmm(
+                -math_utils.skew_symmetric_matrix(offset_pos_b), self._jacobian_b[:, 3:, :]
             )
 
         return self._jacobian_b
@@ -685,11 +669,14 @@ class OperationalSpaceControllerAction(ActionTerm):
 
         # account for the offset
         if self.cfg.body_offset is not None:
-            _apply_body_offset_to_jacobian(
-                self._jacobian_b,
-                self._asset.data.root_quat_w.torch,
+            # Express the lever arm in root axes; a rigid offset leaves angular velocity unchanged.
+            body_quat_b = math_utils.quat_mul(
+                math_utils.quat_inv(self._asset.data.root_quat_w.torch),
                 self._asset.data.body_quat_w.torch[:, self._ee_body_idx],
-                self._offset_pos,
+            )
+            offset_pos_b = math_utils.quat_apply(body_quat_b, self._offset_pos)
+            self._jacobian_b[:, 0:3, :] += torch.bmm(
+                -math_utils.skew_symmetric_matrix(offset_pos_b), self._jacobian_b[:, 3:, :]
             )
 
     def _compute_ee_pose(self):
