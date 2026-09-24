@@ -1332,3 +1332,23 @@ def test_remove_render_callback_noop_for_unknown_name():
     sim.remove_render_callback("nonexistent")  # must not raise
 
     SimulationContext.clear_instance()
+
+
+def test_reset_callback_registered_before_construction_fires_on_reset():
+    """A class-level reset callback receives each context it resets until it is removed."""
+    from unittest.mock import MagicMock
+
+    cb = MagicMock()
+    SimulationContext.add_reset_callback("test_cb", cb)
+    try:
+        sim = SimulationContext(SimulationCfg(dt=0.01))
+        sim.reset()
+        cb.assert_called_once_with(sim)
+    finally:
+        SimulationContext.remove_reset_callback("test_cb")
+
+    sim.reset()
+    cb.assert_called_once()
+    SimulationContext.remove_reset_callback("nonexistent")  # must not raise
+
+    SimulationContext.clear_instance()

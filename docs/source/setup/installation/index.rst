@@ -566,7 +566,7 @@ Isaac Lab Python package
 
 Use this path when Isaac Lab is a dependency of an external Python project. The released
 ``isaaclab`` package includes the unified ``train``, ``play``, ``zero_agent``, ``random_agent``,
-``benchmark``, and ``train_multigpu`` commands. Repository demos and examples remain source-only.
+``benchmark``, ``train_multigpu``, ``demo``, and ``example`` commands.
 Downstream projects can register their task package through the ``isaaclab.tasks`` Python package
 entry-point group; projects created by the template generator configure this automatically.
 

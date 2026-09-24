@@ -11,7 +11,7 @@ Interacting with a deformable object
 While deformable objects sometimes refer to a broader class of objects, such as cloths, fluids and soft bodies,
 Isaac Lab represents deformable objects as either surface or volume deformables. Unlike rigid objects, soft bodies can
 deform under external forces and collisions. In this tutorial, we focus on volume deformable bodies. For an example of
-surface deformables (cloth), see the deformable demo at ``scripts/demos/deformables.py``.
+surface deformables (cloth), run the ``deformables`` example.
 
 The deformable object API and schema define/modify functions are shared across backends, while deformable
 property and material configuration classes are backend-specific. PhysX simulates soft bodies using the Finite
@@ -224,7 +224,8 @@ To stop the simulation, you can either close the window, or press ``Ctrl+C`` in 
 
 This tutorial showed how to spawn deformable objects and wrap them in a :class:`DeformableObject` class to initialize their
 physics handles which allows setting and obtaining their state. We also saw how to apply kinematic commands to the
-deformable object to move the mesh nodes in a controlled manner. An advanced demo of deformable objects, including surface deformables and loading USD assets and applying deformable material on them, can be found in ``scripts/demos/deformables.py``.
+deformable object to move the mesh nodes in a controlled manner. The ``deformables`` example provides a more advanced
+example, including surface deformables, loading USD assets, and applying deformable materials.
 
 .. _PhysX documentation: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/SoftBodies.html
 .. _partial kinematic: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/docs/SoftBodies.html#kinematic-soft-bodies

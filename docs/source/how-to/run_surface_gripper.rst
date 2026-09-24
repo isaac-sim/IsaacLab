@@ -163,7 +163,7 @@ In this tutorial, we learned how to create and interact with a surface gripper. 
 query the gripper state. We also saw how to update its buffers to read the latest state from the simulation.
 
 In addition to this tutorial, we also provide a few other scripts that spawn different robots. These are included
-in the ``scripts/demos`` directory. You can run these scripts as:
+through the packaged demo command. You can run it as:
 
 .. tab-set::
 
@@ -172,14 +172,14 @@ in the ``scripts/demos`` directory. You can run these scripts as:
       .. code-block:: bash
 
          # Spawn many pick-and-place robots and perform a pick-and-place task
-         uv run --extra isaacsim python scripts/demos/pick_and_place.py --viz kit
+         uv run --extra isaacsim isaaclab demo pick-and-place --viz kit
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
          # Spawn many pick-and-place robots and perform a pick-and-place task
-         ./isaaclab.sh -p scripts/demos/pick_and_place.py --viz kit
+         ./isaaclab.sh demo pick-and-place --viz kit
 
 Note that in practice, the users would be expected to register their :class:`assets.SurfaceGripper` instances inside
 a :class:`isaaclab.InteractiveScene` object, which will automatically handle the calls to the

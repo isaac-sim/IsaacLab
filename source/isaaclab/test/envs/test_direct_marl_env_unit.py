@@ -15,10 +15,12 @@ from types import SimpleNamespace
 
 import gymnasium as gym
 import pytest
+import torch
 
 from isaaclab.envs import DirectMARLEnv, DirectMARLEnvCfg
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.test.env_cfgs import make_empty_direct_marl_env_cfg
+from isaaclab.utils.noise import ConstantNoiseCfg, NoiseModelWithAdditiveBias, NoiseModelWithAdditiveBiasCfg
 
 pytestmark = pytest.mark.unit
 
@@ -64,6 +66,36 @@ def test_zero_state_space_disables_centralized_state():
     env._configure_env_spaces()
 
     assert env.state_space is None
+
+
+@pytest.mark.parametrize("enable_noise", [False, True])
+def test_reset_observations(enable_noise):
+    """Reset applies the new bias only to agents with a configured noise model."""
+    cfg = make_empty_direct_marl_env_cfg(device="cpu", num_envs=2)
+    noise_cfg = NoiseModelWithAdditiveBiasCfg(
+        noise_cfg=ConstantNoiseCfg(bias=0.5),
+        bias_noise_cfg=ConstantNoiseCfg(bias=1.0, operation="abs"),
+        sample_bias_per_component=False,
+    )
+    cfg.observation_noise_model = {"agent_0": noise_cfg} if enable_noise else None
+    env = _StubMARLEnv(cfg)
+    env._configure_env_spaces()
+    env.scene.reset = lambda ids: None
+    env.sim.render_context = SimpleNamespace(reset_scene_state_cadence=lambda: None)
+    env.episode_length_buf = torch.ones(2, dtype=torch.long)
+    env.extras = {agent: {} for agent in cfg.possible_agents}
+    env._get_observations = lambda: {"agent_1": torch.zeros(2, 4), "agent_0": torch.zeros(2, 3)}
+    if enable_noise:
+        env._observation_noise_model = {"agent_0": NoiseModelWithAdditiveBias(noise_cfg, num_envs=2, device="cpu")}
+
+    for bias in (1.0, 2.0):
+        noise_cfg.bias_noise_cfg.bias = bias
+        observations, _ = env.reset()
+
+        expected = bias + 0.5 if enable_noise else 0.0
+        torch.testing.assert_close(observations["agent_0"], torch.full((2, 3), expected))
+        torch.testing.assert_close(observations["agent_1"], torch.zeros(2, 4))
+        assert env.agents == cfg.possible_agents
 
 
 class _DebugVisStubMARLEnv(_StubMARLEnv):
