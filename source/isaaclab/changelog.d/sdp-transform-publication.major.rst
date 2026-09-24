@@ -9,10 +9,11 @@ Changed
   read-only arrays by default: matching layouts aliased native data and other layouts converted
   once per publication. Callers requiring their own writable or preallocated arrays must pass
   ``allow_passthrough=False``; this wrote directly into the supplied arrays without a staging copy.
-* Routed rigid Fabric conversion through SDP while ``RenderContext`` owned destination binding and
+* Routed rigid Fabric conversion through SDP while the Kit rendering integration owned destination binding and
   GPU hierarchy propagation, preserving native PhysX publication and authored scale. Converted rigid destinations
   became Fabric-only reset-stack roots so nested bodies retained their absolute physics poses.
   Transform freshness no longer depended on the physics-step counter;
   ``RenderContext.reset_scene_state_cadence`` remained available for geometry updates.
+  ``SimulationContext.fabric_transforms_cfg`` declared the shared Kit destination without allocating bindings.
 * Used native Warp structs for Fabric transform bindings, relying on the project-managed Warp
   dependency selected by Isaac Lab's Kit launch configuration.

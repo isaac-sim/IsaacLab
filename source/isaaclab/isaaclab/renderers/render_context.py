@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Any
 import torch
 import warp as wp
 
-from ..scene_data import SceneDataFormat, SceneDataProvider
 from ..sensors.camera.camera_data import CameraData
 from .base_renderer import BaseRenderer, VisualMaterialBatch
 from .renderer_cfg import RendererCfg
@@ -58,21 +57,6 @@ _MATERIAL_WRITES = {
 }
 
 
-@wp.kernel(enable_backward=False)
-def _capture_fabric_scales(
-    matrices: wp.fabricarray(dtype=wp.mat44d),
-    indices: wp.fabricarray(dtype=wp.int32),
-    scales: wp.array(dtype=wp.vec3f),
-):
-    i = wp.tid()
-    matrix = wp.mat44f(matrices[i])
-    scales[indices[i]] = wp.vec3f(
-        wp.length(wp.vec3f(matrix[0, 0], matrix[0, 1], matrix[0, 2])),
-        wp.length(wp.vec3f(matrix[1, 0], matrix[1, 1], matrix[1, 2])),
-        wp.length(wp.vec3f(matrix[2, 0], matrix[2, 1], matrix[2, 2])),
-    )
-
-
 class RenderContext:
     """Orchestrate simulation-owned renderers and own flat runtime material buffers.
 
@@ -95,13 +79,6 @@ class RenderContext:
         "_visual_material_selections",
         "_visual_material_env_ids",
         "_consumers_finalized",
-        "_fabric_output",
-        "_fabric_selection",
-        "_fabric_write_selection",
-        "_fabric_hierarchy",
-        "_fabric_mapping",
-        "_fabric_scales",
-        "_fabric_version",
     )
 
     def __init__(self, backend_registry: list[tuple[BackendCfg, Any]]) -> None:
@@ -120,9 +97,6 @@ class RenderContext:
         self._visual_material_selections: dict[tuple[str, tuple[int, ...]], tuple[torch.Tensor, wp.array]] = {}
         self._visual_material_env_ids: dict[tuple[torch.device, int], tuple[torch.Tensor, wp.array]] = {}
         self._consumers_finalized = False
-        self._fabric_output = self._fabric_selection = self._fabric_write_selection = self._fabric_hierarchy = None
-        self._fabric_mapping = self._fabric_scales = None
-        self._fabric_version = -1
 
     @property
     def _renderer_entries(self) -> tuple[tuple[RendererCfg, BaseRenderer], ...]:
@@ -163,69 +137,6 @@ class RenderContext:
         self._physics_initialized = True
         for _cfg, renderer in self._renderer_entries:
             renderer.initialize()
-
-    def prepare_fabric(self, provider: SceneDataProvider, stage: Any, device: str) -> None:
-        """Bind one shared rendering destination; native Fabric needs no conversion binding."""
-        if self._fabric_output is not None:
-            return
-        self._fabric_output = SceneDataFormat.FabricMatrix44()
-        if SceneDataFormat.FabricMatrix44 in provider.backend.native_transform_formats:
-            return
-        # These modules are supplied by Kit, not standalone USD.
-        import usdrt  # noqa: PLC0415
-        import usdrt.hierarchy  # noqa: PLC0415
-        from pxr import UsdUtils  # noqa: PLC0415
-
-        fabric_stage = usdrt.Usd.Stage.Attach(UsdUtils.StageCache.Get().GetId(stage).ToLongInt())
-        fabric_stage.SynchronizeToFabric()
-        self._fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-            fabric_stage.GetFabricId(), fabric_stage.GetStageIdAsStageId()
-        )
-        self._fabric_hierarchy.update_world_xforms()
-        for index, path in enumerate(provider.backend.transform_paths):
-            prim = fabric_stage.GetPrimAtPath(path)
-            if not prim or not prim.HasAPI("PhysicsRigidBodyAPI"):
-                continue
-            prim.CreateAttribute("isaaclab:transformIndex", usdrt.Sdf.ValueTypeNames.Int, custom=True).Set(index)
-            # Physics publishes absolute body poses; only visual descendants inherit them.
-            self._fabric_hierarchy.set_reset_xform_stack(prim.GetPath().fabricPath, True)
-        attrs = [
-            (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.Read),
-            (usdrt.Sdf.ValueTypeNames.Int, "isaaclab:transformIndex", usdrt.Usd.Access.Read),
-            (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:localMatrix", usdrt.Usd.Access.Read),
-        ]
-        self._fabric_selection = fabric_stage.SelectPrims(require_attrs=attrs, device=device)
-        self._fabric_write_selection = fabric_stage.SelectPrims(
-            require_attrs=[*attrs[:-1], (*attrs[-1][:2], usdrt.Usd.Access.ReadWrite)], device=device
-        )
-        self._fabric_scales = wp.empty(provider.transform_count, dtype=wp.vec3f, device=device)
-
-    def update_fabric(self, provider: SceneDataProvider) -> None:
-        """Request poses through SDP, then propagate converted body matrices to visual descendants."""
-        changed = self._fabric_selection is not None and self._fabric_selection.PrepareForReuse()
-        if self._fabric_selection is not None and (changed or self._fabric_output.matrices is None):
-            self._fabric_write_selection.PrepareForReuse()
-            self._fabric_mapping = wp.fabricarray(self._fabric_selection, "isaaclab:transformIndex")
-            if self._fabric_output.matrices is None:
-                wp.launch(
-                    _capture_fabric_scales,
-                    dim=len(self._fabric_mapping),
-                    inputs=[wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix"), self._fabric_mapping],
-                    outputs=[self._fabric_scales],
-                    device=self._fabric_scales.device,
-                )
-            self._fabric_output = SceneDataFormat.FabricMatrix44()
-            self._fabric_output.matrices = wp.fabricarray(self._fabric_write_selection, "omni:fabric:localMatrix")
-        provider.get_transforms(self._fabric_output, self._fabric_mapping, scales=self._fabric_scales)
-        version = provider.backend.transforms_version
-        if self._fabric_hierarchy is not None and (changed or self._fabric_version != version):
-            self._fabric_write_selection.PrepareForReuse()
-            device = self._fabric_scales.device
-            wp.synchronize_stream(device)
-            if not self._fabric_hierarchy.update_world_xforms_gpu(not changed and self._fabric_version != -1):
-                raise RuntimeError("Fabric GPU transform hierarchy update failed.")
-            wp.synchronize_device(device)
-        self._fabric_version = version
 
     def register_visual_material(self, material: Any) -> None:
         """Register one initialized material asset for flat channel composition."""
@@ -463,9 +374,6 @@ class RenderContext:
         self._visual_material_selections.clear()
         self._visual_material_env_ids.clear()
         self._consumers_finalized = False
-        self._fabric_output = self._fabric_selection = self._fabric_write_selection = self._fabric_hierarchy = None
-        self._fabric_mapping = self._fabric_scales = None
-        self._fabric_version = -1
 
         if errors:
             # TODO: Use ExceptionGroup when ruff target-version is bumped to py311+

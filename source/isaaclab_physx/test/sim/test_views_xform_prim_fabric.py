@@ -162,7 +162,6 @@ def test_sdp_native_gpu_fabric_binding_preserves_live_physx_pose(device, request
     before = tuple(value.torch.clone() for value in frame_view.get_world_poses())
     torch.testing.assert_close(before[0], torch.tensor([[1, 2, 3]], dtype=torch.float32, device=device))
     provider = SceneDataProvider(sim.get_scene_data_provider().backend)
-    provider._prepare_fabric(sim.stage, device)
     output = SceneDataFormat.FabricMatrix44()
     assert provider.get_transforms(output)
     assert output.matrices.shape == (1,)

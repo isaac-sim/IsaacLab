@@ -195,6 +195,14 @@ class SimulationContext:
 
         # Construct visualizers before cloning; initialize their runtime bindings after physics is ready.
         self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend())
+        self.fabric_transforms_cfg: BackendCfg | None = None
+        """Shared Fabric destination configuration, or None without Kit; consumers bind after physics is ready."""
+        if use_isaac_sim:
+            from isaaclab_physx.renderers.fabric import FabricTransformsCfg  # noqa: PLC0415
+
+            self.fabric_transforms_cfg = FabricTransformsCfg(
+                stage=self.stage, provider=self._scene_data_provider, device=self.device
+            )
         self._visualizers: list[BaseVisualizer] = []
         self._pending_visualizers: list[BaseVisualizer] = []
         self._reset_requested: bool = False

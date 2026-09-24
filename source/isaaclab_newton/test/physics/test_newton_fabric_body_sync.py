@@ -18,8 +18,11 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.physics import NewtonCfg, NewtonManager, VBDSolverCfg, XPBDSolverCfg
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_physx.renderers.fabric import FabricTransforms
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+from isaaclab_visualizers.kit import KitVisualizerCfg
 
 from pxr import Gf as UsdGf
 from pxr import UsdGeom
@@ -158,6 +161,7 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
         device=device,
         gravity=(0.0, 0.0, 0.0),
         physics=NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False),
+        visualizer_cfgs=[KitVisualizerCfg(headless=True)],
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
@@ -168,6 +172,9 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
             sim.reset()
             scene.reset()
             _render(sim, scene)
+
+            assert sim.visualizers[0]._fabric is scene["camera"]._renderer._fabric
+            assert sum(isinstance(resource, FabricTransforms) for _, resource in sim._backend_registry) == 1
 
             cube = scene["cube"]
             body_path = "/World/envs/env_0/Cube"
@@ -231,8 +238,12 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_root_pose_sync_preserves_authored_scale(device):
+@pytest.mark.parametrize(
+    ("device", "renderer_cfg"),
+    [("cpu", IsaacRtxRendererCfg()), ("cuda:0", IsaacRtxRendererCfg()), ("cuda:0", NewtonWarpRendererCfg())],
+    ids=["rtx-cpu", "rtx-cuda", "newton-warp"],
+)
+def test_root_pose_sync_preserves_authored_scale(device, renderer_cfg):
     """Newton body pose synchronization must preserve authored USD scale in Kit/RTX."""
     sim_cfg = SimulationCfg(
         device=device,
@@ -242,7 +253,9 @@ def test_root_pose_sync_preserves_authored_scale(device):
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
-        scene = InteractiveScene(_RenderSceneCfg(num_envs=1, env_spacing=2.0))
+        scene_cfg = _RenderSceneCfg(num_envs=1, env_spacing=2.0)
+        scene_cfg.camera.renderer_cfg = renderer_cfg
+        scene = InteractiveScene(scene_cfg)
         sim.register_interactive_scene(scene)
         try:
             body_path = "/World/envs/env_0/Cube"
@@ -262,6 +275,9 @@ def test_root_pose_sync_preserves_authored_scale(device):
                 device=device,
             )
             scene["cube"].write_root_link_pose_to_sim_index(root_pose=target_pose)
+            if isinstance(renderer_cfg, NewtonWarpRendererCfg):
+                assert not sim.visualizers
+                NewtonManager.sync_transforms_to_fabric()
             _render(sim, scene)
 
             torch.testing.assert_close(_fabric_position(body_path), target_pose[0, :3].cpu(), rtol=0.0, atol=1.0e-4)

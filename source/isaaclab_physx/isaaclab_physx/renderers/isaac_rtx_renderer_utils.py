@@ -233,9 +233,7 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
     if not force and not sim.is_rendering:
         return
 
-    provider = sim.get_scene_data_provider()
-    sim.render_context.prepare_fabric(provider, sim.stage, sim.device)
-    sim.render_context.update_fabric(provider)
+    sim.get_or_create_backend(sim.fabric_transforms_cfg).update()
 
     import omni.kit.app
 

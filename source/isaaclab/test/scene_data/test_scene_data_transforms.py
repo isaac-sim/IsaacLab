@@ -14,7 +14,6 @@ import numpy as np
 import pytest
 import warp as wp
 
-from isaaclab.renderers.render_context import RenderContext
 from isaaclab.scene_data.scene_data_backend import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.scene_data_provider import SceneDataProvider
 from isaaclab.test.utils import test_devices
@@ -203,9 +202,8 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
     source = getattr(SceneDataFormat, format_name)()
     assert native.get_transforms(source)
     provider = SceneDataProvider(_Backend(transforms=source, transforms_version=0, transform_count=len(poses)))
-    render_context = RenderContext([])
-    render_context._fabric_output = SceneDataFormat.FabricMatrix44()
-    render_context._fabric_scales = wp.empty(len(poses), dtype=wp.vec3f, device=device)
+    authored_scales = np.array([[5, 6, 7], [1, 1, 1], [2, 3, 4]], dtype=np.float32)
+    scales = wp.array(authored_scales, dtype=wp.vec3f, device=device)
     expected = np.array([np.eye(4), np.diag([5, 6, 7, 1])], dtype=np.float64)
     rotation = np.array([[-3, -4, 12], [12, 3, 4], [-4, 12, 3]]) / 13
     expected[0, :3, :3] = np.diag([2, 3, 4]) @ rotation.T
@@ -213,85 +211,36 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
     indices = wp.array([len(poses) - 1, 0], dtype=wp.int32, device=device)
     launch = Mock(wraps=wp.launch)
     monkeypatch.setattr(wp, "launch", launch)
-    scales = render_context._fabric_scales
-    for allocation in range(2):
-        authored = np.array([np.diag([2, 3, 4, 1]), np.diag([5, 6, 7, 1])], dtype=np.float64)
-        if allocation:
-            authored[:, :3, :3] *= 1.001  # Rebinding must not recapture scale from a rounded runtime cache.
-        matrices = wp.array(authored, dtype=wp.mat44d, device=device)
-        local_matrices = wp.empty(2, dtype=wp.mat44d, device=device)
-
-        def update_world_xforms_gpu(_no_structural_changes):
-            matrices.assign(local_matrices)
-            return True
-
-        render_context._fabric_hierarchy = Mock()
-        render_context._fabric_hierarchy.update_world_xforms_gpu.side_effect = update_world_xforms_gpu
+    for _ in range(2):
+        matrices = wp.empty(2, dtype=wp.mat44d, device=device)
         interface = {
             "version": 1,
             "device": device,
             "attribs": {
-                "isaaclab:transformIndex": {
+                "mapping": {
                     "type": (True, "i4", 1, 0, ""),
                     "access": 1,
                     "pointers": [indices.ptr],
                     "counts": [2],
                 },
-                "omni:fabric:worldMatrix": {
-                    "type": (True, "f8", 16, 0, "matrix"),
-                    "access": 1,
-                    "pointers": [matrices.ptr],
-                    "counts": [2],
-                },
-                "omni:fabric:localMatrix": {
+                "matrices": {
                     "type": (True, "f8", 16, 0, "matrix"),
                     "access": 2,
-                    "pointers": [local_matrices.ptr],
+                    "pointers": [matrices.ptr],
                     "counts": [2],
                 },
             },
         }
-        changes = [True]
-        render_context._fabric_write_selection = SimpleNamespace(
-            __fabric_arrays_interface__=interface,
-            PrepareForReuse=Mock(return_value=False),
-        )
-        render_context._fabric_selection = SimpleNamespace(
-            __fabric_arrays_interface__={
-                **interface,
-                "attribs": {name: {**attr, "access": 1} for name, attr in interface["attribs"].items()},
-            },
-            PrepareForReuse=lambda: changes.pop() if changes else False,
-        )
-        render_context.update_fabric(provider)
-        assert render_context._fabric_scales is scales
-        render_context._fabric_hierarchy.update_world_xforms_gpu.assert_called_once_with(False)
-        render_context._fabric_hierarchy.reset_mock()
-        render_context._fabric_write_selection.PrepareForReuse.reset_mock()
-        previous_matrices = render_context._fabric_output.matrices
-        render_context.update_fabric(provider)
-        assert render_context._fabric_output.matrices is previous_matrices
-        assert render_context._fabric_hierarchy.mock_calls == []
-        render_context._fabric_write_selection.PrepareForReuse.assert_not_called()
-        assert launch.call_count == allocation + 2
+        storage = SimpleNamespace(__fabric_arrays_interface__=interface)
+        output = SceneDataFormat.FabricMatrix44()
+        output.matrices = wp.fabricarray(storage, "matrices")
+        mapping = wp.fabricarray(storage, "mapping")
+        destination = output.matrices
+        launch.reset_mock()
+        assert provider.get_transforms(output, mapping, scales=scales)
+        assert provider.get_transforms(output, mapping, scales=scales)
+        assert output.matrices is destination
+        launch.assert_called_once()
         assert len(provider._transform_cache) == 1
         np.testing.assert_allclose(matrices.numpy(), expected, rtol=1.0e-6, atol=1.0e-6)
-
-    if format_name == "Transform":
-        rotations = np.random.default_rng(42).normal(size=(2000, len(poses), 4)).astype(np.float32)
-        rotations /= np.linalg.norm(rotations, axis=-1, keepdims=True)
-        poses = np.asarray(poses, dtype=np.float32)
-        for rotation in rotations:
-            poses[:, 3:] = rotation
-            data.transforms.assign(poses)
-            provider.backend.transforms_version += 1
-            render_context.update_fabric(provider)
-        np.testing.assert_allclose(
-            np.linalg.norm(matrices.numpy()[:, :3, :3], axis=-1),
-            np.linalg.norm(expected[:, :3, :3], axis=-1),
-            rtol=1.0e-6,
-        )
-        np.testing.assert_allclose(matrices.numpy()[:, 3, :3], poses[[2, 0], :3])
-        assert render_context._fabric_hierarchy.update_world_xforms_gpu.call_count == len(rotations)
-        render_context._fabric_hierarchy.update_world_xforms_gpu.assert_called_with(True)
-        assert render_context._fabric_write_selection.PrepareForReuse.call_count == len(rotations)
+        np.testing.assert_array_equal(scales.numpy(), authored_scales)

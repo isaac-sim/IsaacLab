@@ -199,7 +199,7 @@ class IsaacRtxRenderer(BaseRenderer):
     def initialize(self) -> None:
         """Bind shared Fabric destinations after scene creation."""
         sim = SimulationContext.instance()
-        sim.render_context.prepare_fabric(sim.get_scene_data_provider(), sim.stage, sim.device)
+        self._fabric = sim.get_or_create_backend(sim.fabric_transforms_cfg)
 
     @property
     def visual_material_writer(self):
@@ -578,8 +578,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
     def update_transforms(self) -> None:
         """Update shared Fabric transforms and propagate the visual hierarchy."""
-        sim = SimulationContext.instance()
-        sim.render_context.update_fabric(sim.get_scene_data_provider())
+        self._fabric.update()
 
     def update_geometries(self) -> None:
         """No-op for Isaac RTX - uses USD scene directly.

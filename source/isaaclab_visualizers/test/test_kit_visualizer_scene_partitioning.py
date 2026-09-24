@@ -21,11 +21,9 @@ from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SE
 
 @pytest.mark.parametrize("headless", [False, True])
 def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch, headless):
-    sim = MagicMock()
-    monkeypatch.setattr(kit_visualizer_module.SimulationContext, "instance", lambda: sim)
     visualizer = KitVisualizer(KitVisualizerCfg(headless=headless, origin_type="asset"))
     visualizer._is_initialized = True
-    visualizer._scene_data_provider = MagicMock()
+    visualizer._fabric = MagicMock()
     monkeypatch.setattr(visualizer, "is_training_paused", lambda: True)
     tracking = MagicMock()
     monkeypatch.setattr(visualizer, "_update_asset_tracking_camera", tracking)
@@ -35,11 +33,11 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
     visualizer.step(0.1)
 
     assert tracking.call_count == int(not headless)
-    request = sim.render_context.update_fabric
+    request = visualizer._fabric.update
     if headless:
         request.assert_not_called()
     else:
-        request.assert_called_once_with(visualizer._scene_data_provider)
+        request.assert_called_once_with()
 
 
 @pytest.mark.parametrize("generated", [False, True])

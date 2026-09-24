@@ -109,12 +109,16 @@ The deformable and cable geometry bridge remains separate from this rigid-transf
 OVRTX still uses Newton geometry metadata for those features.
 
 PhysX owns its native Fabric refresh and publishes the resulting matrices through SDP without
-fetching packed poses. For other physics backends, the shared ``RenderContext`` binds Fabric local
-matrices and asks SDP to convert directly into them, then propagates the GPU hierarchy.
+fetching packed poses. For other physics backends, ``isaaclab_physx.renderers.fabric.FabricTransforms``
+binds Fabric local matrices and asks SDP to convert directly into them, then propagates the GPU hierarchy.
+``SimulationContext`` declares ``fabric_transforms_cfg`` when Kit is available, without allocating
+native bindings. After physics initializes, Kit, Isaac RTX, and explicit Fabric synchronization
+obtain the same resource through ``get_or_create_backend(sim.fabric_transforms_cfg)``.
+Core ``RenderContext`` owns no Fabric bindings.
 It binds rigid destinations as Fabric-only reset-stack roots because
 physics publishes absolute poses, including for nested bodies. Visual descendants still inherit
 their body's transform; authored USD is unchanged. Native source indices and world scales are
-bound once. Fabric's selection reuse API reports scene-wide structural changes; ``RenderContext`` refreshes
+bound once. Fabric's selection reuse API reports scene-wide structural changes; the resource refreshes
 array views without repeating path matching or scale capture. Otherwise GPU propagation
 reuses the hierarchy topology. Clean requests never acquire writable Fabric arrays.
 Renderers do not select a physics-specific synchronization path.
