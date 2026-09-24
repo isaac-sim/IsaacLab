@@ -8,12 +8,16 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from pxr import Gf, Sdf, Usd, UsdGeom
 
+from isaaclab.cloner import ClonePlan
+from isaaclab.cloner.geometry import compile_geometry
 from isaaclab.scene_data.deformable_discovery import (
     _matrix4d_to_numpy,
     _transform_points,
+    deformable_entries,
     discover_deformables_on_stage,
 )
 
@@ -146,6 +150,92 @@ def test_discover_declared_roots_once_without_undeclared_siblings():
     )
 
     assert [entry.root_path for entry in entries] == ["/Scene/Declared/Cloth"]
+
+
+def test_plan_geometry_nearest_owner_partial_rows_and_shared_roots():
+    """Compile declared prototypes once; consumers expand exact paths without copying geometry."""
+    stage = Usd.Stage.CreateInMemory()
+    parent = UsdGeom.Xform.Define(stage, "/Lab/Cell3")
+    parent.AddTranslateOp().Set((10.0, 0.0, 0.0))
+    parent.AddRotateZOp().Set(30.0)
+    for path, schema in (
+        ("/Lab/Cell3/Cloth", "OmniPhysicsDeformableBodyAPI"),
+        ("/Lab/Cell3/Nested/Cloth", "PhysicsDeformableBodyAPI"),
+        ("/Lab/Cell3/Dormant/Cloth", "OmniPhysicsDeformableBodyAPI"),
+        ("/Shared/Cloth", "OmniPhysicsDeformableBodyAPI"),
+        ("/Undeclared/Cloth", "OmniPhysicsDeformableBodyAPI"),
+    ):
+        mesh = UsdGeom.Mesh.Define(stage, path)
+        _add_api_schemas(mesh.GetPrim(), [schema])
+        mesh.CreatePointsAttr([(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)])
+        mesh.CreateFaceVertexCountsAttr([3])
+        mesh.CreateFaceVertexIndicesAttr([0, 1, 2])
+    UsdGeom.Points.Define(stage, "/Shared/Particles").CreatePointsAttr([(1.0, 2.0, 3.0)])
+    mpm_points = UsdGeom.Points.Define(stage, "/Lab/Cell3/SimulationPoints")
+    mpm_points.CreatePointsAttr([(1.0, 2.0, 3.0), (0.0, 0.0, 0.0)])
+    _add_api_schemas(mpm_points.GetPrim(), ["PhysicsDeformableBodyAPI"])
+    plan = ClonePlan(
+        sources=("/Lab/Cell3", "/Lab/Cell3/Nested", "/Missing", "/Lab/Cell3/Dormant"),
+        destinations=("/Lab/Cell{}", "/Lab/Cell{}/Nested", "/Other/{}", "/Lab/Cell{}/Dormant"),
+        clone_mask=np.asarray([[1, 1, 0], [1, 0, 1], [0, 0, 0], [0, 0, 0]], dtype=np.bool_),
+        env_ids=np.asarray([3, 7, 11]),
+        positions=np.asarray([[10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [35.0, 0.0, 0.0]]),
+        global_paths=("/Shared", "/Shared/Cloth"),
+    )
+
+    compile_geometry(plan, stage)
+    prototype = plan.deformables[0][0]
+    assert [entry.root_path for entry in plan.deformables[0]] == ["/Lab/Cell3/Cloth"]
+    assert [entry.root_path for entry in plan.deformables[1]] == ["/Lab/Cell3/Nested/Cloth"]
+    assert plan.deformables[2] == plan.deformables[3] == ()
+    assert plan.point_clouds[None] == (("/Shared/Particles", 1),)
+    assert plan.point_clouds[0] == (("/Lab/Cell3/SimulationPoints", 2),)
+    stage.RemovePrim("/Lab")
+    compile_geometry(plan, stage)
+    assert plan.deformables[0][0] is prototype
+
+    expanded = {entry.root_path: entry for entry in deformable_entries(plan)}
+    assert set(expanded) == {
+        "/Lab/Cell3/Cloth",
+        "/Lab/Cell7/Cloth",
+        "/Lab/Cell3/Nested/Cloth",
+        "/Lab/Cell11/Nested/Cloth",
+        "/Shared/Cloth",
+    }
+    assert {entry.root_path for entry in deformable_entries(plan, (1,))} == {
+        "/Lab/Cell3/Nested/Cloth",
+        "/Lab/Cell11/Nested/Cloth",
+        "/Shared/Cloth",
+    }
+    clone = expanded["/Lab/Cell7/Cloth"]
+    assert clone.sim_mesh_path == clone.vis_mesh_path == clone.root_path
+    assert clone.vertices is prototype.vertices and clone.indices is prototype.indices
+    np.testing.assert_allclose(clone.init_pos, (20.0, 0.0, 0.0))
+    np.testing.assert_allclose(clone.init_rot, (0.0, 0.0, np.sin(np.pi / 12), np.cos(np.pi / 12)))
+
+
+@pytest.mark.parametrize(
+    "counts, curve_type, wrap, expected",
+    [
+        ([4], "linear", "nonperiodic", 3),
+        ([4], "linear", "periodic", None),
+        ([4], "cubic", "nonperiodic", None),
+        ([2, 2], "linear", "nonperiodic", None),
+        ([1], "linear", "nonperiodic", None),
+    ],
+)
+def test_plan_cables_preserve_supported_topology(counts, curve_type, wrap, expected):
+    stage = Usd.Stage.CreateInMemory()
+    cable = UsdGeom.BasisCurves.Define(stage, "/Prototype/Cable")
+    _add_api_schemas(cable.GetPrim(), ["PhysicsCurvesDeformableSimAPI"])
+    cable.CreateCurveVertexCountsAttr(counts)
+    cable.CreateTypeAttr(curve_type)
+    cable.CreateWrapAttr(wrap)
+    plan = ClonePlan(("/Prototype",), ("/Scene/Cell{}",), np.ones((1, 1), dtype=np.bool_))
+
+    compile_geometry(plan, stage)
+
+    assert plan.cables[0] == (() if expected is None else (("/Prototype/Cable", expected),))
 
 
 def test_discover_volume_prefers_named_visual_over_unrelated_child_mesh():

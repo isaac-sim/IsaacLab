@@ -814,10 +814,9 @@ def test_transforms_read_native_slices_only_when_dirty(monkeypatch):
             )
 
     monkeypatch.setattr(module, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
-    monkeypatch.setattr(module, "discover_deformables_on_stage", lambda stage: [])
     stage = SimpleNamespace(Traverse=lambda: (_fake_rigid_body_prim(path) for path in paths))
     backend = module.OvPhysxSceneDataBackend()
-    backend.setup(FakePhysX(), stage, "cpu")
+    backend.setup(FakePhysX(), stage, "cpu", None)
     sdp = SceneDataProvider(backend)
 
     native = SceneDataFormat.Transform()
@@ -851,7 +850,7 @@ def test_setup_propagates_failed_rigid_binding(monkeypatch):
     stage = SimpleNamespace(Traverse=lambda: iter([_fake_rigid_body_prim("/World/Object")]))
     backend = module.OvPhysxSceneDataBackend()
     with pytest.raises(RuntimeError, match="simulated binding failure"):
-        backend.setup(FailingPhysX(), stage, "cpu")
+        backend.setup(FailingPhysX(), stage, "cpu", None)
 
 
 def test_failed_rigid_read_is_retried():
@@ -874,80 +873,67 @@ def test_failed_rigid_read_is_retried():
             sdp.get_transforms(SceneDataFormat.Transform())
 
 
-def test_deformable_only_setup_publishes_surface_geometry(monkeypatch):
-    """Surface SceneData views publish geometry even without rigid bodies.
-
-    Regression: constructing ``OvPhysxDeformableBodyView`` without
-    ``simulation_nodal_position_type`` / ``simulation_element_indices_type``
-    left cloth ``point_count`` at 0, so OVRTX wrote identity-xformed rest
-    buffers and the Franka cloth disappeared.
-    """
-    import isaaclab_ov.physics.ovphysx_manager as om_mod
+@pytest.mark.parametrize("node_padding", [0, 1])
+def test_deformable_only_setup_publishes_planned_geometry_in_native_order(node_padding):
+    """Mixed native views fill exact partial/shared plan slices without a packing pass."""
+    import isaaclab_ov.physics.ovphysx_manager as module
+    import numpy as np
+    import warp as wp
     from isaaclab_ov import tensor_types as TT
-    from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
 
+    from isaaclab.cloner import ClonePlan
     from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
 
-    b = OvPhysxSceneDataBackend()
-    captured: dict = {}
-
-    class _FakeView:
-        count = 2
-        max_simulation_nodes_per_body = 4
-        # Views may report a child mesh; SceneData must publish discovered roots.
-        prim_paths = [
-            "/World/envs/env_0/Deformable/sim_mesh",
-            "/World/envs/env_1/Deformable/sim_mesh",
-        ]
-
-        def __init__(self, physx, **kwargs):
-            captured.update(kwargs)
-
-        def read_into(self, tensor_type, dst):
-            captured["read_tensor_type"] = tensor_type
-
-    monkeypatch.setattr(
-        "isaaclab_ov.assets.deformable_object.views.OvPhysxDeformableBodyView",
-        _FakeView,
+    plan = ClonePlan(
+        sources=("/Prototype",),
+        destinations=("/Clones/slot_{}/Asset",),
+        clone_mask=np.array([[True, False, True]]),
+        env_ids=np.array([2, 5, 9]),
+        deformables={
+            0: (DeformableStageEntry("/Prototype", "/Prototype/sim", "/Prototype/vis", "surface", 4, 4),),
+            None: (DeformableStageEntry("/Shared", "/Shared/sim", "/Shared/vis", "volume", 3, 3),),
+        },
     )
-    monkeypatch.setattr(
-        om_mod,
-        "discover_deformables_on_stage",
-        lambda stage: [
-            DeformableStageEntry(
-                root_path="/World/envs/env_0/Deformable",
-                sim_mesh_path="/World/envs/env_0/Deformable/sim_mesh",
-                vis_mesh_path="/World/envs/env_0/Deformable/geometry/mesh",
-                deformable_type="surface",
-                vertex_count=4,
-                vis_vertex_count=4,
-            ),
-            DeformableStageEntry(
-                root_path="/World/envs/env_1/Deformable",
-                sim_mesh_path="/World/envs/env_1/Deformable/sim_mesh",
-                vis_mesh_path="/World/envs/env_1/Deformable/geometry/mesh",
-                deformable_type="surface",
-                vertex_count=4,
-                vis_vertex_count=4,
-            ),
-        ],
-    )
+    counts = {"/Clones/slot_2/Asset": 4, "/Clones/slot_9/Asset": 4, "/Shared": 3}
+    values = {"/Clones/slot_2/Asset": 2.0, "/Clones/slot_9/Asset": 9.0, "/Shared": 100.0}
+    reads = []
+    bindings = []
 
+    class NativePhysX:
+        def create_tensor_binding(self, *, prim_paths, tensor_type):
+            bindings.append((prim_paths, tensor_type))
+            nodes = counts[prim_paths[0]] + node_padding
+
+            def read(dst):
+                data = np.array([[[values[path]] * 3] * nodes for path in reversed(prim_paths)], dtype=np.float32)
+                wp.copy(dst, wp.array(data, dtype=wp.float32, device="cpu"))
+                reads.append((dst.ptr, dst.size * wp.types.type_size_in_bytes(dst.dtype)))
+
+            return SimpleNamespace(
+                shape=(len(prim_paths), nodes, 3),
+                count=len(prim_paths),
+                dtype=SimpleNamespace(code=2, bits=32, lanes=1),
+                prim_paths=[path + "/sim" for path in reversed(prim_paths)],
+                read=read,
+                destroy=lambda: None,
+            )
+
+    backend = module.OvPhysxSceneDataBackend()
     stage = SimpleNamespace(Traverse=lambda: iter(()))
-    b.setup(physx=object(), stage=stage, device="cpu")
+    if node_padding:
+        with pytest.raises(RuntimeError, match="node counts"):
+            backend.setup(NativePhysX(), stage, "cpu", plan)
+        return
+    backend.setup(NativePhysX(), stage, "cpu", plan)
 
-    assert captured["simulation_nodal_position_type"] == TT.SURFACE_DEFORMABLE_SIM_POSITION
-    assert captured["simulation_element_indices_type"] == TT.SURFACE_DEFORMABLE_SIM_ELEMENT_INDICES
-    assert TT.SURFACE_DEFORMABLE_SIM_POSITION in captured["tensor_types"]
-    assert TT.SURFACE_DEFORMABLE_SIM_ELEMENT_INDICES in captured["tensor_types"]
-    assert b.point_count == 8
-    assert b.transform_count == 0
-    assert b.transform_paths == []
-    assert b.geometry_paths == [
-        "/World/envs/env_0/Deformable",
-        "/World/envs/env_1/Deformable",
-    ]
-    assert b.geometry_counts == [4, 4]
-
-    _ = b.points
-    assert captured["read_tensor_type"] == TT.SURFACE_DEFORMABLE_SIM_POSITION
+    assert {path for paths, _ in bindings for path in paths} == counts.keys()
+    assert {kind for _, kind in bindings} == {TT.SURFACE_DEFORMABLE_SIM_POSITION, TT.DEFORMABLE_SIM_NODAL_POSITION}
+    assert backend.transform_count == 0
+    assert backend.geometry_counts == [counts[path] for path in backend.geometry_paths]
+    assert backend.point_count == 11
+    points = backend.points.points
+    expected = np.concatenate([np.full((counts[path], 3), values[path]) for path in backend.geometry_paths])
+    np.testing.assert_array_equal(points.numpy(), expected)
+    assert reads[0][0] == points.ptr
+    assert reads[1][0] == points.ptr + reads[0][1]
+    assert backend.points.points is points

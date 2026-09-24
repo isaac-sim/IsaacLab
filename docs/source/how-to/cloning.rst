@@ -158,9 +158,17 @@ fields listed below are that table's columns:
      - Unique prim paths for scene assets shared by every env and therefore not replicated.
    * - ``context_rows``
      - Clone-context types mapped to the rows they consume.
+   * - ``deformables``, ``cables``, ``point_clouds``
+     - Prototype geometry keyed by source row; ``None`` holds shared geometry.
 
 The plan does not own a stage. Simulation-owned contexts supply their own runtime
 when they consume it.
+
+After spawning and before clone dispatch, replication reads geometry from the declared
+prototypes and shared roots once. Native deformable bindings use these recorded paths and
+counts after initialization, rather than discovering the completed stage or assuming dense
+environment ids. Vertex arrays remain shared between instances. MPM spawners also author
+their visible point clouds before replication; initialization only binds their native ranges.
 
 When every env is a copy of env_0:
 

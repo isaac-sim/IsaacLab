@@ -78,8 +78,10 @@ from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, 
 
 from pxr import Usd, UsdGeom
 
+from isaaclab.cloner.path import rebase
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
+from isaaclab.scene_data.deformable_discovery import deformable_entries
 from isaaclab.scene_data.deformable_vis_remap import (
     VolumeVisRemap,
     launch_batch_particle_slice_copy,
@@ -87,7 +89,6 @@ from isaaclab.scene_data.deformable_vis_remap import (
 )
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
-from isaaclab.sim.utils.queries import has_deformable_curve_api
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
 from isaaclab.utils.string import resolve_matching_names
@@ -102,7 +103,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
 from isaaclab_newton.physics.featherstone_manager_cfg import FeatherstoneSolverCfg
 from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
 from isaaclab_newton.physics.newton_manager_cfg import NewtonBackendCfg, NewtonCfg, NewtonShapeCfg, NewtonSolverCfg
-from isaaclab_newton.physics.visualization_deformables import populate_shadow_deformable_registry
+from isaaclab_newton.physics.visualization_deformables import ShadowDeformableRegistryGroup
 from isaaclab_newton.physics.xpbd_manager_cfg import XPBDSolverCfg
 from isaaclab_newton.renderers.visual_material import (
     VisualMaterialWriter,
@@ -113,6 +114,7 @@ from isaaclab_newton.renderers.visual_material import (
 if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.assets import BaseArticulation
+    from isaaclab.cloner import ClonePlan
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
@@ -213,9 +215,9 @@ def _sync_cable_points(
 
 @dataclass
 class _ParticleVisualPrim:
-    """A ``UsdGeom.Points`` prim mirroring a slice of Newton's particle state."""
+    """A planned render-point slice and its optional Kit USD sink."""
 
-    points_attr: Usd.Attribute
+    points_attr: Usd.Attribute | None
     offset: int
     count: int
     sync_frequency: int
@@ -771,7 +773,7 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def _sync_particle_points_prims(cls) -> bool:
         """Write registered ``UsdGeom.Points`` prims; return ``True`` while throttled prims remain."""
-        if not cls._particle_visual_prims:
+        if not has_kit() or not cls._particle_visual_prims:
             return False
 
         due = []
@@ -818,16 +820,18 @@ class NewtonManager(PhysicsManager):
         """Register a ``UsdGeom.Points`` prim whose points mirror a slice of Newton's particle state.
 
         Args:
-            prim_path: Stage path of an existing ``UsdGeom.Points`` prim.
+            prim_path: Planned ``UsdGeom.Points`` destination path.
             particle_offset: First index of the prim's slice in ``state.particle_q``.
             particle_count: Number of particles in the slice.
             sync_frequency: Sync the prim every N dirty render frames.
         """
-        from pxr import UsdGeom  # noqa: PLC0415
-
-        prim = get_current_stage().GetPrimAtPath(prim_path)
+        points_attr = None
+        if has_kit():
+            points = UsdGeom.Points(get_current_stage().GetPrimAtPath(prim_path))
+            points.SetResetXformStack(True)
+            points_attr = points.GetPointsAttr()
         NewtonManager._particle_visual_prims[prim_path] = _ParticleVisualPrim(
-            points_attr=UsdGeom.Points(prim).GetPointsAttr(),
+            points_attr=points_attr,
             offset=int(particle_offset),
             count=int(particle_count),
             sync_frequency=int(sync_frequency),
@@ -1590,6 +1594,35 @@ class NewtonManager(PhysicsManager):
         fabric_hierarchy.update_world_xforms()
 
     @classmethod
+    def collect_deformable_bindings(cls, plan: ClonePlan) -> tuple[list[str], list[int], list[int]]:
+        """Pair planned visual mesh paths with this model's native particle offsets and counts.
+
+        Args:
+            plan: Compiled geometry and exact destination layout used to build this model.
+
+        Returns:
+            Parallel lists of visual mesh paths, particle offsets, and particle counts.
+        """
+        if not cls._deformable_registry:
+            return [], [], []
+        planned = {entry.root_path: entry for entry in deformable_entries(plan)}
+        paths, offsets, counts = [], [], []
+        for entry in cls._deformable_registry:
+            if isinstance(entry, ShadowDeformableRegistryGroup):
+                if entry.register_usd_vis_point_bindings:
+                    for entity in entry.entities:
+                        paths.append(planned[entity.root_path].vis_mesh_path)
+                        offsets.append(entity.vis_particle_offset)
+                        counts.append(entity.vis_particle_count)
+                continue
+            instances = [item for path, item in planned.items() if re.fullmatch(entry.prim_path, path)]
+            for instance, offset in zip(instances, entry.particle_offsets, strict=True):
+                paths.append(instance.vis_mesh_path)
+                offsets.append(offset)
+                counts.append(entry.particles_per_body)
+        return paths, offsets, counts
+
+    @classmethod
     def collect_cable_segment_shape_ids(cls) -> dict[str, list[int]]:
         """Map each renderable cable prim path to its ordered Newton segment shape ids.
 
@@ -1601,10 +1634,8 @@ class NewtonManager(PhysicsManager):
         from labels ``.../mesh_edge_capsule_0``, ``_1``, ``_2``, and Newton assigned those shapes
         indices ``42..44`` after earlier scene shapes.
 
-        When the labeled prim exists on the host USD stage, topology is validated against that
-        ``BasisCurves`` prim. Kit-less replicated destinations often exist only in the render
-        backend; for those paths topology is validated against a source prototype via the active
-        clone plan.
+        The clone plan supplies supported curve topology, including destinations that exist
+        only in a native backend. No completed-stage lookup is needed.
 
         Returns:
             Concrete cable prim paths mapped to ordered Newton segment shape ids.
@@ -1625,59 +1656,22 @@ class NewtonManager(PhysicsManager):
                 raise RuntimeError(f"Cable visualization requires one Newton shape labeled {label}.")
             segments[segment] = shape_id
 
-        stage = get_current_stage()
-
-        sim = SimulationContext.instance()
-        clone_plan = sim.get_clone_plan() if sim is not None else None
-
-        # Filter label groups into renderable ordered shape-id lists. Validate topology on the host
-        # destination when present; otherwise use the clone-plan source prototype. Skip unsupported
-        # topology (non-linear / periodic / bad counts); require segment labels to match the curve.
+        if not cable_shapes:
+            return {}
+        plan = SimulationContext.instance().get_clone_plan()
+        topology = dict(plan.cables[None])
+        for row, curves in plan.cables.items():
+            if row is None:
+                continue
+            for col in np.flatnonzero(plan.clone_mask[row]):
+                destination = plan.destinations[row].format(int(plan.env_ids[col]))
+                topology.update((rebase(path, plan.sources[row], destination), count) for path, count in curves)
         ordered: dict[str, list[int]] = {}
+        # Per-asset clone routing may omit planned cables from this native model.
         for prim_path, segments in cable_shapes.items():
-            prim = stage.GetPrimAtPath(prim_path)
-            validation_prim = prim
-
-            # If destination is missing on host USD: validate topology against the clone source prototype.
-            if not prim.IsValid() and clone_plan is not None:
-                from isaaclab.cloner.query import path_to_source  # noqa: PLC0415
-
-                resolved = path_to_source(clone_plan, prim_path)
-                if resolved is not None:
-                    source_path, _, asset_suffix = resolved
-                    validation_prim = stage.GetPrimAtPath(source_path + asset_suffix)
-
-            if not (
-                validation_prim.IsValid()
-                and validation_prim.IsA(UsdGeom.BasisCurves)
-                and has_deformable_curve_api(validation_prim)
-            ):
-                logger.debug(
-                    "Skipping cable '%s': validation prim '%s' is missing, not BasisCurves, or lacks"
-                    " DeformableCurveAPI.",
-                    prim_path,
-                    validation_prim.GetPath().pathString if validation_prim.IsValid() else "<invalid>",
-                )
+            if prim_path not in topology:
                 continue
-
-            curve = UsdGeom.BasisCurves(validation_prim)
-            counts = curve.GetCurveVertexCountsAttr().Get()
-            if (
-                len(counts) != 1
-                or int(counts[0]) < 2
-                or curve.GetTypeAttr().Get() != UsdGeom.Tokens.linear
-                or curve.GetWrapAttr().Get() == UsdGeom.Tokens.periodic
-            ):
-                logger.debug(
-                    "Skipping cable '%s': unsupported BasisCurves topology (vertex_counts=%s, type=%s, wrap=%s).",
-                    prim_path,
-                    counts,
-                    curve.GetTypeAttr().Get(),
-                    curve.GetWrapAttr().Get(),
-                )
-                continue
-
-            segment_count = int(counts[0]) - 1
+            segment_count = topology[prim_path]
             if set(segments) != set(range(segment_count)):
                 raise RuntimeError(
                     f"Cable visualization for '{prim_path}' requires {segment_count} ordered segment shapes."
@@ -2764,8 +2758,9 @@ class NewtonManager(PhysicsManager):
             NewtonManager._sim_particle_q = wp.zeros(sim_particle_total, dtype=wp.vec3f, device=cfg.device)
         else:
             NewtonManager._sim_particle_q = None
-        NewtonManager._deformable_registry = []
-        populate_shadow_deformable_registry(cls, registry_groups)
+        NewtonManager._deformable_registry = [
+            group for group in registry_groups if group.register_usd_vis_point_bindings
+        ]
         cls.update_visualization_state()
         NewtonManager._visualization_stop_callback = sim.physics_manager.register_callback(
             lambda _payload: NewtonManager.clear(),

@@ -23,7 +23,6 @@ import contextlib
 import logging
 import math
 import os
-import re
 import sys
 import weakref
 from collections.abc import Iterator, Sequence
@@ -641,7 +640,7 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Camera binding is None — cannot render without a valid camera binding")
 
         self._setup_xform_bindings_legacy()
-        self._setup_deformable_bindings_legacy(num_envs)
+        self._setup_deformable_bindings_legacy()
         self._setup_particle_bindings_legacy()
         self._setup_cable_bindings_legacy()
 
@@ -732,62 +731,13 @@ class OVRTXRenderer(BaseRenderer):
 
         self._object_scales = self._create_object_scale_array(object_paths)
 
-    def _setup_deformable_bindings_legacy(self, num_envs: int):
-        """Setup OVRTX bindings for Newton deformable bodies.
+    def _setup_deformable_bindings_legacy(self) -> None:
+        """Bind the visual meshes declared by the clone plan."""
+        from isaaclab_newton.physics import NewtonManager
 
-        Args:
-            num_envs: Number of environments.
-        """
-        try:
-            from isaaclab_newton.physics import NewtonManager
-        except ImportError:
-            logger.debug("NewtonManager not available, skipping deformable body bindings")
-            return
-
-        # Early return if the deformable registry is empty.
-        deformable_registry = NewtonManager._deformable_registry
-        if not deformable_registry:
-            logger.debug("Deformable registry is empty, skipping deformable body bindings")
-            return
-
-        # Validate the number of particle offsets for each deformable entry upfront.
-        bad_entries = [entry for entry in deformable_registry if len(entry.particle_offsets) != num_envs]
-        if bad_entries:
-            details = "\n".join(
-                f"- '{entry.prim_path}' has {len(entry.particle_offsets)} particle offsets" for entry in bad_entries
-            )
-            raise RuntimeError(
-                f"OVRTX expects one particle offset per environment ({num_envs}), but the following "
-                f"deformable entries have a mismatched offset count:\n{details}"
-            )
-
-        self._deformable_particle_offsets = []
-        self._deformable_particle_counts = []
-
-        vis_mesh_prim_paths: list[str] = []
-
-        # Each registry entry is one deformable asset registered at spawn time. Its
-        # ``vis_mesh_prim_path`` uses a regex env wildcard (e.g. ``env_.*``) to denote one
-        # homogeneous visual mesh replicated into every environment, not a subset of envs.
-        # During replication, Newton appends one particle block per env in contiguous env order
-        # and records the start index in ``entry.particle_offsets``; ``particles_per_body`` is
-        # the block size. The inner loop therefore emits one OVRTX mesh binding per env,
-        # resolving the env wildcard with ``env_idx`` and pairing it with that env's slice in
-        # the flat ``particle_q`` array.
-        #
-        # This mapping is valid only while deformable registry entries remain homogeneous across
-        # all envs with dense, contiguous env ids. If deformables later support env subsets or
-        # non-contiguous env ids, OVRTX must consume explicit per-instance env metadata instead
-        # of deriving env ids from ``enumerate(entry.particle_offsets)``.
-        for entry in deformable_registry:
-            for idx, particle_offset in enumerate(entry.particle_offsets):
-                self._deformable_particle_offsets.append(particle_offset)
-                self._deformable_particle_counts.append(entry.particles_per_body)
-
-                vis_mesh_prim_paths.append(
-                    re.sub(r"(?<=[Ee]nv_)(?:\[\^/\][*+]|\.\*)", str(idx), entry.vis_mesh_prim_path)
-                )
-
+        vis_mesh_prim_paths, self._deformable_particle_offsets, self._deformable_particle_counts = (
+            NewtonManager.collect_deformable_bindings(self._clone_plan)
+        )
         prim_count = len(vis_mesh_prim_paths)
         if prim_count == 0:
             logger.warning("No deformable visual prim paths collected, skipping deformable body bindings")
@@ -1994,7 +1944,7 @@ class OVRTXRenderer(BaseRenderer):
         ).wait()
 
         self._setup_xform_bindings_ovstage()
-        self._setup_deformable_bindings_ovstage(num_envs)
+        self._setup_deformable_bindings_ovstage()
         self._setup_particle_bindings_ovstage()
         self._setup_cable_bindings_ovstage()
 
@@ -2111,62 +2061,13 @@ class OVRTXRenderer(BaseRenderer):
 
         self._object_scales = self._create_object_scale_array(object_paths)
 
-    def _setup_deformable_bindings_ovstage(self, num_envs: int) -> None:
-        """Setup OVRTX bindings for Newton deformable bodies (ovstage path).
+    def _setup_deformable_bindings_ovstage(self) -> None:
+        """Bind the visual meshes declared by the clone plan."""
+        from isaaclab_newton.physics import NewtonManager
 
-        Args:
-            num_envs: Number of environments.
-        """
-        try:
-            from isaaclab_newton.physics import NewtonManager
-        except ImportError:
-            logger.debug("NewtonManager not available, skipping deformable body bindings")
-            return
-
-        # Early return if the deformable registry is empty.
-        deformable_registry = NewtonManager._deformable_registry
-        if not deformable_registry:
-            logger.debug("Deformable registry is empty, skipping deformable body bindings")
-            return
-
-        # Validate the number of particle offsets for each deformable entry upfront.
-        bad_entries = [entry for entry in deformable_registry if len(entry.particle_offsets) != num_envs]
-        if bad_entries:
-            details = "\n".join(
-                f"- '{entry.prim_path}' has {len(entry.particle_offsets)} particle offsets" for entry in bad_entries
-            )
-            raise RuntimeError(
-                f"OVRTX expects one particle offset per environment ({num_envs}), but the following "
-                f"deformable entries have a mismatched offset count:\n{details}"
-            )
-
-        self._deformable_particle_offsets = []
-        self._deformable_particle_counts = []
-
-        vis_mesh_prim_paths: list[str] = []
-
-        # Each registry entry is one deformable asset registered at spawn time. Its
-        # ``vis_mesh_prim_path`` uses a regex env wildcard (e.g. ``env_.*``) to denote one
-        # homogeneous visual mesh replicated into every environment, not a subset of envs.
-        # During replication, Newton appends one particle block per env in contiguous env order
-        # and records the start index in ``entry.particle_offsets``; ``particles_per_body`` is
-        # the block size. The inner loop therefore emits one OVRTX mesh binding per env,
-        # resolving the env wildcard with ``env_idx`` and pairing it with that env's slice in
-        # the flat ``particle_q`` array.
-        #
-        # This mapping is valid only while deformable registry entries remain homogeneous across
-        # all envs with dense, contiguous env ids. If deformables later support env subsets or
-        # non-contiguous env ids, OVRTX must consume explicit per-instance env metadata instead
-        # of deriving env ids from ``enumerate(entry.particle_offsets)``.
-        for entry in deformable_registry:
-            for idx, particle_offset in enumerate(entry.particle_offsets):
-                self._deformable_particle_offsets.append(particle_offset)
-                self._deformable_particle_counts.append(entry.particles_per_body)
-
-                vis_mesh_prim_paths.append(
-                    re.sub(r"(?<=[Ee]nv_)(?:\[\^/\][*+]|\.\*)", str(idx), entry.vis_mesh_prim_path)
-                )
-
+        vis_mesh_prim_paths, self._deformable_particle_offsets, self._deformable_particle_counts = (
+            NewtonManager.collect_deformable_bindings(self._clone_plan)
+        )
         prim_count = len(vis_mesh_prim_paths)
         if prim_count == 0:
             logger.warning("No deformable visual prim paths collected, skipping deformable body bindings")

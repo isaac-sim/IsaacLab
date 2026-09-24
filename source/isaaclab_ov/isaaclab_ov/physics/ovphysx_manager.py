@@ -28,14 +28,7 @@ from pxr import Sdf, UsdPhysics
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
-from isaaclab.scene_data.deformable_discovery import (
-    build_deformable_root_path_lookup,
-    build_deformable_vertex_count_lookup,
-    discover_deformables_on_stage,
-    group_deformable_root_paths_for_views,
-    resolve_deformable_root_path,
-    resolve_deformable_vertex_count,
-)
+from isaaclab.scene_data.deformable_discovery import deformable_entries
 from isaaclab.sim.simulation_context import SimulationContext
 
 from isaaclab_ov._clone import CloneTransform, clone_transforms_from_positions
@@ -48,6 +41,8 @@ from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
 from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR, OvPhysxBackendCfg
 
 if TYPE_CHECKING:
+    from isaaclab.cloner import ClonePlan
+
     from .ovphysx_manager_cfg import OvPhysxCfg
 
 __all__ = ["OvPhysxManager", "OvPhysxSceneDataBackend"]
@@ -100,10 +95,9 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         self.transforms_version = 0
         self._poses_version = -1
         self._points_data = SceneDataFormat.Points()
-        self._deformable_bindings: list[dict[str, Any]] = []
+        self._deformable_bindings: list[tuple[OvPhysxView, Any, wp.array]] = []
         self._geometry_paths: list[str] = []
         self._geometry_counts: list[int] = []
-        self._merged_points: wp.array | None = None
 
     @property
     def transform_count(self) -> int:
@@ -116,13 +110,14 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         """Concatenated ``prim_paths`` across all bindings, in registration order."""
         return [path for view, _ in self._rigid_bindings for path in view.prim_paths]
 
-    def setup(self, physx, stage, device: str) -> None:
+    def setup(self, physx, stage, device: str, plan: ClonePlan | None) -> None:
         """Discover RigidBodyAPI prims, dedup by env-wildcard form, create one binding per pattern.
 
         Args:
             physx: Live ``ovphysx.PhysX`` instance (the wheel handle).
             stage: USD stage to traverse for RigidBodyAPI prims.
             device: Warp device string used to allocate the published buffers.
+            plan: Clone plan supplying declared deformable geometry, or None for rigid-only scenes.
         """
         from isaaclab_ov import tensor_types as TT  # local: keep heavy ovphysx out of module load
 
@@ -132,7 +127,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         self._deformable_bindings = []
         self._geometry_paths = []
         self._geometry_counts = []
-        self._merged_points = None
+        self._points_data.points = None
 
         if stage is None:
             return
@@ -168,129 +163,59 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
                 self._rigid_bindings.append((view, buffer))
                 offset += view.count
 
-        self._setup_deformable_bindings(physx, stage, device)
+        if plan is not None:
+            self._setup_deformable_bindings(physx, plan, device)
 
-    def _setup_deformable_bindings(self, physx, stage, device: str) -> None:
-        """Discover deformable prims and wire OVPhysX nodal-position bindings.
-
-        Args:
-            physx: Active OVPhysX simulation handle.
-            stage: USD stage used for deformable discovery.
-            device: Warp device for nodal position read buffers.
-        """
+    def _setup_deformable_bindings(self, physx, plan: ClonePlan, device: str) -> None:
+        """Bind exact planned deformables directly into one flat publication buffer."""
         from isaaclab_ov import tensor_types as TT
-        from isaaclab_ov.assets.deformable_object.views import OvPhysxDeformableBodyView
 
-        entries = discover_deformables_on_stage(stage)
-        if not entries:
+        groups = {}
+        for entry in deformable_entries(plan):
+            groups.setdefault((entry.deformable_type, entry.vertex_count), []).append(entry)
+
+        views = []
+        for (deformable_type, count), entries in groups.items():
+            tensor_type = (
+                TT.DEFORMABLE_SIM_NODAL_POSITION if deformable_type == "volume" else TT.SURFACE_DEFORMABLE_SIM_POSITION
+            )
+            view = OvPhysxView(
+                physx,
+                prim_paths=[entry.root_path for entry in entries],
+                device=device,
+                tensor_types=[tensor_type],
+                eager=True,
+            )
+            by_path = {path: entry for entry in entries for path in (entry.root_path, entry.sim_mesh_path)}
+            ordered = [by_path[path] for path in view.prim_paths]
+            if sorted(entry.root_path for entry in ordered) != sorted(entry.root_path for entry in entries):
+                raise RuntimeError("OVPhysX deformable binding does not cover the declared clone-plan entries.")
+            if tuple(view.binding_for(tensor_type).shape) != (len(entries), count, 3):
+                raise RuntimeError("OVPhysX deformable node counts disagree with the clone plan.")
+            self._geometry_paths.extend(entry.root_path for entry in ordered)
+            self._geometry_counts.extend(entry.vertex_count for entry in ordered)
+            views.append((view, tensor_type, count))
+
+        if not views:
             return
-
-        path_to_count = build_deformable_vertex_count_lookup(entries)
-        path_to_root = build_deformable_root_path_lookup(entries)
-        path_to_type = {entry.root_path: entry.deformable_type for entry in entries}
-        grouped_paths = group_deformable_root_paths_for_views(list(path_to_type.keys()), path_to_type)
-
-        self._geometry_paths = []
-        self._geometry_counts = []
-        entity_offset = 0
-        for deformable_type in ("volume", "surface"):
-            if deformable_type == "volume":
-                sim_nodal_position_type = TT.DEFORMABLE_SIM_NODAL_POSITION
-                sim_element_indices_type = TT.DEFORMABLE_SIM_ELEMENT_INDICES
-                collision_element_indices_type = TT.DEFORMABLE_COLLISION_ELEMENT_INDICES
-                tensor_types = [
-                    sim_nodal_position_type,
-                    sim_element_indices_type,
-                    collision_element_indices_type,
-                ]
-            else:
-                sim_nodal_position_type = TT.SURFACE_DEFORMABLE_SIM_POSITION
-                sim_element_indices_type = TT.SURFACE_DEFORMABLE_SIM_ELEMENT_INDICES
-                collision_element_indices_type = None
-                tensor_types = [sim_nodal_position_type, sim_element_indices_type]
-
-            patterns, exact_paths = grouped_paths[deformable_type]
-            for pattern in [*patterns, *exact_paths]:
-                try:
-                    view = OvPhysxDeformableBodyView(
-                        physx,
-                        pattern=pattern,
-                        device=device,
-                        tensor_types=tensor_types,
-                        eager=True,
-                        simulation_nodal_position_type=sim_nodal_position_type,
-                        simulation_element_indices_type=sim_element_indices_type,
-                        collision_element_indices_type=collision_element_indices_type,
-                    )
-                except Exception as exc:
-                    logger.warning("Failed to create %s deformable binding for %s: %s", deformable_type, pattern, exc)
-                    continue
-                if view.count == 0:
-                    continue
-                max_nodes = view.max_simulation_nodes_per_body
-                position_buf = wp.zeros((view.count, max_nodes, 3), dtype=wp.float32, device=device)
-                self._deformable_bindings.append(
-                    {
-                        "pattern": pattern,
-                        "deformable_type": deformable_type,
-                        "view": view,
-                        "position_buf": position_buf,
-                        "sim_nodal_position_type": sim_nodal_position_type,
-                        "entity_offset": entity_offset,
-                        "entity_count": view.count,
-                    }
-                )
-                for path in view.prim_paths:
-                    # Prefer USD-discovered unpadded counts over padded max_nodes so
-                    # SceneData ↔ shadow particle_q slices stay size-aligned.
-                    resolved = resolve_deformable_vertex_count(path, path_to_count, fallback=-1)
-                    if resolved < 0:
-                        logger.warning(
-                            "No USD vertex count for deformable path '%s'; using padded "
-                            "max_simulation_nodes_per_body=%d.",
-                            path,
-                            max_nodes,
-                        )
-                        count = int(max_nodes)
-                    else:
-                        count = min(int(resolved), int(max_nodes))
-                    # Views may report a child mesh; publish the discovered root so
-                    # create_geometry_mapping matches shadow entity root_path exactly.
-                    self._geometry_paths.append(resolve_deformable_root_path(path, path_to_root))
-                    self._geometry_counts.append(count)
-                entity_offset += view.count
-
-        total_points = sum(self._geometry_counts)
-        if total_points > 0:
-            self._merged_points = wp.zeros(total_points, dtype=wp.vec3f, device=device)
+        self._points_data.points = wp.empty(sum(self._geometry_counts), dtype=wp.vec3f, device=device)
+        offset = 0
+        for view, tensor_type, count in views:
+            buffer = wp.array(
+                ptr=self._points_data.points.ptr + offset * wp.types.type_size_in_bytes(wp.vec3f),
+                shape=(view.count, count),
+                dtype=wp.vec3f,
+                device=device,
+                copy=False,
+            )
+            self._deformable_bindings.append((view, tensor_type, buffer))
+            offset += view.count * count
 
     @property
     def points(self) -> SceneDataFormat.Points:
-        """Return flattened OVPhysX deformable nodal positions."""
-        from isaaclab.scene_data.geometry_points import pack_body_nodal_slices
-
-        if self._merged_points is None or not self._deformable_bindings:
-            self._points_data.points = None
-            return self._points_data
-
-        write_offset = 0
-        path_index = 0
-        device = str(self._merged_points.device)
-        for entry in self._deformable_bindings:
-            view = entry["view"]
-            view.read_into(entry["sim_nodal_position_type"], entry["position_buf"])
-            nodal = entry["position_buf"].view(wp.vec3f).reshape((view.count, -1))
-            view_counts = [self._geometry_counts[path_index + body_idx] for body_idx in range(view.count)]
-            pack_body_nodal_slices(
-                nodal,
-                self._merged_points,
-                view_counts,
-                device=device,
-                dest_base_offset=write_offset,
-            )
-            write_offset += sum(int(count) for count in view_counts)
-            path_index += view.count
-        self._points_data.points = self._merged_points
+        """Read OVPhysX nodal positions directly into their flat publication slices."""
+        for view, tensor_type, buffer in self._deformable_bindings:
+            view.read_into(tensor_type, buffer)
         return self._points_data
 
     @property
@@ -1004,7 +929,7 @@ class OvPhysxManager(PhysicsManager):
         # via :meth:`get_scene_data_backend`.
         if cls._scene_data_backend is None:
             cls._scene_data_backend = OvPhysxSceneDataBackend()
-        cls._scene_data_backend.setup(cls.backend.physx, sim.stage, PhysicsManager._device)
+        cls._scene_data_backend.setup(cls.backend.physx, sim.stage, PhysicsManager._device, sim.get_clone_plan())
 
         cls.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
         cls._warmup_done = True

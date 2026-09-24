@@ -28,8 +28,8 @@ from pxr import Gf as UsdGf
 from pxr import UsdGeom
 from usdrt import Gf, Rt
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import AssetBaseCfg, CableObjectCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
@@ -337,13 +337,14 @@ def test_periodic_cable_is_skipped_by_fabric_sync():
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        cable_cfg = _CableRenderSceneCfg(num_envs=1, env_spacing=1.0).cable.spawn
-        cable_cfg.func("/World/Cable", cable_cfg)
+        cable_cfg = AssetBaseCfg(
+            prim_path="/World/Cable", spawn=_CableRenderSceneCfg(num_envs=1, env_spacing=1.0).cable.spawn
+        )
+        plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (cable_cfg,), 1, 0.0)
+        sim.stage.DefinePrim(plan.sources[0], "Xform")
+        cable_cfg.class_type(cable_cfg)
         curve = UsdGeom.BasisCurves(sim_utils.get_current_stage().GetPrimAtPath("/World/Cable/geometry/mesh"))
         curve.GetWrapAttr().Set(UsdGeom.Tokens.periodic)
-
-        plan = cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cable",))
-        sim.set_clone_plan(plan)
         cloner.replicate(plan)
         sim.reset()
 

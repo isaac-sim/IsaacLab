@@ -7,10 +7,14 @@ import math
 import sys
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import warp as wp
 from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableMaterialCfg
+
+from isaaclab.cloner import ClonePlan
+from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
 
 from isaaclab_contrib.deformable import DeformableObject
 from isaaclab_contrib.deformable.deformable_object import (
@@ -30,21 +34,16 @@ class _FakeBuilder:
         self.particle_count += len(kwargs["vertices"])
 
 
-class _FakePath:
-    def __init__(self, path: str):
-        self.pathString = path
-
-
 class _FakePrim:
-    def __init__(self, path: str, *, valid: bool = True):
-        self._path = path
+    def __init__(self, *, valid: bool = True):
         self._valid = valid
+        self.attributes = {}
 
     def IsValid(self) -> bool:
         return self._valid
 
-    def GetPath(self) -> _FakePath:
-        return _FakePath(self._path)
+    def CreateAttribute(self, name, *_args):
+        return SimpleNamespace(IsValid=lambda: True, Set=lambda value: self.attributes.__setitem__(name, value))
 
 
 class _FakeStage:
@@ -52,7 +51,7 @@ class _FakeStage:
         self._prims = prims
 
     def GetPrimAtPath(self, path: str) -> _FakePrim:
-        return self._prims.get(path, _FakePrim(path, valid=False))
+        return self._prims.get(path, _FakePrim(valid=False))
 
 
 def _make_surface_entry() -> DeformableRegistryEntry:
@@ -131,14 +130,26 @@ def test_builder_hook_resets_entry_offsets_on_first_environment():
     assert entry.particles_per_body == 3
 
 
-def test_fabric_particle_sync_skips_missing_fabric_prim(monkeypatch):
-    """Test that missing Fabric prims are skipped before attributes are authored."""
+@pytest.mark.parametrize("available", [False, True])
+def test_fabric_particle_sync_uses_planned_paths_and_skips_missing_sinks(monkeypatch, available):
+    """Fabric bindings use actual plan IDs, even when no corresponding USD clone exists."""
     entry = _make_surface_entry()
-    entry.particle_offsets = [7]
+    entry.prim_path = "/Scene/copy_[^/]+/cloth"
+    entry.particle_offsets = [7, 19]
     entry.particles_per_body = 3
-    resolved_path = "/World/envs/env_0/cloth/mesh"
+    plan = ClonePlan(
+        sources=("/Source",),
+        destinations=("/Scene/copy_{}",),
+        clone_mask=np.array([[True, False, True]]),
+        env_ids=np.array([7, 12, 42]),
+        deformables={
+            None: (),
+            0: (DeformableStageEntry("/Source/cloth", "/Source/cloth/mesh", "/Source/cloth/mesh", "surface", 3, 3),),
+        },
+    )
+    paths = [f"/Scene/copy_{env_id}/cloth/mesh" for env_id in (7, 42)]
 
-    class _FakeManager:
+    class _FakeManager(NewtonManager):
         _clone_physics_only = False
         _deformable_registry = [entry]
         marked = False
@@ -152,12 +163,8 @@ def test_fabric_particle_sync_skips_missing_fabric_prim(monkeypatch):
         def sync_particles_to_usd(cls):
             cls.synced = True
 
-    usd_stage = _FakeStage({resolved_path: _FakePrim(resolved_path)})
-    fabric_stage = _FakeStage({})
-
-    monkeypatch.setattr(
-        "isaaclab.sim.utils.stage.get_current_stage", lambda fabric=False: fabric_stage if fabric else usd_stage
-    )
+    fabric_stage = _FakeStage({path: _FakePrim() for path in paths} if available else {})
+    monkeypatch.setattr("isaaclab.sim.SimulationContext.instance", lambda: SimpleNamespace(get_clone_plan=lambda: plan))
     monkeypatch.setattr(NewtonManager, "_usdrt_stage", fabric_stage)
     monkeypatch.setitem(
         sys.modules, "usdrt", SimpleNamespace(Sdf=SimpleNamespace(ValueTypeNames=SimpleNamespace(UInt=object())))
@@ -165,5 +172,11 @@ def test_fabric_particle_sync_skips_missing_fabric_prim(monkeypatch):
 
     setup_registered_deformable_fabric_sync(_FakeManager)
 
-    assert not _FakeManager.marked
-    assert not _FakeManager.synced
+    assert _FakeManager.marked is available
+    assert _FakeManager.synced is available
+    if available:
+        for path, offset in zip(paths, entry.particle_offsets, strict=True):
+            assert fabric_stage.GetPrimAtPath(path).attributes == {
+                NewtonManager._newton_particle_offset_attr: offset,
+                NewtonManager._newton_particle_count_attr: entry.particles_per_body,
+            }

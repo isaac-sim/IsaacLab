@@ -10,6 +10,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from pxr import Usd, UsdGeom
+
 import isaaclab.cloner.clone_plan as clone_plan
 import isaaclab.cloner.replicate_session as replicate_session
 from isaaclab.assets import AssetBaseCfg
@@ -41,11 +43,13 @@ def simulation(monkeypatch):
         clone_contexts={},
         _backend_registry=registry,
         _render_context=RenderContext(registry),
-        stage=object(),
+        stage=Usd.Stage.CreateInMemory(),
         plan=None,
         calls=[],
     )
     sim.render_context = sim._render_context
+    for path in ("/World/envs/env_0", "/World/Ground", "/Lab/Cell0", "/Lab/Ground"):
+        UsdGeom.Xform.Define(sim.stage, path)
     sim.get_or_create_backend = lambda cfg: SimulationContext.get_or_create_backend(sim, cfg)
     sim.clone_contexts[_Context] = _Context(sim)
     sim.get_clone_plan = lambda: sim.plan
@@ -164,7 +168,7 @@ def test_grid_transforms_always_returns_float32():
 
 
 def test_replicate_dispatches_the_same_plan_in_priority_order(simulation):
-    """Registered contexts receive one shared plan in backend priority order."""
+    """Registered contexts receive one shared, geometry-complete plan in backend priority order."""
 
     class Late(_Context):
         replicate_priority = 1
@@ -172,7 +176,12 @@ def test_replicate_dispatches_the_same_plan_in_priority_order(simulation):
     class Early(_Context):
         replicate_priority = -1
 
+        def replicate(self, plan):
+            assert plan.point_clouds[0] == (("/World/envs/env_0/Particles", 1),)
+            super().replicate(plan)
+
     plan = _plan(Late, Early)
+    UsdGeom.Points.Define(simulation.stage, "/World/envs/env_0/Particles").CreatePointsAttr([(0.0, 0.0, 0.0)])
     simulation.physics_manager.clone_context_type = Late
     simulation.clone_contexts = {Late: Late(simulation), Early: Early(simulation)}
     simulation.plan = plan

@@ -19,8 +19,8 @@ from newton import ModelBuilder
 from pxr import Usd
 
 from isaaclab.cloner import ClonePlan
+from isaaclab.cloner.geometry import compile_geometry
 from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.scene_data.deformable_discovery import discover_deformables_on_stage
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 from isaaclab_newton.cloner.newton_clone_utils import (
@@ -144,7 +144,7 @@ def _replicate_newton(
                         ignore_paths.append(path)
         global_ignore_paths.extend(ignore_paths)
     else:
-        entries = discover_deformables_on_stage(stage, root_paths=(*sources, *plan.global_paths))
+        entries = [entry for row in (None, *rows) for entry in plan.deformables[row]]
         ignore_paths = list(
             dict.fromkeys(
                 path for entry in entries for path in (entry.root_path, entry.sim_mesh_path, entry.vis_mesh_path)
@@ -237,7 +237,7 @@ def _replicate_newton(
         NewtonManager.set_builder(builder)
         NewtonManager._num_envs = len(plan.env_ids)
     else:
-        geometry = add_shadow_deformables_to_builder(builder, stage, entries, plan, rows, device=sim.device)
+        geometry = add_shadow_deformables_to_builder(builder, plan, rows, device=sim.device)
         backend_cfg = NewtonBackendCfg(builder=builder, device=sim.device, num_envs=len(plan.env_ids), simulation=False)
         sim.physics_manager.register_callback(
             partial(NewtonManager._initialize_visualization_model, backend_cfg, geometry),
@@ -300,6 +300,7 @@ def newton_physics_replicate(
         positions=positions,
         global_paths=global_paths,
     )
+    compile_geometry(plan, stage)
     builder, stage_info, _ = _replicate_newton(
         stage, plan, tuple(range(len(sources))), PhysicsManager._sim, up_axis=up_axis, quaternions=quaternions
     )

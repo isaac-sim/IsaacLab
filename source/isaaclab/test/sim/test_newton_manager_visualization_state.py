@@ -14,17 +14,21 @@ import numpy as np
 import pytest
 
 from isaaclab.cloner import ClonePlan
-from isaaclab.scene_data.deformable_discovery import discover_deformables_on_stage
+from isaaclab.cloner.geometry import compile_geometry
 
 pytestmark = pytest.mark.integration
 
-_SINGLE_ENV_PLAN = ClonePlan(
-    sources=("/World/envs/env_0",),
-    destinations=("/World/envs/env_{}",),
-    clone_mask=np.ones((1, 1), dtype=np.bool_),
-    env_ids=np.arange(1),
-    positions=np.zeros((1, 3), dtype=np.float32),
-)
+
+def _single_env_plan(stage):
+    plan = ClonePlan(
+        sources=("/World/envs/env_0",),
+        destinations=("/World/envs/env_{}",),
+        clone_mask=np.ones((1, 1), dtype=np.bool_),
+        env_ids=np.arange(1),
+        positions=np.zeros((1, 3), dtype=np.float32),
+    )
+    compile_geometry(plan, stage)
+    return plan
 
 
 def _reset_newton_manager_state():
@@ -301,6 +305,7 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
     assert NewtonManager.get_state() is None
     build.assert_not_called()
 
+    compile_geometry(plan, sim.stage)
     builder, _, _ = context.replicate(plan)
     assert isinstance(builder, ModelBuilder)
     build.assert_called_once_with(sim.stage, plan, (0,), sim, up_axis="Z")
@@ -662,8 +667,7 @@ def test_shadow_deformable_volume_remap_registers_ovrtx_with_vis_mesh(monkeypatc
 
     stage = _make_volume_soft_stage()
     builder = _FakeShadowBuilder(cloth_delta=1, soft_delta=4)
-    entries = discover_deformables_on_stage(stage, root_paths=_SINGLE_ENV_PLAN.sources)
-    flat_entities, registry_groups = add_shadow_deformables_to_builder(builder, stage, entries, _SINGLE_ENV_PLAN, (0,))
+    flat_entities, registry_groups = add_shadow_deformables_to_builder(builder, _single_env_plan(stage), (0,))
 
     assert builder.cloth_calls == 1
     assert builder.soft_calls == 0
@@ -683,10 +687,7 @@ def test_shadow_deformable_volume_remap_failure_falls_back_to_soft_mesh(monkeypa
     stage = _make_volume_soft_stage()
     monkeypatch.setattr(vd, "_build_volume_vis_remap", lambda entry, device: None)
     builder = _FakeShadowBuilder(cloth_delta=1, soft_delta=4)
-    entries = discover_deformables_on_stage(stage, root_paths=_SINGLE_ENV_PLAN.sources)
-    flat_entities, registry_groups = vd.add_shadow_deformables_to_builder(
-        builder, stage, entries, _SINGLE_ENV_PLAN, (0,)
-    )
+    flat_entities, registry_groups = vd.add_shadow_deformables_to_builder(builder, _single_env_plan(stage), (0,))
 
     assert builder.cloth_calls == 0
     assert builder.soft_calls == 1
@@ -701,31 +702,15 @@ def test_shadow_deformable_placement_uses_parent_pose_not_root(monkeypatch):
     """Parent-frame baked verts must be placed with the parent world pose."""
     from isaaclab_newton.physics import visualization_deformables as vd
 
-    from pxr import Gf, Usd, UsdGeom
+    from pxr import Gf, UsdGeom
 
-    from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
-
-    stage = Usd.Stage.CreateInMemory()
-    parent = UsdGeom.Xform.Define(stage, "/World/envs/env_0")
+    stage = _make_surface_cloth_stage("/World/envs/env_0/ClothRoot/mesh")
+    parent = UsdGeom.Xform(stage.GetPrimAtPath("/World/envs/env_0/ClothRoot"))
     parent.AddTranslateOp().Set(Gf.Vec3d(10.0, 0.0, 0.0))
-    root = UsdGeom.Xform.Define(stage, "/World/envs/env_0/ClothRoot")
+    root = UsdGeom.Mesh(stage.GetPrimAtPath("/World/envs/env_0/ClothRoot/mesh"))
     root.AddTranslateOp().Set(Gf.Vec3d(2.0, 0.0, 0.0))
-    UsdGeom.Mesh.Define(stage, "/World/envs/env_0/ClothRoot/mesh")
-
-    entry = DeformableStageEntry(
-        root_path="/World/envs/env_0/ClothRoot",
-        sim_mesh_path="/World/envs/env_0/ClothRoot/mesh",
-        vis_mesh_path="/World/envs/env_0/ClothRoot/mesh",
-        deformable_type="surface",
-        vertex_count=3,
-        vis_vertex_count=3,
-        vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
-        indices=[0, 1, 2],
-        vis_vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
-        vis_indices=[0, 1, 2],
-    )
     builder = _FakeShadowBuilder(cloth_delta=3, reject_soft=True)
-    vd.add_shadow_deformables_to_builder(builder, stage, [entry], _SINGLE_ENV_PLAN, (0,))
+    vd.add_shadow_deformables_to_builder(builder, _single_env_plan(stage), (0,))
 
     # Parent world translation is (10,0,0); root's extra (2,0,0) must not be used as placement.
     assert tuple(float(v) for v in builder.captured["pos"]) == (10.0, 0.0, 0.0)
@@ -769,6 +754,7 @@ def test_clone_visualization_builder_imports_only_declared_global_deformables(mo
 
     monkeypatch.setattr(ModelBuilder, "add_usd", import_usd)
 
+    compile_geometry(clone_plan, stage)
     builder, _, _ = NewtonReplicateContext(sim).replicate(clone_plan)
     callback = sim.physics_manager.register_callback.call_args.args[0]
     shadow_entities, registry_groups = callback.args[1]

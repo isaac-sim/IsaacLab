@@ -186,52 +186,36 @@ def setup_registered_deformable_fabric_sync(manager_cls: type[SimulationManager]
     if manager_cls._clone_physics_only or not manager_cls._deformable_registry:
         return
 
-    import re
-
     import usdrt
 
-    from isaaclab.sim.utils.stage import get_current_stage
-
     if SimulationManager._usdrt_stage is None:
-        SimulationManager._usdrt_stage = get_current_stage(fabric=True)
+        SimulationManager._usdrt_stage = sim_utils.get_current_stage(fabric=True)
     fabric_stage = SimulationManager._usdrt_stage
     if fabric_stage is None:
         logger.warning("[setup_fabric_particle_sync] Fabric stage is unavailable.")
         return
 
-    stage = get_current_stage()
     synced_any = False
-    for entry in manager_cls._deformable_registry:
-        for inst_idx, offset in enumerate(entry.particle_offsets):
-            resolved_vis = re.sub(r"(?<=[Ee]nv_)(?:\[\^/\][*+]|\.\*)", str(inst_idx), entry.vis_mesh_prim_path)
-            # any wildcard left over stands for the instance too, in whichever way it is spelled
-            resolved_vis = re.sub(r"\[\^/\][*+]|\.\*", str(inst_idx), resolved_vis)
-            vis_prim = stage.GetPrimAtPath(resolved_vis)
+    layout = manager_cls.collect_deformable_bindings(sim_utils.SimulationContext.instance().get_clone_plan())
+    for path, offset, count in zip(*layout, strict=True):
+        fab_prim = fabric_stage.GetPrimAtPath(path)
+        if not fab_prim or not fab_prim.IsValid():
+            logger.warning("[setup_fabric_particle_sync] Fabric prim not found at %s", path)
+            continue
 
-            if not vis_prim or not vis_prim.IsValid():
-                logger.warning("[setup_fabric_particle_sync] vis prim not found at %s", resolved_vis)
-                continue
+        offset_attr = fab_prim.CreateAttribute(
+            SimulationManager._newton_particle_offset_attr, usdrt.Sdf.ValueTypeNames.UInt, True
+        )
+        count_attr = fab_prim.CreateAttribute(
+            SimulationManager._newton_particle_count_attr, usdrt.Sdf.ValueTypeNames.UInt, True
+        )
+        if not offset_attr.IsValid() or not count_attr.IsValid():
+            logger.warning("[setup_fabric_particle_sync] Fabric particle attributes not created at %s", path)
+            continue
 
-            fab_prim = fabric_stage.GetPrimAtPath(vis_prim.GetPath().pathString)
-            if not fab_prim or not fab_prim.IsValid():
-                logger.warning("[setup_fabric_particle_sync] Fabric prim not found at %s", resolved_vis)
-                continue
-
-            offset_attr = fab_prim.CreateAttribute(
-                SimulationManager._newton_particle_offset_attr, usdrt.Sdf.ValueTypeNames.UInt, True
-            )
-            count_attr = fab_prim.CreateAttribute(
-                SimulationManager._newton_particle_count_attr, usdrt.Sdf.ValueTypeNames.UInt, True
-            )
-            if not offset_attr.IsValid() or not count_attr.IsValid():
-                logger.warning(
-                    "[setup_fabric_particle_sync] Fabric particle attributes not created at %s", resolved_vis
-                )
-                continue
-
-            offset_attr.Set(int(offset))
-            count_attr.Set(int(entry.particles_per_body))
-            synced_any = True
+        offset_attr.Set(int(offset))
+        count_attr.Set(int(count))
+        synced_any = True
 
     if synced_any:
         manager_cls._mark_particles_dirty()

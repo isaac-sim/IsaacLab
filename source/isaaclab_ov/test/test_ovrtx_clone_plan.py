@@ -547,7 +547,7 @@ def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_a
     renderer.backend.renderer.bind_attribute = lambda **_kwargs: object()
     renderer.backend.renderer.write_attribute = lambda **_kwargs: None
     renderer._setup_xform_bindings_legacy = lambda: None
-    renderer._setup_deformable_bindings_legacy = lambda _num_envs: None
+    renderer._setup_deformable_bindings_legacy = lambda: None
 
     spec = _make_camera_render_spec(num_envs=num_envs)
     render_data = OVRTXCameraRenderData(spec, "cpu", render_scope_name="RenderCamera_0")
