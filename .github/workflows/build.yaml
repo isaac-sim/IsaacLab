@@ -529,7 +529,6 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_contrib"
-        pytest-workers: "4"
         container-name: isaac-lab-contrib-test
 
   test-isaaclab-teleop:
@@ -551,7 +550,6 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_teleop"
-        pytest-workers: "4"
         container-name: isaac-lab-teleop-test
 
   test-isaaclab-visualizers:
@@ -661,7 +659,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_physx"
-        pytest-workers: "4"
+        pytest-workers: "2"
         container-name: isaac-lab-physx-test
 
   test-isaaclab-ov:
