@@ -1807,9 +1807,11 @@ class ArticulationData(BaseArticulationData):
         if self._num_fixed_tendons > 0:
             self._fixed_tendon_stiffness = wp.clone(self._sim_bind_fixed_tendon_stiffness)
             self._fixed_tendon_damping = wp.clone(self._sim_bind_fixed_tendon_damping)
+            self._fixed_tendon_pos_limits = wp.clone(self._sim_bind_fixed_tendon_pos_limits)
         else:
             self._fixed_tendon_stiffness = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
             self._fixed_tendon_damping = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            self._fixed_tendon_pos_limits = wp.zeros((self._num_instances, 0), dtype=wp.vec2f, device=self.device)
         # Unlike the properties above this is a per-step command, so it starts at zero rather than
         # cloning a sim binding: MuJoCo holds the tendon's control in its own array, not on the tendon.
         self._fixed_tendon_position_target = wp.zeros(
