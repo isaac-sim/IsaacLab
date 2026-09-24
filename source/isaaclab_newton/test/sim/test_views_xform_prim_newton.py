@@ -13,7 +13,7 @@ the world-attached prim edge case.
 import sys
 from pathlib import Path
 
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test" / "sim"))
@@ -108,7 +108,7 @@ def view_factory():
 # ==================================================================
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_reject_body_and_shape_paths(device):
     """FrameView rejects prim paths that resolve to a Newton physics body or collision shape."""
     ctx = _sim_context(device, num_envs=2)
@@ -127,7 +127,7 @@ def test_reject_body_and_shape_paths(device):
     ctx.__exit__(None, None, None)
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_non_colliding_shapes_after_finalize(device):
     """Non-colliding site and visual shapes remain valid after finalization."""
     ctx = _sim_context(device, num_envs=1)
@@ -188,7 +188,7 @@ def test_body_local_frame_resolves_before_and_after_reset(device):
     ctx.__exit__(None, None, None)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_close_before_reset_cancels_deferred_initialization(device):
     """A view closed before the Newton model exists must not initialize on ``PHYSICS_READY``."""
     num_envs = 3

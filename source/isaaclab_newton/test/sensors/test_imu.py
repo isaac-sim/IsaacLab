@@ -12,11 +12,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
 import torch
-import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.imu import Imu, ImuCfg
 from isaaclab.sim import SimulationCfg
@@ -113,35 +112,6 @@ def test_at_rest_measures_gravity_and_zero_angular_velocity(sim):
     torch.testing.assert_close(ang_vel, torch.zeros_like(ang_vel), atol=0.1, rtol=0.0)
 
 
-def test_reset(sim):
-    """Test that reset zeroes out IMU data."""
-    scene_cfg = ImuTestSceneCfg(num_envs=2)
-    scene = InteractiveScene(scene_cfg)
-    sim.reset()
-
-    # Step enough for the cube to settle on the ground so the accelerometer reads gravity.
-    # The cube falls from z=1.0 (bottom at z=0.9) and reaches the ground in ~86 steps
-    # at 200 Hz; 200 steps gives time to settle after impact.
-    for _ in range(200):
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    imu: Imu = scene["imu"]
-
-    lin_acc = imu.data.lin_acc_b.torch
-    assert torch.any(lin_acc != 0), "Expected non-zero data before reset"
-
-    imu.reset()
-
-    # Access internal buffers directly: accessing imu.data triggers lazy re-evaluation
-    # which re-fills from the Newton sensor, so we check the raw buffers instead.
-    ang_vel_after = wp.to_torch(imu._data._ang_vel_b)
-    lin_acc_after = wp.to_torch(imu._data._lin_acc_b)
-
-    torch.testing.assert_close(ang_vel_after, torch.zeros_like(ang_vel_after))
-    torch.testing.assert_close(lin_acc_after, torch.zeros_like(lin_acc_after))
-
-
 @configclass
 class FreefallSceneCfg(InteractiveSceneCfg):
     """Scene with a rigid cube and IMU but no ground plane (freefall)."""
@@ -190,35 +160,40 @@ def test_freefall_acceleration(sim):
 
 
 def test_no_stale_data_after_scene_reset(sim):
-    """Regression for #4970: ``scene.reset(env_ids)`` must not surface pre-reset IMU values (Newton).
+    """Regression for #4970: resets must not surface pre-reset IMU values (Newton).
 
-    Mirrors the PhysX equivalent. Reproduces the ``ManagerBasedRLEnv._reset_idx`` flow where
-    reset runs inside a step without a subsequent physics step; the IMU sensor's lazy ``data``
-    accessor must not refetch from the Newton rigid-body view here (the velocity buffer reflects
-    the previous step and would produce a spurious finite-difference acceleration).
+    Reproduces the ``ManagerBasedRLEnv._reset_idx`` flow, where reset runs inside a step without a
+    subsequent physics step: Newton's accelerometer still holds the pre-reset reading, so the public
+    ``data`` accessor must return the zeroed buffers instead of refetching it. The cube rests on the
+    ground first so the stale reading (gravity, ~9.81 m/s^2) is distinguishable from a reset one.
     """
-    scene_cfg = ImuTestSceneCfg(num_envs=1)
+    scene_cfg = ImuTestSceneCfg(num_envs=2)
     scene = InteractiveScene(scene_cfg)
     sim.reset()
     scene.reset()
 
     imu: Imu = scene["imu"]
-    cube: RigidObject = scene["cube"]
 
-    # Let the cube fall so the rigid-body view accumulates a non-zero velocity.
-    for _ in range(30):
+    # The cube falls from z=1.0 (bottom at z=0.9) and lands in ~86 steps at 200 Hz; 200 steps let it settle.
+    for _ in range(200):
         scene.write_data_to_sim()
         sim.step(render=False)
         scene.update(dt=sim.get_physics_dt())
 
-    # Reset the scene without writing fresh velocity/transform. The Newton velocity
-    # buffer therefore still holds the pre-reset (falling) value.
-    env_ids = torch.tensor([0], device=cube.device)
-    scene.reset(env_ids=env_ids)
+    pre_reset_lin_acc = imu.data.lin_acc_b.torch.clone()
+    assert (pre_reset_lin_acc[:, 2] > 5.0).all(), f"Expected a settled gravity reading, got {pre_reset_lin_acc}"
 
-    # The public ``data`` accessor must not refetch a stale physics buffer; ``reset()`` zeroes
-    # ``_lin_acc_b`` / ``_ang_vel_b`` and those must be what comes out here.
-    post_reset_lin_acc = imu.data.lin_acc_b.torch
-    post_reset_ang_vel = imu.data.ang_vel_b.torch
-    torch.testing.assert_close(post_reset_lin_acc, torch.zeros_like(post_reset_lin_acc))
-    torch.testing.assert_close(post_reset_ang_vel, torch.zeros_like(post_reset_ang_vel))
+    # Partial reset: env 0 reads zeros, env 1 keeps its measurement.
+    scene.reset(env_ids=torch.tensor([0], device=imu.device))
+    lin_acc = imu.data.lin_acc_b.torch
+    ang_vel = imu.data.ang_vel_b.torch
+    torch.testing.assert_close(lin_acc[0], torch.zeros_like(lin_acc[0]))
+    torch.testing.assert_close(ang_vel[0], torch.zeros_like(ang_vel[0]))
+    torch.testing.assert_close(lin_acc[1], pre_reset_lin_acc[1])
+
+    # Full reset zeroes every environment.
+    imu.reset()
+    lin_acc = imu.data.lin_acc_b.torch
+    ang_vel = imu.data.ang_vel_b.torch
+    torch.testing.assert_close(lin_acc, torch.zeros_like(lin_acc))
+    torch.testing.assert_close(ang_vel, torch.zeros_like(ang_vel))

@@ -10,7 +10,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
-from isaaclab.test.utils import resolve_test_sim_device, test_devices
+from isaaclab.test.utils import DeviceScope, resolve_test_sim_device, test_devices
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
@@ -516,6 +516,44 @@ def test_reset_rigid_object(num_cubes, device):
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
+def test_rigid_body_set_material_properties(num_cubes, device):
+    """Test getting and setting material properties of rigid object via view-level APIs."""
+    with _newton_sim_context(device, gravity_enabled=True, add_ground_plane=True, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        # Generate cubes scene
+        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
+
+        # Play sim
+        sim.reset()
+
+        # Get friction/restitution bindings via view-level API
+        model = SimulationManager.get_model()
+        friction_binding = cube_object._root_view.get_attribute("shape_material_mu", model)[:, 0]
+        restitution_binding = cube_object._root_view.get_attribute("shape_material_restitution", model)[:, 0]
+        num_shapes = friction_binding.shape[1]
+
+        # Set material properties via in-place writes to the warp binding
+        friction = torch.empty(num_cubes, num_shapes, device=device).uniform_(0.4, 0.8)
+        restitution = torch.empty(num_cubes, num_shapes, device=device).uniform_(0.0, 0.2)
+
+        wp.to_torch(friction_binding)[:] = friction
+        wp.to_torch(restitution_binding)[:] = restitution
+        SimulationManager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
+
+        # Simulate physics
+        sim.step()
+        cube_object.update(sim.cfg.dt)
+
+        # Verify by reading back from the binding
+        mu = wp.to_torch(friction_binding)
+        restitution_check = wp.to_torch(restitution_binding)
+        torch.testing.assert_close(mu, friction)
+        torch.testing.assert_close(restitution_check, restitution)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("num_cubes", [2])
+@pytest.mark.parametrize("device", test_devices())
 def test_rigid_body_set_mass(num_cubes, device):
     """Test that selected mass writes update inverse mass and inertia across static transitions."""
     with _newton_sim_context(device, gravity_enabled=False, auto_add_lighting=True) as sim:
@@ -633,7 +671,7 @@ def test_gravity_vec_w(num_cubes, device, gravity_enabled):
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_cubes", [3])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_gravity_vec_w_tracks_model_gravity(num_cubes, device):
     """Per-env mutations to Newton's ``model.gravity`` reach ``GRAVITY_VEC_W`` and ``projected_gravity_b``.
 
