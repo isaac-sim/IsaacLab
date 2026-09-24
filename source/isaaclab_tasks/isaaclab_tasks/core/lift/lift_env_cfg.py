@@ -97,6 +97,9 @@ class ObjectCfg(PresetCfg):
         mass_props=sim_utils.MassCfg(mass=0.2),
     )
     default = shapes
+    # The automatic PhysX selector may resolve to kitless OvPhysX, whose fast
+    # replication path currently supports only the homogeneous object setup.
+    physx = cube
     ovphysx = cube
 
 
@@ -439,6 +442,12 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     action_l2 = RewTerm(func=mdp.action_l2, weight=-0.01)
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-4)
+    joint_vel = RewTerm(
+        func=mdp.joint_vel_l2,
+        weight=-1e-4,
+        params={"asset_cfg": SceneEntityCfg("robot")},
+    )
 
     fingers_to_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.4}, weight=0.05)
 

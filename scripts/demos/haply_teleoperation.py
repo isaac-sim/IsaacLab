@@ -185,7 +185,7 @@ class FrankaHaplySceneCfg(InteractiveSceneCfg):
     )
 
     left_finger_contact_sensor = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/panda_leftfinger",
+        prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_leftfinger",
         update_period=0.0,
         history_length=3,
         debug_vis=True,
@@ -193,7 +193,7 @@ class FrankaHaplySceneCfg(InteractiveSceneCfg):
     )
 
     right_finger_contact_sensor = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/panda_rightfinger",
+        prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_rightfinger",
         update_period=0.0,
         history_length=3,
         debug_vis=True,

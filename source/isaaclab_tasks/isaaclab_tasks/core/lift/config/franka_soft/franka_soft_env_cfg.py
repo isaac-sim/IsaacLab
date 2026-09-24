@@ -48,7 +48,7 @@ from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerP
 from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
-from isaaclab_assets.robots.franka import FRANKA_PANDA_MENAGERIE_CFG
+from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
 
 from ... import mdp
 
@@ -56,7 +56,12 @@ from ... import mdp
 # Scene assets
 ##
 
-# shared volume material parameters; the Newton configuration uses the equivalent Lame parameters
+##
+# Helpers
+##
+
+
+# Shared volume material parameters. The Newton config below uses the equivalent Lame parameters.
 YOUNGS_MODULUS = 2e5
 POISSONS_RATIO = 0.3
 
@@ -190,12 +195,12 @@ class PhysicsCfg(PresetCfg):
 class FrankaSoftBaseSceneCfg(InteractiveSceneCfg):
     """Scene for the Franka deformable environment, also the base of the cloth and cable scenes."""
 
-    robot: ArticulationCfg = FRANKA_PANDA_MENAGERIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    robot.spawn.variants = preset(
-        default={"Physics": "mujoco"},
-        isaacsim_physx={"Physics": "physx"},
-        physx={"Physics": "physx"},
-    )
+    robot: ArticulationCfg = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    # Deformable contact is restricted to the hand and fingertips for throughput.
+    robot.spawn.variants = {
+        "Physics": preset(default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx"),
+        "Colliders": "gripper_only",
+    }
 
     # end-effector frame for reward shaping
     ee_frame: FrameTransformerCfg = FrameTransformerCfg(
@@ -257,6 +262,7 @@ class FrankaSoftBaseSceneCfg(InteractiveSceneCfg):
                     "panda_joint6": 25.0,
                     "panda_joint7": 15.0,
                 },
+                viscous_friction=0.0,
                 armature={
                     "panda_joint[1-2]": 0.6057,
                     "panda_joint[3-4]": 0.4625,
@@ -270,6 +276,7 @@ class FrankaSoftBaseSceneCfg(InteractiveSceneCfg):
                 joint_velocity_limit=2.0,
                 stiffness=350.0,
                 damping=175.0,
+                viscous_friction=0.0,
                 armature=0.1,
             ),
             "panda_finger2_passive": ImplicitActuatorCfg(
@@ -279,6 +286,7 @@ class FrankaSoftBaseSceneCfg(InteractiveSceneCfg):
                 joint_velocity_limit=2.0,
                 stiffness=0.0,
                 damping=0.0,
+                viscous_friction=0.0,
                 armature=0.1,
             ),
         }

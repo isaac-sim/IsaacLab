@@ -182,7 +182,7 @@ def spawn_franka_with_arm_collisions(
     orientation: tuple[float, float, float, float] | None = None,
     **kwargs,
 ):
-    """Spawn the canonical Franka with the intended mimic and arm-collision schemas."""
+    """Spawn the canonical Franka with writable convex-hull arm colliders."""
     from pxr import Usd, UsdPhysics  # noqa: PLC0415
 
     robot_prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
@@ -190,29 +190,6 @@ def spawn_franka_with_arm_collisions(
         self_collision = root_prim.GetAttribute("newton:selfCollisionEnabled")
         if not self_collision or not self_collision.Set(True):
             raise RuntimeError(f"Franka asset at {root_prim.GetPath()} has no writable Newton self-collision flag.")
-
-        finger_joints = {
-            prim.GetName(): prim
-            for prim in Usd.PrimRange(root_prim, Usd.TraverseInstanceProxies())
-            if prim.GetName() in {"panda_finger_joint1", "panda_finger_joint2"}
-        }
-        if finger_joints.keys() != {"panda_finger_joint1", "panda_finger_joint2"}:
-            missing = sorted({"panda_finger_joint1", "panda_finger_joint2"}.difference(finger_joints))
-            raise RuntimeError(f"Franka asset at {root_prim.GetPath()} is missing finger joints: {missing}.")
-
-        leader_schemas = finger_joints["panda_finger_joint1"].GetMetadata("apiSchemas")
-        follower_schemas = finger_joints["panda_finger_joint2"].GetMetadata("apiSchemas")
-        leader_schema_names = [] if leader_schemas is None else list(leader_schemas.GetAppliedItems())
-        follower_schema_names = [] if follower_schemas is None else list(follower_schemas.GetAppliedItems())
-        if "NewtonMimicAPI" not in leader_schema_names or "PhysxMimicJointAPI:linear" not in follower_schema_names:
-            raise RuntimeError(
-                "The pinned Franka physics payload no longer has the expected duplicate finger-mimic schemas. "
-                "Update the asset hash and task-side override together."
-            )
-        if not finger_joints["panda_finger_joint1"].RemoveAppliedSchema("NewtonMimicAPI"):
-            raise RuntimeError("Failed to remove the redundant Franka Newton finger-mimic schema.")
-        if finger_joints["panda_finger_joint1"].HasAPI("NewtonMimicAPI"):
-            raise RuntimeError("The redundant Franka Newton finger-mimic schema is still composed after removal.")
 
         proxy_roots = {
             prim.GetName(): prim.GetParent().GetPath()
@@ -339,7 +316,7 @@ class PourSceneCfg(InteractiveSceneCfg):
     )
     robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     robot.spawn.usd_path = FRANKA_POUR_ROBOT_USD_PATH
-    robot.spawn.variants = {"Colliders": "convex_hulls"}
+    robot.spawn.variants = {"Physics": "mujoco", "Colliders": "convex_hulls"}
     robot.spawn.func = spawn_franka_with_arm_collisions
     # The pouring asset relies on arm self-collision; author it in both namespaces so whichever
     # backend resolves the articulation sees the flag.
@@ -359,17 +336,11 @@ class PourSceneCfg(InteractiveSceneCfg):
         )
         for name, actuator_cfg in robot.actuators.items()
     }
-    robot.actuators["panda_shoulder"].stiffness = {
-        key: FRANKA_POUR_ARM_DRIVE_STIFFNESS[key] for key in ("panda_joint[1-2]", "panda_joint[3-4]")
-    }
-    robot.actuators["panda_shoulder"].damping = {
-        key: FRANKA_POUR_ARM_DRIVE_DAMPING[key] for key in ("panda_joint[1-2]", "panda_joint[3-4]")
-    }
-    robot.actuators["panda_forearm"].stiffness = {
-        "panda_joint[5-7]": FRANKA_POUR_ARM_DRIVE_STIFFNESS["panda_joint[5-7]"]
-    }
-    robot.actuators["panda_forearm"].damping = {"panda_joint[5-7]": FRANKA_POUR_ARM_DRIVE_DAMPING["panda_joint[5-7]"]}
-    robot.spawn.joint_drive_props = MujocoJointCfg(actuatorgravcomp=True)
+    robot.actuators["panda_arm"].stiffness = dict(FRANKA_POUR_ARM_DRIVE_STIFFNESS)
+    robot.actuators["panda_arm"].damping = dict(FRANKA_POUR_ARM_DRIVE_DAMPING)
+    robot.actuators["panda_finger2_passive"].stiffness = 0.0
+    robot.actuators["panda_finger2_passive"].damping = 0.0
+    robot.spawn.joint_drive_props = [MujocoJointCfg(actuatorgravcomp=True)]
     robot.init_state.joint_pos.update(dict(zip(_ARM_JOINT_NAMES, _ARM_HOME, strict=True)))
     robot.init_state.joint_pos["panda_finger_joint.*"] = _GRIPPER_OPEN_POSITION
 

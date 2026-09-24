@@ -10,12 +10,13 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from pxr import Usd
+from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.managers import CommandTerm
-from isaaclab.sim import select_usd_variants
+from isaaclab.sim import select_usd_variants, use_stage
 
 from isaaclab_tasks.core.lift import mdp
+from isaaclab_tasks.core.lift.adr_curriculum import CurriculumCfg
 from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg, FrankaReorientEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.mdp.commands import pose_commands
@@ -24,6 +25,7 @@ from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
     DeformableUniformPoseCommand,
     ObjectUniformPoseCommand,
 )
+from isaaclab_tasks.core.lift.mdp.utils import collect_collision_meshes
 from isaaclab_tasks.utils.hydra import resolve_presets
 
 
@@ -45,6 +47,43 @@ class _FakeScene(dict):
         self.env_origins = torch.zeros((len(environment_ids), 3))
 
 
+def test_rigid_lift_motion_regularization_follows_success_driven_adr() -> None:
+    """Motion penalties should grow continuously with successful episodes, not elapsed steps."""
+    curriculum = CurriculumCfg()
+    assert curriculum.adr.func is mdp.DifficultyScheduler
+    difficulty = SimpleNamespace(difficulty_frac=0.0)
+    env = SimpleNamespace(
+        common_step_counter=100_000,
+        curriculum_manager=SimpleNamespace(cfg=SimpleNamespace(adr=SimpleNamespace(func=difficulty))),
+    )
+
+    for term_name in ("action_rate", "joint_vel"):
+        term = getattr(curriculum, term_name)
+        assert term.func is mdp.modify_term_cfg
+        assert term.params["address"] == f"rewards.{term_name}.weight"
+        assert term.params["modify_fn"] is mdp.difficulty_interpolate_float
+        params = term.params["modify_params"]
+        assert params == {"initial_value": -1e-4, "final_value": -1e-1, "difficulty_term_str": "adr"}
+        for fraction in (0.0, 0.02, 0.5, 1.0):
+            difficulty.difficulty_frac = fraction
+            weight = term.params["modify_fn"](env, torch.arange(2), -1e-4, **params)
+            assert weight == pytest.approx(-1e-4 + fraction * (-1e-1 + 1e-4))
+
+
+def test_abnormal_robot_state_ignores_nominal_velocity_excursions() -> None:
+    """The instability guard should leave policy exploration below twice the solver limit intact."""
+    robot = SimpleNamespace(
+        data=SimpleNamespace(
+            joint_vel=SimpleNamespace(torch=torch.tensor([[15.0, 100.0], [20.0, 100.0], [20.1, 0.0]])),
+            joint_vel_limits=SimpleNamespace(torch=torch.full((3, 2), 10.0)),
+        )
+    )
+    env = SimpleNamespace(scene={"robot": robot})
+    arm_only = SimpleNamespace(name="robot", joint_ids=[0])
+
+    assert mdp.abnormal_robot_state(env, arm_only).tolist() == [False, False, True]
+
+
 @pytest.mark.parametrize(
     ("selected_presets", "expected_physics"),
     [
@@ -60,19 +99,33 @@ def test_franka_soft_robot_physics_variant_matches_backend(
     """The Franka USD physics payload must match the selected simulation backend."""
     cfg = resolve_presets(FrankaSoftEnvCfg(), selected=selected_presets)
 
-    assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics}
+    assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics, "Colliders": "gripper_only"}
+
+
+def test_franka_lift_physx_runtimes_share_the_same_mdp() -> None:
+    """Isaac Sim PhysX and OvPhysX should differ only in runtime configuration."""
+    isaacsim_cfg = resolve_presets(FrankaLiftEnvCfg(), selected=("isaacsim_physx", "cube"))
+    ovphysx_cfg = resolve_presets(FrankaLiftEnvCfg(), selected=("ovphysx", "cube"))
+    assert isaacsim_cfg.sim.physics.enable_external_forces_every_iteration
+    assert ovphysx_cfg.sim.physics.enable_external_forces_every_iteration
+    isaacsim = isaacsim_cfg.to_dict()
+    ovphysx = ovphysx_cfg.to_dict()
+
+    for section in ("scene", "observations", "actions", "commands", "rewards", "terminations", "events", "curriculum"):
+        assert ovphysx[section] == isaacsim[section], section
 
 
 @pytest.mark.parametrize("cfg_type", [FrankaLiftEnvCfg, FrankaReorientEnvCfg])
-def test_franka_rigid_tasks_select_collision_meshes_for_reset_clearance(cfg_type) -> None:
-    """Reset validation keeps the original arm meshes when the asset defaults to capsules."""
-    cfg = cfg_type()
+def test_franka_rigid_tasks_select_gripper_only_colliders(cfg_type) -> None:
+    """Rigid tasks avoid the arm colliders that intersect the ground during reset sampling."""
+    cfg = resolve_presets(cfg_type(), selected=())
     stage = Usd.Stage.CreateInMemory()
     robot = stage.DefinePrim("/Robot", "Xform")
     colliders = robot.GetVariantSets().AddVariantSet("Colliders")
     for selection, prim_path, prim_type in (
         ("convex_hulls", "/Robot/link1_c/link1_c", "Mesh"),
         ("primitives", "/Robot/link1_capsule", "Capsule"),
+        ("gripper_only", "/Robot/gripper_capsule", "Capsule"),
     ):
         colliders.AddVariant(selection)
         colliders.SetVariantSelection(selection)
@@ -82,8 +135,56 @@ def test_franka_rigid_tasks_select_collision_meshes_for_reset_clearance(cfg_type
 
     select_usd_variants("/Robot", cfg.scene.robot.spawn.variants or {}, stage=stage)
 
-    assert stage.GetPrimAtPath("/Robot/link1_c/link1_c").IsValid()
+    assert stage.GetPrimAtPath("/Robot/gripper_capsule").IsValid()
+    assert not stage.GetPrimAtPath("/Robot/link1_c/link1_c").IsValid()
     assert not stage.GetPrimAtPath("/Robot/link1_capsule").IsValid()
+
+
+def test_franka_lift_retains_aligned_pregrasp_resets() -> None:
+    """The aligned Lift reset must run after the generic finger-width reset."""
+    lift = FrankaLiftEnvCfg()
+
+    assert lift.actions.action.joint_names == [".*"]
+    assert lift.terminations.abnormal_robot.func is mdp.abnormal_robot_state
+    lift_reset = lift.events.conditional_reset.params
+    lift_reset_terms = list(lift_reset["terms"])
+    assert lift_reset_terms.index("reset_object_to_target") > lift_reset_terms.index("reset_gripper_width")
+    lift_target_reset = lift_reset["terms"]["reset_object_to_target"]
+    assert lift_target_reset.func is mdp.reset_to_grasp
+    assert lift_target_reset.params["probability"] == pytest.approx(0.75)
+    assert lift_target_reset.params["pose_range"] == {
+        "x": (-0.002, 0.002),
+        "y": (-0.002, 0.002),
+        "z": (0.1, 0.1),
+    }
+    assert lift_target_reset.params["gripper_cfg"].joint_names == "panda_finger_joint.*"
+    assert len(lift_target_reset.params["gripper_joint_positions"]) == 8
+    assert len(lift_target_reset.params["asset_orientations"]) == 8
+    assert "object_robot_clearance" in lift_reset["valid_criteria"]
+    assert lift_reset["diversity_feature"] is None
+    assert lift_reset["success_monitor"].target_success_rate == pytest.approx(0.5)
+
+    lift.play_mode()
+    assert lift.events.conditional_reset.params["terms"]["reset_object_to_target"].params[
+        "probability"
+    ] == pytest.approx(0.75)
+
+
+def test_reset_clearance_ignores_disabled_collision_geometry() -> None:
+    """Disabled colliders and visual-only geometry must not reject reset candidates."""
+    stage = Usd.Stage.CreateInMemory()
+    root = stage.DefinePrim("/Object", "Xform")
+    for name, enabled in (("default_enabled", None), ("explicit_enabled", True), ("disabled", False)):
+        prim = UsdGeom.Cube.Define(stage, f"/Object/{name}").GetPrim()
+        collision = UsdPhysics.CollisionAPI.Apply(prim)
+        if enabled is not None:
+            collision.CreateCollisionEnabledAttr(enabled)
+    UsdGeom.Cube.Define(stage, "/Object/visual_only")
+
+    with use_stage(stage):
+        meshes = collect_collision_meshes(root, lambda prim: (prim.GetName(), root))
+
+    assert set(meshes) == {"default_enabled", "explicit_enabled"}
 
 
 def _make_vision_camera(data_type: str, images: torch.Tensor) -> mdp.vision_camera:

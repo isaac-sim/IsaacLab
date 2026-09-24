@@ -183,6 +183,14 @@ class FrameTransformer(BaseFrameTransformer):
                     f"Failed to create frame transformer for frame '{frame}' with path '{prim_path}'."
                     " No matching rigid-body prims were found."
                 )
+            # A matched rigid body can contain other rigid bodies, as in MuJoCo Menagerie
+            # articulations. Prefer bodies matched directly by the configured expression;
+            # descendants are only a fallback when the expression names a non-rigid parent.
+            direct_matches = [
+                match for match in matches if re.fullmatch(prim_path, match[0].GetPath().pathString) is not None
+            ]
+            if direct_matches:
+                matches = direct_matches
             for prim, matching_prim_path in matches:
                 # Get the name of the body: use relative prim path for unique identification
                 body_name = self._get_relative_body_path(matching_prim_path)
@@ -296,8 +304,16 @@ class FrameTransformer(BaseFrameTransformer):
         # -- target frames: use relative prim path for unique identification
         self._target_frame_body_names = [self._get_relative_body_path(prim_path) for prim_path in sorted_prim_paths]
 
-        # -- source frame: use relative prim path for unique identification
-        self._source_frame_body_name = self._get_relative_body_path(self.cfg.prim_path)
+        # -- source frame: retain the concrete body resolved from the configured expression
+        source_body_names = [
+            body_name for body_name in tracked_body_names if body_names_to_frames[body_name]["type"] == "source"
+        ]
+        if len(source_body_names) != 1:
+            raise ValueError(
+                f"Frame transformer source expression '{self.cfg.prim_path}' resolved to"
+                f" {len(source_body_names)} distinct bodies, expected exactly one."
+            )
+        self._source_frame_body_name = source_body_names[0]
         source_frame_index = self._target_frame_body_names.index(self._source_frame_body_name)
 
         # Only remove source frame from tracked bodies if it is not also a target frame

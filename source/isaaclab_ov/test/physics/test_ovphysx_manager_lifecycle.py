@@ -156,11 +156,18 @@ def test_schema_registration_skips_providers_already_supplied_by_host(
     # A None entry makes importing OVStage raise ModuleNotFoundError.
     monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage if has_registration_api is not None else None)
     monkeypatch.setitem(sys.modules, "pxr", fake_pxr)
+    newton_schema_root = "/schemas/newton"
+    monkeypatch.setattr(manager_module, "_newton_schema_root", lambda: newton_schema_root, raising=False)
 
     manager._ensure_physx_schemas_registered()
     manager._ensure_physx_schemas_registered()
 
-    assert ovstage_registrations == ([schema_root] if schema_root is not None and has_registration_api else [])
+    expected_ovstage_registrations = []
+    if has_registration_api:
+        if schema_root is not None:
+            expected_ovstage_registrations.append(schema_root)
+        expected_ovstage_registrations.append(newton_schema_root)
+    assert ovstage_registrations == expected_ovstage_registrations
     assert host_registrations == ([expected_paths] if expected_paths else [])
 
 
@@ -492,6 +499,15 @@ def test_construct_physx_forwards_cooked_collider_cache_dir(monkeypatch, manager
     for cache_dir in (DEFAULT_COOKED_COLLIDER_CACHE_DIR, str(tmp_path / "configured_cache"), None):
         backend = manager_module.OvPhysxBackend(OvPhysxBackendCfg(device="cpu", cooked_collider_cache_dir=cache_dir))
         assert backend.physx.config.cooked_collider_cache_dir == cache_dir
+
+
+def test_external_forces_every_iteration_matches_physx_default():
+    """OvPhysX should use the same TGS external-force integration default as PhysX."""
+    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_physx.physics import PhysxCfg
+
+    assert OvPhysxCfg().enable_external_forces_every_iteration
+    assert OvPhysxCfg().enable_external_forces_every_iteration == PhysxCfg().enable_external_forces_every_iteration
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX ownership and mode semantics")

@@ -120,7 +120,7 @@ class FrankaCubeStackVisuomotorCosmosEnvCfg(stack_ik_rel_visuomotor_env_cfg.Fran
         # Set cameras
         # Set wrist camera
         self.scene.wrist_cam = CameraCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/panda_hand/wrist_cam",
+            prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_hand/wrist_cam",
             update_period=0.0,
             height=200,
             width=200,
