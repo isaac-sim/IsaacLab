@@ -493,8 +493,17 @@ def test_env_ids_propagation(setup_sim):
         # read data from sim
         scene.update(sim.get_physics_dt())
 
-    # reset scene for env 1
+    sensor = scene.sensors["imu_robot_base"]
+    pre_reset_lin_acc = sensor.data.lin_acc_b.torch.clone()
+    assert (torch.linalg.norm(pre_reset_lin_acc, dim=-1) > 0.1).all(), (
+        f"Expected non-zero data, got {pre_reset_lin_acc}"
+    )
+
+    # reset scene for env 1: its readings are zeroed immediately, env 0 keeps its measurement
     scene.reset(env_ids=[1])
+    torch.testing.assert_close(sensor.data.lin_acc_b.torch[1], torch.zeros_like(pre_reset_lin_acc[1]))
+    torch.testing.assert_close(sensor.data.ang_vel_b.torch[1], torch.zeros_like(pre_reset_lin_acc[1]))
+    torch.testing.assert_close(sensor.data.lin_acc_b.torch[0], pre_reset_lin_acc[0])
     # read data from sim
     scene.update(sim.get_physics_dt())
     # perform step
@@ -525,36 +534,38 @@ def test_no_stale_data_after_scene_reset():
     """Regression for #4970: ``scene.reset(env_ids)`` must not surface pre-reset IMU values.
 
     Mirrors the ``ManagerBasedRLEnv._reset_idx`` flow where reset runs inside a step
-    without a subsequent physics step. The IMU sensor's lazy ``data`` accessor must not
-    refetch from the PhysX rigid-body view here (the velocity buffer reflects the previous
-    physics step and would produce a spurious finite-difference acceleration).
+    without a subsequent physics step: the PhysX buffers still hold the pre-reset state, so
+    the lazy ``data`` accessor must return the zeroed buffers instead of refetching them. The
+    cube rests on the ground first so the stale reading is distinguishable from a reset one.
     """
     sim_cfg = sim_utils.SimulationCfg(dt=0.01, physics=PhysxCfg(solver_type=0))
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
-        scene_cfg = _StaleResetSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=False)
+        scene_cfg = _StaleResetSceneCfg(num_envs=2, env_spacing=2.0, lazy_sensor_update=False)
         scene = InteractiveScene(scene_cfg)
         sim.reset()
         scene.reset()
 
         sensor: Imu = scene["imu_cube"]
 
-        # Let the cube fall so PhysX accumulates a non-zero rigid-body velocity.
-        for _ in range(30):
+        # The cube falls from z=2.0 and lands in ~60 steps at 100 Hz; 150 steps let it settle.
+        for _ in range(150):
             scene.write_data_to_sim()
             sim.step(render=False)
             scene.update(dt=sim.get_physics_dt())
 
-        # Reset the scene without writing fresh velocity/transform. The PhysX velocity
-        # buffer therefore still holds the pre-reset (falling) value.
-        scene.reset(env_ids=torch.tensor([0], device=sensor.device))
+        pre_reset_lin_acc = sensor.data.lin_acc_b.torch.clone()
+        assert (torch.linalg.norm(pre_reset_lin_acc, dim=-1) > 5.0).all(), (
+            f"Expected a settled gravity reading, got {pre_reset_lin_acc}"
+        )
 
-        # The public ``data`` accessor must not refetch a stale PhysX buffer; ``reset()``
-        # zeroes ``_ang_vel_b`` and ``_lin_acc_b`` and those must be what comes out here.
-        post_reset_lin_acc = sensor.data.lin_acc_b.torch
-        post_reset_ang_vel = sensor.data.ang_vel_b.torch
-        torch.testing.assert_close(post_reset_lin_acc, torch.zeros_like(post_reset_lin_acc))
-        torch.testing.assert_close(post_reset_ang_vel, torch.zeros_like(post_reset_ang_vel))
+        # Reset env 0 without a physics step: it reads zeros while env 1 keeps its measurement.
+        scene.reset(env_ids=torch.tensor([0], device=sensor.device))
+        lin_acc = sensor.data.lin_acc_b.torch
+        ang_vel = sensor.data.ang_vel_b.torch
+        torch.testing.assert_close(lin_acc[0], torch.zeros_like(lin_acc[0]))
+        torch.testing.assert_close(ang_vel[0], torch.zeros_like(ang_vel[0]))
+        torch.testing.assert_close(lin_acc[1], pre_reset_lin_acc[1])
 
 
 @pytest.mark.isaacsim_ci

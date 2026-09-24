@@ -8,6 +8,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab.test.utils import DeviceScope, test_devices
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -852,33 +853,12 @@ def test_lazy_sensor_reports_contact_loss(setup_simulation, device):
 
 
 @pytest.mark.isaacsim_ci
-def test_sensor_print(setup_simulation):
-    """Test sensor print is working correctly."""
-    sim_dt, durations, terrains, devices, settings = setup_simulation
-    with build_simulation_context(device="cuda:0", dt=sim_dt, add_lighting=False) as sim:
-        sim._app_control_on_stop_handle = None
-        # Spawn things into stage
-        scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
-        scene_cfg.shape = CUBE_CFG
-        scene_cfg.contact_sensor = ContactSensorCfg(
-            prim_path=scene_cfg.shape.prim_path,
-            track_pose=True,
-            debug_vis=False,
-            update_period=0.0,
-            track_air_time=True,
-            history_length=3,
-        )
-        scene = InteractiveScene(scene_cfg)
-        # Play the simulator
-        sim.reset()
-        # print info
-        print(scene.sensors["contact_sensor"])
-
-
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_contact_sensor_threshold(setup_simulation, device):
-    """Test that the contact sensor USD threshold attribute is set to 0.0."""
+    """Test that the contact sensor USD threshold attribute is set to 0.0 and the sensor prints its summary.
+
+    Regression for #3498, where the spawner passed ``activate_contact_sensors`` (a bool) as the threshold.
+    """
     sim_dt, durations, terrains, devices, settings = setup_simulation
     with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
@@ -905,15 +885,13 @@ def test_contact_sensor_threshold(setup_simulation, device):
         # Ensure the contact sensor was created properly
         contact_sensor = scene["contact_sensor"]
         assert contact_sensor is not None, "Contact sensor was not created"
+        assert "number of bodies  : 1" in str(contact_sensor)
 
-        # Check if the prim has contact report API and verify threshold is close to 0.0
-        if "PhysxContactReportAPI" in prim.GetAppliedSchemas():
-            threshold_attr = prim.GetAttribute("physxContactReport:threshold")
-            if threshold_attr.IsValid():
-                threshold_value = threshold_attr.Get()
-                assert pytest.approx(threshold_value, abs=1e-6) == 0.0, (
-                    f"Expected USD threshold to be close to 0.0, but got {threshold_value}"
-                )
+        assert "PhysxContactReportAPI" in prim.GetAppliedSchemas()
+        threshold_value = prim.GetAttribute("physxContactReport:threshold").Get()
+        assert threshold_value == pytest.approx(0.0, abs=1e-6), (
+            f"Expected USD threshold to be close to 0.0, but got {threshold_value}"
+        )
 
 
 # minor gravity force in -z to ensure object stays on ground plane

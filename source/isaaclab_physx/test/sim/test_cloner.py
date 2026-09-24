@@ -8,6 +8,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab.test.utils import test_devices
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -529,14 +530,13 @@ def test_physx_replicate_env_consistency(sim):
         assert diff < 1e-3, f"step {idx}: env_0 and env_1 diverge, max_diff={diff}"
 
 
-@pytest.mark.xfail(reason="Source env gets physics from replicator, not USD parsing; may diverge from baseline.")
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("device", test_devices())
 def test_physx_replicate_vs_no_replicate(device):
     """Test that physx_replicate does not change the physics behavior of env_0.
 
     With ``attach_fn`` excluding ``/World/envs``, env_0 receives its physics body
     from the replicator (as the source of ``rep.replicate()``) rather than from
-    normal USD parsing, which may produce subtly different behaviour.
+    normal USD parsing; the resulting trajectory must match the USD-parsed baseline.
     """
     with build_simulation_context(device=device, dt=0.01, add_lighting=False) as sim_no_rep:
         baseline = _run_sphere_velocity_sim(sim_no_rep, use_physx_replicate=False)

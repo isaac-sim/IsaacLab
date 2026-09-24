@@ -568,47 +568,6 @@ def test_reset_rigid_object(num_cubes, device):
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
-def test_rigid_body_set_material_properties(num_cubes, device):
-    """Test getting and setting material properties of rigid object."""
-    with build_simulation_context(
-        device=device, gravity_enabled=True, add_ground_plane=True, auto_add_lighting=True
-    ) as sim:
-        sim._app_control_on_stop_handle = None
-        # Generate cubes scene
-        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
-
-        # Play sim
-        sim.reset()
-
-        # Set material properties
-        static_friction = torch.FloatTensor(num_cubes, 1).uniform_(0.4, 0.8)
-        dynamic_friction = torch.FloatTensor(num_cubes, 1).uniform_(0.4, 0.8)
-        restitution = torch.FloatTensor(num_cubes, 1).uniform_(0.0, 0.2)
-
-        materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
-
-        indices = torch.tensor(range(num_cubes), dtype=torch.int32)
-        # Add friction to cube
-        cube_object.root_view.set_material_properties(
-            wp.from_torch(materials, dtype=wp.float32), wp.from_torch(indices, dtype=wp.int32)
-        )
-
-        # Simulate physics
-        # perform rendering
-        sim.step()
-        # update object
-        cube_object.update(sim.cfg.dt)
-
-        # Get material properties
-        materials_to_check = wp.to_torch(cube_object.root_view.get_material_properties())
-
-        # Check if material properties are set correctly
-        torch.testing.assert_close(materials_to_check.reshape(num_cubes, 3), materials)
-
-
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.isaacsim_ci
 def test_set_material_properties_via_view(num_cubes, device):
     """Test setting material properties via the PhysX view-level API."""
     with build_simulation_context(

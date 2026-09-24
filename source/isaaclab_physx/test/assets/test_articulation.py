@@ -620,7 +620,7 @@ def test_live_direct_view_mass_inertia_writes_become_visible(sim, device, gravit
     _assert_backend_to_user(articulation.data.body_inertia.torch, backend_inertias, body_user_to_backend)
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_branching_fixture_resolves_distinct_conventions(sim, device, gravity_enabled):
     """Resolve concrete breadth-first PhysX and depth-first MJWarp name orders."""
@@ -647,7 +647,7 @@ def test_branching_fixture_resolves_distinct_conventions(sim, device, gravity_en
     assert articulation.body_ordering is not None
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.parametrize("ordering_axis", ["joint", "body"])
 def test_unused_jacobian_ordering_map_is_none(sim, device, gravity_enabled, ordering_axis):

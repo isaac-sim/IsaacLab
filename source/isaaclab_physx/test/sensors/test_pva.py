@@ -772,8 +772,16 @@ def test_env_ids_propagation(setup_sim):
         # read data from sim
         scene.update(sim.get_physics_dt())
 
-    # reset scene for env 1
+    sensor = scene.sensors["pva_robot_base"]
+    pre_reset_lin_vel = sensor.data.lin_vel_b.torch.clone()
+    assert (torch.linalg.norm(pre_reset_lin_vel, dim=-1) > 0.1).all(), (
+        f"Expected non-zero data, got {pre_reset_lin_vel}"
+    )
+
+    # reset scene for env 1: its readings are zeroed immediately, env 0 keeps its measurement
     scene.reset(env_ids=[1])
+    torch.testing.assert_close(sensor.data.lin_vel_b.torch[1], torch.zeros_like(pre_reset_lin_vel[1]))
+    torch.testing.assert_close(sensor.data.lin_vel_b.torch[0], pre_reset_lin_vel[0])
     # read data from sim
     scene.update(sim.get_physics_dt())
     # perform step

@@ -522,62 +522,6 @@ def test_set_local_via_fabric_path(device, view_factory):
     torch.testing.assert_close(torch.as_tensor(local_pos, device=device), expected_local, atol=1e-4, rtol=0)
 
 
-@pytest.mark.parametrize("device", ["cuda:0"])
-def test_get_scales_fabric_path(device, view_factory):
-    """Exercise the Fabric-native get_world_scales path."""
-    bundle = view_factory(num_envs=1, device=device)
-    view = bundle.view
-
-    # Trigger lazy `_initialize_fabric()` so the get_world_scales call below uses Fabric.
-    view.get_world_poses()
-
-    scales = view.get_world_scales()
-    scales_t = scales.torch
-    # Default scale should be (1, 1, 1)
-    expected = torch.tensor([[1.0, 1.0, 1.0]], dtype=torch.float32, device=device)
-    torch.testing.assert_close(scales_t, expected, atol=1e-4, rtol=0)
-
-
-@pytest.mark.parametrize("device", ["cuda:0"])
-def test_local_scales_roundtrip(device, view_factory):
-    """Writing scales through the local-space writer roundtrips via ``localMatrix``."""
-    bundle = view_factory(num_envs=2, device=device)
-    view = bundle.view
-
-    # Force Fabric init
-    view.get_world_poses()
-
-    new_scales = wp.zeros((2, 3), dtype=wp.float32, device=device)
-    wp.launch(kernel=_fill_position, dim=2, inputs=[new_scales, 2.0, 3.0, 4.0], device=device)
-    with view.xform_local_space_writer() as w:
-        w.set_scales(new_scales)
-
-    ret_scales = view.get_local_scales()
-    scales_torch = ret_scales.torch
-    expected = torch.tensor([[2.0, 3.0, 4.0], [2.0, 3.0, 4.0]], device=device)
-    torch.testing.assert_close(scales_torch, expected, atol=1e-5, rtol=0)
-
-
-@pytest.mark.parametrize("device", ["cuda:0"])
-def test_world_scales_roundtrip(device, view_factory):
-    """Writing scales through the world-space writer roundtrips via ``worldMatrix``."""
-    bundle = view_factory(num_envs=2, device=device)
-    view = bundle.view
-
-    # Force Fabric init
-    view.get_world_poses()
-
-    new_scales = wp.zeros((2, 3), dtype=wp.float32, device=device)
-    wp.launch(kernel=_fill_position, dim=2, inputs=[new_scales, 5.0, 6.0, 7.0], device=device)
-    with view.xform_world_space_writer() as w:
-        w.set_scales(new_scales)
-
-    ret_scales = view.get_world_scales()
-    scales_torch = ret_scales.torch
-    expected = torch.tensor([[5.0, 6.0, 7.0], [5.0, 6.0, 7.0]], device=device)
-    torch.testing.assert_close(scales_torch, expected, atol=1e-5, rtol=0)
-
-
 # ------------------------------------------------------------------
 # Transpose-convention verification: world ↔ local kernels rely on the
 # identity ``(A·B)ᵀ = Bᵀ·Aᵀ`` to drop explicit transposes when operating
@@ -1088,7 +1032,7 @@ def test_writer_single_derivation_per_scope(device, view_factory, monkeypatch):
     assert calls == 1  # exactly one derive on exit
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_writer_single_active_invariant(device, view_factory):
     """Only one writer scope may be active per view at a time."""
     bundle = view_factory(num_envs=1, device=device)
@@ -1152,7 +1096,7 @@ def test_writer_empty_scope_does_no_derivation(device, view_factory, monkeypatch
     assert calls == 0
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_view_getter_inside_scope_raises(device, view_factory):
     """View-level getters raise ``RuntimeError`` while a writer scope is active."""
     bundle = view_factory(num_envs=1, device=device)
