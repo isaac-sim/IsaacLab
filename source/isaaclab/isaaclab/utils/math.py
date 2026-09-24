@@ -1238,7 +1238,7 @@ def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor, is_ortho: boo
     indices_u = torch.arange(im_width, device=depth.device, dtype=depth.dtype)
     indices_v = torch.arange(im_height, device=depth.device, dtype=depth.dtype)
     img_indices = torch.stack(torch.meshgrid([indices_u, indices_v], indexing="ij"), dim=0).reshape(2, -1)
-    pixels = torch.nn.functional.pad(img_indices, (0, 0, 1, 0), mode="constant", value=1.0)
+    pixels = torch.nn.functional.pad(img_indices, (0, 0, 0, 1), mode="constant", value=1.0)
     pixels = pixels.unsqueeze(0)  # (3, H x W) -> (1, 3, H x W)
 
     # unproject points into 3D space
@@ -1789,7 +1789,7 @@ def quat_slerp(q1: torch.Tensor, q2: torch.Tensor, tau: float) -> torch.Tensor:
     if d < 0.0:
         # Invert rotation
         d = -d
-        q2 *= -1.0
+        q2 = -q2
     angle = torch.acos(torch.clamp(d, -1, 1))
     if abs(angle) < torch.finfo(q1.dtype).eps * 4.0:
         return q1
