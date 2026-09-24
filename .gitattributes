@@ -6,6 +6,8 @@
 *.mtl filter=lfs diff=lfs merge=lfs -text
 *.obj filter=lfs diff=lfs merge=lfs -text
 *.gif filter=lfs diff=lfs merge=lfs -text
+# GitHub serves these small PR previews inline rather than as LFS pointers.
+docs/source/_static/tasks/previews/stack-*.gif -filter -diff -merge -text
 *.mp4 filter=lfs diff=lfs merge=lfs -text
 *.webp filter=lfs diff=lfs merge=lfs -text
 *.pt filter=lfs diff=lfs merge=lfs -text

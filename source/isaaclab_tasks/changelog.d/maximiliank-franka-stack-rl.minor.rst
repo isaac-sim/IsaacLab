@@ -47,6 +47,8 @@ Changed
 Fixed
 ^^^^^
 
+* Restored the published state policies' action-first observation order while
+  retaining the camera teacher's separate 109-input ordering.
 * Fixed stack completion to require a stable, released three-cube tower and to
   terminate immediately after the physical hold, preventing reward cycling.
 * Fixed reset-authored grasps, action target handoff, and reset sampling hot

@@ -86,6 +86,8 @@ class EventCfg:
 class FrankaStackStateObservationCfg(ObsGroup):
     """Canonical full-state interface for the Franka stack policy."""
 
+    # The published state actors were trained with action history first.
+    actions = ObsTerm(func=mdp.last_action)
     joint_pos = ObsTerm(
         func=mdp.joint_pos_rel,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
@@ -95,7 +97,6 @@ class FrankaStackStateObservationCfg(ObsGroup):
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
     )
     joint_target = ObsTerm(func=mdp.joint_position_target)
-    actions = ObsTerm(func=mdp.last_action)
     object = ObsTerm(func=mdp.role_conditioned_stack_obs)
     gripper_pos = ObsTerm(func=mdp.gripper_pos)
     eef_velocity = ObsTerm(func=mdp.franka_ee_velocity)

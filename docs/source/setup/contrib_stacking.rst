@@ -26,6 +26,10 @@ in its critic or teacher, never in the deployed actor.
    * - ``IsaacContrib-Stack-Cube-Franka-RL-Camera-Distillation``
      - Franka RGB student and privileged state teacher
 
+Pretrained checkpoints for the Franka state, KUKA-Allegro state, and Franka
+camera-student tasks are available in the Isaac-dev Nucleus pretrained-checkpoints
+collection.
+
 Train the state task, then play a local checkpoint:
 
 .. code-block:: bash
@@ -50,8 +54,9 @@ the published Franka state PPO actor has 100. Train or adapt a teacher for the
 checkpoint directly to this command.
 
 Play uses randomized table starts with training curricula disabled. Use
-``--video --video_length 300`` with ``--viz newton`` to record a six-second clip
-at the 50 Hz policy rate. Checkpoint observation order, camera resolution,
+``--video --video_length 300`` with ``--viz newton`` to record six seconds
+at the 50 Hz policy rate, and check the success termination before sharing a
+clip. Checkpoint observation order, camera resolution,
 distribution type, and renderer must match the task configuration; a checkpoint
 that cannot be loaded is not interchangeable with another stacking variant.
 
@@ -62,20 +67,18 @@ limits, and independent real-world validation.
 Previews
 --------
 
-These six-second clips were recorded with Newton physics and the Newton
-visualizer. The Franka camera student additionally used RTX for its policy camera.
+These Franka and KUKA-Allegro clips were recorded with Newton physics and the
+Newton visualizer from randomized table starts. The task success termination
+fired at steps 170 and 213, respectively; each clip ends on the resulting stack.
 The tabletop is dark, and the shared ground uses the standard checker visual;
-the invisible contact surface is not rendered.
-From left to right: Franka state, KUKA-Allegro state, and Franka camera student.
+the invisible contact surface is not rendered. The camera student is not shown
+because a successful local playback has not yet been reproduced.
 
 .. raw:: html
 
-   <video controls muted loop playsinline width="32%" preload="metadata" aria-label="Franka state-policy stacking preview">
+   <video controls muted loop playsinline width="48%" preload="metadata" aria-label="Franka state-policy stacking preview">
      <source src="../../_static/tasks/previews/stack-franka-newton-mjwarp-rsl-rl.mp4" type="video/mp4">
    </video>
-   <video controls muted loop playsinline width="32%" preload="metadata" aria-label="KUKA-Allegro state-policy stacking preview">
+   <video controls muted loop playsinline width="48%" preload="metadata" aria-label="KUKA-Allegro state-policy stacking preview">
      <source src="../../_static/tasks/previews/stack-kuka-allegro-newton-mjwarp-rsl-rl.mp4" type="video/mp4">
-   </video>
-   <video controls muted loop playsinline width="32%" preload="metadata" aria-label="Franka camera-student stacking preview">
-     <source src="../../_static/tasks/previews/stack-franka-camera-newton-mjwarp-rsl-rl.mp4" type="video/mp4">
    </video>

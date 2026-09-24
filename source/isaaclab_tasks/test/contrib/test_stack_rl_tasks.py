@@ -13,6 +13,7 @@ import torch
 from isaaclab_newton.physics import NewtonCfg
 from rsl_rl.algorithms import Distillation
 
+from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg
 from isaaclab.utils import modifiers
 from isaaclab.utils.noise import UniformNoiseCfg
@@ -79,6 +80,23 @@ def test_franka_state_task_exposes_the_training_contract(stack_cfgs):
 
 
 @pytest.mark.parametrize("task_name", (FRANKA_STATE_TASK, KUKA_STATE_TASK))
+def test_state_policy_observation_order_matches_published_checkpoints(stack_cfgs, task_name):
+    """The published actors require action history before joint state."""
+    policy = stack_cfgs[task_name].observations.policy
+    active_terms = [name for name, term in vars(policy).items() if isinstance(term, ObsTerm)]
+
+    assert active_terms[:7] == [
+        "actions",
+        "joint_pos",
+        "joint_vel",
+        "object",
+        "gripper_pos",
+        "eef_velocity",
+        "eef_axes",
+    ]
+
+
+@pytest.mark.parametrize("task_name", (FRANKA_STATE_TASK, KUKA_STATE_TASK))
 def test_state_stack_tasks_use_default_ground_plane(stack_cfgs, task_name):
     """State-policy scenes should retain the current shared ground plane."""
     plane = stack_cfgs[task_name].scene.plane
@@ -119,6 +137,17 @@ def test_distillation_task_adds_privileged_labels_without_changing_the_student(s
     assert runner.teacher.distribution_cfg.std_type == "log"
     assert state_runner.actor.distribution_cfg.std_type == "scalar"
     assert cfg.observations.privileged.joint_target.func is mdp.joint_position_target
+    privileged_terms = [name for name, term in vars(cfg.observations.privileged).items() if isinstance(term, ObsTerm)]
+    assert privileged_terms == [
+        "joint_pos",
+        "joint_vel",
+        "joint_target",
+        "actions",
+        "object",
+        "gripper_pos",
+        "eef_velocity",
+        "eef_axes",
+    ]
     assert runner.algorithm.class_name.endswith(":ClippedTeacherDistillation")
 
 

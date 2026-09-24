@@ -19,7 +19,7 @@ from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.stack_env_cfg import ObjectTableSceneCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
-from .stack_rl_env_cfg import EventCfg, FrankaCubeStackRLEnvCfg, FrankaStackStateObservationCfg
+from .stack_rl_env_cfg import EventCfg, FrankaCubeStackRLEnvCfg
 
 
 @configclass
@@ -129,8 +129,31 @@ class CameraObservationsCfg:
             self.enable_corruption = True
             self.concatenate_terms = True
 
+    @configclass
+    class PrivilegedCfg(ObsGroup):
+        """Keep the camera teacher's original 109-input observation order."""
+
+        joint_pos = ObsTerm(
+            func=mdp.joint_pos_rel,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
+        )
+        joint_vel = ObsTerm(
+            func=mdp.joint_vel_rel,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
+        )
+        joint_target = ObsTerm(func=mdp.joint_position_target)
+        actions = ObsTerm(func=mdp.last_action)
+        object = ObsTerm(func=mdp.role_conditioned_stack_obs)
+        gripper_pos = ObsTerm(func=mdp.gripper_pos)
+        eef_velocity = ObsTerm(func=mdp.franka_ee_velocity)
+        eef_axes = ObsTerm(func=mdp.franka_ee_axes)
+
+        def __post_init__(self) -> None:
+            self.enable_corruption = False
+            self.concatenate_terms = True
+
     policy: PolicyCfg = PolicyCfg()
-    privileged: FrankaStackStateObservationCfg = FrankaStackStateObservationCfg()
+    privileged: PrivilegedCfg = PrivilegedCfg()
     base_image: BaseImageCfg = BaseImageCfg()
 
 
