@@ -1359,6 +1359,10 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
         file_name = os.path.basename(test_file)
         env = os.environ.copy()
         env["PYTHONFAULTHANDLER"] = "1"
+        worker_limit = test_settings.PYTEST_WORKER_LIMITS.get(file_name)
+        if worker_limit is not None and (workers := _pytest_workers(env)) > worker_limit:
+            env[PYTEST_WORKERS_ENV_VAR] = str(worker_limit)
+            logger.info(f"Limiting {file_name} to {worker_limit} pytest worker(s) (configured: {workers})")
 
         # Multi-GPU lane only: make the device-selection plugin importable in this
         # per-file subprocess (injected via ``-p`` in _run_one_pass, not as a
