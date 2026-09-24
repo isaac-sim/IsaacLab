@@ -315,6 +315,8 @@ class DirectRLEnv(gym.Env):
         However, certain operations, such as procedural terrain generation, that happened during initialization
         are not repeated.
 
+        Configured observation noise is applied to policy observations, as in :meth:`step`.
+
         Args:
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
             options: Additional information to specify how the environment is reset. Defaults to None.
@@ -351,6 +353,8 @@ class DirectRLEnv(gym.Env):
         # return observations
         # store the buffer like step() does, so consumers can read the latest observations
         self.obs_buf = self._get_observations()
+        if self.cfg.observation_noise_model:
+            self.obs_buf["policy"] = self._observation_noise_model(self.obs_buf["policy"])
         return self.obs_buf, self.extras
 
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:

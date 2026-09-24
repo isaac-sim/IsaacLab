@@ -107,6 +107,7 @@ Guidelines for modifications:
 * Hongwei Xiong
 * Hongyu Li
 * Hougant Chen
+* Hugo (Mikasa0503)
 * HuiDong Chen
 * Huihua Zhao
 * Iretiayo Akinola

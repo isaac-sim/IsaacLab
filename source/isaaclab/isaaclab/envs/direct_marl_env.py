@@ -329,6 +329,8 @@ class DirectMARLEnv(gym.Env):
     ) -> tuple[dict[AgentID, ObsType], dict[AgentID, dict]]:
         """Resets all the environments and returns observations.
 
+        Configured observation noise is applied per agent, as in :meth:`step`.
+
         Args:
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
             options: Additional information to specify how the environment is reset. Defaults to None.
@@ -350,6 +352,11 @@ class DirectMARLEnv(gym.Env):
         # update observations and the list of current agents (sorted as in possible_agents)
         self.obs_dict = self._get_observations()
         self.agents = [agent for agent in self.possible_agents if agent in self.obs_dict]
+
+        if self.cfg.observation_noise_model:
+            for agent, obs in self.obs_dict.items():
+                if agent in self._observation_noise_model:
+                    self.obs_dict[agent] = self._observation_noise_model[agent](obs)
 
         # return observations
         return self.obs_dict, self.extras

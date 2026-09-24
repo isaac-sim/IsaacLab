@@ -15,10 +15,12 @@ from types import SimpleNamespace
 
 import gymnasium as gym
 import pytest
+import torch
 
 from isaaclab.envs import DirectMARLEnv, DirectMARLEnvCfg
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.test.env_cfgs import make_empty_direct_marl_env_cfg
+from isaaclab.utils.noise import ConstantNoiseCfg, NoiseModelWithAdditiveBias, NoiseModelWithAdditiveBiasCfg
 
 pytestmark = pytest.mark.unit
 
@@ -64,6 +66,42 @@ def test_zero_state_space_disables_centralized_state():
     env._configure_env_spaces()
 
     assert env.state_space is None
+
+
+@pytest.mark.parametrize("noisy_agents", [(), ("agent_0",), ("agent_0", "agent_1")])
+def test_reset_applies_observation_noise_per_agent(noisy_agents):
+    """Reset applies each configured noise model after its episode bias has been reset."""
+    cfg = make_empty_direct_marl_env_cfg(device="cpu", num_envs=2)
+    cfg.observation_noise_model = {
+        agent: NoiseModelWithAdditiveBiasCfg(
+            noise_cfg=ConstantNoiseCfg(bias=0.5),
+            bias_noise_cfg=ConstantNoiseCfg(bias=float(index + 1)),
+            sample_bias_per_component=False,
+        )
+        for index, agent in enumerate(noisy_agents)
+    } or None
+    env = _StubMARLEnv(cfg)
+    env._configure_env_spaces()
+    env.scene.reset = lambda ids: None
+    env.sim.render_context = SimpleNamespace(reset_scene_state_cadence=lambda: None)
+    env.episode_length_buf = torch.ones(2, dtype=torch.long)
+    env.extras = {agent: {} for agent in cfg.possible_agents}
+    # Observations need not arrive in the order declared by possible_agents.
+    env._get_observations = lambda: {"agent_1": torch.zeros(2, 4), "agent_0": torch.zeros(2, 3)}
+    env._observation_noise_model = {
+        agent: NoiseModelWithAdditiveBias(noise_cfg, num_envs=2, device="cpu")
+        for agent, noise_cfg in (cfg.observation_noise_model or {}).items()
+    }
+
+    for episode in (1, 2):
+        observations, extras = env.reset()
+
+        for index, agent in enumerate(cfg.possible_agents):
+            expected = episode * (index + 1) + 0.5 if agent in noisy_agents else 0.0
+            torch.testing.assert_close(observations[agent], torch.full((2, index + 3), expected))
+        assert env.agents == cfg.possible_agents
+        assert observations is env.obs_dict
+        assert extras is env.extras
 
 
 class _DebugVisStubMARLEnv(_StubMARLEnv):
