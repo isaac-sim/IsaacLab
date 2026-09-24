@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Backend-selectable conveyor scene with a Franka robot."""
+"""Four-cube racetrack transfer and warehouse sorting tasks sharing a Franka policy."""
 
 import gymnasium as gym
 
@@ -20,7 +20,7 @@ gym.register(
 )
 
 gym.register(
-    # This presentation variant uses the base Newton checkpoint through an explicit URL.
+    # Warehouse sorting reuses the racetrack policy through an explicit checkpoint URL.
     id="IsaacContrib-Conveyor-Franka-Newton-Play-v0",
     entry_point=f"{__name__}.conveyor_franka_warehouse_env:ConveyorFrankaWarehouseEnv",
     disable_env_checker=True,

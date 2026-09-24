@@ -9,7 +9,8 @@ Added
   original manipulation geometry and 123-observation, eight-action policy interface. Complete-batch
   reliability with the unchanged policy was not established. Use ``--viz kit`` for authored visuals
   and the explicit base-task checkpoint URL documented in the conveyor guide.
-* Added a user guide, preview, and environment-browser entries for the conveyor variants.
+* Added a user guide, preview, and environment-browser entries distinguishing the original
+  four-cube racetrack task from warehouse sorting with the same pretrained policy.
 
 Changed
 ^^^^^^^

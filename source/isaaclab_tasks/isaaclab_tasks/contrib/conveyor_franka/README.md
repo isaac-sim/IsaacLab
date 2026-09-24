@@ -7,18 +7,23 @@ SPDX-License-Identifier: BSD-3-Clause
 
 # Conveyor Franka
 
-This package provides checkpoint-compatible Newton and PhysX variants of a manager-based task in
-which a Franka transfers four numbered cubes between two counter-rotating racetrack conveyors.
-Both variants preserve the same ordered eight-dimensional action space, policy observations,
-commands, rewards, reset recipes, 120 Hz physics step, and 60 Hz policy rate.
+Choose between two tasks using the same pretrained Franka policy:
+
+| Task | Layout and behavior | Newton task ID |
+| --- | --- | --- |
+| Racetrack transfer | Original two closed racetracks and four numbered cubes; continuous alternating transfers | `IsaacContrib-Conveyor-Franka-Newton-v0` |
+| Warehouse sorting | Current extended conveyors and 24 colored parcels; two colors per circulating conveyor | `IsaacContrib-Conveyor-Franka-Newton-Play-v0` |
+
+The sorter inherits the racetrack environment and configuration. Both reuse the same action,
+observation, reward, and placement logic and the same RSL-RL agent configuration. Sorting adds
+class dispatch and a four-slot parcel adapter; it needs no separately trained policy. The original
+task keeps its compact geometry and four fixed cube identities. Both use 123 observations,
+eight actions, 120 Hz physics, and a 60 Hz policy rate.
 
 ## Backend support
 
-| Variant | Device | Intended use |
-| --- | --- | --- |
-| Newton | CUDA | Train and play the four-cube task |
-| Newton Play | CUDA | Play the 24-parcel USD warehouse demonstration |
-| PhysX CPU | CPU only | Native surface-velocity reference and checkpoint playback |
+Both tasks run on Newton GPU. `IsaacContrib-Conveyor-Franka-PhysX-CPU-v0` provides a CPU-only
+native PhysX reference for the original four-cube racetrack task.
 
 The PhysX task rejects CUDA during configuration validation. In the supported Isaac Sim runtime,
 enabling the native surface-velocity contact-modification path under GPU dynamics can drop the belt
@@ -35,7 +40,7 @@ pipeline lives in `isaaclab_newton.physics.surface_velocity`, while PhysX schema
 attribute control live in `isaaclab_physx.physics.surface_velocity`. The task package owns only the
 racetrack geometry, backend lifecycle selection, and task-level commands.
 
-## Newton GPU playback
+## Original racetrack task
 
 Newton is kitless and supports the lightweight GL viewer:
 
@@ -51,7 +56,17 @@ backend. To evaluate another policy, replace `pretrained` with an explicit check
 PhysX task resolves a different backend-specific artifact name, so transferring this Newton policy
 to PhysX currently requires the explicit local checkpoint path shown below.
 
-For presentation, use the checkpoint-compatible Play variant. The two parallel manipulation
+Training uses the same task ID and defaults to 256 environments:
+
+```bash
+uv run isaaclab train --rl_library rsl_rl \
+  --task IsaacContrib-Conveyor-Franka-Newton-v0 \
+  --num_envs 256 --device cuda:0
+```
+
+## Warehouse sorting task
+
+Select the `Newton-Play` task for warehouse sorting with the same checkpoint. The two parallel manipulation
 straights and their adjoining 90-degree bends retain their original positions, widths, radii,
 and 0.35 m/s surface speed. Beyond these fixed sections, two short rising feeds climb 0.10 m at less than 10 degrees and
 join a shared elevated deck. Guides keep the two return lanes assigned through the upper split,
@@ -166,14 +181,6 @@ and [KION's warehouse installation photographs](https://www.kiongroup.com/en/New
 parallel transport, elevation changes, rack storage, packing zones, and clear marked aisles.
 The induction and recirculation layout also follows the concepts in
 [Dematic’s sortation overview](https://www.dematic.com/content/dam/dematic/downloads/whitepapers/NA_WP-1015_Sorting-Out-Sortation.pdf).
-
-Training uses the same task ID and defaults to 256 environments:
-
-```bash
-uv run isaaclab train --rl_library rsl_rl \
-  --task IsaacContrib-Conveyor-Franka-Newton-v0 \
-  --num_envs 256 --device cuda:0
-```
 
 ## PhysX CPU playback
 

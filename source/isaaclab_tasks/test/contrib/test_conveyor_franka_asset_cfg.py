@@ -32,14 +32,30 @@ from isaaclab_tasks.contrib.conveyor_franka.conveyor_geometry import (
 )
 
 
-def test_a09_a12_play_task_reuses_the_newton_policy_contract() -> None:
-    """The visual task is registered as a Play variant with unchanged policy-facing config."""
+def test_racetrack_and_sorting_tasks_share_the_policy_contract() -> None:
+    """Sorting extends the four-cube task without changing its scene or policy configuration."""
     task = gym.spec("IsaacContrib-Conveyor-Franka-Newton-Play-v0")
-    cfg = ConveyorFrankaA09A12EnvCfg()
+    base_task = gym.spec("IsaacContrib-Conveyor-Franka-Newton-v0")
     base_cfg = ConveyorFrankaEnvCfg()
+    base_scene = base_cfg.scene.to_dict()
+    cfg = ConveyorFrankaA09A12EnvCfg()
+    cfg.scene._configure_route_assets(cfg.commands.transfer.parcel_colors)
 
     assert task.kwargs["env_cfg_entry_point"].endswith(":ConveyorFrankaA09A12EnvCfg")
-    assert task.id.replace("-Play", "") == "IsaacContrib-Conveyor-Franka-Newton-v0"
+    assert base_task.kwargs["env_cfg_entry_point"].endswith(":ConveyorFrankaEnvCfg")
+    assert task.kwargs["rsl_rl_cfg_entry_point"] == base_task.kwargs["rsl_rl_cfg_entry_point"]
+    assert base_cfg.scene.to_dict() == base_scene
+    assert base_cfg.scene.to_dict() == ConveyorFrankaEnvCfg().scene.to_dict()
+    assert [name for name in vars(base_cfg.scene) if name.startswith("cube_")] == [
+        "cube_0",
+        "cube_1",
+        "cube_2",
+        "cube_3",
+    ]
+    assert base_cfg.conveyor_force.transported_body_count_per_env == 4
+    assert base_cfg.commands.transfer.class_type.__name__ == "ConveyorTransferCommand"
+    assert cfg.commands.transfer.class_type.__name__ == "ConveyorSortCommand"
+    assert cfg.conveyor_force.transported_body_count_per_env == 24
     assert cfg.scene.num_envs == 1
     assert cfg.actions == base_cfg.actions
     assert cfg.observations == base_cfg.observations

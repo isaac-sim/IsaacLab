@@ -1,30 +1,33 @@
 Conveyor Franka (Contrib)
 =========================
 
-A Franka transfers parcels between two moving conveyors. The compact task supports Newton
-GPU training and native PhysX CPU playback. An optional USD warehouse demonstrates the same
-checkpoint with textured cartons, elevated returns, gravity infeeds, and color sorting.
+Choose between the original four-cube racetrack task and the warehouse sorting task.
+Both use the same pretrained Franka policy and shared manipulation code. The sorter extends
+the base environment with textured cartons, elevated returns, gravity infeeds, and color dispatch.
 
 .. image:: ../_static/conveyor_franka.jpg
    :alt: Franka sorting colored cartons between two conveyors in a warehouse
    :width: 100%
 
-.. list-table:: Available variants
+.. list-table:: Two tasks, one policy
    :header-rows: 1
    :widths: 22 24 54
 
-   * - Variant
-     - Physics / device
-     - Intended use
-   * - Newton
-     - Newton MJWarp / GPU
-     - Train or play the original four-cube transfer task.
-   * - Newton Play
-     - Newton MJWarp / GPU
-     - Play the warehouse demonstration with 24 physical parcels.
-   * - PhysX CPU
-     - Isaac Sim PhysX / CPU
-     - Compare native surface-velocity behavior with an explicit checkpoint.
+   * - Task
+     - Inventory
+     - Behavior
+   * - Racetrack transfer
+     - Four numbered cubes
+     - Original two closed racetracks; continuous alternating transfers.
+   * - Warehouse sorting
+     - 24 colored parcels
+     - Extended circulating conveyors; blue/green on one loop, orange/purple on the other.
+
+Both run on Newton GPU: select ``IsaacContrib-Conveyor-Franka-Newton-v0`` for the original
+racetracks or ``IsaacContrib-Conveyor-Franka-Newton-Play-v0`` for sorting. The original task
+also has a native PhysX CPU backend, described below. Sorting reuses the base configuration,
+agent configuration, and manipulation terms; only the warehouse adds parcel-slot reassignment
+and color-based dispatch.
 
 Run the pretrained policy
 -------------------------
