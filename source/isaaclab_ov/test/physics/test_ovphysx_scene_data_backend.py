@@ -816,7 +816,7 @@ def test_transforms_read_native_slices_only_when_dirty(monkeypatch):
     monkeypatch.setattr(module, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
     stage = SimpleNamespace(Traverse=lambda: (_fake_rigid_body_prim(path) for path in paths))
     backend = module.OvPhysxSceneDataBackend()
-    backend.setup(FakePhysX(), stage, "cpu", None)
+    backend.setup(FakePhysX(), stage, "cpu")
     sdp = SceneDataProvider(backend)
 
     native = SceneDataFormat.Transform()
@@ -850,7 +850,7 @@ def test_setup_propagates_failed_rigid_binding(monkeypatch):
     stage = SimpleNamespace(Traverse=lambda: iter([_fake_rigid_body_prim("/World/Object")]))
     backend = module.OvPhysxSceneDataBackend()
     with pytest.raises(RuntimeError, match="simulated binding failure"):
-        backend.setup(FailingPhysX(), stage, "cpu", None)
+        backend.setup(FailingPhysX(), stage, "cpu")
 
 
 def test_failed_rigid_read_is_retried():
@@ -874,28 +874,23 @@ def test_failed_rigid_read_is_retried():
 
 
 @pytest.mark.parametrize("node_padding", [0, 1])
-def test_deformable_only_setup_publishes_planned_geometry_in_native_order(node_padding):
-    """Mixed native views fill exact partial/shared plan slices without a packing pass."""
+def test_deformable_only_setup_publishes_declared_geometry_in_native_order(node_padding):
+    """Mixed native views fill declared geometry slices without a packing pass."""
     import isaaclab_ov.physics.ovphysx_manager as module
     import numpy as np
     import warp as wp
     from isaaclab_ov import tensor_types as TT
 
-    from isaaclab.cloner import ClonePlan
     from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
 
-    plan = ClonePlan(
-        sources=("/Prototype",),
-        destinations=("/Clones/slot_{}/Asset",),
-        clone_mask=np.array([[True, False, True]]),
-        env_ids=np.array([2, 5, 9]),
-        deformables={
-            0: (DeformableStageEntry("/Prototype", "/Prototype/sim", "/Prototype/vis", "surface", 4, 4),),
-            None: (DeformableStageEntry("/Shared", "/Shared/sim", "/Shared/vis", "volume", 3, 3),),
-        },
-    )
     counts = {"/Clones/slot_2/Asset": 4, "/Clones/slot_9/Asset": 4, "/Shared": 3}
     values = {"/Clones/slot_2/Asset": 2.0, "/Clones/slot_9/Asset": 9.0, "/Shared": 100.0}
+    entries = [
+        DeformableStageEntry(
+            path, path + "/sim", path + "/vis", "volume" if path == "/Shared" else "surface", count, count
+        )
+        for path, count in counts.items()
+    ]
     reads = []
     bindings = []
 
@@ -922,9 +917,9 @@ def test_deformable_only_setup_publishes_planned_geometry_in_native_order(node_p
     stage = SimpleNamespace(Traverse=lambda: iter(()))
     if node_padding:
         with pytest.raises(RuntimeError, match="node counts"):
-            backend.setup(NativePhysX(), stage, "cpu", plan)
+            backend.setup(NativePhysX(), stage, "cpu", entries)
         return
-    backend.setup(NativePhysX(), stage, "cpu", plan)
+    backend.setup(NativePhysX(), stage, "cpu", entries)
 
     assert {path for paths, _ in bindings for path in paths} == counts.keys()
     assert {kind for _, kind in bindings} == {TT.SURFACE_DEFORMABLE_SIM_POSITION, TT.DEFORMABLE_SIM_NODAL_POSITION}

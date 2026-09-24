@@ -1,5 +1,5 @@
-Added
+Fixed
 ^^^^^
 
-* Added prototype-owned deformable and cable geometry to ``ClonePlan`` before
-  clone dispatch, preserving custom namespaces and partial environment coverage.
+* Resolved deformable geometry from declared prototypes during backend import, preserving
+  custom namespaces and partial environment coverage without storing geometry on ``ClonePlan``.

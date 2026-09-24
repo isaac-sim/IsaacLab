@@ -24,7 +24,7 @@ import itertools
 import math
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 
@@ -36,9 +36,6 @@ from .cloner_cfg import DEFAULT_ENV_TEMPLATE, CloneCfg, InclusionSet, expand_env
 from .cloner_strategies import sequential
 from .path import match, under
 from .usd import UsdReplicateContext
-
-if TYPE_CHECKING:
-    from ..scene_data.deformable_discovery import DeformableStageEntry
 
 
 @dataclass(frozen=True, eq=False)
@@ -72,15 +69,6 @@ class ClonePlan:
 
     global_paths: tuple[str, ...] = ()
     """Unique prim paths for scene assets shared by every environment."""
-
-    deformables: dict[int | None, tuple[DeformableStageEntry, ...]] = field(default_factory=dict)
-    """Deformable prototype geometry by source row; ``None`` contains shared geometry.
-
-    Populated after spawning, before clone dispatch. Vertex arrays are stored once per prototype.
-    """
-
-    cables: dict[int | None, tuple[tuple[str, int], ...]] = field(default_factory=dict)
-    """Supported cable paths and segment counts by source row; ``None`` contains shared cables."""
 
 
 def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z") -> tuple[np.ndarray, np.ndarray]:

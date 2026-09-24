@@ -22,8 +22,8 @@ from isaaclab_newton.physics import visualization_deformables as visualization_d
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.cloner import ClonePlan
-from isaaclab.cloner.geometry import compile_geometry
-from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
+from isaaclab.scene_data.deformable_discovery import DeformableStageEntry, deformable_entries
+from isaaclab.sim.schemas import define_deformable_curve_properties
 
 _VIS_LABEL_SUFFIXES = {
     "body_label": "Body",
@@ -81,7 +81,7 @@ class _FakeVisualizationModelBuilder:
     def add_usd(self, stage, root_path=None, ignore_paths=None, schema_resolvers=None, **kwargs):
         del stage, ignore_paths, schema_resolvers, kwargs
         if root_path is None:
-            return {"path_shape_map": {}}
+            return {"path_shape_map": {}, "path_cable_map": {}}
         label_start = len(self.body_label)
         geometry_start = len(self.geometry_sources)
         for attr in _VIS_BUILTIN_LABEL_ATTRS:
@@ -94,7 +94,7 @@ class _FakeVisualizationModelBuilder:
         self.custom_attributes["mujoco:equality_constraint_world"].values.append(self._current_world or 0)
         self.geometry_sources.append(root_path)
         self._record_world_slice(label_start, len(self.body_label), geometry_start, len(self.geometry_sources))
-        return {"path_shape_map": {}}
+        return {"path_shape_map": {}, "path_cable_map": {}}
 
     def add_builder(self, builder, xform=None):
         del xform
@@ -359,8 +359,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
             positions=np.zeros((4, 3), dtype=np.float32),
         )
 
-        clone_plan.deformables.update({None: (), 0: (entry,)})
-        entries = visualization_deformables_module.deformable_entries(clone_plan, (0,))
+        entries = deformable_entries(clone_plan, [entry], (0,))
 
         self.assertEqual(
             [entry.root_path for entry in entries],
@@ -394,7 +393,6 @@ class TestVisualizationClonePlan(unittest.TestCase):
             global_paths=("/World/Declared",),
             context_rows={NewtonReplicateContext: ()},
         )
-        compile_geometry(plan, self.sim.stage)
         builder, stage_info, site_index_map = NewtonReplicateContext(self.sim).replicate(plan)
 
         self.assertEqual(builder.body_label, ["/World/Declared"])
@@ -410,7 +408,6 @@ class TestVisualizationClonePlan(unittest.TestCase):
             global_paths=("/World",),
             context_rows={NewtonReplicateContext: (0,)},
         )
-        compile_geometry(plan, self.sim.stage)
         for positions in (plan.positions, None):
             with self.subTest(positions=positions):
                 builder, _, _ = NewtonReplicateContext(self.sim).replicate(replace(plan, positions=positions))
@@ -422,41 +419,47 @@ class TestVisualizationClonePlan(unittest.TestCase):
                 offset = np.zeros(3) if positions is None else positions[1] - positions[0]
                 np.testing.assert_allclose(target_position - source_position, offset)
 
-    def test_cable_bindings_use_plan_topology_without_destination_prims(self):
+    def test_cable_import_binds_only_supported_native_instances_without_destination_prims(self):
+        stage = self.sim.stage = Usd.Stage.CreateInMemory()
         source = "/Scene/copy_7/Rope"
+        shared = ("/Scene/SharedRope", "/Scene/PeriodicRope", "/Scene/MultiRope", "/Scene/CubicRope", "/Scene/OnePoint")
+        for path in (source, "/Scene/copy_7/OtherRope", *shared):
+            curve = UsdGeom.BasisCurves.Define(stage, path)
+            points, counts = [(0, 0, 0), (0, 1, 0), (1, 1, 0)], [3]
+            if path.endswith("MultiRope"):
+                points, counts = points * 2, [3, 3]
+            elif path.endswith("OnePoint"):
+                points, counts = points[:1], [1]
+            curve.CreatePointsAttr(points)
+            curve.CreateCurveVertexCountsAttr(counts)
+            curve.CreateTypeAttr(UsdGeom.Tokens.cubic if path.endswith("CubicRope") else UsdGeom.Tokens.linear)
+            curve.CreateWrapAttr(
+                UsdGeom.Tokens.periodic if path.endswith("PeriodicRope") else UsdGeom.Tokens.nonperiodic
+            )
+            curve.CreateWidthsAttr([0.02])
+            curve.SetWidthsInterpolation(UsdGeom.Tokens.constant)
+            define_deformable_curve_properties(path, stage)
         plan = ClonePlan(
             sources=(source, "/Scene/copy_7/OtherRope"),
             destinations=("/Scene/copy_{}/Rope", "/Scene/copy_{}/OtherRope"),
             clone_mask=np.ones((2, 2), dtype=np.bool_),
             env_ids=np.array([7, 12]),
-            cables={None: (("/Scene/SharedRope", 1),), 0: ((source, 2),), 1: (("/Scene/copy_7/OtherRope", 5),)},
+            global_paths=shared,
             context_rows={NewtonReplicateContext: (0,)},
         )
-        labels = [
-            "/Scene/copy_12/Rope_edge_capsule_1",
-            "/Scene/SharedRope_edge_capsule_0",
-            "/Scene/copy_7/Rope_edge_capsule_0",
-            "/Scene/copy_12/Rope_edge_capsule_0",
-            "/Scene/copy_7/Rope_edge_capsule_1",
-            "/Scene/UnsupportedPeriodicRope_edge_capsule_0",
-        ]
-        with (
-            mock.patch.object(
-                replicate_module.NewtonManager, "backend", SimpleNamespace(model=SimpleNamespace(shape_label=labels))
-            ),
-            mock.patch(
-                "isaaclab_newton.physics.newton_manager.SimulationContext.instance",
-                return_value=SimpleNamespace(get_clone_plan=lambda: plan),
-            ),
-            mock.patch(
-                "isaaclab_newton.physics.newton_manager.get_current_stage",
-                side_effect=AssertionError("Stage discovery is not a binding input."),
-            ),
+        builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan)
+        model = builder.finalize(device="cpu")
+        with mock.patch(
+            "isaaclab_newton.physics.newton_manager.get_current_stage",
+            side_effect=AssertionError("Stage discovery is not a binding input."),
         ):
+            bindings = replicate_module.NewtonManager.collect_cable_segment_shape_ids()
+        self.assertEqual(set(bindings), {"/Scene/SharedRope", source, "/Scene/copy_12/Rope"})
+        for path, shape_ids in bindings.items():
             self.assertEqual(
-                replicate_module.NewtonManager.collect_cable_segment_shape_ids(),
-                {"/Scene/SharedRope": [1], "/Scene/copy_7/Rope": [2, 4], "/Scene/copy_12/Rope": [3, 0]},
+                [model.shape_label[index] for index in shape_ids], [f"{path}_edge_capsule_{i}" for i in range(2)]
             )
+        self.assertFalse(stage.GetPrimAtPath("/Scene/copy_12/Rope"))
 
     def test_visualization_builder_disables_collision_pairs(self):
         stage = Usd.Stage.CreateInMemory()
@@ -489,7 +492,6 @@ class TestVisualizationClonePlan(unittest.TestCase):
             positions=np.asarray(((0.0, 0.0, 0.0), (2.0, 0.0, 0.0)), dtype=np.float32),
             context_rows={NewtonReplicateContext: (0,)},
         )
-        compile_geometry(clone_plan, self.sim.stage)
         builder, _, _ = NewtonReplicateContext(self.sim).replicate(clone_plan)
         model = builder.finalize(device="cpu")
 
@@ -526,7 +528,6 @@ class TestVisualizationClonePlan(unittest.TestCase):
             mock.patch.object(newton_clone_utils_module, "import_builder_visual_material_paths"),
             mock.patch.object(newton_clone_utils_module, "replace_newton_builder_shape_colors"),
         ):
-            compile_geometry(clone_plan, self.sim.stage)
             builder, _, _ = NewtonReplicateContext(self.sim).replicate(clone_plan)
 
         self.assertEqual(
@@ -564,13 +565,12 @@ class TestVisualizationClonePlan(unittest.TestCase):
             clone_mask=np.array([[True, False, True]], dtype=np.bool_),
             env_ids=np.array([7, 9, 12], dtype=np.int64),
             positions=np.array([[10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [30.0, 0.0, 0.0]]),
-            deformables={None: (), 0: (entry,)},
         )
         for positions in (plan.positions, None):
             with self.subTest(positions=positions):
                 builder = mock.Mock(particle_count=0)
                 entities, groups = visualization_deformables_module.add_shadow_deformables_to_builder(
-                    builder, replace(plan, positions=positions), (0,)
+                    builder, plan, deformable_entries(replace(plan, positions=positions), [entry], (0,))
                 )
 
                 self.assertEqual([entity.root_path for entity in entities], ["/Scene/copy_12/Parent/Cloth", path])
@@ -601,14 +601,13 @@ class TestVisualizationClonePlan(unittest.TestCase):
             destinations=("/Copies/{}/Body",) * 2,
             env_ids=np.array([2, 10, 30]),
             clone_mask=np.array([[True, False, True], [False, True, False]]),
-            deformables={None: (), 0: (entries[0],), 1: (entries[1],)},
         )
         remaps = (object(), object())
         with mock.patch.object(
             visualization_deformables_module, "_build_volume_vis_remap", side_effect=remaps
         ) as build:
             _, groups = visualization_deformables_module.add_shadow_deformables_to_builder(
-                mock.Mock(particle_count=0), plan, (0, 1)
+                mock.Mock(particle_count=0), plan, deformable_entries(plan, entries, (0, 1))
             )
         self.assertEqual(build.call_count, 2)
         self.assertEqual([group.particles_per_body for group in groups], [3, 6])

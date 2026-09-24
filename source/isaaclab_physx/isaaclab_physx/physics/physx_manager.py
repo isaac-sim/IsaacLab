@@ -16,7 +16,7 @@ import os
 import re
 import time
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -37,7 +37,7 @@ from pxr import Sdf, Usd, UsdPhysics, UsdUtils
 import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
-from isaaclab.scene_data.deformable_discovery import deformable_entries
+from isaaclab.scene_data.deformable_discovery import deformable_entries, deformable_prototypes
 from isaaclab.scene_data.geometry_points import pack_body_slices_kernel
 from isaaclab.utils.string import to_camel_case
 
@@ -46,7 +46,7 @@ from isaaclab_physx.cloner import PhysxReplicateContext
 from .physx_manager_cfg import PhysxBackendCfg
 
 if TYPE_CHECKING:
-    from isaaclab.cloner import ClonePlan
+    from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
     from isaaclab.sim.simulation_context import SimulationContext
 
     from .physx_manager_cfg import PhysxCfg
@@ -246,9 +246,8 @@ class PhysxSceneDataBackend(SceneDataBackend):
         self._rigid_body_view = self.backend.simulation_view.create_rigid_body_view(body_paths)
         return self._rigid_body_view
 
-    def _setup_deformable_geometry(self, plan: ClonePlan) -> None:
+    def _setup_deformable_geometry(self, entries: Sequence[DeformableStageEntry]) -> None:
         """Bind declared deformables and compile their native-to-flat offsets once."""
-        entries = deformable_entries(plan)
         device = PhysicsManager._device
         for deformable_type in ("volume", "surface"):
             declared = [entry for entry in entries if entry.deformable_type == deformable_type]
@@ -942,6 +941,10 @@ class PhysxManager(PhysicsManager):
 
         stage_id = get_current_stage_id()
 
+        sim = PhysicsManager._sim
+        plan = sim.get_clone_plan()
+        entries = deformable_entries(plan, deformable_prototypes(sim.stage, plan)) if plan is not None else ()
+
         is_gpu = "cuda" in PhysicsManager.get_device()
 
         physx = omni.physx.get_physx_interface()
@@ -967,14 +970,12 @@ class PhysxManager(PhysicsManager):
             return
 
         # Register the complete tensor view only after PhysX has loaded the stage.
-        sim = PhysicsManager._sim
         cls.backend = sim.get_or_create_backend(PhysxBackendCfg(stage_id=stage_id))
         cls._scene_data_backend.backend = cls.backend
 
         # Final update after view creation
         physx.update_simulation(cls.get_physics_dt(), 0.0)
-        if (plan := sim.get_clone_plan()) is not None:
-            cls._scene_data_backend._setup_deformable_geometry(plan)
+        cls._scene_data_backend._setup_deformable_geometry(entries)
         cls._view_created = True
 
         cls._event_bus.dispatch_event(IsaacEvents.SIMULATION_VIEW_CREATED.value, payload={})

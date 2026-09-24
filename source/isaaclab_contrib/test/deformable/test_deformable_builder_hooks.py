@@ -14,7 +14,6 @@ from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableMaterialCfg
 
 from isaaclab.cloner import ClonePlan
-from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
 
 from isaaclab_contrib.deformable import DeformableObject
 from isaaclab_contrib.deformable.deformable_object import (
@@ -135,6 +134,7 @@ def test_fabric_particle_sync_uses_planned_paths_and_skips_missing_sinks(monkeyp
     """Fabric bindings use actual plan IDs, even when no corresponding USD clone exists."""
     entry = _make_surface_entry()
     entry.prim_path = "/Scene/copy_[^/]+/cloth"
+    entry.vis_mesh_prim_path = entry.prim_path + "/mesh"
     entry.particle_offsets = [7, 19]
     entry.particles_per_body = 3
     plan = ClonePlan(
@@ -142,10 +142,6 @@ def test_fabric_particle_sync_uses_planned_paths_and_skips_missing_sinks(monkeyp
         destinations=("/Scene/copy_{}",),
         clone_mask=np.array([[True, False, True]]),
         env_ids=np.array([7, 12, 42]),
-        deformables={
-            None: (),
-            0: (DeformableStageEntry("/Source/cloth", "/Source/cloth/mesh", "/Source/cloth/mesh", "surface", 3, 3),),
-        },
     )
     paths = [f"/Scene/copy_{env_id}/cloth/mesh" for env_id in (7, 42)]
 

@@ -40,7 +40,6 @@ if not _MISSING_MODULES:
     from ovrtx import BindingFlag, DataAccess  # noqa: E402
 
     from isaaclab.cloner import ClonePlan
-    from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
 else:
     NewtonManager = None
     OVRTXRenderer = None
@@ -111,7 +110,6 @@ def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, 
         destinations=("/World/envs/env_{}",),
         clone_mask=np.ones((1, 2), dtype=bool),
         env_ids=np.array([0, 1]),
-        deformables={None: (), 0: ()},
     )
     renderer.backend.renderer = _FakeOVRTXBackend()
     renderer._deformable_points_binding = None
@@ -160,17 +158,6 @@ def test_setup_deformable_bindings_binds_mixed_surface_and_volume_entries(
         particle_offsets=[6, 9],
         particles_per_body=3,
     )
-    renderer._clone_plan.deformables[0] = tuple(
-        DeformableStageEntry(
-            root_path=f"/Prototype/{name}",
-            sim_mesh_path=f"/Prototype/{name}/mesh",
-            vis_mesh_path=f"/Prototype/{name}/mesh",
-            deformable_type=kind,
-            vertex_count=3,
-            vis_vertex_count=3,
-        )
-        for name, kind in (("DeformableSurface", "surface"), ("DeformableVolume", "volume"))
-    )
 
     monkeypatch.setattr("isaaclab.sim.utils.stage.get_current_stage", lambda: None)
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [surface_entry, volume_entry])
@@ -202,16 +189,11 @@ def test_setup_deformable_bindings_binds_mixed_surface_and_volume_entries(
 def test_shadow_bindings_keep_heterogeneous_prototype_offsets(monkeypatch: pytest.MonkeyPatch):
     """Equal destination patterns do not merge different prototype particle layouts."""
     renderer, backend = _make_renderer_without_backend()
-    entries = tuple(
-        DeformableStageEntry(f"/Source/{name}", f"/Source/{name}/Sim", f"/Source/{name}/Visual", "volume", 4, count)
-        for name, count in (("A", 3), ("B", 5))
-    )
     renderer._clone_plan = ClonePlan(
-        sources=tuple(entry.root_path for entry in entries),
+        sources=("/Source/A", "/Source/B"),
         destinations=("/Copies/{}/Body",) * 2,
         clone_mask=np.array([[True, False, True], [False, True, False]]),
         env_ids=np.array([2, 10, 30]),
-        deformables={None: (), 0: (entries[0],), 1: (entries[1],)},
     )
     groups = [
         ShadowDeformableRegistryGroup(
@@ -251,11 +233,6 @@ def test_setup_deformable_bindings_rejects_offset_count_mismatch(monkeypatch: py
         deformable_type="surface",
         particle_offsets=[0],
         particles_per_body=3,
-    )
-    renderer._clone_plan.deformables[0] = (
-        DeformableStageEntry(
-            "/Prototype/Deformable", "/Prototype/Deformable/mesh", "/Prototype/Deformable/mesh", "surface", 3, 3
-        ),
     )
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [bad_entry])
     with pytest.raises(ValueError, match="zip"):

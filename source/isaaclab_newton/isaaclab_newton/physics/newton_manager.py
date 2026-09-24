@@ -78,10 +78,10 @@ from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, 
 
 from pxr import Usd, UsdGeom
 
-from isaaclab.cloner.path import rebase
+from isaaclab.cloner.path import rebase, under
+from isaaclab.cloner.query import iter_sources
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
-from isaaclab.scene_data.deformable_discovery import deformable_entries
 from isaaclab.scene_data.deformable_vis_remap import (
     VolumeVisRemap,
     launch_batch_particle_slice_copy,
@@ -473,6 +473,7 @@ class NewtonManager(PhysicsManager):
     _newton_cable_offset_attr = "newton:cableOffset"
     _newton_cable_count_attr = "newton:cableSegmentCount"
     _cable_shape_ids: wp.array | None = None
+    _cable_bindings: dict[str, list[int]] = {}
     _cable_sync_cpu_buffers: tuple[wp.array, ...] | None = None
     _newton_particle_offset_attr = "newton:particleOffset"
     _newton_particle_count_attr = "newton:particleCount"
@@ -1032,6 +1033,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._particles_dirty = False
         NewtonManager._cables_dirty = False
         NewtonManager._cable_shape_ids = None
+        NewtonManager._cable_bindings = {}
         NewtonManager._cable_sync_cpu_buffers = None
         NewtonManager._particle_visual_prims = {}
         NewtonManager._mpm_object_registry = []
@@ -1598,26 +1600,31 @@ class NewtonManager(PhysicsManager):
         """Pair planned visual mesh paths with this model's native particle offsets and counts.
 
         Args:
-            plan: Compiled geometry and exact destination layout used to build this model.
+            plan: Replication layout used to build this model.
 
         Returns:
             Parallel lists of visual mesh paths, particle offsets, and particle counts.
         """
         if not cls._deformable_registry:
             return [], [], []
-        planned = {entry.root_path: entry for entry in deformable_entries(plan)}
         paths, offsets, counts = [], [], []
         for entry in cls._deformable_registry:
             if isinstance(entry, ShadowDeformableRegistryGroup):
                 if entry.register_usd_vis_point_bindings:
                     for entity in entry.entities:
-                        paths.append(planned[entity.root_path].vis_mesh_path)
+                        paths.append(entity.root_path + entry.vis_mesh_prim_path[len(entry.prim_path) :])
                         offsets.append(entity.vis_particle_offset)
                         counts.append(entity.vis_particle_count)
                 continue
-            instances = [item for path, item in planned.items() if re.fullmatch(entry.prim_path, path)]
-            for instance, offset in zip(instances, entry.particle_offsets, strict=True):
-                paths.append(instance.vis_mesh_path)
+            instances = [
+                rebase(source_path, source, template.format(env_id))
+                for source, template, source_path, env_ids in iter_sources(plan, entry.vis_mesh_prim_path)
+                for env_id in env_ids
+            ]
+            if not instances and any(under(entry.vis_mesh_prim_path, root) for root in plan.global_paths):
+                instances.append(entry.vis_mesh_prim_path)
+            for path, offset in zip(instances, entry.particle_offsets, strict=True):
+                paths.append(path)
                 offsets.append(offset)
                 counts.append(entry.particles_per_body)
         return paths, offsets, counts
@@ -1634,51 +1641,13 @@ class NewtonManager(PhysicsManager):
         from labels ``.../mesh_edge_capsule_0``, ``_1``, ``_2``, and Newton assigned those shapes
         indices ``42..44`` after earlier scene shapes.
 
-        The clone plan supplies supported curve topology, including destinations that exist
-        only in a native backend. No completed-stage lookup is needed.
+        Bindings are recorded during native import and cloning, including destinations that
+        exist only in a native backend. No completed-stage lookup is needed.
 
         Returns:
             Concrete cable prim paths mapped to ordered Newton segment shape ids.
         """
-        if cls.backend is None:
-            return {}
-
-        cable_shapes: dict[str, dict[int, int]] = {}
-        for shape_id, label in enumerate(cls.backend.model.shape_label):
-            if label is None:
-                continue
-            prim_path, separator, suffix = label.rpartition("_edge_capsule_")
-            if not separator or not suffix.isdigit():
-                continue
-            segment = int(suffix)
-            segments = cable_shapes.setdefault(prim_path, {})
-            if segment in segments:
-                raise RuntimeError(f"Cable visualization requires one Newton shape labeled {label}.")
-            segments[segment] = shape_id
-
-        if not cable_shapes:
-            return {}
-        plan = SimulationContext.instance().get_clone_plan()
-        topology = dict(plan.cables[None])
-        for row, curves in plan.cables.items():
-            if row is None:
-                continue
-            for col in np.flatnonzero(plan.clone_mask[row]):
-                destination = plan.destinations[row].format(int(plan.env_ids[col]))
-                topology.update((rebase(path, plan.sources[row], destination), count) for path, count in curves)
-        ordered: dict[str, list[int]] = {}
-        # Per-asset clone routing may omit planned cables from this native model.
-        for prim_path, segments in cable_shapes.items():
-            if prim_path not in topology:
-                continue
-            segment_count = topology[prim_path]
-            if set(segments) != set(range(segment_count)):
-                raise RuntimeError(
-                    f"Cable visualization for '{prim_path}' requires {segment_count} ordered segment shapes."
-                )
-            ordered[prim_path] = [segments[segment] for segment in range(segment_count)]
-
-        return ordered
+        return cls._cable_bindings
 
     @staticmethod
     def _initialize_fabric_particle_prims(stage, fabric_hierarchy, usdrt, prim_paths: Iterable[str]) -> None:

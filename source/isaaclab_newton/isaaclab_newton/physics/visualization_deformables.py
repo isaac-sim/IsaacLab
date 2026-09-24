@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Build Newton rendering geometry from plan-owned deformable prototypes."""
+"""Build Newton rendering geometry from imported deformable prototypes."""
 
 from __future__ import annotations
 
@@ -18,7 +18,6 @@ from isaaclab.cloner import ClonePlan
 from isaaclab.cloner.query import path_to_source
 from isaaclab.scene_data.deformable_discovery import (
     DeformableStageEntry,
-    deformable_entries,
     sort_deformable_entries_for_geometry_sync,
 )
 from isaaclab.scene_data.deformable_vis_remap import VolumeVisRemap, build_volume_vis_barycentric_remap
@@ -114,7 +113,7 @@ def _build_volume_vis_remap(entry: DeformableStageEntry, device: str) -> VolumeV
 def add_shadow_deformables_to_builder(
     builder: ModelBuilder,
     clone_plan: ClonePlan,
-    rows: tuple[int, ...],
+    entries: list[DeformableStageEntry],
     *,
     device: str = "cpu",
 ) -> tuple[list[ShadowDeformableEntity], list[ShadowDeformableRegistryGroup]]:
@@ -127,17 +126,16 @@ def add_shadow_deformables_to_builder(
     Args:
         builder: Shadow :class:`~newton.ModelBuilder` under construction.
         clone_plan: Replication layout used to expand prototypes into destination environments.
-        rows: Plan rows routed to this Newton representation.
+        entries: Imported geometry expanded to this representation's destination instances.
         device: Warp device for barycentric remap tables uploaded during shadow build.
 
     Returns:
         Flat entity list for geometry mapping and grouped registry metadata for
         USD visual-mesh point bindings (e.g. OVRTX).
     """
-    entries = deformable_entries(clone_plan, rows)
     wildcard_groups: dict[tuple[str, str, str, str], list[DeformableStageEntry]] = {}
     for entry in entries:
-        # Prototype vertices and their parent pose were captured together by the plan.
+        # Prototype vertices and their parent pose were imported together.
         key = (entry.root_path, entry.sim_mesh_path, entry.vis_mesh_path)
         prototype_path = entry.root_path
         resolved = path_to_source(clone_plan, entry.root_path)

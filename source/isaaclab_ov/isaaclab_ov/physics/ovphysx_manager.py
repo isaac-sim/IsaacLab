@@ -19,6 +19,7 @@ import math
 import os
 import re
 import stat
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
@@ -28,7 +29,7 @@ from pxr import Sdf, UsdPhysics
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
-from isaaclab.scene_data.deformable_discovery import deformable_entries
+from isaaclab.scene_data.deformable_discovery import deformable_entries, deformable_prototypes
 from isaaclab.sim.simulation_context import SimulationContext
 
 from isaaclab_ov._clone import CloneTransform, clone_transforms_from_positions
@@ -41,7 +42,7 @@ from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
 from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR, OvPhysxBackendCfg
 
 if TYPE_CHECKING:
-    from isaaclab.cloner import ClonePlan
+    from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
 
     from .ovphysx_manager_cfg import OvPhysxCfg
 
@@ -110,14 +111,14 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         """Concatenated ``prim_paths`` across all bindings, in registration order."""
         return [path for view, _ in self._rigid_bindings for path in view.prim_paths]
 
-    def setup(self, physx, stage, device: str, plan: ClonePlan | None) -> None:
+    def setup(self, physx, stage, device: str, entries: Sequence[DeformableStageEntry] = ()) -> None:
         """Discover RigidBodyAPI prims, dedup by env-wildcard form, create one binding per pattern.
 
         Args:
             physx: Live ``ovphysx.PhysX`` instance (the wheel handle).
             stage: USD stage to traverse for RigidBodyAPI prims.
             device: Warp device string used to allocate the published buffers.
-            plan: Clone plan supplying declared deformable geometry, or None for rigid-only scenes.
+            entries: Declared deformables captured before native stage import.
         """
         from isaaclab_ov import tensor_types as TT  # local: keep heavy ovphysx out of module load
 
@@ -163,15 +164,14 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
                 self._rigid_bindings.append((view, buffer))
                 offset += view.count
 
-        if plan is not None:
-            self._setup_deformable_bindings(physx, plan, device)
+        self._setup_deformable_bindings(physx, entries, device)
 
-    def _setup_deformable_bindings(self, physx, plan: ClonePlan, device: str) -> None:
+    def _setup_deformable_bindings(self, physx, entries: Sequence[DeformableStageEntry], device: str) -> None:
         """Bind exact planned deformables directly into one flat publication buffer."""
         from isaaclab_ov import tensor_types as TT
 
         groups = {}
-        for entry in deformable_entries(plan):
+        for entry in entries:
             groups.setdefault((entry.deformable_type, entry.vertex_count), []).append(entry)
 
         views = []
@@ -857,6 +857,9 @@ class OvPhysxManager(PhysicsManager):
         if sim is None:
             raise RuntimeError("OvPhysxManager: SimulationContext is not set.")
 
+        plan = sim.get_clone_plan()
+        entries = deformable_entries(plan, deformable_prototypes(sim.stage, plan)) if plan is not None else ()
+
         ovphysx_device = "gpu" if "cuda" in PhysicsManager._device else "cpu"
 
         if cls._locked_device is not None and ovphysx_device != cls._locked_device:
@@ -929,7 +932,7 @@ class OvPhysxManager(PhysicsManager):
         # via :meth:`get_scene_data_backend`.
         if cls._scene_data_backend is None:
             cls._scene_data_backend = OvPhysxSceneDataBackend()
-        cls._scene_data_backend.setup(cls.backend.physx, sim.stage, PhysicsManager._device, sim.get_clone_plan())
+        cls._scene_data_backend.setup(cls.backend.physx, sim.stage, PhysicsManager._device, entries)
 
         cls.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
         cls._warmup_done = True

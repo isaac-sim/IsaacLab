@@ -168,7 +168,7 @@ def test_grid_transforms_always_returns_float32():
 
 
 def test_replicate_dispatches_the_same_plan_in_priority_order(simulation):
-    """Registered contexts receive one shared, geometry-complete plan in backend priority order."""
+    """Generic dispatch forwards one layout without interpreting asset geometry."""
 
     class Late(_Context):
         replicate_priority = 1
@@ -176,16 +176,8 @@ def test_replicate_dispatches_the_same_plan_in_priority_order(simulation):
     class Early(_Context):
         replicate_priority = -1
 
-        def replicate(self, plan):
-            assert plan.cables[0] == (("/World/envs/env_0/Cable", 2),)
-            super().replicate(plan)
-
     plan = _plan(Late, Early)
-    curve = UsdGeom.BasisCurves.Define(simulation.stage, "/World/envs/env_0/Cable")
-    curve.GetPrim().AddAppliedSchema("PhysicsCurvesDeformableSimAPI")
-    curve.CreateCurveVertexCountsAttr([3])
-    curve.CreateTypeAttr(UsdGeom.Tokens.linear)
-    curve.CreateWrapAttr(UsdGeom.Tokens.nonperiodic)
+    simulation.stage = None
     simulation.physics_manager.clone_context_type = Late
     simulation.clone_contexts = {Late: Late(simulation), Early: Early(simulation)}
     simulation.plan = plan
@@ -193,6 +185,7 @@ def test_replicate_dispatches_the_same_plan_in_priority_order(simulation):
     replicate_session.replicate(plan)
 
     assert simulation.calls == [(Early, plan), (Late, plan)]
+    assert not {"deformables", "cables", "point_clouds"}.intersection(vars(plan))
 
 
 def test_replicate_physics_false_preserves_rendering_and_usd(simulation):

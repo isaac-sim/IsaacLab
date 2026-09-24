@@ -156,19 +156,21 @@ fields listed below are that table's columns:
      - Optional per-env world positions [m], shape ``[num_envs, 3]``.
    * - ``global_paths``
      - Unique prim paths for scene assets shared by every env and therefore not replicated.
+   * - ``cfg_rows``
+     - Asset configuration identities mapped to the rows they own.
    * - ``context_rows``
      - Clone-context types mapped to the rows they consume.
-   * - ``deformables``, ``cables``
-     - Prototype geometry keyed by source row; ``None`` holds shared geometry.
 
-The plan does not own a stage. Simulation-owned contexts supply their own runtime
-when they consume it.
+The plan describes replication and routing, not asset geometry or native state. Asset
+construction authors the prototypes. Each backend imports its declared roots and records
+the geometry-to-native mappings needed by its consumers; consumers bind after native
+initialization. Clone contexts apply the plan but do not own native runtime resources.
 
-After spawning and before clone dispatch, replication reads geometry from the declared
-prototypes and shared roots once. Native deformable bindings use these recorded paths and
-counts after initialization, rather than discovering the completed stage or assuming dense
-environment ids. Vertex arrays remain shared between instances. MPM spawners also author
-their visible point clouds before replication; initialization only binds their native ranges.
+Deformable imports read prototype meshes and expand their paths through the plan without
+copying vertex arrays per environment. Newton cable imports retain ordered native segment
+bindings. MPM spawners author render points under the asset before cloning, then bind the
+importer's particle ranges. None requires geometry-specific fields on ``ClonePlan`` or
+discovery of the completed replicated scene.
 
 When every env is a copy of env_0:
 

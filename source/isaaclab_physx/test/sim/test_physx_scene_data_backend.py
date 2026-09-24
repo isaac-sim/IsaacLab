@@ -146,26 +146,21 @@ def test_rigid_body_view_uses_exact_path_for_joint_name_collision(monkeypatch, j
 
 
 @pytest.mark.parametrize("capacity", [3, 8])
-def test_deformable_geometry_uses_plan_counts_and_native_order(monkeypatch, capacity):
-    """Exact clone coverage and unpadded counts survive native reordering and mesh paths."""
+def test_deformable_geometry_uses_declared_counts_and_native_order(monkeypatch, capacity):
+    """Declared unpadded counts survive native reordering and mesh paths."""
     from isaaclab_physx.physics import physx_manager
 
-    from isaaclab.cloner import ClonePlan
     from isaaclab.physics import PhysicsManager
     from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
 
-    plan = ClonePlan(
-        sources=("/Prototype",),
-        destinations=("/Clones/slot_{}/Asset",),
-        clone_mask=np.array([[True, False, True]]),
-        env_ids=np.array([2, 5, 9]),
-        deformables={
-            0: (DeformableStageEntry("/Prototype", "/Prototype/sim", "/Prototype/vis", "surface", 4, 4),),
-            None: (DeformableStageEntry("/Shared", "/Shared/sim", "/Shared/vis", "volume", 2, 2),),
-        },
-    )
     values = {"/Clones/slot_2/Asset": 2.0, "/Clones/slot_9/Asset": 9.0, "/Shared": 100.0}
     counts = {"/Clones/slot_2/Asset": 4, "/Clones/slot_9/Asset": 4, "/Shared": 2}
+    entries = [
+        DeformableStageEntry(
+            path, path + "/sim", path + "/vis", "volume" if path == "/Shared" else "surface", count, count
+        )
+        for path, count in counts.items()
+    ]
     bound_paths = []
 
     def create_view(paths):
@@ -194,9 +189,9 @@ def test_deformable_geometry_uses_plan_counts_and_native_order(monkeypatch, capa
     )
     if capacity < 4:
         with pytest.raises(RuntimeError, match="node capacity"):
-            backend._setup_deformable_geometry(plan)
+            backend._setup_deformable_geometry(entries)
         return
-    backend._setup_deformable_geometry(plan)
+    backend._setup_deformable_geometry(entries)
 
     assert set(bound_paths) == counts.keys()
     assert backend.geometry_paths == ["/Shared", "/Clones/slot_9/Asset", "/Clones/slot_2/Asset"]

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from itertools import chain
@@ -18,7 +19,8 @@ import numpy as np
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 from .. import sim as sim_utils
-from ..cloner.path import rebase
+from ..cloner.path import match, rebase
+from ..sim.utils.queries import has_deformable_body_api
 
 if TYPE_CHECKING:
     from ..cloner.clone_plan import ClonePlan
@@ -257,21 +259,78 @@ def discover_deformables_on_stage(
     return entries
 
 
-def deformable_entries(plan: ClonePlan, rows: Sequence[int] | None = None) -> list[DeformableStageEntry]:
-    """Expand plan-owned prototypes to their exact destination paths without copying vertex arrays.
+def deformable_prototypes(
+    stage: Usd.Stage, plan: ClonePlan, rows: Sequence[int] | None = None
+) -> list[DeformableStageEntry]:
+    """Read deformable geometry beneath the prototypes imported by one backend.
 
     Args:
-        plan: Clone plan whose geometry was compiled before replication.
+        stage: Stage containing the authored asset prototypes.
+        plan: Generic replication layout; it is not modified.
+        rows: Rows imported by this backend; ``None`` selects all active rows.
+
+    Returns:
+        Prototype geometry owned by the caller, including shared assets once.
+    """
+    selected = set(range(len(plan.sources)) if rows is None else rows)
+    selected.intersection_update(np.flatnonzero(plan.clone_mask.any(axis=1)))
+    sources = {Sdf.Path(source) for source in plan.sources}
+    selected_sources = {Sdf.Path(plan.sources[row]) for row in selected}
+    roots = Sdf.Path.RemoveDescendentPaths([plan.sources[row] for row in selected] + list(plan.global_paths))
+    entries = []
+    for root in roots:
+        prims = iter(Usd.PrimRange(stage.GetPrimAtPath(root), Usd.TraverseInstanceProxies()))
+        for prim in prims:
+            path = prim.GetPath()
+            owner = path
+            while owner != Sdf.Path.absoluteRootPath and owner not in sources:
+                owner = owner.GetParentPath()
+            if owner in sources and owner not in selected_sources:
+                if not any(source.HasPrefix(path) for source in selected_sources):
+                    prims.PruneChildren()
+                continue
+            # Shared roots may contain a replicated namespace: never inspect its generated clones.
+            if owner not in sources and any(match(str(path), template) for template in plan.destinations):
+                if not any(source.HasPrefix(path) for source in selected_sources):
+                    prims.PruneChildren()
+                    continue
+            if prim.IsA(UsdGeom.Points) or prim.IsA(UsdGeom.BasisCurves) or not has_deformable_body_api(prim):
+                continue
+            if (entry := deformable_entry(prim)) is not None:
+                entries.append(entry)
+    return entries
+
+
+def deformable_entries(
+    plan: ClonePlan, prototypes: Sequence[DeformableStageEntry], rows: Sequence[int] | None = None
+) -> list[DeformableStageEntry]:
+    """Expand backend-owned prototype geometry without copying its vertex arrays or reading USD.
+
+    Args:
+        plan: Generic source-to-destination mapping.
+        prototypes: Geometry captured during this backend's prototype import.
         rows: Source rows consumed by this backend; ``None`` selects all rows.
 
     Returns:
         Destination geometry records, including shared geometry once. Parent-frame world poses [m, xyzw]
         include the clone translation; topology and vertex arrays remain shared with the prototype.
     """
-    entries = {entry.root_path: entry for entry in plan.deformables[None]}
-    for row in range(len(plan.sources)) if rows is None else rows:
-        columns = np.flatnonzero(plan.clone_mask[row])
-        for entry in plan.deformables[row]:
+    entries: dict[str, tuple[str, DeformableStageEntry]] = {}
+    selected = set(range(len(plan.sources)) if rows is None else rows)
+    source_rows = defaultdict(list)
+    for row, source in enumerate(plan.sources):
+        source_rows[Sdf.Path(source)].append(row)
+    for entry in prototypes:
+        owner = Sdf.Path(entry.root_path)
+        while owner != Sdf.Path.absoluteRootPath and owner not in source_rows:
+            owner = owner.GetParentPath()
+        if owner not in source_rows:
+            entries[entry.root_path] = (entry.root_path, entry)
+            continue
+        for row in source_rows[owner]:
+            if row not in selected:
+                continue
+            columns = np.flatnonzero(plan.clone_mask[row])
             for column in columns:
                 target = plan.destinations[row].format(int(plan.env_ids[column]))
                 offset = 0 if plan.positions is None else plan.positions[column] - plan.positions[columns[0]]
@@ -282,8 +341,9 @@ def deformable_entries(plan: ClonePlan, rows: Sequence[int] | None = None) -> li
                     vis_mesh_path=rebase(entry.vis_mesh_path, plan.sources[row], target),
                     init_pos=tuple(np.asarray(entry.init_pos) + offset),
                 )
-                entries.setdefault(cloned.root_path, cloned)
-    return list(entries.values())
+                if cloned.root_path not in entries or len(target) > len(entries[cloned.root_path][0]):
+                    entries[cloned.root_path] = (target, cloned)
+    return [entry for _, entry in entries.values()]
 
 
 def sort_deformable_entries_for_geometry_sync(entries: list[DeformableStageEntry]) -> list[DeformableStageEntry]:

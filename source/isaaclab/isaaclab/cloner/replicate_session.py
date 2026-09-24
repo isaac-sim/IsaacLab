@@ -16,7 +16,6 @@ from ..sim import SimulationContext
 from .clone_plan import make_clone_plan
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE
 from .cloner_strategies import sequential
-from .geometry import compile_geometry
 
 if TYPE_CHECKING:
     from .clone_plan import ClonePlan
@@ -49,7 +48,6 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
         names = ", ".join(f"{context_type.__module__}.{context_type.__qualname__}" for context_type in missing)
         raise RuntimeError(f"Clone contexts must be registered before plan dispatch: {names}.")
 
-    compile_geometry(plan, sim.stage)
     contexts = [sim.clone_contexts[context_type] for context_type in context_types]
     for context in sorted(contexts, key=lambda item: item.replicate_priority):
         context.replicate(plan)
