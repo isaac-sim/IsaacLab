@@ -1970,6 +1970,25 @@ def test_fixed_tendon_position_target_reaches_only_given_envs(sim, num_articulat
         assert commanded[joint_ids].sum() > untouched[joint_ids].sum()
 
 
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["shadow_hand"])
+def test_fixed_tendon_properties_reach_solver(sim, num_articulations, device, articulation_type):
+    """Written fixed tendon stiffness and damping reach the MuJoCo solver, not only the Newton model."""
+    articulation, _ = generate_articulation(generate_articulation_cfg(articulation_type=articulation_type), 1, device)
+    sim.reset()
+    shape = (1, articulation.num_fixed_tendons)
+
+    articulation.set_fixed_tendon_stiffness_index(stiffness=torch.full(shape, 12.0, device=device))
+    articulation.set_fixed_tendon_damping_index(damping=torch.full(shape, 3.0, device=device))
+    articulation.write_fixed_tendon_properties_to_sim_index()
+    sim.step()
+
+    solver_model = SimulationManager._solver.mjw_model
+    np.testing.assert_allclose(solver_model.tendon_stiffness.numpy(), 12.0)
+    np.testing.assert_allclose(solver_model.tendon_damping.numpy(), 3.0)
+
+
 @pytest.mark.parametrize("device", ["cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["anymal"])

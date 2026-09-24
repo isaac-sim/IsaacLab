@@ -40,7 +40,7 @@ from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .actuator_control import NewtonActuatorControl
-from .articulation_data import ArticulationData
+from .articulation_data import ArticulationData, _unsupported_fixed_tendon_property
 
 if TYPE_CHECKING:
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
@@ -2829,7 +2829,7 @@ class Articulation(BaseArticulation):
             fixed_tendon_ids: The tendon indices to set the limit stiffness for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        raise NotImplementedError()
+        raise _unsupported_fixed_tendon_property("limit_stiffness")
 
     def set_fixed_tendon_limit_stiffness_mask(
         self,
@@ -2857,7 +2857,7 @@ class Articulation(BaseArticulation):
                 Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        raise NotImplementedError()
+        raise _unsupported_fixed_tendon_property("limit_stiffness")
 
     def set_fixed_tendon_position_limit_index(
         self,
@@ -2941,7 +2941,7 @@ class Articulation(BaseArticulation):
             fixed_tendon_ids: The tendon indices to set the rest length for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        raise NotImplementedError()
+        raise _unsupported_fixed_tendon_property("rest_length")
 
     def set_fixed_tendon_rest_length_mask(
         self,
@@ -2969,7 +2969,7 @@ class Articulation(BaseArticulation):
                 Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        raise NotImplementedError()
+        raise _unsupported_fixed_tendon_property("rest_length")
 
     def set_fixed_tendon_position_target_index(
         self,
@@ -3030,7 +3030,7 @@ class Articulation(BaseArticulation):
             fixed_tendon_ids: The tendon indices to set the offset for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        raise NotImplementedError()
+        raise _unsupported_fixed_tendon_property("offset")
 
     def set_fixed_tendon_position_target_mask(
         self,
@@ -3089,7 +3089,7 @@ class Articulation(BaseArticulation):
                 Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        raise NotImplementedError()
+        raise _unsupported_fixed_tendon_property("offset")
 
     def write_fixed_tendon_properties_to_sim_index(
         self,
@@ -3107,6 +3107,7 @@ class Articulation(BaseArticulation):
                 (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
         """
+        env_ids = self._resolve_env_ids(env_ids)
         # TODO: Combine into one
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, self._ALL_FIXED_TENDON_INDICES),
@@ -3134,6 +3135,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        # the solver keeps its own copy of the tendon properties and only re-reads them when notified
+        SimulationManager.add_model_change(ModelFlags.TENDON_PROPERTIES)
 
     def write_fixed_tendon_properties_to_sim_mask(
         self,

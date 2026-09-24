@@ -42,6 +42,21 @@ _LAZY_CAPTURE_REASON = (
 )
 
 
+# fixed tendon properties that MuJoCo, and hence Newton, cannot set at runtime
+_UNSUPPORTED_FIXED_TENDON_PROPERTIES = {
+    "limit_stiffness": "MuJoCo models tendon limits with 'solref' (a time constant and damping ratio), not a stiffness",
+    "rest_length": "the MuJoCo solver does not update the tendon spring length ('springlength') at runtime",
+    "offset": "MuJoCo tendons have no length offset",
+}
+
+
+def _unsupported_fixed_tendon_property(name: str) -> NotImplementedError:
+    """Return the error for a fixed tendon property that the Newton backend cannot set."""
+    reason = _UNSUPPORTED_FIXED_TENDON_PROPERTIES[name]
+    label = name.replace("_", " ")
+    return NotImplementedError(f"Fixed tendon {label} is not supported by the Newton backend: {reason}.")
+
+
 class ArticulationData(BaseArticulationData):
     """Data container for an articulation.
 
@@ -549,7 +564,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
         """
-        raise NotImplementedError
+        raise _unsupported_fixed_tendon_property("limit_stiffness")
 
     @property
     def fixed_tendon_rest_length(self) -> ProxyArray:
@@ -558,7 +573,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
         """
-        raise NotImplementedError
+        raise _unsupported_fixed_tendon_property("rest_length")
 
     @property
     def fixed_tendon_offset(self) -> ProxyArray:
@@ -567,7 +582,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
         """
-        raise NotImplementedError
+        raise _unsupported_fixed_tendon_property("offset")
 
     @property
     def fixed_tendon_pos_limits(self) -> ProxyArray:
