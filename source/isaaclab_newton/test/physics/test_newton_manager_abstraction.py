@@ -176,6 +176,7 @@ def test_newton_cfg_post_init_propagates_class_type(
         (8, 0, False),  # Default: feature disabled, no warning.
         (8, 7, False),  # Valid edge: one mid-loop re-collide at i=6.
         (8, 8, True),  # Equal to num_substeps: gate never fires.
+        (8, 16, True),  # Above num_substeps: pins the ``>=`` rather than ``==`` boundary.
     ],
 )
 def test_newton_cfg_collision_decimation_warning(num_substeps, collision_decimation, should_warn, caplog):

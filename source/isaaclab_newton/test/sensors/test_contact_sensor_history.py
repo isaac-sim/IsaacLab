@@ -35,6 +35,7 @@ def test_force_matrix_history_rolls_newest_first_and_honors_mask():
         "normal_force_matrix_w": 100.0,
         "net_friction_forces_w": 1000.0,
         "friction_force_matrix_w": 10000.0,
+        "net_normal_forces_w": 100000.0,
     }
     for value, mask_values in ((1.0, [True, True]), (2.0, [True, True]), (3.0, [True, False])):
         for name, scale in buffers.items():
