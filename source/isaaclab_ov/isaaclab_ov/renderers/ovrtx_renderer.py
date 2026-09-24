@@ -23,8 +23,10 @@ import contextlib
 import logging
 import math
 import os
+import platform
 import re
 import sys
+import threading
 import weakref
 from collections.abc import Iterator, Sequence
 from pathlib import Path
@@ -36,6 +38,7 @@ import numpy as np
 import ovstage
 import torch
 import warp as wp
+from packaging.version import Version
 
 import isaaclab.utils.warp  # noqa: F401  # initializes Warp runtime
 
@@ -73,6 +76,7 @@ from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
+from isaaclab_ov.ovstage_compat import OVSTAGE_VERSION
 from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     build_instance_id_to_labels_and_semantics,
     build_semantic_id_to_labels,
@@ -158,6 +162,25 @@ _USE_OVSTAGE_ENV = "ISAAC_LAB_OVRTX_USE_OVSTAGE"
 # See :meth:`OVRTXRenderer._map_render_var_to_dlpack`.
 _DISABLE_LINUX_CUDA_CPU_SYNC_ENV = "ISAAC_LAB_OVRTX_DISABLE_LINUX_CUDA_CPU_SYNC"
 
+# OVRTX 0.5's legacy stage can cache an unavailable cuBRIC adapter when OvPhysX initializes OVStage first.
+_CUBRIC_PREWARM_ENV = "ISAAC_LAB_OVRTX_PREWARM_CUBRIC"
+_CUBRIC_PREWARM_OVRTX_VERSION = Version("0.5.0.377615")
+_CUBRIC_PREWARM_OVSTAGE_VERSION = Version("0.2.0.377349")
+_CUBRIC_PREWARM_USDA = """#usda 1.0
+(
+    defaultPrim = "World"
+)
+def Xform "World"
+{
+    def Cube "Cube"
+    {
+        double size = 1.0
+    }
+}
+"""
+_cubric_prewarmed = False
+_cubric_prewarm_lock = threading.Lock()
+
 
 def ovrtx_use_ovstage_enabled() -> bool:
     """Return whether the ovstage scene-ownership path should be used.
@@ -235,6 +258,74 @@ def _get_cloned_camera_paths(camera_prim_path: str, num_instances: int) -> list[
     return [f"/World/envs/env_{i}/{camera_rel_path}" for i in range(num_instances)]
 
 
+def _cubric_prewarm_enabled(cfg: OVRTXBackendCfg) -> bool:
+    """Return whether this backend needs the pinned cuBRIC initialization workaround."""
+    value = os.environ.get(_CUBRIC_PREWARM_ENV, "1").strip()
+    if value not in {"0", "1"}:
+        raise ValueError(f"Invalid value for environment variable `{_CUBRIC_PREWARM_ENV}`: {value}. Expected 0 or 1.")
+    if value == "0" or cfg.use_ovstage or not cfg.read_gpu_transforms:
+        return False
+    if platform.system() != "Linux" or platform.machine().lower() not in {"x86_64", "amd64"}:
+        return False
+    if OVRTX_VERSION != _CUBRIC_PREWARM_OVRTX_VERSION or OVSTAGE_VERSION != _CUBRIC_PREWARM_OVSTAGE_VERSION:
+        return False
+    sim = SimulationContext.instance()
+    if sim is None:
+        return False
+    physics_manager = getattr(sim, "physics_manager", None)
+    if (
+        getattr(physics_manager, "__module__", "") != "isaaclab_ov.physics.ovphysx_manager"
+        or getattr(physics_manager, "__name__", "") != "OvPhysxManager"
+    ):
+        return False
+    # OVStage 0.2's hierarchy adapter selects CUDA device 0 internally. Other device ordinals must
+    # retain the existing path until upstream accepts an explicit device.
+    return sim.device == "cuda:0"
+
+
+def _prewarm_cubric() -> None:
+    """Initialize OVStage's GPU hierarchy before OVRTX can cache its adapter lookup."""
+    # OVRTX 0.4 does not export usd_plugin_paths; the version gate keeps this call on 0.5.
+    from ovrtx import usd_plugin_paths
+
+    schema_roots = [str(path) for path in usd_plugin_paths() if (Path(path) / "plugInfo.json").is_file()]
+    if not schema_roots:
+        raise RuntimeError("OVRTX did not publish any USD schema roots")
+    # The first population builds OVStage's schema definitions. Register OVRTX first so the workaround
+    # does not trade transform throughput for missing OmniRtx*API definitions.
+    ovstage.population.register_usd_schemas(schema_roots)
+    with create_ovstage("isaaclab.ovrtx.cubric-prewarm") as stage:
+        ovstage.population.open_usd_from_string(
+            stage,
+            _CUBRIC_PREWARM_USDA,
+            ordinal=1,
+            domains=ovstage.PopulationDomain.RENDERING,
+        )
+        stage.advance_write_floor(ordinal=1).wait()
+        stage.compute_hierarchy(
+            input_ordinal=1,
+            output_ordinal=1,
+            model=ovstage.HierarchyComputationModel.GPU_INCREMENTAL,
+        )
+
+
+def _ensure_cubric_prewarmed(cfg: OVRTXBackendCfg) -> None:
+    """Apply the process-wide workaround once, falling back safely on failure."""
+    global _cubric_prewarmed
+    if _cubric_prewarmed or not _cubric_prewarm_enabled(cfg):
+        return
+    with _cubric_prewarm_lock:
+        if _cubric_prewarmed:
+            return
+        try:
+            _prewarm_cubric()
+        except Exception as exc:
+            logger.warning("Could not prewarm the OVRTX cuBRIC hierarchy; continuing without the workaround: %s", exc)
+            return
+        _cubric_prewarmed = True
+        logger.info("Prewarmed the OVRTX cuBRIC hierarchy.")
+
+
 def _write_file(output_dir: Path, file_name: str, content: str) -> None:
     """Write ``content`` to ``output_dir / file_name``.
 
@@ -270,6 +361,7 @@ class OVRTXBackend:
     """Own one native renderer and its optional detached stage, without camera or transport policy."""
 
     def __init__(self, cfg: OVRTXBackendCfg):
+        _ensure_cubric_prewarmed(cfg)
         native_cfg = RendererConfig(
             log_file_path=cfg.renderer_cfg.log_file_path,
             log_level=cfg.renderer_cfg.log_level,

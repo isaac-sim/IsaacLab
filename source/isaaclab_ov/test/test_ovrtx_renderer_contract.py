@@ -34,11 +34,15 @@ if not _MISSING_MODULES:
     from isaaclab_ov.renderers import OVRTXBackendCfg, OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import (  # noqa: E402
+        _CUBRIC_PREWARM_ENV,
         _DISABLE_LINUX_CUDA_CPU_SYNC_ENV,
         OVRTXBackend,
         OVRTXCameraRenderData,
         OVRTXRenderer,
+        _cubric_prewarm_enabled,
+        _ensure_cubric_prewarmed,
         _gpu_side_render_var_sync_enabled,
+        _prewarm_cubric,
         ovrtx_use_ovstage_enabled,
     )
 else:
@@ -47,8 +51,12 @@ else:
     OVRTXRendererCfg = None
     ovrtx_renderer_module = None
     ovrtx_use_ovstage_enabled = None
+    _CUBRIC_PREWARM_ENV = None
     _DISABLE_LINUX_CUDA_CPU_SYNC_ENV = None
+    _cubric_prewarm_enabled = None
+    _ensure_cubric_prewarmed = None
     _gpu_side_render_var_sync_enabled = None
+    _prewarm_cubric = None
 
 _SPAWN = PinholeCameraCfg(
     focal_length=24.0,
@@ -134,6 +142,148 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch: py
     SimulationContext.instance().close_backend(other.backend)
     assert len(destroyed) == 2
     assert not SimulationContext.instance()._backend_registry
+
+
+def test_cubric_prewarm_gate_is_narrow_and_can_be_disabled(monkeypatch):
+    """Only the affected legacy OvPhysX CUDA-0 configuration enables the workaround."""
+    from packaging.version import Version
+
+    physics_manager = type("OvPhysxManager", (), {})
+    physics_manager.__module__ = "isaaclab_ov.physics.ovphysx_manager"
+    sim = SimulationContext.instance()
+    sim.physics_manager = physics_manager
+    sim.device = "cuda:0"
+    monkeypatch.setattr(ovrtx_renderer_module, "OVRTX_VERSION", Version("0.5.0.377615"))
+    monkeypatch.setattr(ovrtx_renderer_module, "OVSTAGE_VERSION", Version("0.2.0.377349"))
+    monkeypatch.setattr(ovrtx_renderer_module.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(ovrtx_renderer_module.platform, "machine", lambda: "x86_64")
+    monkeypatch.delenv(_CUBRIC_PREWARM_ENV, raising=False)
+
+    cfg = OVRTXBackendCfg(renderer_cfg=OVRTXRendererCfg(), use_ovstage=False, read_gpu_transforms=True)
+    assert _cubric_prewarm_enabled(cfg)
+    assert not _cubric_prewarm_enabled(cfg.replace(use_ovstage=True))
+    assert not _cubric_prewarm_enabled(cfg.replace(read_gpu_transforms=False))
+
+    monkeypatch.setattr(ovrtx_renderer_module.platform, "machine", lambda: "aarch64")
+    assert not _cubric_prewarm_enabled(cfg)
+    monkeypatch.setattr(ovrtx_renderer_module.platform, "machine", lambda: "x86_64")
+    sim.device = "cuda:1"
+    assert not _cubric_prewarm_enabled(cfg)
+    sim.device = "cuda:0"
+    sim.physics_manager = type("NewtonManager", (), {})
+    assert not _cubric_prewarm_enabled(cfg)
+    sim.physics_manager = physics_manager
+    monkeypatch.setattr(ovrtx_renderer_module, "OVRTX_VERSION", Version("0.5.1"))
+    assert not _cubric_prewarm_enabled(cfg)
+    monkeypatch.setattr(ovrtx_renderer_module, "OVRTX_VERSION", Version("0.5.0.377615"))
+    monkeypatch.setattr(ovrtx_renderer_module, "OVSTAGE_VERSION", Version("0.2.1"))
+    assert not _cubric_prewarm_enabled(cfg)
+
+    monkeypatch.setattr(ovrtx_renderer_module, "OVSTAGE_VERSION", Version("0.2.0.377349"))
+    monkeypatch.setenv(_CUBRIC_PREWARM_ENV, "0")
+    assert not _cubric_prewarm_enabled(cfg)
+    monkeypatch.setenv(_CUBRIC_PREWARM_ENV, "invalid")
+    with pytest.raises(ValueError, match=_CUBRIC_PREWARM_ENV):
+        _cubric_prewarm_enabled(cfg)
+
+
+def test_prewarm_cubric_registers_schemas_before_gpu_hierarchy(monkeypatch, tmp_path):
+    """OVRTX schemas must be registered before the temporary population builds definitions."""
+    events = []
+    schema_root = tmp_path / "schema"
+    schema_root.mkdir()
+    (schema_root / "plugInfo.json").write_text("{}")
+    non_schema_root = tmp_path / "non_schema"
+    non_schema_root.mkdir()
+    monkeypatch.setattr("ovrtx.usd_plugin_paths", lambda: (str(schema_root), str(non_schema_root)))
+
+    class Operation:
+        def wait(self):
+            events.append("seal")
+
+    class Stage:
+        def advance_write_floor(self, ordinal):
+            assert ordinal == 1
+            return Operation()
+
+        def compute_hierarchy(self, input_ordinal, output_ordinal, model):
+            assert (input_ordinal, output_ordinal) == (1, 1)
+            assert model is ovrtx_renderer_module.ovstage.HierarchyComputationModel.GPU_INCREMENTAL
+            events.append("compute")
+
+    @contextlib.contextmanager
+    def create_stage(name):
+        assert name == "isaaclab.ovrtx.cubric-prewarm"
+        events.append("create")
+        yield Stage()
+        events.append("destroy")
+
+    def register_schemas(paths):
+        assert paths == [str(schema_root)]
+        events.append("register")
+
+    def open_stage(stage, source, ordinal, domains):
+        assert isinstance(stage, Stage)
+        assert "def Cube" in source
+        assert ordinal == 1
+        assert domains is ovrtx_renderer_module.ovstage.PopulationDomain.RENDERING
+        events.append("populate")
+
+    monkeypatch.setattr(ovrtx_renderer_module, "create_ovstage", create_stage)
+    monkeypatch.setattr(ovrtx_renderer_module.ovstage.population, "register_usd_schemas", register_schemas)
+    monkeypatch.setattr(ovrtx_renderer_module.ovstage.population, "open_usd_from_string", open_stage)
+
+    _prewarm_cubric()
+
+    assert events == ["register", "create", "populate", "seal", "compute", "destroy"]
+
+
+def test_ensure_cubric_prewarmed_runs_once(monkeypatch):
+    """Equivalent native backends share the one process-wide initialization."""
+    calls = []
+    cfg = OVRTXBackendCfg(renderer_cfg=OVRTXRendererCfg(), use_ovstage=False, read_gpu_transforms=True)
+    monkeypatch.setattr(ovrtx_renderer_module, "_cubric_prewarmed", False)
+    monkeypatch.setattr(ovrtx_renderer_module, "_cubric_prewarm_enabled", lambda _cfg: True)
+    monkeypatch.setattr(ovrtx_renderer_module, "_prewarm_cubric", lambda: calls.append(None))
+
+    _ensure_cubric_prewarmed(cfg)
+    _ensure_cubric_prewarmed(cfg)
+
+    assert calls == [None]
+    assert ovrtx_renderer_module._cubric_prewarmed
+
+
+def test_ensure_cubric_prewarmed_falls_back_on_failure(monkeypatch, caplog):
+    """A failed workaround attempt preserves the existing correct but slower path."""
+    cfg = OVRTXBackendCfg(renderer_cfg=OVRTXRendererCfg(), use_ovstage=False, read_gpu_transforms=True)
+    monkeypatch.setattr(ovrtx_renderer_module, "_cubric_prewarmed", False)
+    monkeypatch.setattr(ovrtx_renderer_module, "_cubric_prewarm_enabled", lambda _cfg: True)
+    monkeypatch.setattr(
+        ovrtx_renderer_module, "_prewarm_cubric", MagicMock(side_effect=RuntimeError("expected failure"))
+    )
+
+    _ensure_cubric_prewarmed(cfg)
+
+    assert not ovrtx_renderer_module._cubric_prewarmed
+    assert "continuing without the workaround" in caplog.text
+
+
+def test_ovrtx_backend_prewarms_before_native_initialization(monkeypatch):
+    """The workaround must run before shader redirection can initialize OVRTX."""
+    events = []
+    cfg = OVRTXBackendCfg(renderer_cfg=OVRTXRendererCfg(), use_ovstage=False, read_gpu_transforms=True)
+    monkeypatch.setattr(ovrtx_renderer_module, "_ensure_cubric_prewarmed", lambda _cfg: events.append("prewarm"))
+    monkeypatch.setattr(ovrtx_renderer_module, "redirect_shader_cache", lambda _cfg: events.append("redirect"))
+    monkeypatch.setattr(
+        ovrtx_renderer_module,
+        "Renderer",
+        lambda _cfg: types.SimpleNamespace(destroy=lambda: events.append("destroy")),
+    )
+
+    backend = OVRTXBackend(cfg)
+    backend.close()
+
+    assert events == ["prewarm", "redirect", "destroy"]
 
 
 def test_ovrtx_supported_output_types_key_set():
