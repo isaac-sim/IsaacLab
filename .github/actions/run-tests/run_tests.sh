@@ -38,6 +38,7 @@ run_tests() {
   local warp_cache_host_dir="${25}"
   local extra_uv_packages="${26}"
   local ovrtx_shader_cache_host_dir="${27}"
+  local pytest_workers="${28}"
   local logs_pid=""
   local wait_pid=""
   local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -192,6 +193,11 @@ run_tests() {
     export TEST_K_EXPR="$test_k_expr"
     docker_env_args+=(-e TEST_K_EXPR)
     echo "Setting per-file pytest -k expression: $test_k_expr"
+  fi
+
+  if [ -n "$pytest_workers" ]; then
+    docker_env_args+=(-e "TEST_PYTEST_WORKERS=$pytest_workers")
+    echo "Setting TEST_PYTEST_WORKERS=$pytest_workers"
   fi
 
   if [ -n "$ci_marker" ]; then
