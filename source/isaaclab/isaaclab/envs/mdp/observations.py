@@ -173,7 +173,7 @@ def body_projected_gravity_b(
     # ``GRAVITY_VEC_W`` carries the per-env world-frame gravity in m/s^2 (Newton
     # backend) or scene-wide gravity (PhysX backend).
     gravity_w = asset.data.GRAVITY_VEC_W.torch
-    gravity_dir = torch.nn.functional.normalize(gravity_w, dim=-1).unsqueeze(1)
+    gravity_dir = torch.nn.functional.normalize(gravity_w, dim=-1).unsqueeze(1).expand(-1, body_quat.shape[1], -1)
     return math_utils.quat_apply_inverse(body_quat, gravity_dir).view(env.num_envs, -1)
 
 
