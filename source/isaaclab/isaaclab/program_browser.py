@@ -11,9 +11,9 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from isaaclab.programs import ProgramSpec
-    from isaaclab.sim import SimulationContext
-    from isaaclab.visualizers import BaseVisualizer
+    from .programs import ProgramSpec
+    from .sim import SimulationContext
+    from .visualizers import BaseVisualizer
 
 
 class ProgramBrowser:

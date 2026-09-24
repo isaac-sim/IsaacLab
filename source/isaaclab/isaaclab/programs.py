@@ -15,7 +15,7 @@ from importlib.util import find_spec
 from pathlib import Path
 from types import ModuleType
 
-from isaaclab.paths import ISAACLAB_ROOT
+from .paths import ISAACLAB_ROOT
 
 
 @dataclass(frozen=True)
@@ -257,7 +257,7 @@ def run_program(command: str, program: ProgramSpec, args: list[str] | None = Non
     # before anything below imports one; it also matches the kernel cache keys produced by the test suites.
     wp.config.enable_backward = False
 
-    from isaaclab.program_browser import ProgramBrowser
+    from .program_browser import ProgramBrowser
 
     browser = ProgramBrowser({"demo": DEMOS, "example": EXAMPLES})
     original_argv = sys.argv
@@ -267,8 +267,8 @@ def run_program(command: str, program: ProgramSpec, args: list[str] | None = Non
         if any(arg in ("-h", "--help") for arg in forwarded_args):
             _run_script(path)
         else:
-            from isaaclab.app.loading_screen import LoadingScreen
-            from isaaclab.sim import SimulationContext
+            from .app.loading_screen import LoadingScreen
+            from .sim import SimulationContext
 
             verbose = any(arg in ("--info", "--verbose") for arg in forwarded_args)
             with LoadingScreen(1, enabled=False if verbose else None) as screen:
