@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import MISSING
 from typing import Literal
@@ -131,6 +132,9 @@ class OpenCvFisheyeDistortionCfg(OpenCvDistortionCfg):
 
     k4: float = 0.0
     """Fourth fisheye distortion coefficient. Defaults to 0.0."""
+
+    max_fov: float = math.pi
+    """Full angular domain for Newton's inverse fisheye model [rad]. Defaults to pi (180 degrees)."""
 
 
 @configclass

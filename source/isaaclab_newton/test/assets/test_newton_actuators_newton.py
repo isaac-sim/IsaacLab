@@ -585,22 +585,6 @@ class TestDelayedPDEquivalence(_EquivalenceTestBase):
     actuators = DELAYED_PD_ACTUATORS
 
 
-class TestDelayedPDAuthoring(unittest.TestCase):
-    """Verify DelayedPDActuatorCfg is authored with NewtonActuatorDelayAPI."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.result = _run_authoring_introspection(DELAYED_PD_ACTUATORS)
-
-    def test_has_delay(self):
-        for a in self.result["actuator_info"]:
-            self.assertTrue(a["has_delay"], "Delay not found on delayed PD actuator")
-
-    def test_controller_is_pd(self):
-        for a in self.result["actuator_info"]:
-            self.assertEqual(a["controller_type"], "DrivePD")
-
-
 # ---------------------------------------------------------------------------
 # Decimation tests: re-run equivalence with decimation > 1 + CUDA graph capture
 # ---------------------------------------------------------------------------

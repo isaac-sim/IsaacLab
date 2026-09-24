@@ -11,6 +11,7 @@ import json
 import logging
 import math
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -23,6 +24,7 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import enable_extension
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
@@ -194,6 +196,12 @@ class IsaacRtxRenderer(BaseRenderer):
             apply_isaac_rtx_determinism_settings(settings)
         ensure_rtx_hydra_engine_attached()
         # ``/isaaclab/render/rtx_sensors`` is owned by ``Camera.__init__`` (must be set pre-``sim.reset()``).
+
+    def initialize(self) -> None:
+        """Bind shared Fabric destinations after scene creation."""
+        sim = SimulationContext.instance()
+        self._fabric = sim.get_or_create_backend(sim.fabric_cfg)
+        self._fabric.bind_transforms(sim.get_scene_data_provider())
 
     @property
     def visual_material_writer(self):
@@ -571,9 +579,8 @@ class IsaacRtxRenderer(BaseRenderer):
             )
 
     def update_transforms(self) -> None:
-        """No-op for Isaac RTX - uses USD scene directly.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
-        pass
+        """Update shared Fabric transforms and propagate the visual hierarchy."""
+        self._fabric.update_transforms(SimulationContext.instance().get_scene_data_provider())
 
     def update_geometries(self) -> None:
         """No-op for Isaac RTX - uses USD scene directly.
@@ -606,18 +613,34 @@ class IsaacRtxRenderer(BaseRenderer):
             device=parameters.device,
         )
 
-    def render(self, render_data: IsaacRtxRenderData):
-        """Extract data from annotators and write to output buffers.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
-        spec = render_data.spec
-        output_data = render_data.output_data
-        if output_data is None or spec is None:
+    def render(self, render_data: IsaacRtxRenderData) -> None:
+        """Render one camera product into its bound output buffers."""
+        self.render_batch((render_data,))
+
+    def render_batch(self, render_data: Sequence[IsaacRtxRenderData]) -> None:
+        """Ensure a shared RTX update once, then extract each camera's annotator outputs.
+
+        Args:
+            render_data: Cameras whose poses and output buffers have been prepared. Entries
+                without a spec or output buffers are skipped. An empty sequence performs no work.
+        """
+        cameras = [data for data in render_data if data.output_data is not None and data.spec is not None]
+        if not cameras:
             return
 
         # Ensure the RTX renderer has been pumped so annotator buffers are fresh.
         # This is a no-op if another camera instance already triggered the update
         # for the current physics step, or if a visualizer already pumped it.
         ensure_isaac_rtx_render_update()
+
+        for data in cameras:
+            self._read_annotator_output(data)
+
+    def _read_annotator_output(self, render_data: IsaacRtxRenderData) -> None:
+        """Extract one camera's annotator data into its bound output buffers."""
+        spec = render_data.spec
+        output_data = render_data.output_data
+        assert output_data is not None and spec is not None
 
         view_count = spec.view_count
         cfg = spec.cfg

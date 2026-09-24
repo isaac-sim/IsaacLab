@@ -397,7 +397,7 @@ class Articulation(BaseArticulation):
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            composer.compose_to_body_frame()
+            force_b, torque_b, _ = composer.get_forces_and_torques()
             # Kept separate from the joint-target gather below: this scatter runs
             # over bodies while the target gather runs over joints (mismatched
             # item axes), and it must precede the actuator compute/submit below,
@@ -409,8 +409,8 @@ class Articulation(BaseArticulation):
                     dim=(self.num_instances, self.num_bodies),
                     device=self.device,
                     inputs=[
-                        composer.out_force_b.warp,
-                        composer.out_torque_b.warp,
+                        force_b,
+                        torque_b,
                         self._data.body_link_pose_w.warp,
                         self._body_user_to_backend_map(),
                         self._data._sim_bind_body_external_wrench,
@@ -424,8 +424,8 @@ class Articulation(BaseArticulation):
                     dim=(self.num_instances, self.num_bodies),
                     device=self.device,
                     inputs=[
-                        composer.out_force_b,
-                        composer.out_torque_b,
+                        force_b,
+                        torque_b,
                         self._data.body_link_pose_w.warp,
                         self._data._sim_bind_body_external_wrench,
                         self._ALL_ENV_MASK,
@@ -3846,27 +3846,6 @@ class Articulation(BaseArticulation):
     """
     Deprecated methods.
     """
-
-    def write_joint_friction_coefficient_to_sim(
-        self,
-        joint_friction_coeff: torch.Tensor | wp.array | float,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
-    ):
-        """Deprecated, same as :meth:`write_joint_friction_coefficient_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_joint_friction_coefficient_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_friction_coefficient_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.write_joint_friction_coefficient_to_sim_index(
-            joint_friction_coeff,
-            joint_ids=joint_ids,
-            env_ids=env_ids,
-            full_data=full_data,
-        )
 
     def write_root_state_to_sim(
         self,

@@ -8,6 +8,7 @@
 import os
 import shutil
 import subprocess
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -59,11 +60,11 @@ def test_environment_setup_accepts_marked_source_build(tmp_path):
         envs._reject_downloaded_isaac_sim("uv")
 
 
-def test_launcher_rejects_downloaded_isaac_sim_with_active_environment(tmp_path):
+def test_launcher_rejects_downloaded_isaac_sim_with_active_environment(source_checkout_root: Path, tmp_path):
     """Platform launchers must reject an active environment before selecting its Python."""
     launcher_name = "isaaclab.bat" if envs.is_windows() else "isaaclab.sh"
     launcher = tmp_path / launcher_name
-    shutil.copy2(envs.ISAACLAB_ROOT / launcher_name, launcher)
+    shutil.copy2(source_checkout_root / launcher_name, launcher)
     (tmp_path / "_isaac_sim").mkdir()
 
     environment = os.environ.copy()
@@ -78,10 +79,10 @@ def test_launcher_rejects_downloaded_isaac_sim_with_active_environment(tmp_path)
 
 
 @pytest.mark.skipif(envs.is_windows(), reason="Linux launcher behavior")
-def test_launcher_uses_bundled_python_with_inactive_default_environment(tmp_path):
+def test_launcher_uses_bundled_python_with_inactive_default_environment(source_checkout_root: Path, tmp_path):
     """An inactive default environment must not override the bundled Python."""
     launcher = tmp_path / "isaaclab.sh"
-    shutil.copy2(envs.ISAACLAB_ROOT / "isaaclab.sh", launcher)
+    shutil.copy2(source_checkout_root / "isaaclab.sh", launcher)
     bundled_python = tmp_path / "_isaac_sim" / "python.sh"
     bundled_python.parent.mkdir()
     bundled_python.write_text("#!/usr/bin/env bash\necho bundled-python\n")
@@ -102,10 +103,10 @@ def test_launcher_uses_bundled_python_with_inactive_default_environment(tmp_path
 
 
 @pytest.mark.skipif(envs.is_windows(), reason="Linux launcher behavior")
-def test_launcher_accepts_virtual_environment_on_bundled_python(tmp_path):
+def test_launcher_accepts_virtual_environment_on_bundled_python(source_checkout_root: Path, tmp_path):
     """A virtual environment created on the package's own Python runs that interpreter, so it is allowed."""
     launcher = tmp_path / "isaaclab.sh"
-    shutil.copy2(envs.ISAACLAB_ROOT / "isaaclab.sh", launcher)
+    shutil.copy2(source_checkout_root / "isaaclab.sh", launcher)
     bundled_python = tmp_path / "_isaac_sim" / "python.sh"
     bundled_python.parent.mkdir()
     bundled_python.write_text("#!/usr/bin/env bash\necho bundled-python\n")
@@ -126,10 +127,10 @@ def test_launcher_accepts_virtual_environment_on_bundled_python(tmp_path):
 
 
 @pytest.mark.skipif(envs.is_windows(), reason="Linux launcher behavior")
-def test_launcher_rejects_virtual_environment_on_foreign_python(tmp_path):
+def test_launcher_rejects_virtual_environment_on_foreign_python(source_checkout_root: Path, tmp_path):
     """A virtual environment built on another interpreter stays rejected."""
     launcher = tmp_path / "isaaclab.sh"
-    shutil.copy2(envs.ISAACLAB_ROOT / "isaaclab.sh", launcher)
+    shutil.copy2(source_checkout_root / "isaaclab.sh", launcher)
     (tmp_path / "_isaac_sim").mkdir()
     venv = tmp_path / "venv"
     (venv / "bin").mkdir(parents=True)
@@ -145,10 +146,10 @@ def test_launcher_rejects_virtual_environment_on_foreign_python(tmp_path):
 
 
 @pytest.mark.skipif(envs.is_windows(), reason="Linux launcher behavior")
-def test_launcher_allows_relinking_unmarked_source_build(tmp_path):
+def test_launcher_allows_relinking_unmarked_source_build(source_checkout_root: Path, tmp_path):
     """The source-build command must bypass downloaded-package environment rejection."""
     launcher = tmp_path / "isaaclab.sh"
-    shutil.copy2(envs.ISAACLAB_ROOT / "isaaclab.sh", launcher)
+    shutil.copy2(source_checkout_root / "isaaclab.sh", launcher)
     (tmp_path / "_isaac_sim").mkdir()
     active_python = tmp_path / "virtual-env" / "bin" / "python"
     active_python.parent.mkdir(parents=True)

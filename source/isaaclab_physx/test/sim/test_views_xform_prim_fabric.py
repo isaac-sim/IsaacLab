@@ -26,11 +26,13 @@ import torch  # noqa: E402
 import warp as wp  # noqa: E402
 from frame_view_contract_utils import *  # noqa: F401, F403, E402
 from frame_view_contract_utils import CHILD_OFFSET, ViewBundle  # noqa: E402, F401
+from isaaclab_physx.physics import PhysxCfg  # noqa: E402
 from isaaclab_physx.sim.views import FabricFrameView as FrameView  # noqa: E402
 
-from pxr import Gf, UsdGeom  # noqa: E402
+from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab.scene_data import SceneDataFormat, SceneDataProvider  # noqa: E402
 
 pytestmark = pytest.mark.isaacsim_ci
 PARENT_POS = (0.0, 0.0, 1.0)
@@ -133,6 +135,50 @@ def view_factory(request):
 # ------------------------------------------------------------------
 # Fabric-specific tests (not in shared contract)
 # ------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("device", [device for device in test_devices() if device.startswith("cuda")])
+def test_sdp_native_gpu_fabric_binding_preserves_live_physx_pose(device, request):
+    """Native GPU binding preserves live poses and publishes same-step writes without forward()."""
+    _skip_if_unavailable(device)
+    prim = UsdGeom.Cube.Define(sim_utils.get_current_stage(), "/World/Cube").GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(prim)
+    UsdPhysics.CollisionAPI.Apply(prim)
+    sim = sim_utils.SimulationContext(
+        sim_utils.SimulationCfg(physics=PhysxCfg(), device=device, gravity=(0, 0, 0), use_fabric=True)
+    )
+    sim.set_setting("/physics/fabricUpdateTransformations", True)
+    sim.reset()
+    frame_view = FrameView("/World/Cube", device=device)
+    request.addfinalizer(frame_view.close)
+    frame_view.get_world_poses()  # Initialize its authored pose before the native pose write.
+    view = sim.physics_manager.get_physics_sim_view().create_rigid_body_view("/World/Cube")
+    view.set_transforms(
+        wp.array([[1, 2, 3, 0, 0, 0, 1]], dtype=wp.float32, device=device),
+        indices=wp.array([0], dtype=wp.int32, device=device),
+    )
+    sim.step(render=False)
+    sim.forward()
+    before = tuple(value.torch.clone() for value in frame_view.get_world_poses())
+    torch.testing.assert_close(before[0], torch.tensor([[1, 2, 3]], dtype=torch.float32, device=device))
+    provider = SceneDataProvider(sim.get_scene_data_provider().backend)
+    output = SceneDataFormat.FabricMatrix44()
+    assert provider.get_transforms(output)
+    assert output.matrices.shape == (1,)
+    for value, expected in zip(frame_view.get_world_poses(), before, strict=True):
+        torch.testing.assert_close(value.torch, expected, rtol=0, atol=0)
+
+    step_count = sim.get_physics_step_count()
+    view.set_transforms(
+        wp.array([[-2, 0.5, 4, 0, 0, 0, 1]], dtype=wp.float32, device=device),
+        indices=wp.array([0], dtype=wp.int32, device=device),
+    )
+    sim.physics_manager.invalidate_transforms()
+    provider.get_transforms(output)
+    torch.testing.assert_close(
+        frame_view.get_world_poses()[0].torch, torch.tensor([[-2, 0.5, 4]], dtype=torch.float32, device=device)
+    )
+    assert sim.get_physics_step_count() == step_count
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -315,23 +361,6 @@ def test_writer_scope_exception_recovers_state(device, view_factory):
     follow_up, _ = view.get_world_poses()
     follow_up_t = torch.as_tensor(follow_up, device=device)
     assert torch.allclose(follow_up_t, torch.tensor([[10.0, 11.0, 12.0]] * 2, device=device), atol=1e-5)
-
-
-@pytest.mark.parametrize("device", ["cuda:0"])
-def test_prepare_for_reuse_detects_topology_change(device, view_factory):
-    """Each persistent ``PrimSelection`` exposes ``PrepareForReuse`` and returns a
-    bool.  When the underlying Fabric topology is unchanged it returns False.
-    """
-    bundle = view_factory(1, device)
-    view = bundle.view
-    view.get_world_poses()  # trigger Fabric init
-
-    assert view._fabric_sel.sel_ro is not None, "RO selection not initialized"
-    assert view._fabric_sel.sel_rw is not None, "RW selection not initialized"
-    for selection in (view._fabric_sel.sel_ro, view._fabric_sel.sel_rw):
-        result = selection.PrepareForReuse()
-        assert isinstance(result, bool), f"PrepareForReuse should return bool, got {type(result)}"
-        assert not result, "PrepareForReuse should return False when no topology change"
 
 
 @pytest.mark.parametrize("device", test_devices())

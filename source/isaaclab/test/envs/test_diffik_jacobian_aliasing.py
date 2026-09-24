@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Regression tests for DiffIK Jacobian aliasing (NVBug 6043099).
+"""Regression tests for task-space body offsets and DiffIK Jacobian aliasing (NVBug 6043099).
 
 ``DifferentialInverseKinematicsAction._compute_frame_jacobian`` historically
 aliased the parent Jacobian and applied the body-offset correction in place.
@@ -13,20 +13,25 @@ copies the Jacobian into an owned buffer before mutating, making the method
 idempotent regardless of whether ``jacobian_b`` returns a view or a copy.
 """
 
+import math
 from types import SimpleNamespace
 
 import pytest
 import torch
 
-from isaaclab.envs.mdp.actions.task_space_actions import DifferentialInverseKinematicsAction
+from isaaclab.envs.mdp.actions.task_space_actions import (
+    DifferentialInverseKinematicsAction,
+    OperationalSpaceControllerAction,
+)
 from isaaclab.utils import math as math_utils
 
 pytestmark = pytest.mark.unit
 
 
 class _Stub:
-    """Minimal stand-in for ``DifferentialInverseKinematicsAction`` that exposes only
-    what ``_compute_frame_jacobian`` reads. ``jacobian_b`` returns the backing buffer
+    """Minimal stand-in for the task-space actions' Jacobian methods.
+
+    ``jacobian_b`` returns the backing buffer
     **without copying**, mirroring the worst case where the data layer hands out a view
     onto engine memory. The owned ``_jacobian_b`` buffer is what the fixed method must
     write into.
@@ -38,6 +43,16 @@ class _Stub:
         self._offset_rot = torch.tensor(body_offset_rot, dtype=torch.float32).repeat(num_envs, 1)
         self._jacobian_b = torch.zeros(num_envs, 6, num_joints)
         self._backing_buffer = backing_buffer
+        # Non-trivial root and body orientations, so the offset must be rotated into the root frame.
+        self._body_idx = self._ee_body_idx = 0
+        root_quat_w = math_utils.quat_from_euler_xyz(torch.tensor(0.3), torch.tensor(-0.2), torch.tensor(0.5))
+        body_quat_w = math_utils.quat_from_euler_xyz(torch.tensor(-1.1), torch.tensor(0.4), torch.tensor(2.0))
+        self._asset = SimpleNamespace(
+            data=SimpleNamespace(
+                root_quat_w=SimpleNamespace(torch=root_quat_w.repeat(num_envs, 1)),
+                body_quat_w=SimpleNamespace(torch=body_quat_w.repeat(num_envs, 1, 1)),
+            )
+        )
 
     @property
     def jacobian_b(self):
@@ -91,15 +106,40 @@ def test_compute_frame_jacobian_applies_offset_once():
 
     stub = _make_stub(num_envs, num_joints, offset_pos, offset_rot, backing)
 
-    # Reference: out-of-place computation, no aliasing.
-    skew = math_utils.skew_symmetric_matrix(stub._offset_pos)
-    rot = math_utils.matrix_from_quat(stub._offset_rot)
-    ref_trans = backing[:, 0:3, :] + torch.bmm(-skew, backing[:, 3:, :])
-    ref_rot = torch.bmm(rot, backing[:, 3:, :])
-    reference = torch.cat([ref_trans, ref_rot], dim=1)
+    # Reference: out-of-place computation, no aliasing. The offset is rotated into the root frame
+    # and the angular rows are unchanged, since the offset frame is rigidly attached to the body.
+    root_rot = math_utils.matrix_from_quat(stub._asset.data.root_quat_w.torch)
+    body_rot = math_utils.matrix_from_quat(stub._asset.data.body_quat_w.torch[:, 0])
+    offset_b = torch.bmm(root_rot.mT @ body_rot, stub._offset_pos.unsqueeze(-1)).squeeze(-1)
+    ref_trans = backing[:, 0:3, :] + torch.bmm(-math_utils.skew_symmetric_matrix(offset_b), backing[:, 3:, :])
+    reference = torch.cat([ref_trans, backing[:, 3:, :]], dim=1)
 
     actual = DifferentialInverseKinematicsAction._compute_frame_jacobian(stub)
     torch.testing.assert_close(actual, reference)
+
+
+@pytest.mark.parametrize(
+    "compute",
+    [
+        DifferentialInverseKinematicsAction._compute_frame_jacobian,
+        OperationalSpaceControllerAction._compute_ee_jacobian,
+    ],
+    ids=["diff_ik", "osc"],
+)
+def test_body_offset_jacobian_uses_offset_in_root_frame(compute):
+    """The offset uses root axes, and a rigid offset rotation leaves angular rows unchanged."""
+    # One revolute joint about root z, with the body rotated 90 degrees about z.
+    backing = torch.tensor([[[0.0], [0.0], [0.0], [0.0], [0.0], [1.0]]])
+    # A 90 degree rotation about x for the offset frame must not change the angular rows.
+    offset_rot = [math.sin(math.pi / 4.0), 0.0, 0.0, math.cos(math.pi / 4.0)]
+    stub = _make_stub(1, 1, [1.0, 0.0, 0.0], offset_rot, backing)
+    stub._asset.data.root_quat_w.torch[:] = torch.tensor([0.0, 0.0, 0.0, 1.0])
+    stub._asset.data.body_quat_w.torch[:] = torch.tensor([0.0, 0.0, math.sin(math.pi / 4.0), math.cos(math.pi / 4.0)])
+    compute(stub)
+
+    # R_body_b @ (1, 0, 0) = (0, 1, 0), and z x (0, 1, 0) = (-1, 0, 0).
+    expected = torch.tensor([[[-1.0], [0.0], [0.0], [0.0], [0.0], [1.0]]])
+    torch.testing.assert_close(stub._jacobian_b, expected)
 
 
 def test_compute_frame_jacobian_returns_owned_buffer():

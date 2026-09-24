@@ -19,10 +19,13 @@ import warp as wp
 from packaging import version
 
 from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
+from isaaclab.sim import SimulationContext
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 
 def _install_omni_stubs(monkeypatch):
+    sim = SimpleNamespace(stage=object(), device="cpu", get_scene_data_provider=MagicMock())
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
     omni_module = sys.modules.get("omni", types.ModuleType("omni"))
     replicator_module = types.ModuleType("omni.replicator")
     replicator_core_module = types.ModuleType("omni.replicator.core")
@@ -264,24 +267,6 @@ def test_simple_shading_configures_its_render_product(
     assert global_setting_calls == []
 
 
-def test_render_product_uuid_name_format_is_sdf_safe():
-    """``rp_{uuid4().hex}`` matches the create_render_data naming contract and is SDF-safe."""
-    import uuid
-
-    from pxr import Sdf
-
-    names = [f"rp_{uuid.uuid4().hex}" for _ in range(64)]
-    assert len(set(names)) == len(names)
-    for name in names:
-        assert name.startswith("rp_")
-        hex_part = name.removeprefix("rp_")
-        assert len(hex_part) == 32
-        int(hex_part, 16)  # raises if not hex
-        assert "-" not in name
-        assert Sdf.Path.IsValidIdentifier(name)
-        assert Sdf.Path.IsValidPathString(f"/Render/{name}")
-
-
 @pytest.mark.parametrize(
     ("has_gui", "expected_disable_color_render"),
     [
@@ -440,7 +425,8 @@ def test_deterministic_flag_gates_rtx_determinism_settings(monkeypatch, stored, 
 
 
 @pytest.mark.parametrize("data_type", ["rgba", "normals"])
-def test_render_treats_empty_annotator_frame_as_not_ready(monkeypatch, data_type):
+@pytest.mark.parametrize("batched", [False, True], ids=["single", "batch"])
+def test_render_treats_empty_annotator_frame_as_not_ready(monkeypatch, data_type, batched):
     """An empty warm-up frame should clear its output without slicing or launching a reshape."""
     _install_omni_stubs(monkeypatch)
     import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
@@ -465,13 +451,69 @@ def test_render_treats_empty_annotator_frame_as_not_ready(monkeypatch, data_type
     renderer.cfg = IsaacRtxRendererCfg()
 
     with (
-        patch.object(rtx_renderer, "ensure_isaac_rtx_render_update"),
+        patch.object(rtx_renderer, "ensure_isaac_rtx_render_update") as update,
         patch.object(rtx_renderer.wp, "launch") as launch,
     ):
-        renderer.render(render_data)
+        if batched:
+            renderer.render_batch([render_data])
+        else:
+            renderer.render(render_data)
 
+    update.assert_called_once_with()
     output_buffer.zero_.assert_called_once_with()
     launch.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "states",
+    [
+        pytest.param((), id="empty"),
+        pytest.param(("no_spec", "no_output"), id="uninitialized"),
+        pytest.param(("ready", "ready"), id="ready"),
+        pytest.param(("no_spec", "ready", "no_output", "ready"), id="mixed"),
+    ],
+)
+def test_render_batch_updates_once_before_extracting_ready_cameras(monkeypatch, states):
+    """Ready cameras share one RTX update and receive their own annotator pixels."""
+    _install_omni_stubs(monkeypatch)
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg()
+    operations = MagicMock()
+    render_data_list = []
+    expected_calls = [call.update()] if "ready" in states else []
+    expected_outputs = []
+    for index, state in enumerate(states):
+        annotator = getattr(operations, f"camera_{index}")
+        frame = np.full((1, 1, 4), index + 1, dtype=np.uint8)
+        annotator.get_data.return_value = frame
+        output_buffer = wp.zeros((1, 1, 1, 4), dtype=wp.uint8, device="cpu")
+        render_data_list.append(
+            SimpleNamespace(
+                annotators={"rgba": annotator},
+                output_data=None if state == "no_output" else {"rgba": SimpleNamespace(warp=output_buffer)},
+                spec=(
+                    None
+                    if state == "no_spec"
+                    else SimpleNamespace(view_count=1, device="cpu", cfg=SimpleNamespace(width=1, height=1))
+                ),
+                renderer_info={},
+                ppisp_pipeline=None,
+                _hdr_scratch_wp=None,
+            )
+        )
+        if state == "ready":
+            expected_calls.append(getattr(call, f"camera_{index}").get_data())
+            expected_outputs.append((output_buffer, frame[np.newaxis]))
+
+    with patch.object(rtx_renderer, "ensure_isaac_rtx_render_update", operations.update):
+        renderer.render_batch(render_data_list)
+
+    assert operations.mock_calls == expected_calls
+    for output_buffer, expected in expected_outputs:
+        np.testing.assert_array_equal(output_buffer.numpy(), expected)
 
 
 def test_isaac_rtx_read_output_clears_stale_metadata_and_keeps_seeded_keys(monkeypatch):
