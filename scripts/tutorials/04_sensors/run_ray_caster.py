@@ -33,7 +33,6 @@ simulation_app = app_launcher.app
 
 import torch
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
@@ -137,9 +136,6 @@ def main():
     # Design scene
     scene_entities = design_scene()
     # Play simulator
-    roots = ("/World/ground", "/World/light", *(f"/World/Origin{i}" for i in range(4)))
-    sim.set_clone_plan(cloner.make_clone_plan((), 4, 0.0, global_paths=roots))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
     # Now we are ready!
     print("[INFO]: Setup complete...")

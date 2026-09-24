@@ -134,7 +134,7 @@ def preview(usd_path: str, physics_cfg: PhysicsCfg) -> None:
     light_cfg.func("/World/Light", light_cfg)
     asset_cfg = sim_utils.UsdFileCfg(usd_path=usd_path)
     asset_cfg.func("/World/ConvertedAsset", asset_cfg)
-    cloner.replicate(plan, replicate_physics=False)
+    cloner.replicate(plan)
     sim.reset()
 
     # Checked per visualizer rather than through ``SimulationContext.is_headless_or_exist_active_visualizer``:

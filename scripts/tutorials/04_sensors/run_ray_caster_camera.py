@@ -40,7 +40,6 @@ from typing import Any
 
 import torch
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, patterns
 from isaaclab.utils import convert_dict_to_backend
@@ -174,9 +173,6 @@ def main():
     # Design scene
     scene_entities = design_scene()
     # Play simulator
-    roots = ("/World/ground", "/World/Light", "/World/Origin_00", "/World/Origin_01")
-    sim.set_clone_plan(cloner.make_clone_plan((), 2, 0.0, global_paths=roots))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
     # Now we are ready!
     print("[INFO]: Setup complete...")

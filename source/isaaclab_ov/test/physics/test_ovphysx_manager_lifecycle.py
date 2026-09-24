@@ -421,7 +421,6 @@ def _retained_binding_script() -> str:
         wp.init()
 
         import isaaclab.sim as sim_utils
-        from isaaclab import cloner
         from isaaclab.physics import PhysicsEvent
         from isaaclab.sim import SimulationCfg, SimulationContext
         from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager
@@ -434,15 +433,12 @@ def _retained_binding_script() -> str:
             PhysicsEvent.STOP,
             wrap_weak_ref=False,
         )
-        plan = cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cube",))
-        sim.set_clone_plan(plan)
         cube_cfg = sim_utils.CuboidCfg(
             size=(0.5, 0.5, 0.5),
             rigid_props=sim_utils.RigidBodyBaseCfg(),
             collision_props=sim_utils.CollisionBaseCfg(),
         )
         cube_cfg.func("/World/Cube", cube_cfg, translation=(0.0, 0.0, 1.0))
-        cloner.replicate(plan)
         sim.reset()
 
         view = OvPhysxView(OvPhysxManager.get_physx_instance(), pattern="/World/Cube", device="cpu")

@@ -18,7 +18,6 @@ import pytest
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
 from isaaclab.sensors.ray_caster import RayCaster, RayCasterCfg, patterns
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
@@ -95,11 +94,6 @@ def test_world_alignment_ignores_sensor_pitch(sim_ground):
 
     sensor_upright = RayCaster(_ray_caster_cfg("/World/SensorUpright", "world"))
     sensor_pitched = RayCaster(_ray_caster_cfg("/World/SensorPitched", "world"))
-    plan = cloner.make_clone_plan(
-        [], 1, 0.0, global_paths=(_GROUND_PATH, sensor_upright.cfg.prim_path, sensor_pitched.cfg.prim_path)
-    )
-    sim.set_clone_plan(plan)
-    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     dt = 0.01
@@ -142,11 +136,6 @@ def test_base_alignment_rotates_ray_direction(sim_ground):
 
     sensor_world = RayCaster(_ray_caster_cfg("/World/SensorWorld", "world"))
     sensor_base = RayCaster(_ray_caster_cfg("/World/SensorBase", "base"))
-    plan = cloner.make_clone_plan(
-        [], 1, 0.0, global_paths=(_GROUND_PATH, sensor_world.cfg.prim_path, sensor_base.cfg.prim_path)
-    )
-    sim.set_clone_plan(plan)
-    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     dt = 0.01
@@ -209,11 +198,6 @@ def test_yaw_alignment_direction_unchanged(sim_ground):
 
     sensor_world = RayCaster(_cfg_with_offset("/World/SensorWorldY", "world"))
     sensor_yaw = RayCaster(_cfg_with_offset("/World/SensorYaw", "yaw"))
-    plan = cloner.make_clone_plan(
-        [], 1, 0.0, global_paths=(_GROUND_PATH, sensor_world.cfg.prim_path, sensor_yaw.cfg.prim_path)
-    )
-    sim.set_clone_plan(plan)
-    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
     dt = 0.01
@@ -257,9 +241,6 @@ def test_ray_caster_reset_resamples_drift(sim_ground):
     cfg = _ray_caster_cfg("/World/Sensor", "world")
     cfg.drift_range = (0.01, 0.05)  # force non-zero drift
     sensor = RayCaster(cfg)
-    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(_GROUND_PATH, sensor.cfg.prim_path))
-    sim.set_clone_plan(plan)
-    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
     # sim.reset() initializes the sensor with zero drift; call sensor.reset() to resample
     # from the configured drift_range before we capture the baseline.
@@ -323,9 +304,6 @@ def test_ray_caster_tracks_physics_body_parent_motion(sim_ground):
     sim_utils.update_stage()
 
     sensor = RayCaster(_ray_caster_cfg(parent_path, "world"))
-    plan = cloner.make_clone_plan([], 1, 0.0, global_paths=(_GROUND_PATH, parent_path))
-    sim.set_clone_plan(plan)
-    cloner.replicate(plan, replicate_physics=False)
     sim.reset()
     sensor.update(dt, force_recompute=True)
     pos_before = sensor.data.pos_w.torch[0].clone()

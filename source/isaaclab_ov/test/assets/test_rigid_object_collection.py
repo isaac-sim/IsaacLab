@@ -39,7 +39,6 @@ from isaaclab_ov.assets import RigidObjectCollection  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
-from isaaclab import cloner  # noqa: E402
 from isaaclab.assets import RigidObjectCfg, RigidObjectCollectionCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
@@ -111,7 +110,6 @@ def generate_cubes_scene(
     has_api: bool = True,
     kinematic_enabled: bool = False,
     device: str = "cuda:0",
-    global_paths: tuple[str, ...] = (),
 ) -> tuple[RigidObjectCollection, torch.Tensor]:
     """Generate a scene with the provided number of cubes.
 
@@ -122,16 +120,11 @@ def generate_cubes_scene(
         has_api: Whether the cubes have a rigid body API on them.
         kinematic_enabled: Whether the cubes are kinematic.
         device: Device to use for the simulation.
-        global_paths: Other shared scene roots authored by the calling fixture.
 
     Returns:
         A tuple containing the rigid object representing the cubes and the origins of the cubes.
 
     """
-    plan = cloner.make_clone_plan(
-        (), num_envs, 3.0, global_paths=(*global_paths, *(f"/World/Table_{i}" for i in range(num_envs)))
-    )
-    sim_utils.SimulationContext.instance().set_clone_plan(plan)
     origins = torch.tensor([(i * 3.0, 0, height) for i in range(num_envs)]).to(device)
     # Create Top-level Xforms, one for each cube
     for i, origin in enumerate(origins):
@@ -163,7 +156,6 @@ def generate_cubes_scene(
     # create the rigid object collection
     cube_object_collection_cfg = RigidObjectCollectionCfg(rigid_objects=cube_config_dict)
     cube_object_colection = RigidObjectCollection(cfg=cube_object_collection_cfg)
-    cloner.replicate(plan)
 
     return cube_object_colection, origins
 
@@ -777,9 +769,7 @@ def test_set_material_properties(num_envs, num_cubes, device):
     inverse. (The PhysX backend uses ``root_view.get/set_material_properties``.)
     """
     with _ovphysx_sim_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
-        object_collection, _ = generate_cubes_scene(
-            num_envs=num_envs, num_cubes=num_cubes, device=device, global_paths=("/World/defaultGroundPlane",)
-        )
+        object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
 
         # Play sim
         sim.reset()

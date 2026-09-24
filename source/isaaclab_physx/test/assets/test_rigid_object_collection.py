@@ -19,7 +19,6 @@ simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).ap
 
 import sys
 
-import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -27,7 +26,6 @@ from isaaclab_physx.assets import RigidObjectCollection
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg, RigidObjectCollectionCfg
-from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import (
@@ -64,8 +62,10 @@ def generate_cubes_scene(
         A tuple containing the rigid object representing the cubes and the origins of the cubes.
 
     """
-    origins = np.asarray([(i * 3.0, 0, height) for i in range(num_envs)], dtype=np.float32)
-    sim_utils.create_prim("/World/Table_0", "Xform", translation=origins[0])
+    origins = torch.tensor([(i * 3.0, 0, height) for i in range(num_envs)]).to(device)
+    # Create Top-level Xforms, one for each cube
+    for i, origin in enumerate(origins):
+        sim_utils.create_prim(f"/World/Table_{i}", "Xform", translation=origin)
 
     # Resolve spawn configuration
     if has_api:
@@ -85,23 +85,15 @@ def generate_cubes_scene(
     for i in range(num_cubes):
         cube_object_cfg = RigidObjectCfg(
             prim_path=f"/World/Table_[^/]*/Object_{i}",
-            spawn=spawn_cfg.copy(),
+            spawn=spawn_cfg,
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 3 * i, height)),
         )
         cube_config_dict[f"cube_{i}"] = cube_object_cfg
     # create the rigid object collection
     cube_object_collection_cfg = RigidObjectCollectionCfg(rigid_objects=cube_config_dict)
-    plan = clone_plan_from_env_0(
-        CloneCfg(clone_template="/World/Table_{}"),
-        cube_config_dict.values(),
-        num_envs,
-        3.0,
-        positions=origins,
-    )
     cube_object_colection = RigidObjectCollection(cfg=cube_object_collection_cfg)
-    replicate(plan, replicate_physics=False)
 
-    return cube_object_colection, torch.as_tensor(origins, device=device)
+    return cube_object_colection, origins
 
 
 @pytest.fixture

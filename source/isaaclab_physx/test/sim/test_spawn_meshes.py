@@ -18,7 +18,6 @@ from isaaclab_physx.sim.schemas.schemas_cfg import PhysxDeformableBodyProperties
 from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner import make_clone_plan, replicate
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 pytestmark = pytest.mark.isaacsim_ci
@@ -55,10 +54,7 @@ def test_spawn_cone_with_deformable_and_mass_props(sim):
         height=2.0,
         deformable_props=PhysxDeformableBodyPropertiesCfg(deformable_body_enabled=True, mass=1.0),
     )
-    plan = make_clone_plan((), 1, 0.0, global_paths=("/World/Cone",))
-    sim.set_clone_plan(plan)
     prim = cfg.func("/World/Cone", cfg)
-    replicate(plan, replicate_physics=False)
 
     # Check validity
     assert prim.IsValid()
@@ -107,10 +103,7 @@ def test_spawn_cone_with_deformable_and_density_props(sim):
         deformable_props=PhysxDeformableBodyPropertiesCfg(deformable_body_enabled=True),
         physics_material=PhysxDeformableBodyMaterialCfg(density=10.0),
     )
-    plan = make_clone_plan((), 1, 0.0, global_paths=("/World/Cone",))
-    sim.set_clone_plan(plan)
     prim = cfg.func("/World/Cone", cfg)
-    replicate(plan, replicate_physics=False)
 
     # Check validity
     assert prim.IsValid()

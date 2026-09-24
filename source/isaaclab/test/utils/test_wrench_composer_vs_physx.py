@@ -26,7 +26,6 @@ import pytest
 import torch
 import warp as wp
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sim import build_simulation_context
@@ -87,10 +86,6 @@ def generate_dual_cube_scene(
     )
     cube_raw = RigidObject(cfg=cube_raw_cfg)
 
-    sim = sim_utils.SimulationContext.instance()
-    roots = tuple(f"/World/{group}_{i}" for group in ("Composer", "Raw") for i in range(num_cubes))
-    sim.set_clone_plan(cloner.make_clone_plan((), num_cubes, spacing, global_paths=roots))
-    cloner.replicate(sim.get_clone_plan())
     return cube_composer, cube_raw
 
 

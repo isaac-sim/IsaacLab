@@ -121,19 +121,14 @@ visuals, PhysX's native replicator for rigid bodies and articulations, Newton's
 world system for its parallel pipeline. The same plan drives all of them, so user
 code never branches on the backend.
 
-Every simulation declares a plan before ``SimulationContext.reset()`` or ``play()``,
-including single-environment scenes. ``InteractiveScene`` handles planning and
-replication internally. Standalone callers declare their assets or exact authored
-roots, call ``cloner.replicate(plan)``, then initialize physics and consumers.
-There is no implicit plan or stage-discovery fallback.
+Newton startup requires a builder; it no longer imports the USD stage implicitly.
+``InteractiveScene`` handles planning and replication internally. Standalone USD
+workflows declare their assets or authored roots and call ``cloner.replicate(plan)``
+before initializing Newton. Native tools can instead supply a builder with
+``NewtonManager.set_builder(builder)``.
 
-An intentionally empty scene declares an empty plan explicitly:
-
-.. code-block:: python
-
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0))
-    cloner.replicate(sim.get_clone_plan())
-    sim.reset()
+Require a plan where a consumer uses it, not merely because simulation initializes.
+Empty PhysX simulations and tools that supply a native Newton builder need no dummy plan.
 
 ClonePlan
 ~~~~~~~~~

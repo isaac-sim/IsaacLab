@@ -31,7 +31,6 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import isaaclab.cloner as cloner
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 
@@ -45,8 +44,6 @@ def main():
     sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 
     # Play the simulator
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
     # Now we are ready!
     print("[INFO]: Setup complete...")

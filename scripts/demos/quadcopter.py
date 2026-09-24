@@ -76,7 +76,7 @@ def main():
 
         # create handles for the robots
         robot = robot_cfg.class_type(robot_cfg)
-        cloner.replicate(plan, replicate_physics=False)
+        cloner.replicate(plan)
 
         # Play the simulator
         sim.reset()

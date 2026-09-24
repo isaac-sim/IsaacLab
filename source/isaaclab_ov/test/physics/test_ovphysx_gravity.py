@@ -16,7 +16,6 @@ from isaaclab_ov.assets import RigidObject
 from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.envs.mdp.events import randomize_physics_scene_gravity
 from isaaclab.managers import EventTermCfg
@@ -27,19 +26,18 @@ def test_gravity_event_changes_rigid_body_motion():
     """The gravity event must dispatch through OvStage and change motion in OvPhysX."""
     sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device="cpu", dt=1.0 / 60.0)
     with build_simulation_context(device="cpu", sim_cfg=sim_cfg) as sim:
-        cube_cfg = RigidObjectCfg(
-            prim_path="/World/Cube",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 10.0)),
-            spawn=sim_utils.CuboidCfg(
-                size=(0.5, 0.5, 0.5),
-                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
-                mass_props=sim_utils.MassCfg(mass=1.0),
-                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-            ),
+        cube = RigidObject(
+            RigidObjectCfg(
+                prim_path="/World/Cube",
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 10.0)),
+                spawn=sim_utils.CuboidCfg(
+                    size=(0.5, 0.5, 0.5),
+                    rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+                    mass_props=sim_utils.MassCfg(mass=1.0),
+                    collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+                ),
+            )
         )
-        plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (cube_cfg,), 1, 0.0)
-        cube = RigidObject(cube_cfg)
-        cloner.replicate(plan)
         sim.reset()
         dt = sim.get_physics_dt()
         cube.update(dt)

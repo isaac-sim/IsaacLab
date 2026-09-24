@@ -289,7 +289,7 @@ def main():
         )
         sim.set_clone_plan(plan)
         scene_entities, _ = design_scene()
-        cloner.replicate(plan, replicate_physics=False)
+        cloner.replicate(plan)
         # Play the simulator
         sim.reset()
         # Now we are ready!

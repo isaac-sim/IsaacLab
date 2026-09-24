@@ -39,7 +39,6 @@ from isaaclab_physx.sim.spawners.materials import (
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 import isaaclab.sim.schemas as schemas
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -929,9 +928,6 @@ def test_defining_rigid_body_properties_on_prim(setup_simulation):
     _validate_collision_properties_on_prim("/World/cube2", collision_cfg)
 
     # check if we can play
-    roots = ("/World/cube1", "/World/cube2", "/World/parent")
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=roots))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
     for _ in range(100):
         sim.step()
@@ -953,8 +949,6 @@ def test_defining_articulation_properties_on_prim(setup_simulation):
     schemas.define_mass_properties("/World/parent/child", mass_cfg)
 
     # check if we can play
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/parent",)))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
     for _ in range(100):
         sim.step()

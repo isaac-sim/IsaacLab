@@ -15,7 +15,6 @@ simulation_app = AppLauncher(headless=True).app
 import pytest
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 
@@ -175,8 +174,6 @@ def test_spawn_cone_with_rigid_and_mass_props(sim):
     assert prim.GetAttribute("physics:mass").Get() == cfg.mass_props.mass
 
     # check sim playing
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cone",)))
-    cloner.replicate(sim.get_clone_plan())
     sim.play()
     for _ in range(10):
         sim.step()
@@ -210,8 +207,6 @@ def test_spawn_cone_with_rigid_and_density_props(sim):
     assert prim.GetAttribute("physics:density").Get() == cfg.mass_props.density
 
     # check sim playing
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cone",)))
-    cloner.replicate(sim.get_clone_plan())
     sim.play()
     for _ in range(10):
         sim.step()
@@ -243,8 +238,6 @@ def test_spawn_cone_with_all_props(sim):
     assert prim.GetAttribute("physics:collisionEnabled").Get() is True
 
     # check sim playing
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cone",)))
-    cloner.replicate(sim.get_clone_plan())
     sim.play()
     for _ in range(10):
         sim.step()

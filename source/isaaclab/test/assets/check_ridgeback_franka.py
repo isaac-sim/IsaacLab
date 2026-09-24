@@ -36,7 +36,6 @@ simulation_app = app_launcher.app
 
 import torch
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
 
@@ -157,9 +156,6 @@ def main():
     # design scene
     robot = design_scene()
     # Play the simulator
-    roots = ("/World/defaultGroundPlane", "/World/Light", "/World/Robot_1", "/World/Robot_2")
-    sim.set_clone_plan(cloner.make_clone_plan((), 2, 0.0, global_paths=roots))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
     # Now we are ready!
     print("[INFO]: Setup complete...")

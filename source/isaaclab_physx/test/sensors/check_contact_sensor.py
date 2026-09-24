@@ -34,11 +34,12 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner as lab_cloner
-from isaaclab.assets import Articulation, AssetBaseCfg
+from isaaclab.assets import Articulation
 from isaaclab.sensors.contact_sensor import ContactSensor, ContactSensorCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils.timer import Timer
@@ -84,28 +85,19 @@ def main():
     # Create environment clones using Lab's cloner utilities
     num_envs = args_cli.num_robots
     env_fmt = "/World/envs/env_{}"
+    env_ids = np.arange(num_envs, dtype=np.int64)
     env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=2.0)
     # Everything under the namespace "/World/envs/env_0" will be cloned
     sim.stage.DefinePrim("/World/envs/env_0", "Xform")
+    # Clone the scene
     envs_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
+    lab_cloner.usd_replicate(sim.stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
     # Design props
     design_scene()
     # Spawn things into the scene
     robot_cfg = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     robot_cfg.spawn.activate_contact_sensors = True
-    plan = lab_cloner.clone_plan_from_env_0(
-        lab_cloner.CloneCfg(clone_template=env_fmt),
-        (
-            robot_cfg,
-            AssetBaseCfg(prim_path="/World/defaultGroundPlane"),
-            AssetBaseCfg(prim_path="/World/Light/DomeLight"),
-        ),
-        num_envs,
-        2.0,
-        positions=env_origins,
-    )
     robot = Articulation(cfg=robot_cfg)
-    lab_cloner.replicate(plan, replicate_physics=False)
     # Contact sensor
     contact_sensor_cfg = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/[^/]*_FOOT",

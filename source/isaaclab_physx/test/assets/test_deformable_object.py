@@ -18,7 +18,6 @@ simulation_app = AppLauncher(headless=True).app
 
 import sys
 
-import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -35,7 +34,6 @@ import carb
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import DeformableObjectCfg
-from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.sim import build_simulation_context
 
 # Temporarily disabled: this suite intermittently aborts with SIGABRT on CI.
@@ -70,8 +68,10 @@ def generate_cubes_scene(
         The deformable object representing the cubes.
 
     """
-    origins = np.asarray([(i * 1.0, 0, height) for i in range(num_cubes)], dtype=np.float32)
-    sim_utils.create_prim("/World/Table_0", "Xform", translation=origins[0])
+    origins = torch.tensor([(i * 1.0, 0, height) for i in range(num_cubes)]).to(device)
+    # Create Top-level Xforms, one for each cube
+    for i, origin in enumerate(origins):
+        sim_utils.create_prim(f"/World/Table_{i}", "Xform", translation=origin)
 
     # Resolve spawn configuration
     if has_api:
@@ -100,11 +100,7 @@ def generate_cubes_scene(
         spawn=spawn_cfg,
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height), rot=initial_rot),
     )
-    plan = clone_plan_from_env_0(
-        CloneCfg(clone_template="/World/Table_{}"), (cube_object_cfg,), num_cubes, 1.0, positions=origins
-    )
     cube_object = DeformableObject(cfg=cube_object_cfg)
-    replicate(plan, replicate_physics=False)
 
     return cube_object
 

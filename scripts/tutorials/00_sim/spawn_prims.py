@@ -34,7 +34,6 @@ simulation_app = app_launcher.app
 from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -101,9 +100,6 @@ def main():
     # Design scene
     design_scene()
     # Play the simulator
-    roots = ("/World/defaultGroundPlane", "/World/lightDistant", "/World/Objects")
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=roots))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
     # Now we are ready!
     print("[INFO]: Setup complete...")

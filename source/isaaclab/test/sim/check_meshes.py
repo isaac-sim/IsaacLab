@@ -42,7 +42,6 @@ import torch
 import tqdm
 from isaaclab_physx.sim.schemas import PhysxCollisionCfg
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 
 
@@ -152,9 +151,6 @@ def main():
     design_scene()
 
     # Play the simulator
-    roots = ("/World/defaultGroundPlane", "/World/light", *(f"/World/Origin{i:02d}" for i in range(4)))
-    sim.set_clone_plan(cloner.make_clone_plan((), 4, 0.0, global_paths=roots))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
     # Now we are ready!
     print("[INFO]: Setup complete...")

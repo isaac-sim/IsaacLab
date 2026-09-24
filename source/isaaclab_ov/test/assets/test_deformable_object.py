@@ -30,7 +30,6 @@ from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
-from isaaclab import cloner  # noqa: E402
 from isaaclab.assets import DeformableObject, DeformableObjectCfg, RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
@@ -113,10 +112,6 @@ def _generate_deformable_scene(
     initial_rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0),
 ) -> DeformableObject:
     """Create independently authored deformables beneath matching parent prims."""
-    plan = cloner.make_clone_plan(
-        (), num_objects, 1.0, global_paths=tuple(f"/World/Table_{i}" for i in range(num_objects))
-    )
-    sim_utils.SimulationContext.instance().set_clone_plan(plan)
     for index in range(num_objects):
         sim_utils.create_prim(f"/World/Table_{index}", "Xform", translation=(index * 1.0, 0.0, height))
     cfg = DeformableObjectCfg(
@@ -124,9 +119,7 @@ def _generate_deformable_scene(
         spawn=spawn,
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height), rot=initial_rot),
     )
-    deformable = DeformableObject(cfg=cfg)
-    cloner.replicate(plan)
-    return deformable
+    return DeformableObject(cfg=cfg)
 
 
 def _assert_finite_deformable_state(deformable: DeformableObject) -> None:

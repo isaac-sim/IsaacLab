@@ -23,7 +23,6 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
-from isaaclab.cloner import ReplicateSession
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
@@ -50,8 +49,7 @@ def generate_cubes_scene(
         spawn=spawn_cfg,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height)),
     )
-    with ReplicateSession((), num_cubes, 1.0, global_paths=tuple(f"/World/Table_{i}" for i in range(num_cubes))):
-        cube_object = RigidObject(cfg=cube_object_cfg)
+    cube_object = RigidObject(cfg=cube_object_cfg)
     return cube_object, origins
 
 

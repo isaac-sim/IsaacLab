@@ -35,14 +35,12 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import numpy as np
 import torch
 import warp as wp
 from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, AssetBaseCfg
-from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
+from isaaclab.assets import Articulation
 from isaaclab.sim import SimulationContext
 
 ##
@@ -54,17 +52,24 @@ from isaaclab_assets import PICK_AND_PLACE_CFG  # isort:skip
 def design_scene():
     """Designs the scene."""
     # Ground-plane
-    ground_cfg = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
-    light_cfg = AssetBaseCfg(
-        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
-    )
+    cfg = sim_utils.GroundPlaneCfg()
+    cfg.func("/World/defaultGroundPlane", cfg)
+    # Lights
+    cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    cfg.func("/World/Light", cfg)
 
-    # Each clone uses one of these environment origins.
+    # Create separate groups called "Origin1", "Origin2"
+    # Each group will have a robot in it
     origins = [[2.75, 0.0, 0.0], [-2.75, 0.0, 0.0]]
+    # Origin 1
+    sim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
+    # Origin 2
+    sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
 
     # Articulation: First we define the robot config
     pick_and_place_robot_cfg = PICK_AND_PLACE_CFG.copy()
     pick_and_place_robot_cfg.prim_path = "/World/Origin.*/Robot"
+    pick_and_place_robot = Articulation(cfg=pick_and_place_robot_cfg)
 
     # Surface Gripper: Next we define the surface gripper config
     surface_gripper_cfg = SurfaceGripperCfg()
@@ -77,19 +82,7 @@ def design_scene():
     surface_gripper_cfg.coaxial_force_limit = 500.0  # [N] (Force limit in the direction of the gripper's axis)
     surface_gripper_cfg.retry_interval = 0.1  # seconds (Time the gripper will stay in a grasping state)
     # We can now spawn the surface gripper
-    plan = clone_plan_from_env_0(
-        CloneCfg(clone_template="/World/Origin{}"),
-        (pick_and_place_robot_cfg, surface_gripper_cfg, ground_cfg, light_cfg),
-        len(origins),
-        1.0,
-        positions=np.asarray(origins, dtype=np.float32),
-    )
-    sim_utils.create_prim(plan.sources[0], "Xform")
-    ground_cfg.class_type(ground_cfg)
-    light_cfg.class_type(light_cfg)
-    pick_and_place_robot = Articulation(cfg=pick_and_place_robot_cfg)
     surface_gripper = SurfaceGripper(cfg=surface_gripper_cfg)
-    replicate(plan)
 
     # return the scene information
     scene_entities = {"pick_and_place_robot": pick_and_place_robot, "surface_gripper": surface_gripper}

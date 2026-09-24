@@ -24,7 +24,6 @@ import warnings
 import pytest
 import torch
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.prims as prim_utils
 from isaaclab.sim import build_simulation_context
@@ -339,9 +338,6 @@ def test_multirotor_thruster_buffers_and_actuators(sim, num_multirotors, device)
     # If we created a real multirotor, it should be initialized by the test
     # scaffolding. If we got a stub, it won't have `is_initialized`.
     if hasattr(multirotor, "is_initialized"):
-        roots = tuple(f"/World/Env_{i}" for i in range(num_multirotors))
-        sim.set_clone_plan(cloner.make_clone_plan((), num_multirotors, 2.5, global_paths=roots))
-        cloner.replicate(sim.get_clone_plan())
         sim.reset()
         assert multirotor.is_initialized
 

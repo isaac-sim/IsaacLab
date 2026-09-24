@@ -154,7 +154,7 @@ def main():
         plan = cloner.make_clone_plan((), 1, 0.0, global_paths=global_paths)
         sim.set_clone_plan(plan)
         robots, origins = design_scene(sim)
-        cloner.replicate(plan, replicate_physics=False)
+        cloner.replicate(plan)
 
         # Play the simulator
         sim.reset()

@@ -18,7 +18,6 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -29,11 +28,9 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import (
     Articulation,
     ArticulationCfg,
-    AssetBaseCfg,
     RigidObject,
     RigidObjectCfg,
 )
-from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
@@ -114,24 +111,17 @@ def generate_surface_gripper(
         A tuple containing the surface gripper, the articulation, and the translations of the surface grippers.
     """
     # Generate translations of 2.5 m in x for each articulation
-    translations = np.zeros((num_surface_grippers, 3), dtype=np.float32)
-    translations[:, 0] = np.arange(num_surface_grippers) * 2.5
+    translations = torch.zeros(num_surface_grippers, 3, device=device)
+    translations[:, 0] = torch.arange(num_surface_grippers) * 2.5
 
-    sim_utils.create_prim("/World/Env_0", "Xform", translation=translations[0])
-    articulation_cfg = articulation_cfg.replace(prim_path="/World/Env_[^/]*/Robot")
+    # Create Top-level Xforms, one for each articulation
+    for i in range(num_surface_grippers):
+        sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
+    articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_[^/]*/Robot"))
     surface_gripper_cfg = surface_gripper_cfg.replace(prim_path="/World/Env_[^/]*/Robot/Gripper/SurfaceGripper")
-    plan = clone_plan_from_env_0(
-        CloneCfg(clone_template="/World/Env_{}"),
-        (articulation_cfg, AssetBaseCfg(prim_path="/World/defaultGroundPlane")),
-        num_surface_grippers,
-        2.5,
-        positions=translations,
-    )
-    articulation = Articulation(articulation_cfg)
-    replicate(plan, replicate_physics=False)
     surface_gripper = SurfaceGripper(surface_gripper_cfg)
 
-    return surface_gripper, articulation, torch.as_tensor(translations, device=device)
+    return surface_gripper, articulation, translations
 
 
 def generate_grippable_object(sim, num_grippable_objects: int):

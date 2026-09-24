@@ -31,8 +31,7 @@ from pxr import Gf, UsdGeom, UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.sim.schemas as schemas
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
-from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
+from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.sensors.contact_sensor import BaseContactSensor
@@ -578,7 +577,7 @@ def test_nested_rigid_body_hierarchy(setup_simulation, device, num_envs):
     parent-level name alternation, which cannot address bodies nested under other
     bodies, so sensor initialization failed on URDF-importer-style assets.
 
-    The chains are authored directly under each environment prim:
+    The chains are authored directly under each environment prim (no scene/cloner):
     the sensor path under test only depends on the prims existing on the stage.
     """
     sim_dt, durations, terrains, devices, settings = setup_simulation
@@ -586,13 +585,6 @@ def test_nested_rigid_body_hierarchy(setup_simulation, device, num_envs):
         sim._app_control_on_stop_handle = None
         stage = get_current_stage()
         env_origins = [(3.0 * env_id, 0.0, 0.0) for env_id in range(num_envs)]
-        plan = clone_plan_from_env_0(
-            CloneCfg(),
-            (AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot"),),
-            num_envs,
-            3.0,
-            positions=torch.tensor(env_origins).numpy(),
-        )
         for env_id, origin in enumerate(env_origins):
             env_xform = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}")
             env_xform.AddTranslateOp().Set(Gf.Vec3d(*origin))
@@ -605,7 +597,6 @@ def test_nested_rigid_body_hierarchy(setup_simulation, device, num_envs):
                 update_period=0.0,
             )
         )
-        replicate(plan, replicate_physics=False)
         sim.reset()
 
         # all three nested bodies must be resolved into the views (pre-fix: init raised);

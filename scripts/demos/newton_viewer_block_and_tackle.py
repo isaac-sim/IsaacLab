@@ -26,7 +26,6 @@ import newton.utils
 import warp as wp
 from isaaclab_newton.physics import NewtonCfg, NewtonManager, NewtonShapeCfg, VBDSolverCfg
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 from isaaclab.utils import configclass
 
@@ -321,8 +320,6 @@ def main() -> None:
         cable_body_start, wrapped_xforms = _build_system(builder)
         builder.color(balance_colors=False)
         NewtonManager.set_builder(builder)
-        sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0))
-        cloner.replicate(sim.get_clone_plan(), replicate_physics=False)
         sim.reset()
         _initialize_wrapped_cable(cable_body_start, wrapped_xforms)
         print("[INFO]: Setup complete. Right-drag the yellow cable handle downward to lift the red load.", flush=True)

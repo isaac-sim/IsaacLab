@@ -41,7 +41,6 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 
 
@@ -80,9 +79,6 @@ def main():
     design_scene()
 
     # Play the simulator
-    roots = ("/World/defaultGroundPlane", "/World/lightDistant", "/World/Object")
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=roots))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
     # Now we are ready!
     print("[INFO]: Setup complete...")

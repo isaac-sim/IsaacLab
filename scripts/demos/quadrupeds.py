@@ -196,7 +196,7 @@ def main():
         plan = cloner.make_clone_plan((), 1, 0.0, global_paths=global_paths)
         sim.set_clone_plan(plan)
         scene_entities, scene_origins = design_scene()
-        cloner.replicate(plan, replicate_physics=False)
+        cloner.replicate(plan)
         scene_origins = scene_origins.to(sim.device)
         sim.reset()
         print("[INFO]: Setup complete...")

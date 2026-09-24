@@ -25,7 +25,6 @@ from isaaclab_physx.physics import IsaacEvents, PhysxCfg, PhysxManager
 import omni.physics.tensors
 import omni.timeline
 
-import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent
 from isaaclab.renderers import RendererCfg
@@ -246,8 +245,6 @@ def test_timeline_play_stop(monkeypatch):
     assert not sim.is_playing()
 
     # start the simulation
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cube",)))
-    cloner.replicate(sim.get_clone_plan())
     sim.play()
     assert sim.is_playing()
     assert not sim.is_stopped()
@@ -286,8 +283,6 @@ def test_timeline_pause():
     sim = SimulationContext()
 
     # start the simulation
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0))
-    cloner.replicate(sim.get_clone_plan())
     sim.play()
     assert sim.is_playing()
 
@@ -313,8 +308,6 @@ def test_reset():
     cube_cfg.func("/World/Cube", cube_cfg)
 
     # reset the simulation
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cube",)))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
 
     # check that simulation is playing after reset
@@ -335,8 +328,6 @@ def test_reset_soft():
     cube_cfg.func("/World/Cube", cube_cfg)
 
     # perform initial reset
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cube",)))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
     assert sim.is_playing()
 
@@ -357,8 +348,6 @@ def test_forward():
     cube_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))
     cube_cfg.func("/World/Cube", cube_cfg)
 
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cube",)))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
 
     # call forward
@@ -379,8 +368,6 @@ def test_step(render):
     cube_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))
     cube_cfg.func("/World/Cube", cube_cfg)
 
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cube",)))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
 
     # step with rendering
@@ -401,8 +388,6 @@ def test_render():
     cube_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))
     cube_cfg.func("/World/Cube", cube_cfg)
 
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cube",)))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
 
     # render
@@ -431,8 +416,6 @@ def test_render_pumps_app_update_without_visualizer():
 
     cfg = SimulationCfg(dt=0.01)
     sim = SimulationContext(cfg)
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
 
     sim.set_setting("/isaaclab/video/enabled", True)
@@ -468,8 +451,6 @@ def test_render_skips_app_update_when_visualizer_pumps_it():
 
     cfg = SimulationCfg(dt=0.01)
     sim = SimulationContext(cfg)
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
 
     sim.set_setting("/isaaclab/video/enabled", True)
@@ -649,8 +630,6 @@ def test_timeline_callbacks_on_play():
         assert not callback_state["stop_called"]
 
         # play the simulation - this should trigger play callback
-        sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cube",)))
-        cloner.replicate(sim.get_clone_plan())
         sim.play()
         assert callback_state["play_called"]
         assert not callback_state["stop_called"]
@@ -731,8 +710,6 @@ def test_timeline_callbacks_with_weakref():
         assert tracker.stop_count == 0
 
         # trigger play event
-        sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cube",)))
-        cloner.replicate(sim.get_clone_plan())
         sim.play()
         assert tracker.play_count == 1
         assert tracker.stop_count == 0
@@ -802,8 +779,6 @@ def test_multiple_callbacks_on_same_event():
         assert all(count == 0 for count in callback_counts.values())
 
         # trigger play event
-        sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0))
-        cloner.replicate(sim.get_clone_plan())
         sim.play()
 
         # all callbacks should have been called
@@ -853,8 +828,6 @@ def test_callback_execution_order():
 
     try:
         # trigger play event
-        sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0))
-        cloner.replicate(sim.get_clone_plan())
         sim.play()
 
         # verify callbacks were executed in correct order
@@ -893,8 +866,6 @@ def test_callback_unsubscribe():
 
     try:
         # trigger play event
-        sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0))
-        cloner.replicate(sim.get_clone_plan())
         sim.play()
         assert callback_count["count"] == 1
 
@@ -938,8 +909,6 @@ def test_pause_event_callback():
 
     try:
         # play the simulation first
-        sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0))
-        cloner.replicate(sim.get_clone_plan())
         sim.play()
         assert not callback_state["pause_called"]
 
@@ -988,8 +957,6 @@ def test_isaac_event_triggered_on_reset(event_type):
         assert not callback_state["called"]
 
         # reset the simulation - should trigger the event
-        sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cube",)))
-        cloner.replicate(sim.get_clone_plan())
         sim.reset()
 
         # verify callback was triggered
@@ -1011,8 +978,6 @@ def test_isaac_event_prim_deletion():
     cube_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))
     cube_cfg.func("/World/Cube", cube_cfg)
 
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cube",)))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
 
     # create callback tracker
@@ -1066,8 +1031,6 @@ def test_isaac_event_timeline_stop():
         assert not callback_state["timeline_stop_called"]
 
         # play and stop the simulation
-        sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0))
-        cloner.replicate(sim.get_clone_plan())
         sim.play()
 
         # disable app control to prevent hanging
@@ -1140,8 +1103,6 @@ def test_isaac_event_callbacks_with_weakref():
         assert tracker.ready_count == 0
 
         # reset simulation - triggers WARMUP and READY events
-        sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cube",)))
-        cloner.replicate(sim.get_clone_plan())
         sim.reset()
 
         # verify callbacks were triggered (may be called multiple times during warmup sequence)
@@ -1196,8 +1157,6 @@ def test_multiple_isaac_event_callbacks():
         assert all(count == 0 for count in callback_counts.values())
 
         # reset simulation - triggers PHYSICS_READY event
-        sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cube",)))
-        cloner.replicate(sim.get_clone_plan())
         sim.reset()
 
         # all callbacks should have been called (may be called multiple times during warmup sequence)
@@ -1238,8 +1197,6 @@ def test_exception_in_callback_on_reset():
     handle = PhysxManager.register_callback(failing_callback, event=IsaacEvents.PHYSICS_READY)
 
     try:
-        sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cube",)))
-        cloner.replicate(sim.get_clone_plan())
         with pytest.raises(RuntimeError, match=test_error_message):
             sim.reset()
     finally:
@@ -1259,8 +1216,6 @@ def test_exception_in_callback_on_step():
     cube_cfg.func("/World/Cube", cube_cfg)
 
     # reset first to initialize
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cube",)))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
 
     test_error_message = "Test exception on step"
@@ -1290,8 +1245,6 @@ def test_render_callback_is_invoked_on_render():
 
     cfg = SimulationCfg(dt=0.01)
     sim = SimulationContext(cfg)
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
 
     cb = MagicMock()
@@ -1313,8 +1266,6 @@ def test_render_callback_ordering():
 
     cfg = SimulationCfg(dt=0.01)
     sim = SimulationContext(cfg)
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
 
     call_log: list[str] = []
@@ -1336,8 +1287,6 @@ def test_render_callback_replace_on_same_name():
 
     cfg = SimulationCfg(dt=0.01)
     sim = SimulationContext(cfg)
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
 
     old_cb = MagicMock()
@@ -1360,8 +1309,6 @@ def test_remove_render_callback_stops_invocation():
 
     cfg = SimulationCfg(dt=0.01)
     sim = SimulationContext(cfg)
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
 
     cb = MagicMock()
@@ -1380,8 +1327,6 @@ def test_remove_render_callback_noop_for_unknown_name():
     """remove_render_callback is a no-op when the name was never registered."""
     cfg = SimulationCfg(dt=0.01)
     sim = SimulationContext(cfg)
-    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0))
-    cloner.replicate(sim.get_clone_plan())
     sim.reset()
 
     sim.remove_render_callback("nonexistent")  # must not raise
