@@ -38,7 +38,7 @@ class NewtonVBDManager(NewtonManager):
     def start_simulation(cls) -> None:
         """Start simulation and bind registered deformables to Fabric."""
         if cls._builder is not None:
-            cls._builder.color(balance_colors=False)
+            cls._builder.color(include_bending=True, balance_colors=False)
         super().start_simulation()
         try:
             from isaaclab_contrib.deformable.deformable_object import setup_registered_deformable_fabric_sync
@@ -56,7 +56,7 @@ class NewtonVBDManager(NewtonManager):
             raise RuntimeError("Newton stage import did not create a builder.")
         # Warp's optional balancing pass can cycle indefinitely for valid graph colorings.
         # The initial assignment is sufficient for VBD correctness.
-        cls._builder.color(balance_colors=False)
+        cls._builder.color(include_bending=True, balance_colors=False)
 
     @classmethod
     def _get_usd_import_ignore_paths(cls) -> list[str]:

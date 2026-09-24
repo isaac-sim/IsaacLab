@@ -8,10 +8,13 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 from types import SimpleNamespace
 
 import pytest
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager, NewtonSoftContactCfg
+from newton import ModelBuilder
+from newton.solvers import SolverVBD
 
 from isaaclab.sim import SimulationContext
 
@@ -92,8 +95,8 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
             self.imports.append((root_path, list(ignore_paths)))
             return {"path_shape_map": {}}
 
-        def color(self, *, balance_colors):
-            self.color_calls.append(balance_colors)
+        def color(self, *, include_bending, balance_colors):
+            self.color_calls.append((include_bending, balance_colors))
 
     children = [
         SimpleNamespace(
@@ -165,7 +168,7 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
     else:
         assert builders[0].imports == [(None, ["/World/terrain", *deformable_paths])]
         assert hook_calls == [0]
-    assert builders[0].color_calls == [False]
+    assert builders[0].color_calls == [(True, False)]
 
 
 def test_vbd_colors_prebuilt_builder_before_start(monkeypatch):
@@ -175,8 +178,8 @@ def test_vbd_colors_prebuilt_builder_before_start(monkeypatch):
     events = []
 
     class Builder:
-        def color(self, *, balance_colors):
-            events.append(("color", balance_colors))
+        def color(self, *, include_bending, balance_colors):
+            events.append(("color", include_bending, balance_colors))
 
     monkeypatch.setattr(physics.NewtonVBDManager, "_builder", Builder())
     monkeypatch.setattr(NewtonManager, "start_simulation", classmethod(lambda cls: events.append("start")))
@@ -184,7 +187,7 @@ def test_vbd_colors_prebuilt_builder_before_start(monkeypatch):
 
     physics.NewtonVBDManager.start_simulation()
 
-    assert events == [("color", False), "start"]
+    assert events == [("color", True, False), "start"]
 
 
 @pytest.mark.parametrize("external_rigid_solver", [False, True])
@@ -203,6 +206,32 @@ def test_vbd_solver_force_input_capability(monkeypatch, external_rigid_solver):
 
     assert NewtonManager._solver is solver
     assert NewtonManager._supports_rigid_body_force_input is not external_rigid_solver
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        pytest.param({}, id="newton-default"),
+        pytest.param({"rigid_compliant_alm": True}, id="compliant-alm"),
+    ],
+)
+def test_vbd_compliant_alm_control(overrides):
+    """The public compliant-ALM control preserves Newton defaults and reaches the actual solver."""
+    physics = importlib.import_module("isaaclab_newton.physics")
+    solver_cfg = physics.VBDSolverCfg(**overrides)
+    parameter = inspect.signature(SolverVBD).parameters["rigid_compliant_alm"]
+    assert solver_cfg.rigid_compliant_alm == overrides.get("rigid_compliant_alm", parameter.default)
+
+    builder = ModelBuilder()
+    body = builder.add_body()
+    builder.add_shape_sphere(body=body, radius=0.1)
+    builder.color(balance_colors=False)
+    model = builder.finalize(device="cpu")
+
+    reference = SolverVBD(model, **overrides)
+    solver = physics.NewtonVBDManager._create_solver(model, solver_cfg)
+    for name in ("rigid_compliant_alm", "rigid_joint_alpha", "rigid_contact_alpha", "rigid_contact_hard"):
+        assert getattr(solver, name) == getattr(reference, name)
 
 
 def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):

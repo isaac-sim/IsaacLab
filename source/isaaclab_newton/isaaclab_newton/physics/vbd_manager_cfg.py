@@ -58,6 +58,14 @@ class VBDSolverCfg(NewtonSolverCfg):
     particle_rest_shape_contact_exclusion_radius: float = 0.0
     """Rest-shape separation threshold for filtering contacts [m]."""
 
+    rigid_compliant_alm: bool | None = None
+    """Whether rigid joints and contacts use Newton's compliant ALM formulation.
+
+    ``True`` selects the recommended compliant ALM path. ``False`` explicitly
+    selects the deprecated legacy AVBD path. ``None`` preserves Newton's current
+    legacy default and emits its migration warning when VBD integrates rigid bodies.
+    """
+
     rigid_contact_k_start: float = 1.0e2
     """Initial stiffness seed for rigid-body contacts [N/m]."""
 

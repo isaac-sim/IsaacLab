@@ -22,6 +22,23 @@ rigid-body scenes, the named-entry coupling options are:
 * :class:`~isaaclab_contrib.coupling.CouplerAdmmCfg` for linearized ADMM
   coupling between named solver entries.
 
+Run the Standalone Tablecloth Demo
+----------------------------------
+
+The focused ``scripts/demos/newton_tablecloth.py`` script demonstrates
+standalone VBD before the task and coupling examples below. It compares five
+pull speeds side by side and shows how to configure full-surface contact while
+controlling deformable kinematic targets through Isaac Lab.
+
+Run it with the lightweight Newton GL visualizer:
+
+.. code-block:: bash
+
+   uv run python scripts/demos/newton_tablecloth.py --device cuda:0 --visualizer newton_gl
+
+The script declares its ground, tables, cloth, and tableware with
+``InteractiveSceneCfg`` and uses the standard scene write/step/update lifecycle.
+
 Start from a Supported Deformable Task
 --------------------------------------
 
@@ -181,10 +198,22 @@ Core Solve
       - Description
     * - ``iterations``
       - Default: ``10``. Number of VBD iterations per substep. Increasing this value improves deformation and contact convergence, especially for stiff materials or rigid gripper contacts, but increases runtime.
+    * - ``rigid_compliant_alm``
+      - Default: ``None``. Set to ``True`` for Newton's recommended compliant-ALM formulation for rigid joints and body-body contacts. ``False`` explicitly selects the deprecated legacy AVBD path; ``None`` retains that legacy behavior during Newton's migration window.
     * - ``rigid_body_particle_contact_buffer_size``
       - Default: ``256``. Per-body capacity for particle, edge, and face soft contacts. Increase it if Newton reports a per-body contact buffer overflow.
     * - ``integrate_with_external_rigid_solver``
       - Default: ``False``. Set to ``True`` only when a manual manager integrates rigid bodies in the shared model. Proxy-coupled entries use partitioned model views and leave this ``False``.
+
+Contact Scheduling
+^^^^^^^^^^^^^^^^^^
+
+:attr:`~isaaclab_newton.physics.NewtonCfg.collision_decimation` controls how
+often the collision pipeline refreshes contacts within a physics tick. ``0``
+runs collision once per tick. A positive value ``k`` re-runs it every ``k``
+solver substeps. Use ``1`` for fast or thin rigid-soft interactions that can
+cross the contact band within one substep; increase it only after verifying that
+the cheaper, staler contact set does not cause tunneling or ejection.
 
 
 Self-Contact
