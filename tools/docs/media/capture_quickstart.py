@@ -29,6 +29,8 @@ from isaaclab_tasks.core.lift.config.kuka_allegro.kuka_allegro_env_cfg import Ku
 from isaaclab_tasks.core.velocity.config.g1.flat_env_cfg import G1FlatEnvCfg
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
+# Focal lengths are tuned per task to the tightest framing that still keeps the subject inside the
+# published crop; the safe value differs per scene, so they are not a fixed ratio of one another.
 _TASK_CONFIGS = {
     "Isaac-Cartpole": "capture_quickstart:CartpoleCaptureCfg",
     "Isaac-Lift-KukaAllegro": "capture_quickstart:KukaAllegroCaptureCfg",
@@ -43,7 +45,7 @@ class CartpoleCaptureCfg(CartpoleEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        _configure_capture(self, focal_length=18.0)
+        _configure_capture(self, focal_length=30.0, lookat=(0.0, 0.0, 2.2))
 
 
 @configclass
@@ -61,7 +63,9 @@ class KukaAllegroCaptureCfg(KukaAllegroLiftEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        _configure_capture(self, focal_length=22.0)
+        # Held to 24 rather than the tighter framing the other tasks take: the lift policy raises
+        # the arm well above the pose a zero action holds, and 26 already leaves little headroom.
+        _configure_capture(self, focal_length=24.0)
 
 
 @configclass
@@ -70,7 +74,7 @@ class FrankaCabinetCaptureCfg(FrankaCabinetEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        _configure_capture(self, focal_length=22.0)
+        _configure_capture(self, focal_length=32.0)
 
 
 def configure_playback() -> list[str]:
@@ -97,7 +101,7 @@ def main():
     env_cfg, _ = resolve_task_config(args.task, "", play_mode=True)
     env_cfg.scene.num_envs = 1
     env_cfg.seed = 42
-    _configure_resolved_sim(env_cfg.sim, focal_length=22.0)
+    _configure_resolved_sim(env_cfg.sim, focal_length=32.0)
     env_cfg.video_recorders = [
         VideoRecorderCfg(
             source="visualizer:newton_rtx",
@@ -120,16 +124,18 @@ def main():
         env.close()
 
 
-def _configure_capture(env_cfg: object, focal_length: float):
+def _configure_capture(
+    env_cfg: object, focal_length: float, lookat: tuple[float, float, float] | None = None
+):
     """Configure every simulation preset before Hydra resolves the selected backend."""
     sim_presets = getattr(env_cfg, "sim")
     if isinstance(sim_presets, SimulationCfg):
-        _configure_resolved_sim(sim_presets, focal_length)
+        _configure_resolved_sim(sim_presets, focal_length, lookat)
     else:
         for field in dataclasses.fields(sim_presets):
             sim_cfg = getattr(sim_presets, field.name)
             if isinstance(sim_cfg, SimulationCfg):
-                _configure_resolved_sim(sim_cfg, focal_length)
+                _configure_resolved_sim(sim_cfg, focal_length, lookat)
 
     output_dir = os.environ.get("QUICKSTART_VIDEO_DIR")
     if output_dir:
@@ -143,16 +149,26 @@ def _configure_capture(env_cfg: object, focal_length: float):
         ]
 
 
-def _configure_resolved_sim(sim_cfg: SimulationCfg, focal_length: float):
-    """Attach a headless 320 by 240 OVRTX visualizer to a simulation config."""
+def _configure_resolved_sim(
+    sim_cfg: SimulationCfg, focal_length: float, lookat: tuple[float, float, float] | None = None
+):
+    """Attach a headless 1280 by 960 OVRTX visualizer to a simulation config.
+
+    Captures at four times the 320 by 240 publication size so the generator can downsample the
+    path-traced frames, which resolves robot silhouettes and shadow edges that alias away when
+    the path tracer renders straight to the final size.
+
+    ``lookat`` re-aims the interactive camera for tasks whose default target sits below the
+    subject; the task's own target is kept when it is ``None``.
+    """
     default_camera = sim_cfg.default_visualizer_cfg or VisualizerCfg()
     sim_cfg.visualizer_cfgs = [
         NewtonRTXVisualizerCfg(
             eye=default_camera.eye,
-            lookat=default_camera.lookat,
+            lookat=default_camera.lookat if lookat is None else lookat,
             focal_length=focal_length,
-            window_width=320,
-            window_height=240,
+            window_width=1280,
+            window_height=960,
             headless=True,
             rtx_environment="default",
             render_settings={"omni:rtx:quality": ("Int", 100)},
