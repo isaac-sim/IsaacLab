@@ -963,16 +963,19 @@ class RigidObject(BaseRigidObject):
         # surface here with a helpful message rather than as a raw wheel exception
         # (or a KeyError) at first writer call.
         self._root_view = OvPhysxView(self._ovphysx, pattern=pattern, device=self._device)
-        for tt in (
+        eager_types = (
             TT.RIGID_BODY_POSE,
             TT.RIGID_BODY_VELOCITY,
             TT.RIGID_BODY_WRENCH,
             TT.RIGID_BODY_MASS,
             TT.RIGID_BODY_COM_POSE,
             TT.RIGID_BODY_INERTIA,
-        ):
+        )
+        for tt in eager_types:
             try:
                 self._root_view.binding_for(tt)
+                if tt == TT.RIGID_BODY_POSE:
+                    self._root_view._use_resolved_prim_paths()
             except Exception as e:
                 raise RuntimeError(
                     f"OVPhysX could not create rigid-body binding {tt!r}. "

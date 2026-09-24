@@ -220,6 +220,20 @@ def test_variant_bindings_preserve_environment_and_collection_order():
         view.close()
 
 
+def test_resolved_paths_reuse_binding_order_without_rematching_stage():
+    physx = _FakePhysX(n=3)
+    view = OvPhysxView(physx, pattern="/World/env_*/body")
+    try:
+        view.binding_for(TensorType.RIGID_BODY_POSE)
+        view._use_resolved_prim_paths()
+        view.binding_for(TensorType.RIGID_BODY_VELOCITY)
+
+        assert physx.created[0][1:] == ("/World/env_*/body", None)
+        assert physx.created[1][1:] == (None, view.prim_paths)
+    finally:
+        view.close()
+
+
 @pytest.fixture(autouse=True)
 def _close_live_views():
     existing_views = set(OvPhysxView._live_views)

@@ -564,6 +564,12 @@ class OvPhysxView:
         """USD paths of the prims matched by this view."""
         return list(self._sample().prim_paths)
 
+    def _use_resolved_prim_paths(self) -> None:
+        """Reuse the first binding's ordered prims instead of repeating a stage-wide glob."""
+        if self._pattern is not None:
+            self._prim_paths = self.prim_paths
+            self._pattern = None
+
     @property
     def dof_names(self) -> list[str]:
         """Per-articulation DOF names (articulation views only)."""

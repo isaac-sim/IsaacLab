@@ -3913,10 +3913,12 @@ class Articulation(BaseArticulation):
             TT.BODY_INERTIA,
         ]
         self._root_view = OvPhysxView(self._ovphysx, pattern=pattern, device=self._device)
+        self._root_view.try_binding_for(TT.ROOT_POSE)
+        self._root_view._use_resolved_prim_paths()
         # ``try_binding_for`` creates and caches each binding, returning ``None`` for tensor
         # types that do not apply to these prims (so a minimal articulation that lacks some
         # of these types is skipped rather than failing the whole init).
-        for tt in eager_types:
+        for tt in eager_types[1:]:
             self._root_view.try_binding_for(tt)
 
         if not self._root_view.available_attributes:

@@ -10,3 +10,5 @@ Fixed
 * Fixed contacts between retained source variants and cloned assets, collision isolation, and environment-indexed tensor reads and writes in heterogeneous scenes.
 * Preserved cloned contact reporters and kept sensor rows and resolved contact filters in environment order.
 * Removed authored runtime clone targets from retained source environments and preserved the legacy homogeneous clone signature on older OvPhysX versions.
+* Registered Newton USD schemas before loading OvStage scenes so cloned mimic-joint constraints work.
+* Reused resolved articulation and rigid-body paths to accelerate tensor binding in large scenes.
