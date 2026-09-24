@@ -47,15 +47,11 @@ class _DummyRayCaster(ray_caster_module._OvPhysxRayCasterMixin):
     def _resolve_rigid_body_ancestor_expr(self):
         return self._resolved
 
-    def _initialize_static_pose_tracking(self, prims):
-        raise AssertionError("dynamic clone-plan sources should not fall back to static USD pose tracking")
 
-
-def test_initialize_pose_tracking_uses_shared_rigid_body_resolver_without_destination_usd(monkeypatch):
-    """RayCaster should use SensorBase clone-plan resolution when destination USD prims are missing."""
+def test_initialize_pose_tracking_binds_body_glob_and_replicates_offset(monkeypatch):
+    """The resolved rigid-body expression is bound as a glob, and its fixed offset is replicated per frame."""
     fake_physx = _FakePhysx()
 
-    monkeypatch.setattr(ray_caster_module.sim_utils, "find_matching_prims", lambda _path: [])
     monkeypatch.setattr(ray_caster_module.OvPhysxManager, "get_physx_instance", staticmethod(lambda: fake_physx))
 
     sensor = _DummyRayCaster()

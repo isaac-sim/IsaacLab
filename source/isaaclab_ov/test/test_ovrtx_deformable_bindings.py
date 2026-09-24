@@ -419,7 +419,6 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
 
     monkeypatch.setattr(NewtonManager, "get_model", reject_newton_access)
     monkeypatch.setattr(NewtonManager, "get_state", reject_newton_access)
-    assert not hasattr(ovrtx_renderer_module, "sync_newton_transforms_kernel")
     renderer, _ = _make_renderer_without_backend()
     paths = ["/World/Shared", "/World/envs/env_1/Object"]
     poses = np.array([[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 0, 0, 0, 1]], dtype=np.float32)

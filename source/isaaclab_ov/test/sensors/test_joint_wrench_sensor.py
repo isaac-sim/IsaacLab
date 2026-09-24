@@ -8,9 +8,9 @@
 
 """Real-backend tests for the OVPhysX JointWrenchSensor.
 
-Mirrors ``isaaclab_physx`` ``test_joint_wrench_sensor.py``; only the
-fixtures and raw-tensor read helper change. Physical assertions are
-kept byte-identical so the two backends report the same convention.
+Wrench values and frames are checked against analytic loads by the shared
+``test_joint_wrench_frame`` contract imported below; the local tests cover
+initialization, body resolution, and reset behavior.
 
 The OVPhysX runtime fixes device mode (CPU vs GPU) when the process creates
 its first ``ovphysx.PhysX`` instance. Full coverage therefore requires two
@@ -47,19 +47,13 @@ from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg  # noqa: E4
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
 from isaaclab.utils import configclass  # noqa: E402
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR  # noqa: E402
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
 from isaaclab_assets.robots.ant import ANT_CFG  # noqa: E402
 
 wp.init()
 
 pytestmark = pytest.mark.device_split
-
-# OVPhysX/Warp and the PyTorch reference use different float32 operation order on CUDA. The
-# relative gap grows with the wrench magnitude: the Ant scenes see contact wrenches on the order
-# of 1e8, where the two orderings differ by a few 1e-5 relative.
-_OVPHYSX_WRENCH_RTOL = 1e-4
-_OVPHYSX_WRENCH_ATOL = 1e-5
 
 # ---------------------------------------------------------------------------
 # Device-lock autouse fixture (copied from test_contact_sensor.py)
@@ -128,28 +122,6 @@ def _make_single_joint_articulation_cfg() -> ArticulationCfg:
     )
 
 
-def _make_cartpole_articulation_cfg(pole_damping: float = 0.0) -> ArticulationCfg:
-    """Two-joint cartpole articulation (cart + pole)."""
-    return ArticulationCfg(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Classic/Cartpole/cartpole.usd",
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 2.0),
-            joint_pos={"slider_to_cart": 0.0, "cart_to_pole": 0.0},
-        ),
-        actuators={
-            "cart_actuator": ImplicitActuatorCfg(
-                joint_names_expr=["slider_to_cart"], joint_effort_limit=400.0, stiffness=0.0, damping=10.0
-            ),
-            "pole_actuator": ImplicitActuatorCfg(
-                joint_names_expr=["cart_to_pole"], joint_effort_limit=400.0, stiffness=0.0, damping=pole_damping
-            ),
-        },
-    )
-
-
 @configclass
 class _SingleJointSceneCfg(InteractiveSceneCfg):
     """Scene with a single-joint articulation and the joint-wrench sensor."""
@@ -157,26 +129,6 @@ class _SingleJointSceneCfg(InteractiveSceneCfg):
     env_spacing = 2.0
     terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
     robot = _make_single_joint_articulation_cfg()
-    wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
-
-
-@configclass
-class _CartpoleSceneCfg(InteractiveSceneCfg):
-    """Scene with a cartpole (2-joint) articulation and the joint-wrench sensor."""
-
-    env_spacing = 4.0
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
-    robot = _make_cartpole_articulation_cfg()
-    wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
-
-
-@configclass
-class _CartpoleDampedSceneCfg(InteractiveSceneCfg):
-    """Cartpole with pole damping for steady-state physics validation tests."""
-
-    env_spacing = 4.0
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
-    robot = _make_cartpole_articulation_cfg(pole_damping=10.0)
     wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
 
@@ -202,44 +154,6 @@ def sim(device):
 def device(request):
     """Supply the device to imported contract tests as well as backend-local tests."""
     return request.param
-
-
-# ---------------------------------------------------------------------------
-# Raw-tensor helpers
-# ---------------------------------------------------------------------------
-
-
-def _ovphysx_incoming_joint_wrench(sensor: JointWrenchSensor) -> torch.Tensor:
-    """Read the raw OVPhysX incoming joint wrench tensor.
-
-    OVPhysX reports spatial vectors as force followed by torque. Shape is
-    ``(num_envs, num_bodies, 6)``. The read targets an independent scratch
-    buffer so a subsequent ``sensor.data`` access (which re-reads into the
-    sensor's own ``_wrench_buf``) cannot retroactively change the returned
-    snapshot — mirrors how the PhysX helper returns an independent array from
-    :meth:`ArticulationView.get_link_incoming_joint_force`.
-    """
-    scratch_buf = wp.zeros((sensor._num_envs, sensor._num_bodies), dtype=wp.spatial_vectorf, device=sensor._device)
-    scratch_view = wp.array(
-        ptr=scratch_buf.ptr,
-        shape=sensor._wrench_binding.shape,
-        dtype=wp.float32,
-        device=str(scratch_buf.device),
-        copy=False,
-    )
-    sensor._wrench_binding.read(scratch_view)
-    return wp.to_torch(scratch_buf)
-
-
-def _assert_sensor_matches_ovphysx_tensor(sensor: JointWrenchSensor) -> None:
-    """The sensor exposes the OVPhysX tensor's existing child-joint-frame components."""
-    raw_wrench = _ovphysx_incoming_joint_wrench(sensor)
-    torch.testing.assert_close(
-        sensor.data.force.torch, raw_wrench[..., :3], rtol=_OVPHYSX_WRENCH_RTOL, atol=_OVPHYSX_WRENCH_ATOL
-    )
-    torch.testing.assert_close(
-        sensor.data.torque.torch, raw_wrench[..., 3:], rtol=_OVPHYSX_WRENCH_RTOL, atol=_OVPHYSX_WRENCH_ATOL
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -278,27 +192,9 @@ def test_initialization_and_shapes(sim, device):
     assert sensor.data.torque.torch.shape == (num_envs, num_bodies, 3)
     assert sensor.body_names == robot.body_names
     assert sensor.find_bodies("Arm") == ([robot.body_names.index("Arm")], ["Arm"])
-    _assert_sensor_matches_ovphysx_tensor(sensor)
-
-
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_multi_body_articulation(sim, device):
-    """Cartpole exposes a wrench for each link labelled by body name."""
-    scene = InteractiveScene(_CartpoleSceneCfg(num_envs=2))
-    sim.reset()
-
-    robot: Articulation = scene["robot"]
-    sensor: JointWrenchSensor = scene["wrench"]
-    sim.step()
-    scene.update(sim.get_physics_dt())
-
-    num_envs = 2
-    num_bodies = robot.num_bodies
-    assert sensor.data.force.torch.shape == (num_envs, num_bodies, 3)
-    assert sensor.data.torque.torch.shape == (num_envs, num_bodies, 3)
-    assert sensor.body_names == robot.body_names
-    assert len(sensor.body_names) == num_bodies
-    _assert_sensor_matches_ovphysx_tensor(sensor)
+    sensor_str = str(sensor)
+    assert "ovphysx" in sensor_str
+    assert "Joint wrench sensor" in sensor_str
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -315,7 +211,6 @@ def test_nested_articulation_root_resolution(sim, device):
     assert sensor.body_names == robot.body_names
     assert sensor.data.force.torch.shape == (1, robot.num_bodies, 3)
     assert sensor.data.torque.torch.shape == (1, robot.num_bodies, 3)
-    _assert_sensor_matches_ovphysx_tensor(sensor)
 
 
 # ---------------------------------------------------------------------------
@@ -326,30 +221,17 @@ def test_nested_articulation_root_resolution(sim, device):
 
 
 # ---------------------------------------------------------------------------
-# String representation
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_sensor_print(sim, device):
-    """Test that the sensor string representation works."""
-    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=2))
-    sim.reset()
-
-    sensor: JointWrenchSensor = scene["wrench"]
-    sensor_str = str(sensor)
-    assert "ovphysx" in sensor_str
-    assert "Joint wrench sensor" in sensor_str
-
-
-# ---------------------------------------------------------------------------
 # Reset behavior
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_reset_with_env_ids_only_zeros_selected_envs(sim, device):
-    """Partial reset via env_ids should zero the selected envs and preserve the others; a full reset zeros all."""
+    """Partial reset via env_ids should zero the selected envs and preserve the others; a full reset zeros all.
+
+    The public read after the full reset is also the regression for #4970: it must not surface the
+    pre-reset wrenches that OVPhysX still holds.
+    """
     scene = InteractiveScene(_SingleJointSceneCfg(num_envs=4))
     sim.reset()
 
@@ -375,26 +257,5 @@ def test_reset_with_env_ids_only_zeros_selected_envs(sim, device):
     torque_after = wp.to_torch(sensor._data._torque)
     torch.testing.assert_close(force_after, torch.zeros_like(force_after))
     torch.testing.assert_close(torque_after, torch.zeros_like(torque_after))
-
-
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_no_stale_data_after_scene_reset(sim, device):
-    """Regression for #4970: ``scene.reset(env_ids)`` must not surface pre-reset wrenches (OVPhysX)."""
-    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=1))
-    sim.reset()
-
-    sensor: JointWrenchSensor = scene["wrench"]
-    for _ in range(100):
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    pre_reset_force = sensor.data.force.torch.clone()
-    pre_reset_torque = sensor.data.torque.torch.clone()
-    assert torch.any(pre_reset_force != 0) or torch.any(pre_reset_torque != 0), "Expected non-zero wrench before reset"
-
-    scene.reset(env_ids=torch.tensor([0], device=sensor.device))
-
-    post_reset_force = sensor.data.force.torch
-    post_reset_torque = sensor.data.torque.torch
-    torch.testing.assert_close(post_reset_force, torch.zeros_like(post_reset_force))
-    torch.testing.assert_close(post_reset_torque, torch.zeros_like(post_reset_torque))
+    torch.testing.assert_close(sensor.data.force.torch, torch.zeros_like(force_after))
+    torch.testing.assert_close(sensor.data.torque.torch, torch.zeros_like(torque_after))
