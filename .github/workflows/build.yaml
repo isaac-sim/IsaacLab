@@ -484,6 +484,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_rl"
         extra-pip-packages: "leapp==0.6.1 torchrl>=0.13"
+        pytest-workers: "2"
         container-name: isaac-lab-rl-test
 
   test-isaaclab-mimic:
@@ -656,6 +657,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_physx"
+        pytest-workers: "2"
         container-name: isaac-lab-physx-test
 
   test-isaaclab-ov:
