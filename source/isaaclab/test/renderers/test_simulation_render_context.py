@@ -193,10 +193,10 @@ def test_render_into_camera_call_order_and_profile_output(sim, capsys, profile):
     assert renderer.mock_calls == [
         call.update_transforms(),
         call.update_geometries(),
-        call.render(data),
+        call.render_batch([data]),
         call.read_output(data, camera),
         call.update_transforms(),
-        call.render(data),
+        call.render_batch([data]),
         call.read_output(data, camera),
     ]
     assert len(timings) == (2 if profile else 0)
@@ -445,7 +445,7 @@ def test_camera_lazy_reads_leave_peer_cameras_outdated(camera_batch_context):
         np.testing.assert_array_equal(camera.frame.warp.numpy(), [1, 1])
         np.testing.assert_allclose(camera._timestamp_last_update.numpy(), [0.01, 0.01])
     assert batches == [[("wide", 1.0)], [("tele", 2.0)]]
-    renderer.render_batch.assert_not_called()
+    renderer.render.assert_not_called()
 
 
 def test_eager_scene_batches_multiple_sensor_families(camera_batch_context):
@@ -557,12 +557,12 @@ def test_camera_updates_preserve_custom_buffer_hooks(camera_batch_context, monke
     assert custom_updates.call_count == (0 if lazy else 1)
 
     assert custom.data.info["pose"] == 0.0
-    renderer.render.assert_called_once_with(custom._render_data)
+    renderer.render.assert_not_called()
     if lazy:
         custom_updates.assert_called_once_with()
-        renderer.render_batch.assert_not_called()
+        renderer.render_batch.assert_called_once_with([custom._render_data])
     else:
-        renderer.render_batch.assert_called_once_with([peer._render_data])
+        assert renderer.render_batch.call_args_list == [call([custom._render_data]), call([peer._render_data])]
 
 
 def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batch_context):
