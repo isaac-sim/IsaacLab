@@ -227,7 +227,7 @@ def test_sensor_minimum_config(setup_minimum_config):
     sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg = setup_minimum_config
     _ = Articulation(cfg=robot_cfg)
     sensor_minimum = VisuoTactileSensor(cfg=sensor_cfg)
-    roots = ('/World/defaultGroundPlane', robot_cfg.prim_path)
+    roots = ("/World/defaultGroundPlane", robot_cfg.prim_path)
     sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=roots))
     cloner.replicate(sim.get_clone_plan())
     sim.reset()
@@ -260,9 +260,9 @@ def test_sensor_cam_size_false(setup_tactile_cam):
     sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg = setup_tactile_cam
     sensor_cfg.camera_cfg.height = 80
     _ = VisuoTactileSensor(cfg=sensor_cfg)
+    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/defaultGroundPlane",)))
+    cloner.replicate(sim.get_clone_plan())
     with pytest.raises(ValueError) as excinfo:
-        sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/defaultGroundPlane",)))
-        cloner.replicate(sim.get_clone_plan())
         sim.reset()
     assert "Camera configuration image size is not consistent with the render config" in str(excinfo.value)
 
@@ -273,9 +273,9 @@ def test_sensor_cam_type_false(setup_tactile_cam):
     sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg = setup_tactile_cam
     sensor_cfg.camera_cfg.data_types = ["rgb"]
     _ = VisuoTactileSensor(cfg=sensor_cfg)
+    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/defaultGroundPlane",)))
+    cloner.replicate(sim.get_clone_plan())
     with pytest.raises(ValueError) as excinfo:
-        sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/defaultGroundPlane",)))
-        cloner.replicate(sim.get_clone_plan())
         sim.reset()
     assert "Camera configuration data types are not supported" in str(excinfo.value)
 
@@ -286,7 +286,7 @@ def test_sensor_cam_set(setup_tactile_cam):
     sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg = setup_tactile_cam
     robot = Articulation(cfg=robot_cfg)
     sensor = VisuoTactileSensor(cfg=sensor_cfg)
-    roots = ('/World/defaultGroundPlane', robot_cfg.prim_path)
+    roots = ("/World/defaultGroundPlane", robot_cfg.prim_path)
     sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=roots))
     cloner.replicate(sim.get_clone_plan())
     sim.reset()
@@ -315,10 +315,10 @@ def test_sensor_cam_set_wrong_prim(setup_tactile_cam):
     sensor_cfg.camera_cfg.prim_path = "/World/Robot/elastomer_tip/cam_wrong"
     robot = Articulation(cfg=robot_cfg)
     sensor = VisuoTactileSensor(cfg=sensor_cfg)
+    roots = ("/World/defaultGroundPlane", robot_cfg.prim_path)
+    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=roots))
+    cloner.replicate(sim.get_clone_plan())
     with pytest.raises(RuntimeError) as excinfo:
-        roots = ('/World/defaultGroundPlane', robot_cfg.prim_path)
-        sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=roots))
-        cloner.replicate(sim.get_clone_plan())
         sim.reset()
         robot.update(dt)
         sensor.update(dt)
@@ -336,7 +336,7 @@ def test_sensor_cam_new_spawn(setup_tactile_cam):
     )
     robot = Articulation(cfg=robot_cfg)
     sensor = VisuoTactileSensor(cfg=sensor_cfg)
-    roots = ('/World/defaultGroundPlane', robot_cfg.prim_path)
+    roots = ("/World/defaultGroundPlane", robot_cfg.prim_path)
     sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=roots))
     cloner.replicate(sim.get_clone_plan())
     sim.reset()
@@ -362,7 +362,7 @@ def test_sensor_rgb_forcefield(setup_nut_rgb_ff):
     robot = Articulation(cfg=robot_cfg)
     sensor = VisuoTactileSensor(cfg=sensor_cfg)
     nut = RigidObject(cfg=nut_cfg)
-    roots = ('/World/defaultGroundPlane', robot_cfg.prim_path, nut_cfg.prim_path)
+    roots = ("/World/defaultGroundPlane", robot_cfg.prim_path, nut_cfg.prim_path)
     sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=roots))
     cloner.replicate(sim.get_clone_plan())
     sim.reset()
@@ -397,7 +397,7 @@ def test_sensor_no_contact_object(setup_nut_rgb_ff):
     robot = Articulation(cfg=robot_cfg)
     sensor = VisuoTactileSensor(cfg=sensor_cfg)
     nut = RigidObject(cfg=nut_cfg)
-    roots = ('/World/defaultGroundPlane', robot_cfg.prim_path, nut_cfg.prim_path)
+    roots = ("/World/defaultGroundPlane", robot_cfg.prim_path, nut_cfg.prim_path)
     sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=roots))
     cloner.replicate(sim.get_clone_plan())
     sim.reset()
@@ -427,10 +427,10 @@ def test_sensor_force_field_contact_object_not_found(setup_nut_rgb_ff):
     sensor_cfg.contact_object_prim_path_expr = "/World/Nut/wrong_prim"
     robot = Articulation(cfg=robot_cfg)
     sensor = VisuoTactileSensor(cfg=sensor_cfg)
+    roots = ("/World/defaultGroundPlane", robot_cfg.prim_path)
+    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=roots))
+    cloner.replicate(sim.get_clone_plan())
     with pytest.raises(RuntimeError) as excinfo:
-        roots = ('/World/defaultGroundPlane', robot_cfg.prim_path)
-        sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=roots))
-        cloner.replicate(sim.get_clone_plan())
         sim.reset()
         robot.update(dt)
         sensor.update(dt)
@@ -446,10 +446,10 @@ def test_sensor_force_field_contact_object_no_sdf(setup_nut_rgb_ff):
     robot = Articulation(cfg=robot_cfg)
     sensor = VisuoTactileSensor(cfg=sensor_cfg)
     cube = RigidObject(cfg=cube_cfg)
+    roots = ("/World/defaultGroundPlane", robot_cfg.prim_path, cube_cfg.prim_path)
+    sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=roots))
+    cloner.replicate(sim.get_clone_plan())
     with pytest.raises(RuntimeError) as excinfo:
-        roots = ('/World/defaultGroundPlane', robot_cfg.prim_path, cube_cfg.prim_path)
-        sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=roots))
-        cloner.replicate(sim.get_clone_plan())
         sim.reset()
         robot.update(dt)
         sensor.update(dt)
@@ -466,7 +466,7 @@ def test_sensor_update_period_mismatch(setup_nut_rgb_ff):
     robot = Articulation(cfg=robot_cfg)
     sensor = VisuoTactileSensor(cfg=sensor_cfg)
     nut = RigidObject(cfg=nut_cfg)
-    roots = ('/World/defaultGroundPlane', robot_cfg.prim_path, nut_cfg.prim_path)
+    roots = ("/World/defaultGroundPlane", robot_cfg.prim_path, nut_cfg.prim_path)
     sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=roots))
     cloner.replicate(sim.get_clone_plan())
     sim.reset()

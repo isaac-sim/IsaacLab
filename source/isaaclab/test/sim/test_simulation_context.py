@@ -1238,9 +1238,9 @@ def test_exception_in_callback_on_reset():
     handle = PhysxManager.register_callback(failing_callback, event=IsaacEvents.PHYSICS_READY)
 
     try:
+        sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cube",)))
+        cloner.replicate(sim.get_clone_plan())
         with pytest.raises(RuntimeError, match=test_error_message):
-            sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cube",)))
-            cloner.replicate(sim.get_clone_plan())
             sim.reset()
     finally:
         if handle is not None:

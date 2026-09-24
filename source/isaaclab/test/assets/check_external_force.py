@@ -73,7 +73,7 @@ def main():
     robot = Articulation(robot_cfg.replace(prim_path="/World/Anymal_c/Robot[^/]*"))
 
     # Play the simulator
-    roots = ('/World/defaultGroundPlane', '/World/Light', '/World/Anymal_c')
+    roots = ("/World/defaultGroundPlane", "/World/Light", "/World/Anymal_c")
     sim.set_clone_plan(cloner.make_clone_plan((), 2, 0.0, global_paths=roots))
     cloner.replicate(sim.get_clone_plan())
     sim.reset()

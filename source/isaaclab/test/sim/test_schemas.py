@@ -929,7 +929,7 @@ def test_defining_rigid_body_properties_on_prim(setup_simulation):
     _validate_collision_properties_on_prim("/World/cube2", collision_cfg)
 
     # check if we can play
-    roots = ('/World/cube1', '/World/cube2', '/World/parent')
+    roots = ("/World/cube1", "/World/cube2", "/World/parent")
     sim.set_clone_plan(cloner.make_clone_plan((), 1, 0.0, global_paths=roots))
     cloner.replicate(sim.get_clone_plan())
     sim.reset()
