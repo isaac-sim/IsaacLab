@@ -68,18 +68,29 @@ def test_zero_state_space_disables_centralized_state():
     assert env.state_space is None
 
 
-@pytest.mark.parametrize("noisy_agents", [(), ("agent_0",), ("agent_0", "agent_1")])
-def test_reset_applies_observation_noise_per_agent(noisy_agents):
+@pytest.mark.parametrize(
+    "noisy_agents,per_component",
+    [
+        ((), False),
+        (("agent_0",), False),
+        (("agent_0", "agent_1"), False),
+        (("agent_0",), True),
+        (("agent_0", "agent_1"), True),
+    ],
+)
+def test_reset_applies_observation_noise_per_agent(noisy_agents, per_component):
     """Reset applies each configured noise model after its episode bias has been reset."""
     cfg = make_empty_direct_marl_env_cfg(device="cpu", num_envs=2)
     cfg.observation_noise_model = {
         agent: NoiseModelWithAdditiveBiasCfg(
             noise_cfg=ConstantNoiseCfg(bias=0.5),
-            bias_noise_cfg=ConstantNoiseCfg(bias=float(index + 1)),
-            sample_bias_per_component=False,
+            bias_noise_cfg=ConstantNoiseCfg(bias=float(index + 1), operation="abs"),
         )
         for index, agent in enumerate(noisy_agents)
     } or None
+    if not per_component:
+        for noise_cfg in (cfg.observation_noise_model or {}).values():
+            noise_cfg.sample_bias_per_component = False
     env = _StubMARLEnv(cfg)
     env._configure_env_spaces()
     env.scene.reset = lambda ids: None
@@ -94,6 +105,8 @@ def test_reset_applies_observation_noise_per_agent(noisy_agents):
     }
 
     for episode in (1, 2):
+        for index, noise_cfg in enumerate((cfg.observation_noise_model or {}).values()):
+            noise_cfg.bias_noise_cfg.bias = float(episode * (index + 1))
         observations, extras = env.reset()
 
         for index, agent in enumerate(cfg.possible_agents):

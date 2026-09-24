@@ -18,14 +18,15 @@ from isaaclab.utils.noise import ConstantNoiseCfg, NoiseModelWithAdditiveBias, N
 pytestmark = pytest.mark.unit
 
 
-@pytest.mark.parametrize("enable_noise", [False, True])
-def test_reset_applies_observation_noise_only_to_policy(enable_noise):
+@pytest.mark.parametrize("enable_noise,per_component", [(False, False), (True, False), (True, True)])
+def test_reset_applies_observation_noise_only_to_policy(enable_noise, per_component):
     """Explicit resets return the new episode's noisy policy observation and a clean critic observation."""
     noise_cfg = NoiseModelWithAdditiveBiasCfg(
         noise_cfg=ConstantNoiseCfg(bias=0.5),
-        bias_noise_cfg=ConstantNoiseCfg(bias=1.0),
-        sample_bias_per_component=False,
+        bias_noise_cfg=ConstantNoiseCfg(bias=1.0, operation="abs"),
     )
+    if not per_component:
+        noise_cfg.sample_bias_per_component = False
     env = object.__new__(DirectRLEnv)
     env._is_closed = True
     env.cfg = DirectRLEnvCfg(observation_noise_model=noise_cfg if enable_noise else None)
@@ -41,6 +42,7 @@ def test_reset_applies_observation_noise_only_to_policy(enable_noise):
         env._observation_noise_model = NoiseModelWithAdditiveBias(noise_cfg, num_envs=2, device="cpu")
 
     for episode in (1, 2):
+        noise_cfg.bias_noise_cfg.bias = float(episode)
         observations, extras = env.reset()
 
         expected_policy = episode + 0.5 if enable_noise else 0.0
