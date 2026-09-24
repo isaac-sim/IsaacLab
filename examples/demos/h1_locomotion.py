@@ -38,11 +38,10 @@ if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 
 import torch
-from isaaclab_visualizers.newton import NewtonGLVisualizer, NewtonRTXVisualizer
 from rsl_rl.runners import OnPolicyRunner
 from tensordict import TensorDict
 
-from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
+from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.utils.math import quat_apply
 
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
@@ -94,6 +93,9 @@ class H1RoughDemo:
         checkpoint = get_published_pretrained_checkpoint(RL_LIBRARY, TASK, *backend_names)
         if checkpoint is None:
             raise FileNotFoundError("No published checkpoint is available for the H1 locomotion demo.")
+        # The environment class imports USD, which must load after launch_simulation starts Kit for PhysX runs.
+        from isaaclab.envs import ManagerBasedRLEnv
+
         self.env = RslRlVecEnvWrapper(ManagerBasedRLEnv(cfg=env_cfg))
         self.device = self.env.unwrapped.device
         ppo_runner = OnPolicyRunner(self.env, agent_cfg.to_dict(), log_dir=None, device=self.device)
@@ -103,7 +105,7 @@ class H1RoughDemo:
         self._viewers = [
             visualizer
             for visualizer in self.env.unwrapped.sim.visualizers
-            if isinstance(visualizer, (NewtonGLVisualizer, NewtonRTXVisualizer))
+            if visualizer.cfg.visualizer_type in {"newton_gl", "newton_rtx"}
         ]
         self._key_to_control = {
             "i": torch.tensor([FORWARD_SPEED, 0.0, 0.0], device=self.device),
