@@ -725,9 +725,13 @@ def test_sensor_print(device):
         print(scene.sensors["contact_sensor"])
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+# Only USD authoring is checked, so one device covers it.
+@pytest.mark.parametrize("device", ["cpu"])
 def test_contact_sensor_threshold(device):
-    """Test that the contact sensor USD threshold attribute is set to 0.0."""
+    """Test that the contact sensor USD threshold attribute is set to 0.0.
+
+    Regression for #3498, where the spawner passed ``activate_contact_sensors`` (a bool) as the threshold.
+    """
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
         scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
@@ -752,14 +756,11 @@ def test_contact_sensor_threshold(device):
         contact_sensor = scene["contact_sensor"]
         assert contact_sensor is not None, "Contact sensor was not created"
 
-        # Check if the prim has contact report API and verify threshold is close to 0.0
-        if "PhysxContactReportAPI" in prim.GetAppliedSchemas():
-            threshold_attr = prim.GetAttribute("physxContactReport:threshold")
-            if threshold_attr.IsValid():
-                threshold_value = threshold_attr.Get()
-                assert pytest.approx(threshold_value, abs=1e-6) == 0.0, (
-                    f"Expected USD threshold to be close to 0.0, but got {threshold_value}"
-                )
+        assert "PhysxContactReportAPI" in prim.GetAppliedSchemas()
+        threshold_value = prim.GetAttribute("physxContactReport:threshold").Get()
+        assert threshold_value == pytest.approx(0.0, abs=1e-6), (
+            f"Expected USD threshold to be close to 0.0, but got {threshold_value}"
+        )
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])

@@ -379,6 +379,8 @@ def test_read_into_reuses_reinterpret_view_across_calls():
     view.read_into("rigid_body_pose", dst)
     assert binding.last_read_obj is first  # same object handed to the wheel both times
     assert first is not dst  # it is the float32 reinterpret, not the transformf buffer
+    # The reinterpret matches the binding's flat float32 shape.
+    assert binding.last_read == (wp.float32, (3, 7), "cpu")
 
 
 def test_read_into_passthrough_reuses_dst_object():
@@ -436,22 +438,6 @@ def test_get_attribute_out_param_is_filled_and_returned():
     ret = view.get_attribute("rigid_body_pose", out=out)
     assert ret is out
     assert view._bindings[TensorType.RIGID_BODY_POSE].read_calls == 1
-
-
-def test_read_into_reinterprets_structured_buffer():
-    view = _make_view(n=3)
-    dst = wp.zeros((3,), dtype=wp.transformf, device="cpu")  # [N] transformf == [N,7] float32
-    view.read_into("rigid_body_pose", dst)
-    binding = view._bindings[TensorType.RIGID_BODY_POSE]
-    # The binding was handed a float32 view matching its flat shape, not the transformf buffer.
-    assert binding.last_read == (wp.float32, (3, 7), "cpu")
-
-
-def test_read_into_passthrough_when_already_float32():
-    view = _make_view(n=3)
-    dst = wp.zeros((3, 7), dtype=wp.float32, device="cpu")
-    view.read_into("rigid_body_pose", dst)
-    assert view._bindings[TensorType.RIGID_BODY_POSE].last_read == (wp.float32, (3, 7), "cpu")
 
 
 def test_read_into_shape_mismatch_raises():

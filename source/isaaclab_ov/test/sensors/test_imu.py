@@ -424,8 +424,22 @@ def test_env_ids_propagation(sim_ctx, device):
         robot.update(dt)
         imu_robot_imu_link.update(dt, force_recompute=True)
 
+    assert torch.any(imu_robot_imu_link.data.lin_acc_b.torch[1] != 0), (
+        "expected env 1 to have non-zero data before reset"
+    )
+
     # reset only env 1
     imu_robot_imu_link.reset(env_ids=[1])
+    torch.testing.assert_close(
+        wp.to_torch(imu_robot_imu_link._data._lin_acc_b)[1],
+        torch.zeros(3, dtype=torch.float32, device=device),
+    )
+    torch.testing.assert_close(
+        wp.to_torch(imu_robot_imu_link._data._ang_vel_b)[1],
+        torch.zeros(3, dtype=torch.float32, device=device),
+    )
+    assert torch.any(wp.to_torch(imu_robot_imu_link._data._lin_acc_b)[0] != 0), "env 0 should not be reset"
+
     imu_robot_imu_link.update(dt, force_recompute=True)
     sim_ctx.step()
     imu_robot_imu_link.update(dt, force_recompute=True)
@@ -722,6 +736,12 @@ def test_sensor_print(sim_ctx, device):
 )
 def test_single_dof_pendulum():
     """Test imu against analytical pendulum problem."""
+    # If this test is ever un-skipped without porting the PhysX assertions, fail
+    # explicitly rather than passing vacuously.
+    pytest.fail(
+        "test_single_dof_pendulum was un-skipped without a body — port the assertions from"
+        " source/isaaclab_physx/test/sensors/test_imu.py::test_single_dof_pendulum."
+    )
 
 
 @pytest.mark.skip(
@@ -734,3 +754,9 @@ def test_single_dof_pendulum():
 )
 def test_indirect_attachment():
     """Test attaching the IMU through an Xform primitive offset chain."""
+    # If this test is ever un-skipped without porting the PhysX assertions, fail
+    # explicitly rather than passing vacuously.
+    pytest.fail(
+        "test_indirect_attachment was un-skipped without a body — port the assertions from"
+        " source/isaaclab_physx/test/sensors/test_imu.py::test_indirect_attachment."
+    )

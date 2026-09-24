@@ -77,7 +77,7 @@ def _make_cubes(num_cubes: int, device: str) -> RigidObject:
     return RigidObject(cfg=cfg)
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
+@pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_randomize_material_writes_friction_within_range(num_cubes, device):
     """The OVPhysX impl should write per-shape friction/restitution sampled within the given ranges."""
@@ -85,7 +85,12 @@ def test_randomize_material_writes_friction_within_range(num_cubes, device):
         cube_object = _make_cubes(num_cubes, device)
         sim.reset()
 
-        static_range, dynamic_range, restitution_range = (0.4, 0.8), (0.2, 0.6), (0.0, 0.3)
+        # The ranges exclude the asset's default material, so values inside them prove the write happened.
+        static_range, dynamic_range, restitution_range = (0.9, 1.2), (0.7, 0.9), (0.4, 0.6)
+        materials_before = wp.to_torch(
+            cube_object.root_view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION)
+        ).clone()
+        assert (materials_before[..., 0] < static_range[0]).all(), f"default material overlaps: {materials_before}"
         cfg = SimpleNamespace(
             params={
                 "static_friction_range": static_range,

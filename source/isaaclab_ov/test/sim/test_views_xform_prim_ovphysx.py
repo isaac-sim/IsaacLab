@@ -29,7 +29,8 @@ OVPHYSX_SIM_CFG = SimulationCfg(physics=OvPhysxCfg())
 pytestmark = pytest.mark.device_split
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+# Dispatch reads only the physics manager, so one device covers it.
+@pytest.mark.parametrize("device", ["cpu"])
 def test_factory_dispatches_to_ovphysx_frame_view(device):
     """``FrameView(...)`` under an OVPhysX ``SimulationContext`` returns an ``OvPhysxFrameView``."""
     OVPHYSX_SIM_CFG.device = device

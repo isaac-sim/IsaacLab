@@ -322,71 +322,7 @@ def test_nested_articulation_root_resolution(sim, device):
 # Physical correctness
 # ---------------------------------------------------------------------------
 
-
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_force_and_torque_components_at_rest(sim, device):
-    """Component-level validation of force and torque against the OVPhysX tensor API."""
-    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=1))
-    sim.reset()
-
-    sensor: JointWrenchSensor = scene["wrench"]
-    robot: Articulation = scene["robot"]
-    for _ in range(400):
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    _assert_sensor_matches_ovphysx_tensor(sensor)
-
-    arm_idx = robot.body_names.index("Arm")
-    raw_wrench = _ovphysx_incoming_joint_wrench(sensor)
-    assert torch.any(raw_wrench[:, arm_idx, :] != 0.0)
-
-
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_wrench_with_external_force_and_torque(sim, device):
-    """Full wrench validation with external force and torque applied."""
-    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=1))
-    sim.reset()
-
-    sensor: JointWrenchSensor = scene["wrench"]
-    robot: Articulation = scene["robot"]
-    arm_idx = robot.body_names.index("Arm")
-
-    ext_force_b = torch.zeros((1, robot.num_bodies, 3), device=sim.device)
-    ext_force_b[:, arm_idx, 1] = 10.0
-    ext_torque_b = torch.zeros((1, robot.num_bodies, 3), device=sim.device)
-    ext_torque_b[:, arm_idx, 2] = 10.0
-
-    for _ in range(800):
-        robot.permanent_wrench_composer.set_forces_and_torques_index(forces=ext_force_b, torques=ext_torque_b)
-        robot.write_data_to_sim()
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    _assert_sensor_matches_ovphysx_tensor(sensor)
-
-    raw_wrench = _ovphysx_incoming_joint_wrench(sensor)
-    assert torch.any(raw_wrench[:, arm_idx, :] != 0.0)
-
-
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_interior_joint_wrench_at_rest(sim, device):
-    """Interior joint wrench matches the raw OVPhysX incoming-joint tensor."""
-    scene = InteractiveScene(_CartpoleDampedSceneCfg(num_envs=1))
-    sim.reset()
-
-    sensor: JointWrenchSensor = scene["wrench"]
-    robot: Articulation = scene["robot"]
-
-    for _ in range(800):
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    _assert_sensor_matches_ovphysx_tensor(sensor)
-
-    cart_idx = robot.body_names.index("cart")
-    raw_wrench = _ovphysx_incoming_joint_wrench(sensor)
-    assert torch.any(raw_wrench[:, cart_idx, :] != 0.0)
+# Checked against analytic loads by the shared ``test_joint_wrench_frame`` imported above.
 
 
 # ---------------------------------------------------------------------------
@@ -412,29 +348,8 @@ def test_sensor_print(sim, device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_reset_zeros_buffers(sim, device):
-    """Resetting the sensor clears the force / torque buffers."""
-    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=2))
-    sim.reset()
-
-    sensor: JointWrenchSensor = scene["wrench"]
-    for _ in range(100):
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    assert torch.any(sensor.data.force.torch != 0), "Expected non-zero data before reset"
-
-    sensor.reset()
-
-    force_after = wp.to_torch(sensor._data._force)
-    torque_after = wp.to_torch(sensor._data._torque)
-    torch.testing.assert_close(force_after, torch.zeros_like(force_after))
-    torch.testing.assert_close(torque_after, torch.zeros_like(torque_after))
-
-
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_reset_with_env_ids_only_zeros_selected_envs(sim, device):
-    """Partial reset via env_ids should zero the selected envs and preserve the others."""
+    """Partial reset via env_ids should zero the selected envs and preserve the others; a full reset zeros all."""
     scene = InteractiveScene(_SingleJointSceneCfg(num_envs=4))
     sim.reset()
 
@@ -453,6 +368,13 @@ def test_reset_with_env_ids_only_zeros_selected_envs(sim, device):
     torch.testing.assert_close(force_after[2], torch.zeros_like(force_after[2]))
     torch.testing.assert_close(force_after[1], force_before[1])
     torch.testing.assert_close(force_after[3], force_before[3])
+
+    # A reset without env_ids clears every environment.
+    sensor.reset()
+    force_after = wp.to_torch(sensor._data._force)
+    torque_after = wp.to_torch(sensor._data._torque)
+    torch.testing.assert_close(force_after, torch.zeros_like(force_after))
+    torch.testing.assert_close(torque_after, torch.zeros_like(torque_after))
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
