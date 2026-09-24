@@ -19,9 +19,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.utils.assets import read_file
-from isaaclab.utils.types import ArticulationActions
-
+from ..utils.assets import read_file
+from ..utils.types import ArticulationActions
 from .actuator_pd import DCMotor
 
 if TYPE_CHECKING:

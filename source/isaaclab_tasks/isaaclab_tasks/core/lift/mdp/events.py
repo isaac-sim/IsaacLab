@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Event terms for the lift tasks."""
+"""Event terms for the lift environments."""
 
 from __future__ import annotations
 
@@ -249,8 +249,8 @@ class conditional_reset(ManagerTermBase):
 
         if not self._prefilled:
             # envs sharing a clone-mask column are clones of the same unique asset combination
-            mask = env.scene.clone_plan.clone_mask.to(device=env.device, dtype=torch.uint8)
-            self._group = torch.unique(mask.T, dim=0, return_inverse=True)[1]
+            _, group = np.unique(env.scene.clone_plan.clone_mask.T, axis=0, return_inverse=True)
+            self._group = torch.as_tensor(group, device=env.device)
             num_groups = int(self._group.max().item()) + 1
             # without a descriptor there is nothing to spread over, so harvesting extra is waste
             harvest_size = buffer_size_per_group
@@ -580,7 +580,7 @@ class mesh_clearance(ManagerTermBase):
     Reset draws can place the object overlapping the arm; the solver resolves the overlap
     ballistically at episode birth. Checks both the object's surface point cloud against the
     robot's collision meshes and the robot's collision vertices against the object's collision
-    mesh with Warp signed-distance queries — the winding-number sign catches full containment.
+    mesh with Warp signed-distance queries; the winding-number sign catches full containment.
 
     The object point cloud comes from the same sampler as the point-cloud observation (per
     clone-plan prototype, geometry-keyed cache), so with the default count the cloud is

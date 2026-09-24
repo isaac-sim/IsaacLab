@@ -6,8 +6,7 @@
 import warnings
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.configclass import configclass
-
+from ...utils import configclass
 from .camera_cfg import CameraCfg
 
 if TYPE_CHECKING:
@@ -29,7 +28,7 @@ class TiledCameraCfg(CameraCfg):
     def __post_init__(self):
         renderer_type = getattr(self.renderer_cfg, "renderer_type", None)
         if renderer_type == "default":
-            from isaaclab.utils.backend_utils import get_default_renderer_cfg
+            from ...utils.backend_utils import get_default_renderer_cfg
 
             self.renderer_cfg = get_default_renderer_cfg()
         warnings.warn(

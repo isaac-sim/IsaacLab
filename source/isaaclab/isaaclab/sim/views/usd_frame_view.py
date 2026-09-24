@@ -13,9 +13,8 @@ import warp as wp
 
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
-import isaaclab.sim as sim_utils
-from isaaclab.utils.warp import ProxyArray
-
+from ... import sim as sim_utils
+from ...utils.warp import ProxyArray
 from .base_frame_view import BaseFrameView
 from .xform_space_writer import FrameViewLocalSpaceWriter, FrameViewWorldSpaceWriter
 
@@ -347,7 +346,7 @@ class UsdFrameView(BaseFrameView):
         scales = Vt.Vec3dArray(len(indices_list))
         for idx, prim_idx in enumerate(indices_list):
             prim = self._prims[prim_idx]
-            scales[idx] = prim.GetAttribute("xformOp:scale").Get()
+            scales[idx] = Gf.Vec3d(prim.GetAttribute("xformOp:scale").Get())
 
         return ProxyArray(wp.array(np.array(scales, dtype=np.float32), dtype=wp.float32, device=self._device))
 

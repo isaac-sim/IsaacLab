@@ -251,7 +251,7 @@ class Articulation(BaseArticulation):
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            composer.compose_to_body_frame()
+            force_user, torque_user, is_global = composer.get_forces_and_torques()
             if self.data.has_body_ordering:
                 force_backend = self._body_wrench_force_backend
                 torque_backend = self._body_wrench_torque_backend
@@ -259,8 +259,8 @@ class Articulation(BaseArticulation):
                     ordering_kernels.reorder_body_wrench_user_to_backend,
                     dim=(self.num_instances, self.num_bodies),
                     inputs=[
-                        composer.out_force_b.warp,
-                        composer.out_torque_b.warp,
+                        force_user,
+                        torque_user,
                         self.data.body_ordering.backend_to_user,
                     ],
                     outputs=[force_backend, torque_backend],
@@ -269,14 +269,13 @@ class Articulation(BaseArticulation):
                 force_data = force_backend
                 torque_data = torque_backend
             else:
-                force_data = composer.out_force_b.warp
-                torque_data = composer.out_torque_b.warp
+                force_data, torque_data = force_user, torque_user
             self.root_view.apply_forces_and_torques_at_position(
                 force_data=force_data.flatten().view(wp.float32),
                 torque_data=torque_data.flatten().view(wp.float32),
                 position_data=None,
                 indices=self._ALL_INDICES,
-                is_global=False,
+                is_global=is_global,
             )
         if self._instantaneous_wrench_composer.active:
             self._instantaneous_wrench_composer.reset()
@@ -285,6 +284,12 @@ class Articulation(BaseArticulation):
         # submit them to the backend through the collection's control adapter.
         self.actuators.compute(SimulationManager.get_physics_dt())
         self.actuators.submit_commands()
+
+        # tendon targets are applied as the offset property, so a commanded target rides the same
+        # per-step write as joint targets; an authored tendon alone schedules nothing
+        if self._fixed_tendon_target_dirty:
+            self.write_fixed_tendon_properties_to_sim_index()
+            self._fixed_tendon_target_dirty = False
 
     def update(self, dt: float):
         """Updates the simulation data.
@@ -555,6 +560,7 @@ class Articulation(BaseArticulation):
             self.data._reset_pose()
         # set into simulation
         self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids)
+        SimulationManager.invalidate_transforms(kinematics=True)
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -652,6 +658,7 @@ class Articulation(BaseArticulation):
             self.data._reset_pose(from_link=False)
         # set into simulation
         self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids)
+        SimulationManager.invalidate_transforms(kinematics=True)
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -1052,6 +1059,7 @@ class Articulation(BaseArticulation):
             self.data._reset_velocity()
         # set into simulation
         self.root_view.set_dof_positions(joint_pos_backend, indices=sim_env_ids)
+        SimulationManager.invalidate_transforms(kinematics=True)
         self.root_view.set_dof_velocities(joint_vel_backend, indices=sim_env_ids)
 
     def write_joint_state_to_sim_mask(
@@ -1156,6 +1164,7 @@ class Articulation(BaseArticulation):
             self.data._reset_velocity()
         # set into simulation
         self.root_view.set_dof_positions(joint_pos_backend, indices=sim_env_ids)
+        SimulationManager.invalidate_transforms(kinematics=True)
 
     def write_joint_position_to_sim_mask(
         self,
@@ -1495,7 +1504,7 @@ class Articulation(BaseArticulation):
         .. deprecated:: 3.0
             Use :func:`isaaclab.envs.mdp.events.randomize_actuator_gains` for
             managed randomization. Direct controller-gain writes have no public
-            replacement. This method will be removed in 4.0.
+            replacement. This method will be removed in 3.1.
 
         Args:
             stiffness: Controller stiffness [N/m or N·m/rad, depending on joint type].
@@ -1518,7 +1527,7 @@ class Articulation(BaseArticulation):
         .. deprecated:: 3.0
             Use :func:`isaaclab.envs.mdp.events.randomize_actuator_gains` for
             managed randomization. Direct controller-gain writes have no public
-            replacement. This method will be removed in 4.0.
+            replacement. This method will be removed in 3.1.
 
         Args:
             damping: Controller damping [N·s/m or N·m·s/rad, depending on joint type].
@@ -3210,6 +3219,60 @@ class Articulation(BaseArticulation):
             rest_length=rest_length, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids, full_data=True
         )
 
+    def set_fixed_tendon_position_target_index(
+        self,
+        *,
+        target: torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
+    ) -> None:
+        """Command the tendon's length by shifting its offset.
+
+        The PhysX schema documents ``offset`` as the value "added to the accumulated length ...
+        allows the application to actuate the tendon by shortening or lengthening it", so the tendon
+        rests where ``length + offset == rest_length``. The offset that realizes a target length is
+        therefore ``rest_length - target``; negating the target alone is only correct while the rest
+        length is zero.
+
+        This function does not apply the target to the simulation. It only fills the buffers with the
+        desired values. To apply it, call the :meth:`write_data_to_sim` function.
+
+        .. note::
+            This method expects partial data.
+
+        Args:
+            target: Target tendon length [m or rad, depending on the spanned joints' type]. Shape is
+                (len(env_ids), len(fixed_tendon_ids)) or (num_instances, num_fixed_tendons) if full_data.
+            fixed_tendon_ids: The tendon indices to command. Defaults to None (all fixed tendons).
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
+        """
+        env_index = self._resolve_env_ids(env_ids)
+        tendon_index = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        if isinstance(env_index, wp.array):
+            env_index = wp.to_torch(env_index)
+        if isinstance(tendon_index, wp.array):
+            tendon_index = wp.to_torch(tendon_index)
+        # gather the rest lengths of the selected cells on the buffer's device
+        rest = self.data.fixed_tendon_rest_length.torch
+        rest_length = rest[
+            env_index.long().to(rest.device).unsqueeze(1), tendon_index.long().to(rest.device).unsqueeze(0)
+        ].to(self.device)
+        if isinstance(target, wp.array):
+            target = wp.to_torch(target)
+        if full_data:
+            # The mask form hands over full data with a subset of indices, so take the selected
+            # cells before differencing them against the gathered rest lengths.
+            self.assert_shape_and_dtype(target, (self.num_instances, self.num_fixed_tendons), wp.float32, "target")
+            target = target[env_index.long().unsqueeze(1), tendon_index.long().unsqueeze(0)]
+        offset = rest_length - target
+        # buffer only; ``write_data_to_sim`` pushes the offset with the other tendon properties
+        self.set_fixed_tendon_offset_index(offset=offset, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
+        # commanding a target schedules the write; buffering a static property through the offset
+        # setter keeps its explicit-write contract
+        self._fixed_tendon_target_dirty = True
+
     def set_fixed_tendon_offset_index(
         self,
         *,
@@ -3276,6 +3339,34 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # Only updates internal buffers, does not apply the offset to the simulation.
+
+    def set_fixed_tendon_position_target_mask(
+        self,
+        *,
+        target: torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Command the target length of fixed tendons using masks.
+
+        Same control input as :meth:`set_fixed_tendon_position_target_index`, selecting the tendons
+        and environments by mask instead of by index.
+
+        .. note::
+            This method expects full data.
+
+        Args:
+            target: Target tendon length [m or rad, depending on the spanned joints' type].
+                Shape is (num_instances, num_fixed_tendons).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are commanded.
+            env_mask: Environment mask. If None, then all the instances are commanded.
+        """
+        self.set_fixed_tendon_position_target_index(
+            target=target,
+            fixed_tendon_ids=self._resolve_fixed_tendon_mask(fixed_tendon_mask),
+            env_ids=self._resolve_env_mask(env_mask),
+            full_data=True,
+        )
 
     def set_fixed_tendon_offset_mask(
         self,
@@ -3915,8 +4006,8 @@ class Articulation(BaseArticulation):
         self._cpu_env_ids_views: dict[int, wp.array] = {}
 
         # external wrench composer
-        self._instantaneous_wrench_composer = WrenchComposer(self)
-        self._permanent_wrench_composer = WrenchComposer(self)
+        self._instantaneous_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
+        self._permanent_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
 
         # asset named data
         self._joint_pos_target_backend: wp.array | None = None
@@ -4064,12 +4155,18 @@ class Articulation(BaseArticulation):
                 usd_joint_path = joint_paths[j]
                 # check whether joint has tendons - tendon name follows the joint name it is attached to
                 joint = UsdPhysics.Joint.Get(self.stage, usd_joint_path)
-                joint_applied_str = str(joint.GetPrim().GetAppliedSchemas())
-                if "PhysxTendonAxisRootAPI" in joint_applied_str:
-                    self._fixed_tendon_names.append(usd_joint_path.split("/")[-1])
-                elif (
-                    "PhysxTendonAttachmentRootAPI" in joint_applied_str
-                    or "PhysxTendonAttachmentLeafAPI" in joint_applied_str
+                joint_applied_schemas = joint.GetPrim().GetAppliedSchemas()
+                # a fixed tendon is named after its PhysxTendonAxisRootAPI instance, not the joint carrying it
+                root_instances = [
+                    str(schema_name).removeprefix("PhysxTendonAxisRootAPI:")
+                    for schema_name in joint_applied_schemas
+                    if str(schema_name).startswith("PhysxTendonAxisRootAPI:")
+                ]
+                if root_instances:
+                    self._fixed_tendon_names.extend(root_instances)
+                elif any(
+                    "PhysxTendonAttachmentRootAPI" in schema_name or "PhysxTendonAttachmentLeafAPI" in schema_name
+                    for schema_name in joint_applied_schemas
                 ):
                     self._spatial_tendon_names.append(usd_joint_path.split("/")[-1])
 

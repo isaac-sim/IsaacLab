@@ -9,14 +9,13 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
-pytest.importorskip("numpy")
 pytest.importorskip("torch")
 pytest.importorskip("warp")
 pytest.importorskip("pxr")
 
-import torch
 from isaaclab_newton.renderers.segmentation import NewtonSegmentationMapper
 
 from pxr import Usd
@@ -31,7 +30,7 @@ from isaaclab.sim.utils.semantics import add_labels
 
 def _empty_clone_plan() -> ClonePlan:
     """A clone plan owning nothing, standing in for scenes with no replicated shapes to fall back to."""
-    return ClonePlan(sources=(), destinations=(), clone_mask=torch.zeros(0, 0, dtype=torch.bool))
+    return ClonePlan(sources=(), destinations=(), clone_mask=np.zeros((0, 0), dtype=np.bool_))
 
 
 def _cfg(**overrides):
@@ -191,10 +190,6 @@ def _prototype_only_scene():
     env, so the clone plan spreads the asset to env_1 while the stage never gains env_1 prims.
     Returns the stage, the per-shape prim-path list, and the matching clone plan.
     """
-    import torch
-
-    from isaaclab.cloner import ClonePlan
-
     stage = Usd.Stage.CreateInMemory()
     # Only the prototype env is authored; env_1 exists in the Newton model alone.
     for path in ("/World/envs/env_0/Robot/pole/geom", "/World/envs/env_0/Robot/cart/geom", "/World/ground/geom"):
@@ -212,8 +207,8 @@ def _prototype_only_scene():
     plan = ClonePlan(
         sources=("/World/envs/env_0/Robot",),
         destinations=("/World/envs/env_{}/Robot",),
-        clone_mask=torch.ones(1, 2, dtype=torch.bool),
-        env_ids=torch.tensor([0, 1]),
+        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        env_ids=np.array([0, 1], dtype=np.int64),
     )
     return stage, shape_paths, plan
 

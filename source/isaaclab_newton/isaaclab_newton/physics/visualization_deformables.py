@@ -18,11 +18,9 @@ from newton import ModelBuilder
 from pxr import Usd
 
 from isaaclab.cloner import ClonePlan
+from isaaclab.cloner.path import rebase, under
 from isaaclab.scene_data.deformable_discovery import (
     DeformableStageEntry,
-    discover_deformables_on_stage,
-    path_to_env_regex,
-    path_to_env_wildcard,
     sort_deformable_entries_for_geometry_sync,
 )
 from isaaclab.scene_data.deformable_vis_remap import VolumeVisRemap, build_volume_vis_barycentric_remap
@@ -118,7 +116,8 @@ def _build_volume_vis_remap(entry: DeformableStageEntry, device: str) -> VolumeV
 
 def _expand_clone_plan_deformable_entries(
     entries: Sequence[DeformableStageEntry],
-    clone_plan: ClonePlan | None,
+    clone_plan: ClonePlan,
+    rows: tuple[int, ...],
 ) -> list[DeformableStageEntry]:
     """Expand prototype deformables into every destination selected by a clone plan.
 
@@ -126,41 +125,32 @@ def _expand_clone_plan_deformable_entries(
     shadow builder nevertheless needs one deformable particle block and one visual
     mesh binding for every cloned environment.
     """
-    if clone_plan is None:
-        return list(entries)
-
-    env_ids = clone_plan.env_ids
-    if env_ids is None:
-        env_ids = range(clone_plan.clone_mask.shape[1])
-    else:
-        env_ids = env_ids.detach().cpu().tolist()
-
-    expanded: dict[str, DeformableStageEntry] = {entry.root_path: entry for entry in entries}
+    expanded: dict[str, DeformableStageEntry] = {}
     for entry in entries:
         for source_idx, (source, destination) in enumerate(
             zip(clone_plan.sources, clone_plan.destinations, strict=True)
         ):
-            source = source.rstrip("/")
-            if entry.root_path != source and not entry.root_path.startswith(f"{source}/"):
+            if not under(entry.root_path, source):
                 continue
-
-            selected_env_ids = clone_plan.clone_mask[source_idx].detach().cpu().tolist()
-            for env_id, selected in zip(env_ids, selected_env_ids, strict=True):
-                if not selected:
-                    continue
-                target = destination.format(int(env_id)).rstrip("/")
-
-                def replace_source(path: str) -> str:
-                    return f"{target}{path[len(source) :]}"
-
+            if source_idx not in rows:
+                break
+            columns = np.flatnonzero(clone_plan.clone_mask[source_idx])
+            for col in columns:
+                target = destination.format(int(clone_plan.env_ids[col]))
+                offset = (
+                    0 if clone_plan.positions is None else clone_plan.positions[col] - clone_plan.positions[columns[0]]
+                )
                 cloned_entry = replace(
                     entry,
-                    root_path=replace_source(entry.root_path),
-                    sim_mesh_path=replace_source(entry.sim_mesh_path),
-                    vis_mesh_path=replace_source(entry.vis_mesh_path),
+                    root_path=rebase(entry.root_path, source, target),
+                    sim_mesh_path=rebase(entry.sim_mesh_path, source, target),
+                    vis_mesh_path=rebase(entry.vis_mesh_path, source, target),
+                    init_pos=tuple(np.asarray(entry.init_pos) + offset),
                 )
                 expanded.setdefault(cloned_entry.root_path, cloned_entry)
             break
+        else:
+            expanded.setdefault(entry.root_path, entry)
 
     return list(expanded.values())
 
@@ -168,11 +158,11 @@ def _expand_clone_plan_deformable_entries(
 def add_shadow_deformables_to_builder(
     builder: ModelBuilder,
     stage: Usd.Stage,
-    env_paths: Sequence[tuple[int, str]],
+    entries: Sequence[DeformableStageEntry],
+    clone_plan: ClonePlan,
+    rows: tuple[int, ...],
     *,
     device: str = "cpu",
-    entries: Sequence[DeformableStageEntry] | None = None,
-    clone_plan: ClonePlan | None = None,
 ) -> tuple[list[ShadowDeformableEntity], list[ShadowDeformableRegistryGroup]]:
     """Add PhysX/OVPhysX deformable meshes to a shadow Newton builder.
 
@@ -183,37 +173,39 @@ def add_shadow_deformables_to_builder(
     Args:
         builder: Shadow :class:`~newton.ModelBuilder` under construction.
         stage: Current USD stage.
-        env_paths: Sorted ``(env_id, env_prim_path)`` pairs.
+        entries: Deformable geometry imported from declared clone sources and shared roots.
+        clone_plan: Replication layout used to expand prototypes into destination environments.
+        rows: Plan rows routed to this Newton representation.
         device: Warp device for barycentric remap tables uploaded during shadow build.
-        clone_plan: Optional replication layout used to expand prototype-only stage
-            entries into all destination environments.
 
     Returns:
         Flat entity list for geometry mapping and grouped registry metadata for
         USD visual-mesh point bindings (e.g. OVRTX).
     """
-    if entries is None:
-        entries = discover_deformables_on_stage(stage)
     if not entries:
         return [], []
-    entries = _expand_clone_plan_deformable_entries(entries, clone_plan)
-
-    env_path_by_id = dict(env_paths)
     wildcard_groups: dict[tuple[str, str, str], list[DeformableStageEntry]] = {}
     for entry in entries:
-        wildcard_root = path_to_env_wildcard(entry.root_path)
-        key = (wildcard_root, path_to_env_wildcard(entry.sim_mesh_path), path_to_env_wildcard(entry.vis_mesh_path))
-        wildcard_groups.setdefault(key, []).append(entry)
+        # Discovery bakes vertices into the source root's parent frame. Retain that
+        # pose and translate clones through the plan, without fetching destination prims.
+        pos, quat = resolve_prim_pose(stage.GetPrimAtPath(entry.root_path).GetParent())
+        entry = replace(entry, init_pos=tuple(pos), init_rot=tuple(quat))
+        key = (entry.root_path, entry.sim_mesh_path, entry.vis_mesh_path)
+        for source, destination in zip(clone_plan.sources, clone_plan.destinations, strict=True):
+            if under(entry.root_path, source):
+                key = tuple(rebase(path, source, destination.format("[^/]+")) for path in key)
+                break
+        wildcard_groups.setdefault(key, []).extend(_expand_clone_plan_deformable_entries([entry], clone_plan, rows))
+    entries = [entry for group in wildcard_groups.values() for entry in group]
 
     flat_entities: list[ShadowDeformableEntity] = []
     registry_groups: list[ShadowDeformableRegistryGroup] = []
     sim_particle_cursor = 0
 
-    for (_wildcard_root, _wildcard_sim_key, _wildcard_vis_key), group_entries in sorted(wildcard_groups.items()):
+    for (wildcard_root, wildcard_sim, wildcard_vis), group_entries in sorted(wildcard_groups.items()):
+        if not group_entries:
+            continue
         template = group_entries[0]
-        wildcard_root = path_to_env_regex(template.root_path)
-        wildcard_sim = path_to_env_regex(template.sim_mesh_path)
-        wildcard_vis = path_to_env_regex(template.vis_mesh_path)
         uses_remap = _needs_volume_vis_remap(template)
         render_count = template.vis_vertex_count if uses_remap else template.vertex_count
         group = ShadowDeformableRegistryGroup(
@@ -228,37 +220,8 @@ def add_shadow_deformables_to_builder(
         group_volume_vis_remap = _build_volume_vis_remap(template, device) if uses_remap else None
 
         for entry in sorted(group_entries, key=lambda item: item.root_path):
-            # Discovery bakes vertices into the deformable root's *parent* frame
-            # (mesh_world * parent_world^{-1}). Placement must use that same parent
-            # world pose — ``resolve_prim_pose(root)`` would apply the root local
-            # xform twice whenever it is not identity.
-            root_prim = stage.GetPrimAtPath(entry.root_path)
-            if root_prim.IsValid():
-                parent_prim = root_prim.GetParent()
-                if parent_prim is not None and parent_prim.IsValid():
-                    pos, quat = resolve_prim_pose(parent_prim)
-                else:
-                    pos, quat = (0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0)
-            else:
-                env_prefix = (
-                    entry.root_path.split("/World/envs/")[1].split("/", 1)[0]
-                    if "/World/envs/" in entry.root_path
-                    else None
-                )
-                env_id = (
-                    int(env_prefix.replace("env_", ""))
-                    if env_prefix is not None and env_prefix.startswith("env_")
-                    else 0
-                )
-                env_path = env_path_by_id.get(env_id)
-                if env_path is None:
-                    pos = (0.0, 0.0, 0.0)
-                    quat = (0.0, 0.0, 0.0, 1.0)
-                else:
-                    pos, quat = resolve_prim_pose(stage.GetPrimAtPath(env_path))
-
-            body_pos = wp.vec3(float(pos[0]), float(pos[1]), float(pos[2]))
-            body_rot = wp.quat(float(quat[0]), float(quat[1]), float(quat[2]), float(quat[3]))
+            body_pos = wp.vec3(*entry.init_pos)
+            body_rot = wp.quat(*entry.init_rot)
 
             before_render = int(getattr(builder, "particle_count", 0))
             volume_vis_remap = None

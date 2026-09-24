@@ -38,9 +38,9 @@ dependencies = [
     "isaaclab-visualizers",
     # ----- generic -----
     "numpy>=2",
-    "torch>=2.11",
-    "torchvision>=0.26.0",
-    "torchaudio>=2.11",
+    "torch==2.12.0",
+    "torchvision==0.27.0",
+    "torchaudio==2.11.0",
     "onnx>=1.18.0",
     "prettytable>=3.3.0",
     "psutil",
@@ -49,18 +49,20 @@ dependencies = [
     "gymnasium>=1.2.0",
     "trimesh>=4.6.8",  # lower bound inherited from newton[importers]
     "pyglet>=2.1.6,<3",
-    "transformers==4.57.6",
+    "transformers==5.10.4",
     "einops",
-    "warp-lang==1.16.0",
+    "warp-lang==1.17.0",
     "matplotlib>=3.10.3",
     # pillow: floor, not exact — an exact pin below Isaac Sim's prebundled version forces a
     # downgrade that deletes the prebundled copy other extensions symlink into (nvbugs 6410989).
-    "pillow>=12.1.1",
+    "pillow>=12.3.0",
     "botocore",  # omni.replicator.core S3 backend
-    "starlette>=0.46.0,<0.50",  # livestream; range coexists with isaacsim 6.0
-    "omniverseclient==2.72.3",
+    "starlette>=1.3.1",  # livestream; minimum patched for current security advisories
+    "omniverseclient==2.74.0",
     "filelock",
     "lazy_loader>=0.4",
+    # ----- project template generator -----
+    "Jinja2",
     # Pink IK stack; the install CLI derives its force-install list from these entries.
     # pin-pink: Isaac Sim 6.x needs >=3.3, 3.4+ breaks pink_ik; daqp >0.8.5 changes behavior.
     "pin ; platform_system == 'Linux' and (platform_machine == 'x86_64' or platform_machine == 'aarch64')",
@@ -69,7 +71,7 @@ dependencies = [
     # OpenUSD (kit-less mode). Use the same provider required by the URDF and MJCF importer
     # packages so another complete ``pxr`` runtime cannot co-install with it. Two providers in
     # one environment overwrite each other's files, and removing either then breaks ``pxr``.
-    # usd-exchange 2.3.0 vendors USD 25.5, matching the Isaac Sim 6.0 wheel stack.
+    # usd-exchange 2.3.0 vendors USD 25.5, matching the supported Isaac Sim wheel stack.
     "usd-exchange==2.3.0",
     # avoid broken hf-xet pre-release cached on NVIDIA Artifactory
     "hf-xet>=1.4.1,<2.0.0 ; platform_machine == 'x86_64' or platform_machine == 'AMD64' or platform_machine == 'aarch64'",
@@ -82,12 +84,11 @@ dependencies = [
     "packaging",
     "rich",
     "tqdm>=4.67.1",
-    "rsl-rl-lib==5.4.1",  # default RL framework
-    "onnxscript>=0.5",
+    "rsl-rl-lib==5.5.1",  # default RL framework
+    "gitpython>=3.1.59",  # used by RL training and experiment logging
     # ----- newton (default physics engine) -----
-    # Loose bound so the wheel co-resolves with isaacsim's newton[sim]==1.2.0 pin; the
-    # exact PyPI release is forced via [tool.uv].override-dependencies (uv sync only).
-    "newton[sim]>=1.2.0",
+    # Pin the Newton release used by both workspace and wheel installs.
+    "newton[sim]==1.6.0",
     # Import and mesh-processing packages used by Newton, including the ones that honoring
     # USD-authored ``physics:approximation`` requires. Keep these explicit instead of selecting
     # newton[importers], whose standalone USD dependency would overlap with usd-exchange.
@@ -100,8 +101,9 @@ dependencies = [
     "pycollada>=0.9",
     "resolve-robotics-uri-py>=0.4.0",
     "open3d>=0.19.0 ; python_version < '3.13' and (sys_platform != 'linux' or platform_machine != 'aarch64')",
-    # Loose bound co-resolves with isaacsim's ==0.2.0; the override below forces >=0.4.1.
-    "newton-usd-schemas>=0.2.0",
+    # Authored MPM particle import requires the 0.5 schema revision. The managed
+    # Isaac Sim workflow overrides its older exact transitive pin below.
+    "newton-usd-schemas>=0.5.0",
     "PyOpenGL-accelerate>=3.1.0",
     # ----- newton interactive viewer GUI (in base, no extra required) -----
     "imgui-bundle>=1.92.5",
@@ -115,10 +117,12 @@ tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
 video = ["moviepy>=1.0.3,<2.0.0.dev0"]
 
 importers = [
-    "isaacsim-asset-isolated>=6.0,<6.1",
+    "isaacsim-asset-isolated==6.1.0.0",
     "tinyobjloader==2.0.0rc13",
 ]
 
+# The test suite only. Kept free of the docs stack: Sphinx pulls docutils, which is
+# GPL-3.0-or-later and not allowed in the distributed images.
 test = [
     "pytest",
     "pytest-mock",
@@ -126,6 +130,11 @@ test = [
     "flaky",
     # numba subclasses coverage.types.Tracer at import; >=7.6.1 restores that shim
     "coverage>=7.6.1",
+]
+
+# Everything a contributor needs: the test suite plus the documentation toolchain.
+dev = [
+    "isaaclab-dev[test]",
     "sphinx>=7.0,<9",
     "sphinx-book-theme>=1.1",
     "myst-parser",
@@ -145,26 +154,30 @@ sb3 = ["stable-baselines3>=2.6", "tqdm", "rich"]
 skrl = ["skrl>=2.1.0"]
 
 rl-games = [
-    "aiohttp>=3.12.14",
-    "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
+    "aiohttp==3.14.1",  # match isaacsim-kernel 6.1
+    "rl-games @ git+https://github.com/isaac-sim/rl_games.git@5cf4f9ff07e9a01bbefd167cf19b6804b294b51c",
     "gym",
     "standard-distutils",
 ]
 
-rsl-rl = ["rsl-rl-lib==5.4.1", "onnxscript>=0.5"]
+wandb = ["wandb>=0.13.11"]
+
+rsl-rl = ["rsl-rl-lib==5.5.1"]
+
+torchrl = ["torchrl>=0.13"]
 
 viser = ["viser>=1.0.16"]
 
 rerun = [
     "rerun-sdk>=0.29.0",
-    "pyarrow==22.0.0",  # match rerun-sdk's Arrow stack
+    "pyarrow==23.0.1",
 ]
 
-isaacsim = ["isaacsim[all,extscache]==6.0.1.0"]
+isaacsim = ["isaacsim[all,extscache]==6.1.0.0"]
 
-ov = ["ovphysx==0.5.11", "ovrtx==0.4.1.364340", "ovstage==0.1.1.355824"]
-ovphysx = ["ovphysx==0.5.11", "ovstage==0.1.1.355824"]
-ovrtx = ["ovrtx==0.4.1.364340", "ovstage==0.1.1.355824"]
+ov = ["ovphysx==0.6.3", "ovrtx==0.5.0.377615", "ovstage==0.2.0.377349"]
+ovphysx = ["ovphysx==0.6.3", "ovstage==0.2.0.377349"]
+ovrtx = ["ovrtx==0.5.0.377615", "ovstage==0.2.0.377349"]
 
 mimic = [
     "isaaclab-mimic",
@@ -173,8 +186,10 @@ mimic = [
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
 
+# XR teleop needs the Kit XR runtime, but Isaac Sim is a separate extra so environments that
+# already provide Kit (the containers) can take this stack without a second copy of it.
+# Users who need the wheel install ``--extra teleop,isaacsim``.
 teleop = [
-    "isaacsim[all,extscache]==6.0.1.0",
     "isaaclab-teleop",
     "isaaclab-mimic",
     "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
@@ -193,7 +208,7 @@ rlinf = [
     "pandas",
 ]
 leapp = [
-    "leapp>=0.5.2",
+    "leapp==0.6.1",
 ]
 all = [
     "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,ov]",
@@ -204,15 +219,15 @@ all = [
 # the extras above, and [tool.uv].override-dependencies mirror these values;
 # ``test_version_single_source`` fails CI if they drift.
 [tool.isaaclab.versions]
-isaacsim = "6.0.1.0"
+isaacsim = "6.1.0.0"
 usd_exchange = "2.3.0"
-torch = "2.11.0"
-torchvision = "0.26.0"
+torch = "2.12.0"
+torchvision = "0.27.0"
 torchaudio = "2.11.0"
-ovphysx = "0.5.11"
-ovrtx = "0.4.1.364340"
-ovstage = "0.1.1.355824"
-warp = "1.16.0"
+ovphysx = "0.6.3"
+ovrtx = "0.5.0.377615"
+ovstage = "0.2.0.377349"
+warp = "1.17.0"
 
 [tool.ruff]
 line-length = 120
@@ -315,6 +330,11 @@ exclude = [
     ".vscode",
 ]
 
+# Make the in-repo packages resolvable by the language server (Pylance / basedpyright)
+# without an editable install, so imports like ``isaaclab.assets`` work out of the box.
+# The glob keeps new source packages discoverable without maintaining a duplicate package list.
+extraPaths = ["source/*"]
+
 typeCheckingMode = "basic"
 pythonVersion = "3.12"
 pythonPlatform = "Linux"
@@ -363,11 +383,6 @@ url = "https://pypi.org/simple"
 explicit = true
 
 [[tool.uv.index]]
-name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
-explicit = true
-
-[[tool.uv.index]]
 name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
 explicit = true
@@ -389,21 +404,16 @@ environments = [
 # Isaac Lab owns the Newton, MuJoCo, and torch versions. Overrides replace requirements
 # for every requester, unlike constraints, which only intersect. The ``isaacsim`` and
 # ``importers`` extras pin older versions of these packages, so the overrides prevent downgrades.
-# Torch routes through [tool.uv.sources]. Values mirror [tool.isaaclab.versions] where applicable.
+# Direct torch-stack pins also apply to published wheels; overrides reconcile Isaac Sim's older pins.
 override-dependencies = [
     "numpy>=2",
-    "mujoco~=3.11.0",
-    "mujoco-warp~=3.11.0",
-    "newton[sim]==1.5.1",
+    "mujoco~=3.12.0",
+    "mujoco-warp~=3.12.0",
+    "newton[sim]==1.6.0",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
-    "newton-usd-schemas>=0.4.1",
-    "torch==2.11.0",
-    "torchvision==0.26.0",
-    "torchaudio==2.11.0",
-    # Isaac Sim 6.0 pins these exactly; drop all three once Isaac Sim 6.1 is published.
-    "typing-extensions>=4.15.0",
-    "websockets>=14.0,<17.0.0",
-    "coverage>=7.6.1",
+    "newton-usd-schemas>=0.5.0",
+    "torch==2.12.0",
+    "torchvision==0.27.0",
     # ovphysx caps packaging at <24 and isaacsim-core pins ==26.0; both caps are
     # stricter than the code needs, so widening lets them resolve together at 26.0.
     "packaging>=20,<27",
@@ -430,21 +440,9 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-tasks-experimental" = { path = "source/isaaclab_tasks_experimental", editable = true }
 "isaaclab-teleop" = { path = "source/isaaclab_teleop", editable = true }
 "isaaclab-visualizers" = { path = "source/isaaclab_visualizers", editable = true }
-torch = [
-    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
-    { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
-    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
-]
-torchaudio = [
-    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
-    { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
-    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
-]
-torchvision = [
-    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
-    { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
-    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
-]
+torch = { index = "pytorch-cu130" }
+torchaudio = { index = "pytorch-cu130" }
+torchvision = { index = "pytorch-cu130" }
 
 [tool.uv.pip]
 index-strategy = "unsafe-best-match"

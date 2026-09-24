@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
-from isaaclab.utils.leapp import (
+from ...utils.leapp import (
     POSE6_ELEMENT_NAMES,
     POSE7_ELEMENT_NAMES,
     QUAT_XYZW_ELEMENT_NAMES,
@@ -24,14 +24,12 @@ from isaaclab.utils.leapp import (
     joint_names_resolver,
     leapp_tensor_semantics,
 )
-from isaaclab.utils.warp import ProxyArray
-
+from ...utils.warp import ProxyArray
 from . import ordering_kernels
 
 if TYPE_CHECKING:
-    from isaaclab.actuators import ActuatorCollection
-    from isaaclab.utils.buffers import TimestampedBufferWarp
-
+    from ...actuators import ActuatorCollection
+    from ...utils.buffers import TimestampedBufferWarp
     from .ordering import ArticulationNameMap
 
 

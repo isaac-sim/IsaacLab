@@ -4,67 +4,65 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "CableSegmentGoalDistance",
+    "CableUniformPoseCommandCfg",
+    "DeformableComGoalDistance",
+    "DeformableSampledPointsInRobotRootFrame",
+    "DeformableUniformPoseCommandCfg",
     "GraspTravelDistanceCfg",
     "MeshClearanceCfg",
+    "ObjectUniformPoseCommandCfg",
     "SlabClearanceCfg",
     "SuccessMonitor",
     "SuccessMonitorCfg",
-    "grasp_travel_distance",
-    "mesh_clearance",
-    "slab_clearance",
-    "conditional_reset",
-    "reset_joints_shared_offset",
-    "reset_to_target",
-    "get_reset_state",
-    "set_reset_state",
-    "joint_vel_out_of_sim_limit",
-    "cable_outside_bounds",
-    "deformable_outside_bounds",
-    "deformable_lifting",
-    "deformable_com_goal_reached",
-    "deformable_com_ee_distance",
-    "reset_cable_state_uniform",
-    "DeformableComGoalDistance",
-    "reset_deformable_over_support",
-    "gravity_range_linear",
-    "DeformableUniformPoseCommandCfg",
-    "cable_lifting",
-    "cable_segment_goal_reached",
-    "cable_ee_distance",
-    "CableSegmentGoalDistance",
-    "ObjectUniformPoseCommandCfg",
-    "DifficultyScheduler",
-    "initial_final_interpolate_fn",
-    "DeformableSampledPointsInRobotRootFrame",
+    "abnormal_robot_state",
     "body_state_b",
-    "deformable_com_in_robot_root_frame",
-    "fingers_contact_force_b",
-    "object_point_cloud_b",
-    "CableUniformPoseCommandCfg",
-    "object_quat_b",
-    "contacts",
-    "contact_count",
-    "deformable_ee_distance",
+    "cable_ee_distance",
+    "cable_lifting",
+    "cable_outside_bounds",
+    "cable_segment_goal_reached",
     "cable_segment_positions_in_robot_root_frame",
+    "conditional_reset",
+    "contact_count",
+    "contacts",
+    "deformable_com_ee_distance",
+    "deformable_com_goal_reached",
+    "deformable_com_in_robot_root_frame",
+    "deformable_ee_distance",
+    "deformable_lifting",
+    "deformable_outside_bounds",
+    "ee_below_minimum",
+    "fingers_contact_force_b",
+    "get_reset_state",
+    "grasp_travel_distance",
+    "gravity_range_linear",
     "gripper_close_action",
+    "joint_vel_out_of_sim_limit",
+    "mesh_clearance",
     "object_ee_distance",
+    "object_point_cloud_b",
+    "object_quat_b",
+    "object_reached_goal",
     "orientation_command_error_tanh",
     "orientation_command_progress",
+    "out_of_bound",
     "position_command_error_tanh",
     "position_command_progress",
+    "reset_cable_state_uniform",
+    "reset_deformable_over_support",
+    "reset_joints_shared_offset",
+    "reset_to_target",
+    "set_reset_state",
+    "slab_clearance",
     "success_reward",
-    "abnormal_robot_state",
-    "ee_below_minimum",
-    "object_reached_goal",
-    "out_of_bound",
+    "vision_camera",
 ]
 
-from isaaclab.envs.mdp import *
+from isaaclab_tasks.utils.success_monitor import SuccessMonitor, SuccessMonitorCfg
 
 from .commands import CableUniformPoseCommandCfg, DeformableUniformPoseCommandCfg, ObjectUniformPoseCommandCfg
-from .curriculums import DifficultyScheduler, gravity_range_linear, initial_final_interpolate_fn
+from .curriculums import gravity_range_linear
 from .events import (
-    SuccessMonitor,
     conditional_reset,
     grasp_travel_distance,
     mesh_clearance,
@@ -74,7 +72,7 @@ from .events import (
     reset_to_target,
     slab_clearance,
 )
-from .events_cfg import GraspTravelDistanceCfg, MeshClearanceCfg, SlabClearanceCfg, SuccessMonitorCfg
+from .events_cfg import GraspTravelDistanceCfg, MeshClearanceCfg, SlabClearanceCfg
 from .observations import (
     DeformableSampledPointsInRobotRootFrame,
     body_state_b,
@@ -83,13 +81,14 @@ from .observations import (
     fingers_contact_force_b,
     object_point_cloud_b,
     object_quat_b,
+    vision_camera,
 )
 from .rewards import (
     CableSegmentGoalDistance,
     DeformableComGoalDistance,
     cable_ee_distance,
-    cable_segment_goal_reached,
     cable_lifting,
+    cable_segment_goal_reached,
     contact_count,
     contacts,
     deformable_com_ee_distance,
@@ -114,3 +113,7 @@ from .terminations import (
     out_of_bound,
 )
 from .utils import get_reset_state, set_reset_state
+
+# shared terms that used to live in this package, re-exported for backwards compatibility
+from isaaclab.envs.mdp import DifficultyScheduler, initial_final_interpolate_fn
+from isaaclab.envs.mdp import *

@@ -8,7 +8,7 @@
 import math
 
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.nist import assembly_keypoints as kpts
 from isaaclab_tasks.contrib.nist.assembly_profile_cfg import (

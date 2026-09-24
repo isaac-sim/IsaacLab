@@ -16,9 +16,9 @@ from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import (
     _MEDIA_FILL_RESOLUTION,
     FRANKA_POUR_ROBOT_ASSET_ID,
     FrankaPourResetDatasetEnvCfg,
-    _configure_mpm_capacities,
     _reset_dataset_task_contract,
     _resolve_pour_solver_tree,
+    configure_mpm_capacities,
 )
 
 
@@ -50,7 +50,7 @@ def test_source_fill_level_controls_height_and_particle_count():
 
     cfg.source_fill_level = 0.50
     cfg.scene.num_envs = 1
-    _configure_mpm_capacities(cfg)
+    configure_mpm_capacities(cfg)
 
     assert cfg.scene.media is media
     assert media_particle_count(media) == 7 * 7 * 11
@@ -61,7 +61,7 @@ def test_source_fill_level_controls_height_and_particle_count():
     )
 
     cfg.source_fill_level = 1.0
-    _configure_mpm_capacities(cfg)
+    configure_mpm_capacities(cfg)
     assert media_particle_count(media) == 7 * 7 * 21
 
 
@@ -111,6 +111,7 @@ def test_reset_dataset_contract_stores_root_relative_robot_asset_path():
     robot_asset = _reset_dataset_task_contract(cfg)["robot_asset"]
     assert robot_asset == "Robots/FrankaEmika/franka_panda.usda"
     assert f"{ISAACLAB_NUCLEUS_DIR}/{robot_asset}" == FRANKA_POUR_ROBOT_ASSET_ID
+    assert cfg.scene.robot.spawn.variants == {"Colliders": "convex_hulls"}
 
 
 def test_capacity_resolution_only_updates_world_dependent_solver_limits():
@@ -122,17 +123,17 @@ def test_capacity_resolution_only_updates_world_dependent_solver_limits():
     solver = _resolve_pour_solver_tree(cfg).media_solver
 
     cfg.scene.num_envs = 1
-    _configure_mpm_capacities(cfg)
+    configure_mpm_capacities(cfg)
     assert solver.max_active_cell_count == 1024
     assert (solver.max_leaf_node_count, solver.max_lower_node_count, solver.max_upper_node_count) == (-1, -1, -1)
 
     cfg.scene.num_envs = 7
-    _configure_mpm_capacities(cfg)
+    configure_mpm_capacities(cfg)
     assert solver.max_active_cell_count == 7168
     assert (solver.max_leaf_node_count, solver.max_lower_node_count, solver.max_upper_node_count) == (-1, -1, -1)
 
     cfg.mpm_cell_cap_override = 16
-    _configure_mpm_capacities(cfg)
+    configure_mpm_capacities(cfg)
     assert solver.max_active_cell_count == 16
     assert (solver.max_leaf_node_count, solver.max_lower_node_count, solver.max_upper_node_count) == (-1, -1, -1)
     assert cfg.scene.source_cup is source_cup

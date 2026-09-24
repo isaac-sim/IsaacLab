@@ -26,6 +26,7 @@ try:
     from isaaclab_physx.assets.articulation.articulation import Articulation as PhysXArticulation
     from isaaclab_physx.assets.articulation.articulation_data import ArticulationData as PhysXArticulationData
     from isaaclab_physx.physics import PhysxManager as SimulationManager
+    from isaaclab_physx.physics.physx_manager import PhysxSceneDataBackend
     from isaaclab_physx.test.fixtures.views import MockArticulationViewWarp as PhysXMockArticulationViewWarp
 except ImportError as error:
     BACKEND_UNAVAILABLE_REASONS["physx"] = f"{type(error).__name__}: {error}"
@@ -34,6 +35,7 @@ else:
     _mock_physics_sim_view = MagicMock()
     _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
     SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
+    SimulationManager._scene_data_backend = PhysxSceneDataBackend()
 
     BACKENDS.append("physx")
 
@@ -85,6 +87,7 @@ def create_physx_articulation(
         body_ordering=body_ordering,
     )
     object.__setattr__(articulation, "_sim_cfg", None)
+    object.__setattr__(articulation, "_fixed_tendon_target_dirty", False)
 
     # Create PhysX mock view
     mock_view = PhysXMockArticulationViewWarp(
@@ -124,8 +127,8 @@ def create_physx_articulation(
     data.spatial_tendon_names = spatial_tendon_names
 
     # Create wrench composers (pass articulation which has num_instances, num_bodies, device properties)
-    mock_inst_wrench = WrenchComposer(articulation)
-    mock_perm_wrench = WrenchComposer(articulation)
+    mock_inst_wrench = WrenchComposer(articulation, supports_world_at_com=True)
+    mock_perm_wrench = WrenchComposer(articulation, supports_world_at_com=True)
     object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -231,6 +234,7 @@ def create_ovphysx_articulation(
         body_ordering=body_ordering,
     )
     object.__setattr__(articulation, "_sim_cfg", None)
+    object.__setattr__(articulation, "_fixed_tendon_target_dirty", False)
 
     # Create mock binding set
     mock_bindings = MockOvPhysxBindingSet(
@@ -279,8 +283,8 @@ def create_ovphysx_articulation(
     articulation._create_buffers()
 
     # Wrench composers
-    mock_inst_wrench = WrenchComposer(articulation)
-    mock_perm_wrench = WrenchComposer(articulation)
+    mock_inst_wrench = WrenchComposer(articulation, supports_world_at_com=True)
+    mock_perm_wrench = WrenchComposer(articulation, supports_world_at_com=True)
     object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
     # Prevent __del__ / _clear_callbacks from raising
@@ -378,11 +382,14 @@ def create_newton_articulation(
         body_ordering=body_ordering,
     )
     object.__setattr__(articulation, "_sim_cfg", None)
+    object.__setattr__(articulation, "_fixed_tendon_target_dirty", False)
 
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
     object.__setattr__(articulation, "_data", data)
     object.__setattr__(articulation, "_test_simulation_manager", mock_manager)
+    # the solver builds this adapter; the shell has no model, so it stays absent
+    object.__setattr__(articulation, "_fixed_tendon_control", None)
 
     # Newton supports fixed tendons but not spatial tendons.
     object.__setattr__(articulation, "_fixed_tendon_names", fixed_tendon_names)

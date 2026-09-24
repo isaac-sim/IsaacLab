@@ -31,20 +31,22 @@ for RL-Games :class:`Runner` class:
 
 """
 
-# needed to import for allowing type-hinting:gym.spaces.Box | None
 from __future__ import annotations
 
 import contextlib
+import math
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-import gym.spaces  # needed for rl-games incompatibility: https://github.com/Denys88/rl_games/issues/261
+import gym.spaces  # rl-games still expects OpenAI Gym spaces: https://github.com/Denys88/rl_games/issues/261
 import gymnasium
 import torch
-from rl_games.common import env_configurations
+from rl_games.common import env_configurations, vecenv
 from rl_games.common.vecenv import IVecEnv
 
 from isaaclab.envs import VecEnvObs
+
+from ..utils.env_types import check_env_type
 
 if TYPE_CHECKING:
     from isaaclab.envs import (
@@ -118,29 +120,7 @@ class RlGamesVecEnvWrapper(IVecEnv):
             ValueError: The environment is not inherited from :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
             ValueError: If specified, the privileged observations (critic) are not of type :obj:`gym.spaces.Box`.
         """
-        # check that input is valid
-        # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
-        from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedRLEnv
-
-        try:
-            from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
-        except ImportError:
-            DirectRLEnvWarp = None
-            ManagerBasedRLEnvWarp = None
-
-        allowed_types = (ManagerBasedRLEnv, DirectRLEnv, DirectMARLEnv)
-        if DirectRLEnvWarp is not None:
-            allowed_types += (DirectRLEnvWarp,)
-        if ManagerBasedRLEnvWarp is not None:
-            allowed_types += (ManagerBasedRLEnvWarp,)
-
-        if not isinstance(env.unwrapped, allowed_types):
-            raise ValueError(
-                "The environment must be inherited from ManagerBasedRLEnv / DirectRLEnv / DirectRLEnvWarp /"
-                " ManagerBasedRLEnvWarp. Environment type:"
-                f" {type(env)}"
-            )
-        # initialize the wrapper
+        check_env_type(env, allow_multi_agent=True)
         self.env = env
         # store provided arguments
         self._rl_device = rl_device
@@ -173,10 +153,28 @@ class RlGamesVecEnvWrapper(IVecEnv):
             self.rlg_num_states = sum(space)
         else:
             raise TypeError(
-                "only valid combination for state space is gym.space.Box when concate_obs_groups is True,             "
-                "   and gym.space.Dict when concate_obs_groups is False. You have concate_obs_groups:                "
-                f" {self._concate_obs_groups}, and state_space: {self.state_space.__class__}"
+                "The state space must be a gym.spaces.Box when concate_obs_groups is True and a gym.spaces.Dict when"
+                f" it is False. Got concate_obs_groups={self._concate_obs_groups} and state_space"
+                f" {type(self.state_space).__name__}."
             )
+
+    @classmethod
+    def from_agent_cfg(cls, env: ManagerBasedRLEnv | DirectRLEnv, agent_cfg: dict) -> RlGamesVecEnvWrapper:
+        """Create the wrapper from the ``params.env`` and ``params.config.device`` entries of an RL-Games config.
+
+        Args:
+            env: The environment to wrap around.
+            agent_cfg: RL-Games agent configuration dictionary.
+        """
+        env_params = agent_cfg["params"].get("env", {})
+        return cls(
+            env,
+            agent_cfg["params"]["config"]["device"],
+            env_params.get("clip_observations", math.inf),
+            env_params.get("clip_actions", math.inf),
+            env_params.get("obs_groups"),
+            env_params.get("concate_obs_groups", True),
+        )
 
     def __str__(self):
         """Returns the wrapper name and the :attr:`env` representation string."""
@@ -261,7 +259,7 @@ class RlGamesVecEnvWrapper(IVecEnv):
     @property
     def state_space(self) -> gym.spaces.Box | gym.spaces.Dict | None:
         """Returns the privileged observation space for the critic (``Box`` if concatenated, otherwise ``Dict``)."""
-        # # note: rl-games only wants single observation space
+        # note: rl-games only wants single observation space
         space = self.unwrapped.single_observation_space
         clip = self._clip_obs
         if not self._concate_obs_groups:
@@ -407,10 +405,21 @@ Environment Handler.
 """
 
 
+def register_rl_games_env(env: RlGamesVecEnvWrapper) -> None:
+    """Register a wrapped environment under the ``rlgpu`` name expected by the RL-Games runner.
+
+    Args:
+        env: Wrapped environment returned by the ``rlgpu`` environment creator.
+    """
+    vecenv.register(
+        "IsaacRlgWrapper",
+        lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs),
+    )
+    env_configurations.register("rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env})
+
+
 class RlGamesGpuEnv(IVecEnv):
     """Thin wrapper to create instance of the environment to fit RL-Games runner."""
-
-    # TODO: Adding this for now but do we really need this?
 
     def __init__(self, config_name: str, num_actors: int, **kwargs):
         """Initialize the environment.

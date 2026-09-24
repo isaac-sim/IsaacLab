@@ -39,11 +39,7 @@ PER_TEST_TIMEOUTS = {
     "test_operational_space.py": 1000,
     "test_non_headless_launch.py": 1000,  # This test launches the app in non-headless mode and starts simulation
     "test_standalone_scripts.py": 3600,  # Runs every supported standalone launch in the selected CI runtime group
-    "test_rl_games_wrapper.py": 1000,
     "test_leapp_export_flow.py": 4000,
-    "test_rsl_rl_wrapper.py": 1000,
-    "test_sb3_wrapper.py": 1000,
-    "test_skrl_wrapper.py": 1000,
     "test_action_state_recorder_term.py": 1000,
     "test_manager_based_rl_env_obs_spaces_task_integration.py": 1000,
     # Newton cloth warmup can reach ~2750 s under GPU throttling (50 frames × ~55 s each).
@@ -72,6 +68,17 @@ PER_TEST_TIMEOUTS = {
 
 Note: Any tests not listed here will use the default timeout.
 """
+
+GIT_ASSET_STARTUP_TIMEOUT = 1000
+"""Startup timeout for tests that may populate the external Git asset cache."""
+
+PER_TEST_STARTUP_TIMEOUTS = {
+    "test_environments_isaacsim_physx.py": GIT_ASSET_STARTUP_TIMEOUT,
+    "test_environments_newton.py": GIT_ASSET_STARTUP_TIMEOUT,
+    "test_environments_ovphysx.py": GIT_ASSET_STARTUP_TIMEOUT,
+    "test_multi_agent_environments.py": GIT_ASSET_STARTUP_TIMEOUT,
+}
+"""Per-test startup timeouts for cold external asset downloads."""
 
 CUROBO_PLANNER_TESTS = [
     "test_curobo_planner_franka.py",
@@ -112,7 +119,6 @@ TESTS_TO_SKIP = [
     "test_build_simulation_context_nonheadless.py",  # headless
     "test_env_var_launch.py",  # app.close issue
     "test_kwarg_launch.py",  # app.close issue
-    "test_differential_ik.py",  # Failing
     # lab_tasks
     "test_record_video.py",  # Failing
     "test_tiled_camera_env.py",  # Need to improve the logic

@@ -45,6 +45,7 @@ if args_cli.grid_resolution <= 0:
 import torch
 import warp as wp
 from isaaclab_ov.physics import OvPhysxCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -54,7 +55,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.seed import configure_seed
 
 wp.init()
@@ -71,8 +72,11 @@ def _sensor_body_cfg(prim_path: str, position: tuple[float, float, float] = (0.0
         prim_path=prim_path,
         spawn=sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True),
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=False),
+            rigid_props=[
+                sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+                PhysxRigidBodyCfg(disable_gravity=True),
+            ],
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=position),
     )

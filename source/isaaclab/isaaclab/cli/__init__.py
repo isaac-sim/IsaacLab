@@ -16,21 +16,21 @@ from .commands.install import (
     VALID_EXTRA_FEATURES,
     command_install,
 )
+from .commands.list_envs import command_list_envs
 from .commands.misc import (
     command_build_docs,
     command_build_isaacsim,
+    command_editor,
     command_new,
     command_run_docker,
     command_run_isaacsim,
     command_test,
-    command_vscode_settings,
 )
 from .utils import (
     ISAACLAB_ROOT,
     is_windows,
     run_python_command,
 )
-
 
 _TASK_ENTRY_POINT_GROUP = "isaaclab.tasks"
 
@@ -68,6 +68,30 @@ def play(args: list[str] | None = None) -> None:
     _exit_on_error(run_play_cli(args))
 
 
+def leapp(args: list[str] | None = None) -> None:
+    """Export or deploy a policy with LEAPP."""
+    parser = argparse.ArgumentParser(
+        description="Export or deploy policies with LEAPP.",
+        prog=f"{Path(sys.argv[0]).name} leapp",
+    )
+    parser.add_argument("command", choices=("export", "deploy"), help="LEAPP workflow to run.")
+    if args is None:
+        args = sys.argv[1:]
+    if not args or args[0] in ("-h", "--help"):
+        parser.parse_args(args)
+    parsed_args = parser.parse_args(args[:1])
+    command_args = args[1:]
+
+    if parsed_args.command == "export":
+        from isaaclab_rl.entrypoints import run_export_cli
+
+        _exit_on_error(run_export_cli(command_args))
+    else:
+        from .commands.deploy import command_deploy_leapp
+
+        _exit_on_error(command_deploy_leapp(command_args))
+
+
 def zero_agent(args: list[str] | None = None) -> None:
     """Run an environment with a zero-action agent."""
     from isaaclab_rl.entrypoints import run_zero_agent_cli
@@ -80,6 +104,33 @@ def random_agent(args: list[str] | None = None) -> None:
     from isaaclab_rl.entrypoints import run_random_agent_cli
 
     _exit_on_error(run_random_agent_cli(args))
+
+
+def list_envs(args: list[str] | None = None) -> None:
+    """List registered Isaac Lab environments."""
+    command_list_envs(args)
+
+
+def demo(args: list[str] | None = None) -> None:
+    """List or run a packaged Isaac Lab demo.
+
+    Args:
+        args: Command-line arguments. Uses ``sys.argv`` when omitted.
+    """
+    from isaaclab.programs import DEMOS, run_program_cli
+
+    run_program_cli("demo", DEMOS, args)
+
+
+def example(args: list[str] | None = None) -> None:
+    """List or run a packaged Isaac Lab example.
+
+    Args:
+        args: Command-line arguments. Uses ``sys.argv`` when omitted.
+    """
+    from isaaclab.programs import EXAMPLES, run_program_cli
+
+    run_program_cli("example", EXAMPLES, args)
 
 
 def teleop(args: list[str] | None = None) -> None:
@@ -109,14 +160,14 @@ def benchmark(args: list[str] | None = None) -> None:
     Args:
         args: Command-line arguments. Uses sys.argv when omitted.
     """
-    from isaaclab.benchmark import run_benchmark_cli
+    from ..benchmark import run_benchmark_cli
 
     _exit_on_error(run_benchmark_cli(args))
 
 
 def microbenchmark(args: list[str] | None = None) -> None:
     """Run a component micro-benchmark with an exact physics variant."""
-    from isaaclab.benchmark import run_microbenchmark_cli
+    from ..benchmark import run_microbenchmark_cli
 
     _exit_on_error(run_microbenchmark_cli(args))
 
@@ -125,6 +176,7 @@ def cli() -> None:
     """Parse CLI arguments and run the requested command."""
     subcommands = {
         "benchmark": benchmark,
+        "leapp": leapp,
         "microbenchmark": microbenchmark,
         "train": train,
         "train_multigpu": train_multigpu,
@@ -132,6 +184,15 @@ def cli() -> None:
         "zero_agent": zero_agent,
         "random_agent": random_agent,
     }
+    if len(sys.argv) > 1 and sys.argv[1] == "list_envs":
+        list_envs(sys.argv[2:])
+        return
+    if len(sys.argv) > 1 and sys.argv[1] == "demo":
+        demo(sys.argv[2:])
+        return
+    if len(sys.argv) > 1 and sys.argv[1] == "example":
+        example(sys.argv[2:])
+        return
     if len(sys.argv) > 1 and sys.argv[1] in subcommands:
         _load_external_tasks()
         subcommands[sys.argv[1]](sys.argv[2:])
@@ -149,8 +210,12 @@ def cli() -> None:
         epilog=(
             "commands:\n"
             "  benchmark       Run a runtime, startup, training, or play benchmark\n"
-            "                  (append -multigpu to a workflow to run it across GPUs)\n"
+            "                  (append _multigpu to a workflow to run it across GPUs)\n"
             "  microbenchmark  Run a component micro-benchmark\n"
+            "  demo            List or run packaged demonstrations\n"
+            "  example         List or run packaged standalone examples\n"
+            "  leapp           Export or deploy a policy with LEAPP\n"
+            "  list_envs       List registered environments and presets\n"
             "  train           Train an RL policy\n"
             "  train_multigpu  Train an RL policy across multiple GPUs\n"
             "  play            Play a trained RL policy\n"
@@ -244,10 +309,9 @@ def cli() -> None:
         help="Run the docker container helper script (docker/container.sh).",
     )
     parser.add_argument(
-        "-v",
-        "--vscode",
-        action="store_true",
-        help="Generate the VSCode settings file from template.",
+        "--editor",
+        nargs=argparse.REMAINDER,
+        help="Generate editor settings and import paths for the current workspace.",
     )
     parser.add_argument(
         "-d",
@@ -266,14 +330,20 @@ def cli() -> None:
         "--conda",
         nargs="?",
         const="env_isaaclab",
-        help="Create a new conda environment for Isaac Lab. Default name is 'env_isaaclab'.",
+        help=(
+            "Create a new conda environment for Isaac Lab. Default name is 'env_isaaclab'. "
+            "Downloaded Isaac Sim packages are not supported."
+        ),
     )
     parser.add_argument(
         "-u",
         "--uv",
         nargs="?",
         const="env_isaaclab",
-        help="Create a new uv environment for Isaac Lab. Default name is 'env_isaaclab'.",
+        help=(
+            "Create a new uv environment for Isaac Lab. Default name is 'env_isaaclab'. "
+            "Downloaded Isaac Sim packages are not supported."
+        ),
     )
     parser.add_argument(
         "--isaacsim_source",
@@ -301,8 +371,8 @@ def cli() -> None:
     elif args.isaacsim_source:
         command_build_isaacsim(args.isaacsim_source)
 
-    elif args.vscode:
-        command_vscode_settings()
+    elif args.editor is not None:
+        command_editor(args.editor)
 
     elif args.docs:
         command_build_docs()

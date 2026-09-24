@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Base configuration for the velocity-tracking locomotion environments on rough terrain."""
+
 import math
 from dataclasses import MISSING
 
@@ -31,21 +33,17 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
-import isaaclab_tasks.core.velocity.mdp as mdp
-from isaaclab_tasks.utils import PresetCfg, preset
+from isaaclab_tasks.utils import PresetCfg
+
+from . import mdp
 
 ##
-# Pre-defined configs
-##
-from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
-
-
-##
-# Physics presets
+# Physics backend presets
 ##
 
 
@@ -105,9 +103,8 @@ class MySceneCfg(InteractiveSceneCfg):
     )
     # robots
     robot: ArticulationCfg = MISSING
-    # sensors -- the concrete implementation is selected automatically from the active physics
-    # backend (Newton / PhysX / OvPhysX); backend-specific fields such as ``global_world_only`` are
-    # documented on the config and ignored by the backends that do not use them.
+    # sensors: the concrete implementation is selected automatically from the active physics backend;
+    # backend-specific fields such as ``global_world_only`` are ignored by the backends that do not use them
     height_scanner = RayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base",
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
@@ -214,24 +211,20 @@ class EventsCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="base"),
-            # Multiplicative ±25% log-uniform. Scale-invariant across robot sizes
-            # (no per-robot kg overrides needed) with geometric mean 1.0 and
-            # symmetric inverse perturbation (acceleration symmetric around nominal).
+            # multiplicative +-25% log-uniform: scale-invariant across robot sizes with geometric mean 1.0
             "mass_distribution_params": (1 / 1.25, 1.25),
             "operation": "scale",
             "distribution": "log_uniform",
         },
     )
 
-    base_com = preset(
-        default=EventTerm(
-            func=mdp.randomize_rigid_body_com,
-            mode="startup",
-            params={
-                "asset_cfg": SceneEntityCfg("robot", body_names="base"),
-                "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
-            },
-        ),
+    base_com = EventTerm(
+        func=mdp.randomize_rigid_body_com,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
+            "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
+        },
     )
 
     # reset
@@ -342,7 +335,7 @@ class CurriculumCfg:
 class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
-    # Simulation settings — shared physics preset (PhysX + MJWarp) for all rough-terrain envs
+    # Simulation settings
     sim: SimulationCfg = SimulationCfg(physics=RoughPhysicsCfg())
     # Scene settings
     scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)

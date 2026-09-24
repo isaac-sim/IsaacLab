@@ -36,16 +36,20 @@ def setup_environment():
 
 
 @pytest.mark.parametrize(
-    "task_name",
+    ("task_name", "deterministic_mode"),
     [
-        "Isaac-Open-Drawer-Franka",
-        "IsaacContrib-Lift-Cube-Franka",
+        # Newton defaults to ``wp.DeterministicMode.NOT_GUARANTEED``, under which Warp's atomics may
+        # accumulate in any order, so two runs are not bit-reproducible. ``run_to_run`` is exactly
+        # the guarantee this test asserts: one device, one process, run twice. ``deterministic_mode``
+        # is a Newton setting, so the PhysX-backed task leaves it unset.
+        ("Isaac-Open-Drawer-Franka", "run_to_run"),
+        ("IsaacContrib-Lift-Cube-Franka", None),
     ],
 )
 @pytest.mark.parametrize("device", ["cuda", "cpu"])
-def test_manipulation_env_determinism(task_name, device):
+def test_manipulation_env_determinism(task_name, deterministic_mode, device):
     """Check deterministic environment creation for manipulation."""
-    _test_environment_determinism(task_name, device)
+    _test_environment_determinism(task_name, device, deterministic_mode=deterministic_mode)
 
 
 @pytest.mark.parametrize(
@@ -61,28 +65,6 @@ def test_locomotion_env_determinism(task_name, device):
     _test_environment_determinism(task_name, device, physics_preset_name="isaacsim_physx")
 
 
-@pytest.mark.parametrize(
-    "task_name",
-    [
-        pytest.param(
-            "Isaac-Reorient-Cube-Allegro",
-            marks=pytest.mark.skip(
-                reason=(
-                    "Free rigid bodies are not bit-reproducible on Newton/CUDA:"
-                    " Isaac-Lift-Franka fails the same assertion on develop. This task passed only"
-                    " while its cube was declared as an articulation with no joints."
-                )
-            ),
-        ),
-        # "Isaac-Reorient-Cube-Allegro-Direct",  # FIXME: @kellyg, any idea why it is not deterministic?
-    ],
-)
-@pytest.mark.parametrize("device", ["cuda", "cpu"])
-def test_dextrous_env_determinism(task_name, device):
-    """Check deterministic environment creation for dextrous manipulation."""
-    _test_environment_determinism(task_name, device)
-
-
 def test_newton_cartpole_env_determinism():
     """Check deterministic stepping for a Newton environment."""
     # One small CUDA-only case at a quarter of the default steps bounds Newton kernel compilation and test runtime.
@@ -95,6 +77,22 @@ def test_newton_cartpole_env_determinism():
     )
 
 
+def test_newton_cartpole_camera_env_determinism():
+    """Check deterministic stepping for the camera env behind ``--deterministic``.
+
+    Goes through :attr:`~isaaclab.physics.PhysicsCfg.deterministic`, the request that flag sets, so
+    this covers Newton's translation of it as well as the resulting stepping. ``Isaac-Cartpole-Camera``
+    is the task the flag was reported broken on, and it exercises the renderer feeding observations.
+    """
+    _test_environment_determinism(
+        "Isaac-Cartpole-Camera",
+        "cuda",
+        num_steps=25,
+        physics_preset_name="newton_mjwarp",
+        deterministic=True,
+    )
+
+
 def _test_environment_determinism(
     task_name: str,
     device: str,
@@ -102,6 +100,7 @@ def _test_environment_determinism(
     num_steps: int = 100,
     physics_preset_name: str | None = None,
     deterministic_mode: str | None = None,
+    deterministic: bool = False,
 ):
     """Check deterministic environment creation."""
     # fix number of steps
@@ -114,6 +113,7 @@ def _test_environment_determinism(
         num_steps,
         physics_preset_name=physics_preset_name,
         deterministic_mode=deterministic_mode,
+        deterministic=deterministic,
     )
     obs_2, rew_2 = _obtain_transition_tuples(
         task_name,
@@ -122,6 +122,7 @@ def _test_environment_determinism(
         num_steps,
         physics_preset_name=physics_preset_name,
         deterministic_mode=deterministic_mode,
+        deterministic=deterministic,
     )
 
     # check everything is as expected
@@ -140,6 +141,7 @@ def _obtain_transition_tuples(
     *,
     physics_preset_name: str | None = None,
     deterministic_mode: str | None = None,
+    deterministic: bool = False,
 ) -> tuple[dict, torch.Tensor]:
     """Run random actions and obtain transition tuples after fixed number of steps."""
     # create a new stage
@@ -160,6 +162,9 @@ def _obtain_transition_tuples(
                 # MJWarp's internal tactile sensor kernel mixes atomic reduction families, which Warp's
                 # deterministic code generation does not support. Isaac Lab sensors do not use this data.
                 env_cfg.sim.physics.solver_cfg.disable_sensors = True
+        if deterministic:
+            # The backend-agnostic request; NewtonManager derives the mode and the MJWarp prerequisite.
+            env_cfg.sim.physics.deterministic = True
         # set seed
         env_cfg.seed = 42
         # create environment

@@ -37,12 +37,18 @@ class _LegacyNewtonRayCasterMixin(_NewtonRayCasterPoseMixin):
 
     def __init__(self: Any, cfg):
         super().__init__(cfg)
-        self._tracked_site_labels_by_target: dict[tuple[str, ...], list[str]] = {}
+        self._tracked_site_labels: list[list[str]] = []
+        self._tracked_target_index = 0
         for target_cfg in getattr(self, "_raycast_targets_cfg", []):
             if target_cfg.track_mesh_transforms:
                 owner_exprs = self._resolve_target_owner_exprs(target_cfg.prim_expr)
                 labels = self._register_target_sites_for_exprs(owner_exprs)
-                self._tracked_site_labels_by_target[tuple(owner_exprs)] = labels
+                self._tracked_site_labels.append(labels)
+
+    def _initialize_warp_meshes(self: Any) -> None:
+        """Reset tracked-target association before creating mesh views."""
+        self._tracked_target_index = 0
+        super()._initialize_warp_meshes()
 
     def _resolve_target_owner_exprs(self, prim_expr: str) -> list[str]:
         """Resolve mesh target expressions to owning rigid-body expressions."""
@@ -71,8 +77,8 @@ class _LegacyNewtonRayCasterMixin(_NewtonRayCasterPoseMixin):
 
     def _create_tracked_target_view(self: Any, target_prim_path: str | list[str]) -> wp.array:
         """Resolve dynamic multi-mesh target sites to Newton site indices."""
-        target_exprs = target_prim_path if isinstance(target_prim_path, list) else [target_prim_path]
-        labels = self._tracked_site_labels_by_target[tuple(target_exprs)]
+        labels = self._tracked_site_labels[self._tracked_target_index]
+        self._tracked_target_index += 1
         site_indices = self._resolve_site_indices(labels, str(target_prim_path), self._num_envs)
         return wp.array(site_indices, dtype=wp.int32, device=self._device)
 

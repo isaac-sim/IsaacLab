@@ -13,11 +13,10 @@ import torch
 
 from pxr import Sdf, UsdShade
 
-from isaaclab import cloner
-from isaaclab.assets.asset_base import AssetBase
-from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils import find_matching_prim_paths
-
+from ... import cloner
+from ...sim import SimulationContext
+from ...sim.utils import find_matching_prim_paths
+from ..asset_base import AssetBase
 from .visual_material_cfg import VisualMaterialCfg
 
 _PREVIEW_CHANNELS = {
@@ -138,8 +137,8 @@ class VisualMaterial(AssetBase):
         plan = SimulationContext.instance().get_clone_plan()
         if self._is_per_env:
             assert plan is not None and plan.env_ids is not None
-            plan_env_ids = plan.env_ids.detach().cpu().tolist()
-            columns = {env_id: column for column, env_id in enumerate(plan_env_ids)}
+            plan_env_ids = plan.env_ids
+            columns = {int(env_id): column for column, env_id in enumerate(plan_env_ids)}
             material_paths = [""] * len(plan_env_ids)
             for source_root, destination, source_path, env_ids in cloner.query.iter_sources(plan, self.cfg.prim_path):
                 for env_id in env_ids:

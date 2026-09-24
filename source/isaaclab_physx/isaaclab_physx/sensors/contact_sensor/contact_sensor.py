@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import re
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -21,6 +22,7 @@ import omni.physics.tensors as physx
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.contact_sensor import BaseContactSensor
+from isaaclab.sensors.contact_sensor.contact_force_marker import ContactForceVisualizer
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source, split_path_expr
 from isaaclab.utils.warp import ProxyArray
 
@@ -32,6 +34,7 @@ from .kernels import (
     reset_contact_sensor_kernel,
     split_flat_pose_to_pos_quat,
     unpack_contact_buffer_data,
+    update_filtered_force_history_kernel,
     update_net_forces_kernel,
 )
 
@@ -55,7 +58,7 @@ class ContactSensor(BaseContactSensor):
     The sensor can be configured to report the contact forces on a set of bodies with a given
     filter pattern using the :attr:`ContactSensorCfg.filter_prim_paths_expr`. This is useful
     when you want to report the contact forces between the sensor bodies and a specific set of
-    bodies in the scene. The data can be accessed using the :attr:`ContactSensorData.force_matrix_w`.
+    bodies in the scene. The data can be accessed using the :attr:`ContactSensorData.normal_force_matrix_w`.
     Please check the documentation on `RigidContact`_ for more details.
 
     The reporting of the filtered contact forces is only possible as one-to-many. This means that only one
@@ -187,6 +190,31 @@ class ContactSensor(BaseContactSensor):
     Operations
     """
 
+    def update(self, dt: float, force_recompute: bool = False) -> None:
+        """Advances the sensor timestamp and refreshes the PhysX contact buffers.
+
+        PhysX zeroes the net contact force of a body only on the physics step where its contact
+        is lost. A sensor that is refreshed lazily (on data access) would skip that step and keep
+        reporting the last in-contact force until the next touchdown, so the PhysX getters are
+        called on every physics step. The warp kernels that turn those buffers into sensor data
+        remain lazy and only run when :attr:`data` is accessed. The body poses have no such
+        transient and are only read on data access.
+
+        Args:
+            dt: Time elapsed since the previous sensor update [s].
+            force_recompute: Whether to recompute the sensor buffers regardless of their
+                configured update period. Defaults to False.
+
+        Raises:
+            RuntimeError: If an outer CUDA graph capture is active. The PhysX tensor reads
+                cannot be graph-captured, so the sensor must be updated outside the capture.
+        """
+        super().update(dt, force_recompute=force_recompute)
+        # Skip the fetch if the base class already refreshed the buffers on this step, which it
+        # does when the sensor carries a history buffer.
+        if self._is_initialized and self._data_generation != self._data_generation_last_update:
+            self._fetch_physx_buffers(include_pose=False)
+
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         # resolve env_ids to warp array
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
@@ -200,27 +228,29 @@ class ContactSensor(BaseContactSensor):
                 self._history_length,
                 self._num_filter_shapes,
                 env_mask,
-                self._data._net_forces_w,
-                self._data._net_forces_w_history,
-                self._data._force_matrix_w,
+                self._data._net_normal_forces_w,
+                self._data._net_normal_forces_w_history,
+                self._data._normal_force_matrix_w,
             ],
             outputs=[
                 self._data._current_air_time,
                 self._data._last_air_time,
                 self._data._current_contact_time,
                 self._data._last_contact_time,
-                self._data._friction_forces_w,
+                self._data._friction_force_matrix_w,
+                self._data._friction_force_matrix_w_history,
                 self._data._contact_pos_w,
             ],
             device=self._device,
         )
 
-    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
+    def compute_first_contact(self, dt: float, abs_tol: float | None = None) -> ProxyArray:
         """Checks if bodies that have established contact within the last :attr:`dt` seconds.
 
         This function checks if the bodies have established contact within the last :attr:`dt` seconds
         by comparing the current contact time with the given time period. If the contact time is less
-        than the given time period, then the bodies are considered to be in contact.
+        than the given time period, then the bodies are considered to be in contact. Outdated sensor
+        buffers are refreshed before the comparison.
 
         .. note::
             The function assumes that :attr:`dt` is a factor of the sensor update time-step. In other
@@ -235,7 +265,8 @@ class ContactSensor(BaseContactSensor):
 
         Args:
             dt: The time period since the contact was established.
-            abs_tol: The absolute tolerance for the comparison.
+            abs_tol: The absolute tolerance for the comparison [s]. Defaults to None, in which case
+                half the sensor update interval is used.
 
         Returns:
             A boolean tensor indicating the bodies that have established contact within the last
@@ -251,21 +282,25 @@ class ContactSensor(BaseContactSensor):
                 "The contact sensor is not configured to track contact time."
                 "Please enable the 'track_air_time' in the sensor configuration."
             )
+        tol = self._resolve_first_transition_tolerance(abs_tol)
+        # refresh lazily updated buffers so the timers reflect the current physics step
+        self._update_outdated_buffers()
         wp.launch(
             compute_first_transition_kernel,
             dim=(self._num_envs, self._num_sensors),
-            inputs=[float(dt + abs_tol), self._data._current_contact_time],
+            inputs=[float(dt + tol), self._data._current_contact_time],
             outputs=[self._data._first_transition],
             device=self._device,
         )
         return self._data._first_transition_ta
 
-    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
+    def compute_first_air(self, dt: float, abs_tol: float | None = None) -> ProxyArray:
         """Checks if bodies that have broken contact within the last :attr:`dt` seconds.
 
         This function checks if the bodies have broken contact within the last :attr:`dt` seconds
         by comparing the current air time with the given time period. If the air time is less
-        than the given time period, then the bodies are considered to not be in contact.
+        than the given time period, then the bodies are considered to not be in contact. Outdated sensor
+        buffers are refreshed before the comparison.
 
         .. note::
             It assumes that :attr:`dt` is a factor of the sensor update time-step. In other words,
@@ -280,7 +315,8 @@ class ContactSensor(BaseContactSensor):
 
         Args:
             dt: The time period since the contract is broken.
-            abs_tol: The absolute tolerance for the comparison.
+            abs_tol: The absolute tolerance for the comparison [s]. Defaults to None, in which case
+                half the sensor update interval is used.
 
         Returns:
             A boolean tensor indicating the bodies that have broken contact within the last :attr:`dt` seconds.
@@ -296,10 +332,13 @@ class ContactSensor(BaseContactSensor):
                 "Please enable the 'track_air_time' in the sensor configuration."
             )
 
+        tol = self._resolve_first_transition_tolerance(abs_tol)
+        # refresh lazily updated buffers so the timers reflect the current physics step
+        self._update_outdated_buffers()
         wp.launch(
             compute_first_transition_kernel,
             dim=(self._num_envs, self._num_sensors),
-            inputs=[float(dt + abs_tol), self._data._current_air_time],
+            inputs=[float(dt + tol), self._data._current_air_time],
             outputs=[self._data._first_transition],
             device=self._device,
         )
@@ -421,13 +460,8 @@ class ContactSensor(BaseContactSensor):
                 cannot be graph-captured, so replays of such a graph would consume stale
                 contact data.
         """
+        self._raise_if_graph_capturing()
         device = wp.get_device(self._device)
-        if device.is_capturing:
-            raise RuntimeError(
-                f"Cannot update the contact sensor at '{self.cfg.prim_path}' while a CUDA graph capture"
-                " is active: the PhysX tensor reads cannot be graph-captured, so replaying the captured"
-                " graph would consume stale contact data."
-            )
 
         # Convert env_mask to warp array
         env_mask = self._resolve_indices_and_mask(None, env_mask)
@@ -455,6 +489,19 @@ class ContactSensor(BaseContactSensor):
             self._compute_graph = capture.graph
         wp.capture_launch(self._compute_graph)
 
+    def _raise_if_graph_capturing(self) -> None:
+        """Rejects a PhysX tensor read while an outer CUDA graph capture is active.
+
+        Raises:
+            RuntimeError: If the sensor's device is capturing a CUDA graph.
+        """
+        if wp.get_device(self._device).is_capturing:
+            raise RuntimeError(
+                f"Cannot update the contact sensor at '{self.cfg.prim_path}' while a CUDA graph capture"
+                " is active: the PhysX tensor reads cannot be graph-captured, so replaying the captured"
+                " graph would consume stale contact data."
+            )
+
     @staticmethod
     def _checked_view(buffer: wp.array, view: wp.array | None, dtype) -> wp.array:
         """Returns the cached typed view over ``buffer``, verifying pointer stability.
@@ -473,7 +520,7 @@ class ContactSensor(BaseContactSensor):
             )
         return view
 
-    def _fetch_physx_buffers(self) -> None:
+    def _fetch_physx_buffers(self, include_pose: bool = True) -> None:
         """Refreshes the contact data from PhysX and lazily builds the warp views over it.
 
         The PhysX tensor getters allocate their output buffers once and refresh them in place on
@@ -482,7 +529,19 @@ class ContactSensor(BaseContactSensor):
         refreshes the same count and start-index buffers as ``get_contact_data``, the
         contact-point counts are staged into sensor-owned copies before the friction read
         overwrites them.
+
+        Args:
+            include_pose: Whether to also read the body poses when ``track_pose`` is enabled.
+                The per-step refresh in :meth:`update` skips them since only the contact
+                buffers carry the contact-loss transient. Defaults to True.
+
+        Raises:
+            RuntimeError: If an outer CUDA graph capture is active. The PhysX tensor reads
+                cannot be graph-captured, so replays of such a graph would consume stale
+                contact data.
         """
+        self._raise_if_graph_capturing()
+
         # PhysX returns (B*N, 3) float32 -> viewed as (B*N,) vec3f, body-major (one view
         # pattern per body)
         net_forces = self.contact_view.get_net_contact_forces(dt=self._sim_physics_dt)
@@ -494,7 +553,7 @@ class ContactSensor(BaseContactSensor):
             self._force_matrix_flat = self._checked_view(force_matrix, self._force_matrix_flat, wp.vec3f)
 
         # PhysX returns (B*N, 7) float32 -> viewed as (B*N,) transformf, body-major
-        if self.cfg.track_pose:
+        if self.cfg.track_pose and include_pose:
             poses = self.body_physx_view.get_transforms()
             self._poses_flat = self._checked_view(poses, self._poses_flat, wp.transformf)
 
@@ -541,10 +600,10 @@ class ContactSensor(BaseContactSensor):
                 self._timestamp_last_update,
             ],
             outputs=[
-                self._data._net_forces_w,
-                self._data._net_forces_w_history,
-                self._data._force_matrix_w,
-                self._data._force_matrix_w_history,
+                self._data._net_normal_forces_w,
+                self._data._net_normal_forces_w_history,
+                self._data._normal_force_matrix_w,
+                self._data._normal_force_matrix_w_history,
                 self._data._current_air_time,
                 self._data._current_contact_time,
                 self._data._last_air_time,
@@ -595,7 +654,19 @@ class ContactSensor(BaseContactSensor):
                     False,
                     0.0,
                 ],
-                outputs=[self._data._friction_forces_w],
+                outputs=[self._data._friction_force_matrix_w],
+                device=self.device,
+            )
+            wp.launch(
+                update_filtered_force_history_kernel,
+                dim=(self._num_envs, self._num_sensors),
+                inputs=[
+                    self._history_length,
+                    self._num_filter_shapes,
+                    self._env_mask,
+                    self._data._friction_force_matrix_w,
+                    self._data._friction_force_matrix_w_history,
+                ],
                 device=self.device,
             )
 
@@ -606,11 +677,24 @@ class ContactSensor(BaseContactSensor):
             # create markers if necessary for the first time
             if not hasattr(self, "contact_visualizer"):
                 self.contact_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
+                self.normal_force_visualizer = ContactForceVisualizer(
+                    self.cfg.normal_force_visualizer_cfg,
+                    self.cfg.force_visualization_scale,
+                )
             # set their visibility to true
             self.contact_visualizer.set_visibility(True)
+            self.normal_force_visualizer.set_visibility(True)
+            if not getattr(self, "_warned_missing_net_friction_vis", False):
+                warnings.warn(
+                    "PhysX contact sensor visualization cannot display net friction forces because the backend"
+                    " only reports friction for configured filter objects.",
+                    stacklevel=2,
+                )
+                self._warned_missing_net_friction_vis = True
         else:
             if hasattr(self, "contact_visualizer"):
                 self.contact_visualizer.set_visibility(False)
+                self.normal_force_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
         # safely return if view becomes invalid
@@ -618,7 +702,7 @@ class ContactSensor(BaseContactSensor):
         if self.body_physx_view is None:
             return
         # Convert warp data to torch at the boundary for visualization
-        net_forces_torch = self._data.net_forces_w.torch  # (N, B, 3)
+        net_forces_torch = self._data.net_normal_forces_w.torch  # (N, B, 3)
         net_contact_force_w = torch.linalg.norm(net_forces_torch, dim=-1)
         # marker indices: 0 = contact, 1 = no contact
         marker_indices = torch.where(net_contact_force_w > self.cfg.force_threshold, 0, 1)
@@ -631,6 +715,12 @@ class ContactSensor(BaseContactSensor):
             frame_origins = pose_torch.view(self._num_sensors, -1, 7).transpose(0, 1)[:, :, :3]
         # visualize
         self.contact_visualizer.visualize(frame_origins.reshape(-1, 3), marker_indices=marker_indices.reshape(-1))
+        assert self.cfg.force_threshold is not None
+        self.normal_force_visualizer.visualize(
+            frame_origins,
+            net_forces_torch,
+            self.cfg.force_threshold,
+        )
 
     """
     Internal simulation callbacks.

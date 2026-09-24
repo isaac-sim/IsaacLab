@@ -13,10 +13,9 @@ import trimesh.transformations
 
 from pxr import Usd, UsdPhysics
 
-from isaaclab.sim import schemas
-from isaaclab.sim.spawners._utils import fragment_mapping, props_expr
-from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
-
+from ... import schemas
+from ...utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
+from .._utils import fragment_mapping, props_expr
 from ..materials import (
     DeformableBodyMaterialBaseCfg,
     RigidBodyMaterialBaseCfg,
@@ -60,7 +59,6 @@ def spawn_mesh_sphere(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # create a trimesh sphere
     sphere = trimesh.creation.uv_sphere(radius=cfg.radius)
 
     # obtain stage handle
@@ -101,17 +99,8 @@ def spawn_mesh_cuboid(
 
     Raises:
         ValueError: If a prim already exists at the given path.
-        ValueError: If :attr:`~isaaclab.sim.MeshCuboidCfg.edge_refinement` is less than ``1.0``.
     """
-    if cfg.edge_refinement < 1.0:
-        raise ValueError(f"Cuboid mesh edge refinement must be at least 1.0, got {cfg.edge_refinement}.")
-
-    # create a trimesh box
     box = trimesh.creation.box(cfg.size)
-    if cfg.edge_refinement > 1.0:
-        max_edge = float(np.linalg.norm(box.bounding_box.extents)) / cfg.edge_refinement
-        vertices, faces = trimesh.remesh.subdivide_to_size(box.vertices, box.faces, max_edge=max_edge)
-        box = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
 
     # obtain stage handle
     stage = get_current_stage()
@@ -302,51 +291,46 @@ def spawn_mesh_rectangle(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # create a 2D triangle mesh grid
-    vertices, faces = _create_triangle_mesh_grid(cfg.resolution)
-    vertices[:, 0] *= cfg.size[0]
-    vertices[:, 1] *= cfg.size[1]
-    grid = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
-
-    # obtain stage handle
+    # create a 2D triangle mesh
+    half_x, half_y = cfg.size[0] / 2, cfg.size[1] / 2
+    vertices = np.array(
+        [(-half_x, -half_y, 0.0), (half_x, -half_y, 0.0), (half_x, half_y, 0.0), (-half_x, half_y, 0.0)],
+        dtype=np.float32,
+    )
+    rectangle = trimesh.Trimesh(vertices=vertices, faces=((0, 1, 2), (0, 2, 3)), process=False)
     stage = get_current_stage()
     # spawn the rectangle as a mesh
-    _spawn_mesh_geom_from_mesh(prim_path, cfg, grid, translation, orientation, None, stage=stage)
+    _spawn_mesh_geom_from_mesh(prim_path, cfg, rectangle, translation, orientation, None, stage=stage)
     # return the prim
     return stage.GetPrimAtPath(prim_path)
-
-
-def _create_triangle_mesh_grid(resolution: tuple[int, int]) -> tuple[np.ndarray, np.ndarray]:
-    """Create a centered triangle grid for :class:`MeshRectangleCfg`."""
-    if resolution[0] < 1 or resolution[1] < 1:
-        raise ValueError(f"Rectangle mesh resolution must be positive, got {resolution}.")
-
-    num_x, num_y = resolution
-    xs = np.linspace(-0.5, 0.5, num_x + 1, dtype=np.float32)
-    ys = np.linspace(-0.5, 0.5, num_y + 1, dtype=np.float32)
-    vertices = np.array([(x, y, 0.0) for y in ys for x in xs], dtype=np.float32)
-
-    faces = []
-    row_stride = num_x + 1
-    for iy in range(num_y):
-        for ix in range(num_x):
-            v0 = iy * row_stride + ix
-            v1 = v0 + 1
-            v2 = v0 + row_stride
-            v3 = v2 + 1
-            if (ix % 2 == 0) != (iy % 2 == 0):
-                faces.append((v0, v1, v2))
-                faces.append((v1, v3, v2))
-            else:
-                faces.append((v0, v1, v3))
-                faces.append((v0, v3, v2))
-
-    return vertices, np.asarray(faces, dtype=np.int64)
 
 
 """
 Helper functions.
 """
+
+
+def _refine_surface_mesh(mesh: trimesh.Trimesh, cfg: meshes_cfg.MeshCfg) -> trimesh.Trimesh:
+    """Subdivide a deformable's surface mesh to the configured edge-length target.
+
+    Args:
+        mesh: The mesh to refine.
+        cfg: The config carrying :attr:`~isaaclab.sim.MeshCfg.edge_refinement`.
+
+    Returns:
+        The refined mesh, or the input mesh when refinement does not apply.
+
+    Raises:
+        ValueError: If the edge refinement is less than ``1.0``.
+    """
+    if cfg.edge_refinement < 1.0:
+        raise ValueError(f"Mesh edge refinement must be at least 1.0, got {cfg.edge_refinement}.")
+    if cfg.deformable_props is None or cfg.edge_refinement == 1.0:
+        return mesh
+
+    max_edge = float(np.linalg.norm(mesh.bounding_box.extents)) / cfg.edge_refinement
+    vertices, faces = trimesh.remesh.subdivide_to_size(mesh.vertices, mesh.faces, max_edge=max_edge)
+    return trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
 
 
 def _apply_deformable_collision_props(prim_path: str, collision_props, stage: Usd.Stage) -> None:
@@ -405,6 +389,7 @@ def _spawn_mesh_geom_from_mesh(
 
     Raises:
         ValueError: If a prim already exists at the given path.
+        ValueError: If edge refinement is less than ``1.0``.
         ValueError: If both deformable and rigid properties are used.
         ValueError: If the physics material is not of the correct type. Deformable properties require a deformable
             physics material, and rigid properties require a rigid physics material.
@@ -412,6 +397,8 @@ def _spawn_mesh_geom_from_mesh(
 
     .. _USDGeomMesh: https://openusd.org/dev/api/class_usd_geom_mesh.html
     """
+    mesh = _refine_surface_mesh(mesh, cfg)
+
     # obtain stage handle
     stage = stage if stage is not None else get_current_stage()
 
@@ -448,11 +435,8 @@ def _spawn_mesh_geom_from_mesh(
         if not is_rigid_material:
             raise ValueError("Rigid properties require a rigid physics material.")
 
-    # create all the paths we need for clarity
     geom_prim_path = prim_path + "/geometry"
     mesh_prim_path = geom_prim_path + "/mesh"
-
-    # create the mesh prim
     mesh_prim = create_prim(
         mesh_prim_path,
         prim_type="Mesh",
@@ -471,8 +455,15 @@ def _spawn_mesh_geom_from_mesh(
         deformable_type = (
             "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialBaseCfg) else "volume"
         )
+        deformable_kwargs = {}
+        if deformable_type == "volume":
+            deformable_kwargs["tetrahedralization_edge_length_fac"] = 1.0 / cfg.edge_refinement
         schemas.define_deformable_body_properties(
-            prim_path, cfg.deformable_props, stage=stage, deformable_type=deformable_type
+            prim_path,
+            cfg.deformable_props,
+            stage=stage,
+            deformable_type=deformable_type,
+            **deformable_kwargs,
         )
         if cfg.collision_props is not None:
             _apply_deformable_collision_props(prim_path, cfg.collision_props, stage)
@@ -507,7 +498,6 @@ def _spawn_mesh_geom_from_mesh(
         else:
             schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
 
-    # apply visual material
     if cfg.visual_material is not None:
         if not cfg.visual_material_path.startswith("/"):
             material_path = f"{geom_prim_path}/{cfg.visual_material_path}"
@@ -515,10 +505,7 @@ def _spawn_mesh_geom_from_mesh(
             material_path = cfg.visual_material_path
         # create material
         cfg.visual_material.func(material_path, cfg.visual_material)
-        # apply material
         bind_visual_material(mesh_prim_path, material_path, stage=stage)
-
-    # apply physics material
     if cfg.physics_material is not None:
         if not cfg.physics_material_path.startswith("/"):
             material_path = f"{geom_prim_path}/{cfg.physics_material_path}"
@@ -526,14 +513,12 @@ def _spawn_mesh_geom_from_mesh(
             material_path = cfg.physics_material_path
         # create material (accepts a legacy material cfg or rigid-body fragment(s))
         spawn_physics_material(material_path, cfg.physics_material, stage=stage)
-        # apply material
         bind_physics_material(prim_path, material_path, stage=stage)
 
     # note: we apply the rigid properties to the parent prim in case of rigid objects.
     # fragment path: mapping entries anchor at the container prim, so ``""`` preserves the legacy
     # placement; entries apply in insertion order. Otherwise a legacy cfg routes to the legacy writer.
     if cfg.rigid_props is not None:
-        # apply mass properties
         if cfg.mass_props is not None:
             mass_props_mapping = fragment_mapping(cfg.mass_props)
             if mass_props_mapping is not None:

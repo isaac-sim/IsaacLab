@@ -12,9 +12,8 @@ from typing import TYPE_CHECKING, ClassVar
 
 import torch
 
-from isaaclab.utils import DelayBuffer, LinearInterpolation
-from isaaclab.utils.types import ArticulationActions
-
+from ..utils import DelayBuffer, LinearInterpolation
+from ..utils.types import ArticulationActions
 from ._compat import _limits_equal
 from .actuator_base import ActuatorBase, resolve_joint_parameter
 
@@ -28,7 +27,6 @@ if TYPE_CHECKING:
         RemotizedPDActuatorCfg,
     )
 
-# import logger
 logger = logging.getLogger(__name__)
 
 """
@@ -86,7 +84,7 @@ class ImplicitActuator(ActuatorBase):
         if effort_limit is not None:
             warnings.warn(
                 "The effort_limit constructor argument is deprecated. Use joint_effort_limit instead; "
-                "effort_limit will be removed in 4.0.",
+                "effort_limit will be removed in 3.1.",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -405,7 +403,9 @@ class DCMotor(IdealPDActuator):
         # parse configuration
         if self.cfg.saturation_effort is None:
             raise ValueError("The saturation_effort must be provided for the DC motor actuator model.")
-        self._saturation_effort = self.cfg.saturation_effort
+        self._saturation_effort = resolve_joint_parameter(
+            self.cfg.saturation_effort, None, self._joint_names, self._num_envs, self._device
+        )
         # check that quantities are provided
         if self.cfg.actuator_velocity_limit is None:
             raise ValueError("The velocity limit must be provided for the DC motor actuator model.")
@@ -505,7 +505,6 @@ class DelayedPDActuator(IdealPDActuator):
         control_action.joint_positions = self.positions_delay_buffer.compute(control_action.joint_positions)
         control_action.joint_velocities = self.velocities_delay_buffer.compute(control_action.joint_velocities)
         control_action.joint_efforts = self.efforts_delay_buffer.compute(control_action.joint_efforts)
-        # compte actuator model
         return super().compute(control_action, joint_pos, joint_vel)
 
 

@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Observation terms for the lift environments."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -10,13 +12,17 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
+from isaaclab.markers import VisualizationMarkers
+from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
 from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_mul, subtract_frame_transforms
+
+from .utils import sample_object_point_cloud
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
-    from isaaclab.managers import ObservationTermCfg
+    from isaaclab.sensors import Camera
 
 
 def object_quat_b(
@@ -32,7 +38,7 @@ def object_quat_b(
         object_cfg: Scene entity for the object. Defaults to ``SceneEntityCfg("object")``.
 
     Returns:
-        Tensor of shape ``(num_envs, 4)``: object quaternion ``(w, x, y, z)`` in the robot root frame.
+        Tensor of shape ``(num_envs, 4)``: object quaternion ``(x, y, z, w)`` in the robot root frame.
     """
     robot: RigidObject = env.scene[robot_cfg.name]
     object: RigidObject = env.scene[object_cfg.name]
@@ -43,7 +49,7 @@ class body_state_b(ManagerTermBase):
     """Body state (pos, quat, lin vel, ang vel) in the base asset's root frame.
 
     The state for each body is stacked horizontally as
-    ``[position(3), quaternion(4)(wxyz), linvel(3), angvel(3)]`` and then concatenated over bodies.
+    ``[position(3), quaternion(4)(xyzw), linvel(3), angvel(3)]`` and then concatenated over bodies.
 
     The body indices are baked to a device tensor at construction.
     """
@@ -76,20 +82,19 @@ class body_state_b(ManagerTermBase):
         """
         body_asset: Articulation = env.scene[body_asset_cfg.name]
         base_asset: Articulation = env.scene[base_asset_cfg.name]
-        # get world pose of bodies
-        body_pos_w = body_asset.data.body_pos_w.torch[:, self._body_ids].view(-1, 3)
-        body_quat_w = body_asset.data.body_quat_w.torch[:, self._body_ids].view(-1, 4)
-        num_bodies = int(body_pos_w.shape[0] / env.num_envs)
-        # get world pose of base frame
-        root_pos_w = base_asset.data.root_link_pos_w.torch.unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 3)
-        root_quat_w = (
-            base_asset.data.root_link_quat_w.torch.unsqueeze(1).repeat_interleave(num_bodies, dim=1).view(-1, 4)
-        )
+        # world pose of the bodies, flattened over environments
+        body_pos_w = body_asset.data.body_pos_w.torch[:, self._body_ids]
+        num_bodies = body_pos_w.shape[1]
+        body_pos_w = body_pos_w.reshape(-1, 3)
+        body_quat_w = body_asset.data.body_quat_w.torch[:, self._body_ids].reshape(-1, 4)
+        # world pose of the base frame, broadcast over the bodies
+        root_pos_w = base_asset.data.root_link_pos_w.torch.unsqueeze(1).expand(-1, num_bodies, -1).reshape(-1, 3)
+        root_quat_w = base_asset.data.root_link_quat_w.torch.unsqueeze(1).expand(-1, num_bodies, -1).reshape(-1, 4)
         # transform from world body pose to local body pose
         body_pos_b, body_quat_b = subtract_frame_transforms(root_pos_w, root_quat_w, body_pos_w, body_quat_w)
-        # note: body velocities are the most engine/solver-sensitive observables (derivative
-        # signals amplify integrator and contact-response differences); pose-only states with
-        # observation history transfer across physics backends, velocity states do not.
+        # body velocities are the most solver-sensitive observables (derivative signals amplify integrator
+        # and contact-response differences); pose-only states with observation history transfer across
+        # physics backends, velocity states do not
         if include_vel:
             body_lin_vel_w = body_asset.data.body_lin_vel_w.torch[:, self._body_ids].view(-1, 3)
             body_ang_vel_w = body_asset.data.body_ang_vel_w.torch[:, self._body_ids].view(-1, 3)
@@ -104,43 +109,25 @@ class body_state_b(ManagerTermBase):
 class object_point_cloud_b(ManagerTermBase):
     """Object surface point cloud expressed in a reference asset's root frame.
 
-    Points are pre-sampled on the object's surface in its local frame and transformed to world,
-    then into the reference (e.g., robot) root frame. Optionally visualizes the points.
-
-    Args (from ``cfg.params``):
-        object_cfg: Scene entity for the object to sample. Defaults to ``SceneEntityCfg("object")``.
-        ref_asset_cfg: Scene entity providing the reference frame. Defaults to ``SceneEntityCfg("robot")``.
-        num_points: Number of points to sample on the object surface. Defaults to ``10``.
-        visualize: Whether to draw markers for the points. Defaults to ``True``.
-        static: If ``True``, cache world-space points on reset and reuse them (no per-step resampling).
-
-    Returns (from ``__call__``):
-        If ``flatten=False``: tensor of shape ``(num_envs, num_points, 3)``.
-        If ``flatten=True``: tensor of shape ``(num_envs, 3 * num_points)``.
+    Points are pre-sampled on the object's surface in its local frame at construction, transformed to
+    the world frame every step, and then into the reference (e.g. robot) root frame. The points can
+    optionally be drawn as markers.
     """
 
-    def __init__(self, cfg, env: ManagerBasedRLEnv):
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-
-        self.object_cfg: SceneEntityCfg = cfg.params.get("object_cfg", SceneEntityCfg("object"))
-        self.ref_asset_cfg: SceneEntityCfg = cfg.params.get("ref_asset_cfg", SceneEntityCfg("robot"))
+        object_cfg: SceneEntityCfg = cfg.params.get("object_cfg", SceneEntityCfg("object"))
+        ref_asset_cfg: SceneEntityCfg = cfg.params.get("ref_asset_cfg", SceneEntityCfg("robot"))
         num_points: int = cfg.params.get("num_points", 10)
-        self.object: RigidObject = env.scene[self.object_cfg.name]
-        self.ref_asset: Articulation = env.scene[self.ref_asset_cfg.name]
-        # lazy initialize visualizer and point cloud
-        if cfg.params.get("visualize", True):
-            from isaaclab.markers import VisualizationMarkers
-            from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
-
-            ray_cfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/ObservationPointCloud")
-            ray_cfg.markers["hit"].radius = 0.0025
-            self.visualizer = VisualizationMarkers(ray_cfg)
-        from .utils import sample_object_point_cloud
-
-        self.points_local = sample_object_point_cloud(
-            env.num_envs, num_points, self.object.cfg.prim_path, device=env.device
-        )
+        self.object: RigidObject = env.scene[object_cfg.name]
+        self.ref_asset: Articulation = env.scene[ref_asset_cfg.name]
+        self.points_local = sample_object_point_cloud(env.num_envs, num_points, self.object.cfg.prim_path, env.device)
         self.points_w = torch.zeros_like(self.points_local)
+        if cfg.params.get("visualize", True):
+            marker_cfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/ObservationPointCloud")
+            marker_cfg.markers["hit"].radius = 0.0025
+            self.visualizer = VisualizationMarkers(marker_cfg)
+            self._marker_env_ids = torch.arange(env.num_envs, device=env.device).repeat_interleave(num_points)
 
     def __call__(
         self,
@@ -150,42 +137,31 @@ class object_point_cloud_b(ManagerTermBase):
         num_points: int = 10,
         flatten: bool = False,
         visualize: bool = True,
-    ):
+    ) -> torch.Tensor:
         """Compute the object point cloud in the reference asset's root frame.
-
-        Note:
-            Points are pre-sampled at initialization using ``self.num_points``; the ``num_points`` argument is
-            kept for API symmetry and does not change the sampled set at runtime.
 
         Args:
             env: The environment.
-            ref_asset_cfg: Reference frame provider (root). Defaults to ``SceneEntityCfg("robot")``.
-            object_cfg: Object to sample. Defaults to ``SceneEntityCfg("object")``.
-            num_points: Unused at runtime; see note above.
-            flatten: If ``True``, return a flattened tensor ``(num_envs, 3 * num_points)``.
-            visualize: If ``True``, draw markers for the points.
+            ref_asset_cfg: Scene entity providing the reference (root) frame. Defaults to ``SceneEntityCfg("robot")``.
+            object_cfg: Scene entity of the object to sample. Defaults to ``SceneEntityCfg("object")``.
+            num_points: Number of surface points. Must match the value the points were sampled with at construction.
+            flatten: Whether to return the points as ``(num_envs, 3 * num_points)`` instead of
+                ``(num_envs, num_points, 3)``.
+            visualize: Whether to draw markers for the points. The markers are only created when this is
+                ``True`` in the term parameters.
 
         Returns:
-            Tensor of shape ``(num_envs, num_points, 3)`` or flattened if requested.
+            Object surface points [m] in the reference root frame, flattened if requested.
         """
-        ref_pos_w = self.ref_asset.data.root_pos_w.torch.unsqueeze(1).repeat(1, num_points, 1)
-        ref_quat_w = self.ref_asset.data.root_quat_w.torch.unsqueeze(1).repeat(1, num_points, 1)
-
-        object_pos_w = self.object.data.root_pos_w.torch.unsqueeze(1).repeat(1, num_points, 1)
-        object_quat_w = self.object.data.root_quat_w.torch.unsqueeze(1).repeat(1, num_points, 1)
-        # apply rotation + translation
+        object_pos_w = self.object.data.root_pos_w.torch.unsqueeze(1)
+        object_quat_w = self.object.data.root_quat_w.torch.unsqueeze(1).expand(-1, num_points, -1)
         self.points_w = quat_apply(object_quat_w, self.points_local) + object_pos_w
         if visualize:
-            environment_ids = torch.arange(env.num_envs, device=self.points_w.device).repeat_interleave(
-                self.points_w.shape[1]
-            )
-            self.visualizer.visualize(
-                translations=self.points_w.view(-1, 3),
-                environment_ids=environment_ids,
-            )
-        object_point_cloud_pos_b, _ = subtract_frame_transforms(ref_pos_w, ref_quat_w, self.points_w, None)
-
-        return object_point_cloud_pos_b.view(env.num_envs, -1) if flatten else object_point_cloud_pos_b
+            self.visualizer.visualize(translations=self.points_w.view(-1, 3), environment_ids=self._marker_env_ids)
+        ref_pos_w = self.ref_asset.data.root_pos_w.torch.unsqueeze(1).expand(-1, num_points, -1)
+        ref_quat_w = self.ref_asset.data.root_quat_w.torch.unsqueeze(1).expand(-1, num_points, -1)
+        points_b, _ = subtract_frame_transforms(ref_pos_w, ref_quat_w, self.points_w)
+        return points_b.view(env.num_envs, -1) if flatten else points_b
 
 
 def fingers_contact_force_b(
@@ -193,22 +169,54 @@ def fingers_contact_force_b(
     contact_sensor_names: list[str],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
-    """base-frame contact forces from listed sensors, concatenated per env.
+    """Contact forces [N] of the listed sensors in the robot root frame, concatenated per environment.
 
     Args:
         env: The environment.
         contact_sensor_names: Names of contact sensors in ``env.scene.sensors`` to read.
+        asset_cfg: Scene entity providing the root frame. Defaults to ``SceneEntityCfg("robot")``.
 
     Returns:
         Tensor of shape ``(num_envs, 3 * num_sensors)`` with forces stacked horizontally as
         ``[fx, fy, fz]`` per sensor.
     """
-    force_w = [env.scene.sensors[name].data.force_matrix_w.torch.view(env.num_envs, 3) for name in contact_sensor_names]
-    force_w = torch.stack(force_w, dim=1)
+    force_w = torch.stack(
+        [
+            env.scene.sensors[name].data.normal_force_matrix_w.torch.view(env.num_envs, 3)
+            for name in contact_sensor_names
+        ],
+        dim=1,
+    )
     robot: Articulation = env.scene[asset_cfg.name]
-    root_link_quat_w = robot.data.root_link_quat_w.torch
-    forces_b = quat_apply_inverse(root_link_quat_w.unsqueeze(1).repeat(1, force_w.shape[1], 1), force_w)
-    return forces_b.view(env.num_envs, -1)
+    root_quat_w = robot.data.root_link_quat_w.torch.unsqueeze(1).expand(-1, force_w.shape[1], -1)
+    return quat_apply_inverse(root_quat_w, force_w).view(env.num_envs, -1)
+
+
+class vision_camera(ManagerTermBase):
+    """Normalized, channel-first camera images from a single-data-type camera sensor.
+
+    RGB-like images are mapped to ``[-0.5, 0.5)``. Depth images are mapped onto the same span with
+    ``tanh(depth / 2) - 0.5``: a wider depth range would double the encoder's effective input scale
+    and halve the stable learning-rate budget.
+    """
+
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        sensor_cfg: SceneEntityCfg = cfg.params.get("sensor_cfg", SceneEntityCfg("tiled_camera"))
+        self.sensor: Camera = env.scene.sensors[sensor_cfg.name]
+        self.sensor_type = self.sensor.cfg.data_types[0]
+        self._is_depth = self.sensor_type in ("distance_to_image_plane", "depth")
+
+    def __call__(self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, normalize: bool = True) -> torch.Tensor:
+        images = self.sensor.data.output[self.sensor_type]
+        torch.nan_to_num_(images, nan=1e6)
+        if normalize:
+            if self._is_depth:
+                images = torch.tanh(images / 2) - 0.5
+            else:
+                images = images.float() / 255.0 - 0.5
+            images = images.permute(0, 3, 1, 2).contiguous()
+        return images
 
 
 def deformable_com_in_robot_root_frame(

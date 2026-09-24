@@ -69,11 +69,23 @@ _CARTPOLE_INTEGRATION_NUM_ENVS = 1
 _CARTPOLE_TILED_CAMERA_INTEGRATION_NUM_ENVS = 4
 """Vectorized env count for generated visualizer tiled-camera integration tests."""
 
+_CARTPOLE_ALL_ENVS_INTEGRATION_NUM_ENVS = 4
+"""Vectorized env count for the all-environment perspective-camera golden test."""
+
+_CARTPOLE_ALL_ENVS_INTEGRATION_SPACING = 8.0
+"""Environment spacing [m] for a clear four-cartpole perspective view."""
+
 _CARTPOLE_INTEGRATION_VISUALIZER_EYE: tuple[float, float, float] = (2.25, 0.0, 3.5)
 """Passed to :class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg` subclasses (``eye``)."""
 
 _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT: tuple[float, float, float] = (0.0, 0.0, 2.25)
 """Passed to visualizer cfgs (``lookat``); also applied to :class:`~isaaclab.envs.common.ViewerCfg` for the env."""
+
+_CARTPOLE_ALL_ENVS_VISUALIZER_EYE: tuple[float, float, float] = (9.0, 9.0, 10.0)
+"""Perspective-camera eye position that frames all four cartpole environments."""
+
+_CARTPOLE_ALL_ENVS_VISUALIZER_LOOKAT: tuple[float, float, float] = (0.0, 0.0, 2.25)
+"""Perspective-camera target at the center of the four-environment grid."""
 
 _CARTPOLE_INTEGRATION_TILED_CAMERA_EYE_OFFSET: tuple[float, float, float] = tuple(
     eye - lookat for eye, lookat in zip(_CARTPOLE_INTEGRATION_VISUALIZER_EYE, _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT)
@@ -130,13 +142,7 @@ _WARMUP_MAX_FRAMES = 50
 """Hard cap on render frames pumped during convergence-based warmup."""
 
 _FRANKA_CLOTH_KIT_VIEWPORT_WARMUP_FRAMES = 20
-"""Franka cloth kit-viewport warmup uses lightweight ``app.update()`` ticks
-(not ``env.sim.render()``).  Each ``env.sim.render()`` call for the VBD cloth
-scene blocks in the Newton Fabric sync path (the VBD cloth solver never sets
-``NewtonManager._newton_fabric_ready``), causing hangs on some GPU/driver
-combinations.  20 ``app.update()`` ticks drive RTX TAA accumulation without
-triggering the Fabric sync, producing an acceptable frame within the
-loose 12% / SSIM-0.85 thresholds."""
+"""Bounded RTX TAA warmup for the Franka cloth viewport capture."""
 
 _WARMUP_STABLE_DIFF_PCT = 0.5
 """Fraction of pixels (%) with inter-frame L2 > 1.0 below which two consecutive frames are
@@ -307,17 +313,26 @@ def _allocate_rerun_test_ports(host: str = "127.0.0.1") -> tuple[int, int]:
     return web_port, grpc_port
 
 
-def _cartpole_integration_visualizer_camera_kwargs() -> dict[str, tuple[float, float, float]]:
+def _cartpole_integration_visualizer_camera_kwargs(
+    *, all_envs_perspective: bool = False
+) -> dict[str, tuple[float, float, float]]:
     """Eye/lookat for all :class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg` subclasses in these tests."""
+    if all_envs_perspective:
+        return {
+            "eye": _CARTPOLE_ALL_ENVS_VISUALIZER_EYE,
+            "lookat": _CARTPOLE_ALL_ENVS_VISUALIZER_LOOKAT,
+        }
     return {
         "eye": _CARTPOLE_INTEGRATION_VISUALIZER_EYE,
         "lookat": _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT,
     }
 
 
-def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False):
+def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all_envs_perspective: bool = False):
     """Return (visualizer_cfg, expected_visualizer_cls) for the given visualizer kind."""
-    cam = _cartpole_integration_visualizer_camera_kwargs()
+    if tiled_camera and all_envs_perspective:
+        raise ValueError("Tiled-camera and all-environment perspective modes are mutually exclusive.")
+    cam = _cartpole_integration_visualizer_camera_kwargs(all_envs_perspective=all_envs_perspective)
     tiled_cam = (
         {
             "streaming_view": True,
@@ -1039,78 +1054,29 @@ def _reapply_kit_camera_pose(env, kit_visualizer: KitVisualizer) -> None:
     _update_active_simulation_app()
 
 
-def _force_newton_transforms_resync() -> None:
-    """Force-mark Newton body transforms and particles dirty and re-sync to USD Fabric.
-
-    Needed when the Fabric SelectPrims check fails on a prior pre_render() call (GPU
-    attribute propagation delay), leaving dirty flags cleared without writing positions.
-    """
-    with contextlib.suppress(Exception):
-        from isaaclab_newton.physics import NewtonManager  # noqa: PLC0415
-
-        if NewtonManager._usdrt_stage is not None and NewtonManager._state_0 is not None:
-            NewtonManager._transforms_dirty = True
-            NewtonManager.sync_transforms_to_usd()
-            NewtonManager._particles_dirty = True
-            NewtonManager.sync_particles_to_usd()
-
-
-def _drain_until_newton_fabric_ready(max_updates: int = 200, updates_per_iter: int = 2) -> None:
-    """Pump Kit updates until Newton has written body positions to Fabric.
-
-    Polls ``NewtonManager._newton_fabric_ready`` (set after the first successful
-    SelectPrims call) with real-time sleeps so the GPU can process pending Fabric work.
-    Returns immediately if already ready (common case after a normal physics warmup).
-
-    The tiled-camera path uses ``max_updates=600`` safely (tiled cameras are not rendered
-    until ``camera_sensor.update()``); the viewport path keeps a lower ceiling to limit
-    contaminated TAA frames accumulating during the drain.
-    """
-    with contextlib.suppress(Exception):
-        from isaaclab_newton.physics import NewtonManager  # noqa: PLC0415
-
-        for _ in range(max(0, int(max_updates))):
-            if NewtonManager._newton_fabric_ready:
-                return
-            with contextlib.suppress(Exception):
-                import torch  # noqa: PLC0415
-
-                if torch.cuda.is_available():
-                    torch.cuda.synchronize()
-            _force_newton_transforms_resync()
-            _drain_kit_app_updates(updates_per_iter)
-
-
 def _capture_kit_viewport_with_pose_reapply(
     env,
     kit_visualizer: KitVisualizer,
     resolution: tuple[int, int] | None = None,
     physics_backend: str = "",
-    prior_physics_steps: int = 0,
     max_warmup_frames: int | None = None,
     app_updates_only: bool = False,
 ) -> np.ndarray:
     """Set the configured eye/lookat, warm RTX, then capture.
 
-    Re-applies the camera between the two ``app.update()`` calls in the warmup loop so
-    that Newton stage init (which resets the viewport camera) does not affect the final
-    frame.  When ``prior_physics_steps > 0``, also re-syncs Newton body transforms
-    between the two calls so the correct pose is rendered.
+    Re-applies the camera after rendering so Newton viewport initialization does not
+    change the captured viewpoint. The normal render path refreshes body transforms.
 
     Args:
         env: The simulation environment.
         kit_visualizer: The active :class:`KitVisualizer` instance.
         resolution: Optional ``(width, height)`` override for the render product.
-        physics_backend: ``"newton"`` to enable per-render camera reapply and body-
-            transform re-sync.
-        prior_physics_steps: When > 0, injects a Newton body-transform re-sync
-            between the two ``app.update()`` calls.
+        physics_backend: ``"newton"`` to enable per-render camera reapply.
         max_warmup_frames: When set, overrides the default convergence cap.  Use a
             small value when per-frame render cost is very high and test thresholds
             are loose enough that convergence is not required (e.g. franka cloth RTX).
-        app_updates_only: When True, uses lightweight ``app.update()`` ticks instead
-            of ``env.sim.render()``.  Required for VBD cloth scenes where
-            ``env.sim.render()`` blocks in the Newton Fabric sync path.
+        app_updates_only: When True, warms RTX with ``app.update()`` ticks instead
+            of ``env.sim.render()``.
     """
     kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
     camera_path = getattr(kit_visualizer, "_controlled_camera_path", None)
@@ -1118,14 +1084,11 @@ def _capture_kit_viewport_with_pose_reapply(
     annotator, render_product = _build_rgb_annotator_for_camera(camera_path, resolution=resolution)
     try:
         if physics_backend == "newton":
-            _drain_until_newton_fabric_ready()
             prev: np.ndarray | None = None
             for i in range(_WARMUP_MAX_FRAMES):
                 kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
                 env.sim.render()
                 kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
-                if prior_physics_steps > 0:
-                    _force_newton_transforms_resync()
                 _update_active_simulation_app()
                 with contextlib.suppress(Exception):
                     annotator.get_data()
@@ -1166,9 +1129,8 @@ def _warm_kit_rtx_render_product(
     satisfy :func:`_frames_converged` or :data:`_WARMUP_MAX_FRAMES` is reached.
     When ``max_frames_override`` is set, it replaces both caps above — useful when the
     per-frame render cost is high and loose thresholds make convergence unnecessary.
-    When ``app_updates_only`` is True, replaces ``env.sim.render()`` with lightweight
-    ``app.update()`` calls.  Use this for VBD cloth scenes where ``env.sim.render()``
-    blocks in the Newton Fabric sync path (VBD cloth particles never set the ready flag).
+    When ``app_updates_only`` is True, warms RTX with ``app.update()`` calls without
+    advancing the visualizers.
     """
     if max_frames_override is not None:
         max_frames = max_frames_override
@@ -1348,24 +1310,7 @@ def _capture_visualizer_tiled_camera_rgb(
     if force_recompute and getattr(visualizer, "_camera_is_owned", False):
         visualizer._update_owned_camera_poses()
         if isinstance(visualizer, KitVisualizer):
-            visualizer._sync_camera_pose_updates_to_kit()
-            # Probe with a short drain to detect backend: on Newton, _newton_fabric_ready is set
-            # after the first iteration; on PhysX it is never set so we skip the full drain and
-            # let _pump_tiled_until_stable handle convergence instead.
-            _drain_until_newton_fabric_ready(max_updates=20, updates_per_iter=4)
-            try:
-                from isaaclab_newton.physics import NewtonManager  # noqa: PLC0415
-
-                if NewtonManager._newton_fabric_ready:
-                    if not paused:
-                        _drain_until_newton_fabric_ready(max_updates=600, updates_per_iter=4)
-                    _update_active_simulation_app()
-                    if not paused:
-                        _force_newton_transforms_resync()
-                else:
-                    _update_active_simulation_app()
-            except Exception:
-                _update_active_simulation_app()
+            _update_active_simulation_app()
         return _pump_tiled_until_stable(camera_sensor, camera_indices)
     rgb_batch = camera_rgb_batch(camera_sensor, camera_indices)
     frame = compose_rgb_grid_tensor(rgb_batch).detach().cpu().numpy()
@@ -1707,10 +1652,7 @@ _FRANKA_CLOTH_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH = "/World/envs/*/Robot"
 _FRANKA_CLOTH_WARMUP_STEPS = 1
 """Steps after reset before capturing the franka cloth scene.
 
-One step lets Newton propagate articulation FK so all robot arm links are visible at the
-correct positions.  At 0 steps, Newton has not yet synced body positions to USD Fabric,
-leaving the arm links at the origin and invisible in the Kit viewport.  One step also lets
-the cloth begin falling under gravity while remaining in a nearly-deterministic pose — the
+One step lets the cloth begin falling under gravity while remaining in a nearly-deterministic pose — the
 VBD solver's non-deterministic parallel reductions accumulate over many steps, so capturing
 at 1 step keeps inter-run pixel variance much lower than at 20 steps.
 This mirrors the approach used in the kitless rendering tests in
@@ -1815,24 +1757,44 @@ def _make_franka_cloth_env(visualizer_kind: str | tuple[str, ...], *, tiled_came
 
 
 def _make_cartpole_camera_env(
-    visualizer_kind: str | tuple[str, ...], backend_kind: str, *, tiled_camera: bool = False
+    visualizer_kind: str | tuple[str, ...],
+    backend_kind: str,
+    *,
+    tiled_camera: bool = False,
+    all_envs_perspective: bool = False,
 ) -> CartpoleCameraEnv:
     """Create cartpole camera env configured with selected visualizer and physics backend."""
+    if tiled_camera and all_envs_perspective:
+        raise ValueError("Tiled-camera and all-environment perspective modes are mutually exclusive.")
     physics = "newton_mjwarp" if backend_kind == "newton" else "physx"
     env_cfg = _compose_task_cfg("Isaac-Cartpole-Camera-Direct", physics, "renderer=isaacsim_rtx")
     env_cfg.scene.num_envs = (
-        _CARTPOLE_TILED_CAMERA_INTEGRATION_NUM_ENVS if tiled_camera else _CARTPOLE_INTEGRATION_NUM_ENVS
+        _CARTPOLE_TILED_CAMERA_INTEGRATION_NUM_ENVS
+        if tiled_camera
+        else _CARTPOLE_ALL_ENVS_INTEGRATION_NUM_ENVS
+        if all_envs_perspective
+        else _CARTPOLE_INTEGRATION_NUM_ENVS
     )
-    env_cfg.viewer.eye = _CARTPOLE_INTEGRATION_VISUALIZER_EYE
-    env_cfg.viewer.lookat = _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT
+    if all_envs_perspective:
+        env_cfg.scene.env_spacing = _CARTPOLE_ALL_ENVS_INTEGRATION_SPACING
+    camera_kwargs = _cartpole_integration_visualizer_camera_kwargs(all_envs_perspective=all_envs_perspective)
+    env_cfg.viewer.eye = camera_kwargs["eye"]
+    env_cfg.viewer.lookat = camera_kwargs["lookat"]
     tw, th = _CARTPOLE_TILED_CAMERA_INTEGRATION_WH
-    env_cfg.tiled_camera.width = tw
-    env_cfg.tiled_camera.height = th
+    env_cfg.scene.tiled_camera.width = tw
+    env_cfg.scene.tiled_camera.height = th
     if isinstance(env_cfg.observation_space, list) and len(env_cfg.observation_space) >= 3:
         env_cfg.observation_space = [th, tw, env_cfg.observation_space[2]]
     env_cfg.seed = None
     visualizer_kinds = (visualizer_kind,) if isinstance(visualizer_kind, str) else tuple(visualizer_kind)
-    visualizer_cfgs = [_get_visualizer_cfg(kind, tiled_camera=tiled_camera)[0] for kind in visualizer_kinds]
+    visualizer_cfgs = [
+        _get_visualizer_cfg(
+            kind,
+            tiled_camera=tiled_camera,
+            all_envs_perspective=all_envs_perspective,
+        )[0]
+        for kind in visualizer_kinds
+    ]
     env_cfg.sim.visualizer_cfgs = visualizer_cfgs[0] if len(visualizer_cfgs) == 1 else visualizer_cfgs
     return CartpoleCameraEnv(env_cfg)
 

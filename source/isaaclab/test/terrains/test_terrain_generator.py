@@ -10,7 +10,13 @@ import numpy as np
 import pytest
 import torch
 
-from isaaclab.terrains import FlatPatchSamplingCfg, TerrainGenerator, TerrainGeneratorCfg
+from isaaclab.terrains import (
+    FlatPatchSamplingCfg,
+    MeshRepeatedBoxesTerrainCfg,
+    MeshStarTerrainCfg,
+    TerrainGenerator,
+    TerrainGeneratorCfg,
+)
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.utils.seed import configure_seed
 
@@ -47,6 +53,55 @@ def test_generation(output_dir):
     # check if the size is as expected
     assert actualSize[0] == pytest.approx(expectedSizeX)
     assert actualSize[1] == pytest.approx(expectedSizeY)
+
+
+def test_generation_star_terrain():
+    """Generates a star sub-terrain and tests that the resulting mesh has the expected size.
+
+    The star sub-terrain is not part of :obj:`ROUGH_TERRAINS_CFG`, so it needs its own coverage.
+    """
+    # create terrain generator with only the star sub-terrain
+    cfg = TerrainGeneratorCfg(
+        seed=0,
+        size=(8.0, 8.0),
+        num_rows=1,
+        num_cols=1,
+        use_cache=False,
+        sub_terrains={
+            # the number of bars is chosen so that all the branches of the bar-length computation are covered
+            "star": MeshStarTerrainCfg(
+                proportion=1.0,
+                platform_width=1.5,
+                num_bars=5,
+                bar_width_range=(0.5, 1.0),
+                bar_height_range=(0.05, 0.2),
+            )
+        },
+    )
+    terrain_generator = TerrainGenerator(cfg=cfg)
+
+    # get size from mesh bounds
+    bounds = terrain_generator.terrain_mesh.bounds
+    actual_size = abs(bounds[1] - bounds[0])
+
+    # check if the size is as expected
+    assert actual_size[0] == pytest.approx(cfg.size[0] * cfg.num_rows + 2 * cfg.border_width)
+    assert actual_size[1] == pytest.approx(cfg.size[1] * cfg.num_cols + 2 * cfg.border_width)
+    # check the sub-terrain origin is at the center of the terrain
+    assert terrain_generator.terrain_origins.shape == (cfg.num_rows, cfg.num_cols, 3)
+
+
+def test_repeated_objects_default_object_type():
+    """The default resolvable ``object_type`` of the repeated-object configs is called, not looked up by name."""
+    object_cfg = MeshRepeatedBoxesTerrainCfg.ObjectCfg(num_objects=3, height=0.2, size=(0.3, 0.3))
+    cfg = MeshRepeatedBoxesTerrainCfg(
+        size=(4.0, 4.0), platform_width=1.0, object_params_start=object_cfg, object_params_end=object_cfg
+    )
+    np.random.seed(0)
+    meshes, origin = cfg.function(0.5, cfg)
+    # three objects, ground plane and platform
+    assert len(meshes) == 5
+    assert origin.shape == (3,)
 
 
 @pytest.mark.parametrize("use_global_seed", [True, False])

@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from _articulation_iface_test_utils import BACKENDS, get_articulation
+from _articulation_iface_test_utils import BACKEND_UNAVAILABLE_REASONS, BACKENDS, get_articulation
 
 pytestmark = pytest.mark.integration
 
@@ -267,6 +267,57 @@ class TestArticulationFinderReturnModes:
         assert proxy is finder(".*", as_proxy=True)[0]
         assert proxy.dtype == wp.int32
         assert str(proxy.device) == art.device
+
+
+class TestFixedTendonTargetScheduling:
+    """Commanding a tendon target is what schedules the write, not merely having tendons."""
+
+    @staticmethod
+    def _articulation(backend):
+        art, _ = get_articulation(
+            backend,
+            num_instances=2,
+            num_joints=2,
+            num_bodies=2,
+            num_fixed_tendons=2,
+            num_spatial_tendons=0,
+            device="cpu",
+        )
+        return art
+
+    @_production_backends
+    def test_carrying_tendons_alone_schedules_no_write(self, backend):
+        """An articulation that only carries tendons must not resubmit their properties each step."""
+        art = self._articulation(backend)
+        assert art.num_fixed_tendons == 2
+        assert art._fixed_tendon_target_dirty is False
+
+    @_production_backends
+    def test_commanding_a_target_schedules_the_write(self, backend):
+        """The target setter marks the write pending; a static offset write keeps its own contract."""
+        if backend == "newton":
+            pytest.skip("Newton needs a MuJoCo tendon actuator, covered by the delegation tests below.")
+        art = self._articulation(backend)
+        art.set_fixed_tendon_position_target_index(target=torch.zeros((2, 2), dtype=torch.float32))
+        assert art._fixed_tendon_target_dirty is True
+
+    def test_newton_reports_a_missing_tendon_actuator(self):
+        """Without a MuJoCo tendon actuator the solver has no adapter, so commanding must say so."""
+        if "newton" not in BACKENDS:
+            pytest.skip(BACKEND_UNAVAILABLE_REASONS.get("newton", "newton backend unavailable"))
+        art = self._articulation("newton")
+        with pytest.raises(RuntimeError, match="no MuJoCo tendon actuator"):
+            art.set_fixed_tendon_position_target_index(target=torch.zeros((2, 2), dtype=torch.float32))
+
+    def test_a_solver_without_tendon_transmission_refuses_to_build_an_adapter(self):
+        """A solver with no tendon transmission says so, rather than returning nothing."""
+        if "newton" not in BACKENDS:
+            pytest.skip(BACKEND_UNAVAILABLE_REASONS.get("newton", "newton backend unavailable"))
+        from isaaclab_newton.physics import NewtonManager
+
+        art = self._articulation("newton")
+        with pytest.raises(NotImplementedError, match="does not drive fixed tendons"):
+            NewtonManager.create_fixed_tendon_control(art)
 
 
 # ---------------------------------------------------------------------------
@@ -1583,6 +1634,19 @@ class TestArticulationWritersRoot:
         # negative: bad warp shape
         with pytest.raises((AssertionError, RuntimeError)):
             method(root_velocity=_make_bad_data_warp((num_instances,), device, wp.spatial_vectorf))
+
+
+@_backends
+@pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 4, 5)])
+@pytest.mark.parametrize("device", ["cpu"])
+def test_deprecated_joint_friction_writers(backend, num_instances, num_joints, num_bodies, device, articulation_iface):
+    """The deprecated joint friction writers forward to the index writer on every backend."""
+    art, _ = articulation_iface
+    friction = torch.full((num_instances, num_joints), 0.5, device=device)
+    with pytest.warns(DeprecationWarning):
+        art.write_joint_friction_coefficient_to_sim(friction)
+    with pytest.warns(DeprecationWarning):
+        art.write_joint_friction_to_sim(friction)
 
 
 # ---------------------------------------------------------------------------

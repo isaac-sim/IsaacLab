@@ -12,6 +12,7 @@ import math
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -19,6 +20,7 @@ import warp as wp
 from isaaclab.assets.visual_material.visual_material import VisualMaterial, _channel_specs
 from isaaclab.cloner import ClonePlan
 from isaaclab.renderers.render_context import RenderContext
+from isaaclab.renderers.renderer_cfg import RendererCfg
 
 _SOURCE_ROOT = Path(__file__).resolve().parents[3]
 _PACKAGE_ROOT = _SOURCE_ROOT / "isaaclab" / "isaaclab"
@@ -57,7 +59,7 @@ def test_partial_gpu_write_updates_flat_material_rows(channel: str, trailing_sha
         shape = (4, *trailing_shape)
         return torch.arange(count, dtype=torch.float32, device="cuda:0").reshape(shape) + offset
 
-    context = RenderContext()
+    context = RenderContext([])
     first = _Material("first", channel, initial_values(0.0))
     second = _Material("second", channel, initial_values(20.0))
     context.register_visual_material(first)
@@ -92,7 +94,7 @@ def test_write_runs_core_and_backend_on_the_calling_torch_stream() -> None:
             streams.append(wp.get_stream("cuda:0").cuda_stream)
             super().__call__(material_offsets, env_ids)
 
-    context = RenderContext()
+    context = RenderContext([])
     material = _Material("material", "roughness", torch.zeros(2, device="cuda:0"))
     context.register_visual_material(material)
     context.finalize_consumers([SimpleNamespace(visual_material_writer=lambda _batches: Writer())])
@@ -137,7 +139,7 @@ class _WriterFactory:
 
 
 def test_global_material_write_uses_its_single_flat_row() -> None:
-    context = RenderContext()
+    context = RenderContext([])
     material = _Material("global", "roughness", torch.zeros(1), is_per_env=False)
     context.register_visual_material(material)
     factory = _WriterFactory()
@@ -152,12 +154,13 @@ def test_global_material_write_uses_its_single_flat_row() -> None:
 
 
 def test_finalize_deduplicates_and_rebuilds_shared_writer() -> None:
-    context = RenderContext()
+    registry = []
+    context = RenderContext(registry)
     material = _Material("material", "roughness", torch.zeros(2))
     context.register_visual_material(material)
     factory = _WriterFactory()
     consumer = SimpleNamespace(visual_material_writer=factory)
-    context._renderer_entries = [(object(), consumer)]  # type: ignore[assignment]  # noqa: SLF001
+    registry.append((RendererCfg(), consumer))
     visualizers = [consumer, SimpleNamespace(visual_material_writer=factory)]
 
     context.finalize_consumers(visualizers)
@@ -178,7 +181,7 @@ def test_finalize_deduplicates_and_rebuilds_shared_writer() -> None:
 
 
 def test_material_registration_is_idempotent_after_lifecycle_stop() -> None:
-    context = RenderContext()
+    context = RenderContext([])
     material = _Material("material", "roughness", torch.zeros(2))
     context.register_visual_material(material)
     context.finalize_consumers([])
@@ -243,8 +246,8 @@ def test_material_initialization_orders_paths_by_plan_column(monkeypatch: pytest
     plan = ClonePlan(
         sources=("/World/envs/env_42/Robot", "/World/envs/env_7/Robot"),
         destinations=("/World/envs/env_{}/Robot",) * 2,
-        env_ids=torch.tensor([19, 42, 7]),
-        clone_mask=torch.tensor([[True, True, False], [False, False, True]]),
+        env_ids=np.asarray([19, 42, 7], dtype=np.int64),
+        clone_mask=np.asarray([[True, True, False], [False, False, True]], dtype=np.bool_),
     )
     simulation = SimpleNamespace(get_clone_plan=lambda: plan)
     monkeypatch.setattr(
@@ -286,8 +289,8 @@ def test_material_initialization_rejects_partial_owner_row(monkeypatch: pytest.M
     plan = ClonePlan(
         sources=("/World/envs/env_0/Robot",),
         destinations=("/World/envs/env_{}/Robot",),
-        env_ids=torch.arange(4),
-        clone_mask=torch.tensor([[True, True, False, False]]),
+        env_ids=np.arange(4, dtype=np.int64),
+        clone_mask=np.asarray([[True, True, False, False]], dtype=np.bool_),
     )
     simulation = SimpleNamespace(get_clone_plan=lambda: plan)
     monkeypatch.setattr(

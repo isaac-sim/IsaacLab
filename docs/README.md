@@ -16,7 +16,7 @@ This section describes how to build the documentation for the current version of
 
 ```bash
 # 1. Build the current documentation
-uv run --isolated --extra test -- make -C docs current-docs
+uv run --isolated --extra dev -- make -C docs current-docs
 
 # 2. Open the current docs
 xdg-open docs/_build/current/index.html
@@ -27,7 +27,7 @@ xdg-open docs/_build/current/index.html
 
 ```batch
 :: 1. Build the current documentation
-uv run --isolated --extra test -- cmd /c docs\make.bat current-docs
+uv run --isolated --extra dev -- cmd /c docs\make.bat current-docs
 
 :: 2. Open the current docs
 start docs\_build\current\index.html
@@ -43,7 +43,7 @@ This section describes how to build the multi-version documentation, which inclu
 
 ```bash
 # 1. Build the multi-version documentation
-uv run --isolated --extra test -- make -C docs multi-docs
+uv run --isolated --extra dev -- make -C docs multi-docs
 
 # 2. Open the multi-version docs
 xdg-open docs/_build/index.html
@@ -54,7 +54,7 @@ xdg-open docs/_build/index.html
 
 ```batch
 :: 1. Build the multi-version documentation
-uv run --isolated --extra test -- cmd /c docs\make.bat multi-docs
+uv run --isolated --extra dev -- cmd /c docs\make.bat multi-docs
 
 :: 2. Open the multi-version docs
 start docs\_build\index.html

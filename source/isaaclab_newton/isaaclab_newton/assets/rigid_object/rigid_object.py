@@ -148,14 +148,14 @@ class RigidObject(BaseRigidObject):
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            composer.compose_to_body_frame()
+            force_b, torque_b, _ = composer.get_forces_and_torques()
             wp.launch(
                 shared_kernels.update_wrench_array_with_force_and_torque,
                 dim=(self.num_instances, self.num_bodies),
                 device=self.device,
                 inputs=[
-                    composer.out_force_b,
-                    composer.out_torque_b,
+                    force_b,
+                    torque_b,
                     self._data.body_link_pose_w.warp,
                     self._data._sim_bind_body_external_wrench,
                     self._ALL_ENV_MASK,
@@ -371,6 +371,9 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
+        # Nonfloating root bindings write model.joint_X_p, not state.joint_q.
+        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
             self.data._reset_pose(env_ids=env_ids)
@@ -419,6 +422,8 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
+        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)
@@ -472,6 +477,8 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
+        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
@@ -523,6 +530,8 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
+        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:

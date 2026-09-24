@@ -29,8 +29,8 @@ parser.add_argument(
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
-args_cli = parser.parse_args()
+# parse the arguments, forwarding unrecognized ones as Hydra-style task config overrides
+args_cli, hydra_overrides = parser.parse_known_args()
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
@@ -276,6 +276,7 @@ def main():
         device=args_cli.device,
         num_envs=args_cli.num_envs,
         use_fabric=not args_cli.disable_fabric,
+        overrides=hydra_overrides,
     )
     # create environment
     env = gym.make("IsaacContrib-Open-Drawer-Franka-IK-Abs", cfg=env_cfg)

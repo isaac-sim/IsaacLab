@@ -5,25 +5,34 @@
 
 import math
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.physics import PhysxCfg
 
-from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, RewardTermCfg, SceneEntityCfg, TerminationTermCfg
+from isaaclab.managers import (
+    ObservationGroupCfg,
+    ObservationTermCfg,
+    RewardTermCfg,
+    SceneEntityCfg,
+    TerminationTermCfg,
+)
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.core.velocity.mdp as mdp
-from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg, RoughPhysicsCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, DIGIT_V4_CFG, LEG_JOINT_NAMES
+
+_ROUGH_NEWTON_MJWARP = RoughPhysicsCfg().newton_mjwarp
+"""Bound once so ``DigitPhysicsCfg`` does not construct ``RoughPhysicsCfg`` twice."""
 
 
 @configclass
 class DigitPhysicsCfg(PresetCfg):
-    """PhysX-only physics configuration for the Digit velocity environments."""
+    """Physics configuration for the Digit velocity environments."""
 
     isaacsim_physx = PhysxCfg(
         gpu_max_rigid_patch_count=10 * 2**15,
@@ -31,6 +40,13 @@ class DigitPhysicsCfg(PresetCfg):
         gpu_total_aggregate_pairs_capacity=2**23,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    # ``class_type`` is reset to ``None`` because ``NewtonCfg.__post_init__`` re-derives it from
+    # ``solver_cfg`` and refuses an explicit value -- ``replace()`` would otherwise carry the
+    # already-derived value from the source instance forward as one.
+    newton_mjwarp = _ROUGH_NEWTON_MJWARP.replace(
+        class_type=None,
+        solver_cfg=_ROUGH_NEWTON_MJWARP.solver_cfg.replace(njmax=5000, nconmax=2000),
+    )
     default = isaacsim_physx
 
 
@@ -244,14 +260,6 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.scene.contact_forces.history_length = self.decimation
         self.scene.contact_forces.update_period = self.sim.dt
         self.scene.height_scanner.update_period = self.decimation * self.sim.dt
-        # target only actuated joints explicitly — ".*" mis-indexes Digit's ball-joint DoFs
-        self.scene.robot.actuators = {
-            "legs_arms": ImplicitActuatorCfg(
-                joint_names_expr=LEG_JOINT_NAMES + ARM_JOINT_NAMES,
-                stiffness=None,
-                damping=None,
-            ),
-        }
         # commands
         self.commands.base_velocity.ranges.lin_vel_x = (-0.8, 0.8)
         self.commands.base_velocity.ranges.lin_vel_y = (-0.5, 0.5)
@@ -261,8 +269,12 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # events
         self.events.add_base_mass.params["asset_cfg"].body_names = "torso_base"
         self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_base"
-        # Digit is PhysX-only, so the inherited ``newton_mjwarp`` branch names no
-        # reachable backend; collapse the preset so it cannot be selected on its own.
-        self.events.base_com = self.events.base_com.default
         self.events.base_com.params["asset_cfg"].body_names = "torso_base"
+        # The asset authors enabledSelfCollisions=False and DIGIT_V4_CFG sets no
+        # articulation_props, so Newton filters every intra-articulation shape pair -- 253 of
+        # them, exactly C(23,2) for its 23 colliding shapes -- and the legs pass through each
+        # other. Which links carry colliders is left as the asset authored it.
+        self.scene.robot.spawn.articulation_props = preset(
+            default=None, newton_mjwarp=[NewtonArticulationCfg(self_collision_enabled=True)]
+        )
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)

@@ -3,36 +3,46 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Direct-workflow two-hand handover environment."""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import torch
 
-import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.assets import Articulation, RigidObject
+from isaaclab.assets import Articulation
 from isaaclab.envs import DirectMARLEnv
-from isaaclab.markers import VisualizationMarkers
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import quat_conjugate, quat_mul, sample_uniform, saturate, scale_transform, unscale_transform
 
-from isaaclab_tasks.core.handover.handover_common import GOAL_POSITION_OFFSET
-from isaaclab_tasks.core.handover.handover_env_cfg import HandoverEnvCfg
-from isaaclab_tasks.core.handover.mdp.rewards import evaluate_handover_success, handover_reward
-from isaaclab_tasks.core.utils import (
+from isaaclab_tasks.core.reorient.utils import (
     EpisodeErrorRecorder,
     randomize_rotation,
+    resolve_actuated_tendons,
     sample_joint_positions_within_limits,
 )
 
+from .handover_common import GOAL_POSITION_OFFSET
+from .mdp.rewards import evaluate_handover_success, handover_reward
+
+if TYPE_CHECKING:
+    from .handover_env_cfg import HandoverEnvCfg
+
 
 class HandoverEnv(DirectMARLEnv):
+    """Two Shadow Hands hand a ball over to a fixed goal position.
+
+    Both agents observe their own hand plus the object and goal, and share one distance reward.
+    """
+
     cfg: HandoverEnvCfg
 
     def __init__(self, cfg: HandoverEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
+        self.right_hand, self.left_hand, self.object, self.goal_markers = [
+            self.scene[name] for name in ("right_robot", "left_robot", "object", "goal_object")
+        ]
 
         self.num_hand_dofs = self.right_hand.num_joints
 
@@ -57,6 +67,18 @@ class HandoverEnv(DirectMARLEnv):
                 f"Expected {len(cfg.actuated_joint_names)} actuated joints, found {len(self.actuated_dof_indices)}."
             )
 
+        # Motors that pull a tendon rather than drive a joint. Both hands are the same model, so
+        # one index set serves both.
+        self.actuated_tendon_indices: list[int] = []
+        if cfg.actuated_tendon_names:
+            self.actuated_tendon_indices, self.tendon_lower_limits, self.tendon_upper_limits = resolve_actuated_tendons(
+                self.right_hand,
+                cfg.actuated_tendon_names,
+                self.num_envs,
+                self.device,
+                cfg.actuated_tendon_position_limits,
+            )
+
         # finger bodies
         self.finger_bodies, _ = self.right_hand.find_bodies(self.cfg.fingertip_body_names)
         if len(self.finger_bodies) != len(self.cfg.fingertip_body_names):
@@ -78,39 +100,15 @@ class HandoverEnv(DirectMARLEnv):
         self.goal_pos[:, :] = self.object.data.default_root_pose.torch[:, :3] + torch.tensor(
             GOAL_POSITION_OFFSET, dtype=torch.float, device=self.device
         )
-        # initialize goal marker
-        self.goal_markers = VisualizationMarkers(self.cfg.goal_object_cfg)
-
         # Sticky per-env flag: True once the object reached the goal within threshold.
         self._episode_succeeded = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        # Goal distance from the most recent reward step, read at reset as the episode's final value.
+        self._last_goal_dist = torch.full((self.num_envs,), float("inf"), device=self.device)
         self._goal_distance = EpisodeErrorRecorder(self.num_envs, self.device)
 
         # unit tensors for sampling goal/object rotations about the x and y axes
         self.x_unit_tensor = torch.tensor([1, 0, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
         self.y_unit_tensor = torch.tensor([0, 1, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
-
-    def _setup_scene(self):
-        # add hand, in-hand object, and goal object
-        self.right_hand = Articulation(self.cfg.right_robot_cfg)
-        self.left_hand = Articulation(self.cfg.left_robot_cfg)
-        self.object = RigidObject(self.cfg.object_cfg)
-        # add ground plane
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        global_paths = ("/World/ground",)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos, global_paths=global_paths)
-        cloner.replicate(plan, stage=self.scene.stage)
-        # PhysX replication requires explicit collision filtering between environments.
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=["/World/ground"])
-        # add articulation to scene - we must register to scene to randomize with EventManager
-        self.scene.articulations["right_robot"] = self.right_hand
-        self.scene.articulations["left_robot"] = self.left_hand
-        self.scene.rigid_objects["object"] = self.object
-        # add lights
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-        light_cfg.func("/World/Light", light_cfg)
 
     def _pre_physics_step(self, actions: dict[str, torch.Tensor]) -> None:
         self.actions = actions
@@ -128,22 +126,37 @@ class HandoverEnv(DirectMARLEnv):
         curr_targets: torch.Tensor,
         prev_targets: torch.Tensor,
     ) -> None:
-        """Map one agent's actions to joint position targets and write them to its hand.
+        """Map one agent's actions to position targets and write them to its hand.
 
-        The raw ``[-1, 1]`` action is rescaled to the joint limits, blended with the previous
-        target via the exponential moving average, clamped to the limits, and set on the hand.
+        Actions are ordered joints first, then tendons, matching the manager task's action term.
+        Each raw ``[-1, 1]`` joint action is rescaled to the joint limits, blended with the
+        previous target via the exponential moving average, clamped to the limits, and set on the
+        hand. Tendon actions are rescaled to the tendon's commandable range and written directly.
         """
         idx = self.actuated_dof_indices
         lower = self.hand_dof_lower_limits[:, idx]
         upper = self.hand_dof_upper_limits[:, idx]
 
-        targets = unscale_transform(self.actions[agent], lower, upper)
+        targets = unscale_transform(self.actions[agent][:, : len(idx)], lower, upper)
         targets = self.cfg.act_moving_average * targets + (1.0 - self.cfg.act_moving_average) * prev_targets[:, idx]
         targets = saturate(targets, lower, upper)
 
         curr_targets[:, idx] = targets
         prev_targets[:, idx] = targets
         hand.set_joint_position_target_index(target=targets, joint_ids=idx)
+
+        if self.actuated_tendon_indices:
+            # No moving average on the tendon target: the manager task's action term applies none,
+            # and the two task variants have to stay comparable.
+            # saturate like the joint target above: a Gaussian policy samples past the action range,
+            # and the manager term bounds its own output, so both variants must clamp to the limits
+            tendon_targets = unscale_transform(
+                self.actions[agent][:, len(idx) :], self.tendon_lower_limits, self.tendon_upper_limits
+            )
+            hand.set_fixed_tendon_position_target_index(
+                target=saturate(tendon_targets, self.tendon_lower_limits, self.tendon_upper_limits),
+                fixed_tendon_ids=self.actuated_tendon_indices,
+            )
 
     def _hand_proprio_obs(self, agent: str) -> torch.Tensor:
         """Per-hand proprioceptive observation block for ``agent`` (133 dims).
@@ -213,8 +226,10 @@ class HandoverEnv(DirectMARLEnv):
         self.extras["log"]["dist_reward"] = rew_dist.mean()
         self.extras["log"]["dist_goal"] = goal_dist_mean
         self.extras["log"]["Metrics/goal_distance"] = goal_dist_mean
-        # Sticky per-env success: True once the object reached the goal within threshold.
+        # Reaching the goal is necessary but not sufficient; the object must still be there when
+        # the episode ends. ``_reset_idx`` combines this with the final distance.
         self._episode_succeeded |= succeeded
+        self._last_goal_dist = goal_dist
 
         return {"right_hand": rew_dist, "left_hand": rew_dist}
 
@@ -233,9 +248,12 @@ class HandoverEnv(DirectMARLEnv):
     def _reset_idx(self, env_ids: Sequence[int] | torch.Tensor | None):
         if env_ids is None:
             env_ids = self.right_hand._ALL_INDICES
-        # Flush per-episode success (sticky binary: object ever reached the goal within threshold).
-        # 0-dim device tensor, for the same reason
-        self.extras.setdefault("log", {})["Metrics/success_rate"] = self._episode_succeeded[env_ids].float().mean()
+        # flush the per-episode success: the object is at the goal as the episode ends, not merely
+        # passed through it. Logged as a 0-dim device tensor to avoid a host sync.
+        succeeded = (self._last_goal_dist[env_ids] < self.cfg.success_distance_threshold) & self._episode_succeeded[
+            env_ids
+        ]
+        self.extras.setdefault("log", {})["Metrics/success_rate"] = succeeded.float().mean()
         for statistic, value in self._goal_distance.reset(env_ids).items():
             self.extras["log"][f"Diagnostics/episode_min_goal_distance_{statistic}"] = value
         self._episode_succeeded[env_ids] = False
@@ -295,7 +313,7 @@ class HandoverEnv(DirectMARLEnv):
 
         self._compute_intermediate_values()
 
-    def _reset_target_pose(self, env_ids):
+    def _reset_target_pose(self, env_ids: Sequence[int] | torch.Tensor) -> None:
         # reset goal rotation
         rand_floats = sample_uniform(-1.0, 1.0, (len(env_ids), 2), device=self.device)
         new_rot = randomize_rotation(
@@ -311,24 +329,19 @@ class HandoverEnv(DirectMARLEnv):
             environment_ids=self.scene._ALL_INDICES,
         )
 
-    def _compute_intermediate_values(self):
+    def _compute_intermediate_values(self) -> None:
+        env_origins = self.scene.env_origins.unsqueeze(1)
         # data for right hand
-        self.right_fingertip_pos = self.right_hand.data.body_pos_w.torch[:, self.finger_bodies]
+        self.right_fingertip_pos = self.right_hand.data.body_pos_w.torch[:, self.finger_bodies] - env_origins
         self.right_fingertip_rot = self.right_hand.data.body_quat_w.torch[:, self.finger_bodies]
-        self.right_fingertip_pos -= self.scene.env_origins.repeat((1, self.num_fingertips)).reshape(
-            self.num_envs, self.num_fingertips, 3
-        )
         self.right_fingertip_velocities = self.right_hand.data.body_vel_w.torch[:, self.finger_bodies]
 
         self.right_hand_dof_pos = self.right_hand.data.joint_pos.torch
         self.right_hand_dof_vel = self.right_hand.data.joint_vel.torch
 
         # data for left hand
-        self.left_fingertip_pos = self.left_hand.data.body_pos_w.torch[:, self.finger_bodies]
+        self.left_fingertip_pos = self.left_hand.data.body_pos_w.torch[:, self.finger_bodies] - env_origins
         self.left_fingertip_rot = self.left_hand.data.body_quat_w.torch[:, self.finger_bodies]
-        self.left_fingertip_pos -= self.scene.env_origins.repeat((1, self.num_fingertips)).reshape(
-            self.num_envs, self.num_fingertips, 3
-        )
         self.left_fingertip_velocities = self.left_hand.data.body_vel_w.torch[:, self.finger_bodies]
 
         self.left_hand_dof_pos = self.left_hand.data.joint_pos.torch

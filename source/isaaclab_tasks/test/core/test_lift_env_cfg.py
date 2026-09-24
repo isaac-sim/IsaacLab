@@ -10,14 +10,21 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+from pxr import Usd
+
 from isaaclab.managers import CommandTerm
+from isaaclab.sim import select_usd_variants
 
 from isaaclab_tasks.core.lift import mdp
+from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg, FrankaReorientEnvCfg
+from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
+from isaaclab_tasks.core.lift.mdp.commands import pose_commands
 from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
     CableUniformPoseCommand,
     DeformableUniformPoseCommand,
     ObjectUniformPoseCommand,
 )
+from isaaclab_tasks.utils.hydra import resolve_presets
 
 
 class _MarkerSpy:
@@ -38,12 +45,81 @@ class _FakeScene(dict):
         self.env_origins = torch.zeros((len(environment_ids), 3))
 
 
+@pytest.mark.parametrize(
+    ("selected_presets", "expected_physics"),
+    [
+        ((), "mujoco"),
+        (("newton_mjwarp_vbd_proxy",), "mujoco"),
+        (("isaacsim_physx",), "physx"),
+        (("physx",), "physx"),
+    ],
+)
+def test_franka_soft_robot_physics_variant_matches_backend(
+    selected_presets: tuple[str, ...], expected_physics: str
+) -> None:
+    """The Franka USD physics payload must match the selected simulation backend."""
+    cfg = resolve_presets(FrankaSoftEnvCfg(), selected=selected_presets)
+
+    assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics}
+
+
+@pytest.mark.parametrize("cfg_type", [FrankaLiftEnvCfg, FrankaReorientEnvCfg])
+def test_franka_rigid_tasks_select_collision_meshes_for_reset_clearance(cfg_type) -> None:
+    """Reset validation keeps the original arm meshes when the asset defaults to capsules."""
+    cfg = cfg_type()
+    stage = Usd.Stage.CreateInMemory()
+    robot = stage.DefinePrim("/Robot", "Xform")
+    colliders = robot.GetVariantSets().AddVariantSet("Colliders")
+    for selection, prim_path, prim_type in (
+        ("convex_hulls", "/Robot/link1_c/link1_c", "Mesh"),
+        ("primitives", "/Robot/link1_capsule", "Capsule"),
+    ):
+        colliders.AddVariant(selection)
+        colliders.SetVariantSelection(selection)
+        with colliders.GetVariantEditContext():
+            stage.DefinePrim(prim_path, prim_type)
+    colliders.SetVariantSelection("primitives")
+
+    select_usd_variants("/Robot", cfg.scene.robot.spawn.variants or {}, stage=stage)
+
+    assert stage.GetPrimAtPath("/Robot/link1_c/link1_c").IsValid()
+    assert not stage.GetPrimAtPath("/Robot/link1_capsule").IsValid()
+
+
+def _make_vision_camera(data_type: str, images: torch.Tensor) -> mdp.vision_camera:
+    """Build a ``vision_camera`` term around a fake single-data-type camera sensor."""
+    sensor = SimpleNamespace(
+        cfg=SimpleNamespace(data_types=[data_type]), data=SimpleNamespace(output={data_type: images})
+    )
+    term = object.__new__(mdp.vision_camera)
+    term.sensor = sensor
+    term.sensor_type = data_type
+    term._is_depth = data_type in ("distance_to_image_plane", "depth")
+    return term
+
+
+def test_camera_normalization_is_stationary() -> None:
+    """RGB and depth normalization must map fixed inputs to fixed outputs, independent of per-frame statistics."""
+    rgb = torch.tensor([0.0, 127.5, 255.0]).view(1, 1, 1, 3)
+    depth = torch.tensor([0.0, 2.0]).view(1, 1, 2, 1)
+    env = SimpleNamespace()
+
+    rgb_obs = _make_vision_camera("rgb", rgb)(env, sensor_cfg=None)
+    depth_obs = _make_vision_camera("depth", depth)(env, sensor_cfg=None)
+
+    # channel-first output with the value range mapped to [-0.5, 0.5)
+    assert rgb_obs.shape == (1, 3, 1, 1)
+    assert torch.allclose(rgb_obs.flatten(), torch.tensor([-0.5, 0.0, 0.5]))
+    assert depth_obs.shape == (1, 1, 1, 2)
+    assert torch.allclose(depth_obs.flatten(), torch.tanh(torch.tensor([0.0, 2.0]) / 2) - 0.5)
+
+
 def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPatch) -> None:
     """Every lift pose, goal, and success marker should retain its environment ownership."""
     num_envs = 3
     environment_ids = torch.arange(num_envs)
     identity_quat = torch.zeros((num_envs, 4))
-    identity_quat[:, 0] = 1.0
+    identity_quat[:, 3] = 1.0
     root_pos_w = torch.zeros((num_envs, 3))
     root_pose_w = torch.cat((root_pos_w, identity_quat), dim=-1)
 
@@ -82,7 +158,7 @@ def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPat
         command.metrics = {}
 
     monkeypatch.setattr(CommandTerm, "__init__", _initialize_command_term)
-    monkeypatch.setattr("isaaclab.markers.VisualizationMarkers", _MarkerSpy)
+    monkeypatch.setattr(pose_commands, "VisualizationMarkers", _MarkerSpy)
 
     command = ObjectUniformPoseCommand(cfg, env)
     command._set_debug_vis_impl(True)
@@ -111,7 +187,7 @@ def test_lift_point_cloud_markers_repeat_environment_ids_per_point() -> None:
     num_envs = 3
     num_points = 4
     identity_quat = torch.zeros((num_envs, 4))
-    identity_quat[:, 0] = 1.0
+    identity_quat[:, 3] = 1.0
     root_pos_w = torch.zeros((num_envs, 3))
     points_local = torch.arange(num_envs * num_points * 3, dtype=torch.float32).view(num_envs, num_points, 3)
 
@@ -131,10 +207,13 @@ def test_lift_point_cloud_markers_repeat_environment_ids_per_point() -> None:
     term.points_local = points_local
     term.points_w = torch.zeros_like(points_local)
     term.visualizer = _MarkerSpy()
+    term._marker_env_ids = torch.arange(num_envs).repeat_interleave(num_points)
     env = SimpleNamespace(num_envs=num_envs)
 
-    term(env, num_points=num_points, visualize=True)
+    points_b = term(env, num_points=num_points, visualize=True)
 
+    # identity poses: the points in the reference frame are the local points
+    assert torch.allclose(points_b, points_local)
     assert len(term.visualizer.calls) == 1
     _, kwargs = term.visualizer.calls[0]
     assert torch.equal(kwargs["translations"], term.points_w.view(-1, 3))

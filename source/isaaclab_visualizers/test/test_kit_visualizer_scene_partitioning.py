@@ -12,10 +12,73 @@ import pytest
 import torch
 from isaaclab_visualizers.kit.kit_visualization_markers import KitVisualizationMarkers
 from isaaclab_visualizers.kit.kit_visualizer import KitVisualizer
+from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 
 from pxr import Sdf, Usd, UsdGeom
 
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+
+
+@pytest.mark.parametrize("headless", [False, True])
+def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch, headless):
+    visualizer = KitVisualizer(KitVisualizerCfg(headless=headless, origin_type="asset"))
+    visualizer._is_initialized = True
+    visualizer._fabric = MagicMock()
+    visualizer._scene_data_provider = MagicMock()
+    monkeypatch.setattr(visualizer, "is_training_paused", lambda: True)
+    tracking = MagicMock()
+    monkeypatch.setattr(visualizer, "_update_asset_tracking_camera", tracking)
+    monkeypatch.setattr(visualizer, "_update_camera_image_panel", MagicMock())
+    monkeypatch.setattr(visualizer, "_refresh_partial_viz_point_instancers_if_needed", MagicMock())
+
+    visualizer.step(0.1)
+
+    assert tracking.call_count == int(not headless)
+    request = visualizer._fabric.update_transforms
+    if headless:
+        request.assert_not_called()
+    else:
+        request.assert_called_once_with(visualizer._scene_data_provider)
+
+
+@pytest.mark.parametrize("generated", [False, True])
+def test_streaming_renderer_registers_before_visualizer_initialization(monkeypatch, generated):
+    sim = MagicMock()
+    settings = MagicMock()
+    settings.get.return_value = True
+    renderer_cfg = object()
+    monkeypatch.setattr(kit_visualizer_module.SimulationContext, "instance", lambda: sim)
+    monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
+    monkeypatch.setattr(KitVisualizer, "_resolve_streaming_renderer_cfg", lambda self: renderer_cfg)
+
+    KitVisualizer(KitVisualizerCfg(streaming_view=True, streaming_cam_target_prim_path="/Robot" if generated else None))
+
+    if generated:
+        sim.get_or_create_backend.assert_called_once_with(renderer_cfg)
+    else:
+        sim.get_or_create_backend.assert_not_called()
+
+
+@pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
+def test_background_color_applies_to_render_product_session_layer(
+    color: tuple[float, float, float] | None,
+) -> None:
+    stage = Usd.Stage.CreateInMemory()
+    render_product = stage.DefinePrim("/Render/Viewport", "RenderProduct")
+    visualizer = KitVisualizer(KitVisualizerCfg(background_color=color))
+
+    visualizer._apply_render_product_background(stage, render_product.GetPath())
+
+    source_type = render_product.GetAttribute("omni:rtx:background:source:type")
+    source_color = render_product.GetAttribute("omni:rtx:background:source:color")
+    if color is None:
+        assert not source_type.IsValid()
+        assert not source_color.IsValid()
+    else:
+        assert source_type.Get() == "color"
+        assert tuple(source_color.Get()) == pytest.approx(color)
+        assert stage.GetRootLayer().GetAttributeAtPath("/Render/Viewport.omni:rtx:background:source:type") is None
+        assert stage.GetRootLayer().GetAttributeAtPath("/Render/Viewport.omni:rtx:background:source:color") is None
 
 
 @pytest.mark.parametrize(("show_global_view", "expected_partition"), [(True, None), (False, "env_2")])

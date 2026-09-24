@@ -16,12 +16,10 @@ from unittest import mock
 
 import pytest
 import torch
-import warp as wp
 
 pytestmark = pytest.mark.integration
 
-from isaaclab.envs.mdp.observations import stacked_image
-from isaaclab.utils.warp import ProxyArray
+from isaaclab.envs.mdp.observations import image_features, stacked_image
 
 NUM_ENVS = 4
 HEIGHT = 8
@@ -216,10 +214,7 @@ class TestStackedImage:
 
 def _make_image_env_with_sensor(camera_buf: torch.Tensor) -> SimpleNamespace:
     """Mock env exposing ``env.scene.sensors[name].data.output[type]`` = ``camera_buf``."""
-    sensor = SimpleNamespace(
-        cfg=SimpleNamespace(data_types=["rgb"]),
-        data=SimpleNamespace(output={"rgb": ProxyArray(wp.from_torch(camera_buf))}),
-    )
+    sensor = SimpleNamespace(data=SimpleNamespace(output={"rgb": camera_buf}))
     scene = SimpleNamespace(sensors={"tiled_camera": sensor})
     return SimpleNamespace(scene=scene, num_envs=NUM_ENVS, device="cpu")
 
@@ -247,14 +242,16 @@ class TestImageFunctionCloneKwarg:
         out = image(env, sensor_cfg=cfg, data_type="rgb", normalize=False, clone=True)
         assert out.data_ptr() != camera_buf.data_ptr()
 
-    def test_single_camera_output_can_be_inferred(self):
-        """A single configured camera output does not need to be repeated in the observation config."""
-        from isaaclab.envs.mdp.observations import image
 
-        camera_buf = torch.randint(0, 255, (NUM_ENVS, HEIGHT, WIDTH, CHANNELS), dtype=torch.uint8)
-        env = _make_image_env_with_sensor(camera_buf)
-        cfg = SimpleNamespace(name="tiled_camera")
+def test_image_features_flattens_encoder_output():
+    """Feature extractors return a flat observation after the environment batch dimension."""
+    env = _make_env()
+    term = image_features.__new__(image_features)
+    term._model = object()
+    term._inference_fn = lambda *_args, **_kwargs: torch.arange(NUM_ENVS * 6 * 8).reshape(NUM_ENVS, 6, 8)
+    image_data = torch.zeros((NUM_ENVS, HEIGHT, WIDTH, CHANNELS), dtype=torch.uint8)
 
-        out = image(env, sensor_cfg=cfg, data_type=None, normalize=False, clone=False)
+    with mock.patch("isaaclab.envs.mdp.observations.image", return_value=image_data):
+        out = term(env)
 
-        assert out.data_ptr() == camera_buf.data_ptr()
+    assert out.shape == (NUM_ENVS, 48)

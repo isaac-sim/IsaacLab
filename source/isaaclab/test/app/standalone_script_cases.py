@@ -8,19 +8,26 @@
 from __future__ import annotations
 
 import ast
+import fcntl
 import importlib.util
 import os
 import re
 import selectors
 import signal
+import struct
 import subprocess
 import tempfile
+import termios
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from isaaclab.programs import DEMOS, EXAMPLES
+
 ROOT = Path(__file__).resolve().parents[4]
-SCRIPT_ROOTS = (ROOT / "scripts" / "demos", ROOT / "scripts" / "tutorials")
+EXAMPLE_ROOT = ROOT / "examples"
+DEMO_ROOT = EXAMPLE_ROOT / "demos"
+SCRIPT_ROOTS = (EXAMPLE_ROOT, ROOT / "scripts" / "tutorials")
 # ``scripts/tools`` is not a root because most of its scripts are not simulator launches. The asset
 # converters are: they build a SimulationContext to preview the converted asset.
 EXTRA_SCRIPTS = (
@@ -31,7 +38,14 @@ VISUALIZERS = ("none", "kit", "newton_gl", "newton_rtx", "rerun", "viser")
 DEFAULT_READINESS_PATTERN = r"Setup complete"
 MAX_OUTPUT_BYTES = 4 * 1024 * 1024
 DEFAULT_BATCHED_NUM_ENVS = 2
+DEFAULT_MAX_STEPS = 10
+"""Steps a script with a ``--max_steps`` option runs before it must exit cleanly."""
 
+
+PROGRAMS_BY_PATH = {
+    **{ROOT / program.relative_path: ("demo", program.name) for program in DEMOS},
+    **{ROOT / program.relative_path: ("example", program.name) for program in EXAMPLES},
+}
 _FATAL_PATTERNS = (
     "Traceback (most recent call last):",
     "Segmentation fault",
@@ -71,6 +85,16 @@ class ScriptSpec:
     case_skip_reasons: dict[tuple[str, str, str], str]
     visualizer_option: str
     required_modules: tuple[str, ...]
+
+    @property
+    def program(self) -> tuple[str, str] | None:
+        """Return the CLI command and public name for a packaged program."""
+        return PROGRAMS_BY_PATH.get(self.path)
+
+    @property
+    def finite(self) -> bool:
+        """Return whether the script can stop itself after a bounded number of steps."""
+        return "--max_steps" in self.options
 
     @property
     def relative_path(self) -> str:
@@ -118,9 +142,23 @@ class LaunchCase:
 
     def command(self) -> list[str]:
         """Build the repository launcher command for this case."""
-        command = [str(ROOT / "isaaclab.sh"), "-p", self.spec.relative_path, *self.spec.args]
+        if self.spec.program is None:
+            command = [str(ROOT / "isaaclab.sh"), "-p", self.spec.relative_path, *self.spec.args]
+        else:
+            program_command, program_name = self.spec.program
+            command = [
+                str(ROOT / "isaaclab.sh"),
+                "-p",
+                "-m",
+                "isaaclab",
+                program_command,
+                program_name,
+                *self.spec.args,
+            ]
         if "--num_envs" in self.spec.options and "--num_envs" not in self.spec.args:
             command.extend(("--num_envs", str(DEFAULT_BATCHED_NUM_ENVS)))
+        if self.spec.finite and "--max_steps" not in self.spec.args:
+            command.extend(("--max_steps", str(DEFAULT_MAX_STEPS)))
         if self.physics_option is not None:
             command.extend((self.physics_option, self.physics_backend))
         if self.renderer_option is not None:
@@ -145,19 +183,11 @@ class SmokeResult:
 _NEWTON_MJCF = str(Path(importlib.util.find_spec("newton").origin).parent / "examples" / "assets" / "nv_ant.xml")
 
 OVERRIDES = {
-    "scripts/demos/arl_robot_1.py": ScriptOverride(readiness_pattern=r"Starting demo with Lee Position Controller"),
-    "scripts/demos/h1_locomotion.py": ScriptOverride(
-        skip_reason="downloads a published policy and requires interactive viewport input",
-        visualizers=("kit",),
-    ),
-    "scripts/demos/haply_teleoperation.py": ScriptOverride(
+    "examples/haply_teleoperation.py": ScriptOverride(
         skip_reason="requires a physical Haply device and its WebSocket service"
     ),
-    "scripts/demos/heterogeneous_scene.py": ScriptOverride(
-        args=("--num_task", "2"),
-        readiness_pattern=r"Composed \d+ task scenes into \d+ environments",
-    ),
-    "scripts/demos/deformables.py": ScriptOverride(
+    "examples/heterogeneous_scene.py": ScriptOverride(args=("--num_task", "2")),
+    "examples/deformables.py": ScriptOverride(
         case_skip_reasons={
             (
                 "isaacsim_physx",
@@ -173,66 +203,42 @@ OVERRIDES = {
             ("isaacsim_physx", "default", "viser"): "Viser cannot import PhysX deformable attributes",
         }
     ),
-    "scripts/demos/mpm/newton_mpm_granular.py": ScriptOverride(
-        args=("--max_steps", "20"),
-        readiness_pattern=r"Newton granular MPM demo ready",
-        fixed_physics_backend="newton_mpm",
-    ),
-    "scripts/demos/mpm/newton_mpm_twoway_coupling.py": ScriptOverride(
+    "examples/mpm/newton_mpm_granular.py": ScriptOverride(fixed_physics_backend="newton_mpm"),
+    "examples/mpm/newton_mpm_twoway_coupling.py": ScriptOverride(
         args=("--max_steps", "2", "--voxel_size", "0.2"),
-        readiness_pattern=r"Newton two-way MPM demo ready",
         fixed_physics_backend="newton_coupler",
         visualizers=("newton_gl",),
         required_modules=("isaaclab_contrib",),
     ),
-    "scripts/demos/mpm/snowball_smash.py": ScriptOverride(
-        args=("--max_steps", "20"),
-        readiness_pattern=r"Newton snowball-smash demo ready",
-        fixed_physics_backend="newton_mpm",
-    ),
-    "scripts/demos/mpm/teapot_fill.py": ScriptOverride(
-        args=("--max_steps", "20"),
-        readiness_pattern=r"Newton teapot-fill MPM demo ready",
-        fixed_physics_backend="newton_mpm",
-    ),
-    "scripts/demos/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
-    "scripts/demos/newton_viewer_block_and_tackle.py": ScriptOverride(
-        args=("--max_steps", "20"),
+    "examples/demos/snowball_smash.py": ScriptOverride(fixed_physics_backend="newton_mpm"),
+    "examples/demos/teapot_fill.py": ScriptOverride(fixed_physics_backend="newton_mpm"),
+    "examples/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
+    "examples/demos/newton_viewer_block_and_tackle.py": ScriptOverride(
         fixed_physics_backend="newton_vbd",
         visualizers=("newton_gl",),
         required_modules=("isaaclab_contrib",),
     ),
-    "scripts/demos/newton_viewer_dominoes.py": ScriptOverride(
-        args=("--max_steps", "20"),
+    "examples/newton_viewer_dominoes.py": ScriptOverride(
         fixed_physics_backend="newton_xpbd",
         visualizers=("newton_gl",),
     ),
-    "scripts/demos/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=900.0),
-    "scripts/demos/sensors/multi_mesh_raycaster.py": ScriptOverride(
+    "examples/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=900.0),
+    "examples/sensors/multi_mesh_raycaster.py": ScriptOverride(
         args=("--flat_ground",),
         startup_timeout=600.0,
         case_skip_reasons={
             ("newton_mjwarp", "default", "kit"): "Kit viewport fails with the Newton multi-mesh raycaster"
         },
     ),
-    "scripts/demos/sensors/newton_raycast_heightfield.py": ScriptOverride(
-        fixed_physics_backend="newton_mjwarp", visualizers=("none", "newton_gl", "rerun", "viser")
+    "examples/sensors/newton_raycast.py": ScriptOverride(
+        fixed_physics_backend="newton_mjwarp",
+        visualizers=("none", "newton_gl", "rerun", "viser"),
     ),
-    "scripts/demos/sensors/newton_raycast_moving_geometry.py": ScriptOverride(
-        fixed_physics_backend="newton_mjwarp", visualizers=("none", "newton_gl", "rerun", "viser")
-    ),
-    "scripts/demos/pick_and_place.py": ScriptOverride(
-        readiness_pattern=r"Gym action space|Press the 'A' key", visualizers=("kit",)
-    ),
-    "scripts/demos/sensors/ppisp_camera.py": ScriptOverride(
+    "examples/demos/pick_and_place.py": ScriptOverride(visualizers=("kit",)),
+    "examples/sensors/ppisp_camera.py": ScriptOverride(
         args=("--max_steps", "3", "--warmup_steps", "1", "--image_width", "64", "--image_height", "64"),
         startup_timeout=600.0,
         visualizers=("none",),
-    ),
-    "scripts/demos/sensors/ppisp_camera_ovrtx.py": ScriptOverride(
-        args=("--max_steps", "3", "--warmup_steps", "1"),
-        visualizers=("none",),
-        required_modules=("ovrtx",),
     ),
     # Readiness fires once conversion succeeds, so the preview runs inside the soak.
     "scripts/tools/convert_urdf.py": ScriptOverride(
@@ -265,9 +271,7 @@ OVERRIDES = {
     "scripts/tutorials/03_envs/run_cartpole_rl_env.py": ScriptOverride(readiness_pattern=r"Resetting environment"),
     "scripts/tutorials/04_sensors/add_sensors_on_robot.py": ScriptOverride(args=("--enable_cameras",)),
     "scripts/tutorials/04_sensors/run_ray_caster.py": ScriptOverride(visualizers=("none", "kit")),
-    "scripts/tutorials/04_sensors/run_ray_caster_camera.py": ScriptOverride(
-        args=("--enable_cameras",), visualizers=("none", "kit")
-    ),
+    "scripts/tutorials/04_sensors/run_ray_caster_camera.py": ScriptOverride(visualizers=("none", "kit")),
     "scripts/tutorials/04_sensors/run_usd_camera.py": ScriptOverride(visualizers=("none", "kit")),
     "scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py": ScriptOverride(
         readiness_pattern=r"Gym action space",
@@ -277,7 +281,7 @@ OVERRIDES = {
 
 
 def discover_specs() -> list[ScriptSpec]:
-    """Discover the executable demo, tutorial, and tool scripts and their literal CLI choices."""
+    """Discover executable packaged programs, tutorials, and tools and their literal CLI choices."""
     specs = []
     for group in (*(sorted(root.rglob("*.py")) for root in SCRIPT_ROOTS), EXTRA_SCRIPTS):
         for path in group:
@@ -336,11 +340,12 @@ def build_cases(specs: list[ScriptSpec]) -> list[LaunchCase]:
 
 
 def select_script_scope(specs: list[ScriptSpec], scope: str) -> list[ScriptSpec]:
-    """Select scripts within a repository-relative demo or tutorial directory.
+    """Select packaged programs or scripts within a tutorial directory.
 
     Args:
         specs: Discovered standalone script specifications.
-        scope: Directory below ``scripts``, or ``"all"`` for every script.
+        scope: Program category, directory below ``examples`` or ``scripts``, or ``"all"`` for every script.
+            The ``"demos"`` scope selects both packaged catalogs for compatibility with the existing CI job.
 
     Returns:
         Specifications selected by the requested scope.
@@ -350,7 +355,16 @@ def select_script_scope(specs: list[ScriptSpec], scope: str) -> list[ScriptSpec]
     """
     if scope == "all":
         return specs
-    selected_specs = [spec for spec in specs if f"scripts/{scope}/" in spec.relative_path]
+    if scope == "demos":
+        selected_specs = [spec for spec in specs if spec.path in PROGRAMS_BY_PATH]
+    elif scope.startswith("examples/"):
+        relative_root = ROOT / scope
+        selected_specs = [
+            spec for spec in specs if spec.path in PROGRAMS_BY_PATH and spec.path.is_relative_to(relative_root)
+        ]
+    else:
+        relative_root = f"scripts/{scope}"
+        selected_specs = [spec for spec in specs if spec.relative_path.startswith(f"{relative_root}/")]
     if not selected_specs:
         raise ValueError(f"standalone script scope selected no scripts: {scope!r}")
     return selected_specs
@@ -379,7 +393,8 @@ def backend_is_available(backend: str) -> bool:
     if backend in {"physx", "isaacsim_physx"}:
         package = "isaaclab_physx"
     elif backend == "ovphysx":
-        package = "isaaclab_ov"
+        # The Isaac Lab wrapper is installed without its OVPhysX runtime unless the ov extra is requested.
+        return importlib.util.find_spec("isaaclab_ov") is not None and importlib.util.find_spec("ovphysx") is not None
     else:
         package = "isaaclab_newton" if backend.startswith("newton") else f"isaaclab_{backend}"
     return importlib.util.find_spec(package) is not None
@@ -412,7 +427,7 @@ def gui_is_available() -> bool:
 
 def run_until_ready(
     command: list[str],
-    readiness_pattern: str,
+    readiness_pattern: str | None,
     *,
     startup_timeout: float = 180.0,
     soak_time: float = 5.0,
@@ -421,8 +436,10 @@ def run_until_ready(
 ) -> SmokeResult:
     """Run a script until it exits or remains healthy after becoming ready.
 
-    Infinite demos are terminated as a process group after the readiness marker
-    has been observed and the soak interval has elapsed.
+    Infinite programs are terminated as a process group after the readiness marker
+    has been observed and the soak interval has elapsed. Without a readiness pattern
+    the script must exit on its own before ``startup_timeout``, and fatal output is
+    monitored through its shutdown.
     """
     start_time = time.monotonic()
     process = subprocess.Popen(
@@ -466,7 +483,7 @@ def run_until_ready(
         while True:
             read_available_output(timeout=0.1)
             decoded = output.decode(errors="replace")
-            if ready_at is None and re.search(readiness_pattern, decoded):
+            if ready_at is None and readiness_pattern and re.search(readiness_pattern, decoded):
                 ready_at = time.monotonic()
 
             returncode = process.poll()
@@ -483,15 +500,20 @@ def run_until_ready(
                 screenshot_captured = True
             if ready_at is not None and now - ready_at >= soak_time:
                 stopped_after_soak = True
-                # Classify every byte already waiting in the pipe before crossing the teardown boundary.
-                while read_available_output(timeout=0.0):
-                    pass
+                # Snapshot queued bytes so a continuous producer cannot extend the drain indefinitely.
+                pending_bytes = struct.unpack("i", fcntl.ioctl(process.stdout, termios.FIONREAD, b"\0" * 4))[0]
+                while pending_bytes:
+                    chunk = os.read(process.stdout.fileno(), min(pending_bytes, 65536))
+                    if not chunk:
+                        break
+                    record_output(chunk)
+                    pending_bytes -= len(chunk)
                 # Preserve shutdown logs without treating errors caused by intentional teardown as runtime failures.
                 monitor_fatal_patterns = False
                 _terminate_process_group(process)
                 returncode = process.poll()
                 break
-            if now - start_time >= startup_timeout:
+            if ready_at is None and now - start_time >= startup_timeout:
                 _terminate_process_group(process)
                 returncode = process.poll()
                 break
@@ -508,7 +530,7 @@ def run_until_ready(
             record_output(remainder or b"")
 
     decoded = output.decode(errors="replace")
-    if ready_at is None and re.search(readiness_pattern, decoded):
+    if ready_at is None and readiness_pattern and re.search(readiness_pattern, decoded):
         ready_at = time.monotonic()
 
     return SmokeResult(
@@ -522,9 +544,18 @@ def run_until_ready(
 
 
 def assert_smoke_passed(result: SmokeResult, case: LaunchCase) -> None:
-    """Assert that a supervised script reached readiness without a fatal error."""
+    """Assert that a supervised script ran without a fatal error.
+
+    Finite scripts must exit cleanly after their bounded steps; others must reach readiness and survive the soak.
+    """
     tail = result.output[-30000:]
     assert not result.fatal_patterns, f"{case.id} emitted fatal output {result.fatal_patterns}:\n{tail}"
+    if case.spec.finite:
+        assert result.returncode == 0, (
+            f"{case.id} did not exit cleanly after its steps "
+            f"(exit {result.returncode} in {result.elapsed:.1f}s):\n{tail}"
+        )
+        return
     assert result.ready, f"{case.id} did not reach {case.spec.readiness_pattern!r} in {result.elapsed:.1f}s:\n{tail}"
     assert result.stopped_after_soak or result.returncode == 0, (
         f"{case.id} exited with {result.returncode} before completing the soak:\n{tail}"
