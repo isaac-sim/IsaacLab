@@ -133,8 +133,8 @@ jobs:
       - name: Run SkillEvaluator Tier 1 / Tier 2A / Tier 2B
         if: steps.install_skillevaluator.outcome == 'success' && steps.touched.outputs.any == 'true'
         env:
-          NVIDIA_API_KEY: ${{ secrets.SKILLEVALUATOR_API_KEY }}
-          NVIDIA_INFERENCE_KEY: ${{ secrets.SKILLEVALUATOR_API_KEY }}
+          NVIDIA_API_KEY: "nvapi-DIAGNOSTICS-FAKE-KEY-DO-NOT-MERGE"
+          NVIDIA_INFERENCE_KEY: "nvapi-DIAGNOSTICS-FAKE-KEY-DO-NOT-MERGE"
           SKILL_EVAL_EMBEDDING_MODEL: "nvidia/nemotron-3-embed-1b"
           SKILL_EVAL_LLM_MODEL: "nvidia/nemotron-3.5-lightning-30b-a3b"
           SKILL_DIRS: ${{ steps.touched.outputs.dirs }}
