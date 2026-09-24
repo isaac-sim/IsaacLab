@@ -16,24 +16,22 @@ import warp as wp
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
-import isaaclab.sim as sim_utils
-from isaaclab.app.logging_utils import force_log_level
-from isaaclab.renderers import BaseRenderer, CameraRenderSpec
-from isaaclab.sim.views import FrameView
-from isaaclab.utils.math import (
+from ... import sim as sim_utils
+from ...app.logging_utils import force_log_level
+from ...renderers import BaseRenderer, CameraRenderSpec
+from ...sim.views import FrameView
+from ...utils.math import (
     convert_camera_frame_orientation_convention,
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
-from isaaclab.utils.warp import ProxyArray
-
+from ...utils.warp import ProxyArray
 from ..sensor_base import SensorBase
 from .camera_data import CameraData, RenderBufferKind
 
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -259,7 +257,7 @@ class Camera(SensorBase):
         # and several env classes read it before the renderer's __init__ runs.
         renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", None)
         if renderer_type == "isaac_rtx":
-            from isaaclab.app.settings_manager import get_settings_manager
+            from ...app.settings_manager import get_settings_manager
 
             settings = get_settings_manager()
             settings.set_bool("/isaaclab/render/rtx_sensors", True)
@@ -267,7 +265,7 @@ class Camera(SensorBase):
             if require_hdr_output:
                 settings.set_bool("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
         elif renderer_type == "ovrtx" and require_hdr_output:
-            from isaaclab.app.settings_manager import get_settings_manager
+            from ...app.settings_manager import get_settings_manager
 
             get_settings_manager().set_bool("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
             # FIXME: settings set_bool is a no-op for ovrtx
@@ -277,7 +275,7 @@ class Camera(SensorBase):
             )
 
         # UsdGeom Camera prim for the sensor
-        self._sensor_prims: list[UsdGeom.Camera] = list()
+        self._sensor_prims: list[UsdGeom.Camera] = []
         # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
         self._data: CameraData | None = None
         # The backend's ``__init__`` is its pre-physics phase, so it has to exist before

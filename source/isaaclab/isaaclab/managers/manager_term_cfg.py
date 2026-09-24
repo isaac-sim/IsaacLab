@@ -13,10 +13,9 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 
-from isaaclab.utils import configclass
-from isaaclab.utils.modifiers import ModifierCfg
-from isaaclab.utils.noise import NoiseCfg, NoiseModelCfg
-
+from ..utils import configclass
+from ..utils.modifiers import ModifierCfg
+from ..utils.noise import NoiseCfg, NoiseModelCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
@@ -43,7 +42,7 @@ class ManagerTermBaseCfg:
     .. _`callable classes`: https://docs.python.org/3/reference/datamodel.html#object.__call__
     """
 
-    params: dict[str, Any | SceneEntityCfg] = dict()
+    params: dict[str, Any | SceneEntityCfg] = {}
     """The parameters to be passed to the function as keyword arguments. Defaults to an empty dict.
 
     .. note::

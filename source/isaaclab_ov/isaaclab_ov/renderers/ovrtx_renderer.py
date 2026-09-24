@@ -106,7 +106,7 @@ from isaaclab_ov.stage import (
 
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
-    from ovrtx import AttributeBinding, FrameOutput, RenderVarOutput
+    from ovrtx import AttributeBinding
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
     from isaaclab.sensors.camera.camera_data import CameraData
@@ -229,6 +229,31 @@ def _write_file(output_dir: Path, file_name: str, content: str) -> None:
         logger.info("Wrote USD file: %s", output_path)
 
 
+def _env_camera_prim_paths(camera_path_relative_to_env_0: str | None, num_instances: int) -> list[str]:
+    """Per-env camera prim paths derived from the env 0 prototype.
+
+    ``CameraRenderSpec.camera_prim_paths`` names only the camera prims authored on the USD stage,
+    which is one prototype per spawn variant whenever USD replication does not run. That is the
+    kitless case: the clone plan routes ``UsdReplicateContext`` only under Kit, so OvPhysx, Newton
+    and OVRTX each replicate the prototype themselves. OVRTX still needs one path per environment,
+    which is safe to synthesize because :meth:`OVRTXRenderer.prepare_stage` requires env ids
+    ordered from zero.
+
+    Args:
+        camera_path_relative_to_env_0: Camera prim path with the ``/World/envs/env_0/`` prefix stripped.
+        num_instances: Number of environments the camera is replicated into.
+
+    Returns:
+        One absolute camera prim path per environment, in env id order.
+
+    Raises:
+        ValueError: If the camera prototype does not live under ``/World/envs/env_0/``.
+    """
+    if not camera_path_relative_to_env_0:
+        raise ValueError("OVRTX cameras must be under /World/envs/env_0/.")
+    return [f"/World/envs/env_{i}/{camera_path_relative_to_env_0}" for i in range(num_instances)]
+
+
 def _write_combined_stage(output_dir: Path, scene_usd: str, render_product_usd: str) -> None:
     """Write the scene and render product prims in one debug layer, preserving scene metadata."""
     from pxr import Sdf
@@ -290,6 +315,11 @@ class OVRTXCameraRenderData:
         self.render_scope_name = render_scope_name
         self.render_product_name = "RenderProduct"
         self.render_product_path = f"/{render_scope_name}/{self.render_product_name}"
+        self.render_var_keys: dict[str, str] = (
+            {source: f"/{render_scope_name}/Vars/{name}" for source, name in _RENDER_VAR_PRIM_NAMES.items()}
+            if uses_prim_path_render_vars(OVRTX_VERSION)
+            else {source: source for source in _RENDER_VAR_PRIM_NAMES}
+        )
         self.camera_xform_binding = None
         self.camera_xform_query = None
         self.resources = contextlib.ExitStack()
@@ -580,7 +610,7 @@ class OVRTXRenderer(BaseRenderer):
         render_data.resources.callback(self.backend.renderer.remove_usd, reference)
         logger.info("OVRTX loaded USD from string successfully")
 
-        camera_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
+        camera_paths = _env_camera_prim_paths(self._camera_rel_path, num_envs)
         if num_envs > 1:
             self._clone_sources_in_ovrtx()
             self._update_scene_partitions_after_clone(num_envs)
@@ -661,7 +691,7 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("Writing scene partitions for %d environments...", num_envs)
         partition_tokens = [f"env_{i}" for i in range(num_envs)]
         env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
-        camera_prim_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
+        camera_prim_paths = _env_camera_prim_paths(self._camera_rel_path, num_envs)
 
         self.backend.renderer.write_attribute(
             env_prim_paths,
@@ -917,9 +947,10 @@ class OVRTXRenderer(BaseRenderer):
             else:
                 self._register_camera(spec, render_data)
             if not self._use_ovstage:
+                intrinsic_prim_paths = _env_camera_prim_paths(spec.camera_path_relative_to_env_0, spec.num_instances)
                 for name in _CAMERA_INTRINSIC_ATTRIBUTES:
                     binding = self.backend.renderer.bind_attribute(
-                        prim_paths=list(spec.camera_prim_paths),
+                        prim_paths=intrinsic_prim_paths,
                         attribute_name=name,
                         dtype="float32",
                         prim_mode=PrimMode.EXISTING_ONLY,
@@ -936,9 +967,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def _register_camera(self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData) -> None:
         """Add another tiled product and camera binding without reloading the shared scene."""
-        camera_paths = list(spec.camera_prim_paths)
-        if not camera_paths or not camera_paths[0].startswith("/World/envs/env_0/"):
-            raise ValueError("OVRTX cameras must be under /World/envs/env_0/.")
+        camera_paths = _env_camera_prim_paths(spec.camera_path_relative_to_env_0, spec.num_instances)
         scope = render_data.render_scope_name
         product_path = render_data.render_product_path
         usd = build_render_product_as_string(
@@ -1223,17 +1252,6 @@ class OVRTXRenderer(BaseRenderer):
         )
         return output_colors
 
-    @staticmethod
-    def _get_render_var_output(
-        render_data: OVRTXCameraRenderData, frame: FrameOutput, source_name: str
-    ) -> RenderVarOutput | None:
-        """Resolve a render-var source name to the installed OVRTX frame key and read its output."""
-        render_var_key = source_name
-        if uses_prim_path_render_vars(OVRTX_VERSION):
-            prim_name = _RENDER_VAR_PRIM_NAMES[source_name]
-            render_var_key = f"/{render_data.render_scope_name}/Vars/{prim_name}"
-        return frame.render_vars.get(render_var_key)
-
     @contextlib.contextmanager
     def _map_render_var_to_dlpack(self, render_var: Any) -> Iterator[wp.array]:
         """Map ``render_var`` for CUDA reads and yield it as a Warp array.
@@ -1291,7 +1309,7 @@ class OVRTXRenderer(BaseRenderer):
             buffer_key: Data type key into ``output_buffers``.
             colorize: If True, IDs are mapped to RGBA colors; otherwise raw uint32 IDs are copied.
         """
-        render_var = self._get_render_var_output(render_data, frame, render_var_key)
+        render_var = frame.render_vars.get(render_data.render_var_keys[render_var_key])
         if render_var is None or buffer_key not in output_buffers:
             return
 
@@ -1332,7 +1350,7 @@ class OVRTXRenderer(BaseRenderer):
             render_data: OVRTX render data for the current frame.
             frame: OVRTX frame holding the mapped render vars.
         """
-        semantic_id_map = self._get_render_var_output(render_data, frame, _SEMANTIC_ID_MAP_VAR)
+        semantic_id_map = frame.render_vars.get(render_data.render_var_keys[_SEMANTIC_ID_MAP_VAR])
         if semantic_id_map is None:
             return
 
@@ -1370,7 +1388,7 @@ class OVRTXRenderer(BaseRenderer):
             frame: OVRTX frame holding the mapped render vars.
         """
         resolved = {
-            key: self._get_render_var_output(render_data, frame, key) for key in _INSTANCE_SEGMENTATION_MAP_VARS
+            key: frame.render_vars.get(render_data.render_var_keys[key]) for key in _INSTANCE_SEGMENTATION_MAP_VARS
         }
         missing = [key for key, render_var in resolved.items() if render_var is None]
         if missing:
@@ -1508,7 +1526,7 @@ class OVRTXRenderer(BaseRenderer):
         # is available, so without this a missing SemanticIdMap on a later frame would leave a stale mapping.
         render_data.renderer_info.clear()
 
-        ldr_color = self._get_render_var_output(render_data, frame, _LDR_COLOR_VAR)
+        ldr_color = frame.render_vars.get(render_data.render_var_keys[_LDR_COLOR_VAR])
         if ldr_color is not None:
             buffer_key = None
 
@@ -1527,7 +1545,7 @@ class OVRTXRenderer(BaseRenderer):
                     self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
 
         for depth_var, buffer_keys in _DEPTH_VAR_BUFFER_KEYS.items():
-            depth_render_var = self._get_render_var_output(render_data, frame, depth_var)
+            depth_render_var = frame.render_vars.get(render_data.render_var_keys[depth_var])
             if depth_render_var is None:
                 continue
             if not any(buffer_key in output_buffers for buffer_key in buffer_keys):
@@ -1539,12 +1557,12 @@ class OVRTXRenderer(BaseRenderer):
                     )
                 self._extract_depth_tiles(render_data, tiled_depth_data, output_buffers, buffer_keys)
 
-        albedo_var = self._get_render_var_output(render_data, frame, _ALBEDO_VAR)
+        albedo_var = frame.render_vars.get(render_data.render_var_keys[_ALBEDO_VAR])
         if albedo_var is not None and "albedo" in output_buffers:
             with self._map_render_var_to_dlpack(albedo_var) as tiled_albedo_data:
                 self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
 
-        hdr_color = self._get_render_var_output(render_data, frame, _HDR_COLOR_VAR)
+        hdr_color = frame.render_vars.get(render_data.render_var_keys[_HDR_COLOR_VAR])
         if hdr_color is not None and "rgb_hdr" in output_buffers:
             with self._map_render_var_to_dlpack(hdr_color) as tiled_hdr_data:
                 tiled_hdr_data = self._prepare_ppisp_hdr_source(render_data, tiled_hdr_data, output_buffers)
@@ -1575,7 +1593,7 @@ class OVRTXRenderer(BaseRenderer):
         if "instance_segmentation" in output_buffers:
             self._process_instance_segmentation_maps(render_data, frame)
 
-        normals_var = self._get_render_var_output(render_data, frame, _NORMALS_VAR)
+        normals_var = frame.render_vars.get(render_data.render_var_keys[_NORMALS_VAR])
         if normals_var is not None and "normals" in output_buffers:
             with self._map_render_var_to_dlpack(normals_var) as tiled_normals_data:
                 self._launch_extract_all_tiles(render_data, tiled_normals_data, output_buffers["normals"])
@@ -1583,7 +1601,7 @@ class OVRTXRenderer(BaseRenderer):
         # For motion vectors, extract only the first two (u, v) channels from the tiled buffer.
         # Note: mirrors the Isaac RTX renderer's handling of the "TargetMotionSD" AOV
         # (check: https://github.com/isaac-sim/IsaacLab/issues/2003).
-        motion_var = self._get_render_var_output(render_data, frame, _MOTION_VECTORS_VAR)
+        motion_var = frame.render_vars.get(render_data.render_var_keys[_MOTION_VECTORS_VAR])
         if motion_var is not None and "motion_vectors" in output_buffers:
             with self._map_render_var_to_dlpack(motion_var) as tiled_motion_vectors_data:
                 self._launch_extract_all_tiles(render_data, tiled_motion_vectors_data, output_buffers["motion_vectors"])
@@ -1915,7 +1933,7 @@ class OVRTXRenderer(BaseRenderer):
 
         self._initialized_scene = True
 
-        camera_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
+        camera_paths = _env_camera_prim_paths(self._camera_rel_path, num_envs)
 
         # Re-author the RenderProduct's camera relationship after clone. ``stage.clone`` recreates the per-env
         # cameras, so the RenderProduct must be pointed at the freshly-interned camera path ids to discover every
@@ -2016,7 +2034,7 @@ class OVRTXRenderer(BaseRenderer):
         """Update scene partition attributes on cloned environments and cameras (ovstage path)."""
         logger.info("Writing scene partitions for %d environments...", num_envs)
         env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
-        camera_prim_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
+        camera_prim_paths = _env_camera_prim_paths(self._camera_rel_path, num_envs)
         # TOKEN_ID semantic tells ovstage the uint64 values are interned string tokens, not raw integers;
         # the renderer resolves them back to the original "env_N" strings for scene-partition lookup.
         token_ids = np.array([self.backend.paths.intern_token(f"env_{i}") for i in range(num_envs)], dtype=np.uint64)

@@ -23,6 +23,16 @@
 - Use `./isaaclab.sh` only for installer workflows that require it.
 - Do not define Warp kernels in `python -c`; write a temporary Python file instead so Warp can inspect the source.
 
+## Code style
+
+- Group imports in PEP 8 order, separated by blank lines: `__future__`, standard library, third-party,
+  Omniverse runtime packages (`isaacsim`, `omni`, `pxr`, `carb`, ...), Isaac Lab packages, then local relative imports.
+  Ruff enforces this order through `uv run isaaclab -f`; do not sort imports by hand.
+- Import from the same package with relative imports when the target is at most three leading dots away
+  (e.g. `from ...utils import math as math_utils`). Use absolute imports for deeper targets and for other packages.
+- Keep absolute imports in modules that can run as scripts (with an `if __name__ == "__main__":` block),
+  since relative imports fail there.
+
 ## Testing and validation
 
 - Run the narrowest relevant test first.

@@ -13,11 +13,11 @@ from typing import TYPE_CHECKING
 
 from filelock import FileLock
 
-from isaaclab.sim import converters, schemas
-from isaaclab.sim.spawners._utils import bare_fragments, fragment_mapping, props_expr, subtree_carries_api
-from isaaclab.sim.spawners.materials import SurfaceDeformableBodyMaterialBaseCfg
-from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
-from isaaclab.sim.utils import (
+from isaaclab.utils.assets import check_file_path, retrieve_file_path
+from isaaclab.utils.version import has_kit
+
+from ... import converters, schemas
+from ...utils import (
     add_labels,
     bind_physics_material,
     bind_visual_material,
@@ -31,15 +31,15 @@ from isaaclab.sim.utils import (
     select_usd_variants,
     set_prim_visibility,
 )
-from isaaclab.utils.assets import check_file_path, retrieve_file_path
-from isaaclab.utils.version import has_kit
+from .._utils import bare_fragments, fragment_mapping, props_expr, subtree_carries_api
+from ..materials import SurfaceDeformableBodyMaterialBaseCfg
+from ..materials.physics_materials import spawn_physics_material
 
 if TYPE_CHECKING:
     from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: F401
 
     from . import from_files_cfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -203,7 +203,6 @@ def spawn_ground_plane(
     Raises:
         ValueError: If the prim path already exists.
     """
-    # Obtain current stage
     stage = get_current_stage()
 
     # Spawn Ground-plane
@@ -290,8 +289,6 @@ def spawn_ground_plane(
 
     # Apply visibility
     set_prim_visibility(prim, cfg.visible)
-
-    # return the prim
     return prim
 
 
@@ -613,10 +610,7 @@ def _spawn_from_usd_file(
         )
         # create material (accepts a legacy material cfg or rigid-body fragment(s))
         spawn_physics_material(material_path, cfg.physics_material, stage=stage)
-        # apply material
         bind_physics_material(prim_path, material_path, stage=stage)
-
-    # return the prim
     return stage.GetPrimAtPath(prim_path)
 
 
@@ -680,8 +674,6 @@ def spawn_from_usd_with_compliant_contact_material(
                 rigid_body_prim_path = path
 
             material_path = f"{rigid_body_prim_path}/compliant_material"
-
-            # spawn physics material
             material_cfg.func(material_path, material_cfg)
 
             bind_physics_material(

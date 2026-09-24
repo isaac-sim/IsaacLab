@@ -12,8 +12,7 @@ from collections.abc import Iterable
 import numpy as np
 import torch
 
-from isaaclab.utils.math import convert_quat
-
+from ..math import convert_quat
 from .dataset_file_handler_base import DatasetFileHandlerBase
 from .episode_data import EpisodeData
 
@@ -261,12 +260,10 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
         for key, value in episode.data.items():
             create_dataset_helper(h5_episode_group, key, value)
 
-        # increment total step counts
         self._hdf5_data_group.attrs["total"] += h5_episode_group.attrs["num_samples"]
 
         # Only increment demo count if using default indexing
         if demo_id is None:
-            # increment total demo counts
             self._demo_count += 1
 
     def flush(self):

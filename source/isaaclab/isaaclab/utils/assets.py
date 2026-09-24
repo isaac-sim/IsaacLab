@@ -29,7 +29,7 @@ from urllib.parse import urlparse
 
 from filelock import FileLock
 
-from isaaclab.paths import ISAACLAB_ROOT
+from ..paths import ISAACLAB_ROOT
 
 logger = logging.getLogger(__name__)
 
@@ -646,7 +646,7 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
     elif file_status == 2:
         omni_client = _get_omni_client()
 
-        from isaaclab.app.loading_screen import report_activity
+        from ..app.loading_screen import report_activity
 
         # resolve download directory
         if download_dir is None:

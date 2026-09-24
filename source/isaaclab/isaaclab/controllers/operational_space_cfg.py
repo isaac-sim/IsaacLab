@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from ..utils import configclass
 
 if TYPE_CHECKING:
     from .operational_space import OperationalSpaceController

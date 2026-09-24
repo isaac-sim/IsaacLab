@@ -60,7 +60,7 @@ def class_to_dict(obj: object) -> dict[str, Any]:
         return obj
 
     # convert to dictionary
-    data = dict()
+    data = {}
     for key, value in obj_dict.items():
         # disregard builtin attributes
         if key.startswith("__"):
@@ -68,7 +68,6 @@ def class_to_dict(obj: object) -> dict[str, Any]:
         # Keep lazy callable references as strings; don't force callable introspection.
         if isinstance(value, ResolvableString):
             data[key] = str(value)
-        # check if attribute is callable -- function
         # check if attribute is callable -- function
         elif callable(value):
             data[key] = callable_to_string(value)
@@ -263,7 +262,7 @@ def convert_dict_to_backend(
     tensor_type_conversions = TENSOR_TYPE_CONVERSIONS[backend]
 
     # Parse the array types and convert them to the corresponding types: "numpy" -> np.ndarray, etc.
-    parsed_types = list()
+    parsed_types = []
     for t in array_types:
         # Check type is valid.
         if t not in TENSOR_TYPES:
@@ -275,7 +274,7 @@ def convert_dict_to_backend(
         parsed_types.append(TENSOR_TYPES[t])
 
     # Convert the data to the desired backend.
-    output_dict = dict()
+    output_dict = {}
     for key, value in data.items():
         # Obtain the data type of the current value.
         data_type = type(value)

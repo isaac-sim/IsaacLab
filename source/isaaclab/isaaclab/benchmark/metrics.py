@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 from tensorboard.backend.event_processing import event_accumulator
 
-from isaaclab.benchmark.schema import Framework, MeanStd
+from .schema import Framework, MeanStd
 
 SUCCESS_RATE_LOG_TAGS = ("Metrics/success_rate", "Episode/Metrics/success_rate")
 

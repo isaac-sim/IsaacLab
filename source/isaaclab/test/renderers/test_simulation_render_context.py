@@ -7,14 +7,13 @@
 
 from __future__ import annotations
 
-import re
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
 import pytest
 import torch
 
-from isaaclab.renderers import render_context
+from isaaclab.benchmark.stepping import RENDER_PROFILE_SCOPE, profile_renderers
 from isaaclab.renderers.base_renderer import BaseRenderer
 from isaaclab.renderers.render_context import RenderContext
 from isaaclab.renderers.renderer_cfg import RendererCfg
@@ -176,14 +175,14 @@ def test_scene_state_does_not_skip_writes_within_a_physics_step(sim):
 
 
 @pytest.mark.parametrize("profile", [False, True])
-def test_render_into_camera_call_order_and_profile_output(sim, monkeypatch, capsys, profile):
-    """Profiling preserves call order and prints the renderer benchmark's timing format."""
-    monkeypatch.setattr(render_context, "_RENDER_PROFILE_ENABLED", profile)
+def test_render_into_camera_call_order_and_profile_output(sim, capsys, profile):
+    """Profiling preserves call order and collects timings without printing."""
     renderer = sim.get_or_create_backend(RendererCfg(class_type=_renderer))
     data, camera = object(), CameraData()
 
-    sim.render_context.render_into_camera(renderer, data, camera, physics_step_count=1)
-    sim.render_context.render_into_camera(renderer, data, camera, physics_step_count=1)
+    with profile_renderers(sim.render_context, active=profile) as timings:
+        sim.render_context.render_into_camera(renderer, data, camera, physics_step_count=1)
+        sim.render_context.render_into_camera(renderer, data, camera, physics_step_count=1)
 
     assert renderer.mock_calls == [
         call.update_transforms(),
@@ -194,8 +193,17 @@ def test_render_into_camera_call_order_and_profile_output(sim, monkeypatch, caps
         call.render(data),
         call.read_output(data, camera),
     ]
-    timing = rf"{re.escape(render_context.RENDER_PROFILE_SCOPE)} took [\d.]+ ms"
-    assert len(re.findall(timing, capsys.readouterr().out)) == (2 if profile else 0)
+    assert len(timings) == (2 if profile else 0)
+    assert all(scope == RENDER_PROFILE_SCOPE and elapsed >= 0.0 for scope, elapsed in timings)
+    assert RENDER_PROFILE_SCOPE not in capsys.readouterr().out
+
+
+def test_legacy_render_profile_scope_warns_and_preserves_import():
+    """The old scope import remains available during its deprecation period."""
+    with pytest.warns(DeprecationWarning, match="isaaclab.benchmark.stepping.RENDER_PROFILE_SCOPE"):
+        from isaaclab.renderers.render_context import RENDER_PROFILE_SCOPE as legacy_scope
+
+    assert legacy_scope == RENDER_PROFILE_SCOPE
 
 
 @pytest.mark.parametrize("fail_writer", [False, True])
