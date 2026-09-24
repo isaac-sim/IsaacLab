@@ -836,7 +836,6 @@ def record_demos(success_term: object | None, use_isaac_teleop: bool, cleanup: c
         enabled=args_cli.xr and use_isaac_teleop,
         camera_rendering_enabled=not args_cli.disable_external_cameras,
     )
-    cleanup.callback(camera_feed_session.close)
     if camera_feed_session.requires_responsive_denoising:
         apply_isaac_rtx_global_settings(
             IsaacRtxRendererGlobalSettingsCfg(

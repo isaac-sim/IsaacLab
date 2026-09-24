@@ -27,7 +27,6 @@ wp.config.enable_backward = False
 import argparse
 import sys
 from collections.abc import Callable
-from contextlib import ExitStack
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils.string import list_intersection, string_to_callable

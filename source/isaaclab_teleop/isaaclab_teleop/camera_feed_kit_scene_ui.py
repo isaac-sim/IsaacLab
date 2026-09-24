@@ -604,12 +604,12 @@ class _ReplicatorCameraFeedSource:
 class _KitSceneUiCameraFeedPresenter:
     """Private adapter from camera buffers to Kit SceneUI panels."""
 
-    # All presenters share Kit's XR camera and /ui root. Track the panels themselves,
+    # All presenters share Kit's /ui root. Track the panels themselves,
     # and keep temporary USD edits in one cleanup stack for their combined lifetime.
     _partition_panels: set[KitSceneUiCameraFeedPanel] = set()
     _partition_stage = None
     _partition_cleanup = ExitStack()
-    _partition_attributes: set[Sdf.Path] = set()
+    _partition_authored = False
     _partition_ui_root = None
 
     def __init__(self):
@@ -689,9 +689,25 @@ class _KitSceneUiCameraFeedPresenter:
             presenter=self if descriptor.use_scene_partition else None,
         )
 
+    @staticmethod
+    def validate_camera_partition(camera_name: str, camera: Any) -> None:
+        """Require an already-partitioned Isaac RTX source camera before displaying its image."""
+        render_data = getattr(camera, "_render_data", None)
+        if getattr(render_data, "render_product", None) is None:
+            raise ValueError(f"Isolated XR camera feed {camera_name!r} requires an Isaac RTX camera.")
+        stage = get_current_stage()
+        for path in render_data.spec.camera_prim_paths:
+            prim = stage.GetPrimAtPath(path)
+            partition = prim.GetAttribute("omni:scenePartition") if prim else None
+            if not partition or partition.Get() in (None, "", _XR_CAMERA_PIP_PARTITION):
+                raise ValueError(
+                    f"Isolated XR camera feed {camera_name!r} requires a camera in an environment partition; "
+                    "keep enable_scene_partitioning=True and place the camera under {ENV_REGEX_NS}."
+                )
+
     @classmethod
     def _refresh_scene_partition(cls) -> None:
-        """Keep the shared XR camera and SceneUI root isolated while panels are open."""
+        """Partition only SceneUI; robot cameras and the XR spectator keep their existing policies."""
         if not cls._partition_panels:
             return
         stage = get_current_stage()
@@ -701,79 +717,64 @@ class _KitSceneUiCameraFeedPresenter:
         if stage is None:
             return
         try:
-            if get_settings_manager().get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING) is not False:
-                raise RuntimeError("Isolated XR PiP requires showAllPartitionsByDefault=False.")
-            env_root = stage.GetPrimAtPath("/World/envs/env_0")
-            partition = env_root.GetAttribute("primvars:omni:scenePartition") if env_root else None
+            if get_settings_manager().get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING) is not True:
+                raise RuntimeError("Isolated XR PiP requires the XR launch default showAllPartitionsByDefault=True.")
+            camera = stage.GetPrimAtPath(_XR_CAMERA_PATH)
+            partition = camera.GetAttribute("omni:scenePartition") if camera else None
             if partition and partition.Get() not in (None, ""):
-                raise RuntimeError(
-                    "Isolated XR PiP cannot display a partitioned environment; disable camera partitioning."
-                )
+                raise RuntimeError("Isolated XR PiP requires an unpartitioned XR spectator camera.")
 
             layer = stage.GetSessionLayer()
-            targets = ((_XR_CAMERA_PATH, "omni:scenePartition"), (_SCENE_UI_ROOT_PATH, "primvars:omni:scenePartition"))
-            ready = True
-            for prim_path, name in targets:
-                prim = stage.GetPrimAtPath(prim_path)
-                if not prim and prim_path == _SCENE_UI_ROOT_PATH:
-                    # SceneUI creates /ui only after drawing a visible panel. Seed an over to break that dependency.
-                    with Usd.EditContext(stage, layer):
-                        prim = stage.OverridePrim(prim_path)
-                    cls._partition_cleanup.callback(layer.ScheduleRemoveIfInert, layer.GetPrimAtPath(prim_path))
-                if not prim:
-                    ready = False
-                    continue
-                attribute = prim.GetAttribute(name)
-                value = attribute.Get() if attribute else None
-                if value not in (None, "", _XR_CAMERA_PIP_PARTITION):
-                    raise RuntimeError(
-                        f"XR camera PiP cannot replace existing scene partition {value!r} on {prim_path!r}."
-                    )
-                path = Sdf.Path(prim_path).AppendProperty(name)
-                if path not in cls._partition_attributes:
+            ui_root = stage.GetPrimAtPath(_SCENE_UI_ROOT_PATH)
+            if not ui_root:
+                # SceneUI creates /ui on its first draw. Seed its partition before showing a panel.
+                with Usd.EditContext(stage, layer):
+                    ui_root = stage.OverridePrim(_SCENE_UI_ROOT_PATH)
+                cls._partition_cleanup.callback(layer.ScheduleRemoveIfInert, layer.GetPrimAtPath(_SCENE_UI_ROOT_PATH))
+            name = "primvars:omni:scenePartition"
+            path = ui_root.GetPath().AppendProperty(name)
+            attribute = ui_root.GetAttribute(name)
+            value = attribute.Get() if attribute else None
+            if value not in (None, "", _XR_CAMERA_PIP_PARTITION):
+                raise RuntimeError(f"XR camera PiP cannot replace existing SceneUI partition {value!r}.")
+            if not cls._partition_authored:
+                spec = layer.GetAttributeAtPath(path)
+                had_property = spec is not None
+                previous = spec.default if spec is not None else None
+
+                def restore():
                     spec = layer.GetAttributeAtPath(path)
-                    had_property = spec is not None
-                    previous = spec.default if spec is not None else None
+                    if spec is None or spec.default != _XR_CAMERA_PIP_PARTITION:
+                        return
+                    if not had_property:
+                        spec.owner.RemoveProperty(spec)
+                    elif previous is None:
+                        spec.ClearDefaultValue()
+                    else:
+                        spec.default = previous
 
-                    def restore(path=path, had_property=had_property, previous=previous, layer=layer):
-                        spec = layer.GetAttributeAtPath(path)
-                        if spec is None or spec.default != _XR_CAMERA_PIP_PARTITION:
-                            return
-                        if not had_property:
-                            spec.owner.RemoveProperty(spec)
-                        elif previous is None:
+                cls._partition_cleanup.callback(restore)
+                cls._partition_authored = True
+            populated_root = ui_root if ui_root.GetChildren() else None
+            refresh_inheritance = populated_root is not None and populated_root != cls._partition_ui_root
+            if value != _XR_CAMERA_PIP_PARTITION or refresh_inheritance:
+                # Fabric skips inheritance on childless roots. Notify it once descendants appear.
+                with Usd.EditContext(stage, layer):
+                    if not attribute:
+                        attribute = ui_root.CreateAttribute(name, Sdf.ValueTypeNames.Token)
+                    spec = layer.GetAttributeAtPath(path)
+                    if refresh_inheritance and value == _XR_CAMERA_PIP_PARTITION and spec is not None:
+                        with Sdf.ChangeBlock():
                             spec.ClearDefaultValue()
-                        else:
-                            spec.default = previous
-
-                    cls._partition_cleanup.callback(restore)
-                    cls._partition_attributes.add(path)
-                ui_root = prim if prim_path == _SCENE_UI_ROOT_PATH and prim.GetChildren() else None
-                refresh_inheritance = ui_root is not None and ui_root != cls._partition_ui_root
-                if value != _XR_CAMERA_PIP_PARTITION or refresh_inheritance:
-                    # Fabric skips inheritance on childless roots. Send one notice when descendants appear.
-                    with Usd.EditContext(stage, layer):
-                        if not attribute:
-                            attribute = prim.CreateAttribute(name, Sdf.ValueTypeNames.Token)
-                        spec = layer.GetAttributeAtPath(path)
-                        if refresh_inheritance and value == _XR_CAMERA_PIP_PARTITION and spec is not None:
-                            with Sdf.ChangeBlock():
-                                spec.ClearDefaultValue()
-                                spec.default = _XR_CAMERA_PIP_PARTITION
-                        elif not attribute.Set(_XR_CAMERA_PIP_PARTITION):
-                            raise RuntimeError(f"Failed to author {name!r} on {prim_path!r}.")
-                if prim_path == _SCENE_UI_ROOT_PATH:
-                    cls._partition_ui_root = ui_root
-            became_ready = ready and any(not panel._partition_ready for panel in cls._partition_panels)
+                            spec.default = _XR_CAMERA_PIP_PARTITION
+                    elif not attribute.Set(_XR_CAMERA_PIP_PARTITION):
+                        raise RuntimeError("Failed to author the XR camera PiP SceneUI partition.")
+            cls._partition_ui_root = populated_root
+            ready = bool(camera)
             for panel in tuple(cls._partition_panels):
                 if panel._partition_ready != ready:
                     panel._partition_ready = ready
                     panel._update_visibility()
-            if became_ready:
-                logger.info(
-                    "XR camera PiP scene partition %r is active on the XR camera and SceneUI root.",
-                    _XR_CAMERA_PIP_PARTITION,
-                )
         except Exception:
             cls._clear_scene_partition()
             raise
@@ -786,7 +787,7 @@ class _KitSceneUiCameraFeedPresenter:
         try:
             cls._partition_cleanup.close()
         finally:
-            cls._partition_attributes.clear()
+            cls._partition_authored = False
             cls._partition_stage = None
             cls._partition_ui_root = None
 
