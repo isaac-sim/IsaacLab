@@ -136,12 +136,13 @@ class SceneDataBackend:
 
     def get_geometry_batches(
         self, output_format: Any = SceneDataFormat.Points
-    ) -> list[tuple[Any, dict[str, tuple[int, int]]]] | SceneDataFormat.FabricPoints:
+    ) -> list[tuple[Any, dict[str, tuple[int, int]]]]:
         """Publish native arrays and exact visual-prim ranges established during construction.
 
         Each batch pairs a native format with ``path: (offset, count)`` ranges. Offsets index
-        native points for ``Points`` or output vertices for an interpolated format. A requested
-        native ``FabricPoints`` publication may be returned directly instead of host ranges.
+        native points for ``Points`` or output vertices for an interpolated format. Publish the
+        requested native format when available, otherwise the primary formats for SDP to convert.
+        Native ``FabricPoints`` uses an empty range dictionary because Fabric owns the indexing.
         """
         return []
 

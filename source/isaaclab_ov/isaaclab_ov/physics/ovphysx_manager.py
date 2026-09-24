@@ -857,7 +857,7 @@ class OvPhysxManager(PhysicsManager):
             raise RuntimeError("OvPhysxManager: SimulationContext is not set.")
 
         plan = sim.get_clone_plan()
-        entries = deformable_entries(plan, deformable_prototypes(sim.stage, plan)) if plan is not None else ()
+        entries = deformable_entries(plan, deformable_prototypes(sim.stage, plan))
 
         ovphysx_device = "gpu" if "cuda" in PhysicsManager._device else "cpu"
 

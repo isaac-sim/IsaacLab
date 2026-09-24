@@ -288,8 +288,6 @@ class NewtonSceneDataBackend(SceneDataBackend):
 
     def get_geometry_batches(self, output_format=SceneDataFormat.Points):
         """Publish native arrays; SDP derives cable endpoints and applies destination layouts."""
-        if output_format is not SceneDataFormat.Points:
-            raise ValueError(f"Newton cannot publish native {output_format}.")
         state = self.state
         for source, _ in self._geometry_batches:
             attribute = "transforms" if source._cls is SceneDataFormat.CapsuleEndpoints else "points"

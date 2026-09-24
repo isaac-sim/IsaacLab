@@ -83,7 +83,8 @@ def test_fabric_native_geometry_is_borrowed_without_point_copies(monkeypatch):
         get_geometry_points=MagicMock(),
     )
     FabricBackend.__new__(FabricBackend).update_geometries(provider, 0)
-    provider.get_geometry_points.assert_called_once_with(output_format=SceneDataFormat.FabricPoints)
+    provider.get_geometry_points.assert_called_once()
+    assert provider.get_geometry_points.call_args.kwargs["output"]._cls is SceneDataFormat.FabricPoints
 
 
 def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch):

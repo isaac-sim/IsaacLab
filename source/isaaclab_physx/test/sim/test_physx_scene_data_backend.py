@@ -121,10 +121,10 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
             },
         },
     )
-    geometry = provider.get_geometry_points(output_format=SceneDataFormat.FabricPoints)
+    geometry = provider.get_geometry_points(output=SceneDataFormat.FabricPoints())
     assert geometry._cls is SceneDataFormat.FabricPoints and geometry.points is not None
     backend.geometry_version += 1
-    assert provider.get_geometry_points(output_format=SceneDataFormat.FabricPoints) is geometry
+    assert provider.get_geometry_points(output=geometry) is geometry
     assert provider.get_transforms(SceneDataFormat.FabricMatrix44())
     assert fabric.force_update.call_count == 4
     assert view.get_transforms.call_count == 3

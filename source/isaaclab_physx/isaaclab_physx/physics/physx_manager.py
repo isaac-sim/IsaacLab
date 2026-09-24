@@ -301,7 +301,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
                 self._fabric_points.points = wp.fabricarrayarray(data=self._fabric_points_selection, attrib="points")
                 self.geometry_version += 1
                 self._fabric_version = (self.transforms_version, self.geometry_version)
-            return self._fabric_points
+            return [(self._fabric_points, {})]
         if self._native_geometry_version != self.geometry_version:
             for view, batches in self._deformable_bindings:
                 points = view.get_simulation_nodal_positions().view(wp.vec3f).flatten()
@@ -955,7 +955,7 @@ class PhysxManager(PhysicsManager):
 
         sim = PhysicsManager._sim
         plan = sim.get_clone_plan()
-        entries = deformable_entries(plan, deformable_prototypes(sim.stage, plan)) if plan is not None else ()
+        entries = deformable_entries(plan, deformable_prototypes(sim.stage, plan))
 
         is_gpu = "cuda" in PhysicsManager.get_device()
 

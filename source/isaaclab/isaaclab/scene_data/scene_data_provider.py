@@ -8,12 +8,13 @@ from __future__ import annotations
 import re
 from collections import deque
 from typing import TYPE_CHECKING, Any
+from weakref import WeakKeyDictionary
 
 import numpy as np
 import warp as wp
 
 from .. import sim as sim_utils
-from .geometry_points import convert_geometry_points_kernel
+from .geometry_points import convert_geometry_fabric_kernel, convert_geometry_points_kernel
 from .scene_data_backend import SceneDataBackend, SceneDataFormat
 
 if TYPE_CHECKING:
@@ -64,7 +65,8 @@ class SceneDataProvider:
         self._num_envs_cache: int | None = None
         self._interactive_scene: Any | None = None
         self._transform_cache: dict[tuple, tuple[int, Any]] = {}
-        self._geometry_cache: dict[tuple, tuple] = {}
+        self._geometry_cache: tuple | None = None
+        self._geometry_destinations = WeakKeyDictionary()
 
     def get_transforms(
         self,
@@ -300,86 +302,135 @@ class SceneDataProvider:
     def get_geometry_points(
         self,
         *,
-        output_format: Any = SceneDataFormat.Points,
-        output: wp.array | None = None,
+        output: wp.array | SceneDataFormat.FabricPoints | None = None,
         offsets: dict[str, int] | None = None,
-    ) -> dict[str, wp.array] | SceneDataFormat.FabricPoints:
+    ) -> dict[str, wp.array] | wp.array | SceneDataFormat.FabricPoints:
         """Borrow visual point views or convert directly into the requested native destination.
 
         Producers supply exact visual prim paths, native pointers and immutable interpolation
         metadata. SDP performs interpolation and destination reordering together, once per
-        publication version and output layout. No intermediate packed simulation buffer is needed.
+        publication version and output layout. Only cross-device destinations require staging.
 
         Args:
-            output_format: World-space ``Points`` or a producer's native ``FabricPoints`` format.
-            output: Optional consumer-owned world-space point buffer [m].
-            offsets: Visual prim paths mapped to their starting indices in ``output``. Keep this
-                mapping immutable for the destination's lifetime.
+            output: Consumer-owned world-space point buffer [m] or native Fabric destination.
+                Omit to borrow shared point views. ``FabricPoints`` without offsets borrows
+                native Fabric storage when the producer publishes it.
+            offsets: Visual prim paths mapped to flat-buffer offsets or Fabric array indices.
+                Keep this mapping immutable for the destination's lifetime.
 
         Returns:
-            Read-only world-space views by visual prim path, or the requested native Fabric arrays.
+            Read-only world-space views by visual prim path when no output is supplied;
+            otherwise the supplied destination, populated directly on the same device.
         """
-        if (output is None) != (offsets is None):
-            raise ValueError("Geometry output and its path offsets must be supplied together.")
-        batches = self.backend.get_geometry_batches(output_format)
-        if output_format is SceneDataFormat.FabricPoints:
-            return batches
+        fabric = output is not None and not isinstance(output, wp.array)
+        requested_format = SceneDataFormat.FabricPoints if fabric and offsets is None else SceneDataFormat.Points
+        batches = self.backend.get_geometry_batches(requested_format)
+        if fabric and len(batches) == 1 and batches[0][0]._cls is SceneDataFormat.FabricPoints:
+            output.points = batches[0][0].points
+            return output
         version = self.backend.geometry_version
-        key = (output, id(offsets))
-        cached = self._geometry_cache.get(key)
+        if output is not None:
+            if offsets is None:
+                raise ValueError("A geometry destination requires its visual-path offsets.")
+            destination = output.points if fabric else output
+            cached = self._geometry_destinations.get(output)
+            if cached is None or cached[2] is not offsets:
+                jobs, bound = [], set()
+                for source, ranges in batches:
+                    selected = {path: bounds for path, bounds in ranges.items() if path in offsets}
+                    count = sum(count for _, count in selected.values())
+                    indices = np.empty((3 if fabric else 2, count), dtype=np.int32)
+                    cursor = 0
+                    for path, (start, count) in selected.items():
+                        vertices = np.arange(count)
+                        indices[0, cursor : cursor + count] = start + vertices
+                        indices[1, cursor : cursor + count] = offsets[path] if fabric else offsets[path] + vertices
+                        if fabric:
+                            indices[2, cursor : cursor + count] = vertices
+                        elif offsets[path] < 0 or offsets[path] + count > len(output):
+                            raise ValueError("Geometry destination range exceeds its output buffer.")
+                        cursor += count
+                    device = _publication_device(source)
+                    source_indices = wp.array(indices[0], device=device)
+                    destination_indices = wp.array(
+                        indices[1:].T if fabric else indices[1],
+                        dtype=wp.vec2i if fabric else wp.int32,
+                        device=destination.device,
+                    )
+                    transfer = None
+                    if cursor and device != destination.device:
+                        staging = SceneDataFormat.Points()
+                        staging.points = wp.empty(
+                            cursor, wp.vec3f, device=destination.device, pinned=destination.device.is_cpu
+                        )
+                        transfer = (wp.empty(cursor, wp.vec3f, device=device), staging, wp.array(dtype=wp.int32))
+                    jobs.append((source_indices, destination_indices, transfer))
+                    bound.update(selected)
+                if bound != offsets.keys():
+                    raise KeyError(f"Geometry destinations have no native publication: {offsets.keys() - bound}")
+            else:
+                previous_version, jobs, _ = cached
+                if previous_version == version:
+                    return output
+            for (source, _), (source_indices, destination_indices, transfer) in zip(batches, jobs, strict=True):
+                if len(source_indices):
+                    device = _publication_device(source)
+                    count = len(source_indices)
+                    if transfer is not None:
+                        packed, staging, identity = transfer
+                        wp.launch(
+                            convert_geometry_points_kernel,
+                            dim=count,
+                            inputs=[source, source_indices, identity, packed],
+                            device=device,
+                        )
+                        wp.copy(staging.points, packed)
+                        if destination.device.is_cpu:
+                            wp.synchronize_stream(device)
+                        source, source_indices = staging, identity
+                    wp.launch(
+                        convert_geometry_fabric_kernel if fabric else convert_geometry_points_kernel,
+                        dim=count,
+                        inputs=[source, source_indices, destination_indices, destination],
+                        device=destination.device,
+                    )
+            # Retain conversion buffers, never the consumer's destination or slices of it.
+            self._geometry_destinations[output] = (version, jobs, offsets)
+            return output
+        if offsets is not None:
+            raise ValueError("Geometry offsets require a destination.")
+        cached = self._geometry_cache
         if cached is None:
             views, jobs = {}, []
             for source, ranges in batches:
                 device = _publication_device(source)
-                if output is None:
-                    count = max((start + count for start, count in ranges.values()), default=0)
-                    buffer = (
-                        source.points
-                        if source._cls is SceneDataFormat.Points
-                        else wp.empty(count, wp.vec3f, device=device)
-                    )
-                    indices = wp.array(dtype=wp.int32, device=device)
-                    jobs.append((indices, indices, buffer, ranges))
-                else:
-                    selected = {path: bounds for path, bounds in ranges.items() if path in offsets}
-                    indices = np.empty((2, sum(count for _, count in selected.values())), dtype=np.int32)
-                    cursor = 0
-                    for path, (start, count) in selected.items():
-                        indices[:, cursor : cursor + count] = np.arange(count) + np.array([[start], [offsets[path]]])
-                        cursor += count
-                    source_indices, destination_indices = (wp.array(row, device=device) for row in indices)
-                    ranges = {path: (offsets[path], count) for path, (_, count) in selected.items()}
-                    for start, count in ranges.values():
-                        if start < 0 or start + count > len(output):
-                            raise ValueError("Geometry destination range exceeds its output buffer.")
-                    buffer = output
-                    jobs.append((source_indices, destination_indices, buffer, ranges))
+                count = max((start + count for start, count in ranges.values()), default=0)
+                buffer = (
+                    source.points if source._cls is SceneDataFormat.Points else wp.empty(count, wp.vec3f, device=device)
+                )
+                indices = wp.array(dtype=wp.int32, device=device)
+                jobs.append((indices, buffer, ranges))
                 views.update((path, buffer[start : start + count]) for path, (start, count) in ranges.items())
-            if offsets is not None and views.keys() != offsets.keys():
-                raise KeyError(f"Geometry destinations have no native publication: {offsets.keys() - views.keys()}")
         else:
-            previous_version, views, jobs, _ = cached
+            previous_version, views, jobs = cached
             if previous_version == version:
                 return views
 
-        for index, ((source, _), (source_indices, destination_indices, buffer, ranges)) in enumerate(
-            zip(batches, jobs, strict=True)
-        ):
-            if output is None and source._cls is SceneDataFormat.Points:
+        for index, ((source, _), (indices, buffer, ranges)) in enumerate(zip(batches, jobs, strict=True)):
+            if source._cls is SceneDataFormat.Points:
                 if buffer is not source.points:
                     buffer = source.points
-                    jobs[index] = (source_indices, destination_indices, buffer, ranges)
+                    jobs[index] = (indices, buffer, ranges)
                     views.update((path, buffer[start : start + count]) for path, (start, count) in ranges.items())
                 continue
-            count = len(source_indices) if output is not None else len(buffer)
-            if count:
+            if len(buffer):
                 wp.launch(
                     convert_geometry_points_kernel,
-                    dim=count,
-                    inputs=[source, source_indices, destination_indices, buffer],
+                    dim=len(buffer),
+                    inputs=[source, indices, indices, buffer],
                     device=buffer.device,
                 )
-        self._geometry_cache[key] = (version, views, jobs, offsets)
+        self._geometry_cache = (version, views, jobs)
         return views
 
 

@@ -48,3 +48,16 @@ def convert_geometry_points_kernel(
     source_index = source_indices[index] if source_indices.shape[0] else index
     destination_index = destination_indices[index] if destination_indices.shape[0] else index
     output[destination_index] = geometry_point(source, source_index)
+
+
+@wp.kernel(enable_backward=False)
+def convert_geometry_fabric_kernel(
+    source: Any,
+    source_indices: wp.array(dtype=wp.int32),
+    destination_indices: wp.array(dtype=wp.vec2i),
+    output: wp.fabricarrayarray(dtype=wp.vec3f),
+):
+    index = wp.tid()
+    destination = destination_indices[index]
+    source_index = source_indices[index] if source_indices.shape[0] else index
+    output[destination[0]][destination[1]] = geometry_point(source, source_index)

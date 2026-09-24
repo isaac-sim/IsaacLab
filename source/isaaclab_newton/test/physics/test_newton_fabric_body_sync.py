@@ -28,12 +28,13 @@ from isaaclab_visualizers.kit import KitVisualizerCfg
 
 from pxr import Gf as UsdGf
 from pxr import Sdf, UsdGeom
-from usdrt import Gf, Rt
+from usdrt import Gf, Rt, Vt
+from usdrt import Sdf as RtSdf
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, CableObjectCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.scene_data import SceneDataFormat
+from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.sim.spawners.materials import CableMaterialCfg
@@ -349,10 +350,17 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence():
             else:
                 geometry.GetPrim().CreateAttribute("isaaclab:pointsUpdateFrequency", Sdf.ValueTypeNames.Int).Set(3)
             points[path] = wp.array([[1.0, 0.0, 2.0], [2.0, 0.0, 2.0], [3.0, 0.0, 2.0]], wp.vec3f, device=sim.device)
-        provider = SimpleNamespace(
-            usd_stage=sim.stage,
-            backend=SimpleNamespace(native_geometry_formats=(SceneDataFormat.Points,), geometry_version=0),
-            get_geometry_points=lambda: points,
+        batches = []
+        for path, values in points.items():
+            source = SceneDataFormat.Points()
+            source.points = values
+            batches.append((source, {path: (0, len(values))}))
+        provider = SceneDataProvider(
+            SimpleNamespace(
+                native_geometry_formats=(SceneDataFormat.Points,),
+                geometry_version=0,
+                get_geometry_batches=lambda _format=SceneDataFormat.Points: batches,
+            )
         )
         fabric = sim.get_or_create_backend(sim.fabric_cfg)
         fabric.update_geometries(provider, 0)
@@ -362,12 +370,15 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence():
             np.testing.assert_allclose(
                 _fabric_curve_points_world(path), points[path].numpy(), atol=1.0e-6, err_msg=path
             )
+        # Kit's first update can add prims; settle those structural changes before checking cadence.
+        fabric.update_geometries(provider, 0)
 
         # Replace pointers in the same published mapping; parents must never be applied a second time.
-        for path in points:
+        for (source, _), path in zip(batches, points, strict=True):
             points[path] = wp.array([[4.0, 5.0, 6.0]] * 3, wp.vec3f, device=sim.device)
+            source.points = points[path]
         provider.backend.geometry_version += 1
-        fabric.update_geometries(provider, 1)
+        fabric.update_geometries(provider, 0)
         wp.synchronize_device(sim.device)
         for name in ("Mesh", "Curve"):
             path = f"/World/Geometry/{name}"
@@ -375,9 +386,22 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence():
         cloud = UsdGeom.Points(sim.stage.GetPrimAtPath("/World/Geometry/Cloud"))
         fabric.update_geometries(provider, 1)
         fabric.update_geometries(provider, 2)
-        assert cloud.GetPointsAttr().Get()[0][0] == 1.0
+        np.testing.assert_allclose(_fabric_curve_points_world(str(cloud.GetPath()))[0], [1.0, 0.0, 2.0])
         fabric.update_geometries(provider, 3)
-        np.testing.assert_allclose(cloud.GetPointsAttr().Get(), points["/World/Geometry/Cloud"].numpy(), atol=1.0e-6)
+        np.testing.assert_allclose(
+            _fabric_curve_points_world(str(cloud.GetPath())), points["/World/Geometry/Cloud"].numpy(), atol=1.0e-6
+        )
+        # Runtime transport must not rewrite the authored USD points.
+        np.testing.assert_array_equal(cloud.GetPointsAttr().Get(), np.zeros((3, 3)))
+
+        # Moving a prim to a new Fabric bucket must refresh the sink even with unchanged physics.
+        mesh_path = "/World/Geometry/Mesh"
+        mesh = fabric.stage.GetPrimAtPath(mesh_path)
+        mesh.CreateAttribute("test:geometryBucket", RtSdf.ValueTypeNames.Bool, custom=True).Set(True)
+        mesh.GetAttribute("points").Set(Vt.Vec3fArray([Gf.Vec3f(99.0)] * 3))
+        fabric.update_geometries(provider, 3)
+        wp.synchronize_device(sim.device)
+        np.testing.assert_allclose(_fabric_curve_points_world(mesh_path), points[mesh_path].numpy(), atol=1.0e-6)
 
 
 @pytest.mark.isaacsim_ci

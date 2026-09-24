@@ -11,7 +11,6 @@ import logging
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
-from itertools import chain
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -281,39 +280,6 @@ def deformable_entry(root_prim: Usd.Prim) -> DeformableStageEntry | None:
     )
 
 
-def discover_deformables_on_stage(
-    stage: Usd.Stage, *, root_paths: Sequence[str] | None = None
-) -> list[DeformableStageEntry]:
-    """Discover PhysX/OVPhysX deformable bodies under ``stage``.
-
-    Callers that need the result in more than one place should keep the returned
-    list and pass it explicitly (for example via ``entries=``) rather than relying
-    on a process-global stage cache.
-
-    Args:
-        stage: USD stage to traverse.
-        root_paths: Declared asset roots to inspect. None selects the complete stage.
-
-    Returns:
-        One :class:`DeformableStageEntry` per prim with ``OmniPhysicsDeformableBodyAPI``.
-    """
-    entries: list[DeformableStageEntry] = []
-    prims = (
-        stage.Traverse()
-        if root_paths is None
-        else chain.from_iterable(
-            Usd.PrimRange(stage.GetPrimAtPath(path)) for path in Sdf.Path.RemoveDescendentPaths(root_paths)
-        )
-    )
-    for prim in prims:
-        if not _prim_has_schema(prim, "OmniPhysicsDeformableBodyAPI"):
-            continue
-
-        if (entry := deformable_entry(prim)) is not None:
-            entries.append(entry)
-    return entries
-
-
 def deformable_prototypes(
     stage: Usd.Stage, plan: ClonePlan, rows: Sequence[int] | None = None
 ) -> list[DeformableStageEntry]:
@@ -399,9 +365,3 @@ def deformable_entries(
                 if cloned.root_path not in entries or len(target) > len(entries[cloned.root_path][0]):
                     entries[cloned.root_path] = (target, cloned)
     return [entry for _, entry in entries.values()]
-
-
-def sort_deformable_entries_for_geometry_sync(entries: list[DeformableStageEntry]) -> list[DeformableStageEntry]:
-    """Return deformable entries in SceneData geometry path order (volume, then surface)."""
-    type_rank = {"volume": 0, "surface": 1}
-    return sorted(entries, key=lambda entry: (type_rank.get(entry.deformable_type, 2), entry.root_path))

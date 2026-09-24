@@ -22,9 +22,15 @@ from isaaclab_ov.assets.deformable_object.deformable_object_data import (  # noq
     DeformableObjectData,
 )
 from isaaclab_ov.assets.deformable_object.kernels import vec6f  # noqa: E402
+from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager, OvPhysxSceneDataBackend  # noqa: E402
 
 wp.init()
 wp.set_device("cpu")
+
+
+@pytest.fixture(autouse=True)
+def scene_data_backend(monkeypatch):
+    monkeypatch.setattr(OvPhysxManager, "_scene_data_backend", OvPhysxSceneDataBackend())
 
 
 class _FakeBodyView:

@@ -45,7 +45,9 @@ The system has three layers:
    - :attr:`SceneDataBackend.native_transform_formats`: formats published without conversion.
      PhysX publishes either packed poses or Fabric matrices and refreshes only the requested representation.
    - :meth:`SceneDataBackend.get_geometry_batches`: native point arrays or interpolation inputs,
-     paired with exact visual prim paths and ranges compiled during backend construction.
+     paired with exact visual prim paths and ranges compiled during backend construction. It returns
+     the requested native representation when available, otherwise the primary representations for
+     SDP to convert. The return type is always a list of batches, including native Fabric.
    - :attr:`SceneDataBackend.geometry_version`: monotonic geometry publication version,
      including same-step writes and native pointer swaps.
    - :attr:`SceneDataBackend.native_geometry_formats`: geometry formats available without conversion.
@@ -63,7 +65,9 @@ The system has three layers:
    - :meth:`SceneDataProvider.get_geometry_points`: read-only world-space point views keyed by
      exact visual prim path. Native point ranges alias the producer; interpolation and destination
      reordering are fused into one cached conversion. Consumers with fixed native storage pass
-     that array as ``output`` and visual-path offsets as ``offsets``.
+     that array or ``FabricPoints`` as ``output`` and visual-path offsets as ``offsets``. These
+     calls return the supplied destination. Destination caches retain indexing metadata, not the
+     consumer's buffers, and expire with the destination.
    - :meth:`SceneDataProvider.get_camera_transforms`: discovers per-camera, per-env world
      transforms from the USD stage.
    - :attr:`SceneDataProvider.usd_stage`: USD stage handle for stage-walking consumers.
@@ -122,10 +126,10 @@ reuses the hierarchy topology. Clean requests never acquire writable Fabric arra
 Renderers do not select a physics-specific synchronization path.
 The same Fabric resource receives geometry through ``update_geometries(provider, frame)``.
 PhysX publishes its native ``FabricPoints`` without a conversion or rewrite. Foreign mesh points
-are written to Fabric on the GPU. BasisCurves currently require a CPU sink because of a Hydra
-limitation; MPM USD Points retain their configured render cadence. Only those CPU destinations use
-a shared staging transfer. World-space point destinations reset their transform stack to avoid
-applying the environment or body pose twice.
+are interpolated directly into GPU Fabric storage. The current Kit Hydra path requires CPU Fabric
+destinations for ``Points`` and ``BasisCurves``; SDP handles their device transfer without USD
+attribute writes. Only destinations whose update interval has elapsed are transferred. World-space
+point destinations reset their transform stack to avoid applying the environment or body pose twice.
 ``FabricMatrix44`` and ``FabricPoints`` contain only array storage, not bindings or native engine handles.
 
 Newton backend
@@ -162,6 +166,9 @@ ranges. Consumers bind to those completed resources, never rediscovering the com
 
    # A consumer with fixed native storage receives the conversion directly.
    provider.get_geometry_points(output=state.particle_q, offsets=visual_path_offsets)
+
+   # A Fabric consumer supplies native storage and its exact visual-path row indices.
+   provider.get_geometry_points(output=fabric_points, offsets=visual_path_rows)
 
 The internal flat-node queries and physics-owned geometry sync methods were removed. Rendering
 consumers use ``get_geometry_points``; physics managers no longer run geometry writers from ``pre_render``.
