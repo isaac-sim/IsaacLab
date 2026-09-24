@@ -129,10 +129,20 @@ class OVRTXVisualMaterialWriter:
         channels.clear()
 
     def drain(self) -> None:
-        """Complete submitted writes before their scene buffers may change."""
+        """Complete submitted writes before their scene buffers may change.
+
+        Every op is waited even when an earlier one fails. Skipping the rest would leave their
+        writes pending with no remaining reference to wait on.
+        """
         operations, self._operations = self._operations, ()
+        errors = []
         for operation in operations:
-            operation.wait()
+            try:
+                operation.wait()
+            except Exception as e:
+                errors.append(e)
+        if errors:
+            raise RuntimeError(f"{len(errors)} OVRTX material write(s) failed to complete") from errors[0]
 
     def _release_backend_addresses(self, renderer: OVRTXRenderer) -> None:
         for _channel, address, path_list, _attribute_name, _rows in self._addresses:
@@ -154,7 +164,7 @@ class OVRTXVisualMaterialWriter:
                 # render can still be in flight here and still read these bindings. Deliver every
                 # queued render before the release below. One failed render must not leave the
                 # others in flight while their bindings are released.
-                for error in renderer._strategy.drain_pending_renders():
+                for error in renderer.drain_pending_renders():
                     logger.warning("Error draining in-flight render before material release: %s", error)
                 self._release_backend_addresses(renderer)
             self._dirty_channels.clear()

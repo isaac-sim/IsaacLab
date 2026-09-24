@@ -60,8 +60,9 @@ class OVRTXRendererCfg(RendererCfg):
     """Trade one frame of camera latency for pipelined rendering. Defaults to False (synchronous).
 
     When enabled, rendering overlaps the next step's simulation and Python work, and camera
-    outputs describe the simulation state from one step earlier. The ovstage path does not
-    support it and renders synchronously.
+    outputs describe the simulation state from one step earlier. Only the image is delayed:
+    the camera's pose, intrinsics, and frame-counter metadata still describe the current step.
+    The ovstage path does not support it and renders synchronously.
     """
 
     temp_usd_dir: str | None = None

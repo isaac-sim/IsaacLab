@@ -319,7 +319,7 @@ def test_two_cameras_pipeline_together_with_one_frame_latency(timeline, interlea
 def test_repeated_renders_without_staging_keep_one_frame_in_flight(strategy, timeline):
     """A camera re-rendered without staging starts the next frame at the render call itself.
 
-    Nothing is staged between the rounds, so the fallback boundary in ``_begin_render_phase``
+    Nothing is staged between the rounds, so the fallback boundary in ``_note_rendered_camera``
     must group the renders into frames and drain the previous frame, for both cameras together.
     """
     renderer = _FakeRenderer(timeline)
@@ -345,6 +345,58 @@ def test_repeated_renders_without_staging_keep_one_frame_in_flight(strategy, tim
     assert delivered == [camera_a, camera_b], "a repeat render drains the whole previous round"
     strategy.render(renderer, {"/B"}, 1.0 / 60.0, camera_b, consume)
     assert delivered == [camera_a, camera_b], "the second camera joins the new round without draining it"
+
+
+def test_staging_after_a_render_only_frame_still_rotates_the_slot(timeline):
+    """A render-only frame must not erase the slot's occupancy: the next staging still rotates
+    away from the slot that backs the render in flight."""
+    strategy = _AsyncRenderStrategy()
+    strategy.set_device(wp.get_device("cuda:0"))
+    renderer = _FakeRenderer(timeline)
+    camera = object()
+    object_binding = _FakeBinding()
+    consumed: list[int] = []
+
+    first = _stage_objects(strategy, object_binding)
+    _render(strategy, renderer, 0, consumed, camera)  # primed and delivered
+    _render(strategy, renderer, 1, consumed, camera)  # in flight, reads the first slot
+    _render(strategy, renderer, 2, consumed, camera)  # render-only frame: drains 1, queues 2
+
+    second = _stage_objects(strategy, object_binding)
+    assert second is not first, "staging must rotate away from the slot backing the in-flight render"
+
+
+def test_double_staging_one_frame_does_not_rotate_twice(timeline):
+    """Re-staging the same binding before any render reuses the frame's slot. Rotating again
+    would land staging back on the slot that backs the render in flight."""
+    strategy = _AsyncRenderStrategy()
+    strategy.set_device(wp.get_device("cuda:0"))
+    renderer = _FakeRenderer(timeline)
+    camera = object()
+    binding = _FakeBinding()
+    consumed: list[int] = []
+
+    frame_0 = _stage_camera(strategy, binding)
+    _render(strategy, renderer, 0, consumed, camera)  # primed and delivered
+    _render(strategy, renderer, 1, consumed, camera)  # in flight, reads frame 0's slot
+
+    frame_1_first = _stage_camera(strategy, binding)
+    frame_1_second = _stage_camera(strategy, binding)
+    assert frame_1_first is not frame_0
+    assert frame_1_second is frame_1_first, "a second staging of one frame must reuse its slot"
+
+
+def test_released_binding_drops_its_staging_buffers(timeline):
+    """Releasing a camera's binding evicts its cached buffers, so a recycled ``id()`` cannot
+    reuse them or trigger a spurious frame."""
+    strategy = _AsyncRenderStrategy()
+    strategy.set_device(wp.get_device("cuda:0"))
+    binding = _FakeBinding()
+
+    first = _stage_camera(strategy, binding)
+    strategy.release_binding(binding)
+    second = _stage_camera(strategy, binding)
+    assert second is not first, "released bindings must not keep staging buffers alive"
 
 
 def test_cleanup_survives_failed_slot_writes(strategy, timeline):

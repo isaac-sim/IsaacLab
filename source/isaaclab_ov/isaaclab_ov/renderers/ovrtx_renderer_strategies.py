@@ -138,6 +138,14 @@ class _RenderStrategy(ABC):
         """
         return []
 
+    def release_binding(self, binding: Any) -> None:
+        """Drop any staging state kept for ``binding``.
+
+        The renderer calls this before it unbinds a camera's pose binding. Python can reuse the
+        released binding's ``id()`` for a new binding, so stale entries must not survive it. The
+        default does nothing.
+        """
+
     @abstractmethod
     def stage_object_transforms(
         self, binding: Any, num_rows: int, buffer: wp.array
@@ -193,6 +201,10 @@ class _SyncRenderStrategy(_RenderStrategy):
         """Drop the camera staging buffers for a new scene. See :meth:`_RenderStrategy.initialize`."""
         del num_envs  # Buffers are allocated on first use, sized by their staging calls.
         self._camera_buffers.clear()
+
+    def release_binding(self, binding: Any) -> None:
+        """Drop the binding's staging buffers. See :meth:`_RenderStrategy.release_binding`."""
+        self._camera_buffers.pop(id(binding), None)
 
     @contextmanager
     def stage_object_transforms(self, binding: Any, num_rows: int, buffer: wp.array) -> Iterator[wp.array]:
@@ -285,11 +297,13 @@ class _AsyncRenderStrategy(_RenderStrategy):
 
     **Frame boundaries.** No caller announces a frame. The strategy derives it from two facts
     about the call pattern instead: a binding stages at most once per frame, and a camera renders
-    at most once per frame. A repeated staging or render therefore starts the next frame. Nothing
-    else does: the sensor pipeline interleaves cameras (stage A, stage objects, render A, stage B,
-    render B), so a first staging or render must join the current frame regardless of what other
-    cameras did before it. :meth:`_note_staged_binding` and :meth:`_note_rendered_camera` are the
-    only places that track this.
+    at most once per frame. A repeat therefore belongs to the next frame. Only a binding repeat
+    that follows a render rotates the staging slot: a camera repeat advances the drain key and
+    keeps the slot, and a binding repeat with no render in between re-stages the current frame in
+    place. Nothing else starts a frame: the sensor pipeline interleaves cameras (stage A, stage
+    objects, render A, stage B, render B), so a first staging or render must join the current
+    frame regardless of what other cameras did before it. :meth:`_note_staged_binding` and
+    :meth:`_note_rendered_camera` are the only places that track this.
 
     Transform staging always uses two slots, so one slot can be refilled while the other still
     backs the frame in flight. A slot serves all cameras of its frame.
@@ -322,27 +336,38 @@ class _AsyncRenderStrategy(_RenderStrategy):
         # are delivered when a newer frame's renders are enqueued, which gives every camera one
         # frame of latency, however many cameras share the strategy.
         self._frame = 0
+        # Bindings staged into the current slot since its rotation, and whether a render has been
+        # enqueued since then. Together they decide when a binding repeat may rotate the slot.
         self._staged_bindings: set[int] = set()
+        self._rendered_since_rotation = False
         self._primed_render_data: set[Any] = set()
 
     def _note_staged_binding(self, binding: Any) -> None:
-        """Start the next frame when ``binding`` stages for the second time.
+        """Rotate to the next frame's slot when ``binding`` stages again after a render.
 
-        A binding stages at most once per frame, so its repeat belongs to the next frame. That
-        frame stages into the other slot, whose renders have all drained by now.
+        A binding stages at most once per frame, so its repeat after a render belongs to the next
+        frame. That frame stages into the other slot, whose renders have all drained by now. A
+        repeat with no render in between re-stages the current frame instead: the slot is kept,
+        and its pending write ops are waited out before the buffers are refilled.
         """
         if id(binding) in self._staged_bindings:
-            self._staged_bindings.clear()
-            self._frame += 1
-            self._advance_slot()
+            if self._rendered_since_rotation:
+                self._advance_slot()
+                self._frame += 1
+                self._staged_bindings.clear()
+                self._rendered_since_rotation = False
+            else:
+                self._current_slot.wait_for_writes()
         self._staged_bindings.add(id(binding))
 
     def _note_rendered_camera(self, render_data: OVRTXCameraRenderData | None) -> None:
-        """Start the next frame when the same camera renders again without staging in between.
+        """Advance the drain key when the same camera renders again without staging in between.
 
-        The staging slot keeps its buffers in this case: nothing was staged, so the new frame
-        renders from the previous transforms.
+        The staging slot and its occupancy are untouched: nothing was staged, so the new frame
+        renders from the previous transforms, and the slot still holds the bindings whose next
+        staging must rotate it.
         """
+        self._rendered_since_rotation = True
         if render_data is None:
             return
         # Only a same-frame duplicate starts a frame. Older entries for this camera are the
@@ -350,7 +375,6 @@ class _AsyncRenderStrategy(_RenderStrategy):
         pending_renders_for_camera = (entry for entry in self._ring if entry.render_data is render_data)
         already_rendered_this_frame = any(entry.frame == self._frame for entry in pending_renders_for_camera)
         if already_rendered_this_frame:
-            self._staged_bindings.clear()
             self._frame += 1
 
     def _has_pending_ops(self) -> bool:
@@ -386,6 +410,7 @@ class _AsyncRenderStrategy(_RenderStrategy):
         self._current_slot = None
         self._frame = 0
         self._staged_bindings.clear()
+        self._rendered_since_rotation = False
         self._primed_render_data.clear()
         self._ring.clear()
 
@@ -417,9 +442,11 @@ class _AsyncRenderStrategy(_RenderStrategy):
         renders were enqueued, and its writes completed before those renders, so the wait below
         completes immediately in steady state.
         """
-        self._slot_index = (self._slot_index + 1) % len(self._slots)
-        slot = self._slots[self._slot_index]
+        # Wait before mutating the rotation state, so a failed wait leaves it consistent.
+        next_index = (self._slot_index + 1) % len(self._slots)
+        slot = self._slots[next_index]
         slot.wait_for_writes()
+        self._slot_index = next_index
         self._current_slot = slot
 
     def _write_binding_async(self, slot: _AsyncRenderSlot, binding: Any, data: wp.array) -> None:
@@ -521,6 +548,12 @@ class _AsyncRenderStrategy(_RenderStrategy):
             if entry.render_data is render_data:
                 entry.render_data = None
         self._primed_render_data.discard(render_data)
+
+    def release_binding(self, binding: Any) -> None:
+        """Drop the binding's staging state. See :meth:`_RenderStrategy.release_binding`."""
+        for slot in self._slots:
+            slot.camera_buffers.pop(id(binding), None)
+        self._staged_bindings.discard(id(binding))
 
     def cleanup(self) -> list[Exception]:
         """Finish all queued renders, drop the staging slots, and return the collected failures.

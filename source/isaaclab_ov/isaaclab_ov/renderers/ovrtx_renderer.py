@@ -1691,9 +1691,22 @@ class OVRTXRenderer(BaseRenderer):
             )
         finally:
             if material_writer is not None:
-                drain_errors = contextlib.nullcontext() if sys.exc_info()[0] is None else contextlib.suppress(Exception)
-                with drain_errors:
+                # When another exception is already propagating, log the drain failure instead of
+                # replacing it. Losing it silently would hide a failed material write.
+                primary_active = sys.exc_info()[0] is not None
+                try:
                     material_writer.drain()
+                except Exception as e:
+                    if not primary_active:
+                        raise
+                    logger.warning("Error draining material writes after a failed render: %s", e, exc_info=True)
+
+    def drain_pending_renders(self) -> list[Exception]:
+        """Deliver every queued asynchronous render and return the collected failures.
+
+        Collaborators call this before they release scene resources an in-flight render may read.
+        """
+        return self._strategy.drain_pending_renders()
 
     def _consume_products(self, render_data: OVRTXCameraRenderData, products: RenderProductSetOutputs) -> None:
         product_path = render_data.render_product_path
@@ -1895,6 +1908,8 @@ class OVRTXRenderer(BaseRenderer):
         for error in self._strategy.drain_pending_renders():
             logger.warning("Error draining in-flight render during camera cleanup: %s", error)
         self._strategy.release_render_data(render_data)
+        if render_data.camera_xform_binding is not None:
+            self._strategy.release_binding(render_data.camera_xform_binding)
         render_data.cleanup()
         if render_data in self._camera_render_data:
             self._camera_render_data.remove(render_data)
@@ -2530,9 +2545,15 @@ class OVRTXRenderer(BaseRenderer):
             self.backend.stage.advance_write_floor(ordinal=self._current_ordinal).wait()
         finally:
             if material_writer is not None:
-                drain_errors = contextlib.nullcontext() if sys.exc_info()[0] is None else contextlib.suppress(Exception)
-                with drain_errors:
+                # When another exception is already propagating, log the drain failure instead of
+                # replacing it. Losing it silently would hide a failed material write.
+                primary_active = sys.exc_info()[0] is not None
+                try:
                     material_writer.drain()
+                except Exception as e:
+                    if not primary_active:
+                        raise
+                    logger.warning("Error draining material writes after a failed render: %s", e, exc_info=True)
         # The ovstage path always renders synchronously, so it steps the renderer directly. The
         # render strategy serves the legacy path. The ordinal advances before consumption: a
         # failed consumption must not leave the ordinal at the write floor set above.

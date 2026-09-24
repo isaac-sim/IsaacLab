@@ -510,6 +510,10 @@ Answers to the common questions:
   data. Frame ``F[k]`` renders from ``T[k]``, the transforms of its own step, written before the
   submit. Two staging slots alternate: step ``k+1`` fills one slot while ``F[k]`` still reads the
   other. Only the read-back of the finished image is deferred, never its inputs.
+- **What about the camera pose and frame metadata?** They are not delayed. ``data.pos_w``,
+  ``data.quat_w_world``, intrinsics, and the frame counter describe the current step, while the
+  image is one step older. Consumers that pair pixels with extrinsics, for example point-cloud
+  deprojection, see one step of camera motion offset.
 - **How does the physics engine influence the frames?** Through the transforms: ``S[k]`` produces
   ``T[k]``, which produces ``F[k]``. The image of ``S[k]`` arrives in ``O[k+1]``.
 
