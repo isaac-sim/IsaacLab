@@ -185,11 +185,6 @@ def _write_shape_material(cube_object, materials_nS3: torch.Tensor) -> None:
     )
 
 
-def _read_shape_material(cube_object) -> torch.Tensor:
-    """Read the per-shape material as a torch tensor ``[N, S, 3]``."""
-    return wp.to_torch(cube_object.root_view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION))
-
-
 @pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
 def test_initialization_with_kinematic_enabled(num_cubes, device):

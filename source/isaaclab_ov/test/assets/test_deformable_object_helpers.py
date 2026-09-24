@@ -82,6 +82,7 @@ class _FakeBodyView:
         indices: wp.array(dtype=wp.int32) | None = None,
         mask: wp.array(dtype=wp.bool) | None = None,
     ) -> None:
+        self.last_indices = indices
         if tensor_type in (TT.DEFORMABLE_SIM_NODAL_POSITION, TT.SURFACE_DEFORMABLE_SIM_POSITION):
             self.position_write_count += 1
         elif tensor_type in (TT.DEFORMABLE_SIM_NODAL_VELOCITY, TT.SURFACE_DEFORMABLE_SIM_VELOCITY):
@@ -251,6 +252,8 @@ def test_indexed_partial_write_preserves_retained_aliased_slice(
     selected.fill_(command_value)
 
     getattr(asset, write_method_name)(selected, env_ids=[1])
+    # Only the selected environment is written back to the simulator.
+    assert asset.root_view.last_indices.numpy().tolist() == [1]
 
     expected = latest.clone()
     expected[1].fill_(command_value)
