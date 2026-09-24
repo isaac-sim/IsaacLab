@@ -274,7 +274,7 @@ def scene_ui_module(monkeypatch):
     monkeypatch.setitem(sys.modules, module_name, loaded_module)
     spec.loader.exec_module(loaded_module)
     loaded_module.Usd = SimpleNamespace(EditContext=_EditContext)
-    monkeypatch.setattr(loaded_module, "get_settings_manager", lambda: SimpleNamespace(get=lambda key: True))
+    monkeypatch.setattr(loaded_module, "get_settings_manager", lambda: SimpleNamespace(get=lambda key: False))
     return loaded_module
 
 
@@ -347,12 +347,27 @@ def test_scene_partition_real_usd_keeps_root_layer_clean_and_restores_session_op
     session_before = session_layer.ExportToString()
     panel = create_partition_panel()
     assert stage.GetRootLayer().ExportToString() == root_before
-    assert not camera.GetAttribute("omni:scenePartition").IsValid()
+    assert camera.GetAttribute("omni:scenePartition").Get() == scene_ui_module._XR_CAMERA_PIP_PARTITION
     assert ui_root.GetAttribute("primvars:omni:scenePartition").Get() == scene_ui_module._XR_CAMERA_PIP_PARTITION
     panel.close()
     assert stage.GetRootLayer().ExportToString() == root_before
     assert not camera.GetAttribute("omni:scenePartition").IsValid()
     assert session_layer.ExportToString() == session_before
+
+
+@pytest.mark.parametrize("partition", ["env_0", "external"])
+def test_partition_rejects_late_environment_change_without_retaining_overrides(
+    scene_ui_module, monkeypatch, create_partition_panel, partition
+):
+    stage = Usd.Stage.CreateInMemory()
+    monkeypatch.setattr(scene_ui_module, "get_current_stage", lambda: stage)
+    stage.DefinePrim(scene_ui_module._XR_CAMERA_PATH, "Camera")
+    env = stage.DefinePrim("/World/envs/env_0", "Xform")
+    env.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(partition)
+    before = stage.GetSessionLayer().ExportToString()
+    with pytest.raises(RuntimeError, match="unpartitioned environment before camera creation"):
+        create_partition_panel()
+    assert stage.GetSessionLayer().ExportToString() == before
 
 
 @pytest.mark.parametrize("ui_update", ["none", "scene_ui", "external_partition"])
@@ -497,13 +512,13 @@ def test_partition_conflicts_hide_panels_and_recover(scene_ui_module, monkeypatc
     camera = stage.DefinePrim(scene_ui_module._XR_CAMERA_PATH, "Camera")
     ui_root = stage.DefinePrim("/ui", "Xform")
     presenter = scene_ui_module._KitSceneUiCameraFeedPresenter()
-    show_all = True
+    show_all = False
     monkeypatch.setattr(scene_ui_module, "get_settings_manager", lambda: SimpleNamespace(get=lambda key: show_all))
     panel = create_partition_panel(presenter)
     assert panel._partition_ready
     with Usd.EditContext(stage, stage.GetSessionLayer()):
         if conflict == "global":
-            show_all = False
+            show_all = True
         elif conflict == "xr_camera":
             camera.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set("external")
         else:
@@ -521,7 +536,7 @@ def test_partition_conflicts_hide_panels_and_recover(scene_ui_module, monkeypatc
         create_partition_panel(presenter)
     assert presenter._partition_panels == {panel}
     with Usd.EditContext(stage, stage.GetSessionLayer()):
-        show_all = True
+        show_all = False
         if conflict == "xr_camera":
             camera.GetAttribute("omni:scenePartition").Set("")
         elif conflict == "ui":
@@ -530,8 +545,8 @@ def test_partition_conflicts_hide_panels_and_recover(scene_ui_module, monkeypatc
     assert panel._partition_ready
 
 
-@pytest.mark.parametrize("partition", [None, "env_0", "isaaclab_teleop_xr_camera_pip"])
-def test_isolation_requires_an_existing_camera_partition(scene_ui_module, monkeypatch, partition):
+@pytest.mark.parametrize("partition", [None, "", "env_0", "isaaclab_teleop_xr_camera_pip"])
+def test_isolation_requires_an_unpartitioned_camera(scene_ui_module, monkeypatch, partition):
     stage = Usd.Stage.CreateInMemory()
     monkeypatch.setattr(scene_ui_module, "get_current_stage", lambda: stage)
     path = "/World/envs/env_0/Camera"
@@ -543,10 +558,10 @@ def test_isolation_requires_an_existing_camera_partition(scene_ui_module, monkey
     )
     presenter = scene_ui_module._KitSceneUiCameraFeedPresenter()
     before = stage.GetRootLayer().ExportToString()
-    if partition == "env_0":
+    if partition in (None, ""):
         presenter.validate_camera_partition("robot_pov_cam", camera)
     else:
-        with pytest.raises(ValueError, match="environment partition"):
+        with pytest.raises(ValueError, match="unpartitioned camera"):
             presenter.validate_camera_partition("robot_pov_cam", camera)
     assert stage.GetRootLayer().ExportToString() == before
     assert stage.GetSessionLayer().empty
@@ -946,10 +961,10 @@ def test_presenters_share_scene_partition_lifecycle(
     panels = [create_partition_panel(use_scene_partition=use_scene_partition) for _ in range(2)]
     expected = scene_ui_module._XR_CAMERA_PIP_PARTITION if use_scene_partition else ""
     assert ui_partition.Get() == expected
-    assert camera.GetAttribute("omni:scenePartition").Get() == ""
+    assert camera.GetAttribute("omni:scenePartition").Get() == expected
     panels[0].close()
     assert ui_partition.Get() == expected
-    assert camera.GetAttribute("omni:scenePartition").Get() == ""
+    assert camera.GetAttribute("omni:scenePartition").Get() == expected
     # Cleanup still restores the shared state when the last widget fails to clear.
     panels[1]._container.root.clear.side_effect = RuntimeError("widget clear failed")
     with pytest.raises(RuntimeError, match="widget clear failed"):
