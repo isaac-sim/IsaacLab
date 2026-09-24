@@ -50,6 +50,12 @@ The following details the behavior of the class based on the environment variabl
 Camera and offscreen rendering support is enabled automatically. No environment variable or command-line
 option is required for camera tasks.
 
+.. note::
+
+   When XR is enabled and no device is supplied explicitly, :class:`AppLauncher` selects the CPU device.
+   This is intentional for current single-environment XR teleoperation workloads, which typically run faster
+   on CPU. Pass ``--device`` explicitly only when you intentionally want a different simulation device.
+
 
 To set the environment variables, one can use the following command in the terminal:
 
