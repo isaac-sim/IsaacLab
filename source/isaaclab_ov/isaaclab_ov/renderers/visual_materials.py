@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import itertools
+import logging
 import weakref
 from typing import TYPE_CHECKING, Any
 
@@ -19,6 +20,8 @@ if TYPE_CHECKING:
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
     from .ovrtx_renderer import OVRTXRenderer
+
+logger = logging.getLogger(__name__)
 
 
 class OVRTXVisualMaterialWriter:
@@ -56,7 +59,8 @@ class OVRTXVisualMaterialWriter:
                     (batch.channel, f"inputs:{input_name}", list(batch.shader_paths[rows]), rows, dtype, shape)
                 )
                 start = end
-        self._event = wp.Event(device=str(device))
+        self._device = str(device)
+        self._event = wp.Event(device=self._device)
         try:
             for channel, attribute_name, shader_paths, rows, dtype, shape in groups:
                 if renderer._use_ovstage:
@@ -109,10 +113,15 @@ class OVRTXVisualMaterialWriter:
                         cuda_event=self._event.cuda_event,
                     )
                 else:
+                    # The event orders the read after the producers (access sync). The stream
+                    # receives the done fence: work later enqueued on it waits for the read, so
+                    # the next refill of these zero-copy buffers cannot race it. Fills and
+                    # refills run on this device's current Warp stream.
                     operation = address.write_async(
                         self._buffers[channel][rows],
                         data_access=DataAccess.ASYNC,
                         cuda_event=self._event.cuda_event,
+                        cuda_stream=wp.get_stream(self._device).cuda_stream,
                     )
                 operations.append(operation)
         finally:
@@ -141,6 +150,12 @@ class OVRTXVisualMaterialWriter:
         finally:
             renderer = self._renderer_ref()
             if renderer is not None:
+                # RenderContext.close() closes writers before the renderer, so an asynchronous
+                # render can still be in flight here and still read these bindings. Deliver every
+                # queued render before the release below. One failed render must not leave the
+                # others in flight while their bindings are released.
+                for error in renderer._strategy.drain_pending_renders():
+                    logger.warning("Error draining in-flight render before material release: %s", error)
                 self._release_backend_addresses(renderer)
             self._dirty_channels.clear()
             self._buffers.clear()

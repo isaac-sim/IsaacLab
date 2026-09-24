@@ -56,6 +56,14 @@ class OVRTXRendererCfg(RendererCfg):
     cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
     """Newton geometry adapter used by the current OVRTX scene bindings."""
 
+    async_rendering: bool = False
+    """Trade one frame of camera latency for pipelined rendering. Defaults to False (synchronous).
+
+    When enabled, rendering overlaps the next step's simulation and Python work, and camera
+    outputs describe the simulation state from one step earlier. The ovstage path does not
+    support it and renders synchronously.
+    """
+
     temp_usd_dir: str | None = None
     """Directory for temporary USD debug dumps written during OVRTX stage preparation.
 

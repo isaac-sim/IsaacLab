@@ -18,11 +18,11 @@ import gymnasium as gym  # noqa: E402
 import pytest  # noqa: E402
 import torch  # noqa: E402
 from rendering_test_utils import (  # noqa: E402
-    MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME,
     make_attach_comparison_properties_fixture,
     make_cartpole_rendering_test_env,
     make_determinism_fixture,
     make_generate_html_report_fixture,
+    max_different_pixels_percentage_for,
     maybe_save_stage,
     validate_camera_outputs,
 )
@@ -131,7 +131,7 @@ def test_rendering_registered_tasks(
             "default_physics",
             "default_renderer",
             camera_outputs,
-            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[env_name],
+            max_different_pixels_percentage=max_different_pixels_percentage_for(env_name),
             comparison_scores=_COMPARISON_SCORES,
         )
     finally:

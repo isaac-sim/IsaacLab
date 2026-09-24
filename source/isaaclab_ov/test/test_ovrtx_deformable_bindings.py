@@ -113,6 +113,11 @@ def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, 
     renderer._cable_points_binding = None
     renderer._cable_segment_counts = []
     renderer._use_ovstage = False
+    renderer._strategy = ovrtx_renderer_module._resolve_render_strategy(renderer.cfg)
+    # The strategy takes the renderer's resolved Warp device; tests fake it with just the pieces
+    # the strategy reads (allocation device and the current stream handle).
+    renderer._warp_device = SimpleNamespace(ordinal=0, stream=SimpleNamespace(cuda_stream=99))
+    renderer._strategy.set_device(renderer._warp_device)
     return renderer, renderer.backend.renderer
 
 
@@ -481,23 +486,23 @@ def test_update_camera_writes_without_mapping(monkeypatch: pytest.MonkeyPatch):
     """Camera xforms are handed to ``write()`` instead of copied into a mapped OVRTX buffer."""
     renderer, _ = _make_renderer_without_backend()
     render_data = SimpleNamespace(camera_xform_binding=_FakePointsBinding("omni:xform"))
-    camera_transforms = []
+    allocated = []
 
     monkeypatch.setattr(ovrtx_renderer_module, "convert_camera_frame_orientation_convention_wp", lambda **kwargs: None)
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "empty", lambda *args, **kwargs: object())
 
-    def _fake_zeros(*args, **kwargs):
+    def _fake_empty(*args, **kwargs):
         arr = object()
-        camera_transforms.append(arr)
+        allocated.append(arr)
         return arr
 
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "zeros", _fake_zeros)
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "empty", _fake_empty)
     monkeypatch.setattr(ovrtx_renderer_module.wp, "launch", lambda *args, **kwargs: None)
-    renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=7))
+    renderer._strategy.set_device(SimpleNamespace(ordinal=0, stream=SimpleNamespace(cuda_stream=7)))
 
     positions = SimpleNamespace(shape=(2,), warp=object())
     renderer.update_camera(render_data, positions, SimpleNamespace(warp=object()), object())
 
-    assert render_data.camera_xform_binding.written is camera_transforms[0]
+    # The strategy allocates ``(quats, transforms)`` on first use; the write hands over transforms.
+    assert render_data.camera_xform_binding.written is allocated[1]
     assert render_data.camera_xform_binding.write_kwargs["data_access"] is DataAccess.ASYNC
     assert render_data.camera_xform_binding.write_kwargs["cuda_stream"] == 7
