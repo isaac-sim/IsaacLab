@@ -86,7 +86,8 @@ class TestCPUInfoRecorder:
         assert isinstance(data["cpu_utilization"]["n"], int)
 
     def test_get_data_returns_measurement_data(self, recorder):
-        """Test that get_data returns a MeasurementData object."""
+        """Test that get_data returns a MeasurementData object, also before the first update."""
+        assert len(recorder.get_data().measurements) == 3
         for _ in range(3):
             recorder.update()
 
