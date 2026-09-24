@@ -283,7 +283,3 @@ class reset_end_effector_around_asset(ManagerTermBase):
                 joint_ids=self.joint_ids,
                 env_ids=env_ids,  # type: ignore
             )
-        # only the PhysX articulation exposes the tensor view whose Jacobians are refreshed after joint writes
-        physx_view = getattr(self.robot, "root_physx_view", None)
-        if physx_view is not None:
-            physx_view.get_jacobians()
