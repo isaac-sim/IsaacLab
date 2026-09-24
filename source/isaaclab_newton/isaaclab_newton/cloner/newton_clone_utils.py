@@ -10,14 +10,111 @@ from typing import Any
 
 import numpy as np
 import warp as wp
-from newton import GeoType, JointType, ModelBuilder, ShapeFlags
+from newton import GeoType, JointType, Model, ModelBuilder, ShapeFlags
 
-from pxr import Usd, UsdGeom, UsdPhysics
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux, UsdPhysics
 
 from isaaclab.cloner import path as clone_path
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
+
+
+def import_scene_lights(
+    builder: ModelBuilder,
+    stage: Usd.Stage,
+    *,
+    global_paths: Sequence[str] = ("/",),
+    sources: Sequence[str] = (),
+    mapping: np.ndarray | None = None,
+    world_xforms: Sequence[wp.transform] = (),
+    ignore_paths: Sequence[str] = (),
+) -> None:
+    """Import static USD lighting alongside ``add_usd``, which only imports physics and geometry.
+
+    Global lights are imported once. Prototype lights use the same source-relative world
+    placements as :func:`replicate_builder_mapping`. The composed light properties, resolved
+    textures, visibility, and initial transforms travel with the model as a small USD layer;
+    renderers do not need the source stage or the clone plan.
+
+    Args:
+        builder: Aggregated builder to receive ``isaaclab.scene_lights``.
+        stage: USD stage containing lights.
+        global_paths: Shared scene roots, imported without replication.
+        sources: Clone-source roots corresponding to rows of ``mapping``.
+        mapping: Boolean source-to-world mapping.
+        world_xforms: World placements [m, xyzw] returned by replication.
+        ignore_paths: Subtrees excluded from the global import.
+    """
+    from isaaclab.utils.assets import retrieve_file_path
+
+    lights = Usd.Stage.CreateInMemory()
+    xform_cache = UsdGeom.XformCache()
+    excluded = tuple(Sdf.Path(path) for path in (*ignore_paths, *sources))
+    roots = [(path, None) for path in global_paths]
+    roots.extend((source, np.flatnonzero(mapping[row])) for row, source in enumerate(sources))
+    global_lights = set()
+    light_index = 0
+    for root_path, columns in roots:
+        is_global = columns is None
+        root = stage.GetPrimAtPath(root_path)
+        if not root or (not is_global and not len(columns)):
+            continue
+        placements = None
+        prims = iter(Usd.PrimRange(root, Usd.TraverseInstanceProxies()))
+        for prim in prims:
+            if is_global and any(prim.GetPath().HasPrefix(path) for path in excluded):
+                prims.PruneChildren()
+                continue
+            if not prim.HasAPI(UsdLux.LightAPI):
+                continue
+            if is_global:
+                if prim.GetPath() in global_lights:
+                    continue
+                global_lights.add(prim.GetPath())
+            # Most prototypes contain no lights. Compute clone transforms only when needed.
+            if placements is None:
+                placements = [Gf.Matrix4d(1.0)]
+                if not is_global:
+                    placements = []
+                    for col in columns:
+                        pose = world_xforms[col]
+                        rotation = Gf.Quatd(float(pose[6]), Gf.Vec3d(*map(float, pose[3:6])))
+                        matrix = Gf.Matrix4d().SetRotate(rotation)
+                        placements.append(matrix.SetTranslateOnly(Gf.Vec3d(*map(float, pose[:3]))))
+                    source_inverse = placements[0].GetInverse()
+                    placements = [source_inverse * placement for placement in placements]
+            target = lights.DefinePrim(f"/Lights/light_{light_index}", prim.GetTypeName())
+            target.SetMetadata("apiSchemas", Sdf.TokenListOp.CreateExplicit(prim.GetAppliedSchemas()))
+            for prop in prim.GetAuthoredProperties():
+                if prop.GetName() != "xformOpOrder" and not prop.GetName().startswith("xformOp:"):
+                    prop.FlattenTo(target)
+            texture = target.GetAttribute("inputs:texture:file")
+            if texture:
+                for time in [Usd.TimeCode.Default(), *texture.GetTimeSamples()]:
+                    asset = texture.Get(time)
+                    if asset and asset.path:
+                        texture.Set(Sdf.AssetPath(retrieve_file_path(asset.resolvedPath or asset.path)), time)
+            UsdGeom.Imageable(target).GetVisibilityAttr().Set(UsdGeom.Imageable(prim).ComputeVisibility())
+            source_transform = xform_cache.GetLocalToWorldTransform(prim)
+            UsdGeom.Xformable(target).AddTransformOp().Set(source_transform * placements[0])
+            light_index += 1
+            for placement in placements[1:]:
+                path = f"/Lights/light_{light_index}"
+                Sdf.CopySpec(lights.GetRootLayer(), target.GetPath(), lights.GetRootLayer(), path)
+                lights.GetPrimAtPath(path).GetAttribute("xformOp:transform").Set(source_transform * placement)
+                light_index += 1
+
+    builder.add_custom_attribute(
+        ModelBuilder.CustomAttribute(
+            name="scene_lights",
+            namespace="isaaclab",
+            dtype=str,
+            frequency=Model.AttributeFrequency.ONCE,
+            default="",
+            values={0: lights.GetRootLayer().ExportToString() if light_index else ""},
+        )
+    )
 
 
 def _has_visible_non_collision_geometry(stage: Usd.Stage, prim_path: str) -> bool:

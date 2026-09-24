@@ -806,9 +806,12 @@ use its texture, intensity, color, and transform:
     env_cfg.scene.sky_light.spawn.texture_file = "/path/to/evening.hdr"
     env_cfg.scene.sky_light.spawn.intensity = 1000.0
 
-Newton RTX mirrors the composed dome into its private rendering stage. No renderer-specific HDR
-configuration is required. Newton GL cannot display HDR environment textures and uses its
-procedural ``sky_upper_color`` / ``sky_lower_color`` gradient instead.
+The Newton cloner imports lighting alongside physics and geometry. Global lights are shared;
+lights inside a prototype follow its clone placements. Newton RTX loads that prepared lighting
+from the model, including resolved HDR textures and initial transforms. No renderer-specific HDR
+configuration is required. Subsequent changes to source USD lights are not synchronized. Newton GL
+cannot display HDR environment textures and uses its procedural ``sky_upper_color`` /
+``sky_lower_color`` gradient instead.
 
 To replace only the visible background with a solid color while retaining the scene lighting and
 reflections, set one shared visualizer default:

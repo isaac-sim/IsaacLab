@@ -881,10 +881,12 @@ def test_clone_visualization_builder_ignores_non_env_deformables_on_world_import
         env_ids=np.asarray([0, 1], dtype=np.int64),
         clone_mask=np.asarray([[False, False]], dtype=np.bool_),
         positions=np.zeros((2, 3), dtype=np.float32),
+        global_paths=(),
     )
     monkeypatch.setattr(vb, "ModelBuilder", lambda up_axis="Z": fake_builder)
     monkeypatch.setattr(vb, "_restore_visible_colliders_without_visual_shapes", lambda *args, **kwargs: None)
     monkeypatch.setattr(vb, "import_builder_visual_material_paths", lambda *args, **kwargs: None)
+    monkeypatch.setattr(vb, "import_scene_lights", lambda *args, **kwargs: None)
     monkeypatch.setattr(vb, "build_source_builders", lambda *args, **kwargs: {})
     monkeypatch.setattr(vb, "replicate_builder_mapping", lambda *args, **kwargs: ({}, [], []))
 

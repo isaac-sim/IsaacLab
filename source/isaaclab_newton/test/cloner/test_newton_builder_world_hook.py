@@ -15,7 +15,7 @@ import pytest
 from isaaclab_newton.cloner import copy_newton_clone_source, newton_builder_world_hook
 from isaaclab_newton.physics import NewtonManager
 
-from pxr import Usd, UsdGeom, UsdLux, UsdPhysics
+from pxr import Gf, Usd, UsdGeom, UsdLux, UsdPhysics
 
 replicate_module = importlib.import_module("isaaclab_newton.cloner.replicate")
 
@@ -66,21 +66,29 @@ def test_copy_newton_clone_source_owns_mutable_geometry(monkeypatch):
     assert copied.shape_source[0] is not source.shape_source[0]
 
 
-def test_explicit_global_import_uses_global_world(monkeypatch):
-    """Declared global colliders remain in Newton world -1 after model finalization."""
+@pytest.mark.parametrize("load_visual_shapes", [False, True])
+def test_scene_import_preserves_global_and_prototype_ownership(monkeypatch, load_visual_shapes):
+    """Global lights stay shared; prototype lights follow geometry into selected worlds."""
     stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageUpAxis(stage, "Z")
     UsdPhysics.Scene.Define(stage, "/physicsScene")
     UsdGeom.Xform.Define(stage, "/World")
     ground = UsdGeom.Cube.Define(stage, "/World/Ground")
     UsdPhysics.CollisionAPI.Apply(ground.GetPrim())
-    UsdLux.DistantLight.Define(stage, "/World/Light")
+    UsdLux.DistantLight.Define(stage, "/World/Light").GetIntensityAttr().Set(750.0)
     global_paths = ("/World/Ground", "/World/Light")
+    source = "/World/envs/env_1/Lamp"
+    UsdGeom.Xform.Define(stage, source).AddTranslateOp().Set((21.0, 0.0, 0.0))
+    UsdLux.SphereLight.Define(stage, f"{source}/Light")
+    UsdPhysics.CollisionAPI.Apply(UsdGeom.Cube.Define(stage, f"{source}/Cube").GetPrim())
+    unused_source = "/World/envs/env_0/Unused"
+    UsdLux.SphereLight.Define(stage, f"{unused_source}/Light")
 
     builder = newton.ModelBuilder()
     add_usd = mock.Mock(wraps=builder.add_usd)
     monkeypatch.setattr(builder, "add_usd", add_usd)
     manager = SimpleNamespace(
-        create_builder=mock.Mock(return_value=builder),
+        create_builder=mock.Mock(side_effect=[builder, newton.ModelBuilder(), newton.ModelBuilder()]),
         _get_usd_import_schema_resolvers=NewtonManager._get_usd_import_schema_resolvers,
         _inject_terrain_heightfields=mock.Mock(return_value=[]),
     )
@@ -91,17 +99,23 @@ def test_explicit_global_import_uses_global_world(monkeypatch):
     )
     monkeypatch.setattr(replicate_module.NewtonManager, "_deformable_registry", ())
     monkeypatch.setattr(replicate_module.NewtonManager, "_cl_inject_sites", mock.Mock(return_value=({}, {}, {})))
-    monkeypatch.setattr(replicate_module.NewtonManager, "_per_world_builder_hooks", ())
+    monkeypatch.setattr(
+        replicate_module.NewtonManager,
+        "_per_world_builder_hooks",
+        (lambda builder, index, *_args: builder.add_body(label=f"/World/envs/env_{index}/Anchor"),),
+    )
     monkeypatch.setattr(replicate_module, "replace_newton_builder_shape_colors", mock.Mock())
 
     builder, *_ = replicate_module._build_newton_builder_from_mapping(
         stage,
-        (),
-        (),
-        np.arange(2, dtype=np.int64),
-        np.empty((0, 2), dtype=np.bool_),
+        (source, unused_source),
+        ("/World/envs/env_{}/Lamp", "/World/envs/env_{}/Unused"),
+        np.arange(3, dtype=np.int64),
+        np.asarray([[False, True, True], [False, False, False]]),
+        positions=np.asarray([[10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [30.0, 0.0, 0.0]], dtype=np.float32),
+        quaternions=np.asarray([[0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 2**-0.5, 2**-0.5]], dtype=np.float32),
         global_paths=global_paths,
-        load_visual_shapes=False,
+        load_visual_shapes=load_visual_shapes,
     )
 
     assert [call.kwargs["root_path"] for call in add_usd.call_args_list] == ["/physicsScene", *global_paths]
@@ -111,5 +125,20 @@ def test_explicit_global_import_uses_global_world(monkeypatch):
     model = builder.finalize("cpu")
     ground_index = model.shape_label.index("/World/Ground")
     assert model.shape_world.numpy()[ground_index] == -1
-    assert model.world_count == 2
+    assert model.world_count == 3
     assert "/World/Light" not in model.shape_label  # USD lights are not Newton physics entities.
+    if load_visual_shapes:
+        lights = Usd.Stage.CreateInMemory()
+        lights.GetRootLayer().ImportFromString(model.isaaclab.scene_lights[0])
+        imported = [UsdLux.DistantLight(prim) for prim in lights.Traverse() if prim.IsA(UsdLux.DistantLight)]
+        assert len(imported) == 1
+        assert imported[0].GetIntensityAttr().Get() == 750.0
+        lamps = [prim for prim in lights.Traverse() if prim.IsA(UsdLux.SphereLight)]
+        assert len(lamps) == 2
+        transforms = UsdGeom.XformCache()
+        for env_id, lamp in zip((1, 2), lamps, strict=True):
+            shape_index = model.shape_label.index(f"/World/envs/env_{env_id}/Lamp/Cube")
+            pose = model.shape_transform.numpy()[shape_index]
+            rotation = Gf.Quatd(float(pose[6]), Gf.Vec3d(*map(float, pose[3:6])))
+            expected = Gf.Matrix4d().SetRotate(rotation).SetTranslateOnly(Gf.Vec3d(*map(float, pose[:3])))
+            np.testing.assert_allclose(transforms.GetLocalToWorldTransform(lamp), expected, atol=1e-5)

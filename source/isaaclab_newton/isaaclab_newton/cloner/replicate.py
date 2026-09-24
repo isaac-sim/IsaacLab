@@ -23,6 +23,7 @@ from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_c
 from isaaclab_newton.cloner.newton_clone_utils import (
     _restore_visible_colliders_without_visual_shapes,
     build_source_builders,
+    import_scene_lights,
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics import NewtonCfg, NewtonManager
@@ -172,6 +173,10 @@ def _build_newton_builder_from_mapping(
         env_root_sites=root_sites,
         per_world_builder_hooks=NewtonManager._per_world_builder_hooks,
     )
+    if load_visual_shapes:
+        import_scene_lights(
+            builder, stage, global_paths=global_paths, sources=sources, mapping=mapping, world_xforms=world_xforms
+        )
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
     return builder, stage_info, site_index_map, world_xforms, source_builders, fabric_body_bindings

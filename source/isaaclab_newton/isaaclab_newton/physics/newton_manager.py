@@ -97,6 +97,7 @@ from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     _restore_visible_colliders_without_visual_shapes,
+    import_scene_lights,
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics.featherstone_manager_cfg import FeatherstoneSolverCfg
@@ -1985,6 +1986,7 @@ class NewtonManager(PhysicsManager):
             replace_newton_builder_shape_colors(builder, stage)
             import_builder_visual_material_paths(builder, stage)
             NewtonManager._world_xforms = [wp.transform()]
+            import_scene_lights(builder, stage)
             for hook in cls._per_world_builder_hooks:
                 hook(
                     builder,
@@ -2052,6 +2054,14 @@ class NewtonManager(PhysicsManager):
             )
             NewtonManager._world_xforms = world_xforms
             NewtonManager._num_envs = len(env_paths)
+            import_scene_lights(
+                builder,
+                stage,
+                sources=(proto_path,),
+                mapping=mapping,
+                world_xforms=world_xforms,
+                ignore_paths=tuple(path for _, path in env_paths),
+            )
 
         cls.set_builder(builder)
 

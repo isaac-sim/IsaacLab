@@ -16,7 +16,7 @@ from isaaclab_newton.cloner.newton_clone_utils import rename_builder_labels, rep
 from isaaclab_newton.physics import visualization_builder as visualization_builder_module
 from isaaclab_newton.physics import visualization_deformables as visualization_deformables_module
 
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+from pxr import Sdf, Usd, UsdGeom, UsdLux, UsdPhysics
 
 from isaaclab.cloner import ClonePlan
 from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
@@ -400,6 +400,8 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self._define_xform(stage, "/World/envs")
         self._define_xform(stage, "/World/envs/env_0")
         self._define_xform(stage, "/World/envs/env_1", (2.0, 0.0, 0.0))
+        UsdLux.DomeLight.Define(stage, "/World/Sky")
+        UsdLux.SphereLight.Define(stage, f"{robot_path}/Light")
         robot = UsdGeom.Xform.Define(stage, robot_path).GetPrim()
         UsdPhysics.ArticulationRootAPI.Apply(robot)
         robot.CreateAttribute("physxArticulation:enabledSelfCollisions", Sdf.ValueTypeNames.Bool).Set(False)
@@ -421,6 +423,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
             clone_mask=np.ones((1, 2), dtype=np.bool_),
             env_ids=np.arange(2, dtype=np.int64),
             positions=np.asarray(((0.0, 0.0, 0.0), (2.0, 0.0, 0.0)), dtype=np.float32),
+            global_paths=("/World/Sky",),
         )
         for env_paths, plan, expected_shape_count in (
             ([], None, 2),
@@ -434,6 +437,12 @@ class TestVisualizationClonePlan(unittest.TestCase):
             self.assertEqual(model.shape_count, expected_shape_count)
             self.assertEqual(len(model.shape_collision_filter_pairs), 0)
             self.assertEqual(model.shape_contact_pair_count, 0)
+            lighting = Usd.Stage.CreateInMemory()
+            lighting.GetRootLayer().ImportFromString(model.isaaclab.scene_lights[0])
+            self.assertEqual(sum(prim.IsA(UsdLux.DomeLight) for prim in lighting.Traverse()), 1)
+            self.assertEqual(
+                sum(prim.IsA(UsdLux.SphereLight) for prim in lighting.Traverse()), expected_shape_count // 2
+            )
 
     def test_visualization_builder_rejects_clone_plan_without_environment_paths(self):
         """A cloned scene must not be cached as an incomplete single-world model."""
@@ -476,6 +485,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
         with (
             mock.patch.object(visualization_builder_module, "ModelBuilder", _FakeVisualizationModelBuilder),
             mock.patch.object(newton_clone_utils_module, "ModelBuilder", _FakeVisualizationModelBuilder),
+            mock.patch.object(visualization_builder_module, "import_scene_lights"),
             mock.patch.object(visualization_builder_module, "SchemaResolverNewton", lambda: object()),
             mock.patch.object(visualization_builder_module, "SchemaResolverPhysx", lambda: object()),
             mock.patch.object(visualization_builder_module, "import_builder_visual_material_paths"),

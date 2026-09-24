@@ -162,7 +162,7 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     rtx_environment: str = "default"
     """OVRTX lighting environment.
 
-    ``"default"`` uses the dome lights authored in the scene and falls back to Newton's default
+    ``"default"`` uses the scene lights imported by the cloner and falls back to Newton's default
     rig when none exist. ``"studio"`` uses Newton's three-point rig, and ``"none"`` disables
     environment lighting.
     """

@@ -10,6 +10,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import newton
 import numpy as np
 import pytest
 import torch
@@ -968,15 +969,16 @@ def test_newton_visualizer_cfg_distinct_types():
     assert NewtonRTXVisualizerCfg().show_particles is False
     assert NewtonGLVisualizerCfg().background_color is None
     assert NewtonRTXVisualizerCfg().background_color is None
-    assert not hasattr(NewtonRTXVisualizerCfg(), "dome_texture_file")
     with pytest.raises(ValueError, match="three normalized RGB values"):
         NewtonGLVisualizerCfg(background_color=(0.0, -0.1, 1.0))
 
 
 @pytest.mark.parametrize("background_color", [None, (0.1, 0.2, 0.3)])
-def test_newton_rtx_default_environment_copies_scene_dome(
+def test_newton_rtx_default_environment_loads_imported_lights(
     monkeypatch: pytest.MonkeyPatch, background_color: tuple[float, float, float] | None
 ) -> None:
+    from isaaclab_newton.cloner.newton_clone_utils import import_scene_lights
+
     from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux
 
     from isaaclab.utils.backend_utils import FactoryBase
@@ -996,11 +998,17 @@ def test_newton_rtx_default_environment_copies_scene_dome(
     monkeypatch.setattr("isaaclab.utils.assets.retrieve_file_path", lambda path: f"/cache/{path}")
     monkeypatch.setattr(FactoryBase, "_get_backend", classmethod(lambda _cls: "newton"))
 
-    viewer = NewtonViewerRTX(scene_stage=source_stage, background_color=background_color, headless=True)
+    builder = newton.ModelBuilder()
+    import_scene_lights(builder, source_stage)
+    model = builder.finalize("cpu")
+    source_stage.GetRootLayer().Clear()
+    viewer = NewtonViewerRTX(
+        scene_lights=model.isaaclab.scene_lights[0], background_color=background_color, headless=True
+    )
     try:
         viewer._add_camera_lights_and_render_product()
 
-        copied = UsdLux.DomeLight.Get(viewer.stage, "/root/_IsaacLabDomeLights/dome_0")
+        copied = UsdLux.DomeLight.Get(viewer.stage, "/root/_IsaacLabLights/light_0")
         assert copied
         assert copied.GetColorAttr().Get() == Gf.Vec3f(0.8, 0.9, 1.0)
         assert copied.GetExposureAttr().Get() == 1.5
@@ -1021,14 +1029,14 @@ def test_newton_rtx_default_environment_copies_scene_dome(
         viewer.close()
 
 
-def test_newton_rtx_default_environment_falls_back_without_scene_dome(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_newton_rtx_default_environment_falls_back_without_imported_lights(monkeypatch: pytest.MonkeyPatch) -> None:
     from pxr import Usd
 
     calls = []
     monkeypatch.setattr(newton_visualizer_module.ViewerRTX, "_add_default_lights", lambda _self: calls.append(True))
     viewer = object.__new__(NewtonViewerRTX)
     viewer.stage = Usd.Stage.CreateInMemory()
-    viewer._scene_stage = Usd.Stage.CreateInMemory()
+    viewer._scene_lights = ""
 
     viewer._add_default_lights()
 
@@ -1054,11 +1062,9 @@ def test_newton_gl_background_color(color: tuple[float, float, float] | None) ->
 
 
 @pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
-def test_newton_rtx_receives_scene_stage_and_background_color(
+def test_newton_rtx_receives_model_lighting_and_background_color(
     monkeypatch: pytest.MonkeyPatch, color: tuple[float, float, float] | None
 ) -> None:
-    from pxr import Usd
-
     kwargs = {}
     monkeypatch.setattr(
         newton_visualizer_module,
@@ -1066,12 +1072,11 @@ def test_newton_rtx_receives_scene_stage_and_background_color(
         lambda **viewer_kwargs: kwargs.update(viewer_kwargs) or object(),
     )
 
-    source_stage = Usd.Stage.CreateInMemory()
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(background_color=color))
-    visualizer._scene_data_provider = SimpleNamespace(get_usd_stage=lambda: source_stage)
+    visualizer._model = SimpleNamespace(isaaclab=SimpleNamespace(scene_lights=["imported lighting"]))
     visualizer._create_viewer(False, {})
 
-    assert kwargs["scene_stage"] is source_stage
+    assert kwargs["scene_lights"] == "imported lighting"
     assert kwargs["background_color"] == color
 
 

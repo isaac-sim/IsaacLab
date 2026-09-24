@@ -19,6 +19,7 @@ from isaaclab.scene_data.deformable_discovery import DeformableStageEntry, disco
 from isaaclab_newton.cloner.newton_clone_utils import (
     _restore_visible_colliders_without_visual_shapes,
     build_source_builders,
+    import_scene_lights,
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics.visualization_deformables import add_shadow_deformables_to_builder
@@ -110,6 +111,7 @@ def build_visualization_builder_from_stage_envs(
         )
         _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
         import_builder_visual_material_paths(builder, stage)
+        import_scene_lights(builder, stage)
         shadow_entities, registry_groups = add_shadow_deformables_to_builder(
             builder, stage, env_paths, device=device, entries=deformable_entries, clone_plan=clone_plan
         )
@@ -156,7 +158,7 @@ def build_visualization_builder_from_stage_envs(
         visual_builder.shape_collision_filter_pairs = []
         visual_builder.shape_collision_group[:] = [0] * visual_builder.shape_count
     builder.add_builder(global_builder)
-    replicate_builder_mapping(
+    _, world_xforms, _ = replicate_builder_mapping(
         builder=builder,
         sources=sources,
         mapping=mapping,
@@ -165,6 +167,14 @@ def build_visualization_builder_from_stage_envs(
         source_builders=source_builders,
         destinations=destinations,
         env_ids=env_ids,
+    )
+    import_scene_lights(
+        builder,
+        stage,
+        global_paths=clone_plan.global_paths,
+        sources=sources,
+        mapping=mapping,
+        world_xforms=world_xforms,
     )
     shadow_entities, registry_groups = add_shadow_deformables_to_builder(
         builder, stage, env_paths, device=device, entries=deformable_entries, clone_plan=clone_plan
