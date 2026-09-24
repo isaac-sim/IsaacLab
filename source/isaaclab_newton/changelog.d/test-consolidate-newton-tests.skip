@@ -1,0 +1,1 @@
+Consolidated redundant Newton tests and trimmed device and shape matrices that repeated the same code paths.

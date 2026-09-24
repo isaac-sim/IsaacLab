@@ -3841,27 +3841,6 @@ class Articulation(BaseArticulation):
     Deprecated methods.
     """
 
-    def write_joint_friction_coefficient_to_sim(
-        self,
-        joint_friction_coeff: torch.Tensor | wp.array | float,
-        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        full_data: bool = False,
-    ):
-        """Deprecated, same as :meth:`write_joint_friction_coefficient_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_joint_friction_coefficient_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_friction_coefficient_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self.write_joint_friction_coefficient_to_sim_index(
-            joint_friction_coeff,
-            joint_ids=joint_ids,
-            env_ids=env_ids,
-            full_data=full_data,
-        )
-
     def write_root_state_to_sim(
         self,
         root_state: torch.Tensor,

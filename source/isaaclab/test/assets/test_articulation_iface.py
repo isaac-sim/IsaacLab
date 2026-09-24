@@ -1636,6 +1636,19 @@ class TestArticulationWritersRoot:
             method(root_velocity=_make_bad_data_warp((num_instances,), device, wp.spatial_vectorf))
 
 
+@_backends
+@pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 4, 5)])
+@pytest.mark.parametrize("device", ["cpu"])
+def test_deprecated_joint_friction_writers(backend, num_instances, num_joints, num_bodies, device, articulation_iface):
+    """The deprecated joint friction writers forward to the index writer on every backend."""
+    art, _ = articulation_iface
+    friction = torch.full((num_instances, num_joints), 0.5, device=device)
+    with pytest.warns(DeprecationWarning):
+        art.write_joint_friction_coefficient_to_sim(friction)
+    with pytest.warns(DeprecationWarning):
+        art.write_joint_friction_to_sim(friction)
+
+
 # ---------------------------------------------------------------------------
 # Tests: Joint writers — torch/warp × index/mask × all/subset × negative
 # ---------------------------------------------------------------------------

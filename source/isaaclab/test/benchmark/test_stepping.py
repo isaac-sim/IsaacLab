@@ -97,11 +97,11 @@ def test_profile_renderers_wraps_each_renderer(monkeypatch, capsys):
     second_render = Mock(side_effect=ValueError("render failed"))
 
     class Renderer:
-        def render(self, render_data):
+        def render_batch(self, render_data):
             second_render(render_data)
 
-    first, second = SimpleNamespace(render=Mock()), Renderer()
-    originals = [first.render, second.render]
+    first, second = SimpleNamespace(render_batch=Mock()), Renderer()
+    originals = [first.render_batch, second.render_batch]
     context = SimpleNamespace(_renderer_entries=[(None, first), (None, second)])
     synchronize = Mock()
     monkeypatch.setattr(wp, "synchronize", synchronize)
@@ -110,28 +110,28 @@ def test_profile_renderers_wraps_each_renderer(monkeypatch, capsys):
     with pytest.raises(ValueError, match="render failed"):
         with profile_renderers(context, timings=timings) as collected:
             assert collected is timings
-            first.render("first")
-            second.render("second")
+            first.render_batch(["first"])
+            second.render_batch(["second"])
 
-    originals[0].assert_called_once_with("first")
-    second_render.assert_called_once_with("second")
+    originals[0].assert_called_once_with(["first"])
+    second_render.assert_called_once_with(["second"])
     assert synchronize.call_count == 4
     assert len(timings) == 2
     assert all(scope == RENDER_PROFILE_SCOPE and elapsed >= 0.0 for scope, elapsed in timings)
     assert RENDER_PROFILE_SCOPE not in capsys.readouterr().out
-    assert [first.render, second.render] == originals
-    assert "render" not in vars(second)
+    assert [first.render_batch, second.render_batch] == originals
+    assert "render_batch" not in vars(second)
 
     second_render.side_effect = None
-    first.render("unprofiled")
+    first.render_batch(["unprofiled"])
     for enabled in (True, False):
         with profile_renderers(context, active=enabled) as later_timings:
-            first.render("first")
-            second.render("second")
+            first.render_batch(["first"])
+            second.render_batch(["second"])
         assert len(later_timings) == 2 * int(enabled)
         assert len(timings) == 2
-        assert [first.render, second.render] == originals
-        assert "render" not in vars(second)
+        assert [first.render_batch, second.render_batch] == originals
+        assert "render_batch" not in vars(second)
     assert synchronize.call_count == 8
 
 

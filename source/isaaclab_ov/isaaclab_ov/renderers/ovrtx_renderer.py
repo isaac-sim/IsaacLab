@@ -69,6 +69,7 @@ except ModuleNotFoundError as exc:
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import query as clone_query
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
+from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
@@ -86,7 +87,6 @@ from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     create_camera_transforms_kernel,
     extract_all_tiles_kernel,
     generate_random_colors_from_ids_kernel,
-    sync_newton_transforms_kernel,
 )
 from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
 from isaaclab_ov.renderers.ovrtx_usd import (
@@ -106,7 +106,7 @@ from isaaclab_ov.stage import (
 
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
-    from ovrtx import AttributeBinding
+    from ovrtx import AttributeBinding, RenderProductSetOutputs
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
     from isaaclab.sensors.camera.camera_data import CameraData
@@ -211,6 +211,30 @@ def _gpu_side_render_var_sync_enabled() -> bool:
     return value == "1"
 
 
+def _get_cloned_camera_paths(camera_prim_path: str, num_instances: int) -> list[str]:
+    """Return paths for the source camera in env_0 and its clones in every other environment.
+
+    Cloned cameras may be absent from the authored USD. OVRTX still needs one path per
+    environment; these can be synthesized because :meth:`OVRTXRenderer.prepare_stage`
+    requires environment ids ordered from zero.
+
+    Args:
+        camera_prim_path: Absolute path of the source camera under ``/World/envs/env_0/``.
+        num_instances: Number of environments the camera is replicated into.
+
+    Returns:
+        One absolute camera prim path per environment, in environment id order.
+
+    Raises:
+        ValueError: If the source camera does not live under ``/World/envs/env_0/``.
+    """
+    env_0_prefix = "/World/envs/env_0/"
+    camera_rel_path = camera_prim_path.removeprefix(env_0_prefix)
+    if not camera_prim_path.startswith(env_0_prefix) or not camera_rel_path:
+        raise ValueError(f"OVRTX cameras must be under {env_0_prefix}, got {camera_prim_path!r}.")
+    return [f"/World/envs/env_{i}/{camera_rel_path}" for i in range(num_instances)]
+
+
 def _write_file(output_dir: Path, file_name: str, content: str) -> None:
     """Write ``content`` to ``output_dir / file_name``.
 
@@ -227,31 +251,6 @@ def _write_file(output_dir: Path, file_name: str, content: str) -> None:
     with open(output_path, "w", encoding="utf-8") as file:
         file.write(content)
         logger.info("Wrote USD file: %s", output_path)
-
-
-def _env_camera_prim_paths(camera_path_relative_to_env_0: str | None, num_instances: int) -> list[str]:
-    """Per-env camera prim paths derived from the env 0 prototype.
-
-    ``CameraRenderSpec.camera_prim_paths`` names only the camera prims authored on the USD stage,
-    which is one prototype per spawn variant whenever USD replication does not run. That is the
-    kitless case: the clone plan routes ``UsdReplicateContext`` only under Kit, so OvPhysx, Newton
-    and OVRTX each replicate the prototype themselves. OVRTX still needs one path per environment,
-    which is safe to synthesize because :meth:`OVRTXRenderer.prepare_stage` requires env ids
-    ordered from zero.
-
-    Args:
-        camera_path_relative_to_env_0: Camera prim path with the ``/World/envs/env_0/`` prefix stripped.
-        num_instances: Number of environments the camera is replicated into.
-
-    Returns:
-        One absolute camera prim path per environment, in env id order.
-
-    Raises:
-        ValueError: If the camera prototype does not live under ``/World/envs/env_0/``.
-    """
-    if not camera_path_relative_to_env_0:
-        raise ValueError("OVRTX cameras must be under /World/envs/env_0/.")
-    return [f"/World/envs/env_{i}/{camera_path_relative_to_env_0}" for i in range(num_instances)]
 
 
 def _write_combined_stage(output_dir: Path, scene_usd: str, render_product_usd: str) -> None:
@@ -389,7 +388,8 @@ class OVRTXRenderer(BaseRenderer):
         # Shared by both paths. The legacy-only binding handles that pair with these live in
         # _init_fields_legacy instead; the ovstage path drives the same offsets and counts
         # through its stage queries.
-        self._object_newton_indices: wp.array | None = None
+        self._sdp = SimulationContext.instance().get_scene_data_provider()
+        self._transform_version = -1
         self._object_scales: wp.array | None = None
         self._object_scales_by_path: dict[str, tuple[float, float, float]] = {}
         self._deformable_particle_offsets: list[int] = []
@@ -405,7 +405,7 @@ class OVRTXRenderer(BaseRenderer):
         self._cable_points: wp.array | None = None
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
-        self._camera_rel_path: str | None = None
+        self._camera_prim_path: str | None = None
         self._output_id_color_buffers: dict[str, wp.array] = {}
         self._clone_plan: ClonePlan | None = None
         self._visual_material_writer_ref: weakref.ReferenceType[OVRTXVisualMaterialWriter] | None = None
@@ -503,10 +503,10 @@ class OVRTXRenderer(BaseRenderer):
         return any(destination.format(0) == "/World/envs/env_0" for destination in self._clone_plan.destinations)
 
     def _capture_object_scales(self, stage: Any, plan: ClonePlan) -> None:
-        """Record composed world scales of scaled environment prims before the stage is exported.
+        """Record composed world scales beneath the plan's prototypes and shared roots before export.
 
-        The per-frame object transform write rebuilds each body's matrix from a Newton
-        ``transformf``, which carries only translation and rotation, so any scale authored on the
+        The per-frame object transform write rebuilds each body's matrix from an SDP
+        pose, which carries only translation and rotation, so any scale authored on the
         USD prim is lost once that write lands. Capturing the composed scale here, while the full
         stage is still live, lets :meth:`_create_object_scale_array` fold it back in.
 
@@ -522,18 +522,15 @@ class OVRTXRenderer(BaseRenderer):
 
         from pxr import Gf, Usd, UsdGeom
 
-        envs_prim = stage.GetPrimAtPath("/World/envs")
-        if not envs_prim.IsValid():
-            return
-
         xform_cache = UsdGeom.XformCache()
-        for prim in Usd.PrimRange(envs_prim):
-            if not prim.IsA(UsdGeom.Xformable):
-                continue
-            scale = Gf.Transform(xform_cache.GetLocalToWorldTransform(prim)).GetScale()
-            scale = (float(scale[0]), float(scale[1]), float(scale[2]))
-            if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
-                self._object_scales_by_path[str(prim.GetPath())] = scale
+        for root in (*plan.sources, *plan.global_paths):
+            for prim in Usd.PrimRange(stage.GetPrimAtPath(root)):
+                if not prim.IsA(UsdGeom.Xformable):
+                    continue
+                scale = Gf.Transform(xform_cache.GetLocalToWorldTransform(prim)).GetScale()
+                scale = (float(scale[0]), float(scale[1]), float(scale[2]))
+                if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
+                    self._object_scales_by_path[str(prim.GetPath())] = scale
 
         # OVRTX creates non-source rows after this stage is exported, so those destination prims
         # cannot be traversed above. Clone queries retain the plan's nearest-owner semantics.
@@ -544,10 +541,10 @@ class OVRTXRenderer(BaseRenderer):
                 self._object_scales_by_path.setdefault(clone_path, scale)
 
     def _create_object_scale_array(self, object_paths: list[str]) -> wp.array:
-        """Build the device scale array aligned with the Newton body binding order.
+        """Build the device scale array aligned with the published body binding order.
 
         Args:
-            object_paths: Bound body prim paths, ordered to match the Newton index array.
+            object_paths: Bound body prim paths, ordered to match the SDP publication.
 
         Returns:
             Per-body scale factors, shape ``[len(object_paths)]``, unit where no scale was authored.
@@ -558,14 +555,10 @@ class OVRTXRenderer(BaseRenderer):
     def _init_fields_legacy(self) -> None:
         """Initialize the legacy-path instance fields.
 
-        Counterpart to :meth:`_init_fields_ovstage`. Only fields the ovstage path never touches live
-        here: the ``bind_attribute``/``bind_array_attribute`` handles and the caller-owned object
-        transform buffer. State shared by both paths (``_object_newton_indices``, the particle
-        offset/count lists) stays in :meth:`__init__`.
+        Only binding handles live here; geometry offsets and counts are shared with ovstage.
         """
         self._camera_xform_binding = None
         self._object_xform_binding = None
-        self._object_transform_buffer: wp.array | None = None
         self._deformable_points_binding = None
         self._particle_points_binding = None
         self._particle_workaround_applied = False
@@ -588,7 +581,7 @@ class OVRTXRenderer(BaseRenderer):
         first_cam_path = spec.camera_prim_paths[0]
         if not first_cam_path.startswith(env_0_prefix):
             raise RuntimeError(f"Expected camera prim under '{env_0_prefix}', got '{first_cam_path}'")
-        self._camera_rel_path = spec.camera_path_relative_to_env_0
+        self._camera_prim_path = first_cam_path
 
         logger.info("Injecting camera definitions...")
 
@@ -616,7 +609,7 @@ class OVRTXRenderer(BaseRenderer):
         render_data.resources.callback(self.backend.renderer.remove_usd, reference)
         logger.info("OVRTX loaded USD from string successfully")
 
-        camera_paths = _env_camera_prim_paths(self._camera_rel_path, num_envs)
+        camera_paths = _get_cloned_camera_paths(self._camera_prim_path, num_envs)
         if num_envs > 1:
             self._clone_sources_in_ovrtx()
             self._update_scene_partitions_after_clone(num_envs)
@@ -697,7 +690,7 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("Writing scene partitions for %d environments...", num_envs)
         partition_tokens = [f"env_{i}" for i in range(num_envs)]
         env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
-        camera_prim_paths = _env_camera_prim_paths(self._camera_rel_path, num_envs)
+        camera_prim_paths = _get_cloned_camera_paths(self._camera_prim_path, num_envs)
 
         self.backend.renderer.write_attribute(
             env_prim_paths,
@@ -716,36 +709,9 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("Written omni:scenePartition to %d cameras", num_envs)
 
     def _setup_xform_bindings_legacy(self):
-        """Setup OVRTX bindings for scene objects to sync with Newton physics."""
-        try:
-            from isaaclab_newton.physics import NewtonManager
-        except ImportError:
-            logger.debug("NewtonManager not available, skipping object bindings")
-            return
-
-        if SimulationContext.instance() is None:
-            logger.info("No active simulation context, will not set up ovrtx object bindings for newton")
-            return
-
-        newton_model = NewtonManager.get_model()
-        if newton_model is None:
-            logger.debug("Newton model not available, skipping object bindings")
-            return
-
-        all_body_paths = getattr(newton_model, "body_label", None)
-        if all_body_paths is None:
-            logger.info("Newton model has no body_label, skipping object bindings")
-            return
-
-        object_paths = []
-        newton_indices = []
-        for idx, path in enumerate(all_body_paths):
-            if "/World/envs/" in path and self._camera_rel_path not in path and "GroundPlane" not in path:
-                object_paths.append(path)
-                newton_indices.append(idx)
-
-        if len(object_paths) == 0:
-            logger.info("No dynamic objects found for binding")
+        """Bind the body paths published through SDP."""
+        object_paths = self._sdp.backend.transform_paths
+        if not object_paths:
             return
 
         self._object_xform_binding = self.backend.renderer.bind_attribute(
@@ -764,9 +730,7 @@ class OVRTXRenderer(BaseRenderer):
         if self._object_xform_binding is None:
             raise RuntimeError("Failed to create OVRTX object bindings")
 
-        self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
         self._object_scales = self._create_object_scale_array(object_paths)
-        self._object_transform_buffer = wp.zeros(len(newton_indices), dtype=wp.mat44d, device=self._device)
 
     def _setup_deformable_bindings_legacy(self, num_envs: int):
         """Setup OVRTX bindings for Newton deformable bodies.
@@ -958,6 +922,7 @@ class OVRTXRenderer(BaseRenderer):
         Performs OVRTX initialization (stage export, USD load, bindings) on first call,
         matching the interface of Isaac RTX and Newton Warp which need no separate initialize().
         """
+        camera_paths = _get_cloned_camera_paths(spec.camera_prim_paths[0], spec.num_instances)
         # Normalize aliases such as "cuda" before comparing cameras sharing this renderer.
         warp_device = wp.get_device(spec.device)
         if self._initialized_scene and str(warp_device) != self._device:
@@ -982,10 +947,9 @@ class OVRTXRenderer(BaseRenderer):
             else:
                 self._register_camera(spec, render_data)
             if not self._use_ovstage:
-                intrinsic_prim_paths = _env_camera_prim_paths(spec.camera_path_relative_to_env_0, spec.num_instances)
                 for name in _CAMERA_INTRINSIC_ATTRIBUTES:
                     binding = self.backend.renderer.bind_attribute(
-                        prim_paths=intrinsic_prim_paths,
+                        prim_paths=camera_paths,
                         attribute_name=name,
                         dtype="float32",
                         prim_mode=PrimMode.EXISTING_ONLY,
@@ -1002,7 +966,9 @@ class OVRTXRenderer(BaseRenderer):
 
     def _register_camera(self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData) -> None:
         """Add another tiled product and camera binding without reloading the shared scene."""
-        camera_paths = _env_camera_prim_paths(spec.camera_path_relative_to_env_0, spec.num_instances)
+        camera_paths = _get_cloned_camera_paths(spec.camera_prim_paths[0], spec.num_instances)
+        if not camera_paths:
+            raise ValueError("OVRTX cameras must be under /World/envs/env_0/.")
         scope = render_data.render_scope_name
         product_path = render_data.render_product_path
         usd = build_render_product_as_string(
@@ -1111,41 +1077,23 @@ class OVRTXRenderer(BaseRenderer):
                 )
 
     def _update_transforms_legacy(self) -> None:
-        """Sync transforms to OVRTX."""
-        if (
-            self._object_xform_binding is None
-            or self._object_newton_indices is None
-            or self._object_scales is None
-            or self._object_transform_buffer is None
-        ):
+        """Write SDP's requested matrix layout without another conversion."""
+        if self._object_xform_binding is None:
             return
-
-        # If self._object_newton_indices is not None, then Newton's the current physics backend
-
-        from isaaclab_newton.physics import NewtonManager
-
-        newton_state = NewtonManager.get_state()
-        if newton_state is None:
-            raise RuntimeError("Newton state should not be None")
-
-        body_q = getattr(newton_state, "body_q", None)
-        if body_q is None:
+        transforms = SceneDataFormat.TransposedMatrix44d()
+        if not self._sdp.get_transforms(transforms, scales=self._object_scales):
             return
-
-        wp.launch(
-            kernel=sync_newton_transforms_kernel,
-            dim=len(self._object_newton_indices),
-            inputs=[self._object_transform_buffer, self._object_newton_indices, body_q, self._object_scales],
-            device=self._device,
-        )
+        if self._transform_version == self._sdp.backend.transforms_version:
+            return
         # Blocking ``write()`` so the buffer stays valid until OVRTX finishes reading it.
         # ``DataAccess.ASYNC`` + the Warp CUDA stream let OVRTX read in place and wait
         # on-GPU for the kernel; ``SYNC`` is rejected for GPU buffers.
         self._object_xform_binding.write(
-            self._object_transform_buffer,
+            transforms.matrices,
             data_access=DataAccess.ASYNC,
             cuda_stream=self._warp_device.stream.cuda_stream,
         )
+        self._transform_version = self._sdp.backend.transforms_version
 
     def _update_geometries_legacy(self) -> None:
         """Sync geometries to OVRTX."""
@@ -1659,8 +1607,8 @@ class OVRTXRenderer(BaseRenderer):
             with self._map_render_var_to_dlpack(motion_var) as tiled_motion_vectors_data:
                 self._launch_extract_all_tiles(render_data, tiled_motion_vectors_data, output_buffers["motion_vectors"])
 
-    def _render_legacy(self, render_data: OVRTXCameraRenderData) -> None:
-        """Render the scene into the provided RenderData."""
+    def _render_legacy(self, render_data: Sequence[OVRTXCameraRenderData]) -> None:
+        """Render the requested camera products in one native submission."""
         if not self._initialized_scene:
             raise RuntimeError("Scene not initialized. Call initialize() first.")
         if self.backend.renderer is None or len(self._render_product_paths) == 0:
@@ -1670,7 +1618,7 @@ class OVRTXRenderer(BaseRenderer):
             if material_writer is not None:
                 material_writer.publish()
             products = self.backend.renderer.step(
-                render_products={render_data.render_product_path},
+                render_products={data.render_product_path for data in render_data},
                 delta_time=1.0 / 60.0,
             )
         finally:
@@ -1678,21 +1626,28 @@ class OVRTXRenderer(BaseRenderer):
                 drain_errors = contextlib.nullcontext() if sys.exc_info()[0] is None else contextlib.suppress(Exception)
                 with drain_errors:
                     material_writer.drain()
-        product_path = render_data.render_product_path
-        if product_path in products and len(products[product_path].frames) > 0:
+        self._process_render_products(render_data, products)
+
+    def _process_render_products(
+        self, render_data: Sequence[OVRTXCameraRenderData], products: RenderProductSetOutputs
+    ) -> None:
+        """Populate camera outputs only after every requested product returned a frame."""
+        for data in render_data:
+            if data.render_product_path not in products or not products[data.render_product_path].frames:
+                raise RuntimeError(f"OVRTX returned no frame for render product {data.render_product_path!r}.")
+        for data in render_data:
             self._process_render_frame(
-                render_data,
-                products[product_path].frames[0],
-                render_data.warp_buffers,
+                data,
+                products[data.render_product_path].frames[0],
+                data.warp_buffers,
             )
 
-        # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
-        # buffers are the same warp buffer map used by extraction.
-        if render_data.ppisp_pipeline is not None:
-            render_data.ppisp_pipeline.apply(
-                render_data.warp_buffers[str(RenderBufferKind.RGB_HDR)],
-                render_data.warp_buffers[str(RenderBufferKind.RGBA)],
-            )
+            # Post-render PPISP uses each camera's own HDR source and RGBA destination.
+            if data.ppisp_pipeline is not None:
+                data.ppisp_pipeline.apply(
+                    data.warp_buffers[str(RenderBufferKind.RGB_HDR)],
+                    data.warp_buffers[str(RenderBufferKind.RGBA)],
+                )
 
     def _close_legacy(self) -> None:
         """Release the renderer's tensor bindings. See :meth:`close`."""
@@ -1711,7 +1666,6 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_xform_binding = None
         _safe_unbind(self._object_xform_binding, "object transforms")
         self._object_xform_binding = None
-        self._object_transform_buffer = None
         _safe_unbind(self._deformable_points_binding, "deformable points")
         self._deformable_points_binding = None
         _safe_unbind(self._particle_points_binding, "particle points")
@@ -1855,7 +1809,21 @@ class OVRTXRenderer(BaseRenderer):
                     operation.wait()
 
     def render(self, render_data: OVRTXCameraRenderData) -> None:
-        """Render the scene into the provided RenderData."""
+        """Render one camera product into its bound output buffers."""
+        self.render_batch((render_data,))
+
+    def render_batch(self, render_data: Sequence[OVRTXCameraRenderData]) -> None:
+        """Render all requested camera products in one native submission.
+
+        Args:
+            render_data: Cameras whose poses and output buffers have been prepared. An empty
+                sequence performs no work.
+
+        Raises:
+            RuntimeError: If the scene is uninitialized or a requested product returns no frame.
+        """
+        if not render_data:
+            return
         if self._use_ovstage:
             self._render_ovstage(render_data)
         else:
@@ -1944,7 +1912,7 @@ class OVRTXRenderer(BaseRenderer):
         first_cam_path = spec.camera_prim_paths[0]
         if not first_cam_path.startswith(env_0_prefix):
             raise RuntimeError(f"Expected camera prim under '{env_0_prefix}', got '{first_cam_path}'")
-        self._camera_rel_path = spec.camera_path_relative_to_env_0
+        self._camera_prim_path = first_cam_path
 
         logger.info("Injecting camera definitions...")
 
@@ -1987,7 +1955,7 @@ class OVRTXRenderer(BaseRenderer):
 
         self._initialized_scene = True
 
-        camera_paths = _env_camera_prim_paths(self._camera_rel_path, num_envs)
+        camera_paths = _get_cloned_camera_paths(self._camera_prim_path, num_envs)
 
         # Re-author the RenderProduct's camera relationship after clone. ``stage.clone`` recreates the per-env
         # cameras, so the RenderProduct must be pointed at the freshly-interned camera path ids to discover every
@@ -2088,7 +2056,7 @@ class OVRTXRenderer(BaseRenderer):
         """Update scene partition attributes on cloned environments and cameras (ovstage path)."""
         logger.info("Writing scene partitions for %d environments...", num_envs)
         env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
-        camera_prim_paths = _env_camera_prim_paths(self._camera_rel_path, num_envs)
+        camera_prim_paths = _get_cloned_camera_paths(self._camera_prim_path, num_envs)
         # TOKEN_ID semantic tells ovstage the uint64 values are interned string tokens, not raw integers;
         # the renderer resolves them back to the original "env_N" strings for scene-partition lookup.
         token_ids = np.array([self.backend.paths.intern_token(f"env_{i}") for i in range(num_envs)], dtype=np.uint64)
@@ -2122,36 +2090,9 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("Written omni:scenePartition to %d cameras", num_envs)
 
     def _setup_xform_bindings_ovstage(self) -> None:
-        """Setup OVRTX bindings for scene objects to sync with Newton physics (ovstage path)."""
-        try:
-            from isaaclab_newton.physics import NewtonManager
-        except ImportError:
-            logger.debug("NewtonManager not available, skipping object bindings")
-            return
-
-        if SimulationContext.instance() is None:
-            logger.info("No active simulation context, will not set up ovrtx object bindings for newton")
-            return
-
-        newton_model = NewtonManager.get_model()
-        if newton_model is None:
-            logger.debug("Newton model not available, skipping object bindings")
-            return
-
-        all_body_paths = getattr(newton_model, "body_label", None)
-        if all_body_paths is None:
-            logger.info("Newton model has no body_label, skipping object bindings")
-            return
-
-        object_paths = []
-        newton_indices = []
-        for idx, path in enumerate(all_body_paths):
-            if "/World/envs/" in path and self._camera_rel_path not in path and "GroundPlane" not in path:
-                object_paths.append(path)
-                newton_indices.append(idx)
-
-        if len(object_paths) == 0:
-            logger.info("No dynamic objects found for binding")
+        """Bind the body paths published through SDP."""
+        object_paths = self._sdp.backend.transform_paths
+        if not object_paths:
             return
 
         self._object_paths_list = self.backend.paths.create_path_list_from_strings(object_paths)
@@ -2168,7 +2109,6 @@ class OVRTXRenderer(BaseRenderer):
         if self._object_xform_query is None:
             raise RuntimeError("Failed to create OVRTX object bindings")
 
-        self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
         self._object_scales = self._create_object_scale_array(object_paths)
 
     def _setup_deformable_bindings_ovstage(self, num_envs: int) -> None:
@@ -2360,45 +2300,25 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Failed to create OVRTX particle point bindings")
 
     def _update_transforms_ovstage(self) -> None:
-        if self._object_xform_query is None or self._object_newton_indices is None or self._object_scales is None:
+        """Write SDP's matrix layout through the active ovstage ordinal."""
+        if self._object_xform_query is None:
             return
-
-        # If self._object_newton_indices is not None, then Newton's the current physics backend
-
-        from isaaclab_newton.physics import NewtonManager
-
-        newton_state = NewtonManager.get_state()
-        if newton_state is None:
-            raise RuntimeError("Newton state should not be None")
-
-        body_q = getattr(newton_state, "body_q", None)
-        if body_q is None:
+        transforms = SceneDataFormat.TransposedMatrix44d()
+        if not self._sdp.get_transforms(transforms, scales=self._object_scales):
             return
-
-        num_objects = len(self._object_newton_indices)
-        object_transforms = wp.empty(num_objects, dtype=wp.mat44d, device=self._device)
-        wp.launch(
-            kernel=sync_newton_transforms_kernel,
-            dim=num_objects,
-            inputs=[object_transforms, self._object_newton_indices, body_q, self._object_scales],
-            device=self._device,
-        )
-        # The tensor is handed over zero-copy, so ovstage reads ``object_transforms`` in place and
-        # must not do so until the kernel above has landed. Passing the producing Warp stream as
-        # ``cuda_stream`` gives producer ordering: ovstage drains the work already queued on that
-        # stream before it touches the tensor. That replaces the device-wide
-        # ``wp.synchronize_device()`` with stream-scoped ordering and removes the host copy; it is
-        # not a nonblocking handoff, and the ``.wait()`` below can still block the calling thread.
-        # A GPU-side wait would need the event-based API instead.
+        if self._transform_version == self._sdp.backend.transforms_version:
+            return
+        # Stream-ordered zero-copy handoff; wait until OVStage has consumed the shared buffer.
         self.backend.stage.write_attribute(
             self._object_xform_query,
             "omni:xform",
             ordinal=self._current_ordinal,
-            tensors=xform_tensor_from_warp(object_transforms),
+            tensors=xform_tensor_from_warp(transforms.matrices),
             is_array=False,
             semantic=ovstage.AttributeSemantic.MATRIX,
             cuda_stream=self._warp_device.stream.cuda_stream,
         ).wait()
+        self._transform_version = self._sdp.backend.transforms_version
 
     def _update_geometries_ovstage(self) -> None:
         if self._deformable_points_query is not None or self._particle_points_query is not None:
@@ -2526,7 +2446,7 @@ class OVRTXRenderer(BaseRenderer):
                 cuda_stream=self._warp_device.stream.cuda_stream,
             ).wait()
 
-    def _render_ovstage(self, render_data: OVRTXCameraRenderData) -> None:
+    def _render_ovstage(self, render_data: Sequence[OVRTXCameraRenderData]) -> None:
         if not self._initialized_scene:
             raise RuntimeError("Scene not initialized. Call initialize() first.")
         if self.backend.renderer is None or len(self._render_product_paths) == 0:
@@ -2544,26 +2464,12 @@ class OVRTXRenderer(BaseRenderer):
                 with drain_errors:
                     material_writer.drain()
         products = self.backend.renderer.step(
-            render_products={render_data.render_product_path},
+            render_products={data.render_product_path for data in render_data},
             delta_time=1.0 / 60.0,
             ordinal=self._current_ordinal,
         )
         self._current_ordinal += 1
-        product_path = render_data.render_product_path
-        if product_path in products and len(products[product_path].frames) > 0:
-            self._process_render_frame(
-                render_data,
-                products[product_path].frames[0],
-                render_data.warp_buffers,
-            )
-
-        # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
-        # buffers are the same warp buffer map used by extraction.
-        if render_data.ppisp_pipeline is not None:
-            render_data.ppisp_pipeline.apply(
-                render_data.warp_buffers[str(RenderBufferKind.RGB_HDR)],
-                render_data.warp_buffers[str(RenderBufferKind.RGBA)],
-            )
+        self._process_render_products(render_data, products)
 
     def _close_ovstage(self) -> None:
         """Release the renderer's stage queries and path lists. See :meth:`close`."""
@@ -2608,7 +2514,6 @@ class OVRTXRenderer(BaseRenderer):
         _safe_destroy_path_list(self._cable_paths_list, "cable paths")
         self._cable_paths_list = None
 
-        self._object_newton_indices = None
         self._object_scales = None
         self._object_scales_by_path = {}
         # Descriptors alias ``_cable_points``; drop them before the buffer so no cached
