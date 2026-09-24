@@ -15,7 +15,6 @@ from .ray_caster_camera_cfg import RayCasterCameraCfg
 if TYPE_CHECKING:
     from .multi_mesh_ray_caster_camera import MultiMeshRayCasterCamera
 
-# import logger
 logger = logging.getLogger(__name__)
 
 

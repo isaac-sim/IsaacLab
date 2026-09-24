@@ -76,7 +76,6 @@ def spawn_multi_asset(
     for asset_prim_path, asset_cfg in zip(asset_prim_paths, cfg.assets_cfg):
         if asset_prim_path is None:
             continue
-        # append semantic tags if specified
         if cfg.semantic_tags is not None:
             if asset_cfg.semantic_tags is None:
                 asset_cfg.semantic_tags = cfg.semantic_tags

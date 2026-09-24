@@ -161,8 +161,8 @@ class RecorderManager(ManagerBase):
             cfg: The configuration object or dictionary (``dict[str, RecorderTermCfg]``).
             env: The environment instance.
         """
-        self._term_names: list[str] = list()
-        self._terms: dict[str, RecorderTerm] = dict()
+        self._term_names: list[str] = []
+        self._terms: dict[str, RecorderTerm] = {}
 
         # Do nothing if cfg is None or an empty dict
         if not cfg:
@@ -280,7 +280,6 @@ class RecorderManager(ManagerBase):
         # Do nothing if no active recorder terms are provided
         if len(self.active_terms) == 0:
             return {}
-
         # resolve environment ids
         if env_ids is None:
             env_ids = list(range(self._env.num_envs))
@@ -578,7 +577,6 @@ class RecorderManager(ManagerBase):
             # check if term config is None
             if term_cfg is None:
                 continue
-            # check valid type
             if not isinstance(term_cfg, RecorderTermCfg):
                 raise TypeError(
                     f"Configuration for the term '{term_name}' is not of type RecorderTermCfg."

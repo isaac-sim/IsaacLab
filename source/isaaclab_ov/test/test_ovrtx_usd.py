@@ -67,7 +67,6 @@ def camera_spec():
         num_instances=4,
         camera_prim_paths=tuple(f"/World/envs/env_{i}/Robot/head_cam" for i in range(4)),
         view_count=4,
-        camera_path_relative_to_env_0="Robot/head_cam",
     )
 
 

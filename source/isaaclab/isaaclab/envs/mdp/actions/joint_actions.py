@@ -20,7 +20,6 @@ if TYPE_CHECKING:
     from ...utils.io_descriptors import GenericActionIODescriptor
     from . import actions_cfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 

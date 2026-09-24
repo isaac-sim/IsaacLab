@@ -24,7 +24,6 @@ if TYPE_CHECKING:
     from .sub_terrain_cfg import FlatPatchSamplingCfg, SubTerrainBaseCfg
     from .terrain_generator_cfg import TerrainGeneratorCfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -149,7 +148,7 @@ class TerrainGenerator:
         # buffer for storing valid patches
         self.flat_patches = {}
         # create a list of all sub-terrains
-        self.terrain_meshes = list()
+        self.terrain_meshes = []
         self.terrain_origins = np.zeros((self.cfg.num_rows, self.cfg.num_cols, 3))
 
         # parse configuration and add sub-terrains

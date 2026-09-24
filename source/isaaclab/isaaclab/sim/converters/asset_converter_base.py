@@ -86,15 +86,11 @@ class AssetConverterBase(abc.ABC):
         else:
             self._usd_file_name = usd_file_name
 
-        # create the USD directory
         os.makedirs(self.usd_dir, exist_ok=True)
-        # check if usd files exist
         self._usd_file_exists = os.path.isfile(self.usd_path)
         # path to read/write asset hash file
         self._dest_hash_path = os.path.join(self.usd_dir, ".asset_hash")
-        # create asset hash to check if the asset has changed
         self._asset_hash = self._config_to_hash(cfg)
-        # read the saved hash
         try:
             with open(self._dest_hash_path) as f:
                 existing_asset_hash = f.readline()
