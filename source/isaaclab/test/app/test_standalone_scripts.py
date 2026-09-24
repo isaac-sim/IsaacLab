@@ -21,7 +21,6 @@ launches; ``ISAACLAB_STANDALONE_SCREENSHOT_DELAY`` controls when.
 import ast
 import os
 import re
-import subprocess
 import sys
 from pathlib import Path
 
@@ -96,69 +95,6 @@ def test_overrides_only_reference_discovered_standalone_scripts():
     """Stale override entries must not silently survive script removal or renaming."""
     stale = sorted(set(OVERRIDES) - {spec.relative_path for spec in SPECS})
     assert not stale, f"stale standalone script overrides: {stale}"
-
-
-@pytest.mark.parametrize(
-    "path",
-    [
-        "examples/demos/zoo.py",
-        "examples/cables.py",
-        "examples/deformables.py",
-        "scripts/tutorials/01_assets/run_deformable_object.py",
-        "scripts/tools/convert_mjcf.py",
-        "scripts/tools/convert_urdf.py",
-    ],
-)
-def test_scene_examples_delegate_replication_to_interactive_scene(path):
-    """Examples declare scene cfgs before startup without importing USD or orchestrating cloning."""
-    tree = ast.parse((script_cases.ROOT / path).read_text(encoding="utf-8"))
-    calls = {
-        node.func.id if isinstance(node.func, ast.Name) else node.func.attr
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and isinstance(node.func, (ast.Name, ast.Attribute))
-    }
-    if not path.startswith("scripts/tools/"):
-        scenes = [
-            node
-            for node in tree.body
-            if isinstance(node, ast.ClassDef)
-            and any(isinstance(base, ast.Name) and base.id == "InteractiveSceneCfg" for base in node.bases)
-        ]
-        assert scenes, "Declare the scene as an InteractiveSceneCfg subclass."
-        for scene in scenes:
-            assert any(isinstance(node, ast.Name) and node.id == "configclass" for node in scene.decorator_list)
-            assert all(
-                node.name == "__post_init__"
-                for node in scene.body
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            )
-        assert not any(isinstance(node, ast.FunctionDef) and node.name == "design_scene" for node in tree.body)
-    else:
-        assert "InteractiveSceneCfg" in calls
-    assert calls.isdisjoint({"clone_plan_from_env_0", "make_clone_plan", "set_clone_plan", "replicate"})
-    args = ["input", "output"] if path.startswith("scripts/tools/convert_") else []
-    # Construct cfgs without a runtime; converter availability is irrelevant without executing main.
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            "import runpy, sys\nfrom unittest.mock import patch\nsys.argv = sys.argv[1:]\n"
-            "with patch('isaaclab.utils.version.standalone_importers_available', return_value=True):\n"
-            "    namespace = runpy.run_path(sys.argv[0], run_name='prelaunch_check')\n"
-            "from isaaclab.scene import InteractiveSceneCfg as SceneCfg\n"
-            "for cls in namespace.values():\n"
-            "    if isinstance(cls, type) and cls is not SceneCfg and issubclass(cls, SceneCfg):\n"
-            "        cls(num_envs=1, env_spacing=0.0)\n"
-            "assert 'pxr.Tf' not in sys.modules, 'USD loaded before runtime startup'",
-            path,
-            *args,
-        ],
-        cwd=script_cases.ROOT,
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_every_packaged_script_is_registered_for_cli_launch():

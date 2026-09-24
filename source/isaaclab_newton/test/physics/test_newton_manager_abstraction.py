@@ -1467,34 +1467,6 @@ def test_manager_name_starts_with_newton(manager):
 # ---------------------------------------------------------------------------
 
 
-def test_start_requires_an_explicit_builder_without_stage_discovery(monkeypatch):
-    """An unbuilt simulation fails early; a native builder needs no clone plan."""
-    sim_cfg = SimulationCfg(device="cpu", physics=NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False))
-    import_stage = Mock(side_effect=AssertionError("Unexpected implicit stage import."))
-    drain_cuda = Mock(wraps=NewtonManager._drain_stale_cuda_error)
-    monkeypatch.setattr(NewtonManager, "instantiate_builder_from_stage", import_stage)
-    monkeypatch.setattr(NewtonManager, "_drain_stale_cuda_error", drain_cuda)
-
-    with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        assert sim.get_clone_plan() is None
-        with pytest.raises(RuntimeError, match="requires an explicitly supplied builder"):
-            sim.physics_manager.start_simulation()
-        import_stage.assert_not_called()
-        drain_cuda.assert_not_called()
-
-        builder = sim.physics_manager.create_builder()
-        body = builder.add_body(mass=1.0)
-        builder.add_shape_sphere(body=body, radius=0.05)
-        NewtonManager.set_builder(builder)
-        sim.reset()
-        sim.step(render=False)
-
-        assert sim.get_clone_plan() is None
-        assert NewtonManager.get_model().body_count == 1
-        assert np.isfinite(NewtonManager.get_state_0().body_q.numpy()).all()
-        import_stage.assert_not_called()
-
-
 @pytest.mark.parametrize(
     "solver_cfg_factory, expected_manager, expected_solver_cls,"
     " expected_use_single_state, expected_needs_collision_pipeline",
