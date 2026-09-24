@@ -142,7 +142,7 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         assert "isaaclab/examples/cables.py" in names
         assert "isaaclab/examples/newton_viewer_dominoes.py" in names
         assert "isaaclab/examples/mpm/newton_mpm_granular.py" in names
-        assert not any(name.startswith(("isaaclab/_demos/", "isaaclab/demos/", "isaaclab/examples/")) for name in names)
+        assert not any(name.startswith(("isaaclab/_demos/", "isaaclab/demos/", "isaaclab/_examples/")) for name in names)
         nested_prefix = "isaaclab/source/isaaclab/isaaclab/"
         assert not any(name.startswith(nested_prefix) for name in names)
 
