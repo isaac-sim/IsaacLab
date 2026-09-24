@@ -200,16 +200,15 @@ class CameraCfg(SensorBaseCfg):
     """Renderer configuration for camera sensor."""
 
     isp_cfg: Any | CameraISPMode | None = None
-    """Post-render ISP cfg applied by the renderer backend after it produces HDR output.
+    """Compatibility entry point for PPISP processing of camera color outputs.
 
     Defaults to ``None`` (ISP disabled). Auto-discovery is opt-in via a
     :class:`CameraISPMode` sentinel — see below.
 
     Accepted values:
 
-    * ``None`` — ISP disabled. No HDR AOV is requested and no RTX-side
-      tonemapping flags are flipped.
-    * A :class:`CameraISPMode` sentinel — the renderer backend walks the USD stage to
+    * ``None`` — no PPISP processing is applied to camera outputs.
+    * A :class:`CameraISPMode` sentinel — the PPISP processor walks the USD stage to
       discover an ISP shader (e.g. via the :mod:`isaaclab_ppisp` package).
     * A concrete ISP cfg dataclass (e.g. :class:`isaaclab_ppisp.PpispCfg`) — used directly.
 
@@ -217,9 +216,9 @@ class CameraCfg(SensorBaseCfg):
     scalar coefficients, so every cloned view in a tiled batch shares the same
     ISP configuration — there is no per-view ISP today.
 
-    :mod:`isaaclab.sensors.camera` does not depend on any ISP implementation; the
-    annotation is intentionally loose (``Any``) so the sensor layer can carry the
-    cfg through to a renderer that knows what to do with it.
+    New processing chains belong to observation terms. This compatibility entry point
+    preserves processed ``camera.data.output`` values for existing applications.
+    The optional :mod:`isaaclab_ppisp` implementation is loaded only when requested.
     """
 
     def __post_init__(self):

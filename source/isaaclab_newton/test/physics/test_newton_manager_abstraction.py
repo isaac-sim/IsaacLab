@@ -361,7 +361,7 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     renderer.newton_sensor = SimpleNamespace(model=model)
     monkeypatch.setattr(renderer, "_launch_render", lambda _data: render())
     renderer.update_transforms()
-    renderer.render(SimpleNamespace(sensor_task_name=None, ppisp_pipeline=None))
+    renderer.render(SimpleNamespace(sensor_task_name=None))
 
     assert status["rendered"]
 
@@ -397,7 +397,7 @@ def test_newton_warp_renderer_runs_triangle_mesh_refit_eagerly(monkeypatch):
     renderer = object.__new__(NewtonWarpRenderer)
     renderer.newton_sensor = SimpleNamespace(model=model)
     monkeypatch.setattr(renderer, "_launch_render", lambda _data: calls.append("render"))
-    renderer.render(SimpleNamespace(sensor_task_name=None, ppisp_pipeline=None))
+    renderer.render(SimpleNamespace(sensor_task_name=None))
 
     assert calls == ["render"]
 

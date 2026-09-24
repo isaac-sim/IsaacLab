@@ -6,8 +6,10 @@
 """Tests for the renderer→camera output contract."""
 
 import warnings
+import weakref
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import warp as wp
 
@@ -16,6 +18,12 @@ pytest.importorskip("isaaclab_physx")
 from isaaclab.sensors.camera import CameraCfg, TiledCameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg
+from isaaclab.utils.visual_processing import (
+    VisualProcessingPipeline,
+    VisualProcessor,
+    VisualProcessorCfg,
+    VisualProcessorContext,
+)
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -140,7 +148,7 @@ def test_newton_warp_supported_output_types_key_set():
         RenderBufferKind.SEMANTIC_SEGMENTATION,
         RenderBufferKind.INSTANCE_SEGMENTATION,
     }
-    assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)
+    assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32, color_space="scene_linear")
 
 
 @pytest.mark.parametrize("data_type", ["simple_shading_full_mdl", "not_a_render_buffer_kind"])
@@ -316,3 +324,499 @@ def test_camera_data_allocate_raises_on_unknown_name():
         )
     assert "not_a_real_type" in str(exc_info.value)
     assert "RenderBufferKind" in str(exc_info.value)
+
+
+def _make_increment_processor(cfg, context, events):
+    """Build an observable processor with state local to each sensor."""
+    bindings = {}
+    name = cfg.params["name"]
+
+    def initialize(inputs, outputs):
+        bindings["input"] = inputs[next(iter(cfg.inputs))]
+        bindings["output"] = outputs[next(iter(cfg.outputs))]
+        if "rgba" in outputs:
+            bindings["rgba_owner"] = weakref.ref(outputs["rgba"].warp)
+        events.append((name, "initialize", bindings))
+
+    def process(mask):
+        events.append((name, "process", mask))
+        selected = wp.to_torch(mask)
+        source = bindings["input"].torch
+        output = bindings["output"].torch
+        output[selected] = (source[selected] + cfg.params.get("increment", 1)).to(output.dtype)
+
+    return VisualProcessor(
+        inputs=cfg.inputs,
+        outputs=cfg.outputs,
+        initialize=initialize,
+        process=process,
+        reset=lambda mask: events.append((name, "reset", mask)),
+        close=lambda: events.append((name, "close", None)),
+        in_place=cfg.params.get("in_place", False),
+    )
+
+
+def _processor_cfg(name, inputs, outputs, events, **params):
+    return VisualProcessorCfg(
+        func=lambda cfg, context: _make_increment_processor(cfg, context, events),
+        inputs=inputs,
+        outputs=outputs,
+        params={"name": name, **params},
+    )
+
+
+def _processing_context():
+    return VisualProcessorContext(
+        stage=None,
+        camera_prim_paths=("/World/envs/env_0/Camera", "/World/envs/env_1/Camera"),
+        num_views=2,
+        height=2,
+        width=3,
+        device="cpu",
+    )
+
+
+def test_visual_pipeline_preserves_rgb_only_renderer_contract():
+    """An empty chain does not request RGBA from a renderer that only supplies RGB."""
+    pipeline = VisualProcessingPipeline([], _processing_context(), {"rgb": RenderBufferSpec(3, wp.uint8)}, ["rgb"])
+    outputs = pipeline.allocate()
+    assert pipeline.render_data_types == ("rgb",)
+    assert set(pipeline.render_outputs) == set(outputs) == {"rgb"}
+    assert outputs["rgb"].shape == (2, 2, 3, 3)
+    pipeline.close()
+
+
+def test_visual_processors_order_intermediates_and_persistent_aliases():
+    """Stages consume earlier results, keep their bindings, and expose only public outputs."""
+    events = []
+    hdr = RenderBufferSpec(3, wp.float32, color_space="scene_linear")
+    rgb = RenderBufferSpec(3, wp.uint8, color_space="srgb")
+    configs = [
+        _processor_cfg("tone", {"rgb_hdr": hdr}, {"tone_mapped": rgb}, events),
+        _processor_cfg("color", {"tone_mapped": rgb}, {"rgb": rgb}, events, increment=2),
+        _processor_cfg("finish", {"rgb": rgb}, {"rgb": rgb}, events, increment=3, in_place=True),
+    ]
+    pipeline = VisualProcessingPipeline(configs, _processing_context(), {"rgb_hdr": hdr}, ["rgb", "rgba"])
+    outputs = pipeline.allocate()
+    assert set(pipeline.render_data_types) == {"rgb_hdr"}
+    assert set(pipeline.render_outputs) == {"rgb_hdr"}
+    assert set(outputs) == {"rgb", "rgba"}
+    assert outputs["rgb"].warp.ptr == outputs["rgba"].warp.ptr
+    assert outputs["rgb"].shape == (2, 2, 3, 3)
+    assert outputs["rgba"].shape == (2, 2, 3, 4)
+
+    bindings = {name: value for name, event, value in events if event == "initialize"}
+    assert bindings["tone"]["input"] is pipeline.render_outputs["rgb_hdr"]
+    assert bindings["color"]["input"] is bindings["tone"]["output"]
+    assert bindings["finish"]["input"].warp.ptr == bindings["finish"]["output"].warp.ptr
+    pointers = {name: value.warp.ptr for name, value in outputs.items()}
+
+    pipeline.render_outputs["rgb_hdr"].torch.fill_(10)
+    mask = wp.array([True, False], dtype=wp.bool, device="cpu")
+    pipeline.process(mask)
+    np.testing.assert_array_equal(outputs["rgb"].warp.numpy()[0], np.full((2, 3, 3), 10 + 1 + 2 + 3))
+    np.testing.assert_array_equal(outputs["rgb"].warp.numpy()[1], np.zeros((2, 3, 3)))
+    assert [(name, event) for name, event, _ in events if event == "process"] == [
+        ("tone", "process"),
+        ("color", "process"),
+        ("finish", "process"),
+    ]
+
+    pipeline.process(mask)
+    assert {name: value.warp.ptr for name, value in outputs.items()} == pointers
+    assert sum(event == "initialize" for _, event, _ in events) == 3
+    pipeline.reset(mask)
+    assert all(value is mask for _, event, value in events if event == "reset")
+    assert sum(event == "reset" for _, event, _ in events) == 3
+    pipeline.close()
+    assert sum(event == "close" for _, event, _ in events) == 3
+
+
+def test_visual_processors_reject_incompatible_order():
+    """A consumer cannot read an intermediate that is produced later in the chain."""
+    hdr = RenderBufferSpec(3, wp.float32, color_space="scene_linear")
+    rgb = RenderBufferSpec(3, wp.uint8, color_space="srgb")
+    configs = [
+        _processor_cfg("consumer", {"tone_mapped": rgb}, {"rgb": rgb}, []),
+        _processor_cfg("producer", {"rgb_hdr": hdr}, {"tone_mapped": rgb}, []),
+    ]
+    with pytest.raises(ValueError, match="tone_mapped"):
+        VisualProcessingPipeline(configs, _processing_context(), {"rgb_hdr": hdr}, ["rgb"])
+
+
+@pytest.mark.parametrize(
+    "requirement",
+    [
+        RenderBufferSpec(4, wp.float32, color_space="scene_linear"),
+        RenderBufferSpec(3, wp.float16, color_space="scene_linear"),
+        RenderBufferSpec(3, wp.float32, layout="NCHW", color_space="scene_linear"),
+        RenderBufferSpec(3, wp.float32, device="cuda:0", color_space="scene_linear"),
+        RenderBufferSpec(3, wp.float32, color_space="srgb"),
+    ],
+)
+def test_visual_processors_reject_incompatible_input_contract(requirement):
+    """Initialization identifies unsupported layout, precision, device, and color requirements."""
+    hdr = RenderBufferSpec(3, wp.float32, color_space="scene_linear")
+    config = _processor_cfg("invalid", {"rgb_hdr": requirement}, {"rgb": RenderBufferSpec(3, wp.uint8)}, [])
+    with pytest.raises(ValueError, match="rgb_hdr|NHWC|device|layout"):
+        VisualProcessingPipeline([config], _processing_context(), {"rgb_hdr": hdr}, ["rgb"])
+
+
+def test_visual_processor_state_is_independent_per_camera():
+    """Reusing a configuration creates separate bindings and buffers for each sensor."""
+    events = []
+    rgb = RenderBufferSpec(3, wp.uint8)
+    config = _processor_cfg("increment", {"rgb": rgb}, {"rgb": rgb}, events, in_place=True)
+    specs = {"rgb": rgb, "rgba": RenderBufferSpec(4, wp.uint8)}
+    first = VisualProcessingPipeline([config], _processing_context(), specs, ["rgb"])
+    second = VisualProcessingPipeline([config], _processing_context(), specs, ["rgb"])
+    first_output = first.allocate()["rgb"]
+    second_output = second.allocate()["rgb"]
+    assert first_output.warp.ptr != second_output.warp.ptr
+    first.render_outputs["rgb"].torch.fill_(7)
+    second.render_outputs["rgb"].torch.fill_(20)
+    first.process(wp.ones(2, dtype=wp.bool, device="cpu"))
+    np.testing.assert_array_equal(first_output.warp.numpy(), np.full((2, 2, 3, 3), 8))
+    np.testing.assert_array_equal(second_output.warp.numpy(), np.full((2, 2, 3, 3), 20))
+    first.close()
+    second.close()
+
+
+def test_visual_processors_keep_intermediate_rgb_storage_alive():
+    """RGB views retain valid intermediate RGBA storage after another stage replaces the output."""
+    events = []
+    hdr = RenderBufferSpec(3, wp.float32)
+    rgb = RenderBufferSpec(3, wp.uint8)
+    configs = [
+        _processor_cfg("first", {"rgb_hdr": hdr}, {"rgb": rgb}, events),
+        _processor_cfg("second", {"rgb": rgb}, {"rgb": rgb}, events),
+    ]
+    pipeline = VisualProcessingPipeline(configs, _processing_context(), {"rgb_hdr": hdr}, ["rgb"])
+    outputs = pipeline.allocate()
+    first_bindings = events[0][2]
+    assert first_bindings["rgba_owner"]() is not None
+    assert first_bindings["output"].warp.ptr != outputs["rgb"].warp.ptr
+    pipeline.render_outputs["rgb_hdr"].torch.fill_(10)
+    pipeline.process(wp.ones(2, dtype=wp.bool, device="cpu"))
+    np.testing.assert_array_equal(outputs["rgb"].warp.numpy(), np.full((2, 2, 3, 3), 12))
+    pipeline.close()
+
+
+def test_visual_processor_cleanup_after_initialization_failure():
+    """All resolved processors release resources even if binding a later stage fails."""
+    closed = []
+
+    def make_processor(cfg, context):
+        def initialize(inputs, outputs):
+            if cfg.params["fail"]:
+                raise RuntimeError("processor initialization failed")
+
+        return VisualProcessor(
+            inputs={},
+            outputs={},
+            initialize=initialize,
+            process=lambda mask: None,
+            close=lambda: closed.append(cfg.params["name"]),
+        )
+
+    configs = [
+        VisualProcessorCfg(func=make_processor, params={"name": "first", "fail": False}),
+        VisualProcessorCfg(func=make_processor, params={"name": "second", "fail": True}),
+    ]
+    pipeline = VisualProcessingPipeline(configs, _processing_context(), {}, [])
+    with pytest.raises(RuntimeError, match="processor initialization failed"):
+        pipeline.allocate()
+    assert closed == ["second", "first"]
+
+
+def test_visual_processor_cleanup_continues_after_callback_failure():
+    """One failing close callback must not leak other processors' state."""
+    closed = []
+
+    def make_processor(cfg, context):
+        def close():
+            closed.append(cfg.params["name"])
+            if cfg.params["fail"]:
+                raise RuntimeError("processor cleanup failed")
+
+        return VisualProcessor(inputs={}, outputs={}, process=lambda mask: None, close=close)
+
+    configs = [
+        VisualProcessorCfg(func=make_processor, params={"name": "first", "fail": False}),
+        VisualProcessorCfg(func=make_processor, params={"name": "second", "fail": True}),
+    ]
+    pipeline = VisualProcessingPipeline(configs, _processing_context(), {}, [])
+    pipeline.allocate()
+    with pytest.raises(RuntimeError) as exc_info:
+        pipeline.close()
+    assert "processor cleanup failed" in str(exc_info.value.__cause__ or exc_info.value)
+    assert closed == ["second", "first"]
+    pipeline.close()
+    assert closed == ["second", "first"]
+
+
+@pytest.mark.parametrize("legacy_isp", [False, True])
+@pytest.mark.parametrize("use_batch", [False, True])
+def test_camera_render_freshness_and_legacy_resets(monkeypatch, legacy_isp, use_batch):
+    """Raw reads publish one generation per render and preserve legacy ISP reset behavior."""
+    from isaaclab.renderers.render_context import RenderContext
+    from isaaclab.sensors.camera import Camera
+    from isaaclab.sensors.sensor_base import SensorBase
+    from isaaclab.sim import SimulationContext
+
+    processed = []
+    reset = []
+    rendered = []
+    events = []
+
+    def process(mask):
+        assert events[-1] == "read"
+        np.testing.assert_array_equal(camera._render_camera_data.output["rgb"].warp.numpy(), len(rendered))
+        processed.append(mask.numpy().copy())
+        events.append("process")
+
+    rgb = RenderBufferSpec(3, wp.uint8)
+    config = VisualProcessorCfg(
+        func=lambda cfg, context: VisualProcessor(
+            inputs={"rgb": rgb},
+            outputs={"rgb": rgb},
+            process=process,
+            reset=lambda mask: reset.append(mask.numpy().copy()),
+            in_place=True,
+        )
+    )
+    pipeline = VisualProcessingPipeline([config], _processing_context(), {"rgb": rgb}, ["rgb"])
+    camera = Camera.__new__(Camera)
+    camera._clear_callbacks = lambda: None
+    camera._view = None
+    camera.cfg = SimpleNamespace(update_period=0.1, update_latest_camera_pose=False)
+    camera._device = "cpu"
+    camera._num_envs = 2
+    camera._is_initialized = True
+    camera._is_visualizing = False
+    camera._data_generation = 0
+    camera._data_generation_last_update = -1
+    camera._is_outdated = wp.ones(2, dtype=wp.bool, device="cpu")
+    camera._timestamp = wp.zeros(2, dtype=wp.float32, device="cpu")
+    camera._timestamp_last_update = wp.zeros_like(camera._timestamp)
+    camera._ALL_ENV_MASK = wp.ones(2, dtype=wp.bool, device="cpu")
+    camera._reset_mask = wp.zeros(2, dtype=wp.bool, device="cpu")
+    camera._reset_mask_torch = wp.to_torch(camera._reset_mask)
+    camera._legacy_isp = pipeline if legacy_isp else None
+    camera._render_generation = 0
+    camera._data = SimpleNamespace(output=pipeline.allocate(), info={"rgb": None})
+    private_hdr = wp.zeros((2, 2, 3, 3), dtype=wp.float32, device="cpu")
+    camera._render_camera_data = SimpleNamespace(
+        output={**pipeline.render_outputs, "rgb_hdr": private_hdr}, info={"rgb": None}
+    )
+    camera._render_data = object()
+
+    def read_output(data, camera_data):
+        assert camera_data is camera._render_camera_data
+        assert camera_data.output["rgb_hdr"] is private_hdr
+        camera_data.output["rgb"].warp.fill_(len(rendered))
+        camera_data.info["rgb"] = len(rendered)
+        events.append("read")
+
+    camera._renderer = SimpleNamespace(
+        render=lambda data: rendered.append(data),
+        render_batch=lambda data: rendered.extend(data),
+        read_output=read_output,
+        cleanup=lambda data: None,
+    )
+    camera._update_camera_state = lambda **kwargs: None
+    camera._update_poses = lambda *args, **kwargs: None
+    sim = SimpleNamespace(render_context=RenderContext([]), get_physics_step_count=lambda: 0) if use_batch else None
+    monkeypatch.setattr(SimulationContext, "instance", staticmethod(lambda: sim))
+
+    def update(dt):
+        if use_batch:
+            SensorBase.update_batch([camera], dt)
+        else:
+            camera.update(dt)
+
+    raw = camera.render_outputs
+    first_data = camera.data
+    assert camera.data is first_data
+    assert camera.render_outputs is raw
+    assert raw["rgb_hdr"] is private_hdr
+    assert "rgb_hdr" not in first_data.output
+    assert camera.render_generation == len(rendered) == 1
+    update(0.05)
+    assert camera.data is first_data
+    assert camera.render_generation == 1
+    update(0.05)
+    if use_batch:
+        assert camera.render_generation == len(rendered) == 2
+    assert camera.data is first_data
+    assert camera.render_generation == len(rendered) == 2
+    camera.reset(env_ids=[1])
+    if legacy_isp:
+        np.testing.assert_array_equal(reset[-1], [False, True])
+    assert camera.data is first_data
+    if legacy_isp:
+        np.testing.assert_array_equal(processed[-1], [False, True])
+    assert camera.render_generation == 3
+    camera.reset(env_mask=wp.array([True, False], dtype=wp.bool, device="cpu"))
+    if legacy_isp:
+        np.testing.assert_array_equal(reset[-1], [True, False])
+    assert camera.data is first_data
+    if legacy_isp:
+        np.testing.assert_array_equal(processed[-1], [True, False])
+    assert camera.render_generation == len(rendered) == 4
+    assert camera.data.info["rgb"] == 4
+    assert camera.render_outputs is raw
+    assert raw["rgb_hdr"] is private_hdr
+    assert events == (["read", "process"] if legacy_isp else ["read"]) * 4
+    assert len(processed) == (4 if legacy_isp else 0)
+    camera.__del__()
+
+
+@pytest.mark.parametrize("supports_rgba", [False, True])
+def test_camera_private_render_requirements_reach_renderer_without_changing_public_outputs(monkeypatch, supports_rgba):
+    """Private inputs preserve public layouts and prepare every camera before a shared stage export."""
+    from pxr import Usd, UsdGeom
+
+    from isaaclab.renderers.rtx_camera_overrides import apply_rtx_exposure_overrides
+    from isaaclab.sensors.camera import Camera
+    from isaaclab.sensors.camera import camera as camera_module
+    from isaaclab.sensors.sensor_base import SensorBase
+    from isaaclab.sim import SimulationContext
+
+    specs = {
+        RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
+        RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32),
+    }
+    if supports_rgba:
+        specs[RenderBufferKind.RGBA] = RenderBufferSpec(4, wp.uint8)
+    stage = Usd.Stage.CreateInMemory()
+    prim = UsdGeom.Camera.Define(stage, "/World/Camera").GetPrim()
+    other_prim = UsdGeom.Camera.Define(stage, "/World/OtherCamera").GetPrim()
+    camera = Camera.__new__(Camera)
+    camera.cfg = SimpleNamespace(
+        prim_path="/World/Camera",
+        data_types=["rgb"],
+        height=2,
+        width=3,
+        isp_cfg=None,
+        renderer_cfg=SimpleNamespace(renderer_type="newton"),
+    )
+    camera.stage = stage
+    camera._device = "cpu"
+    camera._num_envs = 2
+    camera._is_initialized = False
+    camera._legacy_isp = None
+    camera._requested_render_inputs = ()
+    camera._neutral_exposure = False
+    camera._sensor_prims = []
+    camera._initialize_intrinsics = lambda: None
+    camera._update_poses = lambda: None
+    camera._clear_callbacks = lambda: None
+    captured = {}
+    events = []
+
+    def prepare_cameras(stage, spec):
+        events.append(("prepare", spec.camera_prim_paths))
+        assert spec.num_instances == spec.view_count == 2
+        if spec.neutral_exposure:
+            apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
+        captured["spec"] = spec
+
+    def export_stage(stage, num_envs):
+        events.append(("export",))
+        assert prim.GetAttribute("exposure:iso").Get() == 0.0
+        assert other_prim.GetAttribute("exposure:iso").Get() == 0.0
+
+    camera._renderer = SimpleNamespace(
+        supported_output_types=lambda: specs,
+        prepare_cameras=prepare_cameras,
+        create_render_data=lambda spec: object(),
+        set_outputs=lambda data, outputs: captured.update(outputs=outputs),
+        cleanup=lambda data: None,
+    )
+    monkeypatch.setattr(SensorBase, "_initialize_impl", lambda self: None)
+    monkeypatch.setattr(
+        SimulationContext,
+        "instance",
+        staticmethod(
+            lambda: SimpleNamespace(
+                device="cpu",
+                get_clone_plan=lambda: SimpleNamespace(env_ids=np.arange(2)),
+                render_context=SimpleNamespace(ensure_prepare_stage=export_stage),
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        camera_module,
+        "FrameView",
+        lambda *args, **kwargs: SimpleNamespace(count=2, prims=[prim, prim], close=lambda: None),
+    )
+    with pytest.raises(ValueError, match="unsupported"):
+        camera.request_render_inputs(("unsupported",))
+    assert not events
+    camera.request_render_inputs(("rgb_hdr",), neutral_exposure=True)
+    camera.request_render_inputs(("rgb_hdr",))
+    other_camera = Camera.__new__(Camera)
+    other_camera._clear_callbacks = lambda: None
+    other_camera._is_initialized = False
+    other_camera.cfg = SimpleNamespace(**(vars(camera.cfg) | {"prim_path": "/World/OtherCamera"}))
+    other_camera.stage = stage
+    other_camera._renderer = camera._renderer
+    other_camera._requested_render_inputs = ()
+    other_camera._neutral_exposure = False
+    other_camera.request_render_inputs(("rgb_hdr",), neutral_exposure=True)
+    assert camera.camera_prim_paths == ("/World/Camera",)
+    camera._initialize_camera()
+    assert events[:3] == [
+        ("prepare", ("/World/Camera",)),
+        ("prepare", ("/World/Camera",)),
+        ("prepare", ("/World/OtherCamera",)),
+    ]
+    assert events[-1] == ("export",)
+    assert captured["spec"].data_types == ("rgb", "rgb_hdr")
+    assert captured["spec"].neutral_exposure
+    public_names = {"rgb", "rgba"} if supports_rgba else {"rgb"}
+    assert set(camera._data.output) == public_names
+    assert set(captured["outputs"]) == public_names | {"rgb_hdr"}
+    assert captured["outputs"]["rgb"] is camera._data.output["rgb"]
+    if supports_rgba:
+        assert camera._data.output["rgb"].warp.ptr == camera._data.output["rgba"].warp.ptr
+    assert camera.cfg.data_types == ["rgb"]
+    camera._is_initialized = True
+    with pytest.raises(RuntimeError, match="before sensor initialization"):
+        camera.request_render_inputs(("rgb_hdr",))
+    camera.__del__()
+
+
+@pytest.mark.parametrize("fail_cleanup", [False, True])
+def test_camera_initialization_failure_releases_processor_and_renderer_state(fail_cleanup):
+    """A partial camera failure closes every resource and preserves the original diagnostic."""
+    from isaaclab.sensors.camera import Camera
+
+    camera = Camera.__new__(Camera)
+    camera._clear_callbacks = lambda: None
+    closed = []
+    render_data = object()
+
+    def close_processor():
+        closed.append("processor")
+        if fail_cleanup:
+            raise ValueError("cleanup failed")
+
+    def initialize_camera():
+        camera._legacy_isp = SimpleNamespace(close=close_processor)
+        camera._renderer = SimpleNamespace(cleanup=lambda data: closed.append(data))
+        camera._view = SimpleNamespace(close=lambda: closed.append("view"))
+        camera._render_data = render_data
+        raise RuntimeError("camera initialization failed")
+
+    camera._initialize_camera = initialize_camera
+    with pytest.raises(RuntimeError, match="camera initialization failed"):
+        camera._initialize_impl()
+    assert closed == ["processor", render_data, "view"]
+    assert camera._legacy_isp is None
+    assert camera._render_data is None
+    assert camera._renderer is None
+    assert camera._view is None
+    camera.__del__()
+    assert closed == ["processor", render_data, "view"]

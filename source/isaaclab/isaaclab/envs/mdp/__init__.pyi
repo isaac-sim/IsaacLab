@@ -86,6 +86,7 @@ __all__ = [
     "height_scan",
     "image",
     "image_features",
+    "processed_image",
     "imu_ang_vel",
     "imu_lin_acc",
     "pva_orientation",
@@ -234,6 +235,7 @@ from .events import (
     reset_scene_to_default,
 )
 from .visual_events import randomize_visual_material, randomize_visual_shape
+from .visual_observations import processed_image
 from .observations import (
     base_ang_vel,
     base_lin_vel,

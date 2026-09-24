@@ -3,10 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from types import SimpleNamespace
+
 import pytest
+import torch
 import warp as wp
 from isaaclab_ppisp import (
     PpispCfg,
+    PpispPipeline,
+    PpispProcessorCfg,
     apply_ppisp_to_rgba,
     apply_ppisp_to_rgba_with_controller_params,
     compute_ppisp_controller_params,
@@ -38,6 +43,8 @@ from isaaclab_ppisp.kernels import (
 )
 
 from isaaclab.sensors.camera.tiled_camera_cfg import TiledCameraCfg
+from isaaclab.utils.visual_processing import VisualProcessingPipeline, VisualProcessorContext
+from isaaclab.utils.warp import ProxyArray
 
 wp.init()
 
@@ -331,3 +338,97 @@ def test_tiled_camera_cfg_accepts_ppisp_cfg():
     )
 
     assert cfg.isp_cfg == ppisp_cfg
+
+
+@pytest.mark.parametrize("controller", [False, True])
+@pytest.mark.parametrize("borrowed_inputs", [False, True])
+def test_ppisp_processor_preserves_pipeline_output_and_bindings(controller, borrowed_inputs):
+    import numpy as np
+
+    if controller and not wp.is_cuda_available():
+        pytest.skip("PPISP controller requires CUDA.")
+    device = "cuda:0" if wp.is_cuda_available() else "cpu"
+    ppisp_cfg = PpispCfg(
+        inputs={"exposureOffset": 0.5, "responsivity": 1.3},
+        controller_weights=(0.0,) * PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN if controller else None,
+    )
+    cfg = PpispProcessorCfg(isp_cfg=ppisp_cfg)
+    context = VisualProcessorContext(stage=None, camera_prim_paths=(), num_views=2, height=4, width=4, device=device)
+    processing = VisualProcessingPipeline([cfg], context, cfg.inputs, ["rgb"])
+    raw = {"rgb_hdr": ProxyArray(wp.zeros((2, 4, 4, 3), dtype=wp.float32, device=device))} if borrowed_inputs else None
+    raw_pointer = raw["rgb_hdr"].warp.ptr if raw is not None else None
+    outputs = processing.allocate(raw)
+    assert set(outputs) == {"rgb", "rgba"}
+    assert outputs["rgb"].warp.ptr == outputs["rgba"].warp.ptr
+    assert processing.neutral_exposure
+    assert cfg.outputs["rgb"].color_space == "camera_response"
+    hdr = processing.render_outputs["rgb_hdr"].warp
+    rgba = outputs["rgba"].warp
+    expected = wp.empty_like(rgba)
+    mask = wp.array([True, False], dtype=wp.bool, device=device)
+    bindings = hdr.ptr, rgba.ptr
+    reference = PpispPipeline(ppisp_cfg.copy())
+
+    for fill in (0.25, 0.5):
+        hdr.fill_(fill)
+        processing.process(mask)
+        reference.apply(hdr, expected)
+        np.testing.assert_array_equal(rgba.numpy(), expected.numpy())
+        assert (hdr.ptr, rgba.ptr) == bindings
+        if raw is not None:
+            assert hdr.ptr == raw["rgb_hdr"].warp.ptr == raw_pointer
+            np.testing.assert_array_equal(raw["rgb_hdr"].warp.numpy(), np.full(hdr.shape, fill))
+
+    processing.close()
+    processing.close()
+    reference.close()
+
+
+@pytest.mark.skipif(
+    not wp.is_cuda_available() or not torch.cuda.is_available(),
+    reason="PPISP observation requires Warp and Torch CUDA.",
+)
+def test_ppisp_observation_matches_pipeline_with_camera_inputs():
+    """A prepared observation term binds raw camera HDR and returns the original PPISP result."""
+    import numpy as np
+
+    from isaaclab.envs.mdp import processed_image
+    from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
+
+    ppisp_cfg = PpispCfg(inputs={"exposureOffset": 0.5, "responsivity": 1.3})
+    processor_cfg = PpispProcessorCfg(isp_cfg=ppisp_cfg)
+    device = "cuda:0"
+    hdr = ProxyArray(wp.zeros((2, 4, 4, 3), dtype=wp.float32, device=device))
+    requests = []
+    camera = SimpleNamespace(
+        cfg=SimpleNamespace(isp_cfg=None, height=4, width=4),
+        camera_prim_paths=("/World/Camera",),
+        render_buffer_specs=processor_cfg.inputs,
+        render_outputs={"rgb_hdr": hdr},
+        render_generation=0,
+        frame=ProxyArray(wp.ones(2, dtype=wp.int64, device=device)),
+        request_render_inputs=lambda names, **kwargs: requests.append((names, kwargs["neutral_exposure"])),
+    )
+    env = SimpleNamespace(scene={"camera": camera}, sim=SimpleNamespace(stage=None), num_envs=2, device=device)
+    cfg = ObservationTermCfg(
+        func=processed_image,
+        params={"sensor_cfg": SceneEntityCfg("camera"), "processors": [processor_cfg], "data_type": "rgb"},
+    )
+    term = processed_image.prepare_scene(cfg, env)
+    assert requests == [(("rgb_hdr",), True)]
+    reference = PpispPipeline(ppisp_cfg.copy())
+    expected = wp.zeros((2, 4, 4, 4), dtype=wp.uint8, device=device)
+    output_pointer = None
+    for fill in (0.25, 0.5):
+        hdr.warp.fill_(fill)
+        camera.render_generation += 1
+        camera.frame.warp.fill_(camera.render_generation)
+        output = term(env, **cfg.params)
+        reference.apply(hdr.warp, expected)
+        np.testing.assert_array_equal(output.cpu().numpy(), expected.numpy()[..., :3])
+        output_pointer = output.data_ptr() if output_pointer is None else output_pointer
+        assert output.data_ptr() == output_pointer
+        assert term(env, **cfg.params) is output
+        assert camera.render_outputs["rgb_hdr"] is hdr
+    term.close()
+    reference.close()
