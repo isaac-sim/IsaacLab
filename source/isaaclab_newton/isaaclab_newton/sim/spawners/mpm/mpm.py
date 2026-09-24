@@ -97,6 +97,9 @@ def spawn_mpm_particles(
         visual_points.CreateWidthsAttr(points.GetWidthsAttr().Get())
         visual_points.SetWidthsInterpolation(UsdGeom.Tokens.vertex)
         visual_points.CreateDisplayColorAttr([Gf.Vec3f(*(float(value) for value in cfg.visual_color))])
+        visual_points.GetPrim().CreateAttribute("isaaclab:pointsUpdateFrequency", Sdf.ValueTypeNames.Int).Set(
+            cfg.visual_update_frequency
+        )
         if cfg.visual_material is not None:
             UsdGeom.Scope.Define(stage, f"{prim_path}/Looks")
             material_path = f"{prim_path}/Looks/visualMaterial"

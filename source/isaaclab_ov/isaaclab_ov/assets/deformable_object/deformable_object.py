@@ -233,6 +233,7 @@ class DeformableObject(BaseDeformableObject):
         self._data._nodal_state_w.timestamp = -1.0
         self._data._root_pos_w.timestamp = -1.0
         self.root_view.set_attribute(self._sim_nodal_position_type, self._get_nodal_pos_w_f32(), indices=env_ids)
+        OvPhysxManager.get_scene_data_backend().geometry_version += 1
 
     def write_nodal_velocity_to_sim_index(
         self,

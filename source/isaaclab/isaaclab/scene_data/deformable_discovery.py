@@ -15,12 +15,15 @@ from itertools import chain
 from typing import TYPE_CHECKING
 
 import numpy as np
+import warp as wp
 
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 from .. import sim as sim_utils
 from ..cloner.path import match, rebase
 from ..sim.utils.queries import has_deformable_body_api
+from .deformable_vis_remap import build_volume_vis_barycentric_remap
+from .scene_data_backend import SceneDataFormat
 
 if TYPE_CHECKING:
     from ..cloner.clone_plan import ClonePlan
@@ -46,6 +49,58 @@ class DeformableStageEntry:
     """Parent-frame world position [m]."""
     init_rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
     """Parent-frame world orientation as an xyzw quaternion."""
+
+
+def deformable_geometry_batches(
+    entries: Sequence[DeformableStageEntry], points: wp.array, offsets: Sequence[int]
+) -> list[tuple[SceneDataFormat.Points | SceneDataFormat.WeightedPoints, dict[str, tuple[int, int]]]]:
+    """Bind visual mesh paths to native nodal ranges or static barycentric interpolation tables.
+
+    Args:
+        entries: Declared deformable instances in native body order.
+        points: Flat native nodal positions [m], including any body padding.
+        offsets: Native point offset for each entry.
+
+    Returns:
+        Native-format publications and exact visual mesh paths with their output ranges.
+        Interpolation tables are computed once per shared prototype, without packing native points.
+    """
+    direct, weighted = {}, {}
+    indices, weights = [], []
+    prototypes = {}
+    output_offset = 0
+    for entry, offset in zip(entries, offsets, strict=True):
+        key = (id(entry.vertices), id(entry.indices), id(entry.vis_vertices))
+        if key not in prototypes:
+            if entry.vertex_count == entry.vis_vertex_count and np.array_equal(entry.vertices, entry.vis_vertices):
+                prototypes[key] = None
+            else:
+                if entry.deformable_type != "volume":
+                    raise ValueError(f"Surface visual topology differs from its native nodes: {entry.root_path}")
+                remap = build_volume_vis_barycentric_remap(entry.vertices, entry.indices, entry.vis_vertices)
+                if remap is None:
+                    raise ValueError(f"Cannot bind visual vertices to deformable tetrahedra: {entry.root_path}")
+                prototypes[key] = (remap.tet_vertex_indices.numpy(), remap.bary_weights.numpy())
+        if prototypes[key] is None:
+            direct[entry.vis_mesh_path] = (int(offset), entry.vis_vertex_count)
+            continue
+        prototype_indices, prototype_weights = prototypes[key]
+        indices.append(prototype_indices + int(offset))
+        weights.append(prototype_weights)
+        weighted[entry.vis_mesh_path] = (output_offset, entry.vis_vertex_count)
+        output_offset += entry.vis_vertex_count
+    batches = []
+    if direct:
+        publication = SceneDataFormat.Points()
+        publication.points = points
+        batches.append((publication, direct))
+    if weighted:
+        publication = SceneDataFormat.WeightedPoints()
+        publication.points = points
+        publication.indices = wp.array(np.concatenate(indices), dtype=wp.int32, device=points.device)
+        publication.weights = wp.array(np.concatenate(weights), dtype=wp.float32, device=points.device)
+        batches.append((publication, weighted))
+    return batches
 
 
 def _matrix4d_to_numpy(matrix: Gf.Matrix4d) -> np.ndarray:

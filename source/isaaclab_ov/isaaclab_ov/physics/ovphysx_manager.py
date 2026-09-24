@@ -29,7 +29,11 @@ from pxr import Sdf, UsdPhysics
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
-from isaaclab.scene_data.deformable_discovery import deformable_entries, deformable_prototypes
+from isaaclab.scene_data.deformable_discovery import (
+    deformable_entries,
+    deformable_geometry_batches,
+    deformable_prototypes,
+)
 from isaaclab.sim.simulation_context import SimulationContext
 
 from isaaclab_ov._clone import CloneTransform, clone_transforms_from_positions
@@ -95,10 +99,10 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         self._transforms = SceneDataFormat.Transform()
         self.transforms_version = 0
         self._poses_version = -1
-        self._points_data = SceneDataFormat.Points()
+        self.geometry_version = 0
+        self._points_version = -1
+        self._geometry_batches = []
         self._deformable_bindings: list[tuple[OvPhysxView, Any, wp.array]] = []
-        self._geometry_paths: list[str] = []
-        self._geometry_counts: list[int] = []
 
     @property
     def transform_count(self) -> int:
@@ -126,9 +130,8 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         self._transforms.transforms = None
         self.transforms_version += 1
         self._deformable_bindings = []
-        self._geometry_paths = []
-        self._geometry_counts = []
-        self._points_data.points = None
+        self.geometry_version += 1
+        self._geometry_batches = []
 
         if stage is None:
             return
@@ -174,7 +177,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         for entry in entries:
             groups.setdefault((entry.deformable_type, entry.vertex_count), []).append(entry)
 
-        views = []
+        views, native_entries = [], []
         for (deformable_type, count), entries in groups.items():
             tensor_type = (
                 TT.DEFORMABLE_SIM_NODAL_POSITION if deformable_type == "volume" else TT.SURFACE_DEFORMABLE_SIM_POSITION
@@ -192,17 +195,17 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
                 raise RuntimeError("OVPhysX deformable binding does not cover the declared clone-plan entries.")
             if tuple(view.binding_for(tensor_type).shape) != (len(entries), count, 3):
                 raise RuntimeError("OVPhysX deformable node counts disagree with the clone plan.")
-            self._geometry_paths.extend(entry.root_path for entry in ordered)
-            self._geometry_counts.extend(entry.vertex_count for entry in ordered)
+            native_entries.extend(ordered)
             views.append((view, tensor_type, count))
 
         if not views:
             return
-        self._points_data.points = wp.empty(sum(self._geometry_counts), dtype=wp.vec3f, device=device)
+        counts = [entry.vertex_count for entry in native_entries]
+        points = wp.empty(sum(counts), dtype=wp.vec3f, device=device)
         offset = 0
         for view, tensor_type, count in views:
             buffer = wp.array(
-                ptr=self._points_data.points.ptr + offset * wp.types.type_size_in_bytes(wp.vec3f),
+                ptr=points.ptr + offset * wp.types.type_size_in_bytes(wp.vec3f),
                 shape=(view.count, count),
                 dtype=wp.vec3f,
                 device=device,
@@ -210,28 +213,21 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             )
             self._deformable_bindings.append((view, tensor_type, buffer))
             offset += view.count * count
+        offsets = np.cumsum(np.r_[0, counts[:-1]])
+        self._geometry_batches = deformable_geometry_batches(native_entries, points, offsets)
+
+    def get_geometry_batches(self, output_format: Any = SceneDataFormat.Points) -> list:
+        """Publish native positions with exact visual paths and interpolation metadata."""
+        if self._points_version != self.geometry_version:
+            for view, tensor_type, buffer in self._deformable_bindings:
+                view.read_into(tensor_type, buffer)
+            self._points_version = self.geometry_version
+        return self._geometry_batches
 
     @property
-    def points(self) -> SceneDataFormat.Points:
-        """Read OVPhysX nodal positions directly into their flat publication slices."""
-        for view, tensor_type, buffer in self._deformable_bindings:
-            view.read_into(tensor_type, buffer)
-        return self._points_data
-
-    @property
-    def point_count(self) -> int:
-        """Return the total unpadded OVPhysX deformable nodal count."""
-        return sum(self._geometry_counts)
-
-    @property
-    def geometry_paths(self) -> list[str]:
-        """Return one USD prim path per OVPhysX deformable body instance."""
-        return self._geometry_paths
-
-    @property
-    def geometry_counts(self) -> list[int]:
-        """Return the unpadded nodal count for each OVPhysX deformable body."""
-        return self._geometry_counts
+    def native_geometry_formats(self) -> tuple[Any, ...]:
+        """Return the native geometry formats compiled from the declared prototypes."""
+        return tuple(dict.fromkeys(publication._cls for publication, _ in self._geometry_batches))
 
     @property
     def transforms(self) -> SceneDataFormat.Transform:
@@ -502,6 +498,7 @@ class OvPhysxManager(PhysicsManager):
             cls.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
         cls._kinematics_dirty = True
         cls._scene_data_backend.transforms_version += 1
+        cls._scene_data_backend.geometry_version += 1
 
     @classmethod
     def forward(cls) -> None:
@@ -510,6 +507,7 @@ class OvPhysxManager(PhysicsManager):
             cls.backend.physx.update_articulations_kinematic()
             cls._kinematics_dirty = False
         cls._scene_data_backend.transforms_version += 1
+        cls._scene_data_backend.geometry_version += 1
 
     @classmethod
     def pre_render(cls) -> None:
@@ -528,6 +526,7 @@ class OvPhysxManager(PhysicsManager):
         cls.backend.physx.update_articulations_kinematic()
         cls._kinematics_dirty = False
         cls._scene_data_backend.transforms_version += 1
+        cls._scene_data_backend.geometry_version += 1
         PhysicsManager._sim_time += dt
 
     @staticmethod

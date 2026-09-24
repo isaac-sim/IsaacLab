@@ -92,8 +92,59 @@ class SceneDataFormat:
         points: wp.array(dtype=wp.vec3f) = None
         """World-space positions [m], shape [point_count]."""
 
+    @wp_struct
+    class WeightedPoints:
+        """Visual vertices interpolated from four native simulation nodes."""
+
+        points: wp.array(dtype=wp.vec3f)
+        """Native world-space simulation nodes [m]."""
+        indices: wp.array2d(dtype=wp.int32)
+        """Four native node indices per visual vertex."""
+        weights: wp.array2d(dtype=wp.float32)
+        """Four barycentric weights per visual vertex."""
+
+    @wp_struct
+    class CapsuleEndpoints:
+        """Polyline vertices derived from native capsule poses."""
+
+        transforms: wp.array(dtype=wp.transformf)
+        """World-space body poses [m, quaternion]."""
+        shape_body: wp.array(dtype=wp.int32)
+        shape_transform: wp.array(dtype=wp.transformf)
+        """Capsule poses relative to their bodies [m, quaternion]."""
+        shape_scale: wp.array(dtype=wp.vec3f)
+        """Capsule scales [m]; the second component is the half-length."""
+        endpoints: wp.array(dtype=wp.vec4i)
+        """Two (capsule index, endpoint sign) pairs per output vertex; their positions are averaged."""
+
+    @wp_struct
+    class FabricPoints:
+        """Native Fabric point arrays, already owned and updated by physics."""
+
+        points: wp.fabricarrayarray(dtype=wp.vec3f)
+        """Per-prim native point storage [m]."""
+
 
 class SceneDataBackend:
+    geometry_version: int = 0
+    """Monotonic geometry publication version, including native buffer swaps and same-step writes."""
+
+    @property
+    def native_geometry_formats(self) -> tuple[Any, ...]:
+        """Geometry formats the producer can publish without conversion."""
+        return (SceneDataFormat.Points,)
+
+    def get_geometry_batches(
+        self, output_format: Any = SceneDataFormat.Points
+    ) -> list[tuple[Any, dict[str, tuple[int, int]]]] | SceneDataFormat.FabricPoints:
+        """Publish native arrays and exact visual-prim ranges established during construction.
+
+        Each batch pairs a native format with ``path: (offset, count)`` ranges. Offsets index
+        native points for ``Points`` or output vertices for an interpolated format. A requested
+        native ``FabricPoints`` publication may be returned directly instead of host ranges.
+        """
+        return []
+
     transforms_version: int
     """Monotonic producer version, incremented after native writes or buffer swaps; never reset by readers."""
 
@@ -124,23 +175,3 @@ class SceneDataBackend:
     def transform_paths(self) -> list[str]:
         """Return the paths for each transform."""
         raise NotImplementedError
-
-    @property
-    def points(self) -> SceneDataFormat.Points:
-        """Return deformable or particle geometry as flat world-space positions."""
-        return SceneDataFormat.Points()
-
-    @property
-    def point_count(self) -> int:
-        """Return the number of points in :attr:`points`."""
-        return 0
-
-    @property
-    def geometry_paths(self) -> list[str]:
-        """Return one USD prim path per geometry entity (deformable body instance)."""
-        return []
-
-    @property
-    def geometry_counts(self) -> list[int]:
-        """Return the unpadded point count for each geometry entity."""
-        return []

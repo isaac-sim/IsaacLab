@@ -88,7 +88,9 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
 @pytest.fixture(autouse=True)
 def _simulation_registry(monkeypatch):
     sim = types.SimpleNamespace(_backend_registry=[])
-    sim.get_scene_data_provider = lambda: types.SimpleNamespace(backend=types.SimpleNamespace(transform_paths=[]))
+    sim.get_scene_data_provider = lambda: types.SimpleNamespace(
+        backend=types.SimpleNamespace(transform_paths=[]), get_geometry_points=lambda: {}
+    )
     sim.get_or_create_backend = SimulationContext.get_or_create_backend.__get__(sim)
     sim.close_backend = SimulationContext.close_backend.__get__(sim)
     monkeypatch.setattr(SimulationContext, "_instance", sim)
@@ -254,7 +256,6 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
     Use ``--basetemp=/tmp/ovrtx-camera-frames`` to choose where pytest writes the captures.
     Depth PNGs use a shared 0-8 m range (near is white); NPY files retain the raw depths [m].
     """
-    from isaaclab_newton.physics import NewtonManager
     from PIL import Image
 
     from pxr import Gf, Usd, UsdGeom, UsdLux
@@ -266,8 +267,6 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
 
     if not torch.cuda.is_available():
         pytest.skip("OVRTX rendering requires CUDA")
-    # This static USD scene has no physics model or scene-data provider.
-    monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: None))
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(use_ovstage)))
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
@@ -930,15 +929,7 @@ def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._camera_render_data.append(render_data)
     renderer._camera_xform_binding = None
     renderer._object_xform_binding = _RecordingBinding(events, "object")
-    renderer._deformable_points_binding = _RecordingBinding(events, "deformable")
-    renderer._particle_points_binding = _RecordingBinding(events, "particle")
-    renderer._cable_points_binding = _RecordingBinding(events, "cable")
-    renderer._deformable_particle_offsets = [0]
-    renderer._deformable_particle_counts = [1]
-    renderer._particle_visual_offsets = [0]
-    renderer._particle_visual_counts = [1]
-    renderer._particle_workaround_applied = True
-    renderer._cable_segment_counts = [1]
+    renderer._geometry_points_binding = _RecordingBinding(events, "geometry")
     renderer.backend.renderer = Backend()
     renderer._render_product_paths = ["/RenderCamera_0/RenderProduct_camera"]
     renderer._output_id_color_buffers = {"semantic_segmentation": object()}
@@ -986,16 +977,8 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._camera_paths_list = None
     renderer._object_xform_query = "object"
     renderer._object_paths_list = "object"
-    renderer._deformable_points_query = "deformable"
-    renderer._deformable_paths_list = "deformable"
-    renderer._particle_points_query = "particle"
-    renderer._particle_paths_list = "particle"
-    renderer._cable_points_query = "cable"
-    renderer._cable_paths_list = "cable"
-    renderer._deformable_particle_offsets = [0]
-    renderer._deformable_particle_counts = [1]
-    renderer._particle_visual_offsets = [0]
-    renderer._particle_visual_counts = [1]
+    renderer._geometry_points_query = "geometry"
+    renderer._geometry_paths_list = "geometry"
     renderer.backend.renderer = Backend()
     renderer.backend._resources = ExitStack()
     renderer._render_product_paths = ["/RenderCamera_0/RenderProduct_camera"]
@@ -1017,9 +1000,7 @@ def test_ovrtx_close_releases_legacy_renderer_state():
     assert events == [
         "unbind:camera",
         "unbind:object",
-        "unbind:deformable",
-        "unbind:particle",
-        "unbind:cable",
+        "unbind:geometry",
         "destroy_renderer",
     ]
 
@@ -1037,12 +1018,8 @@ def test_ovrtx_close_releases_ovstage_renderer_state():
         "destroy_path_list:camera",
         "release_query:object",
         "destroy_path_list:object",
-        "release_query:deformable",
-        "destroy_path_list:deformable",
-        "release_query:particle",
-        "destroy_path_list:particle",
-        "release_query:cable",
-        "destroy_path_list:cable",
+        "release_query:geometry",
+        "destroy_path_list:geometry",
         "detach_ovstage",
         "destroy_renderer",
         "exit_stack_close",

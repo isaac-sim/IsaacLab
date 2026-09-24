@@ -432,7 +432,6 @@ class MPMObject(BaseDeformableObject):
                 f"{prim_path}/Particles",
                 particle_offset=offset,
                 particle_count=self._particles_per_object,
-                sync_frequency=self.cfg.spawn.visual_update_frequency,
             )
         logger.info("MPM particle visualization initialized for: %s", self.cfg.prim_path)
 

@@ -119,7 +119,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer._exported_usd_string = None
     renderer._initialized_scene = False
     renderer._use_ovstage = False
-    renderer._sdp = SimpleNamespace(backend=SimpleNamespace(transform_paths=[]))
+    renderer._sdp = SimpleNamespace(backend=SimpleNamespace(transform_paths=[]), get_geometry_points=lambda: {})
     renderer._object_scales = None
     renderer._object_scales_by_path = {}
     return renderer
@@ -547,7 +547,7 @@ def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_a
     renderer.backend.renderer.bind_attribute = lambda **_kwargs: object()
     renderer.backend.renderer.write_attribute = lambda **_kwargs: None
     renderer._setup_xform_bindings_legacy = lambda: None
-    renderer._setup_deformable_bindings_legacy = lambda: None
+    renderer._setup_geometry_bindings_legacy = lambda: None
 
     spec = _make_camera_render_spec(num_envs=num_envs)
     render_data = OVRTXCameraRenderData(spec, "cpu", render_scope_name="RenderCamera_0")

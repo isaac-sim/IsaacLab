@@ -550,6 +550,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self._define_xform(stage, "/Scene/copy_7/Parent", (2.0, 0.0, 0.0))
         self._define_xform(stage, "/Scene/copy_7/Parent/Cloth", (3.0, 0.0, 0.0))
         path = "/Scene/copy_7/Parent/Cloth"
+        vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float32)
         entry = DeformableStageEntry(
             root_path=path,
             sim_mesh_path=f"{path}/Mesh",
@@ -557,6 +558,10 @@ class TestVisualizationClonePlan(unittest.TestCase):
             deformable_type="surface",
             vertex_count=3,
             vis_vertex_count=3,
+            vertices=vertices,
+            vis_vertices=vertices,
+            indices=np.array([0, 1, 2]),
+            vis_indices=np.array([0, 1, 2]),
             init_pos=(12.0, 0.0, 0.0),
         )
         plan = ClonePlan(
@@ -568,21 +573,21 @@ class TestVisualizationClonePlan(unittest.TestCase):
         )
         for positions in (plan.positions, None):
             with self.subTest(positions=positions):
-                builder = mock.Mock(particle_count=0)
-                entities, groups = visualization_deformables_module.add_shadow_deformables_to_builder(
-                    builder, plan, deformable_entries(replace(plan, positions=positions), [entry], (0,))
-                )
-
-                self.assertEqual([entity.root_path for entity in entities], ["/Scene/copy_12/Parent/Cloth", path])
-                self.assertEqual(groups[0].prim_path, "/Scene/copy_[^/]+/Parent/Cloth")
+                builder = newton.ModelBuilder()
+                with mock.patch.object(builder, "add_cloth_mesh", wraps=builder.add_cloth_mesh) as add_mesh:
+                    offsets = visualization_deformables_module.add_shadow_deformables_to_builder(
+                        builder, deformable_entries(replace(plan, positions=positions), [entry], (0,))
+                    )
+                self.assertEqual(offsets, {f"{path}/Mesh": 0, "/Scene/copy_12/Parent/Cloth/Mesh": 3})
                 offset = np.zeros(3) if positions is None else positions[2] - positions[0]
                 parent_position = np.array([12.0, 0.0, 0.0])
                 np.testing.assert_allclose(
-                    [tuple(call.kwargs["pos"]) for call in builder.add_cloth_mesh.call_args_list],
+                    [tuple(call.kwargs["pos"]) for call in add_mesh.call_args_list],
                     [parent_position, parent_position + offset],
                 )
 
-    def test_shadow_remaps_are_shared_by_prototype_not_destination_pattern(self):
+    def test_shadow_visual_topologies_keep_heterogeneous_offsets(self):
+        vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 0, 1], [0, 1, 1]])
         entries = tuple(
             DeformableStageEntry(
                 root_path=f"/Source/{name}",
@@ -591,8 +596,8 @@ class TestVisualizationClonePlan(unittest.TestCase):
                 deformable_type="volume",
                 vertex_count=4,
                 vis_vertex_count=count,
-                vis_vertices=np.zeros((count, 3)),
-                vis_indices=np.array([0, 1, 2]),
+                vis_vertices=vertices[:count],
+                vis_indices=np.arange(count),
             )
             for name, count in (("A", 3), ("B", 6))
         )
@@ -602,21 +607,16 @@ class TestVisualizationClonePlan(unittest.TestCase):
             env_ids=np.array([2, 10, 30]),
             clone_mask=np.array([[True, False, True], [False, True, False]]),
         )
-        remaps = (object(), object())
-        with mock.patch.object(
-            visualization_deformables_module, "_build_volume_vis_remap", side_effect=remaps
-        ) as build:
-            _, groups = visualization_deformables_module.add_shadow_deformables_to_builder(
-                mock.Mock(particle_count=0), plan, deformable_entries(plan, entries, (0, 1))
-            )
-        self.assertEqual(build.call_count, 2)
-        self.assertEqual([group.particles_per_body for group in groups], [3, 6])
-        self.assertEqual(
-            [[entity.root_path for entity in group.entities] for group in groups],
-            [["/Copies/2/Body", "/Copies/30/Body"], ["/Copies/10/Body"]],
+        builder = newton.ModelBuilder()
+        builder.add_particle(pos=wp.vec3(), vel=wp.vec3(), mass=1.0)
+        offsets = visualization_deformables_module.add_shadow_deformables_to_builder(
+            builder, deformable_entries(plan, entries, (0, 1))
         )
-        for group, remap in zip(groups, remaps):
-            self.assertTrue(all(entity.volume_vis_remap is remap for entity in group.entities))
+        self.assertEqual(
+            offsets, {"/Copies/2/Body/Visual": 1, "/Copies/30/Body/Visual": 4, "/Copies/10/Body/Visual": 7}
+        )
+        self.assertEqual(builder.particle_count, 13)
+        self.assertEqual(len(builder.tri_indices), 4)
 
 
 class TestReplicationNamesItsCopies(unittest.TestCase):

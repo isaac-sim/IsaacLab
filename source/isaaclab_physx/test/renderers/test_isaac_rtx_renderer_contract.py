@@ -19,6 +19,7 @@ import warp as wp
 from packaging import version
 
 from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
+from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
@@ -38,6 +39,7 @@ def _install_omni_stubs(monkeypatch):
     monkeypatch.setitem(sys.modules, "omni.syntheticdata", syntheticdata_module)
     monkeypatch.setitem(sys.modules, "omni.usd", usd_module)
     monkeypatch.setitem(sys.modules, "usdrt", MagicMock())
+    monkeypatch.setitem(sys.modules, "usdrt.hierarchy", MagicMock())
     monkeypatch.setattr(omni_module, "replicator", replicator_module, raising=False)
     monkeypatch.setattr(omni_module, "syntheticdata", syntheticdata_module, raising=False)
     monkeypatch.setattr(omni_module, "usd", usd_module, raising=False)
@@ -70,6 +72,63 @@ def test_isaac_rtx_supported_output_types_include_rgb_hdr(monkeypatch, isaac_sim
     ]
     is_supported = isaac_sim_version == "6.0"
     assert all((kind in specs) is is_supported for kind in requires_6_0)
+
+
+def test_fabric_geometry_publication_preserves_point_cloud_cadence(monkeypatch):
+    """Repeated consumers share writes, while throttled clouds eventually receive the latest pointer."""
+    _install_omni_stubs(monkeypatch)
+    from isaaclab_physx.renderers.fabric import FabricBackend
+
+    points = {"/Particles": wp.array([[1.0, 2.0, 3.0]], dtype=wp.vec3f, device="cpu")}
+    source, target = SceneDataFormat.Points(), SceneDataFormat.Points()
+    source.points = points["/Particles"]
+    target.points = wp.empty(1, dtype=wp.vec3f, device="cpu")
+    host = wp.empty_like(target.points)
+    attr = MagicMock()
+    writes = []
+    attr.Set.side_effect = lambda values: writes.append(np.array(values))
+    fabric = FabricBackend.__new__(FabricBackend)
+    fabric.device = "cpu"
+    fabric._geometry_points = points.copy()
+    fabric._geometry_sources = wp.array([source], dtype=SceneDataFormat.Points, device="cpu")
+    fabric._geometry_selection = fabric._curve_selection = None
+    fabric._geometry_version = -1
+    fabric._point_clouds = [[attr, host, 3, None, -1]]
+    fabric._host_geometry = (wp.array([target], dtype=SceneDataFormat.Points, device="cpu"), target.points, host, None)
+    provider = SimpleNamespace(
+        backend=SimpleNamespace(native_geometry_formats=(), geometry_version=0),
+        get_geometry_points=lambda: points,
+    )
+
+    fabric.update_geometries(provider, 5)
+    np.testing.assert_array_equal(writes[-1], [[1.0, 2.0, 3.0]])
+    provider.backend.geometry_version += 1
+    points["/Particles"].fill_(wp.vec3f(4.0))
+    fabric.update_geometries(provider, 6)
+    fabric.update_geometries(provider, 6)
+    assert len(writes) == 1
+    fabric.update_geometries(provider, 8)
+    np.testing.assert_array_equal(writes[-1], [[4.0, 4.0, 4.0]])
+    points["/Particles"] = wp.array([[7.0, 8.0, 9.0]], dtype=wp.vec3f, device="cpu")
+    provider.backend.geometry_version += 1
+    fabric.update_geometries(provider, 9)
+    assert len(writes) == 2
+    fabric.update_geometries(provider, 11)
+    np.testing.assert_array_equal(writes[-1], [[7.0, 8.0, 9.0]])
+    fabric.update_geometries(provider, 11)
+    assert len(writes) == 3
+
+
+def test_fabric_native_geometry_is_borrowed_without_point_copies(monkeypatch):
+    _install_omni_stubs(monkeypatch)
+    from isaaclab_physx.renderers.fabric import FabricBackend
+
+    provider = SimpleNamespace(
+        backend=SimpleNamespace(native_geometry_formats=(SceneDataFormat.FabricPoints,)),
+        get_geometry_points=MagicMock(),
+    )
+    FabricBackend.__new__(FabricBackend).update_geometries(provider, 0)
+    provider.get_geometry_points.assert_called_once_with(output_format=SceneDataFormat.FabricPoints)
 
 
 def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch):

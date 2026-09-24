@@ -37,8 +37,11 @@ from pxr import Sdf, Usd, UsdPhysics, UsdUtils
 import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
-from isaaclab.scene_data.deformable_discovery import deformable_entries, deformable_prototypes
-from isaaclab.scene_data.geometry_points import pack_body_slices_kernel
+from isaaclab.scene_data.deformable_discovery import (
+    deformable_entries,
+    deformable_geometry_batches,
+    deformable_prototypes,
+)
 from isaaclab.utils.string import to_camel_case
 
 from isaaclab_physx.cloner import PhysxReplicateContext
@@ -186,22 +189,23 @@ class PhysxSceneDataBackend(SceneDataBackend):
     def __init__(self):
         self._transforms = SceneDataFormat.Transform()
         self.transforms_version = 0
-        self._points_data = SceneDataFormat.Points()
+        self.geometry_version = 0
         self.clear()
 
     def clear(self) -> None:
         """Drop the native binding and its derived views after simulation stops."""
         self.backend = None
         self._rigid_body_view: omni.physics.tensors.RigidBodyView | None = None
-        self._deformable_bindings: list[tuple[Any, wp.array, wp.array]] = []
+        self._deformable_bindings: list[tuple[Any, list]] = []
         self._transforms.transforms = None
         self.transforms_version += 1
+        self.geometry_version += 1
         self._poses_version = self._fabric_version = -1
+        self._native_geometry_version = -1
         self._fabric_transforms = SceneDataFormat.FabricMatrix44()
         self._fabric_selection = None
-        self._points_data.points = None
-        self._geometry_paths: list[str] = []
-        self._geometry_counts: list[int] = []
+        self._fabric_points = SceneDataFormat.FabricPoints()
+        self._fabric_points_selection = None
 
     def get_rigid_body_view(self) -> omni.physics.tensors.RigidBodyView | None:
         """Lazily create a rigid body view covering all rigid bodies in the scene.
@@ -247,8 +251,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
         return self._rigid_body_view
 
     def _setup_deformable_geometry(self, entries: Sequence[DeformableStageEntry]) -> None:
-        """Bind declared deformables and compile their native-to-flat offsets once."""
-        device = PhysicsManager._device
+        """Bind exact visual mesh paths directly to padded native nodal buffers."""
         for deformable_type in ("volume", "surface"):
             declared = [entry for entry in entries if entry.deformable_type == deformable_type]
             if not declared:
@@ -265,47 +268,55 @@ class PhysxSceneDataBackend(SceneDataBackend):
             counts = np.asarray([entry.vertex_count for entry in ordered], dtype=np.int32)
             if np.any(counts > view.max_simulation_nodes_per_body):
                 raise RuntimeError("PhysX deformable node capacity is smaller than the clone plan requires.")
-            offsets = np.cumsum(np.r_[sum(self._geometry_counts), counts[:-1]], dtype=np.int32)
-            self._deformable_bindings.append(
-                (
-                    view,
-                    wp.array(counts, dtype=wp.int32, device=device),
-                    wp.array(offsets, dtype=wp.int32, device=device),
+            points = view.get_simulation_nodal_positions().view(wp.vec3f).flatten()
+            native_offsets = np.arange(view.count) * view.max_simulation_nodes_per_body
+            batches = deformable_geometry_batches(ordered, points, native_offsets)
+            self._deformable_bindings.append((view, batches))
+
+    @property
+    def native_geometry_formats(self) -> tuple[Any, ...]:
+        """Expose native Fabric points when PhysX updates the render stage directly."""
+        formats = tuple(dict.fromkeys(batch[0]._cls for _, batches in self._deformable_bindings for batch in batches))
+        return (*formats, SceneDataFormat.FabricPoints) if PhysxManager._fabric is not None else formats
+
+    def get_geometry_batches(self, output_format: Any = SceneDataFormat.Points) -> Any:
+        """Publish padded native nodes or native Fabric points without an intermediate copy."""
+        if output_format is SceneDataFormat.FabricPoints and PhysxManager._fabric is not None:
+            self._update_fabric()
+            if self._fabric_points_selection is None:
+                stage = usdrt.Usd.Stage.Attach(PhysxManager._stage_id)
+                for _, batches in self._deformable_bindings:
+                    for _, paths in batches:
+                        for path in paths:
+                            prim = stage.GetPrimAtPath(path)
+                            prim.CreateAttribute("isaaclab:geometry", usdrt.Sdf.ValueTypeNames.Bool, True).Set(True)
+                self._fabric_points_selection = stage.SelectPrims(
+                    require_attrs=[
+                        (usdrt.Sdf.ValueTypeNames.Point3fArray, "points", usdrt.Usd.Access.Read),
+                        (usdrt.Sdf.ValueTypeNames.Bool, "isaaclab:geometry", usdrt.Usd.Access.Read),
+                    ],
+                    device=str(PhysicsManager._device),
                 )
-            )
-            self._geometry_paths.extend(entry.root_path for entry in ordered)
-            self._geometry_counts.extend(counts.tolist())
+            if self._fabric_points_selection.PrepareForReuse() or self._fabric_points.points is None:
+                self._fabric_points.points = wp.fabricarrayarray(data=self._fabric_points_selection, attrib="points")
+                self.geometry_version += 1
+                self._fabric_version = (self.transforms_version, self.geometry_version)
+            return self._fabric_points
+        if self._native_geometry_version != self.geometry_version:
+            for view, batches in self._deformable_bindings:
+                points = view.get_simulation_nodal_positions().view(wp.vec3f).flatten()
+                for publication, _ in batches:
+                    publication.points = points
+            self._native_geometry_version = self.geometry_version
+        return [batch for _, batches in self._deformable_bindings for batch in batches]
 
-        if self._geometry_counts:
-            self._points_data.points = wp.empty(sum(self._geometry_counts), dtype=wp.vec3f, device=device)
-
-    @property
-    def points(self) -> SceneDataFormat.Points:
-        """Pack native padded nodal buffers using the initialized clone-plan bindings."""
-        for view, counts, offsets in self._deformable_bindings:
-            nodal = view.get_simulation_nodal_positions().view(wp.vec3f).reshape((view.count, -1))
-            wp.launch(
-                pack_body_slices_kernel,
-                dim=view.count,
-                inputs=[nodal, self._points_data.points, counts, offsets, 0],
-                device=self._points_data.points.device,
-            )
-        return self._points_data
-
-    @property
-    def point_count(self) -> int:
-        """Return the total unpadded PhysX deformable nodal count."""
-        return sum(self._geometry_counts)
-
-    @property
-    def geometry_paths(self) -> list[str]:
-        """Return the planned root paths in native deformable view order."""
-        return self._geometry_paths
-
-    @property
-    def geometry_counts(self) -> list[int]:
-        """Return the declared unpadded nodal count for each native deformable body."""
-        return self._geometry_counts
+    def _update_fabric(self) -> None:
+        """Refresh the native stage once when either poses or geometry changed."""
+        PhysxManager.pre_render()
+        version = (self.transforms_version, self.geometry_version)
+        if self._fabric_version != version:
+            PhysxManager._fabric.force_update(0.0, 0.0)
+            self._fabric_version = version
 
     @property
     def native_transform_formats(self) -> tuple[Any, ...]:
@@ -341,9 +352,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
         """Publish the requested native representation, refreshing only that representation."""
         if output_format is not SceneDataFormat.FabricMatrix44 or PhysxManager._fabric is None:
             return self.transforms
-        PhysxManager.pre_render()
-        if self._fabric_version != self.transforms_version:
-            PhysxManager._fabric.force_update(0.0, 0.0)
+        self._update_fabric()
         if self._fabric_selection is None:
             stage = usdrt.Usd.Stage.Attach(PhysxManager._stage_id)
             self._fabric_selection = stage.SelectPrims(
@@ -354,7 +363,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
         if self._fabric_selection.PrepareForReuse() or self._fabric_transforms.matrices is None:
             self._fabric_transforms.matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
             self.transforms_version += 1
-        self._fabric_version = self.transforms_version
+        self._fabric_version = (self.transforms_version, self.geometry_version)
         return self._fabric_transforms
 
 
@@ -479,6 +488,7 @@ class PhysxManager(PhysicsManager):
             cls.backend.simulation_view._backend.initialize_kinematic_bodies()
 
         cls.invalidate_transforms(kinematics=True)
+        cls._scene_data_backend.geometry_version += 1
         cls.raise_callback_exception_if_any()
 
     @classmethod
@@ -489,6 +499,7 @@ class PhysxManager(PhysicsManager):
             cls.backend.simulation_view.update_articulations_kinematic()
             cls._kinematics_dirty = False
         cls.invalidate_transforms()
+        cls._scene_data_backend.geometry_version += 1
         if cls._fabric is not None:
             cls._scene_data_backend.get_transforms(SceneDataFormat.FabricMatrix44)
 
@@ -532,6 +543,7 @@ class PhysxManager(PhysicsManager):
         physx_sim.fetch_results()
         cls._kinematics_dirty = False
         cls.invalidate_transforms()
+        cls._scene_data_backend.geometry_version += 1
         device = PhysicsManager._device
         if "cuda" in device:
             torch.cuda.set_device(device)

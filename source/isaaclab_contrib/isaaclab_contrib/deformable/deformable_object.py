@@ -19,6 +19,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.physics import PhysicsEvent
+from isaaclab.scene_data.deformable_vis_remap import VolumeVisRemap, build_volume_vis_barycentric_remap
 from isaaclab.utils.warp import ProxyArray
 
 from .deformable_object_data import DeformableObjectData
@@ -68,6 +69,8 @@ class DeformableRegistryEntry:
     # Filled by the Newton clone context:
     particle_offsets: list[int] = field(default_factory=list)
     particles_per_body: int = 0
+    visual_mapping: VolumeVisRemap | None = None
+    """Prototype interpolation tables when visual vertices differ from native simulation nodes."""
 
 
 if TYPE_CHECKING:
@@ -179,47 +182,6 @@ def add_registered_deformables_to_builder(
     """Add all registered deformable entries to one Newton builder world."""
     for entry in SimulationManager._deformable_registry:
         add_deformable_entry_to_builder(builder, entry, world_idx, env_position, env_rotation)
-
-
-def setup_registered_deformable_fabric_sync(manager_cls: type[SimulationManager]) -> None:
-    """Bind registered deformable visual meshes to their Newton particle slices in Fabric."""
-    if manager_cls._clone_physics_only or not manager_cls._deformable_registry:
-        return
-
-    import usdrt
-
-    if SimulationManager._usdrt_stage is None:
-        SimulationManager._usdrt_stage = sim_utils.get_current_stage(fabric=True)
-    fabric_stage = SimulationManager._usdrt_stage
-    if fabric_stage is None:
-        logger.warning("[setup_fabric_particle_sync] Fabric stage is unavailable.")
-        return
-
-    synced_any = False
-    layout = manager_cls.collect_deformable_bindings(sim_utils.SimulationContext.instance().get_clone_plan())
-    for path, offset, count in zip(*layout, strict=True):
-        fab_prim = fabric_stage.GetPrimAtPath(path)
-        if not fab_prim or not fab_prim.IsValid():
-            logger.warning("[setup_fabric_particle_sync] Fabric prim not found at %s", path)
-            continue
-
-        offset_attr = fab_prim.CreateAttribute(
-            SimulationManager._newton_particle_offset_attr, usdrt.Sdf.ValueTypeNames.UInt, True
-        )
-        count_attr = fab_prim.CreateAttribute(
-            SimulationManager._newton_particle_count_attr, usdrt.Sdf.ValueTypeNames.UInt, True
-        )
-        if not offset_attr.IsValid() or not count_attr.IsValid():
-            logger.warning("[setup_fabric_particle_sync] Fabric particle attributes not created at %s", path)
-            continue
-
-        offset_attr.Set(int(offset))
-        count_attr.Set(int(count))
-        synced_any = True
-
-    if synced_any:
-        manager_cls._mark_particles_dirty()
-        manager_cls.sync_particles_to_usd()
 
 
 def install_deformable_builder_hooks() -> None:
@@ -403,6 +365,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
+        SimulationManager._mark_particles_dirty()
         self._invalidate_nodal_pos_cache()
 
     def write_nodal_velocity_to_sim_index(
@@ -517,6 +480,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
+        SimulationManager._mark_particles_dirty()
         self._invalidate_nodal_state_cache()
 
     def write_nodal_pos_to_sim_mask(
@@ -548,6 +512,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
+        SimulationManager._mark_particles_dirty()
         self._invalidate_nodal_pos_cache()
 
     def write_nodal_velocity_to_sim_mask(
@@ -747,12 +712,12 @@ class DeformableObject(BaseDeformableObject):
 
         # Bake the template prim's xform directly into the vertex positions.
         xform_cache = UsdGeom.XformCache()
-        mesh_to_parent_frame = (
-            xform_cache.GetLocalToWorldTransform(mesh_prim)
-            * xform_cache.GetLocalToWorldTransform(template_prim.GetParent()).GetInverse()
-        )
 
-        def _bake_points(raw_pts) -> list[wp.vec3]:
+        def _bake_points(raw_pts, prim) -> list[wp.vec3]:
+            mesh_to_parent_frame = (
+                xform_cache.GetLocalToWorldTransform(prim)
+                * xform_cache.GetLocalToWorldTransform(template_prim.GetParent()).GetInverse()
+            )
             out = []
             for p in raw_pts:
                 q = mesh_to_parent_frame.Transform(Gf.Vec3d(float(p[0]), float(p[1]), float(p[2])))
@@ -762,7 +727,7 @@ class DeformableObject(BaseDeformableObject):
         if deformable_type == "volume":
             tet_mesh = UsdGeom.TetMesh(mesh_prim)
             pts = tet_mesh.GetPointsAttr().Get()
-            vertices = _bake_points(pts)
+            vertices = _bake_points(pts, mesh_prim)
             raw_tet_indices = tet_mesh.GetTetVertexIndicesAttr().Get()
             indices = []
             for vec4i in raw_tet_indices:
@@ -771,9 +736,23 @@ class DeformableObject(BaseDeformableObject):
         else:  # surface
             usd_mesh = UsdGeom.Mesh(mesh_prim)
             pts = usd_mesh.GetPointsAttr().Get()
-            vertices = _bake_points(pts)
+            vertices = _bake_points(pts, mesh_prim)
             indices = list(usd_mesh.GetFaceVertexIndicesAttr().Get())
             logger.info("Registered UsdGeom.Mesh: %d vertices.", len(pts))
+
+        visual_mapping = None
+        if vis_mesh_prim != mesh_prim:
+            vis_points = UsdGeom.PointBased(vis_mesh_prim).GetPointsAttr().Get()
+            vis_vertices = np.asarray(_bake_points(vis_points, vis_mesh_prim), dtype=np.float32)
+            sim_vertices = np.asarray(vertices, dtype=np.float32)
+            if not np.array_equal(sim_vertices, vis_vertices):
+                if deformable_type != "volume":
+                    raise ValueError(f"Surface visual topology differs from its native nodes: {template_prim_path}")
+                visual_mapping = build_volume_vis_barycentric_remap(
+                    sim_vertices, np.asarray(indices, dtype=np.int32), vis_vertices
+                )
+                if visual_mapping is None:
+                    raise ValueError(f"Cannot bind visual vertices to deformable tetrahedra: {template_prim_path}")
 
         # init_pos/init_rot are already baked into the vertices by the Xform
         # transform above. Setting them to identity prevents add_cloth_mesh/add_soft_mesh
@@ -826,6 +805,7 @@ class DeformableObject(BaseDeformableObject):
             vertices=vertices,
             indices=indices,
             deformable_type=deformable_type,
+            visual_mapping=visual_mapping,
             init_pos=init_pos,
             init_rot=init_rot,
             density=density,

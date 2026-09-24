@@ -259,9 +259,7 @@ def _replicate_newton(
         NewtonManager.set_builder(builder)
         NewtonManager._num_envs = len(plan.env_ids)
     else:
-        geometry = add_shadow_deformables_to_builder(
-            builder, plan, deformable_entries(plan, entries, rows), device=sim.device
-        )
+        geometry = add_shadow_deformables_to_builder(builder, deformable_entries(plan, entries, rows))
         backend_cfg = NewtonBackendCfg(builder=builder, device=sim.device, num_envs=len(plan.env_ids), simulation=False)
         sim.physics_manager.register_callback(
             partial(NewtonManager._initialize_visualization_model, backend_cfg, geometry),

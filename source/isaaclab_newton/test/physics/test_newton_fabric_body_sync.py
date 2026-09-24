@@ -8,12 +8,14 @@
 from __future__ import annotations
 
 import contextlib
+from types import SimpleNamespace
 
 from isaaclab.app import AppLauncher
 
 # Launch Isaac Sim before importing Newton modules so USD schema bindings are initialized.
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -25,13 +27,14 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_visualizers.kit import KitVisualizerCfg
 
 from pxr import Gf as UsdGf
-from pxr import UsdGeom
+from pxr import Sdf, UsdGeom
 from usdrt import Gf, Rt
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import AssetBaseCfg, CableObjectCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.sim.spawners.materials import CableMaterialCfg
@@ -64,6 +67,7 @@ class _RenderSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class _CableRenderSceneCfg(InteractiveSceneCfg):
+    camera: CameraCfg = _RenderSceneCfg().camera
     cable: CableObjectCfg = CableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cable",
         spawn=CableCfg(
@@ -348,7 +352,60 @@ def test_periodic_cable_is_skipped_by_fabric_sync():
         cloner.replicate(plan)
         sim.reset()
 
-        assert NewtonManager._cable_shape_ids is None
+        assert NewtonManager.collect_cable_segment_shape_ids() == {}
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
+def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence():
+    """Mesh, curve and cloud sinks consume only named SDP buffers, independent of Newton internals."""
+    cfg = SimulationCfg(device="cuda:0", physics=NewtonCfg(), visualizer_cfgs=[])
+    with build_simulation_context(sim_cfg=cfg) as sim:
+        parent = UsdGeom.Xform.Define(sim.stage, "/World/Geometry")
+        parent.AddTranslateOp().Set(UsdGf.Vec3d(10.0, 20.0, 30.0))
+        points = {}
+        for schema, name in ((UsdGeom.Mesh, "Mesh"), (UsdGeom.BasisCurves, "Curve"), (UsdGeom.Points, "Cloud")):
+            path = f"/World/Geometry/{name}"
+            geometry = schema.Define(sim.stage, path)
+            geometry.CreatePointsAttr([(0.0, 0.0, 0.0)] * 3)
+            geometry.AddTranslateOp().Set(UsdGf.Vec3d(1.0, 2.0, 3.0))
+            if name == "Mesh":
+                geometry.CreateFaceVertexCountsAttr([3])
+                geometry.CreateFaceVertexIndicesAttr([0, 1, 2])
+            elif name == "Curve":
+                geometry.CreateCurveVertexCountsAttr([3])
+                geometry.CreateTypeAttr("linear")
+                geometry.CreateWrapAttr("nonperiodic")
+            else:
+                geometry.GetPrim().CreateAttribute("isaaclab:pointsUpdateFrequency", Sdf.ValueTypeNames.Int).Set(3)
+            points[path] = wp.array([[1.0, 0.0, 2.0], [2.0, 0.0, 2.0], [3.0, 0.0, 2.0]], wp.vec3f, device=sim.device)
+        provider = SimpleNamespace(
+            usd_stage=sim.stage,
+            backend=SimpleNamespace(native_geometry_formats=(SceneDataFormat.Points,), geometry_version=0),
+            get_geometry_points=lambda: points,
+        )
+        fabric = sim.get_or_create_backend(sim.fabric_cfg)
+        fabric.update_geometries(provider, 0)
+        simulation_app.update()
+        wp.synchronize_device(sim.device)
+        for path in points:
+            np.testing.assert_allclose(
+                _fabric_curve_points_world(path), points[path].numpy(), atol=1.0e-6, err_msg=path
+            )
+
+        # Replace pointers in the same published mapping; parents must never be applied a second time.
+        for path in points:
+            points[path] = wp.array([[4.0, 5.0, 6.0]] * 3, wp.vec3f, device=sim.device)
+        provider.backend.geometry_version += 1
+        fabric.update_geometries(provider, 1)
+        wp.synchronize_device(sim.device)
+        for name in ("Mesh", "Curve"):
+            path = f"/World/Geometry/{name}"
+            np.testing.assert_allclose(_fabric_curve_points_world(path), points[path].numpy(), atol=1.0e-6)
+        cloud = UsdGeom.Points(sim.stage.GetPrimAtPath("/World/Geometry/Cloud"))
+        assert cloud.GetPointsAttr().Get()[0][0] == 1.0
+        fabric.update_geometries(provider, 3)
+        np.testing.assert_allclose(cloud.GetPointsAttr().Get(), points["/World/Geometry/Cloud"].numpy(), atol=1.0e-6)
 
 
 @pytest.mark.isaacsim_ci
@@ -375,7 +432,7 @@ def test_cable_points_follow_newton_segments_after_step_and_reset():
             sim.reset()
             scene.reset()
             scene.update(0.0)
-            sim.render()
+            _render(sim, scene)
             wp.synchronize_device(device)
 
             cable = scene["cable"]
@@ -387,7 +444,7 @@ def test_cable_points_follow_newton_segments_after_step_and_reset():
                 scene.write_data_to_sim()
                 sim.step(render=False)
                 scene.update(sim.cfg.dt)
-            sim.render()
+            _render(sim, scene)
             wp.synchronize_device(device)
             moved_points = _fabric_curve_points_world(curve_path)
             torch.testing.assert_close(moved_points, _expected_cable_points_world(cable), rtol=0.0, atol=1.0e-4)
@@ -402,7 +459,7 @@ def test_cable_points_follow_newton_segments_after_step_and_reset():
 
             sim.reset()
             scene.update(0.0)
-            sim.render()
+            _render(sim, scene)
             wp.synchronize_device(device)
             reset_points = _fabric_curve_points_world(curve_path)
             torch.testing.assert_close(reset_points, _expected_cable_points_world(cable), rtol=0.0, atol=1.0e-4)
@@ -411,7 +468,7 @@ def test_cable_points_follow_newton_segments_after_step_and_reset():
                 scene.write_data_to_sim()
                 sim.step(render=False)
                 scene.update(sim.cfg.dt)
-            sim.render()
+            _render(sim, scene)
             wp.synchronize_device(device)
             after_reset_points = _fabric_curve_points_world(curve_path)
             torch.testing.assert_close(after_reset_points, _expected_cable_points_world(cable), rtol=0.0, atol=1.0e-4)

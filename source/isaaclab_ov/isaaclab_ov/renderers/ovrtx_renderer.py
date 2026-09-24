@@ -82,7 +82,6 @@ from isaaclab_ov.renderers.ovrtx_annotator_utils import (
 from isaaclab_ov.renderers.ovrtx_compat import OVRTX_VERSION, uses_prim_path_render_vars
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
-    compute_cable_points_world_kernel,
     create_camera_transforms_kernel,
     extract_all_tiles_kernel,
     generate_random_colors_from_ids_kernel,
@@ -384,24 +383,12 @@ class OVRTXRenderer(BaseRenderer):
         self._render_product_paths = []
         self._camera_render_data: list[OVRTXCameraRenderData] = []
         self._next_camera_id = 0
-        # Shared by both paths. The legacy-only binding handles that pair with these live in
-        # _init_fields_legacy instead; the ovstage path drives the same offsets and counts
-        # through its stage queries.
         self._sdp = SimulationContext.instance().get_scene_data_provider()
         self._transform_version = -1
         self._object_scales: wp.array | None = None
         self._object_scales_by_path: dict[str, tuple[float, float, float]] = {}
-        self._deformable_particle_offsets: list[int] = []
-        self._deformable_particle_counts: list[int] = []
-        self._particle_visual_offsets: list[int] = []
-        self._particle_visual_counts: list[int] = []
-        # Shared Newton cable curve state used by both legacy and ovstage write paths.
-        self._cable_segment_counts: list[int] = []
-        self._cable_max_points: int = 0
-        self._cable_shape_ids: wp.array | None = None
-        self._cable_offsets: wp.array | None = None
-        self._cable_counts: wp.array | None = None
-        self._cable_points: wp.array | None = None
+        self._geometry_paths: list[str] = []
+        self._geometry_version = -1
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
         self._camera_prim_path: str | None = None
@@ -552,18 +539,10 @@ class OVRTXRenderer(BaseRenderer):
         return wp.array(scales, dtype=wp.vec3f, device=self._device)
 
     def _init_fields_legacy(self) -> None:
-        """Initialize the legacy-path instance fields.
-
-        Only binding handles live here; geometry offsets and counts are shared with ovstage.
-        """
+        """Initialize legacy-path binding handles."""
         self._camera_xform_binding = None
         self._object_xform_binding = None
-        self._deformable_points_binding = None
-        self._particle_points_binding = None
-        self._particle_workaround_applied = False
-        self._cable_points_binding = None
-        # Stable Warp views into ``_cable_points`` for ASYNC GPU writes.
-        self._cable_point_slices: list[wp.array] = []
+        self._geometry_points_binding = None
 
     def _initialize_camera_render_data_from_spec_legacy(
         self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData
@@ -640,9 +619,7 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Camera binding is None — cannot render without a valid camera binding")
 
         self._setup_xform_bindings_legacy()
-        self._setup_deformable_bindings_legacy()
-        self._setup_particle_bindings_legacy()
-        self._setup_cable_bindings_legacy()
+        self._setup_geometry_bindings_legacy()
 
     def _clone_sources_in_ovrtx(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
@@ -731,140 +708,36 @@ class OVRTXRenderer(BaseRenderer):
 
         self._object_scales = self._create_object_scale_array(object_paths)
 
-    def _setup_deformable_bindings_legacy(self) -> None:
-        """Bind the visual meshes declared by the clone plan."""
-        from isaaclab_newton.physics import NewtonManager
-
-        vis_mesh_prim_paths, self._deformable_particle_offsets, self._deformable_particle_counts = (
-            NewtonManager.collect_deformable_bindings(self._clone_plan)
-        )
-        prim_count = len(vis_mesh_prim_paths)
-        if prim_count == 0:
-            logger.warning("No deformable visual prim paths collected, skipping deformable body bindings")
+    def _setup_geometry_bindings_legacy(self) -> None:
+        """Bind SDP's authored point prims without depending on their physics representation."""
+        self._geometry_paths = list(self._sdp.get_geometry_points())
+        if not self._geometry_paths:
             return
-
-        # World-space particle_q is written directly into mesh points. Reset the xform stack
-        # and pin identity omni:xform so inherited env/asset transforms are not applied twice.
+        prim_count = len(self._geometry_paths)
+        # Published points are world-space; do not apply inherited transforms a second time.
         self.backend.renderer.write_attribute(
-            prim_paths=vis_mesh_prim_paths,
+            prim_paths=self._geometry_paths,
             attribute_name="omni:resetXformStack",
             tensor=np.full(prim_count, True, dtype=np.bool_),
             prim_mode=PrimMode.MUST_EXIST,
         )
         self.backend.renderer.write_attribute(
-            prim_paths=vis_mesh_prim_paths,
+            prim_paths=self._geometry_paths,
             attribute_name="omni:xform",
             tensor=np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1)),
             semantic=Semantic.XFORM_MAT4x4,
             prim_mode=PrimMode.MUST_EXIST,
         )
-
-        self._deformable_points_binding = self.backend.renderer.bind_array_attribute(
-            prim_paths=vis_mesh_prim_paths,
+        self._geometry_points_binding = self.backend.renderer.bind_array_attribute(
+            prim_paths=self._geometry_paths,
             attribute_name="points",
             dtype=np.float32,
             shape=(3,),
             prim_mode=PrimMode.MUST_EXIST,
             flags=BindingFlag.OPTIMIZE,
         )
-
-        if self._deformable_points_binding is None:
-            raise RuntimeError("Failed to create OVRTX deformable body bindings")
-
-    def _setup_cable_bindings_legacy(self) -> None:
-        """Setup OVRTX ``points`` bindings for Newton cables (UsdGeom.BasisCurves).
-
-        Cables are rigid segment bodies, not particles, so their curve points are derived from
-        ``body_q`` each frame rather than sliced out of ``particle_q``.
-        """
-        discovered = self._discover_cable_segment_bindings()
-        if discovered is None:
-            return
-
-        cable_prim_paths, flat_shape_ids, offsets, counts = discovered
-        prim_count = len(cable_prim_paths)
-        # Points are written in world space, so neutralise the inherited env/asset transform the
-        # same way the deformable path does; otherwise the transform is applied twice.
-        self.backend.renderer.write_attribute(
-            prim_paths=cable_prim_paths,
-            attribute_name="omni:resetXformStack",
-            tensor=np.full(prim_count, True, dtype=np.bool_),
-            prim_mode=PrimMode.MUST_EXIST,
-        )
-        self.backend.renderer.write_attribute(
-            prim_paths=cable_prim_paths,
-            attribute_name="omni:xform",
-            tensor=np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1)),
-            semantic=Semantic.XFORM_MAT4x4,
-            prim_mode=PrimMode.MUST_EXIST,
-        )
-
-        self._cable_points_binding = self.backend.renderer.bind_array_attribute(
-            prim_paths=cable_prim_paths,
-            attribute_name="points",
-            dtype=np.float32,
-            shape=(3,),
-            prim_mode=PrimMode.MUST_EXIST,
-            flags=BindingFlag.OPTIMIZE,
-        )
-        if self._cable_points_binding is None:
-            raise RuntimeError("Failed to create OVRTX cable point bindings")
-
-        # Device-resident buffers select OVRTX's GPU-interop update path via DLPack device.
-        self._allocate_cable_device_buffers(flat_shape_ids, offsets, counts)
-        self._cable_point_slices = [
-            self._cable_points[offset + curve : offset + curve + segment_count + 1]
-            for curve, (offset, segment_count) in enumerate(zip(offsets, counts, strict=True))
-        ]
-
-    def _setup_particle_bindings_legacy(self) -> None:
-        """Setup OVRTX bindings for Newton particle clouds."""
-        try:
-            from isaaclab_newton.physics import NewtonManager
-        except ImportError:
-            logger.debug("NewtonManager not available, skipping particle point bindings")
-            return
-
-        particle_visual_prims = NewtonManager._particle_visual_prims
-        if not particle_visual_prims:
-            logger.debug("No particle visual prims registered, skipping particle point bindings")
-            return
-
-        self._particle_visual_offsets = []
-        self._particle_visual_counts = []
-        points_prim_paths: list[str] = []
-
-        for prim_path, record in particle_visual_prims.items():
-            points_prim_paths.append(prim_path)
-            self._particle_visual_offsets.append(record.offset)
-            self._particle_visual_counts.append(record.count)
-
-        prim_count = len(points_prim_paths)
-
-        # World-space particle_q is written directly into points. Reset the xform stack
-        # and pin identity omni:xform so inherited env/asset transforms are not applied twice.
-        self.backend.renderer.write_attribute(
-            prim_paths=points_prim_paths,
-            attribute_name="omni:resetXformStack",
-            tensor=np.full(prim_count, True, dtype=np.bool_),
-            prim_mode=PrimMode.MUST_EXIST,
-        )
-        self.backend.renderer.write_attribute(
-            prim_paths=points_prim_paths,
-            attribute_name="omni:xform",
-            tensor=np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1)),
-            semantic=Semantic.XFORM_MAT4x4,
-            prim_mode=PrimMode.MUST_EXIST,
-        )
-
-        self._particle_points_binding = self.backend.renderer.bind_array_attribute(
-            prim_paths=points_prim_paths,
-            attribute_name="points",
-            dtype=np.float32,
-            shape=(3,),
-            prim_mode=PrimMode.MUST_EXIST,
-            flags=BindingFlag.OPTIMIZE,
-        )
+        if self._geometry_points_binding is None:
+            raise RuntimeError("Failed to create OVRTX geometry point bindings")
 
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXCameraRenderData:
         """Create OVRTX-specific RenderData with GPU buffers.
@@ -1046,78 +919,19 @@ class OVRTXRenderer(BaseRenderer):
         self._transform_version = self._sdp.backend.transforms_version
 
     def _update_geometries_legacy(self) -> None:
-        """Sync geometries to OVRTX."""
-        if self._deformable_points_binding is not None:
-            self._write_particle_q_slices(
-                self._deformable_points_binding,
-                self._deformable_particle_offsets,
-                self._deformable_particle_counts,
-            )
-
-        if self._particle_points_binding is not None:
-            self._write_particle_q_slices(
-                self._particle_points_binding,
-                self._particle_visual_offsets,
-                self._particle_visual_counts,
-            )
-
-        if self._cable_points_binding is not None:
-            self._write_cable_points_legacy()
-
-    def _write_cable_points_legacy(self) -> None:
-        """Recompute world-space cable curve points from Newton bodies and write them to OVRTX."""
-        self._compute_cable_points_world()
-
-        # Slices alias ``_cable_points``. Pass Warp's CUDA stream so OVRTX waits on-GPU instead of
-        # forcing a host sync. ``DataAccess.ASYNC`` + device tensors select GPU interop; ``SYNC`` or
-        # a host array silently takes the CPU path.
-        self._cable_points_binding.write(
-            cast(Any, self._cable_point_slices),
+        """Write SDP point views using the producing stream, without staging copies."""
+        if self._geometry_points_binding is None:
+            return
+        points = self._sdp.get_geometry_points()
+        version = self._sdp.backend.geometry_version
+        if self._geometry_version == version:
+            return
+        self._geometry_points_binding.write(
+            cast(Any, [points[path] for path in self._geometry_paths]),
             data_access=DataAccess.ASYNC,
             cuda_stream=self._warp_device.stream.cuda_stream,
         )
-
-    def _write_particle_q_slices(
-        self,
-        binding: Any,
-        particle_offsets: list[int],
-        particle_counts: list[int],
-    ) -> None:
-        """Write world-space ``particle_q`` slices into one OVRTX array-attribute binding.
-
-        Args:
-            binding: OVRTX array-attribute binding for the ``points`` attribute.
-            particle_offsets: Start index of each prim's slice into Newton's ``particle_q``.
-            particle_counts: Number of particles in each prim's slice.
-        """
-        from isaaclab_newton.physics import NewtonManager
-
-        state = NewtonManager.get_state()
-        if state is None:
-            raise RuntimeError("Newton state should not be None")
-
-        particle_q = getattr(state, "particle_q", None)
-        if particle_q is None:
-            raise RuntimeError("Newton state has no particle_q but particle geometry bindings exist")
-
-        particle_slices = [
-            particle_q[particle_offset : particle_offset + particle_count]
-            for particle_offset, particle_count in zip(particle_offsets, particle_counts, strict=True)
-        ]
-
-        # Array attributes cannot use ``binding.map()`` like rigid-body xforms, and
-        # ``DataAccess.ASYNC`` lets OVRTX read the slices in place (no copy on ingest).
-        # Because the slices alias ``particle_q``, OVRTX must not read them until the
-        # Warp kernels that wrote ``particle_q`` have finished. Passing ``cuda_stream``
-        # hands OVRTX the Warp stream those kernels were enqueued on so it can insert a
-        # GPU-side wait (a cross-stream dependency) before its read, instead of us
-        # forcing a host-side ``wp.synchronize_device()`` that would stall the CPU.
-        cuda_stream = self._warp_device.stream.cuda_stream
-        binding.write(
-            cast(Any, particle_slices),
-            data_access=DataAccess.ASYNC,
-            cuda_stream=cuda_stream,
-        )
+        self._geometry_version = version
 
     def _update_camera_legacy(
         self,
@@ -1616,14 +1430,8 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_xform_binding = None
         _safe_unbind(self._object_xform_binding, "object transforms")
         self._object_xform_binding = None
-        _safe_unbind(self._deformable_points_binding, "deformable points")
-        self._deformable_points_binding = None
-        _safe_unbind(self._particle_points_binding, "particle points")
-        self._particle_points_binding = None
-        _safe_unbind(self._cable_points_binding, "cable points")
-        self._cable_points_binding = None
-
-        self._particle_workaround_applied = False
+        _safe_unbind(self._geometry_points_binding, "geometry points")
+        self._geometry_points_binding = None
 
     # ---------------------------------------------------------------------------
     # Dispatch methods — route to ovstage or legacy implementation
@@ -1636,77 +1444,6 @@ class OVRTXRenderer(BaseRenderer):
             self._initialize_camera_render_data_from_spec_ovstage(spec, render_data)
         else:
             self._initialize_camera_render_data_from_spec_legacy(spec, render_data)
-
-    @staticmethod
-    def _discover_cable_segment_bindings() -> tuple[list[str], list[int], list[int], list[int]] | None:
-        """Collect cable prim paths and packed Newton segment shape ids, or ``None`` to skip.
-
-        Returns:
-            ``None`` when Newton is unavailable or no renderable cables exist. Otherwise a tuple
-            ``(cable_prim_paths, flat_shape_ids, offsets, counts)`` where:
-
-            * ``cable_prim_paths``: concrete ``BasisCurves`` prim paths to bind, one per curve.
-            * ``flat_shape_ids``: Newton shape ids for all curves, packed contiguously in segment
-              order (indices into ``model.shape_body`` / ``shape_transform`` / ``shape_scale``).
-            * ``offsets``: start index into ``flat_shape_ids`` for each curve.
-            * ``counts``: number of segment shapes (capsules) for each curve.
-        """
-        try:
-            from isaaclab_newton.physics import NewtonManager
-        except ImportError:
-            logger.debug("NewtonManager not available, skipping cable point bindings")
-            return None
-
-        cable_segment_shape_ids = NewtonManager.collect_cable_segment_shape_ids()
-        if not cable_segment_shape_ids:
-            logger.debug("No renderable Newton cables found, skipping cable point bindings")
-            return None
-
-        cable_prim_paths: list[str] = []
-        flat_shape_ids: list[int] = []
-        offsets: list[int] = []
-        counts: list[int] = []
-        for prim_path, segment_shape_ids in cable_segment_shape_ids.items():
-            cable_prim_paths.append(prim_path)
-            offsets.append(len(flat_shape_ids))
-            counts.append(len(segment_shape_ids))
-            flat_shape_ids.extend(segment_shape_ids)
-        return cable_prim_paths, flat_shape_ids, offsets, counts
-
-    def _allocate_cable_device_buffers(self, flat_shape_ids: list[int], offsets: list[int], counts: list[int]) -> None:
-        """Allocate shared Warp arrays used by the cable point kernel."""
-        device = self._device
-        self._cable_shape_ids = wp.array(flat_shape_ids, dtype=wp.int32, device=device)
-        self._cable_offsets = wp.array(offsets, dtype=wp.int32, device=device)
-        self._cable_counts = wp.array(counts, dtype=wp.int32, device=device)
-        self._cable_segment_counts = counts
-        self._cable_max_points = max(counts) + 1 if counts else 0
-        self._cable_points = wp.zeros(sum(count + 1 for count in counts), dtype=wp.vec3f, device=device)
-
-    def _compute_cable_points_world(self) -> None:
-        """Launch the cable endpoint kernel into ``_cable_points``."""
-        from isaaclab_newton.physics import NewtonManager
-
-        model = NewtonManager.get_model()
-        state = NewtonManager.get_state()
-        if state is None:
-            raise RuntimeError("Newton state should not be None")
-
-        wp.launch(
-            compute_cable_points_world_kernel,
-            dim=(len(self._cable_segment_counts), self._cable_max_points),
-            inputs=[
-                self._cable_shape_ids,
-                self._cable_offsets,
-                self._cable_counts,
-                model.shape_body,
-                state.body_q,
-                model.shape_transform,
-                model.shape_scale,
-                self._cable_points,
-            ],
-            device=self._device,
-        )
 
     def update_transforms(self) -> None:
         """Sync transforms to OVRTX."""
@@ -1806,17 +1543,8 @@ class OVRTXRenderer(BaseRenderer):
             self._close_ovstage()
         else:
             self._close_legacy()
-        self._deformable_particle_offsets = []
-        self._deformable_particle_counts = []
-        self._particle_visual_offsets = []
-        self._particle_visual_counts = []
-        self._cable_point_slices = []
-        self._cable_segment_counts = []
-        self._cable_max_points = 0
-        self._cable_points = None
-        self._cable_shape_ids = None
-        self._cable_offsets = None
-        self._cable_counts = None
+        self._geometry_paths = []
+        self._geometry_version = -1
         self._render_product_paths.clear()
         self._output_id_color_buffers.clear()
         self._initialized_scene = False
@@ -1838,14 +1566,8 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_paths_list = None
         self._object_xform_query = None
         self._object_paths_list = None
-        self._deformable_points_query = None
-        self._deformable_paths_list = None
-        self._particle_points_query = None
-        self._particle_paths_list = None
-        self._cable_points_query = None
-        self._cable_paths_list = None
-        # DLTensor descriptors aliasing ``_cable_point_slices``; rebuilt only when cables rebind.
-        self._cable_point_tensors: list = []
+        self._geometry_points_query = None
+        self._geometry_paths_list = None
 
     def _initialize_camera_render_data_from_spec_ovstage(
         self, spec: CameraRenderSpec, render_data: OVRTXCameraRenderData
@@ -1944,9 +1666,7 @@ class OVRTXRenderer(BaseRenderer):
         ).wait()
 
         self._setup_xform_bindings_ovstage()
-        self._setup_deformable_bindings_ovstage()
-        self._setup_particle_bindings_ovstage()
-        self._setup_cable_bindings_ovstage()
+        self._setup_geometry_bindings_ovstage()
 
         # Commit all init-time writes then attach. attach_ovstage happens last so the renderer
         # immediately sees the fully-configured scene on its first step.
@@ -2061,144 +1781,33 @@ class OVRTXRenderer(BaseRenderer):
 
         self._object_scales = self._create_object_scale_array(object_paths)
 
-    def _setup_deformable_bindings_ovstage(self) -> None:
-        """Bind the visual meshes declared by the clone plan."""
-        from isaaclab_newton.physics import NewtonManager
-
-        vis_mesh_prim_paths, self._deformable_particle_offsets, self._deformable_particle_counts = (
-            NewtonManager.collect_deformable_bindings(self._clone_plan)
-        )
-        prim_count = len(vis_mesh_prim_paths)
-        if prim_count == 0:
-            logger.warning("No deformable visual prim paths collected, skipping deformable body bindings")
+    def _setup_geometry_bindings_ovstage(self) -> None:
+        """Bind SDP's authored point prims in the detached OVStage."""
+        self._geometry_paths = list(self._sdp.get_geometry_points())
+        if not self._geometry_paths:
             return
-
-        self._deformable_paths_list = self.backend.paths.create_path_list_from_strings(vis_mesh_prim_paths)
-        self._deformable_points_query = self.backend.stage.query_from_path_list(self._deformable_paths_list)
-
-        # particle_q is already in world space, so resetting the xform stack and pinning an identity
-        # omni:xform prevents the env-root and asset-root ancestor transforms from being applied on top.
+        prim_count = len(self._geometry_paths)
+        self._geometry_paths_list = self.backend.paths.create_path_list_from_strings(self._geometry_paths)
+        self._geometry_points_query = self.backend.stage.query_from_path_list(self._geometry_paths_list)
+        if self._geometry_points_query is None:
+            raise RuntimeError("Failed to create OVRTX geometry point bindings")
+        # Published points are world-space; do not apply inherited transforms a second time.
         self.backend.stage.write_attribute(
-            self._deformable_points_query,
+            self._geometry_points_query,
             "omni:resetXformStack",
             ordinal=self._current_ordinal,
             tensors=np.full(prim_count, True, dtype=np.bool_),
             is_array=False,
         ).wait()
-
         identity_xforms = np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1))
         self.backend.stage.write_attribute(
-            self._deformable_points_query,
+            self._geometry_points_query,
             "omni:xform",
             ordinal=self._current_ordinal,
             tensors=xform_tensor_from_numpy(identity_xforms),
             is_array=False,
             semantic=ovstage.AttributeSemantic.MATRIX,
         ).wait()
-
-        if self._deformable_points_query is None:
-            raise RuntimeError("Failed to create OVRTX deformable body bindings")
-
-    def _setup_cable_bindings_ovstage(self) -> None:
-        """Setup ovstage ``points`` bindings for Newton cables (``UsdGeom.BasisCurves``).
-
-        Mirrors :meth:`_setup_cable_bindings_legacy`: the endpoint kernel writes device memory and
-        the per-frame handover is zero-copy. The per-curve slices and their DLTensor descriptors are
-        built once here rather than per frame, because the layout is fixed for the lifetime of the
-        binding — only the contents of ``_cable_points`` change each step.
-        """
-        discovered = self._discover_cable_segment_bindings()
-        if discovered is None:
-            return
-
-        cable_prim_paths, flat_shape_ids, offsets, counts = discovered
-        prim_count = len(cable_prim_paths)
-        self._cable_paths_list = self.backend.paths.create_path_list_from_strings(cable_prim_paths)
-        self._cable_points_query = self.backend.stage.query_from_path_list(self._cable_paths_list)
-
-        # The kernel emits world space, so reset the xform stack and pin an identity omni:xform to
-        # stop the env-root and asset-root ancestor transforms being applied on top.
-        self.backend.stage.write_attribute(
-            self._cable_points_query,
-            "omni:resetXformStack",
-            ordinal=self._current_ordinal,
-            tensors=np.full(prim_count, True, dtype=np.bool_),
-            is_array=False,
-        ).wait()
-
-        identity_xforms = np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1))
-        self.backend.stage.write_attribute(
-            self._cable_points_query,
-            "omni:xform",
-            ordinal=self._current_ordinal,
-            tensors=xform_tensor_from_numpy(identity_xforms),
-            is_array=False,
-            semantic=ovstage.AttributeSemantic.MATRIX,
-        ).wait()
-
-        self._allocate_cable_device_buffers(flat_shape_ids, offsets, counts)
-        # The descriptors alias these slices, so both must outlive every write that uses them.
-        self._cable_point_slices = [
-            self._cable_points[offset + curve : offset + curve + segment_count + 1]
-            for curve, (offset, segment_count) in enumerate(zip(offsets, counts, strict=True))
-        ]
-        self._cable_point_tensors = [points_tensor_from_warp(points) for points in self._cable_point_slices]
-
-    def _setup_particle_bindings_ovstage(self) -> None:
-        """Setup OVRTX bindings for Newton particle clouds (ovstage path)."""
-        try:
-            from isaaclab_newton.physics import NewtonManager
-        except ImportError:
-            logger.debug("NewtonManager not available, skipping particle point bindings")
-            return
-
-        particle_visual_prims = NewtonManager._particle_visual_prims
-        if not particle_visual_prims:
-            logger.debug("No particle visual prims registered, skipping particle point bindings")
-            return
-
-        self._particle_visual_offsets = []
-        self._particle_visual_counts = []
-        points_prim_paths: list[str] = []
-
-        for prim_path, record in particle_visual_prims.items():
-            points_prim_paths.append(prim_path)
-            self._particle_visual_offsets.append(record.offset)
-            self._particle_visual_counts.append(record.count)
-
-        prim_count = len(points_prim_paths)
-
-        self._particle_paths_list = self.backend.paths.create_path_list_from_strings(points_prim_paths)
-        self._particle_points_query = self.backend.stage.query_from_path_list(self._particle_paths_list)
-
-        # Divergence from the legacy path: ovstage's PrimMode has only UPSERT and INSERT, with no
-        # MUST_EXIST equivalent, so the writes below cannot assert that every registered particle
-        # path resolves to a real prim the way _setup_particle_bindings_legacy does. A stale or
-        # mistyped path silently upserts a new row instead of raising, surfacing as invisible
-        # particles rather than an error. Same caveat applies to _setup_deformable_bindings_ovstage.
-        #
-        # particle_q is already in world space, so resetting the xform stack and pinning an identity
-        # omni:xform prevents the env-root and asset-root ancestor transforms from being applied on top.
-        self.backend.stage.write_attribute(
-            self._particle_points_query,
-            "omni:resetXformStack",
-            ordinal=self._current_ordinal,
-            tensors=np.full(prim_count, True, dtype=np.bool_),
-            is_array=False,
-        ).wait()
-
-        identity_xforms = np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1))
-        self.backend.stage.write_attribute(
-            self._particle_points_query,
-            "omni:xform",
-            ordinal=self._current_ordinal,
-            tensors=xform_tensor_from_numpy(identity_xforms),
-            is_array=False,
-            semantic=ovstage.AttributeSemantic.MATRIX,
-        ).wait()
-
-        if self._particle_points_query is None:
-            raise RuntimeError("Failed to create OVRTX particle point bindings")
 
     def _update_transforms_ovstage(self) -> None:
         """Write SDP's matrix layout through the active ovstage ordinal."""
@@ -2222,95 +1831,23 @@ class OVRTXRenderer(BaseRenderer):
         self._transform_version = self._sdp.backend.transforms_version
 
     def _update_geometries_ovstage(self) -> None:
-        if self._deformable_points_query is not None or self._particle_points_query is not None:
-            # If either geometry query is not None, then Newton's the current physics backend
-            from isaaclab_newton.physics import NewtonManager
-
-            newton_state = NewtonManager.get_state()
-            if newton_state is None:
-                raise RuntimeError("Newton state should not be None")
-
-            # particle_q is the world-space particle positions for all deformable bodies and particle
-            # clouds. A non-None geometry query means entries were registered, so Newton must
-            # expose particle state; a missing particle_q here is an inconsistent state.
-            particle_q = getattr(newton_state, "particle_q", None)
-            if particle_q is None:
-                raise RuntimeError("Newton state has no particle_q but particle geometry queries exist")
-
-            if self._deformable_points_query is not None:
-                self._write_particle_q_slices_ovstage(
-                    self._deformable_points_query,
-                    particle_q,
-                    self._deformable_particle_offsets,
-                    self._deformable_particle_counts,
-                )
-
-            if self._particle_points_query is not None:
-                self._write_particle_q_slices_ovstage(
-                    self._particle_points_query,
-                    particle_q,
-                    self._particle_visual_offsets,
-                    self._particle_visual_counts,
-                )
-
-        if self._cable_points_query is not None:
-            self._write_cable_points_ovstage()
-
-    def _write_particle_q_slices_ovstage(
-        self,
-        query: Any,
-        particle_q: wp.array,
-        particle_offsets: list[int],
-        particle_counts: list[int],
-    ) -> None:
-        """Write world-space ``particle_q`` slices into the ``points`` column of one ovstage query.
-
-        Args:
-            query: ovstage query selecting the prims whose ``points`` attribute is written.
-            particle_q: Flat world-space particle positions [m], shape ``[total_particles]``,
-                dtype ``wp.vec3f``. Slices are passed zero-copy as CUDA DLTensors.
-            particle_offsets: Start index of each prim's slice into :paramref:`particle_q`.
-            particle_counts: Number of particles in each prim's slice.
-        """
-        particle_slices = [
-            points_tensor_from_warp(particle_q[particle_offset : particle_offset + particle_count])
-            for particle_offset, particle_count in zip(particle_offsets, particle_counts, strict=True)
-        ]
-
-        # The slices alias ``particle_q`` and are handed over zero-copy, so ovstage must not read
-        # them until the Warp kernels that wrote ``particle_q`` have finished. Passing the producing
-        # Warp stream as ``cuda_stream`` gives producer ordering: ovstage drains the work already
-        # queued on that stream before it touches the slices. That replaces the device-wide
-        # ``wp.synchronize_device()`` with stream-scoped ordering and removes the host copy; it is
-        # not a nonblocking handoff, and the ``.wait()`` below can still block the calling thread.
+        """Write SDP point views and wait until OVStage has consumed the borrowed arrays."""
+        if self._geometry_points_query is None:
+            return
+        points = self._sdp.get_geometry_points()
+        version = self._sdp.backend.geometry_version
+        if self._geometry_version == version:
+            return
         self.backend.stage.write_attribute(
-            query,
+            self._geometry_points_query,
             "points",
             ordinal=self._current_ordinal,
-            tensors=particle_slices,
+            tensors=[points_tensor_from_warp(points[path]) for path in self._geometry_paths],
             is_array=True,
             semantic=ovstage.AttributeSemantic.POINT,
             cuda_stream=self._warp_device.stream.cuda_stream,
         ).wait()
-
-    def _write_cable_points_ovstage(self) -> None:
-        """Recompute world-space cable curve points on device and write them through ovstage."""
-        self._compute_cable_points_world()
-
-        # The cached descriptors alias ``_cable_points`` and are handed over zero-copy, so ovstage
-        # must not read them until the kernel above has landed. Passing the producing Warp stream as
-        # ``cuda_stream`` gives producer ordering: ovstage drains the work already queued on that
-        # stream before it touches the slices. That keeps the handover off the host; it is not a
-        # nonblocking handoff, and the ``.wait()`` below can still block the calling thread.
-        self.backend.stage.write_attribute(
-            self._cable_points_query,
-            "points",
-            ordinal=self._current_ordinal,
-            tensors=self._cable_point_tensors,
-            is_array=True,
-            semantic=ovstage.AttributeSemantic.POINT,
-            cuda_stream=self._warp_device.stream.cuda_stream,
-        ).wait()
+        self._geometry_version = version
 
     def _update_camera_ovstage(
         self,
@@ -2401,23 +1938,11 @@ class OVRTXRenderer(BaseRenderer):
         self._object_xform_query = None
         _safe_destroy_path_list(self._object_paths_list, "object paths")
         self._object_paths_list = None
-        _safe_release_query(self._deformable_points_query, "deformable points")
-        self._deformable_points_query = None
-        _safe_destroy_path_list(self._deformable_paths_list, "deformable paths")
-        self._deformable_paths_list = None
-        _safe_release_query(self._particle_points_query, "particle points")
-        self._particle_points_query = None
-        _safe_destroy_path_list(self._particle_paths_list, "particle paths")
-        self._particle_paths_list = None
-
-        _safe_release_query(self._cable_points_query, "cable points")
-        self._cable_points_query = None
-        _safe_destroy_path_list(self._cable_paths_list, "cable paths")
-        self._cable_paths_list = None
+        _safe_release_query(self._geometry_points_query, "geometry points")
+        self._geometry_points_query = None
+        _safe_destroy_path_list(self._geometry_paths_list, "geometry paths")
+        self._geometry_paths_list = None
 
         self._object_scales = None
         self._object_scales_by_path = {}
-        # Descriptors alias ``_cable_points``; drop them before the buffer so no cached
-        # DLTensor can outlive the device memory it points at.
-        self._cable_point_tensors = []
         self._current_ordinal = 0

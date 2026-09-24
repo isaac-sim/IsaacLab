@@ -221,6 +221,7 @@ class KitVisualizer(BaseVisualizer):
         if self._runtime_headless:
             return
         self._fabric.update_transforms(self._scene_data_provider)
+        self._fabric.update_geometries(self._scene_data_provider, SimulationContext.instance().render_generation)
         if self.cfg.origin_type == "asset":
             self._update_asset_tracking_camera()
         _externally_paused = self.is_training_paused()
@@ -293,6 +294,7 @@ class KitVisualizer(BaseVisualizer):
         import omni.replicator.core as rep
 
         self._fabric.update_transforms(self._scene_data_provider)
+        self._fabric.update_geometries(self._scene_data_provider, SimulationContext.instance().render_generation)
         if self._runtime_headless and self.cfg.origin_type == "asset":
             self._update_asset_tracking_camera()
         camera_path = self._controlled_camera_path or "/OmniverseKit_Persp"

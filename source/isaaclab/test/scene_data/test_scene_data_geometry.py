@@ -3,170 +3,103 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for SceneData geometry (points) mapping and copy."""
+"""Native geometry publication, interpolation, and direct destination writes."""
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+from unittest.mock import Mock
+
 import numpy as np
-import pytest
 import warp as wp
 
-from isaaclab.scene_data.scene_data_backend import SceneDataBackend, SceneDataFormat
+from isaaclab.scene_data.scene_data_backend import SceneDataFormat
 from isaaclab.scene_data.scene_data_provider import SceneDataProvider
 
 
-class _PointsBackend(SceneDataBackend):
-    def __init__(
-        self,
-        points: np.ndarray | None = None,
-        geometry_paths: list[str] | None = None,
-        geometry_counts: list[int] | None = None,
-        device: str | None = None,
-    ):
-        if points is None:
-            points = np.array(
-                [
-                    [0.0, 0.0, 0.0],
-                    [1.0, 0.0, 0.0],
-                    [2.0, 0.0, 0.0],
-                    [0.0, 1.0, 0.0],
-                    [1.0, 1.0, 0.0],
-                ],
-                dtype=np.float32,
-            )
-        self._points = wp.array(points, dtype=wp.vec3f, device=device)
-        self._geometry_paths = geometry_paths or ["/World/envs/env_0/A", "/World/envs/env_1/A"]
-        self._geometry_counts = geometry_counts or [2, 3]
-        self._scene_data = SceneDataFormat.Points()
-        self._scene_data.points = self._points
-
-    @property
-    def transforms(self) -> SceneDataFormat.Transform:
-        return SceneDataFormat.Transform()
-
-    @property
-    def transform_count(self) -> int:
-        return 0
-
-    @property
-    def transform_paths(self) -> list[str]:
-        return []
-
-    @property
-    def points(self) -> SceneDataFormat.Points:
-        return self._scene_data
-
-    @property
-    def point_count(self) -> int:
-        return int(self._points.shape[0])
-
-    @property
-    def geometry_paths(self) -> list[str]:
-        return self._geometry_paths
-
-    @property
-    def geometry_counts(self) -> list[int]:
-        return self._geometry_counts
-
-
-def test_create_geometry_mapping_returns_none_for_identity_order():
-    backend = _PointsBackend()
+def test_geometry_views_alias_native_ranges_and_follow_pointer_swaps(monkeypatch):
+    """Native geometry skips copies, including padded ranges and published pointer swaps."""
+    source = SceneDataFormat.Points()
+    source.points = wp.array(np.arange(18).reshape(6, 3), dtype=wp.vec3f, device="cpu")
+    replacement = wp.array(np.arange(18, 36).reshape(6, 3), dtype=wp.vec3f, device="cpu")
+    ranges = {"/Cloth/visual": (1, 2), "/Particles/points": (4, 2)}
+    backend = SimpleNamespace(geometry_version=0, get_geometry_batches=lambda _: [(source, ranges)])
     provider = SceneDataProvider(backend)
-    mapping = provider.create_geometry_mapping(
-        ["/World/envs/env_0/A", "/World/envs/env_1/A"],
-        [0, 2],
+    launch, copy = Mock(wraps=wp.launch), Mock(wraps=wp.copy)
+    monkeypatch.setattr(wp, "launch", launch)
+    monkeypatch.setattr(wp, "copy", copy)
+    views = provider.get_geometry_points()
+    assert provider.get_geometry_points() is views
+    for path, (offset, count) in ranges.items():
+        assert views[path].ptr == source.points.ptr + offset * wp.types.type_size_in_bytes(wp.vec3f)
+        np.testing.assert_array_equal(views[path].numpy(), source.points.numpy()[offset : offset + count])
+    previous = views["/Cloth/visual"]
+    source.points = replacement
+    backend.geometry_version += 1
+    updated = provider.get_geometry_points()
+    assert updated["/Cloth/visual"].ptr != previous.ptr
+    np.testing.assert_array_equal(updated["/Cloth/visual"].numpy(), [[21, 22, 23], [24, 25, 26]])
+    launch.assert_not_called()
+    copy.assert_not_called()
+    output = wp.zeros(4, dtype=wp.vec3f, device="cpu")
+    offsets = {"/Particles/points": 0, "/Cloth/visual": 2}
+    reordered = provider.get_geometry_points(output=output, offsets=offsets)
+    assert provider.get_geometry_points(output=output, offsets=offsets) is reordered
+    assert launch.call_count == 1
+    np.testing.assert_array_equal(output.numpy(), replacement.numpy()[[4, 5, 1, 2]])
+
+
+def test_geometry_interpolation_and_reordering_write_once_per_version(monkeypatch):
+    """One conversion writes barycentric vertices directly into the consumer's reordered layout."""
+    source = SceneDataFormat.WeightedPoints()
+    nodes = np.arange(18, dtype=np.float32).reshape(6, 3)
+    indices = np.array([[0, 1, 2, 3], [1, 2, 3, 4], [2, 3, 4, 5]], dtype=np.int32)
+    weights = np.array([[0.25] * 4, [1, 0, 0, 0], [0.5, 0.25, 0.25, 0]], dtype=np.float32)
+    source.points = wp.array(nodes, dtype=wp.vec3f, device="cpu")
+    source.indices = wp.array(indices, dtype=wp.int32, device="cpu")
+    source.weights = wp.array(weights, dtype=wp.float32, device="cpu")
+    ranges = {"/First/visual": (0, 2), "/Second/visual": (2, 1)}
+    backend = SimpleNamespace(geometry_version=0, get_geometry_batches=lambda _: [(source, ranges)])
+    provider = SceneDataProvider(backend)
+    output = wp.full(6, wp.vec3f(-7), device="cpu")
+    offsets = {"/Second/visual": 0, "/First/visual": 3}
+    launch = Mock(wraps=wp.launch)
+    monkeypatch.setattr(wp, "launch", launch)
+    views = provider.get_geometry_points(output=output, offsets=offsets)
+    assert provider.get_geometry_points(output=output, offsets=offsets) is views
+    assert launch.call_count == 1
+    assert views["/Second/visual"].ptr == output.ptr
+    expected = np.full((6, 3), -7, dtype=np.float32)
+    interpolated = (nodes[indices] * weights[..., None]).sum(axis=1)
+    expected[0], expected[3:5] = interpolated[2], interpolated[:2]
+    np.testing.assert_allclose(output.numpy(), expected)
+    shared = provider.get_geometry_points()
+    assert provider.get_geometry_points() is shared
+    assert launch.call_count == 2
+    np.testing.assert_allclose(shared["/First/visual"].numpy(), interpolated[:2])
+    source.points.assign(nodes + 10)
+    backend.geometry_version += 1
+    assert provider.get_geometry_points(output=output, offsets=offsets) is views
+    assert provider.get_geometry_points() is shared
+    assert launch.call_count == 4
+    expected[[0, 3, 4]] += 10
+    np.testing.assert_allclose(output.numpy(), expected)
+    np.testing.assert_allclose(shared["/Second/visual"].numpy(), interpolated[2:] + 10)
+
+
+def test_cable_endpoint_conversion_composes_shape_poses_and_averages_joints():
+    """Two differently oriented capsules produce the two ends and averaged connecting vertex."""
+    source = SceneDataFormat.CapsuleEndpoints()
+    sine = np.sqrt(0.5)
+    source.transforms = wp.array(
+        [[2, 3, 3, sine, 0, 0, sine], [1, 2, 3, 0, sine, 0, sine]], dtype=wp.transformf, device="cpu"
     )
-    assert mapping is None
-
-
-def test_create_geometry_mapping_remaps_out_of_order_entities():
-    backend = _PointsBackend()
-    provider = SceneDataProvider(backend)
-    mapping = provider.create_geometry_mapping(
-        ["/World/envs/env_1/A", "/World/envs/env_0/A"],
-        [0, 3],
+    source.shape_body = wp.array([1, 0], dtype=wp.int32, device="cpu")
+    source.shape_transform = wp.array(
+        [[0, 0, 1, 0, 0, 0, 1], [0, 0, 0.5, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu"
     )
-    assert mapping is not None
-    assert mapping.numpy().tolist() == [3, 0]
-
-
-@pytest.mark.skipif(wp.get_cuda_device_count() == 0, reason="requires CUDA")
-def test_create_geometry_mapping_uses_points_device_with_empty_transforms():
-    """Geometry mapping follows its point publication, independently of transforms."""
-    with wp.ScopedDevice("cpu"):
-        provider = SceneDataProvider(_PointsBackend(device="cuda:0"))
-        mapping = provider.create_geometry_mapping(
-            ["/World/envs/env_1/A", "/World/envs/env_0/A"],
-            [0, 3],
-        )
-
-    assert mapping is not None
-    assert mapping.device == wp.get_device("cuda:0")
-
-
-def test_create_geometry_mapping_rejects_empty_points_publication():
-    backend = _PointsBackend()
-    backend._scene_data.points = None
-
-    with pytest.raises(ValueError, match="Points contains no published arrays"):
-        SceneDataProvider(backend).create_geometry_mapping(
-            ["/World/envs/env_1/A", "/World/envs/env_0/A"],
-            [0, 3],
-        )
-
-
-def test_get_points_copies_unpadded_entity_slices():
-    backend = _PointsBackend()
-    provider = SceneDataProvider(backend)
-    output = SceneDataFormat.Points()
-    output.points = wp.empty(5, dtype=wp.vec3f)
-    mapping = provider.create_geometry_mapping(
-        ["/World/envs/env_1/A", "/World/envs/env_0/A"],
-        [0, 3],
-    )
-    assert provider.get_points(output, mapping=mapping, allow_passthrough=False)
-
-    copied = output.points.numpy()
-    # Backend order is env_0 (2 pts) then env_1 (3 pts). Mapping writes env_1 to
-    # offset 0 and env_0 to offset 3.
-    assert np.allclose(copied[0:3, 0], [2.0, 0.0, 1.0])
-    assert np.allclose(copied[3:5, 0], [0.0, 1.0])
-
-
-def test_get_points_clamps_copy_to_destination_capacity(caplog):
-    """Oversized backend entity counts must not overflow the consumer buffer."""
-    backend = _PointsBackend()
-    provider = SceneDataProvider(backend)
-    output = SceneDataFormat.Points()
-    # Second backend entity has 3 points; destination only has room for 2.
-    output.points = wp.zeros(2, dtype=wp.vec3f)
-    mapping = wp.array([-1, 0], dtype=wp.int32)
-
-    with caplog.at_level("WARNING"):
-        assert provider.get_points(output, mapping=mapping, allow_passthrough=False)
-
-    copied = output.points.numpy()
-    assert np.allclose(copied[:, 0], [2.0, 0.0])
-    assert any("Clamping geometry point copy" in record.message for record in caplog.records)
-
-
-def test_get_points_clamps_copy_to_next_destination_slot(caplog):
-    """Backend strides larger than shadow slots must not bleed into the next entity."""
-    # Backend: two entities with 3 points each (flat src stride 3).
-    # Shadow mapping: dest slots of size 2 at offsets 0 and 2 (flat dest size 4).
-    backend = _PointsBackend(
-        points=np.array([[float(i), 0.0, 0.0] for i in range(6)], dtype=np.float32),
-        geometry_counts=[3, 3],
-    )
-    provider = SceneDataProvider(backend)
-    output = SceneDataFormat.Points()
-    output.points = wp.zeros(4, dtype=wp.vec3f)
-    mapping = wp.array([0, 2], dtype=wp.int32)
-
-    with caplog.at_level("WARNING"):
-        assert provider.get_points(output, mapping=mapping, allow_passthrough=False)
-
-    copied = output.points.numpy()
-    # Each shadow slot receives only the first 2 points of its backend entity.
-    assert np.allclose(copied[:, 0], [0.0, 1.0, 3.0, 4.0])
-    assert any("Clamping geometry point copy" in record.message for record in caplog.records)
+    source.shape_scale = wp.array([[0.1, 1, 0.1], [0.1, 2, 0.1]], dtype=wp.vec3f, device="cpu")
+    source.endpoints = wp.array([[0, -1, 0, -1], [0, 1, 1, -1], [1, 1, 1, 1]], dtype=wp.vec4i, device="cpu")
+    backend = SimpleNamespace(geometry_version=0, get_geometry_batches=lambda _: [(source, {"/Cable/curve": (0, 3)})])
+    points = SceneDataProvider(backend).get_geometry_points()["/Cable/curve"]
+    np.testing.assert_allclose(points.numpy(), [[1, 2, 3], [2.5, 3.25, 3], [2, 0.5, 3]], atol=1e-6)

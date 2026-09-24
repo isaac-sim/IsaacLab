@@ -12,11 +12,12 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+import warp as wp
 
 newton = pytest.importorskip("newton")
 from isaaclab_newton.assets import MPMObject
 from isaaclab_newton.physics import NewtonManager
-from isaaclab_newton.physics import newton_manager as manager_module
+from isaaclab_newton.physics.newton_manager import NewtonSceneDataBackend
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg, MPMPointsCfg
 from newton.solvers import SolverImplicitMPM
 
@@ -103,8 +104,11 @@ def test_mpm_points_author_and_import_through_usd(stage, monkeypatch):
         global_paths=("/World/Shared",),
     )
     monkeypatch.setattr(sim_utils.SimulationContext, "instance", lambda: SimpleNamespace(get_clone_plan=lambda: plan))
-    monkeypatch.setattr(manager_module, "has_kit", lambda: False)
-    monkeypatch.setattr(NewtonManager, "_particle_visual_prims", {})
+    state = SimpleNamespace(particle_q=wp.zeros(12, dtype=wp.vec3f, device="cpu"))
+    monkeypatch.setattr(NewtonSceneDataBackend, "state", property(lambda self: state))
+    backend = NewtonSceneDataBackend()
+    backend.initialize_geometry(plan)
+    monkeypatch.setattr(NewtonManager, "_scene_data_backend", backend)
     asset = SimpleNamespace(
         cfg=SimpleNamespace(prim_path="/Scene/copy_[^/]+/Media", spawn=cfg),
         _recorded_particle_offsets=[4, 10],
@@ -116,14 +120,14 @@ def test_mpm_points_author_and_import_through_usd(stage, monkeypatch):
     asset._recorded_particle_offsets = [0]
     MPMObject._bind_particle_visualization(asset)
     assert not stage.GetPrimAtPath("/Scene/copy_12/Media/Particles")
-    assert {
-        path: (record.points_attr, record.offset, record.count)
-        for path, record in NewtonManager._particle_visual_prims.items()
-    } == {
-        "/Scene/copy_12/Media/Particles": (None, 4, 2),
-        "/Scene/copy_7/Media/Particles": (None, 10, 2),
-        "/World/Shared/Particles": (None, 0, 2),
+    [(publication, ranges)] = backend.get_geometry_batches()
+    assert publication.points is state.particle_q
+    assert ranges == {
+        "/Scene/copy_12/Media/Particles": (4, 2),
+        "/Scene/copy_7/Media/Particles": (10, 2),
+        "/World/Shared/Particles": (0, 2),
     }
+    assert visual_points.GetPrim().GetAttribute("isaaclab:pointsUpdateFrequency").Get() == cfg.visual_update_frequency
 
 
 @pytest.mark.parametrize("visible", [False, True])

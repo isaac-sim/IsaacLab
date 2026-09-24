@@ -101,6 +101,33 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     np.testing.assert_array_equal(output.matrices.numpy()[0, :3, 3], [4, 5, 6])
     assert view.get_transforms.call_count == 3
     assert backend.transforms_version == version
+
+    points = wp.zeros(2, dtype=wp.vec3f, device="cpu")
+    pointers = wp.array([points.ptr], dtype=wp.uint64, device="cpu")
+    lengths = wp.array([len(points)], dtype=wp.uint64, device="cpu")
+    backend._fabric_points_selection = SimpleNamespace(
+        PrepareForReuse=Mock(return_value=False),
+        __fabric_arrays_interface__={
+            "version": 1,
+            "device": "cpu",
+            "attribs": {
+                "points": {
+                    "type": (True, "f4", 3, 1, "vector"),
+                    "access": 1,
+                    "pointers": [pointers.ptr],
+                    "counts": [1],
+                    "array_lengths": [lengths.ptr],
+                }
+            },
+        },
+    )
+    geometry = provider.get_geometry_points(output_format=SceneDataFormat.FabricPoints)
+    assert geometry._cls is SceneDataFormat.FabricPoints and geometry.points is not None
+    backend.geometry_version += 1
+    assert provider.get_geometry_points(output_format=SceneDataFormat.FabricPoints) is geometry
+    assert provider.get_transforms(SceneDataFormat.FabricMatrix44())
+    assert fabric.force_update.call_count == 4
+    assert view.get_transforms.call_count == 3
     backend.clear()
     assert backend.transforms_version > version
 
@@ -151,6 +178,7 @@ def test_deformable_geometry_uses_declared_counts_and_native_order(monkeypatch, 
     from isaaclab_physx.physics import physx_manager
 
     from isaaclab.physics import PhysicsManager
+    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
     from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
 
     values = {"/Clones/slot_2/Asset": 2.0, "/Clones/slot_9/Asset": 9.0, "/Shared": 100.0}
@@ -162,6 +190,7 @@ def test_deformable_geometry_uses_declared_counts_and_native_order(monkeypatch, 
         for path, count in counts.items()
     ]
     bound_paths = []
+    native_points, reads = {}, []
 
     def create_view(paths):
         bound_paths.extend(paths)
@@ -170,11 +199,18 @@ def test_deformable_geometry_uses_declared_counts_and_native_order(monkeypatch, 
         for index, path in enumerate(paths):
             nodal[index, : counts[path]] = values[path]
         points = wp.array(nodal, dtype=wp.float32, device="cpu")
+        for path in paths:
+            native_points[path + "/vis"] = points
+
+        def read():
+            reads.append(points.ptr)
+            return points
+
         return SimpleNamespace(
             count=len(paths),
             prim_paths=[path + "/sim" for path in paths],
             max_simulation_nodes_per_body=capacity,
-            get_simulation_nodal_positions=lambda: points,
+            get_simulation_nodal_positions=read,
         )
 
     monkeypatch.setattr(PhysicsManager, "_device", "cpu")
@@ -194,11 +230,24 @@ def test_deformable_geometry_uses_declared_counts_and_native_order(monkeypatch, 
     backend._setup_deformable_geometry(entries)
 
     assert set(bound_paths) == counts.keys()
-    assert backend.geometry_paths == ["/Shared", "/Clones/slot_9/Asset", "/Clones/slot_2/Asset"]
-    assert backend.geometry_counts == [2, 4, 4]
-    points = backend.points.points
-    expected = np.concatenate([np.full((counts[path], 3), values[path]) for path in backend.geometry_paths])
-    np.testing.assert_array_equal(points.numpy(), expected)
-    assert backend.points.points is points
+    batches = backend.get_geometry_batches()
+    assert [ranges for _, ranges in batches] == [
+        {"/Shared/vis": (0, 2)},
+        {"/Clones/slot_9/Asset/vis": (0, 4), "/Clones/slot_2/Asset/vis": (capacity, 4)},
+    ]
+    provider = SceneDataProvider(backend)
+    visual = provider.get_geometry_points()
+    for publication, ranges in batches:
+        assert publication._cls is SceneDataFormat.Points
+        for path, (offset, count) in ranges.items():
+            assert publication.points.ptr == native_points[path].ptr
+            assert visual[path].ptr == publication.points.ptr + offset * wp.types.type_size_in_bytes(wp.vec3f)
+            np.testing.assert_array_equal(visual[path].numpy(), np.full((count, 3), values[path[:-4]]))
+    read_count = len(reads)
+    assert provider.get_geometry_points() is visual
+    assert len(reads) == read_count
+    backend.geometry_version += 1
+    backend.get_geometry_batches()
+    assert len(reads) == read_count + len(batches)
     backend.clear()
-    assert backend.point_count == 0 and backend.points.points is None
+    assert backend.get_geometry_batches() == []
