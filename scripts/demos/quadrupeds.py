@@ -39,7 +39,6 @@ add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
 
-import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
@@ -50,6 +49,7 @@ from isaaclab.assets import AssetBaseCfg
 ##
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.anymal import ANYMAL_B_CFG, ANYMAL_C_CFG, ANYMAL_D_CFG  # isort:skip
 from isaaclab_assets.robots.spot import SPOT_CFG  # isort:skip
@@ -57,46 +57,30 @@ from isaaclab_assets.robots.unitree import UNITREE_A1_CFG, UNITREE_GO1_CFG, UNIT
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
-    from isaaclab.scene import InteractiveScene
 
 
-def define_origins(num_origins: int, spacing: float) -> torch.Tensor:
-    """Defines the origins of the scene."""
-    # create tensor based on number of environments
-    env_origins = torch.zeros(num_origins, 3)
-    # create a grid of origins
-    num_cols = np.floor(np.sqrt(num_origins))
-    num_rows = np.ceil(num_origins / num_cols)
-    xx, yy = torch.meshgrid(torch.arange(num_rows), torch.arange(num_cols), indexing="xy")
-    env_origins[:, 0] = spacing * xx.flatten()[:num_origins] - spacing * (num_rows - 1) / 2
-    env_origins[:, 1] = spacing * yy.flatten()[:num_origins] - spacing * (num_cols - 1) / 2
-    env_origins[:, 2] = 0.0
-    # return the origins
-    return env_origins
+@configclass
+class QuadrupedsSceneCfg(InteractiveSceneCfg):
+    """Seven quadrupeds arranged on a 1.25 m grid."""
 
-
-def design_scene() -> "InteractiveScene":
-    """Designs the scene."""
-    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0, filter_collisions=False)
-    scene_cfg.ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
-    scene_cfg.light = AssetBaseCfg(
+    ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    light = AssetBaseCfg(
         prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
     )
-    origins = define_origins(num_origins=7, spacing=1.25)
-    robots = {
-        "anymal_b": ANYMAL_B_CFG,
-        "anymal_c": ANYMAL_C_CFG,
-        "anymal_d": ANYMAL_D_CFG,
-        "unitree_a1": UNITREE_A1_CFG,
-        "unitree_go1": UNITREE_GO1_CFG,
-        "unitree_go2": UNITREE_GO2_CFG,
-        "spot": SPOT_CFG,
-    }
-    for index, (name, cfg) in enumerate(robots.items()):
-        cfg = cfg.replace(prim_path=f"/World/Origin{index + 1}/Robot")
-        cfg.init_state.pos = tuple(p + float(o) for p, o in zip(cfg.init_state.pos, origins[index], strict=True))
-        setattr(scene_cfg, name, cfg)
-    return scene_cfg.class_type(scene_cfg)
+    anymal_b = ANYMAL_B_CFG.replace(prim_path="/World/Origin1/Robot")
+    anymal_b.init_state.pos = (-1.875, -0.625, 0.6)
+    anymal_c = ANYMAL_C_CFG.replace(prim_path="/World/Origin2/Robot")
+    anymal_c.init_state.pos = (-0.625, -0.625, 0.6)
+    anymal_d = ANYMAL_D_CFG.replace(prim_path="/World/Origin3/Robot")
+    anymal_d.init_state.pos = (0.625, -0.625, 0.6)
+    unitree_a1 = UNITREE_A1_CFG.replace(prim_path="/World/Origin4/Robot")
+    unitree_a1.init_state.pos = (1.875, -0.625, 0.42)
+    unitree_go1 = UNITREE_GO1_CFG.replace(prim_path="/World/Origin5/Robot")
+    unitree_go1.init_state.pos = (-1.875, 0.625, 0.4)
+    unitree_go2 = UNITREE_GO2_CFG.replace(prim_path="/World/Origin6/Robot")
+    unitree_go2.init_state.pos = (-0.625, 0.625, 0.4)
+    spot = SPOT_CFG.replace(prim_path="/World/Origin7/Robot")
+    spot.init_state.pos = (0.625, 0.625, 0.5)
 
 
 def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Articulation"]):
@@ -149,7 +133,8 @@ def main():
         sim_cfg: sim_utils.SimulationCfg = sim_utils.SimulationCfg(dt=dt, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
-        scene = design_scene()
+        scene_cfg = QuadrupedsSceneCfg(num_envs=1, env_spacing=0.0, filter_collisions=False)
+        scene = scene_cfg.class_type(scene_cfg)
         sim.reset()
         print("[INFO]: Setup complete...")
         run_simulator(sim, scene.articulations)

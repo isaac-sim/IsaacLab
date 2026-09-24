@@ -39,7 +39,6 @@ add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
 
-import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
@@ -50,6 +49,7 @@ from isaaclab.assets import AssetBaseCfg
 ##
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils import configclass
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG  # isort:skip
@@ -61,45 +61,24 @@ from isaaclab_assets.robots.shadow_hand import (
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
-    from isaaclab.scene import InteractiveScene
 
 
-def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
-    """Defines the origins of the scene."""
-    # create tensor based on number of environments
-    env_origins = torch.zeros(num_origins, 3)
-    # create a grid of origins
-    num_cols = np.floor(np.sqrt(num_origins))
-    num_rows = np.ceil(num_origins / num_cols)
-    xx, yy = torch.meshgrid(torch.arange(num_rows), torch.arange(num_cols), indexing="xy")
-    env_origins[:, 0] = spacing * xx.flatten()[:num_origins] - spacing * (num_rows - 1) / 2
-    env_origins[:, 1] = spacing * yy.flatten()[:num_origins] - spacing * (num_cols - 1) / 2
-    env_origins[:, 2] = 0.0
-    # return the origins
-    return env_origins.tolist()
+@configclass
+class HandsSceneCfg(InteractiveSceneCfg):
+    """Allegro and Shadow hands placed side by side."""
 
-
-def design_scene() -> "InteractiveScene":
-    """Designs the scene."""
-    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0, filter_collisions=False)
-    scene_cfg.ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
-    scene_cfg.light = AssetBaseCfg(
+    ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    light = AssetBaseCfg(
         prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
     )
-    origins = define_origins(num_origins=2, spacing=0.5)
-    scene_cfg.allegro = ALLEGRO_HAND_CFG.replace(prim_path="/World/Origin1/Robot")
-    shadow_hand_cfg = SHADOW_HAND_NEWTON_CFG if args_cli.physics == "newton_mjwarp" else SHADOW_HAND_PHYSX_CFG
-    # Pose for this side-by-side scene; the asset's own pose is the reorientation task's.
-    scene_cfg.shadow_hand = shadow_hand_cfg.replace(
-        prim_path="/World/Origin2/Robot",
-        init_state=shadow_hand_cfg.init_state.replace(
-            pos=(0.0, 0.2, 0.5),
-            rot=(0.52296271, -0.47593067, 0.47593067, 0.52296271),
-        ),
+    allegro = ALLEGRO_HAND_CFG.replace(prim_path="/World/Origin1/Robot")
+    allegro.init_state.pos = (-0.25, 0.0, 0.5)
+    shadow_hand = (SHADOW_HAND_NEWTON_CFG if args_cli.physics == "newton_mjwarp" else SHADOW_HAND_PHYSX_CFG).replace(
+        prim_path="/World/Origin2/Robot"
     )
-    for cfg, origin in zip((scene_cfg.allegro, scene_cfg.shadow_hand), origins, strict=True):
-        cfg.init_state.pos = tuple(p + o for p, o in zip(cfg.init_state.pos, origin, strict=True))
-    return scene_cfg.class_type(scene_cfg)
+    # Pose for this side-by-side scene; the asset's own pose is the reorientation task's.
+    shadow_hand.init_state.pos = (0.25, 0.2, 0.5)
+    shadow_hand.init_state.rot = (0.52296271, -0.47593067, 0.47593067, 0.52296271)
 
 
 def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Articulation"]):
@@ -186,8 +165,8 @@ def main():
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[0.0, -0.5, 1.5], target=[0.0, -0.05, 0.45])
-        # design scene
-        scene = design_scene()
+        scene_cfg = HandsSceneCfg(num_envs=1, env_spacing=0.0, filter_collisions=False)
+        scene = scene_cfg.class_type(scene_cfg)
         # Play the simulator
         sim.reset()
         # Now we are ready!

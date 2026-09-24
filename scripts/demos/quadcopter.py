@@ -48,8 +48,20 @@ from isaaclab.assets import AssetBaseCfg
 ##
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils import configclass
 
 from isaaclab_assets import CRAZYFLIE_CFG  # isort:skip
+
+
+@configclass
+class QuadcopterSceneCfg(InteractiveSceneCfg):
+    """A Crazyflie above a shared ground plane."""
+
+    ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    light = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    )
+    robot = CRAZYFLIE_CFG.replace(prim_path="/World/Crazyflie")
 
 
 def main():
@@ -60,12 +72,7 @@ def main():
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[0.25, -0.25, 0.7], target=[0.0, 0.0, 0.5])
-        scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0, filter_collisions=False)
-        scene_cfg.ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
-        scene_cfg.light = AssetBaseCfg(
-            prim_path="/World/Light", spawn=sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
-        )
-        scene_cfg.robot = CRAZYFLIE_CFG.replace(prim_path="/World/Crazyflie")
+        scene_cfg = QuadcopterSceneCfg(num_envs=1, env_spacing=0.0, filter_collisions=False)
         scene = scene_cfg.class_type(scene_cfg)
         robot = scene["robot"]
 

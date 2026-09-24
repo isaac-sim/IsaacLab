@@ -46,71 +46,25 @@ from isaaclab.assets import AssetBaseCfg, CableObjectCfg
 from isaaclab.cloner import CloneCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from isaaclab.assets import CableObject
     from isaaclab.scene import InteractiveScene
 
 
-def design_scene(num_cables: int, num_segments: int, colorize: bool) -> InteractiveScene:
-    """Spawn a ground plane, light, and randomly oriented cable pile.
+@configclass
+class CablesSceneCfg(InteractiveSceneCfg):
+    """Ground and lighting for a configurable cable pile."""
 
-    Args:
-        num_cables: Number of cables to spawn.
-        num_segments: Number of segments per cable.
-        colorize: Whether to give each cable a random visual material.
-    """
-    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0, clone_cfg=CloneCfg(clone_template="/World/Env_{}"))
-    scene_cfg.ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
-    scene_cfg.light = AssetBaseCfg(
+    num_envs = 1
+    env_spacing = 0.0
+    clone_cfg = CloneCfg(clone_template="/World/Env_{}")
+
+    ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    light = AssetBaseCfg(
         prim_path="/World/light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     )
-
-    cable_length = 0.5
-    segment_length = cable_length / num_segments
-    thickness = 0.01
-    radius = 0.5 * thickness
-    target_stretch_stiffness = 5.0e5  # [N/m] per joint
-    target_bend_stiffness = 20.0  # [N.m/rad] per joint
-    stretch_modulus = target_stretch_stiffness * segment_length / (math.pi * radius**2)
-    bend_modulus = target_bend_stiffness * segment_length / (0.25 * math.pi * radius**4)
-    xy_jitter = 0.3
-    z_spacing = 1.5 * thickness
-    z_base = 0.8
-    positions = [(index * segment_length, 0.0, 0.0) for index in range(num_segments + 1)]
-
-    print(f"[INFO]: Spawning {num_cables} cables...")
-    for index in range(num_cables):
-        angle = random.uniform(0.0, 2.0 * math.pi)
-        position = (
-            random.uniform(-xy_jitter, xy_jitter) - 0.5 * cable_length * math.cos(angle),
-            random.uniform(-xy_jitter, xy_jitter) - 0.5 * cable_length * math.sin(angle),
-            z_base + index * z_spacing,
-        )
-        orientation = (0.0, 0.0, math.sin(0.5 * angle), math.cos(0.5 * angle))
-        visual_material = None
-        if colorize:
-            visual_material = sim_utils.PreviewSurfaceCfg(
-                diffuse_color=(random.random(), random.random(), random.random())
-            )
-        cfg = CableObjectCfg(
-            prim_path=f"{{ENV_REGEX_NS}}/Cable{index:03d}",
-            spawn=sim_utils.CableCfg(
-                positions=positions,
-                visual_material=visual_material,
-                physics_material=sim_utils.CableMaterialCfg(
-                    thickness=thickness,
-                    density=100.0,
-                    stretch_stiffness=stretch_modulus,
-                    bend_stiffness=bend_modulus,
-                ),
-                collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
-            ),
-            init_state=CableObjectCfg.InitialStateCfg(pos=position, rot=orientation),
-        )
-        setattr(scene_cfg, f"cable_{index:03d}", cfg)
-
-    return scene_cfg.class_type(scene_cfg)
 
 
 def reset_cables(entities: dict[str, CableObject]) -> None:
@@ -146,8 +100,53 @@ def main() -> None:
         sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=(2.0, 2.0, 1.0), target=(0.0, 0.0, 0.25))
+
+        scene_cfg = CablesSceneCfg()
         colorize = bool(args_cli.visualizer and "kit" in args_cli.visualizer)
-        scene = design_scene(args_cli.num_cables, args_cli.num_segments, colorize)
+        cable_length = 0.5
+        segment_length = cable_length / args_cli.num_segments
+        thickness = 0.01
+        radius = 0.5 * thickness
+        target_stretch_stiffness = 5.0e5  # [N/m] per joint
+        target_bend_stiffness = 20.0  # [N.m/rad] per joint
+        stretch_modulus = target_stretch_stiffness * segment_length / (math.pi * radius**2)
+        bend_modulus = target_bend_stiffness * segment_length / (0.25 * math.pi * radius**4)
+        xy_jitter = 0.3
+        z_spacing = 1.5 * thickness
+        z_base = 0.8
+        positions = [(index * segment_length, 0.0, 0.0) for index in range(args_cli.num_segments + 1)]
+
+        print(f"[INFO]: Spawning {args_cli.num_cables} cables...")
+        for index in range(args_cli.num_cables):
+            angle = random.uniform(0.0, 2.0 * math.pi)
+            position = (
+                random.uniform(-xy_jitter, xy_jitter) - 0.5 * cable_length * math.cos(angle),
+                random.uniform(-xy_jitter, xy_jitter) - 0.5 * cable_length * math.sin(angle),
+                z_base + index * z_spacing,
+            )
+            orientation = (0.0, 0.0, math.sin(0.5 * angle), math.cos(0.5 * angle))
+            visual_material = None
+            if colorize:
+                visual_material = sim_utils.PreviewSurfaceCfg(
+                    diffuse_color=(random.random(), random.random(), random.random())
+                )
+            cfg = CableObjectCfg(
+                prim_path=f"{{ENV_REGEX_NS}}/Cable{index:03d}",
+                spawn=sim_utils.CableCfg(
+                    positions=positions,
+                    visual_material=visual_material,
+                    physics_material=sim_utils.CableMaterialCfg(
+                        thickness=thickness,
+                        density=100.0,
+                        stretch_stiffness=stretch_modulus,
+                        bend_stiffness=bend_modulus,
+                    ),
+                    collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
+                ),
+                init_state=CableObjectCfg.InitialStateCfg(pos=position, rot=orientation),
+            )
+            setattr(scene_cfg, f"cable_{index:03d}", cfg)
+        scene = scene_cfg.class_type(scene_cfg)
         sim.reset()
         print("[INFO]: Setup complete...")
         run_simulator(sim, scene, args_cli.max_steps)

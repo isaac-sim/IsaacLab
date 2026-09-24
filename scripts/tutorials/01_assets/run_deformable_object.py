@@ -52,50 +52,55 @@ from isaaclab.assets import AssetBaseCfg, DeformableObjectCfg
 from isaaclab.cloner import CloneCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from isaaclab.assets import DeformableObject
     from isaaclab.scene import InteractiveScene
 
 
-def design_scene():
-    """Designs the scene."""
-    scene_cfg = InteractiveSceneCfg(
-        num_envs=4, env_spacing=0.5, filter_collisions=False, clone_cfg=CloneCfg(clone_template="/World/env_{}")
+youngs_modulus = 1e5
+poissons_ratio = 0.4
+density = 500.0
+if args_cli.backend == "newton_vbd":
+    from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
+    from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
+
+    deformable_props = NewtonDeformableBodyPropertiesCfg()
+    # Newton's VBD path skips the simulation mesh collider, so collision offsets do not apply
+    collision_props = None
+    physics_material = NewtonDeformableBodyMaterialCfg(
+        k_mu=youngs_modulus / (2.0 * (1.0 + poissons_ratio)),
+        k_lambda=youngs_modulus * poissons_ratio / ((1.0 + poissons_ratio) * (1.0 - 2.0 * poissons_ratio)),
+        density=density,
     )
-    # Ground-plane
-    scene_cfg.ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
-    scene_cfg.light = AssetBaseCfg(
+else:
+    from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg
+    from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
+
+    deformable_props = PhysxDeformableBodyPropertiesCfg()
+    collision_props = [PhysxCollisionCfg(rest_offset=0.0, contact_offset=0.001)]
+    physics_material = PhysxDeformableBodyMaterialCfg(
+        poissons_ratio=poissons_ratio, youngs_modulus=youngs_modulus, density=density
+    )
+
+
+@configclass
+class DeformableSceneCfg(InteractiveSceneCfg):
+    """Four soft cubes on a shared ground plane."""
+
+    num_envs = 4
+    env_spacing = 0.5
+    filter_collisions = False
+    clone_cfg = CloneCfg(clone_template="/World/env_{}")
+
+    ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    light = AssetBaseCfg(
         prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.8, 0.8, 0.8))
     )
 
-    youngs_modulus = 1e5
-    poissons_ratio = 0.4
-    density = 500.0
-    if args_cli.backend == "newton_vbd":
-        from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
-        from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
-
-        deformable_props = NewtonDeformableBodyPropertiesCfg()
-        # Newton's VBD path skips the simulation mesh collider, so collision offsets do not apply
-        collision_props = None
-        physics_material = NewtonDeformableBodyMaterialCfg(
-            k_mu=youngs_modulus / (2.0 * (1.0 + poissons_ratio)),
-            k_lambda=youngs_modulus * poissons_ratio / ((1.0 + poissons_ratio) * (1.0 - 2.0 * poissons_ratio)),
-            density=density,
-        )
-    else:
-        from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg
-        from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
-
-        deformable_props = PhysxDeformableBodyPropertiesCfg()
-        collision_props = [PhysxCollisionCfg(rest_offset=0.0, contact_offset=0.001)]
-        physics_material = PhysxDeformableBodyMaterialCfg(
-            poissons_ratio=poissons_ratio, youngs_modulus=youngs_modulus, density=density
-        )
-
     # 3D Deformable Object
-    scene_cfg.cube_object = DeformableObjectCfg(
+    cube_object = DeformableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube",
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.2, 0.2, 0.2),
@@ -107,8 +112,6 @@ def design_scene():
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
         debug_vis=True,
     )
-
-    return scene_cfg.class_type(scene_cfg)
 
 
 def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene"):
@@ -187,8 +190,8 @@ def main():
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[2.0, 2.0, 2.0], target=[0.0, 0.0, 0.75])
-        # Design scene
-        scene = design_scene()
+        scene_cfg = DeformableSceneCfg()
+        scene = scene_cfg.class_type(scene_cfg)
         # Play the simulator
         sim.reset()
         # Now we are ready!

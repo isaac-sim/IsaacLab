@@ -24,6 +24,7 @@
 """Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
+from math import sqrt
 from typing import TYPE_CHECKING
 
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -39,7 +40,6 @@ add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
 
-import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
@@ -50,6 +50,7 @@ from isaaclab.assets import AssetBaseCfg
 ##
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
@@ -60,62 +61,62 @@ from isaaclab_assets.robots.universal_robots import UR10_CFG  # isort:skip
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
-    from isaaclab.scene import InteractiveScene
 
 
-def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
-    """Defines the origins of the scene."""
-    # create tensor based on number of environments
-    env_origins = torch.zeros(num_origins, 3)
-    # create a grid of origins
-    num_rows = np.floor(np.sqrt(num_origins))
-    num_cols = np.ceil(num_origins / num_rows)
-    xx, yy = torch.meshgrid(torch.arange(num_rows), torch.arange(num_cols), indexing="xy")
-    env_origins[:, 0] = spacing * xx.flatten()[:num_origins] - spacing * (num_rows - 1) / 2
-    env_origins[:, 1] = spacing * yy.flatten()[:num_origins] - spacing * (num_cols - 1) / 2
-    env_origins[:, 2] = 0.0
-    # return the origins
-    return env_origins.tolist()
+@configclass
+class ArmsSceneCfg(InteractiveSceneCfg):
+    """Six manipulators on their respective table mounts."""
 
+    num_envs = 1
+    env_spacing = 0.0
+    filter_collisions = False
 
-def design_scene() -> "InteractiveScene":
-    """Designs the scene."""
-    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0, filter_collisions=False)
-    scene_cfg.ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
-    scene_cfg.light = AssetBaseCfg(
+    ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    light = AssetBaseCfg(
         prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
     )
-    origins = define_origins(num_origins=6, spacing=2.0)
-    franka_arm_cfg = FRANKA_PANDA_CFG.copy()
-    franka_arm_cfg.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
-    seattle_rotation = (0.0, 0.0, np.sqrt(0.5), np.sqrt(0.5))  # Authored 90-degree rotation around Z.
-    mounts = (
-        ("franka_panda", franka_arm_cfg, "SeattleLabTable", 1.05, 0.55, None, seattle_rotation),
-        ("ur10", UR10_CFG, "Stand", 1.03, 0.0, (2.0, 2.0, 2.0), (0.0, 0.0, 0.0, 1.0)),
-        ("kinova_j2n7s300", KINOVA_JACO2_N7S300_CFG, "ThorlabsTable", 0.8, 0.0, None, (0.0, 0.0, 0.0, 1.0)),
-        ("kinova_j2n6s300", KINOVA_JACO2_N6S300_CFG, "ThorlabsTable", 0.8, 0.0, None, (0.0, 0.0, 0.0, 1.0)),
-        ("kinova_gen3n7", KINOVA_GEN3_N7_CFG, "SeattleLabTable", 1.05, 0.55, None, seattle_rotation),
-        ("sawyer", SAWYER_CFG, "Stand", 1.03, 0.0, (2.0, 2.0, 2.0), (0.0, 0.0, 0.0, 1.0)),
+
+    franka_panda_table = AssetBaseCfg(
+        prim_path="/World/Origin1/Table",
+        spawn=sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-0.45, -2.0, 1.05), rot=(0.0, 0.0, sqrt(0.5), sqrt(0.5))),
     )
-    for index, (name, robot_cfg, mount, height, table_x, scale, rotation) in enumerate(mounts):
-        x, y, _ = origins[index]
-        root = f"/World/Origin{index + 1}"
-        table_file = "stand_instanceable.usd" if mount == "Stand" else "table_instanceable.usd"
-        setattr(
-            scene_cfg,
-            f"{name}_table",
-            AssetBaseCfg(
-                prim_path=f"{root}/Table",
-                spawn=sim_utils.UsdFileCfg(
-                    usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/{mount}/{table_file}", scale=scale
-                ),
-                init_state=AssetBaseCfg.InitialStateCfg(pos=(x + table_x, y, height), rot=rotation),
-            ),
-        )
-        robot_cfg = robot_cfg.replace(prim_path=f"{root}/Robot")
-        robot_cfg.init_state.pos = (x, y, height)
-        setattr(scene_cfg, name, robot_cfg)
-    return scene_cfg.class_type(scene_cfg)
+    franka_panda = FRANKA_PANDA_CFG.replace(prim_path="/World/Origin1/Robot")
+    franka_panda.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
+    franka_panda.init_state.pos = (-1.0, -2.0, 1.05)
+
+    ur10_table = AssetBaseCfg(
+        prim_path="/World/Origin2/Table",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/Stand/stand_instanceable.usd", scale=(2.0, 2.0, 2.0)
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(1.0, -2.0, 1.03)),
+    )
+    ur10 = UR10_CFG.replace(prim_path="/World/Origin2/Robot")
+    ur10.init_state.pos = (1.0, -2.0, 1.03)
+
+    kinova_j2n7s300_table = AssetBaseCfg(
+        prim_path="/World/Origin3/Table",
+        spawn=sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/ThorlabsTable/table_instanceable.usd"),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(-1.0, 0.0, 0.8)),
+    )
+    kinova_j2n7s300 = KINOVA_JACO2_N7S300_CFG.replace(prim_path="/World/Origin3/Robot")
+    kinova_j2n7s300.init_state.pos = (-1.0, 0.0, 0.8)
+
+    kinova_j2n6s300_table = kinova_j2n7s300_table.replace(prim_path="/World/Origin4/Table")
+    kinova_j2n6s300_table.init_state.pos = (1.0, 0.0, 0.8)
+    kinova_j2n6s300 = KINOVA_JACO2_N6S300_CFG.replace(prim_path="/World/Origin4/Robot")
+    kinova_j2n6s300.init_state.pos = (1.0, 0.0, 0.8)
+
+    kinova_gen3n7_table = franka_panda_table.replace(prim_path="/World/Origin5/Table")
+    kinova_gen3n7_table.init_state.pos = (-0.45, 2.0, 1.05)
+    kinova_gen3n7 = KINOVA_GEN3_N7_CFG.replace(prim_path="/World/Origin5/Robot")
+    kinova_gen3n7.init_state.pos = (-1.0, 2.0, 1.05)
+
+    sawyer_table = ur10_table.replace(prim_path="/World/Origin6/Table")
+    sawyer_table.init_state.pos = (1.0, 2.0, 1.03)
+    sawyer = SAWYER_CFG.replace(prim_path="/World/Origin6/Robot")
+    sawyer.init_state.pos = (1.0, 2.0, 1.03)
 
 
 def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Articulation"]):
@@ -187,8 +188,8 @@ def main():
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view([3.5, 0.0, 3.2], [0.0, 0.0, 0.5])
-        # design scene
-        scene = design_scene()
+        scene_cfg = ArmsSceneCfg()
+        scene = scene_cfg.class_type(scene_cfg)
         # Play the simulator
         sim.reset()
         # Now we are ready!

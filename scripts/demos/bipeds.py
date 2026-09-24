@@ -49,6 +49,7 @@ from isaaclab.assets import AssetBaseCfg
 ##
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils import configclass
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 from isaaclab_assets.robots.cassie import CASSIE_CFG  # isort:skip
@@ -56,35 +57,24 @@ from isaaclab_assets.robots.unitree import G1_CFG, H1_CFG  # isort:skip
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
-    from isaaclab.scene import InteractiveScene
 
 
-def design_scene(sim: "sim_utils.SimulationContext") -> tuple["InteractiveScene", torch.Tensor]:
-    """Designs the scene."""
-    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0, filter_collisions=False)
-    scene_cfg.ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
-    scene_cfg.light = AssetBaseCfg(
+@configclass
+class BipedsSceneCfg(InteractiveSceneCfg):
+    """Cassie, H1, and G1 with a shared ground and light."""
+
+    ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    light = AssetBaseCfg(
         prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
     )
-
-    # Define origins
-    origins = torch.tensor(
-        [
-            [0.0, -1.0, 0.0],
-            [0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-        ]
-    ).to(device=sim.device)
-
-    # Robots
-    scene_cfg.cassie = CASSIE_CFG.replace(prim_path="/World/Cassie")
-    scene_cfg.h1 = H1_CFG.replace(prim_path="/World/H1")
-    scene_cfg.g1 = G1_CFG.replace(prim_path="/World/G1")
-    return scene_cfg.class_type(scene_cfg), origins
+    cassie = CASSIE_CFG.replace(prim_path="/World/Cassie")
+    h1 = H1_CFG.replace(prim_path="/World/H1")
+    g1 = G1_CFG.replace(prim_path="/World/G1")
 
 
-def run_simulator(sim: "sim_utils.SimulationContext", robots: list["Articulation"], origins: torch.Tensor):
+def run_simulator(sim: "sim_utils.SimulationContext", robots: list["Articulation"]):
     """Runs the simulation loop."""
+    origins = torch.tensor([[0.0, -1.0, 0.0], [0.0, 0.0, 0.0], [0.0, 1.0, 0.0]], device=sim.device)
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     sim_time = 0.0
@@ -145,8 +135,8 @@ def main():
         # Set main camera
         sim.set_camera_view(eye=[3.0, 0.0, 2.25], target=[0.0, 0.0, 1.0])
 
-        # design scene
-        scene, origins = design_scene(sim)
+        scene_cfg = BipedsSceneCfg(num_envs=1, env_spacing=0.0, filter_collisions=False)
+        scene = scene_cfg.class_type(scene_cfg)
 
         # Play the simulator
         sim.reset()
@@ -155,7 +145,7 @@ def main():
         print("[INFO]: Setup complete...")
 
         # Run the simulator
-        run_simulator(sim, list(scene.articulations.values()), origins)
+        run_simulator(sim, list(scene.articulations.values()))
 
 
 if __name__ == "__main__":

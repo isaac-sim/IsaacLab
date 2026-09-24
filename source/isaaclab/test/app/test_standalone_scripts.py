@@ -99,7 +99,20 @@ def test_scene_examples_delegate_replication_to_interactive_scene(path):
         for node in ast.walk(tree)
         if isinstance(node, ast.Call) and isinstance(node.func, (ast.Name, ast.Attribute))
     }
-    assert "InteractiveSceneCfg" in calls
+    if not path.startswith("scripts/tools/"):
+        scenes = [
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef)
+            and any(isinstance(base, ast.Name) and base.id == "InteractiveSceneCfg" for base in node.bases)
+        ]
+        assert scenes, "Declare the scene as an InteractiveSceneCfg subclass."
+        for scene in scenes:
+            assert any(isinstance(node, ast.Name) and node.id == "configclass" for node in scene.decorator_list)
+            assert not any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) for node in scene.body)
+        assert not any(isinstance(node, ast.FunctionDef) and node.name == "design_scene" for node in tree.body)
+    else:
+        assert "InteractiveSceneCfg" in calls
     assert calls.isdisjoint({"clone_plan_from_env_0", "make_clone_plan", "set_clone_plan", "replicate"})
     args = ["input", "output"] if path.startswith("scripts/tools/convert_") else []
     # Only import the scripts; converter availability is irrelevant without executing their main function.

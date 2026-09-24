@@ -52,7 +52,7 @@ The tutorial corresponds to the ``run_deformable_object.py`` script in the ``scr
 
    .. literalinclude:: ../../../scripts/tutorials/01_assets/run_deformable_object.py
       :language: python
-      :emphasize-lines: 63-111, 134-150, 155-166, 172-177
+      :emphasize-lines: 88-114, 137-153, 158-166, 175-180, 193-194
       :linenos:
 
 
@@ -62,7 +62,7 @@ The Code Explained
 Designing the scene
 -------------------
 
-We declare the ground plane, light, and deformable cube on an :class:`scene.InteractiveSceneCfg`.
+We declare the ground plane, light, and deformable cube in a subclass of :class:`scene.InteractiveSceneCfg`.
 :class:`scene.InteractiveScene` constructs the assets and handles replication internally.
 The four environment origins form a centered grid with 0.5 m spacing.
 
@@ -85,8 +85,8 @@ The simulation loop accesses the resulting asset through ``scene["cube_object"]`
 
 .. literalinclude:: ../../../scripts/tutorials/01_assets/run_deformable_object.py
    :language: python
-   :start-at: scene_cfg = InteractiveSceneCfg(
-   :end-at: return scene_cfg.class_type(scene_cfg)
+   :start-at: @configclass
+   :end-before: def run_simulator(
 
 Running the simulation loop
 ---------------------------
