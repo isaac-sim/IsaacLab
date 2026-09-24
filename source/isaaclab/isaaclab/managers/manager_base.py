@@ -13,16 +13,15 @@ from collections.abc import Sequence
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
-import isaaclab.utils.string as string_utils
-from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.utils import class_to_dict, string_to_callable
-from isaaclab.utils.modifiers import ModifierCfg
-
+from ..physics import PhysicsEvent, PhysicsManager
+from ..utils import class_to_dict, string_to_callable
+from ..utils import string as string_utils
+from ..utils.modifiers import ModifierCfg
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
+    from ..envs import ManagerBasedEnv
 
 
 class ManagerTermBase(ABC):
@@ -39,7 +38,7 @@ class ManagerTermBase(ABC):
 
     .. code-block:: python
 
-        from isaaclab.utils.configclass import configclass
+        from isaaclab.utils import configclass
         from isaaclab.utils.mdp import ManagerBase, ManagerTermBaseCfg
 
 
@@ -272,7 +271,6 @@ class ManagerBase(ABC):
 
         Please check the :meth:`_process_term_cfg_at_play` method for more information.
         """
-        # check if scene entities have been resolved
         if self._is_scene_entities_resolved:
             return
         # check if config is dict already
@@ -289,8 +287,6 @@ class ManagerBase(ABC):
             # process attributes at runtime
             # these properties are only resolvable once the simulation starts playing
             self._process_term_cfg_at_play(term_name, term_cfg)
-
-        # set the flag
         self._is_scene_entities_resolved = True
 
     """

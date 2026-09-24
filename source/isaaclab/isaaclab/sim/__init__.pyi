@@ -92,11 +92,13 @@ __all__ = [
     "RigidObjectSpawnerCfg",
     "DeformableObjectSpawnerCfg",
     "spawn_from_mjcf",
+    "spawn_from_mesh",
     "spawn_from_urdf",
     "spawn_from_usd",
     "spawn_from_usd_with_compliant_contact_material",
     "spawn_ground_plane",
     "GroundPlaneCfg",
+    "MeshFileCfg",
     "MjcfFileCfg",
     "UrdfFileCfg",
     "UsdFileCfg",
@@ -310,7 +312,7 @@ from .schemas import (
     modify_rigid_body_properties,
     modify_spatial_tendon_properties,
 )
-from .simulation_cfg import SimulationCfg
+from .simulation_cfg import BackendCfg, SimulationCfg
 from .simulation_context import SimulationContext, build_simulation_context
 
 # Forwarded to isaaclab_newton.sim.schemas via __getattr__ shim
@@ -351,6 +353,7 @@ from .spawners import (
     MeshCylinderCfg,
     MeshRectangleCfg,
     MeshSphereCfg,
+    MeshFileCfg,
     MjcfFileCfg,
     MultiAssetSpawnerCfg,
     MultiUsdFileCfg,
@@ -382,6 +385,7 @@ from .spawners import (
     spawn_deformable_body_material,
     spawn_from_mdl_file,
     spawn_from_mjcf,
+    spawn_from_mesh,
     spawn_from_urdf,
     spawn_from_usd,
     spawn_from_usd_with_compliant_contact_material,

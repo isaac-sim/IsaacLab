@@ -142,7 +142,7 @@ multirotor_cfg = MultirotorCfg(
 
 ```python
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab_contrib.mdp.actions import ThrustActionCfg
 
 @configclass
@@ -302,6 +302,7 @@ tactile_sensor_cfg = VisuoTactileSensorCfg(
 
 ```python
 from isaaclab.assets import ArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
 
 robot_cfg = ArticulationCfg(
     prim_path="{ENV_REGEX_NS}/Robot",
@@ -313,16 +314,16 @@ robot_cfg = ArticulationCfg(
         compliant_contact_damping=10.0,       # Elastomer damping
         physics_material_prim_path="elastomer",  # Prim with compliant contact
 
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=True,
             max_depenetration_velocity=5.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+        articulation_props=PhysxArticulationCfg(
             enabled_self_collisions=False,
             solver_position_iteration_count=12,
             solver_velocity_iteration_count=1,
         ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
+        collision_props=PhysxCollisionCfg(
             contact_offset=0.001,
             rest_offset=-0.0005,
         ),

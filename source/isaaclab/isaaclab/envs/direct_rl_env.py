@@ -19,20 +19,17 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-from isaaclab.managers import EventManager
-from isaaclab.scene import InteractiveScene
-from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.stage import use_stage
-from isaaclab.utils.noise import NoiseModel
-from isaaclab.utils.seed import configure_seed
-from isaaclab.utils.timer import Timer
-
+from ..managers import EventManager
+from ..sim import SimulationContext
+from ..sim.utils.stage import use_stage
+from ..utils.noise import NoiseModel
+from ..utils.seed import configure_seed
+from ..utils.timer import Timer
 from .common import VecEnvObs, VecEnvStepReturn, _apply_deprecated_viewer_cfg
 from .direct_rl_env_cfg import DirectRLEnvCfg
 from .utils.spaces import sample_space, spec_to_gym_space
 from .utils.video_recorder import VideoRecorder
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -148,7 +145,7 @@ class DirectRLEnv(gym.Env):
         with Timer("[INFO]: Time taken for scene creation", "scene_creation", activity="Creating scene"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
-                self.scene = InteractiveScene(self.cfg.scene)
+                self.scene = self.cfg.scene.class_type(self.cfg.scene)
                 self._setup_scene()
             self.sim.register_interactive_scene(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
@@ -199,14 +196,12 @@ class DirectRLEnv(gym.Env):
         if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
-            # if no window, then we don't need to store the window
             self._window = None
 
         # allocate dictionary to store metrics
         self.extras = {}
 
         # initialize data and constants
-        # -- counter for simulation steps
         self._sim_step_counter = 0
         # -- controls camera/Kit rendering in step().
         # When False, the Kit app loop (app.update()) and camera/RTX sensor updates are
@@ -222,7 +217,6 @@ class DirectRLEnv(gym.Env):
         self.reset_terminated = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
         self.reset_time_outs = torch.zeros_like(self.reset_terminated)
         self.reset_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.sim.device)
-
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
 
@@ -262,7 +256,6 @@ class DirectRLEnv(gym.Env):
             if self.cfg.num_rerenders_on_reset == 0:
                 self.cfg.num_rerenders_on_reset = 1
 
-        # print the environment information
         print("[INFO]: Completed setting up the environment...")
 
     def __del__(self, _sys=sys):
@@ -484,7 +477,6 @@ class DirectRLEnv(gym.Env):
         for recorder in self.video_recorders:
             recorder.step()
 
-        # update observations
         self.obs_buf = self._get_observations()
 
         # add observation noise
@@ -492,7 +484,6 @@ class DirectRLEnv(gym.Env):
         if self.cfg.observation_noise_model:
             self.obs_buf["policy"] = self._observation_noise_model(self.obs_buf["policy"])
 
-        # return observations, rewards, resets and extras
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
 
     @staticmethod
@@ -734,13 +725,11 @@ class DirectRLEnv(gym.Env):
                 env_step_count = self._sim_step_counter // self.cfg.decimation
                 self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 
-        # reset noise models
         if self.cfg.action_noise_model:
             self._action_noise_model.reset(env_ids)
         if self.cfg.observation_noise_model:
             self._observation_noise_model.reset(env_ids)
 
-        # reset the episode length buffer
         self.episode_length_buf[env_ids] = 0
 
         self.sim.render_context.reset_scene_state_cadence()
@@ -750,14 +739,10 @@ class DirectRLEnv(gym.Env):
     """
 
     def _setup_scene(self):
-        """Setup the scene for the environment.
+        """Perform optional task-specific setup after the configured scene is constructed.
 
-        This function is responsible for creating the scene objects and setting up the scene for the environment.
-        The scene creation can happen through :class:`isaaclab.scene.InteractiveSceneCfg` or through
-        directly creating the scene objects and registering them with the scene manager.
-
-        We leave the implementation of this function to the derived classes. If the environment does not require
-        any explicit scene setup, the function can be left empty.
+        Normal workflows declare assets and sensors on :attr:`DirectRLEnvCfg.scene`. Override this
+        hook only for setup that cannot be represented by the scene configuration.
         """
         pass
 

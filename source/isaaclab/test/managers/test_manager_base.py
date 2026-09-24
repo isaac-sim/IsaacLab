@@ -22,8 +22,7 @@ import torch
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import ManagerTermBase, ManagerTermBaseCfg
 from isaaclab.managers.manager_base import ManagerBase
-from isaaclab.utils import modifiers
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, modifiers
 
 pytestmark = pytest.mark.integration
 

@@ -19,9 +19,9 @@ import warp as wp
 
 from pxr import Sdf, UsdGeom
 
-import isaaclab.sim as sim_utils
-from isaaclab.sensors.camera import Camera, CameraCfg
-from isaaclab.sim.views import FrameView
+from ... import sim as sim_utils
+from ...sensors.camera import Camera, CameraCfg
+from ...sim.views import FrameView
 
 _log = logging.getLogger(__name__)
 

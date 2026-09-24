@@ -22,6 +22,13 @@ from isaaclab.sim import SimulationCfg, SimulationContext
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture(autouse=True)
+def cleanup_simulation_context():
+    """Release the simulation context after each test."""
+    yield
+    SimulationContext.clear_instance()
+
+
 def _make_xform(stage, path="/World/Body"):
     UsdGeom.Xform.Define(stage, path)
     return stage.GetPrimAtPath(path)
@@ -242,7 +249,7 @@ def test_apply_namespaced_raises_without_namespace():
     from typing import ClassVar
 
     from isaaclab.sim.schemas import RigidBodyFragment, apply_namespaced
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     @configclass
     class _NoNamespaceFragment(RigidBodyFragment):

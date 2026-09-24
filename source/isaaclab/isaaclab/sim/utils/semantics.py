@@ -120,10 +120,7 @@ def check_missing_labels(prim_path: str | None = None, stage: Usd.Stage | None =
     """
     from pxr import Usd, UsdGeom  # noqa: PLC0415
 
-    # check if stage is valid
     stage = stage if stage else get_current_stage()
-
-    # check if inspect path is valid
     start_prim = stage.GetPrimAtPath(prim_path) if prim_path else stage.GetPseudoRoot()
     if not start_prim:
         # Allow None prim_path for whole stage check, warn if path specified but not found

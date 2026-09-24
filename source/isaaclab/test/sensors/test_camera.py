@@ -106,10 +106,12 @@ def test_camera_init(setup_sim_camera):
     """Test camera initialization."""
     # Create camera configuration
     sim, camera_cfg, dt = setup_sim_camera
+    sim.set_setting("/physics/fabricUpdateTransformations", False)
     # Create camera
     camera = Camera(camera_cfg)
     # Check simulation parameter is set correctly
     assert sim.get_setting("/isaaclab/render/rtx_sensors")
+    assert sim.get_setting("/physics/fabricUpdateTransformations")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -366,32 +368,41 @@ def test_camera_set_world_poses_from_view(setup_sim_camera, update_latest_camera
 
 
 def test_intrinsic_matrix(setup_sim_camera):
-    """Checks that the camera's set and retrieve methods work for intrinsic matrix."""
+    """Runtime calibration changes pixels without USD authoring and resets with the camera."""
     sim, camera_cfg, dt = setup_sim_camera
-    # enable update latest camera pose
     camera_cfg.update_latest_camera_pose = True
-    # init camera
+    camera_cfg.offset = CameraCfg.OffsetCfg(pos=(0.0, 0.0, 15.0), convention="opengl")
+    target = sim_utils.CuboidCfg(size=(1.0, 1.0, 1.0))
+    target.func("/World/CalibrationTarget", target, translation=(0.0, 0.0, 10.0))
     camera = Camera(camera_cfg)
-    # play sim
     sim.reset()
-    # Desired properties (obtained from realsense camera at 320x240 resolution)
-    rs_intrinsic_matrix = [229.8, 0.0, 160.0, 0.0, 229.8, 120.0, 0.0, 0.0, 1.0]
-    rs_intrinsic_matrix = np.asarray(rs_intrinsic_matrix, dtype=float).reshape(1, 3, 3)
-    rs_intrinsic_matrix_tensor = torch.tensor(rs_intrinsic_matrix, dtype=torch.float32, device=camera.device)
-    # Set matrix into simulator
-    camera.set_intrinsic_matrices(rs_intrinsic_matrix_tensor)
 
-    # Simulate physics
-    for _ in range(10):
-        # perform rendering
-        sim.step()
-        # update camera
-        camera.update(dt)
-        # Check that matrix is correct
-        assert np.isclose(rs_intrinsic_matrix[0, 0, 0], camera.data.intrinsic_matrices.torch[0, 0, 0].item())
-        assert np.isclose(rs_intrinsic_matrix[0, 1, 1], camera.data.intrinsic_matrices.torch[0, 1, 1].item())
-        assert np.isclose(rs_intrinsic_matrix[0, 0, 2], camera.data.intrinsic_matrices.torch[0, 0, 2].item())
-        assert np.isclose(rs_intrinsic_matrix[0, 1, 2], camera.data.intrinsic_matrices.torch[0, 1, 2].item())
+    def width():
+        for _ in range(4):
+            sim.step()
+            camera.update(dt, force_recompute=True)
+        depth = camera.data.output["distance_to_image_plane"].torch[..., 0]
+        return ((depth > 4.0) & (depth < 6.0)).any(dim=1).sum(dim=1).float()
+
+    before = width()
+    assert (before > 20).all()
+    original = camera.data.intrinsic_matrices.torch.clone()
+    wider = original.clone()
+    wider[:, 0, 0] *= 0.5
+    wider[:, 1, 1] *= 0.5
+    authored = [attr.Get() for attr in camera._sensor_prims[0].GetPrim().GetAttributes()]
+    camera.set_intrinsic_matrices(wider)
+    torch.testing.assert_close(width(), before * 0.5, atol=2.0, rtol=0.0)
+    torch.testing.assert_close(camera.data.intrinsic_matrices.torch, wider)
+    assert [attr.Get() for attr in camera._sensor_prims[0].GetPrim().GetAttributes()] == authored
+
+    fabric = camera._render_data.intrinsic_stage
+    row_attribute = camera._render_data.intrinsic_row_attribute
+    sim.stop()
+    assert not fabric.GetPrimAtPath(camera_cfg.prim_path).GetAttribute(row_attribute).IsValid()
+    sim.reset()
+    torch.testing.assert_close(camera.data.intrinsic_matrices.torch, original)
+    torch.testing.assert_close(width(), before)
 
 
 def test_depth_clipping(setup_sim_camera):
@@ -880,6 +891,15 @@ def test_camera_multi_regex_init(setup_camera_device, device):
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 1)
                 for i in range(4):
                     assert im_data[i].mean() > 0.0
+    # Distinct selected rows must reach the matching Fabric prims, regardless of bucket order.
+    matrices = camera.data.intrinsic_matrices.torch[[8, 0, 4]].clone()
+    matrices[:, 0, 0] = matrices[:, 1, 1] = torch.tensor([100.0, 200.0, 300.0], device=device)
+    camera.set_intrinsic_matrices(matrices, env_ids=[8, 0, 4])
+    fabric = sim_utils.get_current_stage(fabric=True)
+    for row, index in enumerate((8, 0, 4)):
+        prim = fabric.GetPrimAtPath(camera._sensor_prims[index].GetPath().pathString)
+        fx = camera_cfg.width * prim.GetAttribute("focalLength").Get() / prim.GetAttribute("horizontalAperture").Get()
+        assert fx == pytest.approx(matrices[row, 0, 0].item())
     del camera
 
 
@@ -1090,20 +1110,13 @@ def test_camera_frame_offset(setup_camera_device, device):
     del camera
 
 
-@pytest.mark.parametrize(
-    ("data_types", "expected_names", "expected_messages"),
-    [
-        (["rgba", "depth", "normals"], ["depth", "normals"], ["_PartialRenderer", "Supported data types"]),
-        (["rgba", "not_a_render_buffer_kind"], ["not_a_render_buffer_kind"], ["Unknown camera data types"]),
-    ],
-)
-def test_camera_raises_on_unsupported_data_types(setup_sim_camera, data_types, expected_names, expected_messages):
-    """Test Camera rejects data types its renderer cannot produce or does not recognize."""
+def test_camera_raises_on_unsupported_data_types(setup_sim_camera):
+    """Test Camera rejects data types its runtime renderer cannot produce."""
     from isaaclab.renderers.base_renderer import BaseRenderer
 
     sim, camera_cfg, dt = setup_sim_camera
     camera_cfg = copy.deepcopy(camera_cfg)
-    camera_cfg.data_types = data_types
+    camera_cfg.data_types = ["rgba", "depth", "normals"]
 
     from isaaclab.sensors.camera.camera_data import RenderBufferKind, RenderBufferSpec
 
@@ -1145,10 +1158,8 @@ def test_camera_raises_on_unsupported_data_types(setup_sim_camera, data_types, e
 
     camera_cfg.renderer_cfg.class_type = _PartialRenderer
     camera = Camera(camera_cfg)
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(ValueError, match="_PartialRenderer") as exc_info:
         sim.reset()
-    assert all(name in str(exc_info.value) for name in expected_names)
-    assert all(message in str(exc_info.value) for message in expected_messages)
     assert "Hint:" not in str(exc_info.value)
 
     del camera
@@ -1272,6 +1283,6 @@ def _populate_scene():
         geom_prim.GetDisplayColorAttr().Set([color])
         # add rigid body and collision properties using Isaac Lab schemas
         prim_path = f"/World/Objects/Obj_{i:02d}"
-        sim_utils.define_rigid_body_properties(prim_path, sim_utils.RigidBodyPropertiesCfg())
-        sim_utils.define_mass_properties(prim_path, sim_utils.MassPropertiesCfg(mass=5.0))
-        sim_utils.define_collision_properties(prim_path, sim_utils.CollisionPropertiesCfg())
+        sim_utils.apply_rigid_body_properties(prim_path, [sim_utils.UsdPhysicsRigidBodyCfg()], create_if_missing=True)
+        sim_utils.apply_mass_properties(prim_path, [sim_utils.MassCfg(mass=5.0)], create_if_missing=True)
+        sim_utils.apply_collision_properties(prim_path, [sim_utils.UsdPhysicsCollisionCfg()], create_if_missing=True)

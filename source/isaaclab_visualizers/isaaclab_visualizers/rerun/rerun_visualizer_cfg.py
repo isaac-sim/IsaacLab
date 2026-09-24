@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 if TYPE_CHECKING:
@@ -25,6 +25,8 @@ class RerunVisualizerCfg(VisualizerCfg):
 
     visualizer_type: str = "rerun"
     """Type identifier for Rerun visualizer."""
+
+    cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
 
     app_id: str = "isaaclab-simulation"
     """Application identifier shown in viewer title."""

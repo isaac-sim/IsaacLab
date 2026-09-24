@@ -9,6 +9,8 @@
 
     PhysxManager
     PhysxCfg
+    PhysxBackendCfg
+
     SurfaceVelocity
     PhysxSurfaceVelocityTwist
 
@@ -25,6 +27,11 @@ Physics Configuration
 ---------------------
 
 .. autoclass:: PhysxCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: PhysxBackendCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__

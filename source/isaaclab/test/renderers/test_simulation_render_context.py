@@ -3,23 +3,25 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for :class:`~isaaclab.renderers.render_context.RenderContext`."""
+"""Tests for simulation-owned renderers and their rendering orchestration."""
 
 from __future__ import annotations
 
-from typing import Any, cast
+from types import SimpleNamespace
+from unittest.mock import Mock, call
 
 import pytest
+import torch
 
+from isaaclab.benchmark.stepping import RENDER_PROFILE_SCOPE, profile_renderers
 from isaaclab.renderers.base_renderer import BaseRenderer
-from isaaclab.renderers.output_contract import RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.render_context import RenderContext
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.sensors.camera.camera_data import CameraData
+from isaaclab.sim import BackendCfg, SimulationContext
 
 pytest.importorskip("isaaclab_physx")
 pytest.importorskip("isaaclab_newton")
-pytest.importorskip("isaaclab_ov")
 
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
@@ -27,256 +29,210 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
 
-class _FakeBackend(BaseRenderer):
-    """Test double for :class:`BaseRenderer`; does not load PhysX/Newton/OV renderer classes."""
-
-    __slots__ = (
-        "_prepare_hits",
-        "_update_transforms_hits",
-        "_update_geometries_hits",
-        "_event_log",
-        "_close_hits",
-        "_close_raises",
-    )
-
-    def __init__(
-        self,
-        *,
-        prepare_hits: list[int] | None = None,
-        update_transforms_hits: list[int] | None = None,
-        update_geometries_hits: list[int] | None = None,
-        event_log: list[str] | None = None,
-        close_hits: list[Any] | None = None,
-        close_raises: bool = False,
-    ) -> None:
-        super().__init__()
-        self._prepare_hits = prepare_hits
-        self._update_transforms_hits = update_transforms_hits
-        self._update_geometries_hits = update_geometries_hits
-        self._event_log = event_log
-        self._close_hits = close_hits
-        self._close_raises = close_raises
-
-    def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
-        return {}
-
-    def prepare_stage(self, stage: Any, num_envs: int) -> None:
-        if self._prepare_hits is not None:
-            self._prepare_hits.append(1)
-
-    def create_render_data(self, spec: Any) -> Any:
-        return object()
-
-    def set_outputs(self, render_data: Any, output_data: Any) -> None:
-        pass
-
-    def update_transforms(self) -> None:
-        if self._update_transforms_hits is not None:
-            self._update_transforms_hits.append(1)
-        if self._event_log is not None:
-            self._event_log.append("ut")
-
-    def update_geometries(self) -> None:
-        if self._update_geometries_hits is not None:
-            self._update_geometries_hits.append(1)
-        if self._event_log is not None:
-            self._event_log.append("geo")
-
-    def update_camera(self, render_data: Any, positions: Any, orientations: Any, intrinsics: Any) -> None:
-        pass
-
-    def render(self, render_data: Any) -> None:
-        if self._event_log is not None:
-            self._event_log.append("render")
-
-    def read_output(self, render_data: Any, camera_data: CameraData) -> None:
-        if self._event_log is not None:
-            self._event_log.append("read")
-
-    def cleanup(self, render_data: Any) -> None:
-        pass
-
-    def close(self) -> None:
-        if self._close_hits is not None:
-            self._close_hits.append(self)
-        if self._close_raises:
-            raise RuntimeError("backend failed to close")
+def _renderer(cfg):
+    renderer = Mock(spec=BaseRenderer)
+    renderer.visual_material_writer = None
+    return renderer
 
 
-def _set_entries(ctx: RenderContext, *cfg_backend_pairs: tuple[RendererCfg, BaseRenderer]) -> None:
-    ctx._renderer_entries = list(cfg_backend_pairs)  # type: ignore[assignment]  # noqa: SLF001
+@pytest.fixture
+def sim():
+    sim = object.__new__(SimulationContext)
+    sim._backend_registry = []
+    sim._render_context = RenderContext(sim._backend_registry)
+    return sim
 
 
-def _constructable(cfg: RendererCfg) -> RendererCfg:
-    """Bind a lightweight implementation class to one renderer cfg."""
-    cfg.class_type = lambda _cfg: _FakeBackend()
-    return cfg
+def test_renderer_registry_sharing_and_early_clone_requirements(sim):
+    constructor = Mock(side_effect=_renderer)
+    cfg = IsaacRtxRendererCfg(class_type=constructor, cloning_contexts=("example:CloneContext",))
+    renderer = sim.get_or_create_backend(cfg)
+
+    assert sim.get_or_create_backend(cfg) is renderer
+    assert sim.get_or_create_backend(cfg.replace()) is renderer
+    constructor.assert_called_once_with(cfg)
+    assert constructor.call_args.args[0] is cfg
+    assert sim.render_context.clone_contexts == set(cfg.cloning_contexts)
+    renderer.initialize.assert_not_called()
+
+    assert sim.get_or_create_backend(cfg.replace(semantic_filter="class:robot")) is not renderer
+    assert sim.get_or_create_backend(NewtonWarpRendererCfg(class_type=_renderer)) is not renderer
+    sim.get_or_create_backend(BackendCfg(class_type=lambda cfg: object()))
+    assert sim.render_context.renderer_types == ("isaac_rtx", "isaac_rtx", "newton_warp")
 
 
-def test_get_renderer_returns_equal_cfg_singleton():
-    ctx = RenderContext()
-    cfg = _constructable(IsaacRtxRendererCfg())
-    r1 = ctx.get_renderer(cfg)
-    r2 = ctx.get_renderer(cfg)
-    assert r1 is r2
+def test_renderer_initializes_once_before_or_after_physics_ready(sim):
+    cfg = RendererCfg(class_type=_renderer)
+    first = sim.get_or_create_backend(cfg)
+    sim.get_or_create_backend(BackendCfg(class_type=lambda cfg: object()))
+    sim.render_context.ensure_initialize()
+    sim.render_context.ensure_initialize()
+    first.initialize.assert_called_once_with()
+
+    second_cfg = cfg.replace(renderer_type="second")
+    second = sim.get_or_create_backend(second_cfg)
+    second.initialize.assert_called_once_with()
+    assert sim.get_or_create_backend(second_cfg) is second
+    sim.render_context.ensure_initialize()
+    first.initialize.assert_called_once_with()
+    second.initialize.assert_called_once_with()
 
 
-def test_get_renderer_constructs_class_type_with_its_config():
-    ctx = RenderContext()
-    seen = []
-    cfg = RendererCfg()
-    cfg.class_type = lambda actual: seen.append(actual) or _FakeBackend()
+def test_conflicting_global_settings_are_rejected_before_construction(sim):
+    constructor = Mock(side_effect=_renderer)
+    cfg = IsaacRtxRendererCfg(class_type=constructor)
+    renderer = sim.get_or_create_backend(cfg)
+    conflicting = cfg.replace(global_settings=cfg.global_settings.replace(enable_shadows=False))
 
-    renderer = ctx.get_renderer(cfg)
+    with pytest.raises(ValueError, match="global settings differ"):
+        sim.get_or_create_backend(conflicting)
 
-    assert isinstance(renderer, _FakeBackend)
-    assert seen == [cfg]
-
-
-def test_get_renderer_two_different_concrete_types_coexist():
-    """Different renderer_cfg concrete classes register distinct backends (no error)."""
-
-    ctx = RenderContext()
-    rtx = ctx.get_renderer(_constructable(IsaacRtxRendererCfg()))
-    nw = ctx.get_renderer(_constructable(NewtonWarpRendererCfg()))
-    assert rtx is not nw
+    constructor.assert_called_once_with(cfg)
+    assert sim.get_or_create_backend(cfg) is renderer
+    assert sim.render_context.renderer_types == ("isaac_rtx",)
 
 
-def test_ensure_prepare_stage_idempotent():
-    """Second ``ensure_prepare_stage`` with same args does not call ``prepare_stage`` again."""
+@pytest.mark.parametrize("has_materials", [False, True])
+def test_finalized_consumers_allow_cache_hits_but_reject_new_renderers_with_materials(sim, has_materials):
+    constructor = Mock(side_effect=_renderer)
+    cfg = RendererCfg(class_type=constructor)
+    renderer = sim.get_or_create_backend(cfg)
+    if has_materials:
+        sim.render_context.register_visual_material(
+            SimpleNamespace(
+                channels=("roughness",),
+                _material_paths=("/World/Material",),
+                _shader_paths=("/World/Material/Shader",),
+                _input_names={"roughness": "roughness"},
+                _values={"roughness": torch.zeros(1)},
+                _offsets={},
+            )
+        )
+    sim.render_context.finalize_consumers([])
 
-    ctx = RenderContext()
-    prepares: list[int] = []
-    cfg = IsaacRtxRendererCfg()
-    _set_entries(ctx, (cfg, _FakeBackend(prepare_hits=prepares)))
+    assert sim.get_or_create_backend(cfg.replace()) is renderer
+    late_cfg = cfg.replace(renderer_type="late")
+    if has_materials:
+        with pytest.raises(RuntimeError, match="before rendering consumers are finalized"):
+            sim.get_or_create_backend(late_cfg)
+        constructor.assert_called_once_with(cfg)
+    else:
+        assert sim.get_or_create_backend(late_cfg) is not renderer
+        assert constructor.call_count == 2
 
-    ctx.ensure_prepare_stage(None, 4)
-    ctx.ensure_prepare_stage(None, 4)
-    assert len(prepares) == 1
+
+def test_close_backend_removes_renderer_from_orchestration(sim):
+    cfg = RendererCfg(class_type=_renderer)
+    renderer = sim.get_or_create_backend(cfg)
+    sim.render_context.ensure_prepare_stage(None, 4)
+    sim.render_context.update_scene_state(1)
+
+    sim.close_backend(renderer)
+    renderer.close.assert_called_once_with()
+    assert not sim.render_context.renderer_types
+    sim.render_context.update_scene_state(2)
+    renderer.update_transforms.assert_called_once_with()
+    renderer.update_geometries.assert_called_once_with()
+    with pytest.raises(RuntimeError, match="renderer must be registered"):
+        sim.render_context.ensure_prepare_stage(None, 4)
+
+    replacement = sim.get_or_create_backend(cfg)
+    assert replacement is not renderer
+    sim.render_context.ensure_prepare_stage(None, 4)
+    sim.render_context.update_scene_state(2)
+    replacement.prepare_stage.assert_called_once_with(None, 4)
+    replacement.update_transforms.assert_called_once_with()
+    replacement.update_geometries.assert_called_once_with()
+    sim.render_context.close()
+    renderer.close.assert_called_once_with()
+    replacement.close.assert_not_called()
 
 
-def test_ensure_prepare_stage_num_envs_mismatch():
-    ctx = RenderContext()
-    cfg = IsaacRtxRendererCfg()
-    _set_entries(ctx, (cfg, _FakeBackend()))
-
-    ctx.ensure_prepare_stage(None, 4)
+def test_prepare_stage_is_idempotent_and_checks_env_count_until_reset(sim):
+    renderer = sim.get_or_create_backend(RendererCfg(class_type=_renderer))
+    sim.render_context.ensure_prepare_stage(None, 4)
+    sim.render_context.ensure_prepare_stage(None, 4)
+    renderer.prepare_stage.assert_called_once_with(None, 4)
     with pytest.raises(RuntimeError, match="different num_envs"):
-        ctx.ensure_prepare_stage(None, 8)
+        sim.render_context.ensure_prepare_stage(None, 8)
+
+    sim.render_context.reset_stage_prepare_flag()
+    sim.render_context.ensure_prepare_stage(None, 8)
+    assert renderer.prepare_stage.call_args_list == [call(None, 4), call(None, 8)]
 
 
-def test_update_scene_state_dedupes_per_physics_step():
-    """All backends' scene state hooks run once per physics step index."""
+def test_scene_state_does_not_skip_writes_within_a_physics_step(sim):
+    renderer = sim.get_or_create_backend(RendererCfg(class_type=_renderer))
+    for step in (1, 1, 2):
+        sim.render_context.update_scene_state(step)
+    assert renderer.update_transforms.call_count == 3
+    assert renderer.update_geometries.call_count == 2
 
-    ctx = RenderContext()
-    transform_hits: list[int] = []
-    geometry_hits: list[int] = []
-    cfg = NewtonWarpRendererCfg()
-    _set_entries(
-        ctx,
-        (
-            cfg,
-            _FakeBackend(update_transforms_hits=transform_hits, update_geometries_hits=geometry_hits),
-        ),
-    )
-
-    ctx.update_scene_state(1)
-    ctx.update_scene_state(1)
-    assert len(transform_hits) == 1
-    assert len(geometry_hits) == 1
-
-    ctx.update_scene_state(2)
-    assert len(transform_hits) == 2
-    assert len(geometry_hits) == 2
+    sim.render_context.reset_scene_state_cadence()
+    sim.render_context.update_scene_state(2)
+    assert renderer.update_transforms.call_count == 4
+    assert renderer.update_geometries.call_count == 3
 
 
-def test_render_into_camera_calls_update_render_read_order():
-    """render_into_camera runs scene sync then render then read_output; dedupes sync per step."""
-    ctx = RenderContext()
-    events: list[str] = []
-    cfg = IsaacRtxRendererCfg()
-    fake = _FakeBackend(event_log=events)
-    _set_entries(ctx, (cfg, fake))
+@pytest.mark.parametrize("profile", [False, True])
+def test_render_into_camera_call_order_and_profile_output(sim, capsys, profile):
+    """Profiling preserves call order and collects timings without printing."""
+    renderer = sim.get_or_create_backend(RendererCfg(class_type=_renderer))
+    data, camera = object(), CameraData()
 
-    rd = object()
-    cam_data = CameraData()
-    ctx.render_into_camera(cast(BaseRenderer, fake), rd, cam_data, physics_step_count=1)
-    assert events == ["ut", "geo", "render", "read"]
+    with profile_renderers(sim.render_context, active=profile) as timings:
+        sim.render_context.render_into_camera(renderer, data, camera, physics_step_count=1)
+        sim.render_context.render_into_camera(renderer, data, camera, physics_step_count=1)
 
-    ctx.render_into_camera(cast(BaseRenderer, fake), rd, cam_data, physics_step_count=1)
-    assert events == ["ut", "geo", "render", "read", "render", "read"]
-
-
-def test_reset_stage_prepare_flag_allows_second_prepare_stage():
-    """After reset_stage_prepare_flag, ensure_prepare_stage invokes prepare_stage again."""
-    ctx = RenderContext()
-    prepares: list[int] = []
-    cfg = IsaacRtxRendererCfg()
-    _set_entries(ctx, (cfg, _FakeBackend(prepare_hits=prepares)))
-
-    ctx.ensure_prepare_stage(None, 4)
-    assert len(prepares) == 1
-    ctx.ensure_prepare_stage(None, 4)
-    assert len(prepares) == 1
-
-    ctx.reset_stage_prepare_flag()
-    ctx.ensure_prepare_stage(None, 4)
-    assert len(prepares) == 2
+    assert renderer.mock_calls == [
+        call.update_transforms(),
+        call.update_geometries(),
+        call.render(data),
+        call.read_output(data, camera),
+        call.update_transforms(),
+        call.render(data),
+        call.read_output(data, camera),
+    ]
+    assert len(timings) == (2 if profile else 0)
+    assert all(scope == RENDER_PROFILE_SCOPE and elapsed >= 0.0 for scope, elapsed in timings)
+    assert RENDER_PROFILE_SCOPE not in capsys.readouterr().out
 
 
-def test_reset_scene_state_cadence_allows_repeat_update_scene_state_same_step():
-    """reset_scene_state_cadence clears step dedupe so the same physics_step_count can update again."""
-    ctx = RenderContext()
-    hits: list[int] = []
-    cfg = IsaacRtxRendererCfg()
-    _set_entries(ctx, (cfg, _FakeBackend(update_transforms_hits=hits)))
+def test_legacy_render_profile_scope_warns_and_preserves_import():
+    """The old scope import remains available during its deprecation period."""
+    with pytest.warns(DeprecationWarning, match="isaaclab.benchmark.stepping.RENDER_PROFILE_SCOPE"):
+        from isaaclab.renderers.render_context import RENDER_PROFILE_SCOPE as legacy_scope
 
-    ctx.update_scene_state(1)
-    assert len(hits) == 1
-    ctx.update_scene_state(1)
-    assert len(hits) == 1
-
-    ctx.reset_scene_state_cadence()
-    ctx.update_scene_state(1)
-    assert len(hits) == 2
+    assert legacy_scope == RENDER_PROFILE_SCOPE
 
 
-def test_close_closes_every_backend_once_and_drops_them():
-    """``close`` closes each registered backend exactly once and empties the context."""
-    ctx = RenderContext()
-    closed: list[Any] = []
-    first = _FakeBackend(close_hits=closed)
-    second = _FakeBackend(close_hits=closed)
-    _set_entries(ctx, (IsaacRtxRendererCfg(), first), (NewtonWarpRendererCfg(), second))
+@pytest.mark.parametrize("fail_writer", [False, True])
+def test_context_close_only_releases_writers_and_resets_bookkeeping(sim, fail_writer):
+    cfg = RendererCfg(class_type=_renderer, cloning_contexts=("example:CloneContext",))
+    renderer = sim.get_or_create_backend(cfg)
+    context = sim.render_context
+    context.ensure_initialize()
+    context.ensure_prepare_stage(None, 4)
+    context.update_scene_state(1)
+    writers = (Mock(), Mock())
+    if fail_writer:
+        writers[0].close.side_effect = RuntimeError("writer failed")
+    context._visual_material_writers = writers
 
-    ctx.close()
-    assert closed == [first, second]
+    if fail_writer:
+        with pytest.raises(RuntimeError, match=r"1 material writer\(s\) failed to close"):
+            context.close()
+    else:
+        context.close()
+    context.close()
+    for writer in writers:
+        writer.close.assert_called_once_with()
+    renderer.close.assert_not_called()
+    assert sim.get_or_create_backend(cfg) is renderer
+    assert not context.clone_contexts
 
-    ctx.close()
-    assert closed == [first, second]
-
-
-def test_close_raises_only_after_every_backend_is_closed():
-    """A failing backend must not strand the others, and its failure must not go unreported."""
-    ctx = RenderContext()
-    closed: list[Any] = []
-    failing = _FakeBackend(close_hits=closed, close_raises=True)
-    healthy = _FakeBackend(close_hits=closed)
-    _set_entries(ctx, (IsaacRtxRendererCfg(), failing), (NewtonWarpRendererCfg(), healthy))
-
-    with pytest.raises(RuntimeError, match="1 renderer\\(s\\) failed to close"):
-        ctx.close()
-
-    assert closed == [failing, healthy]
-
-
-def test_close_resets_stage_and_step_bookkeeping():
-    """After ``close`` the context holds no backend, so a later ``ensure_prepare_stage`` is an error."""
-    ctx = RenderContext()
-    _set_entries(ctx, (IsaacRtxRendererCfg(), _FakeBackend()))
-    ctx.ensure_prepare_stage(None, 4)
-
-    ctx.close()
-
-    with pytest.raises(RuntimeError, match="get_renderer must be called"):
-        ctx.ensure_prepare_stage(None, 4)
+    context.ensure_initialize()
+    context.ensure_prepare_stage(None, 8)
+    context.update_scene_state(1)
+    assert renderer.initialize.call_count == renderer.prepare_stage.call_count == 2
+    assert renderer.update_transforms.call_count == renderer.update_geometries.call_count == 2

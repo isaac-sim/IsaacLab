@@ -13,10 +13,9 @@ import trimesh.transformations
 
 from pxr import Usd, UsdPhysics
 
-from isaaclab.sim import schemas
-from isaaclab.sim.spawners._utils import fragment_mapping, props_expr
-from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
-
+from ... import schemas
+from ...utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
+from .._utils import fragment_mapping, props_expr
 from ..materials import (
     DeformableBodyMaterialBaseCfg,
     RigidBodyMaterialBaseCfg,
@@ -110,7 +109,6 @@ def spawn_mesh_sphere(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # create a trimesh sphere
     sphere = trimesh.creation.uv_sphere(radius=cfg.radius)
 
     # obtain stage handle
@@ -152,7 +150,6 @@ def spawn_mesh_cuboid(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # create a trimesh box
     box = trimesh.creation.box(cfg.size)
 
     # obtain stage handle
@@ -351,8 +348,6 @@ def spawn_mesh_rectangle(
         dtype=np.float32,
     )
     rectangle = trimesh.Trimesh(vertices=vertices, faces=((0, 1, 2), (0, 2, 3)), process=False)
-
-    # obtain stage handle
     stage = get_current_stage()
     # spawn the rectangle as a mesh
     _spawn_mesh_geom_from_mesh(prim_path, cfg, rectangle, translation, orientation, None, stage=stage)
@@ -490,11 +485,8 @@ def _spawn_mesh_geom_from_mesh(
         if not is_rigid_material:
             raise ValueError("Rigid properties require a rigid physics material.")
 
-    # create all the paths we need for clarity
     geom_prim_path = prim_path + "/geometry"
     mesh_prim_path = geom_prim_path + "/mesh"
-
-    # create the mesh prim
     mesh_prim = create_prim(
         mesh_prim_path,
         prim_type="Mesh",
@@ -558,7 +550,6 @@ def _spawn_mesh_geom_from_mesh(
         else:
             schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
 
-    # apply visual material
     if cfg.visual_material is not None:
         if not cfg.visual_material_path.startswith("/"):
             material_path = f"{geom_prim_path}/{cfg.visual_material_path}"
@@ -566,10 +557,7 @@ def _spawn_mesh_geom_from_mesh(
             material_path = cfg.visual_material_path
         # create material
         cfg.visual_material.func(material_path, cfg.visual_material)
-        # apply material
         bind_visual_material(mesh_prim_path, material_path, stage=stage)
-
-    # apply physics material
     if cfg.physics_material is not None:
         if not cfg.physics_material_path.startswith("/"):
             material_path = f"{geom_prim_path}/{cfg.physics_material_path}"
@@ -577,14 +565,12 @@ def _spawn_mesh_geom_from_mesh(
             material_path = cfg.physics_material_path
         # create material (accepts a legacy material cfg or rigid-body fragment(s))
         spawn_physics_material(material_path, cfg.physics_material, stage=stage)
-        # apply material
         bind_physics_material(prim_path, material_path, stage=stage)
 
     # note: we apply the rigid properties to the parent prim in case of rigid objects.
     # fragment path: mapping entries anchor at the container prim, so ``""`` preserves the legacy
     # placement; entries apply in insertion order. Otherwise a legacy cfg routes to the legacy writer.
     if cfg.rigid_props is not None:
-        # apply mass properties
         if cfg.mass_props is not None:
             mass_props_mapping = fragment_mapping(cfg.mass_props)
             if mass_props_mapping is not None:

@@ -23,7 +23,7 @@ import warp as wp
 from flaky import flaky
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
-from isaaclab_physx.sim.schemas import PhysxCollisionPropertiesCfg, PhysxRigidBodyPropertiesCfg  # noqa: E402
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg  # noqa: E402
 
 from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: E402
@@ -33,7 +33,7 @@ import isaaclab.utils.math as math_utils  # noqa: E402
 from isaaclab.assets import DeformableObject, DeformableObjectCfg, RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
-from isaaclab.utils.configclass import configclass  # noqa: E402
+from isaaclab.utils import configclass  # noqa: E402
 
 from ..deformable_utils import (  # noqa: E402
     pre_tetrahedralized_deformable_spawn_cfg,
@@ -67,8 +67,8 @@ class MixedDeformableRigidSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Cube",
         spawn=sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
-            rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=True),
-            collision_props=PhysxCollisionPropertiesCfg(collision_enabled=True),
+            rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.35, 0.0, 1.0)),
     )
@@ -90,8 +90,8 @@ class HeterogeneousMixedDeformableRigidSceneCfg(InteractiveSceneCfg):
                 sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
                 sim_utils.SphereCfg(radius=0.05),
             ],
-            rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=True),
-            collision_props=PhysxCollisionPropertiesCfg(collision_enabled=True),
+            rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
             random_choice=False,
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.35, 0.0, 1.0)),
@@ -548,7 +548,8 @@ def test_volume_deformable_reads_writes_targets_materials_and_steps():
         material_view.set_attribute(
             TT.DEFORMABLE_MATERIAL_YOUNGS_MODULUS,
             wp.from_torch(updated_youngs),
-            indices=wp.array([1], dtype=wp.int32),
+            # OvPhysX CPU-native material bindings require host-resident indices.
+            indices=wp.array([1], dtype=wp.int32, device="cpu"),
         )
         torch.testing.assert_close(
             wp.to_torch(material_view.get_attribute(TT.DEFORMABLE_MATERIAL_YOUNGS_MODULUS)), updated_youngs.cpu()
@@ -649,7 +650,8 @@ def test_surface_deformable_reads_writes_materials_and_steps():
         material_view.set_attribute(
             TT.DEFORMABLE_MATERIAL_BENDING_DAMPING,
             wp.from_torch(updated_bending_damping),
-            indices=wp.array([0], dtype=wp.int32),
+            # OvPhysX CPU-native material bindings require host-resident indices.
+            indices=wp.array([0], dtype=wp.int32, device="cpu"),
         )
         torch.testing.assert_close(
             wp.to_torch(material_view.get_attribute(TT.DEFORMABLE_MATERIAL_BENDING_DAMPING)),

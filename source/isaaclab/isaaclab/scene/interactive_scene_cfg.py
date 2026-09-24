@@ -9,14 +9,12 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from isaaclab.cloner import CloneCfg, InclusionSet
-from isaaclab.cloner import add as clone_add
-from isaaclab.utils import find_unique_string_name
-from isaaclab.utils.configclass import configclass
+from ..cloner import CloneCfg, InclusionSet
+from ..cloner import add as clone_add
+from ..utils import configclass, find_unique_string_name
 
 if TYPE_CHECKING:
-    from isaaclab.assets import AssetBaseCfg
-
+    from ..assets import AssetBaseCfg
     from .interactive_scene import InteractiveScene
 
 
@@ -41,7 +39,7 @@ class InteractiveSceneCfg:
         from isaaclab.assets import AssetBaseCfg
         from isaaclab.scene import InteractiveSceneCfg
         from isaaclab.sensors.ray_caster import GridPatternCfg, RayCasterCfg
-        from isaaclab.utils.configclass import configclass
+        from isaaclab.utils import configclass
 
         from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 
@@ -122,9 +120,7 @@ class InteractiveSceneCfg:
 
     .. note::
         The scene pipes this flag into :attr:`~isaaclab.cloner.CloneCfg.replicate_physics`;
-        the policy is applied by :func:`~isaaclab.cloner.replicate`. Direct workflows that
-        call :func:`~isaaclab.cloner.replicate` themselves pass ``replicate_physics``
-        explicitly.
+        the policy is applied by :func:`~isaaclab.cloner.replicate`.
     """
 
     filter_collisions: bool = True
@@ -143,7 +139,7 @@ class InteractiveSceneCfg:
     clone_in_fabric: bool = False
     """Deprecated legacy Fabric cloning flag. Default is False.
 
-    Queued replication no longer forwards this flag to the PhysX replicator;
+    Clone-plan replication does not forward this flag to the PhysX replicator;
     ``useFabricForReplication`` is always ``False``.
     """
 
@@ -234,7 +230,7 @@ def _scene_assets(
     """List the environment-scoped spawned assets of one scene."""
     # Deferred: config construction must stay importable without isaaclab.assets
     # (kitless factories); only scene composition pays for it.
-    from isaaclab.assets import AssetBaseCfg  # noqa: PLC0415
+    from ..assets import AssetBaseCfg  # noqa: PLC0415
 
     env_root = "{ENV_REGEX_NS}/"
     base_fields, assets = InteractiveSceneCfg.__dataclass_fields__, []

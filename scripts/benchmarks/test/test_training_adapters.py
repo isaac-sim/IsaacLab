@@ -121,3 +121,10 @@ def test_skrl_parser_rejects_unimplemented_modes():
     for option, value in unsupported:
         with pytest.raises(SystemExit):
             train_skrl._parse_args(["--task", "unused", option, value])
+
+
+def test_skrl_parsers_leave_algorithm_to_canonical_config():
+    """Benchmark adapters do not impose PPO when the task's canonical config may use another algorithm."""
+    for adapter in (train_skrl, play_skrl):
+        args, _ = adapter._parse_args(["--task", "unused"])
+        assert args.agent is args.algorithm is None

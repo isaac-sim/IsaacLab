@@ -115,22 +115,23 @@ def create_sim_cfg():
 def create_scene_cfg():
     """Create an Isaac Lab scene config using declarative assets."""
     from isaaclab_newton.assets import MPMObjectCfg
+    from isaaclab_newton.sim.schemas import NewtonCollisionCfg
     from isaaclab_newton.sim.spawners.mpm import MPMGridCfg
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg
     from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     def collider_cfg(prim_path: str, center, half_extents, orientation, friction: float = 0.1) -> AssetBaseCfg:
         return AssetBaseCfg(
             prim_path=prim_path,
             spawn=sim_utils.CuboidCfg(
                 size=(2.0 * half_extents[0], 2.0 * half_extents[1], 2.0 * half_extents[2]),
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(
-                    collision_enabled=True,
-                    contact_margin=COLLIDER_MARGIN,
-                ),
+                collision_props=[
+                    sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                    NewtonCollisionCfg(contact_margin=COLLIDER_MARGIN),
+                ],
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                     static_friction=friction,
                     dynamic_friction=friction,
@@ -146,7 +147,7 @@ def create_scene_cfg():
 
         ground = AssetBaseCfg(
             prim_path="/World/Ground",
-            spawn=sim_utils.GroundPlaneCfg(size=(12.0, 12.0), color=(0.30, 0.30, 0.30)),
+            spawn=sim_utils.GroundPlaneCfg(),
         )
 
         dome_light = AssetBaseCfg(

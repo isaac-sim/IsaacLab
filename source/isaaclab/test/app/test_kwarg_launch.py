@@ -5,6 +5,8 @@
 
 import argparse
 import logging
+import sys
+from types import SimpleNamespace
 
 import pytest
 from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
@@ -214,6 +216,35 @@ def test_deferred_cuda_device_synchronizes_torch_and_warp(monkeypatch: pytest.Mo
     launcher._set_deferred_cuda_device()
 
     assert devices == [2]
+
+
+def test_preloaded_torch_cuda_is_initialized_before_kit(monkeypatch: pytest.MonkeyPatch):
+    """Drain PyTorch's queued CUDA checks before Kit can change visible device indices."""
+    init_calls = []
+    torch = SimpleNamespace(
+        cuda=SimpleNamespace(
+            is_initialized=lambda: False,
+            init=lambda: init_calls.append(True),
+        )
+    )
+    monkeypatch.setitem(sys.modules, "torch", torch)
+    launcher = AppLauncher.__new__(AppLauncher)
+    launcher._deferred_cuda_device_id = 0
+
+    launcher._initialize_preloaded_torch_cuda()
+
+    assert init_calls == [True]
+
+
+def test_cuda_initialization_remains_deferred_when_torch_is_not_loaded(monkeypatch: pytest.MonkeyPatch):
+    """Do not import PyTorch solely to initialize CUDA before Kit."""
+    monkeypatch.delitem(sys.modules, "torch", raising=False)
+    launcher = AppLauncher.__new__(AppLauncher)
+    launcher._deferred_cuda_device_id = 0
+
+    launcher._initialize_preloaded_torch_cuda()
+
+    assert "torch" not in sys.modules
 
 
 def test_limit_cpu_threads_forwarded_to_simulation_app(monkeypatch: pytest.MonkeyPatch):

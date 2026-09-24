@@ -3,18 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the UR10 reach environment."""
+
 import math
 
 import isaaclab.envs.mdp as mdp
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
+from isaaclab_assets import UR10_CFG
 
-##
-# Pre-defined configs
-##
-from isaaclab_assets import UR10_CFG  # isort: skip
-
+from ...reach_env_cfg import ReachEnvCfg
 
 ##
 # Environment configuration
@@ -23,8 +21,9 @@ from isaaclab_assets import UR10_CFG  # isort: skip
 
 @configclass
 class UR10ReachEnvCfg(ReachEnvCfg):
-    def __post_init__(self) -> None:
-        # post init of parent
+    """UR10 reach configuration with joint position control."""
+
+    def __post_init__(self):
         super().__post_init__()
 
         # switch robot to ur10

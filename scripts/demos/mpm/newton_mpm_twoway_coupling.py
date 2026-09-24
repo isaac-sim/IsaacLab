@@ -22,13 +22,13 @@ from __future__ import annotations
 import argparse
 from collections.abc import Callable
 from functools import partial
-
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
-
-from pxr import Gf, Usd, UsdGeom
+from typing import TYPE_CHECKING
 
 import isaaclab.sim as sim_utils
 from isaaclab.app import add_launcher_args, launch_simulation
+
+if TYPE_CHECKING:
+    from pxr import Usd
 
 parser = argparse.ArgumentParser(description="Newton rigid-sphere and MPM-sand two-way coupling demo.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many frames; negative runs forever.")
@@ -81,6 +81,8 @@ def _spawn_colored_shape(
     color: tuple[float, float, float],
 ) -> Usd.Prim:
     """Spawn a shape with a display color understood by the Newton viewer."""
+    from pxr import Gf, UsdGeom
+
     prim = spawn_func(prim_path, cfg, translation, orientation)
     mesh = UsdGeom.Gprim(prim.GetStage().GetPrimAtPath(f"{prim_path}/geometry/mesh"))
     mesh.CreateDisplayColorAttr().Set([Gf.Vec3f(*color)])
@@ -92,6 +94,8 @@ def create_visualizer_cfgs():
     requested = args_cli.visualizer or []
     if not {"newton", "newton_gl", "newton_rtx"}.intersection(requested):
         return []
+
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
     cfg_type = NewtonRTXVisualizerCfg if requested == ["newton_rtx"] else NewtonGLVisualizerCfg
     return [
@@ -157,11 +161,12 @@ def create_sim_cfg():
 def create_scene_cfg():
     """Create the declarative rigid-sphere and granular-bath scene."""
     from isaaclab_newton.assets.mpm_object import MPMObjectCfg
+    from isaaclab_newton.sim.schemas import NewtonCollisionCfg
     from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
 
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
     from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     def bath_collider(
         prim_path: str,
@@ -179,7 +184,7 @@ def create_scene_cfg():
                     else sim_utils.spawn_cuboid
                 ),
                 size=size,
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(contact_margin=COLLIDER_MARGIN),
+                collision_props=NewtonCollisionCfg(contact_margin=COLLIDER_MARGIN),
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                     static_friction=0.6,
                     dynamic_friction=0.6,
@@ -199,9 +204,9 @@ def create_scene_cfg():
                     color=SPHERE_COLORS[index],
                 ),
                 radius=SPHERE_RADIUS,
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=SPHERE_MASS),
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(),
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+                mass_props=sim_utils.MassCfg(mass=SPHERE_MASS),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                     static_friction=0.5,
                     dynamic_friction=0.5,
@@ -230,7 +235,7 @@ def create_scene_cfg():
 
         ground = AssetBaseCfg(
             prim_path="/World/Ground",
-            spawn=sim_utils.GroundPlaneCfg(size=(12.0, 12.0), color=(0.30, 0.30, 0.30)),
+            spawn=sim_utils.GroundPlaneCfg(),
             init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -wall_t)),
         )
         dome_light = AssetBaseCfg(

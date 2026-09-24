@@ -220,7 +220,7 @@ def create_scene_cfg():
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
     from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     particle_mass = SNOW_SPACING**3 * SNOW_DENSITY
     particle_radius = 0.5 * SNOW_SPACING
@@ -231,9 +231,9 @@ def create_scene_cfg():
             prim_path=f"{{ENV_REGEX_NS}}/Crate_{index}",
             spawn=sim_utils.CuboidCfg(
                 size=(CRATE_SIZE, CRATE_SIZE, CRATE_SIZE),
-                rigid_props=sim_utils.NewtonRigidBodyPropertiesCfg(rigid_body_enabled=True),
-                mass_props=sim_utils.MassPropertiesCfg(mass=args_cli.crate_mass),
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(collision_enabled=True),
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
+                mass_props=sim_utils.MassCfg(mass=args_cli.crate_mass),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                     static_friction=CRATE_FRICTION,
                     dynamic_friction=CRATE_FRICTION,
@@ -279,7 +279,7 @@ def create_scene_cfg():
         # the MPM model view.
         ground = AssetBaseCfg(
             prim_path="/World/Ground",
-            spawn=sim_utils.GroundPlaneCfg(size=(12.0, 12.0), color=(0.32, 0.34, 0.38)),
+            spawn=sim_utils.GroundPlaneCfg(),
         )
 
         # The co-located hidden kinematic slab belongs only to the MPM entry.
@@ -289,11 +289,11 @@ def create_scene_cfg():
             prim_path="{ENV_REGEX_NS}/MPMGround",
             spawn=sim_utils.CuboidCfg(
                 size=(12.0, 12.0, 0.10),
-                rigid_props=sim_utils.NewtonRigidBodyPropertiesCfg(
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(
                     rigid_body_enabled=True,
                     kinematic_enabled=True,
                 ),
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(collision_enabled=True),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                     static_friction=CRATE_FRICTION,
                     dynamic_friction=CRATE_FRICTION,

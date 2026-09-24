@@ -7,7 +7,6 @@ from isaaclab_teleop import (
     ControllerHapticFeedbackCfg,
     IsaacTeleopCfg,
     XrAnchorRotationMode,
-    XrCameraFeedCfg,
     XrCfg,
 )
 
@@ -22,8 +21,8 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.contrib.locomanip_pick_place import mdp as locomanip_mdp
 from isaaclab_tasks.contrib.locomanip_pick_place.configs.action_cfg import AgileBasedLowerBodyActionCfg
@@ -280,7 +279,7 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, -0.3], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         ),
     )
 
@@ -290,7 +289,7 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
             scale=(0.75, 0.75, 0.75),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
         ),
     )
 
@@ -486,15 +485,6 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
             pipeline_builder=_build_g1_locomanipulation_pipeline,
             sim_device=self.sim.device,
             xr_cfg=self.xr,
-            xr_camera_feeds=[
-                XrCameraFeedCfg(
-                    camera_name="robot_pov_cam",
-                    enable_dlss_ray_reconstruction=True,
-                    dlss_exec_mode="quality",
-                    offset_m=(0.0, -0.15),
-                    max_update_hz=0.0,
-                )
-            ],
         )
         self.image_obs_list = ["robot_pov_cam"]
 

@@ -19,7 +19,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CommandTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from ..envs import ManagerBasedRLEnv
 
 
 class CommandTerm(ManagerTermBase):
@@ -46,7 +46,7 @@ class CommandTerm(ManagerTermBase):
 
         # create buffers to store the command
         # -- metrics that can be used for logging
-        self.metrics = dict()
+        self.metrics = {}
         # -- time left before resampling
         self.time_left = torch.zeros(self.num_envs, device=self.device)
         # -- counter for the number of times the command has been resampled within the current episode
@@ -241,7 +241,7 @@ class CommandManager(ManagerBase):
             env: The environment instance.
         """
         # create buffers to parse and store terms
-        self._terms: dict[str, CommandTerm] = dict()
+        self._terms: dict[str, CommandTerm] = {}
 
         # call the base class constructor (this prepares the terms)
         super().__init__(cfg, env)

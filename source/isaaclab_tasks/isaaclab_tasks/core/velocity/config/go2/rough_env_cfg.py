@@ -3,20 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the Unitree Go2 velocity-tracking environment on rough terrain."""
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
-from isaaclab_tasks.utils import preset
+from isaaclab_assets.robots.unitree import UNITREE_GO2_CFG
 
-##
-# Pre-defined configs
-##
-from isaaclab_assets.robots.unitree import UNITREE_GO2_CFG  # isort: skip
+from ...velocity_env_cfg import LocomotionVelocityRoughEnvCfg
 
 
 @configclass
 class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    """Configuration for the Unitree Go2 velocity-tracking environment on rough terrain."""
+
     def __post_init__(self):
         super().__post_init__()
 
@@ -25,7 +24,6 @@ class UnitreeGo2RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.sim.use_newton_actuators = True
         # scene
         self.scene.robot = UNITREE_GO2_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.robot.actuators["base_legs"].armature = preset(default=0.0, newton_mjwarp=0.02)
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/base"
         # scale down the terrains because the robot is small
         terrains = self.scene.terrain.terrain_generator.sub_terrains

@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""MDP terms specific to the lift and reorient (arm plus hand) environments."""
+
 from isaaclab.utils.module import lazy_export
 
 lazy_export()

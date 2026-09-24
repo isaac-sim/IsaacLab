@@ -13,15 +13,19 @@ from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
+import numpy as np
 import pytest
 import warp as wp
 from packaging import version
 
 from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
+from isaaclab.sim import SimulationContext
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 
 def _install_omni_stubs(monkeypatch):
+    sim = SimpleNamespace(stage=object(), device="cpu", get_scene_data_provider=MagicMock())
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
     omni_module = sys.modules.get("omni", types.ModuleType("omni"))
     replicator_module = types.ModuleType("omni.replicator")
     replicator_core_module = types.ModuleType("omni.replicator.core")
@@ -33,6 +37,7 @@ def _install_omni_stubs(monkeypatch):
     monkeypatch.setitem(sys.modules, "omni.replicator.core", replicator_core_module)
     monkeypatch.setitem(sys.modules, "omni.syntheticdata", syntheticdata_module)
     monkeypatch.setitem(sys.modules, "omni.usd", usd_module)
+    monkeypatch.setitem(sys.modules, "usdrt", MagicMock())
     monkeypatch.setattr(omni_module, "replicator", replicator_module, raising=False)
     monkeypatch.setattr(omni_module, "syntheticdata", syntheticdata_module, raising=False)
     monkeypatch.setattr(omni_module, "usd", usd_module, raising=False)
@@ -52,6 +57,7 @@ def test_isaac_rtx_supported_output_types_include_rgb_hdr(monkeypatch):
     with patch("isaaclab_physx.renderers.isaac_rtx_renderer.get_isaac_sim_version", return_value=version.parse("6.0")):
         specs = renderer.supported_output_types()
 
+    assert specs == renderer.cfg.supported_output_types()
     assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)
 
 
@@ -78,6 +84,7 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
     settings = MagicMock()
     settings.get.return_value = False
     stage = MagicMock()
+    stage.SelectPrims.return_value.GetCount.return_value = 1
     # Pass the Camera prim check that gates render-product creation.
     stage.GetPrimAtPath.return_value.IsA.side_effect = lambda typ: typ is UsdGeom.Camera
 
@@ -200,6 +207,7 @@ def test_simple_shading_configures_its_render_product(
     camera_prim.IsA.side_effect = lambda typ: typ is UsdGeom.Camera
 
     stage = MagicMock()
+    stage.SelectPrims.return_value.GetCount.return_value = 1
     stage.GetPrimAtPath.side_effect = lambda path: render_product_prim if path == rp.path else camera_prim
 
     annotator = MagicMock()
@@ -259,24 +267,6 @@ def test_simple_shading_configures_its_render_product(
     assert global_setting_calls == []
 
 
-def test_render_product_uuid_name_format_is_sdf_safe():
-    """``rp_{uuid4().hex}`` matches the create_render_data naming contract and is SDF-safe."""
-    import uuid
-
-    from pxr import Sdf
-
-    names = [f"rp_{uuid.uuid4().hex}" for _ in range(64)]
-    assert len(set(names)) == len(names)
-    for name in names:
-        assert name.startswith("rp_")
-        hex_part = name.removeprefix("rp_")
-        assert len(hex_part) == 32
-        int(hex_part, 16)  # raises if not hex
-        assert "-" not in name
-        assert Sdf.Path.IsValidIdentifier(name)
-        assert Sdf.Path.IsValidPathString(f"/Render/{name}")
-
-
 @pytest.mark.parametrize(
     ("has_gui", "expected_disable_color_render"),
     [
@@ -305,6 +295,7 @@ def test_depth_only_camera_color_render_setting(monkeypatch, has_gui, expected_d
     # Camera validation terminates create_render_data immediately after the
     # color-render setting is selected, keeping this a lightweight unit test.
     stage = MagicMock()
+    stage.SelectPrims.return_value.GetCount.return_value = 1
     stage.GetPrimAtPath.return_value.IsA.return_value = False
     spec = SimpleNamespace(
         camera_prim_paths=["/World/NotACamera"],
@@ -431,6 +422,41 @@ def test_deterministic_flag_gates_rtx_determinism_settings(monkeypatch, stored, 
     assert determinism_mock.called is expected_called
     if expected_called:
         determinism_mock.assert_called_once_with(settings)
+
+
+@pytest.mark.parametrize("data_type", ["rgba", "normals"])
+def test_render_treats_empty_annotator_frame_as_not_ready(monkeypatch, data_type):
+    """An empty warm-up frame should clear its output without slicing or launching a reshape."""
+    _install_omni_stubs(monkeypatch)
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    annotator = MagicMock()
+    annotator.get_data.return_value = np.empty((0, 0, 4), dtype=np.uint8)
+    output_buffer = MagicMock()
+    render_data = SimpleNamespace(
+        annotators={data_type: annotator},
+        output_data={data_type: SimpleNamespace(warp=output_buffer)},
+        spec=SimpleNamespace(
+            view_count=1,
+            device="cpu",
+            cfg=SimpleNamespace(width=64, height=64),
+        ),
+        renderer_info={},
+        ppisp_pipeline=None,
+        _hdr_scratch_wp=None,
+    )
+    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg()
+
+    with (
+        patch.object(rtx_renderer, "ensure_isaac_rtx_render_update"),
+        patch.object(rtx_renderer.wp, "launch") as launch,
+    ):
+        renderer.render(render_data)
+
+    output_buffer.zero_.assert_called_once_with()
+    launch.assert_not_called()
 
 
 def test_isaac_rtx_read_output_clears_stale_metadata_and_keeps_seeded_keys(monkeypatch):

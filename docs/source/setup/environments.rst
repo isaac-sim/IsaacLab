@@ -31,11 +31,6 @@ Command Builder
            <span>--task</span>
            <select data-environment-field="task" aria-label="Task"></select>
          </label>
-         <div class="environment-scope-switch" role="group" aria-label="Task collection">
-           <button type="button" class="is-active" data-task-scope="core" aria-pressed="true">Core</button>
-           <button type="button" data-task-scope="contrib" aria-pressed="false">Contrib</button>
-           <button type="button" data-task-scope="warp" aria-pressed="false">Warp</button>
-         </div>
        </div>
        <div class="environment-command-row environment-command-row-options">
          <label class="environment-selector environment-selector-physics">
@@ -60,6 +55,9 @@ Command Builder
          This environment does not support RL training or playback. The command runs it with the
          zero-action agent instead.
        </p>
+       <p class="environment-backend-warning" data-backend-warning role="status" hidden>
+         OV and Isaac Sim can't be mixed. Choose matching physics and renderer backends.
+       </p>
        <div class="environment-command-output">
          <code data-command-output></code>
          <div class="environment-command-actions">
@@ -82,7 +80,9 @@ Task Preview
      <section class="environment-preview-panel" aria-live="polite">
        <div class="environment-preview-stage">
          <video data-preview-video muted autoplay loop playsinline preload="metadata" hidden></video>
-         <img data-preview-image src="../../_images/cartpole.jpg" alt="Isaac-Cartpole preview">
+         <img data-preview-image
+              src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/tasks/classic/cartpole.jpg"
+              alt="Isaac-Cartpole preview">
          <div class="environment-preview-caption">
            <span class="environment-preview-label">Selected task</span>
            <strong data-preview-task>Isaac-Cartpole</strong>
@@ -105,24 +105,35 @@ Benchmarks
 .. raw:: html
 
    <div class="environment-browser" data-environment-benchmarks
-        data-benchmark-source="../../_static/environment-performance.csv">
+        data-benchmark-release-source="../../_static/benchmarks/environment-performance-release.csv"
+        data-benchmark-develop-source="../../_static/benchmarks/environment-performance-develop.csv"
+        data-benchmark-release-dates="2026-09-09"
+        data-benchmark-develop-dates="2026-08-28,2026-09-09">
      <section class="environment-benchmark-panel">
        <div class="environment-benchmark-toolbar">
-         <div class="environment-benchmark-legend" aria-label="Benchmark series"></div>
+         <div class="environment-benchmark-switch" role="group" aria-label="Benchmark channel">
+           <button type="button" class="is-active" data-benchmark-channel="release" aria-pressed="true">Release</button>
+           <button type="button" data-benchmark-channel="develop" aria-pressed="false">Develop</button>
+         </div>
+         <div class="environment-benchmark-count"><code>num_envs = 8192</code></div>
          <div class="environment-benchmark-switch" role="group" aria-label="Benchmark workload">
-           <button type="button" class="is-active" data-benchmark-workload="runtime" aria-pressed="true">Collection</button>
+           <button type="button" class="is-active" data-benchmark-workload="collection" aria-pressed="true">Collection</button>
            <button type="button" data-benchmark-workload="training" aria-pressed="false">Training</button>
          </div>
        </div>
-       <div class="environment-benchmark-chart" data-benchmark-chart></div>
+       <div class="environment-benchmark-legend" aria-label="Benchmark series"></div>
+       <div class="environment-benchmark-results">
+         <div class="environment-benchmark-chart" data-benchmark-chart></div>
+         <div class="environment-benchmark-table" data-benchmark-table tabindex="0"
+              role="region" aria-label="Benchmark FPS measurements, scroll for more configurations" hidden></div>
+       </div>
        <div class="environment-benchmark-stub" data-benchmark-empty hidden>
          <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
          <div>
            <strong>Benchmark data is not available yet</strong>
-           <p>Performance history will appear here when benchmark collection is enabled.</p>
          </div>
        </div>
-       <p class="environment-benchmark-error" data-benchmark-error hidden>Benchmark data could not be loaded.</p>
+       <div class="environment-benchmark-error" data-benchmark-error hidden>Benchmark data could not be loaded.</div>
      </section>
    </div>
 
@@ -135,8 +146,8 @@ Available Tasks
      <div class="environment-task-toolbar">
        <label class="environment-task-search">
          <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-         <span class="visually-hidden">Search tasks</span>
-         <input type="search" data-task-search placeholder="Search tasks" autocomplete="off">
+         <span class="visually-hidden">Search tasks and capabilities</span>
+         <input type="search" data-task-search placeholder="Search tasks or capabilities" autocomplete="off">
        </label>
        <label class="environment-task-filter">
          <span class="visually-hidden">Task category</span>
@@ -147,6 +158,11 @@ Available Tasks
            <option value="locomotion">Locomotion</option>
          </select>
        </label>
+       <div class="environment-scope-switch" role="group" aria-label="Task collection">
+         <button type="button" class="is-active" data-task-scope="core" aria-pressed="true">Core</button>
+         <button type="button" data-task-scope="contrib" aria-pressed="false">Contrib</button>
+         <button type="button" data-task-scope="warp" aria-pressed="false">Warp</button>
+       </div>
        <span class="environment-task-count" data-task-count></span>
      </div>
      <div class="environment-task-list" data-task-list></div>

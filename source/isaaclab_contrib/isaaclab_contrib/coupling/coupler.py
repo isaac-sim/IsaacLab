@@ -23,6 +23,7 @@ from isaaclab_newton.physics.mpm_manager import NewtonMPMManager
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from isaaclab_newton.physics.vbd_manager import NewtonVBDManager
 from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags
+from newton.solvers import SolverBase
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab.physics import PhysicsManager
@@ -192,6 +193,14 @@ class NewtonCouplerManager(NewtonVBDManager):
             entry.solver_cfg.class_type._register_builder_attributes(builder)
 
     @classmethod
+    def _registers_builder_attributes_from_solver(cls, solver_cls: type[SolverBase]) -> bool:
+        """Return whether the manager or a configured nested entry registers ``solver_cls`` attributes."""
+        return super()._registers_builder_attributes_from_solver(solver_cls) or any(
+            entry.solver_cfg.class_type._registers_builder_attributes_from_solver(solver_cls)
+            for entry in PhysicsManager._cfg.solver_cfg.entries
+        )
+
+    @classmethod
     def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
         """Normalize kinematic colliders when a coupled entry uses implicit MPM."""
         super()._prepare_builder_for_finalize(builder)
@@ -232,15 +241,15 @@ class NewtonCouplerManager(NewtonVBDManager):
     @classmethod
     def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
         """Promote a selected single MPM world to the solver's full-reset path."""
-        model = NewtonManager._model
+        backend = NewtonManager.backend
         solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
         has_mpm_entry = any(isinstance(entry.solver_cfg, MPMSolverCfg) for entry in getattr(solver_cfg, "entries", ()))
-        if world_mask is not None and model is not None and model.world_count == 1 and has_mpm_entry:
+        if world_mask is not None and backend is not None and backend.model.world_count == 1 and has_mpm_entry:
             selected = world_mask.numpy()
             if not selected.any():
                 return
             if selected[0] and not selected[-1]:
-                NewtonManager._solver.reset(NewtonManager._state_0, world_mask=None, flags=0)
+                NewtonManager._solver.reset(backend.state_0, world_mask=None, flags=0)
                 return
         super()._reset_solver_internals(world_mask)
 

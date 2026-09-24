@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: 'Branch to build and publish (e.g. develop, release/3.0.0-beta2)'
+        description: 'Branch to build and publish (e.g. develop, release/3.0.0)'
         required: true
         type: string
 
@@ -121,12 +121,12 @@ jobs:
         echo "isaaclab_image_name=$isaaclab_image_name" >> "$GITHUB_OUTPUT"
 
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
+      uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130  # v3.7.0
       with:
         platforms: linux/arm64
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
       with:
         platforms: linux/amd64,linux/arm64
         driver-opts: |

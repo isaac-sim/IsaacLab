@@ -63,6 +63,7 @@ if args_cli.physics == "newton_mjwarp":
 import random
 
 import torch
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -70,8 +71,8 @@ from isaaclab.markers.config import VisualizationMarkersCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 ##
 # Pre-defined configs
@@ -86,7 +87,7 @@ DEBUG_VISUALIZATION_ENABLED = "none" not in (args_cli.visualizer or [])
 if args_cli.flat_ground:
     ground_spawn_cfg = sim_utils.MeshCuboidCfg(
         size=(20.0, 20.0, 0.1),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
     )
     ground_init_state = AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -0.05))
 else:
@@ -184,11 +185,9 @@ elif args_cli.asset_type == "objects":
         spawn=sim_utils.MultiAssetSpawnerCfg(
             assets_cfg=object_assets_cfg,
             random_choice=True,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            ),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
     )

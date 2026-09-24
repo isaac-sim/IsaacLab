@@ -10,7 +10,7 @@ from typing import Any
 import torch
 import warp as wp
 
-from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
+from .index_kernel import IndexKernelDispatcher
 
 ##
 # Raycasting
@@ -59,7 +59,6 @@ def raycast_mesh_kernel(
         return_normal: Whether to return the ray hit normals. Defaults to False.
         return_face_id: Whether to return the ray hit face ids. Defaults to False.
     """
-    # get the thread id
     tid = wp.tid()
 
     t = float(0.0)  # hit distance along ray
@@ -199,7 +198,6 @@ def raycast_static_meshes_kernel(
         return_face_id: Whether to return the ray hit face ids. Defaults to False.
         return_mesh_id: Whether to return the mesh id. Defaults to False.
     """
-    # get the thread id
     tid_mesh_id, tid_env, tid_ray = wp.tid()
 
     direction = ray_directions[tid_env, tid_ray]
@@ -294,7 +292,6 @@ def raycast_dynamic_meshes_kernel(
         return_face_id: Whether to return the ray hit face ids. Defaults to False.
         return_mesh_id: Whether to return the mesh id. Defaults to False.
     """
-    # get the thread id
     tid_mesh_id, tid_env, tid_ray = wp.tid()
     if not env_mask[tid_env]:
         return
@@ -344,46 +341,48 @@ def reshape_tiled_image(
     is assumed to be tiled in the x and y directions. The output image is a batch of images with the
     specified height, width, and number of channels.
 
+    The tiled buffer is indexed as a 3D array rather than flattened to 1D so that the number of
+    cameras and the camera resolution are bounded per dimension instead of by their product. A
+    flattened view of a large tiled buffer can exceed the maximum size of a single Warp array
+    dimension, see https://nvidia.github.io/warp/stable/user_guide/limitations.html#arrays.
+
     Args:
-        tiled_image_buffer: The input image buffer. Shape is (height * width * num_channels * num_cameras,).
+        tiled_image_buffer: The input image buffer. Shape is
+            (num_tiles_y * image_height, num_tiles_x * image_width, num_channels).
         batched_image: The output image. Shape is (num_cameras, height, width, num_channels).
         image_width: The width of the image.
         image_height: The height of the image.
         num_channels: The number of channels in the image.
         num_tiles_x: The number of tiles in x-direction.
     """
-    # get the thread id
     camera_id, height_id, width_id = wp.tid()
 
     # resolve the tile indices
     tile_x_id = camera_id % num_tiles_x
     tile_y_id = camera_id // num_tiles_x
-    # compute the start index of the pixel in the tiled image buffer
-    pixel_start = (
-        num_channels * num_tiles_x * image_width * (image_height * tile_y_id + height_id)
-        + num_channels * tile_x_id * image_width
-        + num_channels * width_id
-    )
+    # resolve the pixel position within the tiled image buffer
+    row = image_height * tile_y_id + height_id
+    col = image_width * tile_x_id + width_id
 
     # copy the pixel values into the batched image
     for i in range(num_channels):
-        batched_image[camera_id, height_id, width_id, i] = batched_image.dtype(tiled_image_buffer[pixel_start + i])
+        batched_image[camera_id, height_id, width_id, i] = batched_image.dtype(tiled_image_buffer[row, col, i])
 
 
 # uint32 -> int32 conversion is required for non-colored segmentation annotators
 wp.overload(
     reshape_tiled_image,
-    {"tiled_image_buffer": wp.array(dtype=wp.uint32), "batched_image": wp.array(dtype=wp.uint32, ndim=4)},
+    {"tiled_image_buffer": wp.array(dtype=wp.uint32, ndim=3), "batched_image": wp.array(dtype=wp.uint32, ndim=4)},
 )
 # uint8 is used for 4 channel annotators
 wp.overload(
     reshape_tiled_image,
-    {"tiled_image_buffer": wp.array(dtype=wp.uint8), "batched_image": wp.array(dtype=wp.uint8, ndim=4)},
+    {"tiled_image_buffer": wp.array(dtype=wp.uint8, ndim=3), "batched_image": wp.array(dtype=wp.uint8, ndim=4)},
 )
 # float32 is used for single channel annotators
 wp.overload(
     reshape_tiled_image,
-    {"tiled_image_buffer": wp.array(dtype=wp.float32), "batched_image": wp.array(dtype=wp.float32, ndim=4)},
+    {"tiled_image_buffer": wp.array(dtype=wp.float32, ndim=3), "batched_image": wp.array(dtype=wp.float32, ndim=4)},
 )
 
 ##

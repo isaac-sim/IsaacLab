@@ -55,6 +55,7 @@ from random import Random
 
 import torch
 import warp as wp
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -67,9 +68,8 @@ from isaaclab.cloner import CloneCfg, InclusionSet, sequential
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import schemas
-from isaaclab.utils import Timer
+from isaaclab.utils import Timer, configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -149,10 +149,10 @@ def spawn_grocery(
 ) -> Usd.Prim:
     """Spawn a visual YCB model and author the physics schemas it does not ship with.
 
-    These models carry no physics schemas, so the ``rigid_props`` and ``collision_props`` of a
-    spawner configuration would find nothing to modify. This spawner defines each schema
-    instead: the rigid body on the asset root and a convex-hull collider on the mesh, matching
-    how the physics-ready YCB models are authored.
+    These models carry no physics schemas, so the ``collision_props`` of a spawner configuration
+    would author the collider on the asset root rather than on its meshes. This spawner defines
+    each schema instead: the rigid body on the asset root and a convex-hull collider on the mesh,
+    matching how the physics-ready YCB models are authored.
 
     Args:
         prim_path: Prim path to spawn the asset at.
@@ -168,12 +168,16 @@ def spawn_grocery(
     root_path = prim.GetPath().pathString
     for mesh in sim_utils.get_all_matching_child_prims(root_path, lambda child: child.GetTypeName() == "Mesh"):
         mesh_path = mesh.GetPath().pathString
-        schemas.define_collision_properties(mesh_path, schemas.CollisionBaseCfg(collision_enabled=True))
-        schemas.define_mesh_collision_properties(
-            mesh_path, schemas.MeshCollisionBaseCfg(mesh_approximation_name="convexHull")
+        schemas.apply_collision_properties(
+            mesh_path, [schemas.UsdPhysicsCollisionCfg(collision_enabled=True)], create_if_missing=True
         )
-    schemas.define_rigid_body_properties(root_path, sim_utils.RigidBodyPropertiesCfg(solver_position_iteration_count=4))
-    schemas.define_mass_properties(root_path, schemas.MassPropertiesCfg(mass=GROCERY_MASS))
+        schemas.apply_mesh_collision_properties(
+            mesh_path, [schemas.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull")]
+        )
+    schemas.apply_rigid_body_properties(
+        root_path, [PhysxRigidBodyCfg(solver_position_iteration_count=4)], create_if_missing=True
+    )
+    schemas.apply_mass_properties(root_path, [schemas.MassCfg(mass=GROCERY_MASS)], create_if_missing=True)
     return prim
 
 
@@ -241,10 +245,11 @@ class BinPackingSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/KLT_Bin/small_KLT.usd",
             scale=(2.0, 2.0, 2.0),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                solver_position_iteration_count=4, solver_velocity_iteration_count=0, kinematic_enabled=True
-            ),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            rigid_props=[
+                sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+                PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0),
+            ],
+            mass_props=sim_utils.MassCfg(mass=1.0),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.15)),
     )

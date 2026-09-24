@@ -371,8 +371,8 @@ def run_visualizer_golden_cartpole(
         visualizer_type: ``"kit"`` (RTX viewport) or ``"newton"`` (OpenGL).
         mode: ``"viewport"`` (main viewer frame) or ``"tiled"`` (composite tiled camera).
         comparison_scores: Module-level accumulator forwarded to :func:`validate_visualizer_frame`.
-        buffer_steps: Physics steps to run before capture (default 0 — capture the reset pose
-            so the pole remains at its initial 45° angle and is clearly attached to the cart).
+        buffer_steps: Physics steps to run before capture (default 0 — capture the centered
+            cart with the pole at its initial 45° angle and clearly attached to the cart).
         all_envs_perspective: Whether to frame four environments in one Kit perspective-camera image.
     """
     if all_envs_perspective and (visualizer_type != "kit" or mode != "viewport"):
@@ -388,7 +388,7 @@ def run_visualizer_golden_cartpole(
             return _viz_utils._capture_visualizer_tiled_camera_rgb(_get_active_visualizer(env, viz_type))
         if viz_type == "kit":
             return _viz_utils._capture_kit_viewport_with_pose_reapply(
-                env, _get_active_visualizer(env, "kit"), physics_backend=backend, prior_physics_steps=buffer_steps
+                env, _get_active_visualizer(env, "kit"), physics_backend=backend
             )
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
@@ -409,15 +409,14 @@ def run_visualizer_golden_cartpole(
         )
         _viz_utils._configure_sim_for_visualizer_test(env)
         actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
-        # Pin the initial pole angle to a fixed value so the golden image shows a clearly
-        # visible displaced pole regardless of physics backend or random seed.  A uniform
-        # range [lo, hi] with lo == hi collapses to a single deterministic angle.
+        # Center the cart so the tilted pole stays inside the camera frame in every tile.
+        # Fix the pole angle so the reset pose is independent of the backend and random seed.
         import math
 
+        env.cfg.initial_cart_position_range = (0.0, 0.0)
         env.cfg.initial_pole_angle_range = (math.pi / 4, math.pi / 4)  # exactly 45°
-        # Reseed immediately before reset so other stochastic env parameters (cart pos,
-        # velocity noise) remain reproducible regardless of how many CUDA RNG samples
-        # prior tests consumed.
+        # Reseed immediately before reset so velocity noise remains reproducible regardless
+        # of how many CUDA RNG samples prior tests consumed.
         from isaaclab.utils.seed import configure_seed
 
         configure_seed(42, torch_deterministic=True)
@@ -464,7 +463,6 @@ def run_visualizer_golden_shadow_hand(
                 _get_active_visualizer(env, "kit"),
                 resolution=_viz_utils._SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION,
                 physics_backend=backend,
-                prior_physics_steps=0,
             )
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
@@ -540,7 +538,6 @@ def run_visualizer_golden_anymal_d(
                 _get_active_visualizer(env, "kit"),
                 resolution=_viz_utils._ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION,
                 physics_backend=backend,
-                prior_physics_steps=_viz_utils._START_BUFFER_STEPS,
             )
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
@@ -603,13 +600,7 @@ def run_visualizer_golden_franka_cloth(
         if capture_mode == "tiled":
             return _viz_utils._capture_visualizer_tiled_camera_rgb(_get_active_visualizer(env, viz_type))
         if viz_type == "kit":
-            # Do NOT call env.sim.render() here: the VBD cloth solver never sets
-            # NewtonManager._newton_fabric_ready, so env.sim.render() blocks in
-            # the Fabric sync path indefinitely on some GPU/driver combinations
-            # (observed 48+ min hang on RTX PRO 4500 Blackwell).  Instead use
-            # app_updates_only=True which drives RTX TAA via lightweight app.update()
-            # ticks without triggering Newton Fabric sync.  The 12%/SSIM-0.85
-            # thresholds are loose enough to accept the resulting frame quality.
+            # Warm up RTX TAA without advancing the cloth simulation.
             return _viz_utils._capture_kit_viewport_with_pose_reapply(
                 env,
                 _get_active_visualizer(env, "kit"),

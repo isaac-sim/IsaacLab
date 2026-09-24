@@ -19,7 +19,7 @@ import textwrap
 
 import pytest
 
-from pxr import UsdPhysics
+from pxr import Sdf, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.utils import queries
@@ -275,6 +275,7 @@ def test_find_global_fixed_joint_prim():
     assert sim_utils.find_global_fixed_joint_prim("/World/ANYmal") is None
     assert sim_utils.find_global_fixed_joint_prim("/World/Franka") is not None
     assert sim_utils.find_global_fixed_joint_prim("/World/Franka_Isaac") is not None
+    assert sim_utils.find_global_fixed_joint_prim(Sdf.Path("/World/Franka")) is not None
 
     # make fixed joint disabled manually
     joint_prim = sim_utils.find_global_fixed_joint_prim("/World/Franka")

@@ -23,6 +23,7 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import enable_extension
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
@@ -46,7 +47,7 @@ if TYPE_CHECKING:
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
 
-from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+from .isaac_rtx_renderer_cfg import SIMPLE_SHADING_MODES, IsaacRtxRendererCfg
 
 _PPISP_IMPORT_ERROR_MESSAGE = (
     "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
@@ -75,12 +76,6 @@ def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
 # The public data-type names we expose (``simple_shading_*``) are kept stable
 # for backwards compatibility and map onto the Kit integer values below.
 SIMPLE_SHADING_AOV = "SimpleShadingSD"
-SIMPLE_SHADING_MODES = {
-    "simple_shading_constant_diffuse": 1,
-    "simple_shading_diffuse_mdl": 2,
-    "simple_shading_full_mdl": 3,
-}
-
 # Render-product attributes Kit maps the ``/rtx/rendermode`` and ``/rtx/minimal/mode`` carb
 # settings onto (``OmniRtxSettingsCommonAPI_1`` and ``OmniRtxSettingsMinimalAPI_1``). Authoring
 # them per render product keeps the process-wide settings — and therefore every other camera and
@@ -88,6 +83,33 @@ SIMPLE_SHADING_MODES = {
 RTX_RENDER_MODE_ATTR = "omni:rtx:rendermode"
 RTX_MINIMAL_MODE_ATTR = "omni:rtx:minimal:mode"
 RTX_MINIMAL_RENDER_MODE = "Minimal"
+
+_CAMERA_INTRINSIC_ATTRIBUTES = (
+    "focalLength",
+    "horizontalAperture",
+    "verticalAperture",
+    "horizontalApertureOffset",
+    "verticalApertureOffset",
+)
+
+
+@wp.kernel(enable_backward=False)
+def _write_camera_intrinsics(
+    parameters: wp.array2d(dtype=wp.float32),
+    rows: wp.fabricarray(dtype=wp.int32),
+    focal: wp.fabricarray(dtype=wp.float32),
+    horizontal: wp.fabricarray(dtype=wp.float32),
+    vertical: wp.fabricarray(dtype=wp.float32),
+    horizontal_offset: wp.fabricarray(dtype=wp.float32),
+    vertical_offset: wp.fabricarray(dtype=wp.float32),
+):
+    i = wp.tid()
+    row = rows[i]
+    focal[i] = parameters[0, row]
+    horizontal[i] = parameters[1, row]
+    vertical[i] = parameters[2, row]
+    horizontal_offset[i] = parameters[3, row]
+    vertical_offset[i] = parameters[4, row]
 
 
 def _camera_semantic_filter_predicate(semantic_filter: str | list[str]) -> str:
@@ -109,12 +131,51 @@ class IsaacRtxRenderData:
     output_data: dict[str, ProxyArray] | None = None
     spec: CameraRenderSpec | None = None
     renderer_info: dict[str, Any] = field(default_factory=dict)
+    intrinsic_selection: Any = None
+    intrinsic_row_attribute: str = ""
+    intrinsic_stage: Any = None
     ppisp_pipeline: PpispPipeline | None = None
     """Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set."""
     _hdr_scratch_wp: wp.array | None = None
     """Internal HDR scratch buffer allocated when the user did not request
     ``"rgb_hdr"`` in ``data_types`` but the PPISP pipeline still needs
     somewhere to receive the HDR AOV before LDR conversion."""
+
+    def __post_init__(self):
+        """Compile the stage-bound calibration columns owned by this render product."""
+        if self.spec is None:
+            return
+        # Resolve camera-to-Fabric rows once. Fabric bucket order need not match sensor order.
+        import usdrt
+
+        from isaaclab.sim.utils.stage import get_current_stage
+
+        spec = self.spec
+        stage = get_current_stage()
+        fabric = get_current_stage(fabric=True)
+        row_attribute = f"isaaclab:cameraIntrinsicRow:{uuid.uuid4().hex}"
+        for row, path in enumerate(spec.camera_prim_paths):
+            prim = fabric.GetPrimAtPath(path)
+            prim.CreateAttribute(row_attribute, usdrt.Sdf.ValueTypeNames.Int, True).Set(row)
+            # Reinitialize from USD, including values left in Fabric by a previous runtime override.
+            for name in _CAMERA_INTRINSIC_ATTRIBUTES:
+                value = stage.GetPrimAtPath(path).GetAttribute(name).Get()
+                prim.CreateAttribute(name, usdrt.Sdf.ValueTypeNames.Float, False).Set(value)
+        selection = fabric.SelectPrims(
+            require_attrs=[
+                (usdrt.Sdf.ValueTypeNames.Int, row_attribute, usdrt.Usd.Access.Read),
+                *[
+                    (usdrt.Sdf.ValueTypeNames.Float, name, usdrt.Usd.Access.ReadWrite)
+                    for name in _CAMERA_INTRINSIC_ATTRIBUTES
+                ],
+            ],
+            device=str(spec.device),
+        )
+        if selection.GetCount() != len(spec.camera_prim_paths):
+            raise RuntimeError("Fabric camera calibration selection does not match the camera count.")
+        self.intrinsic_selection = selection
+        self.intrinsic_row_attribute = row_attribute
+        self.intrinsic_stage = fabric
 
 
 class IsaacRtxRenderer(BaseRenderer):
@@ -134,6 +195,12 @@ class IsaacRtxRenderer(BaseRenderer):
             apply_isaac_rtx_determinism_settings(settings)
         ensure_rtx_hydra_engine_attached()
         # ``/isaaclab/render/rtx_sensors`` is owned by ``Camera.__init__`` (must be set pre-``sim.reset()``).
+
+    def initialize(self) -> None:
+        """Bind shared Fabric destinations after scene creation."""
+        sim = SimulationContext.instance()
+        self._fabric = sim.get_or_create_backend(sim.fabric_cfg)
+        self._fabric.bind_transforms(sim.get_scene_data_provider())
 
     @property
     def visual_material_writer(self):
@@ -176,31 +243,11 @@ class IsaacRtxRenderer(BaseRenderer):
         """
         sim_major = get_isaac_sim_version().major
 
-        specs: dict[RenderBufferKind, RenderBufferSpec] = {
-            # Replicator's native layout for color output is rgba/uint8;
-            # ``Camera`` aliases ``rgb`` as a view into ``rgba`` storage.
-            RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
-            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
-            RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32),
-            RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
-            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
-            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
-            RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
-            RenderBufferKind.MOTION_VECTORS: RenderBufferSpec(2, wp.float32),
-        }
-
-        if sim_major >= 6:
-            specs[RenderBufferKind.ALBEDO] = RenderBufferSpec(4, wp.uint8)
+        specs = self.cfg.supported_output_types()
+        if sim_major < 6:
+            specs.pop(RenderBufferKind.ALBEDO)
             for shading_type in SIMPLE_SHADING_MODES:
-                specs[RenderBufferKind(shading_type)] = RenderBufferSpec(3, wp.uint8)
-
-        seg_specs = (
-            (RenderBufferKind.SEMANTIC_SEGMENTATION, self.cfg.colorize_semantic_segmentation),
-            (RenderBufferKind.INSTANCE_SEGMENTATION, self.cfg.colorize_instance_segmentation),
-            (RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST, self.cfg.colorize_instance_id_segmentation),
-        )
-        for name, colorize in seg_specs:
-            specs[name] = RenderBufferSpec(4, wp.uint8) if colorize else RenderBufferSpec(1, wp.int32)
+                specs.pop(RenderBufferKind(shading_type))
 
         return specs
 
@@ -531,9 +578,8 @@ class IsaacRtxRenderer(BaseRenderer):
             )
 
     def update_transforms(self) -> None:
-        """No-op for Isaac RTX - uses USD scene directly.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
-        pass
+        """Update shared Fabric transforms and propagate the visual hierarchy."""
+        self._fabric.update_transforms(SimulationContext.instance().get_scene_data_provider())
 
     def update_geometries(self) -> None:
         """No-op for Isaac RTX - uses USD scene directly.
@@ -547,9 +593,24 @@ class IsaacRtxRenderer(BaseRenderer):
         orientations: ProxyArray,
         intrinsics: ProxyArray,
     ):
-        """No-op for Replicator - uses USD camera prims directly.
+        """No-op for camera poses, which the frame view already writes into Fabric.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_camera`."""
         pass
+
+    def update_camera_intrinsics(self, render_data: IsaacRtxRenderData, intrinsics: wp.array, parameters: wp.array):
+        """Write camera projection columns directly into Fabric from device buffers."""
+        selection = render_data.intrinsic_selection
+        selection.PrepareForReuse()
+        wp.launch(
+            _write_camera_intrinsics,
+            dim=selection.GetCount(),
+            inputs=[
+                parameters,
+                wp.fabricarray(selection, render_data.intrinsic_row_attribute),
+                *[wp.fabricarray(selection, name) for name in _CAMERA_INTRINSIC_ATTRIBUTES],
+            ],
+            device=parameters.device,
+        )
 
     def render(self, render_data: IsaacRtxRenderData):
         """Extract data from annotators and write to output buffers.
@@ -573,7 +634,7 @@ class IsaacRtxRenderer(BaseRenderer):
             rows = math.ceil(view_count / cols)
             return (cols, rows)
 
-        num_tiles_x = tiling_grid_shape()[0]
+        num_tiles_x, num_tiles_y = tiling_grid_shape()
 
         # Extract the flattened image buffer
         for data_type, annotator in render_data.annotators.items():
@@ -584,6 +645,17 @@ class IsaacRtxRenderer(BaseRenderer):
                 render_data.renderer_info[data_type] = output["info"]
             else:
                 tiled_data_buffer = output
+
+            # The RTX annotator may return an empty frame while its render product is warming up.
+            # Clear the destination so callers do not observe stale data, then wait for the next frame.
+            if data_type == str(RenderBufferKind.RGB_HDR) and data_type not in output_data:
+                assert render_data._hdr_scratch_wp is not None
+                buf_wp = render_data._hdr_scratch_wp
+            else:
+                buf_wp = output_data[data_type].warp
+            if tiled_data_buffer.size == 0:
+                buf_wp.zero_()
+                continue
 
             # convert data buffer to warp array
             if isinstance(tiled_data_buffer, np.ndarray):
@@ -619,19 +691,30 @@ class IsaacRtxRenderer(BaseRenderer):
             if data_type == str(RenderBufferKind.RGB_HDR):
                 tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
 
-            # The HDR annotator's destination is the user-visible ``output_data["rgb_hdr"]``
-            # when they requested it explicitly; otherwise the renderer's internal
-            # scratch buffer that the PPISP pipeline reads.
-            if data_type == str(RenderBufferKind.RGB_HDR) and data_type not in output_data:
-                assert render_data._hdr_scratch_wp is not None
-                buf_wp = render_data._hdr_scratch_wp
-            else:
-                buf_wp = output_data[data_type].warp
+            # ``reshape_tiled_image`` indexes the tiled buffer as
+            # (num_tiles_y * height, num_tiles_x * width, channels), but annotators hand this data back
+            # with varying shapes: 3D for multi-channel outputs, 2D for single-channel ones, and — for the
+            # colorized segmentation types reinterpreted above — a descriptor that over-claims the backing
+            # memory when the raw buffer already carries a channel axis (e.g. (H, W, 4) becomes (H, W, 4, 4)).
+            # Build the view directly from the pointer rather than reshaping, so the extra claimed elements
+            # are ignored exactly as the previous flattened indexing ignored them. Keeping the view 3D
+            # instead of 1D also keeps every dimension within Warp's per-dimension array size limit, so
+            # large environment counts and camera resolutions no longer overflow a flattened dimension.
+            tile_height, tile_width, num_channels = (int(dim) for dim in buf_wp.shape[1:])
+            # ``tiled_source`` must outlive the view below: the view does not own the annotator memory.
+            tiled_source = tiled_data_buffer
+            tiled_data_buffer = wp.array(
+                ptr=tiled_source.ptr,
+                shape=(num_tiles_y * tile_height, num_tiles_x * tile_width, num_channels),
+                dtype=tiled_source.dtype,
+                device=device,
+            )
+
             wp.launch(
                 kernel=reshape_tiled_image,
                 dim=(view_count, cfg.height, cfg.width),
                 inputs=[
-                    tiled_data_buffer.flatten(),
+                    tiled_data_buffer,
                     buf_wp,
                     *list(buf_wp.shape[1:]),
                     num_tiles_x,
@@ -690,6 +773,14 @@ class IsaacRtxRenderer(BaseRenderer):
 
         render_data.render_product.destroy()
         render_data.render_product = None
+
+        render_data.intrinsic_selection = None
+        if render_data.intrinsic_stage is not None and render_data.spec is not None:
+            for path in render_data.spec.camera_prim_paths:
+                prim = render_data.intrinsic_stage.GetPrimAtPath(path)
+                if prim.IsValid():
+                    prim.RemoveProperty(render_data.intrinsic_row_attribute)
+        render_data.intrinsic_stage = None
 
         render_data.annotators.clear()
         render_data.output_data = None

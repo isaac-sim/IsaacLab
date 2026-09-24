@@ -32,7 +32,7 @@ from pxr import Gf, UsdGeom
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 DOMINO_SIZE = (0.12, 0.032, 0.36)
 DOMINO_SPACING = 0.12
@@ -56,9 +56,9 @@ def _domino_cfg(position: tuple[float, float, float], orientation: tuple[float, 
         prim_path="",
         spawn=sim_utils.CuboidCfg(
             size=DOMINO_SIZE,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(density=580.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(density=580.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             physics_material=sim_utils.RigidBodyMaterialCfg(
                 static_friction=1.0,
                 dynamic_friction=1.0,
@@ -76,9 +76,9 @@ def _trigger_cfg() -> RigidObjectCfg:
         prim_path="/World/Dominoes/Trigger",
         spawn=sim_utils.CuboidCfg(
             size=(DOMINO_SIZE[1], LOGO_FOOTPRINT[1], DOMINO_SIZE[2]),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(density=20.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(density=20.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             physics_material=sim_utils.RigidBodyMaterialCfg(
                 static_friction=1.0,
                 dynamic_friction=1.0,
@@ -97,7 +97,7 @@ class DominoSceneCfg(InteractiveSceneCfg):
         prim_path="/World/Floor",
         spawn=sim_utils.CuboidCfg(
             size=(LOGO_FOOTPRINT[0] + 4.0, LOGO_FOOTPRINT[1] + 4.0, 0.10),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             physics_material=sim_utils.RigidBodyMaterialCfg(
                 static_friction=1.0,
                 dynamic_friction=1.0,

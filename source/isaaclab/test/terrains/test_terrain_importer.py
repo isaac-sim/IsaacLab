@@ -139,10 +139,10 @@ def test_plane(device, use_custom_material):
         assert tuple(environment.GetAttribute("xformOp:scale").Get()) == pytest.approx((2.6, 2.6, 1.0))
         visual_mesh = UsdGeom.Mesh(sim.stage.GetPrimAtPath(f"{mesh_prim_path}/Environment/Geometry"))
         assert [tuple(uv) for uv in UsdGeom.PrimvarsAPI(visual_mesh).GetPrimvar("st").Get()] == [
-            (-26.0, -26.0),
-            (26.0, -26.0),
-            (26.0, 26.0),
-            (-26.0, 26.0),
+            (-65.0, -65.0),
+            (65.0, -65.0),
+            (65.0, 65.0),
+            (-65.0, 65.0),
         ]
 
         # Direct imports use the same bounded default instead of the legacy 2,000 km visual mesh.
@@ -153,10 +153,10 @@ def test_plane(device, use_custom_material):
             sim.stage.GetPrimAtPath(f"{terrain_importer.cfg.prim_path}/direct/Environment/Geometry")
         )
         assert [tuple(uv) for uv in UsdGeom.PrimvarsAPI(direct_mesh).GetPrimvar("st").Get()] == [
-            (-26.0, -26.0),
-            (26.0, -26.0),
-            (26.0, 26.0),
-            (-26.0, 26.0),
+            (-65.0, -65.0),
+            (65.0, -65.0),
+            (65.0, 65.0),
+            (-65.0, 65.0),
         ]
 
         # obtain underling mesh
@@ -323,9 +323,9 @@ def _populate_scene(sim: SimulationContext, num_balls: int = 2048, geom_sphere: 
         # Spawn a geom sphere with rigid body properties
         sphere_cfg = sim_utils.SphereCfg(
             radius=0.25,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=visual_material_cfg,
             physics_material=physics_material_cfg,
         )
@@ -334,9 +334,9 @@ def _populate_scene(sim: SimulationContext, num_balls: int = 2048, geom_sphere: 
         # Spawn a mesh sphere with rigid body properties
         mesh_sphere_cfg = sim_utils.MeshSphereCfg(
             radius=0.25,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
             visual_material=visual_material_cfg,
             physics_material=physics_material_cfg,
         )

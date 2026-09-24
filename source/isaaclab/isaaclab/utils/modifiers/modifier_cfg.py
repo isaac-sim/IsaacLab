@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 
-from isaaclab.utils.configclass import configclass
+from .. import configclass
 
 if TYPE_CHECKING:
     from .modifier import DigitalFilter, Integrator
@@ -29,7 +29,7 @@ class ModifierCfg:
     observation manager constructs them with the configuration, observation dimensions, and device.
     """
 
-    params: dict[str, Any] = dict()
+    params: dict[str, Any] = {}
     """Parameters used by the modifier. Defaults to an empty dictionary.
 
     Function modifiers receive them as keyword arguments on each call. Class modifiers access them through this

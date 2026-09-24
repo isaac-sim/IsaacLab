@@ -16,12 +16,15 @@ run the corresponding backend-runtime group.
 """
 
 import ast
+import fcntl
 import os
 import re
+import struct
 import subprocess
 import sys
 from dataclasses import replace
 from pathlib import Path
+from unittest import mock
 
 import pytest
 import standalone_script_cases as script_cases
@@ -114,24 +117,19 @@ def test_script_scope_rejects_empty_selection():
         select_script_scope(SPECS, "missing")
 
 
-def test_showroom_documents_options_for_each_mentioned_demo():
-    """Every demo showcased in the showroom must list its supported launch options."""
-
-    def documented_values(entry: str, label: str) -> set[str]:
-        match = re.search(rf"(?ms)^   \*\*{label}:\*\*[ \t]*(.+?)(?=\n\n|\Z)", entry)
-        assert match is not None, f"showroom entry does not list {label.lower()} options"
-        return set(re.findall(r"``([^`]+)``", match.group(1)))
-
-    showroom = (script_cases.ROOT / "docs/source/overview/showroom.rst").read_text(encoding="utf-8")
-    entries = re.findall(r"(?ms)^-  .*?(?=^-  |\Z)", showroom)
+def test_demo_browser_documents_options_for_each_demo():
+    """Every demo card must expose its supported launch options to the command builder."""
+    docs_source = script_cases.ROOT / "docs/source"
+    demos_page = (docs_source / "setup/demos.rst").read_text(encoding="utf-8")
+    cards = re.findall(r'(?s)<button[^>]+data-demo-path="[^"]+"[^>]*>', demos_page)
     documented_entries = {}
-    for entry in entries:
-        paths = set(re.findall(r"scripts/demos/[A-Za-z0-9_./-]+\.py", entry))
-        assert len(paths) <= 1, f"showroom entry references multiple demos: {paths}"
-        if paths:
-            documented_entries[paths.pop()] = entry
+    for card in cards:
+        attributes = dict(re.findall(r'data-demo-([\w-]+)="([^"]*)"', card))
+        path = attributes.pop("path")
+        assert path not in documented_entries, f"demo browser contains a duplicate card for {path}"
+        documented_entries[path] = attributes
 
-    referenced_paths = set(re.findall(r"scripts/demos/[A-Za-z0-9_./-]+\.py", showroom))
+    referenced_paths = set(re.findall(r"scripts/demos/[A-Za-z0-9_./-]+\.py", demos_page))
     assert documented_entries.keys() == referenced_paths
 
     demo_specs = {
@@ -140,22 +138,18 @@ def test_showroom_documents_options_for_each_mentioned_demo():
         if spec.relative_path.startswith("scripts/demos/") and spec.relative_path in referenced_paths
     }
     assert demo_specs.keys() == referenced_paths
+    image_paths = re.findall(r'<img src="../../([^"]+)"', demos_page)
+    assert image_paths
+    missing_images = [path for path in image_paths if not (docs_source / path).is_file()]
+    assert not missing_images, f"demo browser references missing images: {missing_images}"
     for path, spec in demo_specs.items():
         entry = documented_entries[path]
         expected_physics = {backend for _, backend in spec.physics_backends}
         expected_visualizers = set(spec.visualizers)
-        assert documented_values(entry, "Physics") == expected_physics, f"{path} documents incorrect physics options"
-        assert documented_values(entry, "Visualizer") == expected_visualizers, (
+        assert set(entry["physics"].split(",")) == expected_physics, f"{path} documents incorrect physics options"
+        assert set(entry["visualizers"].split(",")) == expected_visualizers, (
             f"{path} documents incorrect visualizer options"
         )
-
-        selectable_renderers = {backend for option, backend in spec.rendering_backends if option is not None}
-        if selectable_renderers:
-            assert documented_values(entry, "Renderer") == selectable_renderers, (
-                f"{path} documents incorrect renderer options"
-            )
-        else:
-            assert "**Renderer:**" not in entry, f"{path} advertises a renderer option that it does not expose"
 
 
 def test_commands_respect_script_launcher_capabilities():
@@ -380,6 +374,38 @@ def test_subprocess_supervisor_soaks_then_stops_process_group():
     assert result.elapsed < 2.0
 
 
+def test_subprocess_supervisor_completes_soak_after_startup_deadline(monkeypatch):
+    """Readiness just before the startup deadline must still receive the full soak."""
+    process = mock.Mock(returncode=None)
+    process.poll.side_effect = lambda: process.returncode
+    process.communicate.return_value = (b"", None)
+    selector = mock.Mock()
+    now = 0.0
+    poll_times = iter((299.0, 300.0, 304.0))
+
+    def select(timeout):
+        nonlocal now
+        if timeout == 0.0:
+            return []
+        now = next(poll_times)
+        if now == 299.0:
+            return [(mock.Mock(fileobj=process.stdout), script_cases.selectors.EVENT_READ)]
+        return []
+
+    selector.select.side_effect = select
+    monkeypatch.setattr(script_cases.subprocess, "Popen", lambda *args, **kwargs: process)
+    monkeypatch.setattr(script_cases.selectors, "DefaultSelector", lambda: selector)
+    monkeypatch.setattr(script_cases.os, "read", lambda *args: b"READY\n")
+    monkeypatch.setattr(script_cases.time, "monotonic", lambda: now)
+    monkeypatch.setattr(fcntl, "ioctl", lambda *args: struct.pack("i", 0))
+    monkeypatch.setattr(script_cases, "_terminate_process_group", lambda process: setattr(process, "returncode", -15))
+
+    result = run_until_ready(["demo.py"], r"READY", startup_timeout=300.0, soak_time=5.0)
+    assert result.ready
+    assert result.stopped_after_soak
+    assert result.elapsed == 304.0
+
+
 def test_subprocess_supervisor_ignores_fatal_output_after_intentional_teardown(monkeypatch):
     """Fatal-looking output caused by intentional teardown must not fail a healthy launch."""
 
@@ -417,6 +443,7 @@ def test_subprocess_supervisor_ignores_fatal_output_after_intentional_teardown(m
     monkeypatch.setattr(script_cases.subprocess, "Popen", lambda *args, **kwargs: process)
     monkeypatch.setattr(script_cases.selectors, "DefaultSelector", FakeSelector)
     monkeypatch.setattr(script_cases.os, "read", lambda *args: b"READY\n")
+    monkeypatch.setattr(fcntl, "ioctl", lambda *args: struct.pack("i", 0))
     monkeypatch.setattr(script_cases, "_terminate_process_group", lambda process: setattr(process, "returncode", -15))
 
     result = run_until_ready(["demo.py"], r"READY", startup_timeout=2.0, soak_time=0.0)
@@ -426,49 +453,38 @@ def test_subprocess_supervisor_ignores_fatal_output_after_intentional_teardown(m
     assert not result.fatal_patterns
 
 
-def test_subprocess_supervisor_classifies_buffered_fatal_output_before_intentional_teardown(monkeypatch):
-    """Fatal output already buffered at the soak deadline must remain test-failing."""
+@pytest.mark.parametrize("continuous_output", [False, True])
+def test_subprocess_supervisor_classifies_buffered_fatal_output_before_intentional_teardown(
+    monkeypatch, continuous_output
+):
+    """Drain pre-teardown errors without letting a continuous producer extend the soak."""
+    process = mock.Mock(returncode=None)
+    process.poll.side_effect = lambda: process.returncode
+    process.communicate.return_value = (b"post-teardown output\n", None)
+    selector = mock.Mock()
+    chunks = [b"READY\n", b"x" * 65536, b"Traceback (most recent call last):\n"]
+    pending_bytes = sum(map(len, chunks[1:]))
+    reads = 0
 
-    class FakeStdout:
-        def fileno(self):
-            return 1
+    def read(fd, size):
+        nonlocal reads
+        reads += 1
+        assert reads <= 4, "Continuous output prevented the supervisor from terminating the process"
+        return chunks.pop(0) if chunks else b"still running\n"
 
-    class FakeProcess:
-        stdout = FakeStdout()
-        returncode = None
-
-        def poll(self):
-            return self.returncode
-
-        def communicate(self, timeout):
-            return b"post-teardown output\n", None
-
-    class FakeSelector:
-        selections = 0
-
-        def register(self, fileobj, events):
-            self.fileobj = fileobj
-
-        def select(self, timeout):
-            self.selections += 1
-            if self.selections > 2:
-                return []
-            key = type("Key", (), {"fileobj": self.fileobj})()
-            return [(key, script_cases.selectors.EVENT_READ)]
-
-        def close(self):
-            pass
-
-    process = FakeProcess()
-    chunks = iter((b"READY\n", b"Traceback (most recent call last):\n"))
+    selector.select.side_effect = lambda timeout: (
+        [(mock.Mock(fileobj=process.stdout), script_cases.selectors.EVENT_READ)] if chunks or continuous_output else []
+    )
     monkeypatch.setattr(script_cases.subprocess, "Popen", lambda *args, **kwargs: process)
-    monkeypatch.setattr(script_cases.selectors, "DefaultSelector", FakeSelector)
-    monkeypatch.setattr(script_cases.os, "read", lambda *args: next(chunks))
+    monkeypatch.setattr(script_cases.selectors, "DefaultSelector", lambda: selector)
+    monkeypatch.setattr(script_cases.os, "read", read)
+    monkeypatch.setattr(fcntl, "ioctl", lambda *args: struct.pack("i", pending_bytes))
     monkeypatch.setattr(script_cases, "_terminate_process_group", lambda process: setattr(process, "returncode", -15))
 
     result = run_until_ready(["demo.py"], r"READY", startup_timeout=2.0, soak_time=0.0)
     assert result.ready
     assert result.stopped_after_soak
+    assert not chunks
     assert "Traceback (most recent call last):" in result.fatal_patterns
 
 

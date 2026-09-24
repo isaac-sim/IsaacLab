@@ -5,15 +5,13 @@
 
 from typing import TYPE_CHECKING, cast
 
-from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.markers.config import BLUE_ARROW_X_MARKER_CFG, CONTACT_SENSOR_MARKER_CFG, RED_ARROW_X_MARKER_CFG
-from isaaclab.utils.configclass import configclass
-
+from ...markers import VisualizationMarkersCfg
+from ...markers.config import BLUE_ARROW_X_MARKER_CFG, CONTACT_SENSOR_MARKER_CFG, RED_ARROW_X_MARKER_CFG
+from ...utils import configclass
 from ..sensor_base_cfg import SensorBaseCfg
 
 if TYPE_CHECKING:
-    from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-
+    from ...sim.spawners.from_files.from_files_cfg import UsdFileCfg
     from .contact_sensor import ContactSensor
 
 

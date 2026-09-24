@@ -53,17 +53,73 @@ option is required for camera tasks.
 
 To set the environment variables, one can use the following command in the terminal:
 
-.. code:: bash
+.. tab-set::
+   :sync-group: os
 
-   export LIVESTREAM=2
-   # run the python script
-   uv run --extra isaacsim python scripts/demos/quadrupeds.py
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux x86_64
+      :sync: linux-x86_64
 
-Alternatively, one can set the environment variables to the python script directly:
+      .. code-block:: bash
 
-.. code:: bash
+         export LIVESTREAM=2
+         # run the python script
+         uv run --extra isaacsim python scripts/demos/quadrupeds.py
 
-   LIVESTREAM=2 uv run --extra isaacsim python scripts/demos/quadrupeds.py
+      Alternatively, set the environment variable inline for a single invocation:
+
+      .. code-block:: bash
+
+         LIVESTREAM=2 uv run --extra isaacsim python scripts/demos/quadrupeds.py
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux aarch64 (DGX Spark)
+      :sync: linux-aarch64
+
+      .. code-block:: bash
+
+         export LIVESTREAM=2
+         # run the python script
+         LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 uv run --extra isaacsim python scripts/demos/quadrupeds.py
+
+      Alternatively, set the environment variable inline for a single invocation:
+
+      .. code-block:: bash
+
+         LIVESTREAM=2 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 uv run --extra isaacsim python scripts/demos/quadrupeds.py
+
+      .. note::
+
+         Direct Python commands that import Isaac Sim on aarch64 require the
+         ``LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1`` prefix shown above. See
+         :ref:`installation-method-uv`.
+
+      .. warning::
+
+         Livestreaming is not currently supported or validated on DGX Spark. See the
+         :doc:`/source/setup/installation/index` for the current list of features not
+         yet validated on this platform.
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      In Command Prompt:
+
+      .. code-block:: batch
+
+         set LIVESTREAM=2
+         uv run --extra isaacsim python scripts/demos/quadrupeds.py
+
+      In PowerShell:
+
+      .. code-block:: powershell
+
+         $env:LIVESTREAM = "2"
+         uv run --extra isaacsim python scripts/demos/quadrupeds.py
+
+      .. note::
+
+         The POSIX inline ``VAR=value <command>`` prefix form used on Linux (for example
+         ``LIVESTREAM=2 uv run ...``) has no Windows equivalent; use one of the two forms
+         above instead.
 
 
 Overriding the environment variables

@@ -13,7 +13,7 @@ import numpy as np
 
 import omni
 
-from isaaclab.sim import SimulationContext
+from ...sim import SimulationContext
 
 with suppress(ImportError):
     # isaacsim.gui is not available when running in headless mode.
@@ -154,7 +154,6 @@ class LiveLinePlot(UIWidgetWrapper):
         Args:
             y_coords: A list of floats containing the y coordinates of the new data points.
         """
-
         for idx, y_coord in enumerate(y_coords):
             if len(self._y_data[idx]) > self._max_data_points:
                 self._y_data[idx] = self._y_data[idx][1:]

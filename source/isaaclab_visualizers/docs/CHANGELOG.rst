@@ -1,6 +1,99 @@
 Changelog
 ---------
 
+1.12.1 (2026-09-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Routed Kit viewport transform updates through SDP, sharing a registry-owned Fabric binding with camera
+  renderers and preserving native PhysX Fabric updates. No visualizer configuration changes were required.
+  Headless viewport transforms and asset tracking refreshed only when a frame was requested.
+
+
+1.12.0 (2026-09-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Declared Newton-backed visualizer representations before cloning and initialized viewers afterward. Kit streaming
+  views acquired the renderer for a configured generated camera from the simulation backend registry before cloning.
+  Custom visualizers that pre-register camera renderers should use ``sim.get_or_create_backend(renderer_cfg)``.
+
+Fixed
+^^^^^
+
+* Fixed black or misplaced generated Kit streaming-camera images with Newton physics by removing
+  the redundant USD pose writes that reset the camera transform stack after its Fabric pose was updated.
+  Centered the cartpole golden-test reset pose to keep the tilted poles inside the camera frame.
+
+
+1.11.0 (2026-09-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added dynamic mesh logging through the public Newton visualizer interface.
+
+Changed
+^^^^^^^
+
+* Made Kit, Newton GL, and Newton RTX honor ``VisualizerCfg.background_color`` and use its solid
+  sky-blue default. Setting it to ``None`` preserved each backend's native background.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizer` so it honored its configured particle color.
+
+
+1.10.5 (2026-09-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``NewtonVisualizationMarkers.render`` and ``_ensure_mesh_registered`` allocating Warp
+  marker/mesh arrays on Warp's process-global default device instead of the viewer device.
+  Combined with ``--device cpu`` on a machine that also has a CUDA device present, this caused a
+  CUDA illegal memory access when the ``newton_gl`` visualizer rendered marker overlays.
+
+
+1.10.4 (2026-09-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_visualizers.kit.kit_visualization_markers.KitVisualizationMarkers`
+  rebuilding its scene-partition tokens on every frame. Marker ownership is now cached and the
+  ``primvars:omni:scenePartition`` primvar is only re-authored when the environment IDs change,
+  avoiding a device-to-host copy and one token string per marker on unchanged frames. A device
+  synchronization from comparing the cached and incoming environment IDs still occurs every call.
+  This noticeably improves throughput for camera tasks at high environment counts.
+* Fixed :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizer` hanging the process when
+  combined with the Kit-based ``physx`` physics backend (i.e. ``presets=isaacsim_physx``).
+  OVRTX is a kitless renderer and previously crashed inside the render thread on the first
+  ``step()``, which left the process stuck instead of exiting. It now raises a clear
+  ``RuntimeError`` from ``initialize()`` naming the incompatible combination and the supported
+  alternatives. The kitless ``ovphysx`` backend is unaffected and remains supported.
+
+
+1.10.3 (2026-09-08)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_visualizers.newton.newton_visualizer.NewtonRTXVisualizer` releasing its viewer
+  without first neutralizing picking callbacks and calling the viewer's :meth:`close`, which left its ordered
+  GPU teardown to the garbage collector and intermittently leaked render step results and attribute bindings
+  on shutdown.
+
+
 1.10.2 (2026-09-04)
 ~~~~~~~~~~~~~~~~~~~
 

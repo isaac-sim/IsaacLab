@@ -18,6 +18,7 @@ import warp as wp
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
+from isaaclab_physx.sim.schemas import PhysxJointCfg
 from newton.solvers import SolverMuJoCo
 
 import isaaclab.sim as sim_utils
@@ -35,7 +36,7 @@ def _generate_single_joint_articulations(num_articulations: int, device: str) ->
         prim_path="/World/Env_[^/]*/Robot",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-            joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_force=80.0, max_joint_velocity=5.0),
+            joint_drive_props=[sim_utils.UsdPhysicsDriveCfg(max_force=80.0), PhysxJointCfg(max_joint_velocity=5.0)],
         ),
         actuators={
             "joint": IdealPDActuatorCfg(
@@ -91,7 +92,7 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
             env_ids=env_ids,
         )
 
-        state = SimulationManager._state_0
+        state = SimulationManager.backend.state_0
         joint_q_before = wp.to_torch(state.joint_q).clone()
         joint_qd_before = wp.to_torch(state.joint_qd).clone()
         warm_start[0].fill_(13.0)

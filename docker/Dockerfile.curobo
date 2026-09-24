@@ -8,7 +8,7 @@
 
 # Base image
 ARG ISAACSIM_BASE_IMAGE_ARG=nvcr.io/nvidia/isaac-sim
-ARG ISAACSIM_VERSION_ARG=6.0.0
+ARG ISAACSIM_VERSION_ARG=6.1.0
 # uv, pinned by digest. Declared after the ARGs so those stay global for the base FROM.
 FROM ghcr.io/astral-sh/uv:0.12.9@sha256:8b940d3a9d65bed080436972241af2e21c84b5e8c9193f7014ed71479ee795ff AS uv
 
@@ -60,6 +60,7 @@ RUN apt-get update && \
     ncurses-term \
     cmake \
     git \
+    curl \
     wget
 
 # Install the Carbonite environment shim that serializes glibc environment
@@ -78,13 +79,13 @@ RUN if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
         libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev; \
     fi
 
-# Detect Ubuntu version and install CUDA 12.8 via NVIDIA network repo (cuda-keyring)
+# Match the compiler toolkit to Torch's CUDA 13.0 build. Torch's runtime libraries
+# come from uv.lock; extra system cuDNN/NCCL packages would compete with those and Kit.
 RUN set -euo pipefail && \
     . /etc/os-release && \
     case "$ID" in \
       ubuntu) \
         case "$VERSION_ID" in \
-          "20.04") cuda_repo="ubuntu2004";; \
           "22.04") cuda_repo="ubuntu2204";; \
           "24.04") cuda_repo="ubuntu2404";; \
           *) echo "Unsupported Ubuntu $VERSION_ID"; exit 1;; \
@@ -92,26 +93,18 @@ RUN set -euo pipefail && \
       *) echo "Unsupported base OS: $ID"; exit 1 ;; \
     esac && \
     apt-get update && apt-get install -y --no-install-recommends wget gnupg ca-certificates && \
-    wget -q https://developer.download.nvidia.com/compute/cuda/repos/${cuda_repo}/x86_64/cuda-keyring_1.1-1_all.deb && \
+    wget -q --max-redirect=0 https://developer.download.nvidia.com/compute/cuda/repos/${cuda_repo}/x86_64/cuda-keyring_1.1-1_all.deb && \
     dpkg -i cuda-keyring_1.1-1_all.deb && \
     rm -f cuda-keyring_1.1-1_all.deb && \
-    wget -q https://developer.download.nvidia.com/compute/cuda/repos/${cuda_repo}/x86_64/cuda-${cuda_repo}.pin && \
+    wget -q --max-redirect=0 https://developer.download.nvidia.com/compute/cuda/repos/${cuda_repo}/x86_64/cuda-${cuda_repo}.pin && \
     mv cuda-${cuda_repo}.pin /etc/apt/preferences.d/cuda-repository-pin-600 && \
     apt-get update && \
-    apt-get install -y --no-install-recommends \
-        cuda-toolkit-12-8 \
-        libcudnn9-cuda-12 \
-        libcusparselt0 \
-        libnccl2 \
-        libnccl-dev \
-        libnvjitlink-12-8 && \
+    apt-get install -y --no-install-recommends cuda-toolkit-13-0 && \
     apt-get -y autoremove && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 
-ENV CUDA_HOME=/usr/local/cuda-12.8
+ENV CUDA_HOME=/usr/local/cuda-13.0
 ENV PATH=${CUDA_HOME}/bin:${PATH}
-ARG LD_LIBRARY_PATH
-ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
 ENV TORCH_CUDA_ARCH_LIST=8.0+PTX
 
 # for singularity usage, have to create the directories that will binded
@@ -215,12 +208,23 @@ RUN ${ISAACLAB_PATH}/isaaclab.sh -p -c \
 ENV UV_PYTHON=${VENV_PATH_ARG}/bin/python
 
 # cuRobo builds CUDA extensions against the torch already in the venv, so build isolation
-# stays off; it is pinned to a commit rather than a release. ``--seed`` only provides pip on
-# 3.12, so the build backend has to be installed for the isolation-free build to import it.
+# stays off; it is pinned to a commit rather than a release. PyTorch 2.12 builds extensions as
+# C++20, where cuRobo's scalar lerp overload conflicts with the equivalent std::lerp. Remove
+# only that overload while retaining cuRobo's float2/3/4 overloads. ``--seed`` only provides
+# pip on 3.12, so the build backend has to be installed for the isolation-free build to import it.
+ARG CUROBO_COMMIT=ebb71702f3f70e767f40fd8e050674af0288abe8
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install setuptools wheel && \
-    uv pip install --no-build-isolation \
-      "nvidia-curobo @ git+https://github.com/NVlabs/curobo.git@ebb71702f3f70e767f40fd8e050674af0288abe8" \
+    git -c init.defaultBranch=main init /tmp/curobo && \
+    git -C /tmp/curobo remote add origin https://github.com/NVlabs/curobo.git && \
+    git -C /tmp/curobo fetch --depth 1 origin ${CUROBO_COMMIT} && \
+    git -C /tmp/curobo checkout --detach FETCH_HEAD && \
+    test "$(grep -c '^inline __device__ __host__ float lerp(float a, float b, float t)$' \
+      /tmp/curobo/src/curobo/curobolib/cpp/helper_math.h)" -eq 1 && \
+    sed -i '/^inline __device__ __host__ float lerp(float a, float b, float t)$/,+3d' \
+      /tmp/curobo/src/curobo/curobolib/cpp/helper_math.h && \
+    uv pip install --no-build-isolation /tmp/curobo && \
+    rm -rf /tmp/curobo \
  && find ${VIRTUAL_ENV} \! -user isaaclab \
       -exec chown isaaclab:isaaclab {} + -exec chmod a+rwX {} +
 

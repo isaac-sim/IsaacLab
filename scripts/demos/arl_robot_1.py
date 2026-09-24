@@ -33,6 +33,7 @@ args_cli = parser.parse_args()
 import torch
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 
 ##
 # Pre-defined configs
@@ -49,8 +50,17 @@ def main():
     """Main function to spawn arl_robot_1."""
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
         # Create simulation context
-        sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
+        # ThrusterCfg is implemented in Isaac Lab and has no Newton-native execution path.
+        sim_cfg = sim_utils.SimulationCfg(
+            dt=0.01,
+            device=args_cli.device,
+            physics=physics_cfg,
+            use_newton_actuators=False,
+        )
         sim = sim_utils.SimulationContext(sim_cfg)
+        global_paths = ("/World/DomeLight", "/World/defaultGroundPlane", "/World/Robot")
+        plan = cloner.make_clone_plan((), 1, 0.0, global_paths=global_paths)
+        sim.set_clone_plan(plan)
 
         # Create a dome light with light blue color
         light_cfg = sim_utils.DomeLightCfg(intensity=1000.0, color=(0.53, 0.81, 0.92))
@@ -64,6 +74,7 @@ def main():
         robot_cfg = ARL_ROBOT_1_CFG.replace(prim_path="/World/Robot")
         robot_cfg.actuators["thrusters"].dt = sim_cfg.dt
         robot = robot_cfg.class_type(robot_cfg)
+        cloner.replicate(plan, replicate_physics=False)
 
         # Play the simulator
         sim.reset()

@@ -29,7 +29,7 @@ from urllib.parse import urlparse
 
 from filelock import FileLock
 
-from isaaclab.paths import ISAACLAB_ROOT
+from ..paths import ISAACLAB_ROOT
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +37,11 @@ _UDIM_RE = re.compile(r"<UDIM>", re.IGNORECASE)
 _USD_EXTENSIONS = {".usd", ".usda", ".usdc", ".usdz"}
 _MDL_RESOURCE_RE = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"|/\*.*?\*/|//[^\r\n]*', re.DOTALL)
 _MDL_TEXTURE_RE = re.compile(r"\.(?:bmp|dds|exr|hdr|ies|jpe?g|ktx2?|png|tga|tiff?|tx)(?:[?#].*)?$", re.IGNORECASE)
-_MDL_IMPORT_RE = re.compile(r"\bimport\s+([^;]+);")
-_MDL_USING_IMPORT_RE = re.compile(r"\busing\s+(.+?)\s+import\s+[^;]+;")
+_MDL_MODULE_PATTERN = r"(?:(?:\.\.::)++|\.::)[A-Za-z_]\w*+(?:::[A-Za-z_]\w*+)*+(?:::\*)?"
+_MDL_IMPORT_RE = re.compile(rf"\bimport\s++({_MDL_MODULE_PATTERN});")
+_MDL_USING_IMPORT_RE = re.compile(
+    rf"\busing\s++({_MDL_MODULE_PATTERN})\s++import\s++(?:\*|[A-Za-z_]\w*+(?:\s*+,\s*+[A-Za-z_]\w*+)*+);"
+)
 _MDL_RELATIVE_IMPORT_RE = re.compile(
     r"(?P<prefix>(?:\.\.::)+|\.::)(?P<module>[A-Za-z_]\w*(?:::[A-Za-z_]\w*)*)(?P<wildcard>::\*)?"
 )
@@ -643,7 +646,7 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
     elif file_status == 2:
         omni_client = _get_omni_client()
 
-        from isaaclab.app.loading_screen import report_activity
+        from ..app.loading_screen import report_activity
 
         # resolve download directory
         if download_dir is None:

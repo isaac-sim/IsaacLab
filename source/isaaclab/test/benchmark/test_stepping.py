@@ -6,17 +6,133 @@
 """Tests for the runtime stepping helpers."""
 
 import time
+from contextlib import nullcontext
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
 import torch
 
 from isaaclab.benchmark.stepping import (
+    PHYSICS_PROFILE_SCOPE,
+    RENDER_PROFILE_SCOPE,
     EnvironmentStepTimingRecorder,
+    profile_physics_steps,
+    profile_renderers,
     run_runtime_loop,
     run_runtime_warmup,
     sample_random_actions,
 )
+
+
+@pytest.mark.parametrize(
+    ("active", "inherited", "fail"),
+    [
+        pytest.param(False, False, False, id="disabled"),
+        pytest.param(True, False, False, id="enabled"),
+        pytest.param(True, True, True, id="inherited-failure"),
+    ],
+)
+def test_profile_physics_steps_times_complete_step_once(monkeypatch, capsys, active, inherited, fail):
+    """Profile complete steps once and restore the class across failures and repeated runs."""
+    import warp as wp
+
+    from isaaclab.physics import PhysicsManager
+
+    calls = []
+
+    class BaseManager(PhysicsManager):
+        @classmethod
+        def step(cls):
+            assert cls is manager
+            calls.append("base")
+
+    class CoupledManager(BaseManager):
+        @classmethod
+        def step(cls):
+            calls.append("before")
+            super().step()
+            calls.append("after")
+            if fail:
+                raise ValueError("step failed")
+
+    class InheritedManager(CoupledManager):
+        pass
+
+    manager = InheritedManager if inherited else CoupledManager
+    synchronize = Mock(wraps=wp.synchronize)
+    monkeypatch.setattr(wp, "synchronize", synchronize)
+
+    timings = []
+    original_step = manager.step
+    with pytest.raises(ValueError, match="step failed") if fail else nullcontext():
+        with profile_physics_steps(manager, active=active, timings=timings) as collected:
+            assert collected is timings
+            manager.step()
+
+    assert calls == ["before", "base", "after"]
+    assert synchronize.call_count == (2 if active else 0)
+    assert len(timings) == int(active)
+    assert all(scope == PHYSICS_PROFILE_SCOPE and elapsed >= 0.0 for scope, elapsed in timings)
+    assert PHYSICS_PROFILE_SCOPE not in capsys.readouterr().out
+    assert manager.step == original_step
+    assert ("step" in vars(manager)) is not inherited
+
+    fail = False
+    manager.step()
+    for enabled in (True, False):
+        with profile_physics_steps(manager, active=enabled) as later_timings:
+            manager.step()
+        assert len(later_timings) == int(enabled)
+        assert len(timings) == int(active)
+        assert manager.step == original_step
+    assert synchronize.call_count == 2 * (int(active) + 1)
+
+
+def test_profile_renderers_wraps_each_renderer(monkeypatch, capsys):
+    """Renderer methods and instance overrides are restored after failures and repeated runs."""
+    import warp as wp
+
+    second_render = Mock(side_effect=ValueError("render failed"))
+
+    class Renderer:
+        def render(self, render_data):
+            second_render(render_data)
+
+    first, second = SimpleNamespace(render=Mock()), Renderer()
+    originals = [first.render, second.render]
+    context = SimpleNamespace(_renderer_entries=[(None, first), (None, second)])
+    synchronize = Mock()
+    monkeypatch.setattr(wp, "synchronize", synchronize)
+
+    timings = []
+    with pytest.raises(ValueError, match="render failed"):
+        with profile_renderers(context, timings=timings) as collected:
+            assert collected is timings
+            first.render("first")
+            second.render("second")
+
+    originals[0].assert_called_once_with("first")
+    second_render.assert_called_once_with("second")
+    assert synchronize.call_count == 4
+    assert len(timings) == 2
+    assert all(scope == RENDER_PROFILE_SCOPE and elapsed >= 0.0 for scope, elapsed in timings)
+    assert RENDER_PROFILE_SCOPE not in capsys.readouterr().out
+    assert [first.render, second.render] == originals
+    assert "render" not in vars(second)
+
+    second_render.side_effect = None
+    first.render("unprofiled")
+    for enabled in (True, False):
+        with profile_renderers(context, active=enabled) as later_timings:
+            first.render("first")
+            second.render("second")
+        assert len(later_timings) == 2 * int(enabled)
+        assert len(timings) == 2
+        assert [first.render, second.render] == originals
+        assert "render" not in vars(second)
+    assert synchronize.call_count == 8
 
 
 class _Space:

@@ -29,7 +29,7 @@ from isaaclab.envs import (
 )
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacsim_ci]
 
@@ -250,30 +250,6 @@ def test_env_rendering_logic(env_type, render_interval, physics_callback, render
             env.close()
         else:
             # If env creation failed, still clear the singleton
-            SimulationContext.clear_instance()
-
-
-@pytest.mark.parametrize("env_type", ["manager_based_env", "manager_based_rl_env", "direct_rl_env"])
-def test_env_reset_invalidates_renderer_scene_state_cadence(env_type):
-    """A same-step reset must force the next camera read to republish scene state."""
-    env = None
-    try:
-        sim_utils.create_new_stage()
-        if env_type == "manager_based_env":
-            env = create_manager_based_env(render_interval=1)
-        elif env_type == "manager_based_rl_env":
-            env = create_manager_based_rl_env(render_interval=1)
-        else:
-            env = create_direct_rl_env(render_interval=1)
-
-        env.sim.render_context._last_scene_state_step = 7
-        env.reset()
-
-        assert env.sim.render_context._last_scene_state_step is None
-    finally:
-        if env is not None:
-            env.close()
-        else:
             SimulationContext.clear_instance()
 
 

@@ -37,6 +37,17 @@ def _has_visible_non_collision_geometry(stage: Usd.Stage, prim_path: str) -> boo
     return False
 
 
+def _static_collider_owner_path(stage: Usd.Stage, collider_path: str) -> str:
+    """Return the nearest rigid-body ancestor or the collider's immediate parent."""
+    collider_prim = stage.GetPrimAtPath(collider_path)
+    prim = collider_prim.GetParent() if collider_prim else None
+    while prim and not prim.IsPseudoRoot():
+        if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            return str(prim.GetPath())
+        prim = prim.GetParent()
+    return collider_path.rpartition("/")[0]
+
+
 def _restore_visible_colliders_without_visual_shapes(
     builder: ModelBuilder,
     stage: Usd.Stage,
@@ -58,6 +69,14 @@ def _restore_visible_colliders_without_visual_shapes(
     """
     if not path_shape_map or not load_visual_shapes:
         return
+    # Newton may synthesize a visible ``*_visual`` mesh for a proxy-purpose collider.
+    # It is not an authored USD prim and must remain hidden alongside its source collider.
+    for index, path in enumerate(builder.shape_label):
+        if not path.endswith("_visual") or stage.GetPrimAtPath(path):
+            continue
+        collider_prim = stage.GetPrimAtPath(path.removesuffix("_visual"))
+        if collider_prim and collider_prim.HasAPI(UsdPhysics.CollisionAPI):
+            builder.shape_flags[index] &= ~ShapeFlags.VISIBLE
     bodies_with_visual_shapes = {
         builder.shape_body[index]
         for index, flags in enumerate(builder.shape_flags)
@@ -65,7 +84,7 @@ def _restore_visible_colliders_without_visual_shapes(
     }
     # Resolved on first use: a static parent whose colliders are all filtered out below is
     # never traversed at all.
-    static_parents_with_visual_shapes: dict[str, bool] = {}
+    static_owners_with_visual_shapes: dict[str, bool] = {}
     for path, index in path_shape_map.items():
         flags = builder.shape_flags[index]
         body_index = builder.shape_body[index]
@@ -76,10 +95,10 @@ def _restore_visible_colliders_without_visual_shapes(
         ):
             continue
         if body_index < 0:
-            parent_path = path.rpartition("/")[0]
-            if parent_path not in static_parents_with_visual_shapes:
-                static_parents_with_visual_shapes[parent_path] = _has_visible_non_collision_geometry(stage, parent_path)
-            if static_parents_with_visual_shapes[parent_path]:
+            owner_path = _static_collider_owner_path(stage, path)
+            if owner_path not in static_owners_with_visual_shapes:
+                static_owners_with_visual_shapes[owner_path] = _has_visible_non_collision_geometry(stage, owner_path)
+            if static_owners_with_visual_shapes[owner_path]:
                 continue
         imageable = UsdGeom.Imageable(stage.GetPrimAtPath(path))
         if (
@@ -98,13 +117,14 @@ def build_source_builders(
     *,
     ignore_paths: Sequence[str] | None = None,
     load_visual_shapes: bool = True,
+    skip_mesh_approximation: bool = False,
+    import_results_out: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, ModelBuilder]:
     """Build one Newton builder for each clone source prim path.
 
-    The cloner approximates nothing. Collision geometry is whatever the asset authored:
-    Newton's importer applies each shape's ``physics:approximation`` while importing, and
-    USD defaults that token to ``none``, meaning "use the mesh as-is". Change it where it
-    is authored -- the mesh-collision schema fragments on the spawner -- not here.
+    By default, Newton's importer applies each shape's authored
+    ``physics:approximation``. Render-only callers can bypass collision mesh
+    approximation with ``skip_mesh_approximation``.
 
     Args:
         stage: USD stage containing the source prims.
@@ -115,11 +135,25 @@ def build_source_builders(
         load_visual_shapes: Whether to import visual-only geometry. Importing it costs
             USD parse time and memory that only pays off when the shapes are rendered
             or ray cast.
+        skip_mesh_approximation: Whether to skip collision mesh approximation during import.
+        import_results_out: Optional caller-owned output mapping populated in place with each
+            source's USD import result.
     """
-    return {
-        source: _build_source_builder(stage, source, create_builder, schema_resolvers, ignore_paths, load_visual_shapes)
-        for source in sources
-    }
+    builders = {}
+    for source in sources:
+        builder, import_result = _build_source_builder(
+            stage,
+            source,
+            create_builder,
+            schema_resolvers,
+            ignore_paths,
+            load_visual_shapes,
+            skip_mesh_approximation,
+        )
+        builders[source] = builder
+        if import_results_out is not None:
+            import_results_out[source] = import_result
+    return builders
 
 
 def _build_source_builder(
@@ -129,7 +163,8 @@ def _build_source_builder(
     schema_resolvers: Sequence[Any],
     ignore_paths: Sequence[str] | None,
     load_visual_shapes: bool = True,
-) -> ModelBuilder:
+    skip_mesh_approximation: bool = False,
+) -> tuple[ModelBuilder, dict[str, Any]]:
     """Build one source builder."""
     builder = create_builder()
     import_result = builder.add_usd(
@@ -137,7 +172,7 @@ def _build_source_builder(
         root_path=source,
         load_visual_shapes=load_visual_shapes,
         hide_collision_shapes=True,
-        skip_mesh_approximation=False,
+        skip_mesh_approximation=skip_mesh_approximation,
         schema_resolvers=schema_resolvers,
         ignore_paths=ignore_paths,
     )
@@ -148,7 +183,7 @@ def _build_source_builder(
     if load_visual_shapes:
         import_builder_visual_material_paths(builder, stage)
     _name_root_joints_after_their_body(builder)
-    return builder
+    return builder, import_result
 
 
 def _name_root_joints_after_their_body(builder: ModelBuilder) -> None:
@@ -203,6 +238,9 @@ def _label_groups(builder: ModelBuilder) -> dict[str, list]:
     groups = {
         name: value for name, value in vars(builder).items() if name.endswith("_label") and isinstance(value, list)
     }
+    for frequency in builder.custom_frequencies.values():
+        if frequency.label_attribute is not None:
+            groups[frequency.label_attribute] = builder.custom_attributes[frequency.label_attribute].values
     groups["mujoco:equality_constraint_label"] = builder.custom_attributes["mujoco:equality_constraint_label"].values
     return groups
 
@@ -242,12 +280,16 @@ def replicate_builder_mapping(
     source_site_indices: dict[int, dict[str, list[int]]] | None = None,
     env_root_sites: dict[str, wp.transform] | None = None,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = (),
+    source_builder_added: Callable[[str, int, ModelBuilder, Sequence[float]], None] | None = None,
 ) -> tuple[dict[str, list[list[int]]], list[wp.transform], list[tuple[str, int]]]:
     """Replicate source builders, naming homogeneous copies at their destinations."""
     source_site_indices = source_site_indices or {}
     env_root_sites = env_root_sites or {}
     num_worlds = mapping.shape[1]
-    local_site_map: dict[str, list[list[int]]] = {}
+    local_site_map = {
+        label: [indices.copy() for _ in range(num_worlds)]
+        for label, indices in source_site_indices.get(id(builder), {}).items()
+    }
     positions = positions.astype(np.float32, copy=False)
     quaternions = quaternions.astype(np.float32, copy=False)
     xforms_np = np.concatenate((positions, quaternions), axis=1)
@@ -277,10 +319,14 @@ def replicate_builder_mapping(
 
         # Site index after replicate: base_shape + world * stride + source_local_index.
         base_shape = builder.shape_count
-        stride = source_builder.shape_count
+        shape_stride = source_builder.shape_count
+        particle_stride = source_builder.particle_count if source_builder_added is not None else 0
+        base_particle = builder.particle_count if source_builder_added is not None else 0
         source_xform_inv = _invert_xform(xforms_np[0])
         xforms = _compose_world_xforms(positions, quaternions, source_xform_inv)
 
+        # Resolve label-based ownership before names become relative but target paths do not.
+        source_builder._resolve_custom_frequency_articulation_owners()
         label_groups = _label_groups(source_builder)
         original_labels = {name: list(labels) for name, labels in label_groups.items()}
         try:
@@ -291,9 +337,14 @@ def replicate_builder_mapping(
             for name, labels in original_labels.items():
                 label_groups[name][:] = labels
 
+        if source_builder_added is not None:
+            for world in range(num_worlds):
+                particle_offset = base_particle + world * particle_stride
+                source_builder_added(sources[0], particle_offset, source_builder, xforms[world])
+
         for label, local_indices in site_local_indices.items():
             local_site_map[label] = [
-                [base_shape + world * stride + local for local in local_indices] for world in range(num_worlds)
+                [base_shape + world * shape_stride + local for local in local_indices] for world in range(num_worlds)
             ]
 
         bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping, skip_entity_labels=True)
@@ -334,11 +385,15 @@ def replicate_builder_mapping(
             local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col].append(site_idx)
         for row in rows_per_world[col]:
             source_builder = source_builders[sources[row]]
-            offset = builder.shape_count
+            shape_offset = builder.shape_count
+            particle_offset = builder.particle_count if source_builder_added is not None else 0
             builder.add_builder(source_builder, xform=source_xforms[row, col])
+            if source_builder_added is not None:
+                source_builder_added(sources[row], particle_offset, source_builder, source_xforms[row, col])
+
             for label, source_shape_indices in source_site_indices.get(id(source_builder), {}).items():
                 local_indices = local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col]
-                local_indices.extend(offset + shape_idx for shape_idx in source_shape_indices)
+                local_indices.extend(shape_offset + shape_idx for shape_idx in source_shape_indices)
         for hook in per_world_builder_hooks:
             hook(builder, col, xforms_np[col, :3].copy(), xforms_np[col, 3:].copy())
         builder.end_world()

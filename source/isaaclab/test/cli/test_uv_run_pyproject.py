@@ -44,6 +44,7 @@ def test_uv_run_exposes_centralized_feature_extras(source_checkout_root: Path):
         "sb3",
         "skrl",
         "rl-games",
+        "wandb",
         "rsl-rl",
         "viser",
         "rerun",
@@ -88,6 +89,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkou
 
     assert set(optional) - reachable - {"all"} == {
         "rlinf",
+        "torchrl",
         "isaacsim",
         "importers",
         "mimic",
@@ -95,6 +97,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkou
         "tetrahedralization",
         "video",
         "leapp",
+        "wandb",
         "test",
         "dev",
     }
@@ -127,8 +130,8 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     optional = pyproject["project"]["optional-dependencies"]
     overrides = pyproject["tool"]["uv"]["override-dependencies"]
 
-    assert versions["ovphysx"] == "0.5.11"
-    assert "omniverseclient==2.72.3" in dependencies
+    assert versions["ovphysx"] == "0.6.3"
+    assert "omniverseclient==2.74.0" in dependencies
 
     # Isaac Sim extra mirrors the table; it is the only place the wheel is pinned.
     assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
@@ -156,9 +159,9 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     assert ovrtx_install_lines
     assert all(spec("ovrtx") in line or "steps.ov_pins.outputs.ovrtx" in line for line in ovrtx_install_lines)
 
-    # uv torch-stack overrides mirror the table.
+    # Direct torch-stack pins apply to both source and wheel installations.
     for package in ("torch", "torchvision", "torchaudio"):
-        assert f"{package}=={versions[package]}" in overrides
+        assert f"{package}=={versions[package]}" in dependencies
 
     # The Newton uv override is its single pin and may select a release or Git revision.
     newton_spec = next(requirement for requirement in overrides if requirement.startswith("newton[sim]"))
@@ -190,16 +193,14 @@ def test_uv_run_declares_no_extra_conflicts(source_checkout_root: Path):
     """No extra is forked: every combination resolves into a single environment.
 
     ``[tool.uv].conflicts`` used to fork ``isaacsim`` / ``teleop`` away from the OV runtimes,
-    and briefly away from the standalone importers. The overrides below reconcile the last of
-    those pins -- ``packaging`` for ovphysx, WebSockets for Viser, coverage for ``test``. The
-    importers install beside Isaac Sim without displacing it: the two distributions share no
-    files, and Kit serves ``isaacsim.asset`` from its extension roots either way.
+    and briefly away from the standalone importers. The remaining ``packaging`` override reconciles
+    ovphysx. The importers install beside Isaac Sim without displacing it: the two distributions share
+    no files, and Kit serves ``isaacsim.asset`` from its extension roots either way.
     """
     tool_uv = _root_pyproject(source_checkout_root)["tool"]["uv"]
 
     assert "conflicts" not in tool_uv
-    for override in ("packaging>=20,<27", "websockets>=14.0,<17.0.0", "coverage>=7.6.1"):
-        assert override in tool_uv["override-dependencies"]
+    assert "packaging>=20,<27" in tool_uv["override-dependencies"]
 
 
 def test_uv_run_isaacsim_is_an_opt_in_extra(source_checkout_root: Path):
