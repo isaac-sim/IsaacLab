@@ -1,6 +1,33 @@
 Changelog
 ---------
 
+7.0.1 (2026-09-24)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the external-wrench writers to submit through
+  :meth:`~isaaclab.utils.wrench_composer.WrenchComposer.get_forces_and_torques`, so an all-local-frame
+  wrench no longer reads the body transforms before being written to the solver.
+* Shared Newton rigid-body transforms through SceneDataProvider publications, including solver state-buffer
+  swaps, and moved Fabric bindings into the Kit rendering integration. Explicit Fabric synchronization
+  continued to work without a Kit viewer or RTX camera. Newton render-only states under foreign
+  physics now reference shared SDP transforms instead of copying them; consumers must treat their
+  ``body_q`` arrays as read-only. Particle and cable synchronization remained unchanged.
+* Reconciled authored state writes only while pending, instead of re-running forward kinematics for
+  every new transform publication. Rendering requested rigid Fabric updates through SDP rather
+  than the physics pre-render hook. Captured external writes retained conservative reconciliation.
+
+Fixed
+^^^^^
+
+* Fixed Newton joint wrench sensors to report fixed connections within an articulation, including
+  welded wrist sensors and tool flanges. Free joints, world-fixed roots, and loop-closing constraints
+  remained excluded. Select entries by ``body_names`` or ``find_bodies`` because the reported body count
+  and ordering may change.
+
+
 7.0.0 (2026-09-22)
 ~~~~~~~~~~~~~~~~~~
 

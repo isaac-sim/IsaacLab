@@ -37,7 +37,7 @@ from .kernels import (
 )
 
 if TYPE_CHECKING:
-    from isaaclab.actuators import ActuatorCollection
+    from .. import ActuatorCollection
 
 # ---------------------------------------------------------------------------
 # Abstract base — backend-independent logic

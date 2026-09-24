@@ -98,7 +98,6 @@ def _parser() -> argparse.ArgumentParser:
     [
         (["--distributed", "--video"], "Video recording"),
         (["--distributed", "--capture_env_sensors", "1"], "sensor capture"),
-        (["--distributed", "--check_success"], "early stopping"),
     ],
 )
 def test_unsupported_options_are_rejected_for_distributed_runs(
@@ -114,7 +113,16 @@ def test_unsupported_options_are_rejected_for_distributed_runs(
     assert message in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("argv", [[], ["--video"], ["--distributed"], ["--distributed", "--capture_env_sensors", "0"]])
+@pytest.mark.parametrize(
+    "argv",
+    [
+        [],
+        ["--video"],
+        ["--distributed"],
+        ["--distributed", "--capture_env_sensors", "0"],
+        ["--distributed", "--check_success"],
+    ],
+)
 def test_supported_option_combinations_pass_validation(argv: list[str]):
     """Single-process runs keep every feature, and distributed runs keep the rank-safe ones."""
     parser = _parser()

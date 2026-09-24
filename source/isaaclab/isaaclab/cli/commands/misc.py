@@ -29,7 +29,6 @@ def command_run_isaacsim(sim_args: list[str]) -> None:
     Args:
         sim_args: Additional arguments passed to the Isaac Sim executable.
     """
-
     isaacsim_exe = extract_isaacsim_exe()
     print_info(f"Running Isaac Sim from: {isaacsim_exe}")
 

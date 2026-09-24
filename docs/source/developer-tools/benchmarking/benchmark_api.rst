@@ -58,6 +58,15 @@ The command prints the summary report. The paths in ``result.output_paths``
 identify the schema and summary JSON files that were written. Use these paths in
 automation instead of reconstructing the timestamped names.
 
+With a non-``None`` task ``benchmark_mode`` and ``ISAACLAB_RENDER_PROFILE=1`` or
+``ISAACLAB_PHYSICS_PROFILE=1``, the runtime workflow also includes scalar profiling
+summaries in ``result.bundle.extra``: ``physics_mean_ms``, ``physics_std_ms``,
+``physics_max_ms``, ``physics_calls``, and the corresponding ``render_*`` keys.
+These report mean, standard deviation, maximum time per call [ms], and call count
+over the captured samples. Disabled scopes contribute no keys. The summaries are
+included in schema and OmniPerf output without changing schema version 1.4.
+Raw ordered samples remain in ``<output_path>/profile_timings.json`` for local analysis.
+
 Choose a request
 ----------------
 

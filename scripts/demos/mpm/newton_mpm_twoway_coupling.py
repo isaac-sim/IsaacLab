@@ -161,6 +161,7 @@ def create_sim_cfg():
 def create_scene_cfg():
     """Create the declarative rigid-sphere and granular-bath scene."""
     from isaaclab_newton.assets.mpm_object import MPMObjectCfg
+    from isaaclab_newton.sim.schemas import NewtonCollisionCfg
     from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
 
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
@@ -183,7 +184,7 @@ def create_scene_cfg():
                     else sim_utils.spawn_cuboid
                 ),
                 size=size,
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(contact_margin=COLLIDER_MARGIN),
+                collision_props=NewtonCollisionCfg(contact_margin=COLLIDER_MARGIN),
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                     static_friction=0.6,
                     dynamic_friction=0.6,
@@ -203,9 +204,9 @@ def create_scene_cfg():
                     color=SPHERE_COLORS[index],
                 ),
                 radius=SPHERE_RADIUS,
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=SPHERE_MASS),
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(),
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+                mass_props=sim_utils.MassCfg(mass=SPHERE_MASS),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                     static_friction=0.5,
                     dynamic_friction=0.5,

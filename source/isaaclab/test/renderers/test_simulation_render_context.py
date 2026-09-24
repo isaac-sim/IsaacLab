@@ -7,14 +7,13 @@
 
 from __future__ import annotations
 
-import re
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
 import pytest
 import torch
 
-from isaaclab.renderers import render_context
+from isaaclab.benchmark.stepping import RENDER_PROFILE_SCOPE, profile_renderers
 from isaaclab.renderers.base_renderer import BaseRenderer
 from isaaclab.renderers.render_context import RenderContext
 from isaaclab.renderers.renderer_cfg import RendererCfg
@@ -143,6 +142,7 @@ def test_close_backend_removes_renderer_from_orchestration(sim):
     sim.render_context.update_scene_state(2)
     replacement.prepare_stage.assert_called_once_with(None, 4)
     replacement.update_transforms.assert_called_once_with()
+    replacement.update_geometries.assert_called_once_with()
     sim.render_context.close()
     renderer.close.assert_called_once_with()
     replacement.close.assert_not_called()
@@ -161,37 +161,49 @@ def test_prepare_stage_is_idempotent_and_checks_env_count_until_reset(sim):
     assert renderer.prepare_stage.call_args_list == [call(None, 4), call(None, 8)]
 
 
-def test_scene_state_updates_once_per_step_until_cadence_reset(sim):
+def test_scene_state_does_not_skip_writes_within_a_physics_step(sim):
     renderer = sim.get_or_create_backend(RendererCfg(class_type=_renderer))
     for step in (1, 1, 2):
         sim.render_context.update_scene_state(step)
-    assert renderer.update_transforms.call_count == renderer.update_geometries.call_count == 2
+    assert renderer.update_transforms.call_count == 3
+    assert renderer.update_geometries.call_count == 2
 
     sim.render_context.reset_scene_state_cadence()
     sim.render_context.update_scene_state(2)
-    assert renderer.update_transforms.call_count == renderer.update_geometries.call_count == 3
+    assert renderer.update_transforms.call_count == 4
+    assert renderer.update_geometries.call_count == 3
 
 
 @pytest.mark.parametrize("profile", [False, True])
-def test_render_into_camera_call_order_and_profile_output(sim, monkeypatch, capsys, profile):
-    """Profiling preserves call order and prints the renderer benchmark's timing format."""
-    monkeypatch.setattr(render_context, "_RENDER_PROFILE_ENABLED", profile)
+def test_render_into_camera_call_order_and_profile_output(sim, capsys, profile):
+    """Profiling preserves call order and collects timings without printing."""
     renderer = sim.get_or_create_backend(RendererCfg(class_type=_renderer))
     data, camera = object(), CameraData()
 
-    sim.render_context.render_into_camera(renderer, data, camera, physics_step_count=1)
-    sim.render_context.render_into_camera(renderer, data, camera, physics_step_count=1)
+    with profile_renderers(sim.render_context, active=profile) as timings:
+        sim.render_context.render_into_camera(renderer, data, camera, physics_step_count=1)
+        sim.render_context.render_into_camera(renderer, data, camera, physics_step_count=1)
 
     assert renderer.mock_calls == [
         call.update_transforms(),
         call.update_geometries(),
         call.render(data),
         call.read_output(data, camera),
+        call.update_transforms(),
         call.render(data),
         call.read_output(data, camera),
     ]
-    timing = rf"{re.escape(render_context.RENDER_PROFILE_SCOPE)} took [\d.]+ ms"
-    assert len(re.findall(timing, capsys.readouterr().out)) == (2 if profile else 0)
+    assert len(timings) == (2 if profile else 0)
+    assert all(scope == RENDER_PROFILE_SCOPE and elapsed >= 0.0 for scope, elapsed in timings)
+    assert RENDER_PROFILE_SCOPE not in capsys.readouterr().out
+
+
+def test_legacy_render_profile_scope_warns_and_preserves_import():
+    """The old scope import remains available during its deprecation period."""
+    with pytest.warns(DeprecationWarning, match="isaaclab.benchmark.stepping.RENDER_PROFILE_SCOPE"):
+        from isaaclab.renderers.render_context import RENDER_PROFILE_SCOPE as legacy_scope
+
+    assert legacy_scope == RENDER_PROFILE_SCOPE
 
 
 @pytest.mark.parametrize("fail_writer", [False, True])

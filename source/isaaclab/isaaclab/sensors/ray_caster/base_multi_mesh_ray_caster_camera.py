@@ -9,9 +9,8 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
-from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp import kernels as warp_kernels
-
+from ...utils.warp import ProxyArray
+from ...utils.warp import kernels as warp_kernels
 from . import kernels as ray_caster_kernels
 from .base_multi_mesh_ray_caster import BaseMultiMeshRayCaster
 from .base_ray_caster_camera import BaseRayCasterCamera

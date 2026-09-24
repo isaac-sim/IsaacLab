@@ -23,12 +23,10 @@ from isaaclab.sensors import ContactSensor, ContactSensorCfg, FrameTransformer, 
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
-
+    from ... import ManagerBasedEnv
+    from ...utils.io_descriptors import GenericActionIODescriptor
     from . import actions_cfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -626,7 +624,6 @@ class OperationalSpaceControllerAction(ActionTerm):
             ValueError: If the nullspace joint pos targets are not set when null space control is set to 'position'.
             ValueError: If an invalid value is set for nullspace joint pos targets.
         """
-
         if self.cfg.nullspace_joint_pos_target != "none" and self.cfg.controller_cfg.nullspace_control != "position":
             raise ValueError("Nullspace joint targets can only be set when null space control is set to 'position'.")
 
