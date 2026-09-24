@@ -1,6 +1,44 @@
 Changelog
 ---------
 
+21.1.0 (2026-09-24)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a ``benchmark_mode`` option to the ``Isaac-RenderBenchmark-Franka-Cabinet`` task, read from the
+  ``BENCHMARK_MODE`` environment variable. The default ``"render"`` mode wrote analytic joint poses after
+  physics and required ``scene.lazy_sensor_update=True`` so rendering followed the pose write.
+  Isaac RTX direct posing also rejected visualizers that pumped the Kit app; use ``--visualizer none``.
+  Set ``BENCHMARK_MODE=physics_render`` to preserve actuator-driven animation. Both modes still stepped physics.
+  The renderer sweep enabled physics and render timers and reported per-frame and combined timings
+  from the profiling JSON file.
+
+Changed
+^^^^^^^
+
+* Changed the reach table collider, the UR10 particle-push colliders, and the NIST factory Newton
+  Franka rigid-body properties to author their physics schemas with schema fragments
+  (:class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg`,
+  :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg`, and
+  :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyCfg`) instead of the deprecated legacy
+  property configs, so loading these tasks no longer emits their ``DeprecationWarning``. The
+  authored USD is unchanged. Configurations that tune these spawner slots in place should select
+  the fragment that owns the field (e.g. the :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg`
+  entry of the UR10 particle-push ``collision_props`` list for ``contact_margin``).
+
+Fixed
+^^^^^
+
+* Fixed the Kuka Allegro wrist camera rendering from its reset pose for the whole episode in the
+  ``duo_camera`` presets. The camera is mounted on the palm, so ``update_latest_camera_pose`` is now
+  enabled and its rendered view follows the arm.
+* Fixed :func:`~isaaclab_tasks.contrib.forge.forge_utils.change_FT_frame` applying the inverse rotation and the
+  wrong lever-arm sign when re-expressing a force/torque reading in another frame. The FORGE force observation
+  is unchanged because the environment uses identity rotations and only consumes the force components.
+
+
 21.0.3 (2026-09-23)
 ~~~~~~~~~~~~~~~~~~~
 
