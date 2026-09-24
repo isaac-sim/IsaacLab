@@ -40,6 +40,8 @@ def profile_renderers(
 ) -> Iterator[list[tuple[str, float]]]:
     """Temporarily time the benchmark's currently registered renderers.
 
+    Each outer ``render()`` or ``render_batch()`` call produces one timing sample;
+    calls delegated between these methods on the same renderer are included in it.
     Original methods are restored when the context exits, including on failure.
     Enabled timings synchronize device work on entry and exit and perturb throughput.
 
@@ -63,26 +65,36 @@ def profile_renderers(
     scope_timings = {RENDER_PROFILE_SCOPE: _ProfileScopeTimings(RENDER_PROFILE_SCOPE, timings)}
     missing = object()
     originals = []
+    rendering: set[int] = set()
     try:
         for _, renderer in render_context._renderer_entries:
-            render = renderer.render
-            original = vars(renderer).get("render", missing)
+            for method_name in ("render", "render_batch"):
+                render = getattr(renderer, method_name, missing)
+                if render is missing:
+                    continue
+                original = vars(renderer).get(method_name, missing)
 
-            @wraps(render)
-            def timed_render(render_data: Any, _render=render) -> None:
-                with wp.ScopedTimer(RENDER_PROFILE_SCOPE, dict=scope_timings, print=False, synchronize=True):
-                    return _render(render_data)
+                @wraps(render)
+                def timed_render(render_data: Any, _render=render, _renderer_id=id(renderer)) -> None:
+                    if _renderer_id in rendering:
+                        return _render(render_data)
+                    rendering.add(_renderer_id)
+                    try:
+                        with wp.ScopedTimer(RENDER_PROFILE_SCOPE, dict=scope_timings, print=False, synchronize=True):
+                            return _render(render_data)
+                    finally:
+                        rendering.remove(_renderer_id)
 
-            renderer.render = timed_render
-            originals.append((renderer, original))
+                setattr(renderer, method_name, timed_render)
+                originals.append((renderer, method_name, original))
 
         yield timings
     finally:
-        for renderer, original in reversed(originals):
+        for renderer, method_name, original in reversed(originals):
             if original is missing:
-                del renderer.render
+                delattr(renderer, method_name)
             else:
-                renderer.render = original
+                setattr(renderer, method_name, original)
 
 
 @contextmanager

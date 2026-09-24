@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import sys
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
 import torch
@@ -328,6 +328,18 @@ class Camera(SensorBase):
     @property
     def num_instances(self) -> int:
         return self._view.count
+
+    @property
+    def supports_batch_update(self) -> bool:
+        """Whether captures can use the shared camera batch implementation.
+
+        Custom scalar capture hooks retain their individual update path. Subclasses may opt
+        in explicitly when they also provide a compatible ``_update_buffers_batch_impl``.
+        """
+        return (
+            type(self)._update_buffers_impl is Camera._update_buffers_impl
+            and type(self)._update_outdated_buffers is SensorBase._update_outdated_buffers
+        )
 
     @property
     def data(self) -> CameraData:
@@ -703,14 +715,17 @@ class Camera(SensorBase):
         # Create internal buffers (includes intrinsic matrix and pose init)
         self._create_buffers()
 
-    def _update_buffers_impl(self, env_mask: wp.array):
-        if not self._env_mask_has_any(env_mask):
-            return
-        # Increment frame count
+    def _prepare_camera(self, env_mask: wp.array) -> None:
+        """Advance capture frames and refresh requested poses before rendering."""
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_mask=env_mask, frame_op=1)
         else:
             self._update_camera_state(env_mask=env_mask, frame_op=1)
+
+    def _update_buffers_impl(self, env_mask: wp.array):
+        if not self._env_mask_has_any(env_mask):
+            return
+        self._prepare_camera(env_mask)
 
         sim_ctx = sim_utils.SimulationContext.instance()
         renderer = self._renderer
@@ -725,6 +740,30 @@ class Camera(SensorBase):
         else:
             renderer.render(self._render_data)
             renderer.read_output(self._render_data, self._data)
+
+    @staticmethod
+    def _update_buffers_batch_impl(sensors: Sequence[SensorBase]) -> None:
+        """Prepare due cameras and render them together through their shared context."""
+        cameras = cast(Sequence[Camera], sensors)
+        sim_ctx = sim_utils.SimulationContext.instance()
+        if sim_ctx is None:
+            for camera in cameras:
+                camera._update_buffers_impl(camera._is_outdated)
+            return
+
+        ready = []
+        for camera in cameras:
+            if not camera._env_mask_has_any(camera._is_outdated):
+                continue
+            camera._prepare_camera(camera._is_outdated)
+            ready.append(camera)
+        if not ready:
+            return
+
+        sim_ctx.render_context.render_into_cameras(
+            [(camera._renderer, camera._render_data, camera._data) for camera in ready],
+            sim_ctx.get_physics_step_count(),
+        )
 
     """
     Private Helpers

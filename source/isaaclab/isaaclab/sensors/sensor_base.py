@@ -16,7 +16,7 @@ import logging
 import sys
 import weakref
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 import warp as wp
@@ -39,10 +39,9 @@ logger = logging.getLogger(__name__)
 class SensorBase(ABC):
     """The base class for implementing a sensor.
 
-    The implementation is based on lazy evaluation. The sensor data is only updated when the user
-    tries accessing the data through the :attr:`data` property or sets ``force_compute=True`` in
-    the :meth:`update` method. This is done to avoid unnecessary computation when the sensor data
-    is not used.
+    The implementation is based on lazy evaluation. Sensor buffers are refreshed through the
+    :attr:`data` property, by setting ``force_recompute=True`` in :meth:`update`, or by calling
+    :meth:`update_batch`. This avoids unnecessary computation when sensor data is not used.
 
     The sensor is updated at the specified update period. If the update period is zero, then the
     sensor is updated at every simulation step.
@@ -105,6 +104,15 @@ class SensorBase(ABC):
     def device(self) -> str:
         """Memory device for computation."""
         return self._device
+
+    @property
+    def supports_batch_update(self) -> bool:
+        """Whether eager buffer refreshes can share work through :meth:`update_batch`.
+
+        Defaults to False. Sensors may opt in and implement ``_update_buffers_batch_impl``
+        to share work with sensors that use the same batch implementation.
+        """
+        return False
 
     @property
     @abstractmethod
@@ -211,6 +219,34 @@ class SensorBase(ABC):
         if force_recompute or self._is_visualizing:
             self._update_outdated_buffers(force_recompute=force_recompute)
 
+    @staticmethod
+    def update_batch(sensors: Sequence[SensorBase], dt: float) -> None:
+        """Advance batch-capable sensors and eagerly refresh their data in compatible groups.
+
+        All sensors must report :attr:`supports_batch_update` as True. Calls each sensor's
+        :meth:`update` once in input order with ``force_recompute=False``, then processes
+        pending buffers through their shared ``_update_buffers_batch_impl`` static methods.
+        Use this method instead of calling :meth:`update` separately for the same time step.
+
+        Uninitialized sensors and sensors already refreshed during the update loop are excluded
+        from batch processing. Each batch is marked updated only after its implementation
+        returns successfully.
+
+        Args:
+            sensors: Batch-capable sensors to update, each appearing once. An empty sequence
+                performs no work.
+            dt: Time elapsed since the previous sensor update [s].
+
+        Raises:
+            ValueError: If any sensor does not support batch updates. No sensors are advanced
+                in this case.
+        """
+        if any(not sensor.supports_batch_update for sensor in sensors):
+            raise ValueError("Batch updates require sensors with supports_batch_update=True.")
+        for sensor in sensors:
+            sensor.update(dt, force_recompute=False)
+        SensorBase._process_batch(sensors)
+
     """
     Implementation specific.
     """
@@ -275,6 +311,21 @@ class SensorBase(ABC):
             env_mask: The mask of the environments that are ready to capture.
         """
         raise NotImplementedError
+
+    @staticmethod
+    def _update_buffers_batch_impl(sensors: Sequence[SensorBase]) -> None:
+        """Fill buffers for initialized sensors that share this batch implementation.
+
+        Each sensor's ``_is_outdated`` mask selects its due environments and may be empty.
+        Implementations must fill the requested buffers before returning and leave timestamp
+        and generation bookkeeping to the caller. The default implementation
+        calls each sensor's ``_update_buffers_impl`` individually.
+
+        Args:
+            sensors: Sensors whose buffers need checking, all using this static method.
+        """
+        for sensor in sensors:
+            sensor._update_buffers_impl(sensor._is_outdated)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         """Set debug visualization into visualization objects.
@@ -398,6 +449,10 @@ class SensorBase(ABC):
         if not force_recompute and self._data_generation == self._data_generation_last_update:
             return
         self._update_buffers_impl(self._is_outdated)
+        self._mark_buffers_updated()
+
+    def _mark_buffers_updated(self) -> None:
+        """Commit capture timestamps after the sensor's output buffers have been filled."""
         # update timestamps and clear outdated flags
         wp.launch(
             update_outdated_envs_kernel,
@@ -406,6 +461,22 @@ class SensorBase(ABC):
             device=self._device,
         )
         self._data_generation_last_update = self._data_generation
+
+    @staticmethod
+    def _process_batch(sensors: Sequence[SensorBase]) -> None:
+        """Refresh pending buffers for batch-capable sensors whose timing has already advanced."""
+        # A later sensor's update may already have refreshed an earlier sensor's data.
+        groups: dict[Callable[[Sequence[SensorBase]], None], list[SensorBase]] = {}
+        for sensor in sensors:
+            if not sensor.is_initialized or sensor._data_generation == sensor._data_generation_last_update:
+                continue
+            batch_impl = type(sensor)._update_buffers_batch_impl
+            groups.setdefault(batch_impl, []).append(sensor)
+
+        for batch_impl, group in groups.items():
+            batch_impl(group)
+            for sensor in group:
+                sensor._mark_buffers_updated()
 
     def _resolve_indices_and_mask(
         self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None

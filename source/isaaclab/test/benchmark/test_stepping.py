@@ -90,9 +90,12 @@ def test_profile_physics_steps_times_complete_step_once(monkeypatch, capsys, act
     assert synchronize.call_count == 2 * (int(active) + 1)
 
 
-def test_profile_renderers_wraps_each_renderer(monkeypatch, capsys):
-    """Renderer methods and instance overrides are restored after failures and repeated runs."""
+@pytest.mark.parametrize("mode", ["legacy", "default_batch", "native_batch", "native_single"])
+def test_profile_renderers_wraps_each_renderer(monkeypatch, capsys, mode):
+    """Time each submission once and restore methods after failures and repeated runs."""
     import warp as wp
+
+    from isaaclab.renderers.base_renderer import BaseRenderer
 
     second_render = Mock(side_effect=ValueError("render failed"))
 
@@ -100,8 +103,32 @@ def test_profile_renderers_wraps_each_renderer(monkeypatch, capsys):
         def render(self, render_data):
             second_render(render_data)
 
-    first, second = SimpleNamespace(render=Mock()), Renderer()
-    originals = [first.render, second.render]
+    class LoopRenderer(Renderer):
+        render_batch = BaseRenderer.render_batch
+
+    class NativeRenderer(Renderer):
+        def render(self, render_data):
+            self.render_batch((render_data,))
+
+        def render_batch(self, render_data):
+            second_render(render_data)
+
+    renderer_type = {
+        "legacy": Renderer,
+        "default_batch": LoopRenderer,
+        "native_batch": NativeRenderer,
+        "native_single": NativeRenderer,
+    }[mode]
+    first, second = SimpleNamespace(render=Mock()), renderer_type()
+    batched = mode in {"default_batch", "native_batch"}
+    if mode == "default_batch":
+        first.render_batch = BaseRenderer.render_batch.__get__(first)
+    elif mode == "native_batch":
+        first.render_batch = Mock()
+    method = "render_batch" if batched else "render"
+    first_request = ("first", "other") if batched else "first"
+    second_request = ("second", "other") if batched else "second"
+    originals = [vars(first).copy(), vars(second).copy()]
     context = SimpleNamespace(_renderer_entries=[(None, first), (None, second)])
     synchronize = Mock()
     monkeypatch.setattr(wp, "synchronize", synchronize)
@@ -110,28 +137,30 @@ def test_profile_renderers_wraps_each_renderer(monkeypatch, capsys):
     with pytest.raises(ValueError, match="render failed"):
         with profile_renderers(context, timings=timings) as collected:
             assert collected is timings
-            first.render("first")
-            second.render("second")
+            getattr(first, method)(first_request)
+            getattr(second, method)(second_request)
 
-    originals[0].assert_called_once_with("first")
-    second_render.assert_called_once_with("second")
+    if mode == "default_batch":
+        assert [call.args for call in originals[0]["render"].call_args_list] == [("first",), ("other",)]
+    else:
+        originals[0][method].assert_called_once_with(first_request)
+    second_argument = {"native_batch": second_request, "native_single": ("second",)}.get(mode, "second")
+    second_render.assert_called_once_with(second_argument)
     assert synchronize.call_count == 4
     assert len(timings) == 2
     assert all(scope == RENDER_PROFILE_SCOPE and elapsed >= 0.0 for scope, elapsed in timings)
     assert RENDER_PROFILE_SCOPE not in capsys.readouterr().out
-    assert [first.render, second.render] == originals
-    assert "render" not in vars(second)
+    assert [vars(first), vars(second)] == originals
 
     second_render.side_effect = None
     first.render("unprofiled")
     for enabled in (True, False):
         with profile_renderers(context, active=enabled) as later_timings:
-            first.render("first")
-            second.render("second")
+            getattr(first, method)(first_request)
+            getattr(second, method)(second_request)
         assert len(later_timings) == 2 * int(enabled)
         assert len(timings) == 2
-        assert [first.render, second.render] == originals
-        assert "render" not in vars(second)
+        assert [vars(first), vars(second)] == originals
     assert synchronize.call_count == 8
 
 
