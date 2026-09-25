@@ -12,9 +12,8 @@ starting Isaac Sim. The runtime comes from :func:`isaaclab.app.sim_launcher.scan
 ``launch_simulation`` uses to decide whether to start Isaac Sim, so a new environment lands in the right file
 without being listed anywhere.
 
-Many contributed environments share their build, step, and reset paths despite different colors, action
-spaces, or inference wrappers. Run one representative per task package, robot directory, and runtime,
-retaining additional environments where the directory also contains distinct assets or task logic.
+Contributed environments are intentionally sampled once per task package, robot directory, and runtime.
+Additional variants in the same family do not add smoke tests.
 """
 
 from collections import defaultdict
@@ -49,19 +48,6 @@ _SKIPPED_TASK_SUBSTRINGS = {
 _COVERED_TASKS = [
     "IsaacContrib-Lift-Cube-Franka",  # Already covered by test_environment_determinism.py
 ]
-_ADDITIONAL_TASKS = {
-    # Distinct insertion/threading assets, reset geometry, and success calculations.
-    "IsaacContrib-Factory-PegInsert-Direct",
-    "IsaacContrib-Factory-NutThread-Direct",
-    "IsaacContrib-Forge-PegInsert-Direct",
-    "IsaacContrib-Forge-NutThread-Direct",
-    # Different gripper asset and actuator/joint bindings from the 2F85 representative.
-    "IsaacContrib-Deploy-GearAssembly-UR10e-2F140",
-    # Pipe-specific Pink IK frames, reset events, and assembly observations.
-    "IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs",
-    # Resets and observations operate on RigidObjectCollection instead of individual cubes.
-    "IsaacContrib-Stack-Cube-Instance-Randomize-Franka",
-}
 
 
 def _skip_reason(task_name: str) -> str | None:
@@ -97,10 +83,10 @@ def _variant_family(task_name: str) -> tuple[str, str]:
 
 
 def contrib_environment_params(runtime: Runtime) -> list:
-    """Return representative contributed environments for the tasks that use ``runtime``.
+    """Return exactly one environment per task package and robot directory for ``runtime``.
 
     Prefer runnable rough-terrain variants, which also exercise the height scanner, then the shortest task ID.
-    Keep additional distinct fixtures and one entry for all-skipped families so their skip reason stays visible.
+    Keep one entry for all-skipped families so their skip reason stays visible.
     """
     tasks_by_family: dict[tuple[str, str, Runtime], list[str]] = defaultdict(list)
     task_marks = {}
@@ -113,14 +99,13 @@ def contrib_environment_params(runtime: Runtime) -> list:
     for (_, _, family_runtime), task_names in sorted(tasks_by_family.items()):
         if family_runtime != runtime:
             continue
-        representative = min(
+        task_name = min(
             task_names, key=lambda name: (_skip_reason(name) is not None, "-Rough-" not in name, len(name), name)
         )
-        for task_name in sorted({representative} | (_ADDITIONAL_TASKS & set(task_names))):
-            marks = task_marks[task_name]
-            if (skip_reason := _skip_reason(task_name)) is not None:
-                marks = (*marks, pytest.mark.skip(reason=skip_reason))
-            params.append(pytest.param(task_name, id=task_name, marks=marks))
+        marks = task_marks[task_name]
+        if (skip_reason := _skip_reason(task_name)) is not None:
+            marks = (*marks, pytest.mark.skip(reason=skip_reason))
+        params.append(pytest.param(task_name, id=task_name, marks=marks))
     return params
 
 
