@@ -61,7 +61,6 @@ RAMP_ANGLE_RAD = math.radians(38.0)
 RAMP_ROTATION = (math.sin(0.5 * RAMP_ANGLE_RAD), 0.0, 0.0, math.cos(0.5 * RAMP_ANGLE_RAD))
 START_Y = 1.70
 INITIAL_CLEARANCE = 0.08
-INITIAL_SPEED = 0.0
 RIGID_BODY_PATTERN = r"/World/envs/env_.*/Rigid_.*"
 CAMERA_EYE = (0.0, -26.0, 6.55)
 CAMERA_TARGET = (0.0, -2.5, 2.15)
@@ -199,20 +198,6 @@ def initial_center_height(shape: ShapeSpec) -> float:
     return ramp_surface_height(START_Y) + shape_half_height(shape) / math.cos(RAMP_ANGLE_RAD) + INITIAL_CLEARANCE
 
 
-def create_initial_velocities(shape: ShapeSpec, points: np.ndarray) -> np.ndarray:
-    """Create matched forward and rolling particle velocities [m/s]."""
-    velocities = np.zeros_like(points)
-    velocities[:, 1] = -INITIAL_SPEED * math.cos(RAMP_ANGLE_RAD)
-    velocities[:, 2] = -INITIAL_SPEED * math.sin(RAMP_ANGLE_RAD)
-    if shape.name in {"sphere", "capsule"}:
-        radius = shape.sphere_radius or shape.capsule_radius
-        angular_velocity = np.array((INITIAL_SPEED / radius, 0.0, 0.0), dtype=np.float32)
-        velocities += np.cross(angular_velocity, points)
-    elif shape.name == "cube":
-        velocities += np.cross(np.array((INITIAL_SPEED, 0.0, 0.0), dtype=np.float32), points)
-    return velocities
-
-
 def create_visualizer_cfgs():
     """Create the requested Kit or Newton visualizer configuration."""
     requested = args_cli.visualizer or []
@@ -307,6 +292,7 @@ def create_sim_cfg():
 def create_scene_cfg():
     """Create matched rigid and MPM lanes from procedural primitives."""
     from isaaclab_newton.assets import MPMObjectCfg
+    from isaaclab_newton.sim.schemas import NewtonCollisionCfg
     from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
 
     import isaaclab.sim as sim_utils
@@ -316,9 +302,12 @@ def create_scene_cfg():
 
     def rigid_spawn(shape: ShapeSpec):
         common = {
-            "rigid_props": sim_utils.RigidBodyPropertiesCfg(),
-            "mass_props": sim_utils.MassPropertiesCfg(mass=len(SHAPE_POINTS[shape.name]) * PARTICLE_MASS),
-            "collision_props": sim_utils.NewtonCollisionPropertiesCfg(contact_margin=0.5 * PARTICLE_SPACING),
+            "rigid_props": sim_utils.UsdPhysicsRigidBodyCfg(),
+            "mass_props": sim_utils.MassCfg(mass=len(SHAPE_POINTS[shape.name]) * PARTICLE_MASS),
+            "collision_props": [
+                sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                NewtonCollisionCfg(contact_margin=0.5 * PARTICLE_SPACING),
+            ],
             "physics_material": sim_utils.NewtonMaterialPropertiesCfg(
                 static_friction=shape.friction,
                 dynamic_friction=0.8 * shape.friction,
@@ -344,10 +333,10 @@ def create_scene_cfg():
             prim_path=f"/World/Ramp_{'Left' if group_x < 0.0 else 'Right'}",
             spawn=sim_utils.CuboidCfg(
                 size=RAMP_SIZE,
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(
-                    collision_enabled=True,
-                    contact_margin=0.5 * PARTICLE_SPACING,
-                ),
+                collision_props=[
+                    sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                    NewtonCollisionCfg(contact_margin=0.5 * PARTICLE_SPACING),
+                ],
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                     static_friction=0.52,
                     dynamic_friction=0.42,
@@ -374,14 +363,8 @@ def create_scene_cfg():
             spawn=rigid_spawn(shape),
             init_state=RigidObjectCfg.InitialStateCfg(
                 pos=position,
-                lin_vel=(0.0, -INITIAL_SPEED, 0.0),
-                ang_vel=(
-                    INITIAL_SPEED / (shape.sphere_radius or shape.capsule_radius)
-                    if shape.name in {"sphere", "capsule"}
-                    else 0.0,
-                    0.0,
-                    0.0,
-                ),
+                lin_vel=(0.0, 0.0, 0.0),
+                ang_vel=(0.0, 0.0, 0.0),
             ),
         )
 
@@ -390,7 +373,7 @@ def create_scene_cfg():
             prim_path=f"{{ENV_REGEX_NS}}/MPM_{shape.name.title()}",
             spawn=MPMPointsCfg(
                 positions=points.tolist(),
-                velocities=create_initial_velocities(shape, points).tolist(),
+                velocities=np.zeros_like(points).tolist(),
                 mass=PARTICLE_MASS,
                 radius=PARTICLE_RADIUS,
                 material=MPMParticleMaterialCfg(
@@ -431,7 +414,10 @@ def create_scene_cfg():
             prim_path="/World/Divider",
             spawn=sim_utils.CuboidCfg(
                 size=(0.08, 6.8, 0.18),
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(collision_enabled=True),
+                collision_props=[
+                    sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                    NewtonCollisionCfg(),
+                ],
                 visual_material=sim_utils.PreviewSurfaceCfg(
                     diffuse_color=(0.68, 0.72, 0.78), roughness=0.35, metallic=0.35
                 ),

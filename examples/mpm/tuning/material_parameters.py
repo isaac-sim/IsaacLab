@@ -371,7 +371,9 @@ def create_sim_cfg():
 def create_scene_cfg():
     """Create the side-by-side tuning specimens and their impact plinths."""
     from isaaclab_newton.assets import MPMObjectCfg
+    from isaaclab_newton.sim.schemas import NewtonCollisionCfg
     from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
+    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -401,10 +403,10 @@ def create_scene_cfg():
         if PRESET.geometry == "sphere_plate":
             spawn = sim_utils.CuboidCfg(
                 size=(1.05, 0.90, 0.10),
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(
-                    collision_enabled=True,
-                    contact_margin=PARTICLE_SPACING,
-                ),
+                collision_props=[
+                    sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                    NewtonCollisionCfg(contact_margin=PARTICLE_SPACING),
+                ],
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                     static_friction=0.6,
                     dynamic_friction=0.6,
@@ -423,10 +425,10 @@ def create_scene_cfg():
                 radius=0.20,
                 height=1.15,
                 axis="Y",
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(
-                    collision_enabled=True,
-                    contact_margin=PARTICLE_SPACING,
-                ),
+                collision_props=[
+                    sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                    NewtonCollisionCfg(contact_margin=PARTICLE_SPACING),
+                ],
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                     static_friction=0.55,
                     dynamic_friction=0.55,
@@ -450,15 +452,14 @@ def create_scene_cfg():
             prim_path=f"{{ENV_REGEX_NS}}/Press_{index}",
             spawn=sim_utils.CuboidCfg(
                 size=(1.05, 0.90, 0.10),
-                rigid_props=sim_utils.NewtonRigidBodyPropertiesCfg(
-                    rigid_body_enabled=True,
-                    kinematic_enabled=True,
-                    disable_gravity=True,
-                ),
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(
-                    collision_enabled=True,
-                    contact_margin=PARTICLE_SPACING,
-                ),
+                rigid_props=[
+                    sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=True),
+                    PhysxRigidBodyCfg(disable_gravity=True),
+                ],
+                collision_props=[
+                    sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                    NewtonCollisionCfg(contact_margin=PARTICLE_SPACING),
+                ],
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                     static_friction=0.6,
                     dynamic_friction=0.6,

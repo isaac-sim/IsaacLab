@@ -224,13 +224,13 @@ while changing only surface extraction parameters:
 The balanced Newton RTX recording demonstrates rendering appearance, not a
 different constitutive model.
 
-To reconstruct a surface in another Newton MPM script, create one reusable
-``newton.geometry.ParticleSurface`` after ``sim.reset()``. On each render update,
-extract from the current Newton particle positions, radii, flags, and world indices,
-then pass the returned vertex, triangle-index, and normal arrays to
-``NewtonGLVisualizer.log_mesh()`` or ``NewtonRTXVisualizer.log_mesh()`` with
-``dynamic=True`` before calling ``sim.render()``. The visualizer stages the latest
-mesh by name and submits it inside Newton's required viewer-frame lifecycle.
+To reconstruct a surface in another Newton MPM script, configure a
+``newton.geometry.ParticleSurface`` after ``sim.reset()`` and pass it with the
+active viewers to :class:`~isaaclab_visualizers.newton.ParticleSurfaceRenderer`.
+Call ``update()`` before ``sim.render()``. The helper captures extraction on CUDA
+when enabled and stages the latest dynamic mesh inside the viewer's frame
+lifecycle. The teapot and falling-blob examples show different surface settings
+using the same helper.
 
 Tune reconstruction independently from the simulation:
 
@@ -246,12 +246,12 @@ Tune reconstruction independently from the simulation:
 The demo handles CUDA graph capture, empty surfaces, inactive particles, and
 dynamic topology in one reusable helper:
 
-.. dropdown:: ``FluidSurfaceRenderer`` implementation
+.. dropdown:: ``ParticleSurfaceRenderer`` implementation
    :icon: code
 
-   .. literalinclude:: ../../../examples/demos/teapot_fill.py
+   .. literalinclude:: ../../../source/isaaclab_visualizers/isaaclab_visualizers/newton/particle_surface.py
       :language: python
-      :pyobject: FluidSurfaceRenderer
+      :pyobject: ParticleSurfaceRenderer
 
 
 Next Steps

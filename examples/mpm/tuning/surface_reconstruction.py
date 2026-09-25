@@ -22,11 +22,14 @@ from __future__ import annotations
 
 import argparse
 import math
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
 
 from isaaclab.app import add_launcher_args, launch_simulation
+
+if TYPE_CHECKING:
+    from isaaclab_visualizers.newton import ParticleSurfaceRenderer
 
 
 class SurfacePreset(NamedTuple):
@@ -285,6 +288,7 @@ def create_sim_cfg():
 def create_scene_cfg(points: np.ndarray, velocities: np.ndarray):
     """Create the basin, shallow pool, and airborne MPM blob."""
     from isaaclab_newton.assets import MPMObjectCfg
+    from isaaclab_newton.sim.schemas import NewtonCollisionCfg
     from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
 
     import isaaclab.sim as sim_utils
@@ -304,10 +308,10 @@ def create_scene_cfg(points: np.ndarray, velocities: np.ndarray):
             prim_path=f"/World/Basin/{name}",
             spawn=sim_utils.CuboidCfg(
                 size=size,
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(
-                    collision_enabled=True,
-                    contact_margin=0.5 * MPM_VOXEL_SIZE,
-                ),
+                collision_props=[
+                    sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                    NewtonCollisionCfg(contact_margin=0.5 * MPM_VOXEL_SIZE),
+                ],
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                     static_friction=0.18,
                     dynamic_friction=0.18,
@@ -454,100 +458,40 @@ def create_scene_cfg(points: np.ndarray, velocities: np.ndarray):
     return SurfaceSplashSceneCfg(num_envs=1, env_spacing=0.0)
 
 
-class FluidSurfaceRenderer:
-    """Reconstruct one dynamic surface using the resolved CLI configuration."""
+def create_surface_renderer(sim) -> ParticleSurfaceRenderer:
+    """Configure splash-specific surface extraction after Newton initializes."""
+    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_visualizers.newton import ParticleSurfaceRenderer
+    from newton.geometry import ParticleSurface
 
-    def __init__(self, sim) -> None:
-        import warp as wp
-        from isaaclab_newton.physics import NewtonManager
-        from isaaclab_visualizers.newton import NewtonGLVisualizer, NewtonRTXVisualizer
-        from newton.geometry import ParticleSurface
-
-        self._wp = wp
-        self._visualizers = tuple(
-            visualizer
-            for visualizer in sim.visualizers
-            if isinstance(visualizer, (NewtonGLVisualizer, NewtonRTXVisualizer))
-        )
-        if not self._visualizers:
-            raise RuntimeError("Particle surface rendering requires a Newton GL or RTX visualizer.")
-
-        self._model = NewtonManager.get_model()
-        self._state = NewtonManager.get_state_0()
-        self._surface = ParticleSurface(
-            voxel_size=SURFACE_CFG.surface_voxel_size,
-            max_grid_cells=MAX_SURFACE_GRID_CELLS,
-            world_count=max(self._model.world_count, 1),
-            kernel_radius=SURFACE_CFG.kernel_radius,
-            threshold=SURFACE_CFG.threshold,
-            smooth_lambda=0.0,
-            anisotropic=SURFACE_CFG.anisotropic,
-            kernel_scale=0.5,
-            anisotropy_ratio=16.0,
-            anisotropy_scale=1.0,
-            anisotropy_min_neighbors=4,
-            anisotropy_binning=True,
-            anisotropy_strength=0.95,
-            field_smooth_iterations=SURFACE_CFG.field_smooth_iterations,
-            mesh_smooth_iterations=SURFACE_CFG.mesh_smooth_iterations,
-            device=self._model.device,
-        )
-        self._empty_points = wp.empty(0, dtype=wp.vec3, device=self._model.device)
-        self._empty_indices = wp.empty(0, dtype=wp.int32, device=self._model.device)
-        self._empty_normals = wp.empty(0, dtype=wp.vec3, device=self._model.device)
-        self._surface_mesh = None
-        self._surface_graph = None
-        self._capture_surface_extraction()
-
-    def _extract_surface(self):
-        return self._surface.extract(
-            self._state.particle_q,
-            self._model.particle_radius,
-            particle_flags=self._model.particle_flags,
-            particle_world=self._model.particle_world if self._surface.world_count > 1 else None,
-        )
-
-    def _capture_surface_extraction(self) -> None:
-        if not self._model.device.is_cuda or args_cli.disable_cuda_graph:
-            return
-        self._surface_mesh = self._extract_surface()
-        with self._wp.ScopedCapture(device=self._model.device) as capture:
-            self._surface_mesh = self._extract_surface()
-        self._surface_graph = capture.graph
-
-    def update(self) -> int:
-        """Publish the latest surface and return its triangle count."""
-        if self._surface_graph is None:
-            self._surface_mesh = self._extract_surface()
-        else:
-            self._wp.capture_launch(self._surface_graph)
-
-        vertices, indices, normals = self._surface_mesh.to_arrays()
-        if vertices is None:
-            vertices = self._empty_points
-            indices = self._empty_indices
-            normals = self._empty_normals
-            hidden = True
-            triangle_count = 0
-        else:
-            hidden = False
-            triangle_count = indices.shape[0] // 3
-
-        for visualizer in self._visualizers:
-            visualizer.log_mesh(
-                SURFACE_PATH,
-                vertices,
-                indices,
-                normals=normals,
-                hidden=hidden,
-                backface_culling=False,
-                color=WATER_COLOR,
-                roughness=0.06,
-                metallic=0.0,
-                dynamic=True,
-                opacity=args_cli.surface_opacity,
-            )
-        return triangle_count
+    model = NewtonManager.get_model()
+    surface = ParticleSurface(
+        voxel_size=SURFACE_CFG.surface_voxel_size,
+        max_grid_cells=MAX_SURFACE_GRID_CELLS,
+        world_count=max(model.world_count, 1),
+        kernel_radius=SURFACE_CFG.kernel_radius,
+        threshold=SURFACE_CFG.threshold,
+        smooth_lambda=0.0,
+        anisotropic=SURFACE_CFG.anisotropic,
+        kernel_scale=0.5,
+        anisotropy_ratio=16.0,
+        anisotropy_scale=1.0,
+        anisotropy_min_neighbors=4,
+        anisotropy_binning=True,
+        anisotropy_strength=0.95,
+        field_smooth_iterations=SURFACE_CFG.field_smooth_iterations,
+        mesh_smooth_iterations=SURFACE_CFG.mesh_smooth_iterations,
+        device=model.device,
+    )
+    return ParticleSurfaceRenderer(
+        sim.visualizers,
+        surface,
+        path=SURFACE_PATH,
+        color=WATER_COLOR,
+        opacity=args_cli.surface_opacity,
+        roughness=0.06,
+        use_cuda_graph=not args_cli.disable_cuda_graph,
+    )
 
 
 def fluid_metrics(scene, triangle_count: int) -> dict[str, float | int]:
@@ -567,7 +511,7 @@ def fluid_metrics(scene, triangle_count: int) -> dict[str, float | int]:
     }
 
 
-def run_simulator(sim, scene, surface_renderer: FluidSurfaceRenderer | None) -> dict[str, float | int]:
+def run_simulator(sim, scene, surface_renderer: ParticleSurfaceRenderer | None) -> dict[str, float | int]:
     """Advance the splash and return its final geometry diagnostics."""
     sim_dt = sim.get_physics_dt()
     count = 0
@@ -596,7 +540,7 @@ def main() -> None:
         scene = InteractiveScene(create_scene_cfg(points, velocities))
         sim.reset()
         sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
-        surface_renderer = FluidSurfaceRenderer(sim) if SHOW_SURFACE else None
+        surface_renderer = create_surface_renderer(sim) if SHOW_SURFACE else None
         print(
             f"[INFO]: Surface splash ready: {points.shape[0]} particles ({blob_particle_count} airborne), "
             f"{args_cli.fluid_render_mode} mode, {args_cli.surface_preset} preset.",

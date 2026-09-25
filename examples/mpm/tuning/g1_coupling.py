@@ -191,6 +191,9 @@ def _kinematic_box(
     contact_margin: float,
 ) -> Any:
     """Create one visible kinematic collider."""
+    from isaaclab_newton.sim.schemas import NewtonCollisionCfg
+    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
     import isaaclab.sim as sim_utils
     from isaaclab.assets import RigidObjectCfg
 
@@ -198,16 +201,14 @@ def _kinematic_box(
         prim_path=prim_path,
         spawn=sim_utils.CuboidCfg(
             size=size,
-            rigid_props=sim_utils.NewtonRigidBodyPropertiesCfg(
-                rigid_body_enabled=True,
-                kinematic_enabled=True,
-                disable_gravity=True,
-            ),
-            collision_props=sim_utils.NewtonCollisionPropertiesCfg(
-                collision_enabled=True,
-                contact_margin=contact_margin,
-                contact_gap=0.0,
-            ),
+            rigid_props=[
+                sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=True),
+                PhysxRigidBodyCfg(disable_gravity=True),
+            ],
+            collision_props=[
+                sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                NewtonCollisionCfg(contact_margin=contact_margin, contact_gap=0.0),
+            ],
             physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                 static_friction=0.9,
                 dynamic_friction=0.8,
@@ -224,6 +225,8 @@ def _kinematic_box(
 
 def _configure_common_environment(env_cfg: Any) -> None:
     """Apply deterministic playback settings shared by both coupling modes."""
+    from isaaclab_newton.sim.schemas import NewtonCollisionCfg
+
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg
 
@@ -247,10 +250,10 @@ def _configure_common_environment(env_cfg: Any) -> None:
         # collider instead of only the two non-instanced foot boxes.
         env_cfg.scene.robot.spawn.make_uninstanceable = True
     particle_spacing = args_cli.voxel_size / PARTICLES_PER_VOXEL_AXIS
-    env_cfg.scene.robot.spawn.collision_props = sim_utils.NewtonCollisionPropertiesCfg(
-        contact_margin=particle_spacing,
-        contact_gap=0.0,
-    )
+    env_cfg.scene.robot.spawn.collision_props = [
+        sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+        NewtonCollisionCfg(contact_margin=particle_spacing, contact_gap=0.0),
+    ]
     env_cfg.episode_length_s = 100.0
     env_cfg.curriculum.terrain_levels = None
     env_cfg.ui_window_class_type = None
@@ -326,11 +329,10 @@ def _configure_common_environment(env_cfg: Any) -> None:
                         radius=SHIN_PROXY_RADIUS,
                         height=SHIN_PROXY_HEIGHT,
                         axis="Z",
-                        collision_props=sim_utils.NewtonCollisionPropertiesCfg(
-                            collision_enabled=True,
-                            contact_margin=particle_spacing,
-                            contact_gap=0.0,
-                        ),
+                        collision_props=[
+                            sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                            NewtonCollisionCfg(contact_margin=particle_spacing, contact_gap=0.0),
+                        ],
                     ),
                     init_state=AssetBaseCfg.InitialStateCfg(pos=SHIN_PROXY_OFFSET),
                 ),

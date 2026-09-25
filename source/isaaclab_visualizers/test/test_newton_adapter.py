@@ -19,9 +19,11 @@ from isaaclab_visualizers.newton import (
     NewtonGLVisualizerCfg,
     NewtonRTXVisualizer,
     NewtonRTXVisualizerCfg,
+    ParticleSurfaceRenderer,
 )
 from isaaclab_visualizers.newton import newton_visualization_markers as newton_markers
 from isaaclab_visualizers.newton import newton_visualizer as newton_visualizer_module
+from isaaclab_visualizers.newton import particle_surface as particle_surface_module
 from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL, NewtonViewerRTX, _eye_lookat_to_pitch_yaw
 from isaaclab_visualizers.newton_adapter import (
     VISUALIZER_INFINITE_PLANE_SIZE,
@@ -128,6 +130,48 @@ def test_newton_visualizer_log_mesh_requires_initialized_viewer():
 
     with pytest.raises(RuntimeError, match="must be initialized"):
         visualizer.log_mesh("/surface", points, indices)
+
+
+def test_particle_surface_renderer_stages_latest_mesh_and_hides_empty_surface(monkeypatch: pytest.MonkeyPatch):
+    """A reusable extractor must stage visible and empty meshes through the viewer API."""
+    model = SimpleNamespace(
+        device=wp.get_device("cpu"),
+        particle_radius=object(),
+        particle_flags=object(),
+        particle_world=object(),
+    )
+    state = SimpleNamespace(particle_q=object())
+    monkeypatch.setattr(particle_surface_module.NewtonManager, "get_model", lambda: model)
+    monkeypatch.setattr(particle_surface_module.NewtonManager, "get_state_0", lambda: state)
+
+    visualizer = _make_newton_visualizer(Mock())
+    surface = Mock(world_count=2)
+    mesh = surface.extract.return_value
+    vertices = wp.zeros(4, dtype=wp.vec3)
+    indices = wp.zeros(6, dtype=wp.int32)
+    normals = wp.zeros(4, dtype=wp.vec3)
+    mesh.to_arrays.side_effect = [(vertices, indices, normals), (None, None, None)]
+    renderer = ParticleSurfaceRenderer(
+        [visualizer], surface, path="/water", color=(0.1, 0.2, 0.8), opacity=0.65, use_cuda_graph=False
+    )
+
+    assert renderer.update() == 2
+    surface.extract.assert_called_with(
+        state.particle_q,
+        model.particle_radius,
+        particle_flags=model.particle_flags,
+        particle_world=model.particle_world,
+    )
+    visible_mesh = visualizer._pending_mesh_submissions["/water"]
+    assert visible_mesh.points is vertices
+    assert visible_mesh.dynamic and not visible_mesh.hidden
+    assert visible_mesh.opacity == 0.65
+
+    assert renderer.update() == 0
+    hidden_mesh = visualizer._pending_mesh_submissions["/water"]
+    assert hidden_mesh.hidden
+    assert hidden_mesh.points.shape[0] == 0
+    assert hidden_mesh.indices.shape[0] == 0
 
 
 def test_newton_marker_registry_lifecycle(monkeypatch: pytest.MonkeyPatch):
