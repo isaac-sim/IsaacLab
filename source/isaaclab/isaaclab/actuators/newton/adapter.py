@@ -32,6 +32,7 @@ from newton.selection import ArticulationView
 from .kernels import (
     build_implicit_dof_mask,
     build_per_dof_env_mask_kernel,
+    set_mask_kernel,
     zero_at_indices_kernel,
 )
 
@@ -188,7 +189,16 @@ class NewtonActuatorAdapter:
         if num_envs == 0:
             return
         env_mask = wp.zeros(self._num_envs, dtype=wp.bool, device=self._device)
-        wp.to_torch(env_mask)[env_ids] = True
+        if isinstance(env_ids, slice):
+            wp.to_torch(env_mask)[env_ids] = True
+        else:
+            # Torch indexed scalar assignment uploads True and synchronizes on CUDA.
+            indices = (
+                wp.from_torch(env_ids)
+                if isinstance(env_ids, torch.Tensor)
+                else wp.array(env_ids, dtype=wp.int32, device=self._device)
+            )
+            wp.launch(set_mask_kernel, dim=num_envs, inputs=[env_mask, indices], device=self._device)
 
         for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
             per_dof_mask = wp.zeros(act.indices.shape[0], dtype=wp.bool, device=self._device)

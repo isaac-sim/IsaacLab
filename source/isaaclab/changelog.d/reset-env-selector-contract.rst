@@ -20,3 +20,4 @@ Fixed
 * Enabled full and partial slices in observation history and moving-average joint-action resets.
 * Converted int64 environment indices to the native CPU int32 representation when writing PhysX rigid-body
   material properties.
+* Preserved int32/int64 device indices when resetting native actuator state without scalar host-to-device uploads.
