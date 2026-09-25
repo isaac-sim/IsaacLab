@@ -15,9 +15,9 @@ from isaaclab.cloner import ClonePlan
 from isaaclab.scene_data.deformable_discovery import (
     _matrix4d_to_numpy,
     _transform_points,
-    deformable_entries,
     deformable_entry,
     deformable_prototypes,
+    expand_deformable_entries,
 )
 
 
@@ -174,7 +174,7 @@ def test_backend_geometry_nearest_owner_partial_rows_and_shared_roots():
     prototype = next(entry for entry in prototypes if entry.root_path == "/Lab/Cell3/Cloth")
     stage.RemovePrim("/Lab")
 
-    expanded = {entry.root_path: entry for entry in deformable_entries(plan, prototypes)}
+    expanded = {entry.root_path: entry for entry in expand_deformable_entries(plan, prototypes)}
     assert set(expanded) == {
         "/Lab/Cell3/Cloth",
         "/Lab/Cell7/Cloth",
@@ -182,7 +182,7 @@ def test_backend_geometry_nearest_owner_partial_rows_and_shared_roots():
         "/Lab/Cell11/Nested/Cloth",
         "/Shared/Cloth",
     }
-    assert {entry.root_path for entry in deformable_entries(plan, prototypes, (1,))} == {
+    assert {entry.root_path for entry in expand_deformable_entries(plan, prototypes, (1,))} == {
         "/Lab/Cell3/Nested/Cloth",
         "/Lab/Cell11/Nested/Cloth",
         "/Shared/Cloth",
@@ -202,5 +202,5 @@ def test_backend_geometry_nearest_owner_partial_rows_and_shared_roots():
     )
     shared = next(entry for entry in prototypes if entry.root_path == "/Shared/Cloth")
     for ordered in (prototypes, prototypes[::-1]):
-        expanded = {entry.root_path: entry for entry in deformable_entries(override_plan, ordered)}
+        expanded = {entry.root_path: entry for entry in expand_deformable_entries(override_plan, ordered)}
         assert expanded["/Lab/Cell3/Nested/Cloth"].vertices is shared.vertices

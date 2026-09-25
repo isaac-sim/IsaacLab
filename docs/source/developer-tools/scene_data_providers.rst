@@ -48,8 +48,9 @@ The system has three layers:
      paired with exact visual prim paths and ranges compiled during backend construction. It returns
      the requested native representation when available, otherwise the primary representations for
      SDP to convert. The return type is always a list of batches, including native Fabric.
-   - :attr:`SceneDataBackend.geometry_version`: monotonic geometry publication version,
-     including same-step writes and native pointer swaps.
+   - :attr:`SceneDataBackend.geometry_version`: monotonic change counter, including same-step
+     writes and native pointer swaps. Each consumer retains its own ``*_version_last_update``;
+     this is neither a point count nor a shared dirty flag that a reader clears.
    - :attr:`SceneDataBackend.native_geometry_formats`: geometry formats available without conversion.
 
 2. :class:`~isaaclab.scene_data.SceneDataProvider`: wraps a backend and offers format conversion

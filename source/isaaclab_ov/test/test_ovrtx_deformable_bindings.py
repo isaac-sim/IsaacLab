@@ -32,7 +32,7 @@ def _make_renderer_without_backend() -> tuple[OVRTXRenderer, MagicMock]:
     renderer.backend = SimpleNamespace(renderer=MagicMock())
     renderer._device = "cpu"
     renderer._geometry_paths = []
-    renderer._geometry_version = -1
+    renderer._geometry_version_last_update = -1
     renderer._use_ovstage = False
     renderer._init_fields_legacy()
     return renderer, renderer.backend.renderer
@@ -134,7 +134,7 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
     backend = SimpleNamespace(transforms=transforms, transforms_version=0, transform_count=2, transform_paths=paths)
     backend.get_transforms = lambda _format: transforms
     renderer._sdp = SceneDataProvider(backend)
-    renderer._transform_version = -1
+    renderer._transforms_version_last_update = -1
     renderer._object_scales_by_path = {paths[0]: (2, 3, 4)}
     renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=99))
     renderer._use_ovstage = use_ovstage

@@ -237,14 +237,14 @@ class NewtonSceneDataBackend(SceneDataBackend):
             ]
             if not paths and any(under(entry.vis_mesh_prim_path, root) for root in plan.global_paths):
                 paths.append(entry.vis_mesh_prim_path)
-            if entry.visual_mapping is None:
+            if entry.volume_vis_remap is None:
                 ranges.update(
                     (path, (offset, entry.particles_per_body))
                     for path, offset in zip(paths, entry.particle_offsets, strict=True)
                 )
             else:
-                prototype_indices = entry.visual_mapping.tet_vertex_indices.numpy()
-                prototype_weights = entry.visual_mapping.bary_weights.numpy()
+                prototype_indices = entry.volume_vis_remap.tet_vertex_indices.numpy()
+                prototype_weights = entry.volume_vis_remap.bary_weights.numpy()
                 count = len(prototype_indices)
                 for path, offset in zip(paths, entry.particle_offsets, strict=True):
                     indices.append(prototype_indices + offset)
@@ -468,10 +468,10 @@ class NewtonManager(PhysicsManager):
     # Visualization-only state used when the sim backend is PhysX. Populated
     # from the clone plan in :meth:`_initialize_visualization_model` and updated each render
     # frame in :meth:`update_visualization_state`.
-    _scene_data_mapping: wp.array | None = None
-    _scene_data_version: int | None = None
-    _scene_data_geometry_mapping: dict[str, int] = {}
-    _scene_data_geometry_version: int | None = None
+    _transform_mapping: wp.array | None = None
+    _transforms_version_last_update: int | None = None
+    _geometry_offsets: dict[str, int] = {}
+    _geometry_version_last_update: int | None = None
     _visualization_stop_callback: CallbackHandle | None = None
 
     _builder_attribute_solvers: tuple[type[SolverBase], ...] = ()
@@ -655,7 +655,7 @@ class NewtonManager(PhysicsManager):
                 NewtonManager._transforms_may_change_on_graph_replay = True
 
     @classmethod
-    def _mark_particles_dirty(cls) -> None:
+    def _mark_particles_changed(cls) -> None:
         """Invalidate SDP geometry after native particle writes."""
         NewtonManager._scene_data_backend.geometry_version += 1
         device = wp.get_device(PhysicsManager._device)
@@ -867,10 +867,10 @@ class NewtonManager(PhysicsManager):
         NewtonManager._deformable_registry = []
         NewtonManager._per_world_builder_hooks = []
         NewtonManager._up_axis = "Z"
-        NewtonManager._scene_data_mapping = None
-        NewtonManager._scene_data_version = None
-        NewtonManager._scene_data_geometry_mapping = {}
-        NewtonManager._scene_data_geometry_version = None
+        NewtonManager._transform_mapping = None
+        NewtonManager._transforms_version_last_update = None
+        NewtonManager._geometry_offsets = {}
+        NewtonManager._geometry_version_last_update = None
         NewtonManager._model_changes = set()
         NewtonManager._scene_data_backend = None
         NewtonManager._cl_pending_sites = {}
@@ -2434,17 +2434,19 @@ class NewtonManager(PhysicsManager):
         return isinstance(cls.get_scene_data_provider().backend, NewtonSceneDataBackend)
 
     @classmethod
-    def _initialize_visualization_model(cls, cfg: NewtonBackendCfg, geometry: dict[str, int], _event: Any) -> None:
+    def _initialize_visualization_model(
+        cls, cfg: NewtonBackendCfg, geometry_offsets: dict[str, int], _event: Any
+    ) -> None:
         """Acquire the completed clone representation when foreign physics becomes ready."""
         if cls.backend is not None:
             return
         sim = SimulationContext.instance()
         NewtonManager.backend = sim.get_or_create_backend(cfg)
         NewtonManager._num_envs = cls.backend.model.num_envs
-        NewtonManager._scene_data_mapping = None
-        NewtonManager._scene_data_version = None
-        NewtonManager._scene_data_geometry_mapping = geometry
-        NewtonManager._scene_data_geometry_version = None
+        NewtonManager._transform_mapping = None
+        NewtonManager._transforms_version_last_update = None
+        NewtonManager._geometry_offsets = geometry_offsets
+        NewtonManager._geometry_version_last_update = None
         cls.update_visualization_state()
         NewtonManager._visualization_stop_callback = sim.physics_manager.register_callback(
             lambda _payload: NewtonManager.clear(),
@@ -2488,34 +2490,34 @@ class NewtonManager(PhysicsManager):
             return
 
         if cls.backend.state_0.body_q is not None:
-            if cls._scene_data_version is None:
+            if cls._transforms_version_last_update is None:
                 body_labels = list(cls.backend.model.body_label)
                 body_paths = cls._resolve_scene_data_body_paths(body_labels, scene_data_provider.usd_stage)
                 if len(set(body_paths)) != cls.backend.model.body_count or not set(body_paths).issubset(
                     scene_data_provider.backend.transform_paths
                 ):
                     raise ValueError("Every Newton render body must have one unique SDP transform path.")
-                cls._scene_data_mapping = scene_data_provider.create_mapping(body_paths)
+                cls._transform_mapping = scene_data_provider.create_mapping(body_paths)
 
             transforms = SceneDataFormat.Transform()
             if scene_data_provider.get_transforms(
-                transforms, mapping=cls._scene_data_mapping, count=cls.backend.model.body_count
+                transforms, mapping=cls._transform_mapping, count=cls.backend.model.body_count
             ):
                 if cls.backend.state_0.body_q is not transforms.transforms:
                     cls.backend.state_0.body_q = transforms.transforms
                     cls._invalidate_sensor_graph()
-                if cls._scene_data_version != scene_data_provider.backend.transforms_version:
+                if cls._transforms_version_last_update != scene_data_provider.backend.transforms_version:
                     cls._mark_sensor_state_dirty()
-            cls._scene_data_version = scene_data_provider.backend.transforms_version
+            cls._transforms_version_last_update = scene_data_provider.backend.transforms_version
 
-        if cls._scene_data_geometry_mapping:
+        if cls._geometry_offsets:
             scene_data_provider.get_geometry_points(
-                output=cls.backend.state_0.particle_q, offsets=cls._scene_data_geometry_mapping
+                output=cls.backend.state_0.particle_q, offsets=cls._geometry_offsets
             )
             version = scene_data_provider.backend.geometry_version
-            if cls._scene_data_geometry_version != version:
+            if cls._geometry_version_last_update != version:
                 cls._mark_sensor_state_dirty()
-                cls._scene_data_geometry_version = version
+                cls._geometry_version_last_update = version
 
     @staticmethod
     def _resolve_scene_data_body_paths(body_paths: list[str | None], stage) -> list[str | None]:

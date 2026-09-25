@@ -384,11 +384,11 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_render_data: list[OVRTXCameraRenderData] = []
         self._next_camera_id = 0
         self._sdp = SimulationContext.instance().get_scene_data_provider()
-        self._transform_version = -1
+        self._transforms_version_last_update = -1
         self._object_scales: wp.array | None = None
         self._object_scales_by_path: dict[str, tuple[float, float, float]] = {}
         self._geometry_paths: list[str] = []
-        self._geometry_version = -1
+        self._geometry_version_last_update = -1
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
         self._camera_prim_path: str | None = None
@@ -906,7 +906,7 @@ class OVRTXRenderer(BaseRenderer):
         transforms = SceneDataFormat.TransposedMatrix44d()
         if not self._sdp.get_transforms(transforms, scales=self._object_scales):
             return
-        if self._transform_version == self._sdp.backend.transforms_version:
+        if self._transforms_version_last_update == self._sdp.backend.transforms_version:
             return
         # Blocking ``write()`` so the buffer stays valid until OVRTX finishes reading it.
         # ``DataAccess.ASYNC`` + the Warp CUDA stream let OVRTX read in place and wait
@@ -916,7 +916,7 @@ class OVRTXRenderer(BaseRenderer):
             data_access=DataAccess.ASYNC,
             cuda_stream=self._warp_device.stream.cuda_stream,
         )
-        self._transform_version = self._sdp.backend.transforms_version
+        self._transforms_version_last_update = self._sdp.backend.transforms_version
 
     def _update_geometries_legacy(self) -> None:
         """Write SDP point views using the producing stream, without staging copies."""
@@ -924,14 +924,14 @@ class OVRTXRenderer(BaseRenderer):
             return
         points = self._sdp.get_geometry_points()
         version = self._sdp.backend.geometry_version
-        if self._geometry_version == version:
+        if self._geometry_version_last_update == version:
             return
         self._geometry_points_binding.write(
             cast(Any, [points[path] for path in self._geometry_paths]),
             data_access=DataAccess.ASYNC,
             cuda_stream=self._warp_device.stream.cuda_stream,
         )
-        self._geometry_version = version
+        self._geometry_version_last_update = version
 
     def _update_camera_legacy(
         self,
@@ -1544,7 +1544,7 @@ class OVRTXRenderer(BaseRenderer):
         else:
             self._close_legacy()
         self._geometry_paths = []
-        self._geometry_version = -1
+        self._geometry_version_last_update = -1
         self._render_product_paths.clear()
         self._output_id_color_buffers.clear()
         self._initialized_scene = False
@@ -1816,7 +1816,7 @@ class OVRTXRenderer(BaseRenderer):
         transforms = SceneDataFormat.TransposedMatrix44d()
         if not self._sdp.get_transforms(transforms, scales=self._object_scales):
             return
-        if self._transform_version == self._sdp.backend.transforms_version:
+        if self._transforms_version_last_update == self._sdp.backend.transforms_version:
             return
         # Stream-ordered zero-copy handoff; wait until OVStage has consumed the shared buffer.
         self.backend.stage.write_attribute(
@@ -1828,7 +1828,7 @@ class OVRTXRenderer(BaseRenderer):
             semantic=ovstage.AttributeSemantic.MATRIX,
             cuda_stream=self._warp_device.stream.cuda_stream,
         ).wait()
-        self._transform_version = self._sdp.backend.transforms_version
+        self._transforms_version_last_update = self._sdp.backend.transforms_version
 
     def _update_geometries_ovstage(self) -> None:
         """Write SDP point views and wait until OVStage has consumed the borrowed arrays."""
@@ -1836,7 +1836,7 @@ class OVRTXRenderer(BaseRenderer):
             return
         points = self._sdp.get_geometry_points()
         version = self._sdp.backend.geometry_version
-        if self._geometry_version == version:
+        if self._geometry_version_last_update == version:
             return
         self.backend.stage.write_attribute(
             self._geometry_points_query,
@@ -1847,7 +1847,7 @@ class OVRTXRenderer(BaseRenderer):
             semantic=ovstage.AttributeSemantic.POINT,
             cuda_stream=self._warp_device.stream.cuda_stream,
         ).wait()
-        self._geometry_version = version
+        self._geometry_version_last_update = version
 
     def _update_camera_ovstage(
         self,

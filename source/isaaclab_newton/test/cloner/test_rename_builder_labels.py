@@ -22,7 +22,11 @@ from isaaclab_newton.physics import visualization_deformables as visualization_d
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.cloner import ClonePlan
-from isaaclab.scene_data.deformable_discovery import DeformableStageEntry, deformable_entries, deformable_prototypes
+from isaaclab.scene_data.deformable_discovery import (
+    DeformableStageEntry,
+    deformable_prototypes,
+    expand_deformable_entries,
+)
 from isaaclab.sim.schemas import define_deformable_curve_properties
 
 _SRC = "/World/envs/env_0/protoA"
@@ -390,7 +394,8 @@ class TestVisualizationClonePlan(unittest.TestCase):
             with self.subTest(positions=positions):
                 builder = newton.ModelBuilder()
                 offsets = visualization_deformables_module.add_shadow_deformables_to_builder(
-                    builder, deformable_entries(replace(plan, positions=positions), deformable_prototypes(stage, plan))
+                    builder,
+                    expand_deformable_entries(replace(plan, positions=positions), deformable_prototypes(stage, plan)),
                 )
                 self.assertEqual(offsets, {path: 0, "/Scene/copy_12/Parent/Cloth": 3})
                 self.assertFalse(stage.GetPrimAtPath("/Scene/copy_12"))
@@ -423,7 +428,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
         builder = newton.ModelBuilder()
         builder.add_particle(pos=wp.vec3(), vel=wp.vec3(), mass=1.0)
         offsets = visualization_deformables_module.add_shadow_deformables_to_builder(
-            builder, deformable_entries(plan, entries, (0, 1))
+            builder, expand_deformable_entries(plan, entries, (0, 1))
         )
         self.assertEqual(
             offsets, {"/Copies/2/Body/Visual": 1, "/Copies/30/Body/Visual": 4, "/Copies/10/Body/Visual": 7}

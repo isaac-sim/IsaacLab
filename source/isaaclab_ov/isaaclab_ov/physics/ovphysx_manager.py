@@ -30,9 +30,9 @@ from pxr import Sdf, UsdPhysics
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
-    deformable_entries,
     deformable_geometry_batches,
     deformable_prototypes,
+    expand_deformable_entries,
 )
 from isaaclab.sim.simulation_context import SimulationContext
 
@@ -98,9 +98,9 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         self._rigid_bindings: list[tuple[OvPhysxView, wp.array]] = []
         self._transforms = SceneDataFormat.Transform()
         self.transforms_version = 0
-        self._poses_version = -1
+        self._transforms_version_last_update = -1
         self.geometry_version = 0
-        self._points_version = -1
+        self._geometry_version_last_update = -1
         self._geometry_batches: list | None = None
         self._deformable_bindings: list[tuple[OvPhysxView, Any, wp.array]] = []
 
@@ -227,10 +227,10 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         """
         if self._geometry_batches is None:
             raise RuntimeError("Declare and replicate a ClonePlan before requesting scene geometry.")
-        if self._points_version != self.geometry_version:
+        if self._geometry_version_last_update != self.geometry_version:
             for view, tensor_type, buffer in self._deformable_bindings:
                 view.read_into(tensor_type, buffer)
-            self._points_version = self.geometry_version
+            self._geometry_version_last_update = self.geometry_version
         return self._geometry_batches
 
     @property
@@ -247,11 +247,11 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
     @property
     def transforms(self) -> SceneDataFormat.Transform:
         """Publish native rigid-body poses [m, xyzw]."""
-        if self._poses_version != self.transforms_version:
+        if self._transforms_version_last_update != self.transforms_version:
             OvPhysxManager.pre_render()
             for view, buffer in self._rigid_bindings:
                 view.read_into("rigid_body_pose", buffer)
-            self._poses_version = self.transforms_version
+            self._transforms_version_last_update = self.transforms_version
         return self._transforms
 
 
@@ -873,7 +873,7 @@ class OvPhysxManager(PhysicsManager):
 
         entries = None
         if (plan := sim.get_clone_plan()) is not None:
-            entries = deformable_entries(plan, deformable_prototypes(sim.stage, plan))
+            entries = expand_deformable_entries(plan, deformable_prototypes(sim.stage, plan))
 
         ovphysx_device = "gpu" if "cuda" in PhysicsManager._device else "cpu"
 

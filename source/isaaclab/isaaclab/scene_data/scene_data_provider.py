@@ -65,8 +65,8 @@ class SceneDataProvider:
         self._num_envs_cache: int | None = None
         self._interactive_scene: Any | None = None
         self._transform_cache: dict[tuple, tuple[int, Any]] = {}
-        self._geometry_cache: tuple | None = None
-        self._geometry_destinations = WeakKeyDictionary()
+        self._geometry_view_cache: tuple | None = None
+        self._geometry_destination_cache = WeakKeyDictionary()
 
     def get_transforms(
         self,
@@ -333,7 +333,7 @@ class SceneDataProvider:
             if offsets is None:
                 raise ValueError("A geometry destination requires its visual-path offsets.")
             destination = output.points if fabric else output
-            cached = self._geometry_destinations.get(output)
+            cached = self._geometry_destination_cache.get(output)
             if cached is None or cached[2] is not offsets:
                 jobs, bound = [], set()
                 for source, ranges in batches:
@@ -395,11 +395,11 @@ class SceneDataProvider:
                         device=destination.device,
                     )
             # Retain conversion buffers, never the consumer's destination or slices of it.
-            self._geometry_destinations[output] = (version, jobs, offsets)
+            self._geometry_destination_cache[output] = (version, jobs, offsets)
             return output
         if offsets is not None:
             raise ValueError("Geometry offsets require a destination.")
-        cached = self._geometry_cache
+        cached = self._geometry_view_cache
         if cached is None:
             views, jobs = {}, []
             for source, ranges in batches:
@@ -430,7 +430,7 @@ class SceneDataProvider:
                     inputs=[source, indices, indices, buffer],
                     device=buffer.device,
                 )
-        self._geometry_cache = (version, views, jobs)
+        self._geometry_view_cache = (version, views, jobs)
         return views
 
 

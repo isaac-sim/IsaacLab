@@ -66,24 +66,24 @@ def deformable_geometry_batches(
     """
     direct, weighted = {}, {}
     indices, weights = [], []
-    prototypes = {}
+    prototype_remaps = {}
     output_offset = 0
     for entry, offset in zip(entries, offsets, strict=True):
         key = (id(entry.vertices), id(entry.indices), id(entry.vis_vertices))
-        if key not in prototypes:
+        if key not in prototype_remaps:
             if entry.vertex_count == entry.vis_vertex_count and np.array_equal(entry.vertices, entry.vis_vertices):
-                prototypes[key] = None
+                prototype_remaps[key] = None
             else:
                 if entry.deformable_type != "volume":
                     raise ValueError(f"Surface visual topology differs from its native nodes: {entry.root_path}")
                 remap = build_volume_vis_barycentric_remap(entry.vertices, entry.indices, entry.vis_vertices)
                 if remap is None:
                     raise ValueError(f"Cannot bind visual vertices to deformable tetrahedra: {entry.root_path}")
-                prototypes[key] = (remap.tet_vertex_indices.numpy(), remap.bary_weights.numpy())
-        if prototypes[key] is None:
+                prototype_remaps[key] = (remap.tet_vertex_indices.numpy(), remap.bary_weights.numpy())
+        if prototype_remaps[key] is None:
             direct[entry.vis_mesh_path] = (int(offset), entry.vis_vertex_count)
             continue
-        prototype_indices, prototype_weights = prototypes[key]
+        prototype_indices, prototype_weights = prototype_remaps[key]
         indices.append(prototype_indices + int(offset))
         weights.append(prototype_weights)
         weighted[entry.vis_mesh_path] = (output_offset, entry.vis_vertex_count)
@@ -322,7 +322,7 @@ def deformable_prototypes(
     return entries
 
 
-def deformable_entries(
+def expand_deformable_entries(
     plan: ClonePlan, prototypes: Sequence[DeformableStageEntry], rows: Sequence[int] | None = None
 ) -> list[DeformableStageEntry]:
     """Expand backend-owned prototype geometry without copying its vertex arrays or reading USD.

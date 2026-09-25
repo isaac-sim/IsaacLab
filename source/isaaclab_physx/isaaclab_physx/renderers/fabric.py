@@ -51,7 +51,7 @@ class FabricBackend:
         self.transforms: SceneDataFormat.FabricMatrix44 | None = None
         self._selection = self._write_selection = None
         self._mapping = self._scales = None
-        self._version = -1
+        self._transforms_version_last_update = -1
         self._geometry_bindings = None
 
     def bind_transforms(self, provider: SceneDataProvider) -> None:
@@ -103,14 +103,14 @@ class FabricBackend:
             self.transforms.matrices = wp.fabricarray(self._write_selection, "omni:fabric:localMatrix")
         provider.get_transforms(self.transforms, self._mapping, scales=self._scales)
         version = provider.backend.transforms_version
-        if self._selection is not None and (changed or self._version != version):
+        if self._selection is not None and (changed or self._transforms_version_last_update != version):
             self._write_selection.PrepareForReuse()
             device = self._scales.device
             wp.synchronize_stream(device)
-            if not self.hierarchy.update_world_xforms_gpu(not changed and self._version != -1):
+            if not self.hierarchy.update_world_xforms_gpu(not changed and self._transforms_version_last_update != -1):
                 raise RuntimeError("Fabric GPU transform hierarchy update failed.")
             wp.synchronize_device(device)
-        self._version = version
+        self._transforms_version_last_update = version
 
     def update_geometries(self, provider: SceneDataProvider, frame: int) -> None:
         """Request world-space visual vertices [m] directly into due Fabric destinations."""
@@ -121,12 +121,14 @@ class FabricBackend:
         if self._geometry_bindings is None:
             self._bind_geometries(provider, tuple(path for _, ranges in batches for path in ranges))
         version = provider.backend.geometry_version
-        for index, (selections, frequency, output, offsets, last_frame, last_version) in enumerate(
+        for index, (selections, frequency, output, offsets, frame_last_update, version_last_update) in enumerate(
             self._geometry_bindings
         ):
             selection, write_selection = selections
             changed = selection.PrepareForReuse()
-            if not changed and (version == last_version or frequency > 1 and frame - last_frame < frequency):
+            if not changed and (
+                version == version_last_update or frequency > 1 and frame - frame_last_update < frequency
+            ):
                 continue
             write_selection.PrepareForReuse()
             if output is None or changed:

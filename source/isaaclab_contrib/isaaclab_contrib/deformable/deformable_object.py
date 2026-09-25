@@ -69,7 +69,7 @@ class DeformableRegistryEntry:
     # Filled by the Newton clone context:
     particle_offsets: list[int] = field(default_factory=list)
     particles_per_body: int = 0
-    visual_mapping: VolumeVisRemap | None = None
+    volume_vis_remap: VolumeVisRemap | None = None
     """Prototype interpolation tables when visual vertices differ from native simulation nodes."""
 
 
@@ -365,7 +365,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
-        SimulationManager._mark_particles_dirty()
+        SimulationManager._mark_particles_changed()
         self._invalidate_nodal_pos_cache()
 
     def write_nodal_velocity_to_sim_index(
@@ -480,7 +480,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
-        SimulationManager._mark_particles_dirty()
+        SimulationManager._mark_particles_changed()
         self._invalidate_nodal_state_cache()
 
     def write_nodal_pos_to_sim_mask(
@@ -512,7 +512,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
-        SimulationManager._mark_particles_dirty()
+        SimulationManager._mark_particles_changed()
         self._invalidate_nodal_pos_cache()
 
     def write_nodal_velocity_to_sim_mask(
@@ -740,7 +740,7 @@ class DeformableObject(BaseDeformableObject):
             indices = list(usd_mesh.GetFaceVertexIndicesAttr().Get())
             logger.info("Registered UsdGeom.Mesh: %d vertices.", len(pts))
 
-        visual_mapping = None
+        volume_vis_remap = None
         if vis_mesh_prim != mesh_prim:
             vis_points = UsdGeom.PointBased(vis_mesh_prim).GetPointsAttr().Get()
             vis_vertices = np.asarray(_bake_points(vis_points, vis_mesh_prim), dtype=np.float32)
@@ -748,10 +748,10 @@ class DeformableObject(BaseDeformableObject):
             if not np.array_equal(sim_vertices, vis_vertices):
                 if deformable_type != "volume":
                     raise ValueError(f"Surface visual topology differs from its native nodes: {template_prim_path}")
-                visual_mapping = build_volume_vis_barycentric_remap(
+                volume_vis_remap = build_volume_vis_barycentric_remap(
                     sim_vertices, np.asarray(indices, dtype=np.int32), vis_vertices
                 )
-                if visual_mapping is None:
+                if volume_vis_remap is None:
                     raise ValueError(f"Cannot bind visual vertices to deformable tetrahedra: {template_prim_path}")
 
         # init_pos/init_rot are already baked into the vertices by the Xform
@@ -805,7 +805,7 @@ class DeformableObject(BaseDeformableObject):
             vertices=vertices,
             indices=indices,
             deformable_type=deformable_type,
-            visual_mapping=visual_mapping,
+            volume_vis_remap=volume_vis_remap,
             init_pos=init_pos,
             init_rot=init_rot,
             density=density,

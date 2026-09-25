@@ -342,7 +342,7 @@ def test_update_visualization_state_writes_final_geometry_once_per_version(monke
         "backend",
         SimpleNamespace(model=SimpleNamespace(), state_0=SimpleNamespace(body_q=None, particle_q=particle_q)),
     )
-    monkeypatch.setattr(NewtonManager, "_scene_data_geometry_mapping", {"/Shared/Particles": 1, "/Cells/Cloth/mesh": 3})
+    monkeypatch.setattr(NewtonManager, "_geometry_offsets", {"/Shared/Particles": 1, "/Cells/Cloth/mesh": 3})
     monkeypatch.setattr(NewtonManager, "_mark_sensor_state_dirty", Mock())
     monkeypatch.setattr(wp, "launch", Mock(wraps=wp.launch))
 

@@ -127,7 +127,10 @@ class SceneDataFormat:
 
 class SceneDataBackend:
     geometry_version: int = 0
-    """Monotonic geometry publication version, including native buffer swaps and same-step writes."""
+    """Monotonic geometry change counter, including native buffer swaps and same-step writes.
+
+    Consumers retain their own last-update value; reading does not clear another consumer's changes.
+    """
 
     @property
     def native_geometry_formats(self) -> tuple[Any, ...]:

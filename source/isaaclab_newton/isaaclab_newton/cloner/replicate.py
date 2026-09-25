@@ -21,7 +21,7 @@ from isaaclab.cloner import ClonePlan
 from isaaclab.cloner.path import rebase
 from isaaclab.cloner.query import iter_sources
 from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.scene_data.deformable_discovery import deformable_entries, deformable_prototypes
+from isaaclab.scene_data.deformable_discovery import deformable_prototypes, expand_deformable_entries
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 from isaaclab_newton.cloner.newton_clone_utils import (
@@ -259,10 +259,10 @@ def _replicate_newton(
         NewtonManager.set_builder(builder)
         NewtonManager._num_envs = len(plan.env_ids)
     else:
-        geometry = add_shadow_deformables_to_builder(builder, deformable_entries(plan, entries, rows))
+        geometry_offsets = add_shadow_deformables_to_builder(builder, expand_deformable_entries(plan, entries, rows))
         backend_cfg = NewtonBackendCfg(builder=builder, device=sim.device, num_envs=len(plan.env_ids), simulation=False)
         sim.physics_manager.register_callback(
-            partial(NewtonManager._initialize_visualization_model, backend_cfg, geometry),
+            partial(NewtonManager._initialize_visualization_model, backend_cfg, geometry_offsets),
             PhysicsEvent.PHYSICS_READY,
             name="newton_visualization_model",
             wrap_weak_ref=False,

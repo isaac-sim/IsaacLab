@@ -38,9 +38,9 @@ import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
-    deformable_entries,
     deformable_geometry_batches,
     deformable_prototypes,
+    expand_deformable_entries,
 )
 from isaaclab.utils.string import to_camel_case
 
@@ -200,8 +200,8 @@ class PhysxSceneDataBackend(SceneDataBackend):
         self._transforms.transforms = None
         self.transforms_version += 1
         self.geometry_version += 1
-        self._poses_version = self._fabric_version = -1
-        self._native_geometry_version = -1
+        self._transforms_version_last_update = self._fabric_version_last_update = -1
+        self._geometry_version_last_update = -1
         self._fabric_transforms = SceneDataFormat.FabricMatrix44()
         self._fabric_selection = None
         self._fabric_points = SceneDataFormat.FabricPoints()
@@ -314,23 +314,23 @@ class PhysxSceneDataBackend(SceneDataBackend):
             if self._fabric_points_selection.PrepareForReuse() or self._fabric_points.points is None:
                 self._fabric_points.points = wp.fabricarrayarray(data=self._fabric_points_selection, attrib="points")
                 self.geometry_version += 1
-                self._fabric_version = (self.transforms_version, self.geometry_version)
+                self._fabric_version_last_update = (self.transforms_version, self.geometry_version)
             return [(self._fabric_points, {})]
-        if self._native_geometry_version != self.geometry_version:
+        if self._geometry_version_last_update != self.geometry_version:
             for view, batches in self._deformable_bindings:
                 points = view.get_simulation_nodal_positions().view(wp.vec3f).flatten()
                 for publication, _ in batches:
                     publication.points = points
-            self._native_geometry_version = self.geometry_version
+            self._geometry_version_last_update = self.geometry_version
         return [batch for _, batches in self._deformable_bindings for batch in batches]
 
     def _update_fabric(self) -> None:
         """Refresh the native stage once when either poses or geometry changed."""
         PhysxManager.pre_render()
         version = (self.transforms_version, self.geometry_version)
-        if self._fabric_version != version:
+        if self._fabric_version_last_update != version:
             PhysxManager._fabric.force_update(0.0, 0.0)
-            self._fabric_version = version
+            self._fabric_version_last_update = version
 
     @property
     def native_transform_formats(self) -> tuple[Any, ...]:
@@ -343,9 +343,9 @@ class PhysxSceneDataBackend(SceneDataBackend):
     def transforms(self) -> SceneDataFormat.Transform:
         """Publish native rigid-body poses [m, xyzw]."""
         PhysxManager.pre_render()
-        if self._poses_version != self.transforms_version and (view := self.get_rigid_body_view()):
+        if self._transforms_version_last_update != self.transforms_version and (view := self.get_rigid_body_view()):
             self._transforms.transforms = view.get_transforms().view(wp.transformf)
-            self._poses_version = self.transforms_version
+            self._transforms_version_last_update = self.transforms_version
         return self._transforms
 
     @property
@@ -377,7 +377,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
         if self._fabric_selection.PrepareForReuse() or self._fabric_transforms.matrices is None:
             self._fabric_transforms.matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
             self.transforms_version += 1
-        self._fabric_version = (self.transforms_version, self.geometry_version)
+        self._fabric_version_last_update = (self.transforms_version, self.geometry_version)
         return self._fabric_transforms
 
 
@@ -970,7 +970,7 @@ class PhysxManager(PhysicsManager):
         sim = PhysicsManager._sim
         entries = None
         if (plan := sim.get_clone_plan()) is not None:
-            entries = deformable_entries(plan, deformable_prototypes(sim.stage, plan))
+            entries = expand_deformable_entries(plan, deformable_prototypes(sim.stage, plan))
 
         is_gpu = "cuda" in PhysicsManager.get_device()
 
