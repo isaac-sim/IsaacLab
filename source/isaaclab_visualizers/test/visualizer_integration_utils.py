@@ -43,7 +43,6 @@ from isaaclab.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_t
 from isaaclab.sim import SimulationContext
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
-from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpolePhysicsCfg
 from isaaclab_tasks.core.reorient.reorient_direct_env import ReorientDirectEnv
 from isaaclab_tasks.utils import resolve_task_config
 
@@ -140,9 +139,6 @@ _KIT_APP_DRAIN_SLEEP_SECONDS = 0.01
 
 _WARMUP_MAX_FRAMES = 50
 """Hard cap on render frames pumped during convergence-based warmup."""
-
-_FRANKA_CLOTH_KIT_VIEWPORT_WARMUP_FRAMES = 20
-"""Bounded RTX TAA warmup for the Franka cloth viewport capture."""
 
 _WARMUP_STABLE_DIFF_PCT = 0.5
 """Fraction of pixels (%) with inter-frame L2 > 1.0 below which two consecutive frames are
@@ -394,41 +390,6 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all
         ),
         KitVisualizer,
     )
-
-
-def _get_physics_cfg(backend_kind: str):
-    """Return physics config and expected backend substring for the given backend kind."""
-    if backend_kind == "physx":
-        __import__("isaaclab_physx")
-        preset = CartpolePhysicsCfg()
-        physics_cfg = getattr(preset, "physx", None)
-        if physics_cfg is None:
-            from isaaclab_physx.physics import PhysxCfg
-
-            physics_cfg = PhysxCfg()
-        return physics_cfg, "physx"
-    if backend_kind == "newton":
-        __import__("newton")
-        __import__("isaaclab_newton")
-        preset = CartpolePhysicsCfg()
-        physics_cfg = getattr(preset, "newton_mjwarp", None)
-        if physics_cfg is None:
-            from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-
-            physics_cfg = NewtonCfg(
-                solver_cfg=MJWarpSolverCfg(
-                    njmax=5,
-                    nconmax=3,
-                    cone="pyramidal",
-                    impratio=1,
-                    integrator="implicitfast",
-                ),
-                num_substeps=1,
-                debug_mode=False,
-                use_cuda_graph=True,
-            )
-        return physics_cfg, "newton"
-    raise ValueError(f"Unknown backend: {backend_kind!r}")
 
 
 def _frame_to_numpy(frame) -> np.ndarray:
@@ -1059,8 +1020,6 @@ def _capture_kit_viewport_with_pose_reapply(
     kit_visualizer: KitVisualizer,
     resolution: tuple[int, int] | None = None,
     physics_backend: str = "",
-    max_warmup_frames: int | None = None,
-    app_updates_only: bool = False,
 ) -> np.ndarray:
     """Set the configured eye/lookat, warm RTX, then capture.
 
@@ -1072,11 +1031,6 @@ def _capture_kit_viewport_with_pose_reapply(
         kit_visualizer: The active :class:`KitVisualizer` instance.
         resolution: Optional ``(width, height)`` override for the render product.
         physics_backend: ``"newton"`` to enable per-render camera reapply.
-        max_warmup_frames: When set, overrides the default convergence cap.  Use a
-            small value when per-frame render cost is very high and test thresholds
-            are loose enough that convergence is not required (e.g. franka cloth RTX).
-        app_updates_only: When True, warms RTX with ``app.update()`` ticks instead
-            of ``env.sim.render()``.
     """
     kit_visualizer.set_camera_view(kit_visualizer.cfg.eye, kit_visualizer.cfg.lookat)
     camera_path = getattr(kit_visualizer, "_controlled_camera_path", None)
@@ -1100,13 +1054,7 @@ def _capture_kit_viewport_with_pose_reapply(
                     break
                 prev = curr
         else:
-            _warm_kit_rtx_render_product(
-                env,
-                annotator,
-                use_convergence=True,
-                max_frames_override=max_warmup_frames,
-                app_updates_only=app_updates_only,
-            )
+            _warm_kit_rtx_render_product(env, annotator, use_convergence=True)
         return _capture_kit_viewport_rgb(annotator)
     finally:
         with contextlib.suppress(Exception):
@@ -1118,8 +1066,6 @@ def _warm_kit_rtx_render_product(
     annotator,
     *,
     use_convergence: bool = False,
-    max_frames_override: int | None = None,
-    app_updates_only: bool = False,
 ) -> None:
     """Pump Kit/RTX until the annotator produces stable frames.
 
@@ -1127,19 +1073,11 @@ def _warm_kit_rtx_render_product(
     :data:`_KIT_RTX_RENDER_PRODUCT_WARMUP_STEPS` iterations — the original behavior.
     When True (used by golden image captures), continues until two consecutive frames
     satisfy :func:`_frames_converged` or :data:`_WARMUP_MAX_FRAMES` is reached.
-    When ``max_frames_override`` is set, it replaces both caps above — useful when the
-    per-frame render cost is high and loose thresholds make convergence unnecessary.
-    When ``app_updates_only`` is True, warms RTX with ``app.update()`` calls without
-    advancing the visualizers.
     """
-    if max_frames_override is not None:
-        max_frames = max_frames_override
-    else:
-        max_frames = _WARMUP_MAX_FRAMES if use_convergence else _KIT_RTX_RENDER_PRODUCT_WARMUP_STEPS
+    max_frames = _WARMUP_MAX_FRAMES if use_convergence else _KIT_RTX_RENDER_PRODUCT_WARMUP_STEPS
     prev: np.ndarray | None = None
     for i in range(max_frames):
-        if not app_updates_only:
-            env.sim.render()
+        env.sim.render()
         _update_active_simulation_app()
         with contextlib.suppress(Exception):
             annotator.get_data()
@@ -1602,158 +1540,10 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
     return ManagerBasedRLEnv(env_cfg)
 
 
-_FRANKA_CLOTH_INTEGRATION_NUM_ENVS = 1
-"""Vectorized env count for franka cloth + visualizer golden-image tests (viewport mode)."""
-
-_FRANKA_CLOTH_TILED_CAMERA_INTEGRATION_NUM_ENVS = 4
-"""Vectorized env count for franka cloth + visualizer golden-image tests (tiled mode)."""
-
-_FRANKA_CLOTH_INTEGRATION_VISUALIZER_EYE: tuple[float, float, float] = (0.85, -0.55, 0.42)
-"""Franka cloth golden test camera eye: used for the Newton GL viewer and the tiled camera offset."""
-
-_FRANKA_CLOTH_INTEGRATION_VISUALIZER_LOOKAT: tuple[float, float, float] = (0.45, 0.0, 0.2)
-"""Franka cloth golden test camera lookat: cloth and cube on the table."""
-
-_FRANKA_CLOTH_KIT_VIEWPORT_EYE: tuple[float, float, float] = (2.5, -2.0, 2.0)
-"""Kit RTX viewport-specific eye for franka cloth.
-
-The Kit viewport uses a narrower FOV (~60°) than the Newton GL viewer, so the
-same (0.85, -0.55, 0.42) eye that works for the Newton viewer clips the upper
-arm joints out of frame.  Pulling the camera back and up lets the RTX viewport
-show the full robot arm, cloth, and table in one frame.
-"""
-
-_FRANKA_CLOTH_KIT_VIEWPORT_LOOKAT: tuple[float, float, float] = (0.3, 0.0, 0.6)
-"""Kit RTX viewport-specific lookat for franka cloth (aimed at mid-arm height)."""
-
-_FRANKA_CLOTH_INTEGRATION_TILED_CAMERA_EYE_OFFSET: tuple[float, float, float] = _FRANKA_CLOTH_INTEGRATION_VISUALIZER_EYE
-"""Target-relative eye offset for franka cloth generated tiled cameras.
-
-Computed as the raw eye world position rather than ``eye - lookat``.  The
-tiled camera always looks AT the target prim (robot root at z≈0), so using
-the full eye position as offset places the camera higher (z=0.42 m) and
-farther back, giving a wide enough field of view to show both the robot arm
-and the cloth on the floor.  Using ``eye - lookat`` (the cartpole convention)
-would only put the camera at z=0.22 m — too low to see the cloth.
-"""
-
-_FRANKA_CLOTH_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (400, 400)
-"""Kit render product resolution for franka cloth viewport golden tests."""
-
-_FRANKA_CLOTH_NEWTON_INTEGRATION_WINDOW_SIZE: tuple[int, int] = (400, 400)
-"""Newton viewer framebuffer size for franka cloth golden tests."""
-
-_FRANKA_CLOTH_VISUALIZER_TILED_CAMERA_NUM_TILES = 4
-"""Number of generated tiled camera tiles for franka cloth golden tests."""
-
-_FRANKA_CLOTH_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH = "/World/envs/*/Robot"
-"""Franka robot prim followed by generated tiled cameras (stable reference near the cloth)."""
-
-_FRANKA_CLOTH_WARMUP_STEPS = 1
-"""Steps after reset before capturing the franka cloth scene.
-
-One step lets the cloth begin falling under gravity while remaining in a nearly-deterministic pose — the
-VBD solver's non-deterministic parallel reductions accumulate over many steps, so capturing
-at 1 step keeps inter-run pixel variance much lower than at 20 steps.
-This mirrors the approach used in the kitless rendering tests in
-``source/isaaclab_tasks/test/rendering_test_utils.py``.
-"""
-
-
-def _resolve_nucleus_url_to_local(url: str) -> str:
-    """Return the local /tmp path for a nucleus S3 URL if the file already exists there.
-
-    Nucleus URLs follow the pattern ``https://<host>/Assets/Isaac/<ver>/...``.
-    ``retrieve_file_path`` downloads them into ``/tmp`` mirroring the URL path, so
-    the cached file lives at ``/tmp/Assets/Isaac/<ver>/...``.  When network is
-    unavailable (sandbox) and the asset was not previously fetched via omni.client
-    (so the hash-based omni.client cache is cold), ``check_file_path`` returns 0
-    and the spawner raises ``FileNotFoundError`` even though the file is present
-    locally.  This helper lets us point the spawner directly at the local copy.
-    """
-    import re
-    import tempfile
-
-    m = re.match(r"https?://[^/]+(/.*)", url)
-    if m:
-        local = os.path.join(tempfile.gettempdir(), m.group(1).lstrip("/"))
-        if os.path.isfile(local):
-            return local
-    return url
-
-
 def _compose_task_cfg(task_id: str, physics: str, *overrides: str):
     """Compose a registered task with concrete physics and optional Hydra overrides."""
     env_cfg, _ = resolve_task_config(task_id, "", overrides=(f"physics={physics}", *overrides))
     return env_cfg
-
-
-def _make_franka_cloth_env(visualizer_kind: str | tuple[str, ...], *, tiled_camera: bool = False):
-    """Create a franka cloth env configured with the selected visualizer on the Newton backend.
-
-    Franka cloth uses Newton VBD cloth physics exclusively.
-    """
-    from isaaclab.envs import ManagerBasedRLEnv
-
-    env_cfg = _compose_task_cfg("Isaac-Lift-Soft-Franka", "newton_mjwarp_vbd_proxy")
-    # Remap nucleus S3 URLs to local /tmp cache so the test works offline when the
-    # omni.client hash cache is cold (shadow hand / AnymalD are warm from prior runs).
-    env_cfg.scene.robot.spawn.usd_path = _resolve_nucleus_url_to_local(env_cfg.scene.robot.spawn.usd_path)
-    env_cfg.scene.table.spawn.usd_path = _resolve_nucleus_url_to_local(env_cfg.scene.table.spawn.usd_path)
-    env_cfg.scene.num_envs = (
-        _FRANKA_CLOTH_TILED_CAMERA_INTEGRATION_NUM_ENVS if tiled_camera else _FRANKA_CLOTH_INTEGRATION_NUM_ENVS
-    )
-    # Override from the default "asset_root" origin so absolute eye/lookat work correctly.
-    env_cfg.viewer.origin_type = "world"
-    env_cfg.viewer.eye = _FRANKA_CLOTH_INTEGRATION_VISUALIZER_EYE
-    env_cfg.viewer.lookat = _FRANKA_CLOTH_INTEGRATION_VISUALIZER_LOOKAT
-    env_cfg.seed = None
-    cam = {"eye": _FRANKA_CLOTH_INTEGRATION_VISUALIZER_EYE, "lookat": _FRANKA_CLOTH_INTEGRATION_VISUALIZER_LOOKAT}
-    tiled_cam = (
-        {
-            "streaming_view": True,
-            "streaming_envs": _FRANKA_CLOTH_VISUALIZER_TILED_CAMERA_NUM_TILES,
-            "streaming_sensor_prim_path": None,
-            "streaming_cam_eye": _FRANKA_CLOTH_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
-            "streaming_cam_target_prim_path": _FRANKA_CLOTH_VISUALIZER_TILED_CAMERA_TARGET_PRIM_PATH,
-        }
-        if tiled_camera
-        else {}
-    )
-    # Kit RTX viewport uses a wider/higher camera to capture the full robot arm
-    # (the Newton GL viewer has a wider FOV so the shared eye works there but not for Kit RTX).
-    kit_cam = {
-        "eye": _FRANKA_CLOTH_KIT_VIEWPORT_EYE,
-        "lookat": _FRANKA_CLOTH_KIT_VIEWPORT_LOOKAT,
-    }
-    visualizer_kinds = (visualizer_kind,) if isinstance(visualizer_kind, str) else tuple(visualizer_kind)
-    visualizer_cfgs = []
-    for kind in visualizer_kinds:
-        if kind == "newton":
-            __import__("newton")
-            nw, nh = _FRANKA_CLOTH_NEWTON_INTEGRATION_WINDOW_SIZE
-            visualizer_cfgs.append(
-                NewtonGLVisualizerCfg(
-                    headless=True,
-                    window_width=nw,
-                    window_height=nh,
-                    randomly_sample_visible_envs=False,
-                    **tiled_cam,
-                    **cam,
-                )
-            )
-        else:
-            visualizer_cfgs.append(
-                KitVisualizerCfg(
-                    window_width=_FRANKA_CLOTH_KIT_INTEGRATION_RENDER_RESOLUTION[0],
-                    window_height=_FRANKA_CLOTH_KIT_INTEGRATION_RENDER_RESOLUTION[1],
-                    randomly_sample_visible_envs=False,
-                    **tiled_cam,
-                    **kit_cam,
-                )
-            )
-    env_cfg.sim.visualizer_cfgs = visualizer_cfgs[0] if len(visualizer_cfgs) == 1 else visualizer_cfgs
-    return ManagerBasedRLEnv(env_cfg)
 
 
 def _make_cartpole_camera_env(
