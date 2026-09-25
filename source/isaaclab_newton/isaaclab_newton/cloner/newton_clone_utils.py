@@ -282,8 +282,9 @@ def replicate_builder_mapping(
     env_root_sites: dict[str, wp.transform] | None = None,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = (),
     source_builder_added: Callable[[str, int, ModelBuilder, Sequence[float]], None] | None = None,
+    create_builder: Callable[[], ModelBuilder] | None = None,
 ) -> tuple[dict[str, list[list[int]]], list[wp.transform], list[tuple[str, int]]]:
-    """Replicate source builders, naming homogeneous copies at their destinations."""
+    """Replicate in world order, batching contiguous runs of identical source combinations."""
     source_site_indices = source_site_indices or {}
     env_root_sites = env_root_sites or {}
     num_worlds = mapping.shape[1]
@@ -379,25 +380,61 @@ def replicate_builder_mapping(
         )
         source_xforms.update(((row, col), row_xforms[index]) for index, col in enumerate(cols))
 
-    for col in range(num_worlds):
-        builder.begin_world()
+    def append_world(target: ModelBuilder, col: int, sites: dict[str, list[list[int]]]) -> None:
+        target.begin_world()
         for label, world_site_xforms in root_site_xforms.items():
-            site_idx = builder.add_site(body=-1, xform=world_site_xforms[col], label=label)
-            local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col].append(site_idx)
+            site_idx = target.add_site(body=-1, xform=world_site_xforms[col], label=label)
+            sites.setdefault(label, [[] for _ in range(num_worlds)])[col].append(site_idx)
         for row in rows_per_world[col]:
             source_builder = source_builders[sources[row]]
-            shape_offset = builder.shape_count
-            particle_offset = builder.particle_count if source_builder_added is not None else 0
-            builder.add_builder(source_builder, xform=source_xforms[row, col])
+            shape_offset = target.shape_count
+            particle_offset = target.particle_count if source_builder_added is not None else 0
+            target.add_builder(source_builder, xform=source_xforms[row, col])
             if source_builder_added is not None:
                 source_builder_added(sources[row], particle_offset, source_builder, source_xforms[row, col])
 
             for label, source_shape_indices in source_site_indices.get(id(source_builder), {}).items():
-                local_indices = local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col]
+                local_indices = sites.setdefault(label, [[] for _ in range(num_worlds)])[col]
                 local_indices.extend(shape_offset + shape_idx for shape_idx in source_shape_indices)
         for hook in per_world_builder_hooks:
-            hook(builder, col, xforms_np[col, :3].copy(), xforms_np[col, 3:].copy())
-        builder.end_world()
+            hook(target, col, xforms_np[col, :3].copy(), xforms_np[col, 3:].copy())
+        target.end_world()
+
+    can_batch_runs = (
+        create_builder is not None
+        and not per_world_builder_hooks
+        and source_builder_added is None
+        # Particle replication currently applies translations only; composing two
+        # placements would not preserve the original source-to-world transform.
+        and not any(source.particle_count for source in source_builders.values())
+    )
+    boundaries = np.concatenate(
+        ([0], np.flatnonzero(np.any(mapping[:, 1:] != mapping[:, :-1], axis=0)) + 1, [num_worlds])
+    )
+    for start, end in zip(boundaries[:-1], boundaries[1:], strict=True):
+        if not can_batch_runs or end - start < 2:
+            for col in range(start, end):
+                append_world(builder, col, local_site_map)
+            continue
+        template = create_builder()
+        template.gravity = builder.gravity
+        template_sites: dict[str, list[list[int]]] = {}
+        append_world(template, start, template_sites)
+        template.gravity = wp.vec3(template.world_gravity[0])
+        base_shape = builder.shape_count
+        xforms = _compose_world_xforms(positions[start:end], quaternions[start:end], _invert_xform(xforms_np[start]))
+        builder.replicate(template, int(end - start), xforms=xforms)
+        # Root sites are authored per world on the serial path. Preserve their
+        # default display palette, which depends on the final shape index.
+        for col in range(start, end):
+            offset = base_shape + (col - start) * template.shape_count
+            for local in range(len(env_root_sites)):
+                builder.shape_color[offset + local] = builder._shape_palette_color(offset + local)
+        for label, per_world in template_sites.items():
+            sites = local_site_map.setdefault(label, [[] for _ in range(num_worlds)])
+            for col in range(start, end):
+                offset = base_shape + (col - start) * template.shape_count
+                sites[col].extend(offset + index for index in per_world[start])
 
     bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping) if destinations else []
     return local_site_map, world_xforms, bindings
@@ -443,7 +480,7 @@ def rename_builder_labels(
                         bound_body_indices.add(index)
 
         if not skip_entity_labels:
-            for name, labels in vars(builder).items():
+            for name, labels in list(vars(builder).items()):
                 worlds = getattr(builder, f"{name[:-6]}_world", None) if name.endswith("_label") else None
                 if isinstance(labels, list) and worlds is not None:
                     _rename_pair(labels, worlds, collect_body_bindings=name == "body_label")

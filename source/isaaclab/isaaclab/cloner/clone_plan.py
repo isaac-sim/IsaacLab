@@ -33,7 +33,7 @@ from ..sensors.camera.camera_cfg import CameraCfg
 from ..utils.string import string_to_callable
 from ..utils.version import has_kit
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE, CloneCfg, InclusionSet, expand_env_regex_ns
-from .cloner_strategies import sequential
+from .cloner_strategies import grouped
 from .path import match, under
 from .usd import UsdReplicateContext
 
@@ -275,7 +275,7 @@ def make_clone_plan(
     num_clones: int,
     env_spacing: float,
     global_paths: tuple[str, ...] = (),
-    clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential,
+    clone_strategy: Callable[[np.ndarray, int], np.ndarray] = grouped,
     valid_set: np.ndarray | None = None,
     env_template: str = DEFAULT_ENV_TEMPLATE,
 ) -> ClonePlan:
@@ -297,7 +297,9 @@ def make_clone_plan(
         env_spacing: Distance between neighboring grid env origins [m].
         global_paths: Complete shared-asset roots declared by the scene composition root. Defaults to none.
         clone_strategy: Function that assigns prototype combinations to envs. Defaults
-            to :func:`~isaaclab.cloner.sequential`.
+            to :func:`~isaaclab.cloner.grouped`, which preserves round-robin counts but
+            places identical combinations in consecutive envs. Use
+            :func:`~isaaclab.cloner.round_robin` to retain the previous env ordering.
         valid_set: Optional ``[num_combos, num_groups]`` integer array of valid prototype
             combinations. ``None`` (default) uses the full cartesian product of every
             group's prototype indices.

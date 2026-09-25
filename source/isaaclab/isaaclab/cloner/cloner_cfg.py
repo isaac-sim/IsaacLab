@@ -11,7 +11,7 @@ from dataclasses import MISSING
 import numpy as np
 
 from ..utils import configclass
-from .cloner_strategies import sequential
+from .cloner_strategies import grouped
 
 DEFAULT_ENV_TEMPLATE = "/World/envs/env_{}"
 """Default path template for a replicated env prim; ``{}`` marks the environment index."""
@@ -55,8 +55,13 @@ class CloneCfg:
     :func:`~isaaclab.cloner.make_clone_plan` when building per-env layouts.
     """
 
-    clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential
-    """Function used to build prototype-to-environment mapping. Default is :func:`sequential`."""
+    clone_strategy: Callable[[np.ndarray, int], np.ndarray] = grouped
+    """Function used to build prototype-to-environment mapping. Default is :func:`~isaaclab.cloner.grouped`.
+
+    Identical combinations occupy consecutive environments. Counts match the previous
+    default, but environment IDs can change. Set :func:`~isaaclab.cloner.round_robin`
+    explicitly to retain the previous ordering.
+    """
 
     clone_combinations: list[InclusionSet] = []
     """Legal scene-asset combinations for heterogeneous clone planning.

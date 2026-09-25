@@ -5,6 +5,7 @@
 
 """Unit tests for Newton clone label rewriting and visualization clone-plan sources."""
 
+import copy
 import unittest
 from dataclasses import replace
 from types import SimpleNamespace
@@ -12,6 +13,7 @@ from unittest import mock
 
 import newton
 import numpy as np
+import pytest
 import warp as wp
 from isaaclab_newton.cloner import NewtonReplicateContext
 from isaaclab_newton.cloner import newton_clone_utils as newton_clone_utils_module
@@ -200,6 +202,168 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         self.assertEqual(builder.body_label, ["/World/envs/env_0/active"])
         self.assertEqual(builder.body_world, [0])
         self.assertEqual(builder.world_count, 2)
+
+
+def _grouped_replication_fixture(case, fallback=None):
+    """Two variant runs, a shared robot, and an unselected source with real reference offsets."""
+    empty = case in ("empty", "scalar-gravity")
+    mapping = np.array(
+        [[1, 1, 0, 0, 1, 1], [1, 1, 0, 0, 0, 0], [0, 0, 0, 0, 1, 1], [0, 0, 0, 0, 0, 0]]
+        if empty
+        else [[1, 1, 1, 1], [1, 1, 0, 0], [0, 0, 1, 1], [0, 0, 0, 0]],
+        dtype=np.bool_,
+    )
+    count = mapping.shape[1]
+    positions = np.array([(i * i + 0.3, i * 0.7, -i * 0.1) for i in range(count)], dtype=np.float32)
+    quaternions = np.array(
+        [tuple(wp.quat_from_axis_angle(wp.vec3(0, 0, 1), 0.3 * i if case == "rotated" else 0.0)) for i in range(count)],
+        dtype=np.float32,
+    )
+
+    def create_builder():
+        builder = newton.ModelBuilder()
+        builder.add_custom_frequency(
+            newton.ModelBuilder.CustomFrequency(
+                name="probe", namespace="syn", articulation_owner_attribute="syn:probe_articulation"
+            )
+        )
+        for name, dtype, references, default in (
+            ("probe_world", int, "world", -1),
+            ("probe_articulation", int, "articulation", -1),
+            ("probe_body", int, "body", -1),
+            ("probe_label", str, None, ""),
+        ):
+            builder.add_custom_attribute(
+                newton.ModelBuilder.CustomAttribute(
+                    name=name,
+                    namespace="syn",
+                    frequency="syn:probe",
+                    dtype=dtype,
+                    references=references,
+                    default=default,
+                )
+            )
+        return builder
+
+    sources = ("/Sources/Robot", "/Sources/A", "/Sources/B", "/Sources/Unused")
+    source_builders = {}
+    source_sites = {}
+    for row, path in enumerate(sources):
+        source = source_builders[path] = create_builder()
+        col = int(mapping[row].argmax())
+        xform = wp.transform(positions[col], quaternions[col])
+        root = source.add_link(label=f"{path}/root", xform=xform)
+        child = source.add_link(label=f"{path}/child", xform=wp.transform_multiply(xform, wp.transform((0.2, 0, 0))))
+        joints = [source.add_joint_free(root, label=f"{path}/free")]
+        joints.append(
+            source.add_joint_revolute(
+                root, child, axis=(0, 0, 1), parent_xform=wp.transform((0.2, 0, 0)), label=f"{path}/joint"
+            )
+        )
+        articulation = source.add_articulation(joints, label=path)
+        source.add_shape_box(root, hx=0.04 + row * 0.01, hy=0.05, hz=0.06, label=f"{path}/root/shape")
+        source.add_shape_box(child, hx=0.03, hy=0.04, hz=0.05, label=f"{path}/child/shape")
+        source.shape_collision_filter_pairs.append((0, 1))
+        site = source.add_site(body=child, xform=wp.transform((0.1, 0.2, 0.3)), label=f"{path}/site")
+        source_sites[id(source)] = {"tip": [site]}
+        source.add_custom_values(
+            **{
+                "syn:probe_world": -1,
+                "syn:probe_articulation": articulation,
+                "syn:probe_body": child,
+                "syn:probe_label": f"{path}/sensor",
+            }
+        )
+        if fallback == "particles":
+            source.add_particle(pos=positions[col] + (0.1, 0.2, 0.3), vel=(0, 0, 0), mass=1.0)
+
+    builder = create_builder()
+    builder.gravity = -3.0 if case == "scalar-gravity" else wp.vec3(1.0, -2.0, -3.0)
+    global_body = builder.add_link(label="/Global/body", xform=wp.transform((9, 8, 7)))
+    builder.add_shape_box(global_body, hx=0.1, hy=0.1, hz=0.1, label="/Global/shape")
+    global_site = builder.add_site(body=-1, xform=wp.transform((4, 5, 6)), label="global")
+    source_sites[id(builder)] = {"global": [global_site]}
+    callbacks = []
+
+    def hook(target, col, position, quaternion):
+        callbacks.append((col, tuple(position), tuple(quaternion)))
+        target.add_site(body=-1, xform=wp.transform(position, quaternion), label=f"hook_{col}")
+
+    def added(path, offset, source, xform):
+        callbacks.append((path, offset, tuple(xform)))
+
+    kwargs = dict(
+        sources=sources,
+        mapping=mapping,
+        positions=positions,
+        quaternions=quaternions,
+        source_builders=source_builders,
+        destinations=("/World/env_{}/Robot", "/World/env_{}/Object", "/World/env_{}/Object", "/World/env_{}/Unused"),
+        env_ids=np.arange(count, dtype=np.int64) * 3 + 11,
+        source_site_indices=source_sites,
+        env_root_sites={"origin": wp.transform((0.1, -0.2, 0.3))},
+        per_world_builder_hooks=(hook,) if fallback == "hook" else (),
+        source_builder_added=added if fallback == "callback" else None,
+    )
+    return builder, create_builder, kwargs, callbacks
+
+
+def _builder_snapshot(builder):
+    values = {}
+    for name in vars(newton.ModelBuilder()).keys() | vars(builder).keys():
+        if not name.startswith("_"):
+            value = getattr(builder, name)  # Read through deferred bulk-array storage on newer Newton versions.
+            if isinstance(value, (list, np.ndarray)):
+                values[name] = copy.deepcopy(value)
+    values["filter_pairs"] = list(builder.shape_collision_filter_pairs)
+    values["world_count"] = builder.world_count
+    values["custom_values"] = {name: copy.deepcopy(attr.values) for name, attr in builder.custom_attributes.items()}
+    return values
+
+
+def _assert_replication_equal(actual, expected):
+    assert actual.keys() == expected.keys()
+    for name, value in expected.items():
+        if isinstance(value, dict):
+            _assert_replication_equal(actual[name], value)
+        else:
+            left, right = np.asarray(actual[name]), np.asarray(value)
+            if right.dtype.kind in "fc":
+                np.testing.assert_allclose(left, right, atol=3e-6, rtol=2e-6, err_msg=name)
+            else:
+                np.testing.assert_array_equal(left, right, err_msg=name)
+
+
+@pytest.mark.parametrize("case", ["grouped", "empty", "rotated", "scalar-gravity"])
+def test_contiguous_variant_runs_match_serial_replication(case):
+    expected, _, serial_args, _ = _grouped_replication_fixture(case)
+    expected_sites, expected_xforms, expected_bindings = replicate_builder_mapping(expected, **serial_args)
+    actual, factory, args, _ = _grouped_replication_fixture(case)
+    originals = {path: _builder_snapshot(source) for path, source in args["source_builders"].items()}
+    with mock.patch.object(actual, "replicate", wraps=actual.replicate) as replicate:
+        sites, xforms, bindings = replicate_builder_mapping(actual, **args, create_builder=factory)
+    assert replicate.call_count == (3 if case in ("empty", "scalar-gravity") else 2)
+    assert sites == expected_sites
+    assert bindings == expected_bindings
+    np.testing.assert_allclose(np.asarray(xforms), np.asarray(expected_xforms), atol=1e-6)
+    _assert_replication_equal(_builder_snapshot(actual), _builder_snapshot(expected))
+    for path, source in args["source_builders"].items():
+        _assert_replication_equal(_builder_snapshot(source), originals[path])
+
+
+@pytest.mark.parametrize("fallback", ["hook", "callback", "particles"])
+def test_contiguous_runs_retain_side_effect_and_particle_fallbacks(fallback):
+    expected, _, serial_args, expected_calls = _grouped_replication_fixture("rotated", fallback)
+    expected_result = replicate_builder_mapping(expected, **serial_args)
+    actual, factory, args, calls = _grouped_replication_fixture("rotated", fallback)
+    with mock.patch.object(actual, "replicate", wraps=actual.replicate) as replicate:
+        result = replicate_builder_mapping(actual, **args, create_builder=factory)
+    replicate.assert_not_called()
+    assert calls == expected_calls
+    assert len(calls) == {"hook": 4, "callback": 8, "particles": 0}[fallback]
+    assert result[0] == expected_result[0]
+    assert result[2] == expected_result[2]
+    _assert_replication_equal(_builder_snapshot(actual), _builder_snapshot(expected))
 
 
 class TestVisualizationClonePlan(unittest.TestCase):

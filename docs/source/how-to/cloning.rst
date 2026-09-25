@@ -267,6 +267,24 @@ When envs need to differ across the population, use
 :class:`~isaaclab.sim.spawners.wrappers.MultiUsdFileCfg`; see
 :doc:`multi_asset_spawning`.
 
+The default :func:`~isaaclab.cloner.grouped` assignment places identical full prototype
+combinations in consecutive environments, following their first occurrence in the valid
+combination array. For two equally weighted combinations and six environments, it produces
+``A A A B B B``. Combination counts match the previous round-robin default exactly, including
+duplicate rows used as weights and incomplete cycles, but environment IDs can change.
+This groups complete combinations; an individual asset shared by several combinations may
+still occupy more than one block.
+
+Set ``scene_cfg.clone_cfg.clone_strategy = cloner.round_robin`` to retain ``A B A B A B``
+ordering. The same ``clone_strategy=cloner.round_robin`` argument is accepted by
+:func:`~isaaclab.cloner.make_clone_plan` and :class:`~isaaclab.cloner.ReplicateSession`.
+The legacy :func:`~isaaclab.cloner.sequential` name retains its round-robin behavior.
+
+Code selecting a prefix of environments should not assume that it covers every variant.
+Likewise, terrain types assigned in contiguous environment blocks can correlate with grouped
+asset variants. Use explicit clone-plan queries for variant ownership and choose
+``round_robin`` when interleaving is required by the task's sampling scheme.
+
 ``clone_plan_from_env_0`` + ``replicate``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

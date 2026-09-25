@@ -32,6 +32,10 @@
       replicate
       usd_replicate
       filter_collisions
+      grouped
+      round_robin
+      sequential
+      random
 
 Clone plan
 ~~~~~~~~~~
@@ -50,6 +54,12 @@ Query
 ~~~~~
 
 .. automodule:: isaaclab.cloner.query
+   :members:
+
+Assignment strategies
+~~~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: isaaclab.cloner.cloner_strategies
    :members:
 
 Additional Public Classes

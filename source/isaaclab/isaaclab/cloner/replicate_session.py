@@ -15,7 +15,7 @@ import numpy as np
 from ..sim import SimulationContext
 from .clone_plan import make_clone_plan
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE
-from .cloner_strategies import sequential
+from .cloner_strategies import grouped
 
 if TYPE_CHECKING:
     from .clone_plan import ClonePlan
@@ -75,7 +75,7 @@ class ReplicateSession:
         env_spacing: float,
         *,
         global_paths: tuple[str, ...] = (),
-        clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential,
+        clone_strategy: Callable[[np.ndarray, int], np.ndarray] = grouped,
         valid_set: np.ndarray | None = None,
         replicate_physics: bool = True,
         env_template: str = DEFAULT_ENV_TEMPLATE,
@@ -87,7 +87,9 @@ class ReplicateSession:
             num_clones: Number of target envs.
             env_spacing: Grid spacing between env origins [m].
             global_paths: Complete shared-asset roots declared by the composition root. Defaults to none.
-            clone_strategy: Prototype-to-env assignment function.
+            clone_strategy: Prototype-to-env assignment function. Defaults to
+                :func:`~isaaclab.cloner.grouped`; use :func:`~isaaclab.cloner.round_robin`
+                to retain the previous env ordering with the same combination counts.
             valid_set: Optional ``[num_combos, num_groups]`` integer array of valid
                 prototype combinations; ``None`` uses the full cartesian product.
             replicate_physics: Whether physics replication clones each environment;
