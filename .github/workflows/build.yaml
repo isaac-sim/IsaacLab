@@ -430,6 +430,7 @@ jobs:
         standalone-script-scope: "demos"
         standalone-script-visualizer: "none"
         standalone-script-runtime-group: kit
+        warp-cache: restore
         result-file: "test-standalone-demos-kit-report.xml"
         container-name: isaac-lab-standalone-demos-kit-test
         omni-github-test-type: standalone-demo
@@ -460,6 +461,7 @@ jobs:
         standalone-script-scope: "demos"
         standalone-script-visualizer: "none"
         standalone-script-runtime-group: non-kit
+        warp-cache: restore
         result-file: "test-standalone-demos-non-kit-report.xml"
         container-name: isaac-lab-standalone-demos-non-kit-test
         omni-github-test-type: standalone-demo
