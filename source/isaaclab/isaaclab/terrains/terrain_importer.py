@@ -279,7 +279,6 @@ class TerrainImporter:
             raise ValueError(
                 f"A terrain with the name '{name}' already exists. Existing terrains: {', '.join(self.terrain_names)}."
             )
-        self.terrain_prim_paths.append(prim_path)
 
         mesh_cfg = sim_utils.MeshFileCfg(
             mesh=mesh_path,
@@ -290,6 +289,8 @@ class TerrainImporter:
             physics_material=self.cfg.physics_material,
         )
         mesh_cfg.func(prim_path, mesh_cfg)
+        # register the terrain only after conversion succeeds so a failed import can be retried
+        self.terrain_prim_paths.append(prim_path)
 
     def _compute_ground_plane_size(self) -> tuple[float, float]:
         """Cover the environment grid with 50 m of visual walking room on each side [m]."""

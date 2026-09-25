@@ -86,10 +86,12 @@ class TerrainImporterCfg:
     visual_material: sim_utils.VisualMaterialCfg | None = MISSING
     """The visual material of the terrain. The default depends on :attr:`terrain_type`.
 
-    This parameter is used for both the "generator" and "plane" terrains.
+    This parameter is used for the "generator", "mesh", and "plane" terrains.
 
     - If the ``terrain_type`` is "generator", a dark material is used by default. The material is
       created at the path ``{prim_path}/visualMaterial`` and applied to all the sub-terrains.
+    - If the ``terrain_type`` is "mesh", no material is used by default. A provided material is
+      bound to the imported mesh, overriding its authored appearance.
     - If the ``terrain_type`` is "plane" and the material defines a diffuse color, then that color
       tints the imported ground plane. If no material is provided, the ground plane's authored
       appearance is preserved.
@@ -107,7 +109,7 @@ class TerrainImporterCfg:
     The material is created at the path: ``{prim_path}/physicsMaterial``.
 
     .. note::
-        This parameter is used only when the ``terrain_type`` is "generator" or "plane".
+        This parameter is used only when the ``terrain_type`` is "generator", "mesh", or "plane".
 
     Accepts a legacy rigid material cfg, a single rigid-material fragment, or a list of
     rigid-material fragments.
