@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
 from typing import Any, ClassVar
 
 import gymnasium as gym
@@ -392,11 +391,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)
         self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
-    def _reset_idx(self, env_ids: Sequence[int]):
+    def _reset_idx(self, env_ids: torch.Tensor):
         """Reset environments based on specified indices.
 
         Args:
-            env_ids: List of environment ids which must be reset
+            env_ids: Environment indices on the environment device.
         """
         # update the curriculum for environments that need a reset
         self.curriculum_manager.compute(env_ids=env_ids)

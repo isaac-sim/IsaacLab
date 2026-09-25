@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import inspect
 import logging
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -122,7 +121,13 @@ class EventManager(ManagerBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    def reset(self, env_ids: torch.Tensor | slice | None = None) -> dict[str, float]:
+        """Reset event state for device indices, a positive-step slice, or all environments (None).
+
+        See :meth:`~isaaclab.scene.InteractiveScene.resolve_env_ids` for the selector contract.
+        """
+        if env_ids is not None:
+            env_ids = self._env.scene.resolve_env_ids(env_ids)
         # call all terms that are classes
         for mode_cfg in self._mode_class_term_cfgs.values():
             for term_cfg in mode_cfg:
@@ -154,7 +159,7 @@ class EventManager(ManagerBase):
     def apply(
         self,
         mode: str,
-        env_ids: Sequence[int] | None = None,
+        env_ids: torch.Tensor | slice | None = None,
         dt: float | None = None,
         global_env_step_count: int | None = None,
     ):
@@ -175,6 +180,9 @@ class EventManager(ManagerBase):
             mode: The mode of event.
             env_ids: The indices of the environments to apply the event to.
                 Defaults to None, in which case the event is applied to all environments when applicable.
+                Reset mode accepts a one-dimensional int32/int64 tensor on the environment device,
+                a positive-step slice, or None. Reset callbacks receive device indices in all cases.
+                See :meth:`~isaaclab.scene.InteractiveScene.resolve_env_ids`.
             dt: The time step of the environment. This is only used for the "interval" mode.
                 Defaults to None to simplify the call for other modes.
             global_env_step_count: The total number of environment steps that have happened. This is only used
@@ -191,6 +199,9 @@ class EventManager(ManagerBase):
         if mode not in self._mode_term_names:
             logger.warning(f"Event mode '{mode}' is not defined. Skipping event.")
             return
+
+        if mode == "reset":
+            env_ids = self._env.scene.resolve_env_ids(env_ids)
 
         # ensure class-based terms are resolved before applying
         # the timeline PLAY callback may not have fired yet, so we resolve synchronously
@@ -239,10 +250,6 @@ class EventManager(ManagerBase):
                         term_cfg.func(self._env, valid_env_ids, **term_cfg.params)
             elif mode == "reset":
                 min_step_count = term_cfg.min_step_count_between_reset
-                # resolve the environment indices
-                if env_ids is None:
-                    env_ids = slice(None)
-
                 # We bypass the trigger mechanism if min_step_count is zero, i.e. apply term on every reset call.
                 # This should avoid the overhead of checking the trigger condition.
                 if min_step_count == 0:
@@ -262,10 +269,7 @@ class EventManager(ManagerBase):
                     valid_trigger |= (last_triggered_step == 0) & ~triggered_at_least_once
 
                     # select the valid environment indices based on the trigger
-                    if env_ids == slice(None):
-                        valid_env_ids = valid_trigger.nonzero().flatten()
-                    else:
-                        valid_env_ids = env_ids[valid_trigger]
+                    valid_env_ids = env_ids[valid_trigger]
 
                     # reset the last reset step for each environment to the current env step count
                     if len(valid_env_ids) > 0:

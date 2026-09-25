@@ -216,7 +216,7 @@ class _RandomizeRigidBodyMaterialPhysx:
         if env_ids is None:
             env_ids = torch.arange(env.scene.num_envs, device="cpu", dtype=torch.int32)
         else:
-            env_ids = env_ids.cpu()
+            env_ids = env_ids.to(device="cpu", dtype=torch.int32)
 
         # randomly assign material IDs to the geometries
         total_num_shapes = self.asset.root_view.max_shapes

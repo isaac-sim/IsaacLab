@@ -68,7 +68,7 @@ def test_step_updates_observation_history(device):
     # create a new stage
     sim_utils.create_new_stage()
     # create environment with history length of 5
-    env = ManagerBasedEnv(cfg=make_empty_manager_based_env_with_history_cfg(device=device))
+    env = ManagerBasedEnv(cfg=make_empty_manager_based_env_with_history_cfg(device=device, num_envs=3))
     assert env.action_manager.total_action_dim == 0
     history = env.observation_manager._group_obs_term_history_buffer["empty_observation"]["dummy_term"]
 
@@ -85,4 +85,14 @@ def test_step_updates_observation_history(device):
             torch.full((env.num_envs,), num_steps, device=device, dtype=torch.int64),
         )
 
+    # A slice must reach every manager as device indices, including observation history reset.
+    env.reset(env_ids=slice(1, None, 2))
+    torch.testing.assert_close(history.current_length, torch.tensor([3, 1, 3], device=device))
+    env.reset_to({}, env_ids=slice(0, None, 2))
+    torch.testing.assert_close(history.current_length, torch.tensor([1, 2, 1], device=device))
+    with pytest.raises(TypeError, match="env_ids"):
+        env.reset(env_ids=[0, 2])
+    with pytest.raises(TypeError, match="env_ids"):
+        env.reset_to({}, env_ids=[0, 2])
+    torch.testing.assert_close(history.current_length, torch.tensor([1, 2, 1], device=device))
     env.close()

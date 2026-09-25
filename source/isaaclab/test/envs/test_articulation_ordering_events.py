@@ -164,8 +164,9 @@ def deterministic_material_sampling(monkeypatch):
         pytest.param(None, slice(1, 3), id="default-ordering"),
     ],
 )
+@pytest.mark.parametrize("index_dtype", [torch.int32, torch.int64])
 def test_physx_material_randomization_automatically_converts_public_body_ids_to_backend_shape_range(
-    monkeypatch, deterministic_material_sampling, body_ordering, expected_shape_slice
+    monkeypatch, deterministic_material_sampling, body_ordering, expected_shape_slice, index_dtype
 ):
     """PhysX automatically converts public body selections to backend shape ranges."""
     import isaaclab.assets as assets_module
@@ -186,7 +187,7 @@ def test_physx_material_randomization_automatically_converts_public_body_ids_to_
 
     term(
         env,
-        torch.tensor([0], dtype=torch.int32),
+        torch.tensor([0], dtype=index_dtype),
         static_friction_range=(0.4, 0.4),
         dynamic_friction_range=(0.2, 0.2),
         restitution_range=(0.1, 0.1),

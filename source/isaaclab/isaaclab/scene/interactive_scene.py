@@ -452,6 +452,34 @@ class InteractiveScene:
     Operations.
     """
 
+    def resolve_env_ids(self, env_ids: torch.Tensor | slice | None = None) -> torch.Tensor:
+        """Return environment indices without copying or transferring index data.
+
+        Args:
+            env_ids: A one-dimensional int32/int64 tensor on the scene device, a positive-step slice,
+                or None for all environments. Tensors are returned unchanged; slices return views of
+                the scene's existing index buffer. Callers must not modify that buffer through the view.
+
+        Raises:
+            TypeError: If the selector is not a slice, None, or a one-dimensional integer tensor.
+            ValueError: If the tensor is on a different device or the slice step is not positive.
+        """
+        if env_ids is None:
+            return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            return self._ALL_INDICES[env_ids]
+        if (
+            not isinstance(env_ids, torch.Tensor)
+            or env_ids.ndim != 1
+            or env_ids.dtype not in (torch.int32, torch.int64)
+        ):
+            raise TypeError(
+                "env_ids must be None, a slice, or a one-dimensional int32/int64 tensor on the scene device."
+            )
+        if env_ids.device != self._ALL_INDICES.device:
+            raise ValueError(f"env_ids must be on {self._ALL_INDICES.device}; received {env_ids.device}.")
+        return env_ids
+
     def reset(self, env_ids: Sequence[int] | None = None):
         """Resets the scene entities.
 

@@ -15,11 +15,13 @@ import torch
 
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import EventManager, EventTermCfg, ManagerTermBase, ManagerTermBaseCfg
+from isaaclab.scene import InteractiveScene
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.unit
 
-DummyEnv = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim", "dummy1", "dummy2"])
+DummyEnv = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim", "dummy1", "dummy2", "scene"])
 """Dummy environment for testing."""
 
 
@@ -74,17 +76,19 @@ class increment_dummy2_by_one_class(ManagerTermBase):
 
 
 @pytest.fixture
-def env():
-    num_envs = 2
-    device = "cpu"
+def env(request):
+    num_envs = 4
+    device = getattr(request, "param", "cpu")
     # create dummy tensors
     dummy1 = torch.zeros((num_envs, 2), device=device)
     dummy2 = torch.zeros((num_envs, 10), device=device)
     # simulation double that has not started playing, so class terms stay deferred to the physics-ready callback
     sim = MagicMock()
     sim.is_playing.return_value = False
+    scene = object.__new__(InteractiveScene)
+    scene._ALL_INDICES = torch.arange(num_envs, device=device)
     # create dummy environment
-    return DummyEnv(num_envs, 0.01, device, sim, dummy1, dummy2)
+    return DummyEnv(num_envs, 0.01, device, sim, dummy1, dummy2, scene)
 
 
 def test_config_equivalence(env):
@@ -318,6 +322,7 @@ def test_apply_interval_mode_with_global_time(env):
             term_2_interval_time = event_man._interval_term_time_left[1].clone()
 
 
+@pytest.mark.parametrize("env", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA), indirect=True)
 def test_apply_interval_mode_resample_on_reset(env):
     """Test that the interval timer is (not) resampled on reset based on ``resample_interval_on_reset``.
 
@@ -358,8 +363,12 @@ def test_apply_interval_mode_resample_on_reset(env):
     torch.testing.assert_close(event_man._interval_term_time_left[0], expected_after_apply)
     torch.testing.assert_close(event_man._interval_term_time_left[1], expected_after_apply)
 
-    # reset all environments
-    event_man.reset(env_ids=torch.arange(env.num_envs, device=env.device))
+    # reset a strided subset without disturbing the other timers
+    event_man.reset(env_ids=slice(1, None, 2))
+    expected_partial = expected_after_apply.clone()
+    expected_partial[1::2] = interval_s
+    torch.testing.assert_close(event_man._interval_term_time_left[0], expected_partial)
+    event_man.reset()
 
     # term with resampling is restored to the fixed interval
     torch.testing.assert_close(event_man._interval_term_time_left[0], expected_init)
@@ -367,79 +376,82 @@ def test_apply_interval_mode_resample_on_reset(env):
     torch.testing.assert_close(event_man._interval_term_time_left[1], expected_after_apply)
 
 
-def test_apply_reset_mode(env):
-    """Test the application of event terms that are in reset mode."""
-    cfg = {
-        "term_1": EventTermCfg(func=increment_dummy1_by_one, mode="reset"),
-        "term_2": EventTermCfg(func=reset_dummy1_to_zero, mode="reset", min_step_count_between_reset=10),
-    }
+@pytest.mark.parametrize("selector", [None, slice(None), torch.int32, torch.int64, slice(1, None, 2), slice(0, 0)])
+@pytest.mark.parametrize("env", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA), indirect=True)
+def test_apply_reset_mode(env, selector):
+    """Selectors preserve index storage and per-environment cooldowns for both reset terms."""
 
-    event_man = EventManager(cfg, env)
+    def increment(env, ids):
+        assert isinstance(ids, torch.Tensor)
+        if isinstance(env_ids, torch.Tensor):
+            assert ids is env_ids
+        else:
+            assert ids.untyped_storage().data_ptr() == env.scene._ALL_INDICES.untyped_storage().data_ptr()
+        increment_dummy1_by_one(env, ids)
 
-    # manually keep track of the expected values for dummy1 and trigger count
-    expected_dummy1_value = torch.zeros_like(env.dummy1)
-    term_2_trigger_step_id = torch.zeros((env.num_envs,), dtype=torch.int32, device=env.device)
+    event_man = EventManager(
+        {
+            "term_1": EventTermCfg(func=increment, mode="reset"),
+            "term_2": EventTermCfg(func=reset_dummy1_to_zero, mode="reset", min_step_count_between_reset=10),
+        },
+        env,
+    )
+    expected = [0] * env.num_envs
+    last_step = [[0] * env.num_envs for _ in range(2)]
+    triggered = [False] * env.num_envs
 
-    for count in range(50):
-        # apply the event terms for all the env ids
-        if count % 3 == 0:
-            event_man.apply("reset", global_env_step_count=count)
-
-            # we increment the dummy1 by 1 every call to reset mode due to term 1
-            expected_dummy1_value[:] += 1
-            # manually update the expected value for term 2
-            if (count - term_2_trigger_step_id[0]) >= 10 or count == 0:
-                expected_dummy1_value = torch.zeros_like(env.dummy1)
-                term_2_trigger_step_id[:] = count
-
-        # check the values of trigger count
-        # -- term 1
-        expected_trigger_count = torch.full((env.num_envs,), 3 * (count // 3), dtype=torch.int32, device=env.device)
-        torch.testing.assert_close(event_man._reset_term_last_triggered_step_id[0], expected_trigger_count)
-        # -- term 2
-        torch.testing.assert_close(event_man._reset_term_last_triggered_step_id[1], term_2_trigger_step_id)
-
-        # check the values of dummy1
-        torch.testing.assert_close(env.dummy1, expected_dummy1_value)
-
-
-def test_apply_reset_mode_subset_env_ids(env):
-    """Test the application of event terms that are in reset mode over a subset of environment ids."""
-    cfg = {
-        "term_1": EventTermCfg(func=increment_dummy1_by_one, mode="reset"),
-        "term_2": EventTermCfg(func=reset_dummy1_to_zero, mode="reset", min_step_count_between_reset=10),
-    }
-
-    event_man = EventManager(cfg, env)
-
-    # since we are applying the event terms over a subset of env ids, we need to keep track of the trigger count
-    # manually for the sake of testing
-    term_2_trigger_step_id = torch.zeros((env.num_envs,), dtype=torch.int32, device=env.device)
-    term_2_trigger_once = torch.zeros((env.num_envs,), dtype=torch.bool, device=env.device)
-    expected_dummy1_value = torch.zeros_like(env.dummy1)
-
-    for count in range(50):
-        # randomly select a subset of environment ids
-        env_ids = (torch.rand(env.num_envs, device=env.device) < 0.5).nonzero().flatten()
-        # apply the event terms for the selected env ids
+    for count in range(23):
+        # Alternate tensor selections to exercise mixed cooldowns and empty tensors.
+        if isinstance(selector, torch.dtype):
+            selected = [i for i in range(env.num_envs) if (i + count) % 3 == 0] if count % 4 else []
+            env_ids = torch.tensor(selected, dtype=selector, device=env.device)
+        else:
+            env_ids = selector
+            selected = list(range(env.num_envs))[selector if selector is not None else slice(None)]
         event_man.apply("reset", env_ids=env_ids, global_env_step_count=count)
 
-        # modify the trigger count for term 2
-        trigger_ids = (count - term_2_trigger_step_id[env_ids]) >= 10
-        trigger_ids |= (term_2_trigger_step_id[env_ids] == 0) & ~term_2_trigger_once[env_ids]
-        term_2_trigger_step_id[env_ids[trigger_ids]] = count
-        term_2_trigger_once[env_ids[trigger_ids]] = True
-        # we increment the dummy1 by 1 every call to reset mode
-        # every 10th call, we reset the dummy1 to 0
-        expected_dummy1_value[env_ids] += 1  # effect of term 1
-        expected_dummy1_value[env_ids[trigger_ids]] = 0  # effect of term 2
+        for i in selected:
+            expected[i] += 1
+            last_step[0][i] = count
+            if not triggered[i] or count - last_step[1][i] >= 10:
+                expected[i] = 0
+                last_step[1][i] = count
+                triggered[i] = True
+        torch.testing.assert_close(
+            env.dummy1, torch.tensor(expected, dtype=env.dummy1.dtype, device=env.device)[:, None].expand_as(env.dummy1)
+        )
+        for index in range(2):
+            torch.testing.assert_close(
+                event_man._reset_term_last_triggered_step_id[index],
+                torch.tensor(last_step[index], dtype=torch.int32, device=env.device),
+            )
 
-        # check the values of trigger count
-        # -- term 1
-        expected_trigger_count = torch.full((len(env_ids),), count, dtype=torch.int32, device=env.device)
-        torch.testing.assert_close(event_man._reset_term_last_triggered_step_id[0][env_ids], expected_trigger_count)
-        # -- term 2
-        torch.testing.assert_close(event_man._reset_term_last_triggered_step_id[1], term_2_trigger_step_id)
 
-        # check the values of dummy1
-        torch.testing.assert_close(env.dummy1, expected_dummy1_value)
+@pytest.mark.parametrize("env", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA), indirect=True)
+def test_reset_rejects_incompatible_selectors_before_mutation(env, monkeypatch):
+    """Invalid selectors must not be coerced or partially apply reset events."""
+    monkeypatch.setattr(env.sim, "is_playing", lambda: True)
+    event_man = EventManager({"term": EventTermCfg(func=reset_dummy2_to_zero_class, mode="reset")}, env)
+    reset_calls = []
+    monkeypatch.setattr(event_man.get_term_cfg("term").func, "reset", lambda env_ids=None: reset_calls.append(env_ids))
+    env.dummy2.fill_(1)
+    wrong_device = "cpu" if env.device != "cpu" else "meta"
+    for selector, error in (
+        ([0, 2], TypeError),
+        ((0, 2), TypeError),
+        ([], TypeError),
+        ((), TypeError),
+        (torch.zeros(2, device=env.device), TypeError),
+        (torch.zeros(2, dtype=torch.bool, device=env.device), TypeError),
+        (torch.zeros((1, 2), dtype=torch.int64, device=env.device), TypeError),
+        (torch.zeros(2, dtype=torch.int64, device=wrong_device), ValueError),
+        (slice(None, None, -1), ValueError),
+    ):
+        with pytest.raises(error):
+            event_man.apply("reset", env_ids=selector, global_env_step_count=1)
+        with pytest.raises(error):
+            event_man.reset(selector)
+        assert not reset_calls
+        assert torch.all(env.dummy2 == 1)
+        assert not torch.any(event_man._reset_term_last_triggered_once[0])
+        assert not torch.any(event_man._reset_term_last_triggered_step_id[0])
