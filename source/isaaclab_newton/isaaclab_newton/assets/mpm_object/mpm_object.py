@@ -5,8 +5,8 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Sequence
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -14,10 +14,7 @@ import torch
 import warp as wp
 
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
-from isaaclab.cloner import path as cloner_path
-from isaaclab.cloner.query import iter_sources
 from isaaclab.physics import PhysicsEvent
-from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -40,52 +37,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# TODO: Remove this range registry once https://github.com/newton-physics/newton/issues/4225
-# exposes composed MPM ranges.
-@dataclass
-class MPMObjectRegistryEntry:
-    """Particle ranges imported for an MPM object."""
-
-    cfg: MPMObjectCfg
-    particle_offsets: list[int] = field(default_factory=list)
-    particles_per_object: int = 0
-
-
-def reset_registered_mpm_particle_ranges() -> None:
-    """Clear particle ranges before rebuilding the Newton model."""
-    for entry in SimulationManager._mpm_object_registry:
-        entry.particle_offsets.clear()
-        entry.particles_per_object = 0
-
-
-def record_registered_mpm_particle_ranges(
-    path_particle_map: dict[str, tuple[int, int]],
-    destination_particle_offset: int = 0,
-) -> None:
-    """Record MPM particle ranges from a USD import.
-
-    Args:
-        path_particle_map: Source-local half-open particle ranges keyed by USD prim path.
-        destination_particle_offset: Particle count before merging a source builder.
-    """
-    for entry in SimulationManager._mpm_object_registry:
-        points_path = f"{entry.cfg.spawn.spawn_path}{_SIMULATION_POINTS_SUFFIX}"
-        if particle_range := path_particle_map.get(points_path):
-            start, end = particle_range
-            particle_count = int(end - start)
-            if particle_count <= 0:
-                raise ValueError(f"MPM particle range for '{points_path}' must be non-empty; got {particle_range}.")
-            if entry.particles_per_object not in (0, particle_count):
-                raise RuntimeError(
-                    f"MPM object '{entry.cfg.prim_path}' imported {particle_count} particles, "
-                    f"but earlier instances imported {entry.particles_per_object}."
-                )
-
-            destination_start = destination_particle_offset + int(start)
-            entry.particles_per_object = particle_count
-            entry.particle_offsets.append(destination_start)
-
-
 class MPMObject(BaseDeformableObject):
     """Newton MPM particle object asset.
 
@@ -104,8 +55,6 @@ class MPMObject(BaseDeformableObject):
 
     def __init__(self, cfg: MPMObjectCfg):
         super().__init__(cfg)
-        self._registry_entry = MPMObjectRegistryEntry(self.cfg)
-        SimulationManager._mpm_object_registry.append(self._registry_entry)
         self._physics_ready_handle = None
 
     @property
@@ -275,16 +224,16 @@ class MPMObject(BaseDeformableObject):
         return data
 
     def _initialize_impl(self):
-        entry = self._registry_entry
-        self._num_instances = len(entry.particle_offsets)
-        self._particles_per_object = entry.particles_per_object
-        self._recorded_particle_offsets = entry.particle_offsets
-
-        if self._num_instances == 0 or self._particles_per_object == 0:
-            raise RuntimeError(
-                f"No MPM particle instances found for '{self.cfg.prim_path}'. "
-                "Ensure Newton replication processed the MPM object registry."
-            )
+        expression = re.compile(self.cfg.prim_path + _SIMULATION_POINTS_SUFFIX)
+        ranges = [
+            value for path, value in SimulationManager.backend.particle_ranges.items() if expression.fullmatch(path)
+        ]
+        if not ranges:
+            raise RuntimeError(f"No imported MPM particles match '{self.cfg.prim_path}'.")
+        offsets, counts = zip(*ranges, strict=True)
+        if len(set(counts)) != 1:
+            raise ValueError(f"MPM instances at '{self.cfg.prim_path}' must have equal particle counts.")
+        self._num_instances, self._particles_per_object = len(ranges), counts[0]
 
         logger.info(
             "Newton MPM object initialized at '%s': %d instances x %d particles.",
@@ -293,7 +242,7 @@ class MPMObject(BaseDeformableObject):
             self._particles_per_object,
         )
 
-        self._particle_offsets = wp.array(self._recorded_particle_offsets, dtype=wp.int32, device=self.device)
+        self._particle_offsets = wp.array(offsets, dtype=wp.int32, device=self.device)
         self._data = MPMObjectData(
             particle_offsets=self._particle_offsets,
             particles_per_object=self._particles_per_object,
@@ -343,30 +292,6 @@ class MPMObject(BaseDeformableObject):
         )
         self._data.default_nodal_state_w = ProxyArray(default_state)
         self._data.default_particle_state_w = self._data.default_nodal_state_w
-        self._bind_particle_visualization()
-
-    def _bind_particle_visualization(self) -> None:
-        """Bind the plan's pre-authored render clouds to native particle ranges."""
-        if not self.cfg.spawn.visible:
-            return
-
-        plan = SimulationContext.instance().get_clone_plan()
-        source = self.cfg.spawn.spawn_path
-        asset_prim_paths = [
-            cloner_path.rebase(source, root, template.format(env_id))
-            for root, template, source_path, env_ids in iter_sources(plan, self.cfg.prim_path)
-            if source_path == source
-            for env_id in env_ids
-        ]
-        if not asset_prim_paths and any(cloner_path.under(source, root) for root in plan.global_paths):
-            asset_prim_paths.append(source)
-        for prim_path, offset in zip(asset_prim_paths, self._recorded_particle_offsets, strict=True):
-            SimulationManager.register_particle_visual_prim(
-                f"{prim_path}/Particles",
-                particle_offset=offset,
-                particle_count=self._particles_per_object,
-            )
-        logger.info("MPM particle visualization initialized for: %s", self.cfg.prim_path)
 
     def _resolve_env_ids(self, env_ids):
         if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
@@ -416,6 +341,3 @@ class MPMObject(BaseDeformableObject):
         if self._physics_ready_handle is not None:
             self._physics_ready_handle.deregister()
             self._physics_ready_handle = None
-        registry = SimulationManager._mpm_object_registry
-        if self._registry_entry in registry:
-            registry.remove(self._registry_entry)

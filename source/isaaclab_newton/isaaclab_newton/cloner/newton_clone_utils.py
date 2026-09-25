@@ -375,8 +375,8 @@ def replicate_builder_mapping(
     source_site_indices: dict[int, dict[str, list[int]]] | None = None,
     env_root_sites: dict[str, wp.transform] | None = None,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = (),
-    source_builder_added: Callable[[str, int, ModelBuilder, Sequence[float]], None] | None = None,
-) -> tuple[dict[str, list[list[int]]], list[wp.transform], list[tuple[str, int]]]:
+    source_builder_added: Callable[[str, str, int], None] | None = None,
+) -> tuple[dict[str, list[list[int]]], list[wp.transform]]:
     """Replicate source builders, naming homogeneous copies at their destinations."""
     source_site_indices = source_site_indices or {}
     env_root_sites = env_root_sites or {}
@@ -444,15 +444,15 @@ def replicate_builder_mapping(
         if source_builder_added is not None:
             for world in range(num_worlds):
                 particle_offset = base_particle + world * particle_stride
-                source_builder_added(sources[0], particle_offset, source_builder, xforms[world])
+                source_builder_added(sources[0], destinations[0].format(int(env_ids[world])), particle_offset)
 
         for label, local_indices in site_local_indices.items():
             local_site_map[label] = [
                 [base_shape + world * shape_stride + local for local in local_indices] for world in range(num_worlds)
             ]
 
-        bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping, skip_entity_labels=True)
-        return local_site_map, world_xforms, bindings
+        rename_builder_labels(builder, sources, destinations, env_ids, mapping, skip_entity_labels=True)
+        return local_site_map, world_xforms
 
     source_world_indices = mapping.argmax(axis=1)
 
@@ -494,7 +494,7 @@ def replicate_builder_mapping(
             builder.add_builder(source_builder, xform=source_xforms[row, col])
             _rotate_builder_particles(builder, source_builder, particle_offset, tet_offset, source_xforms[row, col])
             if source_builder_added is not None:
-                source_builder_added(sources[row], particle_offset, source_builder, source_xforms[row, col])
+                source_builder_added(sources[row], destinations[row].format(int(env_ids[col])), particle_offset)
 
             for label, source_shape_indices in source_site_indices.get(id(source_builder), {}).items():
                 local_indices = local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col]
@@ -503,8 +503,9 @@ def replicate_builder_mapping(
             hook(builder, col, xforms_np[col, :3].copy(), xforms_np[col, 3:].copy())
         builder.end_world()
 
-    bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping) if destinations else []
-    return local_site_map, world_xforms, bindings
+    if destinations:
+        rename_builder_labels(builder, sources, destinations, env_ids, mapping)
+    return local_site_map, world_xforms
 
 
 def rename_builder_labels(
@@ -515,10 +516,8 @@ def rename_builder_labels(
     mapping: np.ndarray,
     *,
     skip_entity_labels: bool = False,
-) -> list[tuple[str, int]]:
-    """Rewrite source-root labels to per-env destination roots and return Fabric body bindings."""
-    fabric_body_bindings: list[tuple[str, int]] = []
-    bound_body_indices: set[int] = set()
+) -> None:
+    """Rewrite source-root labels to per-env destination roots."""
     for source_index, source in enumerate(sources):
         source_root = source.rstrip("/") or "/"
         world_cols = np.flatnonzero(mapping[source_index])
@@ -526,7 +525,7 @@ def rename_builder_labels(
         destination = destinations[source_index]
         world_roots = {int(col): (destination.format(int(env_ids[col])).rstrip("/") or "/") for col in world_cols}
 
-        def _rename_pair(values, worlds, src_root=source_root, roots=world_roots, *, collect_body_bindings=False):
+        def _rename_pair(values, worlds, src_root=source_root, roots=world_roots):
             rows = (
                 ((index, value, worlds[index]) for index, value in values.items())
                 if isinstance(values, dict)
@@ -542,15 +541,12 @@ def rename_builder_labels(
                 renamed_value = world_root + suffix
                 if renamed_value != value:
                     values[index] = renamed_value
-                    if collect_body_bindings:
-                        fabric_body_bindings.append((renamed_value, index))
-                        bound_body_indices.add(index)
 
         if not skip_entity_labels:
             for name, labels in vars(builder).items():
                 worlds = getattr(builder, f"{name[:-6]}_world", None) if name.endswith("_label") else None
                 if isinstance(labels, list) and worlds is not None:
-                    _rename_pair(labels, worlds, collect_body_bindings=name == "body_label")
+                    _rename_pair(labels, worlds)
 
         custom_attrs = builder.custom_attributes.values()
         worlds_by_freq = {attr.frequency: attr.values for attr in custom_attrs if attr.references == "world"}
@@ -561,8 +557,3 @@ def rename_builder_labels(
                 _rename_pair(attr.values, builder.shape_world)
             elif worlds := worlds_by_freq.get(attr.frequency):
                 _rename_pair(attr.values, worlds)
-
-    fabric_body_bindings.extend(
-        (label, index) for index, label in enumerate(builder.body_label) if index not in bound_body_indices
-    )
-    return fabric_body_bindings

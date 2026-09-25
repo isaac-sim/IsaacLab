@@ -17,10 +17,12 @@ from newton import ModelBuilder
 
 from pxr import Sdf, Usd, UsdGeom
 
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner.path import rebase, under
 from isaaclab.cloner.query import iter_sources
 from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.scene_data import SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
     deformable_geometry_batches,
     deformable_prototypes,
@@ -38,6 +40,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonCfg, NewtonManager
 from isaaclab_newton.physics.visualization_deformables import add_shadow_deformables_to_builder
 from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
+from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
 
 if TYPE_CHECKING:
     from isaaclab.sim import SimulationContext
@@ -110,18 +113,10 @@ def _replicate_newton(
     quaternions: np.ndarray | None = None,
 ) -> tuple[ModelBuilder, object, dict]:
     """Import and replicate the plan's Newton representation, with or without Newton physics."""
-    # MPMObject imports NewtonManager, so defer this reciprocal import until model construction.
-    from isaaclab_newton.assets.mpm_object.mpm_object import (  # noqa: PLC0415
-        record_registered_mpm_particle_ranges,
-        reset_registered_mpm_particle_ranges,
-    )
-
     cfg = sim.cfg.physics
     simulation = isinstance(cfg, NewtonCfg)
     sources = tuple(plan.sources[row] for row in rows)
     positions = plan.positions
-    if simulation:
-        reset_registered_mpm_particle_ranges()
     if positions is None:
         positions = np.zeros((len(plan.env_ids), 3), dtype=np.float32)
     if quaternions is None:
@@ -138,7 +133,10 @@ def _replicate_newton(
     import_paths = (sim.cfg.physics_prim_path, *plan.global_paths) if simulation else plan.global_paths
     if simulation:
         paths = set(sources) | set(plan.global_paths)
-        for path in plan.asset_paths:
+        for asset_cfg in plan.cfgs:
+            if not isinstance(asset_cfg, AssetBaseCfg):
+                continue
+            path = asset_cfg.prim_path
             paths.update(source_path for source, _, source_path, _ in iter_sources(plan, path) if source in sources)
             if any(under(path, root) for root in (*sources, *plan.global_paths)):
                 paths.add(path)
@@ -172,8 +170,6 @@ def _replicate_newton(
         _restore_visible_colliders_without_visual_shapes(
             builder, stage, import_result["path_shape_map"], load_visual_shapes
         )
-        if simulation:
-            record_registered_mpm_particle_ranges(import_result.get("path_particle_map", {}))
         import_results.append(import_result)
     if simulation:
         replace_newton_builder_shape_colors(builder, stage)
@@ -229,18 +225,33 @@ def _replicate_newton(
         builder.add_builder(global_builder)
         global_sites, source_sites, root_sites = {}, {}, {}
 
-    def record_source_particle_ranges(
-        source: str,
-        particle_offset: int,
-        source_builder: ModelBuilder,
-        source_xform: Sequence[float],
-    ) -> None:
-        record_registered_mpm_particle_ranges(
-            source_import_results[source].get("path_particle_map", {}),
-            particle_offset,
-        )
+    particle_ranges = {
+        path: (start, end - start)
+        for imported in import_results
+        for path, (start, end) in imported["path_particle_map"].items()
+    }
+    # MPM's importer supplies native ranges; its spawner authors a separate visible point prim.
+    particle_visual_paths = {
+        path: path.removesuffix(_SIMULATION_POINTS_SUFFIX) + "/Particles"
+        for imported in (*import_results, *source_import_results.values())
+        for path in imported["path_particle_map"]
+        if path.endswith(_SIMULATION_POINTS_SUFFIX)
+        and stage.GetPrimAtPath(path.removesuffix(_SIMULATION_POINTS_SUFFIX) + "/Particles")
+    }
+    visual_ranges = {
+        particle_visual_paths[path]: value for path, value in particle_ranges.items() if path in particle_visual_paths
+    }
 
-    local_site_map, world_xforms, fabric_body_bindings = replicate_builder_mapping(
+    def record_source_particle_ranges(source: str, destination: str, particle_offset: int) -> None:
+        for path, (start, end) in source_import_results[source]["path_particle_map"].items():
+            particle_ranges[rebase(path, source, destination)] = (particle_offset + start, end - start)
+            if path in particle_visual_paths:
+                visual_ranges[rebase(particle_visual_paths[path], source, destination)] = (
+                    particle_offset + start,
+                    end - start,
+                )
+
+    local_site_map, world_xforms = replicate_builder_mapping(
         builder=builder,
         sources=sources,
         mapping=plan.clone_mask[list(rows)],
@@ -253,7 +264,7 @@ def _replicate_newton(
         env_root_sites=root_sites,
         per_world_builder_hooks=NewtonManager._per_world_builder_hooks if simulation else (),
         source_builder_added=record_source_particle_ranges
-        if simulation and NewtonManager._mpm_object_registry
+        if any(imported["path_particle_map"] for imported in source_import_results.values())
         else None,
     )
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
@@ -277,11 +288,12 @@ def _replicate_newton(
         NewtonManager._scene_data_backend._geometry_batches = deformable_geometry_batches(
             geometry, [ranges[entry.root_path] for entry in geometry], device=sim.device
         )
+        if visual_ranges:
+            NewtonManager._scene_data_backend._geometry_batches.append((SceneDataFormat.Points(), visual_ranges))
         NewtonManager._cl_site_index_map = site_index_map
-        NewtonManager._cl_fabric_body_bindings = fabric_body_bindings
         NewtonManager._world_xforms = world_xforms
         NewtonManager._cl_protos = source_builders
-        NewtonManager.set_builder(builder)
+        NewtonManager.set_builder(builder, particle_ranges=particle_ranges)
         NewtonManager._num_envs = len(plan.env_ids)
     else:
         geometry_offsets = add_shadow_deformables_to_builder(builder, expand_deformable_entries(plan, entries, rows))
@@ -323,7 +335,7 @@ def newton_physics_replicate(
     up_axis: str = "Z",
     global_paths: tuple[str, ...] = (),
     *,
-    asset_paths: tuple[str, ...] = (),
+    cfgs: tuple[Any, ...] = (),
 ) -> tuple[ModelBuilder, dict[str, Any]]:
     """Replicate prims into a Newton ``ModelBuilder`` using a per-source mapping.
 
@@ -337,7 +349,7 @@ def newton_physics_replicate(
         quaternions: Optional per-environment orientations in xyzw order.
         up_axis: Up axis for the Newton model builder.
         global_paths: Shared scene-asset roots imported once. Defaults to none.
-        asset_paths: Declared asset roots within the sources, including deformables imported with Newton materials.
+        cfgs: Asset declarations within the sources, including deformables imported with Newton materials.
 
     Returns:
         Tuple of the populated Newton model builder and stage metadata.
@@ -349,7 +361,7 @@ def newton_physics_replicate(
         clone_mask=mapping,
         positions=positions,
         global_paths=global_paths,
-        asset_paths=asset_paths,
+        cfgs=cfgs,
     )
     builder, stage_info, _ = _replicate_newton(
         stage,

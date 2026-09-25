@@ -17,7 +17,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 
-import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
 from isaaclab_newton.physics import (
@@ -572,15 +571,10 @@ def test_nested_solver_scopes_mujoco_joint_properties(
     joint.GetPrim().CreateAttribute("mjc:frictionloss", Sdf.ValueTypeNames.Double, True).Set(0.11)
     joint.GetPrim().CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
 
-    monkeypatch.setattr(newton_manager_module, "get_current_stage", lambda: stage)
-    monkeypatch.setattr(newton_manager_module, "_restore_visible_colliders_without_visual_shapes", lambda *args: None)
-    monkeypatch.setattr(newton_manager_module, "replace_newton_builder_shape_colors", lambda *args: None)
-    monkeypatch.setattr(newton_manager_module, "import_builder_visual_material_paths", lambda *args: None)
-    monkeypatch.setattr(NewtonManager, "_builder", None)
-    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", [])
-
-    NewtonCouplerManager.instantiate_builder_from_stage()
-    builder = NewtonManager._builder
+    builder = NewtonCouplerManager.create_builder(up_axis="Z")
+    builder.add_usd(
+        stage, root_path=root_path, schema_resolvers=NewtonCouplerManager._get_usd_import_schema_resolvers()
+    )
     model = builder.finalize(device="cpu")
 
     assert model.joint_friction.numpy()[-1] == pytest.approx(expected_friction)

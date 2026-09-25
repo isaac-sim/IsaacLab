@@ -271,6 +271,7 @@ def test_root_pose_sync_preserves_authored_scale(device, renderer_cfg):
 
             sim.reset()
             scene.reset()
+            sim.get_or_create_backend(sim.fabric_cfg).bind_transforms(sim.get_scene_data_provider())
             _render(sim, scene)
 
             torch.testing.assert_close(_fabric_scale(body_path), authored_scale, rtol=0.0, atol=1.0e-5)
@@ -283,7 +284,7 @@ def test_root_pose_sync_preserves_authored_scale(device, renderer_cfg):
             scene["cube"].write_root_link_pose_to_sim_index(root_pose=target_pose)
             if isinstance(renderer_cfg, NewtonWarpRendererCfg):
                 assert not sim.visualizers
-                NewtonManager.sync_transforms_to_fabric()
+                sim.get_or_create_backend(sim.fabric_cfg).update_transforms(sim.get_scene_data_provider())
             _render(sim, scene)
 
             torch.testing.assert_close(_fabric_position(body_path), target_pose[0, :3].cpu(), rtol=0.0, atol=1.0e-4)

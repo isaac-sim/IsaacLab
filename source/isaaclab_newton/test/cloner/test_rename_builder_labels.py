@@ -152,7 +152,7 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         positions = np.array([[2.0, 0.0, 0.0], [5.0, 0.0, 0.0], [8.0, 0.0, 0.0]], dtype=np.float32)
 
         with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
-            local_site_map, _, _ = replicate_builder_mapping(
+            local_site_map, _ = replicate_builder_mapping(
                 builder,
                 (source_path,),
                 np.ones((1, 3), dtype=np.bool_),
@@ -290,11 +290,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
         )
         builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan)
         model = builder.finalize(device="cpu")
-        with mock.patch(
-            "isaaclab_newton.physics.newton_manager.get_current_stage",
-            side_effect=AssertionError("Stage discovery is not a binding input."),
-        ):
-            bindings = replicate_module.NewtonManager.collect_cable_segment_shape_ids()
+        bindings = replicate_module.NewtonManager.collect_cable_segment_shape_ids()
         self.assertEqual(set(bindings), {"/Scene/SharedRope", source, "/Scene/copy_12/Rope"})
         for path, shape_ids in bindings.items():
             self.assertEqual(

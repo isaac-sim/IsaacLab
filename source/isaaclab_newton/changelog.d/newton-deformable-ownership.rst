@@ -7,8 +7,16 @@ Changed
   ranges during asset initialization, removing the geometry registry and per-world construction hook.
   The shared :class:`isaaclab.assets.DeformableObjectCfg` and backend-independent asset API remained unchanged.
 
+* **Breaking:** Made ``NewtonManager.instantiate_builder_from_stage()`` consume the active clone plan
+  instead of discovering environment roots. Construct an ``InteractiveScene``, explicitly replicate a
+  ``ClonePlan``, or supply a native builder with ``NewtonManager.set_builder()``.
+
 Fixed
 ^^^^^
 
 * Applied clone-plan row selection to Newton deformables and imported shared deformables once.
   Preserved rotated particle positions, velocities, and tetrahedral rest frames during builder composition.
+
+* Moved MPM particle-range and visual-geometry binding into clone/import, removing asset-side registration.
+
+* Moved Fabric body-prim preparation out of Newton physics startup and into the shared Fabric rendering resource.

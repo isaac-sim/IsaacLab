@@ -134,21 +134,32 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
 
 
 @pytest.mark.parametrize("joint_has_rigid_body_api", [False, True])
-def test_rigid_body_view_uses_exact_path_for_joint_name_collision(monkeypatch, joint_has_rigid_body_api):
-    """Joint names must keep same-named rigid bodies out of wildcard views."""
+def test_rigid_body_view_uses_declared_prototypes(monkeypatch, joint_has_rigid_body_api):
+    """Expand exact native paths, excluding colliding joint names and undeclared clones."""
     from isaaclab_physx.physics import physx_manager
     from isaaclab_physx.physics.physx_manager import PhysxSceneDataBackend
 
     from pxr import Usd, UsdGeom, UsdPhysics
 
+    from isaaclab.cloner import ClonePlan
+
     stage = Usd.Stage.CreateInMemory()
-    body_prim = UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot/robot0_forearm").GetPrim()
+    body_prim = UsdGeom.Xform.Define(stage, "/Proto/Robot/robot0_forearm").GetPrim()
     UsdPhysics.RigidBodyAPI.Apply(body_prim)
-    unique_body_prim = UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot/torso").GetPrim()
+    unique_body_prim = UsdGeom.Xform.Define(stage, "/Proto/Robot/torso").GetPrim()
     UsdPhysics.RigidBodyAPI.Apply(unique_body_prim)
-    joint_prim = UsdPhysics.FixedJoint.Define(stage, "/World/envs/env_0/Robot/joints/robot0_forearm").GetPrim()
+    joint_prim = UsdPhysics.FixedJoint.Define(stage, "/Proto/Robot/joints/robot0_forearm").GetPrim()
     if joint_has_rigid_body_api:
         UsdPhysics.RigidBodyAPI.Apply(joint_prim)
+    for path in ("/Lab/Cell99/Robot/Unplanned", "/Shared/Body", "/Outside/Body"):
+        UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, path).GetPrim())
+    plan = ClonePlan(
+        sources=("/Proto/Robot",),
+        destinations=("/Lab/Cell{}/Robot",),
+        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        env_ids=np.array([12, 7]),
+        global_paths=("/Lab", "/Shared"),
+    )
 
     captured_paths = []
 
@@ -158,19 +169,19 @@ def test_rigid_body_view_uses_exact_path_for_joint_name_collision(monkeypatch, j
             return SimpleNamespace(prim_paths=body_paths)
 
     monkeypatch.setattr(
-        physx_manager.omni.usd,
-        "get_context",
-        lambda: SimpleNamespace(get_stage=lambda: stage),
+        physx_manager.PhysicsManager,
+        "_sim",
+        SimpleNamespace(stage=stage, get_clone_plan=lambda: plan),
     )
 
     backend = PhysxSceneDataBackend()
     backend.backend = SimpleNamespace(simulation_view=_SimulationView())
     backend.get_rigid_body_view()
 
-    assert captured_paths == [
-        "/World/envs/env_*/Robot/torso",
-        "/World/envs/env_0/Robot/robot0_forearm",
-    ]
+    assert set(captured_paths) == {
+        "/Shared/Body",
+        *(f"/Lab/Cell{env_id}/Robot/{body}" for env_id in (12, 7) for body in ("robot0_forearm", "torso")),
+    }
 
 
 @pytest.mark.parametrize("declared", [False, True])

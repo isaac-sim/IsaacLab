@@ -35,6 +35,7 @@ from isaaclab.scene_data.deformable_discovery import (
     expand_deformable_entries,
 )
 from isaaclab.sim.simulation_context import SimulationContext
+from isaaclab.sim.utils.queries import find_cloned_prim_paths
 
 from isaaclab_ov._clone import CloneTransform, clone_transforms_from_positions
 from isaaclab_ov._runtime import import_ovphysx
@@ -115,12 +116,14 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         """Concatenated ``prim_paths`` across all bindings, in registration order."""
         return [path for view, _ in self._rigid_bindings for path in view.prim_paths]
 
-    def setup(self, physx, stage, device: str, entries: Sequence[DeformableStageEntry] | None = None) -> None:
-        """Discover RigidBodyAPI prims, dedup by env-wildcard form, create one binding per pattern.
+    def setup(
+        self, physx, body_paths: list[str], device: str, entries: Sequence[DeformableStageEntry] | None = None
+    ) -> None:
+        """Bind declared rigid bodies into one native pose buffer.
 
         Args:
             physx: Live ``ovphysx.PhysX`` instance (the wheel handle).
-            stage: USD stage to traverse for RigidBodyAPI prims.
+            body_paths: Exact rigid-body paths expanded from the declared prototypes.
             device: Warp device string used to allocate the published buffers.
             entries: Declared deformables captured before native stage import. ``None`` leaves
                 scene geometry uninitialized; an empty sequence declares no deformables.
@@ -134,39 +137,13 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         self.geometry_timestamp += 1
         self._geometry_batches = None
 
-        if stage is None:
-            return
-
-        # Discover RigidBodyAPI prims, dedup by env-wildcard form.
-        patterns: set[str] = set()
-        for prim in stage.Traverse():
-            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                patterns.add(re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", prim.GetPath().pathString))
-
-        views = []
-        for pattern in sorted(patterns):
-            view = OvPhysxView(physx, pattern=pattern, device=device)
-            view.binding_for(TT.RIGID_BODY_POSE)
-            if view.count == 0:
-                logger.debug("Pattern %s matched 0 rigid bodies; skipping.", pattern)
-                view.close()
-                continue
-            views.append(view)
-
-        if views:
-            poses = wp.empty(sum(view.count for view in views), dtype=wp.transformf, device=device)
+        if body_paths:
+            view = OvPhysxView(
+                physx, prim_paths=body_paths, device=device, tensor_types=[TT.RIGID_BODY_POSE], eager=True
+            )
+            poses = wp.empty(view.count, dtype=wp.transformf, device=device)
             self._transforms.transforms = poses
-            offset = 0
-            for view in views:
-                buffer = wp.array(
-                    ptr=poses.ptr + offset * wp.types.type_size_in_bytes(wp.transformf),
-                    shape=(view.count,),
-                    dtype=wp.transformf,
-                    device=device,
-                    copy=False,
-                )
-                self._rigid_bindings.append((view, buffer))
-                offset += view.count
+            self._rigid_bindings = [(view, poses)]
 
         if entries is not None:
             self._setup_deformable_bindings(physx, entries, device)
@@ -874,8 +851,14 @@ class OvPhysxManager(PhysicsManager):
             raise RuntimeError("OvPhysxManager: SimulationContext is not set.")
 
         entries = None
+        body_paths = []
         if (plan := sim.get_clone_plan()) is not None:
             entries = expand_deformable_entries(plan, deformable_prototypes(sim.stage, plan))
+            body_paths = find_cloned_prim_paths(
+                sim.stage,
+                plan,
+                lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI) and not prim.IsA(UsdPhysics.Joint),
+            )
 
         ovphysx_device = "gpu" if "cuda" in PhysicsManager._device else "cpu"
 
@@ -949,7 +932,7 @@ class OvPhysxManager(PhysicsManager):
         # via :meth:`get_scene_data_backend`.
         if cls._scene_data_backend is None:
             cls._scene_data_backend = OvPhysxSceneDataBackend()
-        cls._scene_data_backend.setup(cls.backend.physx, sim.stage, PhysicsManager._device, entries)
+        cls._scene_data_backend.setup(cls.backend.physx, body_paths, PhysicsManager._device, entries)
 
         cls.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
         cls._warmup_done = True

@@ -126,7 +126,7 @@ def test_camera_registers_rendering_before_planning_and_shares_the_plan(simulati
     if from_env_0:
         plan = clone_plan_from_env_0(CloneCfg(clone_template="/Lab/Cell{}"), (camera, ground), 3, 2.0)
     else:
-        plan = make_clone_plan((camera,), 3, 2.0, global_paths=(ground.prim_path,), env_template="/Lab/Cell{}")
+        plan = make_clone_plan((camera, ground), 3, 2.0, global_paths=(ground.prim_path,), env_template="/Lab/Cell{}")
         simulation.plan = plan
 
     assert constructed == [camera.renderer_cfg]
@@ -135,7 +135,7 @@ def test_camera_registers_rendering_before_planning_and_shares_the_plan(simulati
     assert plan.sources == ("/Lab/Cell0",)
     assert plan.destinations == ("/Lab/Cell{}",)
     assert plan.global_paths == (ground.prim_path,)
-    assert set(plan.asset_paths) == {camera.prim_path, ground.prim_path}
+    assert plan.cfgs == (camera, ground)
     assert plan.cfg_rows[id(camera)] == (0,)
     assert plan.context_rows == {_Context: (), _RenderContext: (0,)}
     replicate_session.replicate(plan)
