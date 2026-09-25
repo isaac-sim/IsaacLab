@@ -142,20 +142,22 @@ class CircularBuffer:
         # nothing to reset; arming the backfill would cost one full-buffer pass in append
         if batch_ids is not None and len(batch_ids) == 0:
             return
-        batch_ids_resolved: Sequence[int] | slice
+        # ``index_fill_`` instead of ``x[ids] = scalar``: the scalar assignment uploads a host scalar
+        # on every call, which synchronizes the stream; the fill runs fully on the device.
         if batch_ids is None:
-            batch_ids_resolved = slice(None)
+            self._num_pushes.fill_(0)
         else:
-            batch_ids_resolved = batch_ids
-        self._num_pushes[batch_ids_resolved] = 0
+            batch_ids_t = torch.as_tensor(batch_ids, device=self._device).long()
+            self._num_pushes.index_fill_(0, batch_ids_t, 0)
         self._need_reset = True
         if self._buffer is not None:
             # set buffer at batch_id reset indices to 0.0 so that the buffer() getter returns
             # the cleared circular buffer after reset.
-            if self._stack_dim_internal is None:
-                self._buffer[:, batch_ids_resolved] = 0.0
+            batch_dim = 1 if self._stack_dim_internal is None else 0
+            if batch_ids is None:
+                self._buffer.fill_(0.0)
             else:
-                self._buffer[batch_ids_resolved] = 0.0
+                self._buffer.index_fill_(batch_dim, batch_ids_t, 0.0)
 
     def append(self, data: torch.Tensor):
         """Append the data to the circular buffer.

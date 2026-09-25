@@ -436,4 +436,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)
 
-        self.episode_length_buf[env_ids] = 0
+        # device-side fill: a scalar index assignment synchronizes the stream on every call
+        if isinstance(env_ids, slice):
+            self.episode_length_buf[env_ids] = 0
+        else:
+            self.episode_length_buf.index_fill_(0, torch.as_tensor(env_ids, device=self.device).long(), 0)
