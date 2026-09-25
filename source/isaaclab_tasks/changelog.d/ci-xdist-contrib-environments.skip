@@ -1,1 +1,2 @@
 Split the contributed-environment smoke test by the runtime each environment needs.
+Retained distinct task fixtures, nested robot configurations, and rough-terrain sensor coverage.
