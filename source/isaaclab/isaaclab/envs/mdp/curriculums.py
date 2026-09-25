@@ -209,7 +209,7 @@ class modify_env_param(ManagerTermBase):
                 # we are accessing a list element
                 name, idx = container_path
                 # find underlying attribute
-                if isinstance(container_path, dict):
+                if isinstance(container, dict):
                     seq = container[name]  # type: ignore[assignment]
                 else:
                     seq = getattr(container, name)
