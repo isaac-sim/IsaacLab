@@ -190,6 +190,18 @@ def test_class_terms(env):
     assert len(event_man._mode_class_term_cfgs["reset"]) == 1
 
 
+def test_class_terms_created_while_playing_are_reset(env, monkeypatch):
+    """Class terms instantiated while the simulation is playing are reset with the manager."""
+    monkeypatch.setattr(env.sim, "is_playing", lambda: True)
+    event_man = EventManager({"term": EventTermCfg(func=reset_dummy2_to_zero_class, mode="reset")}, env)
+    reset_calls = []
+    monkeypatch.setattr(event_man.get_term_cfg("term").func, "reset", lambda env_ids=None: reset_calls.append(env_ids))
+
+    event_man.reset()
+
+    assert reset_calls == [None]
+
+
 def test_config_empty(env):
     """Test the creation of reward manager with empty config."""
     event_man = EventManager(None, env)
