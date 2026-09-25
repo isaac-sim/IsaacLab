@@ -272,14 +272,14 @@ class TestObsConversion:
         ext._load_full_cfg()
 
         batch_size, state_dim = 8, 20
-        states = torch.arange(state_dim, dtype=torch.float32).unsqueeze(0).expand(batch_size, -1)
+        states = torch.arange(batch_size * state_dim, dtype=torch.float32).reshape(batch_size, state_dim)
         obs = {"states": states, "task_descriptions": ["t"] * batch_size}
         gr00t_obs = ext._convert_isaaclab_obs_to_gr00t(obs)
 
         # gr00t_mapping.state[0]: slice [0,7] → state.arm
-        np.testing.assert_allclose(gr00t_obs["state.arm"][0, 0], np.arange(7, dtype=np.float32), atol=1e-6)
+        np.testing.assert_allclose(gr00t_obs["state.arm"], states[:, None, :7].numpy(), atol=1e-6)
         # gr00t_mapping.state[1]: slice [7,14] → state.hand
-        np.testing.assert_allclose(gr00t_obs["state.hand"][0, 0], np.arange(7, 14, dtype=np.float32), atol=1e-6)
+        np.testing.assert_allclose(gr00t_obs["state.hand"], states[:, None, 7:14].numpy(), atol=1e-6)
 
     def test_image_value_preservation(self, set_config_env) -> None:
         """Pixel values should survive the obs conversion without corruption."""

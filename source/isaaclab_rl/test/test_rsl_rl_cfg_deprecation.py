@@ -248,17 +248,23 @@ class TestV4:
         assert isinstance(cfg.critic, RslRlRNNModelCfg)
         assert cfg.critic.stochastic is False
 
-    def test_skips_existing_actor_critic(self):
+    @pytest.mark.parametrize(("has_actor", "has_critic"), [(True, False), (False, True), (True, True)])
+    def test_skips_existing_actor_critic(self, has_actor, has_critic):
         actor = _mlp_model()
         actor.hidden_dims = [999]
         # a non-stochastic existing critic also passes the legacy stochastic validation
         critic = _mlp_model()
         critic.stochastic = False
         critic.hidden_dims = [777]
-        cfg = _on_policy_runner(policy=_ppo_mlp_policy(), algorithm=_ppo_algo(), actor=actor, critic=critic)
+        cfg = _on_policy_runner(
+            policy=_ppo_mlp_policy(),
+            algorithm=_ppo_algo(),
+            actor=actor if has_actor else MISSING,
+            critic=critic if has_critic else MISSING,
+        )
         handle_deprecated_rsl_rl_cfg(cfg, "4.0.0")
-        assert cfg.actor.hidden_dims == [999]
-        assert cfg.critic.hidden_dims == [777]
+        assert cfg.actor.hidden_dims == ([999] if has_actor else [256, 256])
+        assert cfg.critic.hidden_dims == ([777] if has_critic else [128, 128])
 
     def test_empirical_norm_then_inference(self):
         p = _ppo_mlp_policy()
