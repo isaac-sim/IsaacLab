@@ -425,8 +425,8 @@ class DCMotor(IdealPDActuator):
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
-        # save current joint vel
-        self._joint_vel[:] = joint_vel
+        # use current joint vel for dc-motor clipping
+        self._joint_vel = joint_vel
         # calculate the desired joint torques
         return super().compute(control_action, joint_pos, joint_vel)
 
@@ -435,11 +435,11 @@ class DCMotor(IdealPDActuator):
     """
 
     def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
-        # save current joint vel
-        self._joint_vel[:] = torch.clip(self._joint_vel, min=-self._vel_at_effort_lim, max=self._vel_at_effort_lim)
+        # Clamp the local value without modifying the measured joint velocity.
+        joint_vel = torch.clip(self._joint_vel, min=-self._vel_at_effort_lim, max=self._vel_at_effort_lim)
         # compute torque limits
-        torque_speed_top = self._saturation_effort * (1.0 - self._joint_vel / self.actuator_velocity_limit)
-        torque_speed_bottom = self._saturation_effort * (-1.0 - self._joint_vel / self.actuator_velocity_limit)
+        torque_speed_top = self._saturation_effort * (1.0 - joint_vel / self.actuator_velocity_limit)
+        torque_speed_bottom = self._saturation_effort * (-1.0 - joint_vel / self.actuator_velocity_limit)
         # -- max limit
         max_effort = torch.clip(torque_speed_top, max=self.actuator_effort_limit)
         # -- min limit

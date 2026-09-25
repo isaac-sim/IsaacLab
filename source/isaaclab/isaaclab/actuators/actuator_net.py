@@ -76,8 +76,8 @@ class ActuatorNetLSTM(DCMotor):
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
     ) -> ArticulationActions:
-        # save current joint vel for dc-motor clipping
-        self._joint_vel[:] = joint_vel
+        # use current joint vel for dc-motor clipping
+        self._joint_vel = joint_vel
 
         # compute network inputs
         self.sea_input[:, 0, 0] = (control_action.joint_positions - joint_pos).flatten()
@@ -155,8 +155,8 @@ class ActuatorNetMLP(DCMotor):
         # -- velocity
         self._joint_vel_history = self._joint_vel_history.roll(1, 1)
         self._joint_vel_history[:, 0] = joint_vel
-        # save current joint vel for dc-motor clipping
-        self._joint_vel[:] = joint_vel
+        # use current joint vel for dc-motor clipping
+        self._joint_vel = joint_vel
 
         # compute network inputs
         # -- positions
