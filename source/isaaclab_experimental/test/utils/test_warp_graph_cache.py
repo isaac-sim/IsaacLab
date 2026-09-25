@@ -73,13 +73,15 @@ class TestWarpGraphCache(unittest.TestCase):
             return dst
 
         # Capture
-        self.cache.capture_or_replay("replay_test", my_fn)
+        first = self.cache.capture_or_replay("replay_test", my_fn)
 
         # Update input in-place
         wp.copy(src, wp.full(4, value=10.0, dtype=wp.float32, device=self.device))
 
         # Replay — should see updated input
         result = self.cache.capture_or_replay("replay_test", my_fn)
+        # Replay returns the cached object from the capture call, not a new buffer.
+        self.assertIs(result, first)
         result_np = result.numpy()
         for val in result_np:
             self.assertAlmostEqual(val, 11.0, places=5)
