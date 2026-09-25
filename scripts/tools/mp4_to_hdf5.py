@@ -145,6 +145,11 @@ def main():
     os.makedirs(os.path.dirname(args.output_file), exist_ok=True)
 
     with h5py.File(args.input_file, "r") as f_in, h5py.File(args.output_file, "w") as f_out:
+        # Preserve the root dataset-format marker so augmented datasets retain the
+        # same quaternion interpretation as their source dataset.
+        if "format_version" in f_in.attrs:
+            f_out.attrs["format_version"] = f_in.attrs["format_version"]
+
         # Copy all data from input to output
         f_in.copy("data", f_out)
 
