@@ -176,7 +176,7 @@ class TerminationManager(ManagerBase):
         # reflect exactly which term(s) fired this step and clear others
         # torch.where instead of boolean indexing avoids a device-to-host sync
         fired = self._term_dones.any(dim=1, keepdim=True)
-        self._last_episode_dones.copy_(torch.where(fired, self._term_dones, self._last_episode_dones))
+        torch.where(fired, self._term_dones, self._last_episode_dones, out=self._last_episode_dones)
         # return combined termination signal
         return self._truncated_buf | self._terminated_buf
 

@@ -19,9 +19,13 @@ Changed
   the RGB view of an RGBA camera buffer, so camera images use the fused normalization kernel
   instead of a multi-pass PyTorch fallback.
 * Reduced camera environment overhead by skipping the camera mask device-to-host copy when
-  ``update_period`` is zero, skipping the concatenation copy for single-term observation groups
-  without history, and removing per-step host synchronizations from the termination manager and
-  from visualization-marker index validation.
+  ``update_period`` is zero and skipping the concatenation copy for single-term observation groups
+  without history.
+* Removed per-step host synchronizations from the environment step: reset paths of the episode
+  length, joint actions, event, reward, and termination managers, sensor reset masks, and circular
+  buffers now fill on the device, and visualization-marker index validation runs only when a
+  backend consumes the markers, once per index tensor.
+* Changed uniform ``add`` noise with a zero-width range to return its input without drawing samples.
 
 Fixed
 ^^^^^

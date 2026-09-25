@@ -283,9 +283,9 @@ class _ProgressReward(ManagerTermBase):
             self._prev_command.copy_(command)
         # masked updates via torch.where avoid the device-to-host sync of boolean indexing
         unseeded = torch.isinf(self.best_error)
-        self.best_error.copy_(torch.where(unseeded, error, self.best_error))
+        torch.where(unseeded, error, self.best_error, out=self.best_error)
         improved = gate & (error < self.best_error - min_improvement)
-        self.best_error.copy_(torch.where(improved, error, self.best_error))
+        torch.where(improved, error, self.best_error, out=self.best_error)
         return improved.float()
 
 

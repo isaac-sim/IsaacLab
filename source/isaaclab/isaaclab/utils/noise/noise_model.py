@@ -62,6 +62,11 @@ def uniform_noise(data: torch.Tensor, cfg: noise_cfg.UniformNoiseCfg) -> torch.T
         cfg.n_min = cfg.n_min.to(data.device)
 
     if cfg.operation == "add":
+        # a degenerate zero-width range (e.g. a curriculum that has not started ramping the noise yet)
+        # is the identity: skip the random draw and the add pass
+        if not isinstance(cfg.n_min, torch.Tensor) and not isinstance(cfg.n_max, torch.Tensor):
+            if cfg.n_min == 0.0 and cfg.n_max == 0.0:
+                return data
         return data + torch.rand_like(data) * (cfg.n_max - cfg.n_min) + cfg.n_min
     elif cfg.operation == "scale":
         return data * (torch.rand_like(data) * (cfg.n_max - cfg.n_min) + cfg.n_min)
