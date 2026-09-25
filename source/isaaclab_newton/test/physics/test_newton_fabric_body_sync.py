@@ -28,6 +28,7 @@ from pxr import Gf as UsdGf
 from pxr import UsdGeom
 from usdrt import Gf, Rt
 
+import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, CableObjectCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
@@ -348,6 +349,9 @@ def test_periodic_cable_is_skipped_by_fabric_sync():
         curve = UsdGeom.BasisCurves(sim_utils.get_current_stage().GetPrimAtPath("/World/Cable/geometry/mesh"))
         curve.GetWrapAttr().Set(UsdGeom.Tokens.periodic)
 
+        plan = cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Cable",))
+        sim.set_clone_plan(plan)
+        cloner.replicate(plan)
         sim.reset()
 
         assert NewtonManager._cable_shape_ids is None

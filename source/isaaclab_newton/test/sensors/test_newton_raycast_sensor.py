@@ -23,6 +23,7 @@ from isaaclab_newton.sensors import (
 )
 from newton import ShapeFlags
 
+import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
@@ -183,6 +184,9 @@ def test_legacy_multi_mesh_tracks_ad_hoc_regex_target(sim):
     )
     sensor = MultiMeshRayCaster(sensor_cfg)
 
+    plan = cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Origin_00/Obstacle",))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan)
     sim.reset()
     sensor.update(sim.get_physics_dt(), force_recompute=True)
 

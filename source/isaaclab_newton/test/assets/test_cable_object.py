@@ -17,6 +17,7 @@ from isaaclab_newton.assets import CableObject as NewtonCableObject
 from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg, XPBDSolverCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
+import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 from isaaclab.assets import CableObjectCfg, RigidObjectCfg
 from isaaclab.envs.mdp.events import reset_scene_to_default
@@ -99,6 +100,11 @@ def test_cable_collides_with_ground():
                 init_state=CableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.8)),
             )
         )
+        plan = cloner.make_clone_plan(
+            (cable.cfg,), 1, 0.0, global_paths=("/World/Ground",), env_template="/World/Env_{}"
+        )
+        sim.set_clone_plan(plan)
+        cloner.replicate(plan)
         sim.reset()
 
         contact_seen = False

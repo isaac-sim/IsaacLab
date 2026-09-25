@@ -1385,10 +1385,8 @@ def test_initialize_solver_populates_canonical_state(
        to MJCF; a ground-plane-only scene fails MJCF conversion.
     3. Kamino's internal collision detector requires collidable geometry to
        construct its collision pipeline.
-    4. Pre-populating ``NewtonManager._builder`` causes
-       :meth:`NewtonManager.start_simulation` to skip
-       :meth:`instantiate_builder_from_stage`, so the test does not depend on
-       USD asset packages.
+    4. Supplying a native builder keeps initialization independent of USD asset
+       packages and clone planning.
     """
     solver_cfg = solver_cfg_factory()
     sim_cfg = SimulationCfg(

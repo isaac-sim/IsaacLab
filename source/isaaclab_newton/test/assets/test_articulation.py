@@ -56,8 +56,9 @@ from isaaclab.actuators import (
     ImplicitActuator,
     ImplicitActuatorCfg,
 )
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.assets.articulation.ordering_resolvers import get_articulation_name_ordering
+from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.controllers import OperationalSpaceController, OperationalSpaceControllerCfg
 from isaaclab.envs.mdp.events import randomize_rigid_body_collider_offsets, randomize_rigid_body_material
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
@@ -391,7 +392,7 @@ _NEWTON_USER_ORDER_STATE_CACHES = (
 
 
 def generate_articulation(
-    articulation_cfg: ArticulationCfg, num_articulations: int, device: str
+    articulation_cfg: ArticulationCfg, num_articulations: int, device: str, add_ground_plane: bool = False
 ) -> tuple[Articulation, torch.tensor]:
     """Generate an articulation from a configuration.
 
@@ -402,19 +403,25 @@ def generate_articulation(
         articulation_cfg: Articulation configuration.
         num_articulations: Number of articulations to generate.
         device: Device to use for the tensors.
+        add_ground_plane: Whether the simulation context authored a shared ground plane.
 
     Returns:
         The articulation and environment translations.
 
     """
     # Generate translations of 2.5 m in x for each articulation
-    translations = torch.zeros(num_articulations, 3, device=device)
-    translations[:, 0] = torch.arange(num_articulations) * 2.5
+    translations = np.zeros((num_articulations, 3), dtype=np.float32)
+    translations[:, 0] = np.arange(num_articulations) * 2.5
 
-    # Create Top-level Xforms, one for each articulation
-    for i in range(num_articulations):
-        sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
-    articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_[^/]*/Robot"))
+    sim_utils.create_prim("/World/Env_0", "Xform", translation=translations[0])
+    articulation_cfg = articulation_cfg.replace(prim_path="/World/Env_[^/]*/Robot")
+    cfgs = [articulation_cfg]
+    if add_ground_plane:
+        cfgs.append(AssetBaseCfg(prim_path="/World/defaultGroundPlane"))
+    clone_plan_from_env_0(
+        CloneCfg(clone_template="/World/Env_{}"), cfgs, num_articulations, 2.5, positions=translations
+    )
+    articulation = Articulation(articulation_cfg)
 
     # Fix reversed joints for known-broken USD assets (body0/body1 swapped)
     usd_path = getattr(articulation_cfg.spawn, "usd_path", "")
@@ -423,7 +430,7 @@ def generate_articulation(
 
         fix_reversed_joints(omni.usd.get_context().get_stage())
 
-    return articulation, translations
+    return articulation, torch.as_tensor(translations, device=device)
 
 
 # ---------------------------------------------------------------------------
@@ -462,7 +469,9 @@ def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False, disable_g
         cfg.actuators["panda_forearm"].damping = 0.0
     cfg.spawn.rigid_props.disable_gravity = disable_gravity
     sim_utils.create_prim("/World/Env_0", "Xform", translation=(0.0, 0.0, 0.0))
+    clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), (cfg,), 1, 0.0)
     robot = Articulation(cfg)
+    replicate(sim.get_clone_plan())
     sim.reset()
     assert robot.is_initialized
 
@@ -795,16 +804,18 @@ def test_branching_fixture_physx_ordering_reorders_newton_to_bfs(sim, device, gr
     selected inertial-property writes keep Newton's inverse arrays current under the body ordering.
     """
     fixture_path = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
-    articulation = Articulation(
-        ArticulationCfg(
-            prim_path="/World/Robot",
-            spawn=sim_utils.UsdFileCfg(usd_path=str(fixture_path)),
-            actuators={},
-            joint_ordering="physx",
-            body_ordering="physx",
-        )
+    sim_utils.create_prim("/World/Env_0", "Xform")
+    articulation_cfg = ArticulationCfg(
+        prim_path="/World/Env_0/Robot",
+        spawn=sim_utils.UsdFileCfg(usd_path=str(fixture_path)),
+        actuators={},
+        joint_ordering="physx",
+        body_ordering="physx",
     )
+    clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), (articulation_cfg,), 1, 0.0)
+    articulation = Articulation(articulation_cfg)
 
+    replicate(sim.get_clone_plan())
     sim.reset()
     assert articulation.is_initialized
 
@@ -894,6 +905,7 @@ def test_newton_native_actuator_gain_write_maps_public_joint_subset_to_backend(
         joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)),
     )
     articulation, _ = generate_articulation(articulation_cfg, 2, device=sim.device)
+    replicate(sim.get_clone_plan())
     sim.reset()
     assert articulation.joint_ordering is not None
     assert articulation.newton_actuator_adapter is not None
@@ -945,6 +957,7 @@ def test_newton_ordered_body_state_cache_invalidates_on_same_timestamp_root_writ
     )
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
+    replicate(sim.get_clone_plan())
     sim.reset()
     sim.step()
     articulation.update(sim.cfg.dt)
@@ -993,6 +1006,7 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
         )
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
+    replicate(sim.get_clone_plan())
     sim.reset()
     assert articulation.is_initialized
     has_ordering = ordering_mode == "reversed"
@@ -1208,6 +1222,7 @@ def test_newton_rebind_preserves_lab_owned_actuator_gains(
     if ordering_mode == "reversed":
         articulation_cfg = articulation_cfg.replace(joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)))
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+    replicate(sim.get_clone_plan())
     sim.reset()
     assert articulation.is_initialized
 
@@ -1282,6 +1297,7 @@ def test_newton_post_step_hook_publishes_ordered_state_and_deregisters(
         body_ordering=_ANYMAL_C_ROOT_PRESERVING_REVERSED_BODY_NAMES,
     )
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+    replicate(sim.get_clone_plan())
     sim.reset()
     assert articulation.is_initialized
 
@@ -1350,6 +1366,7 @@ def test_write_data_to_sim_writes_joint_targets_in_backend_order(
     if ordering_mode == "reversed":
         articulation_cfg = articulation_cfg.replace(joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)))
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+    replicate(sim.get_clone_plan())
     sim.reset()
     assert articulation.is_initialized
     assert (articulation.data.joint_ordering is not None) is (ordering_mode == "reversed")
@@ -1392,11 +1409,12 @@ def test_gravity_vec_w_tracks_model_gravity(sim, num_articulations, device, add_
     The humanoid's articulation root sits on a rigid body, so this also checks floating-base initialization.
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type, stiffness=0.0, damping=0.0)
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device, add_ground_plane=True)
 
     # Check that the framework doesn't hold excessive strong references.
     assert sys.getrefcount(articulation) < 10
 
+    replicate(sim.get_clone_plan())
     sim.reset()
 
     # Check if articulation is initialized
@@ -1471,6 +1489,7 @@ def test_fixed_base_reports_body_velocities(sim, num_articulations, device, arti
     assert sys.getrefcount(articulation) < 10
 
     # Play sim
+    replicate(sim.get_clone_plan())
     sim.reset()
     # Check if articulation is initialized
     assert articulation.is_initialized
@@ -1535,6 +1554,7 @@ def test_hand_with_tendons_initializes_and_targets_only_given_envs(sim, num_arti
     # Check that the framework doesn't hold excessive strong references.
     assert sys.getrefcount(articulation) < 10
 
+    replicate(sim.get_clone_plan())
     sim.reset()
     assert articulation.is_initialized
     assert articulation.is_fixed_base
@@ -1579,7 +1599,9 @@ def test_fragment_fix_root_link_uses_base_manager(sim, device, add_ground_plane,
     articulation_cfg = deepcopy(generate_articulation_cfg(articulation_type=articulation_type))
     articulation_cfg.spawn.articulation_props = []
     articulation_cfg.spawn.fix_root_link = True
-    articulation, translations = generate_articulation(articulation_cfg, num_articulations=1, device=device)
+    articulation, translations = generate_articulation(
+        articulation_cfg, num_articulations=1, device=device, add_ground_plane=True
+    )
 
     root = sim_utils.get_first_matching_child_prim(
         "/World/Env_0/Robot",
@@ -1589,6 +1611,7 @@ def test_fragment_fix_root_link_uses_base_manager(sim, device, add_ground_plane,
     assert root is not None and root.HasAPI(UsdPhysics.RigidBodyAPI)
     assert sim_utils.find_global_fixed_joint_prim("/World/Env_0/Robot", stage=sim.stage) is not None
 
+    replicate(sim.get_clone_plan())
     sim.reset()
     assert articulation.is_initialized
     assert articulation.is_fixed_base
@@ -1628,12 +1651,15 @@ def test_initialization_fixed_base_made_floating_base(
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).copy()
     # Unfix root link by making it non-kinematic
     articulation_cfg.spawn.fix_root_link = False
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+    articulation, _ = generate_articulation(
+        articulation_cfg, num_articulations, device=sim.device, add_ground_plane=True
+    )
 
     # Check that the framework doesn't hold excessive strong references.
     assert sys.getrefcount(articulation) < 10
 
     # Play sim
+    replicate(sim.get_clone_plan())
     sim.reset()
     # Check if articulation is initialized
     assert articulation.is_initialized
@@ -1661,7 +1687,9 @@ def test_out_of_range_default_joint_state(sim, device, articulation_type, state_
     assert sys.getrefcount(articulation) < 10
 
     quantity = "positions" if state_field == "joint_pos" else "velocities"
+    replicate(sim.get_clone_plan())
     with pytest.raises(ValueError, match=f"default {quantity} out of the limits"):
+        replicate(sim.get_clone_plan())
         sim.reset()
 
 
@@ -1684,6 +1712,7 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device, artic
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
     # Play the simulator
+    replicate(sim.get_clone_plan())
     sim.reset()
 
     # Find bodies to apply the force
@@ -1734,6 +1763,7 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
     # Play the simulator
+    replicate(sim.get_clone_plan())
     sim.reset()
 
     # Find bodies to apply the force
@@ -1821,6 +1851,7 @@ def test_loading_gains_from_usd(sim, num_articulations, device, articulation_typ
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
     # Play sim
+    replicate(sim.get_clone_plan())
     sim.reset()
 
     # Expected gains
@@ -1904,6 +1935,7 @@ def test_setting_joint_limits_from_cfg(
         device=device,
     )
     # Play sim
+    replicate(sim.get_clone_plan())
     sim.reset()
 
     # read the values set into the simulation
@@ -1963,6 +1995,7 @@ def test_reset(sim, num_articulations, device, articulation_type, monkeypatch):
     )
 
     # Play the simulator
+    replicate(sim.get_clone_plan())
     sim.reset()
 
     # Check that gains are loaded from the configuration
@@ -2039,6 +2072,7 @@ def test_body_root_state(sim, num_articulations, device, articulation_type):
     # Check that the framework doesn't hold excessive strong references.
     assert sys.getrefcount(articulation) < 10, "Possible reference leak for articulation"
     # Play sim
+    replicate(sim.get_clone_plan())
     sim.reset()
     # Check if articulation is initialized
     assert articulation.is_initialized, "Articulation is not initialized"
@@ -2163,6 +2197,7 @@ def test_write_root_state_functions_data_consistency(
     articulation, env_pos = generate_articulation(articulation_cfg, num_articulations, device)
 
     # Play sim
+    replicate(sim.get_clone_plan())
     sim.reset()
 
     # Resolve root body index by name (ordering may differ across physics backends)
@@ -2287,9 +2322,11 @@ def test_setting_articulation_root_prim_path(sim, device, articulation_type, roo
     assert sys.getrefcount(articulation) < 10
 
     if root_prim_path == "/torso":
+        replicate(sim.get_clone_plan())
         sim.reset()
         assert articulation.is_initialized
     else:
+        replicate(sim.get_clone_plan())
         with pytest.raises(KeyError, match="No articulations matching pattern"):
             sim.reset()
 
@@ -2318,6 +2355,7 @@ def test_write_joint_state_data_consistency(sim, num_articulations, device, grav
     env_idx = torch.tensor([x for x in range(num_articulations)])
 
     # Play sim
+    replicate(sim.get_clone_plan())
     sim.reset()
 
     # Get current default joint pos
@@ -2417,6 +2455,7 @@ def test_write_joint_viscous_friction_to_sim(sim, num_articulations, device, art
     articulation_cfg = generate_articulation_cfg(articulation_type)
     articulation_cfg.actuators["panda_shoulder"].viscous_friction = 0.25
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
+    replicate(sim.get_clone_plan())
     sim.reset()
 
     shoulder_joint_ids = articulation.actuators["panda_shoulder"].joint_indices
@@ -2499,6 +2538,7 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
         articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
         articulation, env_pos = generate_articulation(articulation_cfg, num_articulations, device)
 
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         model = SimulationManager.get_model()
@@ -2551,23 +2591,7 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
 @pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("articulation_type", ["panda"])
-@pytest.mark.parametrize(
-    "body_subset",
-    [
-        False,
-        pytest.param(
-            True,
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "The Newton material randomization assumes each body's shapes are contiguous in the view's"
-                    " shape binding, but Newton sorts shape ids across bodies, so a body subset misses collision"
-                    " shapes of the selected bodies and hits those of other bodies."
-                ),
-            ),
-        ),
-    ],
-)
+@pytest.mark.parametrize("body_subset", [False, True])
 def test_set_material_properties(sim, num_articulations, device, add_ground_plane, articulation_type, body_subset):
     """Material and collider-offset randomization write through to the robot's shapes in the Newton model.
 
@@ -2577,10 +2601,11 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(
-        articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
+        articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device, add_ground_plane=True
     )
 
     # Play the simulator
+    replicate(sim.get_clone_plan())
     sim.reset()
 
     # Resolve the robot's shapes per environment and body from the flat Newton model.
@@ -2692,15 +2717,21 @@ def test_heterogeneous_scene_per_view_shapes(sim, device, add_ground_plane, arti
     # per-articulation shape gate without that pre-existing quirk.
     num_per_type = 1
 
-    franka_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Env_franka_[^/]*/Robot")
-    anymal_cfg = ANYMAL_C_CFG.replace(prim_path="/World/Env_anymal_[^/]*/Robot")
+    franka_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Env_[^/]*/Franka")
+    anymal_cfg = ANYMAL_C_CFG.replace(prim_path="/World/Env_[^/]*/Anymal")
+    anymal_cfg.init_state.pos = (0.0, 5.0, anymal_cfg.init_state.pos[2])
 
-    for i in range(num_per_type):
-        sim_utils.create_prim(f"/World/Env_franka_{i}", "Xform", translation=(2.5 * i, 0.0, 0.0))
-        sim_utils.create_prim(f"/World/Env_anymal_{i}", "Xform", translation=(2.5 * i, 5.0, 0.0))
+    sim_utils.create_prim("/World/Env_0", "Xform")
+    clone_plan_from_env_0(
+        CloneCfg(clone_template="/World/Env_{}"),
+        (franka_cfg, anymal_cfg, AssetBaseCfg(prim_path="/World/defaultGroundPlane")),
+        num_per_type,
+        2.5,
+    )
 
     franka = Articulation(franka_cfg)
     anymal = Articulation(anymal_cfg)
+    replicate(sim.get_clone_plan())
     sim.reset()
     assert franka.is_initialized and anymal.is_initialized
     assert franka.is_fixed_base and not anymal.is_fixed_base
@@ -2809,11 +2840,12 @@ def test_get_gravity_compensation_forces_matches_jacobian_gravity(
     if ordering_mode == "reversed":
         joint_names = PANDA_JOINT_NAMES if articulation_type == "panda" else ANYMAL_C_PHYSX_JOINT_NAMES
         articulation_cfg = articulation_cfg.replace(joint_ordering=tuple(reversed(joint_names)))
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device, add_ground_plane=True)
 
     # Check that the framework doesn't hold excessive strong references.
     assert sys.getrefcount(articulation) < 10
 
+    replicate(sim.get_clone_plan())
     sim.reset()
     assert articulation.is_initialized
     assert articulation.is_fixed_base == (articulation_type == "panda")
@@ -3004,6 +3036,7 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
     )
 
     articulation, _ = generate_articulation(cfg, num_articulations, device=device)
+    replicate(sim.get_clone_plan())
     sim.reset()
     assert articulation.is_initialized
 
