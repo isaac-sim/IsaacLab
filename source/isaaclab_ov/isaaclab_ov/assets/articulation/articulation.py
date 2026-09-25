@@ -3912,7 +3912,9 @@ class Articulation(BaseArticulation):
             TT.BODY_COM_POSE,
             TT.BODY_INERTIA,
         ]
-        self._root_view = OvPhysxView(self._ovphysx, pattern=pattern, device=self._device)
+        clone_paths = OvPhysxManager._resolved_clone_paths(pattern, self._articulation_root_path)
+        selection = {"prim_paths": clone_paths} if clone_paths else {"pattern": pattern}
+        self._root_view = OvPhysxView(self._ovphysx, device=self._device, **selection)
         self._root_view.try_binding_for(TT.ROOT_POSE)
         self._root_view._use_resolved_prim_paths()
         # ``try_binding_for`` creates and caches each binding, returning ``None`` for tensor

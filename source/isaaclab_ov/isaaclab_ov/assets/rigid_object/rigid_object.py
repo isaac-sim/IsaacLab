@@ -951,7 +951,7 @@ class RigidObject(BaseRigidObject):
             return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
         resolve_kwargs = {"predicate": has_rigid_body_api, "expected_num_matches": 1}
-        _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
+        source_prim, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
 
         # IsaacLab paths may use ``.*`` regex or ``{ENV_REGEX_NS}`` placeholder; ovphysx
         # ``create_tensor_binding`` expects fnmatch globs.
@@ -962,7 +962,9 @@ class RigidObject(BaseRigidObject):
         # Eagerly create every binding the data container reads at init, so failures
         # surface here with a helpful message rather than as a raw wheel exception
         # (or a KeyError) at first writer call.
-        self._root_view = OvPhysxView(self._ovphysx, pattern=pattern, device=self._device)
+        clone_paths = OvPhysxManager._resolved_clone_paths(pattern, source_prim.GetPath().pathString)
+        selection = {"prim_paths": clone_paths} if clone_paths else {"pattern": pattern}
+        self._root_view = OvPhysxView(self._ovphysx, device=self._device, **selection)
         eager_types = (
             TT.RIGID_BODY_POSE,
             TT.RIGID_BODY_VELOCITY,

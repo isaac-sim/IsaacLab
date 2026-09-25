@@ -84,6 +84,27 @@ def _fake_ovphysx_module(bootstrap):
     return module
 
 
+def test_clone_recipes_resolve_heterogeneous_asset_paths_without_stage_matching(monkeypatch, manager_module):
+    from pxr import Usd, UsdGeom
+
+    from isaaclab.physics import PhysicsManager
+
+    stage = Usd.Stage.CreateInMemory()
+    for env_id in (0, 1):
+        UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/Object")
+    sim = SimpleNamespace(stage=stage, get_clone_plan=lambda: SimpleNamespace(env_ids=(0, 1, 2, 3)))
+    monkeypatch.setattr(PhysicsManager, "_sim", sim)
+    manager = manager_module.OvPhysxManager
+    manager._active_clone_recipes = [
+        ("/World/envs/env_0/Object", ["/World/envs/env_2/Object"], [], [2]),
+        ("/World/envs/env_1/Object", ["/World/envs/env_3/Object"], [], [3]),
+    ]
+
+    assert manager._resolved_clone_paths("/World/envs/env_*/Object", "/World/envs/env_0/Object") == [
+        f"/World/envs/env_{env_id}/Object" for env_id in range(4)
+    ]
+
+
 def test_initialize_defers_native_resource_until_warmup(monkeypatch, manager_module):
     from isaaclab.physics import PhysicsManager
 

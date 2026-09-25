@@ -919,6 +919,23 @@ def _bare_backend():
     return object.__new__(OvPhysxSceneDataBackend)
 
 
+def test_scene_data_binding_is_deferred_until_requested(monkeypatch):
+    """Headless simulations should not create renderer-only tensor bindings at reset."""
+    from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
+
+    backend = OvPhysxSceneDataBackend()
+    calls = []
+    monkeypatch.setattr(backend, "setup", lambda *args: calls.append(args))
+    physx, stage = object(), object()
+
+    backend._defer_setup(physx, stage, "cuda:0")
+    assert calls == []
+    assert backend.transform_count == 0
+    assert calls == [(physx, stage, "cuda:0")]
+    assert backend.transform_count == 0
+    assert len(calls) == 1
+
+
 def test_transform_count_sums_across_bindings():
     """``transform_count`` returns the sum of each binding's row count."""
     b = _bare_backend()

@@ -11,4 +11,5 @@ Fixed
 * Preserved cloned contact reporters and kept sensor rows and resolved contact filters in environment order.
 * Removed authored runtime clone targets from retained source environments and preserved the legacy homogeneous clone signature on older OvPhysX versions.
 * Registered Newton USD schemas before loading OvStage scenes so cloned mimic-joint constraints work.
-* Reused resolved articulation and rigid-body paths to accelerate tensor binding in large scenes.
+* Selected articulation and rigid-body tensor paths from clone recipes to avoid repeated stage-wide matching in large scenes.
+* Deferred scene-data tensor bindings until visualization requests them, avoiding unnecessary headless-training startup cost.

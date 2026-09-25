@@ -20,6 +20,7 @@ import math
 import os
 import re
 import stat
+from fnmatch import fnmatchcase
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
@@ -39,7 +40,7 @@ from isaaclab.scene_data.deformable_discovery import (
 )
 from isaaclab.sim.simulation_context import SimulationContext
 
-from isaaclab_ov._clone import CloneRecipe, CloneTransform, clone_transforms_from_positions
+from isaaclab_ov._clone import CloneRecipe, CloneTransform, clone_transforms_from_positions, ordered_clone_paths
 from isaaclab_ov._runtime import import_ovphysx
 from isaaclab_ov.cloner import OvPhysxReplicateContext
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
@@ -116,11 +117,9 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
     Unlike PhysX -- which receives a live :class:`omni.physics.tensors.SimulationView`
     via a ``simulation_view`` property setter and discovers prims lazily --
-    OVPhysX wires bindings through an explicit :meth:`setup` call that
-    takes the live ``ovphysx.PhysX`` handle and the USD stage. The wheel
-    exposes a ``physx + stage`` pair rather than a single ``SimulationView``,
-    so a property setter would have to either bundle the two or fire on the
-    second assignment; the explicit call keeps the lifecycle obvious.
+    OVPhysX wires bindings through :meth:`setup` using the live ``ovphysx.PhysX``
+    handle and USD stage. The manager defers that call until scene data is requested,
+    avoiding unused bindings in headless training.
     """
 
     def __init__(self):
@@ -140,15 +139,27 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         self._geometry_paths: list[str] = []
         self._geometry_counts: list[int] = []
         self._merged_points: wp.array | None = None
+        self._pending_setup: tuple[Any, Any, str] | None = None
+
+    def _defer_setup(self, physx: Any, stage: Any, device: str) -> None:
+        """Defer expensive scene-data bindings until a consumer requests scene data."""
+        self._pending_setup = (physx, stage, device)
+
+    def _ensure_setup(self) -> None:
+        if pending := getattr(self, "_pending_setup", None):
+            self._pending_setup = None
+            self.setup(*pending)
 
     @property
     def transform_count(self) -> int:
         """Sum of per-binding row counts."""
+        self._ensure_setup()
         return sum(int(entry["row_count"]) for entry in self._rigid_bindings)
 
     @property
     def transform_paths(self) -> list[str]:
         """Concatenated ``prim_paths`` across all bindings, in registration order."""
+        self._ensure_setup()
         paths: list[str] = []
         for entry in self._rigid_bindings:
             paths.extend(list(entry["pose"].prim_paths))
@@ -164,6 +175,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         """
         from isaaclab_ov import tensor_types as TT  # local: keep heavy ovphysx out of module load
 
+        self._pending_setup = None
         self._physx = physx
         self._rigid_bindings = []
         self._merged_transforms = None
@@ -324,6 +336,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
     @property
     def points(self) -> SceneDataFormat.Points:
         """Return flattened OVPhysX deformable nodal positions."""
+        self._ensure_setup()
         from isaaclab.scene_data.geometry_points import pack_body_nodal_slices
 
         if self._merged_points is None or not self._deformable_bindings:
@@ -353,16 +366,19 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
     @property
     def point_count(self) -> int:
         """Return the total unpadded OVPhysX deformable nodal count."""
+        self._ensure_setup()
         return sum(self._geometry_counts)
 
     @property
     def geometry_paths(self) -> list[str]:
         """Return one USD prim path per OVPhysX deformable body instance."""
+        self._ensure_setup()
         return self._geometry_paths
 
     @property
     def geometry_counts(self) -> list[int]:
         """Return the unpadded nodal count for each OVPhysX deformable body."""
+        self._ensure_setup()
         return self._geometry_counts
 
     @property
@@ -381,6 +397,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             quaternion (xyzw, unit). ``transforms`` is ``None`` when no
             bindings are wired.
         """
+        self._ensure_setup()
         if self._merged_transforms is None or not self._rigid_bindings:
             self._scene_data.transforms = self._merged_transforms
             return self._scene_data
@@ -566,6 +583,31 @@ class OvPhysxManager(PhysicsManager):
         )
         cls._active_clone_recipes.append(recipe)
         cls._pending_clones.append(recipe)
+
+    @classmethod
+    def _resolved_clone_paths(cls, pattern: str, source_path: str) -> list[str] | None:
+        """Return exact cloned prim paths when the recipes cover every environment."""
+        sim = PhysicsManager._sim
+        plan = sim.get_clone_plan() if sim is not None else None
+        if plan is None or plan.env_ids is None:
+            return None
+        anchors = [
+            source
+            for source, _, _, _ in cls._active_clone_recipes
+            if source_path == source or source_path.startswith(source + "/")
+        ]
+        if not anchors:
+            return None
+        suffix = source_path[len(max(anchors, key=len)) :]
+        paths: list[str] = []
+        for source, targets, _, _ in cls._active_clone_recipes:
+            candidate = source + suffix
+            if fnmatchcase(candidate, pattern) and sim.stage.GetPrimAtPath(candidate).IsValid():
+                paths.extend([candidate, *(target + suffix for target in targets)])
+        paths = list(dict.fromkeys(paths))
+        if len(paths) != len(plan.env_ids):
+            return None
+        return ordered_clone_paths(paths, [pattern])
 
     @classmethod
     def _rearm_pending_clones(cls) -> None:
@@ -1145,13 +1187,11 @@ class OvPhysxManager(PhysicsManager):
         if ovphysx_device == "gpu":
             cls._warmup_physx(cls.backend.physx)
 
-        # Initialize the SceneDataBackend now that the wheel's PhysX is live and
-        # the OVStage is attached. The central
-        # ``isaaclab.scene.scene_data_provider.SceneDataProvider`` consumes this
-        # via :meth:`get_scene_data_backend`.
+        # The central SceneDataProvider can request these bindings later. Headless
+        # training never consumes them, so avoid binding every rigid link here.
         if cls._scene_data_backend is None:
             cls._scene_data_backend = OvPhysxSceneDataBackend()
-        cls._scene_data_backend.setup(cls.backend.physx, sim.stage, PhysicsManager._device)
+        cls._scene_data_backend._defer_setup(cls.backend.physx, sim.stage, PhysicsManager._device)
 
         cls.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
         cls._warmup_done = True
