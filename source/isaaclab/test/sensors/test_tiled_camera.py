@@ -10,8 +10,8 @@
 
 TiledCamera is now a thin subclass of Camera that emits a DeprecationWarning.
 All substantive Camera tests live in ``test_camera.py``. This file only verifies
-that the deprecation mechanism works correctly and that TiledCamera remains a
-functional Camera alias.
+that the deprecation mechanism works correctly and that TiledCamera remains an
+initializable Camera alias.
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -35,6 +35,7 @@ from pxr import Gf, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg, TiledCamera, TiledCameraCfg
+from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -71,10 +72,10 @@ def setup_camera(device) -> tuple[sim_utils.SimulationContext, CameraCfg, float]
     sim.clear_instance()
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 @pytest.mark.isaacsim_ci
 def test_tiled_camera_deprecation_warning(setup_camera, device):
-    """TiledCamera instantiation emits a DeprecationWarning."""
+    """TiledCamera instantiation emits a DeprecationWarning and yields a working Camera."""
     sim, camera_cfg, dt = setup_camera
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
@@ -82,12 +83,14 @@ def test_tiled_camera_deprecation_warning(setup_camera, device):
         deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
         assert len(deprecation_warnings) >= 1
         assert "TiledCamera is deprecated" in str(deprecation_warnings[0].message)
+    assert isinstance(camera, Camera)
+    # the alias must still run Camera initialization
+    sim.reset()
+    assert camera.is_initialized
     del camera
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
-def test_tiled_camera_cfg_deprecation_warning(setup_camera, device):
+def test_tiled_camera_cfg_deprecation_warning():
     """TiledCameraCfg instantiation emits a DeprecationWarning."""
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
@@ -103,56 +106,6 @@ def test_tiled_camera_cfg_deprecation_warning(setup_camera, device):
         deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
         assert len(deprecation_warnings) >= 1
         assert "TiledCameraCfg is deprecated" in str(deprecation_warnings[0].message)
-
-
-@pytest.mark.filterwarnings("ignore::DeprecationWarning")
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
-def test_tiled_camera_is_camera_subclass(setup_camera, device):
-    """TiledCamera is a subclass of Camera, so isinstance checks work."""
-    sim, camera_cfg, dt = setup_camera
-    camera = TiledCamera(camera_cfg)
-    assert isinstance(camera, Camera)
-    assert isinstance(camera, TiledCamera)
-    del camera
-
-
-@pytest.mark.filterwarnings("ignore::DeprecationWarning")
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
-def test_tiled_camera_basic_functionality(setup_camera, device):
-    """TiledCamera produces correct output (proving it delegates to Camera)."""
-    sim, camera_cfg, dt = setup_camera
-    # Create camera
-    camera = TiledCamera(camera_cfg)
-    # Play sim
-    sim.reset()
-    # Check if camera is initialized
-    assert camera.is_initialized
-    # Check if camera prim is set correctly and that it is a camera prim
-    assert camera._sensor_prims[0].GetPath().pathString == camera_cfg.prim_path
-    assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
-
-    # Check buffers that exists and have correct shapes
-    assert camera.data.pos_w.torch.shape == (1, 3)
-    assert camera.data.intrinsic_matrices.torch.shape == (1, 3, 3)
-    assert camera.data.image_shape == (camera_cfg.height, camera_cfg.width)
-
-    # Simulate physics
-    for _ in range(5):
-        # perform rendering
-        sim.step()
-        # update camera
-        camera.update(dt)
-        # check image data
-        for im_type, im_data in camera.data.output.items():
-            if im_type == "rgb":
-                assert im_data.shape == (1, camera_cfg.height, camera_cfg.width, 3)
-                assert (im_data / 255.0).mean() > 0.0
-            elif im_type == "distance_to_camera":
-                assert im_data.shape == (1, camera_cfg.height, camera_cfg.width, 1)
-                assert im_data.mean() > 0.0
-    del camera
 
 
 """

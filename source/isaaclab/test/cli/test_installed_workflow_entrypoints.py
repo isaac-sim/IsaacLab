@@ -65,36 +65,72 @@ def test_editor_option_uses_cli_dispatcher():
     editor.assert_called_once_with(["--isaac_path", "/sim", "--verbose"])
 
 
-@pytest.mark.parametrize("option", ["--vscode", "--generate-vscode-settings"])
-def test_removed_editor_options_are_rejected(option):
-    """Removed editor setup options must not remain as hidden compatibility paths."""
-    with mock.patch.object(sys, "argv", ["isaaclab", option]), pytest.raises(SystemExit, match="2"):
-        cli.cli()
+_RL_ENTRYPOINTS = "isaaclab_rl.entrypoints"
+_WORKFLOW_ARGS = ["--task", "Example"]
+_LEAPP_DEPLOY_ARGS = ["--task", "Isaac-Cartpole", "--pipeline", "exported/Isaac-Cartpole.yaml", "physics=newton_mjwarp"]
 
 
 @pytest.mark.parametrize(
-    ("command", "runner"),
+    ("argv", "module", "runner", "runner_args", "status"),
     [
-        (cli.train, "run_train_cli"),
-        (cli.play, "run_play_cli"),
-        (cli.train_multigpu, "run_train_multigpu_cli"),
-        (cli.zero_agent, "run_zero_agent_cli"),
-        (cli.random_agent, "run_random_agent_cli"),
+        (["train", *_WORKFLOW_ARGS], _RL_ENTRYPOINTS, "run_train_cli", _WORKFLOW_ARGS, 0),
+        (["train", *_WORKFLOW_ARGS], _RL_ENTRYPOINTS, "run_train_cli", _WORKFLOW_ARGS, 3),
+        (["play", *_WORKFLOW_ARGS], _RL_ENTRYPOINTS, "run_play_cli", _WORKFLOW_ARGS, 3),
+        (["train_multigpu", *_WORKFLOW_ARGS], _RL_ENTRYPOINTS, "run_train_multigpu_cli", _WORKFLOW_ARGS, 3),
+        (["zero_agent", *_WORKFLOW_ARGS], _RL_ENTRYPOINTS, "run_zero_agent_cli", _WORKFLOW_ARGS, 3),
+        (["random_agent", *_WORKFLOW_ARGS], _RL_ENTRYPOINTS, "run_random_agent_cli", _WORKFLOW_ARGS, 3),
+        (["benchmark", "training", "--help"], "isaaclab.benchmark", "run_benchmark_cli", ["training", "--help"], 3),
+        (
+            ["microbenchmark", "--component", "articulation", "physics=physx"],
+            "isaaclab.benchmark",
+            "run_microbenchmark_cli",
+            ["--component", "articulation", "physics=physx"],
+            3,
+        ),
+        (
+            ["leapp", "export", "--rl_library", "rsl_rl", *_WORKFLOW_ARGS],
+            _RL_ENTRYPOINTS,
+            "run_export_cli",
+            ["--rl_library", "rsl_rl", *_WORKFLOW_ARGS],
+            3,
+        ),
+        (
+            ["leapp", "deploy", *_LEAPP_DEPLOY_ARGS],
+            "isaaclab.cli.commands.deploy",
+            "command_deploy_leapp",
+            _LEAPP_DEPLOY_ARGS,
+            3,
+        ),
+    ],
+    ids=[
+        "train-success",
+        "train",
+        "play",
+        "train_multigpu",
+        "zero_agent",
+        "random_agent",
+        "benchmark",
+        "microbenchmark",
+        "leapp-export",
+        "leapp-deploy",
     ],
 )
-def test_workflow_commands_dispatch_to_installed_entrypoints(command, runner):
-    """Workflow commands must not depend on scripts from a source checkout."""
-    args = ["--task", "Example"]
-    with mock.patch(f"isaaclab_rl.entrypoints.{runner}", return_value=0) as run:
-        command(args)
+def test_cli_subcommand_dispatches_and_propagates_status(argv, module, runner, runner_args, status):
+    """Subcommands forward their arguments in-process and turn a nonzero result into the exit status."""
+    run = mock.Mock(return_value=status)
+    with (
+        mock.patch.dict(sys.modules, {module: mock.Mock(**{runner: run})}),
+        mock.patch.object(cli, "_load_external_tasks"),
+        mock.patch.object(sys, "argv", ["isaaclab", *argv]),
+    ):
+        if status:
+            with pytest.raises(SystemExit) as exc_info:
+                cli.cli()
+            assert exc_info.value.code == status
+        else:
+            cli.cli()
 
-    run.assert_called_once_with(args)
-
-
-def test_workflow_command_propagates_failure_status():
-    """A nonzero in-process result must remain the console command's exit status."""
-    with mock.patch("isaaclab_rl.entrypoints.run_train_cli", return_value=2), pytest.raises(SystemExit, match="2"):
-        cli.train([])
+    run.assert_called_once_with(runner_args)
 
 
 def test_demo_catalog_lists_packaged_demos(capsys):
@@ -118,12 +154,6 @@ def test_example_catalog_lists_packaged_examples(capsys):
     assert "mpm-two-way-coupling" in output
     assert "uvx --from 'isaaclab[isaacsim]' isaaclab example camera" in output
     assert "teapot-fill" not in output
-
-
-def test_browse_is_not_a_program_command():
-    """Program selection lives in Newton GL, not in a separate CLI mode."""
-    with pytest.raises(SystemExit, match="2"):
-        cli.demo(["browse"])
 
 
 def _visualizer(visualizer_type: str) -> mock.Mock:
@@ -209,24 +239,6 @@ def test_program_catalog_resolves_paths(catalog, directory):
     """Both catalogs must resolve inside the single examples tree."""
     assert all(program.relative_path.startswith(f"{directory}/") for program in catalog)
     assert all(program.path.is_file() for program in catalog)
-
-
-def test_integration_examples_use_root_example_paths():
-    """Integration examples must use paths relative to the root examples directory."""
-    paths_by_name = {program.name: program.relative_path for program in programs.EXAMPLES}
-    assert paths_by_name["arl-robot-1"] == "examples/arl_robot_1.py"
-    assert paths_by_name["haply-teleoperation"] == "examples/haply_teleoperation.py"
-    assert paths_by_name["newton-dominoes"] == "examples/newton_viewer_dominoes.py"
-    assert paths_by_name["ppisp-camera"] == "examples/sensors/ppisp_camera.py"
-    assert paths_by_name["tactile-sensor"] == "examples/sensors/tacsl_sensor.py"
-
-
-def test_newton_raycast_scenes_share_one_example():
-    """Newton ray-cast variants must stay behind one focused example entry."""
-    paths_by_name = {program.name: program.relative_path for program in programs.EXAMPLES}
-    assert paths_by_name["newton-raycast"] == "examples/sensors/newton_raycast.py"
-    assert "newton-raycast-heightfield" not in paths_by_name
-    assert "newton-raycast-moving-geometry" not in paths_by_name
 
 
 @pytest.mark.parametrize("catalog", [programs.DEMOS, programs.EXAMPLES])

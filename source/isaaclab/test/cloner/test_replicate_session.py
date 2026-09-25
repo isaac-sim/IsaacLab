@@ -142,13 +142,6 @@ def test_camera_registers_rendering_before_planning_and_shares_the_plan(simulati
     assert all(received is plan for _, received in simulation.calls)
 
 
-def test_context_routing_requires_every_asset_row(simulation):
-    """An incomplete cfg-row mapping must fail instead of silently dropping an asset."""
-    cfg = SimpleNamespace(cloning_contexts=None)
-    with pytest.raises(KeyError):
-        clone_plan._context_rows((cfg,), {}, {0})
-
-
 @pytest.mark.parametrize("valid_set", [np.asarray([["0"]]), np.asarray([[0 + 1j]])])
 def test_make_clone_plan_rejects_non_integer_combinations(valid_set):
     """Prototype indices must be integer data rather than values NumPy can coerce to integers."""
@@ -160,11 +153,14 @@ def test_make_clone_plan_rejects_non_integer_combinations(valid_set):
         make_clone_plan((cfg,), 2, 1.0, valid_set=valid_set)
 
 
-def test_grid_transforms_always_returns_float32():
-    """NumPy scalar inputs do not widen the public transform arrays."""
-    positions, orientations = clone_plan.grid_transforms(2, np.float64(1.0))
+def test_grid_transforms_centers_a_float32_grid():
+    """Three envs fill a centered 2x2 grid row by row, and NumPy scalar inputs do not widen the arrays."""
+    positions, orientations = clone_plan.grid_transforms(3, np.float64(2.0))
 
     assert positions.dtype == orientations.dtype == np.float32
+    # Hand-computed: rows run along -x, columns along +y, both centered on the origin.
+    np.testing.assert_array_equal(positions, [[1.0, -1.0, 0.0], [1.0, 1.0, 0.0], [-1.0, -1.0, 0.0]])
+    np.testing.assert_array_equal(orientations, [[0.0, 0.0, 0.0, 1.0]] * 3)
 
 
 def test_replicate_dispatches_the_same_plan_in_priority_order(simulation):

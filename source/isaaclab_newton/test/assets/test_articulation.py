@@ -1946,6 +1946,7 @@ def test_fixed_tendon_properties_reach_solver(sim, num_articulations, device, ar
     articulation, _ = generate_articulation(
         generate_articulation_cfg(articulation_type=articulation_type), num_articulations, device
     )
+    replicate(sim.get_clone_plan())
     sim.reset()
     shape = (num_articulations, articulation.num_fixed_tendons)
     limits = torch.tensor([-0.1, 0.2], device=device).expand(*shape, 2)

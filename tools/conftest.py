@@ -94,7 +94,6 @@ PROCESS_FAILURE_RETRIES_BY_FILE = {
     "test_visualizer_integration_physx.py": 4,
     "test_visualizer_integration_newton.py": 4,
     "test_visualizer_tiled_integration_physx.py": 4,
-    "test_visualizer_tiled_integration_newton.py": 4,
 }
 """Extra fresh-process attempts for visualizer tests that can enter stale render states."""
 
