@@ -275,6 +275,7 @@ jobs:
         shard-index: "0"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-tasks-1-test
 
@@ -302,6 +303,7 @@ jobs:
         shard-index: "1"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-tasks-2-test
 
@@ -329,6 +331,7 @@ jobs:
         shard-index: "2"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-tasks-3-test
 
@@ -355,6 +358,7 @@ jobs:
         shard-index: "0"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-core-1-test
 
@@ -381,6 +385,7 @@ jobs:
         shard-index: "1"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-core-2-test
 
@@ -407,6 +412,7 @@ jobs:
         shard-index: "2"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-core-3-test
 
@@ -492,6 +498,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_rl"
         extra-pip-packages: "leapp==0.6.1 torchrl>=0.13"
+        warp-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-rl-test
 
@@ -514,6 +521,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_mimic"
+        warp-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-mimic-test
 
@@ -536,6 +544,8 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_contrib"
+        warp-cache: restore
+        ovrtx-shader-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-contrib-test
 
@@ -558,6 +568,8 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_teleop"
+        warp-cache: restore
+        ovrtx-shader-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-teleop-test
 
@@ -580,6 +592,8 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_visualizers"
+        warp-cache: restore
+        ovrtx-shader-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-visualizers-test
 
@@ -602,6 +616,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_assets"
+        warp-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-assets-test
 
@@ -624,6 +639,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_experimental"
+        warp-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-experimental-test
 
@@ -647,6 +663,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_newton"
         warp-cache: restore
+        ovrtx-shader-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-newton-test
 
@@ -669,6 +686,8 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_physx"
+        warp-cache: restore
+        ovrtx-shader-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-physx-test
 
@@ -699,6 +718,8 @@ jobs:
         extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
+        warp-cache: restore
+        ovrtx-shader-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-ov-test
 
