@@ -619,7 +619,7 @@ class Camera(SensorBase):
     Operations
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
         if not self._is_initialized:
             raise RuntimeError("Camera could not be initialized. Check the renderer and simulation logs for details.")
         # reset the timestamps
@@ -1022,7 +1022,7 @@ class Camera(SensorBase):
                 env_ids = env_ids.contiguous()
             return wp.from_torch(env_ids, dtype=wp.int32)
         elif isinstance(env_ids, slice):
-            env_ids = np.arange(self._view.count, dtype=np.int32)[env_ids]
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         else:
             env_ids = np.asarray(env_ids, dtype=np.int32).reshape(-1)
         return wp.array(env_ids, dtype=wp.int32, device=self._device)

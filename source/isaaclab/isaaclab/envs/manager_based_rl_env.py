@@ -397,16 +397,14 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         Args:
             env_ids: A slice or environment indices on the environment device.
         """
-        # Backend resets and curriculum/event/command callbacks require explicit indices.
-        env_indices = self.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
         # update the curriculum for environments that need a reset
-        self.curriculum_manager.compute(env_ids=env_indices)
+        self.curriculum_manager.compute(env_ids=env_ids)
         # reset the internal buffers of the scene elements
-        self.scene.reset(env_indices)
+        self.scene.reset(env_ids)
         # apply events such as randomizations for environments that need a reset
         if "reset" in self.event_manager.available_modes:
             env_step_count = self._sim_step_counter // self.cfg.decimation
-            self.event_manager.apply(mode="reset", env_ids=env_indices, global_env_step_count=env_step_count)
+            self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 
         # iterate over all managers and reset them
         # this returns a dictionary of information which is stored in the extras
@@ -425,7 +423,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         info = self.curriculum_manager.reset(env_ids)
         self.extras["log"].update(info)
         # -- command manager
-        info = self.command_manager.reset(env_indices)
+        info = self.command_manager.reset(env_ids)
         self.extras["log"].update(info)
         # -- event manager
         info = self.event_manager.reset(env_ids)

@@ -256,6 +256,8 @@ class CollisionAnalyzer:
         self._env_ids_i32 = torch.empty(num_envs, dtype=torch.int32, device=device)
 
     def __call__(self, env: ManagerBasedRLEnv, env_ids: torch.Tensor):
+        if isinstance(env_ids, slice):
+            env_ids = env.scene._ALL_INDICES[env_ids]
         num_query_envs = len(env_ids)
         num_bodies = len(self.body_ids)
         num_points = self.cfg.num_points

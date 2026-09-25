@@ -70,6 +70,8 @@ def test_step_updates_observation_history(device, env_type, cfg_factory, monkeyp
     env = env_type(cfg=cfg)
     assert env.action_manager.total_action_dim == 0
     history = env.observation_manager._group_obs_term_history_buffer["empty_observation"]["dummy_term"]
+    reset_scene = Mock(wraps=env.scene.reset)
+    monkeypatch.setattr(env.scene, "reset", reset_scene)
     reset_history = Mock(wraps=history.reset)
     monkeypatch.setattr(history, "reset", reset_history)
 
@@ -90,6 +92,7 @@ def test_step_updates_observation_history(device, env_type, cfg_factory, monkeyp
     selected = slice(1, None, 2)
     env.reset(env_ids=selected)
     assert reset_history.call_args.kwargs["batch_ids"] is selected
+    assert reset_scene.call_args.args[0] is selected
     torch.testing.assert_close(history.current_length, torch.tensor([3, 1, 3], device=device))
     env.reset_to({}, env_ids=slice(0, None, 2))
     torch.testing.assert_close(history.current_length, torch.tensor([1, 2, 1], device=device))

@@ -153,7 +153,7 @@ class EventManager(ManagerBase):
     def apply(
         self,
         mode: str,
-        env_ids: torch.Tensor | None = None,
+        env_ids: torch.Tensor | slice | None = None,
         dt: float | None = None,
         global_env_step_count: int | None = None,
     ):
@@ -174,8 +174,8 @@ class EventManager(ManagerBase):
             mode: The mode of event.
             env_ids: The indices of the environments to apply the event to.
                 Defaults to None, in which case the event is applied to all environments when applicable.
-                Reset mode requires explicit one-dimensional int32/int64 indices on the environment device.
-                The environment supplies these indices before dispatch; reset mode does not accept slices or None.
+                Reset mode accepts a slice or one-dimensional int32/int64 indices on the environment device.
+                Slices pass through to callbacks unless cooldown filtering selects an irregular subset.
             dt: The time step of the environment. This is only used for the "interval" mode.
                 Defaults to None to simplify the call for other modes.
             global_env_step_count: The total number of environment steps that have happened. This is only used
@@ -259,7 +259,11 @@ class EventManager(ManagerBase):
                     valid_trigger |= (last_triggered_step == 0) & ~triggered_at_least_once
 
                     # select the valid environment indices based on the trigger
-                    valid_env_ids = env_ids[valid_trigger]
+                    if isinstance(env_ids, slice):
+                        start, _, step = env_ids.indices(self.num_envs)
+                        valid_env_ids = valid_trigger.nonzero().flatten() * step + start
+                    else:
+                        valid_env_ids = env_ids[valid_trigger]
 
                     # reset the last reset step for each environment to the current env step count
                     if len(valid_env_ids) > 0:

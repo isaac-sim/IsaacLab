@@ -491,9 +491,7 @@ class ManagerBasedEnv:
 
         self._reset_idx(env_ids)
         # set the state
-        # State writers use the backend's indexed API.
-        env_indices = self.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
-        self.scene.reset_to(state, env_indices, is_relative=is_relative)
+        self.scene.reset_to(state, env_ids, is_relative=is_relative)
 
         # update articulation kinematics
         self.sim.forward()
@@ -648,15 +646,13 @@ class ManagerBasedEnv:
         Args:
             env_ids: A slice or environment indices on the environment device.
         """
-        # Backend resets and event callbacks require indices; manager buffers retain the slice.
-        env_indices = self.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
         # reset the internal buffers of the scene elements
-        self.scene.reset(env_indices)
+        self.scene.reset(env_ids)
 
         # apply events such as randomization for environments that need a reset
         if "reset" in self.event_manager.available_modes:
             env_step_count = self._sim_step_counter // self.cfg.decimation
-            self.event_manager.apply(mode="reset", env_ids=env_indices, global_env_step_count=env_step_count)
+            self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 
         # iterate over all managers and reset them
         # this returns a dictionary of information which is stored in the extras

@@ -376,7 +376,7 @@ def test_apply_interval_mode_resample_on_reset(env):
     torch.testing.assert_close(event_man._interval_term_time_left[1], expected_after_apply)
 
 
-@pytest.mark.parametrize("index_dtype", [torch.int32, torch.int64])
+@pytest.mark.parametrize("index_dtype", [torch.int32, torch.int64, slice])
 @pytest.mark.parametrize("env", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA), indirect=True)
 def test_apply_reset_mode(env, index_dtype):
     """Selectors preserve index storage and per-environment cooldowns for both reset terms."""
@@ -401,7 +401,12 @@ def test_apply_reset_mode(env, index_dtype):
         selected = list(range(env.num_envs)) if count == 0 else [i for i in range(env.num_envs) if (i + count) % 3 == 0]
         if count > 0 and count % 4 == 0:
             selected = []
-        env_ids = torch.tensor(selected, dtype=index_dtype, device=env.device)
+        if index_dtype is slice:
+            env_ids = slice(None) if count == 0 else slice((-count) % 3, None, 3)
+            if not selected:
+                env_ids = slice(0, 0)
+        else:
+            env_ids = torch.tensor(selected, dtype=index_dtype, device=env.device)
         event_man.apply("reset", env_ids=env_ids, global_env_step_count=count)
 
         for i in selected:

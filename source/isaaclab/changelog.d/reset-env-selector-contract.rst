@@ -7,10 +7,12 @@ Changed
   device; reset methods do not validate or transfer index tensors.
 * Made the selector the first positional argument of ``ManagerBasedEnv.reset``. Pass the seed and Gymnasium
   options by keyword, for example ``env.reset(seed=42)``.
-* Preserved slices through manager buffer resets to avoid advanced-indexing copies and scalar transfers.
-  Backend operations and index-based event, curriculum, and command callbacks continue to receive device
-  indices. ``EventManager.reset()`` defaults to ``slice(None)``; ``EventManager.apply(mode="reset", ...)``
-  requires explicit indices. Recorders expand slices on the host for per-episode records.
+* Preserved slices through scene, manager, event, curriculum, and command resets. Custom callbacks must
+  accept slices as well as device indices: index buffers directly and use selected data shapes or
+  ``len(range(env.num_envs)[env_ids])`` for slice counts. Indexed backend operations use views of cached
+  device indices; mask consumers fill slices directly without uploading host indices.
+  ``EventManager.reset()`` defaults to ``slice(None)``; ``EventManager.apply(mode="reset", ...)``
+  requires an explicit selector. Recorders expand slices on the host for per-episode records.
 
 Fixed
 ^^^^^

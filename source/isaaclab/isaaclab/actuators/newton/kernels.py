@@ -25,13 +25,6 @@ def zero_at_indices_kernel(data: wp.array(dtype=wp.float32), indices: wp.array(d
 
 
 @wp.kernel(enable_backward=False)
-def set_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=wp.int32)):
-    """Set ``mask[indices[i]] = True`` for each ``i``. The mask must be pre-zeroed."""
-    i = wp.tid()
-    mask[indices[i]] = True
-
-
-@wp.kernel(enable_backward=False)
 def build_per_dof_env_mask_kernel(
     indices: wp.array(dtype=wp.uint32),
     env_mask: wp.array(dtype=wp.bool),
