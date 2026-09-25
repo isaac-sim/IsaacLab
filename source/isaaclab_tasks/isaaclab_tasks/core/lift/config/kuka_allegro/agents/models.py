@@ -85,11 +85,15 @@ class CameraImageNormalizer(nn.Module):
         """
         super().__init__()
         self.is_uint8 = is_uint8
+        # 0-dim float operands let addcmul cast, scale, and shift uint8 images in a single pass;
+        # non-persistent so checkpoints are unaffected
+        self.register_buffer("shift", torch.tensor(-0.5), persistent=False)
+        self.register_buffer("scale", torch.tensor(1.0 / 255.0), persistent=False)
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         """Normalize a ``[batch, C, H, W]`` raw camera image."""
         if self.is_uint8:
-            return images.float() / 255.0 - 0.5
+            return torch.addcmul(self.shift, images, self.scale)
         return torch.where(torch.isnan(images), 0.5, torch.tanh(images / 2.0) - 0.5)
 
 
