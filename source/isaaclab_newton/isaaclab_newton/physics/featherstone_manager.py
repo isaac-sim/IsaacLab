@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from newton import Model
+from newton import Model, ModelFlags
 from newton.solvers import SolverFeatherstone
 
 from .featherstone_manager_cfg import FeatherstoneSolverCfg
@@ -36,3 +36,10 @@ class NewtonFeatherstoneManager(NewtonManager):
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = True
         NewtonManager._supports_rigid_body_force_input = True
+        # SolverFeatherstone derives its inertia data from the model only when it is constructed
+        NewtonManager._ignored_model_changes = {
+            ModelFlags.BODY_INERTIAL_PROPERTIES: (
+                "The Newton Featherstone solver does not apply mass, center of mass, or inertia changes made after"
+                " the simulation starts; the simulation keeps the initial values."
+            )
+        }

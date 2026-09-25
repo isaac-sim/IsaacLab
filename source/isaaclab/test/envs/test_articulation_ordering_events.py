@@ -106,8 +106,16 @@ class _FakeNewtonArticulation:
         self.static_friction_writes = []
         self.viscous_friction_writes = []
 
-    def write_joint_friction_coefficient_to_sim_index(self, **kwargs):
-        """Record Newton static-friction writes."""
+    def write_joint_friction_coefficient_to_sim_index(
+        self, *, joint_dynamic_friction_coeff=None, joint_viscous_friction_coeff=None, **kwargs
+    ):
+        """Record Newton static-friction writes; like Newton, forward viscous friction and drop dynamic friction."""
+        if joint_viscous_friction_coeff is not None:
+            self.write_joint_viscous_friction_coefficient_to_sim_index(
+                joint_viscous_friction_coeff=joint_viscous_friction_coeff,
+                joint_ids=kwargs["joint_ids"],
+                env_ids=kwargs["env_ids"],
+            )
         self.static_friction_writes.append(kwargs)
 
     def write_joint_viscous_friction_coefficient_to_sim_index(self, **kwargs):
@@ -250,10 +258,8 @@ def test_newton_joint_parameter_randomization_writes_static_and_viscous_friction
             "friction_distribution_params": (0.5, 0.5),
         }
     )
-    env = SimpleNamespace(
-        scene=_FakeScene(robot=asset),
-        sim=SimpleNamespace(physics_manager=type("NewtonManager", (), {})),
-    )
+    # the term does not read the physics backend; the asset API decides what it supports
+    env = SimpleNamespace(scene=_FakeScene(robot=asset))
 
     term = events_module.randomize_joint_parameters(cfg, env)
     term(
