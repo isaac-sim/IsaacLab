@@ -802,6 +802,8 @@ jobs:
         cache-tag: cache-curobo
         include-files: "test_contrib_environments.py"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        ovrtx-shader-cache-trees: kit
         test-jobs: "4"
         container-name: isaac-lab-contrib-environments-test
 
