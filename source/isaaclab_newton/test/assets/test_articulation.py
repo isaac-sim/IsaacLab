@@ -3654,6 +3654,12 @@ def test_randomize_rigid_body_com(sim, num_articulations, device, add_ground_pla
     updated_com = articulation.data.body_com_pos_b.torch
     torch.testing.assert_close(updated_com, new_com, atol=1e-5, rtol=1e-5)
 
+    # poses (position and quaternion) are accepted too, like on the other backends; the orientation is ignored
+    com_poses = articulation.data.body_com_pose_b.torch.clone()
+    com_poses[..., :3] = original_com
+    articulation.set_coms_index(coms=com_poses, env_ids=env_ids)
+    torch.testing.assert_close(articulation.data.body_com_pos_b.torch, original_com, atol=1e-5, rtol=1e-5)
+
 
 @pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
