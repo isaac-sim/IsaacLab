@@ -423,31 +423,28 @@ class ActuatorStateResetBase:
             ctx.__exit__(None, None, None)
 
     def test_lab_state_reset_isolated_to_reset_env(self):
-        """Lab: DelayedPDActuator circular buffer zeroed for env 0 only."""
+        """Reset environments accept fresh commands while the remaining environments retain their history."""
         ctx, sim, articulation = self._build_and_warm(use_newton_actuators=False)
         try:
-            from ...actuators import DelayedPDActuator  # noqa: PLC0415
+            commands = articulation.actuators.target_command
+            old_target = commands.position.torch.clone()
+            # Episode reset samples the configured lag; construction alone leaves actuator lag at zero.
+            articulation.reset()
+            commands.set_position_index(value=old_target)
+            articulation.write_data_to_sim()
+            new_target = old_target + 0.02
+            articulation.reset(env_ids=torch.tensor([self.RESET_ENV], device=articulation.device))
+            commands.set_position_index(value=new_target)
+            articulation.write_data_to_sim()
+            expected_target = old_target.clone()
+            expected_target[self.RESET_ENV] = new_target[self.RESET_ENV]
+            for actuator in articulation.actuators.values():
+                joints = actuator.joint_indices
+                demand = (
+                    actuator.stiffness * (expected_target[:, joints] - articulation.data.joint_pos.torch[:, joints])
+                    - actuator.damping * articulation.data.joint_vel.torch[:, joints]
+                )
+                torch.testing.assert_close(actuator.computed_effort, demand)
 
-            delayed = [a for a in articulation.actuators.values() if isinstance(a, DelayedPDActuator)]
-            self.assertGreater(len(delayed), 0, "expected at least one Lab DelayedPDActuator")
-            actuator = delayed[0]
-            buf = actuator.positions_delay_buffer._circular_buffer._buffer
-            # ``_buffer`` shape: (max_length, batch_size, num_joints).
-            self.assertIsNotNone(buf, "delay buffer should be populated after warmup")
-            self.assertTrue(
-                (buf[:, self.UNCHANGED_ENV] != 0).any().item(),
-                "expected non-zero buffer entries for env 1 after warmup",
-            )
-
-            articulation.reset(env_ids=torch.tensor([self.RESET_ENV], device=articulation.device, dtype=torch.long))
-
-            self.assertTrue(
-                torch.all(buf[:, self.RESET_ENV] == 0).item(),
-                f"Lab: env {self.RESET_ENV} buffer not zeroed after reset.",
-            )
-            self.assertTrue(
-                (buf[:, self.UNCHANGED_ENV] != 0).any().item(),
-                f"Lab: env {self.UNCHANGED_ENV} buffer was zeroed — reset leaked into an unselected env.",
-            )
         finally:
             ctx.__exit__(None, None, None)

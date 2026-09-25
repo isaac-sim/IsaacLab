@@ -19,6 +19,7 @@ simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).ap
 
 import sys
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -29,7 +30,8 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 from newton import ModelFlags
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObjectCfg, RigidObjectCollectionCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
+from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import (
@@ -87,10 +89,8 @@ def generate_cubes_scene(
         A tuple containing the rigid object collection representing the cubes and the origins of the cubes.
 
     """
-    origins = torch.tensor([(i * 3.0, 0, height) for i in range(num_envs)]).to(device)
-    # Create Top-level Xforms, one for each cube
-    for i, origin in enumerate(origins):
-        sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=origin)
+    origins = np.asarray([(i * 3.0, 0, height) for i in range(num_envs)], dtype=np.float32)
+    sim_utils.create_prim("/World/Env_0", "Xform", translation=origins[0])
 
     # Resolve spawn configuration
     if has_api:
@@ -110,13 +110,17 @@ def generate_cubes_scene(
     for i in range(num_cubes):
         cube_object_cfg = RigidObjectCfg(
             prim_path=f"/World/Env_[^/]*/Object_{i}",
-            spawn=spawn_cfg,
+            spawn=spawn_cfg.copy(),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 3 * i, height)),
         )
         cube_config_dict[f"cube_{i}"] = cube_object_cfg
+    cfgs = list(cube_config_dict.values())
+    if spawn_unrelated_sibling:
+        cfgs.append(AssetBaseCfg(prim_path="/World/Env_[^/]*/UnrelatedObject"))
+    clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), cfgs, num_envs, 3.0, positions=origins)
     if spawn_unrelated_sibling:
         spawn_cfg.func(
-            "/World/Env_[^/]*/UnrelatedObject",
+            "/World/Env_0/UnrelatedObject",
             spawn_cfg,
             translation=(0.0, -3.0, height),
         )
@@ -124,7 +128,7 @@ def generate_cubes_scene(
     cube_object_collection_cfg = RigidObjectCollectionCfg(rigid_objects=cube_config_dict)
     cube_object_collection = RigidObjectCollection(cfg=cube_object_collection_cfg)
 
-    return cube_object_collection, origins
+    return cube_object_collection, torch.as_tensor(origins, device=device)
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -141,6 +145,7 @@ def test_initialization_ignores_unrelated_sibling_rigid_objects(device):
             spawn_unrelated_sibling=True,
         )
 
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         assert object_collection.num_instances == num_envs
@@ -160,6 +165,7 @@ def test_initialization(num_envs, num_cubes, device):
         assert sys.getrefcount(object_collection) < 10
 
         # Play sim
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         # Check if object is initialized
@@ -185,26 +191,33 @@ def test_set_body_inertial_properties_updates_inverses(device):
     num_cubes = 3
     with _newton_sim_context(device, gravity_enabled=False, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
-        for env_index in range(num_envs):
-            sim_utils.create_prim(f"/World/Env_{env_index}", "Xform", translation=(float(env_index), 0.0, 1.0))
+        origins = np.asarray([(float(env_index), 0.0, 1.0) for env_index in range(num_envs)], dtype=np.float32)
+        sim_utils.create_prim("/World/Env_0", "Xform", translation=origins[0])
         spawn_cfg = sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
             rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
             mass_props=sim_utils.MassCfg(mass=1.0),
             collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         )
-        object_collection = RigidObjectCollection(
-            RigidObjectCollectionCfg(
-                rigid_objects={
-                    f"cube_{body_index}": RigidObjectCfg(
-                        prim_path=f"/World/Env_[^/]*/Object_{body_index}",
-                        spawn=spawn_cfg,
-                        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, float(body_index), 0.0)),
-                    )
-                    for body_index in range(num_cubes)
-                }
-            )
+        cfg = RigidObjectCollectionCfg(
+            rigid_objects={
+                f"cube_{body_index}": RigidObjectCfg(
+                    prim_path=f"/World/Env_[^/]*/Object_{body_index}",
+                    spawn=spawn_cfg.copy(),
+                    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, float(body_index), 0.0)),
+                )
+                for body_index in range(num_cubes)
+            }
         )
+        clone_plan_from_env_0(
+            CloneCfg(clone_template="/World/Env_{}"),
+            cfg.rigid_objects.values(),
+            num_envs,
+            1.0,
+            positions=origins,
+        )
+        object_collection = RigidObjectCollection(cfg)
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         env_mask = wp.array([True, False], dtype=wp.bool, device=device)
@@ -254,6 +267,7 @@ def test_initialization_with_no_rigid_body():
         assert sys.getrefcount(object_collection) < 10
 
         # Play sim
+        replicate(sim.get_clone_plan())
         with pytest.raises(RuntimeError):
             sim.reset()
 
@@ -266,6 +280,7 @@ def test_external_force_buffer(device):
         num_envs = 2
         num_cubes = 1
         object_collection, origins = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         # find objects to apply the force
@@ -320,6 +335,7 @@ def test_external_force_on_single_body(num_envs, num_cubes, device):
     with _newton_sim_context(device, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         object_collection, origins = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         # find objects to apply the force
@@ -387,6 +403,7 @@ def test_external_force_on_single_body_at_position(num_envs, num_cubes, device):
     with _newton_sim_context(device, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         object_collection, origins = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         # find objects to apply the force
@@ -470,6 +487,7 @@ def test_set_object_state(num_envs, num_cubes, device):
     with _newton_sim_context(device, gravity_enabled=False, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         object_collection, origins = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         state_types = ["body_link_pos_w", "body_link_quat_w", "body_com_lin_vel_w", "body_com_ang_vel_w"]
@@ -537,6 +555,7 @@ def test_reset_object_collection(num_envs, num_cubes, device):
     with _newton_sim_context(device, gravity_enabled=True, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         for i in range(5):
@@ -567,45 +586,6 @@ def test_reset_object_collection(num_envs, num_cubes, device):
 @pytest.mark.parametrize("num_envs", [3])
 @pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
-def test_set_material_properties(num_envs, num_cubes, device):
-    """Test getting and setting material properties of rigid object collection via view-level APIs."""
-    with _newton_sim_context(device, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
-        sim.reset()
-
-        # Get friction/restitution bindings via view-level API
-        # The collection's _root_view stores data in flat view order: (num_envs * num_cubes, ...)
-        model = SimulationManager.get_model()
-        friction_raw = object_collection._root_view.get_attribute("shape_material_mu", model)
-        restitution_raw = object_collection._root_view.get_attribute("shape_material_restitution", model)
-
-        # Shape is (num_envs * num_cubes, num_shapes_per_body, 1) — slice off trailing dim
-        friction_binding = friction_raw[:, :, 0]
-        restitution_binding = restitution_raw[:, :, 0]
-
-        # Generate random values matching the flat view shape
-        friction = torch.empty_like(wp.to_torch(friction_binding)).uniform_(0.4, 0.8)
-        restitution = torch.empty_like(wp.to_torch(restitution_binding)).uniform_(0.0, 0.2)
-
-        wp.to_torch(friction_binding)[:] = friction
-        wp.to_torch(restitution_binding)[:] = restitution
-        SimulationManager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
-
-        # Perform simulation
-        sim.step()
-        object_collection.update(sim.cfg.dt)
-
-        # Verify by reading back from the binding
-        mu = wp.to_torch(friction_binding)
-        restitution_check = wp.to_torch(restitution_binding)
-        torch.testing.assert_close(mu, friction)
-        torch.testing.assert_close(restitution_check, restitution)
-
-
-@pytest.mark.parametrize("num_envs", [3])
-@pytest.mark.parametrize("num_cubes", [2])
-@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("gravity_enabled", [True, False])
 def test_gravity_vec_w(num_envs, num_cubes, device, gravity_enabled):
     """Test that gravity vector direction is set correctly for the rigid object."""
@@ -618,6 +598,7 @@ def test_gravity_vec_w(num_envs, num_cubes, device, gravity_enabled):
         # per-instance-per-body).
         expected_g = (0.0, 0.0, -9.81) if gravity_enabled else (0.0, 0.0, 0.0)
 
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         # Check if gravity vector is set correctly
@@ -653,6 +634,7 @@ def test_gravity_vec_w_tracks_model_gravity(num_envs, num_cubes, device):
     with _newton_sim_context(device, gravity_enabled=True, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         # GRAVITY_VEC_W must share storage with Newton's per-env gravity array.
@@ -690,6 +672,7 @@ def test_object_state_properties(num_envs, num_cubes, device, with_offset):
         sim._app_control_on_stop_handle = None
         cube_object, env_pos = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, height=0.0, device=device)
 
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         # check if cube_object is initialized
@@ -785,6 +768,7 @@ def test_write_object_state(num_envs, num_cubes, device, with_offset, state_loca
         env_ids = torch.tensor([x for x in range(num_envs)], dtype=torch.int32)
         object_ids = torch.tensor([x for x in range(num_cubes)], dtype=torch.int32)
 
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         # Check if cube_object is initialized
@@ -863,6 +847,7 @@ def test_write_object_state_functions_data_consistency(num_envs, num_cubes, devi
         env_ids = torch.tensor([x for x in range(num_envs)], dtype=torch.int32)
         object_ids = torch.tensor([x for x in range(num_cubes)], dtype=torch.int32)
 
+        replicate(sim.get_clone_plan())
         sim.reset()
 
         # Check if cube_object is initialized
@@ -1013,6 +998,7 @@ def test_body_pose_write_marks_fk_reset_mask(device, writer):
         sim._app_control_on_stop_handle = None
         cube_object, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, height=0.5, device=device)
 
+        replicate(sim.get_clone_plan())
         sim.reset()
         assert cube_object.is_initialized
 

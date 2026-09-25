@@ -30,7 +30,12 @@ if TYPE_CHECKING:
 
 
 class WrenchComposer:
-    def __init__(self, asset: BaseArticulation | BaseRigidObject | BaseRigidObjectCollection) -> None:
+    def __init__(
+        self,
+        asset: BaseArticulation | BaseRigidObject | BaseRigidObjectCollection,
+        *,
+        supports_world_at_com: bool = False,
+    ) -> None:
         """Wrench composer with dual-buffer architecture.
 
         This class composes forces and torques applied to rigid bodies. Forces and torques can be
@@ -55,6 +60,9 @@ class WrenchComposer:
 
         Args:
             asset: Asset to use.
+            supports_world_at_com: Whether the consumer can apply a world-frame wrench at the body's
+                center of mass. When False, :meth:`get_forces_and_torques` always returns a body-frame
+                wrench. Defaults to False.
         """
         self.num_envs = asset.num_instances
         # Avoid isinstance to prevent circular import issues; check by attribute presence instead.
@@ -66,6 +74,11 @@ class WrenchComposer:
         self._asset = asset
         self._active = False
         self._dirty = False
+        self._supports_world_at_com = supports_world_at_com
+        # Conservative until a full reset; partial resets do not scan the remaining buffers.
+        self._has_local_wrench = False
+        self._has_global_wrench = False
+        self._has_global_positions = False
         if hasattr(self._asset.data, "body_com_pos_w"):
             self._get_com_pos_fn = lambda a=self._asset: a.data.body_com_pos_w.warp
         else:
@@ -265,6 +278,11 @@ class WrenchComposer:
 
         self._active = True
         self._dirty = True
+        if is_global:
+            self._has_global_wrench = True
+            self._has_global_positions = self._has_global_positions or (forces is not None and positions is not None)
+        else:
+            self._has_local_wrench = True
 
         wp.launch(
             add_forces_to_dual_buffers_index_kernel(env_ids, body_ids),
@@ -328,6 +346,11 @@ class WrenchComposer:
 
         self._active = True
         self._dirty = True
+        if is_global:
+            self._has_global_wrench = True
+            self._has_global_positions = self._has_global_positions or (forces is not None and positions is not None)
+        else:
+            self._has_local_wrench = True
 
         wp.launch(
             set_forces_to_dual_buffers_index_kernel(env_ids, body_ids),
@@ -388,6 +411,11 @@ class WrenchComposer:
 
         self._active = True
         self._dirty = True
+        if is_global:
+            self._has_global_wrench = True
+            self._has_global_positions = self._has_global_positions or (forces is not None and positions is not None)
+        else:
+            self._has_local_wrench = True
 
         wp.launch(
             add_forces_to_dual_buffers_mask,
@@ -453,6 +481,11 @@ class WrenchComposer:
 
         self._active = True
         self._dirty = True
+        if is_global:
+            self._has_global_wrench = True
+            self._has_global_positions = self._has_global_positions or (forces is not None and positions is not None)
+        else:
+            self._has_local_wrench = True
 
         wp.launch(
             set_forces_to_dual_buffers_mask,
@@ -493,6 +526,9 @@ class WrenchComposer:
 
         self._active = True
         self._dirty = True
+        self._has_local_wrench = self._has_local_wrench or other._has_local_wrench
+        self._has_global_wrench = self._has_global_wrench or other._has_global_wrench
+        self._has_global_positions = self._has_global_positions or other._has_global_positions
 
         wp.launch(
             add_raw_wrench_buffers,
@@ -542,6 +578,32 @@ class WrenchComposer:
         )
         self._dirty = False
 
+    def get_forces_and_torques(self) -> tuple[wp.array, wp.array, bool]:
+        """Get the buffered forces and torques in a frame the consumer accepts.
+
+        Composition into the body frame reads the body poses, which on some backends forces a
+        kinematics update. That work is unnecessary when the buffered wrench is already in a frame
+        the consumer accepts: an all-local wrench is its own body-frame composition, and an
+        all-global-at-CoM wrench can be used directly by a consumer that accepts a world frame.
+
+        The eligibility state is conservative after a partial :meth:`reset`: it may keep composing
+        even when the selected reset removed every contribution that made composition necessary. A
+        full :meth:`reset` restores it. This never changes the resulting wrench, only the cost.
+
+        Returns:
+            Force [N], torque [N·m], and ``is_global``: True for world-frame vectors, False for
+            body-frame vectors. Both representations apply the force at the body's CoM. Shapes are
+            ``(num_envs, num_bodies)`` with dtype ``wp.vec3f``. The arrays are owned by the composer
+            and stay valid until the next mutating call.
+        """
+        if not self._has_global_wrench:
+            return self._local_force_b, self._local_torque_b, False
+        if self._supports_world_at_com and not self._has_local_wrench and not self._has_global_positions:
+            return self._global_force_at_com_w, self._global_torque_w, True
+        # The fallback depends on the live body pose, even when the input buffers are unchanged.
+        self.compose_to_body_frame()
+        return self._out_force_b, self._out_torque_b, False
+
     def reset(
         self,
         env_ids: wp.array | torch.Tensor | Sequence[int] | slice | None = None,
@@ -571,6 +633,9 @@ class WrenchComposer:
             self._out_torque_b.zero_()
             self._active = False
             self._dirty = False
+            self._has_local_wrench = False
+            self._has_global_wrench = False
+            self._has_global_positions = False
         elif env_mask is not None:
             wp.launch(
                 reset_wrench_composer_mask,

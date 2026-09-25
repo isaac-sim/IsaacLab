@@ -60,9 +60,9 @@ class _DistortionSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Anchor",
         spawn=sim_utils.CuboidCfg(
             size=(0.01, 0.01, 0.01),
-            rigid_props=sim_utils.RigidBodyBaseCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.001),
-            collision_props=sim_utils.CollisionBaseCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.001),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             physics_material=RigidBodyMaterialBaseCfg(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -100.0)),

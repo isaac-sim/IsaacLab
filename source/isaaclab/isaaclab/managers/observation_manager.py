@@ -17,7 +17,7 @@ from prettytable import PrettyTable
 
 from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
 from ..utils import class_to_dict, modifiers, noise
-from ..utils.buffers import CircularBuffer
+from ..utils.buffers import CircularBuffer, DelayBuffer
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
@@ -270,7 +270,16 @@ class ObservationManager(ManagerBase):
                     # Iterate over the term's own parameters and add them to the overloads dictionary
                     for k, v in term_cfg.__dict__.items():
                         # For now we do not add the noise modifier
-                        if k in ["modifiers", "clip", "scale", "history_length", "flatten_history_dim"]:
+                        if k in [
+                            "modifiers",
+                            "clip",
+                            "scale",
+                            "delay_min_lag",
+                            "delay_max_lag",
+                            "delay_hold_prob",
+                            "history_length",
+                            "flatten_history_dim",
+                        ]:
                             overloads[k] = v
                     desc.update(overloads)
                     group_data[group_name].append(desc)
@@ -290,7 +299,15 @@ class ObservationManager(ManagerBase):
                     # Check if v is a tensor and convert to list
                     if isinstance(v, torch.Tensor):
                         v = v.detach().cpu().numpy().tolist()
-                    if k in ["scale", "clip", "history_length", "flatten_history_dim"]:
+                    if k in [
+                        "scale",
+                        "clip",
+                        "delay_min_lag",
+                        "delay_max_lag",
+                        "delay_hold_prob",
+                        "history_length",
+                        "flatten_history_dim",
+                    ]:
                         formatted_item["overloads"][k] = v
                     elif k in ["modifiers", "description", "units"]:
                         formatted_item["extras"][k] = v
@@ -309,8 +326,10 @@ class ObservationManager(ManagerBase):
         for group_name, group_cfg in self._group_obs_class_term_cfgs.items():
             for term_cfg in group_cfg:
                 term_cfg.func.reset(env_ids=env_ids)
-            # reset terms with history
+            # reset delay and observation histories for the selected environments
             for term_name in self._group_obs_term_names[group_name]:
+                if term_name in self._group_obs_term_delay_buffer[group_name]:
+                    self._group_obs_term_delay_buffer[group_name][term_name].reset(env_ids)
                 if term_name in self._group_obs_term_history_buffer[group_name]:
                     self._group_obs_term_history_buffer[group_name][term_name].reset(batch_ids=env_ids)
         # call all modifiers that are classes
@@ -327,9 +346,9 @@ class ObservationManager(ManagerBase):
         Please check the :meth:`compute_group` on the processing of observations per group.
 
         Args:
-            update_history: The boolean indicator without return obs should be appended to observation history.
-                Default to False, in which case calling compute_group does not modify history. This input is no-ops
-                if the group's history_length == 0.
+            update_history: Whether to record a new sample in delay and observation history buffers.
+                Defaults to False, which reads recorded data without advancing either buffer. For a delay
+                buffer with no sample since initialization or reset, the current observation is returned.
 
         Returns:
             A dictionary with keys as the group names and values as the computed observations.
@@ -361,6 +380,8 @@ class ObservationManager(ManagerBase):
         3. Apply corruption/noise model based on :attr:`ObservationTermCfg.noise`
         4. Apply clipping based on :attr:`ObservationTermCfg.clip`
         5. Apply scaling based on :attr:`ObservationTermCfg.scale`
+        6. Apply delay based on :attr:`ObservationTermCfg.delay_min_lag` and :attr:`ObservationTermCfg.delay_max_lag`
+        7. Append the delayed observation to history if requested
 
         We apply noise to the computed term first to maintain the integrity of how noise affects the data
         as it truly exists in the real world. If the noise is applied after clipping or scaling, the noise
@@ -370,9 +391,9 @@ class ObservationManager(ManagerBase):
         Args:
             group_name: The name of the group for which to compute the observations. Defaults to None,
                 in which case observations for all the groups are computed and returned.
-            update_history: The boolean indicator without return obs should be appended to observation group's history.
-                Default to False, in which case calling compute_group does not modify history. This input is no-ops
-                if the group's history_length == 0.
+            update_history: Whether to record a new sample in delay and observation history buffers.
+                Defaults to False, which reads recorded data without advancing either buffer. For a delay
+                buffer with no sample since initialization or reset, the current observation is returned.
 
         Returns:
             Depending on the group's configuration, the tensors for individual observation terms are
@@ -409,6 +430,10 @@ class ObservationManager(ManagerBase):
                 obs = obs.clip_(min=term_cfg.clip[0], max=term_cfg.clip[1])
             if term_cfg.scale is not None:
                 obs = obs.mul_(term_cfg.scale)
+            if term_name in self._group_obs_term_delay_buffer[group_name]:
+                obs = self._group_obs_term_delay_buffer[group_name][term_name].compute(
+                    obs, update_history=update_history
+                )
             # Update the history buffer if observation term has history enabled
             if term_cfg.history_length > 0:
                 circular_buffer = self._group_obs_term_history_buffer[group_name][term_name]
@@ -476,6 +501,7 @@ class ObservationManager(ManagerBase):
         self._group_obs_concatenate: dict[str, bool] = {}
         self._group_obs_concatenate_dim: dict[str, int] = {}
 
+        self._group_obs_term_delay_buffer: dict[str, dict[str, DelayBuffer]] = {}
         self._group_obs_term_history_buffer: dict[str, dict] = {}
         # create a list to store classes instances, e.g., for modifiers and noise models
         # we store it as a separate list to only call reset on them and prevent unnecessary calls
@@ -512,6 +538,7 @@ class ObservationManager(ManagerBase):
             self._group_obs_class_term_cfgs[group_name] = []
 
             # history buffers
+            group_entry_delay_buffer: dict[str, DelayBuffer] = {}
             group_entry_history_buffer: dict[str, CircularBuffer] = {}
 
             # read common config for the group
@@ -545,6 +572,7 @@ class ObservationManager(ManagerBase):
                         f"Configuration for the term '{term_name}' is not of type ObservationTermCfg."
                         f" Received: '{type(term_cfg)}'."
                     )
+                term_cfg.validate_config()
                 # resolve common terms in the config
                 self._resolve_common_term_cfg(f"{group_name}/{term_name}", term_cfg, min_argc=1)
 
@@ -638,6 +666,15 @@ class ObservationManager(ManagerBase):
                         )
                     self._group_obs_class_instances.append(term_cfg.noise.func)
 
+                if term_cfg.delay_max_lag > 0:
+                    group_entry_delay_buffer[term_name] = DelayBuffer(
+                        term_cfg.delay_max_lag,
+                        self.num_envs,
+                        self.device,
+                        min_lag=term_cfg.delay_min_lag,
+                        hold_prob=term_cfg.delay_hold_prob,
+                    )
+
                 # create history buffers and calculate history term dimensions
                 if term_cfg.history_length > 0:
                     group_entry_history_buffer[term_name] = CircularBuffer(
@@ -659,4 +696,5 @@ class ObservationManager(ManagerBase):
                     # call reset (in-case above call to get obs dims changed the state)
                     term_cfg.func.reset()
             # add history buffers for each group
+            self._group_obs_term_delay_buffer[group_name] = group_entry_delay_buffer
             self._group_obs_term_history_buffer[group_name] = group_entry_history_buffer

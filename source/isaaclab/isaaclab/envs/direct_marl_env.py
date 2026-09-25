@@ -329,6 +329,8 @@ class DirectMARLEnv(gym.Env):
     ) -> tuple[dict[AgentID, ObsType], dict[AgentID, dict]]:
         """Resets all the environments and returns observations.
 
+        Configured observation noise is applied to each agent with a noise model before returning.
+
         Args:
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
             options: Additional information to specify how the environment is reset. Defaults to None.
@@ -348,7 +350,7 @@ class DirectMARLEnv(gym.Env):
         self._reset_idx(indices)
 
         # update observations and the list of current agents (sorted as in possible_agents)
-        self.obs_dict = self._get_observations()
+        self.obs_dict = self._compute_observations()
         self.agents = [agent for agent in self.possible_agents if agent in self.obs_dict]
 
         # return observations
@@ -449,11 +451,7 @@ class DirectMARLEnv(gym.Env):
             # autoreset. apply the same observation noise as the returned obs so the bootstrapped
             # terminal value matches the distribution the policy is trained on.
             if self.cfg.compute_final_obs:
-                terminal_obs = self._get_observations()
-                if self.cfg.observation_noise_model:
-                    for agent, obs in terminal_obs.items():
-                        if agent in self._observation_noise_model:
-                            terminal_obs[agent] = self._observation_noise_model[agent](obs)
+                terminal_obs = self._compute_observations()
                 for agent, obs in terminal_obs.items():
                     self.extras[agent]["final_obs"] = obs
             self._reset_idx(reset_env_ids)
@@ -479,15 +477,8 @@ class DirectMARLEnv(gym.Env):
             recorder.step()
 
         # update observations and the list of current agents (sorted as in possible_agents)
-        self.obs_dict = self._get_observations()
+        self.obs_dict = self._compute_observations()
         self.agents = [agent for agent in self.possible_agents if agent in self.obs_dict]
-
-        # add observation noise
-        # note: we apply no noise to the state space (since it is used for centralized training or critic networks)
-        if self.cfg.observation_noise_model:
-            for agent, obs in self.obs_dict.items():
-                if agent in self._observation_noise_model:
-                    self.obs_dict[agent] = self._observation_noise_model[agent](obs)
 
         return self.obs_dict, self.reward_dict, self.terminated_dict, self.time_out_dict, self.extras
 
@@ -719,8 +710,6 @@ class DirectMARLEnv(gym.Env):
 
         self.episode_length_buf[env_ids] = 0
 
-        self.sim.render_context.reset_scene_state_cadence()
-
     """
     Implementation-specific functions.
     """
@@ -754,6 +743,15 @@ class DirectMARLEnv(gym.Env):
         physics time-step.
         """
         raise NotImplementedError(f"Please implement the '_apply_action' method for {self.__class__.__name__}.")
+
+    def _compute_observations(self) -> dict[AgentID, ObsType]:
+        """Compute observations and apply configured per-agent noise."""
+        obs_dict = self._get_observations()
+        if self.cfg.observation_noise_model:
+            for agent, obs in obs_dict.items():
+                if agent in self._observation_noise_model:
+                    obs_dict[agent] = self._observation_noise_model[agent](obs)
+        return obs_dict
 
     @abstractmethod
     def _get_observations(self) -> dict[AgentID, ObsType]:

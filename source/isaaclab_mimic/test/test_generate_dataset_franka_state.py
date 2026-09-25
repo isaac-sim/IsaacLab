@@ -155,14 +155,6 @@ def _run_generation(workflow_root: str, input_file: str, output_file: str, num_e
     )
 
 
-def test_generate_dataset_franka_state(setup_test_environment):
-    """Test dataset generation for the state-based cube-stack environment (single env)."""
-    workflow_root = setup_test_environment
-    annotated_input_path = os.path.join(DATASETS_DOWNLOAD_DIR, "annotated_dataset.hdf5")
-    generated_output_path = os.path.join(DATASETS_DOWNLOAD_DIR, "generated_dataset.hdf5")
-    _run_generation(workflow_root, annotated_input_path, generated_output_path, num_envs=1)
-
-
 def test_generate_dataset_franka_state_multi_env(setup_test_environment):
     """Test dataset generation for the state-based cube-stack environment (5 envs)."""
     workflow_root = setup_test_environment

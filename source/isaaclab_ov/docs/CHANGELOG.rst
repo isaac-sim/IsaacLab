@@ -1,6 +1,59 @@
 Changelog
 ---------
 
+3.4.0 (2026-09-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an OVRTX ``render_batch()`` implementation that submitted all requested camera
+  products in one native renderer step while preserving the single-camera ``render()`` interface.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX joint-wrench sensors applying an extra frame transformation to readings that are already
+  expressed in the child-side joint frame at the joint anchor, and removed the redundant USD frame buffers.
+  Force and torque values changed for joints with non-identity child frames; the documented frame
+  convention is unchanged.
+
+
+3.3.2 (2026-09-24)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Cached OVRTX render-var frame keys during camera initialization, avoiding repeated version checks and
+  path construction during frame processing. Existing camera output behavior and APIs remained unchanged.
+* Derived OVRTX cloned camera paths from the authored absolute source path in
+  ``CameraRenderSpec.camera_prim_paths``. Remove the ``camera_path_relative_to_env_0`` argument
+  when constructing render specs; OVRTX validated the source path under
+  ``/World/envs/env_0/`` and resolved the per-environment paths internally.
+* Changed the external-wrench writers to submit through
+  :meth:`~isaaclab.utils.wrench_composer.WrenchComposer.get_forces_and_torques`. A wrench that is already
+  global-frame at the center of mass is now packed without rotating it into the body frame and back,
+  and an all-local-frame wrench no longer reads the body transforms before packing.
+* Published OVPhysX rigid poses directly into shared scene-data storage and invalidated cached transforms after
+  physics steps and manual pose writes. Binding failures were surfaced instead of publishing incomplete poses.
+* Routed OVRTX rigid transforms through cached SDP matrix requests, preserving authored scales without a Newton
+  rigid-state intermediary. Existing renderer configurations remained valid; Newton-backed deformable, particle,
+  and cable geometry transport remained unchanged.
+* Captured OVRTX authored scales from clone-plan prototypes and shared roots, including bodies outside the
+  default environment namespace.
+
+Fixed
+^^^^^
+
+* Fixed OVRTX scenes with more than one camera failing at startup with
+  ``Layout-compatible non-array tensor shape[0] (N) must equal binding prim count (1)``. Cameras
+  registered after the first one bound the camera prims authored on the USD stage, which is one
+  prototype per spawn variant rather than one per environment whenever USD replication does not
+  run, as in kitless runs on OvPhysx and Newton. Every camera now binds one prim per environment,
+  for both its transform and its calibration columns.
+
+
 3.3.1 (2026-09-23)
 ~~~~~~~~~~~~~~~~~~
 

@@ -8,17 +8,23 @@ from __future__ import annotations
 import subprocess
 import sys
 import textwrap
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
+import warp as wp
 
 newton = pytest.importorskip("newton")
+from isaaclab_newton.assets import MPMObject
+from isaaclab_newton.physics import NewtonManager
+from isaaclab_newton.physics.newton_manager import NewtonSceneDataBackend
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg, MPMPointsCfg
 from newton.solvers import SolverImplicitMPM
 
 from pxr import UsdGeom, UsdPhysics, UsdShade
 
 import isaaclab.sim as sim_utils
+from isaaclab.cloner import ClonePlan
 
 pytestmark = pytest.mark.unit
 
@@ -33,7 +39,7 @@ def stage():
     return stage
 
 
-def test_mpm_points_author_and_import_through_usd(stage):
+def test_mpm_points_author_and_import_through_usd(stage, monkeypatch):
     material = MPMParticleMaterialCfg(
         young_modulus=2500.0,
         damping=0.125,
@@ -80,9 +86,52 @@ def test_mpm_points_author_and_import_through_usd(stage):
     np.testing.assert_allclose(builder.particle_qd, ((0.0, 0.1, 0.0), (-0.2, 0.0, 0.0)), atol=3.0e-8)
     np.testing.assert_allclose(builder.particle_mass, cfg.mass)
     np.testing.assert_allclose(builder.particle_radius, cfg.radius)
+    visual_points = UsdGeom.Points(stage.GetPrimAtPath("/World/Media/Particles"))
+    assert not visual_points.GetResetXformStack()
+    np.testing.assert_allclose(visual_points.GetPointsAttr().Get(), cfg.positions)
+    np.testing.assert_allclose(visual_points.GetWidthsAttr().Get(), (0.1, 0.12))
+    transform = UsdGeom.XformCache().GetLocalToWorldTransform(visual_points.GetPrim())
+    np.testing.assert_allclose(
+        [transform.Transform(point) for point in visual_points.GetPointsAttr().Get()], builder.particle_q, atol=2.0e-7
+    )
+    shared_cfg = cfg.copy()
+    shared_cfg.func("/World/Shared", shared_cfg, translation=(-2.0, 0.0, 0.0))
+    plan = ClonePlan(
+        sources=("/World/Media", "/World/Other"),
+        destinations=("/Scene/copy_{}/Media",) * 2,
+        clone_mask=np.array([[True, False, True], [False, True, False]]),
+        env_ids=np.array([12, 99, 7]),
+        global_paths=("/World/Shared",),
+    )
+    monkeypatch.setattr(sim_utils.SimulationContext, "instance", lambda: SimpleNamespace(get_clone_plan=lambda: plan))
+    state = SimpleNamespace(particle_q=wp.zeros(12, dtype=wp.vec3f, device="cpu"))
+    monkeypatch.setattr(NewtonSceneDataBackend, "state", property(lambda self: state))
+    backend = NewtonSceneDataBackend()
+    backend.initialize_geometry(plan)
+    monkeypatch.setattr(NewtonManager, "_scene_data_backend", backend)
+    asset = SimpleNamespace(
+        cfg=SimpleNamespace(prim_path="/Scene/copy_[^/]+/Media", spawn=cfg),
+        _recorded_particle_offsets=[4, 10],
+        _particles_per_object=2,
+    )
+    MPMObject._bind_particle_visualization(asset)
+    asset.cfg.prim_path = "/World/Shared"
+    asset.cfg.spawn = shared_cfg
+    asset._recorded_particle_offsets = [0]
+    MPMObject._bind_particle_visualization(asset)
+    assert not stage.GetPrimAtPath("/Scene/copy_12/Media/Particles")
+    [(publication, ranges)] = backend.get_geometry_batches()
+    assert publication.points is state.particle_q
+    assert ranges == {
+        "/Scene/copy_12/Media/Particles": (4, 2),
+        "/Scene/copy_7/Media/Particles": (10, 2),
+        "/World/Shared/Particles": (0, 2),
+    }
+    assert visual_points.GetPrim().GetAttribute("isaaclab:pointsUpdateFrequency").Get() == cfg.visual_update_frequency
 
 
-def test_mpm_grid_authors_explicit_particles(stage):
+@pytest.mark.parametrize("visible", [False, True])
+def test_mpm_grid_authors_explicit_particles(stage, visible):
     cfg = MPMGridCfg(
         lower=(0.0, 0.0, 0.0),
         upper=(0.2, 0.2, 0.2),
@@ -90,12 +139,14 @@ def test_mpm_grid_authors_explicit_particles(stage):
         particles_per_cell=1.0,
         particle_placement="cell_center",
         jitter=0.0,
+        visible=visible,
     )
     cfg.func("/World/Media", cfg)
 
     points = UsdGeom.Points(stage.GetPrimAtPath("/World/Media/geometry/points"))
     assert len(points.GetPointsAttr().Get()) == 8
     assert len(points.GetPrim().GetAttribute("physics:masses").Get()) == 8
+    assert bool(stage.GetPrimAtPath("/World/Media/Particles")) is visible
 
 
 def test_mpm_config_imports_do_not_load_pxr():
@@ -130,22 +181,22 @@ def test_mpm_config_imports_do_not_load_pxr():
 @pytest.mark.parametrize(
     "module",
     [
-        "scripts.demos.mpm.newton_mpm_granular",
-        "scripts.demos.mpm.newton_mpm_twoway_coupling",
-        "scripts.demos.mpm.snowball_smash",
-        "scripts.demos.mpm.teapot_fill",
+        "examples.mpm.newton_mpm_granular",
+        "examples.mpm.newton_mpm_twoway_coupling",
+        "examples.demos.snowball_smash",
+        "examples.demos.teapot_fill",
     ],
 )
-def test_mpm_demo_configs_do_not_load_pxr_before_simulation_launch(module):
-    """Every MPM demo must delay USD imports until after ``AppLauncher`` starts."""
+def test_mpm_program_configs_do_not_load_pxr_before_simulation_launch(module):
+    """Every MPM program must delay USD imports until after ``AppLauncher`` starts."""
     code = textwrap.dedent(
         f"""
         import importlib
         import sys
 
-        sys.argv = ["demo.py", "--max_steps", "0", "--visualizer", "none", "--device", "cuda:0"]
-        demo = importlib.import_module({module!r})
-        demo.create_sim_cfg()
+        sys.argv = ["program.py", "--max_steps", "0", "--visualizer", "none", "--device", "cuda:0"]
+        program = importlib.import_module({module!r})
+        program.create_sim_cfg()
 
         loaded_pxr_modules = [name for name in sys.modules if name == "pxr" or name.startswith("pxr.")]
         if loaded_pxr_modules:

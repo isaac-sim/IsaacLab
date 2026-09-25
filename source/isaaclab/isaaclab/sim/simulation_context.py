@@ -11,7 +11,7 @@ import traceback
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import fields
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
 import warp as wp
@@ -102,11 +102,34 @@ class SimulationContext:
     # SINGLETON PATTERN
 
     _instance: SimulationContext | None = None
+    _reset_callbacks: ClassVar[dict[str, Callable[[SimulationContext], None]]] = {}
 
     @classmethod
     def instance(cls) -> SimulationContext | None:
         """Get the singleton instance, or None if not created."""
         return cls._instance
+
+    @classmethod
+    def add_reset_callback(cls, name: str, fn: Callable[[SimulationContext], None]) -> None:
+        """Register a callback to fire after every :meth:`reset` of any simulation context.
+
+        Unlike :meth:`add_render_callback`, the callback is registered on the class, so a launcher
+        can install it before the script it runs creates its simulation context.
+
+        Args:
+            name: Unique identifier. Silently replaces any existing callback with the same name.
+            fn: Callable invoked with the reset simulation context once its visualizers are ready.
+        """
+        cls._reset_callbacks[name] = fn
+
+    @classmethod
+    def remove_reset_callback(cls, name: str) -> None:
+        """Unregister a previously registered reset callback.
+
+        Args:
+            name: Identifier passed to :meth:`add_reset_callback`. No-op if not found.
+        """
+        cls._reset_callbacks.pop(name, None)
 
     def __init__(self, cfg: SimulationCfg | None = None):
         """Initialize the simulation context.
@@ -195,6 +218,12 @@ class SimulationContext:
 
         # Construct visualizers before cloning; initialize their runtime bindings after physics is ready.
         self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend())
+        self.fabric_cfg: BackendCfg | None = None
+        """Native Fabric stage/device configuration, or None without Kit."""
+        if use_isaac_sim:
+            from isaaclab_physx.renderers.fabric import FabricBackendCfg  # noqa: PLC0415
+
+            self.fabric_cfg = FabricBackendCfg(stage=self.stage, device=self.device)
         self._visualizers: list[BaseVisualizer] = []
         self._pending_visualizers: list[BaseVisualizer] = []
         self._reset_requested: bool = False
@@ -620,11 +649,7 @@ class SimulationContext:
                     f"{install_hints}"
                 )
 
-        # XR auto-start: auto-inject a KitVisualizer when XR is active and no
-        # Kit visualizer is already present.  The KitVisualizer pumps
-        # app.update() and triggers forward() (via requires_forward_before_step)
-        # to sync Fabric data so the XR runtime receives up-to-date hand/joint
-        # transforms each frame.
+        # XR auto-start needs a Kit visualizer to publish SDP transforms before pumping the app.
         if self._xr_enabled and bool(self.get_setting("/isaaclab/xr/auto_start")):
             has_kit = any(getattr(cfg, "visualizer_type", None) == "kit" for cfg in resolved)
             if not has_kit:
@@ -766,6 +791,8 @@ class SimulationContext:
         self.physics_manager.play()
         self._is_playing = True
         self._is_stopped = False
+        for callback in tuple(self._reset_callbacks.values()):
+            callback(self)
 
     def step(self, render: bool = True) -> None:
         """Step physics and optionally render.
