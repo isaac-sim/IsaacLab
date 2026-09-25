@@ -369,10 +369,10 @@ def resolve_matching_names(
 
 
 def clear_resolve_matching_names_cache() -> None:
-    """Discard all cached results from :func:`resolve_matching_names`.
+    """Discard cached results shared by the name and name-value resolvers.
 
     Call this when the simulation scene is torn down so that cached
-    name-resolution entries from destroyed assets do not accumulate
+    entries from :func:`resolve_matching_names` and :func:`resolve_matching_names_values` do not accumulate
     across scene rebuilds in long-lived processes.
     """
     _resolve_matching_names_impl.cache_clear()
@@ -386,6 +386,9 @@ def resolve_matching_names_values(
 ) -> tuple[list[int], list[str], list[Any]]:
     """Match a list of regular expressions in a dictionary against a list of strings and return
     the matched indices, names, and values.
+
+    Regex matching results are cached, but values are read from ``data`` on every call. Use
+    :func:`clear_resolve_matching_names_cache` to discard the cached matching results.
 
     If the :attr:`preserve_order` is False, the ordering of the matched indices and names is the same as the order
     of the provided list of strings. This means that the ordering is dictated by the order of the target strings
@@ -416,10 +419,11 @@ def resolve_matching_names_values(
     """
     if not isinstance(data, dict):
         raise TypeError(f"Input argument `data` should be a dictionary. Received: {data}")
+    items = tuple(data.items())
     idx, names, key_idx, _ = _resolve_matching_names_impl(
-        tuple(data), tuple(list_of_strings), preserve_order, raise_when_no_match=strict
+        tuple(key for key, _ in items), tuple(list_of_strings), preserve_order, strict
     )
-    values = list(data.values())
+    values = [value for _, value in items]
     return list(idx), list(names), [values[i] for i in key_idx]
 
 
