@@ -655,7 +655,7 @@ class NewtonManager(PhysicsManager):
                 NewtonManager._transforms_may_change_on_graph_replay = True
 
     @classmethod
-    def _mark_particles_changed(cls) -> None:
+    def _mark_particles_dirty(cls) -> None:
         """Invalidate SDP geometry after native particle writes."""
         NewtonManager._scene_data_backend.geometry_version += 1
         device = wp.get_device(PhysicsManager._device)

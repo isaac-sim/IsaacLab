@@ -365,7 +365,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
-        SimulationManager._mark_particles_changed()
+        SimulationManager._mark_particles_dirty()
         self._invalidate_nodal_pos_cache()
 
     def write_nodal_velocity_to_sim_index(
@@ -480,7 +480,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
-        SimulationManager._mark_particles_changed()
+        SimulationManager._mark_particles_dirty()
         self._invalidate_nodal_state_cache()
 
     def write_nodal_pos_to_sim_mask(
@@ -512,7 +512,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
-        SimulationManager._mark_particles_changed()
+        SimulationManager._mark_particles_dirty()
         self._invalidate_nodal_pos_cache()
 
     def write_nodal_velocity_to_sim_mask(
