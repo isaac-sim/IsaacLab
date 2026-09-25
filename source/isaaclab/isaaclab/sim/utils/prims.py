@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any, ParamSpec, overload
 
 import torch
 
-from ...utils.assets import check_file_path, retrieve_file_path
+from ...utils.assets import retrieve_file_path
 from ...utils.string import to_camel_case
 from .queries import (
     find_matching_prim_paths,
@@ -913,15 +913,10 @@ def add_usd_reference(
     Raises:
         FileNotFoundError: When the input USD file is not found at the specified path.
     """
-    # resolve remote USD paths to local (same as Newton / add_reference_to_stage)
-    file_status = check_file_path(usd_path)
-    if file_status == 0:
-        raise FileNotFoundError(f"Unable to open the usd file at path: {usd_path}")
-    if file_status == 2:
-        try:
-            usd_path = retrieve_file_path(usd_path, force_download=False)
-        except Exception as e:
-            raise FileNotFoundError(f"Failed to retrieve USD file from {usd_path}") from e
+    try:
+        usd_path = retrieve_file_path(usd_path)
+    except Exception as e:
+        raise FileNotFoundError(f"Failed to retrieve USD file from {usd_path}") from e
 
     stage = get_current_stage() if stage is None else stage
     prim = stage.GetPrimAtPath(prim_path)

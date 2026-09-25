@@ -23,6 +23,7 @@ import re
 import subprocess
 import tempfile
 import uuid
+from collections.abc import Iterator
 from types import ModuleType
 from typing import Literal, NotRequired, TypedDict
 from urllib.parse import urlparse
@@ -34,7 +35,8 @@ from ..paths import ISAACLAB_ROOT
 logger = logging.getLogger(__name__)
 
 _UDIM_RE = re.compile(r"<UDIM>", re.IGNORECASE)
-_USD_EXTENSIONS = {".usd", ".usda", ".usdc", ".usdz"}
+# USDZ packages own their internal dependency layout and must not be rewritten.
+_USD_EXTENSIONS = {".usd", ".usda", ".usdc"}
 _MDL_RESOURCE_RE = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"|/\*.*?\*/|//[^\r\n]*', re.DOTALL)
 _MDL_TEXTURE_RE = re.compile(r"\.(?:bmp|dds|exr|hdr|ies|jpe?g|ktx2?|png|tga|tiff?|tx)(?:[?#].*)?$", re.IGNORECASE)
 _MDL_MODULE_PATTERN = r"(?:(?:\.\.::)++|\.::)[A-Za-z_]\w*+(?:::[A-Za-z_]\w*+)*+(?:::\*)?"
@@ -626,7 +628,8 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
     Dependencies are traversed through local files and remote URLs. Changed USD layers
     are written to working copies, preserving authored layers and raw downloads. Completed
     managed copies skip discovery while their file stamps match. Remote URLs retain the
-    normal server freshness checks.
+    normal server freshness checks. Renderer module identifiers and USDZ packages
+    retain their existing resolution behavior.
 
     Args:
         path: The path to the file.
@@ -663,129 +666,123 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
         raise FileNotFoundError(f"Unable to find the file: {path}")
     root = os.path.abspath(path) if os.path.isfile(path) else path.replace(os.sep, "/")
     download_dir = os.path.abspath(download_dir or tempfile.gettempdir())
-    to_visit = [root]
-    visited = set()
-    local_paths = {}
-    references = {}
+    prepared = {}
     files = {}
     complete = True
+    copy_dir = os.path.join(download_dir, f"isaaclab_usd_{uuid.uuid4().hex}")
+
+    def prepare(source: str) -> str | None:
+        nonlocal complete
+        if source in prepared:
+            return prepared[source]
+        remote = bool(urlparse(source).scheme) and not os.path.isabs(source)
+        target = _mirror_path(source, download_dir) if remote else source
+        prepared[source] = None
+        if _UDIM_RE.search(source):
+            for tile in range(1001, 1101):
+                tile_path = _UDIM_RE.sub(str(tile), source)
+                if check_file_path(tile_path) == 0:
+                    complete = complete and tile != 1001
+                    break
+                prepare(tile_path)
+            prepared[source] = target
+            return target
+
+        # Read detached contents while the download lock protects the raw mirror.
+        suffix = os.path.splitext(target)[1].lower()
+        with _download_file(source, download_dir, force_download) as local_path:
+            if local_path is None:
+                if source == root or (force_download and remote):
+                    raise RuntimeError(f"Unable to copy file: '{source}'")
+                complete = False
+                return None
+            stat = os.stat(local_path)
+            files[local_path] = (stat.st_mtime_ns, stat.st_size)
+            if suffix in _USD_EXTENSIONS:
+                from pxr import Ar, Sdf, UsdUtils  # noqa: PLC0415
+
+                layer = Sdf.Layer.OpenAsAnonymous(local_path)
+            else:
+                refs = _find_mdl_dependencies(local_path) if suffix == ".mdl" else ()
+
+        prepared[source] = local_path
+        if suffix not in _USD_EXTENSIONS:
+            for ref in refs:
+                dependency = prepare(_resolve_reference_url(source, ref))
+                complete = complete and dependency == _resolve_reference_url(local_path, ref)
+            return local_path
+
+        # Reserve before descending so shared children and cycles have one destination.
+        output = os.path.join(copy_dir, str(len(prepared)), os.path.basename(local_path))
+        prepared[source] = output
+        changed = False
+
+        def rewrite(ref: str) -> str:
+            nonlocal changed
+            if not ref:
+                return ref
+            dependency = _resolve_reference_url(source, ref)
+            # Unresolved MDL search identifiers belong to the renderer's module path.
+            if (
+                ref.endswith(".mdl")
+                and Ar.GetResolver().CreateIdentifier(ref, Ar.ResolvedPath(local_path)) == ref
+                and check_file_path(dependency) == 0
+            ):
+                return ref
+            resolved = prepare(dependency) or dependency
+            changed |= resolved != _resolve_reference_url(local_path, ref)
+            return resolved
+
+        UsdUtils.ModifyAssetPaths(layer, rewrite)
+        if changed:
+            os.makedirs(os.path.dirname(output))
+            if not layer.Export(output):
+                raise RuntimeError(f"Unable to save resolved USD layer: {output}")
+            stat = os.stat(output)
+            files[output] = (stat.st_mtime_ns, stat.st_size)
+            if remote:
+                _MIRRORED_URLS[output] = source
+        else:
+            prepared[source] = local_path
+        return prepared[source]
 
     from ..app.loading_screen import report_activity
 
     report_activity("Loading assets")
     try:
-        while to_visit:
-            source = to_visit.pop()
-            if source in visited:
-                continue
-            visited.add(source)
-            remote = bool(urlparse(source).scheme) and not os.path.isabs(source)
-            omni_client = _get_omni_client() if remote else None
-
-            # A UDIM reference names a set of tiles, not a file. Preserve the pattern
-            # for USD while visiting the actual files in the same dependency walk.
-            if _UDIM_RE.search(source):
-                local_paths[source] = _mirror_path(source, download_dir) if remote else source
-                for tile in range(1001, 1101):
-                    tile_path = _UDIM_RE.sub(str(tile), source)
-                    exists = (
-                        omni_client.stat(tile_path)[0] == omni_client.Result.OK if remote else os.path.isfile(tile_path)
-                    )
-                    if not exists:
-                        complete = complete and tile != 1001
-                        break
-                    to_visit.append(tile_path)
-                continue
-
-            target_path = _mirror_path(source, download_dir) if remote else source
-            if remote:
-                os.makedirs(os.path.dirname(target_path), exist_ok=True)
-            elif not os.path.isfile(target_path):
-                logger.debug("Skipping unavailable dependency: %s", source)
-                complete = False
-                continue
-
-            # Raw mirrors keep the server's bytes. Parse them under the download lock
-            # so another rank cannot replace a file while USD reads it.
-            with FileLock(target_path + ".lock") if remote else contextlib.nullcontext():
-                if remote and (force_download or not _usable_mirror(source, download_dir)):
-                    temporary_path = f"{target_path}.{uuid.uuid4().hex}.partial"
-                    try:
-                        result = omni_client.copy(source, temporary_path, omni_client.CopyBehavior.OVERWRITE)
-                        if result != omni_client.Result.OK:
-                            if force_download or source == root:
-                                raise RuntimeError(f"Unable to copy file: '{source}'")
-                            logger.debug("Skipping unavailable dependency: %s", source)
-                            complete = False
-                            continue
-                        os.replace(temporary_path, target_path)
-                        _write_mirror_fingerprint(source, target_path)
-                    finally:
-                        with contextlib.suppress(OSError):
-                            os.remove(temporary_path)
-                stat = os.stat(target_path)
-                refs = _find_asset_dependencies(target_path)
-
-            local_paths[source] = target_path
-            files[target_path] = (stat.st_mtime_ns, stat.st_size)
-            references[source] = {ref: _resolve_reference_url(source, ref) for ref in refs}
-            to_visit.extend(references[source].values())
-
-        # Reserve copy paths before writing so cycles and shared dependencies use the
-        # same destinations. Copy a parent whenever it must point at a copied child.
-        resolved_paths = local_paths.copy()
-        resolved_dir = None
-        changed = True
-        while changed:
-            changed = False
-            for index, (source, refs) in enumerate(references.items()):
-                local_path = local_paths[source]
-                if resolved_paths[source] != local_path:
-                    continue
-                if not any(
-                    resolved_paths.get(dependency, dependency) != _resolve_reference_url(local_path, ref)
-                    for ref, dependency in refs.items()
-                ):
-                    continue
-                if os.path.splitext(local_path)[1].lower() not in _USD_EXTENSIONS:
-                    # MDL module imports retain their mirrored directory layout. An
-                    # unresolved MDL resource must not certify a fully local tree.
-                    complete = False
-                    continue
-                if resolved_dir is None:
-                    os.makedirs(download_dir, exist_ok=True)
-                    resolved_dir = tempfile.mkdtemp(prefix="isaaclab_usd_", dir=download_dir)
-                resolved_paths[source] = os.path.join(resolved_dir, str(index), os.path.basename(local_path))
-                os.makedirs(os.path.dirname(resolved_paths[source]))
-                changed = True
-
-        for source, resolved_path in resolved_paths.items():
-            local_path = local_paths[source]
-            if resolved_path == local_path:
-                continue
-            from pxr import Sdf, UsdUtils  # noqa: PLC0415
-
-            layer = Sdf.Layer.OpenAsAnonymous(local_path)
-
-            def resolve_path(ref: str) -> str:
-                dependency = _resolve_reference_url(source, ref)
-                return resolved_paths.get(dependency, dependency) if ref else ref
-
-            UsdUtils.ModifyAssetPaths(layer, resolve_path)
-            if not layer.Export(resolved_path):
-                raise RuntimeError(f"Unable to save resolved USD layer: {resolved_path}")
-            stat = os.stat(resolved_path)
-            files[resolved_path] = (stat.st_mtime_ns, stat.st_size)
-            if source != local_path:
-                _MIRRORED_URLS[resolved_path] = source
-
+        result = prepare(root)
         if complete:
-            for source, resolved_path in resolved_paths.items():
-                if resolved_path != local_paths[source] or resolved_path in _MIRRORED_URLS:
-                    _LOCALIZED_ASSETS[resolved_path] = (source, files)
-        return resolved_paths[root]
+            for source, local_path in prepared.items():
+                if source != local_path:
+                    _LOCALIZED_ASSETS[local_path] = (source, files)
+        return result
     finally:
         report_activity(None)
+
+
+@contextlib.contextmanager
+def _download_file(source: str, download_dir: str, force_download: bool) -> Iterator[str | None]:
+    """Yield a local file while holding its remote mirror's download lock."""
+    if os.path.isabs(source) or not urlparse(source).scheme:
+        yield source if os.path.isfile(source) else None
+        return
+    omni_client = _get_omni_client()
+    target = _mirror_path(source, download_dir)
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    with FileLock(target + ".lock"):
+        if force_download or not _usable_mirror(source, download_dir):
+            temporary_path = f"{target}.{uuid.uuid4().hex}.partial"
+            try:
+                result = omni_client.copy(source, temporary_path, omni_client.CopyBehavior.OVERWRITE)
+                if result != omni_client.Result.OK:
+                    yield None
+                    return
+                os.replace(temporary_path, target)
+                _write_mirror_fingerprint(source, target)
+            finally:
+                with contextlib.suppress(OSError):
+                    os.remove(temporary_path)
+        yield target
 
 
 def read_file(path: str) -> io.BytesIO:
@@ -825,61 +822,15 @@ def read_file(path: str) -> io.BytesIO:
         raise FileNotFoundError(f"Unable to find the file: {path}")
 
 
-def _find_asset_dependencies(local_asset_path: str) -> set[str]:
-    """Collect external asset dependencies from a local asset file.
-
-    USD layers are parsed with OpenUSD. MDL files are scanned for quoted texture
-    resources and relative module imports because those references are resolved
-    later by the MDL compiler and are not reported by USD dependency discovery.
-    """
-    suffix = os.path.splitext(local_asset_path)[1].lower()
-
-    if suffix == ".mdl":
-        try:
-            with open(local_asset_path, encoding="utf-8") as f:
-                source = f.read()
-        except OSError as e:
-            logger.warning("Failed to open MDL file: %s (%s)", local_asset_path, e)
-            return set()
-
-        return _find_mdl_dependencies(source)
-
-    if suffix not in _USD_EXTENSIONS:
-        return set()
-
-    from pxr import Sdf, UsdUtils  # noqa: PLC0415
-
+def _find_mdl_dependencies(local_path: str) -> set[str]:
+    """Collect MDL resources and relative imports that USD does not discover."""
     try:
-        layer = Sdf.Layer.OpenAsAnonymous(local_asset_path)
-    except Exception:
-        logger.warning("Failed to open USD layer: %s", local_asset_path, exc_info=True)
+        with open(local_path, encoding="utf-8") as f:
+            source = f.read()
+    except OSError as e:
+        logger.warning("Failed to open MDL file: %s (%s)", local_path, e)
         return set()
 
-    if layer is None:
-        return set()
-
-    refs: set[str] = set()
-
-    def _collect(path: str) -> str:
-        """Record an asset path.
-
-        Args:
-            path: Asset path from the USD layer.
-
-        Returns:
-            The input path unchanged.
-        """
-        if path:
-            refs.add(path)
-        return path
-
-    UsdUtils.ModifyAssetPaths(layer, _collect)
-
-    return refs
-
-
-def _find_mdl_dependencies(source: str) -> set[str]:
-    """Collect local asset dependencies from MDL source text."""
     refs = set()
 
     for match in _MDL_RESOURCE_RE.finditer(source):

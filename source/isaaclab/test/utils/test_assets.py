@@ -278,7 +278,7 @@ def test_check_file_path_invalid():
     assert assets_utils.check_file_path(usd_path) == 0
 
 
-def test_find_asset_dependencies_collects_mdl_texture_resources(tmp_path):
+def test_find_mdl_dependencies_collects_mdl_texture_resources(tmp_path):
     """Test collecting texture resources from quoted MDL strings."""
     mdl_path = tmp_path / "material.mdl"
     mdl_path.write_text(
@@ -297,7 +297,7 @@ def test_find_asset_dependencies_collects_mdl_texture_resources(tmp_path):
         encoding="utf-8",
     )
 
-    assert assets_utils._find_asset_dependencies(str(mdl_path)) == {
+    assert assets_utils._find_mdl_dependencies(str(mdl_path)) == {
         "./textures/Albedo.png",
         "../shared/Normal.EXR",
         "https://example.com/materials/orm.<UDIM>.png",
@@ -305,7 +305,7 @@ def test_find_asset_dependencies_collects_mdl_texture_resources(tmp_path):
     }
 
 
-def test_find_asset_dependencies_collects_mdl_relative_import_modules(tmp_path):
+def test_find_mdl_dependencies_collects_mdl_relative_import_modules(tmp_path):
     """Test collecting sibling MDL modules imported by material files."""
     mdl_path = tmp_path / "material.mdl"
     mdl_path.write_text(
@@ -326,7 +326,7 @@ def test_find_asset_dependencies_collects_mdl_relative_import_modules(tmp_path):
         encoding="utf-8",
     )
 
-    assert assets_utils._find_asset_dependencies(str(mdl_path)) == {
+    assert assets_utils._find_mdl_dependencies(str(mdl_path)) == {
         "OmniUe4Function.mdl",
         "OmniUe4Translucent.mdl",
         "Shared/OmniUe4Base.mdl",
@@ -340,11 +340,11 @@ def test_find_asset_dependencies_collects_mdl_relative_import_modules(tmp_path):
     }
 
 
-def test_find_asset_dependencies_missing_mdl_does_not_log_traceback(tmp_path, caplog):
+def test_find_mdl_dependencies_missing_mdl_does_not_log_traceback(tmp_path, caplog):
     """Test unavailable MDL dependencies do not emit tracebacks in training logs."""
     missing_mdl = tmp_path / "missing.mdl"
 
-    assert assets_utils._find_asset_dependencies(str(missing_mdl)) == set()
+    assert assets_utils._find_mdl_dependencies(str(missing_mdl)) == set()
     assert "Traceback (most recent call last):" not in caplog.text
 
 
@@ -563,14 +563,14 @@ def _cache_asset(cache_dir, url: str, payload: bytes, fingerprint: dict | None) 
     return mirrored
 
 
-@pytest.mark.parametrize("layout", ["direct", "nested", "remote"])
+@pytest.mark.parametrize("layout", ["direct", "nested", "remote", "package"])
 def test_local_usd_mirrors_remote_sublayer_without_editing_source(asset_cache, monkeypatch, layout):
     """Compose local and remote dependency chains without editing the authored layers."""
     import omni.client
-    from pxr import Usd
+    from pxr import Sdf, Usd
 
     layers = {
-        "local.usda": '#usda 1.0\ndef Xform "local" {}\n',
+        "local.usda": '#usda 1.0\ndef Shader "local" {\n asset info:mdl:sourceAsset = @OmniPBR.mdl@\n}\n',
         "robot.usda": f"#usda 1.0\n(subLayers = [@{_REMOTE_URL}@, @local.usda@])\n",
         "scene.usda": "#usda 1.0\n(subLayers = [@robot.usda@])\n",
     }
@@ -583,21 +583,36 @@ def test_local_usd_mirrors_remote_sublayer_without_editing_source(asset_cache, m
         "https://example.com/local.usda": layers["local.usda"],
     }
     revision = {"hash": "abc123", "version": "", "size": 32, "modified_time": "2026-07-01 10:00:00"}
-    _serve(monkeypatch, dict.fromkeys(payloads, revision))
 
     def fake_copy(url, target_path, behavior):
-        Path(target_path).write_text(payloads[url], encoding="utf-8")
+        if url not in payloads:
+            return omni.client.Result.ERROR_NOT_FOUND
+        data = payloads[url]
+        Path(target_path).write_bytes(data.encode() if isinstance(data, str) else data)
         return omni.client.Result.OK
 
     monkeypatch.setattr(omni.client, "copy", fake_copy)
     source = {"direct": str(asset_cache / "robot.usda"), "nested": str(asset_cache / "scene.usda"), "remote": root_url}
+    if layout == "package":
+        source[layout] = _REMOTE_URL + "z"
+        package_path = asset_cache / "scene.usdz"
+        package_root = asset_cache / "package.usda"
+        package_root.write_text('#usda 1.0\n(subLayers = [@local.usda@])\ndef Xform "cartpole" {}\n')
+        with Usd.ZipFileWriter.CreateNew(str(package_path)) as package:
+            package.AddFile(str(package_root), "package.usda")
+            package.AddFile(str(asset_cache / "local.usda"), "local.usda")
+        payloads[source[layout]] = package_path.read_bytes()
+    _serve(monkeypatch, dict.fromkeys(payloads, revision))
     resolved_path = assets_utils.retrieve_file_path(source[layout])
     stage = Usd.Stage.Open(resolved_path)
     assert stage.GetPrimAtPath("/cartpole").IsValid()
     assert stage.GetPrimAtPath("/local").IsValid()
+    assert stage.GetPrimAtPath("/local").GetAttribute("info:mdl:sourceAsset").Get().path == "OmniPBR.mdl"
     assert {name: (asset_cache / name).read_text(encoding="utf-8") for name in layers} == layers
+    if layout == "package":
+        assert Path(resolved_path).read_bytes() == payloads[source[layout]]
 
-    monkeypatch.setattr(assets_utils, "_find_asset_dependencies", lambda _: pytest.fail("walked a completed tree"))
+    monkeypatch.setattr(Sdf.Layer, "OpenAsAnonymous", lambda _: pytest.fail("walked a completed tree"))
     assert assets_utils.retrieve_file_path(resolved_path) == resolved_path
 
 
@@ -688,7 +703,6 @@ def test_retrieve_file_path_serializes_cold_cache_population(asset_cache, monkey
         return omni.client.Result.OK
 
     monkeypatch.setattr(omni.client, "copy", fake_copy)
-    monkeypatch.setattr(assets_utils, "_find_asset_dependencies", lambda path: set())
     start = threading.Barrier(2)
 
     def retrieve() -> str:
