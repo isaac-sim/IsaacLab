@@ -1442,14 +1442,18 @@ class NewtonManager(PhysicsManager):
         This function finalizes the model and initializes the simulation state.
         Note: Collision pipeline is initialized later in initialize_solver() after
         we determine whether the solver needs external collision detection.
+
+        Raises:
+            RuntimeError: If neither clone-plan replication nor :meth:`set_builder` supplied a builder.
         """
         logger.debug(f"Builder: {cls._builder}")
+        if cls._builder is None:
+            raise RuntimeError(
+                "Newton simulation requires an explicitly supplied builder. Replicate a ClonePlan or call"
+                " NewtonManager.set_builder() before starting the simulation."
+            )
 
         cls._drain_stale_cuda_error()
-
-        # Create builder from USD stage if not provided
-        if cls._builder is None:
-            cls.instantiate_builder_from_stage()
         cls._register_builder_attributes(cls._builder)
 
         logger.info("Dispatching MODEL_INIT callbacks")

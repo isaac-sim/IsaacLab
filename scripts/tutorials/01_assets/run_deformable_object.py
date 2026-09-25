@@ -48,61 +48,58 @@ import torch
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
+from isaaclab.assets import AssetBaseCfg, DeformableObjectCfg
+from isaaclab.cloner import CloneCfg
 from isaaclab.physics import PhysicsCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from isaaclab.assets import DeformableObject
+    from isaaclab.scene import InteractiveScene
 
 
-def design_scene():
-    """Designs the scene."""
-    from isaaclab.assets import DeformableObject, DeformableObjectCfg
+youngs_modulus = 1e5
+poissons_ratio = 0.4
+density = 500.0
+if args_cli.backend == "newton_vbd":
+    from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
+    from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
 
-    # Ground-plane
-    cfg = sim_utils.GroundPlaneCfg()
-    cfg.func("/World/defaultGroundPlane", cfg)
-    # Lights
-    cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.8, 0.8, 0.8))
-    cfg.func("/World/Light", cfg)
+    deformable_props = NewtonDeformableBodyPropertiesCfg()
+    # Newton's VBD path skips the simulation mesh collider, so collision offsets do not apply
+    collision_props = None
+    physics_material = NewtonDeformableBodyMaterialCfg(
+        k_mu=youngs_modulus / (2.0 * (1.0 + poissons_ratio)),
+        k_lambda=youngs_modulus * poissons_ratio / ((1.0 + poissons_ratio) * (1.0 - 2.0 * poissons_ratio)),
+        density=density,
+    )
+else:
+    from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg
+    from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
-    # Create a dictionary for the scene entities
-    scene_entities = {}
+    deformable_props = PhysxDeformableBodyPropertiesCfg()
+    collision_props = [PhysxCollisionCfg(rest_offset=0.0, contact_offset=0.001)]
+    physics_material = PhysxDeformableBodyMaterialCfg(
+        poissons_ratio=poissons_ratio, youngs_modulus=youngs_modulus, density=density
+    )
 
-    # Create separate groups called "env_0", "env_1", ...
-    # Newton's scene loader requires the "env_\d+" naming convention to
-    # detect per-environment Xforms and replicate them as separate worlds.
-    origins = [[0.25, 0.25, 0.0], [-0.25, 0.25, 0.0], [0.25, -0.25, 0.0], [-0.25, -0.25, 0.0]]
-    for i, origin in enumerate(origins):
-        sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=origin)
 
-    youngs_modulus = 1e5
-    poissons_ratio = 0.4
-    density = 500.0
-    if args_cli.backend == "newton_vbd":
-        from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
-        from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
+@configclass
+class DeformableSceneCfg(InteractiveSceneCfg):
+    """Soft cubes on a shared ground plane."""
 
-        deformable_props = NewtonDeformableBodyPropertiesCfg()
-        # Newton's VBD path skips the simulation mesh collider, so collision offsets do not apply
-        collision_props = None
-        physics_material = NewtonDeformableBodyMaterialCfg(
-            k_mu=youngs_modulus / (2.0 * (1.0 + poissons_ratio)),
-            k_lambda=youngs_modulus * poissons_ratio / ((1.0 + poissons_ratio) * (1.0 - 2.0 * poissons_ratio)),
-            density=density,
-        )
-    else:
-        from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg
-        from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
+    filter_collisions = False
+    clone_cfg = CloneCfg(clone_template="/World/env_{}")
 
-        deformable_props = PhysxDeformableBodyPropertiesCfg()
-        collision_props = [PhysxCollisionCfg(rest_offset=0.0, contact_offset=0.001)]
-        physics_material = PhysxDeformableBodyMaterialCfg(
-            poissons_ratio=poissons_ratio, youngs_modulus=youngs_modulus, density=density
-        )
+    ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    light = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.8, 0.8, 0.8))
+    )
 
     # 3D Deformable Object
-    cfg = DeformableObjectCfg(
-        prim_path="/World/env_.*/Cube",
+    cube_object = DeformableObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Cube",
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.2, 0.2, 0.2),
             deformable_props=deformable_props,
@@ -114,19 +111,11 @@ def design_scene():
         debug_vis=True,
     )
 
-    cube_object = DeformableObject(cfg=cfg)
-    scene_entities["cube_object"] = cube_object
 
-    # return the scene information
-    return scene_entities, origins
-
-
-def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: torch.Tensor):
+def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene"):
     """Runs the simulation loop."""
     # Extract scene entities
-    # note: we only do this here for readability. In general, it is better to access the entities directly from
-    #   the dictionary. This dictionary is replaced by the InteractiveScene class in the next tutorial.
-    cube_object: DeformableObject = entities["cube_object"]
+    cube_object: DeformableObject = scene["cube_object"]
 
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -146,7 +135,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: tor
             # reset the nodal state of the object
             nodal_state = cube_object.data.default_nodal_state_w.torch.clone()
             # apply random pose to the object
-            pos_w = torch.rand(cube_object.num_instances, 3, device=sim.device) * 0.1 + origins
+            pos_w = torch.rand(cube_object.num_instances, 3, device=sim.device) * 0.1 + scene.env_origins
             quat_w = math_utils.random_orientation(cube_object.num_instances, device=sim.device)
             nodal_state[..., :3] = cube_object.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
 
@@ -164,8 +153,8 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: tor
             print("----------------------------------------")
             print("[INFO]: Resetting object state...")
 
-        # update the kinematic target for cubes at index 0 and 3
-        kinematic_cubes = [0, 3]
+        # update the kinematic target for cubes at the positive and negative diagonal corners
+        kinematic_cubes = [1, 2]
         # we slightly move the cube in the z-direction by picking the vertex at index 0
         nodal_kinematic_target[kinematic_cubes, 0, 2] += 0.2 * sim_dt
         # set vertex at index 0 to be kinematically constrained
@@ -199,15 +188,14 @@ def main():
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[2.0, 2.0, 2.0], target=[0.0, 0.0, 0.75])
-        # Design scene
-        scene_entities, scene_origins = design_scene()
-        scene_origins = torch.tensor(scene_origins, device=sim.device)
+        scene_cfg = DeformableSceneCfg(num_envs=4, env_spacing=0.5)
+        scene = scene_cfg.class_type(scene_cfg)
         # Play the simulator
         sim.reset()
         # Now we are ready!
         print("[INFO]: Setup complete...")
         # Run the simulator
-        run_simulator(sim, scene_entities, scene_origins)
+        run_simulator(sim, scene)
         print("[INFO]: Simulation complete...")
 
 

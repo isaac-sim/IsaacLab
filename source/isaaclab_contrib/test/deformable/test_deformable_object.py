@@ -16,6 +16,7 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -30,6 +31,7 @@ from isaaclab_newton.sim.spawners.materials import (
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import DeformableObject, DeformableObjectCfg
+from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
 NEWTON_VBD_CFG = SimulationCfg(
@@ -47,24 +49,18 @@ def _newton_sim_context(device="cuda:0", gravity_enabled=True):
     return build_simulation_context(device=device, sim_cfg=NEWTON_VBD_CFG, auto_add_lighting=True)
 
 
-def generate_cubes_scene(
-    num_cubes: int = 1,
-    height: float = 1.0,
-    device: str = "cuda:0",
-) -> DeformableObject:
+def generate_cubes_scene(num_cubes: int = 1, height: float = 1.0) -> DeformableObject:
     """Generate a scene with deformable tet-mesh cubes.
 
     Args:
         num_cubes: Number of cubes to generate.
         height: Height of the cubes.
-        device: Device to use for the simulation.
 
     Returns:
         The deformable object representing the cubes.
     """
-    origins = torch.tensor([(i * 1.0, 0, height) for i in range(num_cubes)]).to(device)
-    for i, origin in enumerate(origins):
-        sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=origin)
+    origins = np.asarray([(i * 1.0, 0, height) for i in range(num_cubes)], dtype=np.float32)
+    sim_utils.create_prim("/World/env_0", "Xform", translation=origins[0])
 
     cube_object_cfg = DeformableObjectCfg(
         prim_path="/World/env_[^/]+/Cube",
@@ -83,28 +79,26 @@ def generate_cubes_scene(
             rot=(1.0, 0.0, 0.0, 0.0),
         ),
     )
+    plan = clone_plan_from_env_0(
+        CloneCfg(clone_template="/World/env_{}"), (cube_object_cfg,), num_cubes, 1.0, positions=origins
+    )
     cube_object = DeformableObject(cfg=cube_object_cfg)
+    replicate(plan)
     return cube_object
 
 
-def generate_cloth_scene(
-    num_cloths: int = 1,
-    height: float = 1.0,
-    device: str = "cuda:0",
-) -> DeformableObject:
+def generate_cloth_scene(num_cloths: int = 1, height: float = 1.0) -> DeformableObject:
     """Generate a scene with surface deformable cloth squares.
 
     Args:
         num_cloths: Number of cloths to generate.
         height: Height of the cloths.
-        device: Device to use for the simulation.
 
     Returns:
         The deformable object representing the cloths.
     """
-    origins = torch.tensor([(i * 1.0, 0, height) for i in range(num_cloths)]).to(device)
-    for i, origin in enumerate(origins):
-        sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=origin)
+    origins = np.asarray([(i * 1.0, 0, height) for i in range(num_cloths)], dtype=np.float32)
+    sim_utils.create_prim("/World/env_0", "Xform", translation=origins[0])
 
     cloth_object_cfg = DeformableObjectCfg(
         prim_path="/World/env_[^/]+/Cloth",
@@ -120,7 +114,12 @@ def generate_cloth_scene(
             rot=(1.0, 0.0, 0.0, 0.0),
         ),
     )
-    return DeformableObject(cfg=cloth_object_cfg)
+    plan = clone_plan_from_env_0(
+        CloneCfg(clone_template="/World/env_{}"), (cloth_object_cfg,), num_cloths, 1.0, positions=origins
+    )
+    cloth_object = DeformableObject(cfg=cloth_object_cfg)
+    replicate(plan)
+    return cloth_object
 
 
 def generate_cuboid_and_cylinder_scene(height: float = 1.0) -> tuple[DeformableObject, DeformableObject]:
@@ -156,7 +155,10 @@ def generate_cuboid_and_cylinder_scene(height: float = 1.0) -> tuple[DeformableO
         ),
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, height + 0.2)),
     )
-    return DeformableObject(cfg=cuboid_cfg), DeformableObject(cfg=cylinder_cfg)
+    plan = clone_plan_from_env_0(CloneCfg(clone_template="/World/env_{}"), (cuboid_cfg, cylinder_cfg), 1, 0.0)
+    cuboid, cylinder = DeformableObject(cfg=cuboid_cfg), DeformableObject(cfg=cylinder_cfg)
+    replicate(plan)
+    return cuboid, cylinder
 
 
 @pytest.fixture
