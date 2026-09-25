@@ -9,8 +9,8 @@
 backend-specific. The Newton view used to update Warp state only, leaving ``camera.data.pos_w`` correct
 while the RTX renderer -- which reads the camera prim -- kept drawing the old pose.
 
-Both tests raise a downward-looking camera over the ground plane, which scales the distance to every
-visible surface, and check one observable consequence each: the reported pose, and the rendered depth.
+The test raises a downward-looking camera over the ground plane, which scales the distance to every
+visible surface, and checks both observable consequences: the reported pose and the rendered depth.
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -107,26 +107,20 @@ def _capture_at_heights(physics_cfg, heights_m: tuple[float, ...]) -> list[tuple
 
 
 @pytest.mark.parametrize("physics_cfg", BACKEND_CFGS, ids=BACKEND_IDS)
-def test_camera_pose_write_moves_reported_pose(physics_cfg):
-    """``camera.data.pos_w`` follows a ``set_world_poses`` write on every backend."""
-    (pos_close, _), (pos_far, _) = _capture_at_heights(physics_cfg, (CLOSE_M, FAR_M))
-
-    np.testing.assert_allclose(pos_close.numpy(), [[0.0, 0.0, CLOSE_M]], atol=1e-3)
-    np.testing.assert_allclose(pos_far.numpy(), [[0.0, 0.0, FAR_M]], atol=1e-3)
-
-
-@pytest.mark.parametrize("physics_cfg", BACKEND_CFGS, ids=BACKEND_IDS)
-def test_camera_pose_write_moves_render(physics_cfg):
-    """The rendered depth follows a ``set_world_poses`` write on every backend.
+def test_camera_pose_write_moves_pose_and_render(physics_cfg):
+    """``camera.data.pos_w`` and the rendered depth follow a ``set_world_poses`` write on every backend.
 
     A write that never reaches the camera prim the RTX renderer reads leaves the image at the old pose,
-    collapsing the ratio to ~1.
+    collapsing the depth ratio to ~1.
     """
     # The true ratio is ~4x; 1.5 leaves room for the ground plane filling different fractions of the
     # frame while still failing hard if the render does not move at all.
     depth_ratio_threshold = 1.5
 
-    (_, depth_close_m), (_, depth_far_m) = _capture_at_heights(physics_cfg, (CLOSE_M, FAR_M))
+    (pos_close, depth_close_m), (pos_far, depth_far_m) = _capture_at_heights(physics_cfg, (CLOSE_M, FAR_M))
+
+    np.testing.assert_allclose(pos_close.numpy(), [[0.0, 0.0, CLOSE_M]], atol=1e-3)
+    np.testing.assert_allclose(pos_far.numpy(), [[0.0, 0.0, FAR_M]], atol=1e-3)
 
     ratio = depth_far_m / depth_close_m
     assert ratio > depth_ratio_threshold, (
