@@ -402,22 +402,16 @@ class DirectRLEnv(gym.Env):
         # note: uses cached property to avoid settings lookup every step
         is_rendering = self.sim.is_rendering
 
-        # A manager-owned call advances the full decimation block; other calls advance one physics step.
+        # physics-owned decimation covers all substeps in one call
         steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
         for _ in range(self.cfg.decimation // steps_per_call):
             self._sim_step_counter += steps_per_call
-            # set actions into buffers
             self._apply_action()
-            # set actions into simulator
             self.scene.write_data_to_sim()
-            # simulate
             self.sim.step(render=False)
-            # Render only when the completed call ends on a render interval boundary.
-            # When render_enabled is False, Kit visualizer (camera/GUI) is skipped
-            # but standalone visualizers (Newton, Rerun, Viser) still update.
+            # render_enabled=False skips Kit (camera/GUI); standalone visualizers still update
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
                 self.sim.render(skip_app_pumping=not self.render_enabled)
-            # update buffers at the covered dt
             self.scene.update(dt=self.physics_dt * steps_per_call)
 
         # post-step:
