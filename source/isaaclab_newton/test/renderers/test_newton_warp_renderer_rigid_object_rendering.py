@@ -49,7 +49,7 @@ def test_kinematic_rigid_object_scale_and_pose_are_rendered() -> None:
     )
 
 
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_intrinsic_updates_preserve_shared_ray_storage(device):
     """Uniform updates reuse the ray field; nonuniform calibration fails without changing rays."""
     data = SimpleNamespace(

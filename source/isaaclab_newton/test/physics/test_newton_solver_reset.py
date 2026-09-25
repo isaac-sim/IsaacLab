@@ -60,7 +60,7 @@ def _generate_single_joint_articulations(num_articulations: int, device: str) ->
     return articulation
 
 
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_env_reset_clears_selected_mjwarp_solver_internals(device):
     """An env reset clears the flagged world's MuJoCo warm-start history and keeps the others.
 
