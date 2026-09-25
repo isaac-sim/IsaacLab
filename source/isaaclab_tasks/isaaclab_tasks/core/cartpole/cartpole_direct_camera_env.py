@@ -55,7 +55,7 @@ class CartpoleCameraEnv(CartpoleEnv):
 
     def _get_observations(self) -> dict:
         data_type = self.cfg.scene.tiled_camera.data_types[0]
-        camera_data = self._tiled_camera.data.output[data_type]
+        camera_data = self._tiled_camera.data.output[data_type].torch
 
         rgb_like = is_rgb_like(data_type)
         segmentation = data_type == "semantic_segmentation"
@@ -68,13 +68,14 @@ class CartpoleCameraEnv(CartpoleEnv):
         if data_type == "albedo":
             # albedo carries an extra alpha channel that the policy does not use
             camera_data = camera_data[..., :3]
-        if (rgb_like or segmentation) and not defer_normalize:
-            camera_data = normalize_camera_image(camera_data, data_type)
-        elif data_type == "depth":
-            camera_data[camera_data == float("inf")] = 0
-
         # convert to channel-first [B, C, H, W] expected by the CNN policies (rsl_rl, rl_games, skrl)
-        obs = camera_data.permute(0, 3, 1, 2).contiguous()
+        if (rgb_like or segmentation) and not defer_normalize:
+            # normalize straight into the channel-first layout
+            obs = normalize_camera_image(camera_data, data_type, output_channel_dim=1)
+        else:
+            if data_type == "depth":
+                camera_data[camera_data == float("inf")] = 0
+            obs = camera_data.permute(0, 3, 1, 2).contiguous()
 
         if self._stack is not None:
             self._stack.append(obs)
@@ -92,7 +93,7 @@ class CartpoleCameraEnv(CartpoleEnv):
             obs = obs.clone()
 
         if self.cfg.write_image_to_file:
-            save_images_to_file(self._tiled_camera.data.output[data_type] / 255.0, f"cartpole_{data_type}.png")
+            save_images_to_file(self._tiled_camera.data.output[data_type].torch / 255.0, f"cartpole_{data_type}.png")
 
         critic_obs = super()._get_observations()["policy"]
         return {"policy": obs, "critic": critic_obs}

@@ -22,7 +22,6 @@ from .utils import sample_object_point_cloud
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
-    from isaaclab.sensors import Camera
 
 
 def object_quat_b(
@@ -123,7 +122,7 @@ class object_point_cloud_b(ManagerTermBase):
         self.ref_asset: Articulation = env.scene[ref_asset_cfg.name]
         self.points_local = sample_object_point_cloud(env.num_envs, num_points, self.object.cfg.prim_path, env.device)
         self.points_w = torch.zeros_like(self.points_local)
-        if cfg.params.get("visualize", True):
+        if cfg.params.get("visualize", False):
             marker_cfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/ObservationPointCloud")
             marker_cfg.markers["hit"].radius = 0.0025
             self.visualizer = VisualizationMarkers(marker_cfg)
@@ -136,7 +135,7 @@ class object_point_cloud_b(ManagerTermBase):
         object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
         num_points: int = 10,
         flatten: bool = False,
-        visualize: bool = True,
+        visualize: bool = False,
     ) -> torch.Tensor:
         """Compute the object point cloud in the reference asset's root frame.
 
@@ -148,7 +147,8 @@ class object_point_cloud_b(ManagerTermBase):
             flatten: Whether to return the points as ``(num_envs, 3 * num_points)`` instead of
                 ``(num_envs, num_points, 3)``.
             visualize: Whether to draw markers for the points. The markers are only created when this is
-                ``True`` in the term parameters.
+                ``True`` in the term parameters. Defaults to False, since drawing ``num_envs * num_points``
+                markers every step is costly and, with RTX rendering, puts the markers into camera images.
 
         Returns:
             Object surface points [m] in the reference root frame, flattened if requested.
@@ -190,33 +190,6 @@ def fingers_contact_force_b(
     robot: Articulation = env.scene[asset_cfg.name]
     root_quat_w = robot.data.root_link_quat_w.torch.unsqueeze(1).expand(-1, force_w.shape[1], -1)
     return quat_apply_inverse(root_quat_w, force_w).view(env.num_envs, -1)
-
-
-class vision_camera(ManagerTermBase):
-    """Normalized, channel-first camera images from a single-data-type camera sensor.
-
-    RGB-like images are mapped to ``[-0.5, 0.5)``. Depth images are mapped onto the same span with
-    ``tanh(depth / 2) - 0.5``: a wider depth range would double the encoder's effective input scale
-    and halve the stable learning-rate budget.
-    """
-
-    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        sensor_cfg: SceneEntityCfg = cfg.params.get("sensor_cfg", SceneEntityCfg("tiled_camera"))
-        self.sensor: Camera = env.scene.sensors[sensor_cfg.name]
-        self.sensor_type = self.sensor.cfg.data_types[0]
-        self._is_depth = self.sensor_type in ("distance_to_image_plane", "depth")
-
-    def __call__(self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, normalize: bool = True) -> torch.Tensor:
-        images = self.sensor.data.output[self.sensor_type]
-        torch.nan_to_num_(images, nan=1e6)
-        if normalize:
-            if self._is_depth:
-                images = torch.tanh(images / 2) - 0.5
-            else:
-                images = images.float() / 255.0 - 0.5
-            images = images.permute(0, 3, 1, 2).contiguous()
-        return images
 
 
 def deformable_com_in_robot_root_frame(

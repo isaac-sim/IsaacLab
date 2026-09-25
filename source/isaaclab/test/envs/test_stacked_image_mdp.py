@@ -16,10 +16,12 @@ from unittest import mock
 
 import pytest
 import torch
+import warp as wp
 
 pytestmark = pytest.mark.unit
 
 from isaaclab.envs.mdp.observations import image_features, stacked_image
+from isaaclab.utils.warp import ProxyArray
 
 NUM_ENVS = 4
 HEIGHT = 8
@@ -195,9 +197,9 @@ class TestStackedImage:
         )
 
 
-def _make_image_env_with_sensor(camera_buf: torch.Tensor) -> SimpleNamespace:
-    """Mock env exposing ``env.scene.sensors[name].data.output[type]`` = ``camera_buf``."""
-    sensor = SimpleNamespace(data=SimpleNamespace(output={"rgb": camera_buf}))
+def _make_image_env_with_sensor(camera_buf: torch.Tensor, data_type: str = "rgb") -> SimpleNamespace:
+    """Mock env exposing ``env.scene.sensors[name].data.output[type]`` as a ProxyArray over ``camera_buf``."""
+    sensor = SimpleNamespace(data=SimpleNamespace(output={data_type: ProxyArray(wp.from_torch(camera_buf))}))
     scene = SimpleNamespace(sensors={"tiled_camera": sensor})
     return SimpleNamespace(scene=scene, num_envs=NUM_ENVS, device="cpu")
 
@@ -216,7 +218,7 @@ class TestImageFunctionCloneKwarg:
         assert out.data_ptr() == camera_buf.data_ptr()
 
     def test_clone_true_returns_independent_copy(self):
-        """The default ``clone=True`` path returns a fresh tensor independent of the camera buffer."""
+        """The ``clone=True`` path returns a fresh tensor independent of the camera buffer."""
         from isaaclab.envs.mdp.observations import image
 
         camera_buf = torch.randint(0, 255, (NUM_ENVS, HEIGHT, WIDTH, CHANNELS), dtype=torch.uint8)
@@ -224,6 +226,17 @@ class TestImageFunctionCloneKwarg:
         cfg = SimpleNamespace(name="tiled_camera")
         out = image(env, sensor_cfg=cfg, data_type="rgb", normalize=False, clone=True)
         assert out.data_ptr() != camera_buf.data_ptr()
+
+    def test_colorized_segmentation_is_scaled(self):
+        """Colorized segmentation from a sensor ProxyArray is scaled like RGB, not only cast to float."""
+        from isaaclab.envs.mdp.observations import image
+
+        camera_buf = torch.full((NUM_ENVS, HEIGHT, WIDTH, 4), 255, dtype=torch.uint8)
+        camera_buf[:, 0, 0] = 0
+        env = _make_image_env_with_sensor(camera_buf, "semantic_segmentation")
+        cfg = SimpleNamespace(name="tiled_camera")
+        out = image(env, sensor_cfg=cfg, data_type="semantic_segmentation")
+        assert out.max() <= 1.0
 
 
 def test_image_features_flattens_encoder_output():
