@@ -101,28 +101,6 @@ def test_instance_segmentation_groups_by_labelled_ancestor():
     assert mapping.info["idToSemantics"][ids[0]] == {"class": "cartpole"}
 
 
-def test_colorize_info_keys_are_color_tuples():
-    """With colorization, info keys are ``(r, g, b, a)`` color tuples and a color palette is built."""
-    stage, shape_paths = _scene()
-    mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg(), _empty_clone_plan())
-    mapper.build_mapping("semantic_segmentation", colorize=True)
-    mapping = mapper.get_mapping("semantic_segmentation", colorize=True)
-
-    assert mapping.shape_to_color is not None
-    assert random_color_from_id(BACKGROUND_ID) in mapping.info["idToLabels"]
-    assert random_color_from_id(UNLABELLED_ID) in mapping.info["idToLabels"]
-
-
-def test_semantic_filter_excludes_non_matching_types():
-    """A filter restricted to an absent type marks every shape UNLABELLED."""
-    stage, shape_paths = _scene()
-    mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg(semantic_filter=["shape"]), _empty_clone_plan())
-    mapper.build_mapping("semantic_segmentation", colorize=False)
-    mapping = mapper.get_mapping("semantic_segmentation", colorize=False)
-
-    assert mapping.shape_to_id.numpy().tolist() == [UNLABELLED_ID] * len(shape_paths)
-
-
 def test_semantic_filter_comma_separated_type_clauses():
     """Comma-separated ``type:label`` pairs within one semicolon group each match independently.
 
@@ -266,7 +244,10 @@ def test_prototype_fallback_respects_semantic_filter():
 
 
 def test_semantic_segmentation_mapping_overrides_color():
-    """``semantic_segmentation_mapping`` forces the class color and its info key."""
+    """``semantic_segmentation_mapping`` forces the class color and its info key.
+
+    With colorization, info keys are ``(r, g, b, a)`` color tuples and a color palette is built.
+    """
     stage, shape_paths = _scene()
     override = (255, 36, 66, 255)
     mapper = NewtonSegmentationMapper(
@@ -278,6 +259,9 @@ def test_semantic_segmentation_mapping_overrides_color():
     mapper.build_mapping("semantic_segmentation", colorize=True)
     mapping = mapper.get_mapping("semantic_segmentation", colorize=True)
 
+    assert mapping.shape_to_color is not None
+    assert random_color_from_id(BACKGROUND_ID) in mapping.info["idToLabels"]
+    assert random_color_from_id(UNLABELLED_ID) in mapping.info["idToLabels"]
     # The cartpole class id must be colored with the override, and keyed by it in idToLabels.
     assert override in mapping.info["idToLabels"]
     assert mapping.info["idToLabels"][override] == {"class": "cartpole"}

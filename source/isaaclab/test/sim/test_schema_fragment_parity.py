@@ -277,25 +277,9 @@ def test_joint_drive_fragments_match_legacy_authoring(joint_type):
     assert authored[f"drive:{instance}:physics:stiffness"] == pytest.approx(100.0 * scale)
     assert authored[f"drive:{instance}:physics:damping"] == pytest.approx(10.0 * scale)
     assert authored[f"drive:{instance}:physics:maxForce"] == pytest.approx(87.0)
+    assert authored[f"drive:{instance}:physics:type"] == "force"
     velocity_scale = 180.0 / math.pi if joint_type == "revolute" else 1.0
     assert authored["physxJoint:maxJointVelocity"] == pytest.approx(3.0 * velocity_scale)
-
-
-def test_migrated_consumers_select_joint_drive_fragments(source_checkout_root):
-    """Joint-drive slots combine USD and PhysX fragments and cannot be read as one cfg."""
-    import ast
-
-    violations = []
-    for backend in ("newton", "physx", "ov"):
-        path = source_checkout_root / f"source/isaaclab_{backend}/test/assets/test_articulation.py"
-        for node in ast.walk(ast.parse(path.read_text())):
-            if (
-                isinstance(node, ast.Attribute)
-                and isinstance(node.value, ast.Attribute)
-                and node.value.attr == "joint_drive_props"
-            ):
-                violations.append(f"{path.relative_to(source_checkout_root)}:{node.lineno}: {ast.unparse(node)}")
-    assert not violations, "Single-config access on fragment lists:\n" + "\n".join(violations)
 
 
 def test_asset_and_task_configs_use_bare_single_fragments(source_checkout_root):

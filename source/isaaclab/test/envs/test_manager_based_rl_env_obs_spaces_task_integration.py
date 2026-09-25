@@ -22,65 +22,24 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.managers import ObservationGroupCfg
+from isaaclab.test.utils import DeviceScope, test_devices
 
 from isaaclab_tasks.utils import resolve_task_config
 
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_non_concatenated_obs_groups_contain_all_terms(device):
-    """Test that non-concatenated observation groups contain all defined terms (issue #3133).
-
-    Before the fix, only the last term in each non-concatenated group would be present
-    in the observation space Dict. This test ensures all terms are correctly included.
-    """
+# Gym spaces are built on the host, so one device covers them. Camera image terms have no clip and share the
+# unbounded branch that test_manager_based_rl_env_unit.py covers, so the ray-caster task with a clipped height
+# scan is the task-backed row.
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_obs_space_follows_clip_constraint(device):
+    """Ensure observation space bounds reflect the clip constraint on each term, and that non-concatenated
+    groups contain all their terms (issue #3133)."""
     # new USD stage
     sim_utils.create_new_stage()
 
-    # configure the policy group to return its terms separately
-    env_cfg, _ = resolve_task_config("Isaac-Cartpole", "", overrides=())
-    env_cfg.scene.num_envs = 2  # keep num_envs small for testing
-    env_cfg.observations.policy.concatenate_terms = False
-    env_cfg.sim.device = device
-
-    env = ManagerBasedRLEnv(cfg=env_cfg)
-    try:
-        assert isinstance(env.observation_space, gym.spaces.Dict)
-        policy_space = env.observation_space.spaces["policy"]
-        assert isinstance(policy_space, gym.spaces.Dict)
-
-        expected_policy_terms = ["joint_pos_rel", "joint_vel_rel"]
-
-        assert list(policy_space.spaces) == expected_policy_terms
-        for term_name in expected_policy_terms:
-            assert isinstance(policy_space.spaces[term_name], gym.spaces.Box)
-
-        # Test that observations match the space structure.
-        env.reset()
-        action = torch.tensor(env.action_space.sample(), device=env.device)
-        obs, _, _, _, _ = env.step(action)
-        assert list(obs["policy"]) == expected_policy_terms
-    finally:
-        env.close()
-
-
-@pytest.mark.parametrize(
-    ("task_name", "overrides"),
-    [
-        ("Isaac-Cartpole-Camera", ("presets=rgb",)),
-        ("Isaac-Cartpole-Camera", ("presets=depth",)),
-        ("IsaacContrib-Velocity-Rough-AnymalC", ()),
-    ],
-    ids=["RGB", "Depth", "RayCaster"],
-)
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_obs_space_follows_clip_constraint(task_name, overrides, device):
-    """Ensure observation space bounds reflect the clip constraint on each term."""
-    # new USD stage
-    sim_utils.create_new_stage()
-
-    env_cfg, _ = resolve_task_config(task_name, "", overrides=overrides)
+    env_cfg, _ = resolve_task_config("IsaacContrib-Velocity-Rough-AnymalC", "", overrides=())
     env_cfg.scene.num_envs = 2  # keep num_envs small for testing
     for group_cfg in vars(env_cfg.observations).values():
         if isinstance(group_cfg, ObservationGroupCfg):
@@ -100,5 +59,15 @@ def test_obs_space_follows_clip_constraint(task_name, overrides, device):
                 )
                 assert np.all(term_space.low == low)
                 assert np.all(term_space.high == high)
+
+        # every term of a non-concatenated group is present in its space and in the stepped observations
+        expected_policy_terms = env.observation_manager.active_terms["policy"]
+        assert len(expected_policy_terms) > 1
+        # gymnasium sorts Dict space keys, so compare the term sets
+        assert sorted(env.observation_space.spaces["policy"].spaces) == sorted(expected_policy_terms)
+        env.reset()
+        action = torch.tensor(env.action_space.sample(), device=env.device)
+        obs, _, _, _, _ = env.step(action)
+        assert list(obs["policy"]) == expected_policy_terms
     finally:
         env.close()

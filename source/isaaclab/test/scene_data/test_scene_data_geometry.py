@@ -7,8 +7,10 @@
 
 from __future__ import annotations
 
+import ast
 import gc
 import weakref
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -18,6 +20,26 @@ import warp as wp
 
 from isaaclab.scene_data.scene_data_backend import SceneDataFormat
 from isaaclab.scene_data.scene_data_provider import SceneDataProvider
+
+
+def test_geometry_transport_does_not_cross_backend_ownership():
+    """Renderers consume SDP; physics does not own Fabric destinations or shadow remapping."""
+    repo_root = Path(__file__).resolve().parents[4]
+    for path in (repo_root / "source/isaaclab_ov/isaaclab_ov/renderers").glob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.Import):
+                assert not {alias.name.split(".", 1)[0] for alias in node.names} & {"newton", "isaaclab_newton"}, path
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                assert node.module.split(".", 1)[0] not in {"newton", "isaaclab_newton"}, path
+    for path in (repo_root / "source/isaaclab_newton/isaaclab_newton/physics").glob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.ClassDef):
+                assert node.name not in {"ShadowDeformableEntity", "ShadowDeformableRegistryGroup"}, path
+            if isinstance(node, ast.FunctionDef):
+                assert not any(
+                    argument.annotation is not None and "fabricarray" in ast.unparse(argument.annotation)
+                    for argument in node.args.args
+                ), (path, node.name)
 
 
 def test_geometry_views_alias_native_ranges_and_follow_pointer_swaps(monkeypatch):
