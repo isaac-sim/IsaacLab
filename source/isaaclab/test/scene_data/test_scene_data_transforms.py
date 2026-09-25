@@ -47,6 +47,7 @@ def test_get_transforms_matches_backend_device_when_warp_default_is_cuda():
         mapping = provider.create_mapping(["/World/c", "/World/a", "/World/b"])
         assert mapping is not None
         assert str(mapping.device) == "cpu"
+        assert provider.create_mapping(["/World/c", "/World/a", "/World/b"]) is mapping
 
         output = SceneDataFormat.Vec3_Quat()
         assert provider.get_transforms(output, mapping=mapping, allow_passthrough=False)
@@ -150,6 +151,8 @@ def test_mapping_preserves_unmapped_destination_slots():
     assert provider.get_transforms(output, mapping, allow_passthrough=False, count=3)
     np.testing.assert_array_equal(output.transforms.numpy()[:2], data.transforms.numpy())
     np.testing.assert_array_equal(output.transforms.numpy()[2], np.zeros(7))
+    with pytest.raises(KeyError, match="/missing"):
+        provider.create_mapping(["/a", "/missing"])
 
 
 @pytest.mark.parametrize("format_name", ["Transform", "Vec3_Quat", "Vec3_Matrix33", "Matrix44"])

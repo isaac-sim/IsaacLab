@@ -70,7 +70,8 @@ and release resources with ``close()``.
 
 The manager exposes :class:`~isaaclab.physics.PhysicsEvent` callbacks for
 cross-backend lifecycle work. ``MODEL_INIT`` occurs during scene construction,
-``PHYSICS_READY`` after physics initialization, and ``STOP`` during shutdown.
+``PHYSICS_READY`` after physics initialization, and ``STOP`` before native resources are replaced
+or shut down.
 The concrete ``close()`` implementation dispatches the ``STOP`` event.
 
 ``SimulationContext`` owns native resources and renderer instances in one registry.
@@ -95,6 +96,14 @@ Exposing native handles does not replace SDP transport.
 
 Clone contexts are registered separately as ``sim.clone_contexts[Context] = Context(...)``
 before plan dispatch. They apply the plan but do not own native runtime resources.
+
+After cloning, Newton consumers acquire the completed allocation configuration from
+``sim.clone_contexts[NewtonReplicateContext].backend_cfg`` and pass it to
+``sim.get_or_create_backend``. Physics, cameras, raycasters, and viewers borrow that
+resource's model and state. Consumers request body transforms and visual points
+directly through SDP; NewtonManager is not their model/state gateway. Queries run
+on the supplied native resource, sharing its BVHs but keeping each consumer's
+captured work separate.
 
 Portable asset and sensor interfaces
 ------------------------------------

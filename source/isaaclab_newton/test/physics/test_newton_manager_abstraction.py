@@ -31,10 +31,10 @@ import logging
 import subprocess
 import sys
 import textwrap
-from inspect import signature
 from types import SimpleNamespace
 
 import isaaclab_newton.physics.newton_manager as newton_manager_module
+import isaaclab_newton.sim.queries as query_module
 import numpy as np
 import pytest
 import torch
@@ -66,6 +66,8 @@ from isaaclab_newton.physics import (
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
+from isaaclab_newton.physics.newton_manager import NewtonBackend
+from isaaclab_newton.physics.newton_manager_cfg import NewtonBackendCfg
 from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
 from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags, ShapeFlags
 from newton.selection import ArticulationView
@@ -73,7 +75,7 @@ from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, 
 
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.scene_data import SceneDataFormat
+from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
 # ---------------------------------------------------------------------------
@@ -290,115 +292,59 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
     assert NewtonManager._contacts.rigid_contact_max == 2
 
 
-def test_refit_sensor_bvh_rejects_missing_sensor_state(monkeypatch):
-    """BVH refitting raises when a particle BVH exists without an initialized sensor state."""
-    model = SimpleNamespace(shape_count=0, particle_count=1, bvh_particles=object())
-    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=model))
-    monkeypatch.setattr(NewtonManager, "_sensor_state", None, raising=False)
-
-    with pytest.raises(RuntimeError, match="requires an initialized sensor state"):
-        NewtonManager._refit_sensor_bvh()
-
-
-def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
-    """One state refresh precedes BVH refits and rendering, including explicit transform updates."""
-
-    state = object()
-    status = {"state_refreshes": 0, "shape_refit": False, "particle_refit": False, "rendered": False}
-
-    class FakeModel:
-        shape_count = 1
-        particle_count = 1
-        bvh_shapes = None
-        bvh_particles = None
-        tri_indices = None
-
-        def bvh_build_shapes(self, current_state):
-            assert current_state is state
-            self.bvh_shapes = object()
-
-        def bvh_build_particles(self, current_state):
-            assert current_state is state
-            self.bvh_particles = object()
-
-        def bvh_refit_shapes(self, current_state):
-            assert current_state is state
-            status["shape_refit"] = True
-
-        def bvh_refit_particles(self, current_state):
-            assert current_state is state
-            status["particle_refit"] = True
-
-    model = FakeModel()
-
-    def render():
-        assert status["state_refreshes"] == 1
-        assert model.bvh_shapes is not None
-        assert model.bvh_particles is not None
-        assert status["shape_refit"]
-        assert status["particle_refit"]
-        status["rendered"] = True
-
-    def get_state(cls):
-        status["state_refreshes"] += 1
-        return state
-
-    monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: model))
-    monkeypatch.setattr(NewtonManager, "get_state_0", classmethod(lambda cls: state))
-    monkeypatch.setattr(NewtonManager, "get_state", classmethod(get_state))
-    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=model, state_0=state))
-    monkeypatch.setattr(NewtonManager, "_sensor_tasks", {}, raising=False)
-    monkeypatch.setattr(NewtonManager, "_sensor_state", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_sensor_state_dirty", True, raising=False)
-    monkeypatch.setattr(NewtonManager, "_sensor_graph", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_sensor_flags", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_sensor_flags_host", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_sensor_graph_capture_failed", False, raising=False)
-    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=False), raising=False)
-
-    renderer = object.__new__(NewtonWarpRenderer)
-    renderer.newton_sensor = SimpleNamespace(model=model)
-    monkeypatch.setattr(renderer, "_launch_render", lambda _data: render())
-    renderer.update_transforms()
-    renderer.render(SimpleNamespace(sensor_task_name=None, ppisp_pipeline=None))
-
-    assert status["rendered"]
-
-
-def test_newton_warp_renderer_runs_triangle_mesh_refit_eagerly(monkeypatch):
-    """Allocation-backed triangle-mesh rendering runs without attempting CUDA graph capture."""
-    state = object()
-    model = SimpleNamespace(
-        shape_count=0, particle_count=0, bvh_shapes=None, bvh_particles=None, tri_indices=SimpleNamespace(shape=(1, 3))
+def test_queries_share_native_bvhs_and_read_only_through_sdp(monkeypatch):
+    """Two consumers reuse one refit and see fresh rigid and deformable publications."""
+    builder = ModelBuilder()
+    builder.add_shape_sphere(builder.add_body(label="/Object"))
+    builder.add_particle(pos=wp.vec3(), vel=wp.vec3(), mass=1.0)
+    backend = NewtonBackend(NewtonBackendCfg(builder=builder, device="cpu", geometry_offsets={"/Cloth": 0}))
+    transforms, points = SceneDataFormat.Transform(), SceneDataFormat.Points()
+    transforms.transforms = wp.array([wp.transform_identity()], dtype=wp.transform, device="cpu")
+    points.points = wp.array([wp.vec3(1.0, 2.0, 3.0)], dtype=wp.vec3, device="cpu")
+    publication = SimpleNamespace(
+        transforms=transforms,
+        transform_paths=["/Object"],
+        transforms_version=0,
+        geometry_timestamp=0,
+        get_transforms=lambda output_format: transforms,
+        get_geometry_batches=lambda output_format: [(points, {"/Cloth": (0, 1)})],
     )
-    calls: list[str] = []
-
-    monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: model))
-    monkeypatch.setattr(NewtonManager, "get_state_0", classmethod(lambda cls: state))
-    monkeypatch.setattr(NewtonManager, "get_state", classmethod(lambda cls: state))
-    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=model, state_0=state))
-    monkeypatch.setattr(NewtonManager, "_sensor_tasks", {}, raising=False)
-    monkeypatch.setattr(NewtonManager, "_sensor_eager_tasks", set(), raising=False)
-    monkeypatch.setattr(NewtonManager, "_sensor_state", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_sensor_state_dirty", True, raising=False)
-    monkeypatch.setattr(NewtonManager, "_sensor_graph", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_sensor_flags", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_sensor_flags_host", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_sensor_graph_capture_failed", False, raising=False)
-    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
-    monkeypatch.setattr(PhysicsManager, "_device", "cuda:0", raising=False)
-    monkeypatch.setattr(
-        NewtonManager,
-        "_capture_sensor_graph",
-        classmethod(lambda cls: pytest.fail("Non-graph-capturable task attempted CUDA graph capture.")),
-    )
-
+    provider = SceneDataProvider(publication)
     renderer = object.__new__(NewtonWarpRenderer)
-    renderer.newton_sensor = SimpleNamespace(model=model)
-    monkeypatch.setattr(renderer, "_launch_render", lambda _data: calls.append("render"))
-    renderer.render(SimpleNamespace(sensor_task_name=None, ppisp_pipeline=None))
+    renderer.backend = backend
+    renderer._scene_data_provider = provider
+    renderer._transform_mapping = provider.create_mapping(list(backend.model.body_label))
+    renderer.cfg = SimpleNamespace(use_cuda_graph=False)
+    refits, observed = [], []
+    refit = backend.model.bvh_refit_shapes
+    monkeypatch.setattr(backend.model, "bvh_refit_shapes", lambda state: (refits.append(state), refit(state)))
 
-    assert calls == ["render"]
+    def read(_data):
+        assert backend.state_0.body_q is transforms.transforms
+        np.testing.assert_array_equal(backend.state_0.particle_q.numpy(), points.points.numpy())
+        observed.append(backend.state_0.body_q.numpy().copy())
+
+    monkeypatch.setattr(renderer, "_launch_render", read)
+    for _ in range(2):
+        render_data = SimpleNamespace(graph=None, ppisp_pipeline=None)
+        renderer.render(render_data)
+        assert render_data.graph is None
+    assert len(refits) == 1
+    transforms.transforms = wp.array(
+        [wp.transform(wp.vec3(4.0, 5.0, 6.0), wp.quat_identity())], dtype=wp.transform, device="cpu"
+    )
+    points.points.assign(np.asarray([[7.0, 8.0, 9.0]], dtype=np.float32))
+    publication.transforms_version += 1
+    publication.geometry_timestamp += 1
+    renderer.render(render_data)
+    assert len(refits) == 2
+    np.testing.assert_array_equal(observed[-1][0, :3], [4.0, 5.0, 6.0])
+    # Render/query consumers may not restore a manager gateway or another state-update wrapper.
+    assert not hasattr(NewtonManager, "_register_sensor_task")
+    assert not hasattr(query_module, "get_state")
+    assert not hasattr(query_module, "update_scene_data")
+    assert not hasattr(backend, "transforms")
+    backend.close()
 
 
 def test_sensor_bvh_shape_flags_are_fixed_before_builder_creation(monkeypatch):
@@ -417,12 +363,6 @@ def test_sensor_bvh_shape_flags_are_fixed_before_builder_creation(monkeypatch):
     assert builder.default_bvh_cfg.shape_flags == flags
     assert model.bvh_shape_count_enabled == 1
     assert model.bvh_shapes is not None
-
-
-def test_sensor_task_registration_has_no_raycast_bvh_fallback():
-    """Raycast BVH requirements belong to builder creation, not task registration."""
-    assert "include_collision_shapes" not in signature(NewtonManager._register_sensor_task).parameters
-    assert not hasattr(NewtonManager, "_sensor_bvh_has_collision_shapes")
 
 
 def test_newton_shape_cfg_defaults_match_newton_shape_config():
@@ -1104,10 +1044,10 @@ def test_cuda_runtime_selection_matches_torch_in_isolated_import(torch_cuda, ava
             return runtime
 
         ctypes.CDLL = load_library
-        import isaaclab_newton.physics.newton_manager as manager
+        import isaaclab_newton.sim.queries as queries
 
         assert requested == ([expected] if expected else []), requested
-        assert manager._cudart is (runtime if expected in available else None)
+        assert queries._cudart is (runtime if expected in available else None)
         """)
     result = subprocess.run(
         [sys.executable, "-c", code, torch_cuda, available, expected], capture_output=True, text=True, timeout=30
@@ -1119,9 +1059,9 @@ def test_cuda_runtime_loaded_version_matches_torch():
     """CUDA-enabled Linux wheels must expose the matching runtime without requiring a GPU context."""
     if sys.platform != "linux" or torch.version.cuda is None:
         pytest.skip("CUDA runtime loading is supported for CUDA-enabled Linux wheels.")
-    assert newton_manager_module._cudart is not None
+    assert query_module._cudart is not None
     runtime_version = ctypes.c_int()
-    assert newton_manager_module._cudart.cudaRuntimeGetVersion(ctypes.byref(runtime_version)) == 0
+    assert query_module._cudart.cudaRuntimeGetVersion(ctypes.byref(runtime_version)) == 0
     assert runtime_version.value // 1000 == int(torch.version.cuda.split(".")[0])
 
 

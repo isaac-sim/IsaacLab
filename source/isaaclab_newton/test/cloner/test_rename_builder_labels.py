@@ -260,7 +260,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
                 offset = np.zeros(3) if positions is None else positions[1] - positions[0]
                 np.testing.assert_allclose(target_position - source_position, offset)
 
-    def test_cable_import_binds_only_supported_native_instances_without_destination_prims(self):
+    def test_cable_import_follows_plan_without_publishing_foreign_physics_bindings(self):
         stage = self.sim.stage = Usd.Stage.CreateInMemory()
         source = "/Scene/copy_7/Rope"
         shared = ("/Scene/SharedRope", "/Scene/PeriodicRope", "/Scene/MultiRope", "/Scene/CubicRope", "/Scene/OnePoint")
@@ -288,14 +288,13 @@ class TestVisualizationClonePlan(unittest.TestCase):
             global_paths=shared,
             context_rows={NewtonReplicateContext: (0,)},
         )
-        builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan)
-        model = builder.finalize(device="cpu")
-        bindings = replicate_module.NewtonManager.collect_cable_segment_shape_ids()
-        self.assertEqual(set(bindings), {"/Scene/SharedRope", source, "/Scene/copy_12/Rope"})
-        for path, shape_ids in bindings.items():
-            self.assertEqual(
-                [model.shape_label[index] for index in shape_ids], [f"{path}_edge_capsule_{i}" for i in range(2)]
-            )
+        bindings = {"/PhysicsOwned": [0]}
+        with mock.patch.object(replicate_module.NewtonManager, "_cable_bindings", bindings):
+            builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan)
+            self.assertIs(replicate_module.NewtonManager._cable_bindings, bindings)
+        for path in ("/Scene/SharedRope", source, "/Scene/copy_12/Rope"):
+            self.assertTrue(all(f"{path}_edge_capsule_{index}" in builder.shape_label for index in range(2)))
+        self.assertFalse(any("OtherRope" in path for path in builder.shape_label))
         self.assertFalse(stage.GetPrimAtPath("/Scene/copy_12/Rope"))
 
     def test_visualization_builder_disables_collision_pairs(self):
@@ -334,6 +333,9 @@ class TestVisualizationClonePlan(unittest.TestCase):
 
         self.assertEqual(model.shape_count, 4)
         self.assertEqual(len(model.shape_collision_filter_pairs), 0)
+        self.assertEqual(
+            model.body_label, [f"/World/envs/env_{env}/Robot/{body}" for env in range(2) for body in ("A", "B")]
+        )
         self.assertEqual(model.shape_contact_pair_count, 0)
 
     def test_visualization_builder_uses_clone_plan_sources_and_rewrites_labels(self):

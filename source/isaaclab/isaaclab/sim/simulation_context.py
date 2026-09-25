@@ -275,6 +275,9 @@ class SimulationContext:
             PhysicsEvent.PHYSICS_READY,
             order=5,
         )
+        self.physics_manager.register_callback(
+            lambda _payload: self._render_context.close(), PhysicsEvent.STOP, order=100
+        )
 
         # Publish the context before configured consumers register their clone requirements.
         type(self)._instance = self

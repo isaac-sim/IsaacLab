@@ -30,6 +30,7 @@ if __import__("sys").platform not in ("win32", "darwin") and not __import__("os"
     _pyglet_headless_init.options["headless"] = True
     del _pyglet_headless_init
 
+from isaaclab_newton.cloner import NewtonReplicateContext
 from isaaclab_newton.physics import NewtonManager
 from newton.viewer import ViewerGL, ViewerRTX
 from pyglet.math import Vec3 as PygletVec3
@@ -53,6 +54,8 @@ from isaaclab.envs.utils.camera_view import (
     remove_generated_prims,
     resolve_streaming_envs,
 )
+from isaaclab.scene_data import SceneDataFormat
+from isaaclab.sim import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
@@ -967,7 +970,7 @@ class NewtonVisualizer(BaseVisualizer):
     @property
     def visual_material_writer(self):
         """Return the shared Newton model color-writer factory."""
-        return NewtonManager.create_visual_material_writer
+        return self.backend.create_visual_material_writer
 
     class _ViewerPickingBinding:
         """Stable Newton-manager callback for viewer picking.
@@ -1020,8 +1023,7 @@ class NewtonVisualizer(BaseVisualizer):
         self._sim_time = 0.0
         self._step_counter = 0
         self._runtime_headless: bool = False
-        self._model = None
-        self._state = None
+        self.backend = None
         self._update_frequency = cfg.update_frequency
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._headless_no_viewer = False
@@ -1053,8 +1055,6 @@ class NewtonVisualizer(BaseVisualizer):
             scene_data_provider: Scene data provider used to fetch model/state data.
         """
 
-        from isaaclab.sim import SimulationContext
-
         if self._is_initialized:
             logger.debug("[%s] initialize() called while already initialized.", type(self).__name__)
             return
@@ -1077,7 +1077,8 @@ class NewtonVisualizer(BaseVisualizer):
                 " `--viz kit` with a Kit-compatible physics backend."
             )
         newton_backend_active = self.physics_backend == "newton"
-        physics_manager = SimulationContext.instance().physics_manager
+        sim = SimulationContext.instance()
+        physics_manager = sim.physics_manager
         picking_supported = newton_backend_active and bool(
             getattr(physics_manager, "_supports_rigid_body_force_input", False)
         )
@@ -1085,10 +1086,8 @@ class NewtonVisualizer(BaseVisualizer):
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
         self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
-        self._model = NewtonManager.get_model()
-        self._state = (
-            NewtonManager.get_state_0() if newton_backend_active else NewtonManager.get_state(self._scene_data_provider)
-        )
+        self.backend = sim.get_or_create_backend(sim.clone_contexts[NewtonReplicateContext].backend_cfg)
+        self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         runtime_headless = self.cfg.headless or (
             sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY")
@@ -1119,7 +1118,7 @@ class NewtonVisualizer(BaseVisualizer):
         self._viewer = self._create_viewer(runtime_headless, metadata)
 
         if self._viewer is not None:
-            self._viewer.set_model(self._model)
+            self._viewer.set_model(self.backend.model)
             if self._picking_enabled:
                 # Keep Newton's public force path scoped to picking for this integration.
                 self._viewer.wind = None
@@ -1200,14 +1199,8 @@ class NewtonVisualizer(BaseVisualizer):
         self._sim_time += dt
         self._step_counter += 1
 
-        # Headless mode renders on demand via render_rgb_array(). Keep the latest
-        # physics state available without paying the per-step render cost.
-        if self._runtime_headless:
-            self._state = NewtonManager.get_state(self._scene_data_provider)
-            return
-
-        if self._viewer is None:
-            self._state = NewtonManager.get_state(self._scene_data_provider)
+        # Headless capture requests current SDP arrays in render_rgb_array().
+        if self._runtime_headless or self._viewer is None:
             return
 
         update_frequency = self._viewer._update_frequency if self._viewer else self._update_frequency
@@ -1215,22 +1208,27 @@ class NewtonVisualizer(BaseVisualizer):
             return
 
         self._pre_step()
-        num_envs = NewtonManager.get_num_envs()
+        num_envs = self.backend.model.num_envs
 
         try:
             if not self._viewer.is_paused():
-                self._state = NewtonManager.get_state(self._scene_data_provider)
+                backend, provider = self.backend, self._scene_data_provider
+                poses = SceneDataFormat.Transform()
+                if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
+                    backend.state_0.body_q = poses.transforms
+                if backend.geometry_offsets:
+                    provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
                 self._viewer.begin_frame(self._sim_time)
                 try:
-                    if self._state is not None:
-                        body_q = getattr(self._state, "body_q", None)
+                    if self.backend.state_0 is not None:
+                        body_q = getattr(self.backend.state_0, "body_q", None)
                         if hasattr(body_q, "shape") and body_q.shape[0] == 0:
                             self._log_pending_meshes()
                             return
-                        self._viewer.log_state(self._state)
+                        self._viewer.log_state(self.backend.state_0)
                         contacts = NewtonManager.get_contacts()
                         if contacts is not None:
-                            self._viewer.log_contacts(contacts, self._state)
+                            self._viewer.log_contacts(contacts, self.backend.state_0)
                         else:
                             self._log_scene_contact_sensor_arrows(num_envs)
                         if self.cfg.enable_markers and not isinstance(self._viewer, NewtonViewerRTX):
@@ -1282,16 +1280,17 @@ class NewtonVisualizer(BaseVisualizer):
 
     def reset(self, soft: bool = False) -> None:
         """Rebind viewer resources after a hard Newton model reset."""
-        if soft or not self._picking_enabled or not self._is_initialized or self._is_closed:
+        if soft or not self._is_initialized or self._is_closed:
             return
 
-        model = NewtonManager.get_model()
-        if model is self._model:
+        sim = SimulationContext.instance()
+        backend = sim.get_or_create_backend(sim.clone_contexts[NewtonReplicateContext].backend_cfg)
+        if backend is self.backend:
             return
-        self._model = model
-        self._state = NewtonManager.get_state_0()
+        self.backend = backend
+        self._transform_mapping = self._scene_data_provider.create_mapping(list(backend.model.body_label))
         if self._viewer is not None:
-            self._viewer.set_model(self._model)
+            self._viewer.set_model(self.backend.model)
             if self._picking_enabled:
                 self._viewer.wind = None
             self._viewer._register_isaaclab_ui_callbacks()
@@ -1349,6 +1348,7 @@ class NewtonVisualizer(BaseVisualizer):
                 evict_visualizer_camera(self._streaming_camera_key)
                 remove_generated_prims(self._generated_camera_prim_paths)
             self._camera_sensor = None
+            self.backend = self._scene_data_provider = self._transform_mapping = None
             self._is_closed = True
 
     def is_running(self) -> bool:
@@ -2245,8 +2245,8 @@ class NewtonGLVisualizer(NewtonVisualizer):
     def render_rgb_array(self) -> np.ndarray:
         """Return the latest RGB frame rendered by the Newton GL viewer.
 
-        In headless mode, a full render cycle is executed on demand using the
-        state captured during the most recent :meth:`step` call.
+        In headless mode, current transforms and geometry are requested from SDP
+        only when a frame is captured.
 
         Returns:
             The latest viewer framebuffer as a uint8 array with shape ``(H, W, 3)``.
@@ -2256,18 +2256,24 @@ class NewtonGLVisualizer(NewtonVisualizer):
         """
         if self._viewer is None:
             raise RuntimeError("NewtonGLVisualizer must be initialized before capturing an RGB frame.")
-        if self._runtime_headless and self._state is not None and not self._viewer.is_paused():
+        if self._runtime_headless and self.backend.state_0 is not None and not self._viewer.is_paused():
+            backend, provider = self.backend, self._scene_data_provider
+            poses = SceneDataFormat.Transform()
+            if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
+                backend.state_0.body_q = poses.transforms
+            if backend.geometry_offsets:
+                provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
             self._pre_step()
             self._viewer.begin_frame(self._sim_time)
             try:
-                self._viewer.log_state(self._state)
+                self._viewer.log_state(self.backend.state_0)
                 # The interactive render path logs markers every frame; a capture that
                 # skips them records the scene without its goal poses and command arrows.
                 if self.cfg.enable_markers:
                     render_newton_visualization_markers(
                         self._viewer,
                         self._resolved_visible_env_ids,
-                        num_envs=NewtonManager.get_num_envs(),
+                        num_envs=self.backend.model.num_envs,
                     )
                 self._log_pending_meshes()
             finally:
@@ -2426,8 +2432,8 @@ class NewtonRTXVisualizer(NewtonVisualizer):
     def render_rgb_array(self) -> np.ndarray | None:
         """Return the latest RGB frame rendered by the Newton RTX viewer.
 
-        In headless mode, render the state captured during the latest simulation step
-        before reading back the path-traced LDR framebuffer.
+        In headless mode, request current transforms and geometry from SDP before
+        rendering and reading back the path-traced LDR framebuffer.
 
         Returns:
             The latest viewer framebuffer as a uint8 array with shape ``(H, W, 3)``,
@@ -2435,11 +2441,17 @@ class NewtonRTXVisualizer(NewtonVisualizer):
         """
         if self._viewer is None:
             return None
-        if self._runtime_headless and self._state is not None and not self._viewer.is_paused():
+        if self._runtime_headless and self.backend.state_0 is not None and not self._viewer.is_paused():
+            backend, provider = self.backend, self._scene_data_provider
+            poses = SceneDataFormat.Transform()
+            if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
+                backend.state_0.body_q = poses.transforms
+            if backend.geometry_offsets:
+                provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
             self._pre_step()
             self._viewer.begin_frame(self._sim_time)
             try:
-                self._viewer.log_state(self._state)
+                self._viewer.log_state(self.backend.state_0)
                 self._log_pending_meshes()
             finally:
                 self._viewer.end_frame()

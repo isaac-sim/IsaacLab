@@ -36,6 +36,8 @@ class NewtonBackendCfg(BackendCfg):
     """Populated clone builder. Reusing this builder and matching settings shares one resource."""
     particle_ranges: dict[str, tuple[int, int]] = field(default_factory=dict)
     """Imported point paths to native particle offsets and counts, retained until Newton exposes composed ranges."""
+    geometry_offsets: dict[str, int] = field(default_factory=dict)
+    """SDP geometry paths to particle offsets in a render-only model."""
     device: str = MISSING
     """Allocation device, such as ``cpu`` or ``cuda:0``."""
     num_envs: int | None = None

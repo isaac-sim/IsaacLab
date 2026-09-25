@@ -21,7 +21,7 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner.path import rebase, under
 from isaaclab.cloner.query import iter_sources
-from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.physics import PhysicsManager
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
     deformable_geometry_batches,
@@ -111,7 +111,7 @@ def _replicate_newton(
     *,
     up_axis: str = "Z",
     quaternions: np.ndarray | None = None,
-) -> tuple[ModelBuilder, object, dict]:
+) -> tuple[ModelBuilder, object, dict, NewtonBackendCfg | None]:
     """Import and replicate the plan's Newton representation, with or without Newton physics."""
     cfg = sim.cfg.physics
     simulation = isinstance(cfg, NewtonCfg)
@@ -196,23 +196,6 @@ def _replicate_newton(
             source_builder = builder if owner == Sdf.Path.absoluteRootPath else source_builders[str(owner)]
             entries.append(add_deformable_from_usd(source_builder, stage, root_path=path))
 
-    # Keep only renderable cables from this representation's actual imports.
-    cable_counts = {}
-    for source, imported in [(None, result) for result in import_results] + list(source_import_results.items()):
-        for path, (bodies, _) in imported["path_cable_map"].items():
-            if imported["path_cable_attrs"][path]["closed"]:
-                continue
-            if len(UsdGeom.BasisCurves(stage.GetPrimAtPath(path)).GetCurveVertexCountsAttr().Get()) != 1:
-                continue
-            if source is None:
-                cable_counts[path] = len(bodies)
-            else:
-                for row in rows:
-                    if plan.sources[row] == source:
-                        for column in np.flatnonzero(plan.clone_mask[row]):
-                            destination = plan.destinations[row].format(int(plan.env_ids[column]))
-                            cable_counts[rebase(path, source, destination)] = len(bodies)
-
     if simulation:
         global_sites, source_sites, root_sites = NewtonManager._cl_inject_sites(builder, source_builders)
     else:
@@ -269,14 +252,29 @@ def _replicate_newton(
     )
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
-    NewtonManager._cable_bindings = {}
-    if cable_counts:
+    backend_cfg = None
+    if simulation:
+        # Only the physics representation publishes cable geometry to SDP.
+        cable_counts = {}
+        for source, imported in [(None, result) for result in import_results] + list(source_import_results.items()):
+            for path, (bodies, _) in imported["path_cable_map"].items():
+                if imported["path_cable_attrs"][path]["closed"]:
+                    continue
+                if len(UsdGeom.BasisCurves(stage.GetPrimAtPath(path)).GetCurveVertexCountsAttr().Get()) != 1:
+                    continue
+                if source is None:
+                    cable_counts[path] = len(bodies)
+                else:
+                    for row in rows:
+                        if plan.sources[row] == source:
+                            for column in np.flatnonzero(plan.clone_mask[row]):
+                                destination = plan.destinations[row].format(int(plan.env_ids[column]))
+                                cable_counts[rebase(path, source, destination)] = len(bodies)
         shape_ids = {label: index for index, label in enumerate(builder.shape_label)}
         NewtonManager._cable_bindings = {
             path: [shape_ids[f"{path}_edge_capsule_{segment}"] for segment in range(count)]
             for path, count in cable_counts.items()
         }
-    if simulation:
         geometry = expand_deformable_entries(plan, entries, rows)
         ranges = {
             label: start
@@ -297,14 +295,14 @@ def _replicate_newton(
         NewtonManager._num_envs = len(plan.env_ids)
     else:
         geometry_offsets = add_shadow_deformables_to_builder(builder, expand_deformable_entries(plan, entries, rows))
-        backend_cfg = NewtonBackendCfg(builder=builder, device=sim.device, num_envs=len(plan.env_ids), simulation=False)
-        sim.physics_manager.register_callback(
-            partial(NewtonManager._initialize_visualization_model, backend_cfg, geometry_offsets),
-            PhysicsEvent.PHYSICS_READY,
-            name="newton_visualization_model",
-            wrap_weak_ref=False,
+        backend_cfg = NewtonBackendCfg(
+            builder=builder,
+            device=sim.device,
+            num_envs=len(plan.env_ids),
+            simulation=False,
+            geometry_offsets=geometry_offsets,
         )
-    return builder, import_results[0] if simulation else None, site_index_map
+    return builder, import_results[0] if simulation else None, site_index_map, backend_cfg
 
 
 class NewtonReplicateContext:
@@ -316,12 +314,17 @@ class NewtonReplicateContext:
         """Initialize the context from its owning simulation."""
         self._sim = sim_context
         self.up_axis = up_axis
+        self.backend_cfg: NewtonBackendCfg | None = None
+        """Completed allocation inputs; native resources belong to the simulation registry."""
 
     def replicate(self, plan: ClonePlan) -> tuple[ModelBuilder, object, dict]:
         """Build and publish a Newton model from this context's plan rows."""
         if plan.env_ids is None:
             raise ValueError("ClonePlan.env_ids is required for replication.")
-        return _replicate_newton(self._sim.stage, plan, plan.context_rows[type(self)], self._sim, up_axis=self.up_axis)
+        builder, stage_info, sites, self.backend_cfg = _replicate_newton(
+            self._sim.stage, plan, plan.context_rows[type(self)], self._sim, up_axis=self.up_axis
+        )
+        return builder, stage_info, sites
 
 
 def newton_physics_replicate(
@@ -363,7 +366,7 @@ def newton_physics_replicate(
         global_paths=global_paths,
         cfgs=cfgs,
     )
-    builder, stage_info, _ = _replicate_newton(
+    builder, stage_info, _, _ = _replicate_newton(
         stage,
         plan,
         tuple(range(len(sources))),

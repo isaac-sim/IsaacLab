@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from functools import partial
 from typing import TYPE_CHECKING, Any, NoReturn
 
 import newton
@@ -16,11 +17,12 @@ import warp as wp
 
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
-from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
+from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp, replace_background_depth_wp
 
-from ..physics.newton_manager import NewtonManager
+from ..cloner import NewtonReplicateContext
+from ..sim.queries import run_query
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 from .segmentation import NewtonSegmentationMapper, NewtonSegmentationMapping
 
@@ -136,9 +138,7 @@ class RenderData:
         self.camera_transforms: wp.array(dtype=wp.transformf, ndim=2) = None
         self._camera_quat_scratch: wp.array = None
         self._intrinsic_status = wp.zeros(1, dtype=wp.int32, device=newton_sensor.model.device)
-        # Name under which this camera's render launch is registered with the
-        # Newton sensor manager (set on first render).
-        self.sensor_task_name: str | None = None
+        self.graph = None
         self.outputs = RenderData.CameraOutputs()
         # Requested depth-family destination views keyed by data-type name. Each view aliases the
         # caller's output buffer as ``(world_count, 1, H, W)`` float32.
@@ -480,13 +480,14 @@ class NewtonWarpRenderer(BaseRenderer):
         sim.requires_newton_model |= requires_model
 
     def initialize(self) -> None:
-        """Post-physics setup: read the built Newton model and construct the sensor."""
-        model = NewtonManager.get_model()
-        if model is None:
-            raise RuntimeError("NewtonWarpRenderer requires a clone-built model before initialization.")
+        """Acquire the clone-built native resource and bind its SDP layout."""
+        sim = SimulationContext.instance()
+        self.backend = sim.get_or_create_backend(sim.clone_contexts[NewtonReplicateContext].backend_cfg)
+        self._scene_data_provider = sim.get_scene_data_provider()
+        self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         self.newton_sensor = newton.sensors.SensorTiledCamera(
-            model,
+            self.backend.model,
             default_render_config=newton.sensors.SensorTiledCamera.RenderConfig(
                 enable_textures=self.cfg.enable_textures,
                 enable_shadows=self.cfg.enable_shadows,
@@ -514,7 +515,7 @@ class NewtonWarpRenderer(BaseRenderer):
     @property
     def visual_material_writer(self):
         """Return the shared Newton model color-writer factory."""
-        return NewtonManager.create_visual_material_writer
+        return self.backend.create_visual_material_writer
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output layout this Newton Warp backend writes.
@@ -624,17 +625,19 @@ class NewtonWarpRenderer(BaseRenderer):
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
 
-        if render_data.sensor_task_name is None:
-            render_data.sensor_task_name = f"newton_warp_render:{id(render_data)}"
-            tri_indices = self.newton_sensor.model.tri_indices
-            # Warp mesh refits allocate graph nodes and are not supported inside a conditional graph body.
-            graph_capturable = tri_indices is None or tri_indices.shape[0] == 0
-            NewtonManager._register_sensor_task(
-                render_data.sensor_task_name,
-                lambda: self._launch_render(render_data),
-                graph_capturable=graph_capturable,
-            )
-        NewtonManager._update_sensor_tasks(render_data.sensor_task_name)
+        backend, provider = self.backend, self._scene_data_provider
+        poses = SceneDataFormat.Transform()
+        if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
+            backend.state_0.body_q = poses.transforms
+        if backend.geometry_offsets:
+            provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
+        render_data.graph = run_query(
+            self.backend,
+            (provider.backend.transforms_version, provider.backend.geometry_timestamp),
+            partial(self._launch_render, render_data),
+            render_data.graph,
+            use_cuda_graph=self.cfg.use_cuda_graph,
+        )
 
         # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
         # tensors were bound once in ``set_outputs``.
@@ -667,7 +670,7 @@ class NewtonWarpRenderer(BaseRenderer):
         )
 
         self.newton_sensor.update(
-            NewtonManager.get_state_0(),
+            self.backend.state_0,
             render_data.camera_transforms,
             render_data.camera_rays,
             color_image=render_data.outputs.color_image,
@@ -711,10 +714,12 @@ class NewtonWarpRenderer(BaseRenderer):
             camera_data.info[output_name] = info
 
     def cleanup(self, render_data: RenderData | None):
-        """Release resources and drop the camera's sensor task.
+        """Release the camera's buffers and captured query.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
         if render_data:
-            if render_data.sensor_task_name is not None:
-                NewtonManager._unregister_sensor_task(render_data.sensor_task_name)
-                render_data.sensor_task_name = None
-            render_data.sensor = None
+            render_data.graph = None
+            render_data.newton_sensor = None
+
+    def close(self) -> None:
+        """Release borrowed native handles and SDP bindings after camera cleanup."""
+        self.newton_sensor = self.backend = self._scene_data_provider = self._transform_mapping = None
