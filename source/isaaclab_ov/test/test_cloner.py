@@ -153,29 +153,16 @@ def test_raw_replicate_rejects_invalid_source_anchor():
 
 @pytest.mark.parametrize(
     ("name", "value"),
-    [("positions", np.zeros((1, 3), dtype=np.float32)), ("quaternions", np.zeros((1, 4), dtype=np.float32))],
-)
-def test_raw_replicate_rejects_pose_array_missing_selected_environment(name, value):
-    """Provided pose arrays include every selected environment."""
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot")
-    with pytest.raises(ValueError, match=name):
-        ovphysx_replicate(
-            stage,
-            sources=["/World/envs/env_0/Robot"],
-            destinations=["/World/envs/env_{}/Robot"],
-            env_ids=np.array([0, 1], dtype=np.int64),
-            mapping=np.array([[True, True]], dtype=np.bool_),
-            **{name: value},
-        )
-
-
-@pytest.mark.parametrize(
-    ("name", "value"),
-    [("positions", np.zeros((2, 2), dtype=np.float32)), ("quaternions", np.zeros((2, 3), dtype=np.float32))],
+    [
+        ("positions", np.zeros((2, 2), dtype=np.float32)),
+        ("quaternions", np.zeros((2, 3), dtype=np.float32)),
+        # Missing the second selected environment.
+        ("positions", np.zeros((1, 3), dtype=np.float32)),
+        ("quaternions", np.zeros((1, 4), dtype=np.float32)),
+    ],
 )
 def test_raw_replicate_rejects_malformed_pose_array(name, value):
-    """Provided pose arrays use the documented component counts."""
+    """Provided pose arrays use the documented component counts and include every selected environment."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot")
     with pytest.raises(ValueError, match=rf"{name} must have shape"):
