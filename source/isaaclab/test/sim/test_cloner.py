@@ -89,7 +89,7 @@ def test_usd_replicate_with_positions_and_mask(sim):
 
 def test_usd_replicate_context_consumes_plan(sim):
     """UsdReplicateContext consumes the same plan used by every clone backend."""
-    sim_utils.create_prim("/World/template/A", "Xform")
+    sim_utils.create_prim("/World/template/A", "Cube")
     sim_utils.create_prim("/World/envs", "Xform")
 
     stage = sim_utils.get_current_stage()
@@ -105,7 +105,7 @@ def test_usd_replicate_context_consumes_plan(sim):
 
     assert not stage.GetPrimAtPath("/World/envs/env_10").IsValid()
     prim = stage.GetPrimAtPath("/World/envs/env_20")
-    assert prim.IsValid()
+    assert prim.IsValid() and prim.IsA(UsdGeom.Cube)
     assert tuple(UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(0).ExtractTranslation()) == (4.0, 5.0, 6.0)
 
 
