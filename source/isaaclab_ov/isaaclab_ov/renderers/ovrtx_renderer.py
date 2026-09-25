@@ -472,21 +472,15 @@ class OVRTXRenderer(BaseRenderer):
         # Composed scales must be read while the full stage is still live, before export trims it.
         self._capture_object_scales(stage, self._clone_plan)
 
-        # The clone plan already identifies every source row. Keep those rows independent so
-        # backend bindings for dynamic assets retain the paths they were compiled against.
-        # A homogeneous plan clones the env roots themselves, so they must be trimmed: OVRTX 0.6
-        # refuses to clone onto a prim that already exists. Sub-path rows still need the roots,
-        # which carry the env transform that clone does not recreate.
+        # OVRTX cannot clone onto existing prims. Keep environment roots unless explicitly cloned;
+        # asset-level clones need their parents' authored environment transforms.
+        sources, destinations, _ = clone_query.replication_mapping(self._clone_plan)
         self._exported_usd_string = export_stage_to_string(
             stage,
             num_envs,
-            source_paths=self._clone_plan.sources,
-            keep_env_roots=not self._use_ovstage and not self._clone_targets_env_roots(),
+            source_paths=sources,
+            keep_env_roots=not self._use_ovstage and self._clone_plan.clone_template not in destinations,
         )
-
-    def _clone_targets_env_roots(self) -> bool:
-        """Return whether any clone row replicates an environment root rather than a prim beneath it."""
-        return any(destination.format(0) == "/World/envs/env_0" for destination in self._clone_plan.destinations)
 
     def _capture_object_scales(self, stage: Any, plan: ClonePlan) -> None:
         """Record composed world scales beneath the plan's prototypes and shared roots before export.
@@ -509,7 +503,7 @@ class OVRTXRenderer(BaseRenderer):
         from pxr import Gf, Usd, UsdGeom
 
         xform_cache = UsdGeom.XformCache()
-        for root in (*plan.sources, *plan.global_paths):
+        for root in (*clone_query.replication_mapping(plan)[0], *plan.global_paths):
             for prim in Usd.PrimRange(stage.GetPrimAtPath(root)):
                 if not prim.IsA(UsdGeom.Xformable):
                     continue
@@ -518,13 +512,13 @@ class OVRTXRenderer(BaseRenderer):
                 if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
                     self._object_scales_by_path[str(prim.GetPath())] = scale
 
-        # OVRTX creates non-source rows after this stage is exported, so those destination prims
+        # OVRTX creates the remaining instances after this stage is exported, so those destination prims
         # cannot be traversed above. Clone queries retain the plan's nearest-owner semantics.
         for source_path, scale in tuple(self._object_scales_by_path.items()):
-            for env_id in clone_query.path_env_ids(plan, source_path):
-                clone_path = clone_query.path_to_clone(plan, source_path, env_id)
-                assert clone_path is not None
-                self._object_scales_by_path.setdefault(clone_path, scale)
+            for source, template, path, env_ids in clone_query.iter_sources(plan, source_path):
+                if path == source_path:
+                    suffix = source_path[len(source) :]
+                    self._object_scales_by_path.update((template.format(env_id) + suffix, scale) for env_id in env_ids)
 
     def _create_object_scale_array(self, object_paths: list[str]) -> wp.array:
         """Build the device scale array aligned with the published body binding order.
@@ -628,25 +622,25 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Clone plan with environment ids and positions is required when using OVRTX cloning")
 
         env_ids = clone_plan.env_ids
-        clone_mask = clone_plan.clone_mask
+        sources, destinations, mapping = clone_query.replication_mapping(clone_plan)
         num_envs = len(env_ids)
-        env_prim_paths = [f"/World/envs/env_{int(env_id)}" for env_id in env_ids]
+        env_prim_paths = [clone_plan.clone_template.format(int(env_id)) for env_id in env_ids]
         logger.info("Cloning sources in OVRTX...")
 
         num_cloned_sources = 0
-        for row_idx, (source, destination) in enumerate(zip(clone_plan.sources, clone_plan.destinations, strict=True)):
+        for prototype_index, (source, destination) in enumerate(zip(sources, destinations, strict=True)):
             target_paths = [
                 destination.format(int(env_id))
-                for env_id in env_ids[clone_mask[row_idx]]
+                for env_id in env_ids[mapping[prototype_index]]
                 if destination.format(int(env_id)) != source
             ]
             if target_paths:
-                logger.debug("Cloning row %d: %s -> %d target(s)", row_idx, source, len(target_paths))
+                logger.debug("Cloning prototype %d: %s -> %d target(s)", prototype_index, source, len(target_paths))
                 try:
                     self.backend.renderer.clone_usd(source, target_paths)
                     num_cloned_sources += 1
                 except Exception as e:
-                    error_msg = f"Failed to clone row {row_idx} from {source}: {e}"
+                    error_msg = f"Failed to clone prototype {prototype_index} from {source}: {e}"
                     logger.error(error_msg)
                     raise RuntimeError(error_msg)
 
@@ -1682,26 +1676,26 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Clone plan with environment ids and positions is required when using OVRTX cloning")
 
         env_ids = clone_plan.env_ids
-        clone_mask = clone_plan.clone_mask
+        sources, destinations, mapping = clone_query.replication_mapping(clone_plan)
         num_envs = len(env_ids)
-        env_prim_paths = [f"/World/envs/env_{int(env_id)}" for env_id in env_ids]
+        env_prim_paths = [clone_plan.clone_template.format(int(env_id)) for env_id in env_ids]
 
         logger.info("Cloning sources in OVRTX...")
 
         num_cloned_sources = 0
-        for row_idx, (source, destination) in enumerate(zip(clone_plan.sources, clone_plan.destinations, strict=True)):
+        for prototype_index, (source, destination) in enumerate(zip(sources, destinations, strict=True)):
             target_paths = [
                 destination.format(int(env_id))
-                for env_id in env_ids[clone_mask[row_idx]]
+                for env_id in env_ids[mapping[prototype_index]]
                 if destination.format(int(env_id)) != source
             ]
             if target_paths:
-                logger.debug("Cloning row %d: %s -> %d target(s)", row_idx, source, len(target_paths))
+                logger.debug("Cloning prototype %d: %s -> %d target(s)", prototype_index, source, len(target_paths))
                 try:
                     self.backend.stage.clone(source, target_paths, ordinal=self._current_ordinal)
                     num_cloned_sources += 1
                 except Exception as e:
-                    error_msg = f"Failed to clone row {row_idx} from {source}: {e}"
+                    error_msg = f"Failed to clone prototype {prototype_index} from {source}: {e}"
                     logger.error(error_msg)
                     raise RuntimeError(error_msg)
 

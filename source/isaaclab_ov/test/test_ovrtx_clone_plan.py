@@ -15,10 +15,11 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner.clone_plan import ClonePlan
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sensors.camera import CameraCfg
-from isaaclab.sim import PinholeCameraCfg
+from isaaclab.sim import MultiUsdFileCfg, PinholeCameraCfg, SpawnerCfg
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
@@ -131,16 +132,12 @@ def test_clone_sources_in_ovrtx_uses_active_plan_rows():
     """Each plan row clones directly to its active destinations other than its source."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._clone_plan = ClonePlan(
-        sources=("/World/envs/env_0/Robot", "/World/envs/env_1/Object", "/World/envs/env_0/Light"),
-        destinations=("/World/envs/env_{}/Robot", "/World/envs/env_{}/Object", "/World/envs/env_{}/Light"),
-        clone_mask=np.array(
-            [
-                [True, True, True, True],
-                [False, True, True, True],
-                [True, False, False, False],
-            ],
-            dtype=np.bool_,
+        sources=(
+            AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),
+            AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),
+            AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Light"),
         ),
+        destinations=np.array([[0, 0, 0, 0], [-1, 0, 0, 0], [0, -1, -1, -1]], dtype=np.int32),
         env_ids=np.arange(4, dtype=np.int64),
         positions=np.zeros((4, 3), dtype=np.float32),
     )
@@ -166,9 +163,8 @@ def test_clone_sources_in_ovrtx_raises_on_clone_failure():
     """clone_usd failures surface as RuntimeError with the row index."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._clone_plan = ClonePlan(
-        sources=("/World/envs/env_0",),
-        destinations=("/World/envs/env_{}",),
-        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        sources=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),),
+        destinations=np.zeros((1, 2), dtype=np.int32),
         env_ids=np.arange(2, dtype=np.int64),
         positions=np.zeros((2, 3), dtype=np.float32),
     )
@@ -178,7 +174,7 @@ def test_clone_sources_in_ovrtx_raises_on_clone_failure():
 
     renderer.backend.renderer.clone_usd = _clone_usd
 
-    with pytest.raises(RuntimeError, match="Failed to clone row 0 from /World/envs/env_0"):
+    with pytest.raises(RuntimeError, match="Failed to clone prototype 0 from /World/envs/env_0"):
         renderer._clone_sources_in_ovrtx()
 
 
@@ -187,9 +183,8 @@ def test_clone_sources_in_ovrtx_writes_plan_positions_after_cloning():
     renderer = _make_ovrtx_renderer_without_backend()
     positions = np.array([[0.0, 0.0, 0.0], [2.0, -1.0, 0.5], [-3.0, 4.0, 1.5]], dtype=np.float32)
     renderer._clone_plan = ClonePlan(
-        sources=("/World/envs/env_5",),
-        destinations=("/World/envs/env_{}",),
-        clone_mask=np.ones((1, 3), dtype=np.bool_),
+        sources=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),),
+        destinations=np.zeros((1, 3), dtype=np.int32),
         env_ids=np.array([5, 11, 3], dtype=np.int64),
         positions=positions,
     )
@@ -227,9 +222,11 @@ def test_clone_sources_ovstage_writes_plan_positions_after_cloning(monkeypatch: 
     renderer = _make_ovrtx_renderer_without_backend()
     positions = np.array([[0.0, 0.0, 0.0], [1.5, -2.0, 0.25], [3.0, 4.0, 0.5]], dtype=np.float32)
     renderer._clone_plan = ClonePlan(
-        sources=("/World/envs/env_7/Robot", "/World/envs/env_3/Object"),
-        destinations=("/World/envs/env_{}/Robot", "/World/envs/env_{}/Object"),
-        clone_mask=np.array([[True, False, False], [False, True, True]], dtype=np.bool_),
+        sources=(
+            AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),
+            AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),
+        ),
+        destinations=np.array([[0, -1, -1], [-1, 0, 0]], dtype=np.int32),
         env_ids=np.array([7, 3, 12], dtype=np.int64),
         positions=positions,
     )
@@ -289,15 +286,13 @@ def test_clone_sources_ovstage_writes_plan_positions_after_cloning(monkeypatch: 
     [
         None,
         ClonePlan(
-            sources=("/World/envs/env_0",),
-            destinations=("/World/envs/env_{}",),
-            clone_mask=np.ones((1, 2), dtype=np.bool_),
+            sources=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),),
+            destinations=np.zeros((1, 2), dtype=np.int32),
             env_ids=np.arange(2, dtype=np.int64),
         ),
         ClonePlan(
-            sources=("/World/envs/env_0",),
-            destinations=("/World/envs/env_{}",),
-            clone_mask=np.ones((1, 2), dtype=np.bool_),
+            sources=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),),
+            destinations=np.zeros((1, 2), dtype=np.int32),
             positions=np.zeros((2, 3), dtype=np.float32),
         ),
     ],
@@ -314,9 +309,8 @@ def test_prepare_stage_requires_published_plan_ids_and_positions(
 
 def test_prepare_stage_rejects_non_dense_environment_ids(monkeypatch: pytest.MonkeyPatch):
     plan = ClonePlan(
-        sources=("/World/envs/env_7",),
-        destinations=("/World/envs/env_{}",),
-        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        sources=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),),
+        destinations=np.zeros((1, 2), dtype=np.int32),
         env_ids=np.array([7, 3], dtype=np.int64),
         positions=np.zeros((2, 3), dtype=np.float32),
     )
@@ -337,11 +331,16 @@ def test_capture_object_scales_populates_source_and_destination_scale_array(env_
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._device = "cpu"
     plan = ClonePlan(
-        sources=(env_template.format(0), env_template.format(1)),
-        destinations=(env_template, env_template),
-        clone_mask=np.array([[True, False, True], [False, True, False]]),
+        sources=(
+            AssetBaseCfg(
+                prim_path=env_template.format("[^/]+"),
+                spawn=MultiUsdFileCfg(usd_path=["", ""], spawn_paths=[env_template.format(i) for i in range(2)]),
+            ),
+            AssetBaseCfg(prim_path="/World/Shared"),
+        ),
+        destinations=np.array([[0, 1, 0], [-1, -1, -1]], dtype=np.int32),
         env_ids=np.arange(3),
-        global_paths=("/World/Shared",),
+        clone_template=env_template,
     )
 
     renderer._capture_object_scales(stage, plan)
@@ -359,9 +358,8 @@ def test_prepare_stage_writes_debug_dump_only_when_requested(tmp_path, monkeypat
     _patch_simulation_context(
         monkeypatch,
         ClonePlan(
-            sources=("/World/envs/env_0",),
-            destinations=("/World/envs/env_{}",),
-            clone_mask=np.ones((1, 2), dtype=np.bool_),
+            sources=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),),
+            destinations=np.zeros((1, 2), dtype=np.int32),
             env_ids=np.arange(2, dtype=np.int64),
             positions=np.zeros((2, 3), dtype=np.float32),
         ),
@@ -496,9 +494,12 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
     UsdShade.MaterialBindingAPI.Apply(body)
     UsdShade.MaterialBindingAPI(body).Bind(material)
     plan = ClonePlan(
-        sources=(source,),
-        destinations=(f"/World/envs/env_{{}}{suffix}",),
-        clone_mask=np.ones((1, 3), dtype=np.bool_),
+        sources=(
+            AssetBaseCfg(
+                prim_path=f"/World/envs/env_{{}}{suffix}".format("[^/]+"), spawn=SpawnerCfg(spawn_path=source)
+            ),
+        ),
+        destinations=np.zeros((1, 3), dtype=np.int32),
         env_ids=np.arange(3),
         positions=np.zeros((3, 3), dtype=np.float32),
     )

@@ -617,12 +617,13 @@ def test_nested_rigid_body_hierarchy(device):
         env_0.AddTranslateOp().Set(Gf.Vec3d(*env_positions[0].tolist()))
         _author_nested_chain("/World/envs/env_0/Robot")
 
+        sources, destinations, mapping = cloner.query.replication_mapping(clone_plan)
         ovphysx_replicate(
             stage,
-            clone_plan.sources,
-            clone_plan.destinations,
+            sources,
+            destinations,
             clone_plan.env_ids,
-            clone_plan.clone_mask,
+            mapping,
             positions=clone_plan.positions,
         )
         contact_sensor = ContactSensor(contact_sensor_cfg)

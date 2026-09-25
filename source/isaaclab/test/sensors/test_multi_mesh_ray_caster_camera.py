@@ -27,10 +27,11 @@ from pxr import Gf
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner as lab_cloner
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCamera, MultiMeshRayCasterCameraCfg, patterns
-from isaaclab.sim import PinholeCameraCfg
+from isaaclab.sim import MultiUsdFileCfg, PinholeCameraCfg
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
 
@@ -335,22 +336,17 @@ def _create_heterogeneous_clone_scene(sim: sim_utils.SimulationContext, num_envs
 
     sim.set_clone_plan(
         ClonePlan(
-            sources=(
-                env_fmt.format(0) + "/Robot",
-                env_fmt.format(1) + "/Robot",
-                env_fmt.format(0) + "/Object",
-                env_fmt.format(1) + "/Object",
+            sources=tuple(
+                AssetBaseCfg(
+                    prim_path=f"{env_fmt.format('[^/]+')}/{name}",
+                    spawn=MultiUsdFileCfg(
+                        usd_path=["", ""], spawn_paths=[f"{env_fmt.format(i)}/{name}" for i in range(2)]
+                    ),
+                )
+                for name in ("Robot", "Object")
             ),
-            destinations=(
-                env_fmt + "/Robot",
-                env_fmt + "/Robot",
-                env_fmt + "/Object",
-                env_fmt + "/Object",
-            ),
-            clone_mask=np.concatenate((robot_mask, object_mask), axis=0),
+            destinations=np.stack((robot_mask.argmax(axis=0), object_mask.argmax(axis=0))).astype(np.int32),
             env_ids=env_ids,
-            positions=None,
-            cfg_rows={},
         )
     )
     sim_utils.update_stage()

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from posixpath import commonpath, dirname
 from typing import Any
 
 import numpy as np
@@ -141,50 +142,28 @@ def build_source_builders(
     """
     builders = {}
     for source in sources:
-        builder, import_result = _build_source_builder(
+        builder = create_builder()
+        import_result = builder.add_usd(
             stage,
-            source,
-            create_builder,
-            schema_resolvers,
-            ignore_paths,
-            load_visual_shapes,
-            skip_mesh_approximation,
+            root_path=source,
+            load_visual_shapes=load_visual_shapes,
+            hide_collision_shapes=True,
+            skip_mesh_approximation=skip_mesh_approximation,
+            schema_resolvers=schema_resolvers,
+            ignore_paths=ignore_paths,
+            return_deformable_results=True,
         )
+        _restore_visible_colliders_without_visual_shapes(
+            builder, stage, import_result["path_shape_map"], load_visual_shapes
+        )
+        replace_newton_builder_shape_colors(builder, stage)
+        if load_visual_shapes:
+            import_builder_visual_material_paths(builder, stage)
+        _name_root_joints_after_their_body(builder)
         builders[source] = builder
         if import_results_out is not None:
             import_results_out[source] = import_result
     return builders
-
-
-def _build_source_builder(
-    stage: Usd.Stage,
-    source: str,
-    create_builder: Callable[[], ModelBuilder],
-    schema_resolvers: Sequence[Any],
-    ignore_paths: Sequence[str] | None,
-    load_visual_shapes: bool = True,
-    skip_mesh_approximation: bool = False,
-) -> tuple[ModelBuilder, dict[str, Any]]:
-    """Build one source builder."""
-    builder = create_builder()
-    import_result = builder.add_usd(
-        stage,
-        root_path=source,
-        load_visual_shapes=load_visual_shapes,
-        hide_collision_shapes=True,
-        skip_mesh_approximation=skip_mesh_approximation,
-        schema_resolvers=schema_resolvers,
-        ignore_paths=ignore_paths,
-        return_deformable_results=True,
-    )
-    _restore_visible_colliders_without_visual_shapes(
-        builder, stage, import_result["path_shape_map"], load_visual_shapes
-    )
-    replace_newton_builder_shape_colors(builder, stage)
-    if load_visual_shapes:
-        import_builder_visual_material_paths(builder, stage)
-    _name_root_joints_after_their_body(builder)
-    return builder, import_result
 
 
 def _name_root_joints_after_their_body(builder: ModelBuilder) -> None:
@@ -246,13 +225,11 @@ def _label_groups(builder: ModelBuilder) -> dict[str, list]:
     return groups
 
 
-def _rebase_labels(builder: ModelBuilder, source: str, destination: str) -> str:
-    """Make entity labels relative to the nearest templated destination ancestor."""
+def _rebase_labels(builder: ModelBuilder, source: str, destination: str, prefix: str) -> None:
+    """Make entity labels relative to the shared destination prefix."""
     source = source.rstrip("/") or "/"
     destination = destination.rstrip("/") or "/"
-    prefix, _, destination_name = destination.rpartition("/")
-    if "{}" in destination_name:
-        prefix, destination_name = destination, ""
+    destination_name = destination[len(prefix) :]
     for labels in _label_groups(builder).values():
         for index, label in enumerate(labels):
             if not isinstance(label, str) or not label or not label.startswith("/"):
@@ -265,7 +242,6 @@ def _rebase_labels(builder: ModelBuilder, source: str, destination: str) -> str:
             labels[index] = (destination_name + suffix).lstrip("/")
             if not labels[index]:
                 raise ValueError(f"Newton label {label!r} cannot be prefixed by destination {destination!r}.")
-    return prefix
 
 
 def replicate_builder_mapping(
@@ -296,9 +272,12 @@ def replicate_builder_mapping(
     xforms_np = np.concatenate((positions, quaternions), axis=1)
     world_xforms = [wp.transform(*row) for row in xforms_np]
 
+    prefix = commonpath(destinations) if destinations else ""
+    if prefix in destinations and "{}" not in prefix.rsplit("/", 1)[-1]:
+        prefix = dirname(prefix)
     can_batch = (
-        len(sources) == 1
-        and mapping.shape[0] == 1
+        bool(sources)
+        and "{}" in prefix
         and num_worlds > 0
         and bool(mapping.all())
         and not per_world_builder_hooks
@@ -306,17 +285,32 @@ def replicate_builder_mapping(
         and env_ids is not None
     )
     if can_batch:
-        source_builder = source_builders[sources[0]]
+        # Combine only the declared native prototypes, never their USD parent subtree.
+        source_builder = ModelBuilder(up_axis=builder.up_axis)
+        site_local_indices: dict[str, list[int]] = {}
+        particle_offsets = {}
+        for source, destination in zip(sources, destinations, strict=True):
+            prototype = source_builders[source]
+            particle_offsets[source] = source_builder.particle_count
+            for label, indices in source_site_indices.get(id(prototype), {}).items():
+                site_local_indices.setdefault(label, []).extend(source_builder.shape_count + index for index in indices)
+            # Resolve label-based ownership before names become relative but targets do not.
+            prototype._resolve_custom_frequency_articulation_owners()
+            label_groups = _label_groups(prototype)
+            original_labels = {name: list(labels) for name, labels in label_groups.items()}
+            try:
+                _rebase_labels(prototype, source, destination, prefix)
+                source_builder.add_builder(prototype)
+            finally:
+                for name, labels in original_labels.items():
+                    label_groups[name][:] = labels
 
         # Inject env-root sites into the source so replicate() copies them. Prefixed
         # by world_xforms[0] so R_w = world_xform_w * inv(world_xform_0) lands each
         # copy at world_xform_w * xform.
-        site_local_indices: dict[str, list[int]] = {}
         for label, xform in env_root_sites.items():
             idx = source_builder.add_site(body=-1, xform=wp.transform_multiply(world_xforms[0], xform), label=label)
             site_local_indices.setdefault(label, []).append(idx)
-        for label, indices in source_site_indices.get(id(source_builder), {}).items():
-            site_local_indices.setdefault(label, []).extend(indices)
 
         # Site index after replicate: base_shape + world * stride + source_local_index.
         base_shape = builder.shape_count
@@ -326,22 +320,14 @@ def replicate_builder_mapping(
         source_xform_inv = _invert_xform(xforms_np[0])
         xforms = _compose_world_xforms(positions, quaternions, source_xform_inv)
 
-        # Resolve label-based ownership before names become relative but target paths do not.
-        source_builder._resolve_custom_frequency_articulation_owners()
-        label_groups = _label_groups(source_builder)
-        original_labels = {name: list(labels) for name, labels in label_groups.items()}
-        try:
-            prefix = _rebase_labels(source_builder, sources[0], destinations[0])
-            prefixes = [prefix.format(int(env_id)) for env_id in env_ids]
-            builder.replicate(source_builder, num_worlds, xforms=xforms, label_prefixes=prefixes)
-        finally:
-            for name, labels in original_labels.items():
-                label_groups[name][:] = labels
+        prefixes = [prefix.format(int(env_id)) for env_id in env_ids]
+        builder.replicate(source_builder, num_worlds, xforms=xforms, label_prefixes=prefixes)
 
         if source_builder_added is not None:
             for world in range(num_worlds):
-                particle_offset = base_particle + world * particle_stride
-                source_builder_added(sources[0], particle_offset, source_builder, xforms[world])
+                for source in sources:
+                    particle_offset = base_particle + world * particle_stride + particle_offsets[source]
+                    source_builder_added(source, particle_offset, source_builders[source], xforms[world])
 
         for label, local_indices in site_local_indices.items():
             local_site_map[label] = [
@@ -353,44 +339,38 @@ def replicate_builder_mapping(
 
     source_world_indices = mapping.argmax(axis=1)
 
-    # Per-world placements for every env-root site, composed up front so the per-world loop
-    # below only indexes rows.
+    # Compose site placements once, outside the per-world loop.
     root_site_xforms = {
         label: _compose_world_xforms(positions, quaternions, xform) for label, xform in env_root_sites.items()
     }
-    # Same for the source placements, but only for the occupied ``(row, col)`` pairs of the
-    # mapping: composing a dense ``num_rows x num_worlds`` table would blow up on heterogeneous
-    # plans where each row is present in a handful of worlds.
-    # One scan of the transposed mapping yields the occupied pairs in world-major order, which
-    # is the order both indices want.
-    rows_per_world: list[list[int]] = [[] for _ in range(num_worlds)]
-    worlds_per_row: dict[int, list[int]] = {}
-    for col_value, row_value in np.argwhere(mapping.T):
-        col, row = int(col_value), int(row_value)
-        rows_per_world[col].append(row)
-        worlds_per_row.setdefault(row, []).append(col)
+    # Only occupied source/world pairs need transforms; heterogeneous layouts may be sparse.
+    sources_per_world: list[list[int]] = [[] for _ in range(num_worlds)]
+    worlds_per_source: dict[int, list[int]] = {}
+    for world, source_index in np.argwhere(mapping.T):
+        world, source_index = int(world), int(source_index)
+        sources_per_world[world].append(source_index)
+        worlds_per_source.setdefault(source_index, []).append(world)
     source_xforms: dict[tuple[int, int], np.ndarray] = {}
-    for row, cols in worlds_per_row.items():
-        source_col = int(source_world_indices[row])
-        row_xforms = _compose_world_xforms(
-            positions[cols],
-            quaternions[cols],
-            _invert_xform(xforms_np[source_col]),
+    for source_index, worlds in worlds_per_source.items():
+        xforms = _compose_world_xforms(
+            positions[worlds], quaternions[worlds], _invert_xform(xforms_np[source_world_indices[source_index]])
         )
-        source_xforms.update(((row, col), row_xforms[index]) for index, col in enumerate(cols))
+        source_xforms.update(((source_index, world), xforms[index]) for index, world in enumerate(worlds))
 
     for col in range(num_worlds):
         builder.begin_world()
         for label, world_site_xforms in root_site_xforms.items():
             site_idx = builder.add_site(body=-1, xform=world_site_xforms[col], label=label)
             local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col].append(site_idx)
-        for row in rows_per_world[col]:
-            source_builder = source_builders[sources[row]]
+        for source_index in sources_per_world[col]:
+            source_builder = source_builders[sources[source_index]]
             shape_offset = builder.shape_count
             particle_offset = builder.particle_count if source_builder_added is not None else 0
-            builder.add_builder(source_builder, xform=source_xforms[row, col])
+            builder.add_builder(source_builder, xform=source_xforms[source_index, col])
             if source_builder_added is not None:
-                source_builder_added(sources[row], particle_offset, source_builder, source_xforms[row, col])
+                source_builder_added(
+                    sources[source_index], particle_offset, source_builder, source_xforms[source_index, col]
+                )
 
             for label, source_shape_indices in source_site_indices.get(id(source_builder), {}).items():
                 local_indices = local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col]
@@ -423,12 +403,12 @@ def rename_builder_labels(
         world_roots = {int(col): (destination.format(int(env_ids[col])).rstrip("/") or "/") for col in world_cols}
 
         def _rename_pair(values, worlds, src_root=source_root, roots=world_roots, *, collect_body_bindings=False):
-            rows = (
+            labels = (
                 ((index, value, worlds[index]) for index, value in values.items())
                 if isinstance(values, dict)
                 else ((index, value, world) for index, (value, world) in enumerate(zip(values, worlds, strict=True)))
             )
-            for index, value, world in rows:
+            for index, value, world in labels:
                 suffix = clone_path.relative_to(value, src_root) if isinstance(value, str) else None
                 if world is None or suffix is None:
                     continue

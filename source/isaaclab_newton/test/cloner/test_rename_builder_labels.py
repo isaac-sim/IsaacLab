@@ -21,12 +21,15 @@ from isaaclab_newton.physics import visualization_deformables as visualization_d
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan
+from isaaclab.cloner.query import replication_mapping
 from isaaclab.scene_data.deformable_discovery import (
     DeformableStageEntry,
     deformable_prototypes,
     expand_deformable_entries,
 )
+from isaaclab.sim import MultiUsdFileCfg, SpawnerCfg
 from isaaclab.sim.schemas import define_deformable_curve_properties
 
 _SRC = "/World/envs/env_0/protoA"
@@ -138,11 +141,16 @@ class TestRenameCustomAttributes(unittest.TestCase):
 
 class TestReplicateBuilderMapping(unittest.TestCase):
     def test_local_and_env_root_sites_keep_indices_labels_and_world_positions(self):
-        source_path, destination = "/World/envs/env_0", "/World/envs/env_{}"
+        source_path, destination = "/World/envs/env_0/Robot", "/World/envs/env_{}/Robot"
         source = newton.ModelBuilder()
-        source.add_body(xform=wp.transform((2.0, 0.0, 0.0), wp.quat_identity()))
+        source.add_body(xform=wp.transform((2.0, 0.0, 0.0), wp.quat_identity()), label=source_path)
         site_idx = source.add_site(body=0, xform=wp.transform(), label="ee")
-        root_site_idx = source.shape_count
+        other_path = "/World/envs/env_0/Box"
+        other = newton.ModelBuilder()
+        other.add_body(xform=wp.transform((2.0, 0.0, 1.0), wp.quat_identity()), label=other_path)
+        other.add_shape_box(body=0, label=other_path + "/shape")
+        root_site_idx = source.shape_count + other.shape_count
+        shape_stride = root_site_idx + 1
 
         # Non-zero base so site indices are not trivially zero-based.
         builder = newton.ModelBuilder()
@@ -154,12 +162,12 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
             local_site_map, _, _ = replicate_builder_mapping(
                 builder,
-                (source_path,),
-                np.ones((1, 3), dtype=np.bool_),
+                (source_path, other_path),
+                np.ones((2, 3), dtype=np.bool_),
                 positions,
                 np.array([[0.0, 0.0, 0.0, 1.0]] * 3, dtype=np.float32),
-                {source_path: source},
-                destinations=(destination,),
+                {source_path: source, other_path: other},
+                destinations=(destination, "/World/envs/env_{}/Box"),
                 env_ids=np.arange(3, dtype=np.int64),
                 source_site_indices={id(source): {"ee": [site_idx]}},
                 env_root_sites={"origin": wp.transform((0.1, 0.0, 0.0), wp.quat_identity())},
@@ -167,15 +175,18 @@ class TestReplicateBuilderMapping(unittest.TestCase):
 
         replicate.assert_called_once()
         for name, index in (("ee", site_idx), ("origin", root_site_idx)):
-            self.assertEqual(
-                local_site_map[name], [[base_shape + world * source.shape_count + index] for world in range(3)]
-            )
+            self.assertEqual(local_site_map[name], [[base_shape + world * shape_stride + index] for world in range(3)])
             for world, (index,) in enumerate(local_site_map[name]):
                 self.assertEqual(builder.shape_label[index], f"/World/envs/env_{world}/{name}")
         np.testing.assert_allclose(
             [tuple(builder.shape_transform[index].p) for (index,) in local_site_map["origin"]],
             positions + [0.1, 0.0, 0.0],
             atol=1e-6,
+        )
+        self.assertEqual(source.shape_count + other.shape_count, root_site_idx)
+        self.assertEqual(
+            builder.body_label[1:],
+            [f"/World/envs/env_{world}/{name}" for world in range(3) for name in ("Robot", "Box")],
         )
 
     def test_inactive_source_rows_are_ignored(self):
@@ -227,12 +238,10 @@ class TestVisualizationClonePlan(unittest.TestCase):
             UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
             UsdPhysics.CollisionAPI.Apply(body.GetPrim())
         plan = ClonePlan(
-            sources=(),
-            destinations=(),
-            clone_mask=np.empty((0, 1), dtype=np.bool_),
+            sources=(AssetBaseCfg(prim_path="/World/Declared"),),
+            destinations=np.full((1, 1), -1, dtype=np.int32),
             env_ids=np.arange(1, dtype=np.int64),
-            global_paths=("/World/Declared",),
-            context_rows={NewtonReplicateContext: ()},
+            context_source_indices={NewtonReplicateContext: ()},
         )
         builder, stage_info, site_index_map = NewtonReplicateContext(self.sim).replicate(plan)
 
@@ -241,13 +250,15 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self.assertEqual(site_index_map, {})
 
         plan = ClonePlan(
-            sources=("/World/Declared",),
-            destinations=("/Copies/env_{}/Body",),
-            clone_mask=np.ones((1, 2), dtype=np.bool_),
+            sources=(
+                AssetBaseCfg(prim_path="/Copies/env_[^/]+/Body", spawn=SpawnerCfg(spawn_path="/World/Declared")),
+                AssetBaseCfg(prim_path="/World"),
+            ),
+            destinations=np.array([[0, 0], [-1, -1]], dtype=np.int32),
+            clone_template="/Copies/env_{}",
             env_ids=np.arange(2, dtype=np.int64),
             positions=np.array([[0.0, 0.0, 0.0], [2.0, 0.0, 0.0]], dtype=np.float32),
-            global_paths=("/World",),
-            context_rows={NewtonReplicateContext: (0,)},
+            context_source_indices={NewtonReplicateContext: (0,)},
         )
         for positions in (plan.positions, None):
             with self.subTest(positions=positions):
@@ -281,12 +292,15 @@ class TestVisualizationClonePlan(unittest.TestCase):
             curve.SetWidthsInterpolation(UsdGeom.Tokens.constant)
             define_deformable_curve_properties(path, stage)
         plan = ClonePlan(
-            sources=(source, "/Scene/copy_7/OtherRope"),
-            destinations=("/Scene/copy_{}/Rope", "/Scene/copy_{}/OtherRope"),
-            clone_mask=np.ones((2, 2), dtype=np.bool_),
+            sources=(
+                AssetBaseCfg(prim_path="/Scene/copy_[^/]+/Rope", spawn=SpawnerCfg(spawn_path=source)),
+                AssetBaseCfg(prim_path="/Scene/copy_[^/]+/OtherRope"),
+            )
+            + tuple(AssetBaseCfg(prim_path=path) for path in shared),
+            destinations=np.pad(np.zeros((2, 2), dtype=np.int32), ((0, len(shared)), (0, 0)), constant_values=-1),
+            clone_template="/Scene/copy_{}",
             env_ids=np.array([7, 12]),
-            global_paths=shared,
-            context_rows={NewtonReplicateContext: (0,)},
+            context_source_indices={NewtonReplicateContext: (0,)},
         )
         builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan)
         model = builder.finalize(device="cpu")
@@ -326,12 +340,11 @@ class TestVisualizationClonePlan(unittest.TestCase):
         joint.CreateBody1Rel().SetTargets([Sdf.Path(f"{robot_path}/B")])
 
         clone_plan = ClonePlan(
-            sources=(robot_path,),
-            destinations=("/World/envs/env_{}/Robot",),
-            clone_mask=np.ones((1, 2), dtype=np.bool_),
+            sources=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path=robot_path)),),
+            destinations=np.zeros((1, 2), dtype=np.int32),
             env_ids=np.arange(2, dtype=np.int64),
             positions=np.asarray(((0.0, 0.0, 0.0), (2.0, 0.0, 0.0)), dtype=np.float32),
-            context_rows={NewtonReplicateContext: (0,)},
+            context_source_indices={NewtonReplicateContext: (0,)},
         )
         builder, _, _ = NewtonReplicateContext(self.sim).replicate(clone_plan)
         model = builder.finalize(device="cpu")
@@ -354,12 +367,16 @@ class TestVisualizationClonePlan(unittest.TestCase):
             UsdGeom.Cube.Define(stage, f"{env_path}/Object/source_{env_id}_visual").CreateSizeAttr(0.2)
 
         clone_plan = ClonePlan(
-            sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
-            destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-            clone_mask=np.array([[True, False, True], [False, True, False]], dtype=np.bool_),
+            sources=(
+                AssetBaseCfg(
+                    prim_path="/World/envs/env_[^/]+/Object",
+                    spawn=MultiUsdFileCfg(usd_path=["", ""], spawn_paths=[path + "/Object" for _, path in env_paths]),
+                ),
+            ),
+            destinations=np.array([[0, 1, 0]], dtype=np.int32),
             env_ids=np.array([0, 1, 2], dtype=np.int64),
             positions=np.asarray(((0.0, 0.0, 0.0), (3.0, 0.0, 0.0), (6.0, 0.0, 0.0)), dtype=np.float32),
-            context_rows={NewtonReplicateContext: (0, 1)},
+            context_source_indices={NewtonReplicateContext: (0,)},
         )
 
         builder, _, _ = NewtonReplicateContext(self.sim).replicate(clone_plan)
@@ -384,18 +401,20 @@ class TestVisualizationClonePlan(unittest.TestCase):
         cloth.CreateFaceVertexCountsAttr([3])
         cloth.CreateFaceVertexIndicesAttr([0, 1, 2])
         plan = ClonePlan(
-            sources=(path,),
-            destinations=("/Scene/copy_{}/Parent/Cloth",),
-            clone_mask=np.array([[True, False, True]], dtype=np.bool_),
+            sources=(AssetBaseCfg(prim_path="/Scene/copy_[^/]+/Parent/Cloth", spawn=SpawnerCfg(spawn_path=path)),),
+            destinations=np.array([[0, -1, 0]], dtype=np.int32),
+            clone_template="/Scene/copy_{}",
             env_ids=np.array([7, 9, 12], dtype=np.int64),
             positions=np.array([[10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [30.0, 0.0, 0.0]]),
         )
+        sources, destinations, mapping = replication_mapping(plan)
+        prototypes = deformable_prototypes(stage, sources, destinations)
         for positions in (plan.positions, None):
             with self.subTest(positions=positions):
                 builder = newton.ModelBuilder()
                 offsets = visualization_deformables_module.add_shadow_deformables_to_builder(
                     builder,
-                    expand_deformable_entries(replace(plan, positions=positions), deformable_prototypes(stage, plan)),
+                    expand_deformable_entries(prototypes, sources, destinations, plan.env_ids, mapping, positions),
                 )
                 self.assertEqual(offsets, {path: 0, "/Scene/copy_12/Parent/Cloth": 3})
                 self.assertFalse(stage.GetPrimAtPath("/Scene/copy_12"))
@@ -420,15 +439,21 @@ class TestVisualizationClonePlan(unittest.TestCase):
             for name, count in (("A", 3), ("B", 6))
         )
         plan = ClonePlan(
-            sources=tuple(entry.root_path for entry in entries),
-            destinations=("/Copies/{}/Body",) * 2,
+            sources=(
+                AssetBaseCfg(
+                    prim_path="/Copies/[^/]+/Body",
+                    spawn=MultiUsdFileCfg(usd_path=["", ""], spawn_paths=[entry.root_path for entry in entries]),
+                ),
+            ),
+            destinations=np.array([[0, 1, 0]], dtype=np.int32),
+            clone_template="/Copies/{}",
             env_ids=np.array([2, 10, 30]),
-            clone_mask=np.array([[True, False, True], [False, True, False]]),
         )
         builder = newton.ModelBuilder()
         builder.add_particle(pos=wp.vec3(), vel=wp.vec3(), mass=1.0)
+        sources, destinations, mapping = replication_mapping(plan)
         offsets = visualization_deformables_module.add_shadow_deformables_to_builder(
-            builder, expand_deformable_entries(plan, entries, (0, 1))
+            builder, expand_deformable_entries(entries, sources, destinations, plan.env_ids, mapping)
         )
         self.assertEqual(
             offsets, {"/Copies/2/Body/Visual": 1, "/Copies/30/Body/Visual": 4, "/Copies/10/Body/Visual": 7}

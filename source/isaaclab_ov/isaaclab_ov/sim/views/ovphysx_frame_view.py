@@ -523,7 +523,7 @@ class OvPhysxFrameView(BaseFrameView):
         plan = self._clone_plan
         if plan is None:
             raise RuntimeError("OvPhysxFrameView requires a clone plan for source-only world sites.")
-        plan_env_ids = range(plan.clone_mask.shape[1]) if plan.env_ids is None else plan.env_ids
+        plan_env_ids = range(plan.destinations.shape[1]) if plan.env_ids is None else plan.env_ids
         column_by_env_id = {int(env_id): column for column, env_id in enumerate(plan_env_ids)}
 
         records: list[tuple[int, Usd.Prim, list[float], list[float], str]] = []

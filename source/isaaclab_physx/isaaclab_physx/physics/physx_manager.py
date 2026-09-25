@@ -35,6 +35,7 @@ import usdrt
 from pxr import Sdf, Usd, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
+from isaaclab.cloner.query import replication_mapping
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
@@ -970,7 +971,11 @@ class PhysxManager(PhysicsManager):
         sim = PhysicsManager._sim
         entries = None
         if (plan := sim.get_clone_plan()) is not None:
-            entries = expand_deformable_entries(plan, deformable_prototypes(sim.stage, plan))
+            sources, destinations, mapping = replication_mapping(plan)
+            prototypes = deformable_prototypes(sim.stage, sources, destinations, plan.global_paths)
+            entries = expand_deformable_entries(
+                prototypes, sources, destinations, plan.env_ids, mapping, plan.positions
+            )
 
         is_gpu = "cuda" in PhysicsManager.get_device()
 

@@ -101,10 +101,9 @@ class _NewtonRayCasterPoseMixin:
         """Register Newton sites for a prim expression."""
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
         if plan is not None:
-            for destination_template in plan.destinations:
-                matched = cloner.path.match(prim_expr, destination_template)
-                if matched is not None and not matched.suffix:
-                    return [NewtonManager.cl_register_site(None, wp.transform(), per_world=True)]
+            matched = cloner.path.match(prim_expr, plan.clone_template)
+            if matched is not None and not matched.suffix:
+                return [NewtonManager.cl_register_site(None, wp.transform(), per_world=True)]
 
         try:
             body_expr, fixed_pos, fixed_quat = self._resolve_rigid_body_ancestor_expr()

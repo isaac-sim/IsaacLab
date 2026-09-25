@@ -18,6 +18,7 @@ items from ``TODO_ray_caster_kernel_tests.md``:
 """
 
 from isaaclab.app import AppLauncher
+from isaaclab.assets import AssetBaseCfg
 
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
@@ -308,12 +309,13 @@ def test_multi_mesh_uses_clone_plan_geometry_and_backend_object_pose(sim_ground)
     # selects source geometry; the object body view supplies env_2's live pose.
     sim.set_clone_plan(
         ClonePlan(
-            sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
-            destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-            clone_mask=np.asarray([[True, False, True], [False, True, False]], dtype=np.bool_),
+            sources=(
+                AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),
+                AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),
+            ),
+            destinations=np.array([[0, -1, 0], [-1, 0, -1]], dtype=np.int32),
             env_ids=np.arange(3, dtype=np.int64),
             positions=None,
-            cfg_rows={},
         )
     )
     sim_utils.update_stage()

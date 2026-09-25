@@ -13,7 +13,9 @@ import warp as wp
 from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableMaterialCfg
 
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan
+from isaaclab.sim import SpawnerCfg
 
 from isaaclab_contrib.deformable import DeformableObject
 from isaaclab_contrib.deformable.deformable_object import (
@@ -124,11 +126,13 @@ def test_planned_geometry_aliases_surface_nodes_and_interpolates_volume_once(mon
     surface.particle_offsets, surface.particles_per_body = [31, 37], 3
     NewtonManager._deformable_registry.append(surface)
     plan = ClonePlan(
-        sources=("/Scene/copy_0",),
-        destinations=("/Scene/copy_{}",),
-        clone_mask=np.array([[True, False, True]]),
+        sources=(
+            AssetBaseCfg(prim_path="/Scene/copy_[^/]+", spawn=SpawnerCfg(spawn_path="/Scene/copy_0")),
+            AssetBaseCfg(prim_path="/Scene"),
+        ),
+        destinations=np.array([[0, -1, 0], [-1, -1, -1]], dtype=np.int32),
+        clone_template="/Scene/copy_{}",
         env_ids=np.array([7, 12, 42]),
-        global_paths=("/Scene",),
     )
     nodes = np.zeros((40, 3), dtype=np.float32)
     nodes[7:11], nodes[19:23] = np.asarray(entry.vertices), np.asarray(entry.vertices) + [100, 0, 0]

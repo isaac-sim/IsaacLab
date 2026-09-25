@@ -271,7 +271,7 @@ class SensorBase(ABC):
             clone_plan_matches = tuple(cloner.query.iter_sources(clone_plan, self.cfg.prim_path))
         if clone_plan_matches:
             self._parent_prims = []
-            self._num_envs = int(clone_plan.clone_mask.shape[1])
+            self._num_envs = int(clone_plan.destinations.shape[1])
         elif clone_plan is not None:
             env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
             self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)

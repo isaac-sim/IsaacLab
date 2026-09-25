@@ -15,6 +15,7 @@ from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager
 
 from pxr import Gf, Usd, UsdGeom
 
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan
 from isaaclab.physics import PhysicsManager
 
@@ -91,12 +92,11 @@ def test_ovphysx_context_consumes_plan():
     manager = SimpleNamespace(_register_clone_transforms=lambda *recipe: recipes.append(recipe))
     simulation = SimpleNamespace(stage=stage, physics_manager=manager)
     plan = ClonePlan(
-        sources=("/World/envs/env_10/Robot",),
-        destinations=("/World/envs/env_{}/Robot",),
-        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        sources=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),),
+        destinations=np.zeros((1, 2), dtype=np.int32),
         env_ids=np.array([10, 20], dtype=np.int64),
         positions=np.array([[0.0, 0.0, 0.0], [1.0, 2.0, 3.0]], dtype=np.float32),
-        context_rows={OvPhysxReplicateContext: (0,)},
+        context_source_indices={OvPhysxReplicateContext: (0,)},
     )
 
     OvPhysxReplicateContext(simulation).replicate(plan)

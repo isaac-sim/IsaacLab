@@ -23,6 +23,7 @@ from pxr import Usd
 # The color palette / reserved ids live in core and are unit-tested there
 # (``isaaclab/test/renderers/test_segmentation_colors.py``); here they are only an oracle for the
 # mapper's info-dict keys.
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan
 from isaaclab.renderers.segmentation_colors import BACKGROUND_ID, UNLABELLED_ID, pack_rgba, random_color_from_id
 from isaaclab.sim.utils.semantics import add_labels
@@ -30,7 +31,10 @@ from isaaclab.sim.utils.semantics import add_labels
 
 def _empty_clone_plan() -> ClonePlan:
     """A clone plan owning nothing, standing in for scenes with no replicated shapes to fall back to."""
-    return ClonePlan(sources=(), destinations=(), clone_mask=np.zeros((0, 0), dtype=np.bool_))
+    return ClonePlan(
+        sources=(),
+        destinations=np.empty((0, 0), dtype=np.int32),
+    )
 
 
 def _cfg(**overrides):
@@ -183,9 +187,8 @@ def _prototype_only_scene():
         "/World/ground/geom",
     ]
     plan = ClonePlan(
-        sources=("/World/envs/env_0/Robot",),
-        destinations=("/World/envs/env_{}/Robot",),
-        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        sources=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),),
+        destinations=np.zeros((1, 2), dtype=np.int32),
         env_ids=np.array([0, 1], dtype=np.int64),
     )
     return stage, shape_paths, plan

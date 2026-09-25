@@ -21,7 +21,8 @@ from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab import cloner  # noqa: E402
-from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.sim import SimulationCfg, SpawnerCfg, build_simulation_context  # noqa: E402
 from isaaclab.sim.views import FrameView  # noqa: E402
 
 OVPHYSX_SIM_CFG = SimulationCfg(physics=OvPhysxCfg())
@@ -57,9 +58,10 @@ def test_world_attached_source_prim_expands_from_clone_plan():
         scene = InteractiveScene(InteractiveSceneCfg(num_envs=4, env_spacing=2.0))
         target_env_ids = (0, 5, 2, 9)
         plan = cloner.ClonePlan(
-            sources=("/World/envs/env_0",),
-            destinations=("/World/envs/env_{}",),
-            clone_mask=np.ones((1, scene.num_envs), dtype=np.bool_),
+            sources=(
+                AssetBaseCfg(prim_path="/World/envs/env_[^/]+", spawn=SpawnerCfg(spawn_path="/World/envs/env_0")),
+            ),
+            destinations=np.zeros((1, scene.num_envs), dtype=np.int32),
             env_ids=np.asarray(target_env_ids, dtype=np.int64),
             positions=cloner.grid_transforms(scene.num_envs, scene.cfg.env_spacing)[0],
         )

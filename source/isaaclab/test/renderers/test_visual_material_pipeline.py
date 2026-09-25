@@ -17,10 +17,12 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.assets.visual_material.visual_material import VisualMaterial
 from isaaclab.cloner import ClonePlan
 from isaaclab.renderers.render_context import RenderContext
 from isaaclab.renderers.renderer_cfg import RendererCfg
+from isaaclab.sim import MultiUsdFileCfg
 
 _SOURCE_ROOT = Path(__file__).resolve().parents[3]
 _PACKAGE_ROOT = _SOURCE_ROOT / "isaaclab" / "isaaclab"
@@ -238,10 +240,16 @@ def test_runtime_material_writes_have_no_host_or_usd_path() -> None:
 
 def test_material_initialization_orders_paths_by_plan_column(monkeypatch: pytest.MonkeyPatch) -> None:
     plan = ClonePlan(
-        sources=("/World/envs/env_42/Robot", "/World/envs/env_7/Robot"),
-        destinations=("/World/envs/env_{}/Robot",) * 2,
+        sources=(
+            AssetBaseCfg(
+                prim_path="/World/envs/env_[^/]+/Robot",
+                spawn=MultiUsdFileCfg(
+                    usd_path=["", ""], spawn_paths=["/World/envs/env_42/Robot", "/World/envs/env_7/Robot"]
+                ),
+            ),
+        ),
+        destinations=np.array([[0, 0, 1]], dtype=np.int32),
         env_ids=np.asarray([19, 42, 7], dtype=np.int64),
-        clone_mask=np.asarray([[True, True, False], [False, False, True]], dtype=np.bool_),
     )
     simulation = SimpleNamespace(get_clone_plan=lambda: plan)
     monkeypatch.setattr(
@@ -275,10 +283,9 @@ def test_material_initialization_orders_paths_by_plan_column(monkeypatch: pytest
 
 def test_material_initialization_rejects_partial_owner_row(monkeypatch: pytest.MonkeyPatch) -> None:
     plan = ClonePlan(
-        sources=("/World/envs/env_0/Robot",),
-        destinations=("/World/envs/env_{}/Robot",),
+        sources=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),),
+        destinations=np.array([[0, 0, -1, -1]], dtype=np.int32),
         env_ids=np.arange(4, dtype=np.int64),
-        clone_mask=np.asarray([[True, True, False, False]], dtype=np.bool_),
     )
     simulation = SimpleNamespace(get_clone_plan=lambda: plan)
     monkeypatch.setattr(

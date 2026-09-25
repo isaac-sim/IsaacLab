@@ -19,6 +19,8 @@ This script shows how to use the multi-mesh ray caster from the Isaac Lab framew
 import argparse
 
 from isaaclab.app import AppLauncher
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.sim import SpawnerCfg
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Ray Caster Test Script")
@@ -103,14 +105,11 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     # Clone the scene
     envs_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
     lab_cloner.usd_replicate(sim.stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
-    # Publish a trivial homogeneous ClonePlan so consumers (e.g. multi-mesh ray-caster's
-    # target tracker) can drive per-env work via clone_mask. Mirrors InteractiveScene's
-    # synthesis path for hand-authored scenes that bypass it.
+    # Publish the manually authored environment declaration for sensor queries.
     sim.set_clone_plan(
         lab_cloner.ClonePlan(
-            sources=(env_fmt.format(0),),
-            destinations=(env_fmt,),
-            clone_mask=np.ones((1, num_envs), dtype=np.bool_),
+            sources=(AssetBaseCfg(prim_path=env_fmt.format("[^/]+"), spawn=SpawnerCfg(spawn_path=env_fmt.format(0))),),
+            destinations=np.zeros((1, num_envs), dtype=np.int32),
         )
     )
     # PhysX-only optimization: filter collisions across env clones. Skip on Newton —
