@@ -800,11 +800,15 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
-        include-files: "test_contrib_environments.py"
+        include-files: >-
+          test_contrib_environments_kitless.py,
+          test_contrib_environments_kit.py,
+          test_contrib_environments_kit_cameras.py
         warp-cache: restore
         ovrtx-shader-cache: restore
         ovrtx-shader-cache-trees: kit
-        test-jobs: "4"
+        # The three files run side by side, each split across two workers.
+        test-jobs: "6"
         container-name: isaac-lab-contrib-environments-test
 
   test-record-video:
