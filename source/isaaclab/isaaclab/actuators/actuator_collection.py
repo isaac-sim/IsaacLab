@@ -17,10 +17,9 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from isaaclab.utils.types import ArticulationActions
-from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
-
+from ..utils.types import ArticulationActions
+from ..utils.warp import ProxyArray
+from ..utils.warp.launch_cache import _WarpLaunchCache
 from . import actuator_kernels
 from ._compat import _resolve_limit_aliases
 from .actuator_base import ActuatorBase, resolve_joint_parameter

@@ -202,28 +202,9 @@ def test_self_collision(test_setup_teardown, tmp_path):
 
 @pytest.mark.isaacsim_ci
 def test_collision_from_visuals(test_setup_teardown, tmp_path):
-    """Verify that ``collision_from_visuals=True`` runs successfully and produces a spawnable USD."""
+    """Verify that ``collision_from_visuals=True`` with a non-default collision type produces a spawnable USD."""
     sim, config = test_setup_teardown
     output_dir = os.path.join(str(tmp_path), "mjcf_collision_visuals")
-    os.makedirs(output_dir, exist_ok=True)
-
-    config.collision_from_visuals = True
-    config.force_usd_conversion = True
-    config.usd_dir = output_dir
-    mjcf_converter = MjcfConverter(config)
-
-    assert os.path.exists(mjcf_converter.usd_path), "USD file should exist after conversion"
-
-    prim_path = "/World/Robot"
-    sim_utils.create_prim(prim_path, usd_path=mjcf_converter.usd_path)
-    assert sim.stage.GetPrimAtPath(prim_path).IsValid()
-
-
-@pytest.mark.isaacsim_ci
-def test_collision_type_convex_decomposition(test_setup_teardown, tmp_path):
-    """Verify that ``collision_type='Convex Decomposition'`` runs without error."""
-    sim, config = test_setup_teardown
-    output_dir = os.path.join(str(tmp_path), "mjcf_convex_decomp")
     os.makedirs(output_dir, exist_ok=True)
 
     config.collision_from_visuals = True
@@ -241,10 +222,10 @@ def test_collision_type_convex_decomposition(test_setup_teardown, tmp_path):
 
 @pytest.mark.isaacsim_ci
 def test_link_density(test_setup_teardown, tmp_path):
-    """Verify that ``link_density`` applies density without errors.
+    """Verify that ``link_density`` applies density to bodies without an explicit mass.
 
-    ``nv_ant.xml`` has explicit inertial data on most bodies, so density is only applied where
-    mass is unspecified. This test ensures the pipeline runs and the output is spawnable.
+    ``nv_ant.xml`` derives body masses from its geoms, so the bodies carry no explicit mass and get the
+    configured density.
     """
     sim, config = test_setup_teardown
     output_dir = os.path.join(str(tmp_path), "mjcf_link_density")
@@ -258,8 +239,10 @@ def test_link_density(test_setup_teardown, tmp_path):
     from pxr import Usd, UsdPhysics
 
     stage = Usd.Stage.Open(mjcf_converter.usd_path)
-    mass_prims = [p for p in stage.Traverse() if p.HasAPI(UsdPhysics.MassAPI)]
-    assert len(mass_prims) > 0, "Expected prims with MassAPI"
+    # bodies without an explicit mass get the configured density
+    torso = next(p for p in stage.Traverse() if p.GetName() == "torso")
+    assert torso.HasAPI(UsdPhysics.MassAPI)
+    assert torso.GetAttribute("physics:density").Get() == pytest.approx(500.0)
 
     prim_path = "/World/Robot"
     sim_utils.create_prim(prim_path, usd_path=mjcf_converter.usd_path)
@@ -287,7 +270,7 @@ def test_merge_mesh(test_setup_teardown, tmp_path):
 
 @pytest.mark.isaacsim_ci
 def test_import_physics_scene(test_setup_teardown, tmp_path):
-    """Verify that ``import_physics_scene=True`` still produces a spawnable USD."""
+    """Verify that ``import_physics_scene=True`` writes the MJCF physics scene into the converted asset."""
     sim, config = test_setup_teardown
     output_dir = os.path.join(str(tmp_path), "mjcf_physics_scene")
     os.makedirs(output_dir, exist_ok=True)
@@ -298,6 +281,21 @@ def test_import_physics_scene(test_setup_teardown, tmp_path):
     mjcf_converter = MjcfConverter(config)
 
     assert os.path.exists(mjcf_converter.usd_path), "USD file should exist after conversion"
+
+    # the imported scene is authored into the asset's layers (it is not composed under the default prim)
+    from pxr import Usd
+
+    stage = Usd.Stage.Open(mjcf_converter.usd_path)
+    scene_paths = []
+    for layer in stage.GetUsedLayers():
+
+        def _collect(path, layer=layer):
+            spec = layer.GetPrimAtPath(path) if path.IsPrimPath() else None
+            if spec and spec.typeName == "PhysicsScene":
+                scene_paths.append(path)
+
+        layer.Traverse(layer.pseudoRoot.path, _collect)
+    assert scene_paths, "Expected the converted asset layers to define a PhysicsScene"
 
 
 @pytest.mark.isaacsim_ci

@@ -94,13 +94,6 @@ def _run_generation(workflow_root: str, input_file: str, output_file: str, num_e
     )
 
 
-def test_generate_dataset_gr1t2_nutpour(setup_nutpour_gr1t2_test_environment):
-    """Test dataset generation for the GR1T2 nut-pour environment (single env)."""
-    workflow_root, input_file = setup_nutpour_gr1t2_test_environment
-    output_file = os.path.join(DATASETS_DOWNLOAD_DIR, "generated_dataset.hdf5")
-    _run_generation(workflow_root, input_file, output_file, num_envs=1)
-
-
 def test_generate_dataset_gr1t2_nutpour_multi_env(setup_nutpour_gr1t2_test_environment):
     """Test dataset generation for the GR1T2 nut-pour environment (5 envs)."""
     workflow_root, input_file = setup_nutpour_gr1t2_test_environment

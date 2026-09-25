@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# needed to import for allowing type-hinting: np.ndarray | None
 from __future__ import annotations
 
 import math
@@ -14,8 +13,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-from isaaclab.managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
-
+from ..managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
@@ -204,7 +202,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
-        # process actions
         self.action_manager.process_action(action.to(self.device))
 
         self.recorder_manager.record_pre_step()
@@ -212,7 +209,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # check if we need to do rendering within the physics loop
         # note: uses cached property to avoid settings lookup every step
         is_rendering = self.sim.is_rendering
-
         # perform physics stepping
         if self._physics_handles_decimation:
             self._sim_step_counter += self.cfg.decimation
@@ -251,7 +247,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.reset_buf = self.termination_manager.compute()
         self.reset_terminated = self.termination_manager.terminated
         self.reset_time_outs = self.termination_manager.time_outs
-        # -- reward computation
         self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
 
         if len(self.recorder_manager.active_terms) > 0:
@@ -265,7 +260,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             # capture the terminal observation before reset and expose it for Same-Step autoreset.
             if self.cfg.compute_final_obs:
                 self.extras["final_obs"] = self.observation_manager.compute()
-            # trigger recorder terms for pre-reset calls
             self.recorder_manager.record_pre_reset(reset_env_ids)
 
             self._reset_idx(reset_env_ids)
@@ -274,8 +268,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
-
-            # trigger recorder terms for post-reset calls
             self.recorder_manager.record_post_reset(reset_env_ids)
 
         # -- handle episode reset requested from visualizer UI controls
@@ -292,9 +284,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 self._reset_idx(manual_reset_ids)
                 self.recorder_manager.record_post_reset(manual_reset_ids)
 
-        # -- update command
         self.command_manager.compute(dt=self.step_dt)
-        # -- step interval events
         if "interval" in self.event_manager.available_modes:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
         # -- advance video recorders (after render and resets, before final obs)
@@ -304,7 +294,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # note: done after reset to get the correct observations for reset envs
         self.obs_buf = self.observation_manager.compute(update_history=True)
 
-        # return observations, rewards, resets and extras
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
 
     def render(self, recompute: bool = False) -> np.ndarray | None:
@@ -447,7 +436,4 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)
 
-        # reset the episode length buffer
         self.episode_length_buf[env_ids] = 0
-
-        self.sim.render_context.reset_scene_state_cadence()

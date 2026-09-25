@@ -28,16 +28,15 @@ def test_uniform_only_sampler_is_uniform():
 
 def test_sampler_probabilities_are_finite_nonnegative_and_normalized():
     rates = torch.rand(50)
-    sampler = Sampler(
-        SamplerCfg(
-            strategies=[
-                BetaSamplingStrategyCfg(target=0.66, kappa=1.0, weight=1.0),
-                UniformSamplingStrategyCfg(weight=0.1),
-            ],
-            eps=1e-3,
-        ),
-        rates,
+    cfg = SamplerCfg(
+        strategies=[
+            BetaSamplingStrategyCfg(target=0.66, kappa=1.0, weight=1.0),
+            UniformSamplingStrategyCfg(weight=0.1),
+        ],
+        eps=1e-3,
     )
+    sampler = cfg.class_type(cfg, rates)
+    assert sampler.names == ["beta", "uniform"]
     probs = sampler.probabilities()
     assert torch.isfinite(probs).all()
     assert (probs >= 0).all()
@@ -47,19 +46,12 @@ def test_sampler_probabilities_are_finite_nonnegative_and_normalized():
 def test_sampler_clamps_negative_strategy_weight():
     """A negative strategy weight contributes no probability mass."""
     rates = torch.rand(50)
-    positive = Sampler(SamplerCfg(strategies=[UniformSamplingStrategyCfg(weight=1.0)], eps=1e-6), rates).probabilities()
-    negative = Sampler(
-        SamplerCfg(strategies=[UniformSamplingStrategyCfg(weight=-1.0)], eps=1e-6), rates
+    beta = BetaSamplingStrategyCfg(target=0.66, kappa=1.0, weight=1.0)
+    beta_only = Sampler(SamplerCfg(strategies=[beta], eps=1e-6), rates).probabilities()
+    with_negative = Sampler(
+        SamplerCfg(strategies=[beta, UniformSamplingStrategyCfg(weight=-1.0)], eps=1e-6), rates
     ).probabilities()
-    torch.testing.assert_close(positive, negative)
-
-
-def test_sampler_cfg_builds_runtime_sampler():
-    rates = torch.rand(50)
-    cfg = SamplerCfg(strategies=[BetaSamplingStrategyCfg(target=0.5, kappa=2.0)])
-    sampler = cfg.class_type(cfg, rates)
-    assert isinstance(sampler, Sampler)
-    assert sampler.names == ["beta"]
+    torch.testing.assert_close(with_negative, beta_only)
 
 
 def test_difficulty_scheduler_waits_for_accumulator_rates():

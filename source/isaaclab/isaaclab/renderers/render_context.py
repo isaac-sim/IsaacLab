@@ -8,37 +8,35 @@
 from __future__ import annotations
 
 import logging
-import os
+import warnings
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import torch
 import warp as wp
 
-from isaaclab.sensors.camera.camera_data import CameraData
-
+from ..sensors.camera.camera_data import CameraData
 from .base_renderer import BaseRenderer, VisualMaterialBatch
 from .renderer_cfg import RendererCfg
 
 if TYPE_CHECKING:
-    from isaaclab.sim import BackendCfg
+    from ..sim import BackendCfg
 
 logger = logging.getLogger(__name__)
 
-RENDER_PROFILE_SCOPE = "IsaacLab::Renderer::render"
-"""Name of the timed scope bracketing :meth:`BaseRenderer.render`, emitted when render profiling is on.
 
-Every backend renders through the same call, so a profile can compare them under one scope name
-instead of one internal name per backend. ``wp.ScopedTimer`` prints one ``"<name> took X.XX ms"``
-line per call, which ``scripts/benchmarks/benchmark_renderer.py`` parses back out of the run log.
-"""
+def __getattr__(name: str) -> Any:
+    if name == "RENDER_PROFILE_SCOPE":
+        from ..benchmark.stepping import RENDER_PROFILE_SCOPE
 
-_RENDER_PROFILE_ENABLED = os.environ.get("ISAACLAB_RENDER_PROFILE", "0") != "0"
-"""Whether to time and print :data:`RENDER_PROFILE_SCOPE`, read once from ``ISAACLAB_RENDER_PROFILE``.
-
-Off by default because the timer synchronizes the device on entry and exit. That is what lets it
-measure completed device work rather than submitted work, but it also removes CPU/GPU overlap, so
-an enabled run is a profiling aid and not a throughput measurement.
-"""
+        warnings.warn(
+            "isaaclab.renderers.render_context.RENDER_PROFILE_SCOPE is deprecated; "
+            "use isaaclab.benchmark.stepping.RENDER_PROFILE_SCOPE instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return RENDER_PROFILE_SCOPE
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 @wp.kernel(enable_backward=False)
@@ -63,8 +61,8 @@ _MATERIAL_WRITES = {
 class RenderContext:
     """Orchestrate simulation-owned renderers and own flat runtime material buffers.
 
-    Renderer instances are borrowed from the simulation's backend registry. Scene state updates
-    run at most once per physics step, regardless of how many cameras share a renderer.
+    Renderer instances are borrowed from the simulation's backend registry. SDP owns transform
+    freshness, including pose writes that do not advance the physics-step counter.
     """
 
     __slots__ = (
@@ -73,7 +71,6 @@ class RenderContext:
         "_physics_initialized",
         "_prepared_renderer_ids",
         "_prepared_num_envs",
-        "_last_scene_state_step",
         "_visual_materials",
         "_visual_material_batches",
         "_visual_material_batches_by_channel",
@@ -91,7 +88,6 @@ class RenderContext:
         self._physics_initialized: bool = False  # Set to True after the first PHYSICS_READY callback fires.
         self._prepared_renderer_ids: set[int] = set()
         self._prepared_num_envs: int | None = None
-        self._last_scene_state_step: int | None = None
         self._visual_materials: list[Any] = []
         self._visual_material_batches: tuple[VisualMaterialBatch, ...] = ()
         self._visual_material_batches_by_channel: dict[str, VisualMaterialBatch] = {}
@@ -129,7 +125,6 @@ class RenderContext:
     def register_renderer(self, cfg: RendererCfg, renderer: BaseRenderer) -> None:
         """Include a newly registry-owned renderer in cloning and post-physics initialization."""
         self.clone_contexts.update(cfg.cloning_contexts)
-        self._last_scene_state_step = None
         if self._physics_initialized:
             renderer.initialize()
 
@@ -320,19 +315,13 @@ class RenderContext:
             self._prepared_num_envs = num_envs
 
     def update_scene_state(self, physics_step_count: int) -> None:
-        """Update scene state on all backends (at most once per step).
+        """Publish physics state and refresh renderers through SDP's producer versions.
 
-        Invokes :meth:`BaseRenderer.update_transforms` and then
-        :meth:`BaseRenderer.update_geometries` on each registered renderer.
+        Producer versions also cover geometry writes between physics steps.
         """
-        if self._last_scene_state_step == physics_step_count:
-            return
-
         for _cfg, renderer in self._renderer_entries:
             renderer.update_transforms()
             renderer.update_geometries()
-
-        self._last_scene_state_step = physics_step_count
 
     def render_into_camera(
         self,
@@ -341,30 +330,42 @@ class RenderContext:
         camera_data: CameraData,
         physics_step_count: int,
     ) -> None:
-        """Sync scene state, render, and read outputs into ``camera_data``.
+        """Sync scene state and capture one camera through :meth:`render_into_cameras`."""
+        self.render_into_cameras([(renderer, render_data, camera_data)], physics_step_count)
 
-        Only the render itself is bracketed by :data:`RENDER_PROFILE_SCOPE`, so a profile
-        attributes neither the scene-state sync before it nor the output readback after it to
-        rendering. See :data:`_RENDER_PROFILE_ENABLED` for how to turn the timer on.
+    def render_into_cameras(
+        self,
+        requests: Sequence[tuple[BaseRenderer, Any, CameraData]],
+        physics_step_count: int,
+    ) -> None:
+        """Render prepared cameras in batches grouped by renderer instance.
+
+        Camera poses must be updated before this call. Requests are used only for this
+        submission; the context does not retain cameras or manage sensor timing.
+
+        Args:
+            requests: Tuples of renderer, renderer-specific render data, and output camera data.
+                An empty sequence performs no work.
+            physics_step_count: Current physics step for shared scene synchronization.
         """
+        if not requests:
+            return
+
         self.update_scene_state(physics_step_count)
-        with wp.ScopedTimer(
-            RENDER_PROFILE_SCOPE,
-            active=_RENDER_PROFILE_ENABLED,
-            print=True,
-            synchronize=True,
-        ):
-            renderer.render(render_data)
-        renderer.read_output(render_data, camera_data)
+
+        groups: dict[int, tuple[BaseRenderer, list[tuple[Any, CameraData]]]] = {}
+        for renderer, render_data, camera_data in requests:
+            groups.setdefault(id(renderer), (renderer, []))[1].append((render_data, camera_data))
+
+        for renderer, cameras in groups.values():
+            renderer.render_batch([render_data for render_data, _ in cameras])
+            for render_data, camera_data in cameras:
+                renderer.read_output(render_data, camera_data)
 
     def reset_stage_prepare_flag(self) -> None:
         """Allow :meth:`ensure_prepare_stage` to run ``prepare_stage`` again (e.g. a new USD stage)."""
         self._prepared_renderer_ids.clear()
         self._prepared_num_envs = None
-
-    def reset_scene_state_cadence(self) -> None:
-        """Clear per-step scene state update dedupe (e.g. a long pause with no physics)."""
-        self._last_scene_state_step = None
 
     def close(self) -> None:
         """Release material writers and lifecycle bookkeeping, not registry-owned renderers.
@@ -382,7 +383,6 @@ class RenderContext:
         self.clone_contexts.clear()
         self._prepared_renderer_ids.clear()
         self._prepared_num_envs = None
-        self._last_scene_state_step = None
         self._physics_initialized = False
         self._visual_materials.clear()
         self._visual_material_batches = ()

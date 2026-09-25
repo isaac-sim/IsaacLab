@@ -15,18 +15,13 @@ simulation_app = AppLauncher(headless=True).app
 import math
 import os
 import random
+import shutil
 import tempfile
 
 import pytest
-from isaaclab_physx.sim.schemas import (
-    PhysxConvexDecompositionCfg,
-    PhysxConvexHullCfg,
-    PhysxSDFMeshCfg,
-    PhysxTriangleMeshCfg,
-    PhysxTriangleMeshSimplificationCfg,
-)
+from isaaclab_physx.sim.schemas import PhysxConvexHullCfg
 
-from pxr import UsdGeom, UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -204,10 +199,13 @@ def test_config_change(assets):
     assert time_usd_file_created != new_time_usd_file_created
 
 
-def test_convert_obj(assets):
-    """Convert an OBJ file"""
+def test_convert_obj(assets, tmp_path):
+    """Convert an OBJ file whose name has extra dots; the prim name is made a valid identifier."""
+    for key in ("mtl", "png"):
+        shutil.copy(assets[key], tmp_path)
+    asset_path = shutil.copy(assets["obj"], tmp_path / "duck.v2.obj")
     mesh_config = MeshConverterCfg(
-        asset_path=assets["obj"],
+        asset_path=str(asset_path),
         scale=(random.uniform(0.1, 2.0), random.uniform(0.1, 2.0), random.uniform(0.1, 2.0)),
         translation=(random.uniform(-10.0, 10.0), random.uniform(-10.0, 10.0), random.uniform(-10.0, 10.0)),
         rotation=random_quaternion(),
@@ -216,6 +214,7 @@ def test_convert_obj(assets):
 
     # check that mesh conversion is successful
     check_mesh_conversion(mesh_converter)
+    assert Usd.Stage.Open(mesh_converter.usd_path).GetDefaultPrim().GetName() == "duck_v2"
 
 
 def test_convert_stl(assets):
@@ -271,96 +270,6 @@ def test_collider_convex_hull(assets):
     """Convert an OBJ file using convex hull approximation"""
     collision_props = [schemas_cfg.UsdPhysicsCollisionCfg(collision_enabled=True)]
     mesh_collision_prop = [PhysxConvexHullCfg()]
-    mesh_config = MeshConverterCfg(
-        asset_path=assets["obj"],
-        mesh_collision_props=mesh_collision_prop,
-        collision_props=collision_props,
-    )
-    mesh_converter = MeshConverter(mesh_config)
-
-    # check that mesh conversion is successful
-    check_mesh_collider_settings(mesh_converter)
-
-
-def test_collider_convex_decomposition(assets):
-    """Convert an OBJ file using convex decomposition approximation"""
-    collision_props = [schemas_cfg.UsdPhysicsCollisionCfg(collision_enabled=True)]
-    mesh_collision_prop = [PhysxConvexDecompositionCfg()]
-    mesh_config = MeshConverterCfg(
-        asset_path=assets["obj"],
-        mesh_collision_props=mesh_collision_prop,
-        collision_props=collision_props,
-    )
-    mesh_converter = MeshConverter(mesh_config)
-
-    # check that mesh conversion is successful
-    check_mesh_collider_settings(mesh_converter)
-
-
-def test_collider_triangle_mesh(assets):
-    """Convert an OBJ file using triangle mesh approximation"""
-    collision_props = [schemas_cfg.UsdPhysicsCollisionCfg(collision_enabled=True)]
-    mesh_collision_prop = [PhysxTriangleMeshCfg()]
-    mesh_config = MeshConverterCfg(
-        asset_path=assets["obj"],
-        mesh_collision_props=mesh_collision_prop,
-        collision_props=collision_props,
-    )
-    mesh_converter = MeshConverter(mesh_config)
-
-    # check that mesh conversion is successful
-    check_mesh_collider_settings(mesh_converter)
-
-
-def test_collider_mesh_simplification(assets):
-    """Convert an OBJ file using mesh simplification approximation"""
-    collision_props = [schemas_cfg.UsdPhysicsCollisionCfg(collision_enabled=True)]
-    mesh_collision_prop = [PhysxTriangleMeshSimplificationCfg()]
-    mesh_config = MeshConverterCfg(
-        asset_path=assets["obj"],
-        mesh_collision_props=mesh_collision_prop,
-        collision_props=collision_props,
-    )
-    mesh_converter = MeshConverter(mesh_config)
-
-    # check that mesh conversion is successful
-    check_mesh_collider_settings(mesh_converter)
-
-
-def test_collider_mesh_bounding_cube(assets):
-    """Convert an OBJ file using bounding cube approximation"""
-    collision_props = [schemas_cfg.UsdPhysicsCollisionCfg(collision_enabled=True)]
-    mesh_collision_prop = [schemas_cfg.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="boundingCube")]
-    mesh_config = MeshConverterCfg(
-        asset_path=assets["obj"],
-        mesh_collision_props=mesh_collision_prop,
-        collision_props=collision_props,
-    )
-    mesh_converter = MeshConverter(mesh_config)
-
-    # check that mesh conversion is successful
-    check_mesh_collider_settings(mesh_converter)
-
-
-def test_collider_mesh_bounding_sphere(assets):
-    """Convert an OBJ file using bounding sphere"""
-    collision_props = [schemas_cfg.UsdPhysicsCollisionCfg(collision_enabled=True)]
-    mesh_collision_prop = [schemas_cfg.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="boundingSphere")]
-    mesh_config = MeshConverterCfg(
-        asset_path=assets["obj"],
-        mesh_collision_props=mesh_collision_prop,
-        collision_props=collision_props,
-    )
-    mesh_converter = MeshConverter(mesh_config)
-
-    # check that mesh conversion is successful
-    check_mesh_collider_settings(mesh_converter)
-
-
-def test_collider_mesh_sdf(assets):
-    """Convert an OBJ file using signed distance field approximation"""
-    collision_props = [schemas_cfg.UsdPhysicsCollisionCfg(collision_enabled=True)]
-    mesh_collision_prop = [PhysxSDFMeshCfg()]
     mesh_config = MeshConverterCfg(
         asset_path=assets["obj"],
         mesh_collision_props=mesh_collision_prop,

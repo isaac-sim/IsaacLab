@@ -272,10 +272,11 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         exclude-pattern: "test_rendering_,test_video_recording.py"
-        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "0"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-tasks-1-test
 
   test-isaaclab-tasks-2:
@@ -299,10 +300,11 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         exclude-pattern: "test_rendering_,test_video_recording.py"
-        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "1"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-tasks-2-test
 
   test-isaaclab-tasks-3:
@@ -326,10 +328,11 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         exclude-pattern: "test_rendering_,test_video_recording.py"
-        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "2"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-tasks-3-test
 
   test-isaaclab-core:
@@ -355,6 +358,8 @@ jobs:
         shard-index: "0"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-core-1-test
 
   test-isaaclab-core-2:
@@ -380,6 +385,8 @@ jobs:
         shard-index: "1"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-core-2-test
 
   test-isaaclab-core-3:
@@ -405,6 +412,8 @@ jobs:
         shard-index: "2"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-core-3-test
 
   # Kit and non-Kit are written out rather than expressed as a matrix: these job
@@ -429,12 +438,11 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        # deformables.py tetrahedralizes its volume meshes at startup
-        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
         standalone-script-visualizer: "none"
         standalone-script-runtime-group: kit
+        warp-cache: restore
         result-file: "test-standalone-demos-kit-report.xml"
         container-name: isaac-lab-standalone-demos-kit-test
         omni-github-test-type: standalone-demo
@@ -460,14 +468,12 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        # deformables.py tetrahedralizes its volume meshes at startup
-        extra-pip-packages: >-
-          pytetwild[all]>=0.3.0,<0.4
-          ${{ steps.ov_pins.outputs.ovphysx }}
+        extra-pip-packages: "${{ steps.ov_pins.outputs.ovphysx }}"
         include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
         standalone-script-visualizer: "none"
         standalone-script-runtime-group: non-kit
+        warp-cache: restore
         result-file: "test-standalone-demos-non-kit-report.xml"
         container-name: isaac-lab-standalone-demos-non-kit-test
         omni-github-test-type: standalone-demo
@@ -492,6 +498,8 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_rl"
         extra-pip-packages: "leapp==0.6.1 torchrl>=0.13"
+        warp-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-rl-test
 
   test-isaaclab-mimic:
@@ -513,6 +521,8 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_mimic"
+        warp-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-mimic-test
 
   test-isaaclab-contrib:
@@ -534,7 +544,9 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_contrib"
-        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
+        warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-contrib-test
 
   test-isaaclab-teleop:
@@ -556,6 +568,9 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_teleop"
+        warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-teleop-test
 
   test-isaaclab-visualizers:
@@ -577,6 +592,9 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_visualizers"
+        warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-visualizers-test
 
   test-isaaclab-assets:
@@ -598,6 +616,8 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_assets"
+        warp-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-assets-test
 
   test-isaaclab-experimental:
@@ -619,6 +639,8 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_experimental"
+        warp-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-experimental-test
 
   test-isaaclab-newton:
@@ -641,6 +663,8 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_newton"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-newton-test
 
   test-isaaclab-physx:
@@ -662,7 +686,9 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_physx"
-        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
+        warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-physx-test
 
   test-isaaclab-ov:
@@ -689,10 +715,12 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_ov"
-        # Volume deformable tests tetrahedralize their meshes at startup.
-        extra-pip-packages: pytetwild[all]>=0.3.0,<0.4 ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
+        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
+        warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-ov-test
 
     # Folded from the former standalone verify-base-non-root job: reuses the
@@ -819,13 +847,11 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         include-files: >-
           test_rendering_cartpole.py,
           test_rendering_lift_kuka_hetero.py,
           test_rendering_lift_kuka_homo.py,
           test_rendering_franka_cloth.py,
-          test_rendering_franka_soft.py,
           test_rendering_franka_cable.py,
           test_rendering_registered_tasks.py,
           test_rendering_shadow_hand.py
@@ -866,7 +892,6 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         extra-pip-packages: >-
-          pytetwild[all]>=0.3.0,<0.4
           ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
@@ -914,7 +939,6 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         extra-pip-packages: >-
-          pytetwild[all]>=0.3.0,<0.4
           ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
@@ -980,8 +1004,7 @@ jobs:
         include-files: >-
           test_environments_newton.py,
           test_multi_agent_environments.py
-        # Deformable tasks need optional dependencies that are not installed in
-        # this image.
+        # Keep this warmer focused on rigid environments.
         test-k-expr: "test_environments and not (Soft or Cloth or Cable)"
         warp-cache: ${{ env.PUBLISHES_WARP_CACHE == 'true' && 'save' || 'restore' }}
         container-name: isaac-lab-warp-cache-warm
