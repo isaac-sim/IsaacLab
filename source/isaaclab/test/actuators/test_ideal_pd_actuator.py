@@ -7,17 +7,20 @@ import pytest
 import torch
 
 from isaaclab.actuators import IdealPDActuatorCfg
+from isaaclab.test.utils import test_devices
 from isaaclab.utils.types import ArticulationActions
 
 pytestmark = pytest.mark.integration
 
+# Shapes broadcast the same scalar parameters, so one multi-env, multi-joint shape covers them.
+NUM_ENVS, NUM_JOINTS = 2, 2
 
-@pytest.mark.parametrize("num_envs", [1, 2])
-@pytest.mark.parametrize("num_joints", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("usd_default", [False, True])
-def test_ideal_pd_actuator_init_minimum(num_envs, num_joints, device, usd_default):
+def test_ideal_pd_actuator_init_minimum(device, usd_default):
     """Test initialization of ideal pd actuator with minimum configuration."""
+    num_envs, num_joints = NUM_ENVS, NUM_JOINTS
 
     joint_names = [f"joint_{d}" for d in range(num_joints)]
     joint_ids = [d for d in range(num_joints)]
@@ -71,19 +74,17 @@ def test_ideal_pd_actuator_init_minimum(num_envs, num_joints, device, usd_defaul
         torch.testing.assert_close(actuator.damping, damping_default * torch.ones(num_envs, num_joints, device=device))
 
 
-@pytest.mark.parametrize("num_envs", [1, 2])
-@pytest.mark.parametrize("num_joints", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("cfg_limit", [None, 300])
 @pytest.mark.parametrize(
     "limit_name",
     ["actuator_effort_limit", "actuator_velocity_limit"],
 )
-def test_ideal_pd_actuator_init_limits(num_envs, num_joints, device, cfg_limit, limit_name):
+def test_ideal_pd_actuator_init_limits(cfg_limit, limit_name):
     """Test that a cfg-provided limit wins over the constructor default for effort and velocity limits.
 
     Note Ideal PD actuator does not use velocity limits in computation, they are passed to physics via articulations.
     """
+    num_envs, num_joints, device = NUM_ENVS, NUM_JOINTS, "cpu"
     # used as a standin for the usd default value read in by articulation.
     limit_default = 5000
 
@@ -113,12 +114,10 @@ def test_ideal_pd_actuator_init_limits(num_envs, num_joints, device, cfg_limit, 
     )
 
 
-@pytest.mark.parametrize("num_envs", [1, 2])
-@pytest.mark.parametrize("num_joints", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("effort_lim", [None, 300])
-def test_ideal_pd_compute(num_envs, num_joints, device, effort_lim):
+def test_ideal_pd_compute(effort_lim):
     """Test the computation of the ideal pd actuator."""
+    num_envs, num_joints, device = NUM_ENVS, NUM_JOINTS, "cpu"
 
     joint_names = [f"joint_{d}" for d in range(num_joints)]
     joint_ids = [d for d in range(num_joints)]
@@ -176,6 +175,7 @@ def test_ideal_pd_compute(num_envs, num_joints, device, effort_lim):
         actuator.applied_effort,
         computed_control_action.joint_efforts,
     )
+    torch.testing.assert_close(actuator._clip_effort(actuator.computed_effort), actuator.applied_effort)
 
 
 if __name__ == "__main__":

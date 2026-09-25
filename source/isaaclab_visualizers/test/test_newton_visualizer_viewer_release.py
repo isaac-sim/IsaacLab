@@ -92,50 +92,6 @@ def _make_visualizer(viewer: _SpyRTXViewer | _SpyGLViewer | None) -> NewtonVisua
     return visualizer
 
 
-def test_release_viewer_closes_before_clearing_reference() -> None:
-    """The viewer must be closed while the visualizer still references it."""
-    viewer = _SpyRTXViewer()
-    visualizer = _make_visualizer(viewer)
-
-    visualizer._release_viewer()
-
-    assert viewer.close_calls == 1
-    assert viewer.referenced_by_owner_at_close == [True]
-    assert visualizer._viewer is None
-
-
-def test_release_viewer_propagates_failure_and_still_clears_reference() -> None:
-    """A teardown failure must reach the caller, but must not retain the viewer."""
-    viewer = _SpyRTXViewer(raises=True)
-    visualizer = _make_visualizer(viewer)
-
-    with pytest.raises(RuntimeError, match="Failed to create window"):
-        visualizer._release_viewer()
-
-    assert viewer.close_calls == 1
-    assert visualizer._viewer is None
-
-
-def test_release_viewer_without_viewer_is_a_no_op() -> None:
-    """Releasing when no viewer is held must be harmless."""
-    visualizer = _make_visualizer(None)
-
-    visualizer._release_viewer()
-
-    assert visualizer._viewer is None
-
-
-def test_release_viewer_is_idempotent() -> None:
-    """Releasing twice must not close the viewer twice."""
-    viewer = _SpyRTXViewer()
-    visualizer = _make_visualizer(viewer)
-
-    visualizer._release_viewer()
-    visualizer._release_viewer()
-
-    assert viewer.close_calls == 1
-
-
 def test_release_viewer_does_not_close_gl_viewer() -> None:
     """GL teardown must not prevent another viewer from starting in the same process."""
     viewer = _SpyGLViewer()
@@ -145,6 +101,22 @@ def test_release_viewer_does_not_close_gl_viewer() -> None:
 
     assert viewer.close_calls == 0
     assert visualizer._viewer is None
+
+
+@pytest.mark.parametrize("requested", [False, True])
+def test_gl_close_request_closes_after_frame(monkeypatch: pytest.MonkeyPatch, requested: bool) -> None:
+    """A close request must not destroy the GL context inside the UI render callback."""
+    events: list[str] = []
+    monkeypatch.setattr(newton_visualizer.ViewerGL, "end_frame", lambda self: events.append("frame"))
+    viewer = object.__new__(newton_visualizer.NewtonViewerGL)
+    viewer._close_requested = False
+    if requested:
+        viewer.request_close()
+    viewer.renderer = type("Renderer", (), {"close": lambda self: events.append("close")})()
+
+    viewer.end_frame()
+
+    assert events == (["frame", "close"] if requested else ["frame"])
 
 
 def test_close_releases_the_viewer() -> None:
@@ -195,6 +167,7 @@ def test_close_completes_cleanup_when_viewer_teardown_fails(monkeypatch: pytest.
     with pytest.raises(RuntimeError, match="Failed to create window"):
         visualizer.close()
 
+    assert viewer.close_calls == 1
     assert visualizer._viewer is None
     assert visualizer._camera_sensor is None
     assert visualizer._is_closed is True
@@ -246,6 +219,10 @@ def test_step_failure_releases_the_viewer(monkeypatch: pytest.MonkeyPatch) -> No
     # stability, but it must be inert after the viewer is released.
     visualizer._viewer_picking_binding.apply(None)  # type: ignore[arg-type]
     assert viewer.apply_forces_calls == 0
+
+    # The later ``close()`` must not close the already-released viewer again.
+    visualizer.close()
+    assert viewer.close_calls == 1
 
 
 def test_step_contains_a_failing_viewer_teardown(monkeypatch: pytest.MonkeyPatch) -> None:

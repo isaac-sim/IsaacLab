@@ -64,7 +64,7 @@ def define_sensor() -> FrameTransformer:
     """Defines the FrameTransformer sensor to add to the scene."""
     # define offset
     rot_offset = math_utils.quat_from_euler_xyz(torch.zeros(1), torch.zeros(1), torch.tensor(-math.pi / 2))
-    pos_offset = math_utils.quat_apply(rot_offset, torch.tensor([0.08795, 0.01305, -0.33797]))
+    pos_offset = math_utils.quat_apply(rot_offset[0], torch.tensor([0.08795, 0.01305, -0.33797]))
 
     # Example using .* to get full body + LF_FOOT
     frame_transformer_cfg = FrameTransformerCfg(

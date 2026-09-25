@@ -244,11 +244,10 @@ class Articulation(BaseArticulation):
             if inst.active:
                 if perm.active:
                     inst.add_raw_buffers_from(perm)
-                force_b = inst.out_force_b.warp
-                torque_b = inst.out_torque_b.warp
+                composer = inst
             else:
-                force_b = perm.out_force_b.warp
-                torque_b = perm.out_torque_b.warp
+                composer = perm
+            force_in, torque_in, is_global = composer.get_forces_and_torques()
 
             # rotate body-frame wrenches into the world frame expected by ``LINK_WRENCH``.
             # Read the link poses directly from the backend-order ``LINK_POSE`` buffer: the
@@ -259,7 +258,14 @@ class Articulation(BaseArticulation):
             wp.launch(
                 shared_kernels._body_wrench_to_world_ordered,
                 dim=(self._num_instances, self._num_bodies),
-                inputs=[force_b, torque_b, poses, self._body_user_to_backend_map(), has_body_ordering],
+                inputs=[
+                    force_in,
+                    torque_in,
+                    poses,
+                    self._body_user_to_backend_map(),
+                    has_body_ordering,
+                    is_global,
+                ],
                 outputs=[self._wrench_buf],
                 device=self._device,
             )
@@ -530,6 +536,8 @@ class Articulation(BaseArticulation):
         self._root_view.set_attribute(
             TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids
         )
+        OvPhysxManager._kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_version += 1
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -569,6 +577,8 @@ class Articulation(BaseArticulation):
         if not skip_forward:
             self.data._reset_pose()
         self._root_view.set_attribute(TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp)
+        OvPhysxManager._kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_version += 1
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -612,6 +622,8 @@ class Articulation(BaseArticulation):
         self._root_view.set_attribute(
             TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids
         )
+        OvPhysxManager._kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_version += 1
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -652,6 +664,8 @@ class Articulation(BaseArticulation):
         if not skip_forward:
             self.data._reset_pose(from_link=False)
         self._root_view.set_attribute(TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp)
+        OvPhysxManager._kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_version += 1
 
     def write_root_velocity_to_sim_index(
         self,
@@ -967,6 +981,8 @@ class Articulation(BaseArticulation):
             self._data._reset_pose()
             self._data._reset_velocity()
         self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, indices=sim_env_ids)
+        OvPhysxManager._kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_version += 1
         self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, indices=sim_env_ids)
 
     def write_joint_position_to_sim_index(
@@ -1017,6 +1033,8 @@ class Articulation(BaseArticulation):
             self._data._reset_pose()
             self._data._reset_velocity()
         self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, indices=sim_env_ids)
+        OvPhysxManager._kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_version += 1
 
     def write_joint_position_to_sim_mask(
         self,
@@ -1068,6 +1086,8 @@ class Articulation(BaseArticulation):
             self._data._reset_pose()
             self._data._reset_velocity()
         self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, mask=env_mask_wp)
+        OvPhysxManager._kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_version += 1
 
     def write_joint_velocity_to_sim_index(
         self,
@@ -1238,6 +1258,8 @@ class Articulation(BaseArticulation):
             self._data._reset_pose()
             self._data._reset_velocity()
         self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, mask=env_mask_wp)
+        OvPhysxManager._kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_version += 1
         self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, mask=env_mask_wp)
 
     """
@@ -2998,7 +3020,20 @@ class Articulation(BaseArticulation):
         """
         env_ids = self._resolve_env_ids(env_ids)
         tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
-        self.assert_shape_and_dtype(limit, (env_ids.shape[0], tendon_ids.shape[0], 2), wp.float32, "limit")
+        if isinstance(limit, float):
+            raise ValueError("Fixed tendon position limits must be a tensor or array, not a float.")
+        # accept both wp.vec2f (N, T) and the (N, T, 2) wp.float32 form, like the joint position limits
+        if isinstance(limit, wp.array) and limit.dtype == wp.vec2f:
+            self.assert_shape_and_dtype(limit, (env_ids.shape[0], tendon_ids.shape[0]), wp.vec2f, "limit")
+            limit = wp.array(
+                ptr=limit.ptr,
+                shape=(env_ids.shape[0], tendon_ids.shape[0], 2),
+                dtype=wp.float32,
+                device=str(limit.device),
+                copy=False,
+            )
+        else:
+            self.assert_shape_and_dtype(limit, (env_ids.shape[0], tendon_ids.shape[0], 2), wp.float32, "limit")
         if env_ids.shape[0] == 0 or tendon_ids.shape[0] == 0:
             return
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
@@ -3052,7 +3087,20 @@ class Articulation(BaseArticulation):
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
         tendon_mask_wp = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
-        self.assert_shape_and_dtype(limit, (self._num_instances, self._num_fixed_tendons, 2), wp.float32, "limit")
+        if isinstance(limit, float):
+            raise ValueError("Fixed tendon position limits must be a tensor or array, not a float.")
+        # accept both wp.vec2f (N, T) and the (N, T, 2) wp.float32 form, like the joint position limits
+        if isinstance(limit, wp.array) and limit.dtype == wp.vec2f:
+            self.assert_shape_and_dtype(limit, (self._num_instances, self._num_fixed_tendons), wp.vec2f, "limit")
+            limit = wp.array(
+                ptr=limit.ptr,
+                shape=(self._num_instances, self._num_fixed_tendons, 2),
+                dtype=wp.float32,
+                device=str(limit.device),
+                copy=False,
+            )
+        else:
+            self.assert_shape_and_dtype(limit, (self._num_instances, self._num_fixed_tendons, 2), wp.float32, "limit")
         wp.launch(
             shared_kernels.write_joint_position_limit_to_buffer_mask,
             dim=(self._num_instances, self._num_fixed_tendons),
@@ -4068,8 +4116,8 @@ class Articulation(BaseArticulation):
         self._wrench_buf = wp.zeros((N, B, 9), dtype=wp.float32, device=device)
 
         # Wrench composers.
-        self._instantaneous_wrench_composer = WrenchComposer(self)
-        self._permanent_wrench_composer = WrenchComposer(self)
+        self._instantaneous_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
+        self._permanent_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
 
         # Pinned-host CPU staging for env ids/masks (PR #5329 pattern).
         self._cpu_env_ids_all = wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True)

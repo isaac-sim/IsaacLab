@@ -20,7 +20,7 @@ teleporting objects into interpenetrating states.
 import sys
 from pathlib import Path
 
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -84,9 +84,26 @@ SIM_DT = 1.0 / 120.0
 # ===================================================================
 
 
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("use_mujoco_contacts", COLLISION_PIPELINES)
-@pytest.mark.parametrize("shape_type", STABLE_SHAPES, ids=[shape_type_to_str(s) for s in STABLE_SHAPES])
+def _rotated_lifecycle_cases() -> list:
+    """Cover every shape once while rotating through every device and collision pipeline.
+
+    The sensor has no shape- or device-specific code path, so the full cartesian product only
+    repeats the same assertions; each (device, pipeline) pair still runs on several shapes.
+    """
+    devices = test_devices()
+    cases = []
+    for i, shape_type in enumerate(STABLE_SHAPES):
+        device = devices[i % len(devices)]
+        pipeline = COLLISION_PIPELINES[(i // len(devices)) % len(COLLISION_PIPELINES)]
+        cases.append(
+            pytest.param(
+                device, pipeline.values[0], shape_type, id=f"{shape_type_to_str(shape_type)}-{pipeline.id}-{device}"
+            )
+        )
+    return cases
+
+
+@pytest.mark.parametrize("device, use_mujoco_contacts, shape_type", _rotated_lifecycle_cases())
 def test_contact_lifecycle(device: str, use_mujoco_contacts: bool, shape_type: ShapeType):
     """Test full contact detection lifecycle with varied heights across environments.
 
@@ -1193,8 +1210,9 @@ def test_invalid_expression_raises_regex_error():
         _compile_label_pattern("foo(")
 
 
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("clock_age", [2.5, 10.0, 30.0])
+# The clock is accumulated identically on every device; the largest age bounds the drift.
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("clock_age", [2.5, 30.0])
 @pytest.mark.parametrize("history_length", [1, 0], ids=["substep_refresh", "lazy_refresh"])
 def test_first_transition_with_aged_clock(device: str, clock_age: float, history_length: int):
     """Regression for #7283: transitions must still be reported once the sensor clock has aged.

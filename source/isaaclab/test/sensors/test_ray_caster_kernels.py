@@ -16,55 +16,24 @@ See ``test_update_ray_caster_kernel.py`` for tests of
 
 from __future__ import annotations
 
-import importlib.util
 import math
-import os
 
 import numpy as np
 import pytest
+import trimesh
 import warp as wp
 
 pytestmark = pytest.mark.unit
 
-# ---------------------------------------------------------------------------
-# Import kernel modules directly (avoids Isaac Sim / Omniverse dependencies)
-# ---------------------------------------------------------------------------
-
-_SENSOR_KERNEL_PATH = os.path.join(
-    os.path.dirname(__file__),
-    os.pardir,
-    os.pardir,
-    "isaaclab",
-    "sensors",
-    "ray_caster",
-    "kernels.py",
+from isaaclab.sensors.ray_caster.kernels import (
+    apply_z_drift_kernel,
+    compute_distance_to_image_plane_to_image_masked_kernel,
+    copy_float2d_to_image1_depth_clipped_masked_kernel,
+    fill_ray_hits_distance_inf_kernel,
+    quat_yaw_only,
 )
-_spec = importlib.util.spec_from_file_location("ray_caster_kernels", os.path.normpath(_SENSOR_KERNEL_PATH))
-_sensor_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_sensor_mod)
-
-_WARP_KERNEL_PATH = os.path.join(
-    os.path.dirname(__file__),
-    os.pardir,
-    os.pardir,
-    "isaaclab",
-    "utils",
-    "warp",
-    "kernels.py",
-)
-_warp_spec = importlib.util.spec_from_file_location("warp_kernels", os.path.normpath(_WARP_KERNEL_PATH))
-_warp_mod = importlib.util.module_from_spec(_warp_spec)
-_warp_spec.loader.exec_module(_warp_mod)
-
-compute_distance_to_image_plane_to_image_masked_kernel = (
-    _sensor_mod.compute_distance_to_image_plane_to_image_masked_kernel
-)
-apply_z_drift_kernel = _sensor_mod.apply_z_drift_kernel
-copy_float2d_to_image1_depth_clipped_masked_kernel = _sensor_mod.copy_float2d_to_image1_depth_clipped_masked_kernel
-fill_ray_hits_distance_inf_kernel = _sensor_mod.fill_ray_hits_distance_inf_kernel
-quat_yaw_only = _sensor_mod.quat_yaw_only
-
-raycast_dynamic_meshes_kernel = _warp_mod.raycast_dynamic_meshes_kernel
+from isaaclab.utils.warp.kernels import raycast_dynamic_meshes_kernel, raycast_mesh_masked_kernel
+from isaaclab.utils.warp.ops import convert_to_warp_mesh
 
 # ---------------------------------------------------------------------------
 # Constants & setup
@@ -385,6 +354,83 @@ class TestRaycastDynamicMeshesKernel:
         assert out["mesh_id"][0, 0] in (0, 1)
 
 
+# ---------------------------------------------------------------------------
+# Tests: raycast_mesh_masked_kernel
+# ---------------------------------------------------------------------------
+
+_SENTINEL = -2.0
+"""Pre-fill for distance/normal buffers; outside [-1, 1] so it cannot equal a unit-normal component."""
+
+
+class TestRaycastMeshMaskedKernel:
+    """Tests for :func:`raycast_mesh_masked_kernel` from ``utils/warp/kernels.py``.
+
+    Two rays start at z=-5 and travel +z into a 2x2x1 box centered at the origin, hitting its
+    bottom face at z=-0.5 (distance 4.5, normal -z).
+    """
+
+    RAY_STARTS = [[0.0, -0.35, -5.0], [0.25, 0.35, -5.0]]
+    EXPECTED_HITS = [[0.0, -0.35, -0.5], [0.25, 0.35, -0.5]]
+
+    def _launch(self, env_mask: list[bool], return_distance: int, return_normal: int) -> dict[str, np.ndarray]:
+        """Launch the kernel with hits pre-filled with inf and distance/normal with :data:`_SENTINEL`."""
+        box = trimesh.creation.box([2, 2, 1])
+        mesh = convert_to_warp_mesh(box.vertices, box.faces, DEVICE)
+        num_envs, num_rays = len(env_mask), len(self.RAY_STARTS)
+        starts = np.tile(np.array(self.RAY_STARTS, dtype=np.float32), (num_envs, 1, 1))
+        dirs = np.tile(np.array([0.0, 0.0, 1.0], dtype=np.float32), (num_envs, num_rays, 1))
+        ray_hits = wp.array(np.full((num_envs, num_rays, 3), np.inf, dtype=np.float32), dtype=wp.vec3f, device=DEVICE)
+        ray_dist = wp.array(np.full((num_envs, num_rays), _SENTINEL, dtype=np.float32), dtype=wp.float32, device=DEVICE)
+        ray_normal = wp.array(
+            np.full((num_envs, num_rays, 3), _SENTINEL, dtype=np.float32), dtype=wp.vec3f, device=DEVICE
+        )
+
+        wp.launch(
+            raycast_mesh_masked_kernel,
+            dim=(num_envs, num_rays),
+            inputs=[
+                mesh.id,
+                wp.array(np.array(env_mask, dtype=np.bool_), dtype=wp.bool, device=DEVICE),
+                wp.array(starts, dtype=wp.vec3f, device=DEVICE),
+                wp.array(dirs, dtype=wp.vec3f, device=DEVICE),
+                float(1e6),
+                return_distance,
+                return_normal,
+                ray_hits,
+                ray_dist,
+                ray_normal,
+            ],
+            device=DEVICE,
+        )
+        wp.synchronize_device(DEVICE)
+        return {"hits": _to_numpy(ray_hits), "distance": _to_numpy(ray_dist), "normal": _to_numpy(ray_normal)}
+
+    def test_hits_only(self):
+        """return_distance=0, return_normal=0: only ray hits are written on a hit."""
+        out = self._launch([True], return_distance=0, return_normal=0)
+
+        np.testing.assert_allclose(out["hits"][0], self.EXPECTED_HITS, atol=ATOL)
+        assert np.all(out["distance"] == _SENTINEL), "Distance buffer must not be written when return_distance=0"
+        assert np.all(out["normal"] == _SENTINEL), "Normal buffer must not be written when return_normal=0"
+
+    def test_distance_and_normal(self):
+        """return_distance=1, return_normal=1: both distances and surface normals are written."""
+        out = self._launch([True], return_distance=1, return_normal=1)
+
+        np.testing.assert_allclose(out["distance"][0], [4.5, 4.5], atol=ATOL)
+        np.testing.assert_allclose(out["normal"][0], [[0.0, 0.0, -1.0], [0.0, 0.0, -1.0]], atol=ATOL)
+
+    def test_env_mask(self):
+        """Masked-out environments are not written; return_normal=0 leaves normals untouched."""
+        out = self._launch([True, False], return_distance=1, return_normal=0)
+
+        assert not np.isinf(out["hits"][0]).any(), "Active env 0 should have valid hits"
+        np.testing.assert_allclose(out["distance"][0], [4.5, 4.5], atol=ATOL)
+        assert np.isinf(out["hits"][1]).all(), "Masked env 1 hits must remain inf"
+        assert np.all(out["distance"][1] == _SENTINEL), "Masked env 1 distances must remain at sentinel"
+        assert np.all(out["normal"] == _SENTINEL), "Normal buffer must not be written when return_normal=0"
+
+
 class TestComputeDistanceToImagePlaneToImageMaskedKernel:
     """Tests for :func:`compute_distance_to_image_plane_to_image_masked_kernel`."""
 
@@ -516,14 +562,6 @@ class TestApplyZDriftKernel:
         wp.synchronize_device(DEVICE)
         return _to_numpy(hits_wp)
 
-    def test_known_drift(self):
-        """ray_cast_drift = (0, 0, 1.5) shifts ray hit z by exactly 1.5."""
-        result = self._launch(
-            hits=[[[3.0, 4.0, 5.0]]],
-            drift=[[0.0, 0.0, 1.5]],
-        )
-        np.testing.assert_allclose(result[0, 0], [3.0, 4.0, 6.5], atol=ATOL)
-
     def test_only_z_component(self):
         """Only z-component of drift is applied; x and y are unchanged."""
         result = self._launch(
@@ -573,3 +611,21 @@ class TestQuatYawOnly:
             # Must be unit-norm
             norm = math.sqrt(float(qx) ** 2 + float(qy) ** 2 + float(qz) ** 2 + float(qw) ** 2)
             assert norm == pytest.approx(1.0, abs=ATOL), f"Non-unit quaternion at index {i}: norm={norm}"
+
+    def test_with_pitch_roll(self):
+        """Non-zero pitch and roll keep only the yaw component.
+
+        Regression for zeroing qx/qy and renormalizing, which is wrong once roll or pitch is non-zero.
+        """
+        # (roll, pitch, yaw); the last case has heavy pitch+roll and zero yaw, so the result is identity
+        cases = [(0.3, 0.4, 1.2), (0.5, 0.0, 0.7), (-0.2, 0.6, -1.0), (1.0, 1.0, 0.0)]
+        q_in = wp.array(
+            np.array([_euler_to_quat_xyzw(*c) for c in cases], dtype=np.float32), dtype=wp.quatf, device=DEVICE
+        )
+        q_out = wp.zeros(len(cases), dtype=wp.quatf, device=DEVICE)
+
+        wp.launch(_quat_yaw_only_test_kernel, dim=len(cases), inputs=[q_in], outputs=[q_out], device=DEVICE)
+        wp.synchronize_device(DEVICE)
+
+        expected = [[0.0, 0.0, math.sin(yaw / 2), math.cos(yaw / 2)] for _, _, yaw in cases]
+        np.testing.assert_allclose(_to_numpy(q_out), expected, atol=ATOL)

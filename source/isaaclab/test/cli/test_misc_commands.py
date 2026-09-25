@@ -111,7 +111,7 @@ def test_build_isaacsim_links_incremental_build_without_packaging(tmp_path):
 @pytest.mark.parametrize(
     ("sys_platform", "machine", "target"),
     [
-        ("linux", "x86_64", "linux-x86_64"),
+        # linux-x86_64 is covered end to end by test_build_isaacsim_links_incremental_build_without_packaging.
         ("linux", "aarch64", "linux-aarch64"),
         ("win32", "AMD64", "windows-x86_64"),
     ],

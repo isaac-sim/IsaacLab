@@ -29,7 +29,6 @@ def make_plane(size: tuple[float, float], height: float, center_zero: bool = Tru
     Returns:
         A trimesh.Trimesh objects for the plane.
     """
-    # compute the vertices of the terrain
     x0 = [size[0], size[1], height]
     x1 = [size[0], 0.0, height]
     x2 = [0.0, size[1], height]
@@ -38,10 +37,8 @@ def make_plane(size: tuple[float, float], height: float, center_zero: bool = Tru
     vertices = np.array([x0, x1, x2, x3])
     faces = np.array([[1, 0, 2], [2, 3, 1]])
     plane_mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
-    # center the plane at the origin
     if center_zero:
         plane_mesh.apply_translation(-np.array([size[0] / 2.0, size[1] / 2.0, 0.0]))
-    # return the tri-mesh and the position
     return plane_mesh
 
 
@@ -73,10 +70,8 @@ def make_border(
     Returns:
         A list of trimesh.Trimesh objects that represent the border.
     """
-    # compute thickness of the border
     thickness_x = (size[0] - inner_size[0]) / 2.0
     thickness_y = (size[1] - inner_size[1]) / 2.0
-    # generate tri-meshes for the border
     # top/bottom border
     box_dims = (size[0], thickness_y, height)
     # -- top
@@ -93,7 +88,6 @@ def make_border(
     # -- right
     box_pos = (position[0] + inner_size[0] / 2.0 + thickness_x / 2.0, position[1], position[2])
     box_mesh_right = trimesh.creation.box(box_dims, trimesh.transformations.translation_matrix(box_pos))
-    # return the tri-meshes
     return [box_mesh_left, box_mesh_right, box_mesh_top, box_mesh_bottom]
 
 

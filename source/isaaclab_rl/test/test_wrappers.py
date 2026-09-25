@@ -68,21 +68,29 @@ def raw_env(task: str, library: str, finite_horizon: bool) -> Iterator[Any]:
             env.close()
 
 
+# Only the RSL-RL wrapper branches on manager-based vs direct envs, so the task rotates across rows
+# instead of crossing every library.
 @pytest.mark.parametrize(
-    ("library", "finite_horizon"),
+    ("library", "finite_horizon", "task"),
     [
-        ("rsl_rl", False),
-        ("rsl_rl", True),
-        ("rl_games", False),
-        ("sb3", False),
-        ("skrl", False),
-        ("torchrl", False),
-        ("torchrl", True),
+        ("rsl_rl", False, "Isaac-Cartpole"),
+        ("rsl_rl", True, "Isaac-Cartpole-Direct"),
+        ("rl_games", False, "Isaac-Cartpole"),
+        ("sb3", False, "Isaac-Cartpole"),
+        ("skrl", False, "Isaac-Cartpole-Direct"),
+        ("torchrl", False, "Isaac-Cartpole"),
+        ("torchrl", True, "Isaac-Cartpole-Direct"),
     ],
 )
-@pytest.mark.parametrize("task", ["Isaac-Cartpole", "Isaac-Cartpole-Direct"])
 def test_wrapper_reset_step_and_timeout(library: str, finite_horizon: bool, raw_env: Any) -> None:
+    if library == "sb3":
+        assert not raw_env.unwrapped.single_action_space.is_bounded("both")
     env = _wrap_env(library, raw_env)
+    if library == "sb3":
+        # SB3 sees normalized bounds without modifying the underlying environment.
+        np.testing.assert_array_equal(env.action_space.low, -1.0)
+        np.testing.assert_array_equal(env.action_space.high, 1.0)
+        assert not raw_env.unwrapped.single_action_space.is_bounded("both")
     _assert_finite(env.reset())
     if library == "torchrl":
         from torchrl.envs.utils import check_env_specs
@@ -143,22 +151,6 @@ def test_torchrl_actor_uses_unbatched_action_bounds() -> None:
     batch = TensorDict({"policy": torch.randn(6, 4)}, batch_size=[6])
 
     assert actor(batch)["action"].shape == (6, 1)
-
-
-@pytest.mark.parametrize("library", ["sb3"])
-@pytest.mark.parametrize("finite_horizon", [False])
-@pytest.mark.parametrize("task", ["Isaac-Cartpole"])
-def test_sb3_normalizes_unbounded_action_space(raw_env: Any) -> None:
-    """Expose normalized bounds to SB3 without modifying the underlying environment."""
-    from isaaclab_rl.sb3 import Sb3VecEnvWrapper
-
-    assert not raw_env.unwrapped.single_action_space.is_bounded("both")
-
-    env = Sb3VecEnvWrapper(raw_env)
-
-    np.testing.assert_array_equal(env.action_space.low, -1.0)
-    np.testing.assert_array_equal(env.action_space.high, 1.0)
-    assert not raw_env.unwrapped.single_action_space.is_bounded("both")
 
 
 def _assert_observation_buffer(env: Any) -> None:

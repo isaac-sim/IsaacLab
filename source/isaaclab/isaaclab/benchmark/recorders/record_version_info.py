@@ -8,9 +8,9 @@ import os
 import subprocess
 import sys
 
-from isaaclab.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
-from isaaclab.benchmark.measurements import DictMetadata, StringMetadata
-from isaaclab.paths import ISAACLAB_ROOT
+from ...paths import ISAACLAB_ROOT
+from ..interfaces import MeasurementData, MeasurementDataRecorder
+from ..measurements import DictMetadata, StringMetadata
 
 # Path to the source checkout or installed wheel resources.
 _REPO_ROOT = str(ISAACLAB_ROOT)
@@ -91,7 +91,6 @@ class VersionInfoRecorder(MeasurementDataRecorder):
             self._version_info[key] = version
 
     def _get_version_info(self) -> None:
-        # isaaclab
         self._record("isaaclab", self._get_version("isaaclab"))
 
         # warp - try config.version first, then __version__
@@ -103,10 +102,7 @@ class VersionInfoRecorder(MeasurementDataRecorder):
         self._record("kit", version, nullable=True)
         self._record("isaacsim", self._get_isaacsim_version() if version else None, nullable=True)
 
-        # torch
         self._record("torch", self._get_version("torch"))
-
-        # numpy
         self._record("numpy", self._get_version("numpy"))
 
         # IsaacLab sub-packages
@@ -183,7 +179,6 @@ class VersionInfoRecorder(MeasurementDataRecorder):
             )
             if result.returncode == 0:
                 self._dev_info["commit_date"] = result.stdout.strip()
-
             # Check if working directory is dirty
             result = subprocess.run(
                 ["git", "status", "--porcelain"],

@@ -11,12 +11,12 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 
-from isaaclab.assets import VisualMaterialCfg
-from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
-from isaaclab.utils.backend_utils import FactoryBase
+from ...assets import VisualMaterialCfg
+from ...managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
+from ...utils.backend_utils import FactoryBase
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
+    from .. import ManagerBasedEnv
 
 
 class randomize_visual_material(ManagerTermBase):

@@ -428,6 +428,36 @@ For the RTX renderer (requires Isaac Sim):
 For RTX renderer settings, see
 :doc:`/source/how-to/configure_rendering`.
 
+.. _renderer-camera-batching:
+
+Batching camera renders
+-----------------------
+
+:meth:`~isaaclab.renderers.BaseRenderer.render_batch` accepts a sequence of render-data objects
+owned by the same renderer. Prepare the camera poses, intrinsics, and shared scene state before
+rendering, then read each camera's output. An empty sequence performs no rendering.
+
+.. code-block:: python
+
+   renderer.render_batch([first_render_data, second_render_data])
+   renderer.read_output(first_render_data, first_camera_data)
+   renderer.read_output(second_render_data, second_camera_data)
+
+:meth:`~isaaclab.renderers.BaseRenderer.render` continues to accept a single render-data object.
+The default ``render_batch()`` implementation calls ``render()`` for each entry, so existing
+custom renderers and single-camera callers need no changes. OVRTX overrides ``render_batch()``
+to submit the requested camera products in one native renderer step.
+
+With eager sensor updates (``scene.cfg.lazy_sensor_update=False``), ``scene.update()`` advances
+sensor clocks in scene order and collects batch-capable sensors. After the loop, the camera
+batch implementation prepares the remaining due captures for submission.
+:meth:`~isaaclab.renderers.RenderContext.render_into_cameras` groups these requests by renderer
+instance, renders each group, and reads its outputs. The context does not retain a pending-camera
+queue. Each camera retains its own update period and reset state.
+
+With lazy sensor updates, reading a camera's ``data`` refreshes only that camera's sensor buffers
+and capture timestamps. It does not refresh peer camera sensors sharing the renderer.
+
 Core concepts
 -------------
 

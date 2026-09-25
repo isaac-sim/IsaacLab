@@ -13,7 +13,7 @@ class EpisodeData:
 
     def __init__(self) -> None:
         """Initializes episode data class."""
-        self._data = dict()
+        self._data = {}
         self._next_action_index = 0
         self._next_state_index = 0
         self._next_joint_target_index = 0
@@ -96,7 +96,6 @@ class EpisodeData:
             value: The corresponding value of tensor type or of dict type.
             clone: Whether to clone the tensor value before storing it in the episode data.
         """
-        # check datatype
         if isinstance(value, dict):
             for sub_key, sub_value in value.items():
                 self.add(f"{key}/{sub_key}", sub_value, clone=clone)

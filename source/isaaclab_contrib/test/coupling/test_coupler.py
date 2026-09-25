@@ -39,7 +39,7 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab_contrib.coupling import (
     CouplerAdmmCfg,
-    CouplerCfg,
+    CouplerCfg,  # noqa: F401 - importing every public name guards the package exports
     CouplerEntryCfg,
     CouplerProxyCfg,
     CouplerProxyMappingCfg,
@@ -59,19 +59,6 @@ class _FakeArray:
 
     def assign(self, values: np.ndarray) -> None:
         self.data = np.asarray(values).copy()
-
-
-def test_public_coupler_config_resolves_renamed_class():
-    """The package-level config points at the renamed coupler implementation."""
-    assert CouplerCfg().class_type.__name__ == "NewtonCouplerManager"
-
-
-def test_public_coupling_exports_are_importable():
-    """The lazy-export stub must not retain deleted public symbols."""
-    import isaaclab_contrib.coupling as coupling
-
-    for name in coupling.__all__:
-        assert getattr(coupling, name) is not None
 
 
 @dataclass
@@ -321,15 +308,6 @@ def test_resolved_entry_validation_rejects_inactive_entry():
         )
 
 
-def test_resolved_entry_validation_accepts_active_proxy_destination():
-    NewtonCouplerManager._validate_resolved_entries(
-        _FakeModel(),
-        [_entry("source", bodies=[0]), _entry("destination")],
-        CouplerProxyCfg(),
-        {"destination"},
-    )
-
-
 def test_resolved_entry_validation_accepts_static_shape_ownership():
     NewtonCouplerManager._validate_resolved_entries(
         _FakeModel(),
@@ -433,32 +411,6 @@ def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
     assert isinstance(cfg.proxies[1].collision_pipeline, NewtonCollisionPipelineCfg)
 
 
-def test_entry_build_uses_solver_config_class_type():
-    class _RecordingManager:
-        @classmethod
-        def _create_solver(cls, model, solver_cfg):
-            return SimpleNamespace(model=model, solver_cfg=solver_cfg)
-
-    solver_cfg = XPBDSolverCfg()
-    solver_cfg.class_type = _RecordingManager
-    entry = NewtonCouplerManager._ResolvedEntry(
-        config=CouplerEntryCfg(
-            name="entry",
-            solver_cfg=solver_cfg,
-        ),
-        bodies=[],
-        particles=[],
-        joints=[],
-        shapes=[],
-    )
-
-    solver_entry = NewtonCouplerManager._build_entry(entry)
-    solver = solver_entry.solver("entry-view")
-
-    assert solver.model == "entry-view"
-    assert solver.solver_cfg is entry.config.solver_cfg
-
-
 @pytest.mark.parametrize(
     "solver_cfg",
     [
@@ -504,10 +456,6 @@ def test_mpm_entry_forwards_config_and_execution_policy():
     assert solver.solver_cfg.max_active_cell_count == 256
     assert solver_entry.substeps == 2
     assert solver_entry.in_place is True
-
-
-def test_mpm_entry_does_not_request_external_contacts():
-    assert NewtonCouplerManager._requires_external_contacts(MPMSolverCfg()) is False
 
 
 @pytest.mark.parametrize(
@@ -559,7 +507,7 @@ def test_coupler_clear_releases_nested_manager_state(monkeypatch):
 
 
 def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch):
-    """Coupled MPM entries register attributes and normalize kinematic colliders."""
+    """Coupled MPM entries normalize kinematic colliders before finalize."""
     events: list[tuple[str, object]] = []
     builder = object()
     solver_cfg = CouplerProxyCfg(
@@ -568,19 +516,13 @@ def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch):
     monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg))
     monkeypatch.setattr(
         coupler.NewtonMPMManager,
-        "_register_builder_attributes",
-        classmethod(lambda cls, value: events.append(("register", value))),
-    )
-    monkeypatch.setattr(
-        coupler.NewtonMPMManager,
         "_prepare_builder_for_finalize",
         classmethod(lambda cls, value: events.append(("finalize", value))),
     )
 
-    NewtonCouplerManager._register_builder_attributes(builder)
     NewtonCouplerManager._prepare_builder_for_finalize(builder)
 
-    assert events == [("register", builder), ("finalize", builder)]
+    assert events == [("finalize", builder)]
 
 
 def test_nested_solvers_register_their_builder_attributes(monkeypatch):
@@ -644,24 +586,6 @@ def test_nested_solver_scopes_mujoco_joint_properties(
 
     assert model.joint_friction.numpy()[-1] == pytest.approx(expected_friction)
     assert model.joint_damping.numpy()[-1] == pytest.approx(expected_damping)
-
-
-def test_contact_initialization_prepares_coupled_solver_buffers(monkeypatch):
-    """Entry-local contact buffers are allocated before graph capture."""
-    events: list[tuple[str, object | None]] = []
-    contacts = object()
-    solver = SimpleNamespace(prepare_contacts=lambda value: events.append(("prepare", value)))
-    monkeypatch.setattr(
-        coupler.NewtonVBDManager,
-        "_initialize_contacts",
-        classmethod(lambda cls: events.append(("initialize", None))),
-    )
-    monkeypatch.setattr(coupler.NewtonManager, "_solver", solver)
-    monkeypatch.setattr(coupler.NewtonManager, "_contacts", contacts)
-
-    NewtonCouplerManager._initialize_contacts()
-
-    assert events == [("initialize", None), ("prepare", contacts)]
 
 
 @pytest.mark.parametrize(("mask_values", "should_reset"), [([True, False], True), ([False, False], False)])

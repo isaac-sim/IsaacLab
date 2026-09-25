@@ -5,12 +5,12 @@
 
 """Shared core-only scene configurations for Isaac Lab integration tests."""
 
-import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg, RigidObjectCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from .. import sim as sim_utils
+from ..actuators import ImplicitActuatorCfg
+from ..assets import ArticulationCfg, RigidObjectCfg
+from ..scene import InteractiveSceneCfg
+from ..utils import configclass
+from ..utils.assets import ISAACLAB_NUCLEUS_DIR
 
 _CARTPOLE_TEST_CFG = ArticulationCfg(
     prim_path="{ENV_REGEX_NS}/Robot",
