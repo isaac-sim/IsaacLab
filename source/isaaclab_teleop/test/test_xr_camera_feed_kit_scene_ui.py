@@ -904,23 +904,10 @@ def test_image_source_treats_empty_annotator_frame_as_not_ready(scene_ui_module,
     source.close()
 
 
-def test_image_source_falls_back_when_replicator_attach_fails(scene_ui_module, monkeypatch, caplog):
-    annotator = Mock()
-    annotator.attach.side_effect = RuntimeError("attach failed")
-    _install_replicator(monkeypatch, annotator)
-    camera = SimpleNamespace(_render_data=SimpleNamespace(render_product=SimpleNamespace(path="/Render/Camera")))
-    presenter = scene_ui_module._KitSceneUiCameraFeedPresenter()
-
-    source = presenter.create_image_source("robot_pov_cam", camera)
-
-    assert source is None
-    annotator.detach.assert_called_once_with(["/Render/Camera"])
-    assert "Falling back to the Camera RGBA buffer" in caplog.text
-
-
 def test_image_source_authors_feed_policy_when_replicator_attach_falls_back(
     scene_ui_module,
     monkeypatch,
+    caplog,
 ):
     events = []
     annotator = Mock()
@@ -957,6 +944,7 @@ def test_image_source_authors_feed_policy_when_replicator_attach_falls_back(
         ("apply", "OmniRtxDebugSettingsAPI_1"),
         ("set", False),
     ]
+    assert "Falling back to the Camera RGBA buffer" in caplog.text
 
 
 def test_image_source_falls_back_when_replicator_read_fails(scene_ui_module, monkeypatch, caplog):

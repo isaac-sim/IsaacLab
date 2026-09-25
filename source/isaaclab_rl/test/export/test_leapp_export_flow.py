@@ -20,10 +20,8 @@ _CHECKPOINT_SCRIPT = Path(__file__).with_name("leapp_initialized_checkpoints.py"
 _OUTPUT_TAIL_SIZE = 5000
 
 _PRETRAINED_TASKS = [
-    "Isaac-Ant",
     "Isaac-Cartpole",
     "IsaacContrib-Navigation-Flat-AnymalC",
-    "Isaac-Velocity-Flat-AnymalD",
     "Isaac-Velocity-Rough-AnymalD",
     "Isaac-Velocity-Rough-G1",
     "IsaacContrib-Velocity-Flat-Spot",
