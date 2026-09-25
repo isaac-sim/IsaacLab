@@ -30,7 +30,9 @@ if TYPE_CHECKING:
     from isaaclab.benchmark import BenchmarkResult
 
 import argparse
+import os
 import sys
+from pathlib import Path
 
 
 def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
@@ -113,7 +115,9 @@ def run(argv: list[str]) -> BenchmarkResult | None:
         stepping,
     )
     from isaaclab.benchmark.distributed import DistributedContext
+    from isaaclab.benchmark.metrics import mean_std
     from isaaclab.benchmark.schema import StartupTime
+    from isaaclab.benchmark.serialize import write_bundle_file
 
     # Importing the task packages registers their gym environments so the
     # requested ``--task`` can be resolved.
@@ -183,7 +187,20 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             environment_step_timer = stepping.EnvironmentStepTimingRecorder(
                 env, measure_synchronized_step_breakdown=args.measure_sync_step
             )
-            with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
+            benchmark_mode = getattr(env_cfg, "benchmark_mode", None)
+            profile_render = benchmark_mode is not None and os.environ.get("ISAACLAB_RENDER_PROFILE", "0") != "0"
+            profile_physics = benchmark_mode is not None and os.environ.get("ISAACLAB_PHYSICS_PROFILE", "0") != "0"
+            profile_timings: list[tuple[str, float]] = []
+            with (
+                stepping.profile_renderers(
+                    env.unwrapped.sim.render_context, active=profile_render, timings=profile_timings
+                ),
+                stepping.profile_physics_steps(
+                    env.unwrapped.sim.physics_manager, active=profile_physics, timings=profile_timings
+                ),
+                environment_step_timer,
+                BenchmarkMonitor(benchmark, interval=1.0),
+            ):
                 step_times_s = stepping.run_runtime_loop(env, args.num_steps, reset=False)
 
             first_step_s = warmup_step_times_s[0] if warmup_step_times_s else step_times_s[0]
@@ -239,22 +256,43 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                 num_envs=num_envs,
             )
 
+            # Ranks step independently, so summaries and throughput describe rank 0's workload.
+            extra = (
+                distributed.bundle_metadata(workload_scope="rank0", num_envs_per_rank=num_envs)
+                if distributed.enabled
+                else {}
+            )
+            for prefix, scope in (
+                ("physics", stepping.PHYSICS_PROFILE_SCOPE),
+                ("render", stepping.RENDER_PROFILE_SCOPE),
+            ):
+                samples = [elapsed_ms for name, elapsed_ms in profile_timings if name == scope]
+                if samples:
+                    stats = mean_std(samples)
+                    extra.update(
+                        {
+                            f"{prefix}_mean_ms": stats.mean,
+                            f"{prefix}_std_ms": stats.std,
+                            f"{prefix}_max_ms": max(samples),
+                            f"{prefix}_calls": len(samples),
+                        }
+                    )
+
             bundle = builders.build_runtime_bundle(
                 run=run,
                 versions=versions,
                 hardware=hardware,
                 runtime=runtime,
                 resources=resources,
-                # Ranks step independently rather than in lockstep, so rank 0's throughput is
-                # reported as measured instead of being multiplied out to a global rate.
-                extra=distributed.bundle_metadata(workload_scope="rank0", num_envs_per_rank=num_envs)
-                if distributed.enabled
-                else None,
+                extra=extra or None,
             )
 
             benchmark.attach_bundle(bundle)
 
             output_paths = benchmark.finalize()
+            if profile_render or profile_physics:
+                profile_path = Path(args.output_path) / "profile_timings.json"
+                write_bundle_file({"timings_ms": profile_timings}, str(profile_path))
             result = BenchmarkResult(bundle=bundle, output_paths=output_paths)
             console.print_runtime_report(bundle, output_paths)
 

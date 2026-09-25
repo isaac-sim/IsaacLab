@@ -63,8 +63,6 @@ import isaaclab.envs.mdp.rewards as stable_rew
 import isaaclab.envs.mdp.terminations as stable_term
 from isaaclab.managers.manager_term_cfg import RewardTermCfg, TerminationTermCfg
 
-import isaaclab_tasks.core.locomotion.mdp.rewards as stable_loco_rew
-
 
 @dataclasses.dataclass(frozen=True)
 class CaptureCase:
@@ -208,7 +206,7 @@ def _build_terminated_penalty() -> CaptureCase:
 
     return CaptureCase(
         warp_fn=warp_loco_rew.terminated_penalty,
-        stable_fn=stable_loco_rew.terminated_penalty,
+        stable_fn=stable_rew.terminated_penalty,
         warp_env=env,
         stable_env=env,
         params={},
@@ -228,8 +226,8 @@ def _build_survival_success_rate() -> CaptureCase:
 
     return CaptureCase(
         warp_fn=warp_loco_rew.survival_success_rate(cfg, env),
-        stable_fn=stable_loco_rew.survival_success_rate(
-            RewardTermCfg(func=stable_loco_rew.survival_success_rate, weight=0.0, params={}), env
+        stable_fn=stable_rew.survival_success_rate(
+            RewardTermCfg(func=stable_rew.survival_success_rate, weight=0.0, params={}), env
         ),
         warp_env=env,
         stable_env=env,
@@ -252,8 +250,8 @@ CAPTURE_SPECS: list[CaptureSpec] = [
 
 # Warp MDP terms not yet exercised by this harness. Pre-existing terms only: a *new* term must
 # arrive with a CAPTURE_SPECS entry instead of a row here. Several are already covered by the
-# hand-written ``TestCapturedDataMutation*`` classes in the parity test files; the rest are an
-# explicit backlog rather than a silent gap.
+# capture-mutate-replay checks in the parity test files; the rest are an explicit backlog
+# rather than a silent gap.
 def _ids(module: str, *names: str) -> list[str]:
     """Qualified ``"<module>:<name>"`` identities for several terms in one module."""
     return [f"{module}:{name}" for name in names]
@@ -261,7 +259,7 @@ def _ids(module: str, *names: str) -> list[str]:
 
 _SH = "isaaclab_experimental.envs.mdp"
 _TE = "isaaclab_tasks_experimental.core"
-_MUT = "covered by the mutate-replay class in the matching parity test file"
+_MUT = "covered by the capture-mutate-replay check in the matching parity test file"
 _NONE = "capturable (fixed dim=num_envs launch over a mask) but no capture coverage yet"
 _MIRROR = "per-task warp mirror; isaaclab_tasks_experimental has no test directory"
 
@@ -394,7 +392,7 @@ def _discover_warp_mdp_terms() -> set[str]:
     """Return every public warp MDP term as a ``"<module>:<name>"`` identity.
 
     Qualified rather than bare: the same term name legitimately appears in more than one task
-    mirror (``survival_success_rate`` is defined by both cartpole and locomotion), and keying
+    mirror (``survival_success_rate`` is twinned by both cartpole and locomotion), and keying
     by name alone would let a spec for one of them mark the other as declared.
     """
     terms: set[str] = set()
@@ -408,9 +406,14 @@ def _discover_warp_mdp_terms() -> set[str]:
 
 
 def test_every_warp_mdp_term_is_declared():
-    """Every warp MDP term is either exercised here or listed as an unaudited pre-existing term."""
-    declared = {spec.qualified for spec in CAPTURE_SPECS} | set(CAPTURE_UNAUDITED)
-    undeclared = sorted(_discover_warp_mdp_terms() - declared)
+    """Every warp MDP term is either exercised here or listed as an unaudited pre-existing term.
+
+    The declarations must also stay truthful: a term moved into the harness loses its unaudited
+    row, and rows for terms that no longer exist are dropped, so the backlog cannot rot.
+    """
+    specified = {spec.qualified for spec in CAPTURE_SPECS}
+    discovered = _discover_warp_mdp_terms()
+    undeclared = sorted(discovered - (specified | set(CAPTURE_UNAUDITED)))
 
     assert not undeclared, (
         "warp MDP terms with no capture declaration: "
@@ -418,18 +421,10 @@ def test_every_warp_mdp_term_is_declared():
         + ". Add a CAPTURE_SPECS entry; CAPTURE_UNAUDITED is for pre-existing terms only."
     )
 
-
-def test_no_term_is_both_specified_and_unaudited():
-    """A term moved into the harness must lose its unaudited row, so the backlog stays truthful."""
-    overlap = sorted({spec.qualified for spec in CAPTURE_SPECS} & set(CAPTURE_UNAUDITED))
-
+    overlap = sorted(specified & set(CAPTURE_UNAUDITED))
     assert not overlap, f"remove from CAPTURE_UNAUDITED, now exercised here: {overlap}"
 
-
-def test_unaudited_terms_still_exist():
-    """Drop rows for terms that no longer exist, so the list cannot rot."""
-    stale = sorted(set(CAPTURE_UNAUDITED) - _discover_warp_mdp_terms())
-
+    stale = sorted(set(CAPTURE_UNAUDITED) - discovered)
     assert not stale, f"CAPTURE_UNAUDITED lists terms that no longer exist: {stale}"
 
 

@@ -251,7 +251,7 @@ def replace_newton_builder_shape_colors(builder: Any, stage: Usd.Stage) -> int:
             f"Mismatching length of shape_label and shape_color: {len(shape_labels)} != {len(shape_colors)}"
         )
 
-    from isaaclab.utils.timer import Timer
+    from ...utils.timer import Timer
 
     with Timer(
         f"[INFO]: Time taken for replace_newton_builder_shape_colors for {len(shape_labels)} shapes", enable=False

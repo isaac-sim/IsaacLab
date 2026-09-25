@@ -13,21 +13,18 @@ the base rigid object class advertises. All rigid object interfaces need to comp
 The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
 """
 
+import math
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
 import torch
 import warp as wp
 from _rigid_object_iface_test_utils import BACKENDS, get_rigid_object
 
+from isaaclab.test.utils import DeviceScope, test_devices
+
 pytestmark = pytest.mark.integration
-
-
-@pytest.fixture
-def rigid_object_iface(request):
-    backend = request.getfixturevalue("backend")
-    num_instances = request.getfixturevalue("num_instances")
-    device = request.getfixturevalue("device")
-    return get_rigid_object(backend, num_instances, device)
 
 
 # ---------------------------------------------------------------------------
@@ -44,11 +41,11 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
     assert arr.dtype == expected_dtype, f"{name}: expected dtype {expected_dtype}, got {arr.dtype}"
 
 
-# Common parametrize decorators
+# Common parametrize decorators. Pure bookkeeping (counts, names, finders, aliases) runs on CPU only;
+# getters and writers keep every test device because PhysX stages through CPU-pinned buffers on CUDA.
 _backends = pytest.mark.parametrize("backend", BACKENDS, indirect=False)
-_default_dims = pytest.mark.parametrize("num_instances", [1, 2, 100])
-
-_default_devices = pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+_devices = pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
+_NUM_INSTANCES = 2
 _index_resolution_backends = pytest.mark.parametrize(
     "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
 )
@@ -78,7 +75,7 @@ class TestRigidObjectIndexResolution:
 
 
 # ---------------------------------------------------------------------------
-# Tests: RigidObject properties
+# Tests: RigidObject properties and finders
 # ---------------------------------------------------------------------------
 
 
@@ -86,68 +83,18 @@ class TestRigidObjectProperties:
     """Test that rigid object properties return the correct types/values."""
 
     @_backends
-    @_default_dims
-    @_default_devices
-    def test_num_instances(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        assert obj.num_instances == num_instances
+    def test_rigid_object_counts_and_names(self, backend):
+        from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
 
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_num_bodies(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
+        obj, _ = get_rigid_object(backend, _NUM_INSTANCES, device="cpu")
+
+        assert obj.num_instances == _NUM_INSTANCES
         assert obj.num_bodies == 1
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_body_names(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
         names = obj.body_names
         assert isinstance(names, list)
         assert len(names) == 1
         assert all(isinstance(n, str) for n in names)
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_data_returns_rigid_object_data(self, backend, num_instances, device, rigid_object_iface):
-        from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
-
-        obj, _ = rigid_object_iface
         assert isinstance(obj.data, BaseRigidObjectData)
-
-
-# ---------------------------------------------------------------------------
-# Tests: RigidObject finder methods
-# ---------------------------------------------------------------------------
-
-
-class TestRigidObjectFinders:
-    """Test that finder methods return (list[int], list[str]) tuples."""
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_find_bodies_all(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        indices, names = obj.find_bodies(".*")
-        assert isinstance(indices, list) and isinstance(names, list)
-        assert len(indices) == 1
-        assert len(names) == 1
-        assert all(isinstance(i, int) for i in indices)
-        assert all(isinstance(n, str) for n in names)
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_find_bodies_single(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        first_body = obj.body_names[0]
-        indices, names = obj.find_bodies(first_body)
-        assert indices == [0]
-        assert names == [first_body]
 
 
 class TestRigidObjectFinderReturnModes:
@@ -160,480 +107,121 @@ class TestRigidObjectFinderReturnModes:
         indices, names = obj.find_bodies(".*")
         proxy, proxy_names = obj.find_bodies(".*", as_proxy=True)
 
-        assert isinstance(indices, list)
+        assert isinstance(indices, list) and isinstance(names, list)
+        assert len(indices) == 1
+        assert len(names) == 1
+        assert all(isinstance(i, int) for i in indices)
+        assert all(isinstance(n, str) for n in names)
         assert indices == proxy.torch.tolist()
         assert names == proxy_names
         assert proxy is obj.find_bodies(".*", as_proxy=True)[0]
         assert proxy.dtype == wp.int32
         assert str(proxy.device) == obj.device
 
-
-# ---------------------------------------------------------------------------
-# Tests: RigidObjectData root state properties
-# ---------------------------------------------------------------------------
-
-
-class TestRigidObjectDataRootState:
-    """Test data properties for root rigid body state."""
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_root_link_pose_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.root_link_pose_w,
-            expected_shape=(num_instances,),
-            expected_dtype=wp.transformf,
-            name="root_link_pose_w",
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_root_link_vel_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.root_link_vel_w,
-            expected_shape=(num_instances,),
-            expected_dtype=wp.spatial_vectorf,
-            name="root_link_vel_w",
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_root_com_pose_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.root_com_pose_w,
-            expected_shape=(num_instances,),
-            expected_dtype=wp.transformf,
-            name="root_com_pose_w",
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_root_com_vel_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.root_com_vel_w,
-            expected_shape=(num_instances,),
-            expected_dtype=wp.spatial_vectorf,
-            name="root_com_vel_w",
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_root_link_pos_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.root_link_pos_w, expected_shape=(num_instances,), expected_dtype=wp.vec3f, name="root_link_pos_w"
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_root_link_quat_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.root_link_quat_w, expected_shape=(num_instances,), expected_dtype=wp.quatf, name="root_link_quat_w"
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_root_link_lin_vel_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.root_link_lin_vel_w,
-            expected_shape=(num_instances,),
-            expected_dtype=wp.vec3f,
-            name="root_link_lin_vel_w",
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_root_link_ang_vel_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.root_link_ang_vel_w,
-            expected_shape=(num_instances,),
-            expected_dtype=wp.vec3f,
-            name="root_link_ang_vel_w",
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_root_com_pos_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.root_com_pos_w, expected_shape=(num_instances,), expected_dtype=wp.vec3f, name="root_com_pos_w"
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_root_com_quat_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.root_com_quat_w, expected_shape=(num_instances,), expected_dtype=wp.quatf, name="root_com_quat_w"
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_root_com_lin_vel_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.root_com_lin_vel_w,
-            expected_shape=(num_instances,),
-            expected_dtype=wp.vec3f,
-            name="root_com_lin_vel_w",
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_root_com_ang_vel_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.root_com_ang_vel_w,
-            expected_shape=(num_instances,),
-            expected_dtype=wp.vec3f,
-            name="root_com_ang_vel_w",
-        )
+        first_body = obj.body_names[0]
+        assert obj.find_bodies(first_body) == ([0], [first_body])
 
 
 # ---------------------------------------------------------------------------
-# Tests: RigidObjectData derived properties
+# Tests: RigidObjectData property contract
 # ---------------------------------------------------------------------------
 
+# (property, shape kind, dtype). Shape kinds: "N" = (num_instances,), "N1" = (num_instances, 1),
+# "N19" = (num_instances, 1, 9).
+_RIGID_OBJECT_DATA_PROPERTIES = [
+    # root state
+    ("root_link_pose_w", "N", wp.transformf),
+    ("root_link_vel_w", "N", wp.spatial_vectorf),
+    ("root_com_pose_w", "N", wp.transformf),
+    ("root_com_vel_w", "N", wp.spatial_vectorf),
+    ("root_link_pos_w", "N", wp.vec3f),
+    ("root_link_quat_w", "N", wp.quatf),
+    ("root_link_lin_vel_w", "N", wp.vec3f),
+    ("root_link_ang_vel_w", "N", wp.vec3f),
+    ("root_com_pos_w", "N", wp.vec3f),
+    ("root_com_quat_w", "N", wp.quatf),
+    ("root_com_lin_vel_w", "N", wp.vec3f),
+    ("root_com_ang_vel_w", "N", wp.vec3f),
+    # derived
+    ("projected_gravity_b", "N", wp.vec3f),
+    ("heading_w", "N", wp.float32),
+    ("root_link_lin_vel_b", "N", wp.vec3f),
+    ("root_link_ang_vel_b", "N", wp.vec3f),
+    ("root_com_lin_vel_b", "N", wp.vec3f),
+    ("root_com_ang_vel_b", "N", wp.vec3f),
+    # body state
+    ("body_link_pose_w", "N1", wp.transformf),
+    ("body_link_vel_w", "N1", wp.spatial_vectorf),
+    ("body_com_pose_w", "N1", wp.transformf),
+    ("body_com_vel_w", "N1", wp.spatial_vectorf),
+    ("body_com_acc_w", "N1", wp.spatial_vectorf),
+    ("body_com_pose_b", "N1", wp.transformf),
+    ("body_mass", "N1", wp.float32),
+    ("body_inertia", "N19", wp.float32),
+    ("body_link_pos_w", "N1", wp.vec3f),
+    ("body_link_quat_w", "N1", wp.quatf),
+    ("body_link_lin_vel_w", "N1", wp.vec3f),
+    ("body_link_ang_vel_w", "N1", wp.vec3f),
+    ("body_com_pos_w", "N1", wp.vec3f),
+    ("body_com_quat_w", "N1", wp.quatf),
+    ("body_com_pos_b", "N1", wp.vec3f),
+    ("body_com_quat_b", "N1", wp.quatf),
+    # defaults
+    ("default_root_pose", "N", wp.transformf),
+    ("default_root_vel", "N", wp.spatial_vectorf),
+]
 
-class TestRigidObjectDataDerivedProperties:
-    """Test derived/computed data properties."""
 
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_projected_gravity_b(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.projected_gravity_b,
-            expected_shape=(num_instances,),
-            expected_dtype=wp.vec3f,
-            name="projected_gravity_b",
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_heading_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.heading_w, expected_shape=(num_instances,), expected_dtype=wp.float32, name="heading_w"
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_root_link_lin_vel_b(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.root_link_lin_vel_b,
-            expected_shape=(num_instances,),
-            expected_dtype=wp.vec3f,
-            name="root_link_lin_vel_b",
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_root_link_ang_vel_b(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.root_link_ang_vel_b,
-            expected_shape=(num_instances,),
-            expected_dtype=wp.vec3f,
-            name="root_link_ang_vel_b",
-        )
+class TestRigidObjectDataProperties:
+    """Test that every data property is a ProxyArray with the advertised shape and dtype."""
 
     @_backends
-    @_default_dims
-    @_default_devices
-    def test_root_com_lin_vel_b(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
+    @_devices
+    def test_rigid_object_data_property_contract(self, backend, device):
+        obj, _ = get_rigid_object(backend, _NUM_INSTANCES, device)
         obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.root_com_lin_vel_b,
-            expected_shape=(num_instances,),
-            expected_dtype=wp.vec3f,
-            name="root_com_lin_vel_b",
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_root_com_ang_vel_b(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.root_com_ang_vel_b,
-            expected_shape=(num_instances,),
-            expected_dtype=wp.vec3f,
-            name="root_com_ang_vel_b",
-        )
+        shapes = {"N": (_NUM_INSTANCES,), "N1": (_NUM_INSTANCES, 1), "N19": (_NUM_INSTANCES, 1, 9)}
+        for name, shape_kind, dtype in _RIGID_OBJECT_DATA_PROPERTIES:
+            _check_proxy_array(
+                getattr(obj.data, name), expected_shape=shapes[shape_kind], expected_dtype=dtype, name=name
+            )
 
 
 # ---------------------------------------------------------------------------
-# Tests: RigidObjectData body state properties
+# Tests: Alias/shorthand properties
 # ---------------------------------------------------------------------------
 
+_RIGID_OBJECT_ALIASES = [
+    ("root_pose_w", "root_link_pose_w"),
+    ("root_pos_w", "root_link_pos_w"),
+    ("root_quat_w", "root_link_quat_w"),
+    ("root_vel_w", "root_com_vel_w"),
+    ("root_lin_vel_w", "root_com_lin_vel_w"),
+    ("root_ang_vel_w", "root_com_ang_vel_w"),
+    ("body_pose_w", "body_link_pose_w"),
+    ("body_pos_w", "body_link_pos_w"),
+    ("body_quat_w", "body_link_quat_w"),
+    ("body_vel_w", "body_com_vel_w"),
+    ("body_lin_vel_w", "body_com_lin_vel_w"),
+    ("body_ang_vel_w", "body_com_ang_vel_w"),
+]
 
-class TestRigidObjectDataBodyState:
-    """Test data properties for all body states."""
 
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_body_link_pose_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.body_link_pose_w,
-            expected_shape=(num_instances, 1),
-            expected_dtype=wp.transformf,
-            name="body_link_pose_w",
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_body_link_vel_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.body_link_vel_w,
-            expected_shape=(num_instances, 1),
-            expected_dtype=wp.spatial_vectorf,
-            name="body_link_vel_w",
-        )
+class TestRigidObjectDataAliases:
+    """Test that alias properties return the values of their canonical counterparts."""
 
     @_backends
-    @_default_dims
-    @_default_devices
-    def test_body_com_pose_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
+    def test_aliases_match_canonical_values(self, backend):
+        # Random mock state makes link and COM quantities differ, so a retargeted alias fails.
+        obj, _ = get_rigid_object(backend, _NUM_INSTANCES, device="cpu")
         obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.body_com_pose_w,
-            expected_shape=(num_instances, 1),
-            expected_dtype=wp.transformf,
-            name="body_com_pose_w",
-        )
+        d = obj.data
 
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_body_com_vel_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.body_com_vel_w,
-            expected_shape=(num_instances, 1),
-            expected_dtype=wp.spatial_vectorf,
-            name="body_com_vel_w",
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_body_com_acc_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.body_com_acc_w,
-            expected_shape=(num_instances, 1),
-            expected_dtype=wp.spatial_vectorf,
-            name="body_com_acc_w",
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_body_com_pose_b(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.body_com_pose_b,
-            expected_shape=(num_instances, 1),
-            expected_dtype=wp.transformf,
-            name="body_com_pose_b",
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_body_mass(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.body_mass, expected_shape=(num_instances, 1), expected_dtype=wp.float32, name="body_mass"
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_body_inertia(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.body_inertia, expected_shape=(num_instances, 1, 9), expected_dtype=wp.float32, name="body_inertia"
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_body_link_pos_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.body_link_pos_w, expected_shape=(num_instances, 1), expected_dtype=wp.vec3f, name="body_link_pos_w"
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_body_link_quat_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.body_link_quat_w,
-            expected_shape=(num_instances, 1),
-            expected_dtype=wp.quatf,
-            name="body_link_quat_w",
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_body_link_lin_vel_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.body_link_lin_vel_w,
-            expected_shape=(num_instances, 1),
-            expected_dtype=wp.vec3f,
-            name="body_link_lin_vel_w",
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_body_link_ang_vel_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.body_link_ang_vel_w,
-            expected_shape=(num_instances, 1),
-            expected_dtype=wp.vec3f,
-            name="body_link_ang_vel_w",
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_body_com_pos_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.body_com_pos_w, expected_shape=(num_instances, 1), expected_dtype=wp.vec3f, name="body_com_pos_w"
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_body_com_quat_w(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.body_com_quat_w, expected_shape=(num_instances, 1), expected_dtype=wp.quatf, name="body_com_quat_w"
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_body_com_pos_b(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.body_com_pos_b, expected_shape=(num_instances, 1), expected_dtype=wp.vec3f, name="body_com_pos_b"
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_body_com_quat_b(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.body_com_quat_b, expected_shape=(num_instances, 1), expected_dtype=wp.quatf, name="body_com_quat_b"
-        )
-
-
-# ---------------------------------------------------------------------------
-# Tests: RigidObjectData defaults
-# ---------------------------------------------------------------------------
-
-
-class TestRigidObjectDataDefaults:
-    """Test default state properties."""
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_default_root_pose(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.default_root_pose,
-            expected_shape=(num_instances,),
-            expected_dtype=wp.transformf,
-            name="default_root_pose",
-        )
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_default_root_vel(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        _check_proxy_array(
-            obj.data.default_root_vel,
-            expected_shape=(num_instances,),
-            expected_dtype=wp.spatial_vectorf,
-            name="default_root_vel",
-        )
+        for alias, canonical in _RIGID_OBJECT_ALIASES:
+            alias_value, canonical_value = getattr(d, alias), getattr(d, canonical)
+            assert alias_value.shape == canonical_value.shape, alias
+            assert alias_value.dtype == canonical_value.dtype, alias
+            assert torch.equal(alias_value.torch, canonical_value.torch), alias
 
 
 # ---------------------------------------------------------------------------
@@ -673,6 +261,32 @@ def _make_data_warp(shape: tuple, device: str, wp_dtype=wp.float32) -> wp.array:
     if wp_dtype == wp.float32:
         return wp.from_torch(t, dtype=wp.float32)
     return wp.from_torch(t.contiguous(), dtype=wp_dtype)
+
+
+def _make_payload_torch(shape: tuple, device: str, wp_dtype=wp.float32) -> torch.Tensor:
+    """Create valid torch data whose entries differ per element, for writer read-back checks.
+
+    Transforms get distinct positions and a fixed 90-degree rotation about Z.
+    """
+    values = torch.arange(1, math.prod(shape) + 1, dtype=torch.float32, device=device).reshape(shape) + 0.25
+    if wp_dtype == wp.spatial_vectorf:
+        return values.unsqueeze(-1) + torch.arange(6, dtype=torch.float32, device=device) / 10.0
+    if wp_dtype == wp.transformf:
+        data = torch.zeros((*shape, 7), dtype=torch.float32, device=device)
+        data[..., :3] = values.unsqueeze(-1) + torch.arange(3, dtype=torch.float32, device=device) / 10.0
+        data[..., 5] = data[..., 6] = 2.0**-0.5
+        return data
+    raise ValueError(f"Unsupported payload dtype: {wp_dtype}")
+
+
+def _make_payload_warp(shape: tuple, device: str, wp_dtype=wp.float32) -> wp.array:
+    """Create the per-element distinct payload of :func:`_make_payload_torch` as a warp array."""
+    return wp.from_torch(_make_payload_torch(shape, device, wp_dtype).contiguous(), dtype=wp_dtype)
+
+
+def _assert_reads_back(value, expected: torch.Tensor, name: str) -> None:
+    """Assert a data getter (ProxyArray) returns the values a writer just wrote."""
+    torch.testing.assert_close(value.torch, expected, atol=1e-5, rtol=1e-5, msg=lambda msg: f"{name}: {msg}")
 
 
 def _make_com_data(backend: str, shape: tuple[int, ...], device: str) -> wp.array:
@@ -739,8 +353,17 @@ def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
 # Tests: Root writers — torch/warp × index/mask × all/subset × negative
 # ---------------------------------------------------------------------------
 
-_ROOT_POSE_METHODS = ["root_pose", "root_link_pose", "root_com_pose"]
-_ROOT_VEL_METHODS = ["root_velocity", "root_link_velocity", "root_com_velocity"]
+# writer suffix -> data getter that reads the written quantity back
+_ROOT_POSE_METHODS = {
+    "root_pose": "root_link_pose_w",
+    "root_link_pose": "root_link_pose_w",
+    "root_com_pose": "root_com_pose_w",
+}
+_ROOT_VEL_METHODS = {
+    "root_velocity": "root_com_vel_w",
+    "root_link_velocity": "root_link_vel_w",
+    "root_com_velocity": "root_com_vel_w",
+}
 
 
 class TestRigidObjectCacheInvalidation:
@@ -812,8 +435,6 @@ class TestRigidObjectCacheInvalidation:
                 obj.set_coms_mask(coms=coms)
 
         if backend == "newton":
-            from unittest.mock import patch
-
             from isaaclab_newton.physics import NewtonManager
 
             with patch.object(NewtonManager, "add_model_change"):
@@ -829,11 +450,11 @@ class TestRigidObjectWritersRoot:
     # -- index variants --
 
     @_backends
-    @_default_dims
-    @_default_devices
+    @_devices
     @pytest.mark.parametrize("method_suffix", _ROOT_POSE_METHODS)
-    def test_write_root_pose_to_sim_index(self, backend, num_instances, device, rigid_object_iface, method_suffix):
-        obj, _ = rigid_object_iface
+    def test_write_root_pose_to_sim_index(self, backend, device, method_suffix):
+        num_instances = _NUM_INSTANCES
+        obj, _ = get_rigid_object(backend, num_instances, device)
         obj.data.update(dt=0.01)
         method = getattr(obj, f"write_{method_suffix}_to_sim_index")
 
@@ -841,8 +462,12 @@ class TestRigidObjectWritersRoot:
         method(root_pose=_make_data_torch((num_instances,), device, wp.transformf))
         # torch, subset
         method(root_pose=_make_data_torch((1,), device, wp.transformf), env_ids=_make_env_ids(device, True))
-        # warp, all envs
-        method(root_pose=_make_data_warp((num_instances,), device, wp.transformf))
+        # warp, all envs: the matching getter reads the written poses back
+        method(root_pose=_make_payload_warp((num_instances,), device, wp.transformf))
+        getter = _ROOT_POSE_METHODS[method_suffix]
+        _assert_reads_back(
+            getattr(obj.data, getter), _make_payload_torch((num_instances,), device, wp.transformf), getter
+        )
         # warp, subset
         method(root_pose=_make_data_warp((1,), device, wp.transformf), env_ids=_make_env_ids(device, True))
         # negative: bad torch shape
@@ -853,11 +478,11 @@ class TestRigidObjectWritersRoot:
             method(root_pose=_make_bad_data_warp((num_instances,), device, wp.transformf))
 
     @_backends
-    @_default_dims
-    @_default_devices
+    @_devices
     @pytest.mark.parametrize("method_suffix", _ROOT_VEL_METHODS)
-    def test_write_root_velocity_to_sim_index(self, backend, num_instances, device, rigid_object_iface, method_suffix):
-        obj, _ = rigid_object_iface
+    def test_write_root_velocity_to_sim_index(self, backend, device, method_suffix):
+        num_instances = _NUM_INSTANCES
+        obj, _ = get_rigid_object(backend, num_instances, device)
         obj.data.update(dt=0.01)
         method = getattr(obj, f"write_{method_suffix}_to_sim_index")
 
@@ -865,8 +490,12 @@ class TestRigidObjectWritersRoot:
         method(root_velocity=_make_data_torch((num_instances,), device, wp.spatial_vectorf))
         # torch, subset
         method(root_velocity=_make_data_torch((1,), device, wp.spatial_vectorf), env_ids=_make_env_ids(device, True))
-        # warp, all envs
-        method(root_velocity=_make_data_warp((num_instances,), device, wp.spatial_vectorf))
+        # warp, all envs: the matching getter reads the written velocities back
+        method(root_velocity=_make_payload_warp((num_instances,), device, wp.spatial_vectorf))
+        getter = _ROOT_VEL_METHODS[method_suffix]
+        _assert_reads_back(
+            getattr(obj.data, getter), _make_payload_torch((num_instances,), device, wp.spatial_vectorf), getter
+        )
         # warp, subset
         method(root_velocity=_make_data_warp((1,), device, wp.spatial_vectorf), env_ids=_make_env_ids(device, True))
         # negative: bad torch shape
@@ -879,11 +508,11 @@ class TestRigidObjectWritersRoot:
     # -- mask variants --
 
     @_backends
-    @_default_dims
-    @_default_devices
+    @_devices
     @pytest.mark.parametrize("method_suffix", _ROOT_POSE_METHODS)
-    def test_write_root_pose_to_sim_mask(self, backend, num_instances, device, rigid_object_iface, method_suffix):
-        obj, _ = rigid_object_iface
+    def test_write_root_pose_to_sim_mask(self, backend, device, method_suffix):
+        num_instances = _NUM_INSTANCES
+        obj, _ = get_rigid_object(backend, num_instances, device)
         obj.data.update(dt=0.01)
         method = getattr(obj, f"write_{method_suffix}_to_sim_mask")
 
@@ -894,8 +523,12 @@ class TestRigidObjectWritersRoot:
             root_pose=_make_data_torch((num_instances,), device, wp.transformf),
             env_mask=_make_env_mask(num_instances, device, True),
         )
-        # warp, no mask
-        method(root_pose=_make_data_warp((num_instances,), device, wp.transformf))
+        # warp, no mask: the matching getter reads the written poses back
+        method(root_pose=_make_payload_warp((num_instances,), device, wp.transformf))
+        getter = _ROOT_POSE_METHODS[method_suffix]
+        _assert_reads_back(
+            getattr(obj.data, getter), _make_payload_torch((num_instances,), device, wp.transformf), getter
+        )
         # warp, partial mask
         method(
             root_pose=_make_data_warp((num_instances,), device, wp.transformf),
@@ -909,11 +542,11 @@ class TestRigidObjectWritersRoot:
             method(root_pose=_make_bad_data_warp((num_instances,), device, wp.transformf))
 
     @_backends
-    @_default_dims
-    @_default_devices
+    @_devices
     @pytest.mark.parametrize("method_suffix", _ROOT_VEL_METHODS)
-    def test_write_root_velocity_to_sim_mask(self, backend, num_instances, device, rigid_object_iface, method_suffix):
-        obj, _ = rigid_object_iface
+    def test_write_root_velocity_to_sim_mask(self, backend, device, method_suffix):
+        num_instances = _NUM_INSTANCES
+        obj, _ = get_rigid_object(backend, num_instances, device)
         obj.data.update(dt=0.01)
         method = getattr(obj, f"write_{method_suffix}_to_sim_mask")
 
@@ -924,8 +557,12 @@ class TestRigidObjectWritersRoot:
             root_velocity=_make_data_torch((num_instances,), device, wp.spatial_vectorf),
             env_mask=_make_env_mask(num_instances, device, True),
         )
-        # warp, no mask
-        method(root_velocity=_make_data_warp((num_instances,), device, wp.spatial_vectorf))
+        # warp, no mask: the matching getter reads the written velocities back
+        method(root_velocity=_make_payload_warp((num_instances,), device, wp.spatial_vectorf))
+        getter = _ROOT_VEL_METHODS[method_suffix]
+        _assert_reads_back(
+            getattr(obj.data, getter), _make_payload_torch((num_instances,), device, wp.spatial_vectorf), getter
+        )
         # warp, partial mask
         method(
             root_velocity=_make_data_warp((num_instances,), device, wp.spatial_vectorf),
@@ -943,191 +580,181 @@ class TestRigidObjectWritersRoot:
 # Tests: Body writers — torch/warp × index/mask × all/subset × negative
 # ---------------------------------------------------------------------------
 
-# (method_name, kwarg_name, wp_dtype, trailing_dim)
-_BODY_METHODS = [
-    ("set_masses", "masses", wp.float32, 0),
-    ("set_coms", "coms", wp.transformf, 7),
-    ("set_inertias", "inertias", wp.float32, 9),
-]
+_BODY_METHODS = [("set_masses", "masses"), ("set_coms", "coms"), ("set_inertias", "inertias")]
+
+
+def _body_writer_layout(backend: str, method_base: str) -> tuple[type, int, str | None]:
+    """Return the warp dtype, torch trailing size, and read-back getter of a body property writer."""
+    if method_base == "set_masses":
+        return wp.float32, 0, "body_mass"
+    if method_base == "set_inertias":
+        return wp.float32, 9, "body_inertia"
+    if backend == "newton":
+        # Newton stores the COM as a position only.
+        return wp.vec3f, 3, "body_com_pos_b"
+    if backend == "physx":
+        # PhysX re-reads the COM from its view after a write, and the mocked view drops writes.
+        return wp.transformf, 7, None
+    return wp.transformf, 7, "body_com_pose_b"
+
+
+def _make_body_torch(shape: tuple[int, int], device: str, wp_dtype: type, trailing: int, payload: bool = False):
+    """Create body-property torch data: valid ones by default, or per-element distinct values."""
+    full_shape = (*shape, trailing) if trailing else shape
+    if payload:
+        data = torch.arange(1, math.prod(full_shape) + 1, dtype=torch.float32, device=device).reshape(full_shape)
+    else:
+        data = torch.ones(full_shape, device=device, dtype=torch.float32)
+    if wp_dtype == wp.transformf:
+        data[..., 3:6] = 0.0
+        data[..., 6] = 1.0
+        if not payload:
+            data[..., :3] = 0.0
+    return data
+
+
+def _make_body_warp(shape: tuple[int, int], device: str, wp_dtype: type, trailing: int, payload: bool = False):
+    """Create body-property data as a warp array (structured dtypes collapse the trailing dim)."""
+    t = _make_body_torch(shape, device, wp_dtype, trailing, payload).contiguous()
+    return wp.from_torch(t, dtype=wp.float32 if wp_dtype == wp.float32 else wp_dtype)
 
 
 class TestRigidObjectWritersBody:
     """Test body property writers/setters with all input combinations."""
 
+    @_production_backends
+    def test_external_wrench_frames(self, backend, monkeypatch):
+        """Forward local and world wrenches through the real writer in each backend's frame."""
+        device = "cpu"  # the composer and wrench-packing kernels are device-independent
+        obj, raw_backend = get_rigid_object(backend, num_instances=2, device=device)
+        # Seed a known 90-degree rotation about Z so the local-frame expectation is independent of production.
+        root_pose = torch.tensor(
+            [[1.0, 2.0, 3.0, 0.0, 0.0, 2.0**-0.5, 2.0**-0.5], [4.0, 5.0, 6.0, 0.0, 0.0, 2.0**-0.5, 2.0**-0.5]],
+            device=device,
+        )
+        if backend == "newton":
+            from isaaclab_newton.physics import NewtonManager
+
+            # The mocked view has no state for forward kinematics; seed the body pose FK would publish below.
+            monkeypatch.setattr(NewtonManager, "forward", MagicMock())
+        obj.write_root_link_pose_to_sim_index(root_pose=root_pose)
+        if backend == "newton":
+            obj.data._sim_bind_body_link_pose_w.assign(wp.from_torch(root_pose, dtype=wp.transformf))
+        composer = obj.permanent_wrench_composer
+        forces = torch.arange(1.0, 7.0, device=device).reshape(2, 1, 3)
+        torques = forces + 10.0
+        if backend == "physx":
+            raw_backend.apply_forces_and_torques_at_position = MagicMock()
+
+        for is_global in (False, True):
+            composer.reset()
+            composer.set_forces_and_torques_index(forces=forces, torques=torques, is_global=is_global)
+            with patch.object(composer, "compose_to_body_frame", wraps=composer.compose_to_body_frame) as compose:
+                obj.write_data_to_sim()
+            assert compose.call_count == int(is_global and backend == "newton")
+
+            expected_force, expected_torque = forces, torques
+            if backend == "physx":
+                call = raw_backend.apply_forces_and_torques_at_position.call_args.kwargs
+                assert call["is_global"] is is_global
+                assert call["position_data"] is None
+                actual_force = call["force_data"].numpy().reshape(2, 1, 3)
+                actual_torque = call["torque_data"].numpy().reshape(2, 1, 3)
+            else:
+                if not is_global:
+                    # A 90-degree Z rotation maps body (x, y, z) to world (-y, x, z).
+                    expected_force = torch.stack((-forces[..., 1], forces[..., 0], forces[..., 2]), dim=-1)
+                    expected_torque = torch.stack((-torques[..., 1], torques[..., 0], torques[..., 2]), dim=-1)
+                if backend == "newton":
+                    packed = obj.data._sim_bind_body_external_wrench.numpy()
+                else:
+                    from isaaclab_ov import tensor_types as TT
+
+                    packed = raw_backend.bindings[TT.RIGID_BODY_WRENCH]._data.reshape(2, 1, 9)
+                    np.testing.assert_allclose(packed[..., 6:9], root_pose[:, None, :3].numpy())
+                actual_force, actual_torque = packed[..., :3], packed[..., 3:6]
+            np.testing.assert_allclose(actual_force, expected_force.cpu().numpy(), atol=1e-5, rtol=1e-5)
+            np.testing.assert_allclose(actual_torque, expected_torque.cpu().numpy(), atol=1e-5, rtol=1e-5)
+
     @_backends
-    @_default_dims
-    @_default_devices
-    @pytest.mark.parametrize(
-        "method_base, kwarg, wp_dtype, trailing",
-        _BODY_METHODS,
-        ids=[m[0] for m in _BODY_METHODS],
-    )
-    def test_body_writer_index(
-        self, backend, num_instances, device, rigid_object_iface, method_base, kwarg, wp_dtype, trailing
-    ):
-        if backend == "newton" and method_base == "set_coms":
-            pytest.xfail("Newton set_coms expects vec3f (position only), not transformf (pose)")
-        obj, _ = rigid_object_iface
+    @_devices
+    @pytest.mark.parametrize("method_base, kwarg", _BODY_METHODS, ids=[m[0] for m in _BODY_METHODS])
+    def test_body_writer_index(self, backend, device, method_base, kwarg):
+        num_instances, num_bodies = _NUM_INSTANCES, 1
+        obj, _ = get_rigid_object(backend, num_instances, device)
+        wp_dtype, trailing, getter = _body_writer_layout(backend, method_base)
         obj.data.update(dt=0.01)
-        num_bodies = 1
         method = getattr(obj, f"{method_base}_index")
-
-        def _torch_shape(n_envs, n_bods):
-            if trailing:
-                return (n_envs, n_bods, trailing)
-            return (n_envs, n_bods)
-
-        def _make_torch(n_envs, n_bods):
-            shape = _torch_shape(n_envs, n_bods)
-            data = torch.ones(shape, device=device, dtype=torch.float32)
-            if wp_dtype == wp.transformf:
-                data[..., :3] = 0.0
-                data[..., 3:6] = 0.0
-                data[..., 6] = 1.0
-            return data
-
-        def _make_warp(n_envs, n_bods):
-            t = _make_torch(n_envs, n_bods)
-            if wp_dtype == wp.transformf:
-                return wp.from_torch(t.contiguous(), dtype=wp.transformf)
-            return wp.from_torch(t.contiguous(), dtype=wp.float32)
-
         sub_b = 1  # rigid object always has 1 body
         sub_body_ids = [0]
 
         # torch, all envs + all bodies
-        method(**{kwarg: _make_torch(num_instances, num_bodies)})
+        method(**{kwarg: _make_body_torch((num_instances, num_bodies), device, wp_dtype, trailing)})
         # torch, subset
         method(
             **{
-                kwarg: _make_torch(1, sub_b),
+                kwarg: _make_body_torch((1, sub_b), device, wp_dtype, trailing),
                 "body_ids": sub_body_ids,
                 "env_ids": _make_env_ids(device, True),
             }
         )
-        # warp, all envs + all bodies
-        method(**{kwarg: _make_warp(num_instances, num_bodies)})
+        # warp, all envs + all bodies: the matching getter reads the written values back
+        method(**{kwarg: _make_body_warp((num_instances, num_bodies), device, wp_dtype, trailing, payload=True)})
+        if getter is not None:
+            expected = _make_body_torch((num_instances, num_bodies), device, wp_dtype, trailing, payload=True)
+            _assert_reads_back(getattr(obj.data, getter), expected, getter)
         # warp, subset
         method(
             **{
-                kwarg: _make_warp(1, sub_b),
+                kwarg: _make_body_warp((1, sub_b), device, wp_dtype, trailing),
                 "body_ids": sub_body_ids,
                 "env_ids": _make_env_ids(device, True),
             }
         )
         # negative: bad torch shape (extra env)
         with pytest.raises((AssertionError, RuntimeError)):
-            method(**{kwarg: _make_torch(num_instances + 1, num_bodies)})
+            method(**{kwarg: _make_body_torch((num_instances + 1, num_bodies), device, wp_dtype, trailing)})
         # negative: bad warp shape
         with pytest.raises((AssertionError, RuntimeError)):
-            method(**{kwarg: _make_warp(num_instances + 1, num_bodies)})
+            method(**{kwarg: _make_body_warp((num_instances + 1, num_bodies), device, wp_dtype, trailing)})
 
     @_backends
-    @_default_dims
-    @_default_devices
-    @pytest.mark.parametrize(
-        "method_base, kwarg, wp_dtype, trailing",
-        _BODY_METHODS,
-        ids=[m[0] for m in _BODY_METHODS],
-    )
-    def test_body_writer_mask(
-        self, backend, num_instances, device, rigid_object_iface, method_base, kwarg, wp_dtype, trailing
-    ):
-        if backend == "newton" and method_base == "set_coms":
-            pytest.xfail("Newton set_coms expects vec3f (position only), not transformf (pose)")
-        obj, _ = rigid_object_iface
+    @_devices
+    @pytest.mark.parametrize("method_base, kwarg", _BODY_METHODS, ids=[m[0] for m in _BODY_METHODS])
+    def test_body_writer_mask(self, backend, device, method_base, kwarg):
+        num_instances, num_bodies = _NUM_INSTANCES, 1
+        obj, _ = get_rigid_object(backend, num_instances, device)
+        wp_dtype, trailing, getter = _body_writer_layout(backend, method_base)
         obj.data.update(dt=0.01)
-        num_bodies = 1
         method = getattr(obj, f"{method_base}_mask")
-
-        def _torch_shape(n_envs, n_bods):
-            if trailing:
-                return (n_envs, n_bods, trailing)
-            return (n_envs, n_bods)
-
-        def _make_torch(n_envs, n_bods):
-            shape = _torch_shape(n_envs, n_bods)
-            data = torch.ones(shape, device=device, dtype=torch.float32)
-            if wp_dtype == wp.transformf:
-                data[..., :3] = 0.0
-                data[..., 3:6] = 0.0
-                data[..., 6] = 1.0
-            return data
-
-        def _make_warp(n_envs, n_bods):
-            t = _make_torch(n_envs, n_bods)
-            if wp_dtype == wp.transformf:
-                return wp.from_torch(t.contiguous(), dtype=wp.transformf)
-            return wp.from_torch(t.contiguous(), dtype=wp.float32)
-
         sub_body_sel = [0]
 
         # torch, no mask
-        method(**{kwarg: _make_torch(num_instances, num_bodies)})
+        method(**{kwarg: _make_body_torch((num_instances, num_bodies), device, wp_dtype, trailing)})
         # torch, partial env_mask + body_mask
         method(
             **{
-                kwarg: _make_torch(num_instances, num_bodies),
+                kwarg: _make_body_torch((num_instances, num_bodies), device, wp_dtype, trailing),
                 "body_mask": _make_item_mask(num_bodies, sub_body_sel, device),
                 "env_mask": _make_env_mask(num_instances, device, True),
             }
         )
-        # warp, no mask
-        method(**{kwarg: _make_warp(num_instances, num_bodies)})
+        # warp, no mask: the matching getter reads the written values back
+        method(**{kwarg: _make_body_warp((num_instances, num_bodies), device, wp_dtype, trailing, payload=True)})
+        if getter is not None:
+            expected = _make_body_torch((num_instances, num_bodies), device, wp_dtype, trailing, payload=True)
+            _assert_reads_back(getattr(obj.data, getter), expected, getter)
         # warp, partial env_mask + body_mask
         method(
             **{
-                kwarg: _make_warp(num_instances, num_bodies),
+                kwarg: _make_body_warp((num_instances, num_bodies), device, wp_dtype, trailing),
                 "body_mask": _make_item_mask(num_bodies, sub_body_sel, device),
                 "env_mask": _make_env_mask(num_instances, device, True),
             }
         )
         # negative: bad torch shape
         with pytest.raises((AssertionError, RuntimeError)):
-            method(**{kwarg: _make_torch(num_instances + 1, num_bodies)})
+            method(**{kwarg: _make_body_torch((num_instances + 1, num_bodies), device, wp_dtype, trailing)})
         # negative: bad warp shape
         with pytest.raises((AssertionError, RuntimeError)):
-            method(**{kwarg: _make_warp(num_instances + 1, num_bodies)})
-
-
-# ---------------------------------------------------------------------------
-# Tests: Alias/shorthand properties
-# ---------------------------------------------------------------------------
-
-
-class TestRigidObjectDataAliases:
-    """Test that alias properties return the same shape/dtype as their canonical counterparts."""
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_root_aliases(self, backend, num_instances, device, rigid_object_iface):
-        """root_pose_w == root_link_pose_w, root_vel_w == root_com_vel_w, etc."""
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        d = obj.data
-
-        assert d.root_pose_w.shape == d.root_link_pose_w.shape
-        assert d.root_pose_w.dtype == d.root_link_pose_w.dtype
-        assert d.root_pos_w.shape == d.root_link_pos_w.shape
-        assert d.root_quat_w.shape == d.root_link_quat_w.shape
-
-        assert d.root_vel_w.shape == d.root_com_vel_w.shape
-        assert d.root_vel_w.dtype == d.root_com_vel_w.dtype
-        assert d.root_lin_vel_w.shape == d.root_com_lin_vel_w.shape
-        assert d.root_ang_vel_w.shape == d.root_com_ang_vel_w.shape
-
-    @_backends
-    @_default_dims
-    @_default_devices
-    def test_body_aliases(self, backend, num_instances, device, rigid_object_iface):
-        obj, _ = rigid_object_iface
-        obj.data.update(dt=0.01)
-        d = obj.data
-
-        assert d.body_pose_w.shape == d.body_link_pose_w.shape
-        assert d.body_pos_w.shape == d.body_link_pos_w.shape
-        assert d.body_quat_w.shape == d.body_link_quat_w.shape
-        assert d.body_vel_w.shape == d.body_com_vel_w.shape
-        assert d.body_lin_vel_w.shape == d.body_com_lin_vel_w.shape
-        assert d.body_ang_vel_w.shape == d.body_com_ang_vel_w.shape
+            method(**{kwarg: _make_body_warp((num_instances + 1, num_bodies), device, wp_dtype, trailing)})

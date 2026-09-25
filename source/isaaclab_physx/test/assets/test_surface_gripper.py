@@ -65,7 +65,7 @@ def generate_surface_gripper_cfgs(
     articulation_cfg = ArticulationCfg(
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Tests/SurfaceGripper/test_gripper.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=kinematic_enabled),
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.5),
@@ -129,9 +129,9 @@ def generate_grippable_object(sim, num_grippable_objects: int):
         prim_path="/World/Env_[^/]*/Object",
         spawn=sim_utils.CuboidCfg(
             size=(1.0, 1.0, 1.0),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
@@ -158,56 +158,6 @@ def sim(request):
     ) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
-
-
-@pytest.mark.parametrize("num_articulations", [1])
-@pytest.mark.parametrize("device", ["cpu"])
-@pytest.mark.parametrize("add_ground_plane", [True])
-@pytest.mark.isaacsim_ci
-@pytest.mark.skipif(
-    _RUNNING_CI,
-    reason="Isaac Sim SurfaceGripperView initialization can deadlock in CI; keep CUDA fail-fast coverage only.",
-)
-def test_initialization(sim, num_articulations, device, add_ground_plane) -> None:
-    """Test initialization for articulation with a surface gripper.
-
-    This test verifies that:
-    1. The surface gripper is initialized correctly.
-    2. The command and state buffers have the correct shapes.
-    3. The command and state are initialized to the correct values.
-
-    Args:
-        num_articulations: The number of articulations to initialize.
-        device: The device to run the test on.
-        add_ground_plane: Whether to add a ground plane to the simulation.
-    """
-    if has_kit() and get_isaac_sim_version().major < 5:
-        return
-    surface_gripper_cfg, articulation_cfg = generate_surface_gripper_cfgs(kinematic_enabled=False)
-    surface_gripper, articulation, _ = generate_surface_gripper(
-        surface_gripper_cfg, articulation_cfg, num_articulations, device
-    )
-
-    sim.reset()
-
-    assert articulation.is_initialized
-    assert surface_gripper.is_initialized
-
-    # Check that the command and state buffers have the correct shapes
-    assert surface_gripper.command.shape == (num_articulations,)
-    assert surface_gripper.state.shape == (num_articulations,)
-
-    # Check that the command and state are initialized to the correct values
-    assert wp.to_torch(surface_gripper.command).item() == 0.0  # Idle command after a reset
-    assert wp.to_torch(surface_gripper.state).item() == -1.0  # Open state after a reset
-
-    # Simulate physics
-    for _ in range(10):
-        # perform rendering
-        sim.step()
-        # update articulation
-        articulation.update(sim.cfg.dt)
-        surface_gripper.update(sim.cfg.dt)
 
 
 @pytest.mark.parametrize("num_articulations", [1])
@@ -245,8 +195,12 @@ def test_close_and_open_command(sim, num_articulations, device, add_ground_plane
 
     sim.reset()
 
+    assert articulation.is_initialized
     assert surface_gripper.is_initialized
-    # after a reset the gripper is open (-1.0)
+    assert surface_gripper.command.shape == (num_articulations,)
+    assert surface_gripper.state.shape == (num_articulations,)
+    # after a reset the gripper is idle (0.0) and open (-1.0)
+    assert torch.all(wp.to_torch(surface_gripper.command) == 0.0)
     assert torch.all(wp.to_torch(surface_gripper.state) == -1.0)
 
     # send a single close command (the action term is edge-triggered, so commands are sent once)
@@ -288,7 +242,7 @@ def test_raise_error_if_not_cpu(sim, device, add_ground_plane) -> None:
         surface_gripper_cfg, articulation_cfg, num_articulations, device
     )
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="only supported on CPU"):
         sim.reset()
 
 

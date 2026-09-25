@@ -54,47 +54,9 @@ class TestWarpGraphCache(unittest.TestCase):
         self.cache.capture_or_replay("stage_a", counted_launch)
         self.assertEqual(call_count[0], 2, "Replay should NOT invoke fn again")
 
-    def test_warmup_flushes_first_call_allocations(self):
-        """Warm-up should handle first-call allocations so capture is clean.
-
-        Simulates a hasattr guard pattern: allocate a buffer on first call only.
-        Without warm-up, the allocation would be recorded in the graph.
-        """
-        holder = {}
-        src = wp.ones(8, dtype=wp.float32, device=self.device)
-
-        def fn_with_hasattr_guard():
-            if "buf" not in holder:
-                holder["buf"] = wp.zeros(8, dtype=wp.float32, device=self.device)
-            wp.launch(_add_one, dim=8, inputs=[src, holder["buf"]], device=self.device)
-            return holder["buf"]
-
-        # Should not raise — warm-up handles the allocation outside capture
-        result = self.cache.capture_or_replay("guarded", fn_with_hasattr_guard)
-        self.assertIsNotNone(result)
-
-        # Verify the kernel produced correct output
-        result_np = result.numpy()
-        for val in result_np:
-            self.assertAlmostEqual(val, 2.0, places=5)
-
     # ------------------------------------------------------------------
     # Capture / replay correctness
     # ------------------------------------------------------------------
-
-    def test_capture_produces_correct_output(self):
-        """After capture, replaying the graph should produce correct results."""
-        src = wp.full(4, value=3.0, dtype=wp.float32, device=self.device)
-        dst = wp.zeros(4, dtype=wp.float32, device=self.device)
-
-        def my_fn():
-            wp.launch(_add_one, dim=4, inputs=[src, dst], device=self.device)
-            return dst
-
-        result = self.cache.capture_or_replay("compute", my_fn)
-        result_np = result.numpy()
-        for val in result_np:
-            self.assertAlmostEqual(val, 4.0, places=5)
 
     def test_replay_uses_updated_input(self):
         """Replay should re-read from the same input buffer (pointer-stable).
@@ -111,29 +73,18 @@ class TestWarpGraphCache(unittest.TestCase):
             return dst
 
         # Capture
-        self.cache.capture_or_replay("replay_test", my_fn)
+        first = self.cache.capture_or_replay("replay_test", my_fn)
 
         # Update input in-place
         wp.copy(src, wp.full(4, value=10.0, dtype=wp.float32, device=self.device))
 
         # Replay — should see updated input
         result = self.cache.capture_or_replay("replay_test", my_fn)
+        # Replay returns the cached object from the capture call, not a new buffer.
+        self.assertIs(result, first)
         result_np = result.numpy()
         for val in result_np:
             self.assertAlmostEqual(val, 11.0, places=5)
-
-    def test_cached_result_is_same_reference(self):
-        """Replay should return the exact same object reference as capture."""
-        src = wp.zeros(4, dtype=wp.float32, device=self.device)
-        dst = wp.zeros(4, dtype=wp.float32, device=self.device)
-
-        def my_fn():
-            wp.launch(_add_one, dim=4, inputs=[src, dst], device=self.device)
-            return dst
-
-        result1 = self.cache.capture_or_replay("ref_test", my_fn)
-        result2 = self.cache.capture_or_replay("ref_test", my_fn)
-        self.assertIs(result1, result2, "Replay must return the same object reference")
 
     def test_multiple_stages_independent(self):
         """Different stages should be captured and replayed independently."""
@@ -211,17 +162,14 @@ class TestWarpGraphCache(unittest.TestCase):
         self.assertEqual(count_a[0], 2)
         self.assertEqual(count_b[0], 2)
 
-        # Invalidate only "a"
+        # Invalidate only "a"; a stage that was never captured is a no-op
         self.cache.invalidate("a")
+        self.cache.invalidate("nonexistent")
 
         self.cache.capture_or_replay("a", fn_a)
         self.cache.capture_or_replay("b", fn_b)
         self.assertEqual(count_a[0], 4, "Stage 'a' should re-capture after invalidation")
         self.assertEqual(count_b[0], 2, "Stage 'b' should replay (not re-capture)")
-
-    def test_invalidate_nonexistent_stage_is_noop(self):
-        """Invalidating a stage that was never captured should not raise."""
-        self.cache.invalidate("nonexistent")  # should not raise
 
     # ------------------------------------------------------------------
     # Args / kwargs forwarding

@@ -20,7 +20,6 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
-from isaaclab.cloner import queue_replication
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -79,7 +78,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # flag for whether the asset is initialized
         self._is_initialized = False
         # spawn the rigid objects
-        for rigid_body_name, rigid_body_cfg in self.cfg.rigid_objects.items():
+        for rigid_body_cfg in self.cfg.rigid_objects.values():
             # spawn the asset
             if rigid_body_cfg.spawn is not None:
                 spawn_path = rigid_body_cfg.spawn.spawn_path or rigid_body_cfg.prim_path
@@ -93,7 +92,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             matching_prims = sim_utils.find_matching_prims(rigid_body_cfg.prim_path)
             if len(matching_prims) == 0:
                 raise RuntimeError(f"Could not find prim with path {rigid_body_cfg.prim_path}.")
-            queue_replication(cfg.rigid_objects[rigid_body_name])
         # stores object names
         self._body_names_list = []
 
@@ -193,17 +191,15 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            composer.compose_to_body_frame()
+            force_user, torque_user, is_global = composer.get_forces_and_torques()
             self.root_view.apply_forces_and_torques_at_position(
-                force_data=self.reshape_data_to_view_2d(composer.out_force_b.warp, device=self.device).view(wp.float32),
-                torque_data=self.reshape_data_to_view_2d(composer.out_torque_b.warp, device=self.device).view(
-                    wp.float32
-                ),
+                force_data=self.reshape_data_to_view_2d(force_user, device=self.device).view(wp.float32),
+                torque_data=self.reshape_data_to_view_2d(torque_user, device=self.device).view(wp.float32),
                 position_data=None,
                 indices=self._env_body_ids_to_view_ids(
                     self._ALL_ENV_INDICES, self._ALL_BODY_INDICES, device=self.device
                 ),
-                is_global=False,
+                is_global=is_global,
             )
         self._instantaneous_wrench_composer.reset()
 
@@ -479,11 +475,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.reshape_data_to_view_2d(self.data._body_link_pose_w.data, device=self.device).view(wp.float32),
             indices=view_ids,
         )
+        SimulationManager.invalidate_transforms()
 
     def write_body_link_pose_to_sim_mask(
         self,
         *,
         body_poses: torch.Tensor | wp.array,
+        body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
         skip_forward: bool = False,
@@ -505,15 +503,17 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Args:
             body_poses: Body link poses in simulation frame. Shape is (num_instances, num_bodies, 7)
                 or (num_instances, num_bodies) with dtype wp.transformf.
+            body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
-            body_ids: Body indices. If None, then all indices are used.
+            body_ids: Deprecated, use :attr:`body_mask` instead. Body indices. Defaults to None.
         """
         if env_mask is not None:
             env_ids = self._resolve_env_mask(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
+        body_ids = self._resolve_mask_writer_body_ids(body_mask, body_ids)
         self.write_body_link_pose_to_sim_index(
             body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True, skip_forward=skip_forward
         )
@@ -589,11 +589,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.reshape_data_to_view_2d(self.data._body_link_pose_w.data, device=self.device).view(wp.float32),
             indices=view_ids,
         )
+        SimulationManager.invalidate_transforms()
 
     def write_body_com_pose_to_sim_mask(
         self,
         *,
         body_poses: torch.Tensor | wp.array,
+        body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
         skip_forward: bool = False,
@@ -616,15 +618,17 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Args:
             body_poses: Body center of mass poses in simulation frame. Shape is (num_instances, num_bodies, 7)
                 or (num_instances, num_bodies) with dtype wp.transformf.
+            body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
-            body_ids: Body indices. If None, then all indices are used.
+            body_ids: Deprecated, use :attr:`body_mask` instead. Body indices. Defaults to None.
         """
         if env_mask is not None:
             env_ids = self._resolve_env_mask(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
+        body_ids = self._resolve_mask_writer_body_ids(body_mask, body_ids)
         self.write_body_com_pose_to_sim_index(
             body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True, skip_forward=skip_forward
         )
@@ -708,6 +712,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self,
         *,
         body_velocities: torch.Tensor | wp.array,
+        body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
         skip_forward: bool = False,
@@ -733,15 +738,17 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_velocities: Body center of mass velocities in simulation frame.
                 Shape is (num_instances, num_bodies, 6)
                 or (num_instances, num_bodies) with dtype wp.spatial_vectorf.
+            body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
-            body_ids: Body indices. If None, then all indices are used.
+            body_ids: Deprecated, use :attr:`body_mask` instead. Body indices. Defaults to None.
         """
         if env_mask is not None:
             env_ids = self._resolve_env_mask(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
+        body_ids = self._resolve_mask_writer_body_ids(body_mask, body_ids)
         self.write_body_com_velocity_to_sim_index(
             body_velocities=body_velocities,
             env_ids=env_ids,
@@ -833,6 +840,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self,
         *,
         body_velocities: torch.Tensor | wp.array,
+        body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
         skip_forward: bool = False,
@@ -857,15 +865,17 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Args:
             body_velocities: Body link velocities in simulation frame. Shape is (num_instances, num_bodies, 6)
                 or (num_instances, num_bodies) with dtype wp.spatial_vectorf.
+            body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
-            body_ids: Body indices. If None, then all indices are used.
+            body_ids: Deprecated, use :attr:`body_mask` instead. Body indices. Defaults to None.
         """
         if env_mask is not None:
             env_ids = self._resolve_env_mask(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
+        body_ids = self._resolve_mask_writer_body_ids(body_mask, body_ids)
         self.write_body_link_velocity_to_sim_index(
             body_velocities=body_velocities,
             env_ids=env_ids,
@@ -1330,6 +1340,22 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_ids = self._ALL_ENV_INDICES
         return env_ids
 
+    def _resolve_mask_writer_body_ids(
+        self, body_mask: wp.array | None, body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None
+    ) -> Sequence[int] | torch.Tensor | wp.array | slice:
+        """Resolve the bodies of a mask writer, accepting the deprecated ``body_ids`` in place of ``body_mask``."""
+        if body_ids is None:
+            return self._resolve_body_mask(body_mask)
+        if body_mask is not None:
+            raise ValueError("Pass either 'body_mask' or the deprecated 'body_ids', not both.")
+        warnings.warn(
+            "The 'body_ids' argument of the rigid object collection mask writers is deprecated. Please use"
+            " 'body_mask' instead.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        return body_ids
+
     def _resolve_body_mask(self, body_mask: wp.array | None) -> torch.Tensor | wp.array:
         """Resolve body mask to indices via torch.nonzero."""
         if body_mask is not None:
@@ -1396,8 +1422,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._cpu_view_ids_views: dict[int, wp.array] = {}
 
         # external wrench composer
-        self._instantaneous_wrench_composer = WrenchComposer(self)
-        self._permanent_wrench_composer = WrenchComposer(self)
+        self._instantaneous_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
+        self._permanent_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
 
         # set information about rigid body into data
         self._data.body_names = self.body_names

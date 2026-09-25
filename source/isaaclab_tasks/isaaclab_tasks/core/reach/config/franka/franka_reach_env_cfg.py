@@ -3,13 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Franka Reach environment configuration."""
+"""Configuration for the Franka reach environment."""
 
 import math
 
+from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import (
+    NewtonIKJointLimitObjectiveCfg,
+    NewtonIKPoseObjectiveCfg,
+)
+from isaaclab_newton.controllers.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions_cfg import NewtonInverseKinematicsActionCfg
-from isaaclab_newton.ik.newton_ik_objectives_cfg import NewtonIKJointLimitObjectiveCfg, NewtonIKPoseObjectiveCfg
-from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
@@ -23,14 +26,11 @@ from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
 from isaaclab_tasks.utils import PresetCfg, preset
 
-##
-# Pre-defined configs
-##
-from isaaclab_assets import FRANKA_PANDA_CFG, FRANKA_PANDA_MENAGERIE_CFG  # isort: skip
+from isaaclab_assets import FRANKA_PANDA_CFG, FRANKA_PANDA_MENAGERIE_CFG
 
+from ...reach_env_cfg import ReachEnvCfg
 
 ##
 # Environment configuration
@@ -90,14 +90,12 @@ class FrankaReachEnvCfg(ReachEnvCfg):
 
     def validate_config(self) -> None:
         """Validate the selected controller and physics backend."""
-
         if isinstance(self.actions.arm_action, NewtonInverseKinematicsActionCfg) and not isinstance(
             self.sim.physics, NewtonCfg
         ):
             raise ValueError("The 'newton_ik' action preset requires a Newton physics preset.")
 
-    def __post_init__(self) -> None:
-        # post init of parent
+    def __post_init__(self):
         super().__post_init__()
 
         # Use the collision-complete legacy asset in PhysX until the Menagerie asset is corrected.

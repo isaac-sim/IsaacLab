@@ -14,12 +14,18 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 import pytest
 import torch
+from isaaclab_physx.physics import PhysxCfg
 
 import omni.replicator.core as rep
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import RigidObjectCfg
+from isaaclab.envs import ManagerBasedEnv, mdp
+from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
+from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.configclass import configclass
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -137,6 +143,91 @@ def test_first_frame_is_textured_camera(setup_sim, device):
     del camera
 
     _assert_first_frame_textured(first_frame, stable_frame)
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.isaacsim_ci
+def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
+    """Reset must restore the initial pose in state and camera observations without stepping physics."""
+
+    @configclass
+    class CameraObservationsCfg(ObservationGroupCfg):
+        """Camera geometry returned directly by environment reset."""
+
+        concatenate_terms = False
+        depth = ObservationTermCfg(
+            func=mdp.image,
+            params={"sensor_cfg": SceneEntityCfg("camera"), "data_type": "distance_to_image_plane", "normalize": False},
+        )
+
+    sim_utils.create_new_stage()
+    cfg = make_empty_manager_based_env_cfg(device=device)
+    cfg.seed = 0
+    cfg.decimation = 1
+    cfg.sim.render_interval = 1
+    cfg.sim.physics = PhysxCfg()
+    cfg.sim.use_fabric = True
+    cfg.sim.gravity = (0.0, 0.0, 0.0)
+    cfg.sim.visualizer_cfgs = []
+    cfg.num_rerenders_on_reset = 2
+    cfg.observations = {"camera": CameraObservationsCfg()}
+    cfg.scene.cube = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Cube",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.3, 0.15, 0.2),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.35, 0.0, 0.2)),
+    )
+    cfg.scene.camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Camera",
+        height=HEIGHT,
+        width=WIDTH,
+        data_types=["distance_to_image_plane"],
+        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 2.0), convention="opengl"),
+        spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.1, 10.0)),
+    )
+    env = ManagerBasedEnv(cfg)
+    try:
+        env.reset()
+        action = torch.zeros_like(env.action_manager.action)
+        # Establish rendered references at both poses before testing the reset boundary.
+        for _ in range(STABILISATION_STEPS):
+            initial_obs, _ = env.step(action)
+        initial_depth = initial_obs["camera"]["depth"].clone()
+        cube = env.scene["cube"]
+        initial_pose = cube.data.default_root_pose.torch.clone()
+        initial_pose[:, :3] += env.scene.env_origins
+        moved_pose = initial_pose.clone()
+        moved_pose[:, 0] += 0.7
+        moved_pose[:, 3:] = torch.tensor((0.0, 0.0, 2**-0.5, 2**-0.5), device=device)
+        cube.write_root_pose_to_sim_index(root_pose=moved_pose)
+        for _ in range(STABILISATION_STEPS):
+            moved_obs, _ = env.step(action)
+        moved_depth = moved_obs["camera"]["depth"].clone()
+        torch.testing.assert_close(cube.data.root_link_pose_w.torch, moved_pose)
+
+        step_before_reset = env.sim.get_physics_step_count()
+        reset_obs, _ = env.reset()
+        reset_depth = reset_obs["camera"]["depth"].clone()
+
+        assert env.sim.get_physics_step_count() == step_before_reset
+        torch.testing.assert_close(cube.data.root_link_pose_w.torch, initial_pose)
+
+        # Depth silhouettes check geometry, independent of RGB exposure and temporal denoising.
+        initial_mask = torch.isfinite(initial_depth) & (initial_depth > 0.0) & (initial_depth < 10.0)
+        moved_mask = torch.isfinite(moved_depth) & (moved_depth > 0.0) & (moved_depth < 10.0)
+        reset_mask = torch.isfinite(reset_depth) & (reset_depth > 0.0) & (reset_depth < 10.0)
+        assert initial_mask.any() and moved_mask.any(), "The cube must be visible at both reference poses."
+        assert not (initial_mask & moved_mask).any(), "Reference silhouettes must be spatially separated."
+        overlap = (initial_mask & reset_mask).sum() / (initial_mask | reset_mask).sum()
+        assert overlap > 0.9, (
+            f"Reset camera observation did not restore the initial silhouette: IoU={overlap.item():.3f}"
+        )
+    finally:
+        env.close()
 
 
 """

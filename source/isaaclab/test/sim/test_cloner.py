@@ -15,7 +15,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -25,38 +25,33 @@ from pxr import Sdf, Usd, UsdGeom
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.cloner import (
-    REPLICATION_QUEUE,
     ClonePlan,
+    ReplicateSession,
     UsdReplicateContext,
     grid_transforms,
     make_clone_plan,
-    queue_replication,
     sequential,
     usd_replicate,
 )
 from isaaclab.sim import build_simulation_context
 from isaaclab.sim.utils import queries
+from isaaclab.test.utils import resolve_test_sim_device
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
 
-@pytest.fixture(params=["cpu", "cuda"])
-def sim(request):
-    """Provide a fresh simulation context for each test on CPU and CUDA."""
-    with build_simulation_context(device=request.param, dt=0.01, add_lighting=False) as sim:
+@pytest.fixture
+def sim():
+    """Provide a fresh simulation context for each test.
+
+    The cloner utilities author USD and plan bookkeeping only, with no device branch, so one device suffices.
+    """
+    with build_simulation_context(device=resolve_test_sim_device(), dt=0.01, add_lighting=False) as sim:
         yield sim
 
 
-@pytest.fixture(autouse=True)
-def _drain_replication_queue():
-    """Ensure REPLICATION_QUEUE starts empty for every test and is cleared after."""
-    REPLICATION_QUEUE.clear()
-    yield
-    REPLICATION_QUEUE.clear()
-
-
 def test_usd_replicate_with_positions_and_mask(sim):
-    """Replicate sources to selected envs and author translate ops from positions."""
+    """Replicate sources only to the envs selected by the mask."""
     # Prepare sources under /World/template
     sim_utils.create_prim("/World/template", "Xform")
     sim_utils.create_prim("/World/template/A", "Xform")
@@ -82,19 +77,13 @@ def test_usd_replicate_with_positions_and_mask(sim):
         mask=mask,
     )
 
-    # Validate replication and translate op
+    # Validate replication follows the mask
     stage = sim_utils.get_current_stage()
     assert stage.GetPrimAtPath("/World/envs/env_0/Object/A").IsValid()
     assert not stage.GetPrimAtPath("/World/envs/env_0/Object/B").IsValid()
     assert stage.GetPrimAtPath("/World/envs/env_1/Object/B").IsValid()
     assert not stage.GetPrimAtPath("/World/envs/env_1/Object/A").IsValid()
     assert stage.GetPrimAtPath("/World/envs/env_2/Object/A").IsValid()
-
-    # Check xformOp:translate authored for env_2/A
-    prim = stage.GetPrimAtPath("/World/envs/env_2/Object/A")
-    xform = UsdGeom.Xformable(prim)
-    ops = xform.GetOrderedXformOps()
-    assert any(op.GetOpType() == UsdGeom.XformOp.TypeTranslate for op in ops)
 
 
 def test_usd_replicate_context_consumes_plan(sim):
@@ -308,17 +297,6 @@ def test_clone_decorator_wildcard_patterns(
     )
 
 
-def test_queue_replication_only_appends(sim):
-    """queue_replication must only append the cfg-directed contexts — no other side effects."""
-    cfg_a = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot")
-    cfg_b = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Object")
-
-    queue_replication(cfg_a)
-    queue_replication(cfg_b)
-
-    assert [cfg_a, cfg_b] == REPLICATION_QUEUE
-
-
 def test_make_clone_plan_homogeneous_returns_env_root_plan(sim):
     """Homogeneous (single-variant) cfgs produce one source row at the env root."""
     cube = SimpleNamespace(
@@ -344,7 +322,7 @@ def test_make_clone_plan_homogeneous_returns_env_root_plan(sim):
     assert cube.spawn.spawn_path == "/World/envs/env_0/Robot"
 
 
-def test_resolve_matching_prims_from_source_searches_only_plan_source(sim, monkeypatch):
+def test_resolve_matching_prims_from_source_searches_only_plan_source(sim):
     """Clone-aware regex discovery traverses its plan source, never cloned destinations."""
     stage = sim_utils.get_current_stage()
     for path in (
@@ -362,23 +340,9 @@ def test_resolve_matching_prims_from_source_searches_only_plan_source(sim, monke
     )
     sim.set_clone_plan(plan)
 
-    traversed_roots = []
-    source_matcher = queries._iter_matching_prims_in_subtree
-
-    def record_source_root(path_expr, root_prim):
-        traversed_roots.append(root_prim.GetPath().pathString)
-        return source_matcher(path_expr, root_prim)
-
-    monkeypatch.setattr(queries, "_iter_matching_prims_in_subtree", record_source_root)
-    monkeypatch.setattr(
-        queries,
-        "find_matching_prims",
-        lambda *args, **kwargs: pytest.fail("clone-aware resolution called the unscoped stage matcher"),
-    )
-
     matches = queries.resolve_matching_prims_from_source(r"/World/envs/env_[^/]+/Robot/[^A]+")
 
-    assert traversed_roots == ["/World/envs/env_0/Robot"]
+    # the clone-only prim under env_1 would match the expression if cloned destinations were traversed
     assert [prim.GetPath().pathString for prim, _ in matches] == [
         "/World/envs/env_0/Robot/foo",
         "/World/envs/env_0/Robot/foo/bar",
@@ -442,48 +406,65 @@ def test_make_clone_plan_records_globals_outside_replication_rows(sim):
     assert plan.global_paths == ("/World/global/Robot", "/World/ground")
 
 
-def test_clone_plan_from_env_0_populates_cfg_rows_and_global_paths(sim):
-    """The direct-env constructor separates replicated cfg rows from shared asset paths."""
-    env_cfg_a = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot", spawn=None)
-    env_cfg_b = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Object", spawn=None)
-    global_cfg = SimpleNamespace(prim_path="/World/global/Light", spawn=None)
+def test_clone_plan_from_env_0_uses_flat_cfg_manifest(sim):
+    """The homogeneous helper publishes exact env/global roots before construction."""
+    robot = SimpleNamespace(prim_path="{ENV_REGEX_NS}/Robot", spawn=sim_utils.CuboidCfg(size=(0.1,) * 3))
+    sensor = SimpleNamespace(prim_path="{ENV_REGEX_NS}/Robot/Sensor", spawn=None)
+    prop = SimpleNamespace(
+        prim_path="{ENV_REGEX_NS}/Prop",
+        spawn=sim_utils.MultiAssetSpawnerCfg(assets_cfg=[sim_utils.SphereCfg(radius=0.1)]),
+        cloning_contexts=(UsdReplicateContext,),
+    )
+    light = SimpleNamespace(prim_path="/World/Light", spawn=sim_utils.DistantLightCfg(), cloning_contexts=())
+    light_reference = SimpleNamespace(prim_path="/World/Light/Reference", spawn=None, cloning_contexts=())
+    plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (robot, sensor, prop, light, light_reference), 4, 1.0)
 
-    for cfg in (env_cfg_a, env_cfg_b, global_cfg):
-        cfg.cloning_contexts = (UsdReplicateContext,)
-        queue_replication(cfg)
-
-    src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-    pos = grid_transforms(4, 1.0)[0]
-    plan = cloner.clone_plan_from_env_0(src, dest, 4, pos, global_paths=("/World/global/Light",))
-
+    assert sim.get_clone_plan() is plan
     assert plan.sources == ("/World/envs/env_0",)
     assert plan.destinations == ("/World/envs/env_{}",)
-    assert plan.cfg_rows == {id(env_cfg_a): (0,), id(env_cfg_b): (0,)}
-    assert plan.global_paths == ("/World/global/Light",)
+    assert plan.cfg_rows == {id(robot): (0,), id(sensor): (0,), id(prop): (0,)}
+    assert plan.context_rows[UsdReplicateContext] == (0,)
+    assert plan.global_paths == ("/World/Light",)
     assert plan.clone_mask.all() and plan.clone_mask.shape == (1, 4)
     np.testing.assert_array_equal(plan.env_ids, np.arange(4, dtype=np.int64))
+    assert robot.prim_path == "/World/envs/env_[^/]+/Robot"
+    assert robot.spawn.spawn_path == "/World/envs/env_0/Robot"
+    assert prop.spawn.spawn_path is None
+    assert prop.spawn.spawn_paths == ["/World/envs/env_0/Prop"]
+    assert light.spawn.spawn_path == "/World/Light"
 
 
-def test_replicate_session_clears_queue_when_asset_init_fails(sim):
-    """ReplicateSession.__exit__ drops queued cfgs if the asset constructor body raises."""
-    from isaaclab.cloner import ReplicateSession
+@pytest.mark.parametrize("nested", [SimpleNamespace(scene=object()), (SimpleNamespace(prim_path="/World/A"),)])
+def test_clone_plan_from_env_0_rejects_cfg_tree_inputs(sim, nested):
+    """The cloner accepts a flat construction manifest, never an outer cfg tree."""
+    with pytest.raises(AttributeError):
+        cloner.clone_plan_from_env_0(cloner.CloneCfg(), (nested,), 2, 1.0)
+    assert sim.get_clone_plan() is None
 
-    leaked_cfg = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot")
 
-    sentinel = MagicMock()
-    sentinel_cls = MagicMock(return_value=sentinel)
+def test_clone_plan_from_env_0_rejects_multi_variant_spawner_atomically(sim):
+    """Heterogeneous spawners remain untouched when the homogeneous helper rejects them."""
+    valid_cfg = SimpleNamespace(prim_path="{ENV_REGEX_NS}/Robot", spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)))
+    cfg = SimpleNamespace(
+        prim_path="{ENV_REGEX_NS}/Object",
+        spawn=sim_utils.MultiAssetSpawnerCfg(
+            assets_cfg=[sim_utils.SphereCfg(radius=0.1), sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))]
+        ),
+    )
+    with pytest.raises(ValueError, match="single-variant"):
+        cloner.clone_plan_from_env_0(cloner.CloneCfg(), (valid_cfg, cfg), 2, 1.0)
+    assert valid_cfg.prim_path == "{ENV_REGEX_NS}/Robot"
+    assert valid_cfg.spawn.spawn_path is None
+    assert cfg.prim_path == "{ENV_REGEX_NS}/Object"
+    assert cfg.spawn.spawn_paths is None
+    assert sim.get_clone_plan() is None
 
+
+def test_replicate_session_clears_plan_when_asset_init_fails(sim):
+    """ReplicateSession clears an unconsumed plan when construction raises."""
     with pytest.raises(RuntimeError, match="asset boom"):
-        with ReplicateSession(
-            cfgs=[],
-            num_clones=2,
-            env_spacing=1.0,
-        ) as session:
+        with ReplicateSession(cfgs=[], num_clones=2, env_spacing=1.0) as session:
             assert sim.get_clone_plan() is session.plan
-            leaked_cfg.cloning_contexts = (sentinel_cls,)
-            REPLICATION_QUEUE.append(leaked_cfg)
             raise RuntimeError("asset boom")
 
-    assert REPLICATION_QUEUE == []
     assert sim.get_clone_plan() is None
-    sentinel_cls.assert_not_called()

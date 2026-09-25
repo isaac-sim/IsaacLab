@@ -8,13 +8,19 @@
 The hand-over task also uses these, as it already builds on this package's MDP terms.
 """
 
+from __future__ import annotations
+
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.utils.math import quat_from_angle_axis, quat_mul
+
+if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
 
 
 class EpisodeErrorRecorder:
@@ -243,7 +249,7 @@ def randomize_rotation(
 
 
 def resolve_actuated_tendons(
-    hand,
+    hand: Articulation,
     tendon_names: Sequence[str],
     num_envs: int,
     device: str,

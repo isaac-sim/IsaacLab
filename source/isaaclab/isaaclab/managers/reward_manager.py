@@ -17,7 +17,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import RewardTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from ..envs import ManagerBasedRLEnv
 
 
 class RewardManager(ManagerBase):
@@ -49,9 +49,9 @@ class RewardManager(ManagerBase):
             env: The environment instance.
         """
         # create buffers to parse and store terms
-        self._term_names: list[str] = list()
-        self._term_cfgs: list[RewardTermCfg] = list()
-        self._class_term_cfgs: list[RewardTermCfg] = list()
+        self._term_names: list[str] = []
+        self._term_cfgs: list[RewardTermCfg] = []
+        self._class_term_cfgs: list[RewardTermCfg] = []
 
         # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
@@ -108,10 +108,8 @@ class RewardManager(ManagerBase):
         Returns:
             Dictionary of episodic sum of individual reward terms.
         """
-        # resolve environment ids
         if env_ids is None:
             env_ids = slice(None)
-        # store information
         extras = {}
         for key in self._episode_sums.keys():
             # store information
@@ -123,7 +121,6 @@ class RewardManager(ManagerBase):
         # reset all the reward terms
         for term_cfg in self._class_term_cfgs:
             term_cfg.func.reset(env_ids=env_ids)
-        # return logged information
         return extras
 
     def compute(self, dt: float) -> torch.Tensor:

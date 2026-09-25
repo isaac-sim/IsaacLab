@@ -20,11 +20,7 @@ import math
 import pytest
 import torch
 import warp as wp
-from isaaclab_physx.sim.schemas import (
-    PhysxArticulationRootPropertiesCfg,
-    PhysxCollisionPropertiesCfg,
-    PhysxRigidBodyPropertiesCfg,
-)
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import omni.replicator.core as rep
 
@@ -145,7 +141,7 @@ def setup(sensor_type: str = "cube"):
         prim_path="/World/Robot",
         spawn=sim_utils.UsdFileWithCompliantContactCfg(
             usd_path=usd_file_path,
-            rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=True),
+            rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
             compliant_contact_stiffness=10.0,
             compliant_contact_damping=1.0,
             physics_material_prim_path="elastomer",
@@ -163,8 +159,8 @@ def setup(sensor_type: str = "cube"):
         prim_path="/World/Cube",
         spawn=sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
-            rigid_props=PhysxRigidBodyPropertiesCfg(),
-            collision_props=PhysxCollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
     )
     # Nut
@@ -172,9 +168,9 @@ def setup(sensor_type: str = "cube"):
         prim_path="/World/Nut",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Factory/factory_nut_m16.usd",
-            rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=False),
-            articulation_props=PhysxArticulationRootPropertiesCfg(articulation_enabled=False),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.1),
+            rigid_props=PhysxRigidBodyCfg(disable_gravity=False),
+            articulation_props=PhysxArticulationCfg(articulation_enabled=False),
+            mass_props=sim_utils.MassCfg(mass=0.1),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
             pos=(0.0, 0.0 + 0.06776, 0.52),
@@ -245,13 +241,13 @@ def test_sensor_minimum_config(setup_minimum_config):
     assert sensor_minimum.data.tactile_normal_force is None
     assert sensor_minimum.data.tactile_shear_force is None
 
-    # Check reset functionality
+    # Resetting (all and selected envs) keeps the disabled outputs unset
     sensor_minimum.reset()
-
-    for i in range(10):
-        sim.step()
-        sensor_minimum.update(dt)
     sensor_minimum.reset(env_ids=[0])
+    assert sensor_minimum.data.tactile_depth_image is None
+    assert sensor_minimum.data.tactile_rgb_image is None
+    assert sensor_minimum.data.tactile_points_pos_w is None
+    assert sensor_minimum.data.tactile_normal_force is None
 
 
 @pytest.mark.isaacsim_ci
@@ -274,31 +270,6 @@ def test_sensor_cam_type_false(setup_tactile_cam):
     with pytest.raises(ValueError) as excinfo:
         sim.reset()
     assert "Camera configuration data types are not supported" in str(excinfo.value)
-
-
-@pytest.mark.isaacsim_ci
-def test_sensor_cam_set(setup_tactile_cam):
-    """Test sensor with camera configuration using existing camera prim."""
-    sim, sensor_cfg, dt, robot_cfg, object_cfg, nut_cfg = setup_tactile_cam
-    robot = Articulation(cfg=robot_cfg)
-    sensor = VisuoTactileSensor(cfg=sensor_cfg)
-    sim.reset()
-    sensor.get_initial_render()
-    for _ in range(10):
-        sim.step()
-        sensor.update(dt, force_recompute=True)
-        robot.update(dt)
-    assert sensor.is_initialized
-    assert sensor.data.tactile_depth_image.shape == (1, 320, 240, 1)
-    assert sensor.data.tactile_rgb_image.shape == (1, 320, 240, 3)
-    assert sensor.data.tactile_points_pos_w is None
-
-    sensor.reset()
-    for _ in range(10):
-        sim.step()
-        sensor.update(dt, force_recompute=True)
-        robot.update(dt)
-    sensor.reset(env_ids=[0])
 
 
 @pytest.mark.isaacsim_ci
@@ -346,18 +317,26 @@ def test_sensor_cam_new_spawn(setup_tactile_cam):
 def test_sensor_rgb_forcefield(setup_nut_rgb_ff):
     """Test sensor with both camera and force field enabled, detecting contact forces."""
     sim, sensor_cfg, dt, robot_cfg, cube_cfg, nut_cfg = setup_nut_rgb_ff
+    # A mismatched camera update period is overridden by the sensor's update period.
+    sensor_cfg.update_period = dt
+    sensor_cfg.camera_cfg.update_period = dt * 2
     robot = Articulation(cfg=robot_cfg)
     sensor = VisuoTactileSensor(cfg=sensor_cfg)
     nut = RigidObject(cfg=nut_cfg)
     sim.reset()
     sensor.get_initial_render()
-    for _ in range(10):
+    assert sensor.cfg.camera_cfg.update_period == sensor.cfg.update_period
+    for i in range(10):
         sim.step()
         sensor.update(dt, force_recompute=True)
         robot.update(dt)
         nut.update(dt)
-    # check str
-    print(sensor)
+        assert torch.allclose(
+            wp.to_torch(sensor._timestamp_last_update), torch.tensor((i + 1) * dt, device=sensor.device)
+        )
+        assert torch.allclose(
+            wp.to_torch(sensor._camera_sensor._timestamp_last_update), torch.tensor((i + 1) * dt, device=sensor.device)
+        )
     assert sensor.is_initialized
     assert sensor.data.tactile_depth_image.shape == (1, 320, 240, 1)
     assert sensor.data.tactile_rgb_image.shape == (1, 320, 240, 3)
@@ -430,28 +409,3 @@ def test_sensor_force_field_contact_object_no_sdf(setup_nut_rgb_ff):
         sensor.update(dt)
         cube.update(dt)
     assert "No SDF mesh found under contact object at path" in str(excinfo.value)
-
-
-@pytest.mark.isaacsim_ci
-def test_sensor_update_period_mismatch(setup_nut_rgb_ff):
-    """Test sensor with both camera and force field enabled, detecting contact forces."""
-    sim, sensor_cfg, dt, robot_cfg, cube_cfg, nut_cfg = setup_nut_rgb_ff
-    sensor_cfg.update_period = dt
-    sensor_cfg.camera_cfg.update_period = dt * 2
-    robot = Articulation(cfg=robot_cfg)
-    sensor = VisuoTactileSensor(cfg=sensor_cfg)
-    nut = RigidObject(cfg=nut_cfg)
-    sim.reset()
-    sensor.get_initial_render()
-    assert sensor.cfg.camera_cfg.update_period == sensor.cfg.update_period
-    for i in range(10):
-        sim.step()
-        sensor.update(dt, force_recompute=True)
-        robot.update(dt)
-        nut.update(dt)
-        assert torch.allclose(
-            wp.to_torch(sensor._timestamp_last_update), torch.tensor((i + 1) * dt, device=sensor.device)
-        )
-        assert torch.allclose(
-            wp.to_torch(sensor._camera_sensor._timestamp_last_update), torch.tensor((i + 1) * dt, device=sensor.device)
-        )

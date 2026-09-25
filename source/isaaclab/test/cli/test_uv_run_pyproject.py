@@ -65,16 +65,12 @@ def test_uv_run_exposes_centralized_feature_extras(source_checkout_root: Path):
     assert "rtx" not in optional_dependencies
 
     # Concrete third-party deps live in the extras (not subpackage self-references).
-    # ``ov`` installs both Omniverse backends; ``ovphysx`` / ``ovrtx`` select one.
-    # Every Omniverse extra carries ``ovstage``, which both backends need.
+    # ``ov`` installs both Omniverse backends and ``ovstage``, which both backends need.
+    # The single-backend ``ovphysx`` / ``ovrtx`` extras are checked against the pinned versions below.
     assert any(dep.startswith("skrl") for dep in optional_dependencies["skrl"])
     assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ov"])
     assert any(dep.startswith("ovrtx") for dep in optional_dependencies["ov"])
     assert any(dep.startswith("ovstage") for dep in optional_dependencies["ov"])
-    assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ovphysx"])
-    assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovphysx"])
-    assert any(dep.startswith("ovrtx") for dep in optional_dependencies["ovrtx"])
-    assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovrtx"])
 
 
 def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkout_root: Path):
@@ -89,6 +85,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkou
 
     assert set(optional) - reachable - {"all"} == {
         "rlinf",
+        "torchrl",
         "isaacsim",
         "importers",
         "mimic",
@@ -129,9 +126,6 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     optional = pyproject["project"]["optional-dependencies"]
     overrides = pyproject["tool"]["uv"]["override-dependencies"]
 
-    assert versions["ovphysx"] == "0.5.11"
-    assert "omniverseclient==2.72.3" in dependencies
-
     # Isaac Sim extra mirrors the table; it is the only place the wheel is pinned.
     assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
 
@@ -151,7 +145,7 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     # either by carrying the literal range, or by referencing the ``resolve-ov-pins``
     # action output, which reads the pin from this same table. Never a bare ``ovrtx``.
     build_workflow = (source_checkout_root / ".github/workflows/build.yaml").read_text(encoding="utf-8")
-    assert "ovphysx==0.4.13" not in build_workflow
+    assert all(pin == spec("ovphysx") for pin in re.findall(r"ovphysx==[\w.+]+", build_workflow))
     ovrtx_install_lines = [
         line.strip() for line in build_workflow.splitlines() if "extra-pip-packages:" in line and "ovrtx" in line
     ]

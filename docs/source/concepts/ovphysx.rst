@@ -85,8 +85,7 @@ supported.
 Installation
 ------------
 
-The public ``ovphysx`` extra remains pinned to OvPhysX 0.5.11. Install it from
-the repository root with:
+The ``ovphysx`` extra requires OvPhysX 0.6.3. Install it from the repository root with:
 
 .. code-block:: bash
 
@@ -157,7 +156,7 @@ Supported locomotion environments
 ---------------------------------
 
 The following locomotion training environments declare an ``ovphysx`` physics
-preset. Their corresponding ``-Play`` variants support the same backend where
+preset. Playback through ``uv run isaaclab play`` uses the same backend where
 available.
 
 * ``Isaac-Ant-Direct``

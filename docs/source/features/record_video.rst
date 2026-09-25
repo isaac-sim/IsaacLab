@@ -52,7 +52,7 @@ See `Source types`_ for the full list of recordable sources and `Clip control`_ 
 interval options.
 
 Custom visualizer recorders
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Headless capture-only visualizers do not enable continuous simulation rendering.
 Isaac Lab's ``VideoRecorder`` refreshes render state before an on-demand capture.

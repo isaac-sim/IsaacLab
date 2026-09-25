@@ -17,9 +17,10 @@ import pytest
 import torch
 import warp as wp
 
-from isaaclab.assets.visual_material.visual_material import VisualMaterial, _channel_specs
+from isaaclab.assets.visual_material.visual_material import VisualMaterial
 from isaaclab.cloner import ClonePlan
 from isaaclab.renderers.render_context import RenderContext
+from isaaclab.renderers.renderer_cfg import RendererCfg
 
 _SOURCE_ROOT = Path(__file__).resolve().parents[3]
 _PACKAGE_ROOT = _SOURCE_ROOT / "isaaclab" / "isaaclab"
@@ -58,7 +59,7 @@ def test_partial_gpu_write_updates_flat_material_rows(channel: str, trailing_sha
         shape = (4, *trailing_shape)
         return torch.arange(count, dtype=torch.float32, device="cuda:0").reshape(shape) + offset
 
-    context = RenderContext()
+    context = RenderContext([])
     first = _Material("first", channel, initial_values(0.0))
     second = _Material("second", channel, initial_values(20.0))
     context.register_visual_material(first)
@@ -93,7 +94,7 @@ def test_write_runs_core_and_backend_on_the_calling_torch_stream() -> None:
             streams.append(wp.get_stream("cuda:0").cuda_stream)
             super().__call__(material_offsets, env_ids)
 
-    context = RenderContext()
+    context = RenderContext([])
     material = _Material("material", "roughness", torch.zeros(2, device="cuda:0"))
     context.register_visual_material(material)
     context.finalize_consumers([SimpleNamespace(visual_material_writer=lambda _batches: Writer())])
@@ -138,7 +139,7 @@ class _WriterFactory:
 
 
 def test_global_material_write_uses_its_single_flat_row() -> None:
-    context = RenderContext()
+    context = RenderContext([])
     material = _Material("global", "roughness", torch.zeros(1), is_per_env=False)
     context.register_visual_material(material)
     factory = _WriterFactory()
@@ -153,12 +154,13 @@ def test_global_material_write_uses_its_single_flat_row() -> None:
 
 
 def test_finalize_deduplicates_and_rebuilds_shared_writer() -> None:
-    context = RenderContext()
+    registry = []
+    context = RenderContext(registry)
     material = _Material("material", "roughness", torch.zeros(2))
     context.register_visual_material(material)
     factory = _WriterFactory()
     consumer = SimpleNamespace(visual_material_writer=factory)
-    context._renderer_entries = [(object(), consumer)]  # type: ignore[assignment]  # noqa: SLF001
+    registry.append((RendererCfg(), consumer))
     visualizers = [consumer, SimpleNamespace(visual_material_writer=factory)]
 
     context.finalize_consumers(visualizers)
@@ -179,14 +181,18 @@ def test_finalize_deduplicates_and_rebuilds_shared_writer() -> None:
 
 
 def test_material_registration_is_idempotent_after_lifecycle_stop() -> None:
-    context = RenderContext()
+    context = RenderContext([])
     material = _Material("material", "roughness", torch.zeros(2))
     context.register_visual_material(material)
-    context.finalize_consumers([])
+    factory = _WriterFactory()
+    consumers = [SimpleNamespace(visual_material_writer=factory)]
+    context.finalize_consumers(consumers)
 
     context.register_visual_material(material)
+    context.finalize_consumers(consumers, rebuild=True)
 
-    assert context._visual_materials == [material]  # noqa: SLF001
+    # The re-registered material still composes into a single row per instance.
+    assert factory.batches[-1][0].values.shape == (2,)
 
     with pytest.raises(RuntimeError, match="before rendering consumers"):
         context.register_visual_material(_Material("late", "roughness", torch.zeros(2)))
@@ -230,16 +236,6 @@ def test_runtime_material_writes_have_no_host_or_usd_path() -> None:
         assert not hits, f"{method.name} contains forbidden runtime tokens: {sorted(hits)}"
 
 
-def _identifiers(tree: ast.AST) -> set[str]:
-    return {
-        identifier
-        for node in ast.walk(tree)
-        for identifier in (
-            (node.id,) if isinstance(node, ast.Name) else (node.attr,) if isinstance(node, ast.Attribute) else ()
-        )
-    }
-
-
 def test_material_initialization_orders_paths_by_plan_column(monkeypatch: pytest.MonkeyPatch) -> None:
     plan = ClonePlan(
         sources=("/World/envs/env_42/Robot", "/World/envs/env_7/Robot"),
@@ -277,12 +273,6 @@ def test_material_initialization_orders_paths_by_plan_column(monkeypatch: pytest
     assert registered == [material]
 
 
-def test_preview_surface_channels_follow_shader_id() -> None:
-    shader = SimpleNamespace(GetShaderId=lambda: "UsdPreviewSurface")
-
-    assert _channel_specs(shader)["color"] == ("diffuseColor", (0.18, 0.18, 0.18))
-
-
 def test_material_initialization_rejects_partial_owner_row(monkeypatch: pytest.MonkeyPatch) -> None:
     plan = ClonePlan(
         sources=("/World/envs/env_0/Robot",),
@@ -303,59 +293,3 @@ def test_material_initialization_rejects_partial_owner_row(monkeypatch: pytest.M
 
     with pytest.raises(ValueError, match="must populate every environment"):
         VisualMaterial._initialize_impl(material)
-
-
-def test_rejected_visual_material_ownership_does_not_return() -> None:
-    material_path = _PACKAGE_ROOT / "assets" / "visual_material" / "visual_material.py"
-    cfg_path = material_path.with_name("visual_material_cfg.py")
-    scene_path = _PACKAGE_ROOT / "scene" / "interactive_scene.py"
-    for path in (material_path, cfg_path, scene_path):
-        assert not {"owner_asset", "target_prim_paths"} & _identifiers(ast.parse(path.read_text()))
-
-    material_tree = ast.parse(material_path.read_text())
-    material_class = next(
-        node for node in material_tree.body if isinstance(node, ast.ClassDef) and node.name == "VisualMaterial"
-    )
-    assert "FactoryBase" not in {ast.unparse(base) for base in material_class.bases}
-    assert not material_path.with_name("base_visual_material.py").exists()
-    for package in ("isaaclab_newton", "isaaclab_physx", "isaaclab_ov"):
-        backend_assets = _SOURCE_ROOT / package / package / "assets" / "visual_material"
-        assert not tuple(backend_assets.glob("*.py"))
-
-    renderer_tree = ast.parse((_PACKAGE_ROOT / "renderers" / "base_renderer.py").read_text())
-    renderer_names = {
-        node.name
-        for node in renderer_tree.body
-        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
-    }
-    renderer_names.update(
-        node.target.id
-        for node in renderer_tree.body
-        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
-    )
-    assert not {"VisualMaterialWriterFactory", "VisualMaterialBackendFactory"} & renderer_names
-
-    simulation_tree = ast.parse((_PACKAGE_ROOT / "sim" / "simulation_context.py").read_text())
-    simulation_class = next(
-        node for node in simulation_tree.body if isinstance(node, ast.ClassDef) and node.name == "SimulationContext"
-    )
-    simulation_api = {
-        node.name
-        for node in simulation_class.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and "visual_material" in node.name
-    }
-    assert not simulation_api
-
-    owners = []
-    for path in (_PACKAGE_ROOT / "envs" / "mdp").glob("*.py"):
-        tree = ast.parse(path.read_text())
-        if any(
-            isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
-            and node.name == "randomize_visual_color"
-            for node in tree.body
-        ):
-            owners.append(path.name)
-    assert owners == ["events.py"]
-    assert "randomize_visual_color" not in _identifiers(
-        ast.parse((_PACKAGE_ROOT / "envs" / "mdp" / "visual_events.py").read_text())
-    )

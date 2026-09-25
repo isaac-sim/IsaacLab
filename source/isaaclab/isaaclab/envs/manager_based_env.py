@@ -14,20 +14,22 @@ from typing import Any
 
 import torch
 
-from isaaclab.app.loading_screen import report_activity
-from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
-from isaaclab.scene import InteractiveScene
-from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.stage import use_stage
-from isaaclab.utils.seed import configure_seed
-from isaaclab.utils.timer import Timer
-
+from ..app.loading_screen import report_activity
+from ..managers import ActionManager, EventManager, ObservationManager, RecorderManager
+from ..scene import InteractiveScene
+from ..sim import SimulationContext
+from ..sim.utils.stage import use_stage
+from ..utils.seed import configure_seed
+from ..utils.timer import Timer
 from .common import VecEnvObs, _apply_deprecated_viewer_cfg
 from .manager_based_env_cfg import ManagerBasedEnvCfg
-from .utils.io_descriptors import export_articulations_data, export_scene_data
+from .utils.io_descriptors import (
+    _warn_io_descriptors_deprecated,
+    export_articulations_data,
+    export_scene_data,
+)
 from .utils.video_recorder import VideoRecorder
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -144,7 +146,6 @@ class ManagerBasedEnv:
         print(f"\tPhysics step-size     : {self.physics_dt}")
         print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
         print(f"\tEnvironment step-size : {self.step_dt}")
-
         if self.cfg.sim.render_interval < self.cfg.decimation:
             msg = (
                 f"The render interval ({self.cfg.sim.render_interval}) is smaller than the decimation "
@@ -219,13 +220,10 @@ class ManagerBasedEnv:
         if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
-            # if no window, then we don't need to store the window
             self._window = None
         self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
-        # initialize observation buffers
         self.obs_buf = {}
 
-        # export IO descriptors if requested
         if self.cfg.export_io_descriptors:
             self.export_IO_descriptors()
 
@@ -283,18 +281,31 @@ class ManagerBasedEnv:
     def get_IO_descriptors(self):
         """Get the IO descriptors for the environment.
 
+        .. deprecated:: 3.0
+           IO descriptors will be removed in Isaac Lab 3.2. Use the LEAPP
+           export workflow for supported RSL-RL/PyTorch deployments.
+
         Returns:
             A dictionary with keys as the group names and values as the IO descriptors.
         """
+        _warn_io_descriptors_deprecated(stacklevel=3)
+        return self._collect_io_descriptors()
+
+    def _collect_io_descriptors(self):
+        """Collect IO descriptors without emitting a deprecation warning."""
         return {
-            "observations": self.observation_manager.get_IO_descriptors,
-            "actions": self.action_manager.get_IO_descriptors,
+            "observations": self.observation_manager._collect_io_descriptors(),
+            "actions": self.action_manager._collect_io_descriptors(),
             "articulations": export_articulations_data(self),
             "scene": export_scene_data(self),
         }
 
     def export_IO_descriptors(self, output_dir: str | None = None):
         """Export the IO descriptors for the environment.
+
+        .. deprecated:: 3.0
+           IO descriptors will be removed in Isaac Lab 3.2. Use the LEAPP
+           export workflow for supported RSL-RL/PyTorch deployments.
 
         Args:
             output_dir: The directory to export the IO descriptors to.
@@ -303,7 +314,8 @@ class ManagerBasedEnv:
 
         import yaml
 
-        IO_descriptors = self.get_IO_descriptors
+        _warn_io_descriptors_deprecated(stacklevel=3)
+        IO_descriptors = self._collect_io_descriptors()
 
         if output_dir is None:
             if self.cfg.log_dir is not None:
@@ -480,7 +492,6 @@ class ManagerBasedEnv:
             self.seed(seed)
 
         self._reset_idx(env_ids)
-
         # set the state
         self.scene.reset_to(state, env_ids, is_relative=is_relative)
 
@@ -527,7 +538,6 @@ class ManagerBasedEnv:
         Returns:
             A tuple containing the observations and extras.
         """
-        # process actions
         self.action_manager.process_action(action.to(self.device))
 
         self.recorder_manager.record_pre_step()
@@ -572,11 +582,9 @@ class ManagerBasedEnv:
         for recorder in self.video_recorders:
             recorder.step()
 
-        # -- compute observations
         self.obs_buf = self.observation_manager.compute(update_history=True)
         self.recorder_manager.record_post_step()
 
-        # return observations and extras
         return self.obs_buf, self.extras
 
     @staticmethod
@@ -664,5 +672,3 @@ class ManagerBasedEnv:
         # -- recorder manager
         info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)
-
-        self.sim.render_context.reset_scene_state_cadence()

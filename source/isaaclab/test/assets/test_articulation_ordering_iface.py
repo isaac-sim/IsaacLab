@@ -7,7 +7,7 @@
 
 """Mocked cross-backend articulation ordering interface tests."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -17,7 +17,6 @@ from _articulation_iface_test_utils import BACKEND_UNAVAILABLE_REASONS, BACKENDS
 from _pytest.mark.structures import ParameterSet
 
 from isaaclab.utils.buffers import TimestampedBufferWarp
-from isaaclab.utils.wrench_composer import WrenchComposer
 
 
 def _make_body_ordering_backend_data(num_instances: int, num_bodies: int) -> tuple[np.ndarray, ...]:
@@ -47,12 +46,17 @@ def _make_body_ordering_backend_data(num_instances: int, num_bodies: int) -> tup
     return root_pose, root_vel, link_pose, com_pose_b, body_com_vel, body_acc
 
 
-def _install_test_body_ordering(art) -> np.ndarray:
-    """Install a non-identity body ordering that preserves a fixed root body."""
-    if art.is_fixed_base:
-        body_ordering = (art.backend_body_names[0], *reversed(art.backend_body_names[1:]))
+def _install_test_body_ordering(art, mode: str = "reversed") -> np.ndarray:
+    """Install a reversed or cyclic body ordering that preserves a fixed root body."""
+    names = art.backend_body_names
+    movable = names[1:] if art.is_fixed_base else names
+    if mode == "reversed":
+        movable = tuple(reversed(movable))
+    elif mode == "cyclic":
+        movable = (movable[-1], *movable[:-1])
     else:
-        body_ordering = tuple(reversed(art.backend_body_names))
+        raise ValueError(f"Unsupported body ordering mode: {mode}")
+    body_ordering = (names[0], *movable) if art.is_fixed_base else tuple(movable)
     art.cfg = art.cfg.replace(body_ordering=body_ordering)
     # Re-resolve and re-stage the ordering maps exactly as backend initialization
     # does after a config change installs a new ordering on an already-initialized
@@ -62,9 +66,9 @@ def _install_test_body_ordering(art) -> np.ndarray:
     return np.asarray(art.body_ordering.user_to_backend_indices, dtype=np.int64)
 
 
-def _install_reversed_joint_ordering(art) -> np.ndarray:
-    """Install a reversed public joint ordering on an already constructed articulation."""
-    art.cfg = art.cfg.replace(joint_ordering=tuple(reversed(art.backend_joint_names)))
+def _install_test_joint_ordering(art, mode: str = "reversed") -> np.ndarray:
+    """Install a reversed or cyclic public joint ordering on an already constructed articulation."""
+    art.cfg = art.cfg.replace(joint_ordering=_joint_ordering_for_mode(mode, art.num_joints))
     # Re-resolve and re-stage the ordering maps exactly as backend initialization
     # does after a config change installs a new ordering on an already-initialized
     # articulation.
@@ -679,24 +683,23 @@ def _set_body_ordering_backend_data(
         raise AssertionError(f"Unsupported backend for body-ordering test: {backend}")
 
 
-def _set_identity_body_poses(backend: str, art, raw_backend) -> None:
-    """Give wrench transforms deterministic identity rotations."""
+def _set_rotated_body_poses(backend: str, art, raw_backend) -> None:
+    """Use distinct quarter-turn Z rotations and nonzero positions for wrench packing."""
+    poses = np.zeros((art.num_instances, art.num_bodies, 7), dtype=np.float32)
+    poses[..., 0] = np.arange(art.num_bodies) + 10.0
+    half_angles = np.arange(art.num_bodies) * (np.pi / 4)
+    poses[..., 5] = np.sin(half_angles)
+    poses[..., 6] = np.cos(half_angles)
     if backend == "newton":
-        poses = np.zeros((art.num_instances, art.num_bodies, 7), dtype=np.float32)
-        poses[..., 6] = 1.0
         poses_wp = wp.array(poses[:, None], dtype=wp.transformf, device=art.device)
         raw_backend.set_mock_link_transforms(poses_wp)
         art.data._sim_bind_body_link_pose_w.assign(poses_wp[:, 0])
         art.data._refresh_user_order_body_state()
-        return
-    if backend != "ovphysx":
-        return
-    from isaaclab_ov import tensor_types as TT
+    elif backend == "ovphysx":
+        from isaaclab_ov import tensor_types as TT
 
-    poses = np.zeros((art.num_instances, art.num_bodies, 7), dtype=np.float32)
-    poses[..., 6] = 1.0
-    raw_backend.bindings[TT.LINK_POSE]._data = poses
-    art.data._reset_pose()
+        raw_backend.bindings[TT.LINK_POSE]._data = poses
+        art.data._reset_pose()
 
 
 def _read_backend_wrench(backend: str, art, raw_backend, captured: dict) -> tuple[np.ndarray, np.ndarray]:
@@ -1064,39 +1067,6 @@ class TestArticulationDataBodyState:
         link_velocity_reads = [call for call in binding_read.call_args_list if call.args[0] == TT.LINK_VELOCITY]
         assert len(link_velocity_reads) == 1
 
-    @_requires_ovphysx
-    def test_ovphysx_com_write_invalidates_all_dependent_caches_under_ordering(self):
-        """Invalidate every public and backend cache derived from OVPhysX COM poses."""
-        art, _ = get_articulation("ovphysx", 2, 1, 3, device="cpu", body_ordering=("body_2", "body_1", "body_0"))
-        cache_names = (
-            "_root_com_pose_w",
-            "_root_com_vel_w",
-            "_root_link_vel_w",
-            "_body_com_pose_w",
-            "_body_com_vel_w",
-            "_body_com_vel_w_backend",
-            "_body_link_vel_w",
-            "_root_link_lin_vel_b",
-            "_root_link_ang_vel_b",
-            "_root_com_lin_vel_b",
-            "_root_com_ang_vel_b",
-            "_root_state_w_buf",
-            "_root_link_state_w_buf",
-            "_root_com_state_w_buf",
-            "_body_state_w_buf",
-            "_body_link_state_w_buf",
-            "_body_com_state_w_buf",
-        )
-        for cache_name in cache_names:
-            getattr(art.data, cache_name).timestamp = art.data._sim_timestamp
-
-        coms = np.zeros((art.num_instances, art.num_bodies, 7), dtype=np.float32)
-        coms[..., 6] = 1.0
-        art.set_coms_index(coms=wp.array(coms, dtype=wp.transformf, device=art.device))
-
-        for cache_name in cache_names:
-            assert getattr(art.data, cache_name).timestamp == -1.0, cache_name
-
     @_dynamics_ordering_backends
     @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 3, 4)])
     @pytest.mark.parametrize("device", ["cpu"])
@@ -1121,8 +1091,9 @@ class TestArticulationDataBodyState:
         )
         _set_dynamics_ordering_backend_data(backend, identity_art, identity_raw, *raw_dynamics_data)
         _set_dynamics_ordering_backend_data(backend, ordered_art, ordered_raw, *raw_dynamics_data)
-        body_user_to_backend = _install_test_body_ordering(ordered_art)
-        joint_user_to_backend = _install_reversed_joint_ordering(ordered_art)
+        # Cyclic orderings are not involutions, so a user_to_backend/backend_to_user swap shows up.
+        body_user_to_backend = _install_test_body_ordering(ordered_art, "cyclic")
+        joint_user_to_backend = _install_test_joint_ordering(ordered_art, "cyclic")
 
         identity_art.data.update(dt=0.01)
         ordered_art.data.update(dt=0.01)
@@ -1257,6 +1228,10 @@ class TestArticulationOrderingAllocation:
         expected_ordering = ordering_mode == "reversed"
         assert (art.joint_ordering is not None) is expected_ordering
         assert (art.body_ordering is not None) is expected_ordering
+        if not expected_ordering:
+            # Default and explicit backend orders keep the backend names as the public names.
+            assert art.joint_names == list(art.backend_joint_names)
+            assert art.body_names == list(art.backend_body_names)
         # The asset ordering properties delegate to the single source on data.
         assert art.joint_ordering is art.data.joint_ordering
         assert art.body_ordering is art.data.body_ordering
@@ -1462,6 +1437,8 @@ class TestArticulationOrderingComWrites:
         backend_seed = _make_backend_com_poses(num_instances, num_bodies)
         _seed_backend_com_poses(backend, art, raw_backend, backend_seed)
         np.testing.assert_array_equal(_read_backend_com_poses(backend, art, raw_backend), backend_seed)
+        if backend == "physx":
+            raw_backend.get_coms = MagicMock(wraps=raw_backend.get_coms)
 
         user_to_backend = _ordering_user_to_backend(art.body_ordering, num_bodies)
         duplicate_body_ids = [0, 1, 1, 2]
@@ -1473,6 +1450,10 @@ class TestArticulationOrderingComWrites:
             coms=wp.array(payload, dtype=wp.transformf, device=art.device),
             body_ids=wp.array(duplicate_body_ids, dtype=wp.int32, device=art.device),
         )
+        public_after = art.data.body_com_pose_b.torch.detach().cpu().numpy()
+        if backend == "physx":
+            # The cold partial write seeds untouched bodies with one backend read; the public read reuses it.
+            assert raw_backend.get_coms.call_count == 1
 
         expected_backend = backend_seed.copy()
         for env_offset, env_id in enumerate(env_ids):
@@ -1484,7 +1465,6 @@ class TestArticulationOrderingComWrites:
             backend_after[:, user_to_backend[omitted_public_body_id]],
             backend_seed[:, user_to_backend[omitted_public_body_id]],
         )
-        public_after = art.data.body_com_pose_b.torch.detach().cpu().numpy()
         np.testing.assert_array_equal(public_after, expected_backend[:, user_to_backend])
 
     @_physx_ovphysx_backends
@@ -1674,25 +1654,25 @@ class TestArticulationOrderingRootWriteParity:
 class TestArticulationOrderingWriteParity:
     """Test that partial joint writes preserve unselected backend state."""
 
-    # Pairwise covering array for the partial-write matrix. The full cartesian is
-    # backend(3) x ordering(2) x selection(2) x operation(3) x coverage(2) = 72 cases.
-    # These 12 rows retain every backend x ordering x selection triple and every
-    # cross-pair involving operation or coverage.
+    # Each backend selects the joint map separately in every ordered writer (position, velocity, state x
+    # index, mask), so every ordered writer gets one row. The ordering is cyclic: an involution such as
+    # 'reversed' on three joints is its own inverse and cannot tell user_to_backend from backend_to_user.
+    # Unordered rows keep one index and one mask writer per backend; coverage alternates across rows.
     @pytest.mark.parametrize(
         ("backend", "ordering_mode", "selection", "operation", "coverage"),
         [
-            _backend_param("physx", "none", "index", "state", "all_envs_one_item"),
-            _backend_param("physx", "none", "mask", "position", "one_env_all_items"),
-            _backend_param("physx", "reversed", "index", "position", "one_env_all_items"),
-            _backend_param("physx", "reversed", "mask", "velocity", "all_envs_one_item"),
-            _backend_param("ovphysx", "none", "index", "position", "all_envs_one_item"),
-            _backend_param("ovphysx", "none", "mask", "position", "one_env_all_items"),
-            _backend_param("ovphysx", "reversed", "index", "velocity", "all_envs_one_item"),
-            _backend_param("ovphysx", "reversed", "mask", "state", "one_env_all_items"),
-            _backend_param("newton", "none", "index", "state", "all_envs_one_item"),
-            _backend_param("newton", "none", "mask", "velocity", "all_envs_one_item"),
-            _backend_param("newton", "reversed", "index", "position", "one_env_all_items"),
-            _backend_param("newton", "reversed", "mask", "velocity", "one_env_all_items"),
+            row
+            for backend in ("physx", "ovphysx", "newton")
+            for row in (
+                _backend_param(backend, "none", "index", "state", "all_envs_one_item"),
+                _backend_param(backend, "none", "mask", "position", "one_env_all_items"),
+                _backend_param(backend, "cyclic", "index", "position", "one_env_all_items"),
+                _backend_param(backend, "cyclic", "index", "velocity", "all_envs_one_item"),
+                _backend_param(backend, "cyclic", "index", "state", "one_env_all_items"),
+                _backend_param(backend, "cyclic", "mask", "position", "all_envs_one_item"),
+                _backend_param(backend, "cyclic", "mask", "velocity", "one_env_all_items"),
+                _backend_param(backend, "cyclic", "mask", "state", "all_envs_one_item"),
+            )
         ],
     )
     def test_partial_joint_write_preserves_backend_rows(
@@ -1823,7 +1803,7 @@ class TestArticulationOrderingWriteParity:
     def test_ovphysx_partial_effort_target_write_preserves_unselected_backend_rows(self) -> None:
         """A partial effort-target write must not leak the last applied torque onto unselected joints.
 
-        ``write_data_to_sim`` pushes the actuator-computed ``_applied_torque`` (which can differ
+        ``write_data_to_sim`` pushes the processed effort command (which can differ
         from the raw commanded target, e.g. once explicit actuators clip or otherwise transform it)
         to the ``DOF_ACTUATION_FORCE`` binding. That push must use its own backend-order scratch
         buffer rather than ``_joint_effort_target_backend``, because the latter is also the staging
@@ -1854,7 +1834,7 @@ class TestArticulationOrderingWriteParity:
         # Simulate an actuator model computing an applied torque that differs from the raw
         # target, then run one full simulation step.
         applied_torque = raw_targets + 100.0
-        art.data._applied_torque.assign(wp.array(applied_torque, dtype=wp.float32, device=art.device))
+        art.actuators._joint_effort_target_sim.assign(wp.array(applied_torque, dtype=wp.float32, device=art.device))
         art.write_data_to_sim()
 
         pushed_after_step = raw_backend.bindings[TT.DOF_ACTUATION_FORCE]._data.copy()
@@ -1882,7 +1862,7 @@ class TestArticulationDataJointState:
     def test_ovphysx_joint_acceleration_differences_public_order_velocities(self):
         """Finite-difference OVPhysX joint velocity entirely in public joint order."""
         art, raw_backend = get_articulation("ovphysx", 2, 3, 2, device="cpu")
-        user_to_backend = _install_reversed_joint_ordering(art)
+        user_to_backend = _install_test_joint_ordering(art)
         from isaaclab_ov import tensor_types as TT
 
         first = np.asarray([[1.0, 2.0, 4.0], [10.0, 20.0, 40.0]], dtype=np.float32)
@@ -1911,21 +1891,26 @@ class TestArticulationDataJointState:
             joint_ordering=("joint_2", "joint_1", "joint_0"),
         )
         art.data.update(0.01)
+        binding_read = MagicMock(wraps=art.data._binding_read)
+        art.data._binding_read = binding_read
+        from isaaclab_ov import tensor_types as TT
 
-        art.data.joint_pos.torch.clone()
-        art.data.joint_vel.torch.clone()
+        for _ in range(2):
+            art.data.joint_pos.torch.clone()
+            art.data.joint_vel.torch.clone()
 
-        assert art.data._joint_pos_buf.timestamp == art.data._sim_timestamp
-        assert art.data._joint_vel_buf.timestamp == art.data._sim_timestamp
+        read_types = [call.args[0] for call in binding_read.call_args_list]
+        assert read_types.count(TT.DOF_POSITION) == 1
+        assert read_types.count(TT.DOF_VELOCITY) == 1
 
     @_non_mock_backends
     @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 3, 2)])
     @pytest.mark.parametrize("device", ["cpu"])
-    def test_reversed_joint_ordering_reorders_public_joint_properties(
+    def test_joint_ordering_reorders_public_joint_properties(
         self, backend, num_instances, num_joints, num_bodies, device
     ):
         """Expose every backend joint property under the matching public joint name."""
-        joint_ordering = tuple(f"joint_{index}" for index in reversed(range(num_joints)))
+        joint_ordering = _joint_ordering_for_mode("cyclic", num_joints)
         art, raw_backend = get_articulation(
             backend,
             num_instances,
@@ -1956,6 +1941,22 @@ class TestArticulationDataJointState:
 
         for property_name, public_property in public_properties.items():
             _assert_proxy_close(public_property, backend_properties[property_name][:, user_to_backend])
+
+        if backend == "ovphysx":
+            from isaaclab_ov import tensor_types as TT
+
+            # A fresh native read must gather too; initialization and writer caches can hide a missing gather.
+            friction = np.arange(num_instances * num_joints * 3, dtype=np.float32).reshape(num_instances, num_joints, 3)
+            friction += 100.0
+            raw_backend.bindings[TT.DOF_FRICTION_PROPERTIES]._data = friction
+            art.data._joint_friction_props_buf.timestamp = -1
+            art.data._joint_friction_props_backend.timestamp = -1
+            for component, property_name in enumerate(
+                ("joint_friction_coeff", "joint_dynamic_friction_coeff", "joint_viscous_friction_coeff")
+            ):
+                _assert_proxy_close(
+                    getattr(art.data, property_name), torch.from_numpy(friction[:, user_to_backend, component])
+                )
 
 
 def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
@@ -2011,13 +2012,13 @@ class TestArticulationOperations:
             is_fixed_base=is_fixed_base,
             body_ordering=body_ordering,
         )
-        _set_identity_body_poses(backend, art, raw_backend)
-        object.__setattr__(art, "_instantaneous_wrench_composer", WrenchComposer(art))
-        object.__setattr__(art, "_permanent_wrench_composer", WrenchComposer(art))
+        _set_rotated_body_poses(backend, art, raw_backend)
         captured = {}
         if backend == "physx":
 
             def capture_wrench(*, force_data, torque_data, position_data, indices, is_global):
+                captured["is_global"] = is_global
+                assert position_data is None
                 captured["force"] = force_data.numpy().reshape(num_instances, num_bodies, 3).copy()
                 captured["torque"] = torque_data.numpy().reshape(num_instances, num_bodies, 3).copy()
 
@@ -2025,17 +2026,42 @@ class TestArticulationOperations:
 
         forces = np.arange(num_instances * num_bodies * 3, dtype=np.float32).reshape(num_instances, num_bodies, 3)
         torques = forces + 100.0
-        art.instantaneous_wrench_composer.set_forces_and_torques_index(
-            forces=wp.array(forces, dtype=wp.vec3f, device=device),
-            torques=wp.array(torques, dtype=wp.vec3f, device=device),
-        )
-
-        art.write_data_to_sim()
-
         backend_to_user = _expected_backend_to_user(body_ordering, backend_body_names)
-        backend_force, backend_torque = _read_backend_wrench(backend, art, raw_backend, captured)
-        np.testing.assert_allclose(backend_force, forces[:, backend_to_user])
-        np.testing.assert_allclose(backend_torque, torques[:, backend_to_user])
+        composer = art.instantaneous_wrench_composer
+        for is_global in (False, True):
+            composer.set_forces_and_torques_index(
+                forces=wp.array(forces, dtype=wp.vec3f, device=device),
+                torques=wp.array(torques, dtype=wp.vec3f, device=device),
+                is_global=is_global,
+            )
+            with patch.object(composer, "compose_to_body_frame", wraps=composer.compose_to_body_frame) as compose:
+                art.write_data_to_sim()
+            assert compose.call_count == int(is_global and backend == "newton")
+
+            expected_force, expected_torque = forces[:, backend_to_user], torques[:, backend_to_user]
+            if backend == "physx":
+                assert captured["is_global"] is is_global
+            elif not is_global:
+                # Known 0/90/180/270-degree rotations, independently of the backend quaternion transform.
+                rotations = np.asarray(
+                    [
+                        [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+                        [[0, -1, 0], [1, 0, 0], [0, 0, 1]],
+                        [[-1, 0, 0], [0, -1, 0], [0, 0, 1]],
+                        [[0, 1, 0], [-1, 0, 0], [0, 0, 1]],
+                    ],
+                    dtype=np.float32,
+                )
+                expected_force = np.einsum("bij,nbj->nbi", rotations, expected_force)
+                expected_torque = np.einsum("bij,nbj->nbi", rotations, expected_torque)
+            backend_force, backend_torque = _read_backend_wrench(backend, art, raw_backend, captured)
+            np.testing.assert_allclose(backend_force, expected_force, atol=1e-4)
+            np.testing.assert_allclose(backend_torque, expected_torque, atol=1e-4)
+            if backend == "ovphysx":
+                from isaaclab_ov import tensor_types as TT
+
+                packed_positions = raw_backend.bindings[TT.LINK_WRENCH]._data[..., 6:9]
+                np.testing.assert_array_equal(packed_positions, raw_backend.bindings[TT.LINK_POSE]._data[..., :3])
 
     @_requires_ovphysx
     def test_ovphysx_configured_defaults_use_public_joint_names(self):
@@ -2077,9 +2103,10 @@ class TestArticulationOperations:
         position = np.arange(num_instances * num_joints, dtype=np.float32).reshape(num_instances, num_joints)
         velocity = position + 100.0
         effort = position + 200.0
-        art.data._joint_pos_target.assign(wp.array(position, dtype=wp.float32, device=art.device))
-        art.data._joint_vel_target.assign(wp.array(velocity, dtype=wp.float32, device=art.device))
-        art.data._applied_torque.assign(wp.array(effort, dtype=wp.float32, device=art.device))
+        # Seed the actuator collection's submitted command buffers (no actuator groups recompute them).
+        art.actuators._joint_pos_target.assign(wp.array(position, dtype=wp.float32, device=art.device))
+        art.actuators._joint_vel_target.assign(wp.array(velocity, dtype=wp.float32, device=art.device))
+        art.actuators._joint_effort_target_sim.assign(wp.array(effort, dtype=wp.float32, device=art.device))
         object.__setattr__(art, "_has_implicit_actuators", True)
         object.__setattr__(art, "_can_write_effort", True)
 
@@ -2203,11 +2230,14 @@ class TestArticulationWritersJoint:
     """Test joint writers/setters with all input combinations."""
 
     @_non_mock_backends
+    @pytest.mark.parametrize("ordering_mode", ["reversed", "cyclic"])
     @pytest.mark.parametrize("selection", ["index", "mask"])
-    def test_reversed_joint_ordering_routes_property_writes_to_backend(self, backend: str, selection: str):
+    def test_reversed_joint_ordering_routes_property_writes_to_backend(
+        self, backend: str, ordering_mode: str, selection: str
+    ):
         """Route partial public property writes to matching backend joints."""
         num_instances, num_joints, num_bodies = 2, 4, 2
-        joint_ordering = tuple(f"joint_{index}" for index in reversed(range(num_joints)))
+        joint_ordering = _joint_ordering_for_mode(ordering_mode, num_joints)
         art, raw_backend = get_articulation(
             backend,
             num_instances,

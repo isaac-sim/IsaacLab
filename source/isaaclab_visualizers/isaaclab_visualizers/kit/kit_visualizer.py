@@ -35,6 +35,7 @@ from isaaclab.envs.utils.camera_view import (
     remove_generated_prims,
     resolve_streaming_envs,
 )
+from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -120,7 +121,6 @@ class KitVisualizer(BaseVisualizer):
         self._last_streaming_composite: np.ndarray | None = None
         self._generated_camera_xform_ops: dict[str, tuple[UsdGeom.XformOp, UsdGeom.XformOp]] = {}
         self._generated_camera_pose_cache: dict[str, tuple[float, ...]] = {}
-        self._generated_camera_poses_dirty = False
         self._camera_image_provider = None
         self._camera_image_window = None
         self._camera_gpu_upload_tensor = None
@@ -133,6 +133,13 @@ class KitVisualizer(BaseVisualizer):
         # Camera tracking state (replaces ViewportCameraController)
         self._interactive_scene = None  # set from SimulationContext._interactive_scene in initialize()
         self._viewer_origin: torch.Tensor | None = None  # world-space origin offset for eye/lookat
+        if (
+            cfg.streaming_view
+            and get_settings_manager().get("/isaaclab/cameras_enabled", False)
+            and cfg.streaming_sensor_prim_path is None
+            and cfg.streaming_cam_target_prim_path is not None
+        ):
+            SimulationContext.instance().get_or_create_backend(self._resolve_streaming_renderer_cfg())
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
@@ -192,6 +199,9 @@ class KitVisualizer(BaseVisualizer):
         )
         self._setup_streaming_view(num_envs)
 
+        sim = SimulationContext.instance()
+        self._fabric = sim.get_or_create_backend(sim.fabric_cfg)
+        self._fabric.bind_transforms(scene_data_provider)
         self._is_initialized = True
         self._setup_initial_camera_view()
 
@@ -206,13 +216,14 @@ class KitVisualizer(BaseVisualizer):
         self._app_pumped_this_step = False
         self._sim_time += dt
         self._step_counter += 1
-        # Update dynamic asset tracking before the frame renders.
-        if self.cfg.origin_type == "asset":
-            self._update_asset_tracking_camera()
         # Headless mode: skip the app update and camera panel refresh; rendering is
         # triggered on demand by render_rgb_array() / render_tiled_rgb_array().
         if self._runtime_headless:
             return
+        self._fabric.update_transforms(self._scene_data_provider)
+        self._fabric.update_geometries(self._scene_data_provider, SimulationContext.instance().render_generation)
+        if self.cfg.origin_type == "asset":
+            self._update_asset_tracking_camera()
         _externally_paused = self.is_training_paused()
         if not _externally_paused:
             try:
@@ -250,7 +261,6 @@ class KitVisualizer(BaseVisualizer):
         self._camera_sensor = None
         self._generated_camera_xform_ops.clear()
         self._generated_camera_pose_cache.clear()
-        self._generated_camera_poses_dirty = False
         self._camera_image_provider = None
         self._camera_image_window = None
         self._simulation_app = None
@@ -283,6 +293,10 @@ class KitVisualizer(BaseVisualizer):
         import omni.kit.app
         import omni.replicator.core as rep
 
+        self._fabric.update_transforms(self._scene_data_provider)
+        self._fabric.update_geometries(self._scene_data_provider, SimulationContext.instance().render_generation)
+        if self._runtime_headless and self.cfg.origin_type == "asset":
+            self._update_asset_tracking_camera()
         camera_path = self._controlled_camera_path or "/OmniverseKit_Persp"
         w, h = self.cfg.window_width, self.cfg.window_height
 
@@ -411,10 +425,6 @@ class KitVisualizer(BaseVisualizer):
         for source in self._live_plot_sources:
             if isinstance(source, DirectScalarLivePlots):
                 self.kit_manager_visualizers[source.manager_name] = DirectScalarLiveVisualizer(source)
-
-    def requires_forward_before_step(self) -> bool:
-        """OV viewport relies on refreshed kinematic state before render."""
-        return True
 
     def pumps_app_update(self) -> bool:
         """KitVisualizer calls app.update() in step(), so render() should not do it again."""
@@ -822,10 +832,9 @@ class KitVisualizer(BaseVisualizer):
             self._camera_env_indices,
             scene=self._scene_data_provider.get_interactive_scene(),
         )
-        eyes, targets = apply_camera_target_positions(
+        apply_camera_target_positions(
             self._camera_sensor, target_positions, self.cfg.streaming_cam_eye, self._camera_env_indices
         )
-        self._set_generated_usd_camera_poses(eyes, targets)
 
     def _update_camera_image_panel(self, dt: float) -> None:
         """Refresh the streaming image panel with composited multi-GT output."""
@@ -842,9 +851,6 @@ class KitVisualizer(BaseVisualizer):
 
         if self._camera_is_owned:
             self._update_owned_camera_poses()
-            if self._generated_camera_poses_dirty:
-                self._sync_camera_pose_updates_to_kit()
-                self._generated_camera_poses_dirty = False
             self._camera_sensor.update(dt=dt, force_recompute=True)
 
         gt_types = list(self.cfg.streaming_gt_types)
@@ -900,23 +906,6 @@ class KitVisualizer(BaseVisualizer):
             image = np.concatenate((image, alpha), axis=2)
         image = np.ascontiguousarray(image)
         self._camera_image_provider.set_bytes_data(image.flatten().data, [image.shape[1], image.shape[0]])
-
-    def _sync_camera_pose_updates_to_kit(self) -> None:
-        """Flush generated camera pose writes before camera RGB is sampled."""
-        try:
-            import omni.kit.app
-
-            app = omni.kit.app.get_app()
-            if app is None or not app.is_running():
-                return
-            settings = get_settings_manager()
-            play_flag = settings.get("/app/player/playSimulations")
-            settings.set_bool("/app/player/playSimulations", False)
-            app.update()
-            if play_flag is not None:
-                settings.set_bool("/app/player/playSimulations", bool(play_flag))
-        except Exception as exc:
-            logger.debug("[KitVisualizer] Camera pose Kit sync skipped: %s", exc)
 
     def _refresh_controlled_camera_path(self) -> None:
         """Cache :attr:`_controlled_camera_path` from the active viewport (or default persp)."""
@@ -1030,21 +1019,6 @@ class KitVisualizer(BaseVisualizer):
         camera_state = ViewportCameraState(camera_path, self._viewport_api)
         camera_state.set_position_world(Gf.Vec3d(float(position[0]), float(position[1]), float(position[2])), False)
         camera_state.set_target_world(Gf.Vec3d(float(target[0]), float(target[1]), float(target[2])), True)
-
-    def _set_generated_usd_camera_poses(self, eyes: torch.Tensor, targets: torch.Tensor) -> None:
-        """Author generated camera poses directly on USD camera prims for Kit/Fabric visibility."""
-        # TODO: Remove this USD-side pose path once Fabric-backed camera transforms propagate reliably to Kit.
-        for local_idx, env_id in enumerate(self._camera_env_indices):
-            if local_idx >= eyes.shape[0]:
-                break
-            camera_path = (
-                self._generated_camera_prim_paths[env_id]
-                if 0 <= env_id < len(self._generated_camera_prim_paths)
-                else f"/World/envs/env_{env_id}/VisualizerCamera"
-            )
-            self._generated_camera_poses_dirty |= self._set_usd_camera_pose(
-                camera_path, eyes[local_idx], targets[local_idx]
-            )
 
     def _set_usd_camera_pose(self, camera_path: str, position, target) -> bool:
         """Apply eye/target camera pose directly to a USD camera prim.
@@ -1237,8 +1211,6 @@ class KitVisualizer(BaseVisualizer):
         camera is positioned immediately. For asset-tracking origins the first update is deferred
         to :meth:`step` because asset state is not yet available at initialization time.
         """
-        from isaaclab.sim import SimulationContext  # noqa: PLC0415
-
         self._interactive_scene = getattr(SimulationContext.instance(), "_interactive_scene", None)
 
         if self.cfg.origin_type == "world":
@@ -1270,7 +1242,7 @@ class KitVisualizer(BaseVisualizer):
     def _update_asset_tracking_camera(self) -> None:
         """Update the viewport camera to track an asset root or body.
 
-        Called every :meth:`step` when :attr:`KitVisualizerCfg.origin_type` is ``"asset"``.
+        Called before viewport frames when :attr:`KitVisualizerCfg.origin_type` is ``"asset"``.
         Parses :attr:`~KitVisualizerCfg.origin_track_path`: ``"asset_name"`` tracks the root,
         ``"asset_name/body_name"`` tracks a specific body.
         """

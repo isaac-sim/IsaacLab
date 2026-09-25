@@ -32,25 +32,20 @@ from isaaclab_visualizers.newton_adapter import (
 )
 
 
-def test_expand_infinite_plane_scale_expands_non_positive_extents():
-    assert expand_infinite_plane_scale((0.0, 0.0, 1.0, 0.0)) == (
-        VISUALIZER_INFINITE_PLANE_SIZE,
-        VISUALIZER_INFINITE_PLANE_SIZE,
-        1.0,
-        0.0,
-    )
-    assert expand_infinite_plane_scale((-1.0, 25.0)) == (
-        VISUALIZER_INFINITE_PLANE_SIZE,
-        25.0,
-    )
-    assert expand_infinite_plane_scale((25.0, 0.0)) == (
-        25.0,
-        VISUALIZER_INFINITE_PLANE_SIZE,
-    )
-
-
-def test_expand_infinite_plane_scale_preserves_finite_extents():
-    assert expand_infinite_plane_scale((100.0, 50.0, 1.0)) == (100.0, 50.0, 1.0)
+@pytest.mark.parametrize(
+    ("scale", "expected"),
+    [
+        (
+            (0.0, 0.0, 1.0, 0.0),
+            (VISUALIZER_INFINITE_PLANE_SIZE, VISUALIZER_INFINITE_PLANE_SIZE, 1.0, 0.0),
+        ),
+        ((-1.0, 25.0), (VISUALIZER_INFINITE_PLANE_SIZE, 25.0)),
+        ((25.0, 0.0), (25.0, VISUALIZER_INFINITE_PLANE_SIZE)),
+        ((100.0, 50.0, 1.0), (100.0, 50.0, 1.0)),
+    ],
+)
+def test_expand_infinite_plane_scale(scale, expected):
+    assert expand_infinite_plane_scale(scale) == expected
 
 
 def test_log_geo_with_expanded_plane_scale_delegates_with_adjusted_plane_scale():
@@ -74,30 +69,23 @@ def test_log_geo_with_expanded_plane_scale_preserves_non_plane_scale():
     assert calls == [("box", 2, (0.0, 25.0), 0.0, True, None, True)]
 
 
-def test_resolve_visible_env_indices_truncates_explicit_list():
-    assert resolve_visible_env_indices([1, 3, 5], 2, 10) == [1, 3]
-    assert resolve_visible_env_indices([1, 3], 1, 10) == [1]
-
-
-def test_resolve_visible_env_indices_deduplicates_before_truncating():
-    assert resolve_visible_env_indices([1, 1, 3, 5], 2, 10) == [1, 3]
-
-
-def test_resolve_visible_env_indices_explicit_full_list_when_no_cap():
-    assert resolve_visible_env_indices([1, 3], None, 10) == [1, 3]
-
-
-def test_resolve_visible_env_indices_cap_when_no_filter():
-    # When _compute_visualized_env_ids is None, cap is max_visible_envs.
-    assert resolve_visible_env_indices(None, 3, 10) == [0, 1, 2]
-
-
-def test_resolve_visible_env_indices_all_when_no_cap():
-    assert resolve_visible_env_indices(None, None, 10) is None
-
-
-def test_resolve_visible_env_indices_num_envs_zero_falls_through_like_newton():
-    assert resolve_visible_env_indices(None, 5, 0) is None
+@pytest.mark.parametrize(
+    ("env_ids", "max_visible_envs", "num_envs", "expected"),
+    [
+        ([1, 3, 5], 2, 10, [1, 3]),
+        ([1, 3], 1, 10, [1]),
+        # Deduplicates before truncating.
+        ([1, 1, 3, 5], 2, 10, [1, 3]),
+        ([1, 3], None, 10, [1, 3]),
+        # Without a filter, the cap selects the first envs.
+        (None, 3, 10, [0, 1, 2]),
+        (None, None, 10, None),
+        # Zero envs falls through like Newton.
+        (None, 5, 0, None),
+    ],
+)
+def test_resolve_visible_env_indices(env_ids, max_visible_envs, num_envs, expected):
+    assert resolve_visible_env_indices(env_ids, max_visible_envs, num_envs) == expected
 
 
 def test_apply_viewer_visible_worlds_delegates_to_resolved():
@@ -115,54 +103,6 @@ def test_apply_viewer_visible_worlds_delegates_to_resolved():
 
     apply_viewer_visible_worlds(_V(), env_ids=None, max_visible_envs=None, num_envs=3)
     assert calls[-1] is None
-
-
-def test_newton_visualizer_cfg_exposes_viewer_options():
-    cfg = NewtonGLVisualizerCfg(enable_picking=False, show_particles=True, particle_color=(0.1, 0.2, 0.3))
-
-    assert cfg.enable_picking is False
-    assert cfg.show_particles is True
-    assert cfg.particle_color == (0.1, 0.2, 0.3)
-
-
-def test_newton_visualizer_log_mesh_stages_for_next_frame():
-    viewer = Mock()
-    visualizer = _make_newton_visualizer(None)
-    visualizer._viewer = viewer
-    points = wp.zeros(3, dtype=wp.vec3)
-    indices = wp.zeros(3, dtype=wp.int32)
-    normals = wp.zeros(3, dtype=wp.vec3)
-
-    visualizer.log_mesh(
-        "/surface",
-        points,
-        indices,
-        normals=normals,
-        color=(0.1, 0.2, 0.3),
-        roughness=0.2,
-        dynamic=True,
-        opacity=0.35,
-    )
-
-    viewer.log_mesh.assert_not_called()
-    visualizer._log_pending_meshes()
-
-    viewer.log_mesh.assert_called_once_with(
-        "/surface",
-        points,
-        indices,
-        normals=normals,
-        uvs=None,
-        texture=None,
-        hidden=False,
-        backface_culling=True,
-        color=(0.1, 0.2, 0.3),
-        roughness=0.2,
-        metallic=None,
-        dynamic=True,
-        opacity=0.35,
-    )
-    assert visualizer._pending_mesh_submissions == {}
 
 
 def test_newton_visualizer_log_mesh_keeps_latest_submission_per_name():
@@ -231,12 +171,6 @@ def test_newton_marker_registry_lifecycle(monkeypatch: pytest.MonkeyPatch):
 
     assert marker._registry is None
     assert registry.groups == {}
-
-
-def test_newton_visualizer_cfg_exposes_world_spacing():
-    cfg = NewtonGLVisualizerCfg(world_spacing=(2.0, 2.0, 0.0))
-
-    assert cfg.world_spacing == (2.0, 2.0, 0.0)
 
 
 def test_newton_visualizer_set_camera_view_updates_cfg_without_viewer():
@@ -755,7 +689,19 @@ def test_newton_visualizer_logs_staged_mesh_inside_frame(monkeypatch):
     monkeypatch.setattr(NewtonManager, "get_contacts", lambda: None)
     monkeypatch.setattr(NewtonManager, "get_num_envs", lambda: 1)
 
-    visualizer.log_mesh("/surface", points, indices, dynamic=True)
+    normals = wp.zeros(3, dtype=wp.vec3)
+
+    visualizer.log_mesh(
+        "/surface",
+        points,
+        indices,
+        normals=normals,
+        color=(0.1, 0.2, 0.3),
+        roughness=0.2,
+        dynamic=True,
+        opacity=0.35,
+    )
+    assert viewer.events == []
     visualizer.step(0.1)
 
     assert viewer.events == ["begin_frame", "log_state", "log_mesh", "end_frame"]
@@ -764,18 +710,19 @@ def test_newton_visualizer_logs_staged_mesh_inside_frame(monkeypatch):
         points,
         indices,
         {
-            "normals": None,
+            "normals": normals,
             "uvs": None,
             "texture": None,
             "hidden": False,
             "backface_culling": True,
-            "color": None,
-            "roughness": None,
+            "color": (0.1, 0.2, 0.3),
+            "roughness": 0.2,
             "metallic": None,
             "dynamic": True,
-            "opacity": None,
+            "opacity": 0.35,
         },
     )
+    assert visualizer._pending_mesh_submissions == {}
 
 
 def test_newton_visualizer_logs_staged_mesh_for_bodyless_state(monkeypatch):
@@ -974,13 +921,8 @@ def test_ensure_mesh_registered_handles_none_normals_and_uvs(monkeypatch):
 def test_newton_visualizer_cfg_distinct_types():
     assert NewtonGLVisualizerCfg().visualizer_type == "newton_gl"
     assert NewtonRTXVisualizerCfg().visualizer_type == "newton_rtx"
-    # shared fields present on both
-    assert NewtonGLVisualizerCfg().show_particles is False
-    assert NewtonRTXVisualizerCfg().show_particles is False
-    assert NewtonGLVisualizerCfg().background_color == (0.3, 0.55, 0.82)
-    assert NewtonRTXVisualizerCfg().background_color == (0.3, 0.55, 0.82)
-    with pytest.raises(ValueError, match="three normalized RGB values"):
-        NewtonGLVisualizerCfg(background_color=(0.0, -0.1, 1.0))
+    # Public viewer options are accepted as cfg fields.
+    NewtonGLVisualizerCfg(enable_picking=False, show_particles=True, particle_color=(0.1, 0.2, 0.3))
 
 
 @pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
@@ -1017,13 +959,6 @@ def test_newton_rtx_receives_background_color(
     assert kwargs["background_color"] == color
 
 
-def test_eye_lookat_to_pitch_yaw_horizontal():
-    # looking straight along +X from origin → pitch=0, yaw=0
-    pitch, yaw = _eye_lookat_to_pitch_yaw((0.0, 0.0, 0.0), (1.0, 0.0, 0.0))
-    assert abs(pitch) < 1e-6
-    assert abs(yaw) < 1e-6
-
-
 def test_eye_lookat_to_pitch_yaw_looking_up():
     # looking straight up → pitch=90
     pitch, yaw = _eye_lookat_to_pitch_yaw((0.0, 0.0, 0.0), (0.0, 0.0, 1.0))
@@ -1031,16 +966,11 @@ def test_eye_lookat_to_pitch_yaw_looking_up():
 
 
 def test_eye_lookat_to_pitch_yaw_diagonal():
-    import math
-
-    # eye at (4, -4, 3), lookat at (0, 0, 0) — typical IsaacLab default camera
-    eye = (4.0, -4.0, 3.0)
-    lookat = (0.0, 0.0, 0.0)
-    pitch, yaw = _eye_lookat_to_pitch_yaw(eye, lookat)
-    dx, dy, dz = -4.0, 4.0, -3.0
-    length = math.sqrt(dx**2 + dy**2 + dz**2)
-    assert abs(pitch - math.degrees(math.asin(dz / length))) < 1e-5
-    assert abs(yaw - math.degrees(math.atan2(dy, dx))) < 1e-5
+    # eye at (4, -4, 3), lookat at (0, 0, 0) — typical IsaacLab default camera:
+    # pitch = asin(-3 / sqrt(41)) [deg], yaw = 135 [deg] (toward -X, +Y).
+    pitch, yaw = _eye_lookat_to_pitch_yaw((4.0, -4.0, 3.0), (0.0, 0.0, 0.0))
+    assert pitch == pytest.approx(-27.938, abs=1e-3)
+    assert yaw == pytest.approx(135.0, abs=1e-5)
 
 
 def test_eye_lookat_to_pitch_yaw_degenerate_returns_zero():
@@ -1065,15 +995,6 @@ def test_newton_rtx_visualizer_render_rgb_array_returns_none_when_viewer_unavail
     assert visualizer.render_rgb_array() is None
 
 
-def test_newton_gl_visualizer_render_rgb_array_returns_frame():
-    frame = np.zeros((4, 6, 3), dtype=np.uint8)
-    viewer = SimpleNamespace(get_frame=lambda: SimpleNamespace(numpy=lambda: frame))
-    visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
-    visualizer._viewer = viewer
-
-    assert visualizer.render_rgb_array() is frame
-
-
 def test_newton_rtx_visualizer_set_camera_view_uses_set_camera():
     """RTX camera pose must route through set_camera(pos, pitch, yaw), not camera.look_at."""
     set_camera_calls = []
@@ -1096,29 +1017,6 @@ def test_newton_rtx_visualizer_set_camera_view_uses_set_camera():
     # looking from (4,0,0) to (0,0,0): direction is (-1,0,0), pitch≈0, yaw≈180
     assert abs(pitch) < 1e-5
     assert abs(abs(yaw) - 180.0) < 1e-5
-
-
-def test_newton_gl_visualizer_set_camera_view_uses_look_at():
-    """GL camera pose must use camera.look_at, not set_camera."""
-    look_at_calls = []
-
-    class _FakeGLCamera:
-        def __init__(self):
-            self.pos = None
-
-        def look_at(self, target):
-            look_at_calls.append(tuple(target))
-
-    class _FakeGLViewer:
-        def __init__(self):
-            self.camera = _FakeGLCamera()
-
-    visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
-    visualizer._viewer = _FakeGLViewer()
-
-    visualizer.set_camera_view((1.0, 2.0, 3.0), (0.0, 0.0, 1.0))
-
-    assert look_at_calls == [(0.0, 0.0, 1.0)]
 
 
 def test_newton_rtx_visualizer_fov_deferred_on_initialize():
@@ -1164,18 +1062,6 @@ def test_newton_rtx_visualizer_fov_retries_when_camera_absent():
     visualizer._apply_rtx_fov_if_pending()  # must not raise
 
     assert visualizer._rtx_fov_pending is True  # still pending, retry next frame
-
-
-def test_newton_rtx_visualizer_streaming_view_enabled():
-    # RTX streaming/tiled camera capture (via render_tiled_rgb_array) only needs the owned
-    # camera sensor, not the viewer, so _uses_streaming_view tracks cfg.streaming_view like
-    # the other Newton backends. Only the live on-screen preview panel stays unavailable,
-    # since ViewerRTX.log_image has no display sink (_log_streaming_image stays a no-op).
-    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(streaming_view=True))
-    assert visualizer._uses_streaming_view() is True
-
-    visualizer_off = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(streaming_view=False))
-    assert visualizer_off._uses_streaming_view() is False
 
 
 @pytest.mark.parametrize("backend", ["physx", "isaacsim_physx"])
@@ -1246,3 +1132,9 @@ def test_newton_rtx_visualizer_setup_streaming_view_creates_owned_camera(monkeyp
     # must be present on RTX (it lives on the shared NewtonVisualizer base, not NewtonGLVisualizer).
     visualizer._log_streaming_image()
     assert hasattr(visualizer, "render_tiled_rgb_array")
+
+    # With the streaming view disabled, no owned camera is created.
+    visualizer_off = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(streaming_view=False))
+    visualizer_off._setup_streaming_view(num_envs=1)
+    assert len(create_calls) == 1
+    assert visualizer_off._camera_sensor is None

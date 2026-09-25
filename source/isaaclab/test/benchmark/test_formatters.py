@@ -8,12 +8,13 @@
 import json
 import os
 import re
+from dataclasses import replace
 from datetime import datetime
 
 import pytest
 
 from isaaclab.benchmark import formatters
-from isaaclab.benchmark.measurements import SingleMeasurement, StringMetadata, TestPhase
+from isaaclab.benchmark.measurements import SingleMeasurement, StringMetadata, TestPhase, TestPhaseEncoder
 from isaaclab.benchmark.schema import (
     GpuDeviceInfo,
     Hardware,
@@ -26,6 +27,19 @@ from isaaclab.benchmark.schema import (
     StartupTime,
     Versions,
 )
+
+
+@pytest.mark.parametrize("measurements", [[SingleMeasurement(name="fps", value=60.0, unit="Hz")], []])
+def test_phase_json_round_trip_keeps_metadata(measurements) -> None:
+    """A phase serialized with TestPhaseEncoder reads back with its metadata, with or without measurements."""
+    phase = TestPhase(
+        phase_name="runtime", measurements=measurements, metadata=[StringMetadata(name="gpu", data="A10")]
+    )
+
+    restored = TestPhase.from_json(json.loads(json.dumps(phase, cls=TestPhaseEncoder)))
+
+    assert [(m.name, m.value) for m in restored.measurements] == [(m.name, m.value) for m in measurements]
+    assert [(m.name, m.data) for m in restored.metadata] == [("gpu", "A10")]
 
 
 def test_default_output_filenames_are_unique_with_identical_timestamps(monkeypatch) -> None:
@@ -111,7 +125,9 @@ def test_schema_bundle_file_serializes_bundle_and_rejects_missing_bundle(tmp_pat
     phase = TestPhase(phase_name="runtime")
     phase.measurements.append(SingleMeasurement(name="Test FPS", value=60.0, unit="FPS"))
     formatter.add_metrics(phase)
-    formatter.finalize(str(tmp_path), "runtime", bundle=_minimal_runtime_bundle())
+    profile_metrics = {"physics_mean_ms": 1.123456789, "render_mean_ms": 2.234567891, "physics_calls": 2}
+    bundle = replace(_minimal_runtime_bundle(), extra=profile_metrics)
+    formatter.finalize(str(tmp_path), "runtime", bundle=bundle)
 
     with open(os.path.join(str(tmp_path), "runtime.json")) as f:
         data = json.load(f)
@@ -119,8 +135,10 @@ def test_schema_bundle_file_serializes_bundle_and_rejects_missing_bundle(tmp_pat
     assert data["run"]["task"] == "Isaac-Ant-Direct-v0"
     assert data["run"]["framework"] is None
     assert data["runtime"]["total_fps"]["mean"] == pytest.approx(100.0)
+    assert data["extra"] == profile_metrics
+    assert "scope_timings" not in data["runtime"]
     assert data["resources"]["gpu_mem_gb"]["peak"] == pytest.approx(12.0)
-    assert data["schema_version"]
+    assert data["schema_version"] == "1.4"
     assert "Test FPS" not in json.dumps(data)
 
     with pytest.raises(RuntimeError, match="requires a benchmark bundle"):

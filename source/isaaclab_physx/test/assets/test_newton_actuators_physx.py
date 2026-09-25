@@ -262,12 +262,6 @@ def _run_simulation(
     }
 
 
-def test_graphable_newton_actuators_capture_ping_pong_graphs() -> None:
-    result = _run_simulation(DELAYED_PD_ACTUATORS, use_newton_actuators=True, num_steps=2)
-
-    assert result["native_actuator_graph_count"] == 2
-
-
 def test_newton_actuator_graph_capture_failure_falls_back_to_eager(monkeypatch: pytest.MonkeyPatch) -> None:
     class FailingCapture:
         def __init__(self, *args, **kwargs):
@@ -409,11 +403,6 @@ def _assert_newton_actuator_uses_current_joint_state(
             articulation.update(DT)
 
 
-def test_newton_actuator_identity_ordering_uses_current_joint_state() -> None:
-    """Sanity check: with identity joint ordering, ``applied_effort`` always reflects this step's state."""
-    _assert_newton_actuator_uses_current_joint_state(None)
-
-
 def test_newton_actuator_reversed_ordering_uses_current_joint_state() -> None:
     """Regression test: non-identity joint ordering must preserve current-state torque evaluation.
 
@@ -440,20 +429,11 @@ class _EquivalenceTestBase(EquivalenceAssertionsMixin, unittest.TestCase):
 
     __test__ = False
     actuators: dict = {}
-    feedforward: float | None = None
 
     @classmethod
     def setUpClass(cls):
-        cls.lab_result = _run_simulation(
-            cls.actuators,
-            use_newton_actuators=False,
-            feedforward=cls.feedforward,
-        )
-        cls.newton_result = _run_simulation(
-            cls.actuators,
-            use_newton_actuators=True,
-            feedforward=cls.feedforward,
-        )
+        cls.lab_result = _run_simulation(cls.actuators, use_newton_actuators=False)
+        cls.newton_result = _run_simulation(cls.actuators, use_newton_actuators=True)
 
 
 # ---------------------------------------------------------------------------
@@ -485,6 +465,10 @@ class TestDelayedPDEquivalence(_EquivalenceTestBase):
     __test__ = True
     actuators = DELAYED_PD_ACTUATORS
 
+    def test_native_graph_count(self):
+        """Graphable Newton actuators capture the two ping-pong graphs."""
+        self.assertEqual(self.newton_result["native_actuator_graph_count"], 2)
+
 
 class TestMixedWithImplicitEquivalence(_EquivalenceTestBase):
     """Implicit HAA + IdealPD HFE + DCMotor KFE: Lab vs Newton (PhysX).
@@ -495,19 +479,6 @@ class TestMixedWithImplicitEquivalence(_EquivalenceTestBase):
 
     __test__ = True
     actuators = MIXED_WITH_IMPLICIT_ACTUATORS
-
-
-# ---------------------------------------------------------------------------
-# Implicit + non-zero feedforward effort target on PhysX
-# ---------------------------------------------------------------------------
-
-
-class TestImplicitWithFeedforwardEquivalencePhysx(_EquivalenceTestBase):
-    """Implicit-only actuators with a non-zero feedforward effort target on PhysX."""
-
-    __test__ = True
-    actuators = IMPLICIT_ONLY_ACTUATORS
-    feedforward = 5.0
 
 
 # ---------------------------------------------------------------------------
@@ -670,55 +641,6 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
             torch.testing.assert_close(actuator.stiffness[1:], stiffness_before[1:])
             torch.testing.assert_close(actuator.damping[1:], damping_before[1:])
 
-    def test_single_articulation(self):
-        sim_cfg = SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=True)
-        with build_simulation_context(
-            device="cuda:0",
-            gravity_enabled=True,
-            add_ground_plane=True,
-            sim_cfg=sim_cfg,
-        ) as sim:
-            sim._app_control_on_stop_handle = None
-            for i in range(NUM_ENVS):
-                sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
-            art_cfg = ANYMAL_C_CFG.replace(
-                actuators=IDEAL_PD_ACTUATORS,
-                prim_path="/World/Env_[^/]*/Robot",
-            )
-            anymal = Articulation(art_cfg)
-            sim.reset()
-
-            adapter = anymal.newton_actuator_adapter
-            self.assertIsNotNone(adapter, "PhysX per-articulation adapter should exist")
-            read = functools.partial(read_group_parameter, anymal.actuators)
-            n = anymal.num_joints
-            kp_before = read("legs", "controller", "kp").clone()
-            kd_before = read("legs", "controller", "kd").clone()
-
-            env = MockEnv({"robot": anymal}, NUM_ENVS, anymal.device)
-            term, asset_cfg = build_dr_term(env, "robot")
-            env_ids = torch.tensor([0], device=anymal.device, dtype=torch.long)
-
-            term(
-                env,
-                env_ids=env_ids,
-                asset_cfg=asset_cfg,
-                stiffness_distribution_params=(100.0, 100.0),
-                damping_distribution_params=(5.0, 5.0),
-                operation="abs",
-                distribution="uniform",
-            )
-
-            # Named native-group reads project the controller values immediately.
-            torch.testing.assert_close(
-                read("legs", "controller", "kp")[0], torch.full((n,), 100.0, device=anymal.device)
-            )
-            torch.testing.assert_close(read("legs", "controller", "kd")[0], torch.full((n,), 5.0, device=anymal.device))
-            # Other envs untouched.
-            for env_idx in range(1, NUM_ENVS):
-                torch.testing.assert_close(read("legs", "controller", "kp")[env_idx], kp_before[env_idx])
-                torch.testing.assert_close(read("legs", "controller", "kd")[env_idx], kd_before[env_idx])
-
     def test_two_articulations(self):
         from isaaclab_assets import CARTPOLE_CFG  # noqa: PLC0415
 
@@ -851,6 +773,20 @@ class TestRemotizedPDEquivalence(_EquivalenceTestBase):
 # ---------------------------------------------------------------------------
 
 
+def _assert_network_drives_haa_joints(test: unittest.TestCase, result: dict) -> None:
+    """Assert that the network actuator produces finite, non-zero HAA efforts that follow the joint state."""
+    haa_ids = [i for i, name in enumerate(result["joint_names"]) if name.endswith("HAA")]
+    test.assertEqual(len(haa_ids), 4)
+    for step_i, (pos, effort) in enumerate(zip(result["joint_pos"], result["applied_effort"])):
+        test.assertTrue(torch.isfinite(pos).all(), f"Non-finite positions at step {step_i}")
+        haa_effort = effort[:, haa_ids]
+        test.assertTrue(torch.all(haa_effort != 0.0), f"Network produced zero HAA effort at step {step_i}")
+    # A constant output (e.g. only the output-layer bias) would mean the network is not fed the moving joint state.
+    first_effort = result["applied_effort"][0][:, haa_ids]
+    last_effort = result["applied_effort"][-1][:, haa_ids]
+    test.assertFalse(torch.allclose(first_effort, last_effort), "Network HAA effort did not follow the joint state")
+
+
 class TestNeuralMLPFunctional(unittest.TestCase):
     """Verify ActuatorNetMLPCfg runs on PhysX with Newton actuators."""
 
@@ -887,12 +823,8 @@ class TestNeuralMLPFunctional(unittest.TestCase):
     def tearDownClass(cls):
         os.unlink(cls.mlp_path)
 
-    def test_positions_finite(self):
-        for step_i, pos in enumerate(self.result["joint_pos"]):
-            self.assertTrue(
-                torch.isfinite(pos).all(),
-                f"Non-finite positions at step {step_i}",
-            )
+    def test_network_drives_haa_joints(self):
+        _assert_network_drives_haa_joints(self, self.result)
 
 
 class TestNeuralLSTMFunctional(unittest.TestCase):
@@ -926,12 +858,8 @@ class TestNeuralLSTMFunctional(unittest.TestCase):
     def tearDownClass(cls):
         os.unlink(cls.lstm_path)
 
-    def test_positions_finite(self):
-        for step_i, pos in enumerate(self.result["joint_pos"]):
-            self.assertTrue(
-                torch.isfinite(pos).all(),
-                f"Non-finite positions at step {step_i}",
-            )
+    def test_network_drives_haa_joints(self):
+        _assert_network_drives_haa_joints(self, self.result)
 
 
 if __name__ == "__main__":

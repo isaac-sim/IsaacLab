@@ -5,7 +5,6 @@
 
 """Unit tests for visual-material manager terms."""
 
-import inspect
 from types import SimpleNamespace
 
 import pytest
@@ -15,7 +14,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import VisualMaterialCfg
 from isaaclab.envs.mdp.visual_events import randomize_visual_material, randomize_visual_shape
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
-from isaaclab.renderers.render_context import RenderContext
 
 
 class _RenderContext:
@@ -92,21 +90,8 @@ def test_shape_backend_follows_only_active_render_consumers() -> None:
         with pytest.raises(NotImplementedError, match="no per-shape visual storage"):
             randomize_visual_shape._get_backend(None, SimpleNamespace(sim=sim))
 
-    selector = inspect.getsource(randomize_visual_shape._get_backend)
-    assert "physics_manager" not in selector
-    assert "FactoryBase._get_backend" not in selector
-
     unsupported_env = SimpleNamespace(
         sim=SimpleNamespace(resolve_visualizer_types=lambda: [], render_context=SimpleNamespace(renderer_types=()))
     )
     with pytest.raises(NotImplementedError, match="no per-shape visual storage"):
         randomize_visual_shape(None, unsupported_env)
-
-
-def test_render_context_reports_registered_renderer_types() -> None:
-    context = RenderContext()
-    context._renderer_entries = [  # noqa: SLF001 - isolate the read-only capability query
-        (SimpleNamespace(renderer_type="newton_warp"), object()),
-        (SimpleNamespace(renderer_type="ovrtx"), object()),
-    ]
-    assert context.renderer_types == ("newton_warp", "ovrtx")

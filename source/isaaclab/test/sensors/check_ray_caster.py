@@ -9,7 +9,7 @@ This script shows how to use the ray caster from the Isaac Lab framework.
 .. code-block:: bash
 
     # Usage
-    uv run python source/isaaclab/test/sensors/test_ray_caster.py
+    uv run python source/isaaclab/test/sensors/check_ray_caster.py
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -70,9 +70,9 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     # -- Balls
     cfg = sim_utils.SphereCfg(
         radius=0.25,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        mass_props=sim_utils.MassCfg(mass=0.5),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
     )
     cfg.func("/World/envs/env_0/ball", cfg, translation=(0.0, 0.0, 5.0))

@@ -12,9 +12,8 @@ from typing import TYPE_CHECKING, ClassVar
 
 import torch
 
-from isaaclab.utils import DelayBuffer, LinearInterpolation
-from isaaclab.utils.types import ArticulationActions
-
+from ..utils import DelayBuffer, LinearInterpolation
+from ..utils.types import ArticulationActions
 from ._compat import _limits_equal
 from .actuator_base import ActuatorBase, resolve_joint_parameter
 
@@ -28,7 +27,6 @@ if TYPE_CHECKING:
         RemotizedPDActuatorCfg,
     )
 
-# import logger
 logger = logging.getLogger(__name__)
 
 """
@@ -86,7 +84,7 @@ class ImplicitActuator(ActuatorBase):
         if effort_limit is not None:
             warnings.warn(
                 "The effort_limit constructor argument is deprecated. Use joint_effort_limit instead; "
-                "effort_limit will be removed in 4.0.",
+                "effort_limit will be removed in 3.1.",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -327,7 +325,7 @@ class IdealPDActuator(ActuatorBase):
         # calculate the desired joint torques
         self.computed_effort = self.stiffness * error_pos + self.damping * error_vel + control_action.joint_efforts
         # clip the torques based on the motor limits
-        self.applied_effort = self._clip_effort(self.computed_effort)
+        self.applied_effort = self._clip_effort(self.computed_effort, joint_vel)
         # set the computed actions back into the control action
         control_action.joint_efforts = self.applied_effort
         control_action.joint_positions = None
@@ -415,33 +413,19 @@ class DCMotor(IdealPDActuator):
         self._vel_at_effort_lim = self.actuator_velocity_limit * (
             1 + self.actuator_effort_limit / self._saturation_effort
         )
-        # prepare joint vel buffer for max effort computation
-        self._joint_vel = torch.zeros_like(self.computed_effort)
         # create buffer for zeros effort
         self._zeros_effort = torch.zeros_like(self.computed_effort)
-
-    """
-    Operations.
-    """
-
-    def compute(
-        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
-    ) -> ArticulationActions:
-        # save current joint vel
-        self._joint_vel[:] = joint_vel
-        # calculate the desired joint torques
-        return super().compute(control_action, joint_pos, joint_vel)
 
     """
     Helper functions.
     """
 
-    def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
-        # save current joint vel
-        self._joint_vel[:] = torch.clip(self._joint_vel, min=-self._vel_at_effort_lim, max=self._vel_at_effort_lim)
+    def _clip_effort(self, effort: torch.Tensor, joint_vel: torch.Tensor) -> torch.Tensor:
+        # Clamp the local value without modifying the measured joint velocity.
+        joint_vel = torch.clip(joint_vel, min=-self._vel_at_effort_lim, max=self._vel_at_effort_lim)
         # compute torque limits
-        torque_speed_top = self._saturation_effort * (1.0 - self._joint_vel / self.actuator_velocity_limit)
-        torque_speed_bottom = self._saturation_effort * (-1.0 - self._joint_vel / self.actuator_velocity_limit)
+        torque_speed_top = self._saturation_effort * (1.0 - joint_vel / self.actuator_velocity_limit)
+        torque_speed_bottom = self._saturation_effort * (-1.0 - joint_vel / self.actuator_velocity_limit)
         # -- max limit
         max_effort = torch.clip(torque_speed_top, max=self.actuator_effort_limit)
         # -- min limit
@@ -507,7 +491,6 @@ class DelayedPDActuator(IdealPDActuator):
         control_action.joint_positions = self.positions_delay_buffer.compute(control_action.joint_positions)
         control_action.joint_velocities = self.velocities_delay_buffer.compute(control_action.joint_velocities)
         control_action.joint_efforts = self.efforts_delay_buffer.compute(control_action.joint_efforts)
-        # compte actuator model
         return super().compute(control_action, joint_pos, joint_vel)
 
 

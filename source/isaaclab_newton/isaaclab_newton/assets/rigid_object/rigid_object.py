@@ -148,14 +148,14 @@ class RigidObject(BaseRigidObject):
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            composer.compose_to_body_frame()
+            force_b, torque_b, _ = composer.get_forces_and_torques()
             wp.launch(
                 shared_kernels.update_wrench_array_with_force_and_torque,
                 dim=(self.num_instances, self.num_bodies),
                 device=self.device,
                 inputs=[
-                    composer.out_force_b,
-                    composer.out_torque_b,
+                    force_b,
+                    torque_b,
                     self._data.body_link_pose_w.warp,
                     self._data._sim_bind_body_external_wrench,
                     self._ALL_ENV_MASK,
@@ -371,6 +371,9 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
+        # Nonfloating root bindings write model.joint_X_p, not state.joint_q.
+        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
             self.data._reset_pose(env_ids=env_ids)
@@ -419,6 +422,8 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
+        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)
@@ -472,6 +477,8 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
+        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
@@ -523,6 +530,8 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
+        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
+            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
@@ -873,12 +882,15 @@ class RigidObject(BaseRigidObject):
 
         Args:
             coms: Center of mass position of all bodies. Shape is (len(env_ids), len(body_ids), 3).
+                Poses with a trailing dimension of 7 (dtype wp.transformf) are also accepted; their
+                orientation is ignored.
             body_ids: The body indices to set the center of mass pose for. Defaults to None (all bodies).
             env_ids: The environment indices to set the center of mass pose for. Defaults to None (all environments).
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        coms = shared_kernels.com_positions(coms)
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.vec3f, "coms")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
@@ -921,6 +933,8 @@ class RigidObject(BaseRigidObject):
 
         Args:
             coms: Center of mass position of all bodies. Shape is (num_instances, num_bodies, 3).
+                Poses with a trailing dimension of 7 (dtype wp.transformf) are also accepted; their
+                orientation is ignored.
             body_mask: Body mask. If None, then all bodies are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
@@ -929,6 +943,7 @@ class RigidObject(BaseRigidObject):
             env_mask = self._ALL_ENV_MASK
         if body_mask is None:
             body_mask = self._ALL_BODY_MASK
+        coms = shared_kernels.com_positions(coms)
         self.assert_shape_and_dtype_mask(coms, (env_mask, body_mask), wp.vec3f, "coms")
         wp.launch(
             shared_kernels.write_body_com_position_to_buffer_mask,

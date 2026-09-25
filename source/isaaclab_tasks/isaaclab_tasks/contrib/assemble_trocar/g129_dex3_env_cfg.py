@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -105,11 +106,10 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/trocar_1",
         spawn=UsdFileCfg(
             usd_path=f"{USD_ROOT}/Assets/Trocar002/Trocar002-xform-wo.usd",
-            collision_props=sim_utils.CollisionPropertiesCfg(
-                collision_enabled=True,
-                contact_offset=0.001,
-                rest_offset=-0.001,
-            ),
+            collision_props=[
+                sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                PhysxCollisionCfg(contact_offset=0.001, rest_offset=-0.001),
+            ],
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
             pos=[-1.60202, 1.91362, 0.87183],
@@ -125,10 +125,10 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
                 "DisposableLaparoscopicPunctureDevice001/"
                 "DisposableLaparoscopicPunctureDevice005-xform.usd"
             ),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                rigid_body_enabled=True,
-                disable_gravity=False,
-            ),
+            rigid_props=[
+                sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
+                PhysxRigidBodyCfg(disable_gravity=False),
+            ],
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
             rot=[-0.71475, -0.000243, 0.05853, 0.69692], pos=[-1.50635, 1.90997, 0.8631]

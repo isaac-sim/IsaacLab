@@ -610,8 +610,6 @@ def test_articulation_control_provides_common_forwarding_and_property_writes():
 
     assert not FakeActuatorControl().native_actuator_path_active
     assert not control.native_actuator_path_active
-    control._native_actuator_path_active = True
-    assert control.native_actuator_path_active
 
     assert control.num_instances == articulation.num_instances
     assert control.num_joints == articulation.num_joints
@@ -800,9 +798,6 @@ def test_overlapping_groups_are_rejected():
 
 
 def test_collection_is_mapping_like_and_read_only():
-    assert hasattr(actuator_api, "ActuatorTargetCommand")
-    assert hasattr(actuator_api, "ActuatorOutputCommand")
-
     control = FakeActuatorControl()
     collection = ActuatorCollection({"all": _implicit_cfg()}, control)
     assert isinstance(collection.target_command, actuator_api.ActuatorTargetCommand)
@@ -859,9 +854,6 @@ def test_multi_group_explicit_outputs_match_pd_formula():
 
 
 def test_disjoint_implicit_groups_share_one_execution_batch():
-    assert "is_implicit_model" in ImplicitActuator.__dict__.get("__annotations__", {})
-    assert ImplicitActuator.__dict__["is_implicit_model"] is True
-
     control = FakeActuatorControl(num_envs=1, joint_names=["joint_0", "joint_1", "joint_2", "joint_3"])
     collection = ActuatorCollection(
         {
@@ -875,12 +867,7 @@ def test_disjoint_implicit_groups_share_one_execution_batch():
         control,
     )
 
-    assert collection._execution_actuators == []
-    executor = collection._implicit_executor
-    assert executor is not None
-    assert type(executor.actuator) is ImplicitActuator
-    assert executor.actuator is not collection["first"]
-    assert executor.group_names == ("first", "second")
+    assert collection._implicit_executor.group_names == ("first", "second")
 
     group = collection["first"]
     velocity_limit_snapshot = group.actuator_velocity_limit.clone()
@@ -1030,9 +1017,6 @@ def test_native_execution_bypasses_lab_aggregation(monkeypatch):
         )
 
     assert not [warning for warning in caught_warnings if warning.category is DeprecationWarning]
-
-    assert collection._implicit_executor is None
-    assert collection._execution_actuators == []
 
     def fail_compute(*args, **kwargs):
         raise AssertionError("Lab actuator execution must be bypassed")

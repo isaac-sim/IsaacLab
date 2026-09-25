@@ -246,37 +246,6 @@ _OVRTX_DATA_TYPES = tuple(dt for dt in _DEFAULT_SENSOR_DATA_TYPES if dt != "inst
 _KITLESS_STAGE_VARIANTS = ("legacy", "ovstage")
 
 
-def make_xfail_rendering_params(
-    params: list[pytest.param],
-    expected_failures: dict[tuple[str, ...], str],
-) -> list[pytest.param]:
-    """Mark selected rendering parameter combinations as expected failures.
-
-    Args:
-        params: Rendering parameters containing physics backend, renderer, and data type values.
-        expected_failures: Mapping from parameter value tuples to expected-failure reasons.
-
-    Returns:
-        Rendering parameters with non-strict ``xfail`` marks applied to matching combinations.
-    """
-    marked_params = []
-    for param in params:
-        reason = expected_failures.get(tuple(param.values))
-        if reason is None:
-            marked_params.append(param)
-            continue
-        # Expected failures should run once and carry one unambiguous reason.
-        marks = [mark for mark in param.marks if mark.name not in ("flaky", "xfail")]
-        marked_params.append(
-            pytest.param(
-                *param.values,
-                id=param.id,
-                marks=[*marks, pytest.mark.xfail(reason=reason, strict=False)],
-            )
-        )
-    return marked_params
-
-
 def make_skip_rendering_params(
     params: list[pytest.param],
     expected_skips: dict[tuple[str, ...], str],
@@ -416,9 +385,17 @@ def _make_sensor_data_type_params(
     ]
 
 
+# RTX Minimal mode (the ``simple_shading_*`` outputs) is a per-render-product renderer setting that does not
+# depend on the physics backend, so it is rendered with one physics backend per RTX renderer and only in the
+# Cartpole and Shadow Hand scenes. Cartpole's flat materials look the same under every shading level, so the
+# textured Shadow Hand scene is the golden that tells the MDL levels apart. Other scenes cover the remaining
+# data types.
+_NON_MINIMAL_SENSOR_DATA_TYPES = (*_STATIC_SENSOR_DATA_TYPES, *_TEMPORAL_SENSOR_DATA_TYPES)
+_OVRTX_NON_MINIMAL_DATA_TYPES = tuple(dt for dt in _OVRTX_DATA_TYPES if dt not in _MINIMAL_SENSOR_DATA_TYPES)
+
 PHYSICS_RENDERER_AOV_COMBINATIONS = [
-    *_make_sensor_data_type_params("physx", "isaacsim_rtx"),
-    *_make_sensor_data_type_params("newton", "isaacsim_rtx"),
+    *_make_sensor_data_type_params("physx", "isaacsim_rtx", _NON_MINIMAL_SENSOR_DATA_TYPES),
+    *_make_sensor_data_type_params("newton", "isaacsim_rtx", _NON_MINIMAL_SENSOR_DATA_TYPES),
     *_make_sensor_data_type_params(
         "physx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
     ),
@@ -426,24 +403,36 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
 
 PHYSICS_RENDERER_AOV_GROUPS = group_rendering_params(PHYSICS_RENDERER_AOV_COMBINATIONS)
 
+MINIMAL_PHYSICS_RENDERER_AOV_GROUPS = group_rendering_params(
+    [
+        *PHYSICS_RENDERER_AOV_COMBINATIONS,
+        *_make_sensor_data_type_params("physx", "isaacsim_rtx", _MINIMAL_SENSOR_DATA_TYPES),
+    ]
+)
+
 # MPM particles are simulated only by Newton's coupled MPM solver, so there is no PhysX or OVPhysX arm.
 # Only the RTX arm is covered: it draws the ``UsdGeom.Points`` clouds on the USD stage, whereas the Warp
 # rasterizer draws particles straight from Newton state as synthetic hits, which is a separate code path.
 MPM_PARTICLE_AOV_COMBINATIONS = [
-    *_make_sensor_data_type_params("newton", "isaacsim_rtx"),
+    *_make_sensor_data_type_params("newton", "isaacsim_rtx", _NON_MINIMAL_SENSOR_DATA_TYPES),
 ]
 
 MPM_PARTICLE_AOV_GROUPS = group_rendering_params(MPM_PARTICLE_AOV_COMBINATIONS)
 
 KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
-    *_make_sensor_data_type_params("ovphysx", "ovrtx", _OVRTX_DATA_TYPES),
-    *_make_sensor_data_type_params("newton", "ovrtx", _OVRTX_DATA_TYPES),
+    *_make_sensor_data_type_params("ovphysx", "ovrtx", _OVRTX_NON_MINIMAL_DATA_TYPES),
+    *_make_sensor_data_type_params("newton", "ovrtx", _OVRTX_NON_MINIMAL_DATA_TYPES),
     *_make_sensor_data_type_params(
         "ovphysx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
     ),
     *_make_sensor_data_type_params(
         "newton", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
     ),
+]
+
+MINIMAL_KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
+    *KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
+    *_make_sensor_data_type_params("ovphysx", "ovrtx", _MINIMAL_SENSOR_DATA_TYPES),
 ]
 
 _VISUAL_MATERIAL_KITLESS_COMBINATIONS = [
@@ -458,8 +447,13 @@ def make_kitless_rendering_params_lift() -> list[pytest.param]:
 
 
 def make_kitless_rendering_params_franka() -> list[pytest.param]:
-    """Create kitless Franka rendering parameters."""
-    params = make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+    """Create kitless Franka rendering parameters.
+
+    The Franka deformable (cloth, soft, cable) configs declare no OVPhysX preset, so OVPhysX is left out.
+    """
+    params = make_kitless_rendering_params(
+        [param for param in KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS if param.values[0] != "ovphysx"]
+    )
     params = [
         (
             pytest.param(
@@ -1538,6 +1532,7 @@ def make_cartpole_rendering_test_env(env_cfg: Any) -> Any:
 
             super(CartpoleCameraEnv, self).__init__(cfg)
 
+            self._tiled_camera = self.scene["tiled_camera"]
             self._stack = None
             if frame_stack > 1:
                 self._stack = CircularBuffer(
@@ -1561,6 +1556,7 @@ def rendering_test_shadow_hand(
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env import ShadowHandCameraEnv
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
         ShadowHandCameraEnvCfg,
+        ShadowHandCameraSceneCfg,
         ShadowHandTiledCameraCfg,
         _ShadowHandBaseTiledCameraCfg,
     )
@@ -1575,8 +1571,12 @@ def rendering_test_shadow_hand(
         motion_vectors = _ShadowHandBaseTiledCameraCfg(data_types=["motion_vectors"])
 
     @configclass
-    class _ShadowHandCameraTestEnvCfg(ShadowHandCameraEnvCfg):
+    class _ShadowHandCameraTestSceneCfg(ShadowHandCameraSceneCfg):
         tiled_camera = _ShadowHandTiledCameraTestCfg()
+
+    @configclass
+    class _ShadowHandCameraTestEnvCfg(ShadowHandCameraEnvCfg):
+        scene = _ShadowHandCameraTestSceneCfg()
 
     override_args = [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_types[0]}"]
 
@@ -1584,7 +1584,7 @@ def rendering_test_shadow_hand(
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
-    env_cfg.tiled_camera.data_types = data_types
+    env_cfg.scene.tiled_camera.data_types = data_types
 
     motion_data_type = _motion_data_type(data_types)
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, motion_data_type)
@@ -1655,6 +1655,7 @@ def rendering_test_shadow_hand_yellow_bg(
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env import ShadowHandCameraEnv
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
         ShadowHandCameraEnvCfg,
+        ShadowHandCameraSceneCfg,
         ShadowHandTiledCameraCfg,
         _ShadowHandBaseTiledCameraCfg,
     )
@@ -1672,8 +1673,12 @@ def rendering_test_shadow_hand_yellow_bg(
         rgb: _YellowBgCameraCfg = _YellowBgCameraCfg()
 
     @configclass
-    class _YellowBgEnvCfg(ShadowHandCameraEnvCfg):
+    class _YellowBgSceneCfg(ShadowHandCameraSceneCfg):
         tiled_camera: _YellowBgTiledCameraCfg = _YellowBgTiledCameraCfg()
+
+    @configclass
+    class _YellowBgEnvCfg(ShadowHandCameraEnvCfg):
+        scene: _YellowBgSceneCfg = _YellowBgSceneCfg()
 
     env_cfg = _YellowBgEnvCfg()
     env_cfg.feature_extractor.enabled = False
@@ -1710,7 +1715,11 @@ def rendering_test_cartpole(
 
     from isaaclab.utils import configclass
 
-    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg, CartpoleTiledCameraCfg
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import (
+        CartpoleCameraEnvCfg,
+        CartpoleCameraSceneCfg,
+        CartpoleTiledCameraCfg,
+    )
 
     from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
@@ -1728,37 +1737,28 @@ def rendering_test_cartpole(
         motion_vectors = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["motion_vectors"])
 
     @configclass
-    class _BaseCartpoleCameraEnvTestCfg(CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg):
-        robot_cfg = CARTPOLE_CFG.replace(
+    class _CartpoleCameraTestSceneCfg(CartpoleCameraSceneCfg):
+        cartpole = CARTPOLE_CFG.replace(
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=CARTPOLE_CFG.spawn.replace(semantic_tags=[("class", "cartpole")]),
         )
+        tiled_camera = _CartpoleTiledCameraTestCfg()
+
+    @configclass
+    class _BaseCartpoleCameraEnvTestCfg(CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg):
+        scene = _CartpoleCameraTestSceneCfg(num_envs=4, env_spacing=20.0, replicate_physics=True)
 
     @configclass
     class _CartpoleCameraTestEnvCfg(CartpoleCameraEnvCfg):
         # Use the semantically-tagged robot (class:cartpole) so semantic_segmentation produces a non-trivial
         # idToLabels mapping; the base env's semantic_segmentation variant leaves the robot untagged.
-        semantic_segmentation = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        distance_to_camera = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[1, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        distance_to_image_plane = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[1, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        normals = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[3, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        instance_segmentation = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        instance_id_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        motion_vectors = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
-            observation_space=[2, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
+        semantic_segmentation = _BaseCartpoleCameraEnvTestCfg(observation_space=[4, 96, 96])
+        distance_to_camera = _BaseCartpoleCameraEnvTestCfg(observation_space=[1, 96, 96])
+        distance_to_image_plane = _BaseCartpoleCameraEnvTestCfg(observation_space=[1, 96, 96])
+        normals = _BaseCartpoleCameraEnvTestCfg(observation_space=[3, 96, 96])
+        instance_segmentation = _BaseCartpoleCameraEnvTestCfg(observation_space=[4, 96, 96])
+        instance_id_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(observation_space=[4, 96, 96])
+        motion_vectors = _BaseCartpoleCameraEnvTestCfg(observation_space=[2, 96, 96])
 
     preset_data_type = "semantic_segmentation" if "semantic_segmentation" in data_types else data_types[0]
     env_cfg = _CartpoleCameraTestEnvCfg()
@@ -1767,9 +1767,9 @@ def rendering_test_cartpole(
     )
 
     env_cfg.scene.num_envs = 4
-    env_cfg.tiled_camera.data_types = data_types
-    if getattr(env_cfg.tiled_camera.renderer_cfg, "renderer_type", None) == "newton_warp":
-        env_cfg.tiled_camera.renderer_cfg.render_order = "pixel_priority"
+    env_cfg.scene.tiled_camera.data_types = data_types
+    if getattr(env_cfg.scene.tiled_camera.renderer_cfg, "renderer_type", None) == "newton_warp":
+        env_cfg.scene.tiled_camera.renderer_cfg.render_order = "pixel_priority"
 
     motion_data_type = _motion_data_type(data_types)
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, motion_data_type)
@@ -2264,15 +2264,8 @@ def rendering_test_franka_soft(
     data_types: list[str],
     comparison_scores: list[dict],
 ) -> None:
-    if physics_backend == "physx" or renderer == "isaacsim_rtx_renderer":
-        pytest.skip("Random teardown hangs in the kit-based combinations (OMPE-101977).")
-
     if renderer == "ovrtx_renderer" and "instance_segmentation" in data_types:
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_soft (NVBUG#6463802).")
-
-    # Native hang: the per-file CI runner kills the suite after 1000s with no pytest outcome.
-    if physics_backend == "ovphysx" and renderer == "ovrtx_renderer" and "depth" in data_types:
-        pytest.skip("OVPhysX + OVRTX depth hangs intermittently on franka_soft kitless CI (NVBUG#6564917).")
 
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
@@ -2330,8 +2323,7 @@ def rendering_test_mpm_particles(
     """Golden-image AOV coverage for USD-stage MPM particle rendering.
 
     Covers the ``UsdGeom.Points`` clouds authored by
-    :func:`~isaaclab_newton.sim.spawners.mpm.visualization.create_mpm_particle_visualization`
-    and re-synced every frame by ``NewtonManager.sync_particles_to_usd``. The camera frames the
+    MPM spawners and updated by the shared Fabric resource through SDP. The camera frames the
     UR10 particle pile head-on so the particles, not the workcell, dominate the frame.
 
     MPM runs only on Newton's coupled MPM/MJWarp solver, so ``UR10ParticlePushEnvCfg`` pins

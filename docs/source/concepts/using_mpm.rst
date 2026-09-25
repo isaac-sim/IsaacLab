@@ -5,8 +5,8 @@ Using Implicit MPM
 
 Newton's implicit Material Point Method (MPM) solver models particle materials
 such as granular media. MPM support and rigid-MPM coupling are experimental.
-Start with the compact ``scripts/demos/mpm/newton_mpm_granular.py`` example;
-``snowball_smash.py`` adds coupling and ``teapot_fill.py`` adds cavity sampling.
+Start with the compact ``mpm-granular`` example; the ``snowball-smash`` and ``teapot-fill`` demos provide polished
+coupling and cavity-sampling showcases.
 
 
 .. _franka-pour-reset-artifact:
@@ -102,6 +102,19 @@ geometric correction is intentional, and not as a substitute for valid initial
 states, collision geometry, or a stable timestep. Coupled MPM entries do not
 support this manager-level projection pass.
 
+Both :class:`~isaaclab_newton.sim.MPMGridCfg` and
+:class:`~isaaclab_newton.sim.MPMPointsCfg` author schema-valid
+``UsdGeom.Points`` simulation geometry. Grid configurations still generate the
+lattice in Isaac Lab before authoring explicit points, widths, velocities, and
+masses. Materials use ``NewtonMPMMaterialAPI``; damping [s] is authored as
+``damping * young_modulus`` [Pa·s]. ``critical_fraction`` remains solver-global
+on :class:`~isaaclab_newton.physics.MPMSolverCfg` and is authored on the owning
+``NewtonMPMSceneAPI`` physics scene.
+
+Grid jitter is generated once in asset-local coordinates with a fixed seed, so
+USD clones share the same local particle distribution. Use reset events or domain
+randomization when each environment needs an independent distribution.
+
 
 Render a Particle Surface
 -------------------------
@@ -113,13 +126,13 @@ material behavior. Run the teapot example to compare the available modes:
 .. code-block:: bash
 
    # Reconstructed surface (default)
-   uv run python scripts/demos/mpm/teapot_fill.py --device cuda:0 \
+   uv run isaaclab demo teapot-fill --device cuda:0 \
      --visualizer newton_gl --fluid_render_mode surface
    # Surface and source particles together
-   uv run python scripts/demos/mpm/teapot_fill.py --device cuda:0 \
+   uv run isaaclab demo teapot-fill --device cuda:0 \
      --visualizer newton_gl --fluid_render_mode both
    # Path-traced translucent surface
-   uv run --extra ovrtx python scripts/demos/mpm/teapot_fill.py --device cuda:0 \
+   uv run --extra ovrtx isaaclab demo teapot-fill --device cuda:0 \
      --visualizer newton_rtx --fluid_render_mode surface
 
 Surface rendering is available in the Newton GL and Newton RTX visualizers.
@@ -150,7 +163,7 @@ dynamic topology in one reusable helper:
 .. dropdown:: ``FluidSurfaceRenderer`` implementation
    :icon: code
 
-   .. literalinclude:: ../../../scripts/demos/mpm/teapot_fill.py
+   .. literalinclude:: ../../../examples/demos/teapot_fill.py
       :language: python
       :pyobject: FluidSurfaceRenderer
 

@@ -19,6 +19,49 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 
+@pytest.mark.parametrize("headless", [False, True])
+def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch, headless):
+    visualizer = KitVisualizer(KitVisualizerCfg(headless=headless, origin_type="asset"))
+    visualizer._is_initialized = True
+    visualizer._fabric = MagicMock()
+    visualizer._scene_data_provider = MagicMock()
+    sim = MagicMock(render_generation=12)
+    monkeypatch.setattr(kit_visualizer_module.SimulationContext, "instance", lambda: sim)
+    monkeypatch.setattr(visualizer, "is_training_paused", lambda: True)
+    tracking = MagicMock()
+    monkeypatch.setattr(visualizer, "_update_asset_tracking_camera", tracking)
+    monkeypatch.setattr(visualizer, "_update_camera_image_panel", MagicMock())
+    monkeypatch.setattr(visualizer, "_refresh_partial_viz_point_instancers_if_needed", MagicMock())
+
+    visualizer.step(0.1)
+
+    assert tracking.call_count == int(not headless)
+    if headless:
+        visualizer._fabric.update_transforms.assert_not_called()
+        visualizer._fabric.update_geometries.assert_not_called()
+    else:
+        visualizer._fabric.update_transforms.assert_called_once_with(visualizer._scene_data_provider)
+        visualizer._fabric.update_geometries.assert_called_once_with(visualizer._scene_data_provider, 12)
+
+
+@pytest.mark.parametrize("generated", [False, True])
+def test_streaming_renderer_registers_before_visualizer_initialization(monkeypatch, generated):
+    sim = MagicMock()
+    settings = MagicMock()
+    settings.get.return_value = True
+    renderer_cfg = object()
+    monkeypatch.setattr(kit_visualizer_module.SimulationContext, "instance", lambda: sim)
+    monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
+    monkeypatch.setattr(KitVisualizer, "_resolve_streaming_renderer_cfg", lambda self: renderer_cfg)
+
+    KitVisualizer(KitVisualizerCfg(streaming_view=True, streaming_cam_target_prim_path="/Robot" if generated else None))
+
+    if generated:
+        sim.get_or_create_backend.assert_called_once_with(renderer_cfg)
+    else:
+        sim.get_or_create_backend.assert_not_called()
+
+
 @pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
 def test_background_color_applies_to_render_product_session_layer(
     color: tuple[float, float, float] | None,

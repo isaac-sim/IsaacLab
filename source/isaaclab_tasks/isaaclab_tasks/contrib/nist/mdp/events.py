@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Event terms for the NIST assembly environments."""
+
 from __future__ import annotations
 
 from collections.abc import Generator
@@ -15,15 +17,15 @@ from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsA
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import math as math_utils
 
-from isaaclab_tasks.contrib.nist.assembly_keypoints import NIST_BOARD_CFG
-from isaaclab_tasks.contrib.nist.assembly_profile_cfg import AssemblyProfileCfg
+from ..assembly_keypoints import NIST_BOARD_CFG
+from ..assembly_profile_cfg import AssemblyProfileCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.envs.mdp.actions.task_space_actions import DifferentialInverseKinematicsAction
 
-    from isaaclab_tasks.contrib.nist.assembly_keypoints import Offset
+    from ..assembly_keypoints import Offset
 
 
 def reset_fixed_asset_uniform(
@@ -235,7 +237,6 @@ class reset_end_effector_around_asset(ManagerTermBase):
         )
         self.solver: DifferentialInverseKinematicsAction = None  # type: ignore
         self.grasp_angle_range = (0.3, 0.7)
-        self.is_physx = "physx" in env.sim.physics_manager.__name__.lower()
 
     def __call__(
         self,
@@ -282,5 +283,3 @@ class reset_end_effector_around_asset(ManagerTermBase):
                 joint_ids=self.joint_ids,
                 env_ids=env_ids,  # type: ignore
             )
-        if self.is_physx:
-            self.robot.root_physx_view.get_jacobians()
