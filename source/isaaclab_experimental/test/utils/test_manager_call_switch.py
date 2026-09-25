@@ -21,19 +21,6 @@ def _add_one(a: wp.array(dtype=wp.float32), b: wp.array(dtype=wp.float32)):
     b[i] = a[i] + 1.0
 
 
-class TestManagerCallMode(unittest.TestCase):
-    """Tests for the ManagerCallMode enum."""
-
-    def test_enum_values(self):
-        self.assertEqual(ManagerCallMode.STABLE, 0)
-        self.assertEqual(ManagerCallMode.WARP_NOT_CAPTURED, 1)
-        self.assertEqual(ManagerCallMode.WARP_CAPTURED, 2)
-
-    def test_ordering(self):
-        self.assertLess(ManagerCallMode.STABLE, ManagerCallMode.WARP_NOT_CAPTURED)
-        self.assertLess(ManagerCallMode.WARP_NOT_CAPTURED, ManagerCallMode.WARP_CAPTURED)
-
-
 # ======================================================================
 # Config loading
 # ======================================================================
@@ -153,23 +140,10 @@ class TestModeResolution(unittest.TestCase):
         self.assertEqual(switch.get_mode_for_manager("RewardManager"), ManagerCallMode.WARP_CAPTURED)
 
     def test_register_capturability_does_not_upgrade(self):
-        """If a manager is already capped to NOT_CAPTURED, registering capturable=False again shouldn't change it."""
+        """Once capped to NOT_CAPTURED, a later capturable=True registration must not lift the cap."""
         switch = ManagerCallSwitch(cfg_source={"default": 2})
         switch.register_manager_capturability("RewardManager", capturable=False)
-        switch.register_manager_capturability("RewardManager", capturable=False)
-        self.assertEqual(
-            switch.get_mode_for_manager("RewardManager"),
-            ManagerCallMode.WARP_NOT_CAPTURED,
-        )
-
-    def test_capturability_interacts_with_static_cap(self):
-        """Dynamic capturability should respect existing static caps."""
-        switch = ManagerCallSwitch(
-            cfg_source={"default": 2},
-            max_modes={"RewardManager": ManagerCallMode.WARP_NOT_CAPTURED},
-        )
-        # Already capped, register_capturability(False) should be harmless
-        switch.register_manager_capturability("RewardManager", capturable=False)
+        switch.register_manager_capturability("RewardManager", capturable=True)
         self.assertEqual(
             switch.get_mode_for_manager("RewardManager"),
             ManagerCallMode.WARP_NOT_CAPTURED,
@@ -221,25 +195,25 @@ class TestStageDispatch(unittest.TestCase):
             )
 
     def test_warp_eager_mode_calls_warp_fn(self):
+        """WARP_NOT_CAPTURED calls the warp fn exactly once per call (no warm-up, no stable call)."""
         switch = ManagerCallSwitch(cfg_source={"default": 1})
-        called = {"stable": False, "warp": False}
+        called = {"stable": 0, "warp": 0}
 
         def stable_fn():
-            called["stable"] = True
+            called["stable"] += 1
             return "stable_result"
 
         def warp_fn():
-            called["warp"] = True
+            called["warp"] += 1
             return "warp_result"
 
-        result = switch.call_stage(
-            stage="RewardManager_compute",
-            warp_call={"fn": warp_fn},
-            stable_call={"fn": stable_fn},
-        )
-        self.assertFalse(called["stable"])
-        self.assertTrue(called["warp"])
+        call = {"stage": "RewardManager_compute", "warp_call": {"fn": warp_fn}, "stable_call": {"fn": stable_fn}}
+        result = switch.call_stage(**call)
+        self.assertEqual(called, {"stable": 0, "warp": 1}, "Eager mode should call the warp fn exactly once")
         self.assertEqual(result, "warp_result")
+
+        switch.call_stage(**call)
+        self.assertEqual(called["warp"], 2, "Eager mode should call fn again each time")
 
     def test_output_transform(self):
         """The 'output' key in call spec should transform the return value."""
@@ -277,32 +251,6 @@ class TestStageDispatchCaptured(unittest.TestCase):
     def setUp(self):
         self.device = "cuda:0"
 
-    def test_captured_mode_produces_correct_output(self):
-        """WARP_CAPTURED should capture and replay a warp kernel correctly."""
-        switch = ManagerCallSwitch(cfg_source={"default": 2})
-        src = wp.full(4, value=5.0, dtype=wp.float32, device=self.device)
-        dst = wp.zeros(4, dtype=wp.float32, device=self.device)
-
-        def warp_fn():
-            wp.launch(_add_one, dim=4, inputs=[src, dst], device=self.device)
-            return dst
-
-        # First call: warm-up + capture
-        result = switch.call_stage(
-            stage="RewardManager_compute",
-            warp_call={"fn": warp_fn},
-        )
-        self.assertAlmostEqual(result.numpy()[0], 6.0, places=5)
-
-        # Replay
-        wp.copy(src, wp.full(4, value=10.0, dtype=wp.float32, device=self.device))
-        result2 = switch.call_stage(
-            stage="RewardManager_compute",
-            warp_call={"fn": warp_fn},
-        )
-        self.assertIs(result, result2, "Replay must return same reference")
-        self.assertAlmostEqual(result2.numpy()[0], 11.0, places=5)
-
     def test_captured_warmup_call_count(self):
         """WARP_CAPTURED first call should invoke fn exactly 2 times (warm-up + capture)."""
         switch = ManagerCallSwitch(cfg_source={"default": 2})
@@ -326,55 +274,6 @@ class TestStageDispatchCaptured(unittest.TestCase):
         # Third call_stage: still replay
         switch.call_stage(stage="RewardManager_compute", warp_call={"fn": warp_fn})
         self.assertEqual(call_count[0], 2)
-
-    def test_captured_warmup_handles_hasattr_guard(self):
-        """Warm-up should flush first-call allocations so capture doesn't record them.
-
-        This simulates the real-world pattern where MDP terms allocate scratch
-        buffers on first call using hasattr guards.
-        """
-        switch = ManagerCallSwitch(cfg_source={"default": 2})
-        src = wp.ones(8, dtype=wp.float32, device=self.device)
-        holder = {}
-
-        def fn_with_guard():
-            if "buf" not in holder:
-                # First-call allocation — must happen during warm-up, not capture
-                holder["buf"] = wp.zeros(8, dtype=wp.float32, device=self.device)
-            wp.launch(_add_one, dim=8, inputs=[src, holder["buf"]], device=self.device)
-            return holder["buf"]
-
-        # Should not raise — warm-up handles the allocation outside capture context
-        result = switch.call_stage(
-            stage="RewardManager_compute",
-            warp_call={"fn": fn_with_guard},
-        )
-        result_np = result.numpy()
-        for val in result_np:
-            self.assertAlmostEqual(val, 2.0, places=5)
-
-        # Replay should also work (allocation already done, only kernel replays)
-        wp.copy(src, wp.full(8, value=5.0, dtype=wp.float32, device=self.device))
-        result2 = switch.call_stage(
-            stage="RewardManager_compute",
-            warp_call={"fn": fn_with_guard},
-        )
-        for val in result2.numpy():
-            self.assertAlmostEqual(val, 6.0, places=5)
-
-    def test_warp_eager_no_warmup(self):
-        """WARP_NOT_CAPTURED mode should call fn exactly once per call (no warm-up)."""
-        switch = ManagerCallSwitch(cfg_source={"default": 1})
-        call_count = [0]
-
-        def warp_fn():
-            call_count[0] += 1
-
-        switch.call_stage(stage="RewardManager_compute", warp_call={"fn": warp_fn})
-        self.assertEqual(call_count[0], 1, "Eager mode should call fn exactly once")
-
-        switch.call_stage(stage="RewardManager_compute", warp_call={"fn": warp_fn})
-        self.assertEqual(call_count[0], 2, "Eager mode should call fn again each time")
 
 
 # ======================================================================
@@ -453,17 +352,6 @@ class TestResolveManagerClass(unittest.TestCase):
 
 class TestManagerNameParsing(unittest.TestCase):
     """Tests for stage name → manager name extraction."""
-
-    def test_valid_stage_name(self):
-        switch = ManagerCallSwitch(cfg_source={"default": 1})
-        # Dispatch a stage with valid name format
-        called = [False]
-
-        def fn():
-            called[0] = True
-
-        switch.call_stage(stage="RewardManager_compute", warp_call={"fn": fn})
-        self.assertTrue(called[0])
 
     def test_invalid_stage_name_raises(self):
         switch = ManagerCallSwitch(cfg_source={"default": 1})

@@ -89,19 +89,12 @@ def test_camera_cli_size_overrides_update_observation_space(monkeypatch: pytest.
     assert env.observation_space.shape == (2, 3, 45, 80)
 
 
-def test_rtx_is_renderer_selector():
-    """The automatic RTX selector is exposed as ``renderer=rtx``."""
+def test_rtx_and_isaacsim_physx_are_typed_selectors():
+    """``renderer=rtx`` (automatic RTX) and ``physics=isaacsim_physx`` (concrete Isaac Sim PhysX) are exposed."""
     preset_map = enumerate_task_presets(_CAMERA_PRESETS_TASK)
 
     assert preset_map is not None
     assert "rtx" in preset_map[PresetTarget.RENDERER]
-
-
-def test_isaacsim_physx_is_physics_selector():
-    """The concrete Isaac Sim PhysX selector is exposed as ``physics=isaacsim_physx``."""
-    preset_map = enumerate_task_presets(_CAMERA_PRESETS_TASK)
-
-    assert preset_map is not None
     assert "isaacsim_physx" in preset_map[PresetTarget.PHYSICS]
 
 

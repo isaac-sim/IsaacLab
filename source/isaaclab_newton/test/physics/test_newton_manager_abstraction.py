@@ -62,7 +62,7 @@ from isaaclab_newton.physics import (
 )
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
 from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
-from newton import JointTargetMode, JointType, ModelBuilder, ShapeFlags
+from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags, ShapeFlags
 from newton.selection import ArticulationView
 from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD, SolverXPBD
 
@@ -1464,6 +1464,9 @@ def test_initialize_solver_populates_canonical_state(
         assert NewtonManager._use_single_state is expected_use_single_state
         assert NewtonManager._needs_collision_pipeline is expected_needs_collision_pipeline
         assert NewtonManager._supports_rigid_body_force_input is expected_supports_force_input
+        # only Featherstone ignores inertial property changes after construction, and warns about it
+        ignores_inertia = ModelFlags.BODY_INERTIAL_PROPERTIES in NewtonManager._ignored_model_changes
+        assert ignores_inertia is (expected_manager is NewtonFeatherstoneManager)
         assert NewtonManager._reset_solver_internals_delegate.__self__ is expected_manager
         assert (
             NewtonManager._reset_solver_internals_delegate.__func__ is expected_manager._reset_solver_internals.__func__

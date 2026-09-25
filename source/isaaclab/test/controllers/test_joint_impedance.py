@@ -19,11 +19,18 @@ _NUM_ROBOTS = 4
 _NUM_DOF = 7
 
 
-@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
-@pytest.mark.parametrize("mode", ["fixed", "variable_kp", "variable"])
-@pytest.mark.parametrize("command_type", ["p_abs", "p_rel"])
-@pytest.mark.parametrize("inertial", [False, True])
-@pytest.mark.parametrize("gravity", [False, True])
+# The branches are independent and additive, so each mode rotates across every value of the other axes.
+@pytest.mark.parametrize(
+    "mode, command_type, inertial, gravity, dtype",
+    [
+        ("fixed", "p_abs", False, False, torch.float32),
+        ("fixed", "p_rel", True, True, torch.float64),
+        ("variable_kp", "p_rel", False, True, torch.float32),
+        ("variable_kp", "p_abs", True, False, torch.float64),
+        ("variable", "p_abs", True, True, torch.float32),
+        ("variable", "p_rel", False, False, torch.float64),
+    ],
+)
 def test_compute_matches_impedance_law(
     mode: str, command_type: str, inertial: bool, gravity: bool, dtype: torch.dtype
 ) -> None:
@@ -40,10 +47,11 @@ def test_compute_matches_impedance_law(
         damping_ratio=damping_ratio,
         dof_pos_offset=[offset] * _NUM_DOF,
     )
+    # tight enough that some desired positions are clipped to the joint limits
     limits = torch.stack(
         [
-            -3.0 * torch.ones(_NUM_ROBOTS, _NUM_DOF, device=device),
-            3.0 * torch.ones(_NUM_ROBOTS, _NUM_DOF, device=device),
+            -0.3 * torch.ones(_NUM_ROBOTS, _NUM_DOF, device=device),
+            0.3 * torch.ones(_NUM_ROBOTS, _NUM_DOF, device=device),
         ],
         dim=-1,
     )

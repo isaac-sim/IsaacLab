@@ -12,10 +12,16 @@ simulation_app = AppLauncher(headless=HEADLESS).app
 
 """Rest of imports follows"""
 
+import math
 from types import SimpleNamespace
 
 import pytest
 import torch
+
+# The thruster model is pure torch bookkeeping; env/motor counts and device select no distinct branch.
+NUM_ENVS = 2
+NUM_MOTORS = 4
+DEVICE = "cpu"
 
 
 def make_thruster_cfg(num_motors: int):
@@ -35,23 +41,20 @@ def make_thruster_cfg(num_motors: int):
     )
 
 
-@pytest.mark.parametrize("num_envs", [1, 2, 4])
-@pytest.mark.parametrize("num_motors", [1, 2, 4])
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_zero_thrust_const_is_handled(num_envs, num_motors, device):
+def test_zero_thrust_const_is_handled():
     """When thrust_const_range contains zeros, Thruster clamps values and compute returns finite outputs."""
     from isaaclab_contrib.actuators import Thruster
 
-    cfg = make_thruster_cfg(num_motors)
+    cfg = make_thruster_cfg(NUM_MOTORS)
     cfg.thrust_const_range = (0.0, 0.0)
 
-    thruster_names = [f"t{i}" for i in range(num_motors)]
+    thruster_names = [f"t{i}" for i in range(NUM_MOTORS)]
     thruster_ids = slice(None)
-    init_rps = torch.ones(num_envs, num_motors, device=device)
+    init_rps = torch.ones(NUM_ENVS, NUM_MOTORS, device=DEVICE)
 
-    thr = Thruster(cfg, thruster_names, thruster_ids, num_envs, device, init_rps)  # type: ignore[arg-type]
+    thr = Thruster(cfg, thruster_names, thruster_ids, NUM_ENVS, DEVICE, init_rps)  # type: ignore[arg-type]
 
-    command = torch.full((num_envs, num_motors), 1.0, device=device)
+    command = torch.full((NUM_ENVS, NUM_MOTORS), 1.0, device=DEVICE)
     action = SimpleNamespace(thrusts=command.clone(), thruster_indices=thruster_ids)
 
     thr.compute(action)  # type: ignore[arg-type]
@@ -59,24 +62,21 @@ def test_zero_thrust_const_is_handled(num_envs, num_motors, device):
     assert torch.isfinite(action.thrusts).all()
 
 
-@pytest.mark.parametrize("num_envs", [1, 2, 4])
-@pytest.mark.parametrize("num_motors", [1, 2, 4])
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_negative_thrust_range_results_finite(num_envs, num_motors, device):
+def test_negative_thrust_range_results_finite():
     """Negative configured thrust ranges are clamped and yield finite outputs after hardening."""
     from isaaclab_contrib.actuators import Thruster
 
-    cfg = make_thruster_cfg(num_motors)
+    cfg = make_thruster_cfg(NUM_MOTORS)
     cfg.thrust_range = (-5.0, -1.0)
     cfg.thrust_const_range = (0.05, 0.05)
 
-    thruster_names = [f"t{i}" for i in range(num_motors)]
+    thruster_names = [f"t{i}" for i in range(NUM_MOTORS)]
     thruster_ids = slice(None)
-    init_rps = torch.ones(num_envs, num_motors, device=device)
+    init_rps = torch.ones(NUM_ENVS, NUM_MOTORS, device=DEVICE)
 
-    thr = Thruster(cfg, thruster_names, thruster_ids, num_envs, device, init_rps)  # type: ignore[arg-type]
+    thr = Thruster(cfg, thruster_names, thruster_ids, NUM_ENVS, DEVICE, init_rps)  # type: ignore[arg-type]
 
-    command = torch.full((num_envs, num_motors), -2.0, device=device)
+    command = torch.full((NUM_ENVS, NUM_MOTORS), -2.0, device=DEVICE)
     action = SimpleNamespace(thrusts=command.clone(), thruster_indices=thruster_ids)
 
     thr.compute(action)  # type: ignore[arg-type]
@@ -84,121 +84,89 @@ def test_negative_thrust_range_results_finite(num_envs, num_motors, device):
     assert torch.isfinite(action.thrusts).all()
 
 
-@pytest.mark.parametrize("num_envs", [2, 3, 4])
-@pytest.mark.parametrize("num_motors", [2, 4])
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_tensor_vs_slice_indices_and_subset_reset(num_envs, num_motors, device):
-    """Compute should accept tensor or slice thruster indices, and reset_idx should affect only specified envs."""
+def test_reset_idx_resamples_only_selected_envs():
+    """reset_idx re-samples parameters and re-initializes thrust only for the selected env."""
     from isaaclab_contrib.actuators import Thruster
 
-    cfg = make_thruster_cfg(num_motors)
+    num_envs = 3
+    cfg = make_thruster_cfg(NUM_MOTORS)
+    thruster_names = [f"t{i}" for i in range(NUM_MOTORS)]
+    init_rps = torch.arange(1, num_envs + 1, dtype=torch.float32, device=DEVICE)[:, None].repeat(1, NUM_MOTORS)
 
-    thruster_names = [f"t{i}" for i in range(num_motors)]
-    # Use motor indices that exist for the given num_motors
-    motor_indices = [0, min(2, num_motors - 1)]
-    thruster_ids_tensor = torch.tensor(motor_indices, dtype=torch.int64, device=device)
-    thruster_ids_slice = slice(None)
-    init_rps = torch.ones(num_envs, num_motors, device=device)
+    thr = Thruster(cfg, thruster_names, slice(None), num_envs, DEVICE, init_rps)  # type: ignore[arg-type]
 
-    thr_tensor = Thruster(cfg, thruster_names, thruster_ids_tensor, num_envs, device, init_rps)  # type: ignore[arg-type]
-    thr_slice = Thruster(cfg, thruster_names, thruster_ids_slice, num_envs, device, init_rps)  # type: ignore[arg-type]
+    # Move the thrust state away from its initial value so re-initialization is observable.
+    command = torch.full((num_envs, NUM_MOTORS), cfg.thrust_range[1] * 0.5, device=DEVICE)
+    thr.compute(SimpleNamespace(thrusts=command, thruster_indices=slice(None)))  # type: ignore[arg-type]
+    # Mutate a sampled parameter so re-sampling produces a measurable change.
+    thr.tau_inc_s[0, 0] = thr.tau_inc_s[0, 0] + 1.0
+    prev_val = thr.tau_inc_s[0, 0].item()
+    prev_thrust = thr.curr_thrust.clone()
+    prev_tau_inc = thr.tau_inc_s.clone()
 
-    command = torch.full((num_envs, num_motors), cfg.thrust_range[1] * 0.5, device=device)
-    action_tensor = SimpleNamespace(thrusts=command.clone(), thruster_indices=thruster_ids_tensor)
-    action_slice = SimpleNamespace(thrusts=command.clone(), thruster_indices=thruster_ids_slice)
+    thr.reset_idx(torch.tensor([0], dtype=torch.int64, device=DEVICE))
 
-    thr_tensor.compute(action_tensor)  # type: ignore[arg-type]
-    thr_slice.compute(action_slice)  # type: ignore[arg-type]
-
-    assert action_tensor.thrusts.shape == (num_envs, num_motors)
-    assert action_slice.thrusts.shape == (num_envs, num_motors)
-
-    # Test reset on the last environment
-    env_to_reset = num_envs - 1
-    prev = thr_tensor.curr_thrust.clone()
-    thr_tensor.reset_idx(torch.tensor([env_to_reset], dtype=torch.int64, device=device))
-    assert not torch.allclose(prev[env_to_reset], thr_tensor.curr_thrust[env_to_reset])
+    assert not torch.isclose(torch.tensor(prev_val, device=DEVICE), thr.tau_inc_s[0, 0])
+    torch.testing.assert_close(thr.curr_thrust[0], thr.thrust_const[0] * init_rps[0] ** 2)
+    torch.testing.assert_close(thr.curr_thrust[1:], prev_thrust[1:])
+    torch.testing.assert_close(thr.tau_inc_s[1:], prev_tau_inc[1:])
 
 
-@pytest.mark.parametrize("num_envs", [1, 2, 4])
-@pytest.mark.parametrize("num_motors", [1, 2, 4])
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_mixing_and_integration_modes(num_envs, num_motors, device):
-    """Verify mixing factor selection and integration kernel choice reflect the config."""
+@pytest.mark.parametrize(("use_discrete_approximation", "integration_scheme"), [(True, "euler"), (False, "rk4")])
+def test_mixing_and_integration_modes(use_discrete_approximation, integration_scheme):
+    """One compute step matches a hand-derived reference for each mixing and integration mode."""
     from isaaclab_contrib.actuators import Thruster
 
-    cfg = make_thruster_cfg(num_motors)
+    cfg = make_thruster_cfg(NUM_MOTORS)
+    cfg.use_discrete_approximation = use_discrete_approximation
+    cfg.integration_scheme = integration_scheme
+    cfg.max_thrust_rate = 1.0e6  # keep the rate clamp inactive
+    cfg.thrust_const_range = (0.1, 0.1)
+    cfg.tau_inc_range = (0.02, 0.02)
+    cfg.tau_dec_range = (0.02, 0.02)
+    thruster_names = [f"t{i}" for i in range(NUM_MOTORS)]
+    init_rps = torch.ones(NUM_ENVS, NUM_MOTORS, device=DEVICE)
 
-    thruster_names = [f"t{i}" for i in range(num_motors)]
+    thr = Thruster(cfg, thruster_names, slice(None), NUM_ENVS, DEVICE, init_rps)  # type: ignore[arg-type]
+    command = torch.full((NUM_ENVS, NUM_MOTORS), 2.5, device=DEVICE)
+    out = thr.compute(SimpleNamespace(thrusts=command, thruster_indices=slice(None)))  # type: ignore[arg-type]
 
-    # discrete mixing
-    cfg.use_discrete_approximation = True
-    cfg.integration_scheme = "euler"
-    thr_d = Thruster(
-        cfg, thruster_names, slice(None), num_envs, device, torch.ones(num_envs, num_motors, device=device)
-    )  # type: ignore[arg-type]
-    # bound method objects are recreated on access; compare underlying functions instead
-    assert getattr(thr_d.mixing_factor_function, "__func__", None) is Thruster.discrete_mixing_factor
-    assert getattr(thr_d._step_thrust, "__func__", None) is Thruster.compute_thrust_with_rpm_time_constant
+    # rpm error decays as d(rpm)/dt = k * (rpm_des - rpm), with k = 1/(dt + tau) (discrete) or 1/tau (continuous).
+    rpm, rpm_des = 1.0, 5.0  # sqrt(0.1 / 0.1), sqrt(2.5 / 0.1)
+    k = 1.0 / (0.01 + 0.02) if use_discrete_approximation else 1.0 / 0.02
+    h = 0.01 * k
+    if integration_scheme == "euler":
+        gain = h
+    else:
+        # RK4 on a linear ODE reproduces the 4th-order Taylor expansion of exp(-h).
+        gain = 1.0 - sum((-h) ** n / math.factorial(n) for n in range(5))
+    expected = 0.1 * (rpm + gain * (rpm_des - rpm)) ** 2
+    torch.testing.assert_close(out.thrusts, torch.full_like(out.thrusts, expected))
 
-    # continuous mixing and RK4
-    cfg.use_discrete_approximation = False
-    cfg.integration_scheme = "rk4"
-    thr_c = Thruster(
-        cfg, thruster_names, slice(None), num_envs, device, torch.ones(num_envs, num_motors, device=device)
-    )  # type: ignore[arg-type]
-    assert getattr(thr_c.mixing_factor_function, "__func__", None) is Thruster.continuous_mixing_factor
-    assert getattr(thr_c._step_thrust, "__func__", None) is Thruster.compute_thrust_with_rpm_time_constant_rk4
+    cfg.integration_scheme = "bad"
+    with pytest.raises(ValueError, match="integration scheme unknown"):
+        Thruster(cfg, thruster_names, slice(None), NUM_ENVS, DEVICE, init_rps)  # type: ignore[arg-type]
 
 
-@pytest.mark.parametrize("num_envs", [1, 2, 4])
-@pytest.mark.parametrize("num_motors", [1, 2, 4])
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_thruster_compute_clamps_and_shapes(num_envs, num_motors, device):
+def test_thruster_compute_clamps_and_shapes():
     """Thruster.compute should return thrusts with correct shape and within clamp bounds."""
     from isaaclab_contrib.actuators import Thruster
 
-    cfg = make_thruster_cfg(num_motors)
+    cfg = make_thruster_cfg(NUM_MOTORS)
 
-    thruster_names = [f"t{i}" for i in range(num_motors)]
+    thruster_names = [f"t{i}" for i in range(NUM_MOTORS)]
     thruster_ids = slice(None)
-    init_rps = torch.ones(num_envs, num_motors, device=device)
+    init_rps = torch.ones(NUM_ENVS, NUM_MOTORS, device=DEVICE)
 
-    thr = Thruster(cfg, thruster_names, thruster_ids, num_envs, device, init_rps)  # type: ignore[arg-type]
+    thr = Thruster(cfg, thruster_names, thruster_ids, NUM_ENVS, DEVICE, init_rps)  # type: ignore[arg-type]
 
     # command above max to check clamping
-    command = torch.full((num_envs, num_motors), cfg.thrust_range[1] * 2.0, device=device)
+    command = torch.full((NUM_ENVS, NUM_MOTORS), cfg.thrust_range[1] * 2.0, device=DEVICE)
     action = SimpleNamespace(thrusts=command.clone(), thruster_indices=thruster_ids)
 
     out = thr.compute(action)  # type: ignore[arg-type]
 
-    assert out.thrusts.shape == (num_envs, num_motors)
+    assert out.thrusts.shape == (NUM_ENVS, NUM_MOTORS)
     # values must be clipped to configured range
     assert torch.all(out.thrusts <= cfg.thrust_range[1] + 1e-6)
     assert torch.all(out.thrusts >= cfg.thrust_range[0] - 1e-6)
-
-
-@pytest.mark.parametrize("num_envs", [1, 2, 4])
-@pytest.mark.parametrize("num_motors", [1, 2, 4])
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_thruster_reset_idx_changes_state(num_envs, num_motors, device):
-    """reset_idx should re-sample parameters for specific env indices."""
-    from isaaclab_contrib.actuators import Thruster
-
-    cfg = make_thruster_cfg(num_motors)
-
-    thruster_names = [f"t{i}" for i in range(num_motors)]
-    thruster_ids = slice(None)
-    init_rps = torch.ones(num_envs, num_motors, device=device)
-
-    thr = Thruster(cfg, thruster_names, thruster_ids, num_envs, device, init_rps)  # type: ignore[arg-type]
-
-    # Mutate an internal sampled parameter so reset produces a measurable change.
-    thr.tau_inc_s[0, 0] = thr.tau_inc_s[0, 0] + 1.0
-    prev_val = thr.tau_inc_s[0, 0].item()
-
-    # reset only environment 0
-    thr.reset_idx(torch.tensor([0], dtype=torch.int64, device=device))
-
-    # at least the first tau_inc value for env 0 should differ from the mutated value
-    assert not torch.isclose(torch.tensor(prev_val, device=device), thr.tau_inc_s[0, 0])

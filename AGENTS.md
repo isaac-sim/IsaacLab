@@ -14,6 +14,11 @@
 - Resolve Newton raycast BVH requirements before builder finalization; sensor task registration must not add a late BVH fallback.
 - Keep joint-wrench sensor coverage separate from articulation control-joint selection. Reuse cached
   body bindings without changing the shared view's joint filters or creating a second view for sensing.
+- Keep articulation ordering maps on articulation data; do not mirror maps or add cached ordering flags.
+- Keep backend ownership on `SimulationContext`, using backend type and configuration rather than service
+  locators, resource keys, or separate renderer registries.
+- Renderers consume geometry through `SceneDataProvider`. Keep Newton imports out of OVRTX renderers
+  and Fabric destination ownership and shadow remapping out of physics backends.
 - For external wrenches, follow the asset API's `is_global` boolean and `_b`/`_w` buffer naming. Keep
   frame conversion decisions in `WrenchComposer` and track pending contributions with plain booleans;
   do not introduce frame enums, content bitmasks, or a classification layer.

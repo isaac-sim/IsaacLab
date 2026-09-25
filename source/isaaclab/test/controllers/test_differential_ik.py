@@ -22,6 +22,7 @@ import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
+from isaaclab.test.utils import DeviceScope, test_devices
 
 from isaaclab.utils.math import (  # isort:skip
     compute_pose_error,
@@ -315,16 +316,18 @@ def test_adaptive_dls_damps_singularity():
     assert dq.norm().item() < dq_min.norm().item()
 
 
-@pytest.mark.parametrize("gain", [0.0, 1.0])
-def test_joint_limit_avoidance_inactive_when_disabled_or_without_limits(gain: float):
+@pytest.mark.parametrize("gain, with_limits", [(0.0, True), (1.0, False)])
+def test_joint_limit_avoidance_inactive_when_disabled_or_without_limits(gain: float, with_limits: bool):
     """Avoidance is a no-op when disabled (gain 0) or before joint limits are provided."""
     ee_pos = torch.zeros(1, 3)
     ee_quat = torch.tensor([_ID_QUAT])
     command = torch.tensor([[0.0, 0.0, 0.0] + _ID_QUAT])
-    joint_pos = torch.linspace(-0.5, 0.5, _NUM_JOINTS).unsqueeze(0)
+    # joints near their limits, so an active avoidance term would move them
+    joint_pos = torch.linspace(-0.95, 0.95, _NUM_JOINTS).unsqueeze(0)
+    limits = (torch.full((_NUM_JOINTS,), -1.0), torch.full((_NUM_JOINTS,), 1.0)) if with_limits else None
     cfg = _make_cfg("adaptive_dls", joint_limit_avoidance_gain=gain)
 
-    actual = _compute(cfg, ee_pos, ee_quat, torch.ones(1, 6, _NUM_JOINTS), joint_pos, command)
+    actual = _compute(cfg, ee_pos, ee_quat, torch.ones(1, 6, _NUM_JOINTS), joint_pos, command, limits)
 
     torch.testing.assert_close(actual, joint_pos)
 
@@ -370,7 +373,7 @@ def test_orientation_weight_and_joint_limit_avoidance_match_reference():
 ##
 
 
-@pytest.mark.parametrize("device", ["cpu"] + (["cuda:0"] if torch.cuda.is_available() else []))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def test_joint_limits_accept_float64_cpu_tensors_and_later_updates(device: str):
     """Float64 CPU limits are accepted before the first compute and can be updated afterwards."""
     cfg = _make_cfg("trans", joint_limit_avoidance_gain=0.2)

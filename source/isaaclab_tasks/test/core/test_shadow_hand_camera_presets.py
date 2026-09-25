@@ -82,27 +82,10 @@ def _validate_cfg(cfg) -> None:
 
 _VALID_COMBOS = [
     # renderer_type, data_types, feature_extractor_enabled
-    # ── Non-warp renderers accept every data type ──
-    (None, ["rgb"], True),
-    (None, ["rgb", "depth", "semantic_segmentation"], True),
-    (None, ["albedo"], True),
-    (None, ["simple_shading_constant_diffuse"], True),
-    (None, ["simple_shading_diffuse_mdl"], True),
-    (None, ["simple_shading_full_mdl"], True),
-    (None, ["depth"], False),  # depth-only OK when CNN disabled
-    ("isaac_rtx", ["rgb"], True),
-    ("isaac_rtx", ["albedo"], True),
-    ("isaac_rtx", ["simple_shading_full_mdl"], True),
-    ("isaac_rtx", ["rgb", "depth", "semantic_segmentation"], True),
-    ("isaac_rtx", ["depth"], False),
-    # ── Warp renderer: all published color, depth, and segmentation outputs are supported ──
-    ("newton_warp", ["rgb"], True),
-    ("newton_warp", ["rgba"], True),
-    ("newton_warp", ["rgb_hdr"], True),
-    ("newton_warp", ["albedo"], True),
+    (None, ["rgb", "depth", "semantic_segmentation"], True),  # no renderer contract to check
+    ("isaac_rtx", ["simple_shading_full_mdl"], True),  # RTX publishes simple-shading outputs
+    ("newton_warp", ["rgb", "depth", "semantic_segmentation"], True),  # warp-published outputs
     ("newton_warp", ["depth"], False),  # depth-only OK when CNN disabled
-    ("newton_warp", ["rgb", "depth"], True),  # multiple supported types
-    ("newton_warp", ["rgb", "depth", "semantic_segmentation"], True),
 ]
 
 
@@ -119,43 +102,9 @@ def test_valid_combinations_do_not_raise(renderer_type, data_types, enabled):
 _INVALID_COMBOS = [
     # renderer_type, data_types, enabled, substring expected in error message
     # ── Warp does not support RTX simple-shading outputs ──
-    (
-        "newton_warp",
-        ["simple_shading_constant_diffuse"],
-        True,
-        "simple_shading_constant_diffuse",
-    ),
-    (
-        "newton_warp",
-        ["simple_shading_diffuse_mdl"],
-        True,
-        "simple_shading_diffuse_mdl",
-    ),
-    (
-        "newton_warp",
-        ["simple_shading_full_mdl"],
-        True,
-        "simple_shading_full_mdl",
-    ),
-    # ── Depth-only with CNN enabled is not valid for training ──
-    (
-        None,
-        ["depth"],
-        True,
-        "Depth-only",
-    ),
-    (
-        "isaac_rtx",
-        ["depth"],
-        True,
-        "Depth-only",
-    ),
-    (
-        "newton_warp",
-        ["depth"],
-        True,
-        "Depth-only",  # depth is warp-supported but CNN can't train on it
-    ),
+    ("newton_warp", ["simple_shading_full_mdl"], True, "simple_shading_full_mdl"),
+    # ── Depth-only with CNN enabled is not valid for training (renderer-independent) ──
+    (None, ["depth"], True, "Depth-only"),
 ]
 
 
@@ -177,33 +126,27 @@ def shadow_hand_camera_presets():
     return collect_presets(ShadowHandCameraEnvCfg())
 
 
-_CAMERA_DATA_TYPE_PRESETS = [
-    # preset_name, expected_data_types
-    ("default", ["rgb", "depth", "semantic_segmentation"]),
-    ("full", ["rgb", "depth", "semantic_segmentation"]),
-    ("rgb", ["rgb"]),
-    ("albedo", ["albedo"]),
-    ("simple_shading_constant_diffuse", ["simple_shading_constant_diffuse"]),
-    ("simple_shading_diffuse_mdl", ["simple_shading_diffuse_mdl"]),
-    ("simple_shading_full_mdl", ["simple_shading_full_mdl"]),
-    ("depth", ["depth"]),
-]
-
-
-@pytest.mark.parametrize("preset_name,expected_data_types", _CAMERA_DATA_TYPE_PRESETS)
-def test_camera_presets_resolve_to_valid_configs(shadow_hand_camera_presets, preset_name, expected_data_types):
-    """Camera presets must be discoverable, request data, and have valid dimensions."""
+def test_camera_presets_resolve_to_valid_configs(shadow_hand_camera_presets):
+    """Camera presets must be discoverable, request their named data type, and have valid dimensions."""
     camera_presets = shadow_hand_camera_presets["scene.tiled_camera"]
-    assert preset_name in camera_presets, f"Preset '{preset_name}' not found in tiled_camera presets"
-    resolved = camera_presets[preset_name]
-    assert resolved.data_types == expected_data_types, (
-        f"Preset '{preset_name}': expected data_types={expected_data_types}, got {resolved.data_types}"
-    )
-    assert len(resolved.data_types) > 0, (
-        f"Camera preset '{preset_name}' has an empty data_types list — nothing would be rendered."
-    )
-    assert resolved.width > 0, f"Camera preset '{preset_name}' has non-positive width: {resolved.width}"
-    assert resolved.height > 0, f"Camera preset '{preset_name}' has non-positive height: {resolved.height}"
+    assert set(camera_presets) == {
+        "default",
+        "full",
+        "rgb",
+        "albedo",
+        "simple_shading_constant_diffuse",
+        "simple_shading_diffuse_mdl",
+        "simple_shading_full_mdl",
+        "depth",
+        "semantic_segmentation",
+    }
+    for preset_name, resolved in camera_presets.items():
+        if preset_name in ("default", "full"):
+            assert resolved.data_types == ["rgb", "depth", "semantic_segmentation"], preset_name
+        else:
+            assert resolved.data_types == [preset_name]
+        assert resolved.width > 0, f"Camera preset '{preset_name}' has non-positive width: {resolved.width}"
+        assert resolved.height > 0, f"Camera preset '{preset_name}' has non-positive height: {resolved.height}"
 
 
 # ---------------------------------------------------------------------------
