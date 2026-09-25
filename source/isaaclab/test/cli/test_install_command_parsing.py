@@ -127,7 +127,6 @@ _PATCHES = [
     f"{_INSTALL_MODULE}._ensure_newton",
     f"{_INSTALL_MODULE}._install_centralized_dependencies",
     f"{_INSTALL_MODULE}.command_editor",
-    f"{_INSTALL_MODULE}._install_desktop_entries",
     f"{_INSTALL_MODULE}.get_pip_command",
     f"{_INSTALL_MODULE}.extract_python_exe",
     # run_command is called directly inside command_install for pip/setuptools upgrades.

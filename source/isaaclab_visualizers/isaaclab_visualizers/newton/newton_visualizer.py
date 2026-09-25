@@ -57,6 +57,7 @@ from isaaclab.envs.utils.camera_view import (
 )
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
+from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 
@@ -109,6 +110,9 @@ class _MeshSubmission:
     opacity: float | None
 
 
+_NEWTON_ICON_DIR = Path(newton.__file__).parent / "_src" / "viewer" / "gl"
+
+
 def _apply_newton_icon(window) -> None:
     """Set Newton's bundled icon on a ``ViewerRTX`` window, which unlike ``ViewerGL`` never sets one.
 
@@ -117,9 +121,8 @@ def _apply_newton_icon(window) -> None:
     """
     import pyglet
 
-    icon_dir = Path(newton.__file__).parent / "_src" / "viewer" / "gl"
     try:
-        images = [pyglet.image.load(str(icon_dir / f"icon_{size}.png")) for size in (16, 32, 64)]
+        images = [pyglet.image.load(str(_NEWTON_ICON_DIR / f"icon_{size}.png")) for size in (16, 32, 64)]
     except (OSError, pyglet.util.DecodeException) as error:
         logger.warning("Could not load Newton's bundled icon for the RTX viewer window: %s", error)
         return
@@ -2077,6 +2080,9 @@ class NewtonGLVisualizer(NewtonVisualizer):
                     entry.window_initialized = False
 
     def _create_viewer(self, runtime_headless: bool, metadata: dict) -> NewtonViewerGL:
+        if not runtime_headless:
+            # pyglet sets WM_CLASS from the window caption, which ViewerGL defaults to "Newton".
+            write_desktop_entry("isaaclab-newton-gl-viewer", "Newton", "Newton", _NEWTON_ICON_DIR / "icon_64.png")
         return NewtonViewerGL(
             width=self.cfg.window_width,
             height=self.cfg.window_height,
@@ -2389,6 +2395,11 @@ class NewtonRTXVisualizer(NewtonVisualizer):
         self._disable_viewer_on_step_exception = True
 
     def _create_viewer(self, runtime_headless: bool, metadata: dict) -> NewtonViewerRTX:
+        if not runtime_headless:
+            # pyglet sets WM_CLASS from the window caption "Newton RTX Viewer".
+            write_desktop_entry(
+                "isaaclab-newton-rtx-viewer", "Newton RTX Viewer", "Newton RTX Viewer", _NEWTON_ICON_DIR / "icon_64.png"
+            )
         return NewtonViewerRTX(
             width=self.cfg.window_width,
             height=self.cfg.window_height,

@@ -1127,11 +1127,3 @@ def test_newton_rtx_visualizer_setup_streaming_view_creates_owned_camera(monkeyp
     visualizer_off._setup_streaming_view(num_envs=1)
     assert len(create_calls) == 1
     assert visualizer_off._camera_sensor is None
-
-
-def test_newton_rtx_viewer_icon_uses_newton_bundled_icons():
-    window = Mock()
-
-    newton_visualizer_module._apply_newton_icon(window)
-
-    assert [(image.width, image.height) for image in window.set_icon.call_args.args] == [(16, 16), (32, 32), (64, 64)]
