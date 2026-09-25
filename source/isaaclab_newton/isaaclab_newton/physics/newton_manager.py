@@ -461,6 +461,9 @@ class NewtonManager(PhysicsManager):
 
     # Model changes (callbacks use unified system from PhysicsManager)
     _model_changes: set[int] = set()
+    # Model changes the active solver does not apply, mapped to the reason; each is warned about once
+    _ignored_model_changes: dict[int, str] = {}
+    _warned_model_changes: set[int] = set()
 
     # Scene data backend
     _scene_data_backend: NewtonSceneDataBackend | None = None
@@ -709,6 +712,9 @@ class NewtonManager(PhysicsManager):
         if cls._model_changes:
             with wp.ScopedDevice(PhysicsManager._device):
                 for change in cls._model_changes:
+                    if change in cls._ignored_model_changes and change not in cls._warned_model_changes:
+                        logger.warning(cls._ignored_model_changes[change])
+                        cls._warned_model_changes.add(change)
                     cls._solver.notify_model_changed(change)
                 NewtonManager._model_changes = set()
 
@@ -828,6 +834,8 @@ class NewtonManager(PhysicsManager):
         NewtonManager._supports_rigid_body_force_input = False
         NewtonManager._contacts = None
         NewtonManager._needs_collision_pipeline = False
+        NewtonManager._ignored_model_changes = {}
+        NewtonManager._warned_model_changes = set()
         NewtonManager._deterministic_mode = wp.DeterministicMode.NOT_GUARANTEED
         NewtonManager._eval_fk = _eval_fk_unbound
         NewtonManager._reset_solver_internals_delegate = _reset_solver_internals_unbound

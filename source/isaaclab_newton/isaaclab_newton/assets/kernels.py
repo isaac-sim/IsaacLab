@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import torch
 import warp as wp
 
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
@@ -1556,3 +1557,23 @@ def update_wrench_array_with_force_and_torque(
             torques[env_index, body_index],
             body_rot_w,
         )
+
+
+def com_positions(coms: float | torch.Tensor | wp.array) -> float | torch.Tensor | wp.array:
+    """Return center of mass positions, dropping the orientation when poses are given.
+
+    Newton models a body's center of mass as a position, while the asset API also accepts poses
+    (position and quaternion (x, y, z, w)) like the other backends. The orientation is ignored.
+
+    Args:
+        coms: Center of mass positions [m] with a trailing dimension of 3 (or dtype ``wp.vec3f``), or poses with a
+            trailing dimension of 7 (or dtype ``wp.transformf``).
+
+    Returns:
+        The center of mass positions [m]; inputs that are already positions are returned unchanged.
+    """
+    if isinstance(coms, wp.array) and coms.dtype == wp.transformf:
+        coms = wp.to_torch(coms)
+    if isinstance(coms, torch.Tensor) and coms.shape[-1] == 7:
+        return coms[..., :3].contiguous()
+    return coms

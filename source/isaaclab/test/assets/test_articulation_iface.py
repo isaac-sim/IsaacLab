@@ -1196,7 +1196,8 @@ class TestArticulationWritersBody:
 # Tendon tests — counts, names, data, writers
 # ---------------------------------------------------------------------------
 
-# Newton does not support tendons (always 0), so exclude it from tendon tests.
+# Newton's fixed-tendon solver integration is covered in isaaclab_newton/test/assets/test_articulation.py.
+# This fixture matrix also requires spatial tendons and PhysX-specific properties.
 _tendon_backends = pytest.mark.parametrize("backend", [b for b in BACKENDS if b != "newton"], indirect=False)
 
 # The first row covers the zero-spatial-tendon edge; the second has distinct counts on every axis.
@@ -1265,10 +1266,8 @@ _FIXED_TENDON_METHODS = [
     ("set_fixed_tendon_limit_stiffness", "limit_stiffness", "fixed_tendon_limit_stiffness"),
     ("set_fixed_tendon_rest_length", "rest_length", "fixed_tendon_rest_length"),
     ("set_fixed_tendon_offset", "offset", "fixed_tendon_offset"),
+    ("set_fixed_tendon_position_limit", "limit", "fixed_tendon_pos_limits"),
 ]
-# Note: set_fixed_tendon_position_limit is excluded because the PhysX backend stores
-# pos_limits as (N, T, 2) float32 while the setter validates (N, T) float32. This data
-# layout mismatch prevents consistent testing across mock and PhysX backends.
 _SPATIAL_TENDON_METHODS = [
     ("set_spatial_tendon_stiffness", "stiffness", "spatial_tendon_stiffness"),
     ("set_spatial_tendon_damping", "damping", "spatial_tendon_damping"),
@@ -1309,6 +1308,7 @@ class TestArticulationWritersTendon:
         )
         art.data.update(dt=0.01)
         method = getattr(art, f"{method_base}_{selection}")
+        wp_dtype = wp.vec2f if getter == "fixed_tendon_pos_limits" else wp.float32
         full_shape = (num_instances, num_tendons)
         sub_t = min(2, num_tendons)
         sub_tendons = list(range(sub_t))
@@ -1323,22 +1323,26 @@ class TestArticulationWritersTendon:
             subset_shape = full_shape
 
         # torch, all envs + all tendons
-        method(**{kwarg: _make_data_torch(full_shape, device)})
+        method(**{kwarg: _make_data_torch(full_shape, device, wp_dtype)})
         # torch, subset
-        method(**{kwarg: _make_data_torch(subset_shape, device)}, **subset)
+        method(**{kwarg: _make_data_torch(subset_shape, device, wp_dtype)}, **subset)
         # warp, all envs + all tendons: the matching data property reads the written values back
-        method(**{kwarg: _make_payload_warp(full_shape, device)})
-        _assert_reads_back(getattr(art.data, getter), _make_payload_torch(full_shape, device), getter)
+        method(**{kwarg: _make_payload_warp(full_shape, device, wp_dtype)})
+        _assert_reads_back(getattr(art.data, getter), _make_payload_torch(full_shape, device, wp_dtype), getter)
         # warp, subset
-        method(**{kwarg: _make_data_warp(subset_shape, device)}, **subset)
-        # float scalar
-        method(**{kwarg: 1.0})
+        method(**{kwarg: _make_data_warp(subset_shape, device, wp_dtype)}, **subset)
+        # Position limits require a lower/upper pair; other properties accept scalar values.
+        if wp_dtype == wp.vec2f:
+            with pytest.raises((ValueError, TypeError)):
+                method(**{kwarg: 1.0})
+        else:
+            method(**{kwarg: 1.0})
         # negative: bad torch shape
         with pytest.raises((AssertionError, RuntimeError)):
-            method(**{kwarg: _make_bad_data_torch(full_shape, device)})
+            method(**{kwarg: _make_bad_data_torch(full_shape, device, wp_dtype)})
         # negative: bad warp shape
         with pytest.raises((AssertionError, RuntimeError)):
-            method(**{kwarg: _make_bad_data_warp(full_shape, device)})
+            method(**{kwarg: _make_bad_data_warp(full_shape, device, wp_dtype)})
 
     @_tendon_backends
     @_devices
