@@ -19,6 +19,7 @@ import warp as wp
 from packaging import version
 
 from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
+from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
@@ -38,6 +39,7 @@ def _install_omni_stubs(monkeypatch):
     monkeypatch.setitem(sys.modules, "omni.syntheticdata", syntheticdata_module)
     monkeypatch.setitem(sys.modules, "omni.usd", usd_module)
     monkeypatch.setitem(sys.modules, "usdrt", MagicMock())
+    monkeypatch.setitem(sys.modules, "usdrt.hierarchy", MagicMock())
     monkeypatch.setattr(omni_module, "replicator", replicator_module, raising=False)
     monkeypatch.setattr(omni_module, "syntheticdata", syntheticdata_module, raising=False)
     monkeypatch.setattr(omni_module, "usd", usd_module, raising=False)
@@ -70,6 +72,18 @@ def test_isaac_rtx_supported_output_types_include_rgb_hdr(monkeypatch, isaac_sim
     ]
     is_supported = isaac_sim_version == "6.0"
     assert all((kind in specs) is is_supported for kind in requires_6_0)
+
+
+def test_native_fabric_geometry_needs_no_separate_publication(monkeypatch):
+    _install_omni_stubs(monkeypatch)
+    from isaaclab_physx.renderers.fabric import FabricBackend
+
+    provider = SimpleNamespace(
+        backend=SimpleNamespace(native_transform_formats=(SceneDataFormat.FabricMatrix44,)),
+        get_geometry_points=MagicMock(),
+    )
+    FabricBackend.__new__(FabricBackend).update_geometries(provider, 0)
+    provider.get_geometry_points.assert_not_called()
 
 
 def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch):
