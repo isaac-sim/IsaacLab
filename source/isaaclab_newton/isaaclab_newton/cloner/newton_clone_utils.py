@@ -334,9 +334,7 @@ def _label_groups(builder: ModelBuilder) -> dict[str, list]:
     for frequency in builder.custom_frequencies.values():
         if frequency.label_attribute is not None:
             groups[frequency.label_attribute] = builder.custom_attributes[frequency.label_attribute].values
-    for name, attribute in builder.custom_attributes.items():
-        if name.endswith("_label"):
-            groups[name] = attribute.values
+    groups["mujoco:equality_constraint_label"] = builder.custom_attributes["mujoco:equality_constraint_label"].values
     return groups
 
 
