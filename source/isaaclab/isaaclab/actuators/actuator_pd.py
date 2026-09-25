@@ -221,10 +221,10 @@ class ImplicitActuator(ActuatorBase):
         error_vel = control_action.joint_velocities - joint_vel
         self.computed_effort = self.stiffness * error_pos + self.damping * error_vel + control_action.joint_efforts
         # clip the torques based on the motor limits
-        self.applied_effort = self._clip_effort(self.computed_effort, joint_vel)
+        self.applied_effort = self._clip_effort(self.computed_effort)
         return control_action
 
-    def _clip_effort(self, effort: torch.Tensor, joint_vel: torch.Tensor) -> torch.Tensor:
+    def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
         """Clip telemetry using the articulation joint effort limit."""
         joint_effort_limit = self.joint_effort_limit
         return torch.clip(effort, min=-joint_effort_limit, max=joint_effort_limit)

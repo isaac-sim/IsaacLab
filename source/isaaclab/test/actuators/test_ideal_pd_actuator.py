@@ -176,6 +176,7 @@ def test_ideal_pd_compute(num_envs, num_joints, device, effort_lim):
         actuator.applied_effort,
         computed_control_action.joint_efforts,
     )
+    torch.testing.assert_close(actuator._clip_effort(actuator.computed_effort), actuator.applied_effort)
 
 
 if __name__ == "__main__":
