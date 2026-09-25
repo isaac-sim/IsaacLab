@@ -955,40 +955,41 @@ def test_matrix_from_euler(device, euler_angles, convention):
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_quat_apply(device):
-    """Test for quat_apply against scipy."""
-    # prepare random quaternions and vectors
-    n = 1024
-    q_rand = math_utils.random_orientation(num=n, device=device)
-    # Our quaternions are already in xyzw format, which scipy expects
-    Rotation = scipy_tf.Rotation.from_quat(q_rand.to(device="cpu").numpy())
+@pytest.mark.parametrize("inverse", [False, True])
+@pytest.mark.parametrize(
+    "quat_shape,vec_shape",
+    [
+        ((1024,), (1024,)),
+        ((128, 2, 4), (128, 2, 4)),
+        ((), ()),
+        ((1,), ()),
+        ((), (2, 3)),
+        ((2, 3), ()),
+        ((2, 3), (2, 1)),
+        ((2, 1), (3,)),
+        ((2, 3), (3, 2)),
+    ],
+)
+def test_quat_apply(device, inverse, quat_shape, vec_shape):
+    """Rotations follow NumPy broadcasting and agree with SciPy, including strided inputs."""
+    quat = math_utils.random_orientation(num=2 * math.prod(quat_shape), device=device)[::2].reshape(*quat_shape, 4)
+    vec = math_utils.sample_uniform(-1000, 1000, (2 * math.prod(vec_shape), 3), device=device)[::2]
+    vec = vec.reshape(*vec_shape, 3)
+    apply = math_utils.quat_apply_inverse if inverse else math_utils.quat_apply
+    try:
+        shape = np.broadcast_shapes(quat_shape, vec_shape) + (3,)
+    except ValueError:
+        # Equal element counts do not make incompatible batch dimensions broadcastable.
+        with pytest.raises((RuntimeError, torch.jit.Error)):
+            apply(quat, vec)
+        return
 
-    v_rand = math_utils.sample_uniform(-1000, 1000, (n, 3), device=device)
-
-    # compute the result using the new implementation
-    scipy_result = torch.tensor(Rotation.apply(v_rand.to(device="cpu").numpy()), device=device, dtype=torch.float)
-    apply_result = math_utils.quat_apply(q_rand, v_rand)
-    torch.testing.assert_close(scipy_result.to(device=device), apply_result, atol=2e-4, rtol=2e-4)
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_quat_apply_inverse(device):
-    """Test for quat_apply against scipy."""
-
-    # prepare random quaternions and vectors
-    n = 1024
-    q_rand = math_utils.random_orientation(num=n, device=device)
-    # Our quaternions are already in xyzw format, which scipy expects
-    Rotation = scipy_tf.Rotation.from_quat(q_rand.to(device="cpu").numpy())
-
-    v_rand = math_utils.sample_uniform(-1000, 1000, (n, 3), device=device)
-
-    # compute the result using the new implementation
-    scipy_result = torch.tensor(
-        Rotation.apply(v_rand.to(device="cpu").numpy(), inverse=True), device=device, dtype=torch.float
-    )
-    apply_result = math_utils.quat_apply_inverse(q_rand, v_rand)
-    torch.testing.assert_close(scipy_result.to(device=device), apply_result, atol=2e-4, rtol=2e-4)
+    # Broadcast with NumPy before flattening for SciPy versions that only accept a single batch axis.
+    quat_np = np.broadcast_to(quat.cpu().numpy(), shape[:-1] + (4,)).reshape(-1, 4)
+    vec_np = np.broadcast_to(vec.cpu().numpy(), shape).reshape(-1, 3)
+    expected = scipy_tf.Rotation.from_quat(quat_np).apply(vec_np, inverse=inverse).reshape(shape)
+    result = apply(quat, vec)
+    torch.testing.assert_close(result, torch.tensor(expected, device=device, dtype=vec.dtype), atol=2e-4, rtol=2e-4)
 
 
 @pytest.mark.parametrize("device", test_devices())
