@@ -1987,6 +1987,29 @@ class NewtonManager(PhysicsManager):
         """Return whether the active solver configuration supports CUDA graph capture."""
         return True
 
+    @staticmethod
+    def _snapshot_state_arrays(state: State) -> list[tuple[object, str, wp.array]]:
+        """Clone every allocated array in a Newton state and its attribute namespaces."""
+        owners = [state]
+        owners.extend(value for value in vars(state).values() if isinstance(value, Model.AttributeNamespace))
+        return [
+            (owner, name, wp.clone(value))
+            for owner in owners
+            for name, value in vars(owner).items()
+            if isinstance(value, wp.array)
+        ]
+
+    @staticmethod
+    def _restore_state_arrays(snapshot: list[tuple[object, str, wp.array]]) -> None:
+        """Restore cloned values into their current state arrays.
+
+        Solver warmup may replace an array with a larger lazily allocated buffer. Resolving
+        the destination through its owning attribute keeps that new allocation while restoring
+        the values that existed before warmup.
+        """
+        for owner, name, value in snapshot:
+            getattr(owner, name).assign(value)
+
     @classmethod
     def _capture_relaxed_graph(cls, device: str, capture_target: Callable[[], None] | None = None):
         """Capture Newton physics (only) as a CUDA graph, RTX-compatible.
@@ -2022,9 +2045,12 @@ class NewtonManager(PhysicsManager):
         - Call ``wp.capture_end(stream=fresh_stream)`` to finalise the Warp-level capture.
         - Call ``cudaStreamEndCapture`` to close the CUDA stream capture and get the graph.
 
-        Warmup run pre-allocates all solver scratch buffers so no ``cudaMalloc`` occurs during
-        capture.  ``sync_transforms_to_fabric`` (which calls ``wp.synchronize_device``) is
-        excluded from the capture and runs eagerly in ``step()`` after ``wp.capture_launch``.
+        Warmup advances Newton once outside the normal IsaacLab step bookkeeping, only to
+        trigger lazy solver allocations before capture. The original state buffers are
+        restored afterwards so values written by this internal advance do not become the
+        initial state for the first real graph replay.
+        ``sync_transforms_to_fabric`` (which calls ``wp.synchronize_device``) is excluded from the
+        capture and runs eagerly in ``step()`` after ``wp.capture_launch``.
 
         When ``capture_target`` is provided it is captured instead of the physics simulate
         function (used for secondary graphs such as the sensor manager graph).
@@ -2037,13 +2063,30 @@ class NewtonManager(PhysicsManager):
 
         # Warmup: pre-allocate all solver scratch buffers so the capture window has
         # no new cudaMalloc calls (which are forbidden inside graph capture).
+        # Warmup also advances Newton outside the normal IsaacLab step bookkeeping,
+        # so snapshot/restore state to keep its writes out of the first real replay.
+        # LIMITATION: Only Newton State buffers are restored below. If this warmup
+        # mutates control, actuator, callback, or sensor state, that state needs its
+        # own rollback or the warmup must run against isolated simulation inputs.
+        # Secondary capture targets (sensor pipelines) do not advance state, and may run on a
+        # sensor-only backend without ``state_1``, so only physics warmup is rolled back.
+        backend = cls.backend
+        states = (backend.state_0, backend.state_1)
         if capture_target is not None:
             simulate = capture_target
+            snapshots = []
         else:
             simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
-        with wp.ScopedDevice(device):
-            simulate()
-        wp.synchronize_stream(wp.get_stream(device))
+            snapshots = [cls._snapshot_state_arrays(state) for state in states]
+        try:
+            with wp.ScopedDevice(device):
+                simulate()
+        finally:
+            if snapshots:
+                backend.state_0, backend.state_1 = states
+                for snapshot in snapshots:
+                    cls._restore_state_arrays(snapshot)
+            wp.synchronize_stream(wp.get_stream(device))
 
         # Create a non-blocking stream (cudaStreamNonBlocking = 0x01).
         raw_handle = ctypes.c_void_p()
