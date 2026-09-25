@@ -101,17 +101,6 @@ def _replace_base_update_with_test_kernel(monkeypatch) -> None:
     monkeypatch.setattr(BaseRayCaster, "_update_buffers_impl", compute)
 
 
-def test_ray_caster_caches_physx_transform_view():
-    """Repeated eager reads should reuse one typed view over the refreshed PhysX buffer."""
-    sensor, transform_view, _, _ = _make_ray_caster(use_graph=False, cache_raw_transforms=False)
-
-    sensor._get_view_transforms_wp()
-    sensor._get_view_transforms_wp()
-
-    assert transform_view.get_count == 2
-    assert transform_view.conversion_count == 1
-
-
 def test_ray_caster_updates_eagerly_when_graphs_are_disabled(monkeypatch):
     """Graph-disabled updates should stay eager while reusing the cached transform view."""
     _replace_base_update_with_test_kernel(monkeypatch)

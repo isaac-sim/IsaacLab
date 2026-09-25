@@ -713,10 +713,10 @@ Please make sure that you add tests for your changes.
                ./isaaclab.sh --test  # or "./isaaclab.sh -t"
 
                # Run all tests in a particular file
-               uv run python -m pytest source/isaaclab/test/deps/test_torch.py
+               uv run python -m pytest source/isaaclab/test/utils/test_circular_buffer.py
 
                # Run a particular test
-               uv run python -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+               uv run python -m pytest source/isaaclab/test/utils/test_circular_buffer.py::test_reset
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -726,10 +726,10 @@ Please make sure that you add tests for your changes.
                ./isaaclab.sh --test  # or "./isaaclab.sh -t"
 
                # Run all tests in a particular file
-               ./isaaclab.sh -p -m pytest source/isaaclab/test/deps/test_torch.py
+               ./isaaclab.sh -p -m pytest source/isaaclab/test/utils/test_circular_buffer.py
 
                # Run a particular test
-               ./isaaclab.sh -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+               ./isaaclab.sh -p -m pytest source/isaaclab/test/utils/test_circular_buffer.py::test_reset
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -744,10 +744,10 @@ Please make sure that you add tests for your changes.
                isaaclab.bat --test  # or "isaaclab.bat -t"
 
                # Run all tests in a particular file
-               uv run python -m pytest source/isaaclab/test/deps/test_torch.py
+               uv run python -m pytest source/isaaclab/test/utils/test_circular_buffer.py
 
                # Run a particular test
-               uv run python -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+               uv run python -m pytest source/isaaclab/test/utils/test_circular_buffer.py::test_reset
 
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
@@ -758,10 +758,10 @@ Please make sure that you add tests for your changes.
                isaaclab.bat --test  # or "isaaclab.bat -t"
 
                # Run all tests in a particular file
-               isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py
+               isaaclab.bat -p -m pytest source/isaaclab/test/utils/test_circular_buffer.py
 
                # Run a particular test
-               isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+               isaaclab.bat -p -m pytest source/isaaclab/test/utils/test_circular_buffer.py::test_reset
 
 All of these commands exit with a nonzero code when tests fail, so a test
 failure fails the invoking shell or CI step as well.

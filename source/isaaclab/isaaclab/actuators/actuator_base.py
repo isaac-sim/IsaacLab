@@ -310,11 +310,15 @@ class ActuatorBase(ABC):
     Helper functions.
     """
 
-    def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
-        """Clip the desired torques based on the motor limits.
+    def _clip_effort(self, effort: torch.Tensor, *args, **kwargs) -> torch.Tensor:
+        """Clip the desired effort using actuator effort limits.
+
+        Model-specific inputs are handled by subclasses.
 
         Args:
             effort: The effort to clip [N or N·m, depending on joint type].
+            *args: Model-specific positional inputs. Unused by the base implementation.
+            **kwargs: Model-specific keyword inputs. Unused by the base implementation.
 
         Returns:
             The clipped effort [N or N·m, depending on joint type].

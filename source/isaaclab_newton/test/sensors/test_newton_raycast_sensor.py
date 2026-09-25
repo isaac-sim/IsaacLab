@@ -23,6 +23,7 @@ from isaaclab_newton.sensors import (
 )
 from newton import ShapeFlags
 
+import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
@@ -123,11 +124,19 @@ def _step_and_read(sim, scene) -> NewtonRaycastSensor:
     return scene["raycast"]
 
 
-@pytest.mark.parametrize("global_world_only", [False, True])
-def test_rays_hit_ground_plane(sim, global_world_only):
-    """All rays of a downward grid pattern hit the global-world ground at the sensor height."""
-    scene_cfg = RaycastTestSceneCfg(num_envs=2)
-    scene_cfg.raycast.global_world_only = global_world_only
+# Graph mode and ``global_world_only`` select independent branches, so each value is covered once.
+@pytest.mark.parametrize(
+    ("sim", "generic_cfg"),
+    [pytest.param(True, False, id="cuda_graph-newton_cfg"), pytest.param(False, True, id="eager-generic_cfg")],
+    indirect=["sim"],
+)
+def test_rays_hit_ground_plane(sim, generic_cfg):
+    """All rays of a downward grid pattern hit the global-world ground at the sensor height.
+
+    The generic row uses the backend-dispatching :class:`RayCasterCfg` with ``global_world_only=True``,
+    which must select the Newton BVH implementation.
+    """
+    scene_cfg = GenericRaycastTestSceneCfg(num_envs=2) if generic_cfg else RaycastTestSceneCfg(num_envs=2)
     scene = InteractiveScene(scene_cfg)
     expected_bvh_flags = ShapeFlags.VISIBLE | ShapeFlags.COLLIDE_SHAPES
     assert NewtonManager._sensor_bvh_shape_flags == expected_bvh_flags
@@ -143,31 +152,16 @@ def test_rays_hit_ground_plane(sim, global_world_only):
     torch.testing.assert_close(distances, torch.full_like(distances, RAY_START_HEIGHT), atol=1e-3, rtol=0)
     expected_normal = torch.tensor([0.0, 0.0, 1.0], device=normals.device).expand_as(normals)
     torch.testing.assert_close(normals, expected_normal, atol=1e-3, rtol=0)
+    if generic_cfg:
+        assert isinstance(sensor, NewtonRaycastSensor)
+        # Camera and multi-mesh factories retain their explicit legacy implementations.
+        assert RayCasterCamera.resolve_class() is LegacyRayCasterCamera
+        assert MultiMeshRayCaster.resolve_class() is LegacyMultiMeshRayCaster
+        assert MultiMeshRayCasterCamera.resolve_class() is LegacyMultiMeshRayCasterCamera
 
 
-def test_generic_ray_caster_uses_newton_scene_bvh(sim):
-    """The backend-dispatching ray caster selects the Newton BVH implementation."""
-    scene = InteractiveScene(GenericRaycastTestSceneCfg(num_envs=1))
-    sim.reset()
-    sensor = _step_and_read(sim, scene)
-
-    assert isinstance(sensor, NewtonRaycastSensor)
-    assert hasattr(sensor.data, "ray_distances")
-    torch.testing.assert_close(
-        sensor.data.ray_distances.torch,
-        torch.full_like(sensor.data.ray_distances.torch, RAY_START_HEIGHT),
-        atol=1e-3,
-        rtol=0,
-    )
-
-
-def test_remaining_warp_mesh_factories_select_legacy_newton_adapters(sim):
-    """Camera and multi-mesh factories retain their explicit legacy implementations."""
-    assert RayCasterCamera.resolve_class() is LegacyRayCasterCamera
-    assert MultiMeshRayCaster.resolve_class() is LegacyMultiMeshRayCaster
-    assert MultiMeshRayCasterCamera.resolve_class() is LegacyMultiMeshRayCasterCamera
-
-
+# The legacy adapter does not use the Newton manager graph.
+@pytest.mark.parametrize("sim", [pytest.param(False, id="eager")], indirect=True)
 def test_legacy_multi_mesh_tracks_ad_hoc_regex_target(sim):
     """Tracked target registration remains valid when discovery returns concrete owner paths."""
     obstacle_cfg = sim_utils.CuboidCfg(
@@ -190,6 +184,9 @@ def test_legacy_multi_mesh_tracks_ad_hoc_regex_target(sim):
     )
     sensor = MultiMeshRayCaster(sensor_cfg)
 
+    plan = cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Origin_00/Obstacle",))
+    sim.set_clone_plan(plan)
+    cloner.replicate(plan)
     sim.reset()
     sensor.update(sim.get_physics_dt(), force_recompute=True)
 
@@ -198,7 +195,10 @@ def test_legacy_multi_mesh_tracks_ad_hoc_regex_target(sim):
 
 
 def test_bvh_refit_tracks_moving_geometry(sim):
-    """Sliding a box under the sensor changes the hits, proving the BVH refits live."""
+    """Sliding a box under the sensor changes the hits, proving the BVH refits live.
+
+    After a carrier pose write, the first sensor read and the pose getter both resolve pending FK.
+    """
     scene = InteractiveScene(RaycastTestSceneCfg(num_envs=1))
     sim.reset()
     sensor = _step_and_read(sim, scene)
@@ -220,13 +220,7 @@ def test_bvh_refit_tracks_moving_geometry(sim):
     distances = sensor.data.ray_distances.torch
     torch.testing.assert_close(distances, torch.full_like(distances, RAY_START_HEIGHT - 1.0), atol=1e-3, rtol=0)
 
-
-def test_sensor_reads_refresh_fk_after_carrier_pose_write(sim):
-    """The first sensor read and the pose getter both resolve pending FK after a carrier pose write."""
-    scene = InteractiveScene(RaycastTestSceneCfg(num_envs=1))
-    sim.reset()
-    sensor = _step_and_read(sim, scene)
-    initial_distances = sensor.data.ray_distances.torch.clone()
+    initial_distances = distances.clone()
     initial_positions = sensor.get_world_poses()[0].torch.clone()
 
     # Lift the carrier: the first data read after the write must see the refreshed body_q.

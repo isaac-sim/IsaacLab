@@ -38,7 +38,7 @@ def sim():
 
 
 def test_spawn_deformable_body_material(sim):
-    """Test spawning a deformable body material."""
+    """Test spawning volume and surface deformable body materials."""
     cfg = PhysxDeformableBodyMaterialCfg(
         density=1.0,
         dynamic_friction=0.25,
@@ -57,21 +57,20 @@ def test_spawn_deformable_body_material(sim):
     assert prim.GetAttribute("omniphysics:poissonsRatio").Get() == cfg.poissons_ratio
     assert prim.GetAttribute("physxDeformableMaterial:elasticityDamping").Get() == pytest.approx(cfg.elasticity_damping)
 
-
-def test_spawn_surface_deformable_body_material(sim):
-    """Test spawning a surface deformable body material."""
-    cfg = PhysxSurfaceDeformableBodyMaterialCfg(
+    surface_cfg = PhysxSurfaceDeformableBodyMaterialCfg(
         density=1.0,
         youngs_modulus=50000000.0,
         poissons_ratio=0.5,
         elasticity_damping=0.005,
         bend_damping=0.01,
     )
-    prim = cfg.func("/Looks/SurfaceDeformableBodyMaterial", cfg)
+    prim = surface_cfg.func("/Looks/SurfaceDeformableBodyMaterial", surface_cfg)
     # Check validity
     assert prim.IsValid()
     assert sim.stage.GetPrimAtPath("/Looks/SurfaceDeformableBodyMaterial").IsValid()
     # Check PhysX properties
     assert "PhysxSurfaceDeformableMaterialAPI" in prim.GetAppliedSchemas()
-    assert prim.GetAttribute("physxDeformableMaterial:elasticityDamping").Get() == pytest.approx(cfg.elasticity_damping)
-    assert prim.GetAttribute("physxDeformableMaterial:bendDamping").Get() == pytest.approx(cfg.bend_damping)
+    assert prim.GetAttribute("physxDeformableMaterial:elasticityDamping").Get() == pytest.approx(
+        surface_cfg.elasticity_damping
+    )
+    assert prim.GetAttribute("physxDeformableMaterial:bendDamping").Get() == pytest.approx(surface_cfg.bend_damping)

@@ -15,7 +15,6 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 import pytest
 import torch
 from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxCollisionPropertiesCfg, PhysxRigidBodyPropertiesCfg
 
 import omni.replicator.core as rep
 
@@ -176,9 +175,9 @@ def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
         prim_path="{ENV_REGEX_NS}/Cube",
         spawn=sim_utils.CuboidCfg(
             size=(0.3, 0.15, 0.2),
-            rigid_props=PhysxRigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=PhysxCollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.35, 0.0, 0.2)),
     )

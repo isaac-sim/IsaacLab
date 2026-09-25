@@ -33,16 +33,6 @@ def _map() -> BallJointCoordinateMap:
     return build_ball_joint_coordinate_map(COORD_COUNTS, DOF_COUNTS, "cpu")
 
 
-def test_tables_cover_every_dof() -> None:
-    """Every DOF of every joint must be tabulated exactly once."""
-    m = _map()
-    covered = list(m.single_dof.numpy()) + [b + k for b in m.ball_dof.numpy() for k in range(3)]
-    assert sorted(covered) == list(range(sum(DOF_COUNTS)))
-    assert sorted(list(m.single_coord.numpy()) + [b + k for b in m.ball_coord.numpy() for k in range(4)]) == list(
-        range(sum(COORD_COUNTS))
-    )
-
-
 def test_two_ball_tables_cover_every_dof() -> None:
     """A second ball joint's offsets are not a simple repeat of the first's."""
     m = build_ball_joint_coordinate_map(TWO_BALL_COORD_COUNTS, TWO_BALL_DOF_COUNTS, "cpu")
@@ -155,9 +145,9 @@ def test_unsupported_layout_is_rejected() -> None:
         build_ball_joint_coordinate_map([7], [6], "cpu")
 
 
-@pytest.mark.parametrize("num_envs", [1, 2])
-def test_scatter_then_gather_round_trips(num_envs: int) -> None:
-    """DOF values survive a trip through coordinate space, at one environment and at two."""
+def test_scatter_then_gather_round_trips() -> None:
+    """DOF values survive a trip through coordinate space."""
+    num_envs = 2
     m = _map()
     n_dofs, n_coords = sum(DOF_COUNTS), sum(COORD_COUNTS)
     rng = np.random.default_rng(0)

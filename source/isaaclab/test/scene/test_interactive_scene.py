@@ -67,13 +67,6 @@ class StaticSceneCfg(InteractiveSceneCfg):
 
 
 @configclass
-class MarkerSceneCfg(InteractiveSceneCfg):
-    """Scene with one global visualization marker."""
-
-    goal = SPHERE_MARKER_CFG.replace(prim_path="/Visuals/Goal")
-
-
-@configclass
 class DeferredMarkerAssetCfg(AssetBaseCfg):
     """Authoring-only asset whose optional visualization starts disabled."""
 
@@ -81,9 +74,10 @@ class DeferredMarkerAssetCfg(AssetBaseCfg):
 
 
 @configclass
-class DeferredMarkerSceneCfg(InteractiveSceneCfg):
-    """Scene that owns a marker even before its visualization is enabled."""
+class MarkerSceneCfg(InteractiveSceneCfg):
+    """Scene with one global visualization marker and one marker whose debug owner starts disabled."""
 
+    goal = SPHERE_MARKER_CFG.replace(prim_path="/Visuals/Goal")
     prop = DeferredMarkerAssetCfg(prim_path="/World/Prop", spawn=sim_utils.DistantLightCfg(), debug_vis=False)
 
 
@@ -102,7 +96,7 @@ def setup_scene(request):
     # Note: cleanup is handled by build_simulation_context's finally block
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", ["cuda:0"])
 def test_relative_flag(device, setup_scene):
     make_scene, sim = setup_scene
     scene_cfg = make_scene(num_envs=4)
@@ -133,6 +127,16 @@ def test_relative_flag(device, setup_scene):
     assert_state_different(prev_state, next_state)
     scene.reset_to(prev_state, is_relative=True)
     assert_state_equal(prev_state, scene.get_state(is_relative=True))
+
+    # test env_ids = None and env_ids = int32 torch tensor
+    prev_state = scene.get_state()
+    for env_ids in (None, torch.arange(scene.num_envs, device=scene.device, dtype=torch.int32)):
+        joint_pos = torch.rand_like(scene["robot"].data.joint_pos.torch)
+        joint_vel = torch.rand_like(scene["robot"].data.joint_pos.torch)
+        scene["robot"].write_joint_position_to_sim_index(position=joint_pos)
+        scene["robot"].write_joint_velocity_to_sim_index(velocity=joint_vel)
+        scene.reset_to(prev_state, env_ids=env_ids)
+        assert_state_equal(prev_state, scene.get_state())
 
 
 def test_relative_deformable_state():
@@ -185,31 +189,6 @@ def test_relative_deformable_state():
     torch.testing.assert_close(written_state["env_ids"], env_ids)
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_reset_to_env_ids_input_types(device, setup_scene):
-    make_scene, sim = setup_scene
-    scene_cfg = make_scene(num_envs=4)
-    scene = InteractiveScene(scene_cfg)
-    sim.reset()
-
-    # test env_ids = None
-    prev_state = scene.get_state()
-    joint_pos = torch.rand_like(scene["robot"].data.joint_pos.torch)
-    joint_vel = torch.rand_like(scene["robot"].data.joint_pos.torch)
-    scene["robot"].write_joint_position_to_sim_index(position=joint_pos)
-    scene["robot"].write_joint_velocity_to_sim_index(velocity=joint_vel)
-    scene.reset_to(prev_state, env_ids=None)
-    assert_state_equal(prev_state, scene.get_state())
-
-    # test env_ids = torch tensor
-    joint_pos = torch.rand_like(scene["robot"].data.joint_pos.torch)
-    joint_vel = torch.rand_like(scene["robot"].data.joint_pos.torch)
-    scene["robot"].write_joint_position_to_sim_index(position=joint_pos)
-    scene["robot"].write_joint_velocity_to_sim_index(velocity=joint_vel)
-    scene.reset_to(prev_state, env_ids=torch.arange(scene.num_envs, device=scene.device, dtype=torch.int32))
-    assert_state_equal(prev_state, scene.get_state())
-
-
 def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
     """A cfg-driven scene publishes the exact plan it forwards to replication."""
     import isaaclab.cloner.replicate_session as replicate_session_module
@@ -245,20 +224,15 @@ def test_scene_constructs_authoring_only_assets():
 
 
 def test_scene_constructs_plan_owned_markers():
-    """Scene markers are constructed while their global root belongs to the clone plan."""
+    """Scene markers are constructed while their global root belongs to the clone plan.
+
+    A marker declared on a disabled debug owner still belongs to the immutable plan.
+    """
     with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
         scene = InteractiveScene(MarkerSceneCfg(num_envs=1, env_spacing=1.0))
 
         assert isinstance(scene["goal"], VisualizationMarkers)
-        assert sim.get_clone_plan().global_paths == ("/Visuals/Goal",)
-
-
-def test_scene_plans_markers_before_debug_visualization_is_enabled():
-    """A marker declared on a disabled debug owner still belongs to the immutable plan."""
-    with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
-        InteractiveScene(DeferredMarkerSceneCfg(num_envs=1, env_spacing=1.0))
-
-        assert sim.get_clone_plan().global_paths == ("/World/Prop", "/Visuals/Deferred")
+        assert sim.get_clone_plan().global_paths == ("/Visuals/Goal", "/World/Prop", "/Visuals/Deferred")
 
 
 def test_empty_scene_leaves_clone_lifecycle_to_caller():

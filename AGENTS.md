@@ -10,6 +10,20 @@
 - Use modern Python type hints, including `X | None` instead of `Optional[X]`.
 - Use `snake_case` for methods, functions, and CLI arguments.
 - Keep related public symbols discoverable through consistent prefixes.
+- Keep Newton solver schema registration in the active manager's builder factory; the cloner must not depend on solver modules.
+- Resolve Newton raycast BVH requirements before builder finalization; sensor task registration must not add a late BVH fallback.
+- Keep joint-wrench sensor coverage separate from articulation control-joint selection. Reuse cached
+  body bindings without changing the shared view's joint filters or creating a second view for sensing.
+- Keep articulation ordering maps on articulation data; do not mirror maps or add cached ordering flags.
+- Keep backend ownership on `SimulationContext`, using backend type and configuration rather than service
+  locators, resource keys, or separate renderer registries.
+- Renderers consume geometry through `SceneDataProvider`. Keep Newton imports out of OVRTX renderers
+  and Fabric destination ownership and shadow remapping out of physics backends.
+- For external wrenches, follow the asset API's `is_global` boolean and `_b`/`_w` buffer naming. Keep
+  frame conversion decisions in `WrenchComposer` and track pending contributions with plain booleans;
+  do not introduce frame enums, content bitmasks, or a classification layer.
+- Name wrench reads `get_forces_and_torques`, matching the existing add/set methods; avoid a separate
+  "submission" API or compatibility alias for the unreleased `resolve_submission` method.
 - Use concrete types for public interfaces where practical.
 - Use Google-style docstrings for public APIs.
 - Document SI units for public physical quantities in docstrings using inline `[unit]` notation (e.g. `Particle positions [m], shape [N, 3]`); use `[m or rad, depending on joint type]` where applicable, and skip non-physical fields (indices, counts, flags).
@@ -43,6 +57,8 @@
 - Find and extend the closest existing test before creating a new test file or test case.
 - Add a test only when it covers a distinct behavior, regression, boundary, or failure mode that existing tests do not cover clearly.
 - Test observable behavior and public contracts, not implementation details.
+- Validate joint-wrench frames with the same physical fixture and analytic load expectations across backends.
+  Do not derive the expected wrench by repeating the production transformation on the backend's raw output.
 - Use hard-coded values only when they are the intended contract or a small, independently verified example; otherwise derive the expected result from a separate, simple reference calculation.
 - Keep tests focused and remove or consolidate redundant coverage instead of growing overlapping test suites.
 - Do not add debug output to production Warp kernels. Use temporary standalone reproductions and remove debug output before committing.

@@ -617,7 +617,7 @@ class _Generator:
         self._build_context()
 
     def _build_context(self) -> None:
-        from isaaclab_newton.ik import (
+        from isaaclab_newton.controllers.ik import (
             NewtonIKJointLimitObjectiveCfg,
             NewtonIKPoseObjectiveCfg,
             NewtonIKSolver,

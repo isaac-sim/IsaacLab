@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING
 from isaaclab.managers.action_manager import ActionTermCfg
 from isaaclab.utils import configclass
 
-from isaaclab_newton.ik.newton_ik_objectives_cfg import NewtonIKObjectiveCfg
-from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
+from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import NewtonIKObjectiveCfg
+from isaaclab_newton.controllers.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 
 if TYPE_CHECKING:
     from .newton_ik_actions import NewtonInverseKinematicsAction
@@ -23,10 +23,10 @@ class NewtonInverseKinematicsActionCfg(ActionTermCfg):
     """Configuration for a Newton inverse-kinematics action term.
 
     The action solves IK as a single list of objectives. Pose objectives
-    (:class:`~isaaclab_newton.ik.NewtonIKPoseObjectiveCfg`) are command-driven
+    (:class:`~isaaclab_newton.controllers.ik.NewtonIKPoseObjectiveCfg`) are command-driven
     and contribute action dimensions -- one drives a single-body solve, several
     drive a multi-body solve. Constraint objectives such as
-    :class:`~isaaclab_newton.ik.NewtonIKJointLimitObjectiveCfg` add residuals
+    :class:`~isaaclab_newton.controllers.ik.NewtonIKJointLimitObjectiveCfg` add residuals
     but no action dimensions. The action vector is the concatenation of every
     pose objective's slice, in list order.
 

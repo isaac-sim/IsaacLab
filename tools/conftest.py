@@ -10,7 +10,9 @@ import select
 import signal
 import subprocess
 import sys
+import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import pytest
@@ -26,6 +28,7 @@ import ovrtx_log  # isort: skip
 import test_settings as test_settings  # isort: skip
 from crash_journal import JOURNAL_ENV_VAR, create_crash_report  # isort: skip
 from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: skip
+from _file_scheduler import JobContext, TestFileJob, run_test_files  # isort: skip
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -49,10 +52,20 @@ startup hang.
 
 AppLauncher prints ``[ISAACLAB] AppLauncher initialization complete`` to
 ``sys.__stderr__`` (never suppressed) when Kit finishes initializing, and pytest
-prints ``collected N items`` to stdout after collection.  If neither appears
+prints ``collected N items`` to stdout after collection (``N workers [M items]``
+under ``pytest-xdist``, once every worker has collected).  If none appears
 within this deadline the process is treated as hung.  Kit startup can exceed
 60 s on cold CI workers, so this catches real startup hangs without killing
 legitimate slow launches.
+"""
+
+TEST_JOBS_ENV_VAR = "TEST_JOBS"
+"""Environment variable naming how many test-file slots a run may use at once; unset or ``1`` runs files one by one.
+
+Each file still runs in its own pytest process. A file listed in :data:`test_settings.PYTEST_WORKERS` holds
+several slots and splits its tests across that many ``pytest-xdist`` workers, one in
+:data:`test_settings.EXCLUSIVE_TESTS` holds them all, and any other file holds one. See
+``tools/_file_scheduler.py`` for the scheduling rules.
 """
 
 STARTUP_HANG_RETRIES = 2
@@ -81,7 +94,6 @@ PROCESS_FAILURE_RETRIES_BY_FILE = {
     "test_visualizer_integration_physx.py": 4,
     "test_visualizer_integration_newton.py": 4,
     "test_visualizer_tiled_integration_physx.py": 4,
-    "test_visualizer_tiled_integration_newton.py": 4,
 }
 """Extra fresh-process attempts for visualizer tests that can enter stale render states."""
 
@@ -164,7 +176,7 @@ def resolve_exit_code(num_failing: int, num_timeout: int, num_crashed: int, num_
     return 0
 
 
-def _drain_ready_output(process, stdout_fd, stderr_fd, timeout=0.1):
+def _drain_ready_output(process, stdout_fd, stderr_fd, timeout=0.1, echo=True):
     """Read whatever is readable on the child's pipes, echoing it as it arrives.
 
     Args:
@@ -172,11 +184,13 @@ def _drain_ready_output(process, stdout_fd, stderr_fd, timeout=0.1):
         stdout_fd: Read end of the child's stdout, already non-blocking.
         stderr_fd: Read end of the child's stderr, already non-blocking.
         timeout: Seconds to wait for either pipe to become readable.
+        echo: Whether to echo what was read to this process's own streams.
 
     Returns:
-        Tuple of ``(stdout_bytes, stderr_bytes)`` read in this pass.  Both are
-        echoed to this process's own streams before being returned, so output
-        reaches the job log while the test is still running.
+        Tuple of ``(stdout_bytes, stderr_bytes)`` read in this pass.  When
+        ``echo`` is set, both are echoed to this process's own streams before
+        being returned, so output reaches the job log while the test is still
+        running.
     """
     stdout_chunk = b""
     stderr_chunk = b""
@@ -189,20 +203,82 @@ def _drain_ready_output(process, stdout_fd, stderr_fd, timeout=0.1):
                     chunk = process.stdout.read(1024)
                     if chunk:
                         stdout_chunk += chunk
-                        sys.stdout.buffer.write(chunk)
-                        sys.stdout.buffer.flush()
+                        if echo:
+                            sys.stdout.buffer.write(chunk)
+                            sys.stdout.buffer.flush()
                 elif fd == stderr_fd:
                     chunk = process.stderr.read(1024)
                     if chunk:
                         stderr_chunk += chunk
-                        sys.stderr.buffer.write(chunk)
-                        sys.stderr.buffer.flush()
+                        if echo:
+                            sys.stderr.buffer.write(chunk)
+                            sys.stderr.buffer.flush()
     except OSError:
         time.sleep(timeout)
     return stdout_chunk, stderr_chunk
 
 
-def _dump_hung_process_stacks(process, stdout_fd, stderr_fd, env):
+@dataclass(frozen=True)
+class _CaptureOptions:
+    """How a test process is watched, beyond its command and limits."""
+
+    echo: bool = True
+    """Stream the process's output to the job log as it arrives. Off when files run concurrently, whose output
+    would interleave; each pass's output is then printed whole once it ends."""
+
+    workers: int = 1
+    """``pytest-xdist`` workers the process splits into; a hang dump asks each of them for a stack as well."""
+
+    on_started: Callable[[], None] | None = None
+    """Called once the process has finished starting up, i.e. reached pytest collection."""
+
+
+def _test_jobs() -> int:
+    """Return the number of test-file slots :data:`TEST_JOBS_ENV_VAR` allows, at least 1."""
+    try:
+        return max(1, int(os.environ.get(TEST_JOBS_ENV_VAR, "") or 1))
+    except ValueError:
+        logger.warning(f"Ignoring non-integer {TEST_JOBS_ENV_VAR}={os.environ[TEST_JOBS_ENV_VAR]!r}")
+        return 1
+
+
+_OUTPUT_LOCK = threading.Lock()
+"""Serializes printing whole passes' output, so concurrently finishing files do not interleave in the job log."""
+
+
+def _print_captured_output(label, options, stdout_data, stderr_data):
+    """Print one process's captured output in a single block, unless it was already echoed as it arrived."""
+    if options.echo:
+        return
+    with _OUTPUT_LOCK:
+        sys.stdout.write(f"\n{'=' * 30} output of {label} {'=' * 30}\n")
+        sys.stdout.flush()
+        sys.stdout.buffer.write(stdout_data)
+        sys.stdout.flush()
+        sys.stderr.buffer.write(stderr_data)
+        sys.stderr.flush()
+        sys.stdout.write(f"{'=' * 30} end of {label} {'=' * 30}\n")
+        sys.stdout.flush()
+
+
+def _child_pids(pid: int) -> list[int]:
+    """Return the direct children of ``pid``, or an empty list where ``/proc`` is unavailable."""
+    children = []
+    for entry in os.listdir("/proc") if os.path.isdir("/proc") else []:
+        if not entry.isdigit():
+            continue
+        try:
+            with open(f"/proc/{entry}/stat") as handle:
+                # The command name is parenthesized and may contain spaces; the parent PID follows it.
+                parent = int(handle.read().rsplit(")", 1)[1].split()[1])
+        except (OSError, IndexError, ValueError):
+            continue
+        if parent == pid:
+            children.append(int(entry))
+    return sorted(children)
+
+
+def _dump_hung_process_stacks(process, stdout_fd, stderr_fd, env, options):
     """Ask a hung process for a stack of every thread, and collect what it writes.
 
     Sends :data:`hang_dump.DUMP_SIGNAL`, which ``tools/hang_dump.py`` registers with ``faulthandler`` in the
@@ -211,13 +287,16 @@ def _dump_hung_process_stacks(process, stdout_fd, stderr_fd, env):
 
     The signal goes to the test process itself rather than its group.  The handler is registered there, and
     a standalone script the test launched as a grandchild has no handler -- ``SIGUSR1`` would simply kill it,
-    losing it from the process tree the caller has already recorded.
+    losing it from the process tree the caller has already recorded.  Under ``pytest-xdist`` the tests run in
+    the worker processes, the controller's direct children, so each worker is asked in turn as well; one at
+    a time, because they all append to the same dump file.
 
     Args:
         process: The hung child.
         stdout_fd: Read end of the child's stdout, already non-blocking.
         stderr_fd: Read end of the child's stderr, already non-blocking.
         env: Environment the child was started with, read for the dump file it was told to write.
+        options: How the child is watched: its ``pytest-xdist`` worker count and whether to echo its output.
 
     Returns:
         Tuple of ``(dump_section, stdout_bytes, stderr_bytes)``.  *dump_section* is a report section, or
@@ -233,23 +312,28 @@ def _dump_hung_process_stacks(process, stdout_fd, stderr_fd, env):
     if hang_dump.DUMP_SIGNAL is None or not dump_file:
         return "", stdout_data, stderr_data
 
+    targets = [process.pid]
+    if options.workers > 1:
+        targets += _child_pids(process.pid)
+
     for _ in range(HANG_DUMP_PASSES):
-        # Only this pass's share of the file is the dump it asked for.
-        start = hang_dump.size(dump_file)
-        try:
-            os.kill(process.pid, hang_dump.DUMP_SIGNAL)
-        except OSError:
-            break
+        for pid in targets:
+            # Only this request's share of the file is the dump it asked for.
+            start = hang_dump.size(dump_file)
+            try:
+                os.kill(pid, hang_dump.DUMP_SIGNAL)
+            except OSError:
+                continue
 
-        # Keep draining while the handler runs, so a full pipe cannot be what stops it answering.
-        deadline = time.time() + HANG_DUMP_GRACE
-        while time.time() < deadline:
-            stdout_chunk, stderr_chunk = _drain_ready_output(process, stdout_fd, stderr_fd)
-            stdout_data += stdout_chunk
-            stderr_data += stderr_chunk
+            # Keep draining while the handler runs, so a full pipe cannot be what stops it answering.
+            deadline = time.time() + HANG_DUMP_GRACE
+            while time.time() < deadline:
+                stdout_chunk, stderr_chunk = _drain_ready_output(process, stdout_fd, stderr_fd, echo=options.echo)
+                stdout_data += stdout_chunk
+                stderr_data += stderr_chunk
 
-        if dumped := hang_dump.read_since(dump_file, start):
-            dumps.append(dumped)
+            if dumped := hang_dump.read_since(dump_file, start):
+                dumps.append(dumped if len(targets) == 1 else f"(pid {pid})\n{dumped}")
         # exit early if the process died
         if process.poll() is not None:
             break
@@ -261,7 +345,7 @@ def _dump_hung_process_stacks(process, stdout_fd, stderr_fd, env):
     return f"=== HANG STACK DUMP (all threads) ===\n{body}", stdout_data, stderr_data
 
 
-def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, report_file=""):
+def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, report_file="", options=None):
     """Run a command with timeout and capture all output while streaming in real-time.
 
     Args:
@@ -274,6 +358,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
         report_file: Path to the JUnit XML report file.  When set, the process
             is given only :data:`SHUTDOWN_GRACE_PERIOD` seconds to exit after
             the file appears on disk.
+        options: How the process is watched. Defaults to :class:`_CaptureOptions`.
 
     Returns:
         Tuple of ``(returncode, stdout_bytes, stderr_bytes, kill_reason,
@@ -282,6 +367,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
         did not reach pytest collection in time, or ``"shutdown_hang"`` when
         the test completed but the process hung during shutdown.
     """
+    options = options or _CaptureOptions()
     stdout_data = b""
     stderr_data = b""
     process = None
@@ -313,15 +399,21 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
             pass
 
         start_time = time.time()
-        startup_done = startup_deadline <= 0
+        started = False
         shutdown_deadline = 0.0
 
         while process.poll() is None:
             elapsed = time.time() - start_time
 
-            if not startup_done:
-                if b"AppLauncher initialization complete" in stderr_data or b"collected " in stdout_data:
-                    startup_done = True
+            if not started and (
+                b"AppLauncher initialization complete" in stderr_data
+                or b"collected " in stdout_data
+                or b" workers [" in stdout_data
+            ):
+                started = True
+                if options.on_started is not None:
+                    options.on_started()
+            startup_done = started or startup_deadline <= 0
 
             if report_file and not shutdown_deadline and os.path.exists(report_file):
                 shutdown_deadline = time.time() + SHUTDOWN_GRACE_PERIOD
@@ -340,7 +432,9 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
 
                 # Ask the process where it is stuck before killing it -- SIGKILL below cannot be caught,
                 # so this is the only chance to get a stack out of it.
-                hang_stacks, dump_stdout, dump_stderr = _dump_hung_process_stacks(process, stdout_fd, stderr_fd, env)
+                hang_stacks, dump_stdout, dump_stderr = _dump_hung_process_stacks(
+                    process, stdout_fd, stderr_fd, env, options
+                )
                 stdout_data += dump_stdout
                 stderr_data += dump_stderr
                 if hang_stacks:
@@ -361,7 +455,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
                 wall_time = time.time() - start_time
                 return -1, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag
 
-            stdout_chunk, stderr_chunk = _drain_ready_output(process, stdout_fd, stderr_fd)
+            stdout_chunk, stderr_chunk = _drain_ready_output(process, stdout_fd, stderr_fd, echo=options.echo)
             stdout_data += stdout_chunk
             stderr_data += stderr_chunk
 
@@ -740,6 +834,7 @@ def _retry_failed_test_in_fresh_process(
     kill_reason,
     wall_time,
     pre_kill_diag,
+    options,
 ):
     """Retry selected failed test files in a fresh subprocess.
 
@@ -773,8 +868,9 @@ def _retry_failed_test_in_fresh_process(
             retry_wall_time,
             pre_kill_diag,
         ) = capture_test_output_with_timeout(
-            cmd, timeout, env, startup_deadline=startup_deadline, report_file=report_file
+            cmd, timeout, env, startup_deadline=startup_deadline, report_file=report_file, options=options
         )
+        _print_captured_output(file_name, options, stdout_data, stderr_data)
         wall_time += retry_wall_time
         if not os.path.exists(report_file):
             # The attempt died before pytest wrote its report; the caller rebuilds the result from
@@ -828,6 +924,7 @@ class _PassContext:
         inject_shard_select: Whether to load the multi-GPU ``mgpu_shard_select``
             plugin in the pytest subprocess; true only on a non-default-GPU shard.
         pytest_targets: Test file or node IDs passed to the pytest subprocess.
+        capture: How each pytest subprocess is watched, including its ``pytest-xdist`` worker count.
     """
 
     test_file: str
@@ -839,6 +936,7 @@ class _PassContext:
     env: dict
     inject_shard_select: bool
     pytest_targets: list[str]
+    capture: _CaptureOptions
 
 
 _RESULT_PRIORITY = {
@@ -993,6 +1091,8 @@ def _run_one_pass(
         cmd += ["-p", "mgpu_shard_select"]
     if ctx.ci_marker:
         cmd += ["-m", ctx.ci_marker]
+    if ctx.capture.workers > 1:
+        cmd += ["-n", str(ctx.capture.workers)]
     if k_expr is not None:
         cmd += ["-k", k_expr]
     cmd += ctx.pytest_targets
@@ -1011,8 +1111,14 @@ def _run_one_pass(
                 os.remove(stale_file)
 
         returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = capture_test_output_with_timeout(
-            cmd, ctx.timeout, pass_env, startup_deadline=ctx.startup_deadline, report_file=report_file
+            cmd,
+            ctx.timeout,
+            pass_env,
+            startup_deadline=ctx.startup_deadline,
+            report_file=report_file,
+            options=ctx.capture,
         )
+        _print_captured_output(pass_file_label, ctx.capture, stdout_data, stderr_data)
         total_wall_time += wall_time
 
         has_report = os.path.exists(report_file)
@@ -1206,6 +1312,7 @@ def _run_one_pass(
         kill_reason=kill_reason,
         wall_time=wall_time,
         pre_kill_diag=pre_kill_diag,
+        options=ctx.capture,
     )
 
     if not os.path.exists(report_file):
@@ -1287,115 +1394,178 @@ def _run_one_pass(
     )
 
 
+def _starts_renderer(test_content: str) -> bool:
+    """Return whether a test file's source starts an RTX renderer: Kit's, by enabling cameras, or OVRTX."""
+    return "enable_cameras=True" in test_content or "ovrtx" in test_content.lower()
+
+
+def _test_file_job(test_file: str, max_slots: int) -> TestFileJob:
+    """Describe a test file to the scheduler: how many slots it holds and whether it starts a renderer."""
+    try:
+        with open(test_file) as fh:
+            test_content = fh.read()
+    except OSError:
+        test_content = ""
+    file_name = os.path.basename(test_file)
+    slots = max_slots if file_name in test_settings.EXCLUSIVE_TESTS else _pytest_workers(file_name)
+    return TestFileJob(path=test_file, slots=slots, renders=_starts_renderer(test_content))
+
+
+def _pytest_workers(file_name: str) -> int:
+    """Return how many ``pytest-xdist`` workers a test file is split across, 1 when it is not split."""
+    return test_settings.PYTEST_WORKERS.get(file_name, 1)
+
+
+@dataclass
+class _FileResult:
+    """Outcome of every pass of one test file."""
+
+    reports: list[JUnitXml]
+    status: dict
+    failed: bool
+
+
 def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by_file=None):
-    """Run each test file separately, ensuring one finishes before starting the next.
+    """Run each test file in its own pytest process, up to :data:`TEST_JOBS_ENV_VAR` slots at a time.
 
     When ``ISAACLAB_TEST_QUEUE`` names a shared work-queue file, files are claimed
     from it (work-stealing across sibling shard containers) instead of iterating
     ``test_files``; each file still runs once, on this container's pinned GPU.
     """
-    failed_tests = []
-    test_status = {}
-    xml_reports = []
-    cold_cache_applied = False
     test_node_ids_by_file = test_node_ids_by_file or {}
     global_k_expr = os.environ.get("TEST_K_EXPR", "").strip() or None
     if global_k_expr is not None:
         logger.info(f"Applying global pytest -k expression to every test file: '{global_k_expr}'")
 
+    max_slots = _test_jobs()
     queue_path = os.environ.get("ISAACLAB_TEST_QUEUE", "")
-    file_source = _queued_files(queue_path) if queue_path else test_files
+    if queue_path:
+        jobs = (_test_file_job(test_file, max_slots) for test_file in _queued_files(queue_path))
+    else:
+        # Wide files first: split ones are the long poles, and wide ones can only start once enough slots are free.
+        jobs = sorted((_test_file_job(test_file, max_slots) for test_file in test_files), key=lambda job: -job.slots)
+    if max_slots > 1:
+        logger.info(f"Running test files {max_slots} slots at a time; each file's output is printed when it ends")
 
-    for test_file in file_source:
-        logger.info(f"\n\n🚀 Running {test_file} independently...\n")
-        file_name = os.path.basename(test_file)
-        env = os.environ.copy()
-        env["PYTHONFAULTHANDLER"] = "1"
-
-        # Multi-GPU lane only: make the device-selection plugin importable in this
-        # per-file subprocess (injected via ``-p`` in _run_one_pass, not as a
-        # repo-root conftest). Detect a shard by the runtime device mask excluding cpu
-        # (position 0) and cuda:0 (position 1) -- the same ISAACLAB_TEST_DEVICES the
-        # plugin and test_devices() read. The plugin re-checks this; the cheap
-        # prefix test here leaves single-GPU CI's command (mask unset or "11...")
-        # unchanged.
-        _mask = os.environ.get("ISAACLAB_TEST_DEVICES", "")
-        _inject_shard_select = _mask[:2] == "00"
-        if _inject_shard_select:
-            _plugin_dir = os.path.join(workspace_root, ".github", "actions", "multi-gpu")
-            env["PYTHONPATH"] = _plugin_dir + os.pathsep + env.get("PYTHONPATH", "")
-
-        timeout = test_settings.PER_TEST_TIMEOUTS.get(file_name, test_settings.DEFAULT_TIMEOUT)
-
-        # Read the test file once for cold-cache and device-split detection.
-        try:
-            with open(test_file) as fh:
-                test_content = fh.read()
-        except OSError:
-            test_content = ""
-
-        # The first camera-enabled test in a fresh container compiles shaders
-        # (~600 s).  Give it extra time so that doesn't look like a test timeout.
-        is_cold_cache_test = not cold_cache_applied and "enable_cameras=True" in test_content
-        if is_cold_cache_test:
-            timeout += COLD_CACHE_BUFFER
-            cold_cache_applied = True
-            logger.info(f"⏱️  Adding {COLD_CACHE_BUFFER}s cold-cache buffer (timeout now {timeout}s)")
-
-        startup_deadline = _resolve_startup_deadline(file_name, timeout, is_cold_cache_test)
-
-        pytest_targets = test_node_ids_by_file.get(os.path.normpath(test_file), [str(test_file)])
-
-        ctx = _PassContext(
-            test_file=test_file,
-            file_name=file_name,
+    def run(job: TestFileJob, context: JobContext) -> _FileResult:
+        result = _run_test_file(
+            job,
+            context,
             workspace_root=workspace_root,
             ci_marker=ci_marker,
-            timeout=timeout,
-            startup_deadline=startup_deadline,
-            env=env,
-            inject_shard_select=_inject_shard_select,
-            pytest_targets=pytest_targets,
+            pytest_targets=test_node_ids_by_file.get(os.path.normpath(job.path), [str(job.path)]),
+            global_k_expr=global_k_expr,
+            workers=min(_pytest_workers(os.path.basename(job.path)), max_slots),
+            echo=max_slots == 1,
         )
-
-        # On a multi-GPU shard, test_devices() already resolves to this shard's single
-        # GPU and mgpu_shard_select drops every other variant, so the device_split
-        # CPU/GPU two-pass (which exists to dodge the process-global device lock when
-        # CPU and GPU share one container) is unnecessary here — the CPU pass would
-        # collect zero tests yet still pay full Kit-startup cost. Run once on a shard.
-        if _inject_shard_select:
-            passes = [("", None)]
-        elif is_device_split_file(test_file, source=test_content):
-            logger.info(f"⚙️  device_split detected — invoking {file_name} once per device (CPU then GPU)")
-            passes = DEVICE_SPLIT_PASSES
-        else:
-            passes = [("", None)]
-
-        merged_status: dict | None = None
-        for suffix, k_expr in passes:
-            if global_k_expr is not None:
-                k_expr = f"({k_expr}) and ({global_k_expr})" if k_expr else global_k_expr
-            report, status, was_failure = _run_one_pass(ctx, k_expr=k_expr, suffix=suffix)
-            if report is not None:
-                xml_reports.append(report)
-            if was_failure and test_file not in failed_tests:
-                failed_tests.append(test_file)
-            merged_status = _merge_pass_status(merged_status, status)
-
-        assert merged_status is not None  # the pass list is never empty
-        test_status[test_file] = merged_status
-
         # When running under the directory-based work queue (option 2), move the
         # claim entry from inflight/<shard>/ to done/<shard>/ so the post-run
         # reconciler can distinguish "ran to completion" from "claimed but
         # crashed mid-test". A claim that stays in inflight at job-end is a
         # silent drop signal.
         if queue_path:
-            _mark_queued_file_done(queue_path, test_file)
+            _mark_queued_file_done(queue_path, job.path)
+        return result
+
+    results = run_test_files(jobs, run, max_slots=max_slots)
 
     logger.info("~~~~~~~~~~~~ Finished running all tests")
 
+    failed_tests = [test_file for test_file, result in results.items() if result.failed]
+    test_status = {test_file: result.status for test_file, result in results.items()}
+    xml_reports = [report for result in results.values() for report in result.reports]
     return failed_tests, test_status, xml_reports
+
+
+def _run_test_file(
+    job: TestFileJob,
+    context: JobContext,
+    *,
+    workspace_root: str,
+    ci_marker: str | None,
+    pytest_targets: list[str],
+    global_k_expr: str | None,
+    workers: int,
+    echo: bool,
+) -> _FileResult:
+    """Run every pass of one test file and merge their results."""
+    test_file = job.path
+    logger.info(f"\n\n🚀 Running {test_file} independently...\n")
+    file_name = os.path.basename(test_file)
+    env = os.environ.copy()
+    env["PYTHONFAULTHANDLER"] = "1"
+
+    # Multi-GPU lane only: make the device-selection plugin importable in this
+    # per-file subprocess (injected via ``-p`` in _run_one_pass, not as a
+    # repo-root conftest). Detect a shard by the runtime device mask excluding cpu
+    # (position 0) and cuda:0 (position 1) -- the same ISAACLAB_TEST_DEVICES the
+    # plugin and test_devices() read. The plugin re-checks this; the cheap
+    # prefix test here leaves single-GPU CI's command (mask unset or "11...")
+    # unchanged.
+    _mask = os.environ.get("ISAACLAB_TEST_DEVICES", "")
+    _inject_shard_select = _mask[:2] == "00"
+    if _inject_shard_select:
+        _plugin_dir = os.path.join(workspace_root, ".github", "actions", "multi-gpu")
+        env["PYTHONPATH"] = _plugin_dir + os.pathsep + env.get("PYTHONPATH", "")
+
+    timeout = test_settings.PER_TEST_TIMEOUTS.get(file_name, test_settings.DEFAULT_TIMEOUT)
+
+    # Read the test file once for device-split detection.
+    try:
+        with open(test_file) as fh:
+            test_content = fh.read()
+    except OSError:
+        test_content = ""
+
+    # The first renderer in a fresh container compiles shaders (~600 s).
+    # Give it extra time so that doesn't look like a test timeout.
+    is_cold_cache_test = context.renderer_cold
+    if is_cold_cache_test:
+        timeout += COLD_CACHE_BUFFER
+        logger.info(f"⏱️  Adding {COLD_CACHE_BUFFER}s cold-cache buffer (timeout now {timeout}s)")
+
+    startup_deadline = _resolve_startup_deadline(file_name, timeout, is_cold_cache_test)
+
+    ctx = _PassContext(
+        test_file=test_file,
+        file_name=file_name,
+        workspace_root=workspace_root,
+        ci_marker=ci_marker,
+        timeout=timeout,
+        startup_deadline=startup_deadline,
+        env=env,
+        inject_shard_select=_inject_shard_select,
+        pytest_targets=pytest_targets,
+        capture=_CaptureOptions(echo=echo, workers=workers, on_started=context.mark_started),
+    )
+
+    # On a multi-GPU shard, test_devices() already resolves to this shard's single
+    # GPU and mgpu_shard_select drops every other variant, so the device_split
+    # CPU/GPU two-pass (which exists to dodge the process-global device lock when
+    # CPU and GPU share one container) is unnecessary here — the CPU pass would
+    # collect zero tests yet still pay full Kit-startup cost. Run once on a shard.
+    if _inject_shard_select:
+        passes = [("", None)]
+    elif is_device_split_file(test_file, source=test_content):
+        logger.info(f"⚙️  device_split detected — invoking {file_name} once per device (CPU then GPU)")
+        passes = DEVICE_SPLIT_PASSES
+    else:
+        passes = [("", None)]
+
+    reports = []
+    failed = False
+    merged_status: dict | None = None
+    for suffix, k_expr in passes:
+        if global_k_expr is not None:
+            k_expr = f"({k_expr}) and ({global_k_expr})" if k_expr else global_k_expr
+        report, status, was_failure = _run_one_pass(ctx, k_expr=k_expr, suffix=suffix)
+        if report is not None:
+            reports.append(report)
+        failed = failed or was_failure
+        merged_status = _merge_pass_status(merged_status, status)
+
+    assert merged_status is not None  # the pass list is never empty
+    return _FileResult(reports=reports, status=merged_status, failed=failed)
 
 
 def _resolve_startup_deadline(file_name: str, timeout: int, is_cold_cache_test: bool) -> int:
