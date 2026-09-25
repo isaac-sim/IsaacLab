@@ -3,5 +3,5 @@ Fixed
 
 * Fixed :class:`~isaaclab.actuators.ActuatorNetLSTM` clipping its output with a zero joint velocity. The DC-motor
   torque-speed limits now use the current joint velocity, as :class:`~isaaclab.actuators.ActuatorNetMLP` does.
-* Removed redundant velocity copies from DC-motor and neural-network actuator clipping while preserving the
-  measured joint velocity.
+* Passed measured joint velocity directly into actuator clipping, removing the cached velocity and its redundant
+  copies. Custom overrides of the private ``_clip_effort`` method now take ``(effort, joint_vel)``.

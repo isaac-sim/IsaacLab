@@ -310,11 +310,12 @@ class ActuatorBase(ABC):
     Helper functions.
     """
 
-    def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
-        """Clip the desired torques based on the motor limits.
+    def _clip_effort(self, effort: torch.Tensor, joint_vel: torch.Tensor) -> torch.Tensor:
+        """Clip the desired torques without retaining or modifying the measured joint velocity.
 
         Args:
             effort: The effort to clip [N or N·m, depending on joint type].
+            joint_vel: Current joint velocities [m/s or rad/s], shape (num_envs, num_joints).
 
         Returns:
             The clipped effort [N or N·m, depending on joint type].

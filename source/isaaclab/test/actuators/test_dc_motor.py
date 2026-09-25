@@ -178,9 +178,8 @@ def test_dc_motor_clip(num_envs, num_joints, device, test_point):
     torque = ts[0]
     speed = ts[1]
     joint_vel = torch.full((num_envs, num_joints), speed, device=device)
-    actuator._joint_vel = joint_vel
     effort = torque * torch.ones(num_envs, num_joints, device=device)
-    clipped_effort = actuator._clip_effort(effort)
+    clipped_effort = actuator._clip_effort(effort, joint_vel)
     torch.testing.assert_close(
         expected_clipped_effort[test_point] * torch.ones(num_envs, num_joints, device=device),
         clipped_effort,
@@ -216,8 +215,8 @@ def test_dc_motor_clip_with_per_joint_saturation_effort(device):
 
     # at half the no-load speed each joint delivers half of its own stall torque, and the shared
     # effort limit is high enough to clip neither
-    actuator._joint_vel[:] = 25.0
-    clipped_effort = actuator._clip_effort(torch.full((1, 2), 500.0, device=device))
+    joint_vel = torch.full((1, 2), 25.0, device=device)
+    clipped_effort = actuator._clip_effort(torch.full((1, 2), 500.0, device=device), joint_vel)
     torch.testing.assert_close(clipped_effort, torch.tensor([[50.0, 95.0]], device=device))
 
 
@@ -253,3 +252,4 @@ def test_lstm_actuator_clips_with_torque_speed_curve(tmp_path):
 
     # Positive torque falls to zero at the velocity limit; braking torque remains available.
     torch.testing.assert_close(action.joint_efforts, torch.tensor([[80.0, 60.0], [0.0, 80.0]]))
+    assert "_joint_vel" not in vars(actuator)
