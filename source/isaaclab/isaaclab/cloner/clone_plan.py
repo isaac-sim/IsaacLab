@@ -61,11 +61,11 @@ class ClonePlan:
     positions: np.ndarray | None = None
     """Per-env world positions [m], shape ``[num_clones, 3]``, or ``None``."""
 
-    cfg_rows: dict[int, tuple[int, ...]] = field(default_factory=dict)
-    """``id(cfg)`` to the row indices the cfg owns."""
+    cfg_source_indices: dict[int, tuple[int, ...]] = field(default_factory=dict)
+    """``id(cfg)`` to indices into :attr:`sources` for that configuration's prototypes."""
 
-    context_rows: dict[type[object], tuple[int, ...]] = field(default_factory=dict)
-    """Clone-context types to the rows they consume."""
+    context_source_indices: dict[type[object], tuple[int, ...]] = field(default_factory=dict)
+    """Clone-context classes to indices into :attr:`sources` that they import and replicate."""
 
     global_paths: tuple[str, ...] = ()
     """Unique prim paths for scene assets shared by every environment."""
@@ -218,13 +218,13 @@ def make_valid_clone_combinations(
     return np.asarray(rows, dtype=np.int64)
 
 
-def _context_rows(
+def _context_source_indices(
     cfgs: tuple[Any, ...],
-    cfg_rows: dict[int, tuple[int, ...]],
+    cfg_source_indices: dict[int, tuple[int, ...]],
     populated_rows: set[int],
     global_paths: tuple[str, ...] = (),
 ) -> dict[type[object], tuple[int, ...]]:
-    """Route plan rows to the clone contexts registered for this simulation."""
+    """Map registered clone-context classes to their source indices."""
     sim = sim_utils.SimulationContext.instance()
     if sim is None:
         return {}
@@ -250,7 +250,7 @@ def _context_rows(
     rows_by_context: dict[type[object], set[int]] = {context: set() for context in scene_contexts}
 
     for cfg in cfgs:
-        rows = cfg_rows[id(cfg)]
+        rows = cfg_source_indices[id(cfg)]
         fields = vars(cfg)
         references = fields.get("cloning_contexts", ())
         if references is None:
@@ -287,7 +287,7 @@ def make_clone_plan(
     Iterates ``cfgs``, identifies env-scoped cfgs with a spawn, expands
     :class:`~isaaclab.sim.MultiAssetSpawnerCfg` / :class:`~isaaclab.sim.MultiUsdFileCfg`
     into per-variant prototype rows, runs ``clone_strategy`` to assign prototypes to
-    envs, and returns a self-contained :class:`ClonePlan` with ``cfg_rows`` populated.
+    envs, and returns a self-contained :class:`ClonePlan` with ``cfg_source_indices`` populated.
 
     Each input cfg's ``spawn_path`` / ``spawn_paths`` is mutated so the subsequent
     asset constructor spawns the prototype into its first active environment. Configurations
@@ -307,8 +307,8 @@ def make_clone_plan(
 
     Returns:
         A :class:`ClonePlan` whose ``sources``/``destinations``/``clone_mask`` describe
-        the flat prototype-to-env mapping, whose ``cfg_rows`` maps each replicated cfg
-        to the rows it owns, and whose ``global_paths`` names shared scene assets.
+        the flat prototype-to-env mapping, whose ``cfg_source_indices`` maps each replicated cfg
+        identity to its source indices, and whose ``global_paths`` names shared scene assets.
     """
     cfgs = tuple(cfgs)
     global_paths = _minimal_roots(global_paths)
@@ -342,8 +342,8 @@ def make_clone_plan(
             clone_mask=empty_mask,
             env_ids=env_ids,
             positions=positions,
-            cfg_rows={},
-            context_rows=_context_rows(replicated_cfgs, {}, set(), global_paths),
+            cfg_source_indices={},
+            context_source_indices=_context_source_indices(replicated_cfgs, {}, set(), global_paths),
             global_paths=global_paths,
             cfgs=cfgs,
         )
@@ -352,7 +352,7 @@ def make_clone_plan(
     if valid_set is None and all(count == 1 for _, _, _, count in groups):
         for cfg, spawn_cfg, destination, _ in groups:
             _set_spawn_paths(spawn_cfg, [destination.format(0)])
-        cfg_rows = {id(cfg): (0,) for cfg, _, _, _ in groups}
+        cfg_source_indices = {id(cfg): (0,) for cfg, _, _, _ in groups}
         clone_mask = np.ones((1, num_clones), dtype=np.bool_)
         return ClonePlan(
             sources=(env_template.format(0),),
@@ -360,8 +360,8 @@ def make_clone_plan(
             clone_mask=clone_mask,
             env_ids=env_ids,
             positions=positions,
-            cfg_rows=cfg_rows,
-            context_rows=_context_rows(replicated_cfgs, cfg_rows, {0}, global_paths),
+            cfg_source_indices=cfg_source_indices,
+            context_source_indices=_context_source_indices(replicated_cfgs, cfg_source_indices, {0}, global_paths),
             global_paths=global_paths,
             cfgs=cfgs,
         )
@@ -407,11 +407,11 @@ def make_clone_plan(
 
     sources_list: list[str] = []
     destinations_list: list[str] = []
-    cfg_rows: dict[int, tuple[int, ...]] = {}
+    cfg_source_indices: dict[int, tuple[int, ...]] = {}
     populated_rows: set[int] = set()
     row = 0
     for cfg, spawn_cfg, destination, count in groups:
-        cfg_rows[id(cfg)] = tuple(range(row, row + count))
+        cfg_source_indices[id(cfg)] = tuple(range(row, row + count))
         group_mask = clone_mask[row : row + count]
         env_ids_assigned = group_mask.argmax(axis=1)
         active_variants = group_mask.any(axis=1)
@@ -434,8 +434,8 @@ def make_clone_plan(
         clone_mask=clone_mask,
         env_ids=env_ids,
         positions=positions,
-        cfg_rows=cfg_rows,
-        context_rows=_context_rows(replicated_cfgs, cfg_rows, populated_rows, global_paths),
+        cfg_source_indices=cfg_source_indices,
+        context_source_indices=_context_source_indices(replicated_cfgs, cfg_source_indices, populated_rows, global_paths),
         global_paths=global_paths,
         cfgs=cfgs,
     )
@@ -492,15 +492,15 @@ def clone_plan_from_env_0(
 
     env_cfgs = tuple(cfg for cfg, _, matched, _ in records if matched is not None)
     global_paths = _minimal_roots(prim_path for _, prim_path, matched, _ in records if matched is None)
-    cfg_rows = {id(cfg): (0,) for cfg in env_cfgs}
+    cfg_source_indices = {id(cfg): (0,) for cfg in env_cfgs}
     plan = ClonePlan(
         sources=(clone_cfg.clone_template.format(0),),
         destinations=(clone_cfg.clone_template,),
         clone_mask=np.ones((1, num_envs), dtype=np.bool_),
         env_ids=np.arange(num_envs, dtype=np.int64),
         positions=grid_transforms(num_envs, env_spacing)[0] if positions is None else positions,
-        cfg_rows=cfg_rows,
-        context_rows=_context_rows(env_cfgs, cfg_rows, {0}, global_paths),
+        cfg_source_indices=cfg_source_indices,
+        context_source_indices=_context_source_indices(env_cfgs, cfg_source_indices, {0}, global_paths),
         global_paths=global_paths,
         cfgs=tuple(cfg for cfg, _, _, _ in records),
     )

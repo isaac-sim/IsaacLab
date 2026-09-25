@@ -350,7 +350,7 @@ def _create_heterogeneous_clone_scene(sim: sim_utils.SimulationContext, num_envs
             clone_mask=np.concatenate((robot_mask, object_mask), axis=0),
             env_ids=env_ids,
             positions=None,
-            cfg_rows={},
+            cfg_source_indices={},
         )
     )
     sim_utils.update_stage()

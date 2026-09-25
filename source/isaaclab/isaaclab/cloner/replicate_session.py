@@ -40,7 +40,7 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
         raise ValueError("replicate() requires the active SimulationContext's ClonePlan.")
     context_types = tuple(
         context_type
-        for context_type in plan.context_rows
+        for context_type in plan.context_source_indices
         if replicate_physics or context_type is not sim.physics_manager.clone_context_type
     )
     missing = [context_type for context_type in context_types if context_type not in sim.clone_contexts]

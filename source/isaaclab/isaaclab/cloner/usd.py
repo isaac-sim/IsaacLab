@@ -49,7 +49,7 @@ class UsdReplicateContext:
         """
         if plan.env_ids is None:
             raise ValueError("ClonePlan.env_ids is required for replication.")
-        rows = plan.context_rows[type(self)]
+        rows = plan.context_source_indices[type(self)]
         replication_rows = []
         for row in rows:
             columns = _select_columns(plan.env_ids, plan.clone_mask, row)

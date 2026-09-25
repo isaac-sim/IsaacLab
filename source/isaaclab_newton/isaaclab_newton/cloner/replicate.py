@@ -322,7 +322,7 @@ class NewtonReplicateContext:
         if plan.env_ids is None:
             raise ValueError("ClonePlan.env_ids is required for replication.")
         builder, stage_info, sites, self.backend_cfg = _replicate_newton(
-            self._sim.stage, plan, plan.context_rows[type(self)], self._sim, up_axis=self.up_axis
+            self._sim.stage, plan, plan.context_source_indices[type(self)], self._sim, up_axis=self.up_axis
         )
         return builder, stage_info, sites
 

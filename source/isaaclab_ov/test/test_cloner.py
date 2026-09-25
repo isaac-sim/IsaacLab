@@ -96,7 +96,7 @@ def test_ovphysx_context_consumes_plan():
         clone_mask=np.ones((1, 2), dtype=np.bool_),
         env_ids=np.array([10, 20], dtype=np.int64),
         positions=np.array([[0.0, 0.0, 0.0], [1.0, 2.0, 3.0]], dtype=np.float32),
-        context_rows={OvPhysxReplicateContext: (0,)},
+        context_source_indices={OvPhysxReplicateContext: (0,)},
     )
 
     OvPhysxReplicateContext(simulation).replicate(plan)

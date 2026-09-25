@@ -232,7 +232,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
             clone_mask=np.empty((0, 1), dtype=np.bool_),
             env_ids=np.arange(1, dtype=np.int64),
             global_paths=("/World/Declared",),
-            context_rows={NewtonReplicateContext: ()},
+            context_source_indices={NewtonReplicateContext: ()},
         )
         builder, stage_info, site_index_map = NewtonReplicateContext(self.sim).replicate(plan)
 
@@ -247,7 +247,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
             env_ids=np.arange(2, dtype=np.int64),
             positions=np.array([[0.0, 0.0, 0.0], [2.0, 0.0, 0.0]], dtype=np.float32),
             global_paths=("/World",),
-            context_rows={NewtonReplicateContext: (0,)},
+            context_source_indices={NewtonReplicateContext: (0,)},
         )
         for positions in (plan.positions, None):
             with self.subTest(positions=positions):
@@ -286,7 +286,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
             clone_mask=np.ones((2, 2), dtype=np.bool_),
             env_ids=np.array([7, 12]),
             global_paths=shared,
-            context_rows={NewtonReplicateContext: (0,)},
+            context_source_indices={NewtonReplicateContext: (0,)},
         )
         bindings = {"/PhysicsOwned": [0]}
         with mock.patch.object(replicate_module.NewtonManager, "_cable_bindings", bindings):
@@ -326,7 +326,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
             clone_mask=np.ones((1, 2), dtype=np.bool_),
             env_ids=np.arange(2, dtype=np.int64),
             positions=np.asarray(((0.0, 0.0, 0.0), (2.0, 0.0, 0.0)), dtype=np.float32),
-            context_rows={NewtonReplicateContext: (0,)},
+            context_source_indices={NewtonReplicateContext: (0,)},
         )
         builder, _, _ = NewtonReplicateContext(self.sim).replicate(clone_plan)
         model = builder.finalize(device="cpu")
@@ -357,7 +357,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
             clone_mask=np.array([[True, False, True], [False, True, False]], dtype=np.bool_),
             env_ids=np.array([0, 1, 2], dtype=np.int64),
             positions=np.asarray(((0.0, 0.0, 0.0), (3.0, 0.0, 0.0), (6.0, 0.0, 0.0)), dtype=np.float32),
-            context_rows={NewtonReplicateContext: (0, 1)},
+            context_source_indices={NewtonReplicateContext: (0, 1)},
         )
 
         builder, _, _ = NewtonReplicateContext(self.sim).replicate(clone_plan)

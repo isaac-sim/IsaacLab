@@ -99,7 +99,7 @@ def test_usd_replicate_context_consumes_plan(sim):
         clone_mask=np.asarray([[False, True]], dtype=np.bool_),
         env_ids=np.asarray([10, 20], dtype=np.int64),
         positions=np.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float32),
-        context_rows={UsdReplicateContext: (0,)},
+        context_source_indices={UsdReplicateContext: (0,)},
     )
     ctx.replicate(plan)
 
@@ -315,7 +315,7 @@ def test_make_clone_plan_homogeneous_returns_env_root_plan(sim):
     assert plan.destinations == ("/World/envs/env_{}",)
     assert plan.clone_mask.shape == (1, 4)
     assert plan.clone_mask.all()
-    assert plan.cfg_rows[id(cube)] == (0,)
+    assert plan.cfg_source_indices[id(cube)] == (0,)
     assert plan.global_paths == ("/World/Ground",)
     assert plan.env_ids.shape == (4,)
     assert plan.positions.shape == (4, 3)
@@ -383,8 +383,8 @@ def test_make_clone_plan_heterogeneous_mutates_spawn_paths(sim):
         "/World/envs/env_{}/Object",
         "/World/envs/env_{}/Robot",
     )
-    assert plan.cfg_rows[id(multi_cfg)] == (0, 1)
-    assert plan.cfg_rows[id(plain_cfg)] == (2,)
+    assert plan.cfg_source_indices[id(multi_cfg)] == (0, 1)
+    assert plan.cfg_source_indices[id(plain_cfg)] == (2,)
     assert plan.global_paths == ("/World/Ground",)
     assert multi_cfg.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
     assert plain_cfg.spawn.spawn_path == "/World/envs/env_0/Robot"
@@ -402,7 +402,7 @@ def test_make_clone_plan_records_globals_outside_replication_rows(sim):
     assert plan.sources == ()
     assert plan.destinations == ()
     assert plan.clone_mask.shape == (0, 3)
-    assert plan.cfg_rows == {}
+    assert plan.cfg_source_indices == {}
     assert plan.global_paths == ("/World/global/Robot", "/World/ground")
 
 
@@ -422,8 +422,8 @@ def test_clone_plan_from_env_0_uses_flat_cfg_manifest(sim):
     assert sim.get_clone_plan() is plan
     assert plan.sources == ("/World/envs/env_0",)
     assert plan.destinations == ("/World/envs/env_{}",)
-    assert plan.cfg_rows == {id(robot): (0,), id(sensor): (0,), id(prop): (0,)}
-    assert plan.context_rows[UsdReplicateContext] == (0,)
+    assert plan.cfg_source_indices == {id(robot): (0,), id(sensor): (0,), id(prop): (0,)}
+    assert plan.context_source_indices[UsdReplicateContext] == (0,)
     assert plan.global_paths == ("/World/Light",)
     assert plan.clone_mask.all() and plan.clone_mask.shape == (1, 4)
     np.testing.assert_array_equal(plan.env_ids, np.arange(4, dtype=np.int64))
