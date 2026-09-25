@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import importlib.metadata
+import inspect
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
@@ -235,6 +236,17 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
             for model_name in _MODEL_CFG_NAMES:
                 if _has_non_missing_attr(agent_cfg, model_name):
                     _update_distribution_cfg(getattr(agent_cfg, model_name))
+
+    # remove the mixed-precision argument for PPO versions that do not accept it
+    if isinstance(getattr(agent_cfg, "algorithm", None), RslRlPpoAlgorithmCfg) and hasattr(
+        agent_cfg.algorithm, "use_mixed_precision"
+    ):
+        from rsl_rl.algorithms import PPO
+
+        if "use_mixed_precision" not in inspect.signature(PPO.__init__).parameters:
+            if agent_cfg.algorithm.use_mixed_precision:
+                print("[WARNING]: The installed rsl-rl does not support `use_mixed_precision`. Ignoring it.")
+            del agent_cfg.algorithm.use_mixed_precision
 
     return agent_cfg
 

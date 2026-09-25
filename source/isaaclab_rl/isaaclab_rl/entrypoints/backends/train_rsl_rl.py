@@ -106,7 +106,9 @@ def run(argv: list[str]) -> None:
         cuda_matmul_allow_tf32=True,
         cudnn_allow_tf32=True,
         cudnn_deterministic=False,
-        cudnn_benchmark=False,
+        # observation and minibatch shapes are fixed, so autotuned conv algorithms are reused
+        # every step; this speeds up CNN policies on camera observations substantially
+        cudnn_benchmark=True,
     ):
         _run(args_cli)
 
