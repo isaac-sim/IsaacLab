@@ -11,6 +11,17 @@ set "ISAACLAB_PATH=%~dp0"
 rem Remove trailing backslash.
 if "%ISAACLAB_PATH:~-1%"=="\" set "ISAACLAB_PATH=%ISAACLAB_PATH:~0,-1%"
 
+rem Downloaded Isaac Sim packages must run with their bundled Python. Live source
+rem builds created by --isaacsim_source carry a marker and support active environments.
+set "virtual_env_selected="
+if defined VIRTUAL_ENV set "virtual_env_selected=1"
+if defined CONDA_PREFIX set "virtual_env_selected=1"
+if exist "%ISAACLAB_PATH%\_isaac_sim\" if not exist "%ISAACLAB_PATH%\_isaac_sim\.isaaclab_source_build" if defined virtual_env_selected (
+    echo [ERROR] Downloaded Isaac Sim packages cannot be combined with a Python virtual environment. 1>&2
+    echo [ERROR] Use the bundled Python after deactivating the virtual environment, or remove '_isaac_sim' and install Isaac Sim from pip in the virtual environment. 1>&2
+    exit /b 1
+)
+
 rem Find python to run CLI.
 if defined VIRTUAL_ENV (
     set "python_exe=%VIRTUAL_ENV%\Scripts\python.exe"

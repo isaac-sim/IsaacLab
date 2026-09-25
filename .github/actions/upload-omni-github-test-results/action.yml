@@ -46,7 +46,9 @@ runs:
       shell: bash
       env:
         ARTIFACT_PREFIX: ${{ inputs.artifact-prefix }}
+        COMPARISON_IMAGES_URL: ${{ inputs.comparison-images-url }}
         JUNIT_FILE: ${{ inputs.junit-file }}
+        JUNIT_LOG_URL: ${{ inputs.junit-log-url }}
         TEST_TOOL_ID: ${{ inputs.test-tool-id }}
         TEST_TYPE: ${{ inputs.test-type }}
       run: |
@@ -87,8 +89,8 @@ runs:
           --app-platform "$app_platform" \
           --app-config "${GITHUB_JOB:-github-job}" \
           --group-name "${GITHUB_WORKFLOW:-github-workflow} / ${GITHUB_JOB:-github-job}" \
-          --junit-log-url "${{ inputs.junit-log-url }}" \
-          --comparison-images-url "${{ inputs.comparison-images-url }}" \
+          --junit-log-url "$JUNIT_LOG_URL" \
+          --comparison-images-url "$COMPARISON_IMAGES_URL" \
           --retries "$retries"
 
         result_json="$artifact_dir/_testoutput/test_results.json"
@@ -96,7 +98,8 @@ runs:
         # Validating with a local pinned copy of the schemas is recommended by the omni-github team.
         schema_venv="${RUNNER_TEMP}/omni-github-jsonschema-venv"
         python3 -m venv "$schema_venv"
-        "$schema_venv/bin/python" -m pip install -q jsonschema
+        bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" \
+          "$schema_venv/bin/python" -m pip install -q jsonschema
         if ! "$schema_venv/bin/python" -m jsonschema \
           "$GITHUB_ACTION_PATH/result-json.schema.json" \
           --instance "$result_json"; then

@@ -12,8 +12,7 @@ from collections.abc import Iterable
 import numpy as np
 import torch
 
-from isaaclab.utils.math import convert_quat
-
+from ..math import convert_quat
 from .dataset_file_handler_base import DatasetFileHandlerBase
 from .episode_data import EpisodeData
 
@@ -70,8 +69,8 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
         if not file_path.endswith(".hdf5"):
             file_path += ".hdf5"
         dir_path = os.path.dirname(file_path)
-        if not os.path.isdir(dir_path):
-            os.makedirs(dir_path)
+        if dir_path:
+            os.makedirs(dir_path, exist_ok=True)
         self._hdf5_file_stream = h5py.File(file_path, "w")
 
         # Set the dataset format version
@@ -99,6 +98,8 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
     def add_env_args(self, env_args: dict):
         """Add environment arguments to the dataset."""
         self._raise_if_not_initialized()
+        stored_env_args = self._hdf5_data_group.attrs.get("env_args")
+        self._env_args = json.loads(stored_env_args) if stored_env_args is not None else {}
         self._env_args.update(env_args)
         self._hdf5_data_group.attrs["env_args"] = json.dumps(self._env_args)
 
@@ -259,12 +260,10 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
         for key, value in episode.data.items():
             create_dataset_helper(h5_episode_group, key, value)
 
-        # increment total step counts
         self._hdf5_data_group.attrs["total"] += h5_episode_group.attrs["num_samples"]
 
         # Only increment demo count if using default indexing
         if demo_id is None:
-            # increment total demo counts
             self._demo_count += 1
 
     def flush(self):

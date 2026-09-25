@@ -44,6 +44,11 @@ _project_name = _requirement_name(project["name"])
 _optional = project.get("optional-dependencies", {})
 _self_ref_pattern = re.compile(r"^\s*([A-Za-z0-9._-]+)\s*\[([^\]]+)\]\s*$")
 
+# These integrations are installed from Git in source checkouts. Keep them out of the published
+# PyPI wheel metadata until their pinned versions are available as wheels from a package index.
+_WHEEL_EXCLUDED_EXTRAS = {"rl-games"}
+_WHEEL_EXCLUDED_DEPENDENCIES = {"rl-games", "robomimic"}
+
 
 def _self_ref_extras(requirement: str) -> list[str] | None:
     """Return the referenced extra names for a bare self-reference.
@@ -68,7 +73,7 @@ def _expand_self_refs(requirements: list[str], seen: set[str] | None = None) -> 
             expanded.append(requirement)
             continue
         for extra in extras:
-            if extra in seen:
+            if extra in seen or extra in _WHEEL_EXCLUDED_EXTRAS:
                 continue
             seen.add(extra)
             expanded.extend(_expand_self_refs(_optional.get(extra, []), seen))
@@ -87,13 +92,27 @@ def _dedup(requirements: list[str]) -> list[str]:
     return result
 
 
-# Required dependencies: third-party only (strip workspace members), deduped.
-deps = _dedup([d for d in _expand_self_refs(project["dependencies"]) if not _is_workspace_member(d)])
+# Required dependencies: publishable third-party packages only, deduped.
+deps = _dedup(
+    [
+        d
+        for d in _expand_self_refs(project["dependencies"])
+        if not _is_workspace_member(d) and _requirement_name(d) not in _WHEEL_EXCLUDED_DEPENDENCIES
+    ]
+)
 
-# Optional dependencies: per extra, strip workspace members and dedup.
+# Optional dependencies: per extra, strip workspace members and unpublished integrations, then dedup.
 opt_deps = {}
 for name, dep_list in project.get("optional-dependencies", {}).items():
-    opt_deps[name] = _dedup([d for d in _expand_self_refs(dep_list) if not _is_workspace_member(d)])
+    if name in _WHEEL_EXCLUDED_EXTRAS:
+        continue
+    opt_deps[name] = _dedup(
+        [
+            d
+            for d in _expand_self_refs(dep_list)
+            if not _is_workspace_member(d) and _requirement_name(d) not in _WHEEL_EXCLUDED_DEPENDENCIES
+        ]
+    )
 
 # Write pyproject.toml
 lines = []
@@ -124,7 +143,7 @@ for d in deps:
 lines.append("]")
 lines.append("")
 lines.append("[project.scripts]")
-lines.append('isaaclab = "isaaclab:main"')
+lines.append('isaaclab = "isaaclab.__main__:main"')
 lines.append("")
 lines.append("[project.optional-dependencies]")
 for name, dep_list in opt_deps.items():

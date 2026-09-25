@@ -7,13 +7,17 @@
 
 from __future__ import annotations
 
+import json
+import posixpath
+from html import escape
 import re
+from pathlib import Path
 
 from docutils import nodes
 from docutils.parsers.rst import directives
 from docutils.statemachine import StringList
-from sphinx.util.docutils import SphinxDirective
-from sphinx.util.docutils import SphinxRole
+from sphinx.application import Sphinx
+from sphinx.util.docutils import SphinxDirective, SphinxRole
 from sphinx.util.nodes import split_explicit_title
 
 _UPSTREAM_SOURCE_REF_PATTERN = re.compile(r"^(main|develop|release/.*|v[1-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?)$")
@@ -89,11 +93,17 @@ class IsaacLabCloneHttps(SphinxDirective):
     """Render an HTTPS clone command as a copy-friendly ``code-block``."""
 
     has_content = False
+    option_spec = {"platform": directives.unchanged_required}
 
     def run(self) -> list[nodes.Node]:
+        platform = self.options.get("platform", "linux").strip().lower()
+        if platform not in {"linux", "windows"}:
+            raise self.error(f"Unsupported platform '{platform}'. Use 'linux' or 'windows'.")
+
         branch = _branch(self.config)
+        language = "batch" if platform == "windows" else "bash"
         content = f"""\
-.. code-block:: bash
+.. code-block:: {language}
 
    git clone https://github.com/isaac-sim/IsaacLab.git --branch {branch}
    cd IsaacLab
@@ -183,16 +193,65 @@ def _quickstart_kitless(branch: str, platform: str) -> str:
 
 
 class IsaacLabIsaacSimInstall(SphinxDirective):
-    """Render the ``uv pip install isaacsim`` command pinned to the pyproject version."""
+    """Render the Isaac Sim install command pinned to the pyproject version."""
+
+    optional_arguments = 1  # installer: "pip" (default is "uv pip")
+
+    def run(self) -> list[nodes.Node]:
+        version = self.config.isaacsim_version
+        if self.arguments and self.arguments[0] == "pip":
+            content = f"""\
+.. code-block:: bash
+
+   python -m pip install "isaacsim[all,extscache]=={version}" --extra-index-url https://pypi.nvidia.com
+"""
+        else:
+            content = f"""\
+.. code-block:: bash
+
+   uv pip install "isaacsim[all,extscache]=={version}" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
+"""
+        return _parse_rst(self, content)
+
+
+class IsaacLabUvIsaacSimWheelInstall(SphinxDirective):
+    """Render the Isaac Lab wheel command for the current Isaac Sim version."""
 
     has_content = False
 
     def run(self) -> list[nodes.Node]:
-        version = self.config.isaacsim_version
+        branch = self.config.isaaclab_wheel_source_tag
+        overrides_url = (
+            f"https://raw.githubusercontent.com/isaac-sim/IsaacLab/{branch}/tools/wheel_builder/uv-overrides.txt"
+        )
         content = f"""\
 .. code-block:: bash
 
-   uv pip install "isaacsim[all,extscache]=={version}" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
+   uv pip install "isaaclab[isaacsim]=={self.config.isaaclab_wheel_version}" \\
+     --overrides "{overrides_url}" \\
+     --extra-index-url https://pypi.nvidia.com \\
+     --index-strategy unsafe-best-match
+"""
+        return _parse_rst(self, content)
+
+
+class IsaacLabUvImportersWheelInstall(SphinxDirective):
+    """Render the Isaac Lab standalone importer command with resolver overrides."""
+
+    has_content = False
+
+    def run(self) -> list[nodes.Node]:
+        branch = self.config.isaaclab_wheel_source_tag
+        overrides_url = (
+            f"https://raw.githubusercontent.com/isaac-sim/IsaacLab/{branch}/tools/wheel_builder/uv-overrides.txt"
+        )
+        content = f"""\
+.. code-block:: bash
+
+   uv pip install "isaaclab[importers]=={self.config.isaaclab_wheel_version}" \\
+     --overrides "{overrides_url}" \\
+     --index https://pypi.nvidia.com \\
+     --index-strategy unsafe-best-match
 """
         return _parse_rst(self, content)
 
@@ -214,7 +273,7 @@ class IsaacLabTorchInstall(SphinxDirective):
 
     def run(self) -> list[nodes.Node]:
         cuda_tag = self.arguments[0]
-        installer = "pip" if len(self.arguments) > 1 and self.arguments[1] == "pip" else "uv pip"
+        installer = "python -m pip" if len(self.arguments) > 1 and self.arguments[1] == "pip" else "uv pip"
         torch_version = self.config.torch_version
         torchvision_version = self.config.torchvision_version
         content = f"""\
@@ -239,7 +298,7 @@ class IsaacLabOvrtxInstall(SphinxDirective):
         content = f"""\
 .. code-block:: bash
 
-   pip install --extra-index-url https://pypi.nvidia.com "ovrtx{spec}"
+   pip install "ovrtx{spec}"
 """
         return _parse_rst(self, content)
 
@@ -283,9 +342,50 @@ def _quickstart_isaacsim(branch: str, platform: str, isaacsim_version: str, torc
 """
 
 
+def _write_doc_redirects(app: Sphinx, exception: Exception | None) -> None:
+    """Preserve old HTML URLs without retaining duplicate guide sources."""
+    if exception is not None or app.builder.format != "html":
+        return
+    is_multiversion_build = bool(getattr(app.config, "smv_current_version", ""))
+    for old, new in app.config.isaaclab_doc_redirects.items():
+        destination = Path(app.builder.get_outfilename(new))
+        if not destination.is_file():
+            # The current config is also used to build tags that predate these redirect targets.
+            if is_multiversion_build:
+                continue
+            raise ValueError(f"Documentation redirect target was not built: {new}")
+        output = Path(app.builder.get_outfilename(old))
+        target = posixpath.relpath(destination.as_posix(), output.parent.as_posix())
+        sections = {}
+        for fragment, route in getattr(app.config, "isaaclab_doc_redirect_fragments", {}).get(old, {}).items():
+            doc, separator, anchor = route.partition("#")
+            page = Path(app.builder.get_outfilename(doc))
+            if not page.is_file():
+                raise ValueError(f"Documentation redirect target was not built: {doc}")
+            sections[f"#{fragment}"] = [
+                posixpath.relpath(page.as_posix(), output.parent.as_posix()), separator + anchor
+            ]
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(
+            '<!doctype html><meta charset="utf-8"><title>Page moved</title>'
+            f'<noscript><meta http-equiv="refresh" content="0; url={escape(target, quote=True)}"></noscript>'
+            f'<link rel="canonical" href="{escape(target, quote=True)}">'
+            f'<script>const sections = {json.dumps(sections)};\n'
+            f'const target = sections[location.hash] || [{json.dumps(target)}, location.hash];\n'
+            'location.replace(target[0] + location.search + target[1]);</script>'
+            f'<p>This page moved to <a href="{escape(target, quote=True)}">{escape(new)}</a>.</p>',
+            encoding="utf-8",
+        )
+
+
 def setup(app):
     """Register Isaac Lab documentation directives."""
+    app.add_config_value("isaaclab_doc_redirects", {}, "html")
+    app.add_config_value("isaaclab_doc_redirect_fragments", {}, "html")
+    app.connect("build-finished", _write_doc_redirects)
     app.add_config_value("isaaclab_latest_branch", "develop", "env")
+    app.add_config_value("isaaclab_wheel_version", "", "env")
+    app.add_config_value("isaaclab_wheel_source_tag", "", "env")
     app.add_config_value("isaacsim_version", "", "env")
     app.add_config_value("torch_version", "", "env")
     app.add_config_value("torchvision_version", "", "env")
@@ -296,6 +396,8 @@ def setup(app):
     app.add_directive("isaaclab-kitless-install-snippet", IsaacLabKitlessInstallSnippet)
     app.add_directive("isaaclab-quickstart-install", IsaacLabQuickstartInstall)
     app.add_directive("isaaclab-isaacsim-install", IsaacLabIsaacSimInstall)
+    app.add_directive("isaaclab-uv-isaacsim-wheel-install", IsaacLabUvIsaacSimWheelInstall)
+    app.add_directive("isaaclab-uv-importers-wheel-install", IsaacLabUvImportersWheelInstall)
     app.add_directive("isaaclab-torch-install", IsaacLabTorchInstall)
     app.add_directive("isaaclab-ovrtx-install", IsaacLabOvrtxInstall)
     return {

@@ -7,12 +7,23 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
-from isaaclab.sim import converters, schemas
-from isaaclab.sim.spawners import materials
-from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg, SpawnerCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+
+from ... import converters, schemas
+from .. import materials
+from ..spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg, SpawnerCfg
+
+if TYPE_CHECKING:
+    import numpy as np
+    import trimesh
+
+_DEFAULT_GROUND_PLANE_USD = (
+    f"{ISAACLAB_NUCLEUS_DIR}/Environments/Grid/default_ground_plane_checker_v1/default_ground_plane.usda"
+)
+_DEFAULT_GROUND_PLANE_TILE_SIZE = 2.0
 
 
 @configclass
@@ -35,18 +46,35 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     """Scale of the asset. Defaults to None, in which case the scale is not modified."""
 
     articulation_props: (
-        schemas.ArticulationRootBaseCfg
+        dict[str, list[schemas.ArticulationRootFragment]]
         | schemas.ArticulationRootFragment
         | list[schemas.ArticulationRootFragment]
+        | schemas.ArticulationRootBaseCfg
         | None
     ) = None
     """Properties to apply to the articulation root.
 
-    Accepts either a single legacy cfg (e.g. :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg`)
-    or a list of :class:`~isaaclab.sim.schemas.ArticulationRootFragment` fragments
-    (e.g. ``[PhysxArticulationCfg(...), NewtonArticulationCfg(...)]``). When a fragment list is
-    given, ``UsdPhysics.ArticulationRootAPI`` is applied as the anchor (presence-gated) and each
+    Accepts either a mapping from target pattern to a list of
+    :class:`~isaaclab.sim.schemas.ArticulationRootFragment` fragments
+    (e.g. ``{"/.*": [PhysxArticulationCfg(...), NewtonArticulationCfg(...)]}``) or a single legacy
+    cfg (e.g. :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg`). On the fragment path each
     fragment writes its own namespace.
+
+    Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own leading ``/`` when it
+    targets descendants (``""`` the anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` everything beneath it).
+    Entries apply in insertion order, so on overlapping targets later entries override earlier ones per attribute. As
+    a shorthand for the common case, a bare fragment or a list of fragments is read as ``{"": [...]}``, i.e. the
+    anchor prim itself.
+    """
+
+    articulation_props_create_if_missing: bool = False
+    """Whether the articulation writer may apply ``UsdPhysics.ArticulationRootAPI`` when no matched
+    prim carries it. Defaults to False. The flag applies to every entry of the
+    :attr:`articulation_props` mapping.
+
+    Creation applies to every matched prim lacking the API; when enabling this, narrow the
+    pattern -- typically a bare fragment, which anchors the spawn prim itself. Only consumed when
+    :attr:`articulation_props` is given as fragments.
     """
 
     fix_root_link: bool | None = None
@@ -54,8 +82,10 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     This is a non-USD, spawner-level behaviour flag consumed by
     :func:`~isaaclab.sim.schemas.apply_articulation_root_properties` on the fragment/topology path,
-    including when :attr:`articulation_props` is ``None`` or an empty fragment collection. It is handled
-    independently of whether any schema properties are supplied:
+    including when :attr:`articulation_props` is ``None`` or an empty mapping. When the mapping has
+    several entries, the flag is honored on the first entry only, since the root topology must not
+    be re-fixed per entry. It is handled independently of whether any schema properties are
+    supplied:
 
     * If set to None, the root link is not modified.
     * If the articulation already has a fixed root link, this flag enables or disables the fixed joint.
@@ -67,34 +97,67 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     """
 
     fixed_tendons_props: (
-        schemas.FixedTendonPropertiesCfg | schemas.FixedTendonFragment | list[schemas.FixedTendonFragment] | None
+        dict[str, list[schemas.FixedTendonFragment]]
+        | schemas.FixedTendonFragment
+        | list[schemas.FixedTendonFragment]
+        | schemas.FixedTendonPropertiesCfg
+        | None
     ) = None
     """Properties to apply to the fixed tendons (if any).
 
-    Accepts either the legacy :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg`
-    or one or more :class:`~isaaclab.sim.schemas.FixedTendonFragment` instances.
+    Accepts either a mapping from target pattern to a list of
+    :class:`~isaaclab.sim.schemas.FixedTendonFragment` fragments or the legacy
+    :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg`.
+
+    Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own leading ``/`` when it
+    targets descendants (``""`` the anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` everything beneath it).
+    Entries apply in insertion order, so on overlapping targets later entries override earlier ones per attribute. As
+    a shorthand for the common case, a bare fragment or a list of fragments is read as ``{"": [...]}``, i.e. the
+    anchor prim itself.
     """
 
     spatial_tendons_props: (
-        schemas.SpatialTendonPropertiesCfg | schemas.SpatialTendonFragment | list[schemas.SpatialTendonFragment] | None
+        dict[str, list[schemas.SpatialTendonFragment]]
+        | schemas.SpatialTendonFragment
+        | list[schemas.SpatialTendonFragment]
+        | schemas.SpatialTendonPropertiesCfg
+        | None
     ) = None
     """Properties to apply to the spatial tendons (if any).
 
-    Accepts either the legacy :class:`~isaaclab_physx.sim.schemas.PhysxSpatialTendonPropertiesCfg`
-    or one or more :class:`~isaaclab.sim.schemas.SpatialTendonFragment` instances.
+    Accepts either a mapping from target pattern to a list of
+    :class:`~isaaclab.sim.schemas.SpatialTendonFragment` fragments or the legacy
+    :class:`~isaaclab_physx.sim.schemas.PhysxSpatialTendonPropertiesCfg`.
+
+    Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own leading ``/`` when it
+    targets descendants (``""`` the anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` everything beneath it).
+    Entries apply in insertion order, so on overlapping targets later entries override earlier ones per attribute. As
+    a shorthand for the common case, a bare fragment or a list of fragments is read as ``{"": [...]}``, i.e. the
+    anchor prim itself.
     """
 
     joint_drive_props: (
-        schemas.JointDriveBaseCfg | schemas.JointDriveFragment | list[schemas.JointDriveFragment] | None
+        dict[str, list[schemas.JointDriveFragment]]
+        | schemas.JointDriveFragment
+        | list[schemas.JointDriveFragment]
+        | schemas.JointDriveBaseCfg
+        | None
     ) = None
     """Properties to apply to a joint.
 
-    Accepts either a single legacy cfg (e.g. :class:`~isaaclab.sim.schemas.JointDriveBaseCfg`) or a
-    list of :class:`~isaaclab.sim.schemas.JointDriveFragment` fragments
-    (e.g. ``[UsdPhysicsDriveCfg(...), PhysxJointCfg(...)]``). When a fragment list is given,
+    Accepts either a mapping from target pattern to a list of
+    :class:`~isaaclab.sim.schemas.JointDriveFragment` fragments
+    (e.g. ``{"/.*": [UsdPhysicsDriveCfg(...), PhysxJointCfg(...)]}``) or a single legacy cfg
+    (e.g. :class:`~isaaclab.sim.schemas.JointDriveBaseCfg`). On the fragment path,
     ``UsdPhysics.DriveAPI`` is applied (presence-gated) only when a
     :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` fragment is present, and each fragment writes
     its own namespace.
+
+    Keys are regular-expression suffixes appended to the spawn prim, so a key carries its own leading ``/`` when it
+    targets descendants (``""`` the anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` everything beneath it).
+    Entries apply in insertion order, so on overlapping targets later entries override earlier ones per attribute. As
+    a shorthand for the common case, a bare fragment or a list of fragments is read as ``{"": [...]}``, i.e. the
+    anchor prim itself.
 
     .. note::
         The joint drive properties set the USD attributes of all the joint drives in the asset.
@@ -103,14 +166,23 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         for specific joints in an articulation.
     """
 
+    joint_drive_props_create_if_missing: bool = False
+    """Whether the joint-drive writer may apply the defining USD drive API to matched joint prims
+    that lack it. Defaults to False. The flag applies to every entry of the
+    :attr:`joint_drive_props` mapping.
+
+    Only consumed when :attr:`joint_drive_props` is given as fragments. This is independent of
+    :attr:`ensure_drives_exist`, which instead patches zero-gain drives with a minimal stiffness.
+    """
+
     ensure_drives_exist: bool = False
     """Whether to ensure every joint drive is active when authoring :attr:`joint_drive_props`.
 
     When True, any joint drive whose authored stiffness *and* damping are both zero is given a
     minimal stiffness (``1e-3``) so that backends (e.g. Newton) create proper actuators for it.
     This is a spawner-level behavior flag (not a USD attribute and not a fragment field). It is
-    only consumed when :attr:`joint_drive_props` is given as a fragment list; legacy
-    :class:`~isaaclab.sim.schemas.JointDriveBaseCfg` cfgs carry their own
+    only consumed when :attr:`joint_drive_props` is given as fragments, and applies to every entry
+    of the mapping; legacy :class:`~isaaclab.sim.schemas.JointDriveBaseCfg` cfgs carry their own
     ``ensure_drives_exist`` field.
     """
 
@@ -126,6 +198,14 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     Note:
         If None, then no visual material will be added.
+    """
+
+    visual_material_bindings: dict[str, str] = {}
+    """Visual material bindings for selected asset-relative prims.
+
+    Keys name prims below the spawned asset. Relative values name materials below that asset,
+    so native clone backends remap their bindings with each clone. Absolute values name global
+    materials shared by every clone.
     """
 
     physics_material_path: str = "material"
@@ -189,6 +269,17 @@ class UsdFileCfg(FileCfg):
     This can either be a configclass object, in which case each attribute is used as a variant set name and
     its specified value, or a dictionary mapping between the two. Please check the
     :meth:`~isaaclab.sim.utils.select_usd_variants` function for more information.
+    """
+
+    make_uninstanceable: bool = False
+    """Whether to disable USD instancing below the spawned prim before applying overrides. Defaults to False.
+
+    Descendants of an instanceable prim are instance proxies, which cannot be edited. Enable this option
+    when a recursive override, such as :attr:`physics_material`, has to author properties on those
+    descendants. Disabling instancing makes them editable at the cost of stage memory, so leave this
+    option disabled unless an override requires it.
+
+    Please check the :meth:`~isaaclab.sim.utils.make_uninstanceable` function for more information.
     """
 
 
@@ -280,18 +371,19 @@ class UsdFileWithCompliantContactCfg(UsdFileCfg):
 class GroundPlaneCfg(SpawnerCfg):
     """Create a ground plane prim.
 
-    This uses the USD for the standard grid-world ground plane from Isaac Sim by default.
+    This uses Isaac Lab's metric checker ground plane with NVIDIA-green landmarks by default.
     """
 
     func: Callable | str = "{DIR}.from_files:spawn_ground_plane"
 
-    usd_path: str = f"{ISAAC_NUCLEUS_DIR}/Environments/Grid/default_environment.usd"
-    """Path to the USD file to spawn asset from. Defaults to the grid-world ground plane."""
+    usd_path: str = _DEFAULT_GROUND_PLANE_USD
+    """Path to the USD file to spawn asset from. Defaults to Isaac Lab's ground plane on Nucleus."""
 
-    color: tuple[float, float, float] | None = (0.0, 0.0, 0.0)
-    """The color of the ground plane. Defaults to (0.0, 0.0, 0.0).
+    color: tuple[float, float, float] | None = None
+    """The color tint of the ground plane. Defaults to None.
 
-    If None, then the color remains unchanged.
+    If None, the authored material colors remain unchanged. An explicit value multiplicatively
+    tints the diffuse texture without changing its authored roughness.
     """
 
     size: tuple[float, float] = (100.0, 100.0)
@@ -301,11 +393,95 @@ class GroundPlaneCfg(SpawnerCfg):
         materials.RigidBodyMaterialBaseCfg
         | materials.RigidBodyMaterialFragment
         | list[materials.RigidBodyMaterialFragment]
-    ) = materials.RigidBodyMaterialCfg()
+    ) = materials.RigidBodyMaterialBaseCfg()
     """Physics material properties. Defaults to the default rigid body material.
 
     The ground plane only spawns a collision plane, so this only accepts rigid-body materials: a
     legacy :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg`, a single
     :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment`, or a list of such
     single-namespace fragments.
+    """
+
+
+@configclass
+class MeshFileCfg(RigidObjectSpawnerCfg):
+    """Spawn a mesh from a mesh file or from in-memory triangle data.
+
+    A mesh file path (e.g. ``.obj``, ``.stl``, or ``.fbx``) is converted to USD with
+    :class:`~isaaclab.sim.converters.MeshConverter` and referenced. In-memory meshes are authored
+    directly as a USD mesh prim at ``{prim_path}/mesh``.
+
+    The mesh is visual-only by default. Set :attr:`collision_props` to enable collision and
+    :attr:`mesh_collision_props` to choose the collision approximation, e.g. triangle mesh for
+    terrain or convex hull for dynamic objects.
+    """
+
+    @configclass
+    class TriangleMeshCfg:
+        """Triangle mesh data to author directly as a USD mesh prim."""
+
+        vertices: np.ndarray | list[tuple[float, float, float]] = MISSING
+        """Mesh vertices [m], shape ``(num_vertices, 3)``."""
+
+        faces: np.ndarray | list[tuple[int, int, int]] = MISSING
+        """Triangle vertex indices, shape ``(num_faces, 3)``."""
+
+        vertex_colors: np.ndarray | list[tuple[float, ...]] | None = None
+        """RGB or RGBA vertex colors in ``[0, 1]`` or ``[0, 255]``, shape ``(num_vertices, 3 or 4)``.
+
+        Defaults to None, in which case no vertex colors are authored.
+        """
+
+    @configclass
+    class TrimeshObjectCfg:
+        """In-memory :class:`trimesh.Trimesh` to author directly as a USD mesh prim.
+
+        Its vertex colors, if any, are authored as display colors.
+        """
+
+        mesh: trimesh.Trimesh = MISSING
+        """The triangle mesh."""
+
+    func: Callable | str = "{DIR}.from_files:spawn_from_mesh"
+
+    mesh: str | TriangleMeshCfg | TrimeshObjectCfg = MISSING
+    """Mesh source to spawn: a mesh file path, :class:`TriangleMeshCfg`, or :class:`TrimeshObjectCfg`."""
+
+    scale: tuple[float, float, float] | None = None
+    """Scale of the mesh root prim. Defaults to None, in which case the scale is not modified."""
+
+    mesh_collision_props: (
+        schemas.MeshCollisionBaseCfg | schemas.MeshCollisionFragment | list[schemas.MeshCollisionFragment] | None
+    ) = None
+    """Mesh collision approximation to apply to the mesh prim. Defaults to None.
+
+    Only used when :attr:`collision_props` is set. Accepts the same values as
+    :attr:`~isaaclab.sim.converters.MeshConverterCfg.mesh_collision_props`.
+    """
+
+    visual_material_path: str = "visualMaterial"
+    """Path to the visual material to use for the mesh. Defaults to "visualMaterial".
+
+    If the path is relative, then it will be relative to the prim's path.
+    """
+
+    visual_material: materials.VisualMaterialCfg | None = None
+    """Visual material properties. Defaults to None, in which case no visual material is added."""
+
+    physics_material_path: str = "physicsMaterial"
+    """Path to the physics material to use for the mesh. Defaults to "physicsMaterial".
+
+    If the path is relative, then it will be relative to the prim's path.
+    """
+
+    physics_material: (
+        materials.PhysicsMaterialCfg
+        | materials.RigidBodyMaterialFragment
+        | list[materials.RigidBodyMaterialFragment]
+        | None
+    ) = None
+    """Physics material properties. Defaults to None, in which case no physics material is added.
+
+    Accepts a legacy material cfg, a single
+    :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment`, or a list of such fragments.
     """

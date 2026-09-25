@@ -6,14 +6,16 @@
 """Tests for metrics formatters."""
 
 import json
-import logging
 import os
+import re
+from dataclasses import replace
+from datetime import datetime
 
 import pytest
 
-from isaaclab.test.benchmark import formatters
-from isaaclab.test.benchmark.measurements import SingleMeasurement, StringMetadata, TestPhase
-from isaaclab.test.benchmark.schema import (
+from isaaclab.benchmark import formatters
+from isaaclab.benchmark.measurements import SingleMeasurement, StringMetadata, TestPhase
+from isaaclab.benchmark.schema import (
     GpuDeviceInfo,
     Hardware,
     MeanStd,
@@ -25,6 +27,21 @@ from isaaclab.test.benchmark.schema import (
     StartupTime,
     Versions,
 )
+
+
+def test_default_output_filenames_are_unique_with_identical_timestamps(monkeypatch) -> None:
+    class FixedDatetime:
+        @classmethod
+        def now(cls) -> datetime:
+            return datetime(2026, 7, 27, 14, 41, 22, 123456)
+
+    monkeypatch.setattr(formatters, "datetime", FixedDatetime)
+
+    first = formatters.get_default_output_filename("benchmark")
+    second = formatters.get_default_output_filename("benchmark")
+
+    assert first != second
+    assert re.fullmatch(r"benchmark_2026-07-27_14-41-22-123456_[0-9a-f]{8}", first)
 
 
 def _minimal_runtime_bundle() -> RuntimeBundle:
@@ -90,12 +107,14 @@ def reset_formatters():
     formatters.MetricsFormatter.reset_instances()
 
 
-def test_schema_bundle_file_serializes_bundle_and_handles_missing_bundle(tmp_path, caplog):
+def test_schema_bundle_file_serializes_bundle_and_rejects_missing_bundle(tmp_path):
     formatter = formatters.MetricsFormatter.get_instance("schema")
     phase = TestPhase(phase_name="runtime")
     phase.measurements.append(SingleMeasurement(name="Test FPS", value=60.0, unit="FPS"))
     formatter.add_metrics(phase)
-    formatter.finalize(str(tmp_path), "runtime", bundle=_minimal_runtime_bundle())
+    profile_metrics = {"physics_mean_ms": 1.123456789, "render_mean_ms": 2.234567891, "physics_calls": 2}
+    bundle = replace(_minimal_runtime_bundle(), extra=profile_metrics)
+    formatter.finalize(str(tmp_path), "runtime", bundle=bundle)
 
     with open(os.path.join(str(tmp_path), "runtime.json")) as f:
         data = json.load(f)
@@ -103,14 +122,15 @@ def test_schema_bundle_file_serializes_bundle_and_handles_missing_bundle(tmp_pat
     assert data["run"]["task"] == "Isaac-Ant-Direct-v0"
     assert data["run"]["framework"] is None
     assert data["runtime"]["total_fps"]["mean"] == pytest.approx(100.0)
+    assert data["extra"] == profile_metrics
+    assert "scope_timings" not in data["runtime"]
     assert data["resources"]["gpu_mem_gb"]["peak"] == pytest.approx(12.0)
-    assert data["schema_version"]
+    assert data["schema_version"] == "1.4"
     assert "Test FPS" not in json.dumps(data)
 
-    with caplog.at_level(logging.WARNING, logger="isaaclab.test.benchmark.formatters"):
+    with pytest.raises(RuntimeError, match="requires a benchmark bundle"):
         formatter.finalize(str(tmp_path), "missing", bundle=None)
     assert not os.path.exists(os.path.join(str(tmp_path), "missing.json"))
-    assert any("no bundle" in record.message.lower() for record in caplog.records)
 
 
 @pytest.mark.parametrize("formatter_cls", [formatters.OsmoKPIFile, formatters.OmniPerfKPIFile])

@@ -124,7 +124,6 @@ jobs:
             scripts/reinforcement_learning/train.py \
             --rl_library ${TRAINER} \
             --task=${{ matrix.task }} \
-            --headless \
             --distributed \
             --max_iterations=3 \
             --num_envs=16 \

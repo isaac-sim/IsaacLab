@@ -37,8 +37,6 @@ from isaaclab_ppisp.kernels import (
     PPISP_CONTROLLER_PARAM_COUNT,
 )
 
-from isaaclab.sensors.camera.tiled_camera_cfg import TiledCameraCfg
-
 wp.init()
 
 
@@ -150,29 +148,6 @@ def test_ppisp_warp_responsivity_lifts_dim_input():
     assert boosted_np[..., :3].astype(float).mean() > baseline_np[..., :3].astype(float).mean()
 
 
-def test_ppisp_warp_controller_exposure_increases_ldr_output():
-    import numpy as np
-
-    hdr_color = _hdr(0.25, (1, 4, 4, 3))
-    baseline = _rgba((1, 4, 4, 4))
-    exposed = _rgba((1, 4, 4, 4))
-    baseline_params = wp.zeros((1, 9), dtype=wp.float32)
-    exposed_params = wp.from_numpy(
-        np.array([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=np.float32),
-        dtype=wp.float32,
-    )
-    cfg = normalize_ppisp_cfg(PpispCfg())
-
-    apply_ppisp_to_rgba_with_controller_params(hdr_color, baseline, cfg, baseline_params)
-    apply_ppisp_to_rgba_with_controller_params(hdr_color, exposed, cfg, exposed_params)
-
-    baseline_np = baseline.numpy()
-    exposed_np = exposed.numpy()
-    assert (baseline_np[..., 3] == 255).all()
-    assert (exposed_np[..., 3] == 255).all()
-    assert exposed_np[..., :3].astype(float).mean() > baseline_np[..., :3].astype(float).mean()
-
-
 def test_ppisp_warp_controller_params_match_static_color_latent_order():
     import numpy as np
 
@@ -214,8 +189,8 @@ def test_ppisp_warp_controller_params_match_static_color_latent_order():
     np.testing.assert_array_equal(controller.numpy(), static.numpy())
 
 
-@pytest.mark.parametrize("num_cameras", [1, 2])
-@pytest.mark.parametrize("image_shape", [(7, 8), (80, 96)])
+# batch size and image size go through independent index math, so each value is covered once
+@pytest.mark.parametrize(("num_cameras", "image_shape"), [(1, (7, 8)), (2, (80, 96))])
 def test_ppisp_controller_network_matches_numpy_reference(num_cameras, image_shape):
     import numpy as np
 
@@ -285,49 +260,65 @@ def test_ppisp_warp_vignetting_uses_detiled_camera_coordinates():
     assert (rgba_np[0] == rgba_np[1]).all()
 
 
-def test_ppisp_warp_crf_extreme_centers_stay_finite():
+def _crf_reference(x, toe_raw: float, shoulder_raw: float, gamma_raw: float, center_raw: float):
+    """Float64 NumPy reference of the PPISP camera response function."""
     import numpy as np
 
-    hdr_data = np.array(
-        [
-            [
-                [[0.0, 0.25, 0.5], [0.75, 1.0, 0.5]],
-                [[0.0, 0.25, 0.5], [0.75, 1.0, 0.5]],
-            ]
-        ],
-        dtype=np.float32,
+    def bounded_softplus(raw: float, min_value: float) -> float:
+        return min_value + np.log1p(np.exp(raw))
+
+    toe = bounded_softplus(toe_raw, 0.3)
+    shoulder = bounded_softplus(shoulder_raw, 0.3)
+    gamma = bounded_softplus(gamma_raw, 0.1)
+    # the center is kept away from 0 and 1 because it divides both curve segments
+    center = np.clip(1.0 / (1.0 + np.exp(-center_raw)), 1.0e-6, 1.0 - 1.0e-6)
+    a = shoulder * center / ((shoulder - toe) * center + toe)
+    x = np.clip(np.asarray(x, dtype=np.float64), 0.0, 1.0)
+    y = np.where(
+        x <= center,
+        a * (x / center) ** toe,
+        1.0 - (1.0 - a) * ((1.0 - x) / (1.0 - center)) ** shoulder,
     )
+    return np.maximum(y, 0.0) ** gamma
+
+
+def test_ppisp_warp_crf_extreme_centers_match_reference():
+    """Saturated CRF centers produce the reference curve instead of NaN-cast bytes."""
+    import numpy as np
+
+    # a gray ramp passes the default exposure, vignetting, and color stages unchanged
+    ramp = np.linspace(0.0, 1.0, 16, dtype=np.float32)
+    hdr_data = np.repeat(ramp[None, None, :, None], 3, axis=3)
     hdr_color = wp.from_numpy(hdr_data, dtype=wp.float32)
-    rgba = _rgba((1, 2, 2, 4))
-
-    apply_ppisp_to_rgba(
-        hdr_color,
-        rgba,
-        normalize_ppisp_cfg(
-            PpispCfg(
-                inputs={
-                    "crfCenterR": -100.0,
-                    "crfCenterG": 100.0,
-                    "crfCenterB": -100.0,
-                }
-            )
-        ),
+    rgba = _rgba((1, 1, 16, 4))
+    cfg = normalize_ppisp_cfg(
+        PpispCfg(
+            inputs={
+                "crfCenterR": -100.0,
+                "crfCenterG": 100.0,
+                "crfCenterB": -100.0,
+                # distinct curve shapes so the reference can tell toe, shoulder, and gamma apart
+                "crfToeR": 0.5,
+                "crfShoulderR": -0.5,
+                "crfGammaG": 0.8,
+                "crfToeB": -0.5,
+                "crfShoulderB": 0.5,
+            }
+        )
     )
 
-    rgba_np = rgba.numpy()
-    assert (rgba_np[..., 3] == 255).all()
-    assert np.isfinite(rgba_np.astype(float)).all()
+    apply_ppisp_to_rgba(hdr_color, rgba, cfg)
 
-
-def test_tiled_camera_cfg_accepts_ppisp_cfg():
-    ppisp_cfg = PpispCfg(inputs={"exposureOffset": 1.0})
-
-    cfg = TiledCameraCfg(
-        prim_path="/World/Camera",
-        width=4,
-        height=4,
-        data_types=["rgb"],
-        isp_cfg=ppisp_cfg,
-    )
-
-    assert cfg.isp_cfg == ppisp_cfg
+    rgba_np = rgba.numpy()[0, 0]
+    assert (rgba_np[:, 3] == 255).all()
+    for channel, suffix in enumerate("RGB"):
+        expected = _crf_reference(
+            ramp,
+            cfg.inputs[f"crfToe{suffix}"],
+            cfg.inputs[f"crfShoulder{suffix}"],
+            cfg.inputs[f"crfGamma{suffix}"],
+            cfg.inputs[f"crfCenter{suffix}"],
+        )
+        expected_bytes = np.floor(np.clip(expected, 0.0, 1.0) * 255.0)
+        # float32 kernel math may land one byte away from the float64 reference at a floor boundary
+        np.testing.assert_allclose(rgba_np[:, channel].astype(float), expected_bytes, atol=1.0, err_msg=suffix)

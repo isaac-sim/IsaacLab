@@ -1,3 +1,5 @@
+:orphan:
+
 Profiling Isaac Lab with Nsight Systems
 =======================================
 
@@ -36,15 +38,31 @@ Running a Profile
 
 The following command shows how to capture a profile for the ``Isaac-Cartpole`` task via the ``rsl_rl`` training framework with 3 iterations:
 
-.. code-block:: bash
+.. tab-set::
 
-   nsys profile \
-       -t nvtx,cuda \
-       --python-functions-trace=scripts/benchmarks/nsys_trace.json \
-       -o my_profile \
-       ./isaaclab.sh train --rl_library rsl_rl \
-           --task=Isaac-Cartpole \
-           --max_iterations=3
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         nsys profile \
+             -t nvtx,cuda \
+             --python-functions-trace=scripts/benchmarks/nsys_trace.json \
+             -o my_profile \
+             uv run isaaclab train --rl_library rsl_rl \
+                 --task=Isaac-Cartpole \
+                 --max_iterations=3
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         nsys profile \
+             -t nvtx,cuda \
+             --python-functions-trace=scripts/benchmarks/nsys_trace.json \
+             -o my_profile \
+             ./isaaclab.sh train --rl_library rsl_rl \
+                 --task=Isaac-Cartpole \
+                 --max_iterations=3
 
 Flags:
 
@@ -108,6 +126,6 @@ Troubleshooting
 See Also
 --------
 
-- :doc:`simulation_performance` - broader simulation performance tuning tips.
+- :ref:`simulation-performance-troubleshooting` - checks for unexpectedly slow simulation or training.
 - `Nsight Systems User Guide <https://docs.nvidia.com/nsight-systems/UserGuide/index.html>`_ - official ``nsys`` documentation.
 - `NVTX Python package <https://nvtx.readthedocs.io/>`_ - the package nsys uses to emit NVTX ranges from Python.

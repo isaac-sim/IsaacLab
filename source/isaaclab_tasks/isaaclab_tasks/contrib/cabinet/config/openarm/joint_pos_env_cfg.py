@@ -8,7 +8,7 @@
 ##
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.cabinet import mdp
 
@@ -80,14 +80,9 @@ class OpenArmCabinetEnvCfg(CabinetEnvCfg):
         self.rewards.grasp_handle.params["open_joint_pos"] = 0.044
         self.rewards.grasp_handle.params["asset_cfg"].joint_names = ["openarm_finger_joint.*"]
 
+    def play_mode(self):
+        # play-mode overrides of parent
+        super().play_mode()
 
-@configclass
-class OpenArmCabinetEnvCfg_PLAY(OpenArmCabinetEnvCfg):
-    def __post_init__(self):
-        # post init of parent
-        super().__post_init__()
         # make a smaller scene for play
-        self.scene.num_envs = 50
         self.scene.env_spacing = 2.5
-        # disable randomization for play
-        self.observations.policy.enable_corruption = False

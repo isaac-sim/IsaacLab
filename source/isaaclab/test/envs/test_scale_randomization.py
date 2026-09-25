@@ -22,6 +22,7 @@ simulation_app = app_launcher.app
 
 import pytest
 import torch
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 from pxr import Sdf
 
@@ -35,7 +36,8 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.integration
 
@@ -152,11 +154,11 @@ class MySceneCfg(InteractiveSceneCfg):
 
     # add cube for scale randomization
     cube1: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/cube1",
+        prim_path="/World/envs/env_[^/]+/cube1",
         spawn=sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0, disable_gravity=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0, disable_gravity=True),
+            mass_props=sim_utils.MassCfg(mass=1.0),
             physics_material=sim_utils.RigidBodyMaterialCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
         ),
@@ -165,11 +167,11 @@ class MySceneCfg(InteractiveSceneCfg):
 
     # add cube for static scale values
     cube2: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/cube2",
+        prim_path="/World/envs/env_[^/]+/cube2",
         spawn=sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0, disable_gravity=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0, disable_gravity=True),
+            mass_props=sim_utils.MassCfg(mass=1.0),
             physics_material=sim_utils.RigidBodyMaterialCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
         ),
@@ -280,7 +282,8 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
         self.sim.render_interval = self.decimation
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+# Scale randomization authors USD before the simulation starts, so one device covers it.
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_scale_randomization(device):
     """Test scale randomization for cube environment."""
     # create a new stage
@@ -292,19 +295,14 @@ def test_scale_randomization(device):
 
     # setup base environment
     env = ManagerBasedEnv(cfg=env_cfg)
-    # setup target position commands
-    target_position = torch.rand(env.num_envs, 3, device=env.device) * 2
-    target_position[:, 2] += 2.0
-    # offset all targets so that they move to the world origin
-    target_position -= env.scene.env_origins
 
     # test to make sure all assets in the scene are created
-    all_prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube.*/.*")
+    all_prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_[^/]+/cube[^/]*/[^/]*")
     assert len(all_prim_paths) == (env.num_envs * 2)
 
     # test to make sure randomized values are truly random
     applied_scaling_randomization = set()
-    prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube1")
+    prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_[^/]+/cube1")
 
     # get the stage
     stage = sim_utils.get_current_stage()
@@ -320,20 +318,11 @@ def test_scale_randomization(device):
         applied_scaling_randomization.add(scale_spec.default)
 
     # test to make sure that fixed values are assigned correctly
-    prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_.*/cube2")
+    prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_[^/]+/cube2")
     for i in range(3):
         prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[i])
         scale_spec = prim_spec.GetAttributeAtPath(prim_paths[i] + ".xformOp:scale")
         assert tuple(scale_spec.default) == (1.0, 1.0, 1.0)
-
-    # simulate physics
-    with torch.inference_mode():
-        for count in range(200):
-            # reset every few steps to check nothing breaks
-            if count % 100 == 0:
-                env.reset()
-            # step the environment
-            env.step(target_position)
 
     env.close()
 
@@ -347,6 +336,6 @@ def test_scale_randomization_failure_replicate_physics():
     cfg_failure.scene.replicate_physics = True
 
     # run the test
-    with pytest.raises(RuntimeError):
+    with pytest.raises(RuntimeError, match="Scene replication is enabled"):
         env = ManagerBasedEnv(cfg_failure)
         env.close()

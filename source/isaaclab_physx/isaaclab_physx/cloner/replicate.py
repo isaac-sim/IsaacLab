@@ -6,27 +6,23 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING
 
-import torch
+import numpy as np
 
 from omni.physx import get_physx_replicator_interface
 from pxr import Sdf, Usd, UsdUtils
 
-from isaaclab.cloner.cloner_utils import split_clone_template
-from isaaclab.cloner.replicate_session import REPLICATION_QUEUE
+from isaaclab import cloner
 
-
-def _select_env_ids(env_ids: torch.Tensor, mapping: torch.Tensor, row: int) -> torch.Tensor:
-    """Return the environment ids selected by a replication row."""
-    row_mask = mapping[row]
-    if row_mask.dtype != torch.bool:
-        row_mask = row_mask.to(dtype=torch.bool)
-    return env_ids[row_mask]
+if TYPE_CHECKING:
+    from isaaclab.cloner import ClonePlan
 
 
 class PhysxReplicateContext:
-    """Queue and run PhysX replication work for one stage."""
+    """Apply one clone plan through the PhysX replicator."""
+
+    replicate_priority = 0
 
     def __init__(self, stage: Usd.Stage):
         """Initialize the context.
@@ -35,163 +31,145 @@ class PhysxReplicateContext:
             stage: USD stage to register with the PhysX replicator.
         """
         self.stage = stage
-        self._stage_id = UsdUtils.StageCache.Get().Insert(stage).ToLongInt()
-        physics_scene_prim = self.stage.GetPrimAtPath("/physicsScene")
-        if physics_scene_prim.IsValid():
-            physics_scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
-        self._queue: list[tuple[str, str, tuple[int, ...]]] = []
+        cache = UsdUtils.StageCache.Get()
+        cached_id = cache.GetId(stage)
+        self._stage_id = cached_id.ToLongInt() if cached_id.IsValid() else cache.Insert(stage).ToLongInt()
 
-    def queue(self, source: str, destination: str, target_envs: Sequence[int]) -> None:
-        """Queue one PhysX source row for replication.
+    def replicate(self, plan: ClonePlan) -> None:
+        """Register the PhysX replicator for this context's plan rows.
 
         Args:
-            source: Source prim path.
-            destination: Destination path template with ``"{}"`` for env id.
-            target_envs: Environment ids selected for this source row.
+            plan: Replication layout shared by every clone backend.
         """
-        self._queue.append((source, destination, tuple(int(env_id) for env_id in target_envs)))
+        if plan.env_ids is None:
+            raise ValueError("ClonePlan.env_ids is required for replication.")
+        rows = plan.context_rows[type(self)]
+        native_rows = set(rows)
+        other_rows = {
+            row for context, routed in plan.context_rows.items() if context is not type(self) for row in routed
+        }
+        self._replicate_mapping(
+            sources=tuple(plan.sources[row] for row in rows),
+            destinations=tuple(plan.destinations[row] for row in rows),
+            env_ids=plan.env_ids,
+            mapping=plan.clone_mask[list(rows)],
+            has_usd_only_rows=bool(other_rows - native_rows),
+            exclude_self_replication=True,
+        )
 
-    def queue_mapping(
+    def _replicate_mapping(
         self,
         sources: Sequence[str],
         destinations: Sequence[str],
-        env_ids: torch.Tensor,
-        mapping: torch.Tensor,
-        *,
-        positions: torch.Tensor | None = None,
-        quaternions: torch.Tensor | None = None,
-        exclude_self_replication: bool = True,
+        env_ids: np.ndarray,
+        mapping: np.ndarray,
+        has_usd_only_rows: bool,
+        exclude_self_replication: bool,
     ) -> None:
-        """Queue replication rows from the current flat clone mapping.
+        """Register one raw source-to-environment mapping with PhysX."""
+        physx_queue: list[tuple[str, str, tuple[int, ...]]] = []
 
-        Args:
-            sources: Source prim paths.
-            destinations: Destination path templates with ``"{}"`` for env id.
-            env_ids: Environment indices.
-            mapping: Bool/int mask selecting envs per source.
-            positions: Optional per-environment world positions [m], unused by PhysX.
-            quaternions: Optional per-environment orientations, unused by PhysX.
-            exclude_self_replication: Whether to skip replicating a source prim onto itself
-                when it also maps to other environments.
-        """
-        del positions, quaternions
-
-        if mapping.size(1) <= 1:
+        expected_shape = (len(sources), len(env_ids))
+        if mapping.shape != expected_shape:
+            raise ValueError(f"mapping must have shape {expected_shape}, got {mapping.shape}.")
+        if mapping.shape[1] <= 1:
             return
+
+        native_paths: list[str] = []
 
         for i, src in enumerate(sources):
-            worlds = _select_env_ids(env_ids, mapping, i).tolist()
+            worlds = tuple(map(int, env_ids[np.flatnonzero(mapping[i])]))
+            if has_usd_only_rows:
+                native_paths.append(src)
+                native_paths.extend(destinations[i].format(world) for world in worlds)
             if exclude_self_replication:
-                pre, suf = split_clone_template(destinations[i])
-                self_id = src.removeprefix(pre).removesuffix(suf)
-                if self_id.isdigit():
-                    filtered = [w for w in worlds if w != int(self_id)]
+                matched = cloner.path.match(src, destinations[i])
+                if matched is not None and matched.instance.isdigit():
+                    filtered = tuple(world for world in worlds if world != int(matched.instance))
                     worlds = filtered if filtered else worlds
-            self.queue(src, destinations[i], worlds)
+            physx_queue.append((src, destinations[i], worlds))
 
-    def replicate(self) -> None:
-        """Register the PhysX replicator and run queued rows from ``attach_end_fn``."""
-        if not self._queue:
+        # Fully-heterogeneous 1:1 layouts have every source mapped only to its own
+        # environment (no cross-env replication needed). Calling rep.replicate() once
+        # per source with a single self-target is known to trigger intermittent native
+        # heap corruption (double-free / SIGABRT) under mGPU, likely due to per-call
+        # PhysX-internal allocations summing to a problematic total across processes.
+        # For these layouts the source prims are already in their correct env positions
+        # and PhysX can parse them from the stage without any replicator registration.
+        if all(len(envs) == 1 and src == destination.format(envs[0]) for src, destination, envs in physx_queue):
             return
 
-        physx_queue = tuple(self._queue)
+        physics_scene_prim = self.stage.GetPrimAtPath("/physicsScene")
+        if physics_scene_prim.IsValid():
+            physics_scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
+
         current_worlds: list[int] = []
         current_template: str = ""
+        prefixes = [cloner.path.split(destination)[0] for destination in destinations]
+        env_namespaces = [
+            prefix.rstrip("/") if prefix.endswith("/") else prefix.rsplit("/", 1)[0] for prefix in prefixes
+        ]
+        excluded_paths = (
+            list(dict.fromkeys(native_paths))
+            if has_usd_only_rows
+            else list(dict.fromkeys(("/World/template", *env_namespaces)))
+        )
 
         def attach_fn(_stage_id: int):
-            return ["/World/template", "/World/envs"]
+            return excluded_paths
 
         def rename_fn(_replicate_path: str, i: int):
             return current_template.format(current_worlds[i])
 
         def attach_end_fn(_stage_id: int):
             nonlocal current_template
-            rep = get_physx_replicator_interface()
+            replicator = get_physx_replicator_interface()
             for src, destination, target_envs in physx_queue:
                 current_template = destination
                 current_worlds[:] = target_envs
                 if not current_worlds:
                     continue
-                rep.replicate(
+                replicator.replicate(
                     _stage_id,
                     src,
                     len(current_worlds),
-                    # TODO: envIds needs to support heterogeneous setup. for now, we rely on USD collision filtering
                     useEnvIds=False,
                     useFabricForReplication=False,
                 )
-            rep.unregister_replicator(_stage_id)
+            replicator.unregister_replicator(_stage_id)
 
         get_physx_replicator_interface().register_replicator(self._stage_id, attach_fn, attach_end_fn, rename_fn)
-        self._queue.clear()
-
-
-def queue_physx_replication(cfg: Any) -> None:
-    """Register ``cfg`` for PhysX replication when :func:`~isaaclab.cloner.replicate` next runs.
-
-    Appends ``(cfg, PhysxReplicateContext)`` to
-    :data:`~isaaclab.cloner.REPLICATION_QUEUE`. The actual row resolution and dispatch
-    happen inside :func:`~isaaclab.cloner.replicate`, so this helper is safe to call from
-    any asset constructor — no active session is required.
-    """
-    REPLICATION_QUEUE.append((cfg, PhysxReplicateContext))
 
 
 def physx_replicate(
     stage: Usd.Stage,
-    sources: Sequence[str],  # e.g. ["/World/Template/A", "/World/Template/B"]
-    destinations: Sequence[str],  # e.g. ["/World/envs/env_{}/Robot", "/World/envs/env_{}/Object"]
-    env_ids: torch.Tensor,  # env_ids
-    mapping: torch.Tensor,  # (num_sources, num_envs) bool; True -> place sources[i] into world=j
-    positions: torch.Tensor | None = None,
-    quaternions: torch.Tensor | None = None,
-    device: str = "cpu",
+    sources: Sequence[str],
+    destinations: Sequence[str],
+    env_ids: np.ndarray,
+    mapping: np.ndarray,
+    positions: np.ndarray | None = None,
+    quaternions: np.ndarray | None = None,
     exclude_self_replication: bool = True,
 ) -> None:
-    """Replicate prims via PhysX replicator with per-row mapping.
-
-    Builds per-source destination lists from ``mapping`` and calls PhysX ``replicate``.
-    The replicator is registered for the call and then unregistered. Heterogeneous
-    rows currently use ``useEnvIds=False`` and rely on USD collision filtering.
-
-    ``attach_fn`` excludes ``/World/template`` and ``/World/envs`` so that PhysX does
-    not independently parse prims that the replicator will handle.  The source prim
-    receives its physics body as a side-effect of ``rep.replicate()`` (which always
-    parses the source internally), so every source must appear in at least one
-    ``replicate`` call.
-
-    When ``exclude_self_replication`` is True (default), each source environment is
-    removed from its own replication targets so the replicator only creates bodies at
-    non-self destinations.  If removing self would leave the world list empty (i.e. the
-    source maps only to its own environment), self is kept so that ``rep.replicate()``
-    is still called and the source prim gets its physics body.
+    """Replicate a raw source-to-environment mapping through PhysX.
 
     Args:
-        stage: USD stage.
-        sources: Source prim paths (``S``).
-        destinations: Destination templates (``S``) with ``"{}"`` for env index.
-        env_ids: Environment indices (``[E]``).
-        mapping: Bool/int mask (``[S, E]``) selecting envs per source.
-        positions: Optional positions (unused, for API compatibility).
-        quaternions: Optional orientations (unused, for API compatibility).
-        device: Unused legacy argument retained for API compatibility.
-        exclude_self_replication: If True, skip replicating a source prim onto itself
-            when the source also maps to other environments.  Default is True.
-            Self-only sources always keep self so that ``rep.replicate()`` fires.
-
-    Returns:
-        None
+        stage: USD stage containing the source prims.
+        sources: Source prim paths, one per mapping row.
+        destinations: Destination templates containing ``"{}"``, one per mapping row.
+        env_ids: Integer environment identifiers, shape ``[num_envs]``.
+        mapping: Boolean source-to-environment selection, shape ``[len(sources), num_envs]``.
+        positions: Optional environment positions [m], shape ``[num_envs, 3]``. Unused by PhysX.
+        quaternions: Optional environment orientations in xyzw order, shape ``[num_envs, 4]``. Unused by PhysX.
+        exclude_self_replication: Whether to omit a source environment from its own targets.
     """
-    del device
-
-    ctx = PhysxReplicateContext(stage)
-    ctx.queue_mapping(
-        sources,
-        destinations,
-        env_ids,
-        mapping,
-        positions=positions,
-        quaternions=quaternions,
+    del positions, quaternions
+    context = PhysxReplicateContext(stage)
+    context._replicate_mapping(
+        sources=sources,
+        destinations=destinations,
+        env_ids=env_ids,
+        mapping=mapping,
+        has_usd_only_rows=False,
         exclude_self_replication=exclude_self_replication,
     )
-    ctx.replicate()

@@ -16,7 +16,6 @@ import numpy as np
 import torch
 import torch.nn.functional
 
-# import logger
 logger = logging.getLogger(__name__)
 
 """
@@ -436,7 +435,6 @@ def matrix_from_euler(euler_angles: torch.Tensor, convention: str) -> torch.Tens
         if letter not in ("X", "Y", "Z"):
             raise ValueError(f"Invalid letter {letter} in convention string.")
     matrices = [_axis_angle_rotation(c, e) for c, e in zip(convention, torch.unbind(euler_angles, -1))]
-    # return functools.reduce(torch.matmul, matrices)
     return torch.matmul(torch.matmul(matrices[0], matrices[1]), matrices[2])
 
 
@@ -636,44 +634,36 @@ def quat_box_plus(q: torch.Tensor, delta: torch.Tensor, eps: float = 1.0e-6) -> 
 def quat_apply(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
     """Apply a quaternion rotation to a vector.
 
+    Leading dimensions follow NumPy broadcasting rules. Incompatible batch shapes raise an error.
+
     Args:
         quat: The quaternion in (x, y, z, w). Shape is (..., 4).
         vec: The vector in (x, y, z). Shape is (..., 3).
 
     Returns:
-        The rotated vector in (x, y, z). Shape is (..., 3).
+        The rotated vector in (x, y, z). Shape is the broadcast batch shape followed by (3,).
     """
-    # store shape
-    shape = vec.shape
-    # reshape to (N, 3) for multiplication
-    quat = quat.reshape(-1, 4)
-    vec = vec.reshape(-1, 3)
-    # extract components from quaternions (xyzw format)
-    xyz = quat[:, :3]
+    xyz, vec = torch.broadcast_tensors(quat[..., :3], vec)
     t = xyz.cross(vec, dim=-1) * 2
-    return (vec + quat[:, 3:4] * t + xyz.cross(t, dim=-1)).view(shape)
+    return vec + quat[..., 3:4] * t + xyz.cross(t, dim=-1)
 
 
 @torch.jit.script
 def quat_apply_inverse(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
     """Apply an inverse quaternion rotation to a vector.
 
+    Leading dimensions follow NumPy broadcasting rules. Incompatible batch shapes raise an error.
+
     Args:
         quat: The quaternion in (x, y, z, w). Shape is (..., 4).
         vec: The vector in (x, y, z). Shape is (..., 3).
 
     Returns:
-        The rotated vector in (x, y, z). Shape is (..., 3).
+        The rotated vector in (x, y, z). Shape is the broadcast batch shape followed by (3,).
     """
-    # store shape
-    shape = vec.shape
-    # reshape to (N, 3) for multiplication
-    quat = quat.reshape(-1, 4)
-    vec = vec.reshape(-1, 3)
-    # extract components from quaternions (xyzw format)
-    xyz = quat[:, :3]
+    xyz, vec = torch.broadcast_tensors(quat[..., :3], vec)
     t = xyz.cross(vec, dim=-1) * 2
-    return (vec - quat[:, 3:4] * t + xyz.cross(t, dim=-1)).view(shape)
+    return vec - quat[..., 3:4] * t + xyz.cross(t, dim=-1)
 
 
 @torch.jit.script
@@ -877,7 +867,6 @@ def rigid_body_twist_transform(
     return v1, w1
 
 
-# @torch.jit.script
 def subtract_frame_transforms(
     t01: torch.Tensor, q01: torch.Tensor, t02: torch.Tensor | None = None, q02: torch.Tensor | None = None
 ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -912,7 +901,6 @@ def subtract_frame_transforms(
     return t12, q12
 
 
-# @torch.jit.script
 def compute_pose_error(
     t01: torch.Tensor,
     q01: torch.Tensor,
@@ -1006,7 +994,6 @@ def apply_delta_pose(
     return target_pos, target_rot
 
 
-# @torch.jit.script
 def transform_points(
     points: torch.Tensor, pos: torch.Tensor | None = None, quat: torch.Tensor | None = None
 ) -> torch.Tensor:
@@ -1243,7 +1230,7 @@ def unproject_depth(depth: torch.Tensor, intrinsics: torch.Tensor, is_ortho: boo
     indices_u = torch.arange(im_width, device=depth.device, dtype=depth.dtype)
     indices_v = torch.arange(im_height, device=depth.device, dtype=depth.dtype)
     img_indices = torch.stack(torch.meshgrid([indices_u, indices_v], indexing="ij"), dim=0).reshape(2, -1)
-    pixels = torch.nn.functional.pad(img_indices, (0, 0, 1, 0), mode="constant", value=1.0)
+    pixels = torch.nn.functional.pad(img_indices, (0, 0, 0, 1), mode="constant", value=1.0)
     pixels = pixels.unsqueeze(0)  # (3, H x W) -> (1, 3, H x W)
 
     # unproject points into 3D space
@@ -1794,7 +1781,7 @@ def quat_slerp(q1: torch.Tensor, q2: torch.Tensor, tau: float) -> torch.Tensor:
     if d < 0.0:
         # Invert rotation
         d = -d
-        q2 *= -1.0
+        q2 = -q2
     angle = torch.acos(torch.clamp(d, -1, 1))
     if abs(angle) < torch.finfo(q1.dtype).eps * 4.0:
         return q1

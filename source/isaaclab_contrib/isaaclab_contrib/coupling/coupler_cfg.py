@@ -18,13 +18,12 @@ from typing import TYPE_CHECKING, Literal
 
 from isaaclab_newton.physics import NewtonCollisionPipelineCfg, NewtonSolverCfg
 
-from isaaclab.utils.configclass import configclass
-
-from ..deformable.newton_manager_cfg import NewtonModelSolverCfg
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
-    from newton import CollisionPipeline, ModelView
+    from newton import CollisionPipeline
+    from newton.solvers.experimental.coupled import ModelView
 
 
 @configclass
@@ -129,7 +128,7 @@ class CouplerProxyMappingCfg:
 
 
 @configclass
-class CouplerCfg(NewtonModelSolverCfg):
+class CouplerCfg(NewtonSolverCfg):
     """Base configuration for a Newton experimental coupled solver.
 
     Bodies, particles, joints, and shapes may be assigned to at most one

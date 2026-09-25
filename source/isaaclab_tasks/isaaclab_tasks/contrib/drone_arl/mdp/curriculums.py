@@ -15,7 +15,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.managers.manager_term_cfg import CurriculumTermCfg
@@ -92,7 +91,7 @@ class ObstacleDensityCurriculum(ManagerTermBase):
         command = env.command_manager.get_command(command_name)
 
         target_position_w = command[:, :3].clone()
-        current_position = wp.to_torch(asset.data.root_pos_w) - env.scene.env_origins
+        current_position = asset.data.root_pos_w.torch - env.scene.env_origins
         position_error = torch.norm(target_position_w[env_ids] - current_position[env_ids], dim=1)
 
         # Decide difficulty changes

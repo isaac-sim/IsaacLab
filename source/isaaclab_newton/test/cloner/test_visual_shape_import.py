@@ -1,0 +1,137 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Unit tests: the Newton cloner imports visual-only geometry only when it is drawn."""
+
+from types import SimpleNamespace
+
+import newton
+import pytest
+from isaaclab_newton.cloner import newton_clone_utils
+from isaaclab_newton.cloner.newton_clone_utils import build_source_builders
+from newton import ShapeFlags
+
+from pxr import Usd, UsdGeom, UsdPhysics
+
+_SOURCE = "/World/Asset"
+
+
+def _make_stage() -> Usd.Stage:
+    """A rigid body with one collider cube and one visual-only cube."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    xform = UsdGeom.Xform.Define(stage, _SOURCE)
+    UsdPhysics.RigidBodyAPI.Apply(xform.GetPrim())
+
+    collider = UsdGeom.Cube.Define(stage, f"{_SOURCE}/collision")
+    UsdPhysics.CollisionAPI.Apply(collider.GetPrim())
+    UsdGeom.Cube.Define(stage, f"{_SOURCE}/visual")
+    return stage
+
+
+def _shape_counts(builder: newton.ModelBuilder) -> tuple[int, int]:
+    """Number of (colliding, visual-only) shapes in the builder."""
+    colliding = sum(1 for flags in builder.shape_flags if flags & ShapeFlags.COLLIDE_SHAPES)
+    return colliding, len(builder.shape_flags) - colliding
+
+
+class _CountingStage:
+    """Stage proxy that counts the prim lookups a pass performs."""
+
+    def __init__(self, stage: Usd.Stage):
+        self._stage = stage
+        self.prim_lookups = 0
+
+    def GetPrimAtPath(self, path: str) -> Usd.Prim:  # noqa: N802  (USD API spelling)
+        self.prim_lookups += 1
+        return self._stage.GetPrimAtPath(path)
+
+
+def _build(stage: Usd.Stage, **kwargs) -> newton.ModelBuilder:
+    return build_source_builders(
+        stage,
+        [_SOURCE],
+        create_builder=lambda: newton.ModelBuilder(up_axis=newton.Axis.Z),
+        schema_resolvers=[],
+        **kwargs,
+    )[_SOURCE]
+
+
+class TestClonerVisualShapeImport:
+    """``build_source_builders`` must keep colliders regardless of the visual-shape flag."""
+
+    @pytest.mark.parametrize("load_visual_shapes", [True, False])
+    def test_visual_shape_flag_gates_only_visual_only_geometry(self, load_visual_shapes):
+        """The visual-only cube is imported only with visual shapes; the collider is always kept."""
+        colliding, visual_only = _shape_counts(_build(_make_stage(), load_visual_shapes=load_visual_shapes))
+        assert colliding == 1
+        assert visual_only == int(load_visual_shapes)
+
+    def test_skipping_visual_shapes_skips_collider_visibility_resolution(self):
+        """Without visual shapes no collider is hidden, so the restore pass must not run.
+
+        The pass resolves USD visibility and purpose once per collider shape, which is pure
+        overhead in a run that imports no visual geometry: the flags it would set are set
+        already, and nothing draws them.
+        """
+        stage = _make_stage()
+        builder = _build(stage, load_visual_shapes=False)
+        path_shape_map = {f"{_SOURCE}/collision": 0}
+        flags_before = list(builder.shape_flags)
+
+        headless_stage = _CountingStage(stage)
+        newton_clone_utils._restore_visible_colliders_without_visual_shapes(
+            builder, headless_stage, path_shape_map, load_visual_shapes=False
+        )
+        assert headless_stage.prim_lookups == 0
+        assert list(builder.shape_flags) == flags_before
+
+        # The same call with the flag on does reach the stage, so the guard is what saved it.
+        rendering_stage = _CountingStage(stage)
+        newton_clone_utils._restore_visible_colliders_without_visual_shapes(
+            builder, rendering_stage, path_shape_map, load_visual_shapes=True
+        )
+        assert rendering_stage.prim_lookups == 1
+        # ...and the collider was visible either way, so skipping it changed nothing.
+        assert list(builder.shape_flags) == flags_before
+
+    def test_nested_static_collider_uses_rigid_body_root_for_visual_lookup(self):
+        """A collision subtree stays hidden when its rigid-body root has visuals."""
+        stage = Usd.Stage.CreateInMemory()
+        root = UsdGeom.Xform.Define(stage, _SOURCE)
+        UsdPhysics.RigidBodyAPI.Apply(root.GetPrim())
+        collider = UsdGeom.Cube.Define(stage, f"{_SOURCE}/Collisions/collision")
+        UsdPhysics.CollisionAPI.Apply(collider.GetPrim())
+        UsdGeom.Cube.Define(stage, f"{_SOURCE}/Visuals/visual")
+        builder = SimpleNamespace(
+            shape_body=[-1],
+            shape_flags=[ShapeFlags.COLLIDE_SHAPES],
+            shape_label=[str(collider.GetPrim().GetPath())],
+            shape_type=[newton.GeoType.BOX],
+        )
+
+        newton_clone_utils._restore_visible_colliders_without_visual_shapes(
+            builder, stage, {str(collider.GetPrim().GetPath()): 0}
+        )
+
+        assert not builder.shape_flags[0] & ShapeFlags.VISIBLE
+
+    def test_generated_proxy_collider_visual_remains_hidden(self):
+        """Newton's unauthored visual companion must not expose a proxy collider."""
+        stage = Usd.Stage.CreateInMemory()
+        collider = UsdGeom.Cube.Define(stage, f"{_SOURCE}/collision")
+        UsdPhysics.CollisionAPI.Apply(collider.GetPrim())
+        collider_path = str(collider.GetPrim().GetPath())
+        builder = SimpleNamespace(
+            shape_body=[-1, -1],
+            shape_flags=[ShapeFlags.COLLIDE_SHAPES, ShapeFlags.VISIBLE],
+            shape_label=[collider_path, f"{collider_path}_visual"],
+            shape_type=[newton.GeoType.BOX, newton.GeoType.MESH],
+        )
+
+        newton_clone_utils._restore_visible_colliders_without_visual_shapes(builder, stage, {collider_path: 0})
+
+        assert not builder.shape_flags[1] & ShapeFlags.VISIBLE

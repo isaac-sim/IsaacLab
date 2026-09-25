@@ -1,23 +1,27 @@
 # Environment Creation Examples
 
+For a new package, first follow the [template scaffolding workflow](SKILL.md#scaffold-a-new-task). The maintained tasks below are implementation references to adapt inside the generated layout. For an existing package, preserve its layout.
+
 ## Manager-Based Workflow
 
 Use manager-based workflow by default for new Isaac Lab tasks. This is the framework's main task-building path because observations, rewards, commands, events, curricula, and terminations can be reused and tuned independently.
 
 Start from:
 
-- `docs/source/tutorials/03_envs/create_manager_base_env.rst`
-- `docs/source/tutorials/03_envs/create_manager_rl_env.rst`
+- `docs/source/how-to/create_manager_base_env.rst`
+- `docs/source/how-to/create_manager_rl_env.rst`
 - `source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py`
 - `source/isaaclab_tasks/isaaclab_tasks/core/velocity/velocity_env_cfg.py`
 - `source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/rough_env_cfg.py`
 
 For quadruped locomotion requests with custom command sampling or custom rewards, first try to model the behavior as reusable `CommandManager`, `RewardManager`, `ObservationManager`, and shared MDP functions. Inspect `source/isaaclab_tasks/isaaclab_tasks/core/velocity/velocity_env_cfg.py` and robot-specific configs such as `source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/rough_env_cfg.py`.
 
+If the quadruped task already exists and the request is limited to contacts, contact history, air time, sensor-derived observations or rewards, or actuator configuration, use `isaaclab-using-sensors-actuators` instead of this whole-environment workflow.
+
 Smoke-test pattern:
 
 ```bash
-uv run python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 8
+uv run isaaclab random_agent --task Isaac-Cartpole --num_envs 8
 ```
 
 ## Direct Workflow
@@ -26,14 +30,14 @@ Use direct workflow when the task has custom low-level step/reset logic, must st
 
 Start from:
 
-- `docs/source/tutorials/03_envs/create_direct_rl_env.rst`
+- `docs/source/how-to/create_direct_rl_env.rst`
 - `source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env_cfg.py`
 - `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env_cfg.py`
 
 Smoke-test pattern:
 
 ```bash
-uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Direct --num_envs 8
+uv run isaaclab random_agent --task Isaac-Cartpole-Direct --num_envs 8
 ```
 
 Training pattern:
@@ -53,5 +57,5 @@ When adding a new Gym task:
 
 Reference:
 
-- `docs/source/tutorials/03_envs/register_rl_env_gym.rst`
-- `docs/source/tutorials/03_envs/configuring_rl_training.rst`
+- `docs/source/how-to/register_rl_env_gym.rst`
+- `docs/source/how-to/configuring_rl_training.rst`

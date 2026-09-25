@@ -8,7 +8,7 @@ import math
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg, OffsetCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 import isaaclab_tasks.contrib.deploy.mdp as mdp
 from isaaclab_tasks.contrib.deploy.reach.reach_env_cfg import ReachEnvCfg
@@ -93,15 +93,3 @@ class Rizon4sReachEnvCfg(ReachEnvCfg):
             self.target_rot_centre[2] - self.target_rot_range[2],
             self.target_rot_centre[2] + self.target_rot_range[2],
         )
-
-
-@configclass
-class Rizon4sReachEnvCfg_PLAY(Rizon4sReachEnvCfg):
-    def __post_init__(self):
-        # post init of parent
-        super().__post_init__()
-        # make a smaller scene for play
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        # disable randomization for play
-        self.observations.policy.enable_corruption = False

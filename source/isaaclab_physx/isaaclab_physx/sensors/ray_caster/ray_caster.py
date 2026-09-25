@@ -32,7 +32,7 @@ def _has_rigid_body_api(prim) -> bool:
 
 def _physx_body_glob(body_expr: str) -> str:
     """Convert internal env regex/template expressions to PhysX glob syntax."""
-    return body_expr.replace("{}", "*").replace(".*", "*")
+    return sim_utils.path_expr_to_glob(body_expr.replace("{}", "*"))
 
 
 class _PhysXRayCasterMixin:
@@ -128,29 +128,12 @@ class _PhysXRayCasterMixin:
         """Create a PhysX rigid-body view for dynamic multi-mesh targets."""
         if isinstance(target_prim_paths, str):
             target_prim_paths = [target_prim_paths]
-        body_paths = []
-        for target_prim_path in target_prim_paths:
-            prims = sim_utils.find_matching_prims(target_prim_path)
-            if len(prims) == 0:
-                # ClonePlan-backed targets may not have destination mesh prims.
-                # In that case BaseMultiMeshRayCaster passes the destination owner-body expression.
-                body_paths.append(target_prim_path)
-                continue
-            for prim in prims:
-                body = sim_utils.get_first_matching_ancestor_prim(prim.GetPath(), predicate=_has_rigid_body_api)
-                if body is None:
-                    raise RuntimeError(
-                        f"Cannot track non-physics ray-cast target '{target_prim_path}' with PhysX. "
-                        "Set track_mesh_transforms=False for static targets, or apply RigidBodyAPI to dynamic targets."
-                    )
-                body_paths.append(body.GetPath().pathString)
-
-        if len(body_paths) == 0:
+        if not target_prim_paths:
             raise RuntimeError(f"No tracked target bodies resolved from: {target_prim_paths}")
         physics_sim_view = PhysxManager.get_physics_sim_view()
         if physics_sim_view is None:
             raise RuntimeError("PhysX simulation view is not initialized.")
-        return physics_sim_view.create_rigid_body_view([_physx_body_glob(path) for path in body_paths])
+        return physics_sim_view.create_rigid_body_view([_physx_body_glob(path) for path in target_prim_paths])
 
     def _update_mesh_transforms(self: Any) -> None:
         """Refresh dynamic multi-mesh targets directly from PhysX views."""

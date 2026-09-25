@@ -11,10 +11,8 @@ import argparse
 
 import pytest
 
-from isaaclab.test.benchmark.metrics import SUCCESS_RATE_LOG_TAGS
-
-from scripts.benchmarks import early_stop
-from scripts.benchmarks.early_stop import (
+from isaaclab.benchmark.entrypoints import early_stop
+from isaaclab.benchmark.entrypoints.early_stop import (
     DEFAULT_SUCCESS_THRESHOLD,
     DEFAULT_SUCCESS_WINDOW,
     RlGamesEarlyStopObserver,
@@ -24,6 +22,7 @@ from scripts.benchmarks.early_stop import (
     build_success_kwargs,
     get_success_tracker,
 )
+from isaaclab.benchmark.metrics import SUCCESS_RATE_LOG_TAGS
 
 DEFAULT_SUCCESS_TAG = SUCCESS_RATE_LOG_TAGS[0]
 
@@ -41,6 +40,7 @@ class _FakeLogger:
 class _FakeRunner:
     def __init__(self, has_writer: bool = True):
         self.logger = _FakeLogger(has_writer=has_writer)
+        self.device = "cpu"
         self.current_learning_iteration = 7
         self.saved: list[str] = []
 
@@ -97,6 +97,7 @@ class _FakeAlgo:
     def __init__(self, horizon_length: int | None = None, config_horizon: int | None = 16, epoch_num: int = 0):
         self.max_epochs = 999
         self.epoch_num = epoch_num
+        self.ppo_device = "cpu"
         if horizon_length is not None:
             self.horizon_length = horizon_length
         self.config = {"horizon_length": config_horizon} if config_horizon is not None else {}
@@ -152,6 +153,16 @@ class TestGetSuccessTracker:
         live = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
         live.history = [0.9, 0.9]
         assert get_success_tracker(_parser().parse_args([]), live, {}) is live
+
+    def test_tensorboard_series_replaces_live_step_averages(self):
+        live = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
+        live.history = [0.75, 0.25]
+        log_data = {DEFAULT_SUCCESS_TAG: [1.0, 0.0]}
+
+        result = get_success_tracker(_parser().parse_args([]), live, log_data)
+
+        assert result is live
+        assert result.history == [1.0, 0.0]
 
     def test_falls_back_to_post_hoc_when_live_tracker_none(self):
         log_data = {DEFAULT_SUCCESS_TAG: [0.5, 0.6, 0.7]}

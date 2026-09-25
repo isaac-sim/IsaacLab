@@ -22,7 +22,6 @@ Rigid Materials
     :members:
     :show-inheritance:
     :exclude-members: __init__, func
-
 .. autoclass:: PhysxMaterialCfg
     :members:
     :show-inheritance:
@@ -61,3 +60,19 @@ Deprecated Aliases
     :members:
     :show-inheritance:
     :exclude-members: __init__, func
+
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab_physx.sim.spawners.materials` API.
+
+.. currentmodule:: isaaclab_physx.sim.spawners.materials
+
+.. autosummary::
+   :nosignatures:
+
+   RigidBodyMaterialCfg
+
+.. autoclass:: RigidBodyMaterialCfg
+   :show-inheritance:

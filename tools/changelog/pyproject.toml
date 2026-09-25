@@ -7,7 +7,7 @@
 #      source/ test suite) sits *above* rootdir and is therefore not
 #      loaded — no ``--noconftest`` flag required.
 #
-# Run with: ``./isaaclab.sh -p -m pytest tools/changelog/``
+# Run with: ``uv run python -m pytest tools/changelog/``
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["test"]
