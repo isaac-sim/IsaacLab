@@ -120,7 +120,9 @@ class UsdReplicateContext:
                 for env_id, position in zip(plan.env_ids[columns], plan.positions[columns], strict=True):
                     path = plan.clone_template.format(int(env_id))
                     spec = Sdf.CreatePrimInLayer(layer, path)
-                    spec.specifier, spec.typeName = Sdf.SpecifierDef, "Xform"
+                    spec.specifier = Sdf.SpecifierDef
+                    if not spec.typeName:
+                        spec.typeName = "Xform"
                     attr = spec.GetAttributeAtPath(path + ".xformOp:translate") or Sdf.AttributeSpec(
                         spec, "xformOp:translate", Sdf.ValueTypeNames.Double3
                     )
