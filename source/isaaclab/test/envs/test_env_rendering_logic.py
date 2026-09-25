@@ -156,10 +156,10 @@ def render_callback():
     return callback, lambda: (render_time, num_render_steps)
 
 
-# Each workflow has its own step(); every render interval shares one modulo check, so rotate them.
-@pytest.mark.parametrize(
-    ("env_type", "render_interval"), [("manager_based_env", 10), ("manager_based_rl_env", 1), ("direct_rl_env", 4)]
-)
+# Each workflow has its own step(). An interval of 10 with decimation 4 is not a multiple of the decimation,
+# so render boundaries fall mid-block and a dropped modulo check renders on every sub-step.
+@pytest.mark.parametrize("env_type", ["manager_based_env", "manager_based_rl_env", "direct_rl_env"])
+@pytest.mark.parametrize("render_interval", [10])
 def test_env_rendering_logic(env_type, render_interval, physics_callback, render_callback):
     """Test the rendering logic of the different environment workflows, and that disabling rendering
     between steps skips rendering while physics continues."""

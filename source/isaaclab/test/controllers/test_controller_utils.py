@@ -29,7 +29,7 @@ from isaaclab.controllers.utils import (
     convert_usd_to_urdf,
     resolve_rmpflow_path,
 )
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.io.torchscript import load_torchscript_model
 
@@ -347,7 +347,7 @@ def policy_model_path():
     return retrieve_file_path(_policy_path)
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def test_load_torchscript_model_success(policy_model_path, device):
     """Test successful loading of a TorchScript model."""
     model = load_torchscript_model(policy_model_path, device=device)

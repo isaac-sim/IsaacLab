@@ -81,6 +81,9 @@ def test_manager_based_env_close_exports_buffered_recorder_data(device: str, tmp
     num_steps = 3
 
     try:
+        # the empty config builds no action or observation terms
+        assert env.action_manager.total_action_dim == 0
+        assert env.observation_manager.group_obs_dim == {}
         for _ in range(num_steps):
             env.step(torch.randn_like(env.action_manager.action))
 

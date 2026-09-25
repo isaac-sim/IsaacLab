@@ -22,7 +22,7 @@ import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 from isaaclab.utils.math import (  # isort:skip
     compute_pose_error,
@@ -373,7 +373,7 @@ def test_orientation_weight_and_joint_limit_avoidance_match_reference():
 ##
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def test_joint_limits_accept_float64_cpu_tensors_and_later_updates(device: str):
     """Float64 CPU limits are accepted before the first compute and can be updated afterwards."""
     cfg = _make_cfg("trans", joint_limit_avoidance_gain=0.2)

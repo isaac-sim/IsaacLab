@@ -1077,6 +1077,22 @@ _SCENARIOS = {
     ),
     "variable_kp": dict(target_types=["pose_abs"], impedance_mode="variable_kp", task_frame=True),
     "variable": dict(target_types=["pose_abs"], impedance_mode="variable", task_frame=True),
+    "hybrid_variable_kp_decoupled": dict(
+        target_types=["pose_abs", "wrench_abs"],
+        impedance_mode="variable_kp",
+        motion_control_axes_task=(0, 1, 1, 1, 1, 1),
+        contact_wrench_control_axes_task=(1, 0, 0, 0, 0, 0),
+        inertial_dynamics_decoupling=True,
+        task_frame=True,
+    ),
+    "hybrid_variable_decoupled": dict(
+        target_types=["pose_abs", "wrench_abs"],
+        impedance_mode="variable",
+        motion_control_axes_task=(0, 1, 1, 1, 1, 1),
+        contact_wrench_control_axes_task=(1, 0, 0, 0, 0, 0),
+        inertial_dynamics_decoupling=True,
+        task_frame=True,
+    ),
 }
 
 

@@ -25,7 +25,7 @@ from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.integration
@@ -62,7 +62,7 @@ def make_empty_manager_based_env_with_history_cfg(
 
 
 # Both devices, so the CPU and GPU simulation pipelines each build and step an environment.
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def test_step_updates_observation_history(device):
     """Test that real environment steps advance observation history."""
     # create a new stage
