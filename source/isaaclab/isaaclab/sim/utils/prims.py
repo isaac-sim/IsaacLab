@@ -912,11 +912,9 @@ def add_usd_reference(
 
     Raises:
         FileNotFoundError: When the input USD file is not found at the specified path.
+        RuntimeError: When retrieving the file or adding the USD reference fails.
     """
-    try:
-        usd_path = retrieve_file_path(usd_path)
-    except Exception as e:
-        raise FileNotFoundError(f"Failed to retrieve USD file from {usd_path}") from e
+    usd_path = retrieve_file_path(usd_path)
 
     stage = get_current_stage() if stage is None else stage
     prim = stage.GetPrimAtPath(prim_path)
