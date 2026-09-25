@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING
 import numpy as np
 from filelock import FileLock
 
-from isaaclab.utils.assets import check_file_path, retrieve_file_path
 from isaaclab.utils.version import has_kit
 
 from ... import converters, schemas
@@ -711,17 +710,11 @@ def _spawn_from_usd_file(
     # the same cached USD files cause segfaults in Sdf_CrateFile::_MmapStream::Read.
     _world_size = int(os.environ.get("LOCAL_WORLD_SIZE", "1"))
 
-    file_status = check_file_path(usd_path)
-    if file_status == 0:
-        raise FileNotFoundError(f"USD file not found at path: '{usd_path}'.")
-
     if _world_size > 1:
         lock = FileLock(os.path.join(tempfile.gettempdir(), "isaaclab_usd_spawn.lock"))
     else:
         lock = nullcontext()
     with lock:
-        if file_status == 2:
-            usd_path = retrieve_file_path(usd_path, force_download=False)
         stage = get_current_stage()
         if not stage.GetPrimAtPath(prim_path).IsValid():
             create_prim(
