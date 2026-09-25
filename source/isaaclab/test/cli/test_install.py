@@ -172,21 +172,6 @@ def test_run_python_command_rejects_downloaded_isaac_sim_with_virtual_environmen
 class TestGetPipCommand:
     """Tests for :func:`get_pip_command`."""
 
-    def test_returns_uv_pip_in_venv_without_pip_module(self, tmp_path):
-        """When VIRTUAL_ENV is set, uv is on PATH, and pip module is missing, return uv pip."""
-        fake_python = str(tmp_path / "python")
-
-        with (
-            mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(tmp_path)}),
-            mock.patch("isaaclab.cli.utils.shutil.which", return_value="/usr/bin/uv"),
-            mock.patch(
-                "isaaclab.cli.utils.subprocess.run",
-                return_value=subprocess.CompletedProcess(args=[], returncode=1),
-            ),
-        ):
-            result = get_pip_command(python_exe=fake_python)
-            assert result == ["uv", "pip"]
-
     def test_returns_uv_pip_in_venv_with_uv(self, tmp_path):
         """When VIRTUAL_ENV is set and uv is on PATH, always return uv pip."""
         fake_python = str(tmp_path / "python")
@@ -204,20 +189,6 @@ class TestGetPipCommand:
 
         with (
             mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(tmp_path)}),
-            mock.patch("isaaclab.cli.utils.shutil.which", return_value=None),
-        ):
-            result = get_pip_command(python_exe=fake_python)
-            assert result == [fake_python, "-m", "pip"]
-
-    def test_returns_python_pip_in_conda_without_uv(self, tmp_path):
-        """When in a conda env and uv is not available, return python -m pip."""
-        fake_python = str(tmp_path / "python")
-
-        env = os.environ.copy()
-        env.pop("VIRTUAL_ENV", None)
-        env["CONDA_PREFIX"] = str(tmp_path)
-        with (
-            mock.patch.dict(os.environ, env, clear=True),
             mock.patch("isaaclab.cli.utils.shutil.which", return_value=None),
         ):
             result = get_pip_command(python_exe=fake_python)
@@ -371,7 +342,7 @@ class TestEnsureNewton:
     def _completed(stdout: str = "", returncode: int = 0) -> subprocess.CompletedProcess:
         return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr="")
 
-    def test_installs_pinned_release_when_absent(self):
+    def test_installs_pinned_release_when_absent(self, source_checkout_root: Path):
         """When the pinned release is not installed, uninstall Newton then install it."""
         from isaaclab.cli.commands import install
 

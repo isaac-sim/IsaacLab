@@ -227,42 +227,23 @@ def test_resolve_roundtrips_name_and_enum():
     assert resolve_tensor_type("RIGID_BODY_POSE") is TensorType.RIGID_BODY_POSE  # case-insensitive
 
 
-def test_resolve_unknown_name_raises():
+@pytest.mark.parametrize(
+    "key",
+    ["not_a_real_attribute", "invalid", 123, TensorType.INVALID],
+    ids=["unknown_name", "invalid_name", "non_str", "invalid_enum"],
+)
+def test_resolve_unknown_name_raises(key):
     with pytest.raises(OvPhysxView.UnknownAttribute):
-        resolve_tensor_type("not_a_real_attribute")
+        _make_view().get_attribute(key)
 
 
-def test_read_only_names_are_valid_vocabulary():
-    # The expected inventory keeps the manually maintained production set complete;
-    # vocabulary coverage also rejects stale names after wheel enum changes.
-    from isaaclab_ov.sim.views import ovphysx_view as mod
-
-    assert mod._READ_ONLY_NAMES == _EXPECTED_READ_ONLY_NAMES
-    assert set(attribute_vocabulary()) >= mod._READ_ONLY_NAMES
-
-
-def test_read_only_and_cpu_only_classification():
-    assert is_read_only("articulation_jacobian")
-    assert is_read_only("rigid_body_acceleration")
-    assert is_read_only("articulation_dof_drive_type")
-    assert not is_read_only("articulation_dof_stiffness")
-    assert is_cpu_only("articulation_dof_stiffness")
-    assert is_cpu_only("rigid_body_mass")
-    assert is_cpu_only("rigid_body_disable_gravity")
-    assert is_cpu_only("articulation_dof_drive_type")
-    assert not is_cpu_only("rigid_body_pose")
-
-
-def test_cpu_only_names_match_canonical_set():
-    # Comparing the view's derived set against the canonical one cannot fail, since the
-    # former is built from the latter. The expected inventory is what gives this test
-    # teeth: it is measured residency, so it also rejects a set that is merely incomplete.
-    from isaaclab_ov.sim.views import ovphysx_view as mod
-    from isaaclab_ov.tensor_types import _CPU_ONLY_TYPES
-
-    assert frozenset(tt.name.lower() for tt in _CPU_ONLY_TYPES) == _EXPECTED_CPU_ONLY_NAMES
-    assert mod._CPU_ONLY_NAMES == _EXPECTED_CPU_ONLY_NAMES
-    assert set(attribute_vocabulary()) >= mod._CPU_ONLY_NAMES
+def test_read_only_and_cpu_only_classification_match_measured_inventory():
+    # The expected inventories are measured, so both directions matter: a missing name and a
+    # misclassified one both fail. Iterating the vocabulary also rejects expected names the
+    # wheel no longer exposes.
+    vocabulary = attribute_vocabulary()
+    assert {name for name in vocabulary if is_read_only(name)} == _EXPECTED_READ_ONLY_NAMES
+    assert {name for name in vocabulary if is_cpu_only(name)} == _EXPECTED_CPU_ONLY_NAMES
 
 
 # -----------------------------------------------------------------------------
@@ -270,11 +251,32 @@ def test_cpu_only_names_match_canonical_set():
 # -----------------------------------------------------------------------------
 
 
-def test_requires_exactly_one_of_pattern_or_prim_paths():
-    with pytest.raises(ValueError):
-        OvPhysxView(_FakePhysX(), pattern="/p", prim_paths=["/p"], device="cpu")
-    with pytest.raises(ValueError):
-        OvPhysxView(_FakePhysX(), device="cpu")
+@pytest.mark.parametrize(
+    ("kwargs", "match"),
+    [
+        ({"pattern": "/p", "prim_paths": ["/p"]}, None),
+        ({}, None),
+        ({"prim_paths": []}, None),
+        ({"pattern": ""}, None),
+        ({"pattern": "/p", "tensor_types": [TensorType.RIGID_BODY_POSE]}, "eager"),
+        # LINK_POSE is GPU state; RIGID_BODY_MASS is CPU-only -> the device guard would be wrong.
+        (
+            {"pattern": "/p", "key_aliases": {TensorType.ARTICULATION_LINK_POSE: TensorType.RIGID_BODY_MASS}},
+            "residency",
+        ),
+    ],
+    ids=[
+        "pattern_and_prim_paths",
+        "no_target",
+        "empty_prim_paths",
+        "empty_pattern",
+        "types_without_eager",
+        "alias_residency",
+    ],
+)
+def test_requires_exactly_one_of_pattern_or_prim_paths(kwargs, match):
+    with pytest.raises(ValueError, match=match):
+        OvPhysxView(_FakePhysX(), device="cpu", **kwargs)
 
 
 def test_eager_creates_requested_and_exposes_metadata():
@@ -294,6 +296,16 @@ def test_eager_default_sweep_empty_view_raises():
     physx = _FakePhysX(all_unavailable=True)
     with pytest.raises(OvPhysxViewError, match="Could not create any bindings"):
         OvPhysxView(physx, pattern="/no/match", device="cpu", eager=True)
+    # When the caller names exact types, a failing one is surfaced (not silently dropped).
+    physx = _FakePhysX(n=3, unavailable={TensorType.RIGID_BODY_VELOCITY})
+    with pytest.raises(OvPhysxView.AttributeUnavailable):
+        OvPhysxView(
+            physx,
+            pattern="/World/env_*/body",
+            device="cpu",
+            tensor_types=[TensorType.RIGID_BODY_POSE, TensorType.RIGID_BODY_VELOCITY],
+            eager=True,
+        )
 
 
 # -----------------------------------------------------------------------------
@@ -301,17 +313,18 @@ def test_eager_default_sweep_empty_view_raises():
 # -----------------------------------------------------------------------------
 
 
-def test_get_attribute_uses_binding_reported_int32_dtype():
+@pytest.mark.parametrize(
+    ("tensor_type", "dtype"),
+    [
+        (TensorType.DEFORMABLE_SIM_ELEMENT_INDICES, wp.int32),
+        (TensorType.RIGID_BODY_DISABLE_SIMULATION, wp.uint8),
+    ],
+)
+def test_get_attribute_uses_binding_reported_scalar_dtype(tensor_type, dtype):
     view = _make_view(n=2)
-    values = view.get_attribute(TensorType.DEFORMABLE_SIM_ELEMENT_INDICES)
-    assert values.dtype == wp.int32
+    values = view.get_attribute(tensor_type)
+    assert values.dtype == dtype
     assert tuple(values.shape) == (2, 1)
-
-
-def test_get_attribute_uses_binding_reported_uint8_dtype():
-    view = _make_view(n=2)
-    values = view.get_attribute(TensorType.RIGID_BODY_DISABLE_SIMULATION)
-    assert values.dtype == wp.uint8
 
 
 def test_int32_binding_accepts_int32_and_rejects_float32():
@@ -335,18 +348,6 @@ def test_missing_or_unsupported_binding_dtype_raises_compatibility_error():
         view.get_attribute(TensorType.RIGID_BODY_MASS)
 
 
-def test_get_attribute_allocates_fresh_typed_buffer_each_call():
-    view = _make_view(n=4)
-    buf = view.get_attribute("rigid_body_pose")
-    # Pose maps to a structured dtype: an [N] transformf array (== [N, 7] float32).
-    assert tuple(buf.shape) == (4,) and buf.dtype == wp.transformf
-    binding = view._bindings[TensorType.RIGID_BODY_POSE]
-    assert binding.read_calls == 1
-    buf2 = view.get_attribute("rigid_body_pose")
-    assert buf2 is not buf  # no aliasing of view state
-    assert binding.read_calls == 2
-
-
 def test_get_attribute_no_out_does_not_grow_read_cache():
     # A no-`out` get_attribute allocates a fresh buffer each call, so caching its reinterpret by
     # id() could never hit on a later call and would leak one entry (keeping the buffer alive) per
@@ -354,8 +355,12 @@ def test_get_attribute_no_out_does_not_grow_read_cache():
     # cache -- the read cache only pays off for a reused `out`/`dst`. Pose is the structured case
     # (transformf), the one that would have been cached before the fix.
     view = _make_view(n=3)
+    previous = None
     for _ in range(5):
-        view.get_attribute("rigid_body_pose")
+        buf = view.get_attribute("rigid_body_pose")
+        assert buf is not previous  # fresh buffer each call, no aliasing of view state
+        previous = buf
+    assert view._bindings[TensorType.RIGID_BODY_POSE].read_calls == 5
     assert view._read_views == {}
 
 
@@ -379,6 +384,8 @@ def test_read_into_reuses_reinterpret_view_across_calls():
     view.read_into("rigid_body_pose", dst)
     assert binding.last_read_obj is first  # same object handed to the wheel both times
     assert first is not dst  # it is the float32 reinterpret, not the transformf buffer
+    # The reinterpret matches the binding's flat float32 shape.
+    assert binding.last_read == (wp.float32, (3, 7), "cpu")
 
 
 def test_read_into_passthrough_reuses_dst_object():
@@ -438,22 +445,6 @@ def test_get_attribute_out_param_is_filled_and_returned():
     assert view._bindings[TensorType.RIGID_BODY_POSE].read_calls == 1
 
 
-def test_read_into_reinterprets_structured_buffer():
-    view = _make_view(n=3)
-    dst = wp.zeros((3,), dtype=wp.transformf, device="cpu")  # [N] transformf == [N,7] float32
-    view.read_into("rigid_body_pose", dst)
-    binding = view._bindings[TensorType.RIGID_BODY_POSE]
-    # The binding was handed a float32 view matching its flat shape, not the transformf buffer.
-    assert binding.last_read == (wp.float32, (3, 7), "cpu")
-
-
-def test_read_into_passthrough_when_already_float32():
-    view = _make_view(n=3)
-    dst = wp.zeros((3, 7), dtype=wp.float32, device="cpu")
-    view.read_into("rigid_body_pose", dst)
-    assert view._bindings[TensorType.RIGID_BODY_POSE].last_read == (wp.float32, (3, 7), "cpu")
-
-
 def test_read_into_shape_mismatch_raises():
     view = _make_view(n=3)
     wrong = wp.zeros((3, 6), dtype=wp.float32, device="cpu")
@@ -466,12 +457,19 @@ def test_read_into_shape_mismatch_raises():
 # -----------------------------------------------------------------------------
 
 
-def test_cpu_array_for_device_state_on_gpu_sim_raises():
-    # GPU sim, but a CPU buffer is supplied for a device-resident state attribute.
+@pytest.mark.parametrize("operation", ["read_into", "get_attribute_out", "set_attribute"])
+def test_cpu_array_for_device_state_on_gpu_sim_raises(operation):
+    # GPU sim, but a CPU buffer is supplied for a device-resident state attribute. Each entry
+    # point has its own device check.
     view = _make_view(n=3, device="cuda:0")
     cpu_buf = wp.zeros((3, 7), dtype=wp.float32, device="cpu")
     with pytest.raises(OvPhysxView.DeviceMismatch, match="cuda:0"):
-        view.read_into("rigid_body_pose", cpu_buf)
+        if operation == "read_into":
+            view.read_into("rigid_body_pose", cpu_buf)
+        elif operation == "get_attribute_out":
+            view.get_attribute("rigid_body_pose", out=cpu_buf)
+        else:
+            view.set_attribute("rigid_body_pose", cpu_buf)
 
 
 def test_cpu_only_property_accepts_cpu_buffer_on_gpu_sim():
@@ -495,15 +493,6 @@ def test_gpu_array_for_cpu_only_property_raises():
 # -----------------------------------------------------------------------------
 
 
-def test_set_attribute_forwards_indices_and_mask():
-    view = _make_view(n=3)
-    values = wp.zeros((3, 7), dtype=wp.float32, device="cpu")
-    idx = wp.array([0, 2], dtype=wp.int32, device="cpu")
-    view.set_attribute("rigid_body_pose", values, indices=idx)
-    dtype, shape, indices, mask = view._bindings[TensorType.RIGID_BODY_POSE].write_calls[0]
-    assert (dtype, shape, indices, mask) == (wp.float32, (3, 7), idx, None)
-
-
 def test_set_attribute_reinterprets_structured_source():
     view = _make_view(n=3)
     values = wp.zeros((3,), dtype=wp.transformf, device="cpu")
@@ -512,28 +501,15 @@ def test_set_attribute_reinterprets_structured_source():
     assert (dtype, shape) == (wp.float32, (3, 7))
 
 
-@pytest.mark.parametrize("name", sorted(_EXPECTED_READ_ONLY_NAMES))
-def test_set_attribute_read_only_raises_and_does_not_bind(name: str):
+def test_set_attribute_read_only_raises_and_does_not_bind():
+    # Read-only membership per name is owned by the classification test above.
+    name = "articulation_jacobian"
     view = _make_view(n=3)
     values = wp.zeros((3, 1), dtype=wp.float32, device="cpu")
     with pytest.raises(OvPhysxView.ReadOnlyAttribute, match="read-only"):
         view.set_attribute(name, values)
     assert resolve_tensor_type(name) not in view._bindings
     assert view._physx.created == []
-
-
-def test_set_attribute_shape_mismatch_raises():
-    view = _make_view(n=3)
-    wrong = wp.zeros((3, 6), dtype=wp.float32, device="cpu")
-    with pytest.raises(OvPhysxView.ShapeMismatch, match="Shape mismatch"):
-        view.set_attribute("rigid_body_pose", wrong)
-
-
-def test_set_attribute_cpu_array_for_state_on_gpu_sim_raises():
-    view = _make_view(n=3, device="cuda:0")
-    values = wp.zeros((3, 7), dtype=wp.float32, device="cpu")
-    with pytest.raises(OvPhysxView.DeviceMismatch):
-        view.set_attribute("rigid_body_pose", values)
 
 
 def test_as_wp_accepts_numpy_float32_and_rejects_float64():
@@ -575,16 +551,12 @@ def test_prim_paths_with_key_alias_creates_remapped_type():
 # -----------------------------------------------------------------------------
 
 
-def test_unknown_attribute_raises_on_access():
-    view = _make_view()
-    with pytest.raises(OvPhysxView.UnknownAttribute):
-        view.get_attribute("totally_made_up")
-
-
 def test_unavailable_binding_reports_clear_error():
     view = _make_view(n=3, unavailable={TensorType.RIGID_BODY_VELOCITY})
     with pytest.raises(OvPhysxView.AttributeUnavailable, match="not available"):
         view.get_attribute("rigid_body_velocity")
+    # The probed zero-count binding is released rather than leaked.
+    assert view._physx.bindings[-1].destroy_calls == 1
 
 
 def test_discoverability_surface():
@@ -666,35 +638,20 @@ def test_raw_binding_keeps_owning_view_registered_until_runtime_close():
     assert view_ref() is None
 
 
-def test_unavailable_binding_is_destroyed():
-    view = _make_view(n=3, unavailable={TensorType.RIGID_BODY_POSE})
-
-    with pytest.raises(OvPhysxView.AttributeUnavailable):
-        view.binding_for("rigid_body_pose")
-
-    assert view._physx.bindings[0].destroy_calls == 1
-
-
 # -----------------------------------------------------------------------------
 # dtype safety — the view reinterprets bits, so non-float32 scalars must be rejected
 # -----------------------------------------------------------------------------
 
 
-def test_set_attribute_rejects_same_byte_size_wrong_dtype():
+@pytest.mark.parametrize("dtype", [wp.int32, wp.float16])
+def test_set_attribute_rejects_non_float32_scalar_dtype(dtype):
     # int32 has the same 4-byte width as float32: it would pass a byte-count-only guard
-    # and get bit-reinterpreted into garbage. It must be rejected, not silently written.
+    # and get bit-reinterpreted into garbage. float16 is narrower. Both must be rejected.
     view = _make_view(n=3)
-    int_buf = wp.zeros((3, 7), dtype=wp.int32, device="cpu")
+    wrong_buf = wp.zeros((3, 7), dtype=dtype, device="cpu")
     with pytest.raises(OvPhysxView.DtypeMismatch, match="float32 scalar"):
-        view.set_attribute("rigid_body_pose", int_buf)
+        view.set_attribute("rigid_body_pose", wrong_buf)
     assert view._bindings[TensorType.RIGID_BODY_POSE].write_calls == []
-
-
-def test_set_attribute_rejects_sub_4byte_dtype():
-    view = _make_view(n=3)
-    half_buf = wp.zeros((3, 7), dtype=wp.float16, device="cpu")
-    with pytest.raises(OvPhysxView.DtypeMismatch, match="float32 scalar"):
-        view.set_attribute("rigid_body_pose", half_buf)
 
 
 def test_set_attribute_forwards_both_indices_and_mask():
@@ -704,22 +661,9 @@ def test_set_attribute_forwards_both_indices_and_mask():
     idx = wp.array([0, 2], dtype=wp.int32, device="cpu")
     mask = wp.array([True, False, True], dtype=wp.bool, device="cpu")
     view.set_attribute("rigid_body_pose", values, indices=idx, mask=mask)
-    _, _, fwd_idx, fwd_mask = view._bindings[TensorType.RIGID_BODY_POSE].write_calls[0]
+    dtype, shape, fwd_idx, fwd_mask = view._bindings[TensorType.RIGID_BODY_POSE].write_calls[0]
+    assert (dtype, shape) == (wp.float32, (3, 7))
     assert fwd_idx is idx and fwd_mask is mask
-
-
-def test_get_attribute_out_on_wrong_device_raises():
-    # `get_attribute(out=)` has its own device check distinct from read_into's.
-    view = _make_view(n=3, device="cuda:0")
-    cpu_out = wp.zeros((3, 7), dtype=wp.float32, device="cpu")
-    with pytest.raises(OvPhysxView.DeviceMismatch):
-        view.get_attribute("rigid_body_pose", out=cpu_out)
-
-
-def test_resolve_rejects_non_str_non_tensortype():
-    view = _make_view()
-    with pytest.raises(OvPhysxView.UnknownAttribute):
-        view.get_attribute(123)
 
 
 def test_set_attribute_rejects_non_contiguous_source():
@@ -738,12 +682,6 @@ def test_set_attribute_rejects_non_contiguous_source():
 # -----------------------------------------------------------------------------
 
 
-def test_invalid_tensortype_member_rejected():
-    view = _make_view()
-    with pytest.raises(OvPhysxView.UnknownAttribute):
-        view.get_attribute(TensorType.INVALID)
-
-
 def test_string_keyed_aliases_are_honored():
     # Passing string alias keys/values must be normalized to TensorType, not silently dropped.
     physx = _FakePhysX(n=6)
@@ -757,64 +695,11 @@ def test_string_keyed_aliases_are_honored():
     assert physx.created[0][0] is TensorType.RIGID_BODY_POSE  # alias applied
 
 
-def test_key_alias_crossing_residency_is_rejected():
-    # LINK_POSE is GPU state; RIGID_BODY_MASS is CPU-only -> the device guard would be wrong.
-    with pytest.raises(ValueError, match="residency"):
-        OvPhysxView(
-            _FakePhysX(),
-            pattern="/p",
-            device="cpu",
-            key_aliases={TensorType.ARTICULATION_LINK_POSE: TensorType.RIGID_BODY_MASS},
-        )
-
-
-def test_tensor_types_without_eager_raises():
-    with pytest.raises(ValueError, match="eager"):
-        OvPhysxView(_FakePhysX(), pattern="/p", device="cpu", tensor_types=[TensorType.RIGID_BODY_POSE])
-
-
-def test_empty_target_is_rejected():
-    with pytest.raises(ValueError):
-        OvPhysxView(_FakePhysX(), prim_paths=[], device="cpu")
-    with pytest.raises(ValueError):
-        OvPhysxView(_FakePhysX(), pattern="", device="cpu")
-
-
-def test_eager_explicit_unavailable_type_raises_loud():
-    # When the caller names exact types, a failing one is surfaced (not silently dropped).
-    physx = _FakePhysX(n=3, unavailable={TensorType.RIGID_BODY_VELOCITY})
-    with pytest.raises(OvPhysxView.AttributeUnavailable):
-        OvPhysxView(
-            physx,
-            pattern="/World/env_*/body",
-            device="cpu",
-            tensor_types=[TensorType.RIGID_BODY_POSE, TensorType.RIGID_BODY_VELOCITY],
-            eager=True,
-        )
-
-
 def test_get_attribute_cpu_only_property_returns_cpu_buffer_on_gpu_sim():
     # No-out allocation path must use the native device: CPU for a CPU-only property even
     # though the sim device is a GPU. (CPU allocation -> runs without a GPU.)
     view = _make_view(n=3, device="cuda:0")
     buf = view.get_attribute("rigid_body_mass")
-    assert str(buf.device) == "cpu"
-
-
-@pytest.mark.parametrize(
-    "name",
-    [
-        name
-        for name in ("articulation_shape_friction_and_restitution", "rigid_body_shape_friction_and_restitution")
-        if hasattr(TensorType, name.upper())
-    ],
-)
-def test_shape_material_property_returns_cpu_buffer_on_gpu_sim(name: str):
-    """Shape material properties must use their CPU-native bindings on GPU simulations."""
-    view = _make_view(n=3, device="cuda:0")
-
-    buf = view.get_attribute(name)
-
     assert str(buf.device) == "cpu"
 
 

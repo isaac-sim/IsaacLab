@@ -14,17 +14,10 @@ from isaaclab_tasks.utils import resolve_task_config
 
 
 @pytest.mark.parametrize(
-    "task_name",
+    "task_name,preset_args",
     [
-        "Isaac-Lift-KukaAllegro",
-        "Isaac-Reorient-KukaAllegro",
-    ],
-)
-@pytest.mark.parametrize(
-    "preset_args",
-    [
-        ("physics=ovphysx", "presets=shapes"),
-        ("presets=shapes", "physics=ovphysx"),
+        ("Isaac-Lift-KukaAllegro", ("physics=ovphysx", "presets=shapes")),
+        ("Isaac-Reorient-KukaAllegro", ("presets=shapes", "physics=ovphysx")),
     ],
 )
 def test_ovphysx_rejects_heterogeneous_shapes_independent_of_argument_order(

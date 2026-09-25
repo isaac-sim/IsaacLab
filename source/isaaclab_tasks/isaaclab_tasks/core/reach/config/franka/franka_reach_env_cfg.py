@@ -7,9 +7,12 @@
 
 import math
 
+from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import (
+    NewtonIKJointLimitObjectiveCfg,
+    NewtonIKPoseObjectiveCfg,
+)
+from isaaclab_newton.controllers.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions_cfg import NewtonInverseKinematicsActionCfg
-from isaaclab_newton.ik.newton_ik_objectives_cfg import NewtonIKJointLimitObjectiveCfg, NewtonIKPoseObjectiveCfg
-from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg

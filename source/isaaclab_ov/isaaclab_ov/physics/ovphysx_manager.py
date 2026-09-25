@@ -19,6 +19,7 @@ import math
 import os
 import re
 import stat
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
@@ -29,12 +30,9 @@ from pxr import Sdf, UsdPhysics
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
-    build_deformable_root_path_lookup,
-    build_deformable_vertex_count_lookup,
-    discover_deformables_on_stage,
-    group_deformable_root_paths_for_views,
-    resolve_deformable_root_path,
-    resolve_deformable_vertex_count,
+    deformable_geometry_batches,
+    deformable_prototypes,
+    expand_deformable_entries,
 )
 from isaaclab.sim.simulation_context import SimulationContext
 
@@ -48,6 +46,8 @@ from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
 from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR, OvPhysxBackendCfg
 
 if TYPE_CHECKING:
+    from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
+
     from .ovphysx_manager_cfg import OvPhysxCfg
 
 __all__ = ["OvPhysxManager", "OvPhysxSceneDataBackend"]
@@ -90,75 +90,49 @@ logger = logging.getLogger(__name__)
 class OvPhysxSceneDataBackend(SceneDataBackend):
     """Scene-data backend for the OVPhysX physics manager.
 
-    Mirrors the contract of ``PhysxSceneDataBackend`` but adapts to the
-    ovphysx wheel's one-pattern-per-binding API: each distinct env-wildcard
-    rigid-body prim path produces its own ``TT.RIGID_BODY_POSE`` binding.
-    :attr:`transforms` reads each binding into its pre-allocated float32
-    staging buffer and concatenates them into a single ``wp.transformf``
-    array.
-
-    The merged-buffer + staging-buffer separation is required because the
-    wheel's ``TensorBinding.read(dst)`` writes into ``dst`` only when
-    ``dst.shape == binding.shape``, so we cannot read directly into a slice
-    of the merged buffer.
-
-    Unlike PhysX -- which receives a live :class:`omni.physics.tensors.SimulationView`
-    via a ``simulation_view`` property setter and discovers prims lazily --
-    OVPhysX wires bindings through an explicit :meth:`setup` call that
-    takes the live ``ovphysx.PhysX`` handle and the USD stage. The wheel
-    exposes a ``physx + stage`` pair rather than a single ``SimulationView``,
-    so a property setter would have to either bundle the two or fire on the
-    second assignment; the explicit call keeps the lifecycle obvious.
+    Each rigid-body binding reads directly into its portion of one native pose
+    buffer. Pointer aliases preserve the binding shape without staging or merging.
     """
 
     def __init__(self):
-        self._physx = None
-        # Each entry: ``{"pattern": str, "pose": TensorBinding,
-        # "pose_buf": wp.array (float32, (N, 7)),
-        # "pose_buf_transformf": wp.array (transformf, (N,)),
-        # "row_offset": int, "row_count": int}``.
-        # The ``pose_buf_transformf`` view aliases ``pose_buf`` via zero-copy
-        # ``wp.array(ptr=...)``; cached at setup time so per-step reads in
-        # :attr:`transforms` don't churn Python allocations.
-        self._rigid_bindings: list[dict[str, Any]] = []
-        self._merged_transforms: wp.array | None = None
-        self._scene_data = SceneDataFormat.Transform()
-        self._points_data = SceneDataFormat.Points()
-        self._deformable_bindings: list[dict[str, Any]] = []
-        self._geometry_paths: list[str] = []
-        self._geometry_counts: list[int] = []
-        self._merged_points: wp.array | None = None
+        self._rigid_bindings: list[tuple[OvPhysxView, wp.array]] = []
+        self._transforms = SceneDataFormat.Transform()
+        self.transforms_version = 0
+        self._transforms_version_last_update = -1
+        self.geometry_timestamp = 0
+        self._geometry_timestamp_last_update = -1
+        self._geometry_batches: list | None = None
+        self._deformable_bindings: list[tuple[OvPhysxView, Any, wp.array]] = []
 
     @property
     def transform_count(self) -> int:
-        """Sum of per-binding row counts."""
-        return sum(int(entry["row_count"]) for entry in self._rigid_bindings)
+        """Number of poses in the native publication."""
+        poses = self._transforms.transforms
+        return 0 if poses is None else len(poses)
 
     @property
     def transform_paths(self) -> list[str]:
         """Concatenated ``prim_paths`` across all bindings, in registration order."""
-        paths: list[str] = []
-        for entry in self._rigid_bindings:
-            paths.extend(list(entry["pose"].prim_paths))
-        return paths
+        return [path for view, _ in self._rigid_bindings for path in view.prim_paths]
 
-    def setup(self, physx, stage, device: str) -> None:
+    def setup(self, physx, stage, device: str, entries: Sequence[DeformableStageEntry] | None = None) -> None:
         """Discover RigidBodyAPI prims, dedup by env-wildcard form, create one binding per pattern.
 
         Args:
             physx: Live ``ovphysx.PhysX`` instance (the wheel handle).
             stage: USD stage to traverse for RigidBodyAPI prims.
-            device: Warp device string used to allocate the staging and merged buffers.
+            device: Warp device string used to allocate the published buffers.
+            entries: Declared deformables captured before native stage import. ``None`` leaves
+                scene geometry uninitialized; an empty sequence declares no deformables.
         """
         from isaaclab_ov import tensor_types as TT  # local: keep heavy ovphysx out of module load
 
-        self._physx = physx
         self._rigid_bindings = []
-        self._merged_transforms = None
+        self._transforms.transforms = None
+        self.transforms_version += 1
         self._deformable_bindings = []
-        self._geometry_paths = []
-        self._geometry_counts = []
-        self._merged_points = None
+        self.geometry_timestamp += 1
+        self._geometry_batches = None
 
         if stage is None:
             return
@@ -169,226 +143,116 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             if prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 patterns.add(re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", prim.GetPath().pathString))
 
-        # Rigid discovery may be empty for deformable-only scenes; still set up
-        # deformable nodal bindings so SceneData geometry export stays available.
-        if patterns:
-            # One pose binding per distinct pattern.
-            total_count = 0
-            for pattern in sorted(patterns):
-                try:
-                    view = OvPhysxView(physx, pattern=pattern, device=device)
-                    pose_binding = view.binding_for(TT.RIGID_BODY_POSE)
-                except Exception as exc:
-                    logger.warning("Failed to create RIGID_BODY_POSE binding for %s: %s", pattern, exc)
-                    continue
-                row_count = int(pose_binding.shape[0])
-                if row_count == 0:
-                    logger.debug("Pattern %s matched 0 rigid bodies; skipping.", pattern)
-                    view.close()
-                    continue
-                pose_buf = wp.zeros(pose_binding.shape, dtype=wp.float32, device=device)
-                # Zero-copy reinterpret of the (N, 7) float32 staging buffer as (N,) wp.transformf.
-                # Same pointer + layout; transformf is 7 float32s (pos.xyz + quat.xyzw). Cached
-                # so per-step ``transforms`` reads don't reallocate the view object.
-                pose_buf_transformf = wp.array(
-                    ptr=pose_buf.ptr,
-                    shape=(row_count,),
+        views = []
+        for pattern in sorted(patterns):
+            view = OvPhysxView(physx, pattern=pattern, device=device)
+            view.binding_for(TT.RIGID_BODY_POSE)
+            if view.count == 0:
+                logger.debug("Pattern %s matched 0 rigid bodies; skipping.", pattern)
+                view.close()
+                continue
+            views.append(view)
+
+        if views:
+            poses = wp.empty(sum(view.count for view in views), dtype=wp.transformf, device=device)
+            self._transforms.transforms = poses
+            offset = 0
+            for view in views:
+                buffer = wp.array(
+                    ptr=poses.ptr + offset * wp.types.type_size_in_bytes(wp.transformf),
+                    shape=(view.count,),
                     dtype=wp.transformf,
-                    device=str(pose_buf.device),
+                    device=device,
                     copy=False,
                 )
-                self._rigid_bindings.append(
-                    {
-                        "pattern": pattern,
-                        "view": view,
-                        "pose": pose_binding,
-                        "pose_buf": pose_buf,
-                        "pose_buf_transformf": pose_buf_transformf,
-                        "row_offset": total_count,
-                        "row_count": row_count,
-                    }
-                )
-                total_count += row_count
+                self._rigid_bindings.append((view, buffer))
+                offset += view.count
 
-            if total_count > 0:
-                self._merged_transforms = wp.zeros((total_count,), dtype=wp.transformf, device=device)
+        if entries is not None:
+            self._setup_deformable_bindings(physx, entries, device)
 
-        self._setup_deformable_bindings(physx, stage, device)
-
-    def _setup_deformable_bindings(self, physx, stage, device: str) -> None:
-        """Discover deformable prims and wire OVPhysX nodal-position bindings.
-
-        Args:
-            physx: Active OVPhysX simulation handle.
-            stage: USD stage used for deformable discovery.
-            device: Warp device for nodal position read buffers.
-        """
+    def _setup_deformable_bindings(self, physx, entries: Sequence[DeformableStageEntry], device: str) -> None:
+        """Bind exact planned deformables directly into one flat publication buffer."""
         from isaaclab_ov import tensor_types as TT
-        from isaaclab_ov.assets.deformable_object.views import OvPhysxDeformableBodyView
 
-        entries = discover_deformables_on_stage(stage)
-        if not entries:
-            return
+        groups = {}
+        for entry in entries:
+            groups.setdefault((entry.deformable_type, entry.vertex_count), []).append(entry)
 
-        path_to_count = build_deformable_vertex_count_lookup(entries)
-        path_to_root = build_deformable_root_path_lookup(entries)
-        path_to_type = {entry.root_path: entry.deformable_type for entry in entries}
-        grouped_paths = group_deformable_root_paths_for_views(list(path_to_type.keys()), path_to_type)
-
-        self._geometry_paths = []
-        self._geometry_counts = []
-        entity_offset = 0
-        for deformable_type in ("volume", "surface"):
-            if deformable_type == "volume":
-                sim_nodal_position_type = TT.DEFORMABLE_SIM_NODAL_POSITION
-                sim_element_indices_type = TT.DEFORMABLE_SIM_ELEMENT_INDICES
-                collision_element_indices_type = TT.DEFORMABLE_COLLISION_ELEMENT_INDICES
-                tensor_types = [
-                    sim_nodal_position_type,
-                    sim_element_indices_type,
-                    collision_element_indices_type,
-                ]
-            else:
-                sim_nodal_position_type = TT.SURFACE_DEFORMABLE_SIM_POSITION
-                sim_element_indices_type = TT.SURFACE_DEFORMABLE_SIM_ELEMENT_INDICES
-                collision_element_indices_type = None
-                tensor_types = [sim_nodal_position_type, sim_element_indices_type]
-
-            patterns, exact_paths = grouped_paths[deformable_type]
-            for pattern in [*patterns, *exact_paths]:
-                try:
-                    view = OvPhysxDeformableBodyView(
-                        physx,
-                        pattern=pattern,
-                        device=device,
-                        tensor_types=tensor_types,
-                        eager=True,
-                        simulation_nodal_position_type=sim_nodal_position_type,
-                        simulation_element_indices_type=sim_element_indices_type,
-                        collision_element_indices_type=collision_element_indices_type,
-                    )
-                except Exception as exc:
-                    logger.warning("Failed to create %s deformable binding for %s: %s", deformable_type, pattern, exc)
-                    continue
-                if view.count == 0:
-                    continue
-                max_nodes = view.max_simulation_nodes_per_body
-                position_buf = wp.zeros((view.count, max_nodes, 3), dtype=wp.float32, device=device)
-                self._deformable_bindings.append(
-                    {
-                        "pattern": pattern,
-                        "deformable_type": deformable_type,
-                        "view": view,
-                        "position_buf": position_buf,
-                        "sim_nodal_position_type": sim_nodal_position_type,
-                        "entity_offset": entity_offset,
-                        "entity_count": view.count,
-                    }
-                )
-                for path in view.prim_paths:
-                    # Prefer USD-discovered unpadded counts over padded max_nodes so
-                    # SceneData ↔ shadow particle_q slices stay size-aligned.
-                    resolved = resolve_deformable_vertex_count(path, path_to_count, fallback=-1)
-                    if resolved < 0:
-                        logger.warning(
-                            "No USD vertex count for deformable path '%s'; using padded "
-                            "max_simulation_nodes_per_body=%d.",
-                            path,
-                            max_nodes,
-                        )
-                        count = int(max_nodes)
-                    else:
-                        count = min(int(resolved), int(max_nodes))
-                    # Views may report a child mesh; publish the discovered root so
-                    # create_geometry_mapping matches shadow entity root_path exactly.
-                    self._geometry_paths.append(resolve_deformable_root_path(path, path_to_root))
-                    self._geometry_counts.append(count)
-                entity_offset += view.count
-
-        total_points = sum(self._geometry_counts)
-        if total_points > 0:
-            self._merged_points = wp.zeros(total_points, dtype=wp.vec3f, device=device)
-
-    @property
-    def points(self) -> SceneDataFormat.Points:
-        """Return flattened OVPhysX deformable nodal positions."""
-        from isaaclab.scene_data.geometry_points import pack_body_nodal_slices
-
-        if self._merged_points is None or not self._deformable_bindings:
-            self._points_data.points = None
-            return self._points_data
-
-        write_offset = 0
-        path_index = 0
-        device = str(self._merged_points.device)
-        for entry in self._deformable_bindings:
-            view = entry["view"]
-            view.read_into(entry["sim_nodal_position_type"], entry["position_buf"])
-            nodal = entry["position_buf"].view(wp.vec3f).reshape((view.count, -1))
-            view_counts = [self._geometry_counts[path_index + body_idx] for body_idx in range(view.count)]
-            pack_body_nodal_slices(
-                nodal,
-                self._merged_points,
-                view_counts,
-                device=device,
-                dest_base_offset=write_offset,
+        views, native_entries = [], []
+        for (deformable_type, count), entries in groups.items():
+            tensor_type = (
+                TT.DEFORMABLE_SIM_NODAL_POSITION if deformable_type == "volume" else TT.SURFACE_DEFORMABLE_SIM_POSITION
             )
-            write_offset += sum(int(count) for count in view_counts)
-            path_index += view.count
-        self._points_data.points = self._merged_points
-        return self._points_data
+            view = OvPhysxView(
+                physx,
+                prim_paths=[entry.root_path for entry in entries],
+                device=device,
+                tensor_types=[tensor_type],
+                eager=True,
+            )
+            by_path = {path: entry for entry in entries for path in (entry.root_path, entry.sim_mesh_path)}
+            ordered = [by_path[path] for path in view.prim_paths]
+            if sorted(entry.root_path for entry in ordered) != sorted(entry.root_path for entry in entries):
+                raise RuntimeError("OVPhysX deformable binding does not cover the declared clone-plan entries.")
+            if tuple(view.binding_for(tensor_type).shape) != (len(entries), count, 3):
+                raise RuntimeError("OVPhysX deformable node counts disagree with the clone plan.")
+            native_entries.extend(ordered)
+            views.append((view, tensor_type, count))
+
+        if not views:
+            self._geometry_batches = []
+            return
+        counts = [entry.vertex_count for entry in native_entries]
+        points = wp.empty(sum(counts), dtype=wp.vec3f, device=device)
+        offset = 0
+        for view, tensor_type, count in views:
+            buffer = wp.array(
+                ptr=points.ptr + offset * wp.types.type_size_in_bytes(wp.vec3f),
+                shape=(view.count, count),
+                dtype=wp.vec3f,
+                device=device,
+                copy=False,
+            )
+            self._deformable_bindings.append((view, tensor_type, buffer))
+            offset += view.count * count
+        offsets = np.cumsum(np.r_[0, counts[:-1]])
+        self._geometry_batches = deformable_geometry_batches(native_entries, points, offsets)
+
+    def get_geometry_batches(self, output_format: Any = SceneDataFormat.Points) -> list:
+        """Publish native positions with exact visual paths and interpolation metadata.
+
+        Raises:
+            RuntimeError: If scene geometry was not initialized from a clone plan.
+        """
+        if self._geometry_batches is None:
+            raise RuntimeError("Declare and replicate a ClonePlan before requesting scene geometry.")
+        if self._geometry_timestamp_last_update != self.geometry_timestamp:
+            for view, tensor_type, buffer in self._deformable_bindings:
+                view.read_into(tensor_type, buffer)
+            self._geometry_timestamp_last_update = self.geometry_timestamp
+        return self._geometry_batches
 
     @property
-    def point_count(self) -> int:
-        """Return the total unpadded OVPhysX deformable nodal count."""
-        return sum(self._geometry_counts)
+    def native_geometry_formats(self) -> tuple[Any, ...]:
+        """Return the native geometry formats compiled from the declared prototypes.
 
-    @property
-    def geometry_paths(self) -> list[str]:
-        """Return one USD prim path per OVPhysX deformable body instance."""
-        return self._geometry_paths
-
-    @property
-    def geometry_counts(self) -> list[int]:
-        """Return the unpadded nodal count for each OVPhysX deformable body."""
-        return self._geometry_counts
+        Raises:
+            RuntimeError: If scene geometry was not initialized from a clone plan.
+        """
+        if self._geometry_batches is None:
+            raise RuntimeError("Declare and replicate a ClonePlan before requesting scene geometry.")
+        return tuple(dict.fromkeys(publication._cls for publication, _ in self._geometry_batches))
 
     @property
     def transforms(self) -> SceneDataFormat.Transform:
-        """Read all bindings into the merged buffer; return as ``SceneDataFormat.Transform``.
-
-        Each binding's float32 ``(N, 7)`` read buffer is reinterpreted as ``(N,)`` of
-        ``wp.transformf`` (zero-copy via ``wp.array(ptr=..., dtype=wp.transformf)``,
-        cached on the entry at setup time) and copied into the merged buffer at the
-        binding's ``row_offset``.
-
-        Returns:
-            ``SceneDataFormat.Transform`` whose ``transforms`` field is a
-            ``wp.array(dtype=wp.transformf)`` of length :attr:`transform_count`.
-            Each ``wp.transformf`` row carries position [m] followed by
-            quaternion (xyzw, unit). ``transforms`` is ``None`` when no
-            bindings are wired.
-        """
-        if self._merged_transforms is None or not self._rigid_bindings:
-            self._scene_data.transforms = self._merged_transforms
-            return self._scene_data
-
-        for entry in self._rigid_bindings:
-            try:
-                entry["view"].read_into("rigid_body_pose", entry["pose_buf"])
-            except Exception as exc:
-                logger.warning("RIGID_BODY_POSE read failed for %s: %s", entry["pattern"], exc)
-                continue
-            wp.copy(
-                self._merged_transforms,
-                entry["pose_buf_transformf"],
-                dest_offset=int(entry["row_offset"]),
-                src_offset=0,
-                count=int(entry["row_count"]),
-            )
-
-        self._scene_data.transforms = self._merged_transforms
-        return self._scene_data
+        """Publish native rigid-body poses [m, xyzw]."""
+        if self._transforms_version_last_update != self.transforms_version:
+            OvPhysxManager.pre_render()
+            for view, buffer in self._rigid_bindings:
+                view.read_into("rigid_body_pose", buffer)
+            self._transforms_version_last_update = self.transforms_version
+        return self._transforms
 
 
 class OvPhysxBackend:
@@ -493,6 +357,7 @@ class OvPhysxManager(PhysicsManager):
     _pending_clones: ClassVar[list[tuple[str, list[str], list[CloneTransform]]]] = []
     _atexit_registered: ClassVar[bool] = False
     _scene_data_backend: ClassVar[OvPhysxSceneDataBackend | None] = None
+    _kinematics_dirty: ClassVar[bool] = False
     # Gravity currently applied to the running scene [m/s^2]. Seeded from ``SimulationCfg.gravity``
     # in :meth:`initialize` and refreshed by :meth:`set_gravity`. ``cfg.gravity`` stays the nominal
     # value that randomization terms resample from, so live updates must not be written back to it.
@@ -624,6 +489,7 @@ class OvPhysxManager(PhysicsManager):
         # and the USD stage are live. Matches PhysX's pattern of constructing
         # the backend during ``initialize()``.
         cls._scene_data_backend = OvPhysxSceneDataBackend()
+        cls._kinematics_dirty = False
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:
@@ -645,11 +511,25 @@ class OvPhysxManager(PhysicsManager):
                     cls.dispatch_event(PhysicsEvent.STOP, payload={})
                 cls._warmup_and_load()
             cls.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
+        cls._kinematics_dirty = True
+        cls._scene_data_backend.transforms_version += 1
+        cls._scene_data_backend.geometry_timestamp += 1
 
     @classmethod
     def forward(cls) -> None:
-        """No-op -- ovphysx does not have a fabric/rendering pipeline."""
-        pass
+        """Evaluate and publish state changes made without stepping physics."""
+        if cls.backend is not None and cls.backend.physx is not None:
+            cls.backend.physx.update_articulations_kinematic()
+            cls._kinematics_dirty = False
+        cls._scene_data_backend.transforms_version += 1
+        cls._scene_data_backend.geometry_timestamp += 1
+
+    @classmethod
+    def pre_render(cls) -> None:
+        """Finish native kinematics before SDP publishes manually written joint poses."""
+        if cls._kinematics_dirty and cls.backend is not None and cls.backend.physx is not None:
+            cls.backend.physx.update_articulations_kinematic()
+            cls._kinematics_dirty = False
 
     @classmethod
     def step(cls) -> None:
@@ -659,6 +539,9 @@ class OvPhysxManager(PhysicsManager):
         dt = cls.get_physics_dt()
         cls.backend.physx.step_sync(dt=dt)
         cls.backend.physx.update_articulations_kinematic()
+        cls._kinematics_dirty = False
+        cls._scene_data_backend.transforms_version += 1
+        cls._scene_data_backend.geometry_timestamp += 1
         PhysicsManager._sim_time += dt
 
     @staticmethod
@@ -694,6 +577,7 @@ class OvPhysxManager(PhysicsManager):
                 # belong to the runtime instance just released. The next
                 # SimulationContext re-creates it in initialize().
                 cls._scene_data_backend = None
+                cls._kinematics_dirty = False
                 cls._next_control_ordinal = 2
 
     @classmethod
@@ -987,6 +871,10 @@ class OvPhysxManager(PhysicsManager):
         if sim is None:
             raise RuntimeError("OvPhysxManager: SimulationContext is not set.")
 
+        entries = None
+        if (plan := sim.get_clone_plan()) is not None:
+            entries = expand_deformable_entries(plan, deformable_prototypes(sim.stage, plan))
+
         ovphysx_device = "gpu" if "cuda" in PhysicsManager._device else "cpu"
 
         if cls._locked_device is not None and ovphysx_device != cls._locked_device:
@@ -1059,7 +947,7 @@ class OvPhysxManager(PhysicsManager):
         # via :meth:`get_scene_data_backend`.
         if cls._scene_data_backend is None:
             cls._scene_data_backend = OvPhysxSceneDataBackend()
-        cls._scene_data_backend.setup(cls.backend.physx, sim.stage, PhysicsManager._device)
+        cls._scene_data_backend.setup(cls.backend.physx, sim.stage, PhysicsManager._device, entries)
 
         cls.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
         cls._warmup_done = True

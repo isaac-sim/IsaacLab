@@ -12,10 +12,9 @@ import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
-import numpy as np
 import warp as wp
 
-from pxr import Usd, UsdPhysics
+from pxr import UsdPhysics
 
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims, path_expr_to_glob
@@ -67,8 +66,6 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._root_view: OvPhysxView | None = None
         self._wrench_binding: Any = None
         self._wrench_buf: wp.array | None = None
-        self._joint_pos_b: wp.array | None = None
-        self._joint_quat_b: wp.array | None = None
         self._num_bodies: int = 0
 
     def __str__(self) -> str:
@@ -158,8 +155,6 @@ class JointWrenchSensor(BaseJointWrenchSensor):
             self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
             self._timestamp_last_update = wp.zeros_like(self._timestamp)
 
-        self._create_joint_frame_buffers()
-
         # Wrench storage as (N, L) spatial_vectorf, read each step via the view. The view
         # reinterprets this structured buffer off the binding's flat float32 shape and caches
         # that reinterpret per destination buffer, so no manual float32 alias is needed here.
@@ -198,45 +193,6 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         root_prim_path_relative_to_prim_path = first_env_root_prim_path[len(first_env_matching_prim_path) :]
         return self.cfg.prim_path + root_prim_path_relative_to_prim_path
 
-    def _create_joint_frame_buffers(self) -> None:
-        """Create child-side joint frame transforms indexed by OVPhysX link order."""
-        joint_pos_b = np.zeros((self._num_bodies, 3), dtype=np.float32)
-        joint_quat_b = np.zeros((self._num_bodies, 4), dtype=np.float32)
-        joint_quat_b[:, 3] = 1.0
-
-        first_env_matching_prim = find_first_matching_prim(self.cfg.prim_path)
-        if first_env_matching_prim is None:
-            raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
-        link_name_to_index = {name: index for index, name in enumerate(self._data._body_names)}
-
-        for prim in Usd.PrimRange(first_env_matching_prim):
-            joint = UsdPhysics.Joint(prim)
-            if not joint or joint.GetJointEnabledAttr().Get() is False:
-                continue
-            body1_targets = joint.GetBody1Rel().GetTargets()
-            if len(body1_targets) == 0:
-                continue
-            body_index = link_name_to_index.get(body1_targets[0].name)
-            if body_index is None:
-                continue
-
-            local_pos1 = joint.GetLocalPos1Attr().Get()
-            if local_pos1 is not None:
-                joint_pos_b[body_index] = (float(local_pos1[0]), float(local_pos1[1]), float(local_pos1[2]))
-
-            local_rot1 = joint.GetLocalRot1Attr().Get()
-            if local_rot1 is not None:
-                local_rot1_imag = local_rot1.GetImaginary()
-                joint_quat_b[body_index] = (
-                    float(local_rot1_imag[0]),
-                    float(local_rot1_imag[1]),
-                    float(local_rot1_imag[2]),
-                    float(local_rot1.GetReal()),
-                )
-
-        self._joint_pos_b = wp.array(joint_pos_b, dtype=wp.vec3f, device=self._device)
-        self._joint_quat_b = wp.array(joint_quat_b, dtype=wp.quatf, device=self._device)
-
     def _update_buffers_impl(self, env_mask: wp.array) -> None:
         """Read OVPhysX incoming joint wrenches and split them into force / torque buffers.
 
@@ -248,8 +204,6 @@ class JointWrenchSensor(BaseJointWrenchSensor):
                 f"Joint wrench sensor '{self.cfg.prim_path}': not initialized."
                 " Access sensor data only after sim.reset() has been called."
             )
-        if self._joint_pos_b is None or self._joint_quat_b is None:
-            raise RuntimeError(f"Joint wrench sensor '{self.cfg.prim_path}': joint frame buffers are not initialized.")
 
         self._root_view.read_into(TT.LINK_INCOMING_JOINT_FORCE, self._wrench_buf)
         wp.launch(
@@ -258,8 +212,6 @@ class JointWrenchSensor(BaseJointWrenchSensor):
             inputs=[
                 env_mask,
                 self._wrench_buf,
-                self._joint_pos_b,
-                self._joint_quat_b,
                 self._timestamp,
                 self._data._force,
                 self._data._torque,
@@ -281,8 +233,6 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._wrench_binding = None
         self._physx_instance = None
         self._wrench_buf = None
-        self._joint_pos_b = None
-        self._joint_quat_b = None
         self._num_bodies = 0
         self._data._force = None
         self._data._torque = None

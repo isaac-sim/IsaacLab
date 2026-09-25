@@ -58,7 +58,7 @@ class JointWrenchSensorData(BaseJointWrenchSensorData):
 
         Args:
             num_envs: Number of environments.
-            num_joints: Number of reported joints (excludes FREE and FIXED joint types).
+            num_joints: Number of reported tree joints, including fixed joints between bodies.
             device: Device for array storage.
         """
         self._force = wp.zeros((num_envs, num_joints), dtype=wp.vec3f, device=device)

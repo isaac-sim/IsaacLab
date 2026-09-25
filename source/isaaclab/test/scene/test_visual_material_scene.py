@@ -120,6 +120,8 @@ def Xform "Robot"
 
         material = scene["warm"]
         before = material.data["color"].clone()
+        # The initial value is read from the preview surface's diffuseColor input.
+        torch.testing.assert_close(before[0], torch.tensor([0.8, 0.1, 0.1], device=scene.device))
         env_ids = torch.tensor([8, 2], dtype=torch.int32, device=scene.device)
         colors = torch.tensor([[[0.2, 0.7, 0.3], [0.9, 0.4, 0.1]]], device=scene.device)
         VisualMaterial.write_channels([material], {"color": colors}, env_ids)

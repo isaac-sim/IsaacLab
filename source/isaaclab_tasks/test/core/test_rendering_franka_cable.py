@@ -24,6 +24,8 @@ from rendering_test_utils import (  # noqa: E402
 
 pytestmark = pytest.mark.isaacsim_ci
 
+# Newton cables have no PhysX preset, so only the Newton physics rows apply.
+_RENDERING_PARAMS = [param for param in PHYSICS_RENDERER_AOV_GROUPS if param.values[0] != "physx"]
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()
@@ -31,7 +33,7 @@ _generate_html_report_fixture = make_generate_html_report_fixture(_COMPARISON_SC
 _attach_comparison_properties_fixture = make_attach_comparison_properties_fixture(_COMPARISON_SCORES)
 
 
-@pytest.mark.parametrize("physics_backend,renderer,data_types", PHYSICS_RENDERER_AOV_GROUPS)
+@pytest.mark.parametrize("physics_backend,renderer,data_types", _RENDERING_PARAMS)
 def test_rendering_franka_cable(physics_backend, renderer, data_types):
     """Test Franka cable rendering correctness across AOVs."""
     rendering_test_franka_cable(physics_backend, renderer, data_types, _COMPARISON_SCORES)

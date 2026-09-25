@@ -199,6 +199,9 @@ class KitVisualizer(BaseVisualizer):
         )
         self._setup_streaming_view(num_envs)
 
+        sim = SimulationContext.instance()
+        self._fabric = sim.get_or_create_backend(sim.fabric_cfg)
+        self._fabric.bind_transforms(scene_data_provider)
         self._is_initialized = True
         self._setup_initial_camera_view()
 
@@ -213,13 +216,14 @@ class KitVisualizer(BaseVisualizer):
         self._app_pumped_this_step = False
         self._sim_time += dt
         self._step_counter += 1
-        # Update dynamic asset tracking before the frame renders.
-        if self.cfg.origin_type == "asset":
-            self._update_asset_tracking_camera()
         # Headless mode: skip the app update and camera panel refresh; rendering is
         # triggered on demand by render_rgb_array() / render_tiled_rgb_array().
         if self._runtime_headless:
             return
+        self._fabric.update_transforms(self._scene_data_provider)
+        self._fabric.update_geometries(self._scene_data_provider, SimulationContext.instance().render_generation)
+        if self.cfg.origin_type == "asset":
+            self._update_asset_tracking_camera()
         _externally_paused = self.is_training_paused()
         if not _externally_paused:
             try:
@@ -289,6 +293,10 @@ class KitVisualizer(BaseVisualizer):
         import omni.kit.app
         import omni.replicator.core as rep
 
+        self._fabric.update_transforms(self._scene_data_provider)
+        self._fabric.update_geometries(self._scene_data_provider, SimulationContext.instance().render_generation)
+        if self._runtime_headless and self.cfg.origin_type == "asset":
+            self._update_asset_tracking_camera()
         camera_path = self._controlled_camera_path or "/OmniverseKit_Persp"
         w, h = self.cfg.window_width, self.cfg.window_height
 
@@ -417,10 +425,6 @@ class KitVisualizer(BaseVisualizer):
         for source in self._live_plot_sources:
             if isinstance(source, DirectScalarLivePlots):
                 self.kit_manager_visualizers[source.manager_name] = DirectScalarLiveVisualizer(source)
-
-    def requires_forward_before_step(self) -> bool:
-        """OV viewport relies on refreshed kinematic state before render."""
-        return True
 
     def pumps_app_update(self) -> bool:
         """KitVisualizer calls app.update() in step(), so render() should not do it again."""
@@ -1238,7 +1242,7 @@ class KitVisualizer(BaseVisualizer):
     def _update_asset_tracking_camera(self) -> None:
         """Update the viewport camera to track an asset root or body.
 
-        Called every :meth:`step` when :attr:`KitVisualizerCfg.origin_type` is ``"asset"``.
+        Called before viewport frames when :attr:`KitVisualizerCfg.origin_type` is ``"asset"``.
         Parses :attr:`~KitVisualizerCfg.origin_track_path`: ``"asset_name"`` tracks the root,
         ``"asset_name/body_name"`` tracks a specific body.
         """

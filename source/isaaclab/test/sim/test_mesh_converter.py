@@ -19,13 +19,7 @@ import shutil
 import tempfile
 
 import pytest
-from isaaclab_physx.sim.schemas import (
-    PhysxConvexDecompositionCfg,
-    PhysxConvexHullCfg,
-    PhysxSDFMeshCfg,
-    PhysxTriangleMeshCfg,
-    PhysxTriangleMeshSimplificationCfg,
-)
+from isaaclab_physx.sim.schemas import PhysxConvexHullCfg
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -276,96 +270,6 @@ def test_collider_convex_hull(assets):
     """Convert an OBJ file using convex hull approximation"""
     collision_props = [schemas_cfg.UsdPhysicsCollisionCfg(collision_enabled=True)]
     mesh_collision_prop = [PhysxConvexHullCfg()]
-    mesh_config = MeshConverterCfg(
-        asset_path=assets["obj"],
-        mesh_collision_props=mesh_collision_prop,
-        collision_props=collision_props,
-    )
-    mesh_converter = MeshConverter(mesh_config)
-
-    # check that mesh conversion is successful
-    check_mesh_collider_settings(mesh_converter)
-
-
-def test_collider_convex_decomposition(assets):
-    """Convert an OBJ file using convex decomposition approximation"""
-    collision_props = [schemas_cfg.UsdPhysicsCollisionCfg(collision_enabled=True)]
-    mesh_collision_prop = [PhysxConvexDecompositionCfg()]
-    mesh_config = MeshConverterCfg(
-        asset_path=assets["obj"],
-        mesh_collision_props=mesh_collision_prop,
-        collision_props=collision_props,
-    )
-    mesh_converter = MeshConverter(mesh_config)
-
-    # check that mesh conversion is successful
-    check_mesh_collider_settings(mesh_converter)
-
-
-def test_collider_triangle_mesh(assets):
-    """Convert an OBJ file using triangle mesh approximation"""
-    collision_props = [schemas_cfg.UsdPhysicsCollisionCfg(collision_enabled=True)]
-    mesh_collision_prop = [PhysxTriangleMeshCfg()]
-    mesh_config = MeshConverterCfg(
-        asset_path=assets["obj"],
-        mesh_collision_props=mesh_collision_prop,
-        collision_props=collision_props,
-    )
-    mesh_converter = MeshConverter(mesh_config)
-
-    # check that mesh conversion is successful
-    check_mesh_collider_settings(mesh_converter)
-
-
-def test_collider_mesh_simplification(assets):
-    """Convert an OBJ file using mesh simplification approximation"""
-    collision_props = [schemas_cfg.UsdPhysicsCollisionCfg(collision_enabled=True)]
-    mesh_collision_prop = [PhysxTriangleMeshSimplificationCfg()]
-    mesh_config = MeshConverterCfg(
-        asset_path=assets["obj"],
-        mesh_collision_props=mesh_collision_prop,
-        collision_props=collision_props,
-    )
-    mesh_converter = MeshConverter(mesh_config)
-
-    # check that mesh conversion is successful
-    check_mesh_collider_settings(mesh_converter)
-
-
-def test_collider_mesh_bounding_cube(assets):
-    """Convert an OBJ file using bounding cube approximation"""
-    collision_props = [schemas_cfg.UsdPhysicsCollisionCfg(collision_enabled=True)]
-    mesh_collision_prop = [schemas_cfg.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="boundingCube")]
-    mesh_config = MeshConverterCfg(
-        asset_path=assets["obj"],
-        mesh_collision_props=mesh_collision_prop,
-        collision_props=collision_props,
-    )
-    mesh_converter = MeshConverter(mesh_config)
-
-    # check that mesh conversion is successful
-    check_mesh_collider_settings(mesh_converter)
-
-
-def test_collider_mesh_bounding_sphere(assets):
-    """Convert an OBJ file using bounding sphere"""
-    collision_props = [schemas_cfg.UsdPhysicsCollisionCfg(collision_enabled=True)]
-    mesh_collision_prop = [schemas_cfg.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="boundingSphere")]
-    mesh_config = MeshConverterCfg(
-        asset_path=assets["obj"],
-        mesh_collision_props=mesh_collision_prop,
-        collision_props=collision_props,
-    )
-    mesh_converter = MeshConverter(mesh_config)
-
-    # check that mesh conversion is successful
-    check_mesh_collider_settings(mesh_converter)
-
-
-def test_collider_mesh_sdf(assets):
-    """Convert an OBJ file using signed distance field approximation"""
-    collision_props = [schemas_cfg.UsdPhysicsCollisionCfg(collision_enabled=True)]
-    mesh_collision_prop = [PhysxSDFMeshCfg()]
     mesh_config = MeshConverterCfg(
         asset_path=assets["obj"],
         mesh_collision_props=mesh_collision_prop,

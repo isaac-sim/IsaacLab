@@ -22,109 +22,15 @@ from isaaclab_newton.physics import visualization_deformables as visualization_d
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.cloner import ClonePlan
-from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
-
-_VIS_LABEL_SUFFIXES = {
-    "body_label": "Body",
-    "joint_label": "Joint",
-    "shape_label": "Shape",
-    "articulation_label": "Articulation",
-    "constraint_mimic_label": "ConstraintMimic",
-    "equality_constraint_label": "EqualityConstraint",
-}
-# Equality constraints live in custom attributes (like real newton), not plain builder lists.
-_VIS_BUILTIN_LABEL_ATTRS = tuple(attr for attr in _VIS_LABEL_SUFFIXES if attr != "equality_constraint_label")
-_VIS_EQ_FREQ = "mujoco:equality_constraint"
+from isaaclab.scene_data.deformable_discovery import (
+    DeformableStageEntry,
+    deformable_prototypes,
+    expand_deformable_entries,
+)
+from isaaclab.sim.schemas import define_deformable_curve_properties
 
 _SRC = "/World/envs/env_0/protoA"
 _DST = "/World/envs/env_{}/protoA"
-
-
-class _FakeVisualizationModelBuilder:
-    def __init__(self, up_axis=None):
-        self.up_axis = up_axis
-        self.shape_collision_filter_pairs = []
-        self.shape_collision_group = []
-        for attr in _VIS_BUILTIN_LABEL_ATTRS:
-            setattr(self, attr, [])
-            setattr(self, attr.replace("_label", "_world"), [])
-        self.custom_attributes = {
-            "mujoco:equality_constraint_label": newton.ModelBuilder.CustomAttribute(
-                name="equality_constraint_label", frequency=_VIS_EQ_FREQ, dtype=str, default="", namespace="mujoco"
-            ),
-            "mujoco:equality_constraint_world": newton.ModelBuilder.CustomAttribute(
-                name="equality_constraint_world",
-                frequency=_VIS_EQ_FREQ,
-                dtype=int,
-                default=0,
-                namespace="mujoco",
-                references="world",
-            ),
-        }
-        self.custom_frequencies = {}
-        self.geometry_sources = []
-        self.world_slices = []
-        self._current_world = None
-
-    @property
-    def shape_count(self):
-        return len(self.shape_label)
-
-    def begin_world(self):
-        self._current_world = len(self.world_slices)
-        self.world_slices.append([])
-
-    def end_world(self):
-        self._current_world = None
-
-    def add_usd(self, stage, root_path=None, ignore_paths=None, schema_resolvers=None, **kwargs):
-        del stage, ignore_paths, schema_resolvers, kwargs
-        if root_path is None:
-            return {"path_shape_map": {}}
-        label_start = len(self.body_label)
-        geometry_start = len(self.geometry_sources)
-        for attr in _VIS_BUILTIN_LABEL_ATTRS:
-            getattr(self, attr).append(f"{root_path}/{_VIS_LABEL_SUFFIXES[attr]}")
-            getattr(self, attr.replace("_label", "_world")).append(self._current_world or 0)
-        self.shape_collision_group.append(1)
-        self.custom_attributes["mujoco:equality_constraint_label"].values.append(
-            f"{root_path}/{_VIS_LABEL_SUFFIXES['equality_constraint_label']}"
-        )
-        self.custom_attributes["mujoco:equality_constraint_world"].values.append(self._current_world or 0)
-        self.geometry_sources.append(root_path)
-        self._record_world_slice(label_start, len(self.body_label), geometry_start, len(self.geometry_sources))
-        return {"path_shape_map": {}}
-
-    def add_builder(self, builder, xform=None):
-        del xform
-        label_start = len(self.body_label)
-        geometry_start = len(self.geometry_sources)
-        for attr in _VIS_BUILTIN_LABEL_ATTRS:
-            labels = getattr(builder, attr)
-            getattr(self, attr).extend(labels)
-            getattr(self, attr.replace("_label", "_world")).extend([self._current_world] * len(labels))
-        self.shape_collision_group.extend(builder.shape_collision_group)
-        eq_labels = builder.custom_attributes["mujoco:equality_constraint_label"].values
-        self.custom_attributes["mujoco:equality_constraint_label"].values.extend(eq_labels)
-        self.custom_attributes["mujoco:equality_constraint_world"].values.extend([self._current_world] * len(eq_labels))
-        self.geometry_sources.extend(builder.geometry_sources)
-        self._record_world_slice(label_start, len(self.body_label), geometry_start, len(self.geometry_sources))
-
-    def labels_for_world(self, world_id, attr):
-        if attr == "equality_constraint_label":
-            labels = self.custom_attributes["mujoco:equality_constraint_label"].values
-        else:
-            labels = getattr(self, attr)
-        return [label for start, end, _, _ in self.world_slices[world_id] for label in labels[start:end]]
-
-    def geometry_sources_for_world(self, world_id):
-        return [
-            source for _, _, start, end in self.world_slices[world_id] for source in self.geometry_sources[start:end]
-        ]
-
-    def _record_world_slice(self, label_start, label_end, geometry_start, geometry_end):
-        if self._current_world is not None:
-            self.world_slices[self._current_world].append((label_start, label_end, geometry_start, geometry_end))
 
 
 def _make_builder(worlds: list[int]) -> newton.ModelBuilder:
@@ -231,27 +137,19 @@ class TestRenameCustomAttributes(unittest.TestCase):
 
 
 class TestReplicateBuilderMapping(unittest.TestCase):
-    @staticmethod
-    def _source_builder(root_path: str):
-        builder = _FakeVisualizationModelBuilder()
-        builder.add_usd(None, root_path=root_path)
-        return builder
-
-    def test_source_local_sites_batched_with_correct_indices(self):
+    def test_local_and_env_root_sites_keep_indices_labels_and_world_positions(self):
         source_path, destination = "/World/envs/env_0", "/World/envs/env_{}"
         source = newton.ModelBuilder()
         source.add_body(xform=wp.transform((2.0, 0.0, 0.0), wp.quat_identity()))
         site_idx = source.add_site(body=0, xform=wp.transform(), label="ee")
+        root_site_idx = source.shape_count
 
         # Non-zero base so site indices are not trivially zero-based.
         builder = newton.ModelBuilder()
         builder.add_body(xform=wp.transform())
         builder.add_shape(body=0, type=newton.GeoType.SPHERE)
         base_shape = builder.shape_count
-        stride = source.shape_count
-
         positions = np.array([[2.0, 0.0, 0.0], [5.0, 0.0, 0.0], [8.0, 0.0, 0.0]], dtype=np.float32)
-        quaternions = np.array([[0.0, 0.0, 0.0, 1.0]] * 3, dtype=np.float32)
 
         with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
             local_site_map, _, _ = replicate_builder_mapping(
@@ -259,63 +157,34 @@ class TestReplicateBuilderMapping(unittest.TestCase):
                 (source_path,),
                 np.ones((1, 3), dtype=np.bool_),
                 positions,
-                quaternions,
+                np.array([[0.0, 0.0, 0.0, 1.0]] * 3, dtype=np.float32),
                 {source_path: source},
                 destinations=(destination,),
                 env_ids=np.arange(3, dtype=np.int64),
                 source_site_indices={id(source): {"ee": [site_idx]}},
+                env_root_sites={"origin": wp.transform((0.1, 0.0, 0.0), wp.quat_identity())},
             )
 
         replicate.assert_called_once()
-        self.assertEqual(
-            local_site_map["ee"],
-            [[base_shape + world * stride + site_idx] for world in range(3)],
-        )
-        for world, world_indices in enumerate(local_site_map["ee"]):
-            self.assertEqual(builder.shape_label[world_indices[0]], f"/World/envs/env_{world}/ee")
-
-    def test_env_root_sites_batched_at_correct_world_positions(self):
-        source_path, destination = "/World/envs/env_0", "/World/envs/env_{}"
-        source = newton.ModelBuilder()
-        source.add_body(xform=wp.transform((2.0, 0.0, 0.0), wp.quat_identity()))
-
-        builder = newton.ModelBuilder()
-        base_shape = builder.shape_count
-        positions = np.array([[2.0, 0.0, 0.0], [5.0, 0.0, 0.0], [8.0, 0.0, 0.0]], dtype=np.float32)
-        quaternions = np.array([[0.0, 0.0, 0.0, 1.0]] * 3, dtype=np.float32)
-        env_root_offset = wp.transform((0.1, 0.0, 0.0), wp.quat_identity())
-
-        with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
-            local_site_map, _, _ = replicate_builder_mapping(
-                builder,
-                (source_path,),
-                np.ones((1, 3), dtype=np.bool_),
-                positions,
-                quaternions,
-                {source_path: source},
-                destinations=(destination,),
-                env_ids=np.arange(3, dtype=np.int64),
-                env_root_sites={"origin": env_root_offset},
+        for name, index in (("ee", site_idx), ("origin", root_site_idx)):
+            self.assertEqual(
+                local_site_map[name], [[base_shape + world * source.shape_count + index] for world in range(3)]
             )
-
-        replicate.assert_called_once()
-        stride = source.shape_count
-        self.assertEqual(source.shape_count, 1)
-        self.assertEqual(
-            local_site_map["origin"],
-            [[base_shape + world * stride] for world in range(3)],
+            for world, (index,) in enumerate(local_site_map[name]):
+                self.assertEqual(builder.shape_label[index], f"/World/envs/env_{world}/{name}")
+        np.testing.assert_allclose(
+            [tuple(builder.shape_transform[index].p) for (index,) in local_site_map["origin"]],
+            positions + [0.1, 0.0, 0.0],
+            atol=1e-6,
         )
-        for world, world_indices in enumerate(local_site_map["origin"]):
-            site_pos = builder.shape_transform[world_indices[0]].p
-            self.assertAlmostEqual(float(site_pos[0]), float(positions[world][0]) + 0.1, places=5)
-            self.assertAlmostEqual(float(site_pos[1]), 0.0, places=5)
-            self.assertEqual(builder.shape_label[world_indices[0]], f"/World/envs/env_{world}/origin")
 
     def test_inactive_source_rows_are_ignored(self):
         sources = ("/World/envs/env_0/inactive", "/World/envs/env_0/active")
-        source_builders = {source: self._source_builder(source) for source in sources}
-        source_builders[sources[0]].body_label.append("/outside/the/plan")
-        builder = _FakeVisualizationModelBuilder()
+        source_builders = {source: newton.ModelBuilder() for source in sources}
+        for path, source in source_builders.items():
+            source.add_body(label=path)
+        source_builders[sources[0]].add_body(label="/outside/the/plan")
+        builder = newton.ModelBuilder()
 
         replicate_builder_mapping(
             builder,
@@ -328,8 +197,9 @@ class TestReplicateBuilderMapping(unittest.TestCase):
             env_ids=np.arange(2, dtype=np.int64),
         )
 
-        self.assertEqual(builder.geometry_sources_for_world(0), ["/World/envs/env_0/active"])
-        self.assertEqual(builder.geometry_sources_for_world(1), [])
+        self.assertEqual(builder.body_label, ["/World/envs/env_0/active"])
+        self.assertEqual(builder.body_world, [0])
+        self.assertEqual(builder.world_count, 2)
 
 
 class TestVisualizationClonePlan(unittest.TestCase):
@@ -339,34 +209,6 @@ class TestVisualizationClonePlan(unittest.TestCase):
             device="cpu",
             stage=None,
             physics_manager=SimpleNamespace(register_callback=mock.Mock()),
-        )
-
-    def test_clone_plan_expands_prototype_deformables_to_selected_environments(self):
-        entry = DeformableStageEntry(
-            root_path="/World/envs/env_0/Deformable",
-            sim_mesh_path="/World/envs/env_0/Deformable/simulation_mesh",
-            vis_mesh_path="/World/envs/env_0/Deformable/visual_mesh",
-            deformable_type="surface",
-            vertex_count=3,
-            vis_vertex_count=3,
-        )
-        clone_plan = ClonePlan(
-            sources=("/World/envs/env_0",),
-            destinations=("/World/envs/env_{}",),
-            clone_mask=np.ones((1, 4), dtype=np.bool_),
-            env_ids=np.arange(4, dtype=np.int64),
-            positions=np.zeros((4, 3), dtype=np.float32),
-        )
-
-        entries = visualization_deformables_module._expand_clone_plan_deformable_entries([entry], clone_plan, (0,))
-
-        self.assertEqual(
-            [entry.root_path for entry in entries],
-            [f"/World/envs/env_{env_id}/Deformable" for env_id in range(4)],
-        )
-        self.assertEqual(
-            [entry.vis_mesh_path for entry in entries],
-            [f"/World/envs/env_{env_id}/Deformable/visual_mesh" for env_id in range(4)],
         )
 
     @staticmethod
@@ -418,6 +260,48 @@ class TestVisualizationClonePlan(unittest.TestCase):
                 offset = np.zeros(3) if positions is None else positions[1] - positions[0]
                 np.testing.assert_allclose(target_position - source_position, offset)
 
+    def test_cable_import_binds_only_supported_native_instances_without_destination_prims(self):
+        stage = self.sim.stage = Usd.Stage.CreateInMemory()
+        source = "/Scene/copy_7/Rope"
+        shared = ("/Scene/SharedRope", "/Scene/PeriodicRope", "/Scene/MultiRope", "/Scene/CubicRope", "/Scene/OnePoint")
+        for path in (source, "/Scene/copy_7/OtherRope", *shared):
+            curve = UsdGeom.BasisCurves.Define(stage, path)
+            points, counts = [(0, 0, 0), (0, 1, 0), (1, 1, 0)], [3]
+            if path.endswith("MultiRope"):
+                points, counts = points * 2, [3, 3]
+            elif path.endswith("OnePoint"):
+                points, counts = points[:1], [1]
+            curve.CreatePointsAttr(points)
+            curve.CreateCurveVertexCountsAttr(counts)
+            curve.CreateTypeAttr(UsdGeom.Tokens.cubic if path.endswith("CubicRope") else UsdGeom.Tokens.linear)
+            curve.CreateWrapAttr(
+                UsdGeom.Tokens.periodic if path.endswith("PeriodicRope") else UsdGeom.Tokens.nonperiodic
+            )
+            curve.CreateWidthsAttr([0.02])
+            curve.SetWidthsInterpolation(UsdGeom.Tokens.constant)
+            define_deformable_curve_properties(path, stage)
+        plan = ClonePlan(
+            sources=(source, "/Scene/copy_7/OtherRope"),
+            destinations=("/Scene/copy_{}/Rope", "/Scene/copy_{}/OtherRope"),
+            clone_mask=np.ones((2, 2), dtype=np.bool_),
+            env_ids=np.array([7, 12]),
+            global_paths=shared,
+            context_rows={NewtonReplicateContext: (0,)},
+        )
+        builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan)
+        model = builder.finalize(device="cpu")
+        with mock.patch(
+            "isaaclab_newton.physics.newton_manager.get_current_stage",
+            side_effect=AssertionError("Stage discovery is not a binding input."),
+        ):
+            bindings = replicate_module.NewtonManager.collect_cable_segment_shape_ids()
+        self.assertEqual(set(bindings), {"/Scene/SharedRope", source, "/Scene/copy_12/Rope"})
+        for path, shape_ids in bindings.items():
+            self.assertEqual(
+                [model.shape_label[index] for index in shape_ids], [f"{path}_edge_capsule_{i}" for i in range(2)]
+            )
+        self.assertFalse(stage.GetPrimAtPath("/Scene/copy_12/Rope"))
+
     def test_visualization_builder_disables_collision_pairs(self):
         stage = Usd.Stage.CreateInMemory()
         self.sim.stage = stage
@@ -465,9 +349,9 @@ class TestVisualizationClonePlan(unittest.TestCase):
         env_paths = [(env_id, f"/World/envs/env_{env_id}") for env_id in (0, 1)]
         for env_id, env_path in env_paths:
             self._define_xform(stage, env_path, (float(env_id) * 3.0, 0.0, 0.0))
-            self._define_xform(stage, f"{env_path}/Object")
-        self._define_xform(stage, "/World/envs/env_0/Object/source_0_visual")
-        self._define_xform(stage, "/World/envs/env_1/Object/source_1_visual")
+            body = UsdGeom.Xform.Define(stage, f"{env_path}/Object")
+            UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
+            UsdGeom.Cube.Define(stage, f"{env_path}/Object/source_{env_id}_visual").CreateSizeAttr(0.2)
 
         clone_plan = ClonePlan(
             sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
@@ -478,43 +362,27 @@ class TestVisualizationClonePlan(unittest.TestCase):
             context_rows={NewtonReplicateContext: (0, 1)},
         )
 
-        with (
-            mock.patch.object(replicate_module, "ModelBuilder", _FakeVisualizationModelBuilder),
-            mock.patch.object(newton_clone_utils_module, "ModelBuilder", _FakeVisualizationModelBuilder),
-            mock.patch.object(replicate_module, "import_builder_visual_material_paths"),
-            mock.patch.object(newton_clone_utils_module, "import_builder_visual_material_paths"),
-            mock.patch.object(newton_clone_utils_module, "replace_newton_builder_shape_colors"),
-        ):
-            builder, _, _ = NewtonReplicateContext(self.sim).replicate(clone_plan)
-
+        builder, _, _ = NewtonReplicateContext(self.sim).replicate(clone_plan)
+        self.assertEqual(builder.body_label, [f"/World/envs/env_{i}/Object" for i in range(3)])
         self.assertEqual(
-            [builder.geometry_sources_for_world(i) for i in range(3)],
-            [["/World/envs/env_0/Object"], ["/World/envs/env_1/Object"], ["/World/envs/env_0/Object"]],
+            builder.shape_label,
+            [f"/World/envs/env_{i}/Object/source_{source}_visual" for i, source in enumerate((0, 1, 0))],
         )
-        for attr, suffix in _VIS_LABEL_SUFFIXES.items():
-            self.assertEqual(
-                [builder.labels_for_world(i, attr) for i in range(3)],
-                [
-                    [f"/World/envs/env_0/Object/{suffix}"],
-                    [f"/World/envs/env_1/Object/{suffix}"],
-                    [f"/World/envs/env_2/Object/{suffix}"],
-                ],
-            )
+        self.assertEqual(builder.body_world, [0, 1, 2])
+        self.assertEqual(builder.shape_world, [0, 1, 2])
 
     def test_shadow_deformables_use_plan_placement_without_destination_prims(self):
         stage = Usd.Stage.CreateInMemory()
         self._define_xform(stage, "/Scene/copy_7", (10.0, 0.0, 0.0))
         self._define_xform(stage, "/Scene/copy_7/Parent", (2.0, 0.0, 0.0))
-        self._define_xform(stage, "/Scene/copy_7/Parent/Cloth", (3.0, 0.0, 0.0))
         path = "/Scene/copy_7/Parent/Cloth"
-        entry = DeformableStageEntry(
-            root_path=path,
-            sim_mesh_path=f"{path}/Mesh",
-            vis_mesh_path=f"{path}/Mesh",
-            deformable_type="surface",
-            vertex_count=3,
-            vis_vertex_count=3,
-        )
+        vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float32)
+        cloth = UsdGeom.Mesh.Define(stage, path)
+        cloth.AddTranslateOp().Set((3.0, 0.0, 0.0))
+        cloth.GetPrim().SetMetadata("apiSchemas", Sdf.TokenListOp.CreateExplicit(["OmniPhysicsDeformableBodyAPI"]))
+        cloth.CreatePointsAttr(vertices)
+        cloth.CreateFaceVertexCountsAttr([3])
+        cloth.CreateFaceVertexIndicesAttr([0, 1, 2])
         plan = ClonePlan(
             sources=(path,),
             destinations=("/Scene/copy_{}/Parent/Cloth",),
@@ -524,19 +392,49 @@ class TestVisualizationClonePlan(unittest.TestCase):
         )
         for positions in (plan.positions, None):
             with self.subTest(positions=positions):
-                builder = mock.Mock(particle_count=0)
-                entities, groups = visualization_deformables_module.add_shadow_deformables_to_builder(
-                    builder, stage, [entry], replace(plan, positions=positions), (0,)
+                builder = newton.ModelBuilder()
+                offsets = visualization_deformables_module.add_shadow_deformables_to_builder(
+                    builder,
+                    expand_deformable_entries(replace(plan, positions=positions), deformable_prototypes(stage, plan)),
                 )
-
-                self.assertEqual([entity.root_path for entity in entities], ["/Scene/copy_12/Parent/Cloth", path])
-                self.assertEqual(groups[0].prim_path, "/Scene/copy_[^/]+/Parent/Cloth")
+                self.assertEqual(offsets, {path: 0, "/Scene/copy_12/Parent/Cloth": 3})
+                self.assertFalse(stage.GetPrimAtPath("/Scene/copy_12"))
                 offset = np.zeros(3) if positions is None else positions[2] - positions[0]
-                parent_position = np.array([12.0, 0.0, 0.0])
-                np.testing.assert_allclose(
-                    [tuple(call.kwargs["pos"]) for call in builder.add_cloth_mesh.call_args_list],
-                    [parent_position + offset, parent_position],
-                )
+                # Root translation is baked into vertices, not applied a second time at placement.
+                source_points = vertices + [15.0, 0.0, 0.0]
+                np.testing.assert_allclose(builder.particle_q, np.concatenate((source_points, source_points + offset)))
+
+    def test_shadow_visual_topologies_keep_heterogeneous_offsets(self):
+        vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 0, 1], [0, 1, 1]])
+        entries = tuple(
+            DeformableStageEntry(
+                root_path=f"/Source/{name}",
+                sim_mesh_path=f"/Source/{name}/Simulation",
+                vis_mesh_path=f"/Source/{name}/Visual",
+                deformable_type="volume",
+                vertex_count=4,
+                vis_vertex_count=count,
+                vis_vertices=vertices[:count],
+                vis_indices=np.arange(count),
+            )
+            for name, count in (("A", 3), ("B", 6))
+        )
+        plan = ClonePlan(
+            sources=tuple(entry.root_path for entry in entries),
+            destinations=("/Copies/{}/Body",) * 2,
+            env_ids=np.array([2, 10, 30]),
+            clone_mask=np.array([[True, False, True], [False, True, False]]),
+        )
+        builder = newton.ModelBuilder()
+        builder.add_particle(pos=wp.vec3(), vel=wp.vec3(), mass=1.0)
+        offsets = visualization_deformables_module.add_shadow_deformables_to_builder(
+            builder, expand_deformable_entries(plan, entries, (0, 1))
+        )
+        self.assertEqual(
+            offsets, {"/Copies/2/Body/Visual": 1, "/Copies/30/Body/Visual": 4, "/Copies/10/Body/Visual": 7}
+        )
+        self.assertEqual(builder.particle_count, 13)
+        self.assertEqual(len(builder.tri_indices), 4)
 
 
 class TestReplicationNamesItsCopies(unittest.TestCase):
