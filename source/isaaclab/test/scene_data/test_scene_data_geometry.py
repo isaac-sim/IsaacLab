@@ -79,17 +79,6 @@ def test_create_geometry_mapping_returns_none_for_identity_order():
     assert mapping is None
 
 
-def test_create_geometry_mapping_remaps_out_of_order_entities():
-    backend = _PointsBackend()
-    provider = SceneDataProvider(backend)
-    mapping = provider.create_geometry_mapping(
-        ["/World/envs/env_1/A", "/World/envs/env_0/A"],
-        [0, 3],
-    )
-    assert mapping is not None
-    assert mapping.numpy().tolist() == [3, 0]
-
-
 @pytest.mark.skipif(wp.get_cuda_device_count() == 0, reason="requires CUDA")
 def test_create_geometry_mapping_uses_points_device_with_empty_transforms():
     """Geometry mapping follows its point publication, independently of transforms."""
@@ -124,6 +113,7 @@ def test_get_points_copies_unpadded_entity_slices():
         ["/World/envs/env_1/A", "/World/envs/env_0/A"],
         [0, 3],
     )
+    assert mapping.numpy().tolist() == [3, 0]
     assert provider.get_points(output, mapping=mapping, allow_passthrough=False)
 
     copied = output.points.numpy()

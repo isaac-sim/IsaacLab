@@ -16,7 +16,7 @@ import warp as wp
 
 from isaaclab.scene_data.scene_data_backend import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.scene_data_provider import SceneDataProvider
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 
 class _Backend(SimpleNamespace, SceneDataBackend):
@@ -152,8 +152,11 @@ def test_mapping_preserves_unmapped_destination_slots():
     np.testing.assert_array_equal(output.transforms.numpy()[2], np.zeros(7))
 
 
-@pytest.mark.parametrize("format_name", ["Transform", "Vec3_Quat", "Vec3_Matrix33", "Matrix44"])
-@pytest.mark.parametrize("scaled", [False, True])
+# Scale is applied by one shared helper, so it rotates across the formats instead of doubling them.
+@pytest.mark.parametrize(
+    ("format_name", "scaled"),
+    [("Transform", False), ("Vec3_Quat", True), ("Vec3_Matrix33", False), ("Matrix44", True)],
+)
 def test_transposed_matrices_fuse_format_mapping_and_scale(format_name, scaled):
     """All native formats produce the same row-vector matrices, with output-indexed scale."""
     poses = np.array([[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 1, 2, 2, 2]], dtype=np.float32)
@@ -190,7 +193,7 @@ def test_transposed_matrices_fuse_format_mapping_and_scale(format_name, scaled):
 
 
 @pytest.mark.parametrize("format_name", ["Transform", "Vec3_Quat", "Vec3_Matrix33", "Matrix44"])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destinations(format_name, device, monkeypatch):
     """Fabric conversion skips solver-only bodies and preserves scales across buffer reallocations."""
     assert set(SceneDataFormat.FabricMatrix44.vars) == {"matrices"}

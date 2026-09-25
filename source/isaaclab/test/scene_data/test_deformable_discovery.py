@@ -11,64 +11,13 @@ import numpy as np
 
 from pxr import Gf, Sdf, Usd, UsdGeom
 
-from isaaclab.scene_data.deformable_discovery import (
-    _matrix4d_to_numpy,
-    _transform_points,
-    discover_deformables_on_stage,
-)
+from isaaclab.scene_data.deformable_discovery import discover_deformables_on_stage
 
 
 def _add_api_schemas(prim: Usd.Prim, schemas: list[str]) -> None:
     api_schemas = Sdf.TokenListOp()
     api_schemas.explicitItems = schemas
     prim.SetMetadata("apiSchemas", api_schemas)
-
-
-def test_transform_points_matches_usd_matrix4d_transform():
-    """Numpy baking must use USD row-vector convention (``p @ M``)."""
-    matrix = Gf.Matrix4d(1.0)
-    matrix.SetRotate(Gf.Rotation(Gf.Vec3d(0.0, 1.0, 0.0), 30.0))
-    matrix.SetTranslateOnly(Gf.Vec3d(0.5, -0.1, 0.25))
-    points = np.array(
-        [
-            [0.15, -0.025, 0.025],
-            [-0.15, 0.025, -0.025],
-            [0.0, 0.0, 0.1],
-        ],
-        dtype=np.float32,
-    )
-
-    baked = _transform_points(_matrix4d_to_numpy(matrix), points)
-    expected = np.array(
-        [list(matrix.Transform(Gf.Vec3d(float(p[0]), float(p[1]), float(p[2])))) for p in points],
-        dtype=np.float32,
-    )
-    assert np.allclose(baked, expected, atol=1e-6)
-
-
-def test_discover_volume_tet_mesh_deformable():
-    stage = Usd.Stage.CreateInMemory()
-    root = UsdGeom.Xform.Define(stage, "/World/envs/env_0/SoftBody").GetPrim()
-    _add_api_schemas(root, ["OmniPhysicsDeformableBodyAPI"])
-    tet = UsdGeom.TetMesh.Define(stage, "/World/envs/env_0/SoftBody/simulation")
-    _add_api_schemas(tet.GetPrim(), ["OmniPhysicsVolumeDeformableSimAPI"])
-    points = [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0), Gf.Vec3f(0.0, 0.0, 1.0)]
-    tet.CreatePointsAttr(points)
-    tet.CreateTetVertexIndicesAttr([Gf.Vec4i(0, 1, 2, 3)])
-    visual = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/SoftBody/visual")
-    visual.CreatePointsAttr(points)
-    visual.CreateFaceVertexCountsAttr([3])
-    visual.CreateFaceVertexIndicesAttr([0, 1, 2])
-
-    entries = discover_deformables_on_stage(stage)
-    assert len(entries) == 1
-    entry = entries[0]
-    assert entry.deformable_type == "volume"
-    assert entry.vertex_count == 4
-    assert entry.vis_vertex_count == 4
-    assert entry.root_path.endswith("/SoftBody")
-    assert entry.sim_mesh_path.endswith("/simulation")
-    assert entry.vis_mesh_path.endswith("/visual")
 
 
 def test_discover_surface_mesh_deformable():
@@ -149,7 +98,7 @@ def test_discover_declared_roots_once_without_undeclared_siblings():
 
 
 def test_discover_volume_prefers_named_visual_over_unrelated_child_mesh():
-    """When several child meshes exist under the BodyAPI root, select the visual mesh."""
+    """A tet-mesh root is a volume deformable whose visual mesh is selected over other child meshes."""
     stage = Usd.Stage.CreateInMemory()
     root = UsdGeom.Xform.Define(stage, "/World/envs/env_0/SoftBody").GetPrim()
     _add_api_schemas(root, ["OmniPhysicsDeformableBodyAPI"])
@@ -158,6 +107,9 @@ def test_discover_volume_prefers_named_visual_over_unrelated_child_mesh():
     points = [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0), Gf.Vec3f(0.0, 0.0, 1.0)]
     tet.CreatePointsAttr(points)
     tet.CreateTetVertexIndicesAttr([Gf.Vec4i(0, 1, 2, 3)])
+    # A rotated and translated sim mesh: vertices are baked into the root's parent frame.
+    tet.AddTranslateOp().Set(Gf.Vec3d(0.5, -0.1, 0.25))
+    tet.AddRotateYOp().Set(30.0)
 
     # Lexicographically first child mesh (must not win over the named visual).
     deco = UsdGeom.Mesh.Define(stage, "/World/envs/env_0/SoftBody/decoration")
@@ -178,5 +130,14 @@ def test_discover_volume_prefers_named_visual_over_unrelated_child_mesh():
 
     entries = discover_deformables_on_stage(stage)
     assert len(entries) == 1
-    assert entries[0].vis_mesh_path.endswith("/visual")
-    assert entries[0].vis_vertex_count == 4
+    entry = entries[0]
+    assert entry.deformable_type == "volume"
+    assert entry.vertex_count == 4
+    assert entry.root_path.endswith("/SoftBody")
+    assert entry.sim_mesh_path.endswith("/simulation")
+    assert entry.vis_mesh_path.endswith("/visual")
+    assert entry.vis_vertex_count == 4
+    # USD's own row-vector transform is the reference for the baked vertices.
+    matrix = tet.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+    expected = np.array([list(matrix.Transform(Gf.Vec3d(p))) for p in points], dtype=np.float32)
+    np.testing.assert_allclose(entry.vertices, expected, atol=1e-6)
