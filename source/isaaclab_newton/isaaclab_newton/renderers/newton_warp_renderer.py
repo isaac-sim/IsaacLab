@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -623,26 +624,38 @@ class NewtonWarpRenderer(BaseRenderer):
 
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
+        self.render_batch([render_data])
 
-        if render_data.sensor_task_name is None:
-            render_data.sensor_task_name = f"newton_warp_render:{id(render_data)}"
-            tri_indices = self.newton_sensor.model.tri_indices
-            # Warp mesh refits allocate graph nodes and are not supported inside a conditional graph body.
-            graph_capturable = tri_indices is None or tri_indices.shape[0] == 0
-            NewtonManager._register_sensor_task(
-                render_data.sensor_task_name,
-                lambda: self._launch_render(render_data),
-                graph_capturable=graph_capturable,
-            )
-        NewtonManager._update_sensor_tasks(render_data.sensor_task_name)
+    def render_batch(self, render_data: Sequence[RenderData]) -> None:
+        """Render cameras with one sensor-graph launch.
+
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render_batch`.
+        """
+        if not render_data:
+            return
+        for data in render_data:
+            self._register_render_task(data)
+        NewtonManager._update_sensor_tasks(*(data.sensor_task_name for data in render_data))
 
         # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
         # tensors were bound once in ``set_outputs``.
-        if render_data.ppisp_pipeline is not None:
-            render_data.ppisp_pipeline.apply(
-                render_data._ppisp_hdr_source,
-                render_data._ppisp_rgba_dest,
-            )
+        for data in render_data:
+            if data.ppisp_pipeline is not None:
+                data.ppisp_pipeline.apply(data._ppisp_hdr_source, data._ppisp_rgba_dest)
+
+    def _register_render_task(self, render_data: RenderData) -> None:
+        """Register the camera's render as a Newton sensor task on first use."""
+        if render_data.sensor_task_name is not None:
+            return
+        render_data.sensor_task_name = f"newton_warp_render:{id(render_data)}"
+        tri_indices = self.newton_sensor.model.tri_indices
+        # Warp mesh refits allocate graph nodes and are not supported inside a conditional graph body.
+        graph_capturable = tri_indices is None or tri_indices.shape[0] == 0
+        NewtonManager._register_sensor_task(
+            render_data.sensor_task_name,
+            lambda: self._launch_render(render_data),
+            graph_capturable=graph_capturable,
+        )
 
     def _launch_render(self, render_data: RenderData) -> None:
         """Launch the tiled-camera render kernels for sensor graph capture."""
