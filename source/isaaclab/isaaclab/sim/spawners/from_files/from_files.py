@@ -221,6 +221,7 @@ def spawn_from_mesh(
         usd_cfg = from_files_cfg.UsdFileCfg(
             usd_path=mesh_converter.usd_path,
             scale=cfg.scale,
+            make_uninstanceable=cfg.make_uninstanceable,
             visual_material_path=cfg.visual_material_path,
             visual_material=cfg.visual_material,
             physics_material_path=cfg.physics_material_path,

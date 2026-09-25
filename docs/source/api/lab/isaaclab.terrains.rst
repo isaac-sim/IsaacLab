@@ -17,6 +17,18 @@
 Terrain importer
 ----------------
 
+To import a terrain directly from a mesh file, set ``terrain_type="mesh"`` and ``mesh_path``::
+
+    terrain = TerrainImporterCfg(
+        prim_path="/World/ground",
+        terrain_type="mesh",
+        mesh_path="/path/to/terrain.obj",
+        env_spacing=2.0,
+    )
+
+The importer converts the mesh file to USD, enables triangle-mesh collision, and places environment
+origins on the configured grid. The mesh file's coordinates determine the terrain's position and scale.
+
 .. autoclass:: TerrainImporter
     :members:
     :show-inheritance:
