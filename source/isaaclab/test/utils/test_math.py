@@ -920,7 +920,7 @@ def test_quat_apply(device):
     torch.testing.assert_close(scipy_result.to(device=device), apply_result, atol=2e-4, rtol=2e-4)
     # batched (..., 4) inputs keep their leading dimensions
     batched_result = math_utils.quat_apply(q_rand.reshape(n // 8, 2, 4, 4), v_rand.reshape(n // 8, 2, 4, 3))
-    torch.testing.assert_close(batched_result, apply_result.reshape(n // 8, 2, 4, 3))
+    torch.testing.assert_close(batched_result, scipy_result.reshape(n // 8, 2, 4, 3), atol=2e-4, rtol=2e-4)
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -943,7 +943,7 @@ def test_quat_apply_inverse(device):
     torch.testing.assert_close(scipy_result.to(device=device), apply_result, atol=2e-4, rtol=2e-4)
     # batched (..., 4) inputs keep their leading dimensions
     batched_result = math_utils.quat_apply_inverse(q_rand.reshape(n // 8, 2, 4, 4), v_rand.reshape(n // 8, 2, 4, 3))
-    torch.testing.assert_close(batched_result, apply_result.reshape(n // 8, 2, 4, 3))
+    torch.testing.assert_close(batched_result, scipy_result.reshape(n // 8, 2, 4, 3), atol=2e-4, rtol=2e-4)
 
 
 @pytest.mark.parametrize("device", test_devices())

@@ -184,12 +184,8 @@ def test_ovphysx_data_targets_are_independent_and_properties_preflight_when_avai
         resolve_property_benchmarks,
     )
 
-    try:
-        ovphysx_runtime._load_runtime_symbols()
-    except ModuleNotFoundError as exc:
-        if exc.name == "ovphysx":
-            pytest.skip("optional ovphysx runtime is not installed")
-        raise
+    pytest.importorskip("ovphysx", reason="optional ovphysx runtime is not installed")
+    ovphysx_runtime._load_runtime_symbols()
 
     for component in ("articulation", "rigid_object", "rigid_object_collection"):
         config = replace(
@@ -330,7 +326,8 @@ def test_physx_collection_reuses_bounded_flat_view_id_scratch(monkeypatch) -> No
 def test_ovphysx_factories_use_exported_binding_set_signature(
     monkeypatch, factory_name, module_name, class_name
 ) -> None:
-    """Every OVPhysX target factory should call the exported binding constructor compatibly."""
+    """Factory calls match the exported binding constructor without requiring the optional runtime."""
+    monkeypatch.setitem(sys.modules, "ovphysx", None)
 
     class ConstructorAccepted(Exception):
         pass
@@ -365,7 +362,7 @@ def test_ovphysx_factories_use_exported_binding_set_signature(
 @pytest.mark.parametrize("read_mode", ("numpy", "structured_warp", "view_preflight"))
 def test_mock_ovphysx_binding_reads_latest_data_without_optional_runtime(monkeypatch, read_mode) -> None:
     """Repository mock reads should support every consumer mode and reflect subsequent writes."""
-    monkeypatch.setitem(sys.modules, "isaaclab_ov.tensor_types", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "ovphysx", None)
     bindings_module = importlib.import_module("isaaclab_ov.test.fixtures.views.mock_ovphysx_bindings")
     binding = bindings_module.MockTensorBinding(tensor_type=0, shape=(2, 7), count=2)
     first = np.arange(14, dtype=np.float32).reshape(2, 7)
