@@ -9,14 +9,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from newton import Model
+from newton import Model, ModelBuilder
 from newton.solvers import SolverVBD
 
-from ..assets.deformable_object import add_registered_deformables_to_builder
+from ..cloner.newton_clone_utils import add_deformable_entry_to_builder
 from .newton_manager import NewtonManager
 from .vbd_manager_cfg import VBDSolverCfg
 
 if TYPE_CHECKING:
+    import numpy as np
+
     from isaaclab.sim.simulation_context import SimulationContext
 
 
@@ -27,8 +29,8 @@ class NewtonVBDManager(NewtonManager):
     def initialize(cls, sim_context: SimulationContext) -> None:
         """Register Newton deformable construction for each cloned world."""
         NewtonManager._deformable_registry = []
-        if add_registered_deformables_to_builder not in NewtonManager._per_world_builder_hooks:
-            NewtonManager._per_world_builder_hooks.append(add_registered_deformables_to_builder)
+        if cls._add_deformables_to_builder not in NewtonManager._per_world_builder_hooks:
+            NewtonManager._per_world_builder_hooks.append(cls._add_deformables_to_builder)
         super().initialize(sim_context)
 
     @classmethod
@@ -74,3 +76,11 @@ class NewtonVBDManager(NewtonManager):
         if cls.backend.model.particle_count > 0 and hasattr(cls._solver, "rebuild_bvh"):
             cls._solver.rebuild_bvh(cls.backend.state_0)
         super()._simulate_physics_only()
+
+    @staticmethod
+    def _add_deformables_to_builder(
+        builder: ModelBuilder, world_idx: int, env_position: np.ndarray, env_rotation: np.ndarray
+    ) -> None:
+        """Pass registered prototypes to the cloner for the current world."""
+        for entry in NewtonManager._deformable_registry:
+            add_deformable_entry_to_builder(builder, entry, world_idx, env_position, env_rotation)

@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 import warp as wp
 from isaaclab_newton.assets.deformable_object import DeformableObject
-from isaaclab_newton.assets.deformable_object.deformable_object import (
+from isaaclab_newton.cloner.newton_clone_utils import (
     DeformableRegistryEntry,
     add_deformable_entry_to_builder,
 )

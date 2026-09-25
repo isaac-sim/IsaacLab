@@ -6,7 +6,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from typing import Any
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import warp as wp
@@ -18,6 +19,117 @@ from isaaclab.cloner import path as clone_path
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
+
+if TYPE_CHECKING:
+    from isaaclab.scene_data.deformable_vis_remap import VolumeVisRemap
+
+
+@dataclass
+class DeformableRegistryEntry:
+    """Prototype geometry and the particle ranges recorded during Newton replication.
+
+    Assets register prototype data before cloning and bind to the recorded ranges afterward.
+    """
+
+    prim_path: str
+    sim_mesh_prim_path: str
+    vis_mesh_prim_path: str
+    vertices: list
+    indices: list
+    init_pos: tuple[float, float, float]
+    init_rot: tuple[float, float, float, float]  # (x, y, z, w)
+    deformable_type: str | None = None  # "volume" or "surface"
+    # Cloth params
+    density: float = 1.0
+    tri_ke: float = 1e4
+    tri_ka: float = 1e4
+    tri_kd: float = 1.5e-6
+    edge_ke: float = 5.0
+    edge_kd: float = 1e-2
+    particle_radius: float = 0.008
+    # Tet params
+    k_mu: float = 1e5
+    k_lambda: float = 1e5
+    k_damp: float = 0.0
+    # Filled by the Newton clone context:
+    particle_offsets: list[int] = field(default_factory=list)
+    particles_per_body: int = 0
+    volume_vis_remap: VolumeVisRemap | None = None
+    """Prototype interpolation tables when visual vertices differ from native simulation nodes."""
+
+
+def add_deformable_entry_to_builder(
+    builder: ModelBuilder,
+    entry: DeformableRegistryEntry,
+    env_idx: int,
+    env_position: np.ndarray,
+    env_rotation: np.ndarray,
+) -> None:
+    """Add one deformable instance and record its native particle range.
+
+    Args:
+        builder: Builder whose current world receives the deformable.
+        entry: Prototype mesh data and material properties.
+        env_idx: Environment index; zero starts a fresh set of particle ranges.
+        env_position: World position [m] for this environment.
+        env_rotation: World orientation as an xyzw quaternion for this environment.
+    """
+    if env_idx == 0:
+        entry.particle_offsets.clear()
+        entry.particles_per_body = 0
+
+    before_count = builder.particle_count
+    env_pos = wp.vec3(float(env_position[0]), float(env_position[1]), float(env_position[2]))
+    env_rot = wp.quat(*map(float, env_rotation))
+    init_pos = wp.vec3(*entry.init_pos)
+    init_rot = wp.quat(*entry.init_rot)
+    body_pos = env_pos + wp.quat_rotate(env_rot, init_pos)
+    body_rot = env_rot * init_rot
+
+    if entry.deformable_type == "volume":
+        builder.add_soft_mesh(
+            pos=body_pos,
+            rot=body_rot,
+            scale=1.0,
+            vel=wp.vec3(0.0, 0.0, 0.0),
+            vertices=entry.vertices,
+            indices=entry.indices,
+            density=entry.density,
+            k_mu=entry.k_mu,
+            k_lambda=entry.k_lambda,
+            k_damp=entry.k_damp,
+            particle_radius=entry.particle_radius,
+        )
+    elif entry.deformable_type == "surface":
+        builder.add_cloth_mesh(
+            pos=body_pos,
+            rot=body_rot,
+            scale=1.0,
+            vel=wp.vec3(0.0, 0.0, 0.0),
+            vertices=entry.vertices,
+            indices=entry.indices,
+            density=entry.density,
+            tri_ke=entry.tri_ke,
+            tri_ka=entry.tri_ka,
+            tri_kd=entry.tri_kd,
+            edge_ke=entry.edge_ke,
+            edge_kd=entry.edge_kd,
+            particle_radius=entry.particle_radius,
+        )
+    else:
+        raise ValueError(
+            f"Invalid deformable type '{entry.deformable_type}' for registry entry with prim path '{entry.prim_path}'"
+        )
+
+    delta = builder.particle_count - before_count
+    entry.particle_offsets.append(before_count)
+    if env_idx == 0:
+        entry.particles_per_body = delta
+    elif entry.particles_per_body != delta:
+        raise RuntimeError(
+            f"Deformable body '{entry.prim_path}' produced {delta} particles in env {env_idx}, "
+            f"but env 0 produced {entry.particles_per_body}."
+        )
 
 
 def _has_visible_non_collision_geometry(stage: Usd.Stage, prim_path: str) -> bool:

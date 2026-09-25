@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -18,9 +17,10 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.physics import PhysicsEvent
-from isaaclab.scene_data.deformable_vis_remap import VolumeVisRemap, build_volume_vis_barycentric_remap
+from isaaclab.scene_data.deformable_vis_remap import build_volume_vis_barycentric_remap
 from isaaclab.utils.warp import ProxyArray
 
+from ...cloner.newton_clone_utils import DeformableRegistryEntry
 from ...physics.newton_manager import NewtonManager as SimulationManager
 from .deformable_object_data import DeformableObjectData
 from .kernels import (
@@ -35,153 +35,10 @@ from .kernels import (
     write_nodal_kinematic_target_mask,
 )
 
-
-@dataclass
-class DeformableRegistryEntry:
-    """Entry in the deformable body registry.
-
-    Registered by :class:`DeformableObject` during ``__init__``, consumed by
-    the Newton clone context inside the per-world ``begin_world``/``end_world`` loop.
-    After replication, ``particle_offsets`` and ``particles_per_body`` are filled in
-    so the asset can bind to the correct particle ranges.
-    """
-
-    prim_path: str
-    sim_mesh_prim_path: str
-    vis_mesh_prim_path: str
-    vertices: list
-    indices: list
-    init_pos: tuple[float, float, float]
-    init_rot: tuple[float, float, float, float]  # (x, y, z, w)
-    deformable_type: str | None = None  # "volume" or "surface"
-    # Cloth params
-    density: float = 1.0
-    tri_ke: float = 1e4
-    tri_ka: float = 1e4
-    tri_kd: float = 1.5e-6
-    edge_ke: float = 5.0
-    edge_kd: float = 1e-2
-    particle_radius: float = 0.008
-    # Tet params
-    k_mu: float = 1e5
-    k_lambda: float = 1e5
-    k_damp: float = 0.0
-    # Filled by the Newton clone context:
-    particle_offsets: list[int] = field(default_factory=list)
-    particles_per_body: int = 0
-    volume_vis_remap: VolumeVisRemap | None = None
-    """Prototype interpolation tables when visual vertices differ from native simulation nodes."""
-
-
 if TYPE_CHECKING:
     from isaaclab.assets.deformable_object.deformable_object_cfg import DeformableObjectCfg
 
 logger = logging.getLogger(__name__)
-
-
-def add_deformable_entry_to_builder(
-    builder,
-    entry: DeformableRegistryEntry,
-    env_idx: int,
-    env_position: np.ndarray,
-    env_rotation: np.ndarray,
-) -> None:
-    """Add a deformable registry entry to a Newton ``ModelBuilder`` for one environment.
-
-    Depending on the deformable type (``"volume"`` or ``"surface"``), calls
-    ``builder.add_soft_mesh()`` or ``builder.add_cloth_mesh()`` with the mesh
-    data and material properties stored in the registry entry.
-
-    Also records the particle offset for the instance and, on the first
-    environment, records the per-body particle count.
-
-    Args:
-        builder: The Newton ``ModelBuilder``.
-        entry: A :class:`DeformableRegistryEntry` with mesh data and config.
-        env_idx: The environment index.
-        env_position: World position [x, y, z] [m] for this environment.
-        env_rotation: World orientation as quaternion ``(x, y, z, w)`` for this environment.
-    """
-    if env_idx == 0:
-        entry.particle_offsets.clear()
-        entry.particles_per_body = 0
-
-    before_count = getattr(builder, "particle_count", 0)
-
-    env_pos = wp.vec3(float(env_position[0]), float(env_position[1]), float(env_position[2]))
-    env_rot = wp.quat(
-        float(env_rotation[0]),
-        float(env_rotation[1]),
-        float(env_rotation[2]),
-        float(env_rotation[3]),
-    )
-    init_pos = wp.vec3(float(entry.init_pos[0]), float(entry.init_pos[1]), float(entry.init_pos[2]))
-    init_rot = wp.quat(
-        float(entry.init_rot[0]),
-        float(entry.init_rot[1]),
-        float(entry.init_rot[2]),
-        float(entry.init_rot[3]),
-    )
-    body_pos = env_pos + wp.quat_rotate(env_rot, init_pos)
-    body_rot = env_rot * init_rot
-
-    if entry.deformable_type == "volume":
-        builder.add_soft_mesh(
-            pos=body_pos,
-            rot=body_rot,
-            scale=1.0,
-            vel=wp.vec3(0.0, 0.0, 0.0),
-            vertices=entry.vertices,
-            indices=entry.indices,
-            density=entry.density,
-            k_mu=entry.k_mu,
-            k_lambda=entry.k_lambda,
-            k_damp=entry.k_damp,
-            particle_radius=entry.particle_radius,
-        )
-    elif entry.deformable_type == "surface":
-        builder.add_cloth_mesh(
-            pos=body_pos,
-            rot=body_rot,
-            scale=1.0,
-            vel=wp.vec3(0.0, 0.0, 0.0),
-            vertices=entry.vertices,
-            indices=entry.indices,
-            density=entry.density,
-            tri_ke=entry.tri_ke,
-            tri_ka=entry.tri_ka,
-            tri_kd=entry.tri_kd,
-            edge_ke=entry.edge_ke,
-            edge_kd=entry.edge_kd,
-            particle_radius=entry.particle_radius,
-        )
-    else:
-        raise ValueError(
-            f"Invalid deformable type '{entry.deformable_type}' for registry entry with prim path '{entry.prim_path}'"
-        )
-
-    after_count = getattr(builder, "particle_count", 0)
-    delta = after_count - before_count
-
-    entry.particle_offsets.append(before_count)
-    if env_idx == 0:
-        entry.particles_per_body = delta
-    elif entry.particles_per_body != delta:
-        raise RuntimeError(
-            f"Deformable body '{entry.prim_path}' produced {delta} particles in env {env_idx}, "
-            f"but env 0 produced {entry.particles_per_body}."
-        )
-
-
-def add_registered_deformables_to_builder(
-    builder,
-    world_idx: int,
-    env_position: np.ndarray,
-    env_rotation: np.ndarray,
-) -> None:
-    """Add all registered deformable entries to one Newton builder world."""
-    for entry in SimulationManager._deformable_registry:
-        add_deformable_entry_to_builder(builder, entry, world_idx, env_position, env_rotation)
 
 
 class DeformableObject(BaseDeformableObject):
@@ -192,9 +49,8 @@ class DeformableObject(BaseDeformableObject):
     a per-instance indexing layer on top of those flat arrays, enabling the standard
     :class:`BaseDeformableObject` interface for reading/writing nodal state.
 
-    The cloth mesh is added to the Newton :class:`ModelBuilder` during the ``MODEL_INIT`` phase.
-    The mesh data is read from the USD prim at :attr:`cfg.prim_path`, and cloth simulation
-    parameters (density, stiffness, etc.) come from :attr:`DeformableObjectCfg`.
+    The asset registers its authored prototype geometry and material parameters. Newton cloning
+    constructs the native meshes and records particle ranges; the asset binds to them afterward.
     """
 
     cfg: DeformableObjectCfg

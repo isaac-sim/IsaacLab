@@ -6,8 +6,7 @@
 __all__ = [
     "DeformableObject",
     "DeformableObjectData",
-    "add_registered_deformables_to_builder",
 ]
 
-from .deformable_object import DeformableObject, add_registered_deformables_to_builder
+from .deformable_object import DeformableObject
 from .deformable_object_data import DeformableObjectData
