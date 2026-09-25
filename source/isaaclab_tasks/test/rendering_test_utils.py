@@ -1928,6 +1928,8 @@ def rendering_test_lift_kuka(
 
     env_cfg.scene.num_envs = 4
     env_cfg.scene.base_camera.data_types = data_types
+    # the camera renders several data types here, so the image term must name the one it observes
+    env_cfg.observations.base_image.object_observation_b.params["data_type"] = data_types[0]
 
     motion_data_type = _motion_data_type(data_types)
     if motion_data_type == "motion_vectors":

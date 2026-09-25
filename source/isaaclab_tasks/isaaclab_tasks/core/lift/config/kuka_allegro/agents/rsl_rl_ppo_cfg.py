@@ -104,6 +104,8 @@ class KukaAllegroSingleCameraPPORunnerCfg(KukaAllegroPPORunnerCfg):
     obs_groups = {"actor": ["policy", "proprio", "base_image"], "critic": ["policy", "proprio", "perception"]}
     actor = CNN_POLICY_CFG
     algorithm = CAMERA_ALGO_CFG
+    # the per-group NaN scan reads every image and syncs with the host each step; uint8 images cannot be NaN
+    check_for_nan = False
 
 
 @configclass
@@ -117,3 +119,5 @@ class KukaAllegroDuoCameraPPORunnerCfg(KukaAllegroPPORunnerCfg):
     }
     actor = CNN_POLICY_CFG
     algorithm = CAMERA_ALGO_CFG
+    # the per-group NaN scan reads every image and syncs with the host each step; uint8 images cannot be NaN
+    check_for_nan = False

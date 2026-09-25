@@ -363,7 +363,7 @@ def imu_lin_acc(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg
 def image(
     env: ManagerBasedEnv,
     sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
-    data_type: str = "rgb",
+    data_type: str | None = "rgb",
     convert_perspective_to_orthogonal: bool = False,
     normalize: bool = True,
     permute: bool = False,
@@ -382,7 +382,8 @@ def image(
     Args:
         env: The environment the cameras are placed within.
         sensor_cfg: The desired sensor to read from. Defaults to SceneEntityCfg("tiled_camera").
-        data_type: The data type to pull from the desired camera. Defaults to "rgb".
+        data_type: The data type to pull from the desired camera. If None, the camera must have
+            exactly one configured data type, which is used. Defaults to "rgb".
         convert_perspective_to_orthogonal: Whether to orthogonalize perspective depth images.
             This is used only when the data type is "distance_to_camera". Defaults to False.
         normalize: Whether to normalize the images. This depends on the selected data type.
@@ -397,6 +398,13 @@ def image(
         The images produced at the last time-step
     """
     sensor: Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
+    if data_type is None:
+        if len(sensor.cfg.data_types) != 1:
+            raise ValueError(
+                f"Camera '{sensor_cfg.name}' has data types {sensor.cfg.data_types};"
+                " data_type can be None only for a camera with a single data type."
+            )
+        data_type = sensor.cfg.data_types[0]
     images = sensor.data.output[data_type].torch
     # depth image conversion
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
