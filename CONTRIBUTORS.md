@@ -102,6 +102,7 @@ Guidelines for modifications:
 * Grzegorz Malczyk
 * Haoran Zhou
 * Harsh Patel
+* Harshal Dhandrut
 * Henry Hu
 * HoJin Jeon
 * Hongwei Xiong
