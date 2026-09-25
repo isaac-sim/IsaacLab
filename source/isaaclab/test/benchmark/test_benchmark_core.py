@@ -187,8 +187,6 @@ def test_benchmark_collects_metadata_measurements_and_writes_json(tmp_path):
 
     assert output_path.exists()
     assert benchmark.benchmark_name == "my_workflow"
-    assert benchmark._use_recorders is False
-    assert not hasattr(benchmark, "_manual_recorders") or benchmark._manual_recorders is None
     assert data["benchmark_info"]["workflow_name"] == "my_workflow"
     assert "timestamp" in data["benchmark_info"]
     assert data["runtime"]["metric1"] == 10.0

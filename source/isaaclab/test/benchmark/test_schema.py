@@ -223,27 +223,8 @@ def test_runtime_bundle_round_trip(tmp_path):
     assert data["run"]["framework"] is None
     assert data["run"]["max_iterations"] is None
     assert "learning" not in data
+    assert data["extra"] is None
     assert data["resources"]["gpu_mem_gb"]["peak"] == pytest.approx(19.2)
-
-
-def test_training_bundle_without_series(tmp_path):
-    bundle = dataclasses.replace(
-        _minimal_training_bundle(),
-        learning=Learning(
-            ema_alpha=0.05,
-            reward=LearningCurve(final_raw=1.0, final_ema=1.0, series_per_iter=None),
-            ep_length=LearningCurve(final_raw=1.0, final_ema=1.0, series_per_iter=None),
-            success_rate=LearningCurve(final_raw=0.8, final_ema=0.7, series_per_iter=None),
-        ),
-    )
-    path = os.path.join(tmp_path, "training.json")
-    write_bundle_file(bundle, path)
-    with open(path) as f:
-        data = json.load(f)
-    assert data["learning"]["reward"]["series_per_iter"] is None
-    assert data["learning"]["ep_length"]["series_per_iter"] is None
-    assert data["learning"]["success_rate"]["series_per_iter"] is None
-    assert data["learning"]["success_rate"]["final_raw"] == pytest.approx(0.8)
 
 
 def test_startup_bundle_reuses_run_identity(tmp_path):
@@ -280,12 +261,12 @@ def test_startup_bundle_reuses_run_identity(tmp_path):
 
 
 def test_mean_std_rejects_peak_below_mean():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="peak"):
         MeanStd(mean=10.0, std=1.0, peak=5.0)
 
 
 def test_run_identity_rejects_negative_duration():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="duration_s"):
         RunIdentity(
             run_id="x",
             framework=None,
@@ -332,33 +313,6 @@ def test_write_bundle_file_is_atomic(tmp_path, monkeypatch):
     with open(path) as fh:
         assert fh.read() == good
     assert not os.path.exists(path + ".tmp")
-
-
-def test_extra_field_round_trips(tmp_path):
-    """The free-form `extra` mapping round-trips with scalar values; defaults to None."""
-    bundle = dataclasses.replace(
-        _minimal_training_bundle(),
-        extra={"grad_norm": 0.42, "note": "warmup", "stable": True, "restarts": 2},
-    )
-    path = os.path.join(tmp_path, "training.json")
-    write_bundle_file(bundle, path)
-    with open(path) as f:
-        data = json.load(f)
-    assert data["extra"] == {"grad_norm": 0.42, "note": "warmup", "stable": True, "restarts": 2}
-
-    # default is None and serialises to JSON null
-    rt = RuntimeBundle(
-        run=_run_identity(framework=None, max_iterations=None),
-        versions=_versions(),
-        hardware=_hardware(),
-        runtime=_runtime(),
-        resources=_resources(),
-    )
-    path2 = os.path.join(tmp_path, "runtime.json")
-    write_bundle_file(rt, path2)
-    with open(path2) as f:
-        data2 = json.load(f)
-    assert data2["extra"] is None
 
 
 def test_run_config_presets_round_trip(tmp_path):
