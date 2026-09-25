@@ -39,7 +39,7 @@ def test_parse_env_cfg_applies_explicit_device_override():
     assert env_cfg.sim.device == "cpu"
 
 
-@pytest.mark.parametrize("missing_module", ["pinocchio", "unrelated_dependency"])
+@pytest.mark.parametrize("missing_module", ["pinocchio", "daqp", "unrelated_dependency"])
 def test_task_config_missing_pink_dependency(monkeypatch: pytest.MonkeyPatch, missing_module: str):
     """Missing Pink dependencies should identify the task without hiding unrelated import errors."""
     from isaaclab_tasks.utils import parse_cfg

@@ -27,6 +27,8 @@ import sys
 import types
 from unittest.mock import patch
 
+import pytest
+
 import isaaclab.app.sim_launcher as sim_launcher
 
 # ---------------------------------------------------------------------------
@@ -170,11 +172,11 @@ class TestResolveDistributedDeviceDict:
 class TestResolveDistributedDeviceNoop:
     """Tests that non-distributed runs skip device resolution."""
 
+    @pytest.mark.parametrize("args", [argparse.Namespace(distributed=False), {"distributed": False}])
     @patch.object(sim_launcher, "set_cuda_device")
-    def test_not_distributed_namespace(self, mock_set_device):
-        """distributed=False → device unchanged, set_device not called."""
+    def test_not_distributed(self, mock_set_device, args):
+        """distributed=False as a namespace or dict → device unchanged, set_device not called."""
         env_cfg = _DummyEnvCfg(device="cuda:0")
-        args = argparse.Namespace(distributed=False)
 
         sim_launcher._resolve_distributed_device(env_cfg, args)
 
