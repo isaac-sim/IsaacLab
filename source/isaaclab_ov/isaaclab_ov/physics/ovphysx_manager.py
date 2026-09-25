@@ -88,6 +88,9 @@ def _prepare_default_cache_dir(cache_dir: str) -> str:
 
 logger = logging.getLogger(__name__)
 
+# Large articulated clone calls scale poorly in OVPhysX 0.6.3; keep each operation bounded.
+_MAX_CLONE_TARGETS_PER_CALL = 512
+
 
 def _newton_schema_root() -> str | None:
     """Return the installed Newton USD schema plugin root, if available."""
@@ -1106,8 +1109,16 @@ class OvPhysxManager(PhysicsManager):
                 targets[-1],
             )
             transforms = target_transforms or None
-            op_idx = clone_physics(physx, source, targets, transforms, target_env_ids)
-            physx.wait_op(op_idx)
+            for start in range(0, len(targets), _MAX_CLONE_TARGETS_PER_CALL):
+                end = start + _MAX_CLONE_TARGETS_PER_CALL
+                op_idx = clone_physics(
+                    physx,
+                    source,
+                    targets[start:end],
+                    transforms[start:end] if transforms is not None else None,
+                    target_env_ids[start:end] if target_env_ids is not None else None,
+                )
+                physx.wait_op(op_idx)
 
     @classmethod
     def _warmup_and_load(cls) -> None:

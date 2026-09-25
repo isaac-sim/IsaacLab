@@ -105,6 +105,37 @@ def test_clone_recipes_resolve_heterogeneous_asset_paths_without_stage_matching(
     ]
 
 
+def test_runtime_clone_replay_batches_targets_without_changing_order(monkeypatch, manager_module):
+    manager = manager_module.OvPhysxManager
+    env_ids = list(range(1, 514))
+    targets = [f"/World/envs/env_{env_id}/Robot" for env_id in env_ids]
+    transforms = [(float(env_id), 0.0, 0.0, 0.0, 0.0, 0.0, 1.0) for env_id in env_ids]
+    manager._pending_clones = [
+        ("/World/envs/env_0/Robot", targets, transforms, env_ids),
+        ("/World/envs/env_0/table", ["/World/envs/env_1/table"], [], [1]),
+    ]
+    clone_calls = []
+    waits = []
+    physx = SimpleNamespace(wait_op=waits.append)
+
+    def record_clone(physx_arg, source, target_paths, target_transforms, target_env_ids):
+        assert physx_arg is physx
+        clone_calls.append((source, target_paths, target_transforms, target_env_ids))
+        return len(clone_calls)
+
+    monkeypatch.setattr(manager_module, "clone_physics", record_clone)
+
+    manager._replay_pending_clones(physx, requires_full_stage=False)
+
+    assert [len(call[1]) for call in clone_calls] == [512, 1, 1]
+    assert [path for call in clone_calls[:2] for path in call[1]] == targets
+    assert [pose for call in clone_calls[:2] for pose in call[2]] == transforms
+    assert [env_id for call in clone_calls[:2] for env_id in call[3]] == env_ids
+    assert clone_calls[-1] == ("/World/envs/env_0/table", ["/World/envs/env_1/table"], None, [1])
+    assert waits == [1, 2, 3]
+    assert manager._pending_clones == []
+
+
 def test_initialize_defers_native_resource_until_warmup(monkeypatch, manager_module):
     from isaaclab.physics import PhysicsManager
 

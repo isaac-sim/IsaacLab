@@ -13,3 +13,5 @@ Fixed
 * Registered Newton USD schemas before loading OvStage scenes so cloned mimic-joint constraints work.
 * Selected articulation and rigid-body tensor paths from clone recipes to avoid repeated stage-wide matching in large scenes.
 * Deferred scene-data tensor bindings until visualization requests them, avoiding unnecessary headless-training startup cost.
+* Bounded OvPhysX clone calls to prevent articulated-robot startup stalls with thousands of environments.
+* Bound each cloned contact sensor to its matching per-environment filter without cross-environment glob matching.
