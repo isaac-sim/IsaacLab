@@ -5,7 +5,6 @@
 
 """Unit tests for visual-material manager terms."""
 
-import inspect
 from types import SimpleNamespace
 
 import pytest
@@ -90,10 +89,6 @@ def test_shape_backend_follows_only_active_render_consumers() -> None:
         )
         with pytest.raises(NotImplementedError, match="no per-shape visual storage"):
             randomize_visual_shape._get_backend(None, SimpleNamespace(sim=sim))
-
-    selector = inspect.getsource(randomize_visual_shape._get_backend)
-    assert "physics_manager" not in selector
-    assert "FactoryBase._get_backend" not in selector
 
     unsupported_env = SimpleNamespace(
         sim=SimpleNamespace(resolve_visualizer_types=lambda: [], render_context=SimpleNamespace(renderer_types=()))

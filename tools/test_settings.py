@@ -23,7 +23,9 @@ PER_TEST_TIMEOUTS = {
     "test_environments_isaacsim_physx.py": 10000,
     "test_environments_newton.py": 10000,
     "test_environments_ovphysx.py": 10000,
-    "test_contrib_environments.py": 10000,
+    "test_contrib_environments_kit.py": 10000,
+    "test_contrib_environments_kit_cameras.py": 10000,
+    "test_contrib_environments_kitless.py": 10000,
     "test_environment_determinism.py": 1000,  # This test runs through many the environments for 100 steps each
     "test_multi_agent_environments.py": 800,  # This test runs through multi-agent environments for 100 steps each
     "test_generate_dataset_franka_state.py": 10000,  # This test runs annotation for 10 demos and generation for 1 demo
@@ -80,6 +82,29 @@ PER_TEST_STARTUP_TIMEOUTS = {
 }
 """Per-test startup timeouts for cold external asset downloads."""
 
+PYTEST_WORKERS = {
+    # 20 independent export round trips, ~18 min serially: the RL job's long pole.
+    "test_leapp_export_flow.py": 4,
+    # Contributed-environment smoke tests: environment runs of several seconds to 2 min each. The camera file
+    # stays whole: its workers would each start the RTX renderer, and one environment dominates it.
+    "test_contrib_environments_kit.py": 2,
+    "test_contrib_environments_kitless.py": 2,
+}
+"""Test files split across ``pytest-xdist`` workers, and how many.
+
+Every worker starts its own process -- and its own Kit app and simulation, for files that launch one -- so
+splitting only pays off for files whose tests take far longer than that startup. List a file here when it
+is the long pole of its CI job. Each worker holds one of the job's ``TEST_JOBS`` slots; a file never gets
+more workers than the job has slots.
+"""
+
+EXCLUSIVE_TESTS = [
+    # Both assert wall-clock limits, which other files running at the same time would eat into.
+    "test_kit_startup_performance.py",
+    "test_robot_load_performance.py",
+]
+"""Test files that run with no other test file alongside them, when a job runs several files at once."""
+
 CUROBO_PLANNER_TESTS = [
     "test_curobo_planner_franka.py",
     "test_curobo_planner_cube_stack.py",
@@ -94,7 +119,9 @@ These tests are skipped in the base image CI jobs and run in the dedicated
 CUROBO_TESTS = [
     *CUROBO_PLANNER_TESTS,
     "test_generate_dataset_skillgen.py",
-    "test_contrib_environments.py",
+    "test_contrib_environments_kit.py",
+    "test_contrib_environments_kit_cameras.py",
+    "test_contrib_environments_kitless.py",
 ]
 """A list of tests that require cuRobo installation.
 
@@ -115,13 +142,8 @@ quarantine them from regular CI.
 
 TESTS_TO_SKIP = [
     # lab
-    "test_argparser_launch.py",  # app.close issue
-    "test_build_simulation_context_nonheadless.py",  # headless
-    "test_env_var_launch.py",  # app.close issue
-    "test_kwarg_launch.py",  # app.close issue
     # lab_tasks
     "test_record_video.py",  # Failing
-    "test_tiled_camera_env.py",  # Need to improve the logic
     # curobo / skillgen - require cuRobo installation; run via test-curobo and test-skillgen CI jobs
     *CUROBO_TESTS,
     # quarantined tests - run in dedicated CI job that does not block PR merges

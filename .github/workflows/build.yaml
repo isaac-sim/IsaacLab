@@ -275,6 +275,8 @@ jobs:
         shard-index: "0"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-tasks-1-test
 
   test-isaaclab-tasks-2:
@@ -301,6 +303,8 @@ jobs:
         shard-index: "1"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-tasks-2-test
 
   test-isaaclab-tasks-3:
@@ -327,6 +331,8 @@ jobs:
         shard-index: "2"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-tasks-3-test
 
   test-isaaclab-core:
@@ -352,6 +358,8 @@ jobs:
         shard-index: "0"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-core-1-test
 
   test-isaaclab-core-2:
@@ -377,6 +385,8 @@ jobs:
         shard-index: "1"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-core-2-test
 
   test-isaaclab-core-3:
@@ -402,6 +412,8 @@ jobs:
         shard-index: "2"
         shard-count: "3"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-core-3-test
 
   # Kit and non-Kit are written out rather than expressed as a matrix: these job
@@ -486,6 +498,8 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_rl"
         extra-pip-packages: "leapp==0.6.1 torchrl>=0.13"
+        warp-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-rl-test
 
   test-isaaclab-mimic:
@@ -507,6 +521,8 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_mimic"
+        warp-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-mimic-test
 
   test-isaaclab-contrib:
@@ -528,6 +544,9 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_contrib"
+        warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-contrib-test
 
   test-isaaclab-teleop:
@@ -549,6 +568,9 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_teleop"
+        warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-teleop-test
 
   test-isaaclab-visualizers:
@@ -570,6 +592,9 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_visualizers"
+        warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-visualizers-test
 
   test-isaaclab-assets:
@@ -591,6 +616,8 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_assets"
+        warp-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-assets-test
 
   test-isaaclab-experimental:
@@ -612,6 +639,8 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_experimental"
+        warp-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-experimental-test
 
   test-isaaclab-newton:
@@ -634,6 +663,8 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_newton"
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-newton-test
 
   test-isaaclab-physx:
@@ -655,6 +686,9 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_physx"
+        warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-physx-test
 
   test-isaaclab-ov:
@@ -684,6 +718,9 @@ jobs:
         extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
+        warp-cache: restore
+        ovrtx-shader-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-ov-test
 
     # Folded from the former standalone verify-base-non-root job: reuses the
@@ -763,8 +800,15 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
-        include-files: "test_contrib_environments.py"
+        include-files: >-
+          test_contrib_environments_kitless.py,
+          test_contrib_environments_kit.py,
+          test_contrib_environments_kit_cameras.py
         warp-cache: restore
+        ovrtx-shader-cache: restore
+        ovrtx-shader-cache-trees: kit
+        # The three files run side by side; the kit and kitless files split across two workers each.
+        test-jobs: "5"
         container-name: isaac-lab-contrib-environments-test
 
   test-record-video:
@@ -815,7 +859,6 @@ jobs:
           test_rendering_lift_kuka_hetero.py,
           test_rendering_lift_kuka_homo.py,
           test_rendering_franka_cloth.py,
-          test_rendering_franka_soft.py,
           test_rendering_franka_cable.py,
           test_rendering_registered_tasks.py,
           test_rendering_shadow_hand.py

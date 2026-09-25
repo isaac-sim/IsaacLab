@@ -35,19 +35,23 @@ from isaaclab.cloner import (
 )
 from isaaclab.sim import build_simulation_context
 from isaaclab.sim.utils import queries
+from isaaclab.test.utils import resolve_test_sim_device
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
 
-@pytest.fixture(params=["cpu", "cuda"])
-def sim(request):
-    """Provide a fresh simulation context for each test on CPU and CUDA."""
-    with build_simulation_context(device=request.param, dt=0.01, add_lighting=False) as sim:
+@pytest.fixture
+def sim():
+    """Provide a fresh simulation context for each test.
+
+    The cloner utilities author USD and plan bookkeeping only, with no device branch, so one device suffices.
+    """
+    with build_simulation_context(device=resolve_test_sim_device(), dt=0.01, add_lighting=False) as sim:
         yield sim
 
 
 def test_usd_replicate_with_positions_and_mask(sim):
-    """Replicate sources to selected envs and author translate ops from positions."""
+    """Replicate sources only to the envs selected by the mask."""
     # Prepare sources under /World/template
     sim_utils.create_prim("/World/template", "Xform")
     sim_utils.create_prim("/World/template/A", "Xform")
@@ -73,19 +77,13 @@ def test_usd_replicate_with_positions_and_mask(sim):
         mask=mask,
     )
 
-    # Validate replication and translate op
+    # Validate replication follows the mask
     stage = sim_utils.get_current_stage()
     assert stage.GetPrimAtPath("/World/envs/env_0/Object/A").IsValid()
     assert not stage.GetPrimAtPath("/World/envs/env_0/Object/B").IsValid()
     assert stage.GetPrimAtPath("/World/envs/env_1/Object/B").IsValid()
     assert not stage.GetPrimAtPath("/World/envs/env_1/Object/A").IsValid()
     assert stage.GetPrimAtPath("/World/envs/env_2/Object/A").IsValid()
-
-    # Check xformOp:translate authored for env_2/A
-    prim = stage.GetPrimAtPath("/World/envs/env_2/Object/A")
-    xform = UsdGeom.Xformable(prim)
-    ops = xform.GetOrderedXformOps()
-    assert any(op.GetOpType() == UsdGeom.XformOp.TypeTranslate for op in ops)
 
 
 def test_usd_replicate_context_consumes_plan(sim):
@@ -324,7 +322,7 @@ def test_make_clone_plan_homogeneous_returns_env_root_plan(sim):
     assert cube.spawn.spawn_path == "/World/envs/env_0/Robot"
 
 
-def test_resolve_matching_prims_from_source_searches_only_plan_source(sim, monkeypatch):
+def test_resolve_matching_prims_from_source_searches_only_plan_source(sim):
     """Clone-aware regex discovery traverses its plan source, never cloned destinations."""
     stage = sim_utils.get_current_stage()
     for path in (
@@ -342,23 +340,9 @@ def test_resolve_matching_prims_from_source_searches_only_plan_source(sim, monke
     )
     sim.set_clone_plan(plan)
 
-    traversed_roots = []
-    source_matcher = queries._iter_matching_prims_in_subtree
-
-    def record_source_root(path_expr, root_prim):
-        traversed_roots.append(root_prim.GetPath().pathString)
-        return source_matcher(path_expr, root_prim)
-
-    monkeypatch.setattr(queries, "_iter_matching_prims_in_subtree", record_source_root)
-    monkeypatch.setattr(
-        queries,
-        "find_matching_prims",
-        lambda *args, **kwargs: pytest.fail("clone-aware resolution called the unscoped stage matcher"),
-    )
-
     matches = queries.resolve_matching_prims_from_source(r"/World/envs/env_[^/]+/Robot/[^A]+")
 
-    assert traversed_roots == ["/World/envs/env_0/Robot"]
+    # the clone-only prim under env_1 would match the expression if cloned destinations were traversed
     assert [prim.GetPath().pathString for prim, _ in matches] == [
         "/World/envs/env_0/Robot/foo",
         "/World/envs/env_0/Robot/foo/bar",

@@ -218,6 +218,7 @@ Guidelines for modifications:
 * Xiaodi Yuan
 * Xinjie Yao
 * Xinpeng Liu
+* Xin Xu
 * Xu Li
 * Yang Jin
 * Yanzi Zhu

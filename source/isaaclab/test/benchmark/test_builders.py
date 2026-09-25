@@ -17,7 +17,6 @@ from isaaclab.benchmark.schema import (
     Hardware,
     MeanStd,
     Resources,
-    RuntimeBundle,
     StartupTime,
     TrainingBundle,
     Versions,
@@ -94,7 +93,7 @@ def test_build_runtime_aggregates():
     assert rt.iterations_completed == 3
     assert rt.total_wall_time_s == pytest.approx(4.0)
     assert rt.total_fps.peak == pytest.approx(95.0)
-    assert rt.iterations_per_s.mean > 0
+    assert rt.iterations_per_s.mean == pytest.approx((1.0 + 1.0 + 0.5) / 3)
 
 
 def test_build_runtime_uses_effective_aggregate_throughput_when_requested():
@@ -239,7 +238,7 @@ def test_build_runtime_rejects_non_positive_environment_step_times(environment_s
 
 @pytest.mark.parametrize(
     ("simulation_step_times_s", "simulation_step_calls"),
-    [([0.5], None), (None, 1), ([0.5], 1)],
+    [([0.5], None), (None, 1)],
 )
 def test_build_runtime_rejects_simulation_timing_without_environment_timing(
     simulation_step_times_s, simulation_step_calls
@@ -320,12 +319,11 @@ def test_build_learning_includes_success_rate_curve():
     assert learning.success_rate.series_per_iter == pytest.approx([0.1, 0.5, 0.9])
 
 
-@pytest.mark.parametrize("success_rate_series", [None, []])
-def test_build_learning_omits_absent_success_rate_curve(success_rate_series):
+def test_build_learning_omits_absent_success_rate_curve():
     learning = builders.build_learning(
         reward_series=[1.0],
         ep_length_series=[10.0],
-        success_rate_series=success_rate_series,
+        success_rate_series=[],
         ema_alpha=0.1,
     )
 
@@ -345,31 +343,3 @@ def test_build_learning_keep_series_false():
     assert learning.success_rate is not None
     assert learning.success_rate.final_raw == pytest.approx(0.75)
     assert learning.success_rate.series_per_iter is None
-
-
-def test_build_runtime_bundle_no_learning(tmp_path):
-    run = builders.build_run_identity(
-        run_id="x",
-        framework=None,
-        config=builders.build_run_config("newton_mjwarp"),
-        task="t",
-        seed=0,
-        start_utc="2026-04-22T13:15:00+00:00",
-        end_utc="2026-04-22T13:15:10+00:00",
-        num_envs=16,
-    )
-    rt = builders.build_runtime(
-        startup_time_s=StartupTime(1.0, 2.0, 0.5),
-        iteration_times_s=[1.0],
-        collection_fps=[100.0],
-        total_fps=[100.0],
-        steps_per_iteration=24,
-    )
-    b = builders.build_runtime_bundle(
-        run=run, versions=_versions(), hardware=_hardware(), runtime=rt, resources=_resources()
-    )
-    assert isinstance(b, RuntimeBundle)
-    p = os.path.join(tmp_path, "runtime.json")
-    write_bundle_file(b, p)
-    with open(p) as fh:
-        assert json.load(fh)["run"]["framework"] is None

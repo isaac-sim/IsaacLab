@@ -49,33 +49,6 @@ def _make_surface_cloth_stage(path: str = "/World/envs/env_0/Cloth"):
     return stage
 
 
-def test_physics_manager_close_only_clears_active_manager_binding(monkeypatch):
-    """Only the active physics manager can clear shared SimulationContext state."""
-    from isaaclab.physics import PhysicsManager
-
-    class _ActiveManager(PhysicsManager):
-        _callbacks = {}
-
-    class _InactiveManager(PhysicsManager):
-        pass
-
-    _ActiveManager.close()
-    assert PhysicsManager._sim is None
-
-    active_sim = SimpleNamespace(physics_manager=_ActiveManager)
-    monkeypatch.setattr(PhysicsManager, "_sim", active_sim, raising=False)
-    monkeypatch.setattr(PhysicsManager, "_cfg", "active-cfg", raising=False)
-    monkeypatch.setattr(PhysicsManager, "_sim_time", 1.25, raising=False)
-
-    monkeypatch.setattr(PhysicsManager, "_callbacks", {1: (None, lambda _: None, 0, "stale", None)}, raising=False)
-    _InactiveManager.close()
-    assert PhysicsManager._callbacks == {}
-    assert (PhysicsManager._sim, PhysicsManager._cfg, PhysicsManager._sim_time) == (active_sim, "active-cfg", 1.25)
-
-    _ActiveManager.close()
-    assert (PhysicsManager._sim, PhysicsManager._cfg, PhysicsManager._sim_time) == (None, None, 0.0)
-
-
 @pytest.mark.parametrize(("body_count", "particle_count"), [(0, 0), (3, 0), (0, 4)])
 def test_visualization_model_is_built_during_clone_and_allocated_on_physics_ready(
     monkeypatch, body_count, particle_count

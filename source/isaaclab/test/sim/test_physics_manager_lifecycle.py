@@ -9,6 +9,7 @@ import gc
 import inspect
 import weakref
 from dataclasses import dataclass, replace
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -22,6 +23,18 @@ from isaaclab.visualizers import VisualizerCfg
 def test_backend_registry_identity_and_lifecycle():
     """Share by type/cfg, construct once, and release only the selected resource after successful cleanup."""
     from isaaclab.sim import BackendCfg, SimulationContext
+
+    # SimulationContext owns backends directly, with no second registry or lookup layer.
+    sim_package = Path(__file__).parents[2] / "isaaclab" / "sim"
+    assert not (sim_package / "service_locator.py").exists()
+    assert not hasattr(SimulationContext, "services")
+    assert issubclass(RendererCfg, BackendCfg)
+    assert not hasattr(RenderContext, "get_renderer")
+    assert "_renderer_entries" not in RenderContext.__slots__
+    assert tuple(inspect.signature(SimulationContext.get_or_create_backend).parameters) == ("self", "cfg")
+    assert all(
+        "resource_key" not in cfg_type.__dataclass_fields__ for cfg_type in (PhysicsCfg, RendererCfg, VisualizerCfg)
+    )
 
     @dataclass(kw_only=True)
     class Cfg(BackendCfg):
@@ -81,21 +94,30 @@ def test_backend_registry_identity_and_lifecycle():
     assert second.close.call_count == 2
 
 
-def test_backend_ownership_has_no_service_locator_or_resource_keys():
-    """Backend ownership stays directly on SimulationContext and uses cfg identity, not custom keys."""
-    from pathlib import Path
+def test_physics_manager_close_only_clears_active_manager_binding(monkeypatch):
+    """Only the active physics manager can clear shared SimulationContext state."""
 
-    from isaaclab.sim import BackendCfg, SimulationContext
+    class _ActiveManager(PhysicsManager):
+        _callbacks = {}
 
-    sim_package = Path(__file__).parents[2] / "isaaclab" / "sim"
-    assert not (sim_package / "service_locator.py").exists()
-    assert not hasattr(SimulationContext, "services")
-    assert issubclass(RendererCfg, BackendCfg)
-    assert not hasattr(RenderContext, "get_renderer")
-    assert "_renderer_entries" not in RenderContext.__slots__
-    assert tuple(inspect.signature(SimulationContext.get_or_create_backend).parameters) == ("self", "cfg")
-    cfg_types = (PhysicsCfg, RendererCfg, VisualizerCfg)
-    assert all("resource_key" not in cfg_type.__dataclass_fields__ for cfg_type in cfg_types)
+    class _InactiveManager(PhysicsManager):
+        pass
+
+    _ActiveManager.close()
+    assert PhysicsManager._sim is None
+
+    active_sim = SimpleNamespace(physics_manager=_ActiveManager)
+    monkeypatch.setattr(PhysicsManager, "_sim", active_sim, raising=False)
+    monkeypatch.setattr(PhysicsManager, "_cfg", "active-cfg", raising=False)
+    monkeypatch.setattr(PhysicsManager, "_sim_time", 1.25, raising=False)
+
+    monkeypatch.setattr(PhysicsManager, "_callbacks", {1: (None, lambda _: None, 0, "stale", None)}, raising=False)
+    _InactiveManager.close()
+    assert PhysicsManager._callbacks == {}
+    assert (PhysicsManager._sim, PhysicsManager._cfg, PhysicsManager._sim_time) == (active_sim, "active-cfg", 1.25)
+
+    _ActiveManager.close()
+    assert (PhysicsManager._sim, PhysicsManager._cfg, PhysicsManager._sim_time) == (None, None, 0.0)
 
 
 def test_close_runs_all_live_stop_listeners_and_aggregates_failures(monkeypatch):

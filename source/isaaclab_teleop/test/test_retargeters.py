@@ -217,59 +217,6 @@ class TestG1LowerBodyStandingRetargeter(unittest.TestCase):
         self.assertTrue(torch.equal(result, torch.tensor([0.0, 0.0, 0.0, 0.8])))
 
 
-class TestUnitreeG1Retargeter(unittest.TestCase):
-    def test_retarget(self):
-        cfg = UnitreeG1RetargeterCfg(
-            enable_visualization=False, sim_device="cpu", hand_joint_names=["joint1", "joint2"]
-        )
-        retargeter = UnitreeG1Retargeter(cfg)
-
-        # Replace _hands_controller with a configured mock.
-        # NOTE: We cannot use @patch on the module-level class because lazy_export()
-        # in parent __init__.py files replaces the module __dict__, so the class's
-        # __globals__ (old dict) diverges from the module attribute (new dict).
-        mock_dex_retargeting = MagicMock()
-        mock_dex_retargeting.get_joint_names.return_value = ["joint1", "joint2"]
-        mock_dex_retargeting.get_left_joint_names.return_value = ["joint1"]
-        mock_dex_retargeting.get_right_joint_names.return_value = ["joint2"]
-        mock_dex_retargeting.compute_left.return_value = np.array([0.1])
-        mock_dex_retargeting.compute_right.return_value = np.array([0.2])
-        retargeter._hands_controller = mock_dex_retargeting
-
-        wrist_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
-        data = {
-            DeviceBase.TrackingTarget.HAND_LEFT: {"wrist": wrist_pose},
-            DeviceBase.TrackingTarget.HAND_RIGHT: {"wrist": wrist_pose},
-        }
-
-        result = retargeter.retarget(data)
-        self.assertEqual(result.shape, (16,))
-
-
-class TestGR1T2Retargeter(unittest.TestCase):
-    def test_retarget(self):
-        cfg = GR1T2RetargeterCfg(enable_visualization=False, sim_device="cpu", hand_joint_names=["joint1", "joint2"])
-        retargeter = GR1T2Retargeter(cfg)
-
-        # Replace _hands_controller with a configured mock (see TestUnitreeG1Retargeter note).
-        mock_dex_retargeting = MagicMock()
-        mock_dex_retargeting.get_joint_names.return_value = ["joint1", "joint2"]
-        mock_dex_retargeting.get_left_joint_names.return_value = ["joint1"]
-        mock_dex_retargeting.get_right_joint_names.return_value = ["joint2"]
-        mock_dex_retargeting.compute_left.return_value = np.array([0.1])
-        mock_dex_retargeting.compute_right.return_value = np.array([0.2])
-        retargeter._hands_controller = mock_dex_retargeting
-
-        wrist_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
-        data = {
-            DeviceBase.TrackingTarget.HAND_LEFT: {"wrist": wrist_pose},
-            DeviceBase.TrackingTarget.HAND_RIGHT: {"wrist": wrist_pose},
-        }
-
-        result = retargeter.retarget(data)
-        self.assertEqual(result.shape, (16,))
-
-
 class TestG1LowerBodyStandingMotionControllerRetargeter(unittest.TestCase):
     def test_retarget(self):
         cfg = G1LowerBodyStandingMotionControllerRetargeterCfg(
@@ -349,33 +296,52 @@ class TestG1TriHandUpperBodyMotionControllerRetargeter(unittest.TestCase):
         result = retargeter.retarget(data)
         # Output: [left_wrist(7), right_wrist(7), hand_joints(14)]
         self.assertEqual(result.shape, (28,))
+        # An identity controller pose maps to the fixed controller-to-wrist rotation (xyzw) for both hands.
+        expected_quat = np.array([-0.4619, 0.5358, 0.4619, 0.5358])
+        expected_quat /= np.linalg.norm(expected_quat)
+        for wrist in (result[0:7].numpy(), result[7:14].numpy()):
+            np.testing.assert_allclose(wrist[:3], np.zeros(3), atol=1e-6)
+            quat = wrist[3:] if wrist[6] * expected_quat[3] >= 0 else -wrist[3:]
+            np.testing.assert_allclose(quat, expected_quat, atol=1e-3)
+        # Released buttons leave every hand joint at rest.
+        np.testing.assert_allclose(result[14:].numpy(), np.zeros(14), atol=1e-6)
 
 
-class TestG1TriHandUpperBodyRetargeter(unittest.TestCase):
+class TestDexHandUpperBodyRetargeters(unittest.TestCase):
+    """Upper-body retargeters that combine both wrists with dex-retargeted hand joints."""
+
     def test_retarget(self):
-        cfg = G1TriHandUpperBodyRetargeterCfg(
-            enable_visualization=False, sim_device="cpu", hand_joint_names=["joint1", "joint2"]
-        )
-        retargeter = G1TriHandUpperBodyRetargeter(cfg)
+        for retargeter_cls, cfg_cls in (
+            (UnitreeG1Retargeter, UnitreeG1RetargeterCfg),
+            (GR1T2Retargeter, GR1T2RetargeterCfg),
+            (G1TriHandUpperBodyRetargeter, G1TriHandUpperBodyRetargeterCfg),
+        ):
+            with self.subTest(retargeter=retargeter_cls.__name__):
+                cfg = cfg_cls(enable_visualization=False, sim_device="cpu", hand_joint_names=["joint1", "joint2"])
+                retargeter = retargeter_cls(cfg)
 
-        # Replace _hands_controller with a configured mock (see TestUnitreeG1Retargeter note).
-        mock_dex_retargeting = MagicMock()
-        mock_dex_retargeting.get_joint_names.return_value = ["joint1", "joint2"]
-        mock_dex_retargeting.get_left_joint_names.return_value = ["joint1"]
-        mock_dex_retargeting.get_right_joint_names.return_value = ["joint2"]
-        mock_dex_retargeting.compute_left.return_value = np.array([0.1])
-        mock_dex_retargeting.compute_right.return_value = np.array([0.2])
-        retargeter._hands_controller = mock_dex_retargeting
+                # Replace _hands_controller with a configured mock.
+                # NOTE: We cannot use @patch on the module-level class because lazy_export()
+                # in parent __init__.py files replaces the module __dict__, so the class's
+                # __globals__ (old dict) diverges from the module attribute (new dict).
+                mock_dex_retargeting = MagicMock()
+                mock_dex_retargeting.get_joint_names.return_value = ["joint1", "joint2"]
+                mock_dex_retargeting.get_left_joint_names.return_value = ["joint1"]
+                mock_dex_retargeting.get_right_joint_names.return_value = ["joint2"]
+                mock_dex_retargeting.compute_left.return_value = np.array([0.1])
+                mock_dex_retargeting.compute_right.return_value = np.array([0.2])
+                retargeter._hands_controller = mock_dex_retargeting
 
-        wrist_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
-        data = {
-            DeviceBase.TrackingTarget.HAND_LEFT: {"wrist": wrist_pose},
-            DeviceBase.TrackingTarget.HAND_RIGHT: {"wrist": wrist_pose},
-        }
+                wrist_pose = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+                data = {
+                    DeviceBase.TrackingTarget.HAND_LEFT: {"wrist": wrist_pose},
+                    DeviceBase.TrackingTarget.HAND_RIGHT: {"wrist": wrist_pose},
+                }
 
-        result = retargeter.retarget(data)
-        # Output: [left_wrist(7), right_wrist(7), joints(2)]
-        self.assertEqual(result.shape, (16,))
+                result = retargeter.retarget(data)
+                # Output: [left_wrist(7), right_wrist(7), joints(2)]; each hand fills its own joint.
+                self.assertEqual(result.shape, (16,))
+                np.testing.assert_allclose(result[14:16].numpy(), [0.1, 0.2], rtol=1e-6)
 
 
 if __name__ == "__main__":

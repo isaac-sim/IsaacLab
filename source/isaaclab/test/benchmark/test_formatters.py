@@ -14,7 +14,7 @@ from datetime import datetime
 import pytest
 
 from isaaclab.benchmark import formatters
-from isaaclab.benchmark.measurements import SingleMeasurement, StringMetadata, TestPhase
+from isaaclab.benchmark.measurements import SingleMeasurement, StringMetadata, TestPhase, TestPhaseEncoder
 from isaaclab.benchmark.schema import (
     GpuDeviceInfo,
     Hardware,
@@ -27,6 +27,19 @@ from isaaclab.benchmark.schema import (
     StartupTime,
     Versions,
 )
+
+
+@pytest.mark.parametrize("measurements", [[SingleMeasurement(name="fps", value=60.0, unit="Hz")], []])
+def test_phase_json_round_trip_keeps_metadata(measurements) -> None:
+    """A phase serialized with TestPhaseEncoder reads back with its metadata, with or without measurements."""
+    phase = TestPhase(
+        phase_name="runtime", measurements=measurements, metadata=[StringMetadata(name="gpu", data="A10")]
+    )
+
+    restored = TestPhase.from_json(json.loads(json.dumps(phase, cls=TestPhaseEncoder)))
+
+    assert [(m.name, m.value) for m in restored.measurements] == [(m.name, m.value) for m in measurements]
+    assert [(m.name, m.data) for m in restored.metadata] == [("gpu", "A10")]
 
 
 def test_default_output_filenames_are_unique_with_identical_timestamps(monkeypatch) -> None:
