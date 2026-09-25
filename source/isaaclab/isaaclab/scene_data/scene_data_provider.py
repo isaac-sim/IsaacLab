@@ -291,6 +291,8 @@ class SceneDataProvider:
             paths or if no mapping is needed.
         """
         if input_paths := self.backend.transform_paths:
+            if input_paths == paths and len(set(paths)) == len(paths):
+                return None
             key = tuple(input_paths), tuple(paths)
             if key in self._transform_mappings:
                 return self._transform_mappings[key]

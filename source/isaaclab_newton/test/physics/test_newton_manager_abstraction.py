@@ -27,6 +27,7 @@ Covers:
 from __future__ import annotations
 
 import ctypes
+import gc
 import logging
 import subprocess
 import sys
@@ -1076,9 +1077,15 @@ def test_cuda_graph_capture_uses_simulation_device_and_defers_for_kit_rendering(
 
     captured_devices = []
     captured_graph = object()
+    gc_enabled = gc.isenabled()
+
+    monkeypatch.setattr(
+        gc, "collect", lambda: pytest.fail("Graph capture must not force a full Python heap collection.")
+    )
 
     class FakeScopedCapture:
         def __init__(self, device=None):
+            assert not gc.isenabled()
             captured_devices.append(device)
             self.graph = captured_graph
 
@@ -1103,6 +1110,7 @@ def test_cuda_graph_capture_uses_simulation_device_and_defers_for_kit_rendering(
     assert captured_devices == ([] if deferred else ["cuda:1"])
     assert NewtonManager._graph is (None if deferred else captured_graph)
     assert NewtonManager._graph_capture_pending is deferred
+    assert gc.isenabled() is gc_enabled
 
 
 # ---------------------------------------------------------------------------

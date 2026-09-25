@@ -45,6 +45,7 @@ def test_get_transforms_matches_backend_device_when_warp_default_is_cuda():
     )
 
     with wp.ScopedDevice("cuda:0"):
+        assert provider.create_mapping(["/World/a", "/World/b", "/World/c"]) is None
         mapping = provider.create_mapping(["/World/c", "/World/a", "/World/b"])
         assert mapping is not None
         assert str(mapping.device) == "cpu"

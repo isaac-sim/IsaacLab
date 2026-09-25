@@ -41,7 +41,6 @@ def _paused_gc():
     finally:
         if was_enabled:
             gc.enable()
-            gc.collect()
 
 
 def _refit_bvh(backend: NewtonBackend) -> None:

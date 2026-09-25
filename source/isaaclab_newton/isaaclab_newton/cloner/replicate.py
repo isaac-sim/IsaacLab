@@ -270,7 +270,7 @@ def _replicate_newton(
                             for column in np.flatnonzero(plan.clone_mask[row]):
                                 destination = plan.destinations[row].format(int(plan.env_ids[column]))
                                 cable_counts[rebase(path, source, destination)] = len(bodies)
-        shape_ids = {label: index for index, label in enumerate(builder.shape_label)}
+        shape_ids = {label: index for index, label in enumerate(builder.shape_label)} if cable_counts else {}
         NewtonManager._cable_bindings = {
             path: [shape_ids[f"{path}_edge_capsule_{segment}"] for segment in range(count)]
             for path, count in cable_counts.items()
