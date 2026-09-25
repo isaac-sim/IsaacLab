@@ -8,6 +8,7 @@
 from types import SimpleNamespace
 
 import newton
+import pytest
 from isaaclab_newton.cloner import newton_clone_utils
 from isaaclab_newton.cloner.newton_clone_utils import build_source_builders
 from newton import ShapeFlags
@@ -62,17 +63,12 @@ def _build(stage: Usd.Stage, **kwargs) -> newton.ModelBuilder:
 class TestClonerVisualShapeImport:
     """``build_source_builders`` must keep colliders regardless of the visual-shape flag."""
 
-    def test_load_visual_shapes_imports_visual_only_geometry(self):
-        """The default import keeps the visual-only cube alongside the collider."""
-        colliding, visual_only = _shape_counts(_build(_make_stage(), load_visual_shapes=True))
+    @pytest.mark.parametrize("load_visual_shapes", [True, False])
+    def test_visual_shape_flag_gates_only_visual_only_geometry(self, load_visual_shapes):
+        """The visual-only cube is imported only with visual shapes; the collider is always kept."""
+        colliding, visual_only = _shape_counts(_build(_make_stage(), load_visual_shapes=load_visual_shapes))
         assert colliding == 1
-        assert visual_only == 1
-
-    def test_skipping_visual_shapes_keeps_colliders(self):
-        """Disabling visual shapes drops the visual-only cube and nothing else."""
-        colliding, visual_only = _shape_counts(_build(_make_stage(), load_visual_shapes=False))
-        assert colliding == 1
-        assert visual_only == 0
+        assert visual_only == int(load_visual_shapes)
 
     def test_skipping_visual_shapes_skips_collider_visibility_resolution(self):
         """Without visual shapes no collider is hidden, so the restore pass must not run.
@@ -122,24 +118,6 @@ class TestClonerVisualShapeImport:
         )
 
         assert not builder.shape_flags[0] & ShapeFlags.VISIBLE
-
-    def test_static_collider_without_rigid_body_or_visual_remains_visible(self):
-        """A standalone static collider retains its authored viewport visibility."""
-        stage = Usd.Stage.CreateInMemory()
-        collider = UsdGeom.Cube.Define(stage, f"{_SOURCE}/collision")
-        UsdPhysics.CollisionAPI.Apply(collider.GetPrim())
-        builder = SimpleNamespace(
-            shape_body=[-1],
-            shape_flags=[ShapeFlags.COLLIDE_SHAPES],
-            shape_label=[str(collider.GetPrim().GetPath())],
-            shape_type=[newton.GeoType.BOX],
-        )
-
-        newton_clone_utils._restore_visible_colliders_without_visual_shapes(
-            builder, stage, {str(collider.GetPrim().GetPath()): 0}
-        )
-
-        assert builder.shape_flags[0] & ShapeFlags.VISIBLE
 
     def test_generated_proxy_collider_visual_remains_hidden(self):
         """Newton's unauthored visual companion must not expose a proxy collider."""

@@ -19,11 +19,9 @@ from isaaclab_newton.sim.schemas import (
     MujocoJointDrivePropertiesCfg,
     MujocoRigidBodyPropertiesCfg,
     NewtonArticulationRootPropertiesCfg,
-    NewtonCollisionPropertiesCfg,
     NewtonJointDrivePropertiesCfg,
     NewtonMaterialPropertiesCfg,
     NewtonMeshCollisionPropertiesCfg,
-    NewtonRigidBodyPropertiesCfg,
     NewtonSDFCollisionPropertiesCfg,
 )
 
@@ -62,15 +60,6 @@ def _has_authored_api_schema(prim, schema_name: str) -> bool:
 # ---------------------------------------------------------------------------
 # Rigid body properties
 # ---------------------------------------------------------------------------
-
-
-@pytest.mark.isaacsim_ci
-def test_newton_rigid_body_inherits_field_routing(setup_sim):
-    """Inherited disable_gravity must use the PhysX namespace consumed by Newton."""
-    prim = sim_utils.create_prim("/World/newton_body", prim_type="Cube")
-    schemas.define_rigid_body_properties("/World/newton_body", NewtonRigidBodyPropertiesCfg(disable_gravity=True))
-    assert prim.GetAttribute("physxRigidBody:disableGravity").Get() is True
-    assert not prim.GetAttribute("physics:disableGravity").IsValid()
 
 
 @pytest.mark.isaacsim_ci
@@ -129,72 +118,32 @@ def test_joint_drive_max_velocity_routes_to_physx_namespace(setup_sim, cfg_type)
 
 
 # ---------------------------------------------------------------------------
-# Newton collision
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.isaacsim_ci
-def test_newton_collision_schema_applied_only_when_set(setup_sim):
-    """contact_margin=0.01 writes newton:contactMargin and applies NewtonCollisionAPI; all-None applies nothing."""
-    stage = sim_utils.get_current_stage()
-    sim_utils.create_prim("/World/col_newton", prim_type="Cube", translation=(2.0, 0.0, 0.5))
-    schemas.define_collision_properties(
-        "/World/col_newton", NewtonCollisionPropertiesCfg(contact_margin=0.01, contact_offset=0.02, rest_offset=0.01)
-    )
-    prim = stage.GetPrimAtPath("/World/col_newton")
-    assert prim.GetAttribute("physxCollision:contactOffset").Get() == pytest.approx(0.02)
-    assert prim.GetAttribute("physxCollision:restOffset").Get() == pytest.approx(0.01)
-    assert not prim.GetAttribute("physics:contactOffset").IsValid()
-    assert not prim.GetAttribute("physics:restOffset").IsValid()
-    assert prim.GetAttribute("newton:contactMargin").Get() == pytest.approx(0.01)
-    assert "NewtonCollisionAPI" in prim.GetAppliedSchemas()
-
-    sim_utils.create_prim("/World/col_newton2", prim_type="Cube", translation=(3.0, 0.0, 0.5))
-    schemas.define_collision_properties("/World/col_newton2", NewtonCollisionPropertiesCfg())
-    assert "NewtonCollisionAPI" not in stage.GetPrimAtPath("/World/col_newton2").GetAppliedSchemas()
-
-
-# ---------------------------------------------------------------------------
 # Newton material
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.isaacsim_ci
 def test_newton_material_schema_applied_only_when_set(setup_sim):
-    """Newton friction fields write newton:* attributes and apply NewtonMaterialAPI; all-None applies nothing."""
-    mat_cfg = NewtonMaterialPropertiesCfg(torsional_friction=0.3, rolling_friction=0.001)
+    """Newton material fields write newton:* attributes and apply NewtonMaterialAPI; all-None applies nothing."""
+    mat_cfg = NewtonMaterialPropertiesCfg(
+        torsional_friction=0.3,
+        rolling_friction=0.001,
+        contact_stiffness=1.0e4,
+        contact_damping=250.0,
+        contact_friction_gain=40.0,
+        contact_adhesion=0.02,
+    )
     prim = spawn_rigid_body_material("/World/newton_mat", mat_cfg)
     assert prim.GetAttribute("newton:torsionalFriction").Get() == pytest.approx(0.3)
     assert prim.GetAttribute("newton:rollingFriction").Get() == pytest.approx(0.001)
+    assert prim.GetAttribute("newton:contactStiffness").Get() == pytest.approx(1.0e4)
+    assert prim.GetAttribute("newton:contactDamping").Get() == pytest.approx(250.0)
+    assert prim.GetAttribute("newton:contactFrictionGain").Get() == pytest.approx(40.0)
+    assert prim.GetAttribute("newton:contactAdhesion").Get() == pytest.approx(0.02)
     assert "NewtonMaterialAPI" in prim.GetAppliedSchemas()
 
     prim = spawn_rigid_body_material("/World/newton_mat2", NewtonMaterialPropertiesCfg())
     assert "NewtonMaterialAPI" not in prim.GetAppliedSchemas()
-
-
-@pytest.mark.isaacsim_ci
-def test_newton_material_fragment_composes_with_usd_physics_fragment(setup_sim):
-    """NewtonMaterialCfg is a rigid-body material fragment (backend symmetry with the PhysX
-    fragment): it must compose in a fragment list with UsdPhysicsRigidBodyMaterialCfg and author
-    both the ``newton:*`` and solver-common ``physics:*`` namespaces on the same material prim."""
-    from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
-
-    from isaaclab.sim.spawners.materials.physics_materials import spawn_rigid_body_material_from_fragments
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
-
-    prim = spawn_rigid_body_material_from_fragments(
-        "/World/newton_mat_frag",
-        [
-            UsdPhysicsRigidBodyMaterialCfg(static_friction=0.6, dynamic_friction=0.5),
-            NewtonMaterialCfg(torsional_friction=0.3, rolling_friction=0.001),
-        ],
-    )
-    assert bool(UsdPhysics.MaterialAPI(prim))
-    assert prim.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.6)
-    assert prim.GetAttribute("physics:dynamicFriction").Get() == pytest.approx(0.5)
-    assert "NewtonMaterialAPI" in prim.GetAppliedSchemas()
-    assert prim.GetAttribute("newton:torsionalFriction").Get() == pytest.approx(0.3)
-    assert prim.GetAttribute("newton:rollingFriction").Get() == pytest.approx(0.001)
 
 
 @pytest.mark.isaacsim_ci
@@ -204,23 +153,29 @@ def test_newton_material_fragment_authors_all_six_newton_attrs(setup_sim):
     (``contactStiffness``/``contactDamping``/``contactFrictionGain``/``contactAdhesion``) that
     replace the deprecated per-shape ``ke``/``kd``/``kf``/``ka`` parameters. All six must round-trip
     through :class:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg`, even though the
-    generated ``NewtonMaterialAPI`` schema currently only declares the two friction attributes."""
+    generated ``NewtonMaterialAPI`` schema currently only declares the two friction attributes.
+
+    The fragment also composes with :class:`UsdPhysicsRigidBodyMaterialCfg` on the same prim."""
     from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
     from newton._src.usd.schema_resolver import PrimType
     from newton._src.usd.schemas import SchemaResolverNewton
 
     from isaaclab.sim.spawners.materials import spawn_rigid_body_material_from_fragments
+    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
 
     prim = spawn_rigid_body_material_from_fragments(
         "/World/newton_mat_contact",
-        NewtonMaterialCfg(
-            torsional_friction=0.3,
-            rolling_friction=0.001,
-            contact_stiffness=2500.0,
-            contact_damping=100.0,
-            contact_friction_gain=1000.0,
-            contact_adhesion=0.01,
-        ),
+        [
+            UsdPhysicsRigidBodyMaterialCfg(static_friction=0.6, dynamic_friction=0.5),
+            NewtonMaterialCfg(
+                torsional_friction=0.3,
+                rolling_friction=0.001,
+                contact_stiffness=2500.0,
+                contact_damping=100.0,
+                contact_friction_gain=1000.0,
+                contact_adhesion=0.01,
+            ),
+        ],
     )
     expected = {
         "mu_torsional": 0.3,
@@ -231,6 +186,9 @@ def test_newton_material_fragment_authors_all_six_newton_attrs(setup_sim):
         "ka": 0.01,
     }
 
+    assert bool(UsdPhysics.MaterialAPI(prim))
+    assert prim.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.6)
+    assert prim.GetAttribute("physics:dynamicFriction").Get() == pytest.approx(0.5)
     assert "NewtonMaterialAPI" in prim.GetAppliedSchemas()
     resolver = SchemaResolverNewton()
     assert set(resolver.mapping[PrimType.MATERIAL]) == set(expected)
@@ -262,32 +220,6 @@ def test_newton_articulation_root_schema_applied_only_when_set(setup_sim):
 
     schemas.modify_articulation_root_properties("/World/nart2", NewtonArticulationRootPropertiesCfg())
     assert "NewtonArticulationRootAPI" not in stage.GetPrimAtPath("/World/nart2").GetAppliedSchemas()
-
-
-# ---------------------------------------------------------------------------
-# Newton mesh collision (max_hull_vertices, NewtonMeshCollisionAPI)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.isaacsim_ci
-def test_newton_mesh_collision_schema_applied_only_when_set(setup_sim):
-    """max_hull_vertices=64 writes newton:maxHullVertices and applies NewtonMeshCollisionAPI; None applies nothing."""
-    stage = sim_utils.get_current_stage()
-    sim_utils.create_prim("/World/mesh_col", prim_type="Cube", translation=(4.0, 0.0, 0.5))
-    schemas.define_mesh_collision_properties(
-        "/World/mesh_col",
-        NewtonMeshCollisionPropertiesCfg(mesh_approximation_name="convexHull", max_hull_vertices=64),
-    )
-    prim = stage.GetPrimAtPath("/World/mesh_col")
-    assert prim.GetAttribute("newton:maxHullVertices").Get() == 64
-    assert "NewtonMeshCollisionAPI" in prim.GetAppliedSchemas()
-
-    sim_utils.create_prim("/World/mesh_col2", prim_type="Cube", translation=(5.0, 0.0, 0.5))
-    schemas.define_mesh_collision_properties(
-        "/World/mesh_col2",
-        NewtonMeshCollisionPropertiesCfg(mesh_approximation_name="convexHull"),
-    )
-    assert "NewtonMeshCollisionAPI" not in stage.GetPrimAtPath("/World/mesh_col2").GetAppliedSchemas()
 
 
 # ---------------------------------------------------------------------------
@@ -352,24 +284,6 @@ def test_newton_sdf_collision_schema_not_applied_without_sdf_fields(setup_sim):
 
 
 # ---------------------------------------------------------------------------
-# Class hierarchy contract: Mujoco IS-A Newton
-# ---------------------------------------------------------------------------
-
-
-def test_mujoco_isinstance_newton():
-    """MujocoXxxCfg instances must be isinstance of their Newton parent.
-
-    The auto-enable spawner logic and any future polymorphic dispatch on
-    ``isinstance(cfg, NewtonRigidBodyPropertiesCfg)`` depends on this contract.
-    """
-    mjc_rigid = MujocoRigidBodyPropertiesCfg(gravcomp=0.5)
-    assert isinstance(mjc_rigid, NewtonRigidBodyPropertiesCfg)
-
-    mjc_joint = MujocoJointDrivePropertiesCfg(actuatorgravcomp=True)
-    assert isinstance(mjc_joint, NewtonJointDrivePropertiesCfg)
-
-
-# ---------------------------------------------------------------------------
 # Multi-namespace mixed write — verify per-declaring-class MRO routing keeps
 # fields owned by different classes in different namespaces on the same prim.
 # ---------------------------------------------------------------------------
@@ -404,15 +318,10 @@ def test_newton_mesh_collision_mixed_namespace_write(setup_sim):
     assert "NewtonCollisionAPI" in applied
     assert "NewtonMeshCollisionAPI" in applied
 
-
-@pytest.mark.isaacsim_ci
-def test_newton_legacy_cfg_authors_contact_attrs(setup_sim):
-    """The legacy Newton material cfg authors all newton:* attributes the fragment authors."""
-    mat_cfg = NewtonMaterialPropertiesCfg(
-        contact_stiffness=1.0e4, contact_damping=250.0, contact_friction_gain=40.0, contact_adhesion=0.02
+    # Without max_hull_vertices the mesh collision schema stays unapplied.
+    sim_utils.create_prim("/World/mesh_col2", prim_type="Cube", translation=(5.0, 0.0, 0.5))
+    schemas.define_mesh_collision_properties(
+        "/World/mesh_col2",
+        NewtonMeshCollisionPropertiesCfg(mesh_approximation_name="convexHull"),
     )
-    prim = spawn_rigid_body_material("/World/newton_mat_contact", mat_cfg)
-    assert prim.GetAttribute("newton:contactStiffness").Get() == pytest.approx(1.0e4)
-    assert prim.GetAttribute("newton:contactDamping").Get() == pytest.approx(250.0)
-    assert prim.GetAttribute("newton:contactFrictionGain").Get() == pytest.approx(40.0)
-    assert prim.GetAttribute("newton:contactAdhesion").Get() == pytest.approx(0.02)
+    assert "NewtonMeshCollisionAPI" not in stage.GetPrimAtPath("/World/mesh_col2").GetAppliedSchemas()

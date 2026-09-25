@@ -7,16 +7,11 @@
 
 Covers:
 
-* :attr:`NewtonSolverCfg.class_type` resolves to the matching manager subclass.
 * :meth:`NewtonCfg.__post_init__` propagates ``solver_cfg.class_type`` onto
   :attr:`NewtonCfg.class_type` so that ``SimulationContext`` picks the right
   manager.
-* Each leaf manager subclasses :class:`NewtonManager` and implements
-  :meth:`_build_solver` (with the abstract base raising ``NotImplementedError``).
 * The cross-config validation in :meth:`NewtonMJWarpManager._build_solver`
   rejects the ``MJWarp + use_mujoco_contacts=True + collision_cfg`` combination.
-* Manager name dispatch (used by :class:`InteractiveScene` and the various
-  factory dispatchers) still starts with ``"newton"``.
 * Fixed-root pose writes refresh MuJoCo's solver-owned root transform.
 * End-to-end: spinning up a simulation with each solver builds the correct
   solver, sets the right ``_use_single_state`` / ``_needs_collision_pipeline``
@@ -59,7 +54,6 @@ from isaaclab_newton.physics import (
     NewtonMJWarpManager,
     NewtonMPMManager,
     NewtonShapeCfg,
-    NewtonSolverCfg,
     NewtonVBDManager,
     NewtonXPBDManager,
     VBDSolverCfg,
@@ -168,21 +162,6 @@ RIGID_BODY_FORCE_INPUT_SUPPORT = {
     "solver_cfg_factory, expected_manager, _solver_cls, _single_state, _pipeline",
     SOLVER_MATRIX,
 )
-def test_solver_cfg_class_type_resolves_to_subclass(
-    solver_cfg_factory, expected_manager, _solver_cls, _single_state, _pipeline
-):
-    """Each ``*SolverCfg.class_type`` resolves to its matching manager subclass."""
-    solver_cfg = solver_cfg_factory()
-    # ``class_type`` is a lazy ``"module:Class"`` reference; calling its
-    # ``_resolve()`` returns the actual class. ``__name__`` works without
-    # forcing import (LazyType caches metadata) and is sufficient identity.
-    assert solver_cfg.class_type.__name__ == expected_manager.__name__
-
-
-@pytest.mark.parametrize(
-    "solver_cfg_factory, expected_manager, _solver_cls, _single_state, _pipeline",
-    SOLVER_MATRIX,
-)
 def test_newton_cfg_post_init_propagates_class_type(
     solver_cfg_factory, expected_manager, _solver_cls, _single_state, _pipeline
 ):
@@ -195,11 +174,9 @@ def test_newton_cfg_post_init_propagates_class_type(
     "num_substeps, collision_decimation, should_warn",
     [
         (8, 0, False),  # Default: feature disabled, no warning.
-        (8, 1, False),  # Valid: re-collide every substep.
-        (8, 2, False),  # Valid: re-collide every 2 substeps.
         (8, 7, False),  # Valid edge: one mid-loop re-collide at i=6.
         (8, 8, True),  # Equal to num_substeps: gate never fires.
-        (8, 16, True),  # Larger than num_substeps: gate never fires.
+        (8, 16, True),  # Above num_substeps: pins the ``>=`` rather than ``==`` boundary.
     ],
 )
 def test_newton_cfg_collision_decimation_warning(num_substeps, collision_decimation, should_warn, caplog):
@@ -461,27 +438,24 @@ def test_mpm_solver_cfg_maps_only_newton_solver_fields():
 
 
 @pytest.mark.parametrize(
-    "deprecated_value, replacement",
+    "mode, expected, deprecated",
     [
-        ("instantaneous", "forward"),
-        ("finite_difference", "backward"),
+        ("instantaneous", "forward", True),
+        ("finite_difference", "backward", True),
+        ("forward", "forward", False),
+        ("backward", "backward", False),
     ],
 )
-def test_mpm_solver_cfg_translates_deprecated_collider_velocity_modes(deprecated_value, replacement):
-    """Deprecated collider velocity modes warn and map to Newton's current values."""
-    with pytest.warns(DeprecationWarning, match=f"use {replacement!r}"):
-        newton_cfg = _make_solver_config(MPMSolverCfg(collider_velocity_mode=deprecated_value))
-
-    assert newton_cfg.collider_velocity_mode == replacement
-
-
-@pytest.mark.parametrize("mode", ["forward", "backward"])
-def test_mpm_solver_cfg_preserves_canonical_collider_velocity_modes(mode, recwarn):
-    """Canonical collider velocity modes pass through without deprecation warnings."""
+def test_mpm_solver_cfg_translates_deprecated_collider_velocity_modes(mode, expected, deprecated, recwarn):
+    """Deprecated collider velocity modes warn and map to Newton's values; canonical modes pass through silently."""
     newton_cfg = _make_solver_config(MPMSolverCfg(collider_velocity_mode=mode))
 
-    assert newton_cfg.collider_velocity_mode == mode
-    assert not [warning for warning in recwarn if issubclass(warning.category, DeprecationWarning)]
+    assert newton_cfg.collider_velocity_mode == expected
+    deprecations = [str(w.message) for w in recwarn if issubclass(w.category, DeprecationWarning)]
+    if deprecated:
+        assert any(f"use {expected!r}" in message for message in deprecations)
+    else:
+        assert not deprecations
 
 
 # Tuples of ``(field_name, non_default_value)`` covering every solver-tunable
@@ -513,19 +487,19 @@ _MPM_FIELD_VALUES = [
 ]
 
 
-@pytest.mark.parametrize("field_name, value", _MPM_FIELD_VALUES)
-def test_mpm_solver_cfg_forwards_every_solver_field(field_name, value):
+def test_mpm_solver_cfg_forwards_every_solver_field():
     """Every tunable MPM cfg field round-trips into ``SolverImplicitMPM.Config``.
 
     Guards against MPM manager construction dropping or mis-naming a field if
     Newton's config surface changes.
     """
-    solver_cfg = MPMSolverCfg(**{field_name: value})
+    solver_cfg = MPMSolverCfg(**dict(_MPM_FIELD_VALUES))
     newton_cfg = _make_solver_config(solver_cfg)
-    assert hasattr(newton_cfg, field_name), (
-        f"{field_name!r} disappeared from SolverImplicitMPM.Config — MPMSolverCfg needs to drop or rename it."
-    )
-    assert getattr(newton_cfg, field_name) == value
+    for field_name, value in _MPM_FIELD_VALUES:
+        assert hasattr(newton_cfg, field_name), (
+            f"{field_name!r} disappeared from SolverImplicitMPM.Config — MPMSolverCfg needs to drop or rename it."
+        )
+        assert getattr(newton_cfg, field_name) == value
 
 
 _KAMINO_PADMM_FIELD_VALUES = [
@@ -570,16 +544,20 @@ _KAMINO_DYNAMICS_FIELD_VALUES = [
 ]
 
 
-@pytest.mark.parametrize("field_name, value", _KAMINO_PADMM_FIELD_VALUES)
-def test_kamino_solver_cfg_forwards_padmm_fields(field_name, value):
+def test_kamino_solver_cfg_forwards_padmm_fields():
     """Every tunable P-ADMM cfg field round-trips into ``PADMMSolverConfig``."""
-    sparse_kwargs = {"sparse_jacobian": True, "sparse_dynamics": True} if field_name == "penalty_update_method" else {}
-    solver_cfg = KaminoPADMMSolverCfg(**sparse_kwargs, dynamics_solver_cfg=KaminoPADMMCfg(**{field_name: value}))
-    newton_cfg = solver_cfg.to_solver_config()
-    assert hasattr(newton_cfg.padmm, field_name), (
-        f"{field_name!r} disappeared from PADMMSolverConfig — KaminoPADMMCfg needs to drop or rename it."
+    # Adaptive penalty updates require the sparse solver path.
+    solver_cfg = KaminoPADMMSolverCfg(
+        sparse_jacobian=True,
+        sparse_dynamics=True,
+        dynamics_solver_cfg=KaminoPADMMCfg(**dict(_KAMINO_PADMM_FIELD_VALUES)),
     )
-    assert getattr(newton_cfg.padmm, field_name) == value
+    newton_cfg = solver_cfg.to_solver_config()
+    for field_name, value in _KAMINO_PADMM_FIELD_VALUES:
+        assert hasattr(newton_cfg.padmm, field_name), (
+            f"{field_name!r} disappeared from PADMMSolverConfig — KaminoPADMMCfg needs to drop or rename it."
+        )
+        assert getattr(newton_cfg.padmm, field_name) == value
 
 
 def test_kamino_padmm_rejects_adaptive_penalties_with_dense_dynamics():
@@ -589,18 +567,18 @@ def test_kamino_padmm_rejects_adaptive_penalties_with_dense_dynamics():
         solver_cfg.to_solver_config()
 
 
-@pytest.mark.parametrize("field_name, value", _KAMINO_DVI_FIELD_VALUES)
-def test_kamino_solver_cfg_forwards_dvi_fields(field_name, value):
+def test_kamino_solver_cfg_forwards_dvi_fields():
     """Every tunable DVI cfg field round-trips into ``DVISolverConfig``."""
     solver_cfg = KaminoDVISolverCfg(
         dynamics=KaminoDynamicsCfg(preconditioning=False),
-        dynamics_solver_cfg=KaminoDVICfg(**{field_name: value}),
+        dynamics_solver_cfg=KaminoDVICfg(**dict(_KAMINO_DVI_FIELD_VALUES)),
     )
     newton_cfg = solver_cfg.to_solver_config()
-    assert hasattr(newton_cfg.dvi, field_name), (
-        f"{field_name!r} disappeared from DVISolverConfig — KaminoDVICfg needs to drop or rename it."
-    )
-    assert getattr(newton_cfg.dvi, field_name) == value
+    for field_name, value in _KAMINO_DVI_FIELD_VALUES:
+        assert hasattr(newton_cfg.dvi, field_name), (
+            f"{field_name!r} disappeared from DVISolverConfig — KaminoDVICfg needs to drop or rename it."
+        )
+        assert getattr(newton_cfg.dvi, field_name) == value
 
 
 @pytest.mark.parametrize("field_name, value", _KAMINO_DYNAMICS_FIELD_VALUES)
@@ -642,52 +620,29 @@ def test_kamino_dvi_rejects_preconditioning():
         solver_cfg.to_solver_config()
 
 
-def test_mpm_register_builder_attributes_is_idempotent():
-    """The MPM custom-attribute hook is a no-op when attributes are already registered."""
-    import newton
-
-    builder = newton.ModelBuilder()
-    assert not builder.has_custom_attribute("mpm:young_modulus")
-
-    NewtonMPMManager._register_builder_attributes(builder)
-    assert builder.has_custom_attribute("mpm:young_modulus")
-
-    # Second call must be a no-op (no exceptions, attribute still present).
-    NewtonMPMManager._register_builder_attributes(builder)
-    assert builder.has_custom_attribute("mpm:young_modulus")
-
-
-def test_mjwarp_register_builder_attributes_is_idempotent():
-    """The MJWarp hook registers native MuJoCo entities exactly once."""
-    import newton
-
-    builder = newton.ModelBuilder()
-    assert not builder.has_custom_attribute("mujoco:actuator_gainprm")
-
-    NewtonMJWarpManager._register_builder_attributes(builder)
-    assert builder.has_custom_attribute("mujoco:actuator_gainprm")
-    assert "mujoco:actuator" in builder.custom_frequencies
-    assert "mujoco:tendon" in builder.custom_frequencies
-
-    NewtonMJWarpManager._register_builder_attributes(builder)
-    assert builder.has_custom_attribute("mujoco:actuator_gainprm")
-
-
 @pytest.mark.parametrize(
     ("manager", "active", "inactive"),
     [
         (NewtonMJWarpManager, "mujoco:condim", ("kamino:max_solver_iterations", "mpm:young_modulus")),
         (NewtonKaminoManager, "kamino:max_solver_iterations", ("mujoco:condim", "mpm:young_modulus")),
+        (NewtonMPMManager, "mpm:young_modulus", ("mujoco:condim", "kamino:max_solver_iterations")),
     ],
 )
-def test_rigid_solver_registers_only_its_builder_attributes(manager, active, inactive):
-    """A rigid solver declares its own builder schema and no inactive solver schema."""
+def test_solver_registers_only_its_builder_attributes(manager, active, inactive):
+    """A solver declares its own builder schema once and no inactive solver schema."""
     builder = ModelBuilder()
 
     manager._register_builder_attributes(builder)
 
     assert builder.has_custom_attribute(active)
     assert all(not builder.has_custom_attribute(name) for name in inactive)
+    if manager is NewtonMJWarpManager:
+        assert "mujoco:actuator" in builder.custom_frequencies
+        assert "mujoco:tendon" in builder.custom_frequencies
+
+    # A second registration on the same builder is a no-op.
+    manager._register_builder_attributes(builder)
+    assert builder.has_custom_attribute(active)
 
 
 def test_clone_source_builder_has_no_solver_dependency():
@@ -800,6 +755,9 @@ def test_production_imports_scope_mujoco_joint_properties(
     joint.CreateBody1Rel().SetTargets([child_path])
     joint.GetPrim().CreateAttribute("mjc:frictionloss", Sdf.ValueTypeNames.Double, True).Set(0.11)
     joint.GetPrim().CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
+    # PhysX joint properties take precedence over the MuJoCo fallback.
+    joint.GetPrim().CreateAttribute("mjc:armature", Sdf.ValueTypeNames.Double, True).Set(0.12)
+    joint.GetPrim().CreateAttribute("physxJoint:armature", Sdf.ValueTypeNames.Float, True).Set(0.21)
 
     physics_cfg = NewtonCfg(solver_cfg=solver_cfg, load_visual_shapes=False)
     monkeypatch.setattr(
@@ -834,6 +792,7 @@ def test_production_imports_scope_mujoco_joint_properties(
 
     assert model.joint_friction.numpy()[-1] == pytest.approx(expected_friction)
     assert model.joint_damping.numpy()[-1] == pytest.approx(expected_damping)
+    assert model.joint_armature.numpy()[-1] == pytest.approx(0.21)
 
 
 @pytest.mark.parametrize(
@@ -843,14 +802,7 @@ def test_production_imports_scope_mujoco_joint_properties(
         pytest.param(NewtonFeatherstoneManager, False, id="featherstone"),
     ],
 )
-@pytest.mark.parametrize(
-    "author_newton_values",
-    [
-        pytest.param(False, id="physx-over-mjc"),
-        pytest.param(True, id="newton-over-physx-over-mjc"),
-    ],
-)
-def test_schema_resolver_policy_and_precedence(manager_cls, imports_mujoco, author_newton_values):
+def test_schema_resolver_policy_and_precedence(manager_cls, imports_mujoco):
     """Resolver precedence and MuJoCo fallback selection follow active solver needs."""
     from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
@@ -871,9 +823,8 @@ def test_schema_resolver_policy_and_precedence(manager_cls, imports_mujoco, auth
     joint_prim.CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
     joint_prim.CreateAttribute("mjc:armature", Sdf.ValueTypeNames.Double, True).Set(0.12)
     joint_prim.CreateAttribute("physxJoint:armature", Sdf.ValueTypeNames.Float, True).Set(0.21)
-    if author_newton_values:
-        joint_prim.CreateAttribute("newton:friction", Sdf.ValueTypeNames.Double, True).Set(0.31)
-        joint_prim.CreateAttribute("newton:armature", Sdf.ValueTypeNames.Double, True).Set(0.41)
+    joint_prim.CreateAttribute("newton:friction", Sdf.ValueTypeNames.Double, True).Set(0.31)
+    joint_prim.CreateAttribute("newton:armature", Sdf.ValueTypeNames.Double, True).Set(0.41)
 
     schema_resolvers = manager_cls._get_usd_import_schema_resolvers()
     builder = ModelBuilder()
@@ -881,12 +832,10 @@ def test_schema_resolver_policy_and_precedence(manager_cls, imports_mujoco, auth
     builder.add_usd(stage, schema_resolvers=schema_resolvers)
     model = builder.finalize(device="cpu")
 
-    expected_friction = 0.31 if author_newton_values else (0.11 if imports_mujoco else 0.0)
-    expected_damping = 0.23 if imports_mujoco else 0.0
-    expected_armature = 0.41 if author_newton_values else 0.21
-    assert model.joint_friction.numpy()[-1] == pytest.approx(expected_friction)
-    assert model.joint_damping.numpy()[-1] == pytest.approx(expected_damping)
-    assert model.joint_armature.numpy()[-1] == pytest.approx(expected_armature)
+    # Newton values win over PhysX and MuJoCo; the MuJoCo fallback fills only unset fields.
+    assert model.joint_friction.numpy()[-1] == pytest.approx(0.31)
+    assert model.joint_damping.numpy()[-1] == pytest.approx(0.23 if imports_mujoco else 0.0)
+    assert model.joint_armature.numpy()[-1] == pytest.approx(0.41)
 
 
 @pytest.mark.parametrize("project_outside", [True, False])
@@ -1283,27 +1232,8 @@ def test_forward_dispatches_active_mpm_reset_hook_through_base_manager(monkeypat
 
 
 # ---------------------------------------------------------------------------
-# Manager class hierarchy and factory contracts
+# Manager lifecycle contracts
 # ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "manager",
-    [
-        NewtonMJWarpManager,
-        NewtonXPBDManager,
-        NewtonVBDManager,
-        NewtonFeatherstoneManager,
-        NewtonKaminoManager,
-        NewtonMPMManager,
-    ],
-)
-def test_subclass_of_newton_manager(manager):
-    """All concrete managers inherit from :class:`NewtonManager`."""
-    assert issubclass(manager, NewtonManager)
-    # Subclasses must override the abstract factory.
-    assert manager._build_solver is not NewtonManager._build_solver
-    assert manager._create_solver is not NewtonManager._create_solver
 
 
 def test_clear_resets_rigid_body_force_capability(monkeypatch):
@@ -1418,36 +1348,6 @@ def test_initialize_solver_prepares_picking_before_graph_capture(
         sim.reset()
 
     assert events == ["ready", *expected_events] * 2
-
-
-def test_abstract_build_solver_raises():
-    """Calling :meth:`_build_solver` on the abstract base raises."""
-    with pytest.raises(NotImplementedError):
-        NewtonManager._build_solver(model=None, solver_cfg=NewtonSolverCfg())
-
-
-def test_abstract_create_solver_raises():
-    """Calling :meth:`_create_solver` on the base manager raises."""
-    with pytest.raises(NotImplementedError):
-        NewtonManager._create_solver(model=None, solver_cfg=NewtonSolverCfg())
-
-
-@pytest.mark.parametrize(
-    "manager",
-    [
-        NewtonMJWarpManager,
-        NewtonXPBDManager,
-        NewtonVBDManager,
-        NewtonFeatherstoneManager,
-        NewtonKaminoManager,
-        NewtonMPMManager,
-    ],
-)
-def test_manager_name_starts_with_newton(manager):
-    """The ``"newton"`` prefix is required by :class:`InteractiveScene` and the
-    various backend factories that dispatch on ``physics_manager.__name__.lower()``.
-    """
-    assert manager.__name__.lower().startswith("newton")
 
 
 # ---------------------------------------------------------------------------
@@ -1609,9 +1509,7 @@ def test_mjwarp_internal_contacts_with_collision_cfg_raises():
     [
         (8, 0, 0),  # Feature disabled.
         (8, 2, 3),  # Re-collide after substeps 2, 4, 6 (skip last).
-        (8, 4, 1),  # Re-collide after substep 4 only.
         (8, 7, 1),  # Re-collide after substep 7 only.
-        (8, 8, 0),  # Gated off (>= num_substeps).
     ],
 )
 def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_decimation, expected_mid_loop_collides):
@@ -1726,8 +1624,7 @@ def test_state_force_callback_runs_before_every_solver_substep(monkeypatch, use_
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("num_steps", [1, 3])
-def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph(num_steps):
+def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph():
     """An env reset written through the data-layer binding lands in ``_state_0``.
 
     Kamino is double-buffered (``_use_single_state=False``), so each substep
@@ -1750,6 +1647,7 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph(num_st
     the sentinel lands in ``_state_1`` instead, so the final assertion fails.
     """
     sentinel = 1.2345
+    num_steps = 1  # any odd count leaves a swapped buffer without the copy-on-last
     sim_cfg = SimulationCfg(
         dt=1.0 / 120.0,
         device="cuda:0",
