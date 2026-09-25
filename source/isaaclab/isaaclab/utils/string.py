@@ -10,6 +10,7 @@ import functools
 import importlib
 import inspect
 import re
+import textwrap
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -126,7 +127,7 @@ def callable_to_string(value: Callable, separator: str = ":") -> str:
         separator: The separator between the module path and the function name. Defaults to ":".
 
     Raises:
-        ValueError: When the input argument is not a callable object.
+        ValueError: When the input argument is not callable or lambda source cannot be resolved.
 
     Returns:
         A string representation of the callable object.
@@ -136,11 +137,15 @@ def callable_to_string(value: Callable, separator: str = ":") -> str:
         raise ValueError(f"The input argument is not callable: {value}.")
     # check if lambda function
     if value.__name__ == "<lambda>":
-        # we resolve the lambda expression by checking the source code and extracting the line with lambda expression
-        # we also remove any comments from the line
-        lambda_line = inspect.getsourcelines(value)[0][0].strip().split("lambda")[1].strip().split(",")[0]
-        lambda_line = re.sub(r"#.*$", "", lambda_line).rstrip()
-        return f"lambda {lambda_line}"
+        # Extract the lambda expression from its enclosing source statement. Parsing the
+        # source avoids treating commas inside the lambda body as statement delimiters.
+        source = textwrap.dedent(inspect.getsource(value))
+        tree = ast.parse(source)
+        lambda_node = next((node for node in ast.walk(tree) if isinstance(node, ast.Lambda)), None)
+        lambda_source = ast.get_source_segment(source, lambda_node) if lambda_node is not None else None
+        if lambda_source is None:
+            raise ValueError(f"Could not resolve source for lambda callable: {value}.")
+        return lambda_source
     else:
         # get the module and function name
         module_name = value.__module__
