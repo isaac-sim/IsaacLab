@@ -2722,7 +2722,6 @@ Fixed
 Added
 ^^^^^
 
-* Added Haptikos plugin documentation.
 * Added articulation ordering utilities and optional :class:`~isaaclab.assets.ArticulationCfg`
   fields for public joint/body ordering presets.
 * Added :meth:`~isaaclab.assets.Articulation.map_body_ids_to_backend` and

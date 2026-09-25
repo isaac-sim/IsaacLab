@@ -805,56 +805,69 @@ time.
 
 .. _haptikos-quest-handtracking:
 
-Haptikos + Quest Hand Tracking
-------------------------------
+Haptikos Exoskeletons with Quest
+--------------------------------
 
-The Haptikos Isaac Teleop plugin provides Haptikos exoskeleton hand tracking through the standard OpenXR
-hand-tracking interface. The plugin reads controller poses, hand tracking data and haptic feedback from the Haptikos App,
-combines them, and pushes the resulting left and right hand joint poses into the OpenXR runtime. Isaac Lab
-uses this data through its standard OpenXR support and does not require a Haptikos-specific device. The plugin
-currently supports Linux, has been tested with Meta Quest headsets, and may work with other OpenXR headsets
-that provide controllers.
+The `Haptikos plugin <https://github.com/NVIDIA/IsaacTeleop/tree/release/1.4.x/src/plugins/haptikos>`_
+combines controller wrist poses with exoskeleton finger tracking from the Haptikos Core App and
+pushes hand joints into the OpenXR runtime. Isaac Lab receives them through Isaac Teleop's
+standard hand-tracking input, so no Haptikos-specific Isaac Lab device is needed. The plugin
+supports Linux and has been tested with Meta Quest headsets; other headsets with controllers may
+also work.
 
-.. _haptikos-quest-handtracking-installation-instructions:
-.. dropdown:: Haptikos plugin installation instructions
-   :open:
+Build the plugin
+^^^^^^^^^^^^^^^^
 
-   Install the plugin from Isaac Teleop:
-   `IsaacTeleop Haptikos plugin <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/haptikos>`_.
+The Haptikos plugin is built from Isaac Teleop source; it is not included in Isaac Lab's
+``teleop`` extra. Check out the release branch matching Isaac Lab's ``isaacteleop`` pin (currently
+``1.4.x``), obtain the `Haptikos Robotics API <https://github.com/Haptikostech/HaptikosAPI>`_,
+and copy its ``HaptikosCpp_API_Shared`` directory into ``src/plugins/haptikos``. The C++ API is
+required to build the tracking plugin, even if you do not use haptic feedback. Follow the
+`plugin's setup instructions <https://github.com/NVIDIA/IsaacTeleop/tree/release/1.4.x/src/plugins/haptikos>`_
+for Haptikos account and licensing requirements.
 
-To use the plugin, attach the controllers to the Haptikos exoskeletons using the included mount.
-Keep the Haptikos App, Haptikos exoskeletons, controllers, and OpenXR headset active while the
-plugin is running. The Haptikos exoskeleton forward direction should be calibrated to align with the HMD
-forward direction.
+.. code-block:: bash
 
-The `Haptikos Robotics API <https://github.com/Haptikostech/HaptikosAPI>`_ must be downloaded and installed
-separately to use haptic feedback. The API can be used by Isaac Lab and Isaac Teleop scenarios.
+   git clone https://github.com/NVIDIA/IsaacTeleop.git
+   cd IsaacTeleop
+   git checkout release/1.4.x
+   # Copy HaptikosCpp_API_Shared to src/plugins/haptikos before building.
+   cmake -S . -B build -DENABLE_CLANG_FORMAT_CHECK=OFF
+   cmake --build build --target haptikos_hands_plugin --parallel 4
 
-Run the Haptikos plugin and teleoperation example:
+Run Isaac Lab and the plugin
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. dropdown:: Run Haptikos + Quest teleoperation
-   :open:
+Attach a controller to each exoskeleton using the included mount. Calibrate the exoskeleton
+forward direction against the headset, then keep the Haptikos Core App, exoskeletons, and
+controllers active. Use the hand-tracking task below.
 
-   #. Open a terminal in the Isaac Teleop repository and run the Haptikos plugin executable:
+Haptikos uses an external OpenXR push device. The shipped CloudXR profiles disable push devices,
+so enable them in a custom profile before launching Isaac Lab:
 
-      .. code-block:: bash
+.. code-block:: bash
 
-         cd IsaacTeleop
-         ./install/plugins/haptikos/haptikos_hands_plugin
+   cp $(uv run --extra teleop,isaacsim python -c \
+       "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/haptikos.env
+   sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/haptikos.env
 
-      If the executable is not available under ``install/plugins/haptikos``, build the plugin by following
-      its installation instructions:
-      `IsaacTeleop Haptikos plugin <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/haptikos>`_,
-      then run the command again.
+   uv run --extra teleop,isaacsim isaaclab teleop run \
+       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+       --visualizer kit --xr --cloudxr_env ~/haptikos.env
 
-   #. Open a new terminal in the Isaac Lab repository and run the teleoperation example:
+Once CloudXR is waiting for a connection, open a separate terminal and start the plugin with
+the runtime environment created by Isaac Lab:
 
-      .. code-block:: bash
+.. code-block:: bash
 
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-             --visualizer kit \
-             --xr
+   cd /path/to/IsaacTeleop
+   source ~/.cloudxr/run/cloudxr.env
+   ./build/src/plugins/haptikos/haptikos_hands_plugin
+
+Connect the Quest using :ref:`the Quest/Pico connection steps <connect-quest-pico>`, then start
+teleoperation from the headset.
+
+See :ref:`isaac-teleop-cloudxr-profiles` for more on custom profiles.
 
 
 Run with Docker
