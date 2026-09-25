@@ -18,10 +18,10 @@ if TYPE_CHECKING:
     from .clone_plan import ClonePlan
 
 
-def _source_records(
+def _iter_prototypes(
     plan: ClonePlan, source_indices: Sequence[int] | None = None
 ) -> Iterator[tuple[str, str, np.ndarray]]:
-    """Yield authored prototype paths, destination templates, and selected environment columns."""
+    """Yield each populated prototype's path, destination template, and environment mask."""
     for index in range(len(plan.sources)) if source_indices is None else source_indices:
         cfg = plan.sources[index]
         choices = plan.destinations[index]
@@ -57,14 +57,14 @@ def replication_mapping(
     Returns:
         Source paths, destination templates, and a boolean [num_prototypes, num_envs] mask.
     """
-    records = tuple(_source_records(plan, source_indices))
+    prototypes = tuple(_iter_prototypes(plan, source_indices))
     count = plan.destinations.shape[1]
-    if not records:
+    if not prototypes:
         return (), (), np.empty((0, count), dtype=np.bool_)
     return (
-        tuple(src for src, _, _ in records),
-        tuple(dst for _, dst, _ in records),
-        np.stack([mask for _, _, mask in records]),
+        tuple(src for src, _, _ in prototypes),
+        tuple(dst for _, dst, _ in prototypes),
+        np.stack([mask for _, _, mask in prototypes]),
     )
 
 
@@ -101,13 +101,13 @@ def path_env_ids(plan: ClonePlan, path: str) -> tuple[int, ...]:
     Returns:
         Ascending destination environment ids, empty when no source owns the path.
     """
-    records = [record for record in _source_records(plan) if pth.under(path, record[0])]
-    nearest = max((len(source.rstrip("/")) for source, _, _ in records), default=0)
+    prototypes = [prototype for prototype in _iter_prototypes(plan) if pth.under(path, prototype[0])]
+    nearest = max((len(source.rstrip("/")) for source, _, _ in prototypes), default=0)
     return tuple(
         sorted(
             {
                 int(column if plan.env_ids is None else plan.env_ids[column])
-                for source, _, mask in records
+                for source, _, mask in prototypes
                 if len(source.rstrip("/")) == nearest
                 for column in np.flatnonzero(mask)
             }
@@ -126,9 +126,9 @@ def path_to_clone(plan: ClonePlan, path: str, env_id: int) -> str | None:
     Returns:
         The clone path, or None when the prototype does not populate that environment.
     """
-    records = [record for record in _source_records(plan) if pth.under(path, record[0])]
-    nearest = max((len(source.rstrip("/")) for source, _, _ in records), default=0)
-    for source, template, mask in records:
+    prototypes = [prototype for prototype in _iter_prototypes(plan) if pth.under(path, prototype[0])]
+    nearest = max((len(source.rstrip("/")) for source, _, _ in prototypes), default=0)
+    for source, template, mask in prototypes:
         if len(source.rstrip("/")) != nearest:
             continue
         columns = np.flatnonzero(mask)
@@ -153,7 +153,7 @@ def path_to_source(plan: ClonePlan, path_expr: str, env_id: int | None = None) -
         selected_env = env_id
         if selected_env is None and matched.instance.isdigit():
             selected_env = int(matched.instance)
-        for source, _, mask in _source_records(plan, (index,)):
+        for source, _, mask in _iter_prototypes(plan, (index,)):
             columns = np.flatnonzero(mask)
             if selected_env is None or selected_env in (columns if plan.env_ids is None else plan.env_ids[columns]):
                 return source, template.format("[^/]+"), matched.suffix
@@ -171,7 +171,7 @@ def iter_sources(plan: ClonePlan, path_expr: str) -> Iterator[tuple[str, str, st
         Source root, destination template, prototype descendant path, and destination environment ids.
     """
     for index, template, matched in _clone_sources(plan, path_expr, populated_only=True):
-        for source, _, mask in _source_records(plan, (index,)):
+        for source, _, mask in _iter_prototypes(plan, (index,)):
             columns = np.flatnonzero(mask)
             env_ids = columns if plan.env_ids is None else plan.env_ids[columns]
             yield (
