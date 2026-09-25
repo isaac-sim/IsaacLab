@@ -1935,6 +1935,45 @@ def test_hand_with_tendons_initializes_and_targets_only_given_envs(sim, num_arti
         assert commanded[joint_ids].sum() > untouched[joint_ids].sum()
 
 
+@pytest.mark.parametrize("num_articulations", [2])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["shadow_hand"])
+def test_fixed_tendon_properties_reach_solver(sim, num_articulations, device, articulation_type):
+    """Written fixed tendon stiffness, damping, and position limits reach the MuJoCo solver.
+
+    Covers both the index and the mask setters and writers.
+    """
+    articulation, _ = generate_articulation(
+        generate_articulation_cfg(articulation_type=articulation_type), num_articulations, device
+    )
+    sim.reset()
+    shape = (num_articulations, articulation.num_fixed_tendons)
+    limits = torch.tensor([-0.1, 0.2], device=device).expand(*shape, 2)
+
+    articulation.set_fixed_tendon_stiffness_mask(stiffness=torch.full(shape, 12.0, device=device))
+    articulation.set_fixed_tendon_damping_index(damping=torch.full(shape, 3.0, device=device))
+    articulation.set_fixed_tendon_position_limit_index(limit=limits)
+    articulation.write_fixed_tendon_properties_to_sim_mask()
+    sim.step()
+
+    solver_model = SimulationManager._solver.mjw_model
+    np.testing.assert_allclose(solver_model.tendon_stiffness.numpy(), 12.0)
+    np.testing.assert_allclose(solver_model.tendon_damping.numpy(), 3.0)
+    np.testing.assert_allclose(solver_model.tendon_range.numpy(), limits.cpu().numpy(), rtol=1e-6)
+    torch.testing.assert_close(articulation.data.fixed_tendon_pos_limits.torch, limits)
+
+    articulation.set_fixed_tendon_stiffness_index(stiffness=42.0, env_ids=[1], fixed_tendon_ids=[1])
+    articulation.set_fixed_tendon_damping_index(damping=6.0, env_ids=[1], fixed_tendon_ids=[1])
+    articulation.write_fixed_tendon_properties_to_sim_index(env_ids=[1], fixed_tendon_ids=[1])
+    sim.step()
+    expected_stiffness = np.full(shape, 12.0)
+    expected_damping = np.full(shape, 3.0)
+    expected_stiffness[1, 1] = 42.0
+    expected_damping[1, 1] = 6.0
+    np.testing.assert_allclose(solver_model.tendon_stiffness.numpy(), expected_stiffness)
+    np.testing.assert_allclose(solver_model.tendon_damping.numpy(), expected_damping)
+
+
 @pytest.mark.parametrize("device", ["cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
@@ -3653,6 +3692,12 @@ def test_randomize_rigid_body_com(sim, num_articulations, device, add_ground_pla
 
     updated_com = articulation.data.body_com_pos_b.torch
     torch.testing.assert_close(updated_com, new_com, atol=1e-5, rtol=1e-5)
+
+    # poses (position and quaternion) are accepted too, like on the other backends; the orientation is ignored
+    com_poses = articulation.data.body_com_pose_b.torch.clone()
+    com_poses[..., :3] = original_com
+    articulation.set_coms_index(coms=com_poses, env_ids=env_ids)
+    torch.testing.assert_close(articulation.data.body_com_pos_b.torch, original_com, atol=1e-5, rtol=1e-5)
 
 
 @pytest.mark.parametrize("num_articulations", [2])

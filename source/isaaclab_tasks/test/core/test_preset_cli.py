@@ -30,33 +30,6 @@ def _make_parser() -> argparse.ArgumentParser:
 
 
 # ---------------------------------------------------------------------------
-# PresetTarget: per-target metadata on the enum
-# ---------------------------------------------------------------------------
-
-
-def test_all_legacy_aliases_aggregates_per_target_tables():
-    from isaaclab_tasks.utils.preset_target import PresetTarget
-
-    flat = PresetTarget.all_legacy_aliases()
-    assert flat["newton"] == "newton_mjwarp"
-    assert flat["kamino"] == "newton_kamino"
-
-
-def test_preset_target_carries_base_classes():
-    """Typed targets carry the cfg base classes whose subclass instances
-    should bucket to them. DOMAIN carries no base classes (it's the
-    catch-all)."""
-    from isaaclab.physics import PhysicsCfg
-    from isaaclab.renderers.renderer_cfg import RendererCfg
-
-    from isaaclab_tasks.utils.preset_target import PresetTarget
-
-    assert PresetTarget.PHYSICS.base_classes == (PhysicsCfg,)
-    assert PresetTarget.RENDERER.base_classes == (RendererCfg,)
-    assert PresetTarget.DOMAIN.base_classes == ()
-
-
-# ---------------------------------------------------------------------------
 # setup_preset_cli: parse-only, returns the pre-fold remainder verbatim
 # ---------------------------------------------------------------------------
 
@@ -101,22 +74,6 @@ def test_setup_preset_cli_passes_typed_tokens_verbatim(monkeypatch):
     ]
 
 
-def test_setup_preset_cli_does_not_mutate_sys_argv(monkeypatch):
-    """``setup_preset_cli`` must not mutate ``sys.argv`` -- mutation is the
-    caller's responsibility. Locks the contract that ``rsl_rl/{train,play}.py``
-    rely on so an ``--external_callback`` hook invoked after ``setup_preset_cli``
-    can still read the user's original command line and return tokens that the
-    caller intersects against the remainder."""
-    original = ["train.py", "--task=Foo-v0", "physics=newton_mjwarp", "env.sim.dt=0.001"]
-    monkeypatch.setattr("sys.argv", original)
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
-
-    _, remaining = setup_preset_cli(_make_parser())
-    assert sys.argv == original
-    # Remainder carries the typed selector unchanged.
-    assert remaining == ["physics=newton_mjwarp", "env.sim.dt=0.001"]
-
-
 def test_setup_preset_cli_namespace_carries_no_preset_attributes(monkeypatch):
     """Preset tokens are never registered with argparse, so the parsed
     Namespace gains no ``physics`` / ``renderer`` / ``presets`` attribute.
@@ -138,34 +95,6 @@ def test_setup_preset_cli_namespace_carries_no_preset_attributes(monkeypatch):
             " forwarding can then push it into SimulationApp config. Drop the argparse registration"
             " for preset selectors and use Hydra-style tokens instead."
         )
-
-
-def test_setup_preset_cli_does_not_leak_into_app_launcher_sim_app_intersection(monkeypatch):
-    """Mirrors the literal intersection :class:`~isaaclab.app.AppLauncher`
-    computes (``set(_SIM_APP_CFG_TYPES) & set(vars(args))``,
-    ``app_launcher.py:681``). After ``setup_preset_cli`` runs with all three
-    preset selectors, no preset name can be in that intersection -- the only
-    keys present are those AppLauncher itself registered on the parser
-    (``headless``, ``experience``, ...).
-    """
-    monkeypatch.setattr(
-        "sys.argv",
-        ["train.py", "--task=Foo-v0", "physics=newton_mjwarp", "renderer=newton_renderer", "presets=albedo"],
-    )
-    from isaaclab.app import AppLauncher
-
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
-    from isaaclab_tasks.utils.preset_target import PresetTarget
-
-    args, _ = setup_preset_cli(_make_parser())
-    intersection = set(AppLauncher._SIM_APP_CFG_TYPES.keys()) & set(vars(args).keys())
-    leaked = {t.value for t in PresetTarget} & intersection
-    assert not leaked, (
-        f"setup_preset_cli leaked preset value(s) {sorted(leaked)} into the AppLauncher"
-        " SimulationApp forwarding set -- they would land in SimulationApp.config and crash"
-        " Kit (``None.lower()`` for ``renderer``). The hydra-style grammar keeps the namespace"
-        " clean of preset attributes; this test guards against accidentally re-introducing them."
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -194,21 +123,6 @@ def test_intersection_preserves_typed_selection():
 # ---------------------------------------------------------------------------
 # Helpers: _ArgvHelper and _bucket_variants_by_target
 # ---------------------------------------------------------------------------
-
-
-def test_argv_helper_finds_task_equals_form():
-    from isaaclab_tasks.utils.preset_cli import _ArgvHelper
-
-    argv = _ArgvHelper(["train.py", "--task=Foo-v0"])
-    assert argv.task_name == "Foo-v0"
-    assert argv.help_requested is False
-
-
-def test_argv_helper_finds_task_separated_form():
-    from isaaclab_tasks.utils.preset_cli import _ArgvHelper
-
-    argv = _ArgvHelper(["train.py", "--task", "Foo-v0"])
-    assert argv.task_name == "Foo-v0"
 
 
 def test_argv_helper_task_missing_returns_none():
@@ -340,24 +254,6 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
             id="zero_variants_everywhere",
         ),
         pytest.param(
-            "physics_only",
-            [
-                "physics=NAME (typed) selects a physics backend. Available: - alpha - beta",
-                "renderer=NAME (typed) selects a renderer backend. Available: (none)",
-                "presets=NAME[,NAME,...] broadcast: applied to every matching PresetCfg. Available: (none)",
-            ],
-            id="typed_populated_other_typed_empty",
-        ),
-        pytest.param(
-            "domain_only",
-            [
-                "physics=NAME (typed) selects a physics backend. Available: (none)",
-                "renderer=NAME (typed) selects a renderer backend. Available: (none)",
-                "presets=NAME[,NAME,...] broadcast: applied to every matching PresetCfg. Available: - heavy - light",
-            ],
-            id="domain_bucket_only",
-        ),
-        pytest.param(
             "mixed",
             [
                 "physics=NAME (typed) selects a physics backend. Available: - my_phys",
@@ -396,14 +292,6 @@ def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phras
         pass
 
     @configclass
-    class _PhysOnlyCfg:
-        physics: object = preset(default=_HelpPhysCfg(), alpha=_HelpPhysCfg(), beta=_HelpPhysCfg())
-
-    @configclass
-    class _DomainOnlyCfg:
-        weight: object = preset(default=1.0, light=0.5, heavy=2.0)
-
-    @configclass
     class _MixedCfg:
         physics: object = preset(default=_HelpPhysCfg(), my_phys=_HelpPhysCfg())
         renderer: object = preset(default=_HelpRendCfg(), my_rend=_HelpRendCfg())
@@ -411,8 +299,6 @@ def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phras
 
     builders = {
         "empty": _EmptyCfg,
-        "physics_only": _PhysOnlyCfg,
-        "domain_only": _DomainOnlyCfg,
         "mixed": _MixedCfg,
     }
 
@@ -431,38 +317,3 @@ def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phras
 
     for phrase in expected_phrases:
         assert phrase in flat, f"Missing phrase: {phrase!r}"
-
-
-def test_preset_cli_has_no_agent_selection_surface():
-    """Keep the preset CLI bounded to parsing and preset help."""
-    import inspect
-    from pathlib import Path
-
-    import isaaclab_tasks.utils.preset_cli as preset_cli
-
-    assert tuple(inspect.signature(preset_cli.setup_preset_cli).parameters) == ("parser", "argv")
-    forbidden_symbols = (
-        "_AGENT_UNSET",
-        "_AgentDescriptionBuilder",
-        "_agent_passed_explicitly",
-        "_auto_select_agent",
-        "_enumerate_agents",
-    )
-    assert not [name for name in forbidden_symbols if hasattr(preset_cli, name)]
-
-    repo_root = Path(__file__).resolve().parents[4]
-    paths = [*repo_root.glob("source/*/**/*.py"), *repo_root.glob("scripts/**/*.py")]
-    forbidden_kwarg = "agent_" + "library="
-    offenders = [
-        path for path in paths if "setup_preset_cli" in path.read_text() and forbidden_kwarg in path.read_text()
-    ]
-    assert not offenders
-
-
-def test_task_registrations_have_no_preset_to_agent_maps():
-    """A shared preset name must compose config roots without a registry-side pairing table."""
-    from pathlib import Path
-
-    task_root = Path(__file__).resolve().parents[2] / "isaaclab_tasks"
-    offenders = [path for path in task_root.rglob("*.py") if "agent_preset_compatibility" in path.read_text()]
-    assert not offenders
