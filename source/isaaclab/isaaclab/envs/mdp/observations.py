@@ -169,7 +169,7 @@ def body_projected_gravity_b(
         [x,y,z]. Output is stacked horizontally per body.
     """
     asset: Articulation = env.scene[asset_cfg.name]
-    body_quat = asset.data.body_quat_w.torch[:, asset_cfg.body_ids]
+    body_quat = asset.data.body_quat_w.torch[:, asset_cfg.body_ids].reshape(env.num_envs, -1, 4)
     # ``GRAVITY_VEC_W`` carries the per-env world-frame gravity in m/s^2 (Newton
     # backend) or scene-wide gravity (PhysX backend).
     gravity_w = asset.data.GRAVITY_VEC_W.torch
@@ -395,7 +395,7 @@ def image(
         The images produced at the last time-step
     """
     sensor: Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
-    images = sensor.data.output[data_type]
+    images = sensor.data.output[data_type].torch
     # depth image conversion
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
         images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)

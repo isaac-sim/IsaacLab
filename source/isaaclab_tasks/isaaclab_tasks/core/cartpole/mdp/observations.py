@@ -45,7 +45,7 @@ class CameraImageStack(ManagerTermBase):
 
     def __call__(self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, data_type: str) -> torch.Tensor:
         camera: Camera = env.scene.sensors[sensor_cfg.name]
-        camera_data = camera.data.output[data_type]
+        camera_data = camera.data.output[data_type].torch
 
         rgb_like = is_rgb_like(data_type)
         segmentation = data_type == "semantic_segmentation"
