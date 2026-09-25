@@ -6,20 +6,35 @@
 """Tests for shared physics-manager lifecycle behavior."""
 
 import gc
+import inspect
 import weakref
 from dataclasses import dataclass, replace
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
-from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager
 from isaaclab.renderers import RenderContext, RendererCfg
+from isaaclab.visualizers import VisualizerCfg
 
 
 def test_backend_registry_identity_and_lifecycle():
     """Share by type/cfg, construct once, and release only the selected resource after successful cleanup."""
     from isaaclab.sim import BackendCfg, SimulationContext
+
+    # SimulationContext owns backends directly, with no second registry or lookup layer.
+    sim_package = Path(__file__).parents[2] / "isaaclab" / "sim"
+    assert not (sim_package / "service_locator.py").exists()
+    assert not hasattr(SimulationContext, "services")
+    assert issubclass(RendererCfg, BackendCfg)
+    assert not hasattr(RenderContext, "get_renderer")
+    assert "_renderer_entries" not in RenderContext.__slots__
+    assert tuple(inspect.signature(SimulationContext.get_or_create_backend).parameters) == ("self", "cfg")
+    assert all(
+        "resource_key" not in cfg_type.__dataclass_fields__ for cfg_type in (PhysicsCfg, RendererCfg, VisualizerCfg)
+    )
 
     @dataclass(kw_only=True)
     class Cfg(BackendCfg):

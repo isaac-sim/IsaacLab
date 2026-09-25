@@ -350,7 +350,7 @@ def intrinsic_camera(request):
 
 
 @pytest.mark.parametrize("env_ids", [None, [2, 0]])
-@pytest.mark.parametrize("batch_delta", [-1, 0])
+@pytest.mark.parametrize("batch_delta", [-1, 0, 1])
 def test_intrinsic_batch_rejection_is_atomic(intrinsic_camera, env_ids, batch_delta):
     """Cardinality errors and backend rejection leave USD and active calibration unchanged."""
     stage, camera = intrinsic_camera

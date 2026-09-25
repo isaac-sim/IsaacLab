@@ -253,17 +253,17 @@ class TestBpearlPattern:
         torch.testing.assert_close(ray_starts, torch.zeros_like(ray_starts))
 
     def test_bpearl_pattern_custom_vertical_angles(self, device):
-        """Test bpearl pattern with custom vertical angles."""
+        """Test bpearl pattern with custom vertical angles and a partial horizontal field of view."""
         custom_angles = [10.0, 20.0, 30.0, 40.0, 50.0]
         cfg = patterns_cfg.BpearlPatternCfg(
-            horizontal_fov=360.0,
+            horizontal_fov=180.0,
             horizontal_res=90.0,
             vertical_ray_angles=custom_angles,
         )
         ray_starts, ray_directions = patterns.bpearl_pattern(cfg, device)
 
-        # 360/90 = 4 horizontal angles, 5 custom vertical angles
-        expected_num_rays = 4 * 5
+        # 180/90 = 2 horizontal angles, 5 custom vertical angles
+        expected_num_rays = 2 * 5
         assert ray_starts.shape[0] == expected_num_rays
 
 

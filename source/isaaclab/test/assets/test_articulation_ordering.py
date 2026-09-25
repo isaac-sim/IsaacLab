@@ -1095,6 +1095,17 @@ def test_map_ids_to_backend_handles_slice_selectors() -> None:
 
 def test_ordering_map_helpers_pick_axis_direction_and_identity_fallback() -> None:
     """Return the exact map object per axis and direction, or the backend identity buffer."""
+    from isaaclab.assets.articulation.base_articulation import BaseArticulation
+    from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
+
+    # Ordering state has one owner; mirrored maps and cached flags must not return.
+    for owner, names in (
+        (BaseArticulation, ("_cache_ordering_maps", "_reset_and_cache_ordering_maps")),
+        (BaseArticulationData, ("_install_ordering_flags", "_has_joint_ordering", "_has_body_ordering")),
+    ):
+        for name in names:
+            assert not hasattr(owner, name), f"{owner.__name__}.{name} duplicates ordering state"
+
     permuted = _make_map_ids_articulation(permuted=True)
     joint_ordering = permuted._data.joint_ordering
     body_ordering = permuted._data.body_ordering
