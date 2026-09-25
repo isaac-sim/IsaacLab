@@ -17,7 +17,6 @@ import pathlib
 
 import pytest
 import torch
-import warp as wp
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg
@@ -85,38 +84,13 @@ class MySceneCfg(InteractiveSceneCfg):
 
     # articulations - robot
     robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/robot")
-    # pendulum1 - uses merge_fixed_joints=True (same as pendulum2) so that fixed-joint
+    # pendulum - uses merge_fixed_joints=True so that fixed-joint
     # child links (base, imu_link) are merged into their parents during URDF XML
     # pre-processing. This avoids fixed-joint constraint violations at velocity level
     # (the solver uses velocity_iteration_count=0). A non-physics imu_link Xform is
     # created programmatically in the test fixture (see setup_sim).
     pendulum = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/pendulum",
-        spawn=sim_utils.UrdfFileCfg(
-            fix_base=True,
-            merge_fixed_joints=True,
-            make_instanceable=False,
-            asset_path=f"{pathlib.Path(__file__).parent.resolve()}/urdfs/simple_2_link.urdf",
-            articulation_props=[
-                PhysxArticulationCfg(
-                    enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-                ),
-                NewtonArticulationCfg(self_collision_enabled=True),
-            ],
-            joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
-                gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
-            ),
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(),
-        actuators={
-            "joint_1_act": ImplicitActuatorCfg(joint_names_expr=["joint_.*"], stiffness=0.0, damping=0.3),
-        },
-    )
-    # pendulum2 - uses merge_fixed_joints=True so that the fixed-joint child links (base, imu_link)
-    # are merged into their parents during URDF XML pre-processing. A non-physics imu_link Xform
-    # is created programmatically in the test fixture to test indirect PVA attachment (see setup_sim).
-    pendulum2 = ArticulationCfg(
-        prim_path="{ENV_REGEX_NS}/pendulum2",
         spawn=sim_utils.UrdfFileCfg(
             fix_base=True,
             merge_fixed_joints=True,
@@ -160,20 +134,6 @@ class MySceneCfg(InteractiveSceneCfg):
     # kinematic tree.  With merge_fixed_joints=True the hierarchy for simple_2_link.urdf is:
     #   Geometry/world/link_1  (base merged into world, imu_link merged into link_1)
     # A non-physics imu_link Xform is recreated in the test fixture (see setup_sim).
-    pva_indirect_pendulum_link: PvaCfg = PvaCfg(
-        prim_path="{ENV_REGEX_NS}/pendulum2/Geometry/world/link_1/imu_link",
-        debug_vis=not app_launcher._headless,
-        visualizer_cfg=RED_ARROW_X_MARKER_CFG.replace(prim_path="/Visuals/Acceleration/imu_link"),
-    )
-    pva_indirect_pendulum_base: PvaCfg = PvaCfg(
-        prim_path="{ENV_REGEX_NS}/pendulum2/Geometry/world/link_1",
-        offset=PvaCfg.OffsetCfg(
-            pos=PEND_POS_OFFSET,
-            rot=PEND_ROT_OFFSET,
-        ),
-        debug_vis=not app_launcher._headless,
-        visualizer_cfg=GREEN_ARROW_X_MARKER_CFG.replace(prim_path="/Visuals/Acceleration/base"),
-    )
     pva_pendulum_imu_link: PvaCfg = PvaCfg(
         prim_path="{ENV_REGEX_NS}/pendulum/Geometry/world/link_1/imu_link",
         debug_vis=not app_launcher._headless,
@@ -194,7 +154,6 @@ class MySceneCfg(InteractiveSceneCfg):
         # change position of the robot
         self.robot.init_state.pos = (0.0, 2.0, 1.0)
         self.pendulum.init_state.pos = (-2.0, 1.0, 0.5)
-        self.pendulum2.init_state.pos = (2.0, 1.0, 0.5)
 
         # change asset
         self.robot.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd"
@@ -217,115 +176,18 @@ def setup_sim():
         # construct scene
         scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False, replicate_physics=False)
         scene = InteractiveScene(scene_cfg)
-        # Both pendulum and pendulum2 use merge_fixed_joints=True, so the
-        # fixed-joint child link imu_link is removed from the URDF before USD
-        # conversion.  Recreate it as a plain Xform (no RigidBodyAPI) under each
-        # pendulum's link_1 for every environment.  The PVA sensor must then
-        # resolve the rigid-body ancestor (link_1) and cache the fixed offset —
-        # exercising the "indirect attachment" code path.
+        # The pendulum uses merge_fixed_joints=True, so the fixed-joint child link
+        # imu_link is removed from the URDF before USD conversion.  Recreate it as a
+        # plain Xform (no RigidBodyAPI) under link_1 for every environment.  The PVA
+        # sensor must then resolve the rigid-body ancestor (link_1) and cache the
+        # fixed offset — exercising the "indirect attachment" code path.
         for i in range(scene_cfg.num_envs):
-            for art_name in ("pendulum", "pendulum2"):
-                prim_path = f"/World/envs/env_{i}/{art_name}/Geometry/world/link_1/imu_link"
-                sim_utils.create_prim(prim_path, "Xform", translation=PEND_POS_OFFSET, orientation=PEND_ROT_OFFSET)
+            prim_path = f"/World/envs/env_{i}/pendulum/Geometry/world/link_1/imu_link"
+            sim_utils.create_prim(prim_path, "Xform", translation=PEND_POS_OFFSET, orientation=PEND_ROT_OFFSET)
         # Play the simulator
         sim.reset()
         yield sim, scene
     # Cleanup is handled by build_simulation_context
-
-
-@pytest.mark.isaacsim_ci
-def test_constant_velocity(setup_sim):
-    """Test the PVA sensor with a constant velocity.
-
-    Expected behavior is that the linear and angular are approx the same at every time step as in each step we set
-    the same velocity and therefore reset the physx buffers.
-    """
-    sim, scene = setup_sim
-    prev_lin_acc_ball = torch.zeros((scene.num_envs, 3), dtype=torch.float32, device=scene.device)
-    prev_ang_acc_ball = torch.zeros((scene.num_envs, 3), dtype=torch.float32, device=scene.device)
-    prev_lin_acc_cube = torch.zeros((scene.num_envs, 3), dtype=torch.float32, device=scene.device)
-    prev_ang_acc_cube = torch.zeros((scene.num_envs, 3), dtype=torch.float32, device=scene.device)
-
-    for idx in range(200):
-        # set velocity
-        scene.rigid_objects["balls"].write_root_velocity_to_sim(
-            torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(
-                scene.num_envs, 1
-            )
-        )
-        scene.rigid_objects["cube"].write_root_velocity_to_sim(
-            torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(
-                scene.num_envs, 1
-            )
-        )
-        # write data to sim
-        scene.write_data_to_sim()
-
-        # perform step
-        sim.step()
-        # read data from sim
-        scene.update(sim.get_physics_dt())
-
-        if idx > 1:
-            # check the pva accelerations
-            torch.testing.assert_close(
-                scene.sensors["pva_ball"].data.lin_acc_b.torch,
-                prev_lin_acc_ball,
-                rtol=1e-3,
-                atol=1e-3,
-            )
-            torch.testing.assert_close(
-                scene.sensors["pva_ball"].data.ang_acc_b.torch,
-                prev_ang_acc_ball,
-                rtol=1e-3,
-                atol=1e-3,
-            )
-
-            torch.testing.assert_close(
-                scene.sensors["pva_cube"].data.lin_acc_b.torch,
-                prev_lin_acc_cube,
-                rtol=1e-3,
-                atol=1e-3,
-            )
-            torch.testing.assert_close(
-                scene.sensors["pva_cube"].data.ang_acc_b.torch,
-                prev_ang_acc_cube,
-                rtol=1e-3,
-                atol=1e-3,
-            )
-
-            # check the pva velocities
-            # NOTE: the expected lin_vel_b is the same as the set velocity, as write_root_velocity_to_sim is
-            #       setting v_0 (initial velocity) and then a calculation step of v_i = v_0 + a*dt. Consequently,
-            #       the data.lin_vel_b is returning approx. v_i.
-            torch.testing.assert_close(
-                scene.sensors["pva_ball"].data.lin_vel_b.torch,
-                torch.tensor([[1.0, 0.0, -scene.physics_dt * 9.81]], dtype=torch.float32, device=scene.device).repeat(
-                    scene.num_envs, 1
-                ),
-                rtol=1e-4,
-                atol=1e-4,
-            )
-            torch.testing.assert_close(
-                scene.sensors["pva_cube"].data.lin_vel_b.torch,
-                torch.tensor([[1.0, 0.0, -scene.physics_dt * 9.81]], dtype=torch.float32, device=scene.device).repeat(
-                    scene.num_envs, 1
-                ),
-                rtol=1e-4,
-                atol=1e-4,
-            )
-
-        # update previous values
-        prev_lin_acc_ball = scene.sensors["pva_ball"].data.lin_acc_b.torch.clone()
-        prev_ang_acc_ball = scene.sensors["pva_ball"].data.ang_acc_b.torch.clone()
-        prev_lin_acc_cube = scene.sensors["pva_cube"].data.lin_acc_b.torch.clone()
-        prev_ang_acc_cube = scene.sensors["pva_cube"].data.ang_acc_b.torch.clone()
-
-    # the recorded-launch optimization must be active on CUDA; a recording failure would only
-    # warn and silently fall back to eager launches, defeating the optimization.
-    if "cuda" in str(scene.device):
-        assert scene.sensors["pva_ball"]._update_cmd is not None
-        assert scene.sensors["pva_cube"]._update_cmd is not None
 
 
 @pytest.mark.isaacsim_ci
@@ -375,22 +237,146 @@ def test_constant_acceleration(setup_sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_single_dof_pendulum(setup_sim):
-    """Test PVA against analytical pendulum problem."""
+def test_offset_calculation(setup_sim):
+    """Test the PVA sensor on independently driven bodies that share one scene.
+
+    * Robot: a configured offset on the base matches a sensor on the ``imu_link`` child prim.
+    * Pendulum: the sensor on a non-rigid ``imu_link`` Xform child (indirect attachment through the
+      rigid-body ancestor) matches the analytic pendulum and a configured offset on ``link_1``.
+    * Ball and cube: writing the same velocity every step yields constant accelerations and the
+      written velocity.
+    """
     sim, scene = setup_sim
+    prev_lin_acc_ball = torch.zeros((scene.num_envs, 3), dtype=torch.float32, device=scene.device)
+    prev_ang_acc_ball = torch.zeros((scene.num_envs, 3), dtype=torch.float32, device=scene.device)
+    prev_lin_acc_cube = torch.zeros((scene.num_envs, 3), dtype=torch.float32, device=scene.device)
+    prev_ang_acc_cube = torch.zeros((scene.num_envs, 3), dtype=torch.float32, device=scene.device)
+    constant_velocity = torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=scene.device)
     # pendulum length
     pend_length = PEND_POS_OFFSET[0]
     pendulum = scene.articulations["pendulum"]
     pendulum_link_id = pendulum.find_bodies("link_1")[0][0]
 
-    # should achieve same results between the two pva sensors on the robot
     for idx in range(500):
+        # set acceleration
+        scene.articulations["robot"].write_root_velocity_to_sim(
+            torch.tensor([[0.05, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(
+                scene.num_envs, 1
+            )
+            * (idx + 1)
+        )
+        # set constant velocity
+        scene.rigid_objects["balls"].write_root_velocity_to_sim(constant_velocity.repeat(scene.num_envs, 1))
+        scene.rigid_objects["cube"].write_root_velocity_to_sim(constant_velocity.repeat(scene.num_envs, 1))
         # write data to sim
         scene.write_data_to_sim()
         # perform step
         sim.step()
         # read data from sim
         scene.update(sim.get_physics_dt())
+
+        # constant velocity: the accelerations are the same at every step
+        if idx > 1:
+            torch.testing.assert_close(
+                scene.sensors["pva_ball"].data.lin_acc_b.torch,
+                prev_lin_acc_ball,
+                rtol=1e-3,
+                atol=1e-3,
+            )
+            torch.testing.assert_close(
+                scene.sensors["pva_ball"].data.ang_acc_b.torch,
+                prev_ang_acc_ball,
+                rtol=1e-3,
+                atol=1e-3,
+            )
+            torch.testing.assert_close(
+                scene.sensors["pva_cube"].data.lin_acc_b.torch,
+                prev_lin_acc_cube,
+                rtol=1e-3,
+                atol=1e-3,
+            )
+            torch.testing.assert_close(
+                scene.sensors["pva_cube"].data.ang_acc_b.torch,
+                prev_ang_acc_cube,
+                rtol=1e-3,
+                atol=1e-3,
+            )
+
+            # NOTE: the expected lin_vel_b is the same as the set velocity, as write_root_velocity_to_sim is
+            #       setting v_0 (initial velocity) and then a calculation step of v_i = v_0 + a*dt. Consequently,
+            #       the data.lin_vel_b is returning approx. v_i.
+            torch.testing.assert_close(
+                scene.sensors["pva_ball"].data.lin_vel_b.torch,
+                torch.tensor([[1.0, 0.0, -scene.physics_dt * 9.81]], dtype=torch.float32, device=scene.device).repeat(
+                    scene.num_envs, 1
+                ),
+                rtol=1e-4,
+                atol=1e-4,
+            )
+            torch.testing.assert_close(
+                scene.sensors["pva_cube"].data.lin_vel_b.torch,
+                torch.tensor([[1.0, 0.0, -scene.physics_dt * 9.81]], dtype=torch.float32, device=scene.device).repeat(
+                    scene.num_envs, 1
+                ),
+                rtol=1e-4,
+                atol=1e-4,
+            )
+        prev_lin_acc_ball = scene.sensors["pva_ball"].data.lin_acc_b.torch.clone()
+        prev_ang_acc_ball = scene.sensors["pva_ball"].data.ang_acc_b.torch.clone()
+        prev_lin_acc_cube = scene.sensors["pva_cube"].data.lin_acc_b.torch.clone()
+        prev_ang_acc_cube = scene.sensors["pva_cube"].data.ang_acc_b.torch.clone()
+
+        # skip first step where initial velocity is zero
+        if idx < 1:
+            continue
+
+        # robot: offset vs imu_link definition
+        torch.testing.assert_close(
+            scene.sensors["pva_robot_base"].data.lin_acc_b.torch,
+            scene.sensors["pva_robot_imu_link"].data.lin_acc_b.torch,
+            rtol=1e-4,
+            atol=1e-4,
+        )
+        torch.testing.assert_close(
+            scene.sensors["pva_robot_base"].data.ang_acc_b.torch,
+            scene.sensors["pva_robot_imu_link"].data.ang_acc_b.torch,
+            rtol=1e-4,
+            atol=1e-4,
+        )
+        torch.testing.assert_close(
+            scene.sensors["pva_robot_base"].data.ang_vel_b.torch,
+            scene.sensors["pva_robot_imu_link"].data.ang_vel_b.torch,
+            rtol=1e-4,
+            atol=1e-4,
+        )
+        torch.testing.assert_close(
+            scene.sensors["pva_robot_base"].data.lin_vel_b.torch,
+            scene.sensors["pva_robot_imu_link"].data.lin_vel_b.torch,
+            rtol=1e-4,
+            atol=1e-4,
+        )
+        torch.testing.assert_close(
+            scene.sensors["pva_robot_base"].data.quat_w.torch,
+            scene.sensors["pva_robot_imu_link"].data.quat_w.torch,
+            rtol=1e-4,
+            atol=1e-4,
+        )
+        torch.testing.assert_close(
+            scene.sensors["pva_robot_base"].data.pos_w.torch,
+            scene.sensors["pva_robot_imu_link"].data.pos_w.torch,
+            rtol=1e-4,
+            atol=1e-4,
+        )
+        torch.testing.assert_close(
+            scene.sensors["pva_robot_base"].data.projected_gravity_b.torch,
+            scene.sensors["pva_robot_imu_link"].data.projected_gravity_b.torch,
+            rtol=1e-4,
+            atol=1e-4,
+        )
+
+        # skip the second pendulum step where the initial velocity is still zero
+        if idx < 2:
+            continue
 
         # get pendulum joint state
         joint_pos = pendulum.data.joint_pos.torch
@@ -422,10 +408,6 @@ def test_single_dof_pendulum(setup_sim):
         az = -joint_ang_acc_w_y * pend_length * torch.cos(joint_pos) + joint_vel**2 * pend_length * torch.sin(joint_pos)
         gt_linear_acc_w = torch.cat([ax, ay, az], dim=-1)
 
-        # skip first step where initial velocity is zero
-        if idx < 2:
-            continue
-
         # compare pva projected gravity
         gravity_dir_w = torch.tensor((0.0, 0.0, -1.0), device=scene.device).repeat(2, 1)
         gravity_dir_b = math_utils.quat_apply_inverse(pva_data.quat_w.torch, gravity_dir_w)
@@ -510,276 +492,17 @@ def test_single_dof_pendulum(setup_sim):
             atol=1e-1,
         )
 
+    # the recorded-launch optimization must be active on CUDA; a recording failure would only
+    # warn and silently fall back to eager launches, defeating the optimization.
+    if "cuda" in str(scene.device):
+        assert scene.sensors["pva_ball"]._update_cmd is not None
+        assert scene.sensors["pva_cube"]._update_cmd is not None
 
-@pytest.mark.isaacsim_ci
-def test_indirect_attachment(setup_sim):
-    """Test attaching the PVA sensor through an xForm primitive configuration argument."""
-    sim, scene = setup_sim
-    # pendulum length
-    pend_length = PEND_POS_OFFSET[0]
-    pendulum = scene.articulations["pendulum2"]
-    pendulum_link_id = pendulum.find_bodies("link_1")[0][0]
+    assert "number of sensors : 2" in str(scene.sensors["pva_ball"])
 
-    # should achieve same results between the two pva sensors on the robot
-    for idx in range(500):
-        # write data to sim
-        scene.write_data_to_sim()
-        # perform step
-        sim.step()
-        # read data from sim
-        scene.update(sim.get_physics_dt())
-
-        # get pendulum joint state
-        joint_pos = pendulum.data.joint_pos.torch
-        joint_vel = pendulum.data.joint_vel.torch
-        # Use the solver-reported link acceleration as the reference. The public joint
-        # acceleration is finite-differenced and intentionally differs from PVA semantics.
-        joint_ang_acc_w_y = pendulum.data.body_com_acc_w.torch[:, pendulum_link_id, 4].unsqueeze(-1)
-
-        pva = scene.sensors["pva_indirect_pendulum_link"]
-        pva_base = scene.sensors["pva_indirect_pendulum_base"]
-
-        torch.testing.assert_close(
-            wp.to_torch(pva._offset_pos_b),
-            wp.to_torch(pva_base._offset_pos_b),
-        )
-        torch.testing.assert_close(
-            wp.to_torch(pva._offset_quat_b),
-            wp.to_torch(pva_base._offset_quat_b),
-            rtol=1e-4,
-            atol=1e-4,
-        )
-
-        # PVA and base data
-        pva_data = scene.sensors["pva_indirect_pendulum_link"].data
-        base_data = scene.sensors["pva_indirect_pendulum_base"].data
-        # extract imu_link pva_sensor dynamics
-        lin_vel_w_imu_link = math_utils.quat_apply(pva_data.quat_w.torch, pva_data.lin_vel_b.torch)
-        lin_acc_w_imu_link = math_utils.quat_apply(pva_data.quat_w.torch, pva_data.lin_acc_b.torch)
-
-        # calculate the joint dynamics from the pva_sensor (y axis of imu_link is parallel to joint axis of pendulum)
-        joint_vel_pva = math_utils.quat_apply(pva_data.quat_w.torch, pva_data.ang_vel_b.torch)[..., 1].unsqueeze(-1)
-        joint_acc_pva = math_utils.quat_apply(pva_data.quat_w.torch, pva_data.ang_acc_b.torch)[..., 1].unsqueeze(-1)
-
-        # calculate analytical solution
-        vx = -joint_vel * pend_length * torch.sin(joint_pos)
-        vy = torch.zeros(2, 1, device=scene.device)
-        vz = -joint_vel * pend_length * torch.cos(joint_pos)
-        gt_linear_vel_w = torch.cat([vx, vy, vz], dim=-1)
-
-        ax = -joint_ang_acc_w_y * pend_length * torch.sin(joint_pos) - joint_vel**2 * pend_length * torch.cos(joint_pos)
-        ay = torch.zeros(2, 1, device=scene.device)
-        az = -joint_ang_acc_w_y * pend_length * torch.cos(joint_pos) + joint_vel**2 * pend_length * torch.sin(joint_pos)
-        gt_linear_acc_w = torch.cat([ax, ay, az], dim=-1)
-
-        # skip first step where initial velocity is zero
-        if idx < 2:
-            continue
-
-        # compare pva projected gravity
-        gravity_dir_w = torch.tensor((0.0, 0.0, -1.0), device=scene.device).repeat(2, 1)
-        gravity_dir_b = math_utils.quat_apply_inverse(pva_data.quat_w.torch, gravity_dir_w)
-        torch.testing.assert_close(
-            pva_data.projected_gravity_b.torch,
-            gravity_dir_b,
-        )
-
-        # compare pva angular velocity with joint velocity
-        torch.testing.assert_close(
-            joint_vel,
-            joint_vel_pva,
-            rtol=1e-1,
-            atol=1e-3,
-        )
-        # compare pva angular acceleration with solver-reported link acceleration
-        torch.testing.assert_close(
-            joint_ang_acc_w_y,
-            joint_acc_pva,
-            rtol=1e-1,
-            atol=1e-3,
-        )
-        # compare pva linear velocity with simple pendulum calculation
-        torch.testing.assert_close(
-            gt_linear_vel_w,
-            lin_vel_w_imu_link,
-            rtol=1e-1,
-            atol=1e-3,
-        )
-        # compare pva linear acceleration with simple pendulum calculation
-        torch.testing.assert_close(
-            gt_linear_acc_w,
-            lin_acc_w_imu_link,
-            rtol=1e-1,
-            atol=1e0,
-        )
-
-        # check the position between offset and pva definition
-        torch.testing.assert_close(
-            base_data.pos_w.torch,
-            pva_data.pos_w.torch,
-            rtol=1e-5,
-            atol=1e-5,
-        )
-
-        # check the orientation between offset and pva definition
-        torch.testing.assert_close(
-            base_data.quat_w.torch,
-            pva_data.quat_w.torch,
-            rtol=1e-4,
-            atol=1e-4,
-        )
-
-        # check the angular velocities of the pvas between offset and pva definition
-        torch.testing.assert_close(
-            base_data.ang_vel_b.torch,
-            pva_data.ang_vel_b.torch,
-            rtol=1e-4,
-            atol=1e-4,
-        )
-        # check the angular acceleration of the pvas between offset and pva definition
-        torch.testing.assert_close(
-            base_data.ang_acc_b.torch,
-            pva_data.ang_acc_b.torch,
-            rtol=1e-4,
-            atol=1e-4,
-        )
-
-        # check the linear velocity of the pvas between offset and pva definition
-        torch.testing.assert_close(
-            base_data.lin_vel_b.torch,
-            pva_data.lin_vel_b.torch,
-            rtol=1e-2,
-            atol=5e-3,
-        )
-
-        # check the linear acceleration of the pvas between offset and pva definition
-        torch.testing.assert_close(
-            base_data.lin_acc_b.torch,
-            pva_data.lin_acc_b.torch,
-            rtol=1e-1,
-            atol=1e-1,
-        )
-
-
-@pytest.mark.isaacsim_ci
-def test_offset_calculation(setup_sim):
-    """Test offset configuration argument."""
-    sim, scene = setup_sim
-
-    # should achieve same results between the two pva sensors on the robot
-    for idx in range(500):
-        # set acceleration
-        scene.articulations["robot"].write_root_velocity_to_sim(
-            torch.tensor([[0.05, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(
-                scene.num_envs, 1
-            )
-            * (idx + 1)
-        )
-        # write data to sim
-        scene.write_data_to_sim()
-        # perform step
-        sim.step()
-        # read data from sim
-        scene.update(sim.get_physics_dt())
-
-        # skip first step where initial velocity is zero
-        if idx < 1:
-            continue
-
-        # check the accelerations
-        torch.testing.assert_close(
-            scene.sensors["pva_robot_base"].data.lin_acc_b.torch,
-            scene.sensors["pva_robot_imu_link"].data.lin_acc_b.torch,
-            rtol=1e-4,
-            atol=1e-4,
-        )
-        torch.testing.assert_close(
-            scene.sensors["pva_robot_base"].data.ang_acc_b.torch,
-            scene.sensors["pva_robot_imu_link"].data.ang_acc_b.torch,
-            rtol=1e-4,
-            atol=1e-4,
-        )
-
-        # check the velocities
-        torch.testing.assert_close(
-            scene.sensors["pva_robot_base"].data.ang_vel_b.torch,
-            scene.sensors["pva_robot_imu_link"].data.ang_vel_b.torch,
-            rtol=1e-4,
-            atol=1e-4,
-        )
-        torch.testing.assert_close(
-            scene.sensors["pva_robot_base"].data.lin_vel_b.torch,
-            scene.sensors["pva_robot_imu_link"].data.lin_vel_b.torch,
-            rtol=1e-4,
-            atol=1e-4,
-        )
-
-        # check the orientation
-        torch.testing.assert_close(
-            scene.sensors["pva_robot_base"].data.quat_w.torch,
-            scene.sensors["pva_robot_imu_link"].data.quat_w.torch,
-            rtol=1e-4,
-            atol=1e-4,
-        )
-        # check the position
-        torch.testing.assert_close(
-            scene.sensors["pva_robot_base"].data.pos_w.torch,
-            scene.sensors["pva_robot_imu_link"].data.pos_w.torch,
-            rtol=1e-4,
-            atol=1e-4,
-        )
-        # check the projected gravity
-        torch.testing.assert_close(
-            scene.sensors["pva_robot_base"].data.projected_gravity_b.torch,
-            scene.sensors["pva_robot_imu_link"].data.projected_gravity_b.torch,
-            rtol=1e-4,
-            atol=1e-4,
-        )
-
-
-@pytest.mark.isaacsim_ci
-def test_attachment_validity(setup_sim):
-    """Test invalid PVA attachment. A PVA sensor cannot be attached directly to the world.
-
-    It must be somehow attached to something implementing physics.
-    """
-    sim, scene = setup_sim
-    pva_world_cfg = PvaCfg(prim_path="/World/envs/env_0")
-    with pytest.raises(RuntimeError) as exc_info:
-        pva_world = Pva(pva_world_cfg)
-        pva_world._initialize_impl()
-    assert exc_info.type is RuntimeError and "find a rigid body ancestor prim" in str(exc_info.value)
-
-
-@pytest.mark.isaacsim_ci
-def test_env_ids_propagation(setup_sim):
-    """Test that env_ids argument propagates through update and reset methods"""
-    sim, scene = setup_sim
-    scene.reset()
-
-    for idx in range(10):
-        # set acceleration
-        scene.articulations["robot"].write_root_velocity_to_sim(
-            torch.tensor([[0.5, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(
-                scene.num_envs, 1
-            )
-            * (idx + 1)
-        )
-        # write data to sim
-        scene.write_data_to_sim()
-        # perform step
-        sim.step()
-        # read data from sim
-        scene.update(sim.get_physics_dt())
-
-    # reset scene for env 1
-    scene.reset(env_ids=[1])
-    # read data from sim
-    scene.update(sim.get_physics_dt())
-    # perform step
-    sim.step()
-    # read data from sim
-    scene.update(sim.get_physics_dt())
+    # A PVA sensor cannot be attached directly to the world: it must have a rigid-body ancestor.
+    with pytest.raises(RuntimeError, match="find a rigid body ancestor prim"):
+        Pva(PvaCfg(prim_path="/World/envs/env_0"))._initialize_impl()
 
 
 @configclass
@@ -811,7 +534,7 @@ def test_no_stale_data_after_scene_reset():
     sim_cfg = sim_utils.SimulationCfg(dt=0.01, physics=PhysxCfg(solver_type=0))
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
-        scene_cfg = _StaleResetSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=False)
+        scene_cfg = _StaleResetSceneCfg(num_envs=2, env_spacing=2.0, lazy_sensor_update=False)
         scene = InteractiveScene(scene_cfg)
         sim.reset()
         scene.reset()
@@ -824,29 +547,23 @@ def test_no_stale_data_after_scene_reset():
             sim.step(render=False)
             scene.update(dt=sim.get_physics_dt())
 
-        # Sanity: cube has gained downward velocity.
-        pre_reset_vel_mag = torch.linalg.norm(sensor.data.lin_vel_b.torch, dim=-1).item()
-        assert pre_reset_vel_mag > 0.05, f"Expected non-zero velocity before reset; got {pre_reset_vel_mag!r}"
+        # Sanity: the cubes have gained downward velocity.
+        pre_reset_lin_vel = sensor.data.lin_vel_b.torch.clone()
+        assert (torch.linalg.norm(pre_reset_lin_vel, dim=-1) > 0.05).all(), (
+            f"Expected non-zero velocity before reset; got {pre_reset_lin_vel}"
+        )
 
-        # Reset the scene without writing fresh velocity/transform. The PhysX velocity
+        # Reset env 0 without writing fresh velocity/transform. The PhysX velocity
         # buffer therefore still holds the pre-reset (falling) value.
         scene.reset(env_ids=torch.tensor([0], device=sensor.device))
 
-        # The public ``data`` accessor must not refetch a stale PhysX buffer.
+        # The public ``data`` accessor must not refetch a stale PhysX buffer for the reset env,
+        # while env 1 keeps its measurement.
         post_reset_vel = sensor.data.lin_vel_b.torch
         post_reset_acc = sensor.data.lin_acc_b.torch
-        torch.testing.assert_close(post_reset_vel, torch.zeros_like(post_reset_vel))
-        torch.testing.assert_close(post_reset_acc, torch.zeros_like(post_reset_acc))
-
-
-@pytest.mark.isaacsim_ci
-def test_sensor_print(setup_sim):
-    """Test sensor print is working correctly."""
-    sim, scene = setup_sim
-    # Create sensor
-    sensor = scene.sensors["pva_ball"]
-    # print info
-    print(sensor)
+        torch.testing.assert_close(post_reset_vel[0], torch.zeros_like(post_reset_vel[0]))
+        torch.testing.assert_close(post_reset_acc[0], torch.zeros_like(post_reset_acc[0]))
+        torch.testing.assert_close(post_reset_vel[1], pre_reset_lin_vel[1])
 
 
 @pytest.mark.parametrize("access_mode", ("lazy_read", "update_period"))

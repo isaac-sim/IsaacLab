@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import contextlib
 import copy
-import re
 from collections.abc import Callable, Iterator, Sequence
 from functools import partial
 from typing import TYPE_CHECKING, Any
@@ -16,11 +15,13 @@ import numpy as np
 import warp as wp
 from newton import ModelBuilder
 
-from pxr import Usd
+from pxr import Usd, UsdGeom
 
 from isaaclab.cloner import ClonePlan
+from isaaclab.cloner.path import rebase
+from isaaclab.cloner.query import iter_sources
 from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.scene_data.deformable_discovery import discover_deformables_on_stage
+from isaaclab.scene_data.deformable_discovery import deformable_prototypes, expand_deformable_entries
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 from isaaclab_newton.cloner.newton_clone_utils import (
@@ -132,19 +133,15 @@ def _replicate_newton(
     if simulation:
         global_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths)
         # Native deformables are appended by per-world hooks, not the USD importer.
-        patterns = tuple(
-            re.compile(entry.prim_path.replace(".*", "[^/]*")) for entry in NewtonManager._deformable_registry
-        )
-        ignore_paths = []
-        if patterns:
-            for root_path in (*sources, *plan.global_paths):
-                for prim in Usd.PrimRange(stage.GetPrimAtPath(root_path)):
-                    path = str(prim.GetPath())
-                    if any(pattern.fullmatch(path) for pattern in patterns):
-                        ignore_paths.append(path)
+        ignore_paths = [
+            path
+            for entry in NewtonManager._deformable_registry
+            for _, _, path, _ in iter_sources(plan, entry.prim_path)
+        ]
         global_ignore_paths.extend(ignore_paths)
+        global_ignore_paths.extend(entry.prim_path for entry in NewtonManager._deformable_registry)
     else:
-        entries = discover_deformables_on_stage(stage, root_paths=(*sources, *plan.global_paths))
+        entries = deformable_prototypes(stage, plan, rows)
         ignore_paths = list(
             dict.fromkeys(
                 path for entry in entries for path in (entry.root_path, entry.sim_mesh_path, entry.vis_mesh_path)
@@ -161,6 +158,7 @@ def _replicate_newton(
             schema_resolvers=schema_resolvers,
             load_visual_shapes=load_visual_shapes,
             skip_mesh_approximation=not simulation,
+            return_deformable_results=True,
         )
         _restore_visible_colliders_without_visual_shapes(
             builder, stage, import_result["path_shape_map"], load_visual_shapes
@@ -184,6 +182,23 @@ def _replicate_newton(
         skip_mesh_approximation=not simulation,
         import_results_out=source_import_results,
     )
+
+    # Keep only renderable cables from this representation's actual imports.
+    cable_counts = {}
+    for source, imported in [(None, result) for result in import_results] + list(source_import_results.items()):
+        for path, (bodies, _) in imported["path_cable_map"].items():
+            if imported["path_cable_attrs"][path]["closed"]:
+                continue
+            if len(UsdGeom.BasisCurves(stage.GetPrimAtPath(path)).GetCurveVertexCountsAttr().Get()) != 1:
+                continue
+            if source is None:
+                cable_counts[path] = len(bodies)
+            else:
+                for row in rows:
+                    if plan.sources[row] == source:
+                        for column in np.flatnonzero(plan.clone_mask[row]):
+                            destination = plan.destinations[row].format(int(plan.env_ids[column]))
+                            cable_counts[rebase(path, source, destination)] = len(bodies)
 
     if simulation:
         global_sites, source_sites, root_sites = NewtonManager._cl_inject_sites(builder, source_builders)
@@ -229,6 +244,13 @@ def _replicate_newton(
     )
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
+    NewtonManager._cable_bindings = {}
+    if cable_counts:
+        shape_ids = {label: index for index, label in enumerate(builder.shape_label)}
+        NewtonManager._cable_bindings = {
+            path: [shape_ids[f"{path}_edge_capsule_{segment}"] for segment in range(count)]
+            for path, count in cable_counts.items()
+        }
     if simulation:
         NewtonManager._cl_site_index_map = site_index_map
         NewtonManager._cl_fabric_body_bindings = fabric_body_bindings
@@ -237,10 +259,10 @@ def _replicate_newton(
         NewtonManager.set_builder(builder)
         NewtonManager._num_envs = len(plan.env_ids)
     else:
-        geometry = add_shadow_deformables_to_builder(builder, stage, entries, plan, rows, device=sim.device)
+        geometry_offsets = add_shadow_deformables_to_builder(builder, expand_deformable_entries(plan, entries, rows))
         backend_cfg = NewtonBackendCfg(builder=builder, device=sim.device, num_envs=len(plan.env_ids), simulation=False)
         sim.physics_manager.register_callback(
-            partial(NewtonManager._initialize_visualization_model, backend_cfg, geometry),
+            partial(NewtonManager._initialize_visualization_model, backend_cfg, geometry_offsets),
             PhysicsEvent.PHYSICS_READY,
             name="newton_visualization_model",
             wrap_weak_ref=False,

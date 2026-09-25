@@ -22,8 +22,7 @@ def create_mpm_particle_visualization(
     """Create one ``UsdGeom.Points`` prim per environment for USD-stage MPM particle rendering.
 
     The created prims are static USD containers: per-frame position updates are
-    handled by :meth:`isaaclab_newton.physics.NewtonManager.sync_particles_to_usd`
-    for prims registered via
+    handled by rendering consumers through SDP for prims registered via
     :meth:`isaaclab_newton.physics.NewtonManager.register_particle_visual_prim`.
 
     Args:

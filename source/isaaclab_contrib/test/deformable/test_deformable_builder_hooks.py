@@ -4,19 +4,21 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
-import sys
 from types import SimpleNamespace
+from unittest.mock import Mock
 
+import numpy as np
 import pytest
 import warp as wp
 from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableMaterialCfg
 
+from isaaclab.cloner import ClonePlan
+
 from isaaclab_contrib.deformable import DeformableObject
 from isaaclab_contrib.deformable.deformable_object import (
     DeformableRegistryEntry,
     add_deformable_entry_to_builder,
-    setup_registered_deformable_fabric_sync,
 )
 
 
@@ -28,31 +30,6 @@ class _FakeBuilder:
     def add_cloth_mesh(self, **kwargs) -> None:
         self.cloth_meshes.append(kwargs)
         self.particle_count += len(kwargs["vertices"])
-
-
-class _FakePath:
-    def __init__(self, path: str):
-        self.pathString = path
-
-
-class _FakePrim:
-    def __init__(self, path: str, *, valid: bool = True):
-        self._path = path
-        self._valid = valid
-
-    def IsValid(self) -> bool:
-        return self._valid
-
-    def GetPath(self) -> _FakePath:
-        return _FakePath(self._path)
-
-
-class _FakeStage:
-    def __init__(self, prims: dict[str, _FakePrim]):
-        self._prims = prims
-
-    def GetPrimAtPath(self, path: str) -> _FakePrim:
-        return self._prims.get(path, _FakePrim(path, valid=False))
 
 
 def _make_surface_entry() -> DeformableRegistryEntry:
@@ -73,25 +50,8 @@ def _make_surface_entry() -> DeformableRegistryEntry:
     )
 
 
-def _vec3_as_tuple(value) -> tuple[float, float, float]:
-    return (float(value[0]), float(value[1]), float(value[2]))
-
-
-def test_deformable_package_exports_public_symbols():
-    """Test that deformable symbols are exported from the package root."""
-    assert DeformableObject.__name__ == "DeformableObject"
-
-
-def test_newton_material_defaults_match_registry_defaults():
-    """Test that Newton material cfg defaults match the deformable registry defaults."""
-    material_cfg = NewtonDeformableMaterialCfg()
-
-    assert material_cfg.density == DeformableRegistryEntry.density
-    assert material_cfg.particle_radius == DeformableRegistryEntry.particle_radius
-
-
-def test_builder_hook_applies_env_quaternion_to_deformable_entry():
-    """Test that deformable builder placement honors the environment quaternion."""
+def test_builder_hook_preserves_placement_materials_and_rebuild_offsets():
+    """Clone placement preserves material defaults and rebuilding replaces particle offsets."""
     entry = _make_surface_entry()
     builder = _FakeBuilder()
     half_sqrt = math.sqrt(0.5)
@@ -107,63 +67,84 @@ def test_builder_hook_applies_env_quaternion_to_deformable_entry():
     mesh = builder.cloth_meshes[0]
     rotated_x_axis = wp.quat_rotate(mesh["rot"], wp.vec3(1.0, 0.0, 0.0))
 
-    assert _vec3_as_tuple(mesh["pos"]) == pytest.approx((10.0, 21.0, 30.0))
-    assert _vec3_as_tuple(rotated_x_axis) == pytest.approx((-1.0, 0.0, 0.0), abs=1e-6)
-    assert entry.particle_offsets == [0]
-    assert entry.particles_per_body == 3
-
-
-def test_builder_hook_resets_entry_offsets_on_first_environment():
-    """Test that repeated model rebuilds do not accumulate stale particle offsets."""
-    entry = _make_surface_entry()
-    builder = _FakeBuilder()
+    assert tuple(mesh["pos"]) == pytest.approx((10.0, 21.0, 30.0))
+    assert tuple(rotated_x_axis) == pytest.approx((-1.0, 0.0, 0.0), abs=1e-6)
+    material = NewtonDeformableMaterialCfg()
+    assert mesh["density"] == material.density
+    assert mesh["particle_radius"] == material.particle_radius
     identity = [0.0, 0.0, 0.0, 1.0]
-
-    add_deformable_entry_to_builder(builder, entry, 0, [0.0, 0.0, 0.0], identity)
     add_deformable_entry_to_builder(builder, entry, 1, [1.0, 0.0, 0.0], identity)
-
     assert entry.particle_offsets == [0, 3]
 
-    rebuilt_builder = _FakeBuilder()
-    add_deformable_entry_to_builder(rebuilt_builder, entry, 0, [0.0, 0.0, 0.0], identity)
-
+    add_deformable_entry_to_builder(_FakeBuilder(), entry, 0, [0.0, 0.0, 0.0], identity)
     assert entry.particle_offsets == [0]
     assert entry.particles_per_body == 3
 
 
-def test_fabric_particle_sync_skips_missing_fabric_prim(monkeypatch):
-    """Test that missing Fabric prims are skipped before attributes are authored."""
-    entry = _make_surface_entry()
-    entry.particle_offsets = [7]
-    entry.particles_per_body = 3
-    resolved_path = "/World/envs/env_0/cloth/mesh"
+def test_planned_geometry_aliases_surface_nodes_and_interpolates_volume_once(monkeypatch):
+    """Sparse planned instances publish exact visual paths without requiring cloned USD meshes."""
+    from isaaclab_newton.physics.newton_manager import NewtonSceneDataBackend
 
-    class _FakeManager:
-        _clone_physics_only = False
-        _deformable_registry = [entry]
-        marked = False
-        synced = False
+    from pxr import Sdf, Usd, UsdGeom, UsdShade
 
-        @classmethod
-        def _mark_particles_dirty(cls):
-            cls.marked = True
+    import isaaclab.sim.utils.queries as queries
+    from isaaclab.scene_data import SceneDataProvider
 
-        @classmethod
-        def sync_particles_to_usd(cls):
-            cls.synced = True
+    import isaaclab_contrib.deformable.deformable_object as deformable
 
-    usd_stage = _FakeStage({resolved_path: _FakePrim(resolved_path)})
-    fabric_stage = _FakeStage({})
-
-    monkeypatch.setattr(
-        "isaaclab.sim.utils.stage.get_current_stage", lambda fabric=False: fabric_stage if fabric else usd_stage
+    stage = Usd.Stage.CreateInMemory()
+    root = UsdGeom.Xform.Define(stage, "/Scene/copy_0/Volume")
+    root.AddTranslateOp().Set((10, 20, 30))
+    tet = UsdGeom.TetMesh.Define(stage, "/Scene/copy_0/Volume/sim")
+    tet.CreatePointsAttr([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)])
+    tet.CreateTetVertexIndicesAttr([(0, 1, 2, 3)])
+    UsdGeom.Xformable(tet).AddTranslateOp().Set((1, 0, 0))
+    visual = UsdGeom.Mesh.Define(stage, "/Scene/copy_0/Volume/vis")
+    visual.CreatePointsAttr([(0.5, 0, 0), (0, 0.5, 0), (0, 0, 0.5)])
+    visual.CreateFaceVertexCountsAttr([3])
+    visual.CreateFaceVertexIndicesAttr([0, 1, 2])
+    UsdGeom.Xformable(visual).AddTranslateOp().Set((1, 0, 0))
+    material = UsdShade.Material.Define(stage, "/Material")
+    material.GetPrim().CreateAttribute("newton:density", Sdf.ValueTypeNames.Float).Set(1000.0)
+    UsdShade.MaterialBindingAPI.Apply(root.GetPrim()).Bind(material, materialPurpose="physics")
+    monkeypatch.setattr(queries, "get_current_stage", lambda: stage)
+    monkeypatch.setattr(NewtonManager, "_deformable_registry", [])
+    remap = Mock(wraps=deformable.build_volume_vis_barycentric_remap)
+    monkeypatch.setattr(deformable, "build_volume_vis_barycentric_remap", remap)
+    asset = SimpleNamespace(
+        cfg=SimpleNamespace(
+            prim_path="/Scene/copy_[^/]+/Volume", spawn=SimpleNamespace(spawn_path="/Scene/copy_0/Volume")
+        )
     )
-    monkeypatch.setattr(NewtonManager, "_usdrt_stage", fabric_stage)
-    monkeypatch.setitem(
-        sys.modules, "usdrt", SimpleNamespace(Sdf=SimpleNamespace(ValueTypeNames=SimpleNamespace(UInt=object())))
+    entry = DeformableObject._register_deformable(asset)
+    entry.particle_offsets, entry.particles_per_body = [7, 19], 4
+    surface = _make_surface_entry()
+    surface.prim_path = "/Scene/copy_[^/]+/cloth"
+    surface.vis_mesh_prim_path = surface.prim_path + "/mesh"
+    surface.particle_offsets, surface.particles_per_body = [31, 37], 3
+    NewtonManager._deformable_registry.append(surface)
+    plan = ClonePlan(
+        sources=("/Scene/copy_0",),
+        destinations=("/Scene/copy_{}",),
+        clone_mask=np.array([[True, False, True]]),
+        env_ids=np.array([7, 12, 42]),
+        global_paths=("/Scene",),
     )
-
-    setup_registered_deformable_fabric_sync(_FakeManager)
-
-    assert not _FakeManager.marked
-    assert not _FakeManager.synced
+    nodes = np.zeros((40, 3), dtype=np.float32)
+    nodes[7:11], nodes[19:23] = np.asarray(entry.vertices), np.asarray(entry.vertices) + [100, 0, 0]
+    state = SimpleNamespace(particle_q=wp.array(nodes, dtype=wp.vec3f, device="cpu"), body_q=None)
+    monkeypatch.setattr(NewtonManager, "_cable_bindings", {})
+    monkeypatch.setattr(NewtonSceneDataBackend, "state", property(lambda self: state))
+    backend = NewtonSceneDataBackend()
+    backend.initialize_geometry(plan)
+    stage.RemovePrim("/Scene")
+    points = SceneDataProvider(backend).get_geometry_points()
+    assert set(points) == {f"/Scene/copy_{index}/{mesh}" for index in (7, 42) for mesh in ("Volume/vis", "cloth/mesh")}
+    for index, offset in zip((7, 42), surface.particle_offsets, strict=True):
+        view = points[f"/Scene/copy_{index}/cloth/mesh"]
+        assert view.ptr == state.particle_q.ptr + offset * wp.types.type_size_in_bytes(wp.vec3f)
+        assert len(view) == surface.particles_per_body
+    expected = np.array([[11.5, 20, 30], [11, 20.5, 30], [11, 20, 30.5]])
+    np.testing.assert_allclose(points["/Scene/copy_7/Volume/vis"].numpy(), expected)
+    np.testing.assert_allclose(points["/Scene/copy_42/Volume/vis"].numpy(), expected + [100, 0, 0])
+    remap.assert_called_once()

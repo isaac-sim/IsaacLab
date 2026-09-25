@@ -10,6 +10,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from pxr import Usd, UsdGeom
+
 import isaaclab.cloner.clone_plan as clone_plan
 import isaaclab.cloner.replicate_session as replicate_session
 from isaaclab.assets import AssetBaseCfg
@@ -41,11 +43,13 @@ def simulation(monkeypatch):
         clone_contexts={},
         _backend_registry=registry,
         _render_context=RenderContext(registry),
-        stage=object(),
+        stage=Usd.Stage.CreateInMemory(),
         plan=None,
         calls=[],
     )
     sim.render_context = sim._render_context
+    for path in ("/World/envs/env_0", "/World/Ground", "/Lab/Cell0", "/Lab/Ground"):
+        UsdGeom.Xform.Define(sim.stage, path)
     sim.get_or_create_backend = lambda cfg: SimulationContext.get_or_create_backend(sim, cfg)
     sim.clone_contexts[_Context] = _Context(sim)
     sim.get_clone_plan = lambda: sim.plan
@@ -160,7 +164,7 @@ def test_grid_transforms_centers_a_float32_grid():
 
 
 def test_replicate_dispatches_the_same_plan_in_priority_order(simulation):
-    """Registered contexts receive one shared plan in backend priority order."""
+    """Generic dispatch forwards one layout without interpreting asset geometry."""
 
     class Late(_Context):
         replicate_priority = 1
@@ -169,6 +173,7 @@ def test_replicate_dispatches_the_same_plan_in_priority_order(simulation):
         replicate_priority = -1
 
     plan = _plan(Late, Early)
+    simulation.stage = None
     simulation.physics_manager.clone_context_type = Late
     simulation.clone_contexts = {Late: Late(simulation), Early: Early(simulation)}
     simulation.plan = plan
@@ -176,6 +181,7 @@ def test_replicate_dispatches_the_same_plan_in_priority_order(simulation):
     replicate_session.replicate(plan)
 
     assert simulation.calls == [(Early, plan), (Late, plan)]
+    assert not {"deformables", "cables", "point_clouds"}.intersection(vars(plan))
 
 
 def test_replicate_physics_false_preserves_rendering_and_usd(simulation):

@@ -3,28 +3,36 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""USD discovery helpers for PhysX/OVPhysX deformable geometry."""
+"""Deformable prototype geometry and clone-plan expansion."""
 
 from __future__ import annotations
 
 import logging
-import re
+from collections import defaultdict
 from collections.abc import Sequence
-from dataclasses import dataclass, field
-from itertools import chain
+from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING
 
 import numpy as np
+import warp as wp
 
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 from .. import sim as sim_utils
+from ..cloner.path import match, rebase
+from ..sim.utils.queries import has_deformable_body_api
+from .deformable_vis_remap import build_volume_vis_barycentric_remap
+from .scene_data_backend import SceneDataFormat
+
+if TYPE_CHECKING:
+    from ..cloner.clone_plan import ClonePlan
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class DeformableStageEntry:
-    """One deformable asset instance discovered on the USD stage."""
+    """Geometry and parent pose of one deformable prototype or instance."""
 
     root_path: str
     sim_mesh_path: str
@@ -37,7 +45,61 @@ class DeformableStageEntry:
     vis_vertices: np.ndarray = field(default_factory=lambda: np.empty((0, 3), dtype=np.float32))
     vis_indices: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.int32))
     init_pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Parent-frame world position [m]."""
     init_rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+    """Parent-frame world orientation as an xyzw quaternion."""
+
+
+def deformable_geometry_batches(
+    entries: Sequence[DeformableStageEntry], points: wp.array, offsets: Sequence[int]
+) -> list[tuple[SceneDataFormat.Points | SceneDataFormat.WeightedPoints, dict[str, tuple[int, int]]]]:
+    """Bind visual mesh paths to native nodal ranges or static barycentric interpolation tables.
+
+    Args:
+        entries: Declared deformable instances in native body order.
+        points: Flat native nodal positions [m], including any body padding.
+        offsets: Native point offset for each entry.
+
+    Returns:
+        Native-format publications and exact visual mesh paths with their output ranges.
+        Interpolation tables are computed once per shared prototype, without packing native points.
+    """
+    direct, weighted = {}, {}
+    indices, weights = [], []
+    prototype_remaps = {}
+    output_offset = 0
+    for entry, offset in zip(entries, offsets, strict=True):
+        key = (id(entry.vertices), id(entry.indices), id(entry.vis_vertices))
+        if key not in prototype_remaps:
+            if entry.vertex_count == entry.vis_vertex_count and np.array_equal(entry.vertices, entry.vis_vertices):
+                prototype_remaps[key] = None
+            else:
+                if entry.deformable_type != "volume":
+                    raise ValueError(f"Surface visual topology differs from its native nodes: {entry.root_path}")
+                remap = build_volume_vis_barycentric_remap(entry.vertices, entry.indices, entry.vis_vertices)
+                if remap is None:
+                    raise ValueError(f"Cannot bind visual vertices to deformable tetrahedra: {entry.root_path}")
+                prototype_remaps[key] = (remap.tet_vertex_indices.numpy(), remap.bary_weights.numpy())
+        if prototype_remaps[key] is None:
+            direct[entry.vis_mesh_path] = (int(offset), entry.vis_vertex_count)
+            continue
+        prototype_indices, prototype_weights = prototype_remaps[key]
+        indices.append(prototype_indices + int(offset))
+        weights.append(prototype_weights)
+        weighted[entry.vis_mesh_path] = (output_offset, entry.vis_vertex_count)
+        output_offset += entry.vis_vertex_count
+    batches = []
+    if direct:
+        publication = SceneDataFormat.Points()
+        publication.points = points
+        batches.append((publication, direct))
+    if weighted:
+        publication = SceneDataFormat.WeightedPoints()
+        publication.points = points
+        publication.indices = wp.array(np.concatenate(indices), dtype=wp.int32, device=points.device)
+        publication.weights = wp.array(np.concatenate(weights), dtype=wp.float32, device=points.device)
+        batches.append((publication, weighted))
+    return batches
 
 
 def _matrix4d_to_numpy(matrix: Gf.Matrix4d) -> np.ndarray:
@@ -64,7 +126,7 @@ def _usd_points_to_numpy(points) -> np.ndarray:
     """Convert USD point arrays to ``(N, 3)`` float32."""
     if not points:
         return np.empty((0, 3), dtype=np.float32)
-    return np.array([[float(point[0]), float(point[1]), float(point[2])] for point in points], dtype=np.float32)
+    return np.asarray(points, dtype=np.float32).reshape(-1, 3)
 
 
 def _get_applied_schema_names(prim) -> set[str]:
@@ -122,37 +184,23 @@ def _select_visual_mesh(vis_candidates: list, sim_mesh_prim, sim_vertex_count: i
     return max(vis_candidates, key=_score)
 
 
-def _classify_deformable_meshes(
-    root_prim,
-) -> tuple[str, object, object, int, int, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Classify the simulation and visual meshes under a deformable root prim.
+def deformable_entry(root_prim: Usd.Prim) -> DeformableStageEntry | None:
+    """Read simulation and visual geometry from one declared deformable prototype.
 
     Args:
-        root_prim: Prim that carries ``OmniPhysicsDeformableBodyAPI``.
+        root_prim: Prim that carries a deformable-body API schema.
 
     Returns:
-        A 9-tuple:
-            deformable_type: ``"volume"`` for a tet sim mesh, else ``"surface"``.
-            sim_mesh_prim: Simulation mesh prim (``TetMesh`` or ``Mesh``).
-            vis_mesh_prim: Selected visual mesh prim (may equal the sim mesh).
-            vertex_count: Number of simulation mesh vertices.
-            vis_vertex_count: Number of visual mesh vertices.
-            vertices: Sim vertices baked into the deformable parent frame [m].
-            indices: Flattened sim topology (4 ints per tet, or face-vertex indices).
-            vis_vertices: Visual vertices baked into the same parent frame [m].
-            vis_indices: Flattened visual triangle indices (empty when not a ``Mesh``).
-
-    Raises:
-        ValueError: If no simulation mesh is found under ``root_prim``.
+        Geometry with vertices [m] baked into the parent frame and its world pose [m, xyzw],
+        or ``None`` when the prototype has no simulation mesh.
     """
     stage = root_prim.GetStage()
     root_path = root_prim.GetPath()
-    tet_prims = sim_utils.get_all_matching_child_prims(
-        prim_path=root_path, predicate=lambda p: p.GetTypeName() == "TetMesh", stage=stage
-    )
     mesh_prims = sim_utils.get_all_matching_child_prims(
-        prim_path=root_path, predicate=lambda p: p.GetTypeName() == "Mesh", stage=stage
+        prim_path=root_path, predicate=lambda p: p.GetTypeName() in ("TetMesh", "Mesh"), stage=stage
     )
+    tet_prims = [prim for prim in mesh_prims if prim.GetTypeName() == "TetMesh"]
+    mesh_prims = [prim for prim in mesh_prims if prim.GetTypeName() == "Mesh"]
 
     if tet_prims:
         if len(tet_prims) > 1:
@@ -186,7 +234,8 @@ def _classify_deformable_meshes(
         pts = usd_mesh.GetPointsAttr().Get() or []
         indices = np.asarray(usd_mesh.GetFaceVertexIndicesAttr().Get() or [], dtype=np.int32)
     else:
-        raise ValueError(f"No simulation mesh found under deformable root '{root_path}'.")
+        logger.warning("Skipping deformable prim '%s': no simulation mesh found.", root_path)
+        return None
 
     vis_mesh_prim = _select_visual_mesh(vis_candidates, sim_mesh_prim, len(pts))
     vis_pts = (
@@ -213,253 +262,106 @@ def _classify_deformable_meshes(
     if vis_mesh_prim.GetTypeName() == "Mesh":
         vis_indices = np.asarray(UsdGeom.Mesh(vis_mesh_prim).GetFaceVertexIndicesAttr().Get() or [], dtype=np.int32)
 
-    return (
-        deformable_type,
-        sim_mesh_prim,
-        vis_mesh_prim,
-        len(pts),
-        vis_count,
-        vertices,
-        indices,
-        vis_vertices,
-        vis_indices,
+    parent_transform = xform_cache.GetLocalToWorldTransform(root_prim.GetParent())
+    rotation = parent_transform.ExtractRotationQuat()
+    return DeformableStageEntry(
+        root_path=str(root_path),
+        sim_mesh_path=str(sim_mesh_prim.GetPath()),
+        vis_mesh_path=str(vis_mesh_prim.GetPath()),
+        deformable_type=deformable_type,
+        vertex_count=len(pts),
+        vis_vertex_count=vis_count,
+        vertices=vertices,
+        indices=indices,
+        vis_vertices=vis_vertices,
+        vis_indices=vis_indices,
+        init_pos=tuple(parent_transform.ExtractTranslation()),
+        init_rot=(*rotation.GetImaginary(), rotation.GetReal()),
     )
 
 
-def discover_deformables_on_stage(
-    stage: Usd.Stage, *, root_paths: Sequence[str] | None = None
+def deformable_prototypes(
+    stage: Usd.Stage, plan: ClonePlan, rows: Sequence[int] | None = None
 ) -> list[DeformableStageEntry]:
-    """Discover PhysX/OVPhysX deformable bodies under ``stage``.
-
-    Callers that need the result in more than one place should keep the returned
-    list and pass it explicitly (for example via ``entries=``) rather than relying
-    on a process-global stage cache.
+    """Read deformable geometry beneath the prototypes imported by one backend.
 
     Args:
-        stage: USD stage to traverse.
-        root_paths: Declared asset roots to inspect. None selects the complete stage.
+        stage: Stage containing the authored asset prototypes.
+        plan: Generic replication layout; it is not modified.
+        rows: Rows imported by this backend; ``None`` selects all active rows.
 
     Returns:
-        One :class:`DeformableStageEntry` per prim with ``OmniPhysicsDeformableBodyAPI``.
+        Prototype geometry owned by the caller, including shared assets once.
     """
-    entries: list[DeformableStageEntry] = []
-    prims = (
-        stage.Traverse()
-        if root_paths is None
-        else chain.from_iterable(
-            Usd.PrimRange(stage.GetPrimAtPath(path)) for path in Sdf.Path.RemoveDescendentPaths(root_paths)
-        )
-    )
-    for prim in prims:
-        if not _prim_has_schema(prim, "OmniPhysicsDeformableBodyAPI"):
-            continue
-
-        try:
-            (
-                deformable_type,
-                sim_mesh_prim,
-                vis_mesh_prim,
-                vertex_count,
-                vis_vertex_count,
-                vertices,
-                indices,
-                vis_vertices,
-                vis_indices,
-            ) = _classify_deformable_meshes(prim)
-        except ValueError as exc:
-            logger.warning("Skipping deformable prim '%s': %s", prim.GetPath(), exc)
-            continue
-
-        entries.append(
-            DeformableStageEntry(
-                root_path=prim.GetPath().pathString,
-                sim_mesh_path=sim_mesh_prim.GetPath().pathString,
-                vis_mesh_path=vis_mesh_prim.GetPath().pathString,
-                deformable_type=deformable_type,
-                vertex_count=vertex_count,
-                vis_vertex_count=vis_vertex_count,
-                vertices=vertices,
-                indices=indices,
-                vis_vertices=vis_vertices,
-                vis_indices=vis_indices,
-            )
-        )
+    selected = set(range(len(plan.sources)) if rows is None else rows)
+    selected.intersection_update(np.flatnonzero(plan.clone_mask.any(axis=1)))
+    sources = {Sdf.Path(source) for source in plan.sources}
+    selected_sources = {Sdf.Path(plan.sources[row]) for row in selected}
+    roots = Sdf.Path.RemoveDescendentPaths([plan.sources[row] for row in selected] + list(plan.global_paths))
+    entries = []
+    for root in roots:
+        prims = iter(Usd.PrimRange(stage.GetPrimAtPath(root), Usd.TraverseInstanceProxies()))
+        for prim in prims:
+            path = prim.GetPath()
+            owner = path
+            while owner != Sdf.Path.absoluteRootPath and owner not in sources:
+                owner = owner.GetParentPath()
+            if owner in sources and owner not in selected_sources:
+                if not any(source.HasPrefix(path) for source in selected_sources):
+                    prims.PruneChildren()
+                continue
+            # Shared roots may contain a replicated namespace: never inspect its generated clones.
+            if owner not in sources and any(match(str(path), template) for template in plan.destinations):
+                if not any(source.HasPrefix(path) for source in selected_sources):
+                    prims.PruneChildren()
+                    continue
+            if prim.IsA(UsdGeom.Points) or prim.IsA(UsdGeom.BasisCurves) or not has_deformable_body_api(prim):
+                continue
+            if (entry := deformable_entry(prim)) is not None:
+                entries.append(entry)
     return entries
 
 
-def group_deformable_root_paths_for_views(
-    root_paths: list[str],
-    path_to_type: dict[str, str],
-) -> dict[str, tuple[list[str], list[str]]]:
-    """Group deformable root paths into PhysX/OVPhysX view patterns and exact paths.
-
-    Replicated env assets with the same trailing prim name collapse to
-    ``/World/envs/env_*`` wildcard patterns; singleton paths stay exact.
+def expand_deformable_entries(
+    plan: ClonePlan, prototypes: Sequence[DeformableStageEntry], rows: Sequence[int] | None = None
+) -> list[DeformableStageEntry]:
+    """Expand backend-owned prototype geometry without copying its vertex arrays or reading USD.
 
     Args:
-        root_paths: Discovered deformable root prim paths.
-        path_to_type: Map from root path to ``volume`` or ``surface``.
+        plan: Generic source-to-destination mapping.
+        prototypes: Geometry captured during this backend's prototype import.
+        rows: Source rows consumed by this backend; ``None`` selects all rows.
 
     Returns:
-        Dict keyed by deformable type with ``(wildcard_patterns, exact_paths)`` lists.
-        Wildcard patterns are sorted; exact paths preserve discovery order within type.
+        Destination geometry records, including shared geometry once. Parent-frame world poses [m, xyzw]
+        include the clone translation; topology and vertex arrays remain shared with the prototype.
     """
-    non_rigid_names: set[str] = set()
-    for path in root_paths:
-        if re.search(r"/World/envs/env_\d+/", path):
-            non_rigid_names.add(path.rsplit("/", 1)[-1])
-
-    typed_patterns: dict[str, set[str]] = {"volume": set(), "surface": set()}
-    typed_exact: dict[str, list[str]] = {"volume": [], "surface": []}
-    for path in root_paths:
-        body_name = path.rsplit("/", 1)[-1]
-        wildcard = path_to_env_wildcard(path)
-        deformable_type = path_to_type[path]
-        if body_name in non_rigid_names and wildcard != path:
-            typed_patterns[deformable_type].add(wildcard)
-        else:
-            typed_exact[deformable_type].append(path)
-
-    return {
-        deformable_type: ([*sorted(typed_patterns[deformable_type])], typed_exact[deformable_type])
-        for deformable_type in ("volume", "surface")
-    }
-
-
-def sort_deformable_entries_for_geometry_sync(entries: list[DeformableStageEntry]) -> list[DeformableStageEntry]:
-    """Return deformable entries in SceneData geometry path order (volume, then surface)."""
-    type_rank = {"volume": 0, "surface": 1}
-    return sorted(entries, key=lambda entry: (type_rank.get(entry.deformable_type, 2), entry.root_path))
-
-
-def path_to_env_wildcard(path: str) -> str:
-    """Rewrite ``env_<id>`` segments to ``env_*`` for PhysX tensor patterns."""
-    return re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", path)
-
-
-def path_to_env_regex(path: str) -> str:
-    """Rewrite ``env_<id>`` segments to ``env_[^/]+`` for Isaac Lab asset regex paths."""
-    return re.sub(r"/World/envs/env_\d+", "/World/envs/env_[^/]+", path)
-
-
-def build_deformable_vertex_count_lookup(entries: list[DeformableStageEntry]) -> dict[str, int]:
-    """Map deformable root, simulation-mesh, and visual-mesh paths to unpadded vertex counts."""
-    path_to_count: dict[str, int] = {}
-    for entry in entries:
-        path_to_count[entry.root_path] = entry.vertex_count
-        path_to_count[entry.sim_mesh_path] = entry.vertex_count
-        path_to_count[entry.vis_mesh_path] = entry.vis_vertex_count
-    return path_to_count
-
-
-def build_deformable_root_path_lookup(entries: list[DeformableStageEntry]) -> dict[str, str]:
-    """Map deformable root, simulation-mesh, and visual-mesh paths to discovered roots."""
-    path_to_root: dict[str, str] = {}
-    for entry in entries:
-        path_to_root[entry.root_path] = entry.root_path
-        path_to_root[entry.sim_mesh_path] = entry.root_path
-        path_to_root[entry.vis_mesh_path] = entry.root_path
-    return path_to_root
-
-
-def _env_relative_suffix(path: str) -> str | None:
-    """Return the path suffix after ``/World/envs/env_<id>/``, or ``None`` if absent."""
-    match = re.search(r"/World/envs/env_\d+/(.*)", path)
-    return match.group(1) if match else None
-
-
-def _rewrite_env_prefix(template_path: str, source_path: str) -> str:
-    """Copy the ``env_<id>`` segment from ``source_path`` into ``template_path``."""
-    match = re.search(r"/World/envs/(env_\d+)", source_path)
-    if match is None:
-        return template_path
-    return re.sub(r"/World/envs/env_\d+", f"/World/envs/{match.group(1)}", template_path)
-
-
-def resolve_deformable_vertex_count(path: str, path_to_count: dict[str, int], *, fallback: int) -> int:
-    """Resolve an unpadded vertex count for a deformable-related prim path.
-
-    Tries the exact path, ancestor/descendant relationships, and env-relative
-    suffixes (views may report a different child under the same env asset).
-    Falls back only when no discovered count matches.
-
-    Args:
-        path: Deformable root or mesh prim path reported by a physics view.
-        path_to_count: Lookup from :func:`build_deformable_vertex_count_lookup`.
-        fallback: Value returned when no discovered count matches ``path``.
-
-    Returns:
-        Unpadded vertex count for ``path``, or ``fallback``.
-    """
-    if path in path_to_count:
-        return int(path_to_count[path])
-
-    normalized = path.rstrip("/")
-    parts = normalized.split("/")
-    for end in range(len(parts) - 1, 0, -1):
-        candidate = "/".join(parts[:end])
-        if candidate in path_to_count:
-            return int(path_to_count[candidate])
-
-    for key, count in path_to_count.items():
-        key_normalized = key.rstrip("/")
-        if key_normalized.startswith(normalized + "/") or normalized.startswith(key_normalized + "/"):
-            return int(count)
-
-    suffix = _env_relative_suffix(normalized)
-    if suffix is not None:
-        for key, count in path_to_count.items():
-            key_suffix = _env_relative_suffix(key)
-            if key_suffix is None:
+    entries: dict[str, tuple[str, DeformableStageEntry]] = {}
+    selected = set(range(len(plan.sources)) if rows is None else rows)
+    source_rows = defaultdict(list)
+    for row, source in enumerate(plan.sources):
+        source_rows[Sdf.Path(source)].append(row)
+    for entry in prototypes:
+        owner = Sdf.Path(entry.root_path)
+        while owner != Sdf.Path.absoluteRootPath and owner not in source_rows:
+            owner = owner.GetParentPath()
+        if owner not in source_rows:
+            entries[entry.root_path] = (entry.root_path, entry)
+            continue
+        for row in source_rows[owner]:
+            if row not in selected:
                 continue
-            if suffix == key_suffix or suffix.startswith(key_suffix + "/") or key_suffix.startswith(suffix + "/"):
-                return int(count)
-
-    return int(fallback)
-
-
-def resolve_deformable_root_path(path: str, path_to_root: dict[str, str], *, fallback: str | None = None) -> str:
-    """Resolve a view-reported deformable path to its discovered root prim path.
-
-    Uses the same matching strategy as :func:`resolve_deformable_vertex_count`.
-    Env-relative suffix matches rewrite the matched root's ``env_<id>`` to the
-    reported path's environment so SceneData geometry mapping stays 1:1 with
-    shadow entity ``root_path`` values.
-
-    Args:
-        path: Deformable root or mesh prim path reported by a physics view.
-        path_to_root: Lookup from :func:`build_deformable_root_path_lookup`.
-        fallback: Value returned when no discovered root matches ``path``.
-            Defaults to ``path``.
-
-    Returns:
-        Discovered deformable root path, or ``fallback`` / ``path``.
-    """
-    if fallback is None:
-        fallback = path
-
-    if path in path_to_root:
-        return path_to_root[path]
-
-    normalized = path.rstrip("/")
-    parts = normalized.split("/")
-    for end in range(len(parts) - 1, 0, -1):
-        candidate = "/".join(parts[:end])
-        if candidate in path_to_root:
-            return path_to_root[candidate]
-
-    for key, root in path_to_root.items():
-        key_normalized = key.rstrip("/")
-        if key_normalized.startswith(normalized + "/") or normalized.startswith(key_normalized + "/"):
-            return root
-
-    suffix = _env_relative_suffix(normalized)
-    if suffix is not None:
-        for key, root in path_to_root.items():
-            key_suffix = _env_relative_suffix(key)
-            if key_suffix is None:
-                continue
-            if suffix == key_suffix or suffix.startswith(key_suffix + "/") or key_suffix.startswith(suffix + "/"):
-                return _rewrite_env_prefix(root, normalized)
-
-    return fallback
+            columns = np.flatnonzero(plan.clone_mask[row])
+            for column in columns:
+                target = plan.destinations[row].format(int(plan.env_ids[column]))
+                offset = 0 if plan.positions is None else plan.positions[column] - plan.positions[columns[0]]
+                cloned = replace(
+                    entry,
+                    root_path=rebase(entry.root_path, plan.sources[row], target),
+                    sim_mesh_path=rebase(entry.sim_mesh_path, plan.sources[row], target),
+                    vis_mesh_path=rebase(entry.vis_mesh_path, plan.sources[row], target),
+                    init_pos=tuple(np.asarray(entry.init_pos) + offset),
+                )
+                if cloned.root_path not in entries or len(target) > len(entries[cloned.root_path][0]):
+                    entries[cloned.root_path] = (target, cloned)
+    return [entry for _, entry in entries.values()]

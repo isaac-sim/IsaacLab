@@ -130,7 +130,6 @@ def test_benchmark_mode_orders_joint_updates_and_rendering(mode):
             "articulation.write_joint_position_to_sim_index",
             "articulation.write_joint_velocity_to_sim_index",
             "sim.forward",
-            "sim.render_context.reset_scene_state_cadence",
             "render",
         ]
         velocity = articulation.write_joint_velocity_to_sim_index.call_args.kwargs["velocity"]

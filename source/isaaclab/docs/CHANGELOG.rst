@@ -1,6 +1,81 @@
 Changelog
 ---------
 
+29.0.0 (2026-09-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a configurable ``OpenCvFisheyeDistortionCfg.max_fov`` angular domain for Newton,
+  preserving the existing 180-degree default. Documented that RTX/OVRTX's native OpenCV
+  schema does not consume this setting and can clip rectangular sensor corners to its image circle.
+* Added ``BaseRenderer.render_batch()`` with a default loop over the existing single-camera
+  ``render()`` interface, allowing renderers to optimize multiple camera captures.
+* Added ``SensorBase.supports_batch_update`` to opt sensors into eager scene batching and
+  ``SensorBase.update_batch()`` for standalone updates of batch-capable sensors.
+* Added ``RenderContext.render_into_cameras()`` to group prepared captures by renderer and
+  batch due cameras during eager scene updates. Preserved per-camera lazy reads, update
+  periods, and reset state.
+* Added curated showcases through ``isaaclab demo <name>`` and focused standalone programs through
+  ``isaaclab example <name>``. Both catalogs are included in the released wheel and can be run with ``uvx``.
+* Added the ``zoo`` demo, which animates several robot families and rigid objects in one deterministic scene.
+* Added a Newton GL program selector that puts curated demos ahead of focused examples.
+* Reused the Isaac Lab terminal startup screen for packaged demos and examples.
+* Added ``--max_steps`` to the ``arl-robot-1``, ``bin-packing``, ``deformables``, ``markers``, ``multi-asset``,
+  ``procedural-terrain``, ``multi-mesh-ray-caster``, and ``visual-color-randomization`` examples so every packaged
+  program can stop after a fixed number of steps.
+* Added :meth:`~isaaclab.sim.SimulationContext.add_reset_callback` and
+  :meth:`~isaaclab.sim.SimulationContext.remove_reset_callback` for callbacks that must be registered before a
+  script creates its simulation context.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Moved maintained programs from ``scripts/demos`` into the repository-level ``examples`` directory,
+  with showcases in ``examples/demos`` and focused programs in topic directories such as ``examples/mpm``. Use
+  ``isaaclab demo <name>`` or ``isaaclab example <name>`` instead of direct script paths.
+* **Breaking:** Reclassified the following technical programs as examples without changing their public names:
+  ``arl-robot-1``, ``bin-packing``, ``cables``, ``deformables``, ``haply-teleoperation``, ``heterogeneous-scene``,
+  ``markers``, ``multi-asset``, ``newton-dominoes``, ``procedural-terrain``, ``visual-color-randomization``,
+  ``mpm-granular``, ``mpm-two-way-coupling``, ``camera``, ``contact-sensor``, ``frame-transformer``, ``imu``,
+  ``multi-mesh-ray-caster``, ``multi-mesh-ray-caster-camera``, ``ppisp-camera``, ``pva``, ``ray-caster``, and
+  ``tactile-sensor``. Replace direct ``scripts/demos`` invocations with ``isaaclab example <name>``.
+* Changed ``isaaclab demo h1-locomotion`` to run on Newton with the Newton GL viewer by default. Robots are driven
+  with I/J/K/L, selected with N, and followed with C. Pass ``--physics isaacsim_physx`` for PhysX.
+* Changed ``isaaclab demo`` and ``isaaclab example`` to compile Warp kernels without backward passes, since
+  packaged programs only run inference.
+* **Breaking:** Consolidated ``scripts/demos/sensors/newton_raycast_heightfield.py`` and
+  ``scripts/demos/sensors/newton_raycast_moving_geometry.py`` as
+  ``isaaclab example newton-raycast --scene {heightfield,moving-geometry}``.
+* Improved :meth:`~isaaclab.controllers.OperationalSpaceController.set_command` performance by reusing a
+  preallocated identity task frame and rotating the gains and selection matrices into the root frame in one
+  batched step. The cost no longer grows with the number of environments. No migration is needed.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Replaced the separate ``scripts/demos/arms.py``, ``bipeds.py``, ``hands.py``, ``quadcopter.py``, and
+  ``quadrupeds.py`` galleries with ``isaaclab demo zoo``.
+* **Breaking:** Removed the temporary ``ppisp_camera_ovrtx.py`` QA script. Use
+  ``isaaclab example ppisp-camera --renderer newton_renderer`` instead.
+
+Fixed
+^^^^^
+
+* Fixed the body-offset Jacobian correction in :class:`~isaaclab.envs.mdp.actions.DifferentialInverseKinematicsAction`
+  and :class:`~isaaclab.envs.mdp.actions.OperationalSpaceControllerAction`. The offset is now rotated into the root
+  frame by the body orientation before shifting the translational rows, and the angular rows are no longer rotated by
+  the offset rotation, matching the offset frame's pose and velocity. Tasks that set ``body_offset`` (for example, the
+  Franka IK tasks) now receive the Jacobian of the offset frame instead of an approximation.
+* Applied configured observation noise to explicit resets in ``DirectRLEnv`` and
+  ``DirectMARLEnv``, matching the observation-noise behavior of ``step()``.
+* Fixed variable joint-impedance gain clamping for robot batches with more than two joints.
+* Fixed batched joint-impedance inertia compensation when the robot and joint counts differed.
+* Fixed the differential IK SVD solver for position-only and under-actuated tasks.
+* Fixed differential IK joint-limit avoidance failing when joint limits were given as float64.
+
+
 28.0.0 (2026-09-24)
 ~~~~~~~~~~~~~~~~~~~
 

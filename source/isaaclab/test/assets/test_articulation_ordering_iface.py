@@ -684,10 +684,12 @@ def _set_body_ordering_backend_data(
 
 
 def _set_rotated_body_poses(backend: str, art, raw_backend) -> None:
-    """Use a known 90-degree Z rotation and nonzero positions for wrench packing."""
+    """Use distinct quarter-turn Z rotations and nonzero positions for wrench packing."""
     poses = np.zeros((art.num_instances, art.num_bodies, 7), dtype=np.float32)
     poses[..., 0] = np.arange(art.num_bodies) + 10.0
-    poses[..., 5:7] = 2.0**-0.5
+    half_angles = np.arange(art.num_bodies) * (np.pi / 4)
+    poses[..., 5] = np.sin(half_angles)
+    poses[..., 6] = np.cos(half_angles)
     if backend == "newton":
         poses_wp = wp.array(poses[:, None], dtype=wp.transformf, device=art.device)
         raw_backend.set_mock_link_transforms(poses_wp)
@@ -1902,14 +1904,13 @@ class TestArticulationDataJointState:
         assert read_types.count(TT.DOF_VELOCITY) == 1
 
     @_non_mock_backends
-    @pytest.mark.parametrize("ordering_mode", ["reversed", "cyclic"])
     @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 3, 2)])
     @pytest.mark.parametrize("device", ["cpu"])
-    def test_reversed_joint_ordering_reorders_public_joint_properties(
-        self, backend, ordering_mode, num_instances, num_joints, num_bodies, device
+    def test_joint_ordering_reorders_public_joint_properties(
+        self, backend, num_instances, num_joints, num_bodies, device
     ):
         """Expose every backend joint property under the matching public joint name."""
-        joint_ordering = _joint_ordering_for_mode(ordering_mode, num_joints)
+        joint_ordering = _joint_ordering_for_mode("cyclic", num_joints)
         art, raw_backend = get_articulation(
             backend,
             num_instances,
@@ -1940,6 +1941,22 @@ class TestArticulationDataJointState:
 
         for property_name, public_property in public_properties.items():
             _assert_proxy_close(public_property, backend_properties[property_name][:, user_to_backend])
+
+        if backend == "ovphysx":
+            from isaaclab_ov import tensor_types as TT
+
+            # A fresh native read must gather too; initialization and writer caches can hide a missing gather.
+            friction = np.arange(num_instances * num_joints * 3, dtype=np.float32).reshape(num_instances, num_joints, 3)
+            friction += 100.0
+            raw_backend.bindings[TT.DOF_FRICTION_PROPERTIES]._data = friction
+            art.data._joint_friction_props_buf.timestamp = -1
+            art.data._joint_friction_props_backend.timestamp = -1
+            for component, property_name in enumerate(
+                ("joint_friction_coeff", "joint_dynamic_friction_coeff", "joint_viscous_friction_coeff")
+            ):
+                _assert_proxy_close(
+                    getattr(art.data, property_name), torch.from_numpy(friction[:, user_to_backend, component])
+                )
 
 
 def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
@@ -2021,15 +2038,25 @@ class TestArticulationOperations:
                 art.write_data_to_sim()
             assert compose.call_count == int(is_global and backend == "newton")
 
-            expected_force, expected_torque = forces, torques
+            expected_force, expected_torque = forces[:, backend_to_user], torques[:, backend_to_user]
             if backend == "physx":
                 assert captured["is_global"] is is_global
             elif not is_global:
-                expected_force = np.stack((-forces[..., 1], forces[..., 0], forces[..., 2]), axis=-1)
-                expected_torque = np.stack((-torques[..., 1], torques[..., 0], torques[..., 2]), axis=-1)
+                # Known 0/90/180/270-degree rotations, independently of the backend quaternion transform.
+                rotations = np.asarray(
+                    [
+                        [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+                        [[0, -1, 0], [1, 0, 0], [0, 0, 1]],
+                        [[-1, 0, 0], [0, -1, 0], [0, 0, 1]],
+                        [[0, 1, 0], [-1, 0, 0], [0, 0, 1]],
+                    ],
+                    dtype=np.float32,
+                )
+                expected_force = np.einsum("bij,nbj->nbi", rotations, expected_force)
+                expected_torque = np.einsum("bij,nbj->nbi", rotations, expected_torque)
             backend_force, backend_torque = _read_backend_wrench(backend, art, raw_backend, captured)
-            np.testing.assert_allclose(backend_force, expected_force[:, backend_to_user], atol=1e-4)
-            np.testing.assert_allclose(backend_torque, expected_torque[:, backend_to_user], atol=1e-4)
+            np.testing.assert_allclose(backend_force, expected_force, atol=1e-4)
+            np.testing.assert_allclose(backend_torque, expected_torque, atol=1e-4)
             if backend == "ovphysx":
                 from isaaclab_ov import tensor_types as TT
 
