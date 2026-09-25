@@ -270,22 +270,20 @@ def _resolve_matching_names_impl(
     list_of_strings: tuple[str, ...],
     preserve_order: bool,
     raise_when_no_match: bool,
-) -> tuple[tuple[int, ...], tuple[str, ...]]:
-    """Cached implementation of :func:`resolve_matching_names`.
+) -> tuple[tuple[int, ...], tuple[str, ...], tuple[int, ...], bool]:
+    """Cached implementation shared by :func:`resolve_matching_names` and :func:`resolve_matching_names_values`.
 
-    All arguments are hashable so that ``functools.cache`` can store results.
-    Returns tuples (immutable) to protect the cached data from mutation;
-    the public wrapper converts these back to fresh lists for each caller.
+    All arguments are hashable so that ``functools.cache`` can store results. Returns immutable tuples
+    (matched indices, matched names, index of the key each match came from, whether every key matched)
+    to protect the cached data from mutation; the public wrappers convert these back to fresh lists.
     """
-    # find matching patterns
-    index_list = []
-    names_list = []
-    key_idx_list = []
+    index_list: list[int] = []
+    names_list: list[str] = []
+    key_idx_list: list[int] = []
     # book-keeping to check that we always have a one-to-one mapping
     # i.e. each target string should match only one regular expression
-    target_strings_match_found = [None for _ in range(len(list_of_strings))]
-    keys_match_found = [[] for _ in range(len(keys))]
-    # loop over all target strings
+    target_strings_match_found: list[str | None] = [None] * len(list_of_strings)
+    keys_match_found: list[list[str]] = [[] for _ in keys]
     for target_index, potential_match_string in enumerate(list_of_strings):
         for key_index, re_key in enumerate(keys):
             if re.fullmatch(re_key, potential_match_string):
@@ -299,38 +297,23 @@ def _resolve_matching_names_impl(
                 names_list.append(potential_match_string)
                 key_idx_list.append(key_index)
                 keys_match_found[key_index].append(potential_match_string)
-    # reorder keys if they should be returned in order of the query keys
+    # matches are collected in target order; a stable sort by key groups them in query order instead
     if preserve_order:
-        reordered_index_list = [None] * len(index_list)
-        global_index = 0
-        for key_index in range(len(keys)):
-            for key_idx_position, key_idx_entry in enumerate(key_idx_list):
-                if key_idx_entry == key_index:
-                    reordered_index_list[key_idx_position] = global_index
-                    global_index += 1
-        # reorder index and names list
-        index_list_reorder = [None] * len(index_list)
-        names_list_reorder = [None] * len(index_list)
-        for idx, reorder_idx in enumerate(reordered_index_list):
-            index_list_reorder[reorder_idx] = index_list[idx]
-            names_list_reorder[reorder_idx] = names_list[idx]
-        # update
-        index_list = index_list_reorder
-        names_list = names_list_reorder
-    # check that all regular expressions are matched
-    if not all(keys_match_found):
-        if not raise_when_no_match:
-            return (), ()
+        order = sorted(range(len(index_list)), key=key_idx_list.__getitem__)
+        index_list = [index_list[i] for i in order]
+        names_list = [names_list[i] for i in order]
+        key_idx_list = [key_idx_list[i] for i in order]
+    all_matched = all(keys_match_found)
+    if not all_matched and raise_when_no_match:
         # make this print nicely aligned for debugging
         msg = "\n"
         for key, value in zip(keys, keys_match_found):
             msg += f"\t{key}: {value}\n"
-        msg += f"Available strings: {list_of_strings}\n"
+        msg += f"Available strings: {list(list_of_strings)}\n"
         raise ValueError(
             f"Not all regular expressions are matched! Please check that the regular expressions are correct: {msg}"
         )
-    # return immutable tuples for safe caching
-    return tuple(index_list), tuple(names_list)
+    return tuple(index_list), tuple(names_list), tuple(key_idx_list), all_matched
 
 
 def resolve_matching_names(
@@ -377,7 +360,11 @@ def resolve_matching_names(
         ValueError: When not all regular expressions are matched and :attr:`raise_when_no_match` is True.
     """
     _keys = (keys,) if isinstance(keys, str) else tuple(keys)
-    idx, names = _resolve_matching_names_impl(_keys, tuple(list_of_strings), preserve_order, raise_when_no_match)
+    idx, names, _, all_matched = _resolve_matching_names_impl(
+        _keys, tuple(list_of_strings), preserve_order, raise_when_no_match
+    )
+    if not all_matched:
+        return [], []
     return list(idx), list(names)
 
 
@@ -399,11 +386,6 @@ def resolve_matching_names_values(
 ) -> tuple[list[int], list[str], list[Any]]:
     """Match a list of regular expressions in a dictionary against a list of strings and return
     the matched indices, names, and values.
-
-    Note:
-        Unlike :func:`resolve_matching_names`, this function is not cached. Current callers
-        use it during initialization only (e.g. action/actuator config resolution), so caching
-        would add complexity without a measurable benefit.
 
     If the :attr:`preserve_order` is False, the ordering of the matched indices and names is the same as the order
     of the provided list of strings. This means that the ordering is dictated by the order of the target strings
@@ -434,67 +416,11 @@ def resolve_matching_names_values(
     """
     if not isinstance(data, dict):
         raise TypeError(f"Input argument `data` should be a dictionary. Received: {data}")
-    # find matching patterns
-    index_list = []
-    names_list = []
-    values_list = []
-    key_idx_list = []
-    # book-keeping to check that we always have a one-to-one mapping
-    # i.e. each target string should match only one regular expression
-    target_strings_match_found = [None for _ in range(len(list_of_strings))]
-    keys_match_found = [[] for _ in range(len(data))]
-    # loop over all target strings
-    for target_index, potential_match_string in enumerate(list_of_strings):
-        for key_index, (re_key, value) in enumerate(data.items()):
-            if re.fullmatch(re_key, potential_match_string):
-                # check if match already found
-                if target_strings_match_found[target_index]:
-                    raise ValueError(
-                        f"Multiple matches for '{potential_match_string}':"
-                        f" '{target_strings_match_found[target_index]}' and '{re_key}'!"
-                    )
-                # add to list
-                target_strings_match_found[target_index] = re_key
-                index_list.append(target_index)
-                names_list.append(potential_match_string)
-                values_list.append(value)
-                key_idx_list.append(key_index)
-                # add for regex key
-                keys_match_found[key_index].append(potential_match_string)
-    # reorder keys if they should be returned in order of the query keys
-    if preserve_order:
-        reordered_index_list = [None] * len(index_list)
-        global_index = 0
-        for key_index in range(len(data)):
-            for key_idx_position, key_idx_entry in enumerate(key_idx_list):
-                if key_idx_entry == key_index:
-                    reordered_index_list[key_idx_position] = global_index
-                    global_index += 1
-        # reorder index and names list
-        index_list_reorder = [None] * len(index_list)
-        names_list_reorder = [None] * len(index_list)
-        values_list_reorder = [None] * len(index_list)
-        for idx, reorder_idx in enumerate(reordered_index_list):
-            index_list_reorder[reorder_idx] = index_list[idx]
-            names_list_reorder[reorder_idx] = names_list[idx]
-            values_list_reorder[reorder_idx] = values_list[idx]
-        # update
-        index_list = index_list_reorder
-        names_list = names_list_reorder
-        values_list = values_list_reorder
-    # check that all regular expressions are matched
-    if strict and not all(keys_match_found):
-        # make this print nicely aligned for debugging
-        msg = "\n"
-        for key, value in zip(data.keys(), keys_match_found):
-            msg += f"\t{key}: {value}\n"
-        msg += f"Available strings: {list_of_strings}\n"
-        # raise error
-        raise ValueError(
-            f"Not all regular expressions are matched! Please check that the regular expressions are correct: {msg}"
-        )
-    # return
-    return index_list, names_list, values_list
+    idx, names, key_idx, _ = _resolve_matching_names_impl(
+        tuple(data), tuple(list_of_strings), preserve_order, raise_when_no_match=strict
+    )
+    values = list(data.values())
+    return list(idx), list(names), [values[i] for i in key_idx]
 
 
 def _resolve_matching_values_dense(value: dict[str, float | int] | float | int, names: list[str]) -> tuple[float, ...]:
@@ -517,45 +443,40 @@ def _resolve_matching_values_dense(value: dict[str, float | int] | float | int, 
 
 def find_unique_string_name(initial_name: str, is_unique_fn: Callable[[str], bool]) -> str:
     """Find a unique string name based on the predicate function provided.
-    The string is appended with "_N", where N is a natural number till the resultant string
-    is unique.
+
+    The string is appended with "_N", where N is a natural number, until the resultant string is unique.
+
     Args:
-        initial_name (str): The initial string name.
-        is_unique_fn (Callable[[str], bool]): The predicate function to validate against.
+        initial_name: The initial string name.
+        is_unique_fn: The predicate function to validate against.
+
     Returns:
-        str: A unique string based on input function.
+        A unique string based on input function.
     """
     if is_unique_fn(initial_name):
         return initial_name
     iterator = 1
-    result = initial_name + "_" + str(iterator)
-    while not is_unique_fn(result):
-        result = initial_name + "_" + str(iterator)
+    while not is_unique_fn(result := f"{initial_name}_{iterator}"):
         iterator += 1
     return result
 
 
 def find_root_prim_path_from_regex(prim_path_regex: str) -> tuple[str, int]:
     """Find the first prim above the regex pattern prim and its position.
+
     Args:
-        prim_path_regex (str): full prim path including the regex pattern prim.
+        prim_path_regex: Full prim path including the regex pattern prim.
+
     Returns:
-        Tuple[str, int]: First position is the prim path to the parent of the regex prim.
-                    Second position represents the level of the regex prim in the USD stage tree representation.
+        The prim path to the parent of the regex prim and the level of the regex prim in the USD stage tree.
+        Both are None when the path contains no regex pattern.
     """
+    regex_chars = set("[]*|^")
     prim_paths_list = str(prim_path_regex).split("/")
-    root_idx = None
-    for prim_path_idx in range(len(prim_paths_list)):
-        chars = set("[]*|^")
-        if any((c in chars) for c in prim_paths_list[prim_path_idx]):
-            root_idx = prim_path_idx
-            break
-    root_prim_path = None
-    tree_level = None
-    if root_idx is not None:
-        root_prim_path = "/".join(prim_paths_list[:root_idx])
-        tree_level = root_idx
-    return root_prim_path, tree_level
+    for root_idx, prim_path in enumerate(prim_paths_list):
+        if regex_chars.intersection(prim_path):
+            return "/".join(prim_paths_list[:root_idx]), root_idx
+    return None, None
 
 
 def list_intersection(list1: list[Any], list2: list[Any] | None) -> list[Any]:
