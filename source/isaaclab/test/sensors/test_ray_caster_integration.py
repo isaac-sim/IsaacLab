@@ -313,7 +313,7 @@ def test_multi_mesh_uses_clone_plan_geometry_and_backend_object_pose(sim_ground)
             clone_mask=np.asarray([[True, False, True], [False, True, False]], dtype=np.bool_),
             env_ids=np.arange(3, dtype=np.int64),
             positions=None,
-            cfg_rows={},
+            cfg_source_indices={},
         )
     )
     sim_utils.update_stage()

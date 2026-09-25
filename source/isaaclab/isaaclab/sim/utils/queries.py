@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections import defaultdict
 from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING
 
@@ -26,6 +27,59 @@ _CHARACTER_CLASS = re.compile(r"\[\^?[^]]*\]")
 
 _SEGMENT_WILDCARD = re.compile(r"\[\^/\][*+]|\.\*")
 """Matches the ways an expression spells "anything within one path segment"."""
+
+
+def find_cloned_prim_paths(
+    stage: Usd.Stage, plan: cloner.ClonePlan, predicate: Callable[[Usd.Prim], bool]
+) -> list[str]:
+    """Expand matching prototype prims through a clone plan without inspecting generated clones.
+
+    Args:
+        stage: Stage containing the declared prototypes and shared roots.
+        plan: Replication layout, including shared assets.
+        predicate: Selects prims within each prototype, such as native rigid-body prims.
+
+    Returns:
+        Exact destination paths and shared paths, with overlapping declarations deduplicated.
+    """
+    # USD must load after Kit, as with the other stage queries in this module.
+    from pxr import Sdf, Usd  # noqa: PLC0415
+
+    source_rows = defaultdict(list)
+    for row, source in enumerate(plan.sources):
+        source_rows[Sdf.Path(source)].append(row)
+    targets = {
+        row: tuple(plan.destinations[row].format(int(env_id)) for env_id in plan.env_ids[mask])
+        for row, mask in enumerate(plan.clone_mask)
+    }
+    active_sources = {source for source, rows in source_rows.items() if any(targets[row] for row in rows)}
+    roots = Sdf.Path.RemoveDescendentPaths([*active_sources, *plan.global_paths])
+    paths = []
+    for root in roots:
+        prims = iter(Usd.PrimRange(stage.GetPrimAtPath(root), Usd.TraverseInstanceProxies()))
+        for prim in prims:
+            path = prim.GetPath()
+            owner = path
+            while owner != Sdf.Path.absoluteRootPath and owner not in source_rows:
+                owner = owner.GetParentPath()
+            if owner in source_rows and owner not in active_sources:
+                if not any(source.HasPrefix(path) for source in active_sources):
+                    prims.PruneChildren()
+                continue
+            if owner not in source_rows and any(cloner.path.match(str(path), dst) for dst in plan.destinations):
+                if not any(source.HasPrefix(path) for source in active_sources):
+                    prims.PruneChildren()
+                    continue
+            if predicate(prim):
+                if owner in source_rows:
+                    paths.extend(
+                        cloner.path.rebase(str(path), str(owner), target)
+                        for row in source_rows[owner]
+                        for target in targets[row]
+                    )
+                else:
+                    paths.append(str(path))
+    return list(dict.fromkeys(paths))
 
 
 def path_expr_to_glob(path_expr: str) -> str:

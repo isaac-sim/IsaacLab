@@ -32,7 +32,7 @@ import omni.physx
 import omni.timeline
 import omni.usd
 import usdrt
-from pxr import Sdf, Usd, UsdPhysics, UsdUtils
+from pxr import Sdf, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
@@ -42,6 +42,7 @@ from isaaclab.scene_data.deformable_discovery import (
     deformable_prototypes,
     expand_deformable_entries,
 )
+from isaaclab.sim.utils.queries import find_cloned_prim_paths
 from isaaclab.utils.string import to_camel_case
 
 from isaaclab_physx.cloner import PhysxReplicateContext
@@ -208,46 +209,16 @@ class PhysxSceneDataBackend(SceneDataBackend):
         self._fabric_points_selection = None
 
     def get_rigid_body_view(self) -> omni.physics.tensors.RigidBodyView | None:
-        """Lazily create a rigid body view covering all rigid bodies in the scene.
-
-        Discovers exact rigid body prims by traversing USD, then compacts cloned
-        environment paths into wildcard patterns. If a rigid body name is also
-        used by a non-rigid prim, the exact path is kept to avoid PhysX resolving
-        the wildcard to the non-rigid prim.
-        """
-        if self._rigid_body_view is not None:
-            return self._rigid_body_view
-
-        if self.backend is None:
-            return None
-
-        stage: Usd.Stage = omni.usd.get_context().get_stage()
-        if stage is None:
-            return None
-
-        rigid_body_paths: list[str] = []
-        non_rigid_body_names: set[str] = set()
-        for prim in stage.Traverse():
-            prim_path = prim.GetPath().pathString
-            if prim.HasAPI(UsdPhysics.RigidBodyAPI) and not prim.IsA(UsdPhysics.Joint):
-                rigid_body_paths.append(prim_path)
-            elif re.search(r"/World/envs/env_\d+/", prim_path):
-                non_rigid_body_names.add(prim_path.rsplit("/", 1)[-1])
-
-        patterns: set[str] = set()
-        exact_paths: list[str] = []
-        for prim_path in rigid_body_paths:
-            body_name = prim_path.rsplit("/", 1)[-1]
-            if body_name in non_rigid_body_names:
-                exact_paths.append(prim_path)
-            else:
-                patterns.add(re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", prim_path))
-
-        body_paths = [*sorted(patterns), *exact_paths]
-        if not body_paths:
-            return None
-
-        self._rigid_body_view = self.backend.simulation_view.create_rigid_body_view(body_paths)
+        """Bind exact rigid paths expanded from the declared prototypes."""
+        if self._rigid_body_view is None and self.backend is not None:
+            sim = PhysicsManager._sim
+            body_paths = find_cloned_prim_paths(
+                sim.stage,
+                sim.get_clone_plan(),
+                lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI) and not prim.IsA(UsdPhysics.Joint),
+            )
+            if body_paths:
+                self._rigid_body_view = self.backend.simulation_view.create_rigid_body_view(body_paths)
         return self._rigid_body_view
 
     def _setup_deformable_geometry(self, entries: Sequence[DeformableStageEntry]) -> None:
@@ -269,9 +240,8 @@ class PhysxSceneDataBackend(SceneDataBackend):
             counts = np.asarray([entry.vertex_count for entry in ordered], dtype=np.int32)
             if np.any(counts > view.max_simulation_nodes_per_body):
                 raise RuntimeError("PhysX deformable node capacity is smaller than the clone plan requires.")
-            points = view.get_simulation_nodal_positions().view(wp.vec3f).flatten()
             native_offsets = np.arange(view.count) * view.max_simulation_nodes_per_body
-            batches = deformable_geometry_batches(ordered, points, native_offsets)
+            batches = deformable_geometry_batches(ordered, native_offsets, device=str(PhysicsManager._device))
             bindings.append((view, batches))
         self._deformable_bindings = bindings
 

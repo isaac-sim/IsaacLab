@@ -128,7 +128,7 @@ class OvPhysxReplicateContext:
         """
         if plan.env_ids is None:
             raise ValueError("ClonePlan.env_ids is required for replication.")
-        rows = plan.context_rows[type(self)]
+        rows = plan.context_source_indices[type(self)]
         recipes = _clone_recipes(
             stage=self.stage,
             sources=tuple(plan.sources[row] for row in rows),

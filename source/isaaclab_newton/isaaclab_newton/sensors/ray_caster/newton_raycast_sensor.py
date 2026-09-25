@@ -15,11 +15,14 @@ import warp as wp
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
+from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.sensors.ray_caster.kernels import ALIGNMENT_BASE, update_ray_caster_kernel
 from isaaclab.utils.warp import ProxyArray
 
+from isaaclab_newton.cloner import NewtonReplicateContext
 from isaaclab_newton.physics import NewtonManager
+from isaaclab_newton.sim.queries import run_query
 
 from .newton_raycast_sensor_cfg import NewtonRaycastSensorCfg
 from .newton_raycast_sensor_data import NewtonRaycastSensorData
@@ -85,7 +88,7 @@ def _identity_offsets(count: int, device: str) -> tuple[wp.array, wp.array]:
 
 
 class _NewtonRayCasterPoseMixin:
-    """Register Newton sensor sites and update ray poses from the Newton manager state."""
+    """Register Newton sensor sites and update ray poses from a shared backend."""
 
     @property
     def count(self: Any) -> int:
@@ -126,6 +129,10 @@ class _NewtonRayCasterPoseMixin:
 
     def _initialize_pose_tracking(self: Any) -> None:
         """Resolve registered site labels and allocate pose buffers."""
+        sim = sim_utils.SimulationContext.instance()
+        self.backend = sim.get_or_create_backend(sim.clone_contexts[NewtonReplicateContext].backend_cfg)
+        self._scene_data_provider = sim.get_scene_data_provider()
+        self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
         site_indices = self._resolve_site_indices(self._sensor_site_labels, self.cfg.prim_path, self._num_envs)
         self._view = self
         self._view_count = len(site_indices)
@@ -167,7 +174,12 @@ class _NewtonRayCasterPoseMixin:
 
     def get_world_poses(self: Any, indices=None) -> tuple[ProxyArray, ProxyArray]:
         """Return current world poses after resolving pending FK."""
-        NewtonManager.get_state()
+        backend = self.backend
+        poses = SceneDataFormat.Transform()
+        if self._scene_data_provider.get_transforms(
+            poses, mapping=self._transform_mapping, count=backend.model.body_count
+        ):
+            backend.state_0.body_q = poses.transforms
         self._update_newton_site_transforms(
             self._sensor_site_indices, self._newton_pose_w, self._newton_pos_w.warp, self._newton_quat_w.warp
         )
@@ -193,9 +205,8 @@ class _NewtonRayCasterPoseMixin:
         pos_buf: wp.array,
         quat_buf: wp.array,
     ) -> None:
-        """Update site transforms from manager state already refreshed by the caller."""
-        model = NewtonManager.get_model()
-        state = NewtonManager.get_state_0()
+        """Update site transforms from the shared state already refreshed through SDP."""
+        model, state = self.backend.model, self.backend.state_0
         wp.launch(
             _newton_site_world_poses_kernel,
             dim=site_indices.shape[0],
@@ -263,9 +274,8 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
     Rays are cast with :func:`newton.intersect_ray` against every collision
     shape in the sensor's own world plus the global world (e.g. terrain), so
     dynamic bodies are hit without configuring target meshes. The full update
-    (sensor pose, ray transform, BVH query, hit resolve) is registered as a
-    task with :class:`~isaaclab_newton.physics.NewtonManager`, which owns
-    the shared BVH refit and sensor execution graph.
+    (sensor pose, ray transform, BVH query, hit resolve) uses a sensor-owned
+    CUDA graph and the registry-owned model's shared acceleration structures.
     """
 
     cfg: NewtonRaycastSensorCfg
@@ -277,7 +287,7 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
         NewtonManager._sensor_bvh_shape_flags |= newton.ShapeFlags.COLLIDE_SHAPES
         super().__init__(cfg)
         self._data = NewtonRaycastSensorData()
-        self._sensor_task_name: str | None = None
+        self._graph = None
 
     @property
     def data(self) -> NewtonRaycastSensorData:
@@ -327,14 +337,13 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
         self._hit_dist = wp.empty(ray_count, dtype=wp.float32, device=self._device)
         self._hit_normal = wp.empty(ray_count, dtype=wp.vec3f, device=self._device)
 
-        self._sensor_task_name = f"newton_raycast:{self.cfg.prim_path}:{id(self)}"
-        NewtonManager._register_sensor_task(self._sensor_task_name, self._launch_raycast)
+        self._graph = None
 
     def _launch_raycast(self) -> None:
         """Sensor pose + ray transform + BVH query + hit resolve (graph-capturable)."""
         self._update_ray_infos(self._is_outdated)
         newton.intersect_ray(
-            NewtonManager.get_model(),
+            self.backend.model,
             ray_origins=self._ray_starts_w_flat,
             ray_directions=self._ray_directions_w_flat,
             ray_worlds=self._ray_worlds,
@@ -366,13 +375,22 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
         # The captured graph is bound to ``_is_outdated``; mirror any other mask into it.
         if env_mask.ptr != self._is_outdated.ptr:
             wp.copy(self._is_outdated, env_mask)
-        assert self._sensor_task_name is not None
-        NewtonManager._update_sensor_tasks(self._sensor_task_name)
+        backend, provider = self.backend, self._scene_data_provider
+        poses = SceneDataFormat.Transform()
+        if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
+            backend.state_0.body_q = poses.transforms
+        if backend.geometry_offsets:
+            provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
+        self._graph = run_query(
+            self.backend,
+            (provider.backend.transforms_version, provider.backend.geometry_timestamp),
+            self._launch_raycast,
+            self._graph,
+            use_cuda_graph=self.cfg.use_cuda_graph,
+        )
 
     def _invalidate_initialize_callback(self, event) -> None:
-        if self._sensor_task_name is not None:
-            NewtonManager._unregister_sensor_task(self._sensor_task_name)
-        self._sensor_task_name = None
+        self._graph = None
         super()._invalidate_initialize_callback(event)
 
 

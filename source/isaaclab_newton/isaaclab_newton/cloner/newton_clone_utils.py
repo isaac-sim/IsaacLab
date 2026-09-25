@@ -12,12 +12,84 @@ import numpy as np
 import warp as wp
 from newton import GeoType, JointType, ModelBuilder, ShapeFlags
 
-from pxr import Usd, UsdGeom, UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.cloner import path as clone_path
+from isaaclab.scene_data.deformable_discovery import DeformableStageEntry, deformable_entry
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
+from isaaclab.utils.string import to_camel_case
 
 from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
+from isaaclab_newton.sim.spawners.materials import (
+    NewtonDeformableBodyMaterialCfg,
+    NewtonSurfaceDeformableBodyMaterialCfg,
+)
+
+
+def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, *, root_path: str) -> DeformableStageEntry:
+    """Import one declared deformable's geometry, Newton material, and native element ranges.
+
+    Args:
+        builder: Source builder that receives the complete deformable prototype.
+        stage: Stage containing the authored geometry and bound physics material.
+        root_path: Deformable-body prim path.
+
+    Returns:
+        Prototype geometry for SDP's visual-mesh binding.
+
+    Note:
+        Replace this importer with native ``add_usd`` when Isaac Lab's authored schemas and
+        Newton material attributes have parity (newton-physics/newton#3036 and #3038).
+        The native USD importer landed in #3192; that alone does not establish material parity.
+        Remove private group recording when the pinned Newton includes #3326's native recording.
+    """
+    prim = stage.GetPrimAtPath(root_path)
+    geometry = deformable_entry(prim)
+    if geometry is None:
+        raise ValueError(f"No simulation mesh found under deformable {root_path!r}.")
+    material = next(
+        (
+            stage.GetPrimAtPath(path)
+            for path in UsdShade.MaterialBindingAPI(prim).GetDirectBindingRel("physics").GetTargets()
+            if stage.GetPrimAtPath(path).GetAttribute("newton:density").IsValid()
+        ),
+        None,
+    )
+    if material is None:
+        raise ValueError(f"Deformable {root_path!r} requires a bound Newton physics material.")
+    if geometry.deformable_type == "volume":
+        add_mesh = builder.add_soft_mesh
+        defaults = NewtonDeformableBodyMaterialCfg()
+        names = ("density", "particle_radius", "k_mu", "k_lambda", "k_damp")
+    else:
+        add_mesh = builder.add_cloth_mesh
+        defaults = NewtonSurfaceDeformableBodyMaterialCfg()
+        names = ("density", "particle_radius", "tri_ke", "tri_ka", "tri_kd", "edge_ke", "edge_kd")
+    material_kwargs = {}
+    for name in names:
+        attr = material.GetAttribute(f"newton:{to_camel_case(name, to='cC')}")
+        material_kwargs[name] = attr.Get() if attr.IsValid() else getattr(defaults, name)
+
+    particle_start, tri_start = builder.particle_count, len(builder.tri_indices)
+    edge_start, tet_start = len(builder.edge_indices), len(builder.tet_indices)
+    add_mesh(
+        vertices=geometry.vertices,
+        indices=geometry.indices,
+        pos=wp.vec3(*geometry.init_pos),
+        rot=wp.quat(*geometry.init_rot),
+        scale=1.0,
+        vel=wp.vec3(),
+        label=root_path,
+        **material_kwargs,
+    )
+    particle_range = (particle_start, builder.particle_count)
+    if geometry.deformable_type == "volume":
+        builder._record_soft_group(root_path, particle_range, (tet_start, len(builder.tet_indices)))
+    else:
+        builder._record_cloth_group(
+            root_path, particle_range, (tri_start, len(builder.tri_indices)), (edge_start, len(builder.edge_indices))
+        )
+    return geometry
 
 
 def _has_visible_non_collision_geometry(stage: Usd.Stage, prim_path: str) -> bool:
@@ -227,6 +299,26 @@ def _compose_world_xforms(world_p: np.ndarray, world_q: np.ndarray, local: Seque
     return out
 
 
+def _rotate_builder_particles(
+    builder: ModelBuilder, source: ModelBuilder, particle_start: int, tet_start: int, xform: np.ndarray
+) -> None:
+    """Apply particle and rest-frame rotations omitted by Newton's builder composition."""
+    # Remove when the pinned Newton fixes newton-physics/newton#4115, including tet rest frames.
+    if source.particle_count == 0 or np.array_equal(xform[3:], (0.0, 0.0, 0.0, 1.0)):
+        return
+    particle_slice = slice(particle_start, particle_start + source.particle_count)
+    builder.particle_q[particle_slice] = (
+        _quat_rotate(xform[3:], np.asarray(source.particle_q, dtype=np.float32)) + xform[:3]
+    ).tolist()
+    builder.particle_qd[particle_slice] = _quat_rotate(
+        xform[3:], np.asarray(source.particle_qd, dtype=np.float32)
+    ).tolist()
+    if source.tet_count:
+        # Dm^-1 rotates on the right: (R Dm)^-1 = Dm^-1 R^T.
+        poses = np.asarray(source.tet_poses, dtype=np.float32).reshape(-1, 3, 3)
+        builder.tet_poses[tet_start : tet_start + source.tet_count] = _quat_rotate(xform[3:], poses).tolist()
+
+
 def _invert_xform(xform: Sequence[float] | np.ndarray) -> np.ndarray:
     """Inverse of a single xyzw transform, assuming a unit quaternion."""
     xform = np.asarray(xform, dtype=np.float32)
@@ -281,8 +373,8 @@ def replicate_builder_mapping(
     source_site_indices: dict[int, dict[str, list[int]]] | None = None,
     env_root_sites: dict[str, wp.transform] | None = None,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = (),
-    source_builder_added: Callable[[str, int, ModelBuilder, Sequence[float]], None] | None = None,
-) -> tuple[dict[str, list[list[int]]], list[wp.transform], list[tuple[str, int]]]:
+    source_builder_added: Callable[[str, str, int], None] | None = None,
+) -> tuple[dict[str, list[list[int]]], list[wp.transform]]:
     """Replicate source builders, naming homogeneous copies at their destinations."""
     source_site_indices = source_site_indices or {}
     env_root_sites = env_root_sites or {}
@@ -321,8 +413,8 @@ def replicate_builder_mapping(
         # Site index after replicate: base_shape + world * stride + source_local_index.
         base_shape = builder.shape_count
         shape_stride = source_builder.shape_count
-        particle_stride = source_builder.particle_count if source_builder_added is not None else 0
-        base_particle = builder.particle_count if source_builder_added is not None else 0
+        particle_stride = source_builder.particle_count
+        base_particle, base_tet = builder.particle_count, builder.tet_count
         source_xform_inv = _invert_xform(xforms_np[0])
         xforms = _compose_world_xforms(positions, quaternions, source_xform_inv)
 
@@ -338,18 +430,27 @@ def replicate_builder_mapping(
             for name, labels in original_labels.items():
                 label_groups[name][:] = labels
 
+        if particle_stride:
+            for world in np.flatnonzero(np.any(xforms[:, 3:] != (0.0, 0.0, 0.0, 1.0), axis=1)):
+                _rotate_builder_particles(
+                    builder,
+                    source_builder,
+                    base_particle + world * particle_stride,
+                    base_tet + world * source_builder.tet_count,
+                    xforms[world],
+                )
         if source_builder_added is not None:
             for world in range(num_worlds):
                 particle_offset = base_particle + world * particle_stride
-                source_builder_added(sources[0], particle_offset, source_builder, xforms[world])
+                source_builder_added(sources[0], destinations[0].format(int(env_ids[world])), particle_offset)
 
         for label, local_indices in site_local_indices.items():
             local_site_map[label] = [
                 [base_shape + world * shape_stride + local for local in local_indices] for world in range(num_worlds)
             ]
 
-        bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping, skip_entity_labels=True)
-        return local_site_map, world_xforms, bindings
+        rename_builder_labels(builder, sources, destinations, env_ids, mapping, skip_entity_labels=True)
+        return local_site_map, world_xforms
 
     source_world_indices = mapping.argmax(axis=1)
 
@@ -387,10 +488,11 @@ def replicate_builder_mapping(
         for row in rows_per_world[col]:
             source_builder = source_builders[sources[row]]
             shape_offset = builder.shape_count
-            particle_offset = builder.particle_count if source_builder_added is not None else 0
+            particle_offset, tet_offset = builder.particle_count, builder.tet_count
             builder.add_builder(source_builder, xform=source_xforms[row, col])
+            _rotate_builder_particles(builder, source_builder, particle_offset, tet_offset, source_xforms[row, col])
             if source_builder_added is not None:
-                source_builder_added(sources[row], particle_offset, source_builder, source_xforms[row, col])
+                source_builder_added(sources[row], destinations[row].format(int(env_ids[col])), particle_offset)
 
             for label, source_shape_indices in source_site_indices.get(id(source_builder), {}).items():
                 local_indices = local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col]
@@ -399,8 +501,9 @@ def replicate_builder_mapping(
             hook(builder, col, xforms_np[col, :3].copy(), xforms_np[col, 3:].copy())
         builder.end_world()
 
-    bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping) if destinations else []
-    return local_site_map, world_xforms, bindings
+    if destinations:
+        rename_builder_labels(builder, sources, destinations, env_ids, mapping)
+    return local_site_map, world_xforms
 
 
 def rename_builder_labels(
@@ -411,10 +514,8 @@ def rename_builder_labels(
     mapping: np.ndarray,
     *,
     skip_entity_labels: bool = False,
-) -> list[tuple[str, int]]:
-    """Rewrite source-root labels to per-env destination roots and return Fabric body bindings."""
-    fabric_body_bindings: list[tuple[str, int]] = []
-    bound_body_indices: set[int] = set()
+) -> None:
+    """Rewrite source-root labels to per-env destination roots."""
     for source_index, source in enumerate(sources):
         source_root = source.rstrip("/") or "/"
         world_cols = np.flatnonzero(mapping[source_index])
@@ -422,7 +523,7 @@ def rename_builder_labels(
         destination = destinations[source_index]
         world_roots = {int(col): (destination.format(int(env_ids[col])).rstrip("/") or "/") for col in world_cols}
 
-        def _rename_pair(values, worlds, src_root=source_root, roots=world_roots, *, collect_body_bindings=False):
+        def _rename_pair(values, worlds, src_root=source_root, roots=world_roots):
             rows = (
                 ((index, value, worlds[index]) for index, value in values.items())
                 if isinstance(values, dict)
@@ -438,15 +539,12 @@ def rename_builder_labels(
                 renamed_value = world_root + suffix
                 if renamed_value != value:
                     values[index] = renamed_value
-                    if collect_body_bindings:
-                        fabric_body_bindings.append((renamed_value, index))
-                        bound_body_indices.add(index)
 
         if not skip_entity_labels:
             for name, labels in vars(builder).items():
                 worlds = getattr(builder, f"{name[:-6]}_world", None) if name.endswith("_label") else None
                 if isinstance(labels, list) and worlds is not None:
-                    _rename_pair(labels, worlds, collect_body_bindings=name == "body_label")
+                    _rename_pair(labels, worlds)
 
         custom_attrs = builder.custom_attributes.values()
         worlds_by_freq = {attr.frequency: attr.values for attr in custom_attrs if attr.references == "world"}
@@ -457,8 +555,3 @@ def rename_builder_labels(
                 _rename_pair(attr.values, builder.shape_world)
             elif worlds := worlds_by_freq.get(attr.frequency):
                 _rename_pair(attr.values, worlds)
-
-    fabric_body_bindings.extend(
-        (label, index) for index, label in enumerate(builder.body_label) if index not in bound_body_indices
-    )
-    return fabric_body_bindings

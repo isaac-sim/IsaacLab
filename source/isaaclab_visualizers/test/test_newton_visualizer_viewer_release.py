@@ -28,6 +28,8 @@ an unusable viewer disables itself instead of aborting training.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import isaaclab_visualizers.newton.newton_visualizer as newton_visualizer
 import pytest
 from isaaclab_visualizers.newton.newton_visualizer import NewtonVisualizer
@@ -182,7 +184,7 @@ def _arm_for_step_failure(visualizer: NewtonVisualizer, viewer: _SpyRTXViewer) -
     visualizer._disable_viewer_on_step_exception = True
     visualizer._sim_time = 0.0
     visualizer._step_counter = 0
-    visualizer._state = None
+    visualizer.backend = SimpleNamespace(model=SimpleNamespace(num_envs=1))
     visualizer._scene_data_provider = None
     visualizer._update_frequency = 1
     viewer._update_frequency = 1
@@ -206,7 +208,6 @@ def test_step_failure_releases_the_viewer(monkeypatch: pytest.MonkeyPatch) -> No
     visualizer._picking_enabled = True
     visualizer._viewer_picking_binding.bind(viewer)  # type: ignore[arg-type]
     _arm_for_step_failure(visualizer, viewer)
-    monkeypatch.setattr(newton_visualizer.NewtonManager, "get_num_envs", staticmethod(lambda: 1), raising=False)
 
     NewtonVisualizer.step(visualizer, dt=0.01)  # must not raise
 
@@ -236,7 +237,6 @@ def test_step_contains_a_failing_viewer_teardown(monkeypatch: pytest.MonkeyPatch
     viewer = _SpyRTXViewer(raises=True)
     visualizer = _make_visualizer(viewer)
     _arm_for_step_failure(visualizer, viewer)
-    monkeypatch.setattr(newton_visualizer.NewtonManager, "get_num_envs", staticmethod(lambda: 1), raising=False)
 
     NewtonVisualizer.step(visualizer, dt=0.01)  # must not raise
 

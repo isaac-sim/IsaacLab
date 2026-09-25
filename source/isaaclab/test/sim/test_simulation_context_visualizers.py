@@ -16,6 +16,8 @@ import isaaclab_visualizers.kit.kit_visualizer as kit_visualizer
 import isaaclab_visualizers.rerun.rerun_visualizer as rerun_visualizer
 import isaaclab_visualizers.viser.viser_visualizer as viser_visualizer
 import pytest
+import warp as wp
+from isaaclab_newton.cloner import NewtonReplicateContext
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 from isaaclab_visualizers.newton.newton_visualizer_cfg import (
     NewtonGLVisualizerCfg,
@@ -337,10 +339,33 @@ class _DummyViserSceneDataProvider:
     def get_camera_transforms(self):
         return {}
 
+    def create_mapping(self, paths):
+        return None
+
+    def get_transforms(self, output, **kwargs):
+        output.transforms = wp.zeros(1, dtype=wp.transform, device="cpu")
+        return True
+
+
+@pytest.fixture
+def web_backend(monkeypatch):
+    model = SimpleNamespace(body_label=["/Object"], body_count=1, num_envs=4)
+    backend = SimpleNamespace(model=model, state_0=SimpleNamespace(body_q=None), geometry_offsets={})
+    sim = SimpleNamespace(
+        clone_contexts={NewtonReplicateContext: SimpleNamespace(backend_cfg=object())},
+        get_or_create_backend=Mock(return_value=backend),
+    )
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    return sim
+
 
 class _DummyViserViewer:
     def __init__(self):
         self.calls = []
+        self._server = object()
+        self.set_model = Mock()
+        self.set_visible_worlds = Mock()
+        self.set_world_offsets = Mock()
 
     def begin_frame(self, sim_time: float) -> None:
         self.calls.append(("begin_frame", sim_time))
@@ -355,7 +380,7 @@ class _DummyViserViewer:
         return True
 
 
-def test_viser_visualizer_initialize_and_step_uses_newton_manager_state(monkeypatch: pytest.MonkeyPatch):
+def test_viser_visualizer_reads_sdp_and_rebinds_native_resource(monkeypatch, web_backend):
     provider = _DummyViserSceneDataProvider()
     viewer = _DummyViserViewer()
 
@@ -365,39 +390,30 @@ def test_viser_visualizer_initialize_and_step_uses_newton_manager_state(monkeypa
         self._viewer = viewer
 
     monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_create_viewer", _fake_create_viewer)
-
-    state_calls: list[object] = []
-
-    class _FakeNewtonManager:
-        @staticmethod
-        def get_model():
-            return "dummy-model"
-
-        @staticmethod
-        def get_state(scene_data_provider=None):
-            state_calls.append(scene_data_provider)
-            return {"state_call": len(state_calls)}
-
-        @staticmethod
-        def get_num_envs() -> int:
-            return 1
-
-    import isaaclab_newton.physics as _np_mod
-
-    monkeypatch.setattr(_np_mod, "NewtonManager", _FakeNewtonManager)
+    monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_setup_isaaclab_sidebar", lambda self, server: None)
 
     visualizer = viser_visualizer.ViserVisualizer(ViserVisualizerCfg())
     visualizer.initialize(cast(Any, provider))
     visualizer.step(0.25)
 
     assert visualizer.is_initialized
-    assert state_calls == [provider, provider]
+    backend = web_backend.get_or_create_backend.return_value
+    assert visualizer.backend is backend
+    assert backend.state_0.body_q.shape == (1,)
     assert visualizer._sim_time == pytest.approx(0.25)
     assert viewer.calls[0][0] == "begin_frame"
     assert viewer.calls[0][1] == pytest.approx(0.25)
-    # log_state passes NewtonManager.get_state(provider) through as-is; no env_ids merged in.
-    assert viewer.calls[1] == ("log_state", {"state_call": 2})
+    assert viewer.calls[1] == ("log_state", backend.state_0)
     assert viewer.calls[2] == ("end_frame",)
+    replacement = SimpleNamespace(model=backend.model, state_0=SimpleNamespace(body_q=None), geometry_offsets={})
+    web_backend.get_or_create_backend.return_value = replacement
+    visualizer.reset(soft=True)
+    assert visualizer.backend is backend
+    visualizer.reset()
+    visualizer.reset()
+    viewer.set_model.assert_called_once_with(replacement.model)
+    visualizer.step(0.25)
+    assert viewer.calls[-2] == ("log_state", replacement.state_0)
 
 
 @pytest.mark.parametrize(
@@ -464,7 +480,7 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
         randomly_sample_visible_envs=False,
     )
     visualizer = viser_visualizer.ViserVisualizer(cfg)
-    visualizer._model = "dummy-model"
+    visualizer.backend = SimpleNamespace(model="dummy-model")
     visualizer._env_ids = None  # normally set by initialize() -> _compute_visualized_env_ids()
     visualizer._create_viewer(record_to_viser="record.viser", metadata={"num_envs": 8})
 
@@ -484,6 +500,7 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
 )
 def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
     monkeypatch: pytest.MonkeyPatch,
+    web_backend,
     cfg_max_visible_envs: int | None,
     expected_visible: list[int] | None,
 ):
@@ -527,36 +544,6 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
         def close(self) -> None:
             captured["closed"] = True
 
-    class _DummyRerunSceneDataProvider:
-        @property
-        def num_envs(self) -> int:
-            return 4
-
-        @property
-        def usd_stage(self):
-            return None
-
-        def get_camera_transforms(self):
-            return {}
-
-    class _FakeNewtonManager:
-        @staticmethod
-        def get_model():
-            return "dummy-model"
-
-        @staticmethod
-        def get_state(scene_data_provider=None):
-            captured["state_provider"] = scene_data_provider
-            return {"ok": True}
-
-        @staticmethod
-        def get_num_envs() -> int:
-            return 1
-
-    import isaaclab_newton.physics as _np_mod
-
-    monkeypatch.setattr(_np_mod, "NewtonManager", _FakeNewtonManager)
-
     monkeypatch.setattr(rerun_visualizer, "NewtonViewerRerun", _FakeNewtonViewerRerun)
     monkeypatch.setattr(
         rerun_visualizer, "_ensure_rerun_server", lambda **kwargs: ("rerun+http://127.0.0.1:9876/proxy", False)
@@ -575,11 +562,17 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
         randomly_sample_visible_envs=False,
     )
     visualizer = rerun_visualizer.RerunVisualizer(cfg)
-    visualizer.initialize(cast(Any, _DummyRerunSceneDataProvider()))
+    visualizer.initialize(cast(Any, _DummyViserSceneDataProvider()))
 
-    assert captured["set_model"] == "dummy-model"
+    assert captured["set_model"] is web_backend.get_or_create_backend.return_value.model
     assert captured["visible_worlds"] == expected_visible
     assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
+    replacement = SimpleNamespace(model=SimpleNamespace(body_label=["/Replacement"]))
+    web_backend.get_or_create_backend.return_value = replacement
+    visualizer.reset()
+    assert visualizer.backend is replacement
+    assert captured["set_model"] is replacement.model
+    assert captured["visible_worlds"] == expected_visible
 
 
 def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monkeypatch: pytest.MonkeyPatch):

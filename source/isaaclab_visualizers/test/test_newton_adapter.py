@@ -14,6 +14,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
+from isaaclab_newton.cloner import NewtonReplicateContext
 from isaaclab_visualizers.newton import (
     NewtonGLVisualizer,
     NewtonGLVisualizerCfg,
@@ -30,6 +31,8 @@ from isaaclab_visualizers.newton_adapter import (
     log_geo_with_expanded_plane_scale,
     resolve_visible_env_indices,
 )
+
+from isaaclab.sim import SimulationContext
 
 
 @pytest.mark.parametrize(
@@ -503,10 +506,6 @@ def test_newton_viewer_inactive_mpm_particles_use_newton_filter(monkeypatch):
     assert fallback_calls == [state]
 
 
-class _BodyQ:
-    shape = (1,)
-
-
 class _Viewer:
     _update_frequency = 1
 
@@ -581,8 +580,15 @@ class _SceneDataProvider:
     def get_contact_sensors(self):
         return self._contact_sensors
 
+    def create_mapping(self, paths):
+        return None
 
-def _make_newton_visualizer(viewer, scene_data_provider=None):
+    def get_transforms(self, output, **kwargs):
+        output.transforms = self.poses
+        return True
+
+
+def _make_newton_visualizer(viewer, scene_data_provider=None, state=None):
     visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg(enable_markers=False))
     visualizer._is_initialized = True
     visualizer._is_closed = False
@@ -590,7 +596,13 @@ def _make_newton_visualizer(viewer, scene_data_provider=None):
     visualizer._step_counter = 0
     visualizer._runtime_headless = False
     visualizer._viewer = viewer
-    visualizer._scene_data_provider = scene_data_provider
+    state = state or SimpleNamespace(body_q=wp.empty(1, dtype=wp.transform, device="cpu"))
+    visualizer.backend = SimpleNamespace(
+        model=SimpleNamespace(num_envs=1, body_count=len(state.body_q)), state_0=state, geometry_offsets={}
+    )
+    visualizer._scene_data_provider = scene_data_provider or _SceneDataProvider()
+    visualizer._scene_data_provider.poses = state.body_q
+    visualizer._transform_mapping = None
     visualizer._resolved_visible_env_ids = None
     visualizer._live_plot_sources = []
     if viewer is not None:
@@ -624,13 +636,16 @@ def test_newton_visualizer_forwards_and_neutralizes_picking():
     assert visualizer._viewer_picking_binding._retained_picking is None
 
 
-def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch):
-    from isaaclab_newton.physics import NewtonManager
-
-    new_model = object()
+@pytest.mark.parametrize("picking", [False, True])
+def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking):
+    new_model = SimpleNamespace(body_label=["/Object"])
     new_state = object()
-    monkeypatch.setattr(NewtonManager, "get_model", lambda: new_model)
-    monkeypatch.setattr(NewtonManager, "get_state_0", lambda: new_state)
+    backend = SimpleNamespace(model=new_model, state_0=new_state)
+    sim = SimpleNamespace(
+        clone_contexts={NewtonReplicateContext: SimpleNamespace(backend_cfg=object())},
+        get_or_create_backend=lambda cfg: backend,
+    )
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
 
     viewer = _Viewer()
     viewer.picking_enabled = False
@@ -640,37 +655,35 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch):
     viewer.set_world_offsets = Mock()
     visualizer = _make_newton_visualizer(viewer)
     visualizer._resolved_visible_env_ids = [1, 3]
-    visualizer._picking_enabled = True
+    visualizer._picking_enabled = picking
     visualizer.cfg.world_spacing = (2.0, 0.0, 0.0)
     visualizer.cfg.show_contacts = True
 
     visualizer.reset(soft=False)
     visualizer.reset(soft=False)
 
-    assert visualizer._model is new_model
-    assert visualizer._state is new_state
+    assert visualizer.backend is backend
     viewer.set_model.assert_called_once_with(new_model)
     viewer._register_isaaclab_ui_callbacks.assert_called_once_with()
     viewer.set_visible_worlds.assert_called_once_with([1, 3])
     viewer.set_world_offsets.assert_called_once_with((2.0, 0.0, 0.0))
     assert viewer.show_contacts is True
-    assert viewer.picking_enabled is True
-    assert viewer.wind is None
+    assert viewer.picking_enabled is picking
+    if picking:
+        assert viewer.wind is None
     assert visualizer._viewer_picking_binding._viewer is viewer
 
 
 def test_newton_visualizer_logs_native_contacts_when_available(monkeypatch):
     from isaaclab_newton.physics import NewtonManager
 
-    state = SimpleNamespace(body_q=_BodyQ())
+    state = SimpleNamespace(body_q=wp.empty(1, dtype=wp.transform, device="cpu"))
     contacts = object()
     viewer = _Viewer()
 
-    monkeypatch.setattr(NewtonManager, "get_state", lambda _scene_data_provider=None: state)
     monkeypatch.setattr(NewtonManager, "get_contacts", lambda: contacts)
-    monkeypatch.setattr(NewtonManager, "get_num_envs", lambda: 1)
 
-    _make_newton_visualizer(viewer).step(0.1)
+    _make_newton_visualizer(viewer, state=state).step(0.1)
 
     assert viewer.logged_state is state
     assert viewer.logged_contacts == (contacts, state)
@@ -679,15 +692,13 @@ def test_newton_visualizer_logs_native_contacts_when_available(monkeypatch):
 def test_newton_visualizer_logs_staged_mesh_inside_frame(monkeypatch):
     from isaaclab_newton.physics import NewtonManager
 
-    state = SimpleNamespace(body_q=_BodyQ())
+    state = SimpleNamespace(body_q=wp.empty(1, dtype=wp.transform, device="cpu"))
     viewer = _Viewer()
-    visualizer = _make_newton_visualizer(viewer)
+    visualizer = _make_newton_visualizer(viewer, state=state)
     points = wp.zeros(3, dtype=wp.vec3)
     indices = wp.zeros(3, dtype=wp.int32)
 
-    monkeypatch.setattr(NewtonManager, "get_state", lambda _scene_data_provider=None: state)
     monkeypatch.setattr(NewtonManager, "get_contacts", lambda: None)
-    monkeypatch.setattr(NewtonManager, "get_num_envs", lambda: 1)
 
     normals = wp.zeros(3, dtype=wp.vec3)
 
@@ -726,16 +737,11 @@ def test_newton_visualizer_logs_staged_mesh_inside_frame(monkeypatch):
 
 
 def test_newton_visualizer_logs_staged_mesh_for_bodyless_state(monkeypatch):
-    from isaaclab_newton.physics import NewtonManager
-
-    state = SimpleNamespace(body_q=SimpleNamespace(shape=(0,)))
+    state = SimpleNamespace(body_q=wp.empty(0, dtype=wp.transform, device="cpu"))
     viewer = _Viewer()
-    visualizer = _make_newton_visualizer(viewer)
+    visualizer = _make_newton_visualizer(viewer, state=state)
     points = wp.zeros(3, dtype=wp.vec3)
     indices = wp.zeros(3, dtype=wp.int32)
-
-    monkeypatch.setattr(NewtonManager, "get_state", lambda _scene_data_provider=None: state)
-    monkeypatch.setattr(NewtonManager, "get_num_envs", lambda: 1)
 
     visualizer.log_mesh("/surface", points, indices, dynamic=True)
     visualizer.step(0.1)
@@ -745,15 +751,11 @@ def test_newton_visualizer_logs_staged_mesh_for_bodyless_state(monkeypatch):
 
 
 def test_newton_gl_visualizer_logs_staged_mesh_while_paused(monkeypatch):
-    from isaaclab_newton.physics import NewtonManager
-
     viewer = _Viewer()
     viewer.paused = True
     visualizer = _make_newton_visualizer(viewer)
     points = wp.zeros(3, dtype=wp.vec3)
     indices = wp.zeros(3, dtype=wp.int32)
-
-    monkeypatch.setattr(NewtonManager, "get_num_envs", lambda: 1)
 
     visualizer.log_mesh("/surface", points, indices, dynamic=True)
     visualizer.step(0.1)
@@ -766,14 +768,12 @@ def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch):
     """Headless EGL should defer rendering until a frame is requested."""
     from isaaclab_newton.physics import NewtonManager
 
-    state = SimpleNamespace(body_q=_BodyQ())
+    state = SimpleNamespace(body_q=wp.empty(1, dtype=wp.transform, device="cpu"))
     viewer = _Viewer()
 
-    monkeypatch.setattr(NewtonManager, "get_state", lambda _scene_data_provider=None: state)
     monkeypatch.setattr(NewtonManager, "get_contacts", lambda: None)
-    monkeypatch.setattr(NewtonManager, "get_num_envs", lambda: 1)
 
-    visualizer = _make_newton_visualizer(viewer)
+    visualizer = _make_newton_visualizer(viewer, state=state)
     visualizer._runtime_headless = True
     visualizer.step(0.1)
 
@@ -787,7 +787,7 @@ def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch):
 def test_newton_visualizer_contact_sensor_fallback_obeys_show_contacts(monkeypatch):
     from isaaclab_newton.physics import NewtonManager
 
-    state = SimpleNamespace(body_q=_BodyQ())
+    state = SimpleNamespace(body_q=wp.empty(1, dtype=wp.transform, device="cpu"))
     viewer = _Viewer()
     sensor = _ContactSensor(
         net_normal_forces_w=torch.tensor([[[0.0, 0.0, 2.0], [0.0, 0.0, 0.5]]], dtype=torch.float32),
@@ -796,11 +796,9 @@ def test_newton_visualizer_contact_sensor_fallback_obeys_show_contacts(monkeypat
     )
     scene_data_provider = _SceneDataProvider({"contact_forces": sensor})
 
-    monkeypatch.setattr(NewtonManager, "get_state", lambda _scene_data_provider=None: state)
     monkeypatch.setattr(NewtonManager, "get_contacts", lambda: None)
-    monkeypatch.setattr(NewtonManager, "get_num_envs", lambda: 1)
 
-    visualizer = _make_newton_visualizer(viewer, scene_data_provider)
+    visualizer = _make_newton_visualizer(viewer, scene_data_provider, state=state)
     visualizer.step(0.1)
     assert viewer.logged_arrows == ("/contacts", None, None, None)
 

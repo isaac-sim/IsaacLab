@@ -260,19 +260,23 @@ class RaycastCameraSceneCfg(RaycastTestSceneCfg):
     )
 
 
-def test_renderer_and_raycast_share_newton_manager_graph(sim):
-    """Tiled-camera and ray-cast updates share the Newton manager graph."""
-    scene = InteractiveScene(RaycastCameraSceneCfg(num_envs=1))
-    sim.reset()
-    sim.step()
-    scene.update(sim.get_physics_dt())
+def test_renderer_and_raycast_share_backend_with_independent_query_graphs(sim):
+    """Camera and raycaster borrow one model, with independently configured execution."""
+    cfg = RaycastCameraSceneCfg(num_envs=1)
+    cfg.raycast.use_cuda_graph = sim.cfg.physics.use_cuda_graph
+    cfg.camera.renderer_cfg.use_cuda_graph = sim.cfg.physics.use_cuda_graph
+    scene = InteractiveScene(cfg)
+    for _ in range(2):
+        sim.reset()
+        sim.step()
+        scene.update(sim.get_physics_dt())
 
-    depth = scene["camera"].data.output["depth"].torch
-    distances = scene["raycast"].data.ray_distances.torch
-    assert abs(depth[0, 24, 32].item() - RAY_START_HEIGHT) < 5e-3
-    torch.testing.assert_close(distances, torch.full_like(distances, RAY_START_HEIGHT), atol=1e-3, rtol=0)
+        depth = scene["camera"].data.output["depth"].torch
+        distances = scene["raycast"].data.ray_distances.torch
+        assert abs(depth[0, 24, 32].item() - RAY_START_HEIGHT) < 5e-3
+        torch.testing.assert_close(distances, torch.full_like(distances, RAY_START_HEIGHT), atol=1e-3, rtol=0)
 
-    task_names = sorted(NewtonManager._sensor_tasks)
-    assert any(name.startswith("newton_raycast:") for name in task_names)
-    assert any(name.startswith("newton_warp_render:") for name in task_names)
-    assert (NewtonManager._sensor_graph is not None) == sim.cfg.physics.use_cuda_graph
+        camera, raycast = scene["camera"], scene["raycast"]
+        assert camera._renderer.backend is raycast.backend is NewtonManager.backend
+        assert (raycast._graph is not None) == cfg.raycast.use_cuda_graph
+        assert (camera._render_data.graph is not None) == cfg.camera.renderer_cfg.use_cuda_graph

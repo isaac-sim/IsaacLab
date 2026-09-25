@@ -784,8 +784,8 @@ def test_automatic_physx_selection_prepares_ovphysx_before_stage_creation(monkey
     assert SimulationContext.instance() is None
 
 
-def test_transforms_read_native_slices_only_when_dirty(monkeypatch):
-    """Native bindings fill one shared pose buffer directly and skip clean publications."""
+def test_transforms_read_native_buffer_only_when_dirty():
+    """One fused native binding fills the pose buffer directly and skips clean publications."""
     import isaaclab_ov.physics.ovphysx_manager as module
     import numpy as np
     import warp as wp
@@ -797,60 +797,56 @@ def test_transforms_read_native_slices_only_when_dirty(monkeypatch):
     reads = []
 
     class FakePhysX:
-        def create_tensor_binding(self, pattern, tensor_type):
-            start, end = (0, 2) if pattern.endswith("/Cart") else (2, 3)
+        def create_tensor_binding(self, *, prim_paths, tensor_type):
+            assert prim_paths == paths
 
             def read(dst):
-                reads.append((start, dst.ptr))
-                wp.copy(dst, wp.array(expected[start:end], dtype=wp.float32, device="cpu"))
+                reads.append(dst.ptr)
+                wp.copy(dst, wp.array(expected, dtype=wp.float32, device="cpu"))
 
             return SimpleNamespace(
-                shape=(end - start, 7),
-                count=end - start,
+                shape=(len(paths), 7),
+                count=len(paths),
                 dtype=SimpleNamespace(code=2, bits=32, lanes=1),
-                prim_paths=paths[start:end],
+                prim_paths=paths,
                 read=read,
                 destroy=lambda: None,
             )
 
-    monkeypatch.setattr(module, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
-    stage = SimpleNamespace(Traverse=lambda: (_fake_rigid_body_prim(path) for path in paths))
     backend = module.OvPhysxSceneDataBackend()
-    backend.setup(FakePhysX(), stage, "cpu")
+    backend.setup(FakePhysX(), paths, "cpu")
     sdp = SceneDataProvider(backend)
 
     native = SceneDataFormat.Transform()
     assert sdp.get_transforms(native)
     assert backend.transform_count == len(paths)
     assert backend.transform_paths == paths
-    assert reads == [(0, native.transforms.ptr), (2, native.transforms.ptr + 2 * 7 * 4)]
+    assert reads == [native.transforms.ptr]
     np.testing.assert_array_equal(native.transforms.numpy(), expected)
     second_output = SceneDataFormat.Transform()
     assert sdp.get_transforms(second_output)
     assert second_output.transforms is native.transforms
-    assert len(reads) == 2
+    assert len(reads) == 1
 
     expected[:, 0] += 10
     backend.transforms_version += 1
     assert sdp.get_transforms(second_output)
     assert second_output.transforms is native.transforms
-    assert len(reads) == 4
+    assert len(reads) == 2
     np.testing.assert_array_equal(native.transforms.numpy(), expected)
 
 
-def test_setup_propagates_failed_rigid_binding(monkeypatch):
+def test_setup_propagates_failed_rigid_binding():
     """A failed binding cannot silently remove a body from the publication."""
     import isaaclab_ov.physics.ovphysx_manager as module
 
     class FailingPhysX:
-        def create_tensor_binding(self, pattern, tensor_type):
+        def create_tensor_binding(self, *, prim_paths, tensor_type):
             raise RuntimeError("simulated binding failure")
 
-    monkeypatch.setattr(module, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
-    stage = SimpleNamespace(Traverse=lambda: iter([_fake_rigid_body_prim("/World/Object")]))
     backend = module.OvPhysxSceneDataBackend()
     with pytest.raises(RuntimeError, match="simulated binding failure"):
-        backend.setup(FailingPhysX(), stage, "cpu")
+        backend.setup(FailingPhysX(), ["/World/Object"], "cpu")
 
 
 def test_failed_rigid_read_is_retried():
@@ -879,12 +875,11 @@ def test_geometry_publication_distinguishes_undeclared_and_empty_scenes(declared
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
 
     backend = OvPhysxSceneDataBackend()
-    stage = SimpleNamespace(Traverse=lambda: iter(()))
-    backend.setup(None, stage, "cpu", () if declared else None)
+    backend.setup(None, [], "cpu", () if declared else None)
     if declared:
         assert backend.get_geometry_batches() == []
         assert backend.native_geometry_formats == ()
-        backend.setup(None, stage, "cpu")
+        backend.setup(None, [], "cpu")
     with pytest.raises(RuntimeError, match="ClonePlan"):
         backend.get_geometry_batches()
     with pytest.raises(RuntimeError, match="ClonePlan"):
@@ -937,12 +932,11 @@ def test_deformable_only_setup_publishes_declared_geometry_in_native_order(node_
             )
 
     backend = module.OvPhysxSceneDataBackend()
-    stage = SimpleNamespace(Traverse=lambda: iter(()))
     if node_padding:
         with pytest.raises(RuntimeError, match="node counts"):
-            backend.setup(NativePhysX(), stage, "cpu", entries)
+            backend.setup(NativePhysX(), [], "cpu", entries)
         return
-    backend.setup(NativePhysX(), stage, "cpu", entries)
+    backend.setup(NativePhysX(), [], "cpu", entries)
 
     assert {kind for _, kind in bindings} == {TT.SURFACE_DEFORMABLE_SIM_POSITION, TT.DEFORMABLE_SIM_NODAL_POSITION}
     provider = SceneDataProvider(backend)

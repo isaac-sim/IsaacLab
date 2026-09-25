@@ -338,11 +338,11 @@ def test_collect_asset_cfgs_resolves_env_regex_macros_and_declares_globals():
     cfgs, global_paths, _ = scene._collect_asset_cfgs()
 
     prim_paths = sorted(c.prim_path for c in cfgs)
-    assert prim_paths == ["/World/envs/env_[^/]+/Cube", "/World/envs/env_[^/]+/Shape"]
+    assert prim_paths == ["/World/Ground", "/World/envs/env_[^/]+/Cube", "/World/envs/env_[^/]+/Shape"]
     assert global_paths == ("/World/Ground",)
 
 
-def test_collect_asset_cfgs_excludes_entities_without_spawners():
+def test_collect_asset_cfgs_retains_entities_without_spawners():
     """Sensors without spawners add no clone rows but still declare their debug-marker roots."""
 
     scene = object.__new__(InteractiveScene)
@@ -353,7 +353,12 @@ def test_collect_asset_cfgs_excludes_entities_without_spawners():
 
     cfgs, global_paths, _ = scene._collect_asset_cfgs()
 
-    assert cfgs == []
+    assert cfgs == [
+        sensor.visualizer_cfg,
+        sensor.normal_force_visualizer_cfg,
+        sensor.friction_force_visualizer_cfg,
+        sensor,
+    ]
     assert global_paths == (sensor.visualizer_cfg.prim_path,)
 
 

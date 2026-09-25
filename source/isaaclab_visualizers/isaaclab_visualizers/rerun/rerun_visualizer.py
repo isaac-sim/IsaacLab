@@ -20,8 +20,11 @@ import newton
 import numpy as np
 import rerun as rr
 import rerun.blueprint as rrb
+from isaaclab_newton.cloner import NewtonReplicateContext
 from newton.viewer import ViewerRerun
 
+from isaaclab.scene_data import SceneDataFormat
+from isaaclab.sim import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
@@ -322,8 +325,7 @@ class RerunVisualizer(BaseVisualizer):
         self._backend_display: str | None = None
         self._sim_time = 0.0
         self._step_counter = 0
-        self._model = None
-        self._state = None
+        self.backend = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._resolved_visible_env_ids: list[int] | None = None
         self._camera_sensor = None
@@ -341,16 +343,15 @@ class RerunVisualizer(BaseVisualizer):
         Args:
             scene_data_provider: Scene data provider used to fetch model/state data.
         """
-        from isaaclab_newton.physics import NewtonManager
-
         if self._is_initialized:
             return
 
         scene_data_provider = self._set_scene_data_provider(scene_data_provider)
         num_envs = scene_data_provider.num_envs
         self._env_ids = self._compute_visualized_env_ids()
-        self._model = NewtonManager.get_model()
-        self._state = NewtonManager.get_state(self._scene_data_provider)
+        sim = SimulationContext.instance()
+        self.backend = sim.get_or_create_backend(sim.clone_contexts[NewtonReplicateContext].backend_cfg)
+        self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         grpc_port = int(self.cfg.grpc_port)
         web_port = int(self.cfg.web_port)
@@ -384,7 +385,7 @@ class RerunVisualizer(BaseVisualizer):
         self._log_viewer_url("RerunVisualizer", viewer_url)
         if self.cfg.open_browser and not start_server_in_viewer:
             _open_rerun_web_viewer(viewer_host, web_port, rerun_address)
-        self._viewer.set_model(self._model)
+        self._viewer.set_model(self.backend.model)
         self._viewer.show_particles = self.cfg.show_particles
         apply_viewer_visible_worlds(
             self._viewer,
@@ -436,30 +437,31 @@ class RerunVisualizer(BaseVisualizer):
         Args:
             dt: Simulation time-step in seconds.
         """
-        from isaaclab_newton.physics import NewtonManager
-
         if not self._is_initialized or self._is_closed or self._viewer is None:
             return
 
         self._sim_time += dt
         self._step_counter += 1
 
-        self._state = NewtonManager.get_state(self._scene_data_provider)
-        num_envs = NewtonManager.get_num_envs()
+        num_envs = self.backend.model.num_envs
 
         if not self._viewer.is_paused():
+            backend, provider = self.backend, self._scene_data_provider
+            poses = SceneDataFormat.Transform()
+            if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
+                backend.state_0.body_q = poses.transforms
+            if backend.geometry_offsets:
+                provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
             self._viewer.begin_frame(self._sim_time)
             try:
-                if self._state is not None:
-                    body_q = getattr(self._state, "body_q", None)
-                    # Skip log_state for empty body arrays but do not return: _push_streaming_frame
-                    # must still run after end_frame() so the streaming panel stays live.
-                    if not (hasattr(body_q, "shape") and body_q.shape[0] == 0):
-                        self._viewer.log_state(self._state)
-                        if self.cfg.enable_markers:
-                            render_newton_visualization_markers(
-                                self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
-                            )
+                # Empty body arrays skip log_state, but streaming still runs after end_frame.
+                body_q = backend.state_0.body_q
+                if body_q is None or body_q.shape[0]:
+                    self._viewer.log_state(backend.state_0)
+                    if self.cfg.enable_markers:
+                        render_newton_visualization_markers(
+                            self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
+                        )
                 self._render_live_plots()
             finally:
                 self._viewer.end_frame()
@@ -474,6 +476,20 @@ class RerunVisualizer(BaseVisualizer):
             self._compose_streaming_frame()
         else:
             self._push_streaming_frame()
+
+    def reset(self, soft: bool = False) -> None:
+        """Rebind the viewer when a hard reset replaces the shared native model."""
+        if soft or not self._is_initialized or self._is_closed:
+            return
+        sim = SimulationContext.instance()
+        backend = sim.get_or_create_backend(sim.clone_contexts[NewtonReplicateContext].backend_cfg)
+        if backend is self.backend:
+            return
+        self.backend = backend
+        self._transform_mapping = self._scene_data_provider.create_mapping(list(backend.model.body_label))
+        self._viewer.set_model(backend.model)
+        self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
+        self._viewer.set_world_offsets((0.0, 0.0, 0.0))
 
     def close(self) -> None:
         """Close viewer/session resources."""
@@ -499,6 +515,7 @@ class RerunVisualizer(BaseVisualizer):
             rr.disconnect()
         except Exception as exc:
             logger.warning("[RerunVisualizer] Failed while disconnecting rerun: %s", exc)
+        self.backend = self._scene_data_provider = self._transform_mapping = None
         self._is_closed = True
 
     def is_running(self) -> bool:

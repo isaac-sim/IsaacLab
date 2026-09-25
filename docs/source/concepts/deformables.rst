@@ -48,7 +48,7 @@ use a separate asset and solver; see :doc:`/source/concepts/using_mpm`.
 
 .. note::
     All three kinds are under active development. On Newton, deformables are implemented in
-    :mod:`isaaclab_contrib.deformable` and re-exported through :mod:`isaaclab_newton.assets`.
+    :mod:`isaaclab_newton.assets`, alongside rigid objects and articulations.
     Cable support in particular is experimental: its spawner cfg, asset class, and material
     defaults may still change.
 
