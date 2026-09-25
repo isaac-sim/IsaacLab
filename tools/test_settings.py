@@ -80,11 +80,17 @@ PER_TEST_STARTUP_TIMEOUTS = {
 }
 """Per-test startup timeouts for cold external asset downloads."""
 
-PYTEST_WORKER_LIMITS = {
-    "test_isaac_rtx_renderer_rigid_object_rendering.py": 2,
-    "test_isaac_rtx_renderer_scene_partitioning.py": 2,
+PYTEST_WORKERS = {
+    # 20 independent export round trips, ~18 min serially: the RL job's long pole.
+    "test_leapp_export_flow.py": 4,
 }
-"""Per-file xdist limits for renderer tests slowed by four concurrent Kit startups."""
+"""Test files split across ``pytest-xdist`` workers, and how many.
+
+Every worker starts its own process -- and its own Kit app and simulation, for files that launch one -- so
+splitting only pays off for files whose tests take far longer than that startup. List a file here when it
+is the long pole of its CI job. Each worker holds one of the job's ``TEST_JOBS`` slots; a file never gets
+more workers than the job has slots.
+"""
 
 CUROBO_PLANNER_TESTS = [
     "test_curobo_planner_franka.py",
