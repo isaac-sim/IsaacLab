@@ -65,7 +65,8 @@
 
 ## Changelog and release metadata
 
-- Do not edit `CHANGELOG.rst` or `config/extension.toml` directly.
+- Do not edit `CHANGELOG.rst` or a package's version field directly; the nightly workflow compiles both.
+- If you do set a version by hand, re-point the lockfile with `uv run python tools/changelog/cli.py sync-lock`; `uv.lock` pins every workspace member by version, so drift fails `uv sync --locked`.
 - Add one changelog fragment for each changed source package when the change is user-visible.
 - Use `.skip` fragments for changes that do not require a release note.
 - Write changelog entries in past tense and include migration guidance for deprecated, changed, or removed behavior.
