@@ -62,11 +62,9 @@ def test_reach_diffik_abs_legacy_task_is_a_deprecated_alias():
 _REACH_PRESET_CASES = [
     (_TASK, (), "JointPositionActionCfg", "NewtonCfg"),
     (_TASK, ("isaacsim_physx",), "JointPositionActionCfg", "PhysxCfg"),
-    (_TASK, ("newton_mjwarp",), "JointPositionActionCfg", "NewtonCfg"),
     (_TASK, ("ovphysx",), "JointPositionActionCfg", "OvPhysxCfg"),
     (_TASK, ("diffik",), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
     (_TASK, ("diffik", "isaacsim_physx"), "DifferentialInverseKinematicsActionCfg", "PhysxCfg"),
-    (_TASK, ("diffik", "newton_mjwarp"), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
     (_TASK, ("diffik_abs", "isaacsim_physx"), "DifferentialInverseKinematicsActionCfg", "PhysxCfg"),
     (_TASK, ("diffik_abs", "newton_mjwarp"), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
     (_TASK, ("diffik_abs", "ovphysx"), "DifferentialInverseKinematicsActionCfg", "OvPhysxCfg"),
@@ -76,7 +74,6 @@ _REACH_PRESET_CASES = [
     (_OSC_TASK, ("ovphysx",), "OperationalSpaceControllerActionCfg", "OvPhysxCfg"),
     ("Isaac-Reach-UR10", (), "JointPositionActionCfg", "NewtonCfg"),
     ("Isaac-Reach-UR10", ("isaacsim_physx",), "JointPositionActionCfg", "PhysxCfg"),
-    ("Isaac-Reach-UR10", ("newton_mjwarp",), "JointPositionActionCfg", "NewtonCfg"),
 ]
 
 
@@ -149,13 +146,10 @@ def test_reach_newton_ik_configures_gravity_compensation():
     assert mujoco_props.gravcomp == pytest.approx(1.0)
     assert cfg.scene.robot.spawn.usd_path.endswith("/FrankaEmika/franka_panda.usda")
 
-
-def test_reach_newton_ik_uses_native_se3_command_convention():
-    cfg = _load_env_cfg("newton_ik", "newton_mjwarp")
+    # Native SE(3) command convention: one relative 6-DoF pose objective.
     pose_objectives = [
         objective for objective in cfg.actions.arm_action.objectives if isinstance(objective, NewtonIKPoseObjectiveCfg)
     ]
-
     assert len(pose_objectives) == 1
     assert pose_objectives[0].command_type == "pose"
     assert pose_objectives[0].use_relative_mode
