@@ -720,30 +720,40 @@ def normalize_image_uint8(
     src: wp.array4d(dtype=wp.uint8),
     mean: wp.array2d(dtype=wp.float32),
     out: wp.array4d(dtype=wp.float32),
-    channel_dim: wp.int32,
+    src_channel_dim: wp.int32,
+    out_channel_dim: wp.int32,
 ):
     """Compute ``out = src / 255.0 - mean`` per element, with ``mean`` broadcast over the spatial dims.
 
     ``mean`` must be precomputed by the caller as the per-(batch, channel) mean of
     ``src / 255.0`` along the two non-batch, non-channel axes.
 
-    Dispatch with ``dim=src.shape``. The spatial axes are symmetric; only the channel index
-    lookup differs between BHWC and BCHW layouts.
+    Dispatch with ``dim=out.shape`` so that the float32 writes are coalesced. ``src`` may be a
+    strided view, e.g. the RGB channels of an RGBA buffer.
 
     Args:
         src: Input uint8 image. Shape is ``(B, H, W, C)`` or ``(B, C, H, W)``.
         mean: Per-(batch, channel) mean of ``src / 255.0``. Shape is ``(B, C)``.
-        out: Output float32 tensor. Same shape as ``src``.
-        channel_dim: Resolved positive position of the channel axis -- ``1`` (BCHW) or
-            ``3`` (BHWC). Constant across all threads; the wrapper validates the value
-            and resolves negatives before launch.
+        out: Output float32 tensor. Same as ``src`` with the channel axis at ``out_channel_dim``.
+        src_channel_dim: Resolved position of the source channel axis -- ``1`` (BCHW) or
+            ``3`` (BHWC).
+        out_channel_dim: Resolved position of the output channel axis -- ``1`` (BCHW) or
+            ``3`` (BHWC).
     """
     b, d1, d2, d3 = wp.tid()
-    if channel_dim == 1:
+    if out_channel_dim == 1:
         c = d1
+        h = d2
+        w = d3
     else:
         c = d3
-    out[b, d1, d2, d3] = wp.float32(src[b, d1, d2, d3]) / 255.0 - mean[b, c]
+        h = d1
+        w = d2
+    if src_channel_dim == 1:
+        value = wp.float32(src[b, c, h, w]) / 255.0
+    else:
+        value = wp.float32(src[b, h, w, c]) / 255.0
+    out[b, d1, d2, d3] = value - mean[b, c]
 
 
 @wp.kernel(enable_backward=False)
