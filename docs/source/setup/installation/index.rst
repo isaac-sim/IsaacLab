@@ -322,12 +322,6 @@ Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`__ or
 It does not install ``tetrahedralization``, ``contrib``, ``ov``, or Isaac Sim;
 request those explicitly when needed.
 
-In a Linux graphical session outside a container, ``-i`` also writes hidden desktop entries to
-``$XDG_DATA_HOME/applications`` (default ``~/.local/share/applications``): ``isaaclab.desktop``,
-``isaaclab-newton-gl-viewer.desktop``, and ``isaaclab-newton-rtx-viewer.desktop``. They let the
-dock show the Isaac Sim and Newton icons for visualizer windows instead of a generic icon. Delete
-them to remove the icons; they do not affect running Isaac Lab.
-
 Use ``-i core`` for core packages only. Otherwise, pass a comma-separated list of selectors:
 
 .. list-table::
