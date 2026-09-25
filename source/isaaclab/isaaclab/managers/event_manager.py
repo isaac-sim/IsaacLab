@@ -209,6 +209,9 @@ class EventManager(ManagerBase):
         if mode == "reset" and global_env_step_count is None:
             raise ValueError(f"Event mode '{mode}' requires the total number of environment steps to be provided.")
 
+        if mode == "reset" and env_ids is not None and not isinstance(env_ids, torch.Tensor):
+            env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
+
         for index, term_cfg in enumerate(self._mode_term_cfgs[mode]):
             # initialize class-based terms if not already initialized (for non-prestartup modes)
             if inspect.isclass(term_cfg.func):
