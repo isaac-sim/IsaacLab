@@ -321,7 +321,7 @@ class NewtonReplicateContext:
         """Build and publish a Newton model from this context's plan rows."""
         if plan.env_ids is None:
             raise ValueError("ClonePlan.env_ids is required for replication.")
-        return _replicate_newton(self._sim.stage, plan, plan.context_rows[type(self)], self._sim, up_axis=self.up_axis)
+        return _replicate_newton(self._sim.stage, plan, plan.context_source_indices[type(self)], self._sim, up_axis=self.up_axis)
 
 
 def newton_physics_replicate(
