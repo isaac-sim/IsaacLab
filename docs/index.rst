@@ -91,6 +91,7 @@ Table of Contents
    source/setup/ecosystem
    source/setup/installation/index
    source/setup/environments
+   source/setup/contrib_stacking
    source/setup/quickstart
    source/setup/tutorial
    source/setup/demos

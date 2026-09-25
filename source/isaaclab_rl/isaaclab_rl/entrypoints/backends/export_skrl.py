@@ -116,7 +116,7 @@ def export_skrl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: dic
 
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode=None)
     try:
-        policy_node_name = prepare_export_env(env, args_cli, required_obs_groups={"policy"})
+        policy_node_name, patcher = prepare_export_env(env, args_cli, required_obs_groups={"policy"})
         if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg) and algorithm == "ppo":
             env = multi_agent_to_single_agent(env)
         env = SkrlVecEnvWrapper(env, ml_framework="torch")
@@ -136,7 +136,7 @@ def export_skrl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: dic
         recurrent = is_skrl_lstm_policy(agent)
 
         save_path = resolve_export_save_path(args_cli, "skrl", log_dir)
-        with leapp_capture(args_cli, save_path=save_path, env_cfg=env_cfg) as num_steps:
+        with leapp_capture(args_cli, save_path=save_path, env_cfg=env_cfg, patcher=patcher) as num_steps:
             obs, _ = env.reset()
             states = env.state()
             for _ in range(num_steps):

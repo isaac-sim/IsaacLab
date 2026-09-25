@@ -12,7 +12,14 @@ from typing import TYPE_CHECKING
 from pxr import Usd, UsdGeom
 
 from ... import schemas
-from ...utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
+from ...utils import (
+    bind_physics_material,
+    bind_visual_material,
+    clone,
+    create_prim,
+    get_current_stage,
+    set_prim_visibility,
+)
 from .._utils import fragment_mapping, props_expr
 from ..materials.physics_materials import spawn_physics_material
 
@@ -350,6 +357,7 @@ def _spawn_geom_from_prim_type(
     geom_prim_path = prim_path + "/geometry"
     mesh_prim_path = geom_prim_path + "/mesh"
     create_prim(mesh_prim_path, prim_type, scale=scale, attributes=attributes, stage=stage)
+    set_prim_visibility(stage.GetPrimAtPath(prim_path), cfg.visible)
     if geometry_schema_func is not None:
         geometry_schema_func(mesh_prim_path, stage=stage)
     # apply collision properties

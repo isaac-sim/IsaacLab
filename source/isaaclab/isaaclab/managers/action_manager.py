@@ -116,6 +116,16 @@ class ActionTerm(ManagerTermBase):
         """
         return self._export_IO_descriptor
 
+    @property
+    def controller_owned_write_methods(self) -> dict[str, str]:
+        """Map controller-owned asset write methods to deployment capabilities.
+
+        LEAPP excludes these writes from the exported policy outputs while still executing
+        them during the trace. Each value names the capability that a deployment adapter must
+        explicitly provide.
+        """
+        return self.cfg.controller_owned_write_methods
+
     """
     Operations.
     """

@@ -79,7 +79,9 @@ Match the Training and Export Configuration
 The deployment command rebuilds the task configuration from ``--task``. It cannot infer the
 training configuration from the checkpoint or LEAPP YAML, so you must provide the same
 configuration selections used for training and export. The task name, LEAPP YAML, and
-checkpoint must describe the same policy.
+checkpoint must describe the same policy. The command applies the task's ``play_mode()``
+configuration before Hydra overrides, matching the export path and disabling common
+training-only behavior such as observation corruption.
 
 Carry these settings through **training**, **export**, and **deployment**:
 
@@ -111,7 +113,35 @@ execution, use ``--viz kit`` for the Omniverse Kit viewport, or select ``newton_
 ``newton_rtx`` (experimental), ``rerun``, or ``viser`` when those visualizers are installed.
 Use ``--viz none`` to explicitly disable all visualizers, and ``--max_visible_envs <COUNT>``
 to limit displayed environments. Choose a visualizer compatible with the selected physics and
-renderer backend.
+renderer backend. For a bounded headless canary, pass ``--max_steps <COUNT>``.
+
+Controller and Hardware Handoff
+-------------------------------
+
+The Isaac Lab deployment command validates every controller-owned write declared in the pipeline.
+For simulation, it explicitly supplies the built-in ``gravity_compensation`` capability from the
+articulation model at the same cadence as the task's action manager. Unknown capabilities,
+unresolved joints, duplicate owners, and overlap with a policy output stop deployment before the
+policy runs.
+
+On hardware, the robot runtime must explicitly acknowledge every capability listed under
+``pipeline.configs.isaaclab.controller_owned_writes``. For example, the Franka stack policy emits
+arm position and gripper targets while the FR3 joint-impedance controller owns gravity
+compensation. The hardware adapter must therefore verify that gravity compensation is enabled in
+that controller and must **not** synthesize or forward an additional model effort output, which
+would create two gravity owners.
+
+The ``action_apply`` cadence records where the simulator refreshes its substitute write. It does
+not reduce a hardware controller's gravity compensation to the policy rate; the FR3 controller
+continues to provide gravity compensation at its normal servo rate.
+
+Use the generated tensor descriptions as the source of truth when wiring an Isaac ROS Deploy
+graph. Match each input's semantic kind, dtype, shape, and element-name order; do not duplicate
+normalization or layout conversion already captured inside the exported graph. Keep command
+limits, freshness/watchdog checks, fault handling, and emergency-stop behavior outside the policy
+and validate them before enabling robot motion. See the
+`Isaac ROS Deploy documentation <https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_deploy/index.html>`__
+for runtime graph integration.
 
 .. note::
 

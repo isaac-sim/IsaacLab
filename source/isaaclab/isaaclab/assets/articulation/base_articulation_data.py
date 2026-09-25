@@ -359,7 +359,10 @@ class BaseArticulationData(ABC):
     ##
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_POSITION)
+    @leapp_tensor_semantics(
+        kind=InputKindEnum.COMMAND_JOINT_POSITION,
+        element_names_resolver=joint_names_resolver,
+    )
     def joint_pos_target(self) -> ProxyArray:
         """Joint position targets commanded by the user [m or rad, depending on joint type].
 
@@ -371,7 +374,10 @@ class BaseArticulationData(ABC):
         return self._get_actuator_collection_proxy("joint_pos_target", "_joint_pos_target", "_joint_pos_target_ta")
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_VELOCITY)
+    @leapp_tensor_semantics(
+        kind=InputKindEnum.COMMAND_JOINT_VELOCITY,
+        element_names_resolver=joint_names_resolver,
+    )
     def joint_vel_target(self) -> ProxyArray:
         """Joint velocity targets commanded by the user [m/s or rad/s, depending on joint type].
 
@@ -383,7 +389,10 @@ class BaseArticulationData(ABC):
         return self._get_actuator_collection_proxy("joint_vel_target", "_joint_vel_target", "_joint_vel_target_ta")
 
     @property
-    @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_TORQUES)
+    @leapp_tensor_semantics(
+        kind=InputKindEnum.COMMAND_JOINT_TORQUES,
+        element_names_resolver=joint_names_resolver,
+    )
     def joint_effort_target(self) -> ProxyArray:
         """Joint effort targets commanded by the user [N or N·m, depending on joint type].
 

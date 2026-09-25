@@ -121,7 +121,9 @@ def export_rl_games_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg:
 
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode=None)
     try:
-        policy_node_name = prepare_export_env(env, args_cli, required_obs_groups=_required_obs_groups(agent_cfg))
+        policy_node_name, patcher = prepare_export_env(
+            env, args_cli, required_obs_groups=_required_obs_groups(agent_cfg)
+        )
         if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
             env = multi_agent_to_single_agent(env)
         env = RlGamesVecEnvWrapper.from_agent_cfg(env, agent_cfg)
@@ -141,7 +143,7 @@ def export_rl_games_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg:
         agent.reset()
 
         save_path = resolve_export_save_path(args_cli, "rl_games", log_dir)
-        with leapp_capture(args_cli, save_path=save_path, env_cfg=env_cfg) as num_steps:
+        with leapp_capture(args_cli, save_path=save_path, env_cfg=env_cfg, patcher=patcher) as num_steps:
             obs = env.reset()
             if isinstance(obs, dict):
                 obs = obs["obs"]

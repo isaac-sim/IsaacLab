@@ -8,3 +8,6 @@ Use :class:`LeappDeploymentEnv` to run a LEAPP-exported policy in an Isaac Lab s
 
 .. autoclass:: LeappDeploymentEnv
    :members:
+
+.. autoclass:: ControllerOwnedWriteSpec
+   :members:

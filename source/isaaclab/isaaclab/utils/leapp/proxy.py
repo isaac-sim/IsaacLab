@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any, cast
 
 import torch
@@ -114,6 +114,13 @@ def _unique_output_name(term_name: str, method_name: str, output_cache: list[Ten
         candidate = f"{term_name}_{method_name}_{suffix}"
         suffix += 1
     return candidate
+
+
+def _to_plain_lists(value: Any) -> Any:
+    """Recursively copy list subclasses into YAML-safe built-in lists."""
+    if isinstance(value, list):
+        return [_to_plain_lists(item) for item in value]
+    return value
 
 
 class _DataProxy:
@@ -457,7 +464,9 @@ class _ArticulationWriteProxy:
         output_cache: list[TensorSemantics],
         method_resolution_cache: dict[tuple[type, str], tuple[Callable, Any, inspect.Signature] | None],
         captured_write_term_names: set[str],
+        controller_owned_write_requirements: list[dict[str, Any]],
         data_proxy: _DataProxy,
+        controller_owned_write_methods: Mapping[str, str] | None = None,
     ):
         object.__setattr__(self, "_real_asset", real_asset)
         object.__setattr__(self, "_entity_name", entity_name)
@@ -465,7 +474,9 @@ class _ArticulationWriteProxy:
         object.__setattr__(self, "_output_cache", output_cache)
         object.__setattr__(self, "_method_resolution_cache", method_resolution_cache)
         object.__setattr__(self, "_captured_write_term_names", captured_write_term_names)
+        object.__setattr__(self, "_controller_owned_write_requirements", controller_owned_write_requirements)
         object.__setattr__(self, "_data_proxy", data_proxy)
+        object.__setattr__(self, "_controller_owned_write_methods", dict(controller_owned_write_methods or {}))
 
     @property
     def data(self):
@@ -490,6 +501,40 @@ class _ArticulationWriteProxy:
 
         def interceptor(*args, **kwargs):
             result = original_method(*args, **kwargs)
+            controller_owned_write_methods = object.__getattribute__(self, "_controller_owned_write_methods")
+            if name in controller_owned_write_methods:
+                # Treat the term as handled so processed-action fallback cannot
+                # re-expose a write intentionally owned by the controller.
+                captured_write_term_names.add(term_name)
+                bound_args = signature.bind_partial(real_asset, *args, **kwargs)
+                target = bound_args.arguments.get("target")
+                if not isinstance(target, torch.Tensor):
+                    raise TypeError(
+                        f"Controller-owned write '{name}' must receive a tensor target during LEAPP export."
+                    )
+                joint_ids = bound_args.arguments.get("joint_ids")
+                semantic_tensor = TensorSemantics(
+                    name=term_name,
+                    ref=target,
+                    kind=semantics_meta.kind,
+                    element_names=resolve_leapp_element_names(
+                        semantics_meta,
+                        _WriteJointNameContext(real_asset.joint_names, joint_ids),
+                    ),
+                )
+                kind = semantic_tensor.kind
+                requirement = {
+                    "capability": controller_owned_write_methods[name],
+                    "source_term": term_name,
+                    "kind": getattr(kind, "value", kind),
+                    "element_names": _to_plain_lists(semantic_tensor.element_names),
+                    "cadence": "action_apply",
+                    **build_write_connection(object.__getattribute__(self, "_entity_name"), name),
+                }
+                requirements = object.__getattribute__(self, "_controller_owned_write_requirements")
+                if requirement not in requirements:
+                    requirements.append(requirement)
+                return result
             bound_args = signature.bind_partial(real_asset, *args, **kwargs)
             target = bound_args.arguments.get("target")
 

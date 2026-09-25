@@ -5,9 +5,11 @@
 
 """Tests for the installed LEAPP commands."""
 
+import contextlib
 import os
 import subprocess
 import sys
+from types import ModuleType, SimpleNamespace
 from unittest import mock
 
 import pytest
@@ -73,12 +75,70 @@ def test_deploy_dispatches_in_process():
     deploy.assert_called_once_with(args)
 
 
-def test_deploy_propagates_nonzero_status():
-    """Deployment failures become the CLI process status."""
-    deploy_module = mock.Mock()
-    deploy_module.command_deploy_leapp.return_value = 3
-    with mock.patch.dict(sys.modules, {"isaaclab.cli.commands.deploy": deploy_module}):
-        with pytest.raises(SystemExit) as exc_info:
-            cli.leapp(["deploy", "--task", "Isaac-Cartpole", "--pipeline", "policy.yaml"])
+def test_deploy_resolves_play_mode_and_injects_simulation_controller():
+    """Deployment should use play config, forward the seed, and supply simulator capabilities."""
+    from isaaclab.cli.commands import deploy as deploy_module
 
-    assert exc_info.value.code == 3
+    calls = []
+
+    class FakeAppLauncher:
+        @staticmethod
+        def add_app_launcher_args(parser):
+            parser.add_argument("--device", default=None)
+
+        @staticmethod
+        def _fuse_kit_args(argv):
+            return argv
+
+    class FakeDeploymentEnv:
+        @classmethod
+        def simulated_controller_owned_write_handlers(cls):
+            return {"gravity_compensation": "simulated"}
+
+        def __init__(self, cfg, pipeline, *, controller_owned_write_handlers):
+            calls.append(("env_init", cfg.seed, pipeline, controller_owned_write_handlers))
+            self.cfg = cfg
+            self.num_envs = 1
+            self.step_dt = cfg.sim.dt * cfg.decimation
+            self.sim = SimpleNamespace(is_headless_or_exist_active_visualizer=lambda: True)
+
+        def reset(self):
+            calls.append("env_reset")
+
+        def step(self):
+            calls.append("env_step")
+
+        def close(self):
+            calls.append("env_close")
+
+    cfg = SimpleNamespace(seed=None, sim=SimpleNamespace(device="cpu", dt=0.01), decimation=2)
+    fake_envs_module = ModuleType("isaaclab.envs")
+    fake_envs_module.LeappDeploymentEnv = FakeDeploymentEnv
+    resolve = mock.Mock(return_value=(cfg, None))
+
+    @contextlib.contextmanager
+    def fake_launch_simulation(launch_cfg, launch_args):
+        calls.append(("launch", launch_cfg, launch_args.device))
+        yield
+        calls.append("launch_close")
+
+    with (
+        mock.patch.object(deploy_module, "AppLauncher", FakeAppLauncher),
+        mock.patch.object(deploy_module, "launch_simulation", fake_launch_simulation),
+        mock.patch.object(deploy_module, "resolve_task_config", resolve),
+        mock.patch.dict(sys.modules, {"isaaclab.envs": fake_envs_module}),
+    ):
+        status = deploy_module.command_deploy_leapp(
+            ["--task", "Isaac-Test-v0", "--pipeline", "policy.yaml", "--seed", "29", "--max_steps", "2"]
+        )
+
+    assert status == 0
+    resolve.assert_called_once_with("Isaac-Test-v0", "", play_mode=True)
+    assert calls[0] == ("launch", cfg, None)
+    assert calls[1] == (
+        "env_init",
+        29,
+        "policy.yaml",
+        {"gravity_compensation": "simulated"},
+    )
+    assert calls[2:] == ["env_reset", "env_step", "env_step", "env_close", "launch_close"]

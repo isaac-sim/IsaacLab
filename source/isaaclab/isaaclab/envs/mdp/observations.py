@@ -395,7 +395,20 @@ def image(
         The images produced at the last time-step
     """
     sensor: Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
-    images = sensor.data.output[data_type]
+
+    # obtain the input image
+    # RGB has a dedicated semantic property so LEAPP can expose the raw NHWC image as a
+    # ``state/camera/image`` input. Other renderer outputs remain available through the map.
+    if data_type == "rgb":
+        try:
+            images = sensor.data.rgb
+        except AttributeError:
+            # Preserve compatibility with camera-like sensor data containers that only expose
+            # the historical output map.
+            images = sensor.data.output[data_type]
+    else:
+        images = sensor.data.output[data_type]
+
     # depth image conversion
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
         images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)

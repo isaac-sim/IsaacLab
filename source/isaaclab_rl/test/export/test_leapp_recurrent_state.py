@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import importlib
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from typing import Any, Literal
 
 import numpy as np
@@ -71,6 +71,35 @@ class TestSharedRecurrentState:
 
         assert list(state_dict.keys()) == ["actor_state_0", "actor_state_1"]
         assert restored == states
+
+    def test_graph_configs_include_controller_owned_write_contract(self):
+        """Preserve controller responsibilities in graph-level LEAPP metadata."""
+        pytest.importorskip("leapp")
+        export_common = _load_export_common_module()
+        env_cfg = SimpleNamespace(sim=SimpleNamespace(dt=0.01), decimation=2)
+        requirement = {
+            "capability": "gravity_compensation",
+            "source_term": "arm_action",
+            "kind": "target/joint/effort",
+            "element_names": [["joint_a"]],
+            "cadence": "action_apply",
+            "isaaclab_connection": "write:robot:set_joint_effort_target_index",
+        }
+
+        graph_configs = export_common.create_graph_configs(
+            env_cfg,
+            controller_owned_write_requirements=(requirement,),
+        )
+
+        assert graph_configs.to_dict() == {
+            "frequency": 50.0,
+            "isaaclab": {
+                "controller_owned_writes": {
+                    "schema_version": 1,
+                    "requirements": [requirement],
+                }
+            },
+        }
 
 
 @pytest.mark.parametrize("rnn_type", ["lstm", "gru"])

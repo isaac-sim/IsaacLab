@@ -1,0 +1,259 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Public-contract tests for the reset-oriented Franka and KUKA stack tasks."""
+
+from types import SimpleNamespace
+
+import gymnasium as gym
+import pytest
+import torch
+from isaaclab_newton.physics import NewtonCfg
+from rsl_rl.algorithms import Distillation
+
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.sim.spawners.from_files import GroundPlaneCfg
+from isaaclab.utils import modifiers
+from isaaclab.utils.noise import UniformNoiseCfg
+
+import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.contrib.stack import mdp
+from isaaclab_tasks.contrib.stack.config.franka.agents.distillation import ClippedTeacherDistillation
+from isaaclab_tasks.contrib.stack.config.kuka_allegro.agents.rsl_rl_ppo_cfg import (
+    KukaAllegroGaussianDistribution,
+)
+from isaaclab_tasks.contrib.stack.mdp.kuka_allegro_reset import (
+    KUKA_ALLEGRO_ALL_HAND_JOINT_NAMES,
+)
+from isaaclab_tasks.contrib.stack.mdp.runtime_state import create_stack_reset_runtime_state
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
+
+FRANKA_STATE_TASK = "IsaacContrib-Stack-Cube-Franka-RL"
+FRANKA_CAMERA_TASK = "IsaacContrib-Stack-Cube-Franka-RL-Camera"
+FRANKA_DISTILLATION_TASK = "IsaacContrib-Stack-Cube-Franka-RL-Camera-Distillation"
+KUKA_STATE_TASK = "IsaacContrib-Stack-Cube-KukaAllegro-RL"
+
+
+@pytest.mark.parametrize(
+    ("task_name", "env_cfg_name", "runner_cfg_name"),
+    (
+        (FRANKA_STATE_TASK, "FrankaCubeStackRLEnvCfg", "FrankaStackPPORunnerCfg"),
+        (FRANKA_CAMERA_TASK, "FrankaCubeStackCameraRLEnvCfg", "FrankaStackCameraPPORunnerCfg"),
+        (
+            FRANKA_DISTILLATION_TASK,
+            "FrankaCubeStackCameraRLEnvCfg",
+            "FrankaStackCameraDistillationRunnerCfg",
+        ),
+        (KUKA_STATE_TASK, "KukaAllegroCubeStackRLEnvCfg", "KukaAllegroStackPPORunnerCfg"),
+    ),
+)
+def test_supported_tasks_are_registered(task_name: str, env_cfg_name: str, runner_cfg_name: str):
+    """Each supported task resolves one environment and one RSL-RL configuration."""
+    spec = gym.spec(task_name)
+
+    assert spec.kwargs["env_cfg_entry_point"].endswith(f":{env_cfg_name}")
+    assert spec.kwargs["rsl_rl_cfg_entry_point"].endswith(f":{runner_cfg_name}")
+    assert load_cfg_from_registry(task_name, "rsl_rl_cfg_entry_point") is not None
+
+
+@pytest.fixture(scope="module")
+def stack_cfgs():
+    cfgs = {
+        task_name: parse_env_cfg(task_name, device="cuda:0", num_envs=8)
+        for task_name in (FRANKA_STATE_TASK, FRANKA_CAMERA_TASK, FRANKA_DISTILLATION_TASK, KUKA_STATE_TASK)
+    }
+    for cfg in cfgs.values():
+        cfg.validate_config()
+    return cfgs
+
+
+def test_franka_state_task_exposes_the_training_contract(stack_cfgs):
+    cfg = stack_cfgs[FRANKA_STATE_TASK]
+
+    assert cfg.scene.num_envs == 8
+    assert isinstance(cfg.sim.physics, NewtonCfg)
+    assert cfg.actions.arm_action.gravity_compensation
+    assert cfg.events.reset_from_state_buffer.func is mdp.StackResetStateTable
+    assert cfg.observations.policy.joint_target is None
+
+
+@pytest.mark.parametrize("task_name", (FRANKA_STATE_TASK, KUKA_STATE_TASK))
+def test_state_policy_observation_order_matches_published_checkpoints(stack_cfgs, task_name):
+    """The published actors require action history before joint state."""
+    policy = stack_cfgs[task_name].observations.policy
+    active_terms = [name for name, term in vars(policy).items() if isinstance(term, ObsTerm)]
+
+    assert active_terms[:7] == [
+        "actions",
+        "joint_pos",
+        "joint_vel",
+        "object",
+        "gripper_pos",
+        "eef_velocity",
+        "eef_axes",
+    ]
+
+
+@pytest.mark.parametrize("task_name", (FRANKA_STATE_TASK, KUKA_STATE_TASK))
+def test_state_stack_tasks_use_default_ground_plane(stack_cfgs, task_name):
+    """State-policy scenes should retain the current shared ground plane."""
+    plane = stack_cfgs[task_name].scene.plane
+    default = GroundPlaneCfg()
+
+    assert plane is not None
+    assert plane.init_state.pos == [0, 0, -1.05]
+    assert isinstance(plane.spawn, GroundPlaneCfg)
+    assert plane.spawn.usd_path == default.usd_path
+    assert plane.spawn.size == default.size
+
+
+def test_camera_actor_has_only_deployable_observations(stack_cfgs):
+    cfg = stack_cfgs[FRANKA_CAMERA_TASK]
+    runner = load_cfg_from_registry(FRANKA_CAMERA_TASK, "rsl_rl_cfg_entry_point")
+    image = cfg.observations.base_image.rgb
+
+    assert cfg.scene.base_camera.height == cfg.scene.base_camera.width == 128
+    assert image.func is mdp.image
+    assert image.params["normalize"] is False
+    assert image.params["permute"] is True
+    assert image.modifiers[0].func is modifiers.scale
+    assert image.modifiers[0].params["multiplier"] == pytest.approx(1.0 / 255.0)
+    assert not hasattr(cfg.observations.policy, "object")
+    assert runner.obs_groups["actor"] == ["policy", "base_image"]
+    assert runner.obs_groups["critic"] == ["privileged"]
+
+
+def test_distillation_task_adds_privileged_labels_without_changing_the_student(stack_cfgs):
+    cfg = stack_cfgs[FRANKA_DISTILLATION_TASK]
+    runner = load_cfg_from_registry(FRANKA_DISTILLATION_TASK, "rsl_rl_cfg_entry_point")
+    camera_runner = load_cfg_from_registry(FRANKA_CAMERA_TASK, "rsl_rl_cfg_entry_point")
+    state_runner = load_cfg_from_registry(FRANKA_STATE_TASK, "rsl_rl_cfg_entry_point")
+
+    assert hasattr(cfg.observations, "privileged")
+    assert runner.obs_groups == {"student": ["policy", "base_image"], "teacher": ["privileged"]}
+    assert runner.student.cnn_cfg == camera_runner.actor.cnn_cfg
+    assert runner.teacher.distribution_cfg.std_type == "log"
+    assert state_runner.actor.distribution_cfg.std_type == "scalar"
+    assert cfg.observations.privileged.joint_target.func is mdp.joint_position_target
+    privileged_terms = [name for name, term in vars(cfg.observations.privileged).items() if isinstance(term, ObsTerm)]
+    assert privileged_terms == [
+        "joint_pos",
+        "joint_vel",
+        "joint_target",
+        "actions",
+        "object",
+        "gripper_pos",
+        "eef_velocity",
+        "eef_axes",
+    ]
+    assert runner.algorithm.class_name.endswith(":ClippedTeacherDistillation")
+
+
+def test_camera_noise_reset_resamples_only_selected_environments():
+    """A partial reset preserves every unselected environment's calibration."""
+    with torch.random.fork_rng():
+        torch.manual_seed(7)
+        cfg = mdp.EpisodeCameraNoiseCfg(
+            noise_cfg=UniformNoiseCfg(n_min=0.0, n_max=0.0),
+            exposure_range=(0.5, 1.5),
+            contrast_range=(1.0, 1.0),
+            white_balance_range=(1.0, 1.0),
+            brightness_range=(0.0, 0.0),
+        )
+        noise = mdp.EpisodeCameraNoise(cfg, num_envs=4, device="cpu")
+        image = torch.ones((4, 3, 2, 2))
+        before = noise(image)
+
+        noise.reset(torch.tensor([1, 3]))
+        after = noise(image)
+
+    torch.testing.assert_close(after[[0, 2]], before[[0, 2]], rtol=0.0, atol=0.0)
+    assert not torch.equal(after[[1, 3]], before[[1, 3]])
+
+
+def test_distillation_labels_match_executed_action_clip(monkeypatch: pytest.MonkeyPatch):
+    """Behavior cloning targets the teacher action after the environment clamp."""
+    algorithm = object.__new__(ClippedTeacherDistillation)
+    algorithm.transition = SimpleNamespace(privileged_actions=torch.tensor(((-2.0, 0.25, 3.0),)))
+    student_actions = torch.tensor(((0.1, 0.2, 0.3),))
+    monkeypatch.setattr(Distillation, "act", lambda self, obs: student_actions)
+
+    returned_actions = algorithm.act({})
+
+    assert returned_actions is student_actions
+    torch.testing.assert_close(algorithm.transition.privileged_actions, torch.tensor(((-1.0, 0.25, 1.0),)))
+
+
+def test_kuka_task_has_one_complete_23_dof_state_policy(stack_cfgs):
+    cfg = stack_cfgs[KUKA_STATE_TASK]
+    runner = load_cfg_from_registry(KUKA_STATE_TASK, "rsl_rl_cfg_entry_point")
+
+    assert cfg.events.reset_from_state_buffer.func is mdp.KukaAllegroResetStateTable
+    assert tuple(cfg.actions.gripper_action.joint_names) == KUKA_ALLEGRO_ALL_HAND_JOINT_NAMES
+    assert cfg.observations.policy.grasp_pair.func is mdp.grasp_pair_one_hot
+    assert cfg.observations.policy.grasp_pair.params["num_pairs"] == 3
+    assert runner.actor.distribution_cfg.arm_action_dim == 7
+
+
+@pytest.mark.parametrize(
+    "task_name",
+    (FRANKA_STATE_TASK, FRANKA_CAMERA_TASK, FRANKA_DISTILLATION_TASK, KUKA_STATE_TASK),
+)
+def test_play_mode_uses_randomized_table_starts(task_name: str):
+    cfg = parse_env_cfg(task_name, device="cuda:0", num_envs=4)
+
+    cfg.play_mode()
+
+    assert cfg.events.reset_from_state_buffer.params["fixed_recipe"] == int(mdp.StackResetRecipe.TABLE)
+    assert cfg.curriculum is None
+    assert cfg.scene.num_envs == 4
+    if isinstance(cfg.actions.gripper_action, mdp.ResetBufferedGripperActionCfg):
+        assert cfg.actions.gripper_action.force_close_steps == 0
+
+
+def test_kuka_distribution_covers_all_arm_and_hand_actions():
+    distribution = KukaAllegroGaussianDistribution(output_dim=23)
+    output = torch.zeros((32, 23))
+    distribution.update(output)
+
+    assert distribution.sample().shape == (32, 23)
+    assert torch.allclose(distribution.std[0, :7], torch.full((7,), 0.35), atol=1.0e-6)
+    assert torch.allclose(distribution.std[0, 7:], torch.full((16,), 0.15), atol=1.0e-6)
+
+
+def test_grasp_pair_observation_preserves_three_pair_checkpoint_contract():
+    env = SimpleNamespace(num_envs=3, device="cpu")
+    state = create_stack_reset_runtime_state(env)
+    state.grasp_pair_ids[:] = torch.tensor([0, 1, 2])
+
+    torch.testing.assert_close(mdp.grasp_pair_one_hot(env, num_pairs=3), torch.eye(3))
+    with pytest.raises(ValueError, match="num_pairs must be positive"):
+        mdp.grasp_pair_one_hot(env, num_pairs=0)
+
+
+def _cube(positions: torch.Tensor):
+    return SimpleNamespace(
+        data=SimpleNamespace(
+            root_pos_w=SimpleNamespace(torch=positions),
+            root_vel_w=SimpleNamespace(torch=torch.zeros((positions.shape[0], 6))),
+        )
+    )
+
+
+def test_stack_progress_is_independent_of_cube_identity_and_order():
+    positions = (
+        torch.tensor(((0.45, 0.00, 0.02), (0.45, 0.00, 0.10))),
+        torch.tensor(((0.45, 0.00, 0.06), (0.45, 0.00, 0.02))),
+        torch.tensor(((0.60, 0.10, 0.02), (0.45, 0.00, 0.06))),
+    )
+    env = SimpleNamespace(
+        num_envs=2,
+        device="cpu",
+        scene={f"cube_{index + 1}": _cube(value) for index, value in enumerate(positions)},
+    )
+
+    progress = mdp.order_invariant_stack_progress(env)
+
+    torch.testing.assert_close(progress, torch.tensor((1.0, 2.0)))
