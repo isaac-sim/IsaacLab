@@ -175,6 +175,7 @@ def _build_source_builder(
         skip_mesh_approximation=skip_mesh_approximation,
         schema_resolvers=schema_resolvers,
         ignore_paths=ignore_paths,
+        return_deformable_results=True,
     )
     _restore_visible_colliders_without_visual_shapes(
         builder, stage, import_result["path_shape_map"], load_visual_shapes
