@@ -178,7 +178,7 @@ def test_build_runtime_adds_environment_step_timing_without_simulation_breakdown
     assert rt.environment_step_timing.measurement_mode == "host_return"
 
 
-@pytest.mark.parametrize("simulation_step_times_s", [[], [0.0, 0.5]])
+@pytest.mark.parametrize("simulation_step_times_s", [[], [0.0, 0.5], [-0.1, 0.5]])
 def test_build_runtime_rejects_non_positive_simulation_step_times(simulation_step_times_s):
     with pytest.raises(ValueError, match="simulation_step_times_s must contain only positive samples"):
         builders.build_runtime(
@@ -222,7 +222,7 @@ def test_build_runtime_rejects_empty_environment_step_timing():
         )
 
 
-@pytest.mark.parametrize("environment_step_times_s", [[0.0]])
+@pytest.mark.parametrize("environment_step_times_s", [[0.0], [-1.0]])
 def test_build_runtime_rejects_non_positive_environment_step_times(environment_step_times_s):
     with pytest.raises(ValueError, match="environment_step_times_s must contain only positive samples"):
         builders.build_runtime(

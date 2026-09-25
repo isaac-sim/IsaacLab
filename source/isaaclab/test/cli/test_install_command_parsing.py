@@ -248,6 +248,13 @@ class TestCommandInstallDispatch:
         assert ("newton", "") in features
         assert ("rl", "rsl-rl") in features
 
+    def test_teleop_alone(self):
+        mocks = self._run("teleop")
+        installed = mocks["_install_isaaclab_submodules"].call_args[0][0]
+        assert "isaaclab_teleop" in installed
+        assert "isaaclab_mimic" not in installed
+        mocks["_install_extra_feature"].assert_not_called()
+
     def test_mimic_and_teleop(self):
         mocks = self._run("mimic,teleop")
         installed = mocks["_install_isaaclab_submodules"].call_args[0][0]

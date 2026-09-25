@@ -62,6 +62,8 @@ _EXCLUDE_PREFIXES = ("source/isaaclab_contrib/",)
 
 def _find_offenders(root: Path, scan_dirs: tuple[str, ...], patterns: tuple[re.Pattern, ...]) -> list[str]:
     """Return ``path:line: text`` for every in-scope line matching any pattern."""
+    # A missing directory would make the scan pass vacuously.
+    assert all((root / d).is_dir() for d in scan_dirs), f"scan directories missing under {root}: {scan_dirs}"
     offenders: list[str] = []
     for path in sorted(p for d in scan_dirs for p in (root / d).rglob("*.py") if "__pycache__" not in p.parts):
         rel = path.relative_to(root).as_posix()
