@@ -20,6 +20,7 @@ from isaaclab.terrains import (
     TerrainGeneratorCfg,
 )
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
+from isaaclab.terrains.height_field import HfInvertedPyramidSlopedTerrainCfg
 from isaaclab.utils.seed import configure_seed
 
 pytestmark = pytest.mark.integration
@@ -97,6 +98,26 @@ def test_mesh_file_terrain(tmp_path):
     assert len(meshes) == 1
     np.testing.assert_allclose(meshes[0].bounds, [[1.0, 1.5, 0.05], [3.0, 4.5, 0.55]], atol=1e-6)
     np.testing.assert_allclose(origin, [2.0, 3.0, 0.55], atol=1e-6)
+
+
+@pytest.mark.parametrize("platform_width,border_width", [(0.5, 0.0), (1.0, 0.0), (1.5, 0.2)])
+def test_inverted_pyramid_origin_matches_platform(platform_width: float, border_width: float):
+    cfg = HfInvertedPyramidSlopedTerrainCfg(
+        size=(8.0, 8.0),
+        horizontal_scale=0.1,
+        vertical_scale=0.005,
+        border_width=border_width,
+        slope_range=(0.4, 0.4),
+        platform_width=platform_width,
+    )
+    meshes, origin = cfg.function(1.0, cfg)
+    center_vertices = meshes[0].vertices[
+        np.isclose(meshes[0].vertices[:, 0], 4.0) & np.isclose(meshes[0].vertices[:, 1], 4.0)
+    ]
+
+    np.testing.assert_allclose(origin[:2], (4.0, 4.0))
+    assert len(center_vertices) == 1
+    assert origin[2] == pytest.approx(center_vertices[0, 2])
 
 
 @pytest.mark.parametrize("use_global_seed", [True, False])

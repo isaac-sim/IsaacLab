@@ -206,6 +206,14 @@ def test_resolve_matching_names_values_with_basic_strings():
     assert index_list == [0, 1, 2, 3, 4]
     assert names_list == ["a", "b", "c", "d", "e"]
     assert values_list == [1, 2, 2, 1, 1]
+
+    class ReverseIterationDict(dict):
+        def __iter__(self):
+            return iter(reversed(list(super().keys())))
+
+    data = ReverseIterationDict({"a": 1, "b": 2})
+    assert string_utils.resolve_matching_names_values(data, ["a", "b"]) == ([0, 1], ["a", "b"], [1, 2])
+
     # test matching names with regex
     data = {"a|d|e|b": 1, "b|c": 2}
     with pytest.raises(ValueError):
