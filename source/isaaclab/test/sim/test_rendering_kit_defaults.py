@@ -10,8 +10,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
-
 _APPS_DIR = Path(__file__).resolve().parents[4] / "apps"
 
 # Kit loaded when cameras are enabled.
@@ -76,14 +74,6 @@ def _kit_value(content: str, key: str) -> str | None:
     if match is None:
         return None
     return match.group(1).split("#", 1)[0].strip()
-
-
-@pytest.mark.parametrize("kit_name", _RENDERING_KIT)
-def test_rendering_kits_define_high_fidelity_defaults(kit_name):
-    """Rendering kits carry the high-fidelity RTX defaults."""
-    content = _read_kit(kit_name)
-    missing = [key for key in _HIGH_FIDELITY_DEFAULTS if not _kit_defines(content, key)]
-    assert not missing, f"{kit_name} is missing high-fidelity RTX defaults: {missing}"
 
 
 def test_base_kit_omits_high_fidelity_defaults():

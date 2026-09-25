@@ -115,7 +115,6 @@ quarantine them from regular CI.
 
 TESTS_TO_SKIP = [
     # lab
-    "test_build_simulation_context_nonheadless.py",  # headless
     # lab_tasks
     "test_record_video.py",  # Failing
     # curobo / skillgen - require cuRobo installation; run via test-curobo and test-skillgen CI jobs
