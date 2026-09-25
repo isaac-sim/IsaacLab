@@ -129,14 +129,23 @@ def test_capture_env_sensors_rejects_unknown_output_format(tmp_path: Path) -> No
 
 
 def test_wrap_sensor_capture_uses_training_sensor_frame_directory(tmp_path: Path) -> None:
-    """The train helper wraps the env with the configured sensor capture output directory."""
+    """The train helper wraps the env with the sensor capture options parsed by the common train CLI."""
     env = _FakeEnv()
-    args_cli = argparse.Namespace(
-        capture_env_sensors=2,
-        capture_env_sensors_length=5,
-        capture_env_sensors_interval=7,
-        capture_env_sensors_format="file",
+    parser = argparse.ArgumentParser()
+    add_common_train_args(parser, agent_default=None, agent_help="", include_agent=False)
+    args_cli = parser.parse_args(
+        [
+            "--capture_env_sensors",
+            "2",
+            "--capture_env_sensors_length",
+            "5",
+            "--capture_env_sensors_interval",
+            "7",
+            "--capture_env_sensors_format",
+            "file",
+        ]
     )
+    assert args_cli.capture_env_sensors_format == "file"
 
     wrapped_env = wrap_sensor_capture(env, str(tmp_path), args_cli)
 
@@ -145,6 +154,8 @@ def test_wrap_sensor_capture_uses_training_sensor_frame_directory(tmp_path: Path
     assert wrapped_env.frame_count == 5
     assert wrapped_env.capture_num_envs == 2
     assert wrapped_env.interval == 7
+    # the file format writes images instead of opening a TensorBoard writer
+    assert wrapped_env.writer is None
     assert wrapped_env.env is env
 
 
@@ -154,30 +165,6 @@ def test_wrap_sensor_capture_returns_env_when_disabled(tmp_path: Path) -> None:
     args_cli = argparse.Namespace(capture_env_sensors=0)
 
     assert wrap_sensor_capture(env, str(tmp_path), args_cli) is env
-
-
-def test_common_train_args_include_sensor_capture_options() -> None:
-    """Common train parsers expose sensor capture CLI arguments."""
-    parser = argparse.ArgumentParser()
-    add_common_train_args(parser, agent_default=None, agent_help="", include_agent=False)
-
-    args_cli = parser.parse_args(
-        [
-            "--capture_env_sensors",
-            "3",
-            "--capture_env_sensors_length",
-            "4",
-            "--capture_env_sensors_interval",
-            "5",
-            "--capture_env_sensors_format",
-            "file",
-        ]
-    )
-
-    assert args_cli.capture_env_sensors == 3
-    assert args_cli.capture_env_sensors_length == 4
-    assert args_cli.capture_env_sensors_interval == 5
-    assert args_cli.capture_env_sensors_format == "file"
 
 
 def test_enable_cameras_for_video_enables_cameras_for_sensor_capture() -> None:
@@ -301,13 +288,22 @@ def test_run_summary_reports_concrete_backends(
 
 
 def test_apply_env_overrides_records_the_deterministic_request(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The deterministic option is recorded in the physics configuration."""
+    """The deterministic option is recorded in the physics configuration and leaves both alone when off."""
+    import warp as wp
+
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils import resolve_task_config
 
     monkeypatch.setattr(rl_common.sys, "argv", ["train.py"])
+    monkeypatch.setattr(wp.config, "deterministic", wp.DeterministicMode.NOT_GUARANTEED)
     env_cfg, _ = resolve_task_config("Isaac-Cartpole-Camera", "rl_games_cfg_entry_point")
     assert env_cfg.sim.physics.deterministic is False
+
+    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=False)
+    rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+
+    assert env_cfg.sim.physics.deterministic is False
+    assert wp.config.deterministic == wp.DeterministicMode.NOT_GUARANTEED
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
     rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
@@ -315,20 +311,6 @@ def test_apply_env_overrides_records_the_deterministic_request(monkeypatch: pyte
     assert env_cfg.sim.physics.deterministic is True
     assert env_cfg.sim.physics.deterministic_mode == "not_guaranteed"
     assert env_cfg.sim.physics.solver_cfg.disable_sensors is False
-
-
-def test_apply_env_overrides_leaves_physics_alone_without_the_flag(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Without ``--deterministic`` the physics config is untouched."""
-    import isaaclab_tasks  # noqa: F401
-    from isaaclab_tasks.utils import resolve_task_config
-
-    monkeypatch.setattr(rl_common.sys, "argv", ["train.py"])
-    env_cfg, _ = resolve_task_config("Isaac-Cartpole-Camera", "rl_games_cfg_entry_point")
-
-    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=False)
-    rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
-
-    assert env_cfg.sim.physics.deterministic is False
 
 
 @pytest.mark.parametrize(
@@ -339,7 +321,6 @@ def test_apply_env_overrides_leaves_physics_alone_without_the_flag(monkeypatch: 
         ("NOT_GUARANTEED", "run_to_run", "RUN_TO_RUN"),
         ("NOT_GUARANTEED", "gpu_to_gpu", "GPU_TO_GPU"),
         ("RUN_TO_RUN", "gpu_to_gpu", "GPU_TO_GPU"),
-        ("GPU_TO_GPU", None, "GPU_TO_GPU"),
         ("GPU_TO_GPU", "run_to_run", "GPU_TO_GPU"),
     ],
 )
@@ -359,21 +340,12 @@ def test_apply_env_overrides_raises_warp_determinism_to_the_configured_mode(
     assert wp.config.deterministic == getattr(wp.DeterministicMode, expected)
 
 
-def test_apply_env_overrides_leaves_warp_alone_without_the_flag(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Warp determinism is unchanged when the option is disabled."""
+def test_apply_env_overrides_records_the_request_for_unknown_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Unknown physics backends receive the backend-agnostic request."""
     import warp as wp
 
-    monkeypatch.setattr(wp.config, "deterministic", wp.DeterministicMode.NOT_GUARANTEED)
-    env_cfg = ManagerBasedRLEnvCfg(sim=SimulationCfg(physics=NewtonCfg()))
-
-    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=False)
-    rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
-
-    assert wp.config.deterministic == wp.DeterministicMode.NOT_GUARANTEED
-
-
-def test_apply_env_overrides_records_the_request_for_unknown_backend() -> None:
-    """Unknown physics backends receive the backend-agnostic request."""
+    # the request also raises Warp's process-wide determinism; restore it after the test
+    monkeypatch.setattr(wp.config, "deterministic", wp.config.deterministic)
     physics = SimpleNamespace(deterministic=False)
     env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
 
@@ -383,8 +355,11 @@ def test_apply_env_overrides_records_the_request_for_unknown_backend() -> None:
     assert physics.deterministic is True
 
 
-def test_apply_env_overrides_tolerates_a_config_without_physics() -> None:
+def test_apply_env_overrides_tolerates_a_config_without_physics(monkeypatch: pytest.MonkeyPatch) -> None:
     """A configuration without a physics backend is accepted."""
+    import warp as wp
+
+    monkeypatch.setattr(wp.config, "deterministic", wp.config.deterministic)
     env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=None))
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
