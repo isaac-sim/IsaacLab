@@ -11,8 +11,9 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from ._fabric_notices import disabled_fabric_change_notifies
-from .path import split
-from .query import replication_mapping
+from .cloner_cfg import DEFAULT_ENV_TEMPLATE
+from .path import match, split, under
+from .query import iter_worlds
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -47,16 +48,16 @@ def usd_replicate(
 
     layer = stage.GetRootLayer()
     # Parents must be copied before independently declared descendants.
-    source_indices = sorted(range(len(sources)), key=lambda index: destinations[index].count("/"))
+    asset_prototype_ids = sorted(range(len(sources)), key=lambda index: destinations[index].count("/"))
     with disabled_fabric_change_notifies(stage), Sdf.ChangeBlock():
-        for source_index in source_indices:
+        for source_index in asset_prototype_ids:
             source, template = sources[source_index], destinations[source_index]
             columns = (
                 np.arange(len(env_ids))
                 if mask is None
                 else np.flatnonzero(mask if mask.ndim == 1 else mask[source_index])
             )
-            is_env_root = split(template)[1] == ""
+            is_env_root = "{}" in template and split(template)[1] == ""
             for column in columns:
                 destination = template.format(int(env_ids[column]))
                 Sdf.CreatePrimInLayer(layer, destination)
@@ -100,25 +101,74 @@ class UsdReplicateContext:
     # USD destinations must exist before native physics contexts consume them.
     replicate_priority = -100
 
-    def __init__(self, stage: Usd.Stage):
-        """Initialize the context with the stage receiving the copies."""
+    def __init__(
+        self,
+        stage: Usd.Stage,
+        plan: ClonePlan,
+        *,
+        env_template: str = DEFAULT_ENV_TEMPLATE,
+        positions: np.ndarray | None = None,
+    ):
+        """Bind USD naming and placement without adding either to the topology."""
         self.stage = stage
+        self.plan = plan
+        self.env_template = env_template
+        self.positions = positions
+        targets = {}
+        for world_prototype_id, asset_prototype_ids, world_ids in iter_worlds(plan):
+            names = set()
+            for asset_prototype_id in asset_prototype_ids:
+                cfg = plan.asset_prototypes[asset_prototype_id]
+                matched = match(cfg.prim_path, self.env_template)
+                template = self.env_template + matched.suffix if matched is not None else cfg.prim_path
+                if world_prototype_id == -1:
+                    template = template.format("shared")
+                elif matched is None:
+                    template = self.env_template + "/" + cfg.prim_path.rsplit("/", 1)[-1]
+                name, occurrence = template, 0
+                while template in names:
+                    occurrence += 1
+                    template = f"{name}_{occurrence}"
+                names.add(template)
+                targets.setdefault((int(asset_prototype_id), template), []).append(world_ids)
+        # Unselected declarations still bound nearest-owner path queries, but are never imported.
+        declared = {asset_prototype_id for asset_prototype_id, _ in targets}
+        for asset_prototype_id, cfg in enumerate(plan.asset_prototypes):
+            matched = match(cfg.prim_path, self.env_template)
+            if asset_prototype_id not in declared and matched is not None and getattr(cfg, "spawn", None) is not None:
+                targets[asset_prototype_id, self.env_template + matched.suffix] = [np.empty(0, dtype=np.int64)]
+        targets = [(index, template, np.concatenate(groups)) for (index, template), groups in targets.items()]
+        source_paths = {}
+        for asset_prototype_id, template, world_ids in targets:
+            if len(world_ids) and asset_prototype_id not in source_paths:
+                spawn = getattr(plan.asset_prototypes[asset_prototype_id], "spawn", None)
+                path = getattr(spawn, "spawn_path", None)
+                source_paths[asset_prototype_id] = path if path is not None else template.format(int(world_ids[0]))
+        self.instances = tuple(
+            (asset_prototype_id, source_paths.get(asset_prototype_id), template, world_ids)
+            for asset_prototype_id, template, world_ids in targets
+        )
 
-    def replicate(self, plan: ClonePlan) -> None:
+    @property
+    def global_paths(self) -> tuple[str, ...]:
+        """USD roots instantiated in the shared world, not inferred from their namespace."""
+        paths = tuple(template for _, _, template, world_ids in self.instances if len(world_ids) and world_ids[0] == -1)
+        return tuple(path for path in paths if not any(path != root and under(path, root) for root in paths))
+
+    def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
         """Replicate this context's declared sources with the same low-level USD operation."""
         from pxr import Gf, Sdf, Vt  # noqa: PLC0415
 
-        if plan.env_ids is None:
-            raise ValueError("ClonePlan.env_ids is required for replication.")
-        sources, destinations, mapping = replication_mapping(plan, plan.context_source_indices[type(self)])
+        env_ids = np.arange(len(plan.destinations))
         with disabled_fabric_change_notifies(self.stage), Sdf.ChangeBlock():
-            usd_replicate(self.stage, sources, destinations, plan.env_ids, mapping, plan.positions)
-            if plan.positions is not None:
+            for asset_prototype_id, source, template, targets in self.instances:
+                if asset_prototype_id in asset_prototype_ids and len(targets):
+                    usd_replicate(self.stage, (source,), (template,), targets)
+            if self.positions is not None:
                 # Environment frames come from the plan, not copies of an undeclared USD subtree.
                 layer = self.stage.GetRootLayer()
-                columns = np.flatnonzero(mapping.any(axis=0))
-                for env_id, position in zip(plan.env_ids[columns], plan.positions[columns], strict=True):
-                    path = plan.clone_template.format(int(env_id))
+                for env_id, position in zip(env_ids, self.positions, strict=True):
+                    path = self.env_template.format(int(env_id))
                     spec = Sdf.CreatePrimInLayer(layer, path)
                     spec.specifier = Sdf.SpecifierDef
                     if not spec.typeName:

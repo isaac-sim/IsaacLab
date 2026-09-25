@@ -100,10 +100,12 @@ def test_cable_collides_with_ground():
                 init_state=CableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.8)),
             )
         )
-        plan = cloner.make_clone_plan(
-            (cable.cfg, AssetBaseCfg(prim_path="/World/Ground")), 1, 0.0, env_template="/World/Env_{}"
+        plan = cloner.clone_plan_from_env_0(
+            cloner.CloneCfg(clone_template="/World/Env_{}"),
+            (cable.cfg, AssetBaseCfg(prim_path="/World/Ground")),
+            1,
+            0.0,
         )
-        sim.set_clone_plan(plan)
         cloner.replicate(plan)
         sim.reset()
 

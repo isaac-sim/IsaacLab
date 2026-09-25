@@ -10,7 +10,6 @@ Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no ``AppLauncher``).
 
 from __future__ import annotations
 
-import numpy as np
 import pytest
 
 # The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
@@ -56,13 +55,15 @@ def test_world_attached_source_prim_expands_from_clone_plan():
     ) as sim:
         sim._app_control_on_stop_handle = None
         scene = InteractiveScene(InteractiveSceneCfg(num_envs=4, env_spacing=2.0))
-        target_env_ids = (0, 5, 2, 9)
-        plan = cloner.ClonePlan(
-            sources=(
-                AssetBaseCfg(prim_path="/World/envs/env_[^/]+", spawn=SpawnerCfg(spawn_path="/World/envs/env_0")),
-            ),
-            destinations=np.zeros((1, scene.num_envs), dtype=np.int32),
-            env_ids=np.asarray(target_env_ids, dtype=np.int64),
+        target_env_ids = tuple(range(scene.num_envs))
+        plan = cloner.make_clone_plan(
+            (AssetBaseCfg(prim_path="/World/envs/env_[^/]+", spawn=SpawnerCfg(spawn_path="/World/envs/env_0")),),
+            ((0,),),
+            scene.num_envs,
+        )
+        sim.clone_contexts[cloner.UsdReplicateContext] = cloner.UsdReplicateContext(
+            sim.stage,
+            plan,
             positions=cloner.grid_transforms(scene.num_envs, scene.cfg.env_spacing)[0],
         )
         sim.set_clone_plan(plan)
@@ -82,7 +83,7 @@ def test_world_attached_source_prim_expands_from_clone_plan():
         assert {prim.GetPath().pathString for prim in view.prims} == {"/World/envs/env_0/WorldCamera"}
         assert view.prim_paths == [f"/World/envs/env_{i}/WorldCamera" for i in target_env_ids]
         positions, _ = view.get_world_poses()
-    expected_positions = scene.env_origins + torch.tensor([0.25, -0.5, 1.0], device=device)
+        expected_positions = scene.env_origins + torch.tensor([0.25, -0.5, 1.0], device=device)
     torch.testing.assert_close(positions.torch, expected_positions)
 
 

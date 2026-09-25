@@ -12,17 +12,16 @@ import math
 from pathlib import Path
 from types import SimpleNamespace
 
-import numpy as np
 import pytest
 import torch
 import warp as wp
 
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.assets.visual_material.visual_material import VisualMaterial
-from isaaclab.cloner import ClonePlan
+from isaaclab.cloner import UsdReplicateContext, make_clone_plan
 from isaaclab.renderers.render_context import RenderContext
 from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.sim import MultiUsdFileCfg
+from isaaclab.sim import SpawnerCfg
 
 _SOURCE_ROOT = Path(__file__).resolve().parents[3]
 _PACKAGE_ROOT = _SOURCE_ROOT / "isaaclab" / "isaaclab"
@@ -238,20 +237,18 @@ def test_runtime_material_writes_have_no_host_or_usd_path() -> None:
         assert not hits, f"{method.name} contains forbidden runtime tokens: {sorted(hits)}"
 
 
-def test_material_initialization_orders_paths_by_plan_column(monkeypatch: pytest.MonkeyPatch) -> None:
-    plan = ClonePlan(
-        sources=(
-            AssetBaseCfg(
-                prim_path="/World/envs/env_[^/]+/Robot",
-                spawn=MultiUsdFileCfg(
-                    usd_path=["", ""], spawn_paths=["/World/envs/env_42/Robot", "/World/envs/env_7/Robot"]
-                ),
-            ),
+def test_material_initialization_orders_paths_by_destination_world(monkeypatch: pytest.MonkeyPatch) -> None:
+    plan = make_clone_plan(
+        tuple(
+            AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path=path))
+            for path in ("/World/envs/env_42/Robot", "/World/envs/env_7/Robot")
         ),
-        destinations=np.array([[0, 0, 1]], dtype=np.int32),
-        env_ids=np.asarray([19, 42, 7], dtype=np.int64),
+        ((0,), (1,)),
+        3,
+        weights=(2, 1),
     )
-    simulation = SimpleNamespace(get_clone_plan=lambda: plan)
+    usd = UsdReplicateContext(None, plan)
+    simulation = SimpleNamespace(get_clone_plan=lambda: plan, clone_contexts={UsdReplicateContext: usd})
     monkeypatch.setattr(
         "isaaclab.assets.visual_material.visual_material.SimulationContext",
         SimpleNamespace(instance=lambda: simulation),
@@ -273,21 +270,18 @@ def test_material_initialization_orders_paths_by_plan_column(monkeypatch: pytest
     VisualMaterial._initialize_impl(material)
 
     assert material._material_paths == (
-        "/World/envs/env_19/Robot/Looks/test",
-        "/World/envs/env_42/Robot/Looks/test",
-        "/World/envs/env_7/Robot/Looks/test",
+        "/World/envs/env_0/Robot/Looks/test",
+        "/World/envs/env_1/Robot/Looks/test",
+        "/World/envs/env_2/Robot/Looks/test",
     )
     assert material._shader_paths == tuple(path + "/Shader" for path in material._material_paths)
     assert registered == [material]
 
 
-def test_material_initialization_rejects_partial_owner_row(monkeypatch: pytest.MonkeyPatch) -> None:
-    plan = ClonePlan(
-        sources=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),),
-        destinations=np.array([[0, 0, -1, -1]], dtype=np.int32),
-        env_ids=np.arange(4, dtype=np.int64),
-    )
-    simulation = SimpleNamespace(get_clone_plan=lambda: plan)
+def test_material_initialization_rejects_assets_missing_from_some_worlds(monkeypatch: pytest.MonkeyPatch) -> None:
+    plan = make_clone_plan((AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),), ((0,), ()), 4)
+    usd = UsdReplicateContext(None, plan)
+    simulation = SimpleNamespace(get_clone_plan=lambda: plan, clone_contexts={UsdReplicateContext: usd})
     monkeypatch.setattr(
         "isaaclab.assets.visual_material.visual_material.SimulationContext",
         SimpleNamespace(instance=lambda: simulation),

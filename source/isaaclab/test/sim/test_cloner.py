@@ -26,12 +26,10 @@ import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import (
-    ClonePlan,
     ReplicateSession,
     UsdReplicateContext,
     grid_transforms,
     make_clone_plan,
-    sequential,
     usd_replicate,
 )
 from isaaclab.sim import SpawnerCfg, build_simulation_context
@@ -93,18 +91,16 @@ def test_usd_replicate_context_consumes_plan(sim):
     sim_utils.create_prim("/World/envs", "Xform")
 
     stage = sim_utils.get_current_stage()
-    ctx = UsdReplicateContext(stage)
-    plan = ClonePlan(
-        sources=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+", spawn=SpawnerCfg(spawn_path="/World/template/A")),),
-        destinations=np.array([[-1, 0]], dtype=np.int32),
-        env_ids=np.asarray([10, 20], dtype=np.int64),
-        positions=np.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float32),
-        context_source_indices={UsdReplicateContext: (0,)},
+    plan = make_clone_plan(
+        (AssetBaseCfg(prim_path="/World/envs/env_[^/]+", spawn=SpawnerCfg(spawn_path="/World/template/A")),),
+        ((), (0,)),
+        2,
     )
-    ctx.replicate(plan)
+    ctx = UsdReplicateContext(stage, plan, positions=np.asarray([[1, 2, 3], [4, 5, 6]], dtype=np.float32))
+    ctx.replicate(plan, (0,))
 
-    assert not stage.GetPrimAtPath("/World/envs/env_10").IsValid()
-    prim = stage.GetPrimAtPath("/World/envs/env_20")
+    assert not stage.GetPrimAtPath("/World/envs/env_0").IsA(UsdGeom.Cube)
+    prim = stage.GetPrimAtPath("/World/envs/env_1")
     assert prim.IsValid() and prim.IsA(UsdGeom.Cube)
     assert tuple(UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(0).ExtractTranslation()) == (4.0, 5.0, 6.0)
 
@@ -297,31 +293,6 @@ def test_clone_decorator_wildcard_patterns(
     )
 
 
-def test_make_clone_plan_homogeneous_keeps_declared_asset_scope(sim):
-    """Homogeneous cfgs retain exact asset roots, not their undeclared environment ancestor."""
-    cube = SimpleNamespace(
-        prim_path="/World/envs/env_[^/]+/Robot",
-        spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
-        cloning_contexts=None,
-    )
-    plan = make_clone_plan(
-        cfgs=[cube, AssetBaseCfg(prim_path="/World/Ground")],
-        num_clones=4,
-        env_spacing=1.0,
-    )
-
-    assert plan.sources[0] is cube
-    np.testing.assert_array_equal(plan.destinations, [[0, 0, 0, 0], [-1, -1, -1, -1]])
-    sources, destinations, mapping = cloner.query.replication_mapping(plan)
-    assert sources == ("/World/envs/env_0/Robot",)
-    assert destinations == ("/World/envs/env_{}/Robot",)
-    assert mapping.shape == (1, 4) and mapping.all()
-    assert plan.global_paths == ("/World/Ground",)
-    assert plan.env_ids.shape == (4,)
-    assert plan.positions.shape == (4, 3)
-    assert cube.spawn.spawn_path == "/World/envs/env_0/Robot"
-
-
 def test_resolve_matching_prims_from_source_searches_only_plan_source(sim):
     """Clone-aware regex discovery traverses its plan source, never cloned destinations."""
     stage = sim_utils.get_current_stage()
@@ -331,13 +302,7 @@ def test_resolve_matching_prims_from_source_searches_only_plan_source(sim):
         "/World/envs/env_1/Robot/clone_only",
     ):
         stage.DefinePrim(path, "Xform")
-    plan = ClonePlan(
-        sources=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),),
-        destinations=np.zeros((1, 2), dtype=np.int32),
-        env_ids=np.arange(2, dtype=np.int64),
-        positions=np.zeros((2, 3), dtype=np.float32),
-    )
-    sim.set_clone_plan(plan)
+    cloner.clone_plan_from_env_0(cloner.CloneCfg(), (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),), 2, 0.0)
 
     matches = queries.resolve_matching_prims_from_source(r"/World/envs/env_[^/]+/Robot/[^A]+")
 
@@ -350,50 +315,6 @@ def test_resolve_matching_prims_from_source_searches_only_plan_source(sim):
         "/World/envs/env_[^/]+/Robot/foo",
         "/World/envs/env_[^/]+/Robot/foo/bar",
     ]
-
-
-def test_make_clone_plan_heterogeneous_mutates_spawn_paths(sim):
-    """Multi-variant spawners get per-variant spawn_paths and contribute multiple plan rows."""
-    multi_cfg = SimpleNamespace(
-        prim_path="/World/envs/env_[^/]+/Object",
-        cloning_contexts=None,
-        spawn=sim_utils.MultiAssetSpawnerCfg(
-            assets_cfg=[
-                sim_utils.ConeCfg(radius=0.1, height=0.2),
-                sim_utils.SphereCfg(radius=0.1),
-            ]
-        ),
-    )
-    plain_cfg = SimpleNamespace(
-        prim_path="/World/envs/env_[^/]+/Robot",
-        spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
-        cloning_contexts=None,
-    )
-    plan = make_clone_plan(
-        cfgs=[multi_cfg, plain_cfg, AssetBaseCfg(prim_path="/World/Ground")],
-        num_clones=4,
-        env_spacing=1.0,
-        clone_strategy=sequential,
-    )
-
-    assert plan.sources[:2] == (multi_cfg, plain_cfg)
-    np.testing.assert_array_equal(plan.destinations, [[0, 1, 0, 1], [0, 0, 0, 0], [-1, -1, -1, -1]])
-    assert plan.global_paths == ("/World/Ground",)
-    assert multi_cfg.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
-    assert plain_cfg.spawn.spawn_path == "/World/envs/env_0/Robot"
-
-
-def test_make_clone_plan_records_globals_outside_replication_rows(sim):
-    """Global cfgs are named by the plan without becoming rows a backend might copy."""
-    plan = make_clone_plan(
-        cfgs=[AssetBaseCfg(prim_path="/World/global/Robot"), AssetBaseCfg(prim_path="/World/ground")],
-        num_clones=3,
-        env_spacing=1.0,
-    )
-
-    assert len(plan.sources) == 2
-    np.testing.assert_array_equal(plan.destinations, np.full((2, 3), -1))
-    assert plan.global_paths == ("/World/global/Robot", "/World/ground")
 
 
 def test_clone_plan_from_env_0_uses_flat_cfg_manifest(sim):
@@ -410,12 +331,10 @@ def test_clone_plan_from_env_0_uses_flat_cfg_manifest(sim):
     plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (robot, sensor, prop, light, light_reference), 4, 1.0)
 
     assert sim.get_clone_plan() is plan
-    assert plan.sources == (robot, sensor, prop, light, light_reference)
-    assert plan.context_source_indices[UsdReplicateContext] == (0, 2)
-    assert plan.global_paths == ("/World/Light",)
-    np.testing.assert_array_equal(plan.destinations[:3], np.zeros((3, 4)))
-    np.testing.assert_array_equal(plan.destinations[3:], np.full((2, 4), -1))
-    np.testing.assert_array_equal(plan.env_ids, np.arange(4, dtype=np.int64))
+    assert plan.asset_prototypes == (robot, sensor, prop, light, light_reference)
+    assert sim.clone_contexts[UsdReplicateContext].global_paths == ("/World/Light",)
+    np.testing.assert_array_equal(plan.destinations, np.zeros(4, dtype=np.int32))
+    np.testing.assert_array_equal(plan.world_prototypes, [3, 4, 0, 1, 2])
     assert robot.prim_path == "/World/envs/env_[^/]+/Robot"
     assert robot.spawn.spawn_path == "/World/envs/env_0/Robot"
     assert prop.spawn.spawn_path is None

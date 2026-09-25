@@ -15,6 +15,7 @@ import torch
 import warp as wp
 
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
+from isaaclab.cloner import UsdReplicateContext
 from isaaclab.cloner import path as cloner_path
 from isaaclab.cloner.query import iter_sources
 from isaaclab.physics import PhysicsEvent
@@ -417,15 +418,15 @@ class MPMObject(BaseDeformableObject):
         if not self.cfg.spawn.visible:
             return
 
-        plan = SimulationContext.instance().get_clone_plan()
+        usd = SimulationContext.instance().clone_contexts[UsdReplicateContext]
         source = self.cfg.spawn.spawn_path
         asset_prim_paths = [
             cloner_path.rebase(source, root, template.format(env_id))
-            for root, template, source_path, env_ids in iter_sources(plan, self.cfg.prim_path)
+            for root, template, source_path, env_ids in iter_sources(usd.instances, self.cfg.prim_path)
             if source_path == source
             for env_id in env_ids
         ]
-        if not asset_prim_paths and any(cloner_path.under(source, root) for root in plan.global_paths):
+        if not asset_prim_paths and any(cloner_path.under(source, root) for root in usd.global_paths):
             asset_prim_paths.append(source)
         for prim_path, offset in zip(asset_prim_paths, self._recorded_particle_offsets, strict=True):
             SimulationManager.register_particle_visual_prim(

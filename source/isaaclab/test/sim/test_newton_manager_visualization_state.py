@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.cloner import ClonePlan
+from isaaclab.cloner import UsdReplicateContext, make_clone_plan
 from isaaclab.sim import SpawnerCfg
 
 pytestmark = pytest.mark.integration
@@ -73,18 +73,16 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
 
     _reset_newton_manager_state()
     monkeypatch.setattr(PhysicsManager, "_device", "cpu")
-    plan = ClonePlan(
-        sources=(AssetBaseCfg(prim_path="/Scene/Copy_[^/]+", spawn=SpawnerCfg(spawn_path="/Scene/Source")),),
-        destinations=np.zeros((1, 2), dtype=np.int32),
-        clone_template="/Scene/Copy_{}",
-        env_ids=np.arange(2),
-        positions=np.zeros((2, 3), dtype=np.float32),
-        context_source_indices={NewtonReplicateContext: (0,)},
+    plan = make_clone_plan(
+        (AssetBaseCfg(prim_path="/Scene/Copy_[^/]+", spawn=SpawnerCfg(spawn_path="/Scene/Source")),),
+        ((0,),),
+        2,
     )
     sim = object.__new__(SimulationContext)
     sim.cfg = SimpleNamespace(physics=object(), device="cpu")
     sim.stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(sim.stage, "/Scene/Source")
+    sim.clone_contexts = {UsdReplicateContext: UsdReplicateContext(sim.stage, plan, env_template="/Scene/Copy_{}")}
     sim.physics_manager = ForeignPhysicsManager
     sim._backend_registry = []
     body_paths = [f"/Scene/Body_{index}" for index in range(body_count)]
@@ -120,9 +118,9 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
     assert NewtonManager.get_state() is None
     build.assert_not_called()
 
-    builder, _, _ = context.replicate(plan)
+    builder, _, _ = context.replicate(plan, (0,))
     assert isinstance(builder, ModelBuilder)
-    build.assert_called_once_with(sim.stage, plan, (0,), sim, up_axis="Z")
+    build.assert_called_once()
     finalize.assert_not_called()
     assert not sim._backend_registry
 
@@ -350,22 +348,21 @@ def test_clone_visualization_builder_imports_only_declared_global_deformables(mo
     for source in sources:
         UsdGeom.Xform.Define(stage, source)
         Sdf.CopySpec(stage.GetRootLayer(), "/World/Assets/Cloth", stage.GetRootLayer(), f"{source}/Cloth")
-    clone_plan = ClonePlan(
-        sources=tuple(
+    plan = make_clone_plan(
+        tuple(
             AssetBaseCfg(prim_path=dst.format("[^/]+"), spawn=SpawnerCfg(spawn_path=src))
             for src, dst in zip(sources, ("/Copies/env_{}/Selected", "/Copies/env_{}/Excluded"), strict=True)
         )
         + (AssetBaseCfg(prim_path=global_path),),
-        destinations=np.array([[0, 0], [0, 0], [-1, -1]], dtype=np.int32),
-        clone_template="/Copies/env_{}",
-        env_ids=np.asarray([0, 1], dtype=np.int64),
-        positions=np.zeros((2, 3), dtype=np.float32),
-        context_source_indices={NewtonReplicateContext: (0,)},
+        ((0, 1),),
+        2,
+        shared_assets=(2,),
     )
     sim = SimpleNamespace(
         cfg=SimpleNamespace(physics=object()),
         device="cpu",
         stage=stage,
+        clone_contexts={UsdReplicateContext: UsdReplicateContext(stage, plan, env_template="/Copies/env_{}")},
         physics_manager=SimpleNamespace(register_callback=Mock()),
     )
     usd_imports = []
@@ -377,12 +374,11 @@ def test_clone_visualization_builder_imports_only_declared_global_deformables(mo
 
     monkeypatch.setattr(ModelBuilder, "add_usd", import_usd)
 
-    builder, _, _ = NewtonReplicateContext(sim).replicate(clone_plan)
+    builder, _, _ = NewtonReplicateContext(sim).replicate(plan, (0, 2))
     callback = sim.physics_manager.register_callback.call_args.args[0]
     geometry = callback.args[1]
 
     assert [kwargs["root_path"] for kwargs in usd_imports] == [global_path, sources[0]]
-    assert {"/World/Assets/Cloth", *sources} <= set(usd_imports[0]["ignore_paths"])
     assert set(geometry) == {
         "/World/Assets/Cloth",
         "/Copies/env_0/Selected/Cloth",

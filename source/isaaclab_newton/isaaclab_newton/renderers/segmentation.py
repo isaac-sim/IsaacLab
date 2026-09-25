@@ -38,7 +38,6 @@ if TYPE_CHECKING:
 
     from pxr import Usd
 
-    from isaaclab.cloner import ClonePlan
 
 _UNLABELLED_COLOR: int = 0xFF000000
 """Packed RGBA color for UNLABELLED pixels: ``(0, 0, 0, 255)`` opaque black."""
@@ -258,8 +257,8 @@ class NewtonSegmentationMapping:
 class NewtonSegmentationMapper:
     """Builds per-shape segmentation lookup tables from a Newton model and its USD stage."""
 
-    def __init__(self, model: newton.Model, stage: Usd.Stage | None, cfg, clone_plan: ClonePlan) -> None:
-        """Initialize the mapper from the Newton model, USD stage, renderer config, and clone plan.
+    def __init__(self, model: newton.Model, stage: Usd.Stage | None, cfg, instances: tuple) -> None:
+        """Initialize the mapper from the Newton model, USD stage, renderer config, and native instance paths.
 
         Construction is cheap — it only captures references and snapshots ``model.shape_label``.
         Call :meth:`build_mapping` to do the actual per-shape USD resolution and id assignment.
@@ -269,9 +268,8 @@ class NewtonSegmentationMapper:
             stage: The live USD stage used to read :class:`UsdSemantics.LabelsAPI` labels. May be
                 ``None`` in stageless setups, in which case every shape is treated as unlabelled.
             cfg: Renderer config exposing ``semantic_filter`` and ``semantic_segmentation_mapping``.
-            clone_plan: The scene's published :class:`~isaaclab.cloner.ClonePlan`, used to fall back
-                to the prototype env when a replicated shape has no prim on the stage (backend-only
-                replication). See :meth:`_resolve_via_prototype`.
+            instances: Native source paths, destination templates, and world IDs, used when a
+                replicated shape has no prim on the stage. See :meth:`_resolve_via_prototype`.
         """
         self._model = model
         self._stage = stage
@@ -283,7 +281,7 @@ class NewtonSegmentationMapper:
         # Cache of prim path -> (matched_labels or None); labels resolved with ancestor inheritance.
         self._matched_cache: dict[str, tuple[dict[SemanticType, SemanticLabels], SemanticPrimPath] | None] = {}
         self._mappings: dict[tuple[str, bool], NewtonSegmentationMapping] = {}
-        self._clone_plan = clone_plan
+        self._instances = instances
 
     def build_mapping(self, kind: _SegKind, colorize: bool) -> None:
         """Build and cache the :class:`NewtonSegmentationMapping` for ``kind`` at the requested colorization."""
@@ -397,7 +395,7 @@ class NewtonSegmentationMapper:
             ValueError: When ``prim_path`` is owned by multiple distinct, equally near destination
                 templates — a malformed clone plan, not a state to resolve around.
         """
-        resolved = cloner_query.path_to_source(self._clone_plan, prim_path)
+        resolved = cloner_query.path_to_source(self._instances, prim_path)
         if resolved is None:
             # ``prim_path`` is not owned by the clone plan at all (e.g. an un-cloned ground plane or
             # other static prim) — nothing to fall back to, so it stays unlabelled.
