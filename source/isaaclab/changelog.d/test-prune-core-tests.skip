@@ -1,1 +1,1 @@
-Pruned redundant core tests (scene, cloner, renderer, sensor, asset, env, manager, controller, actuator, utility, and CLI) and strengthened the kept assertions.
+Pruned redundant core tests (sim, scene, cloner, renderer, sensor, asset, env, manager, controller, actuator, utility, and CLI) and strengthened the kept assertions.
