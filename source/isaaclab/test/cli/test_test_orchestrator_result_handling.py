@@ -144,6 +144,7 @@ def test_exact_node_ids_selecting_zero_tests_fail(monkeypatch, tmp_path: Path) -
         env={},
         inject_shard_select=False,
         pytest_targets=[missing_node_id],
+        capture=orchestrator._CaptureOptions(),
     )
 
     report, status, was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
@@ -180,6 +181,7 @@ def test_nonzero_pytest_exit_preserves_reported_tests(monkeypatch, tmp_path: Pat
         env={},
         inject_shard_select=False,
         pytest_targets=[str(test_file)],
+        capture=orchestrator._CaptureOptions(),
     )
 
     report, status, was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
@@ -218,6 +220,7 @@ def test_filter_deselecting_all_tests_is_not_a_failure(monkeypatch, tmp_path: Pa
         env={},
         inject_shard_select=False,
         pytest_targets=[str(test_file)],
+        capture=orchestrator._CaptureOptions(),
     )
 
     report, status, was_failure = orchestrator._run_one_pass(context, k_expr="ovphysx", suffix="")
@@ -251,6 +254,7 @@ def test_module_importorskip_is_not_a_failure(monkeypatch, tmp_path: Path) -> No
         env={},
         inject_shard_select=False,
         pytest_targets=[str(test_file)],
+        capture=orchestrator._CaptureOptions(),
     )
 
     report, status, was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
@@ -287,7 +291,7 @@ def test_abnormal_termination_report_quotes_bounded_renderer_log(
     # quietly turn this into a test of a log that fits inside it.
     filler_lines = orchestrator.ovrtx_log.LOG_LIMIT_BYTES // len("filler-line\n") + 1
 
-    def _capture(cmd, timeout, env, *, startup_deadline, report_file):
+    def _capture(cmd, timeout, env, *, startup_deadline, report_file, options):
         # Render verbosely, then die without writing a report.
         Path(log_path).write_text("head-line\n" + "filler-line\n" * filler_lines + "tail-line\n", encoding="utf-8")
         report_paths.append(Path(report_file))
@@ -308,6 +312,7 @@ def test_abnormal_termination_report_quotes_bounded_renderer_log(
         env={},
         inject_shard_select=False,
         pytest_targets=[str(test_file)],
+        capture=orchestrator._CaptureOptions(),
     )
 
     with caplog.at_level("INFO"):
@@ -369,6 +374,7 @@ def test_abnormal_termination_saves_the_renderer_log_of_the_blamed_test(
         env={},
         inject_shard_select=False,
         pytest_targets=[str(test_file)],
+        capture=orchestrator._CaptureOptions(),
     )
 
     _report, status, _was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
@@ -390,7 +396,7 @@ def test_shutdown_hang_after_report_is_not_a_failure(monkeypatch, tmp_path: Path
     test_file = tmp_path / "test_sample.py"
     test_file.write_text("def test_present():\n    pass\n", encoding="utf-8")
 
-    def _capture(cmd, timeout, env, *, startup_deadline, report_file):
+    def _capture(cmd, timeout, env, *, startup_deadline, report_file, options):
         _write_partial_junit_report(report_file)
         return -1, b"", b"", "shutdown_hang", 30.0, ""
 
@@ -407,6 +413,7 @@ def test_shutdown_hang_after_report_is_not_a_failure(monkeypatch, tmp_path: Path
         env={},
         inject_shard_select=False,
         pytest_targets=[str(test_file)],
+        capture=orchestrator._CaptureOptions(),
     )
 
     _report, status, was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
@@ -444,6 +451,7 @@ def test_startup_retry_wall_time_includes_every_attempt(monkeypatch, tmp_path: P
         env={},
         inject_shard_select=False,
         pytest_targets=[str(test_file)],
+        capture=orchestrator._CaptureOptions(),
     )
 
     _report, status, was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
@@ -485,6 +493,7 @@ def test_crash_journal_path_is_absolute(monkeypatch, tmp_path: Path) -> None:
         env={},
         inject_shard_select=False,
         pytest_targets=[str(test_file)],
+        capture=orchestrator._CaptureOptions(),
     )
 
     orchestrator._run_one_pass(context, k_expr=None, suffix="")
@@ -602,6 +611,7 @@ def test_fresh_process_retry_crash_blames_the_test_that_was_running(monkeypatch,
         env={},
         inject_shard_select=False,
         pytest_targets=[str(test_file)],
+        capture=orchestrator._CaptureOptions(),
     )
 
     report, status, was_failure = orchestrator._run_one_pass(context, k_expr=None, suffix="")
@@ -707,6 +717,26 @@ def test_hang_dump_plugin_is_inert_without_signal_support(monkeypatch) -> None:
     assert hang_dump.is_supported() is False
     assert hang_dump.register() is False
     hang_dump.pytest_configure(config=None)  # must not raise
+
+
+def test_performance_files_reserve_the_runner_without_xdist(monkeypatch, tmp_path):
+    """Reserving every slot for timing tests must not split their measurements across pytest workers."""
+    orchestrator = _load_orchestrator_module()
+    performance_files = ["test_kit_startup_performance.py", "test_robot_load_performance.py"]
+    files = [str(tmp_path / name) for name in (*performance_files, "test_regular.py")]
+    observed = {}
+
+    def run(job, context, *, workers, **kwargs):
+        observed[Path(job.path).name] = (job.slots, workers)
+        return orchestrator._FileResult(reports=[], status={}, failed=False)
+
+    monkeypatch.setenv("TEST_JOBS", "4")
+    monkeypatch.delenv("ISAACLAB_TEST_QUEUE", raising=False)
+    monkeypatch.setattr(orchestrator, "_run_test_file", run)
+    orchestrator.run_individual_tests(files, str(tmp_path), ci_marker=None)
+
+    assert all(observed[name] == (4, 1) for name in performance_files)
+    assert observed["test_regular.py"] == (1, 1)
 
 
 def test_external_git_asset_tests_receive_extended_startup_deadline():

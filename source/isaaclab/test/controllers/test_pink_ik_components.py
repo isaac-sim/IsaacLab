@@ -5,7 +5,9 @@
 
 """Test cases for PinkKinematicsConfiguration class."""
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Event
 
 import numpy as np
 import pinocchio as pin
@@ -15,6 +17,58 @@ from pink.exceptions import FrameNotFound
 from isaaclab.controllers.pink_ik.pink_kinematics_configuration import PinkKinematicsConfiguration
 
 pytestmark = pytest.mark.integration
+
+
+@pytest.mark.parametrize("load_fails", [False, True])
+def test_concurrent_controller_conversion_preserves_model(monkeypatch, tmp_path, load_fails):
+    """Another controller must not overwrite an export before its consumer finishes loading it."""
+    from isaaclab.assets import ArticulationCfg
+    from isaaclab.controllers.pink_ik import PinkIKControllerCfg, pink_ik
+
+    urdf = (Path(__file__).parent / "urdfs/test_urdf_two_link_robot.urdf").read_text()
+    first_loading, second_started, second_converted = Event(), Event(), Event()
+
+    def convert(usd_path, output_path, force_conversion):
+        output = Path(output_path) / "robot.urdf"
+        name = Path(usd_path).parent.name
+        output.write_text(urdf.replace("test_two_link_robot", name))
+        if name == "second":
+            second_converted.set()
+        return str(output), ""
+
+    def load(**kwargs):
+        if not first_loading.is_set():
+            first_loading.set()
+            assert second_started.wait(5)
+            # Give the contender a chance to overwrite the URDF while this reader is paused.
+            second_converted.wait(1)
+            if load_fails:
+                raise RuntimeError("model loading failed")
+        return PinkKinematicsConfiguration(**kwargs)
+
+    def initialize(name):
+        cfg = PinkIKControllerCfg(
+            usd_path=f"/{name}/robot.usd",
+            urdf_output_dir=str(tmp_path),
+            joint_names=["joint_1", "joint_2"],
+            all_joint_names=["joint_1", "joint_2"],
+        )
+        if name == "second":
+            second_started.set()
+        return pink_ik.PinkIKController(cfg, ArticulationCfg(), "cpu", [0, 1])
+
+    monkeypatch.setattr(pink_ik.controller_utils, "convert_usd_to_urdf", convert)
+    monkeypatch.setattr(pink_ik, "PinkKinematicsConfiguration", load)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(initialize, "first")
+        assert first_loading.wait(5)
+        second = pool.submit(initialize, "second")
+        if load_fails:
+            with pytest.raises(RuntimeError, match="model loading failed"):
+                first.result(timeout=10)
+        else:
+            assert first.result(timeout=10).pink_configuration.full_model.name == "first"
+        assert second.result(timeout=10).pink_configuration.full_model.name == "second"
 
 
 class TestPinkKinematicsConfiguration:

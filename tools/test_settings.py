@@ -80,6 +80,25 @@ PER_TEST_STARTUP_TIMEOUTS = {
 }
 """Per-test startup timeouts for cold external asset downloads."""
 
+PYTEST_WORKERS = {
+    # 20 independent export round trips, ~18 min serially: the RL job's long pole.
+    "test_leapp_export_flow.py": 4,
+}
+"""Test files split across ``pytest-xdist`` workers, and how many.
+
+Every worker starts its own process -- and its own Kit app and simulation, for files that launch one -- so
+splitting only pays off for files whose tests take far longer than that startup. List a file here when it
+is the long pole of its CI job. Each worker holds one of the job's ``TEST_JOBS`` slots; a file never gets
+more workers than the job has slots.
+"""
+
+EXCLUSIVE_TESTS = [
+    # Both assert wall-clock limits, which other files running at the same time would eat into.
+    "test_kit_startup_performance.py",
+    "test_robot_load_performance.py",
+]
+"""Test files that run with no other test file alongside them, when a job runs several files at once."""
+
 CUROBO_PLANNER_TESTS = [
     "test_curobo_planner_franka.py",
     "test_curobo_planner_cube_stack.py",
