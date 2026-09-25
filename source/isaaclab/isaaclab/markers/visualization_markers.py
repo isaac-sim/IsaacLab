@@ -111,6 +111,9 @@ class VisualizationMarkers:
         self._count = len(cfg.markers)
         self._is_visible = True
         self._has_visualized = False
+        # the last validated ``environment_ids`` input, so a persistent id tensor passed every
+        # step is range-checked (a device-to-host sync) only once
+        self._validated_environment_ids: torch.Tensor | None = None
         self._backends: list[object] = []
         self._ensure_backends_initialized()
 
@@ -228,8 +231,11 @@ class VisualizationMarkers:
             norm_marker_indices = norm_marker_indices.to(device=target_device)
         if norm_environment_ids is not None:
             norm_environment_ids = norm_environment_ids.to(device=target_device)
-            if torch.any(norm_environment_ids < 0):
-                raise ValueError("Expected `environment_ids` to contain non-negative indices.")
+            if environment_ids is not self._validated_environment_ids:
+                if torch.any(norm_environment_ids < 0):
+                    raise ValueError("Expected `environment_ids` to contain non-negative indices.")
+                if isinstance(environment_ids, torch.Tensor):
+                    self._validated_environment_ids = environment_ids
 
         marker_values = (norm_translations, norm_orientations, norm_scales, norm_marker_indices)
         marker_counts = {value.shape[0] for value in marker_values if value is not None}

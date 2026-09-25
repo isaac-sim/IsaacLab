@@ -66,7 +66,7 @@ def image(
     sensor: Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
 
     # obtain the input image
-    images = sensor.data.output[data_type]
+    images = sensor.data.output[data_type].torch
 
     # depth image conversion
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:

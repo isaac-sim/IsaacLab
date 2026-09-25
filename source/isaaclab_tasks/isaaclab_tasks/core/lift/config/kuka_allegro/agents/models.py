@@ -63,9 +63,34 @@ class SpatialSoftmax(nn.Module):
         temperature = self.log_temperature.exp().clamp(min=1e-3).view(1, self.num_channels, 1)
         logits = features.reshape(batch, self.num_channels, -1) / temperature
         weights = torch.softmax(logits, dim=-1)
-        expected_x = (weights * self.pos_x).sum(dim=-1)
-        expected_y = (weights * self.pos_y).sum(dim=-1)
-        return torch.cat([expected_x, expected_y], dim=-1)
+        # one matmul yields both expectations without [batch, C, H * W] product temporaries
+        expected = weights @ torch.cat([self.pos_x, self.pos_y]).T
+        return expected.transpose(1, 2).reshape(batch, -1)
+
+
+class CameraImageNormalizer(nn.Module):
+    """Map raw camera images to ``[-0.5, 0.5]`` with fixed, per-frame independent scaling.
+
+    uint8 images use ``x / 255 - 0.5``. Floating-point depth [m] uses ``tanh(depth / 2) - 0.5``,
+    the same span as RGB so both modalities share the encoder's input scale, with NaN depth
+    treated as far away. Normalizing inside the model keeps images uint8 in the environment
+    output and the rollout storage, and makes exported policies consume raw camera images.
+    """
+
+    def __init__(self, is_uint8: bool) -> None:
+        """Initialize the normalizer.
+
+        Args:
+            is_uint8: Whether the camera image is uint8 (color) rather than floating-point depth.
+        """
+        super().__init__()
+        self.is_uint8 = is_uint8
+
+    def forward(self, images: torch.Tensor) -> torch.Tensor:
+        """Normalize a ``[batch, C, H, W]`` raw camera image."""
+        if self.is_uint8:
+            return images.float() / 255.0 - 0.5
+        return torch.where(torch.isnan(images), 0.5, torch.tanh(images / 2.0) - 0.5)
 
 
 class SpatialSoftmaxCNNModel(MLPModel):
@@ -126,6 +151,7 @@ class SpatialSoftmaxCNNModel(MLPModel):
         cnn_kwargs.update(flatten=False, global_pool="none")
         cnns: dict[str, CNN] = {}
         softmaxes: dict[str, SpatialSoftmax] = {}
+        normalizers: dict[str, CameraImageNormalizer] = {}
         self.keypoint_dim = 0
         for idx, obs_group in enumerate(self.obs_groups_2d):
             cnn = CNN(input_dim=self.obs_dims_2d[idx], input_channels=self.obs_channels_2d[idx], **cnn_kwargs)
@@ -136,6 +162,7 @@ class SpatialSoftmaxCNNModel(MLPModel):
             softmax = SpatialSoftmax(int(channels), int(height), int(width), init_temperature)
             cnns[obs_group] = cnn
             softmaxes[obs_group] = softmax
+            normalizers[obs_group] = CameraImageNormalizer(obs[obs_group].dtype == torch.uint8)
             self.keypoint_dim += softmax.output_dim
 
         super().__init__(
@@ -150,13 +177,18 @@ class SpatialSoftmaxCNNModel(MLPModel):
         )
         self.cnns = nn.ModuleDict(cnns)
         self.softmaxes = nn.ModuleDict(softmaxes)
+        self.image_normalizers = nn.ModuleDict(normalizers)
 
     def get_latent(
         self, obs: TensorDict, masks: torch.Tensor | None = None, hidden_state: HiddenState = None
     ) -> torch.Tensor:
         """Build the model latent from keypoint coordinates and normalized 1D groups."""
         latent_2d = torch.cat(
-            [self.softmaxes[group](self.cnns[group](obs[group])) for group in self.obs_groups_2d], dim=-1
+            [
+                self.softmaxes[group](self.cnns[group](self.image_normalizers[group](obs[group])))
+                for group in self.obs_groups_2d
+            ],
+            dim=-1,
         )
         if not self.obs_groups:
             return latent_2d
@@ -185,7 +217,11 @@ class _TorchSpatialSoftmaxModel(nn.Module):
         # one Sequential per 2D group: TorchScript cannot index a second ModuleList by variable
         self.encoders = nn.ModuleList(
             [
-                nn.Sequential(copy.deepcopy(model.cnns[g]), copy.deepcopy(model.softmaxes[g]))
+                nn.Sequential(
+                    copy.deepcopy(model.image_normalizers[g]),
+                    copy.deepcopy(model.cnns[g]),
+                    copy.deepcopy(model.softmaxes[g]),
+                )
                 for g in model.obs_groups_2d
             ]
         )
@@ -223,6 +259,9 @@ class _OnnxSpatialSoftmaxModel(_TorchSpatialSoftmaxModel):
         self.obs_dims_2d = model.obs_dims_2d
         self.obs_channels_2d = model.obs_channels_2d
         self.obs_dim_1d = model.obs_dim
+        self.obs_dtypes_2d = [
+            torch.uint8 if model.image_normalizers[g].is_uint8 else torch.float32 for g in model.obs_groups_2d
+        ]
 
     def forward(self, obs_1d: torch.Tensor, *obs_2d: torch.Tensor) -> torch.Tensor:
         """Run deterministic inference for ONNX export."""
@@ -234,7 +273,7 @@ class _OnnxSpatialSoftmaxModel(_TorchSpatialSoftmaxModel):
         dummy_2d = []
         for i in range(len(self.obs_groups_2d)):
             h, w = self.obs_dims_2d[i]
-            dummy_2d.append(torch.zeros(1, self.obs_channels_2d[i], h, w))
+            dummy_2d.append(torch.zeros(1, self.obs_channels_2d[i], h, w, dtype=self.obs_dtypes_2d[i]))
         return (dummy_1d, *dummy_2d)
 
     @property

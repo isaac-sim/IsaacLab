@@ -98,15 +98,18 @@ class TestNormalizeImageUint8:
         with pytest.raises(ValueError, match="4D uint8"):
             normalize_image_uint8(src)
 
-    def test_rejects_non_contiguous_input(self, device):
-        """Non-contiguous src is rejected."""
+    def test_strided_rgb_view_with_layout_conversion(self, device):
+        """The RGB view of an RGBA camera buffer normalizes directly into a contiguous BCHW output."""
         from isaaclab.utils.warp.ops import normalize_image_uint8
 
-        base = torch.randint(0, 255, (2, 8, 8, 12), dtype=torch.uint8, device=device)
-        src = base[..., ::2]
+        rgba = torch.randint(0, 255, (2, 9, 7, 4), dtype=torch.uint8, device=device)
+        src = rgba[..., :3]
         assert not src.is_contiguous()
-        with pytest.raises(ValueError, match="contiguous"):
-            normalize_image_uint8(src)
+        out = normalize_image_uint8(src, output_channel_dim=1)
+
+        expected = _pytorch_reference(src).permute(0, 3, 1, 2)
+        torch.testing.assert_close(out, expected, atol=1e-5, rtol=1e-5)
+        assert out.is_contiguous()
 
     def test_rejects_out_shape_mismatch(self, device):
         """A pre-allocated ``out`` of the wrong shape must raise."""
@@ -233,18 +236,6 @@ class TestNormalizeImageUint8:
         result2 = normalize_image_uint8(src2, channel_dim=1, out=out)
         assert result2.data_ptr() == ptr_before
         torch.testing.assert_close(result2, _pytorch_reference(src2, channel_dim=1), atol=1e-5, rtol=1e-5)
-
-    def test_bhwc_to_bchw_layout_conversion(self, device):
-        """Normalization writes directly to a contiguous BCHW output when requested."""
-        from isaaclab.utils.warp.ops import normalize_image_uint8
-
-        src = torch.randint(0, 255, (2, 9, 7, 3), dtype=torch.uint8, device=device)
-        out = normalize_image_uint8(src, output_channel_dim=1)
-
-        expected = _pytorch_reference(src).permute(0, 3, 1, 2).contiguous()
-        torch.testing.assert_close(out, expected, atol=1e-5, rtol=1e-5)
-        assert out.shape == (2, 3, 9, 7)
-        assert out.is_contiguous()
 
     def test_partials_cache_keyed_by_channel_dim(self, device):
         """BCHW and BHWC inputs of identical shape must land in separate cache slots."""

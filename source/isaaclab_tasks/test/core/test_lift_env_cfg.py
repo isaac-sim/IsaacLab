@@ -9,15 +9,18 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+import warp as wp
 
 from pxr import Usd
 
 from isaaclab.managers import CommandTerm
 from isaaclab.sim import select_usd_variants
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg, FrankaReorientEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
+from isaaclab_tasks.core.lift.config.kuka_allegro.agents.models import CameraImageNormalizer
 from isaaclab_tasks.core.lift.config.kuka_allegro.camera_cfg import SingleCameraObservationsCfg
 from isaaclab_tasks.core.lift.mdp.commands import pose_commands
 from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
@@ -96,10 +99,14 @@ def test_camera_normalization_is_stationary() -> None:
     outputs = {}
     for data_type, images in (("rgb", rgb), ("depth", depth)):
         sensor = SimpleNamespace(
-            cfg=SimpleNamespace(data_types=[data_type]), data=SimpleNamespace(output={data_type: images})
+            cfg=SimpleNamespace(data_types=[data_type]),
+            data=SimpleNamespace(output={data_type: ProxyArray(wp.from_torch(images))}),
         )
         env = SimpleNamespace(scene=SimpleNamespace(sensors={"base_camera": sensor}))
-        outputs[data_type] = term.func(env, **term.params)
+        # the environment keeps raw channel-first images; the policy model normalizes them
+        raw = term.func(env, **term.params)
+        assert raw.dtype == images.dtype
+        outputs[data_type] = CameraImageNormalizer(raw.dtype == torch.uint8)(raw)
 
     # channel-first output with the value range mapped to [-0.5, 0.5]
     assert outputs["rgb"].shape == (1, 3, 1, 1)

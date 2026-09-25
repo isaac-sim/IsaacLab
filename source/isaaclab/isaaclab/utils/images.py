@@ -48,7 +48,6 @@ def normalize_camera_image(
     out: torch.Tensor | None = None,
     channel_dim: int = -1,
     output_channel_dim: int | None = None,
-    stationary: bool = False,
 ) -> torch.Tensor:
     """Normalize a camera-observation tensor according to its ``data_type``.
 
@@ -56,12 +55,12 @@ def normalize_camera_image(
 
     - non-colorized ``"semantic_segmentation"`` (any non-``uint8`` dtype, ``int32`` label ids in
       practice): cast to ``float32``. Label ids carry no scale, so no further normalization.
-    - :func:`is_rgb_like` or colorized ``"semantic_segmentation"`` (``uint8``) and contiguous
-      4D: routes to the
+    - :func:`is_rgb_like` or colorized ``"semantic_segmentation"`` (``uint8``) and 4D, including
+      strided views such as the RGB channels of an RGBA buffer: routes to the
       fused Warp kernel via :func:`~isaaclab.utils.warp.ops.normalize_image_uint8`. ``out`` and
       ``channel_dim`` are forwarded so callers can reuse a pre-allocated float32 buffer and
       select the image layout.
-    - :func:`is_rgb_like` or colorized ``"semantic_segmentation"`` and any other dtype/shape:
+    - :func:`is_rgb_like` or colorized ``"semantic_segmentation"`` and any other dtype or rank:
       pure-PyTorch ``(x.float() / 255.0) - mean``
       with the same math. ``out`` is ignored on this branch; ``channel_dim`` selects the spatial
       reduction axes.
@@ -69,14 +68,10 @@ def normalize_camera_image(
     - :func:`is_normals_like`: returns ``(images + 1.0) * 0.5``.
     - Otherwise: ``images`` is returned unchanged.
 
-    With ``stationary=True``, RGB-like and depth-like images are instead mapped to ``[-0.5, 0.5]``
-    independently of per-frame statistics: RGB-like images use ``x / 255.0 - 0.5`` and depth-like
-    images use ``tanh(depth / 2) - 0.5``, with NaN depth treated as far away.
-
     Args:
         images: The camera-observation tensor. Shape and dtype vary by ``data_type``; the
-        RGB-like and colorized semantic-segmentation Warp fast paths require 4D contiguous uint8
-            with the channel axis at position ``channel_dim``.
+        RGB-like and colorized semantic-segmentation Warp fast paths require 4D uint8 with the
+            channel axis at position ``channel_dim``.
         data_type: The camera data-type string. Drives the dispatch.
         out: Optional pre-allocated float32 output for the RGB-like Warp fast path. Reused
             across steps to eliminate per-step allocation. Ignored on the PyTorch fallback
@@ -85,37 +80,28 @@ def normalize_camera_image(
         output_channel_dim: Position of the channel axis in the result. Supports the same values
             as ``channel_dim``. The Warp fast path converts the layout while normalizing; other
             branches return a contiguous copy. Defaults to None, which keeps the input layout.
-        stationary: Whether to use the fixed-range normalization described above. Defaults to False.
 
     Returns:
         The normalized tensor. For RGB-like and colorized semantic-segmentation input this is a
         fresh (or pre-allocated) float32 tensor; for non-colorized semantic segmentation it is
         ``images`` cast to float32; for depth-like input it is ``images`` itself (mutated in
-        place) unless ``stationary`` is set; for normals-like input it is a new tensor; for
-        anything else, ``images`` unchanged. Layout conversion returns a new tensor.
+        place); for normals-like input it is a new tensor; for anything else, ``images``
+        unchanged. Layout conversion returns a new tensor.
     """
     if data_type == "semantic_segmentation" and images.dtype != torch.uint8:
         # Non-colorized segmentation is an integer label map (``int32`` for every renderer).
         # Label ids carry no scale, so cast for the downstream convolutions without rescaling.
         images = images.float()
     elif is_rgb_like(data_type) or data_type == "semantic_segmentation":
-        if images.dtype == torch.uint8 and images.ndim == 4 and images.is_contiguous():
-            center = 0.5 if stationary else None
-            return normalize_image_uint8(images, channel_dim, out, output_channel_dim, center)
-        # PyTorch fallback for callers that pre-floated or pass a strided view.
+        if images.dtype == torch.uint8 and images.ndim == 4:
+            return normalize_image_uint8(images, channel_dim, out, output_channel_dim)
+        # PyTorch fallback for callers that pre-floated or pass a non-4D image.
+        resolved_channel_dim = channel_dim + images.ndim if channel_dim < 0 else channel_dim
+        spatial_dims = tuple(d for d in range(1, images.ndim) if d != resolved_channel_dim)
         images = images.float() / 255.0
-        if stationary:
-            images -= 0.5
-        else:
-            resolved_channel_dim = channel_dim + images.ndim if channel_dim < 0 else channel_dim
-            spatial_dims = tuple(d for d in range(1, images.ndim) if d != resolved_channel_dim)
-            images -= torch.mean(images, dim=spatial_dims, keepdim=True)
+        images -= torch.mean(images, dim=spatial_dims, keepdim=True)
     elif is_depth_like(data_type):
-        if stationary:
-            # match the RGB span so both modalities share the encoder's input scale
-            images = torch.tanh(images.nan_to_num(nan=float("inf")) / 2) - 0.5
-        else:
-            images[images == float("inf")] = 0
+        images[images == float("inf")] = 0
     elif is_normals_like(data_type):
         images = (images + 1.0) * 0.5
     if output_channel_dim is not None:

@@ -728,8 +728,8 @@ def normalize_image_uint8(
     ``mean`` must be precomputed by the caller as the per-(batch, channel) mean of
     ``src / 255.0`` along the two non-batch, non-channel axes.
 
-    Dispatch with ``dim=src.shape``. The spatial axes are symmetric; only the channel index
-    lookup differs between BHWC and BCHW layouts.
+    Dispatch with ``dim=out.shape`` so that the float32 writes are coalesced. ``src`` may be a
+    strided view, e.g. the RGB channels of an RGBA buffer.
 
     Args:
         src: Input uint8 image. Shape is ``(B, H, W, C)`` or ``(B, C, H, W)``.
@@ -741,7 +741,7 @@ def normalize_image_uint8(
             ``3`` (BHWC).
     """
     b, d1, d2, d3 = wp.tid()
-    if src_channel_dim == 1:
+    if out_channel_dim == 1:
         c = d1
         h = d2
         w = d3
@@ -749,11 +749,11 @@ def normalize_image_uint8(
         c = d3
         h = d1
         w = d2
-    value = wp.float32(src[b, d1, d2, d3]) / 255.0 - mean[b, c]
-    if out_channel_dim == 1:
-        out[b, c, h, w] = value
+    if src_channel_dim == 1:
+        value = wp.float32(src[b, c, h, w]) / 255.0
     else:
-        out[b, h, w, c] = value
+        value = wp.float32(src[b, h, w, c]) / 255.0
+    out[b, d1, d2, d3] = value - mean[b, c]
 
 
 @wp.kernel(enable_backward=False)

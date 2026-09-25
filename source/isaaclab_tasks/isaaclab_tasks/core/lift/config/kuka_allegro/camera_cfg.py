@@ -227,8 +227,8 @@ class SingleCameraObservationsCfg(StateObservationCfg):
             params={
                 "sensor_cfg": SceneEntityCfg("base_camera"),
                 "data_type": None,
+                "normalize": False,
                 "permute": True,
-                "stationary": True,
             },
         )
 
@@ -250,8 +250,8 @@ class DuoCameraObservationsCfg(SingleCameraObservationsCfg):
             params={
                 "sensor_cfg": SceneEntityCfg("wrist_camera"),
                 "data_type": None,
+                "normalize": False,
                 "permute": True,
-                "stationary": True,
             },
         )
 
