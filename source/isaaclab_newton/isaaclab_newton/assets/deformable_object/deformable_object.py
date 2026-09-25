@@ -24,10 +24,10 @@ from .deformable_object_data import DeformableObjectData
 from .kernels import (
     compute_nodal_state_w,
     enforce_kinematic_targets,
+    gather_particles,
     scatter_particles_state_vec6f_mask,
     scatter_particles_vec3f_index,
     scatter_particles_vec3f_mask,
-    set_kinematic_flags_to_one,
     vec6f,
     write_nodal_kinematic_target_index,
     write_nodal_kinematic_target_mask,
@@ -120,16 +120,10 @@ class DeformableObject(BaseDeformableObject):
         Writes to both ``state_0`` and ``state_1`` so kinematic positions survive
         the state swaps that happen between substeps.
         """
-        if (
-            self._data.nodal_kinematic_target is None
-            or self._default_particle_inv_mass is None
-            or self._default_particle_flags is None
-        ):
+        if self._data.nodal_kinematic_target is None:
             return
 
         model = SimulationManager.get_model()
-        if model is None:
-            return
 
         for state in self._iter_particle_states():
             wp.launch(
@@ -309,7 +303,8 @@ class DeformableObject(BaseDeformableObject):
             )
 
         SimulationManager._mark_particles_dirty()
-        self._invalidate_nodal_state_cache()
+        self._invalidate_nodal_pos_cache()
+        self._invalidate_nodal_vel_cache()
 
     def write_nodal_pos_to_sim_mask(
         self,
@@ -446,11 +441,6 @@ class DeformableObject(BaseDeformableObject):
         self._data._nodal_state_w.timestamp = -1.0
         self._data._root_vel_w.timestamp = -1.0
 
-    def _invalidate_nodal_state_cache(self) -> None:
-        """Invalidate all cached nodal state data."""
-        self._invalidate_nodal_pos_cache()
-        self._invalidate_nodal_vel_cache()
-
     def _initialize_impl(self):
         """Initialize physics handles and buffers after the Newton model is ready."""
         # Replace this selection with Newton's family views when the pinned version includes
@@ -465,14 +455,13 @@ class DeformableObject(BaseDeformableObject):
         if any((count, kind) != selected[0][1:] for _, count, kind in selected):
             raise ValueError(f"Deformable selection '{self.cfg.prim_path}' requires equal particle counts and types.")
         self._num_instances = len(selected)
-        self._recorded_particle_offsets = [offset for offset, _, _ in selected]
 
         logger.info("Newton deformable object initialized at: %s", self.cfg.prim_path)
         logger.info("Number of instances: %d", self._num_instances)
         logger.info("Particles per body: %d", self._particles_per_body)
 
         # Build particle offset array on device
-        self._particle_offsets = wp.array(self._recorded_particle_offsets, dtype=wp.int32, device=self.device)
+        self._particle_offsets = wp.array([offset for offset, _, _ in selected], dtype=wp.int32, device=self.device)
 
         # Create data container
         self._data = DeformableObjectData(
@@ -501,68 +490,35 @@ class DeformableObject(BaseDeformableObject):
         self._ALL_INDICES = wp.array(np.arange(self._num_instances, dtype=np.int32), device=self.device)
         self._ALL_ENV_MASK = wp.ones((self._num_instances,), dtype=wp.bool, device=self.device)
 
-        # Snapshot default positions from current state (after finalize + FK)
-        state = SimulationManager.get_state_0()
-        if state is not None and state.particle_q is not None:
-            from .kernels import gather_particles_vec3f
-
-            self._default_nodal_pos_w = wp.zeros(
-                (self._num_instances, self._particles_per_body), dtype=wp.vec3f, device=self.device
-            )
-            wp.launch(
-                gather_particles_vec3f,
-                dim=(self._num_instances, self._particles_per_body),
-                inputs=[state.particle_q, self._particle_offsets, self._particles_per_body],
-                outputs=[self._default_nodal_pos_w],
-                device=self.device,
-            )
-
-            # Compute default nodal state as vec6f (positions + zero velocities)
-            nodal_velocities = wp.zeros(
-                (self._num_instances, self._particles_per_body), dtype=wp.vec3f, device=self.device
-            )
-            default_nodal_state_w = wp.zeros(
-                (self._num_instances, self._particles_per_body), dtype=vec6f, device=self.device
-            )
-            wp.launch(
-                compute_nodal_state_w,
-                dim=(self._num_instances, self._particles_per_body),
-                inputs=[self._default_nodal_pos_w, nodal_velocities],
-                outputs=[default_nodal_state_w],
-                device=self.device,
-            )
-            self._data.default_nodal_state_w = ProxyArray(default_nodal_state_w)
-        else:
-            self._default_nodal_pos_w = None
-
-        # Snapshot default particle_inv_mass for kinematic target restoration
-        model = SimulationManager.get_model()
-        if model is not None and hasattr(model, "particle_inv_mass") and model.particle_inv_mass is not None:
-            self._default_particle_inv_mass = wp.clone(model.particle_inv_mass)
-        else:
-            self._default_particle_inv_mass = None
-        if model is not None and hasattr(model, "particle_flags") and model.particle_flags is not None:
-            self._default_particle_flags = wp.clone(model.particle_flags)
-        else:
-            self._default_particle_flags = None
-
-        # Kinematic targets -- allocate and initialize with free flags
-        nodal_kinematic_target = wp.zeros(
-            (self._num_instances, self._particles_per_body), dtype=wp.vec4f, device=self.device
-        )
+        # Defaults use the same asset-local selection as data reads, not the whole model.
+        shape = (self._num_instances, self._particles_per_body)
+        default_nodal_state_w = wp.empty(shape, dtype=vec6f, device=self.device)
         wp.launch(
-            set_kinematic_flags_to_one,
-            dim=(self._num_instances * self._particles_per_body,),
-            inputs=[nodal_kinematic_target.reshape((self._num_instances * self._particles_per_body,))],
+            compute_nodal_state_w,
+            dim=shape,
+            inputs=[self._data.nodal_pos_w.warp, wp.zeros(shape, dtype=wp.vec3f, device=self.device)],
+            outputs=[default_nodal_state_w],
             device=self.device,
         )
-        self._data.nodal_kinematic_target = ProxyArray(nodal_kinematic_target)
-
-        # Set up the model parameters
+        self._data.default_nodal_state_w = ProxyArray(default_nodal_state_w)
         model = SimulationManager.get_model()
-        if model is not None:
-            if hasattr(model, "edge_rest_angle"):
-                model.edge_rest_angle.zero_()
+        self._default_particle_inv_mass = wp.empty(shape, dtype=wp.float32, device=self.device)
+        self._default_particle_flags = wp.empty(shape, dtype=wp.int32, device=self.device)
+        for source, default in (
+            (model.particle_inv_mass, self._default_particle_inv_mass),
+            (model.particle_flags, self._default_particle_flags),
+        ):
+            wp.launch(
+                gather_particles,
+                dim=shape,
+                inputs=[source, self._particle_offsets],
+                outputs=[default],
+                device=self.device,
+            )
+
+        self._data.nodal_kinematic_target = ProxyArray(
+            wp.full(shape, value=wp.vec4f(0.0, 0.0, 0.0, 1.0), device=self.device)
+        )
 
     """
     Internal simulation callbacks.
@@ -595,7 +551,3 @@ class DeformableObject(BaseDeformableObject):
         if hasattr(self, "_physics_ready_handle") and self._physics_ready_handle is not None:
             self._physics_ready_handle.deregister()
             self._physics_ready_handle = None
-
-    def _invalidate_initialize_callback(self, event):
-        """Invalidates the scene elements."""
-        super()._invalidate_initialize_callback(event)

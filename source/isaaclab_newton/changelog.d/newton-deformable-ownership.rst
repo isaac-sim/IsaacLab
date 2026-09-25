@@ -20,3 +20,6 @@ Fixed
 * Moved MPM particle-range and visual-geometry binding into clone/import, removing asset-side registration.
 
 * Moved Fabric body-prim preparation out of Newton physics startup and into the shared Fabric rendering resource.
+
+* Scoped deformable kinematic defaults to each asset's selected particles instead of copying the entire model.
+  Preserved imported cloth rest angles during asset initialization.
