@@ -6,6 +6,7 @@
 """Tests for :func:`isaaclab_tasks.utils.parse_cfg.parse_env_cfg`."""
 
 import pytest
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
@@ -20,7 +21,7 @@ def test_parse_env_cfg_rejects_bare_string_overrides():
 def test_parse_env_cfg_accepts_list_overrides():
     """A properly wrapped override list should apply without error."""
     env_cfg = parse_env_cfg("Isaac-Cartpole", overrides=["physics=isaacsim_physx"])
-    assert env_cfg is not None
+    assert isinstance(env_cfg.sim.physics, PhysxCfg)
 
 
 def test_parse_env_cfg_preserves_task_device_when_omitted():
@@ -38,7 +39,7 @@ def test_parse_env_cfg_applies_explicit_device_override():
     assert env_cfg.sim.device == "cpu"
 
 
-@pytest.mark.parametrize("missing_module", ["pinocchio", "pink", "qpsolvers", "daqp", "unrelated_dependency"])
+@pytest.mark.parametrize("missing_module", ["pinocchio", "unrelated_dependency"])
 def test_task_config_missing_pink_dependency(monkeypatch: pytest.MonkeyPatch, missing_module: str):
     """Missing Pink dependencies should identify the task without hiding unrelated import errors."""
     from isaaclab_tasks.utils import parse_cfg

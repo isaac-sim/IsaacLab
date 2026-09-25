@@ -149,7 +149,10 @@ class _FakeHand:
         self._names = names
 
     def find_fixed_tendons(self, name_keys, preserve_order=False):
+        # Like the real lookup: query order only when requested, articulation order otherwise.
         indices = [self._names.index(name) for name in name_keys if name in self._names]
+        if not preserve_order:
+            indices.sort()
         return indices, [self._names[i] for i in indices]
 
 

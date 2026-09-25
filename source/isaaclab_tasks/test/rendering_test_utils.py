@@ -246,37 +246,6 @@ _OVRTX_DATA_TYPES = tuple(dt for dt in _DEFAULT_SENSOR_DATA_TYPES if dt != "inst
 _KITLESS_STAGE_VARIANTS = ("legacy", "ovstage")
 
 
-def make_xfail_rendering_params(
-    params: list[pytest.param],
-    expected_failures: dict[tuple[str, ...], str],
-) -> list[pytest.param]:
-    """Mark selected rendering parameter combinations as expected failures.
-
-    Args:
-        params: Rendering parameters containing physics backend, renderer, and data type values.
-        expected_failures: Mapping from parameter value tuples to expected-failure reasons.
-
-    Returns:
-        Rendering parameters with non-strict ``xfail`` marks applied to matching combinations.
-    """
-    marked_params = []
-    for param in params:
-        reason = expected_failures.get(tuple(param.values))
-        if reason is None:
-            marked_params.append(param)
-            continue
-        # Expected failures should run once and carry one unambiguous reason.
-        marks = [mark for mark in param.marks if mark.name not in ("flaky", "xfail")]
-        marked_params.append(
-            pytest.param(
-                *param.values,
-                id=param.id,
-                marks=[*marks, pytest.mark.xfail(reason=reason, strict=False)],
-            )
-        )
-    return marked_params
-
-
 def make_skip_rendering_params(
     params: list[pytest.param],
     expected_skips: dict[tuple[str, ...], str],
@@ -416,9 +385,17 @@ def _make_sensor_data_type_params(
     ]
 
 
+# RTX Minimal mode (the ``simple_shading_*`` outputs) is a per-render-product renderer setting that does not
+# depend on the physics backend, so it is rendered with one physics backend per RTX renderer and only in the
+# Cartpole and Shadow Hand scenes. Cartpole's flat materials look the same under every shading level, so the
+# textured Shadow Hand scene is the golden that tells the MDL levels apart. Other scenes cover the remaining
+# data types.
+_NON_MINIMAL_SENSOR_DATA_TYPES = (*_STATIC_SENSOR_DATA_TYPES, *_TEMPORAL_SENSOR_DATA_TYPES)
+_OVRTX_NON_MINIMAL_DATA_TYPES = tuple(dt for dt in _OVRTX_DATA_TYPES if dt not in _MINIMAL_SENSOR_DATA_TYPES)
+
 PHYSICS_RENDERER_AOV_COMBINATIONS = [
-    *_make_sensor_data_type_params("physx", "isaacsim_rtx"),
-    *_make_sensor_data_type_params("newton", "isaacsim_rtx"),
+    *_make_sensor_data_type_params("physx", "isaacsim_rtx", _NON_MINIMAL_SENSOR_DATA_TYPES),
+    *_make_sensor_data_type_params("newton", "isaacsim_rtx", _NON_MINIMAL_SENSOR_DATA_TYPES),
     *_make_sensor_data_type_params(
         "physx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
     ),
@@ -426,24 +403,36 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
 
 PHYSICS_RENDERER_AOV_GROUPS = group_rendering_params(PHYSICS_RENDERER_AOV_COMBINATIONS)
 
+MINIMAL_PHYSICS_RENDERER_AOV_GROUPS = group_rendering_params(
+    [
+        *PHYSICS_RENDERER_AOV_COMBINATIONS,
+        *_make_sensor_data_type_params("physx", "isaacsim_rtx", _MINIMAL_SENSOR_DATA_TYPES),
+    ]
+)
+
 # MPM particles are simulated only by Newton's coupled MPM solver, so there is no PhysX or OVPhysX arm.
 # Only the RTX arm is covered: it draws the ``UsdGeom.Points`` clouds on the USD stage, whereas the Warp
 # rasterizer draws particles straight from Newton state as synthetic hits, which is a separate code path.
 MPM_PARTICLE_AOV_COMBINATIONS = [
-    *_make_sensor_data_type_params("newton", "isaacsim_rtx"),
+    *_make_sensor_data_type_params("newton", "isaacsim_rtx", _NON_MINIMAL_SENSOR_DATA_TYPES),
 ]
 
 MPM_PARTICLE_AOV_GROUPS = group_rendering_params(MPM_PARTICLE_AOV_COMBINATIONS)
 
 KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
-    *_make_sensor_data_type_params("ovphysx", "ovrtx", _OVRTX_DATA_TYPES),
-    *_make_sensor_data_type_params("newton", "ovrtx", _OVRTX_DATA_TYPES),
+    *_make_sensor_data_type_params("ovphysx", "ovrtx", _OVRTX_NON_MINIMAL_DATA_TYPES),
+    *_make_sensor_data_type_params("newton", "ovrtx", _OVRTX_NON_MINIMAL_DATA_TYPES),
     *_make_sensor_data_type_params(
         "ovphysx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
     ),
     *_make_sensor_data_type_params(
         "newton", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
     ),
+]
+
+MINIMAL_KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
+    *KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
+    *_make_sensor_data_type_params("ovphysx", "ovrtx", _MINIMAL_SENSOR_DATA_TYPES),
 ]
 
 _VISUAL_MATERIAL_KITLESS_COMBINATIONS = [
@@ -458,8 +447,13 @@ def make_kitless_rendering_params_lift() -> list[pytest.param]:
 
 
 def make_kitless_rendering_params_franka() -> list[pytest.param]:
-    """Create kitless Franka rendering parameters."""
-    params = make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+    """Create kitless Franka rendering parameters.
+
+    The Franka deformable (cloth, soft, cable) configs declare no OVPhysX preset, so OVPhysX is left out.
+    """
+    params = make_kitless_rendering_params(
+        [param for param in KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS if param.values[0] != "ovphysx"]
+    )
     params = [
         (
             pytest.param(
@@ -2270,15 +2264,8 @@ def rendering_test_franka_soft(
     data_types: list[str],
     comparison_scores: list[dict],
 ) -> None:
-    if physics_backend == "physx" or renderer == "isaacsim_rtx_renderer":
-        pytest.skip("Random teardown hangs in the kit-based combinations (OMPE-101977).")
-
     if renderer == "ovrtx_renderer" and "instance_segmentation" in data_types:
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_soft (NVBUG#6463802).")
-
-    # Native hang: the per-file CI runner kills the suite after 1000s with no pytest outcome.
-    if physics_backend == "ovphysx" and renderer == "ovrtx_renderer" and "depth" in data_types:
-        pytest.skip("OVPhysX + OVRTX depth hangs intermittently on franka_soft kitless CI (NVBUG#6564917).")
 
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
