@@ -100,8 +100,9 @@ if args_cli.require_kit and not AppLauncher.is_available():
 import os  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
-from isaaclab import cloner  # noqa: E402
+from isaaclab.assets import AssetBaseCfg  # noqa: E402
 from isaaclab.physics import PhysicsCfg  # noqa: E402
+from isaaclab.scene import InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg  # noqa: E402
 from isaaclab.utils.assets import check_file_path  # noqa: E402
 from isaaclab.utils.dict import print_dict  # noqa: E402
@@ -128,13 +129,12 @@ def preview(usd_path: str, physics_cfg: PhysicsCfg) -> None:
     # shared scene data, so no backend-specific code is needed here. Physics is not stepped -- the
     # asset is shown in its imported pose until the visualizer window is closed.
     sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device=args_cli.device, physics=physics_cfg))
-    plan = cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/Light", "/World/ConvertedAsset"))
-    sim.set_clone_plan(plan)
-    light_cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
-    light_cfg.func("/World/Light", light_cfg)
-    asset_cfg = sim_utils.UsdFileCfg(usd_path=usd_path)
-    asset_cfg.func("/World/ConvertedAsset", asset_cfg)
-    cloner.replicate(plan, replicate_physics=False)
+    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
+    scene_cfg.light = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    )
+    scene_cfg.asset = AssetBaseCfg(prim_path="/World/ConvertedAsset", spawn=sim_utils.UsdFileCfg(usd_path=usd_path))
+    _scene = scene_cfg.class_type(scene_cfg)
     sim.reset()
 
     # Checked per visualizer rather than through ``SimulationContext.is_headless_or_exist_active_visualizer``:

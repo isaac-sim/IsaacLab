@@ -121,6 +121,15 @@ visuals, PhysX's native replicator for rigid bodies and articulations, Newton's
 world system for its parallel pipeline. The same plan drives all of them, so user
 code never branches on the backend.
 
+Newton startup requires a builder; it no longer imports the USD stage implicitly.
+``InteractiveScene`` handles planning and replication internally; use it for maintained
+demos, tutorials, and asset previews. The explicit cloner examples below are for tests
+and code that teaches the cloner API. Native tools can instead supply a builder with
+``NewtonManager.set_builder(builder)``.
+
+Require a plan where a consumer uses it, not merely because simulation initializes.
+Empty PhysX simulations and tools that supply a native Newton builder need no dummy plan.
+
 ClonePlan
 ~~~~~~~~~
 

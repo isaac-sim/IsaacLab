@@ -137,11 +137,12 @@ def _replicate_newton(
         )
         ignore_paths = []
         if patterns:
-            for source in sources:
-                for prim in Usd.PrimRange(stage.GetPrimAtPath(source)):
+            for root_path in (*sources, *plan.global_paths):
+                for prim in Usd.PrimRange(stage.GetPrimAtPath(root_path)):
                     path = str(prim.GetPath())
                     if any(pattern.fullmatch(path) for pattern in patterns):
                         ignore_paths.append(path)
+        global_ignore_paths.extend(ignore_paths)
     else:
         entries = discover_deformables_on_stage(stage, root_paths=(*sources, *plan.global_paths))
         ignore_paths = list(
