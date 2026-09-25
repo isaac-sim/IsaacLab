@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from newton import Model
 from newton.solvers import SolverVBD
 
-from ..assets.deformable_object.deformable_object import add_registered_deformables_to_builder
+from ..assets.deformable_object import add_registered_deformables_to_builder
 from .newton_manager import NewtonManager
 from .vbd_manager_cfg import VBDSolverCfg
 
