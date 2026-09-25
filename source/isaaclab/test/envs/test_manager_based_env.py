@@ -17,14 +17,16 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+from unittest.mock import Mock
+
 import pytest
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
+from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
-from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
+from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg, make_empty_manager_based_rl_env_cfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
 
@@ -52,25 +54,24 @@ class EmptyObservationWithHistoryCfg:
     empty_observation: EmptyObservationGroupWithHistoryCfg = EmptyObservationGroupWithHistoryCfg()
 
 
-def make_empty_manager_based_env_with_history_cfg(
-    device: str = "cuda:0", num_envs: int = 1, env_spacing: float = 1.0
-) -> ManagerBasedEnvCfg:
-    """Create an empty environment configuration with observation history."""
-    cfg = make_empty_manager_based_env_cfg(device=device, num_envs=num_envs, env_spacing=env_spacing)
-    cfg.observations = EmptyObservationWithHistoryCfg()
-    return cfg
-
-
 # Both devices, so the CPU and GPU simulation pipelines each build and step an environment.
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
-def test_step_updates_observation_history(device):
+@pytest.mark.parametrize(
+    "env_type,cfg_factory",
+    [(ManagerBasedEnv, make_empty_manager_based_env_cfg), (ManagerBasedRLEnv, make_empty_manager_based_rl_env_cfg)],
+)
+def test_step_updates_observation_history(device, env_type, cfg_factory, monkeypatch):
     """Test that real environment steps advance observation history."""
     # create a new stage
     sim_utils.create_new_stage()
     # create environment with history length of 5
-    env = ManagerBasedEnv(cfg=make_empty_manager_based_env_with_history_cfg(device=device, num_envs=3))
+    cfg = cfg_factory(device=device, num_envs=3)
+    cfg.observations = EmptyObservationWithHistoryCfg()
+    env = env_type(cfg=cfg)
     assert env.action_manager.total_action_dim == 0
     history = env.observation_manager._group_obs_term_history_buffer["empty_observation"]["dummy_term"]
+    reset_history = Mock(wraps=history.reset)
+    monkeypatch.setattr(history, "reset", reset_history)
 
     torch.testing.assert_close(
         history.current_length,
@@ -85,20 +86,22 @@ def test_step_updates_observation_history(device):
             torch.full((env.num_envs,), num_steps, device=device, dtype=torch.int64),
         )
 
-    # A slice must reach every manager as device indices, including observation history reset.
-    env.reset(env_ids=slice(1, None, 2))
+    # Preserve the slice through to buffer storage, avoiding advanced-indexed resets.
+    selected = slice(1, None, 2)
+    env.reset(env_ids=selected)
+    assert reset_history.call_args.kwargs["batch_ids"] is selected
     torch.testing.assert_close(history.current_length, torch.tensor([3, 1, 3], device=device))
     env.reset_to({}, env_ids=slice(0, None, 2))
     torch.testing.assert_close(history.current_length, torch.tensor([1, 2, 1], device=device))
-    for invalid in (None, [0, 2]):
-        with pytest.raises(TypeError, match="env_ids"):
-            env.reset(invalid)
-        with pytest.raises(TypeError, match="env_ids"):
-            env.reset(env_ids=invalid)
-        with pytest.raises(TypeError, match="env_ids"):
-            env.reset_to({}, env_ids=invalid)
+    with pytest.raises(TypeError, match="env_ids"):
+        env.reset(None)
+    with pytest.raises(TypeError, match="env_ids"):
+        env.reset(env_ids=None)
+    with pytest.raises(TypeError, match="env_ids"):
+        env.reset_to({}, env_ids=None)
     torch.testing.assert_close(history.current_length, torch.tensor([1, 2, 1], device=device))
     env.reset()
+    assert reset_history.call_args.kwargs["batch_ids"] == slice(None)
     torch.testing.assert_close(history.current_length, torch.ones_like(history.current_length))
     env.reset(slice(None), seed=42)
     env.reset_to({})

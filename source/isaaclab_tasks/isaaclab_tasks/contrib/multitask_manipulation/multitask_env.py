@@ -5,8 +5,6 @@
 
 """Manager-based environment with selection-aware heterogeneous resets."""
 
-from collections.abc import Sequence
-
 import torch
 
 from isaaclab.envs import ManagerBasedRLEnv
@@ -17,13 +15,13 @@ from .selection_utils import SceneEntitySelectionCfg
 class MultitaskManipulationEnv(ManagerBasedRLEnv):
     """Manager-based manipulation environment whose assets occupy partial physics views."""
 
-    def _reset_idx(self, env_ids: Sequence[int]) -> None:
+    def _reset_idx(self, env_ids: torch.Tensor | slice) -> None:
         """Reset global environments through each asset's view-row mapping.
 
         Args:
             env_ids: Global environment IDs to reset.
         """
-        global_env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
+        global_env_ids = self.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
 
         self.curriculum_manager.compute(env_ids=global_env_ids)
         for asset_name, asset in (*self.scene.articulations.items(), *self.scene.rigid_objects.items()):

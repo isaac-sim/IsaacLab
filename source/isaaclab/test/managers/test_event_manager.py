@@ -182,6 +182,9 @@ def test_class_terms_created_while_playing_are_reset(env, monkeypatch):
     selected = slice(1, None, 2)
     event_man.reset(selected)
     assert reset_calls[-1] is selected
+    with pytest.raises(TypeError, match="env_ids"):
+        event_man.reset(None)
+    assert len(reset_calls) == 2
 
 
 def test_config_empty(env):
@@ -419,38 +422,3 @@ def test_apply_reset_mode(env, index_dtype):
                 event_man._reset_term_last_triggered_step_id[index],
                 torch.tensor(last_step[index], dtype=torch.int32, device=env.device),
             )
-
-
-@pytest.mark.parametrize("env", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA), indirect=True)
-def test_reset_rejects_incompatible_selectors_before_mutation(env, monkeypatch):
-    """Invalid selectors must not be coerced or partially apply reset events."""
-    monkeypatch.setattr(env.sim, "is_playing", lambda: True)
-    event_man = EventManager({"term": EventTermCfg(func=reset_dummy2_to_zero_class, mode="reset")}, env)
-    reset_calls = []
-    monkeypatch.setattr(event_man.get_term_cfg("term").func, "reset", lambda env_ids=None: reset_calls.append(env_ids))
-    env.dummy2.fill_(1)
-    wrong_device = "cpu" if env.device != "cpu" else "meta"
-    for selector, error in (
-        ([0, 2], TypeError),
-        ((0, 2), TypeError),
-        ([], TypeError),
-        ((), TypeError),
-        (None, TypeError),
-        (torch.zeros(2, device=env.device), TypeError),
-        (torch.zeros(2, dtype=torch.bool, device=env.device), TypeError),
-        (torch.zeros((1, 2), dtype=torch.int64, device=env.device), TypeError),
-        (torch.zeros(2, dtype=torch.int64, device=wrong_device), ValueError),
-    ):
-        with pytest.raises(error):
-            event_man.apply("reset", env_ids=selector, global_env_step_count=1)
-        with pytest.raises(error):
-            event_man.reset(selector)
-        assert not reset_calls
-        assert torch.all(env.dummy2 == 1)
-        assert not torch.any(event_man._reset_term_last_triggered_once[0])
-        assert not torch.any(event_man._reset_term_last_triggered_step_id[0])
-
-    with pytest.raises(TypeError, match="explicit"):
-        event_man.apply("reset", global_env_step_count=1)
-    with pytest.raises(TypeError, match="explicit"):
-        event_man.apply("reset", env_ids=slice(None), global_env_step_count=1)

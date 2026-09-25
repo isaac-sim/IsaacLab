@@ -126,14 +126,8 @@ class EventManager(ManagerBase):
 
         Explicit None is not supported. The selector is passed directly to stateful terms.
         """
-        if not isinstance(env_ids, slice) and (
-            not isinstance(env_ids, torch.Tensor)
-            or env_ids.ndim != 1
-            or env_ids.dtype not in (torch.int32, torch.int64)
-        ):
-            raise TypeError("env_ids must be a slice or a one-dimensional int32/int64 tensor.")
-        if isinstance(env_ids, torch.Tensor) and env_ids.device != torch.device(self.device):
-            raise ValueError(f"env_ids must be on {self.device}; received {env_ids.device}.")
+        if env_ids is None:
+            raise TypeError("env_ids must be a slice or device indices; omit it to reset all environments.")
         # call all terms that are classes
         for mode_cfg in self._mode_class_term_cfgs.values():
             for term_cfg in mode_cfg:
@@ -201,15 +195,8 @@ class EventManager(ManagerBase):
             logger.warning(f"Event mode '{mode}' is not defined. Skipping event.")
             return
 
-        if mode == "reset":
-            if (
-                not isinstance(env_ids, torch.Tensor)
-                or env_ids.ndim != 1
-                or env_ids.dtype not in (torch.int32, torch.int64)
-            ):
-                raise TypeError("Reset events require explicit one-dimensional int32/int64 environment indices.")
-            if env_ids.device != torch.device(self.device):
-                raise ValueError(f"env_ids must be on {self.device}; received {env_ids.device}.")
+        if mode == "reset" and env_ids is None:
+            raise TypeError("Reset events require explicit environment indices.")
 
         # ensure class-based terms are resolved before applying
         # the timeline PLAY callback may not have fired yet, so we resolve synchronously

@@ -424,17 +424,8 @@ class ManagerBasedEnv:
         Returns:
             A tuple containing the observations and extras.
         """
-        if isinstance(env_ids, slice):
-            # The reset pipeline consumes indices; this is a view of the scene's existing buffer.
-            env_ids = self.scene._ALL_INDICES[env_ids]
-        elif (
-            not isinstance(env_ids, torch.Tensor)
-            or env_ids.ndim != 1
-            or env_ids.dtype not in (torch.int32, torch.int64)
-        ):
-            raise TypeError("env_ids must be a slice or a one-dimensional int32/int64 tensor.")
-        elif env_ids.device != self.scene._ALL_INDICES.device:
-            raise ValueError(f"env_ids must be on {self.device}; received {env_ids.device}.")
+        if env_ids is None:
+            raise TypeError("env_ids must be a slice or device indices; omit it to reset all environments.")
 
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
@@ -494,17 +485,8 @@ class ManagerBasedEnv:
             is_relative: If set to True, the state is considered relative to the environment origins.
                 Defaults to False.
         """
-        if isinstance(env_ids, slice):
-            # The reset pipeline consumes indices; this is a view of the scene's existing buffer.
-            env_ids = self.scene._ALL_INDICES[env_ids]
-        elif (
-            not isinstance(env_ids, torch.Tensor)
-            or env_ids.ndim != 1
-            or env_ids.dtype not in (torch.int32, torch.int64)
-        ):
-            raise TypeError("env_ids must be a slice or a one-dimensional int32/int64 tensor.")
-        elif env_ids.device != self.scene._ALL_INDICES.device:
-            raise ValueError(f"env_ids must be on {self.device}; received {env_ids.device}.")
+        if env_ids is None:
+            raise TypeError("env_ids must be a slice or device indices; omit it to reset all environments.")
 
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
@@ -515,7 +497,9 @@ class ManagerBasedEnv:
 
         self._reset_idx(env_ids)
         # set the state
-        self.scene.reset_to(state, env_ids, is_relative=is_relative)
+        # State writers use the backend's indexed API.
+        env_indices = self.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
+        self.scene.reset_to(state, env_indices, is_relative=is_relative)
 
         # update articulation kinematics
         self.sim.forward()
@@ -664,19 +648,21 @@ class ManagerBasedEnv:
     Helper functions.
     """
 
-    def _reset_idx(self, env_ids: torch.Tensor):
+    def _reset_idx(self, env_ids: torch.Tensor | slice):
         """Reset environments based on specified indices.
 
         Args:
-            env_ids: Environment indices on the environment device.
+            env_ids: A slice or environment indices on the environment device.
         """
+        # Backend resets and event callbacks require indices; manager buffers retain the slice.
+        env_indices = self.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
         # reset the internal buffers of the scene elements
-        self.scene.reset(env_ids)
+        self.scene.reset(env_indices)
 
         # apply events such as randomization for environments that need a reset
         if "reset" in self.event_manager.available_modes:
             env_step_count = self._sim_step_counter // self.cfg.decimation
-            self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
+            self.event_manager.apply(mode="reset", env_ids=env_indices, global_env_step_count=env_step_count)
 
         # iterate over all managers and reset them
         # this returns a dictionary of information which is stored in the extras
