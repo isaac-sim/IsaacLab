@@ -626,7 +626,8 @@ class NewtonManager(PhysicsManager):
         device = PhysicsManager._device
         capture_pending = cls._graph_capture_pending and cfg is not None and cfg.use_cuda_graph and "cuda" in device  # type: ignore[union-attr]
         state_reconciled = False
-        kit_active = has_kit()
+        sim = PhysicsManager._sim
+        kit_active = has_kit() and (sim.has_gui or sim.has_offscreen_render)
         if capture_pending and not kit_active:
             # Reconcile reset-authored solver resources before standard capture.
             cls.forward()
@@ -1672,8 +1673,9 @@ class NewtonManager(PhysicsManager):
             return
 
         if use_cuda_graph:
-            # Kit has background CUDA streams even when no consumer requires USD.
-            kit_active = has_kit()
+            # Offscreen Kit rendering has background streams even without a USD consumer.
+            sim = PhysicsManager._sim
+            kit_active = has_kit() and (sim.has_gui or sim.has_offscreen_render)
             with Timer(name="newton_cuda_graph", msg="CUDA graph took:", activity="Capturing CUDA graph"):
                 if not kit_active and not cls._requires_initial_reset_before_graph_capture():
                     simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only

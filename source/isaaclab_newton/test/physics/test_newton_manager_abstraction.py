@@ -1065,9 +1065,14 @@ def test_cuda_runtime_loaded_version_matches_torch():
     assert runtime_version.value // 1000 == int(torch.version.cuda.split(".")[0])
 
 
-@pytest.mark.parametrize("kit_active", [False, True])
-def test_cuda_graph_capture_uses_simulation_device_and_defers_for_kit(monkeypatch, kit_active):
-    """Kit background streams require deferred capture even for consumers that do not need USD."""
+@pytest.mark.parametrize(
+    "kit_active, has_gui, offscreen",
+    [(False, False, False), (True, False, False), (True, True, False), (True, False, True)],
+)
+def test_cuda_graph_capture_uses_simulation_device_and_defers_for_kit_rendering(
+    monkeypatch, kit_active, has_gui, offscreen
+):
+    """Only Kit rendering requires deferred capture; a headless physics session must not warm up extra steps."""
 
     captured_devices = []
     captured_graph = object()
@@ -1085,7 +1090,7 @@ def test_cuda_graph_capture_uses_simulation_device_and_defers_for_kit(monkeypatc
 
     monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
     monkeypatch.setattr(PhysicsManager, "_device", "cuda:1", raising=False)
-    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(requires_usd_stage=False))
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(has_gui=has_gui, has_offscreen_render=offscreen))
     monkeypatch.setattr(newton_manager_module, "has_kit", lambda: kit_active)
     monkeypatch.setattr(NewtonManager, "_solver", None, raising=False)
     monkeypatch.setattr(NewtonManager, "_is_all_graphable", classmethod(lambda cls: False))
@@ -1094,9 +1099,10 @@ def test_cuda_graph_capture_uses_simulation_device_and_defers_for_kit(monkeypatc
 
     NewtonManager._capture_or_defer_graph()
 
-    assert captured_devices == ([] if kit_active else ["cuda:1"])
-    assert NewtonManager._graph is (None if kit_active else captured_graph)
-    assert NewtonManager._graph_capture_pending is kit_active
+    deferred = kit_active and (has_gui or offscreen)
+    assert captured_devices == ([] if deferred else ["cuda:1"])
+    assert NewtonManager._graph is (None if deferred else captured_graph)
+    assert NewtonManager._graph_capture_pending is deferred
 
 
 # ---------------------------------------------------------------------------
