@@ -169,14 +169,11 @@ def body_projected_gravity_b(
         [x,y,z]. Output is stacked horizontally per body.
     """
     asset: Articulation = env.scene[asset_cfg.name]
-    body_quat = asset.data.body_quat_w.torch[:, asset_cfg.body_ids]
+    body_quat = asset.data.body_quat_w.torch[:, asset_cfg.body_ids].reshape(env.num_envs, -1, 4)
     # ``GRAVITY_VEC_W`` carries the per-env world-frame gravity in m/s^2 (Newton
     # backend) or scene-wide gravity (PhysX backend).
     gravity_w = asset.data.GRAVITY_VEC_W.torch
-    gravity_dir = torch.nn.functional.normalize(gravity_w, dim=-1)
-    if body_quat.ndim == 3:
-        # quat_apply_inverse does not broadcast: repeat the direction for every selected body.
-        gravity_dir = gravity_dir.unsqueeze(1).expand(-1, body_quat.shape[1], -1)
+    gravity_dir = torch.nn.functional.normalize(gravity_w, dim=-1).unsqueeze(1)
     return math_utils.quat_apply_inverse(body_quat, gravity_dir).view(env.num_envs, -1)
 
 
