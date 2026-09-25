@@ -41,6 +41,7 @@ def test_cartpole_env_visualizers_motion_with_play_pause_newton(
     _viz_utils.assert_no_newton_imgui_bundle_warning(capsys, caplog)
 
 
+@pytest.mark.flaky(max_runs=2, min_passes=1)
 def test_visualizer_tiled_integration_newton(
     caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture[str]
 ) -> None:

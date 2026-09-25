@@ -87,7 +87,7 @@ def leapp(args: list[str] | None = None) -> None:
 
         _exit_on_error(run_export_cli(command_args))
     else:
-        from isaaclab.cli.commands.deploy import command_deploy_leapp
+        from .commands.deploy import command_deploy_leapp
 
         _exit_on_error(command_deploy_leapp(command_args))
 
@@ -109,6 +109,28 @@ def random_agent(args: list[str] | None = None) -> None:
 def list_envs(args: list[str] | None = None) -> None:
     """List registered Isaac Lab environments."""
     command_list_envs(args)
+
+
+def demo(args: list[str] | None = None) -> None:
+    """List or run a packaged Isaac Lab demo.
+
+    Args:
+        args: Command-line arguments. Uses ``sys.argv`` when omitted.
+    """
+    from isaaclab.programs import DEMOS, run_program_cli
+
+    run_program_cli("demo", DEMOS, args)
+
+
+def example(args: list[str] | None = None) -> None:
+    """List or run a packaged Isaac Lab example.
+
+    Args:
+        args: Command-line arguments. Uses ``sys.argv`` when omitted.
+    """
+    from isaaclab.programs import EXAMPLES, run_program_cli
+
+    run_program_cli("example", EXAMPLES, args)
 
 
 def teleop(args: list[str] | None = None) -> None:
@@ -138,14 +160,14 @@ def benchmark(args: list[str] | None = None) -> None:
     Args:
         args: Command-line arguments. Uses sys.argv when omitted.
     """
-    from isaaclab.benchmark import run_benchmark_cli
+    from ..benchmark import run_benchmark_cli
 
     _exit_on_error(run_benchmark_cli(args))
 
 
 def microbenchmark(args: list[str] | None = None) -> None:
     """Run a component micro-benchmark with an exact physics variant."""
-    from isaaclab.benchmark import run_microbenchmark_cli
+    from ..benchmark import run_microbenchmark_cli
 
     _exit_on_error(run_microbenchmark_cli(args))
 
@@ -164,6 +186,12 @@ def cli() -> None:
     }
     if len(sys.argv) > 1 and sys.argv[1] == "list_envs":
         list_envs(sys.argv[2:])
+        return
+    if len(sys.argv) > 1 and sys.argv[1] == "demo":
+        demo(sys.argv[2:])
+        return
+    if len(sys.argv) > 1 and sys.argv[1] == "example":
+        example(sys.argv[2:])
         return
     if len(sys.argv) > 1 and sys.argv[1] in subcommands:
         _load_external_tasks()
@@ -184,6 +212,8 @@ def cli() -> None:
             "  benchmark       Run a runtime, startup, training, or play benchmark\n"
             "                  (append _multigpu to a workflow to run it across GPUs)\n"
             "  microbenchmark  Run a component micro-benchmark\n"
+            "  demo            List or run packaged demonstrations\n"
+            "  example         List or run packaged standalone examples\n"
             "  leapp           Export or deploy a policy with LEAPP\n"
             "  list_envs       List registered environments and presets\n"
             "  train           Train an RL policy\n"

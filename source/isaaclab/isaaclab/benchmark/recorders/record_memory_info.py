@@ -8,8 +8,8 @@ import os
 
 import psutil
 
-from isaaclab.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
-from isaaclab.benchmark.measurements import FloatMetadata, SingleMeasurement
+from ..interfaces import MeasurementData, MeasurementDataRecorder
+from ..measurements import FloatMetadata, SingleMeasurement
 
 
 class MemoryInfoRecorder(MeasurementDataRecorder):

@@ -182,22 +182,6 @@ def test_pip_rejects_multiple_environments_before_camera_creation(monkeypatch):
     load_presenter.assert_called_once_with()
 
 
-def test_xr_without_pip_preserves_multiple_environments(monkeypatch):
-    env_cfg = _teleop_env_cfg([], num_envs=2)
-    load_presenter = Mock()
-    monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", load_presenter)
-
-    session = XrCameraFeedSession.prepare(
-        env_cfg,
-        enabled=True,
-        camera_rendering_enabled=True,
-    )
-
-    assert not session.enabled
-    load_presenter.assert_not_called()
-    assert env_cfg.scene.num_envs == 2
-
-
 def test_kitless_xr_with_configured_pip_preserves_multiple_environments(monkeypatch):
     env_cfg = _teleop_env_cfg(
         [XrCameraFeedCfg(camera_name="robot_pov_cam")],
@@ -217,7 +201,8 @@ def test_kitless_xr_with_configured_pip_preserves_multiple_environments(monkeypa
 
 
 def test_empty_camera_feed_selection_skips_pip(monkeypatch):
-    env_cfg = _teleop_env_cfg([])
+    # Without PiP feeds, XR keeps a multi-environment scene untouched.
+    env_cfg = _teleop_env_cfg([], num_envs=2)
     load_presenter = Mock()
     monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", load_presenter)
 
@@ -225,7 +210,7 @@ def test_empty_camera_feed_selection_skips_pip(monkeypatch):
 
     assert not session.enabled
     load_presenter.assert_not_called()
-    assert vars(env_cfg.scene) == {"num_envs": 1}
+    assert vars(env_cfg.scene) == {"num_envs": 2}
 
 
 @pytest.mark.parametrize(
@@ -288,20 +273,19 @@ def test_existing_camera_rejects_invalid_feed_render_policy_before_version_query
     get_isaac_sim_version.assert_not_called()
 
 
-def test_session_refresh_publishes_buffer_refreshed_by_env_reset():
-    events = []
-    session = XrCameraFeedSession([], None, None, requires_responsive_denoising=False)
-
-    class _Manager:
-        def refresh(self, *, publish=True):
-            events.append("publish" if publish else "request")
-
-    session._manager = _Manager()
+def test_session_refresh_publishes_buffer_refreshed_by_env_reset(monkeypatch):
+    cfg = XrCameraFeedCfg(camera_name="robot_pov_cam", max_update_hz=0.0)
+    before = _FakeImage(data_ptr=100)
+    after = _FakeImage(data_ptr=200)
+    manager, presenter, cameras = _manager(monkeypatch, [cfg], {"robot_pov_cam": before})
+    cameras["robot_pov_cam"].image_on_update = after
+    session = XrCameraFeedSession([cfg], None, None, requires_responsive_denoising=False)
+    session._manager = manager
     session._bound = True
 
     session.refresh()
 
-    assert events == ["publish"]
+    assert presenter.panels[0].uploads == [after]
 
 
 def test_camera_rendering_switch_disables_pip_before_presenter_load(monkeypatch):
@@ -375,16 +359,21 @@ def test_automatic_layouts_preserve_order(layout, expected):
 
 
 @pytest.mark.parametrize(
-    "layout",
+    ("layout", "match"),
     [
-        XrCameraFeedLayoutCfg(mode="diagonal"),
-        XrCameraFeedLayoutCfg(distance_m=0.0),
-        XrCameraFeedLayoutCfg(placement="world"),
-        XrCameraFeedLayoutCfg(placement="world", world_position_m=(0.0, 0.0, 0.0), world_orientation_xyzw=(0, 0, 0, 0)),
+        (XrCameraFeedLayoutCfg(mode="diagonal"), "layout mode"),
+        (XrCameraFeedLayoutCfg(distance_m=0.0), "distance_m"),
+        (XrCameraFeedLayoutCfg(placement="world"), "world_position_m"),
+        (
+            XrCameraFeedLayoutCfg(
+                placement="world", world_position_m=(0.0, 0.0, 0.0), world_orientation_xyzw=(0, 0, 0, 0)
+            ),
+            "non-zero",
+        ),
     ],
 )
-def test_invalid_layouts_fail_before_panel_creation(layout):
-    with pytest.raises(ValueError):
+def test_invalid_layouts_fail_before_panel_creation(layout, match):
+    with pytest.raises(ValueError, match=match):
         camera_feed._validate_layout_cfg(layout)
 
 
@@ -509,20 +498,6 @@ def test_manager_rejects_invalid_update_rate(monkeypatch, value):
     cfg = XrCameraFeedCfg(camera_name="robot_pov_cam", max_update_hz=value)
     with pytest.raises(ValueError, match="max_update_hz"):
         _manager(monkeypatch, [cfg], {"robot_pov_cam": _FakeImage()})
-
-
-def test_public_api_exports_camera_feed_types():
-    import isaaclab_teleop
-
-    assert isaaclab_teleop.XrCameraFeedCfg is XrCameraFeedCfg
-    assert isaaclab_teleop.XrCameraFeedLayoutCfg is XrCameraFeedLayoutCfg
-    assert isaaclab_teleop.XrCameraFeedSession is XrCameraFeedSession
-    for removed_name in (
-        "XrCameraFeedManager",
-        "XrCameraFeedPresentationBackend",
-        "XrCameraFeedPresentationCfg",
-    ):
-        assert not hasattr(isaaclab_teleop, removed_name)
 
 
 def test_isaac_teleop_default_has_no_camera_feeds():

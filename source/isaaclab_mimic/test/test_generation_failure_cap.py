@@ -95,10 +95,14 @@ def _run(
     return how, generation.num_success, generation.num_failures, generation.num_attempts
 
 
-def test_failure_cap_stops_a_run_that_never_succeeds():
-    how, succ, fail, attempts = _run([False] * 100, max_num_failures=5)
+@pytest.mark.parametrize(("num_envs", "attempts_per_step", "expected_failures"), [(1, 1, 5), (4, 1, 5), (4, 4, 8)])
+def test_failure_cap_stops_a_run_that_never_succeeds(num_envs, attempts_per_step, expected_failures):
+    """Stop at the cap, counting attempts that complete together on the step that crosses it."""
+    how, succ, fail, attempts = _run(
+        [False] * 100, max_num_failures=5, num_envs=num_envs, attempts_per_step=attempts_per_step
+    )
     assert how == "exited"
-    assert (succ, fail, attempts) == (0, 5, 5)
+    assert (succ, fail, attempts) == (0, expected_failures, expected_failures)
 
 
 def test_no_cap_by_default_keeps_the_success_guarantee():
@@ -122,29 +126,12 @@ def test_cap_reached_before_enough_successes_ends_the_run():
     assert (succ, fail) == (2, 4)
 
 
-@pytest.mark.parametrize("max_num_failures", [None, 3, 100])
-def test_attempt_based_termination_is_unchanged(max_num_failures):
+def test_attempt_based_termination_is_unchanged():
     """With the guarantee off the run stops on ``generation_num_trials`` attempts, cap or no cap.
 
     A cap of 3 against 10 requested attempts is the case that matters: the fixed-attempt contract
     says the run delivers the attempts it was asked for, so the cap must not end it at 3.
     """
-    how, _, _, attempts = _run(
-        [False] * 100, max_num_failures=max_num_failures, generation_num_trials=10, generation_guarantee=False
-    )
+    how, _, _, attempts = _run([False] * 100, max_num_failures=3, generation_num_trials=10, generation_guarantee=False)
     assert how == "exited"
     assert attempts == 10
-
-
-def test_bound_is_exact_when_attempts_end_on_separate_steps():
-    """Four environments, one attempt landing per step: the bound is read between every attempt."""
-    how, _, fail, _ = _run([False] * 100, max_num_failures=5, num_envs=4, attempts_per_step=1)
-    assert how == "exited"
-    assert fail == 5
-
-
-def test_attempts_ending_together_overshoot_the_bound_by_at_most_num_envs_minus_one():
-    """Attempts that end on the step that crosses the bound are already complete and still count."""
-    how, _, fail, _ = _run([False] * 100, max_num_failures=5, num_envs=4, attempts_per_step=4)
-    assert how == "exited"
-    assert 5 < fail <= 5 + 4 - 1

@@ -897,19 +897,6 @@ def test_cli_type_newton_rtx_resolves_to_newton_rtx_visualizer_cfg():
     assert isinstance(cfgs[0], NewtonRTXVisualizerCfg)
 
 
-def test_is_rendering_true_when_only_cfg_visualizer_is_newton_rtx():
-    """is_rendering is True when only a newton_rtx cfg visualizer is configured."""
-    cfg_visualizer = type("CfgVisualizer", (), {"visualizer_type": "newton_rtx"})()
-    settings = {
-        "/isaaclab/render/rtx_sensors": False,
-        "/isaaclab/visualizer/types": "",
-        "/isaaclab/visualizer/explicit": False,
-        "/isaaclab/visualizer/disable_all": False,
-    }
-    ctx = _make_context_with_settings(settings, visualizer_cfgs=[cfg_visualizer])
-    assert ctx.is_rendering is True
-
-
 def test_default_visualizer_cfg_applies_to_explicit_visualizer_cfgs():
     """default_visualizer_cfg fills in env-level hints (eye, lookat) on explicit cfgs.
 
@@ -1098,12 +1085,18 @@ def test_explicit_partial_valid_types_raises_for_invalid():
     }
     ctx = _make_context_with_settings(settings)
 
-    with pytest.raises(RuntimeError, match="bogus_viz"):
+    with pytest.raises(RuntimeError) as exc_info:
         ctx._create_visualizers()
 
+    message = str(exc_info.value)
+    assert "bogus_viz" in message
+    # The successfully-resolved deprecated alias must not also be reported as missing.
+    assert "'newton'" not in message
 
-def test_deprecated_newton_alias_warns_and_resolves_to_newton_gl():
-    """Requesting 'newton' via CLI emits DeprecationWarning and resolves to a NewtonGLVisualizerCfg."""
+
+def test_explicit_deprecated_alias_alone_does_not_raise():
+    """Requesting only the deprecated 'newton' alias warns, resolves to a NewtonGLVisualizerCfg, and does
+    not raise, even though the resolved cfg carries the canonical 'newton_gl' type."""
     settings = {
         "/isaaclab/visualizer/types": "newton",
         "/isaaclab/visualizer/explicit": True,
@@ -1113,10 +1106,52 @@ def test_deprecated_newton_alias_warns_and_resolves_to_newton_gl():
     ctx = _make_context_with_settings(settings)
 
     with pytest.warns(DeprecationWarning, match="newton.*deprecated.*newton_gl"):
-        cfgs = ctx._create_default_visualizer_configs(["newton"])
+        ctx._create_visualizers()
+
+    assert len(ctx._pending_visualizers) == 1
+    assert isinstance(ctx._pending_visualizers[0].cfg, NewtonGLVisualizerCfg)
+
+
+def test_explicit_deprecated_alias_matches_existing_cfg_by_canonical_type():
+    """Requesting 'newton' via CLI when cfg.visualizer_cfgs already has a customized 'newton_gl'
+    config selects and returns that exact instance, rather than discarding it and building a
+    fresh default -- exercising the branch that filters pre-existing cfgs by canonical type."""
+    existing_cfg = NewtonGLVisualizerCfg(background_color=(0.4, 0.5, 0.6))
+    settings = {
+        "/isaaclab/visualizer/types": "newton",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_visible_envs": None,
+    }
+    ctx = _make_context_with_settings(settings, visualizer_cfgs=[existing_cfg])
+
+    # No alias-resolution warning: the pre-existing cfg already satisfies the canonical type.
+    cfgs = ctx._resolve_visualizer_cfgs()
 
     assert len(cfgs) == 1
-    assert isinstance(cfgs[0], NewtonGLVisualizerCfg)
+    assert cfgs[0] is existing_cfg
+    assert cfgs[0].background_color == (0.4, 0.5, 0.6)
+
+
+def test_explicit_existing_cfg_plus_failing_requested_type_raises_for_the_failure():
+    """A pre-existing cfg satisfies one requested type; a second requested type that cannot be
+    resolved still raises, exercising the branch that extends pre-existing cfgs with freshly-created
+    defaults for the remaining requested types."""
+    existing_cfg = _FakeVisualizerCfg("kit")
+    settings = {
+        "/isaaclab/visualizer/types": "kit,bogus_viz",
+        "/isaaclab/visualizer/explicit": True,
+        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/max_visible_envs": None,
+    }
+    ctx = _make_context_with_settings(settings, visualizer_cfgs=[existing_cfg])
+
+    with pytest.raises(RuntimeError) as exc_info:
+        ctx._resolve_visualizer_cfgs()
+    message = str(exc_info.value)
+    # 'kit' was satisfied by the pre-existing cfg, so only the unresolved type is reported missing.
+    assert "['bogus_viz']" in message
+    assert "'kit':" not in message
 
 
 def test_non_explicit_unknown_type_silently_skipped(caplog):

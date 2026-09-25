@@ -12,8 +12,7 @@
 
 from __future__ import annotations
 
-from isaaclab.utils.backend_utils import FactoryBase
-
+from ...utils.backend_utils import FactoryBase
 from .base_frame_view import BaseFrameView
 
 
@@ -40,7 +39,7 @@ class FrameView(FactoryBase, BaseFrameView):
 
     @classmethod
     def _get_backend(cls, *args, **kwargs) -> str:
-        from isaaclab.sim.simulation_context import SimulationContext  # noqa: PLC0415
+        from ..simulation_context import SimulationContext  # noqa: PLC0415
 
         ctx = SimulationContext.instance()
         if ctx is None:

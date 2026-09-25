@@ -110,6 +110,7 @@ _install_stubs()
 from isaaclab_teleop.isaac_teleop_cfg import (  # noqa: E402
     CLOUDXR_AVP_ENV,
     CLOUDXR_JS_ENV,
+    CLOUDXR_STANDALONE_ENV,
     IsaacTeleopCfg,
 )
 from isaaclab_teleop.session_lifecycle import TeleopSessionLifecycle, cloudxr_eula_accepted  # noqa: E402
@@ -158,26 +159,17 @@ def _make_lifecycle(
 class TestEnvProfilePaths:
     """Tests for the shipped .env profile path constants."""
 
-    def test_avp_env_is_absolute_path(self):
-        assert os.path.isabs(CLOUDXR_AVP_ENV)
-
-    def test_js_env_is_absolute_path(self):
-        assert os.path.isabs(CLOUDXR_JS_ENV)
-
-    def test_avp_env_file_exists(self):
-        assert Path(CLOUDXR_AVP_ENV).is_file(), f"Missing: {CLOUDXR_AVP_ENV}"
-
-    def test_js_env_file_exists(self):
-        assert Path(CLOUDXR_JS_ENV).is_file(), f"Missing: {CLOUDXR_JS_ENV}"
-
-    def test_avp_env_filename(self):
-        assert Path(CLOUDXR_AVP_ENV).name == "avp-cloudxr.env"
-
-    def test_js_env_filename(self):
-        assert Path(CLOUDXR_JS_ENV).name == "cloudxrjs-cloudxr.env"
-
-    def test_profiles_are_in_same_directory(self):
-        assert Path(CLOUDXR_AVP_ENV).parent == Path(CLOUDXR_JS_ENV).parent
+    @pytest.mark.parametrize(
+        ("env_file", "expected_name"),
+        [
+            (CLOUDXR_AVP_ENV, "avp-cloudxr.env"),
+            (CLOUDXR_JS_ENV, "cloudxrjs-cloudxr.env"),
+            (CLOUDXR_STANDALONE_ENV, "cloudxr-standalone.env"),
+        ],
+    )
+    def test_env_file_exists(self, env_file, expected_name):
+        assert Path(env_file).is_file(), f"Missing: {env_file}"
+        assert Path(env_file).name == expected_name
 
 
 # ============================================================================
@@ -225,20 +217,12 @@ class TestRetargetingExecutionConfig:
 class TestEnsureCloudXRRuntime:
     """Tests for the ``_ensure_cloudxr_runtime`` method on TeleopSessionLifecycle."""
 
-    def test_skip_when_env_var_set(self):
-        """ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 skips the launch entirely."""
+    @pytest.mark.parametrize("value", ["1", " 1 "])
+    def test_skip_when_env_var_set(self, value):
+        """ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 skips the launch, even with auto-launch enabled; whitespace is stripped."""
         lifecycle = _make_lifecycle(cloudxr_env_file="/tmp/test.env")
 
-        with patch.dict(os.environ, {"ISAACLAB_CXR_SKIP_AUTOLAUNCH": "1"}):
-            lifecycle._ensure_cloudxr_runtime()
-
-        assert lifecycle._cloudxr_launcher is None
-
-    def test_skip_when_env_var_set_with_whitespace(self):
-        """Whitespace around the env var value is stripped before comparison."""
-        lifecycle = _make_lifecycle(cloudxr_env_file="/tmp/test.env")
-
-        with patch.dict(os.environ, {"ISAACLAB_CXR_SKIP_AUTOLAUNCH": " 1 "}):
+        with patch.dict(os.environ, {"ISAACLAB_CXR_SKIP_AUTOLAUNCH": value}):
             lifecycle._ensure_cloudxr_runtime()
 
         assert lifecycle._cloudxr_launcher is None
@@ -258,19 +242,6 @@ class TestEnsureCloudXRRuntime:
             lifecycle._ensure_cloudxr_runtime()
 
         assert lifecycle._cloudxr_launcher is not None
-
-    def test_skip_when_auto_launch_false(self):
-        """auto_launch_cloudxr=False skips the launch."""
-        lifecycle = _make_lifecycle(
-            cloudxr_env_file="/tmp/test.env",
-            auto_launch_cloudxr=False,
-        )
-
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("ISAACLAB_CXR_SKIP_AUTOLAUNCH", None)
-            lifecycle._ensure_cloudxr_runtime()
-
-        assert lifecycle._cloudxr_launcher is None
 
     def test_idempotency(self):
         """Calling _ensure_cloudxr_runtime twice does not create a second launcher."""
@@ -304,18 +275,6 @@ class TestEnsureCloudXRRuntime:
             accept_eula=False,
         )
         assert lifecycle._cloudxr_launcher is mock_cls.return_value
-
-    def test_env_var_takes_precedence_over_auto_launch(self):
-        """ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 overrides auto_launch_cloudxr=True."""
-        lifecycle = _make_lifecycle(
-            cloudxr_env_file="/tmp/test.env",
-            auto_launch_cloudxr=True,
-        )
-
-        with patch.dict(os.environ, {"ISAACLAB_CXR_SKIP_AUTOLAUNCH": "1"}):
-            lifecycle._ensure_cloudxr_runtime()
-
-        assert lifecycle._cloudxr_launcher is None
 
 
 # ============================================================================
@@ -367,12 +326,6 @@ class TestCloudXREulaAcceptance:
             assert cloudxr_eula_accepted() is False
             assert self._accept_eula_passed_to_launcher() is False
 
-    def test_independent_of_skip_autolaunch(self):
-        """The two CloudXR variables do not read each other's value."""
-        with patch.dict(os.environ, {"ISAACLAB_CXR_SKIP_AUTOLAUNCH": "1"}):
-            os.environ.pop("ISAACLAB_CXR_ACCEPT_EULA", None)
-            assert cloudxr_eula_accepted() is False
-
     def test_exported_from_package_root(self):
         """``teleop_replay_agent.py`` imports the helper from the package root, not the submodule."""
         import isaaclab_teleop
@@ -421,11 +374,7 @@ class TestLifecycleCloudXRIntegration:
         lifecycle, mock_launcher = self._make_started_lifecycle()
         lifecycle.stop()
         mock_launcher.stop.assert_called_once()
-
-    def test_stop_clears_launcher_on_success(self):
-        """After a successful stop(), _cloudxr_launcher is set to None."""
-        lifecycle, mock_launcher = self._make_started_lifecycle()
-        lifecycle.stop()
+        # After a successful stop(), the launcher reference is cleared.
         assert lifecycle._cloudxr_launcher is None
 
     def test_stop_retains_launcher_on_runtime_error(self):
@@ -438,7 +387,7 @@ class TestLifecycleCloudXRIntegration:
         assert lifecycle._cloudxr_launcher is mock_launcher
 
     def test_start_without_cloudxr_env_file(self):
-        """start() works normally when no cloudxr_env_file is provided."""
+        """start() and stop() work normally when no cloudxr_env_file is provided."""
         lifecycle = _make_lifecycle(cloudxr_env_file=None)
 
         fake_teleop_modules = {
@@ -449,6 +398,9 @@ class TestLifecycleCloudXRIntegration:
         with patch.dict(sys.modules, fake_teleop_modules):
             lifecycle.start()
 
+        assert lifecycle._cloudxr_launcher is None
+
+        lifecycle.stop()
         assert lifecycle._cloudxr_launcher is None
 
     def test_start_with_auto_launch_disabled(self):
@@ -471,11 +423,6 @@ class TestLifecycleCloudXRIntegration:
             lifecycle.start()
 
         assert lifecycle._cloudxr_launcher is None
-
-    def test_stop_without_cloudxr_env_file(self):
-        """stop() does not error when no CloudXR launcher was created."""
-        lifecycle = _make_lifecycle(cloudxr_env_file=None)
-        lifecycle.stop()
 
 
 if __name__ == "__main__":

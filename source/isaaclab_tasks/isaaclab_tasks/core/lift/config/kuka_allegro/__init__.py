@@ -7,7 +7,10 @@
 
 import gymnasium as gym
 
+from isaaclab_tasks.utils import preset
+
 from . import agents
+from .agents.rsl_rl_ppo_cfg import KukaAllegroDuoCameraPPORunnerCfg, KukaAllegroSingleCameraPPORunnerCfg
 
 ##
 # Register Gym environments.
@@ -45,7 +48,11 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.kuka_allegro_camera_env_cfg:KukaAllegroReorientCameraEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:KukaAllegroPPORunnerCfg",
+        "rsl_rl_cfg_entry_point": preset(
+            default=KukaAllegroSingleCameraPPORunnerCfg(),
+            single_camera=KukaAllegroSingleCameraPPORunnerCfg(),
+            duo_camera=KukaAllegroDuoCameraPPORunnerCfg(),
+        ),
         "default_agent": "rsl_rl",
     },
 )
@@ -56,7 +63,11 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.kuka_allegro_camera_env_cfg:KukaAllegroLiftCameraEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:KukaAllegroPPORunnerCfg",
+        "rsl_rl_cfg_entry_point": preset(
+            default=KukaAllegroSingleCameraPPORunnerCfg(),
+            single_camera=KukaAllegroSingleCameraPPORunnerCfg(),
+            duo_camera=KukaAllegroDuoCameraPPORunnerCfg(),
+        ),
         "default_agent": "rsl_rl",
     },
 )

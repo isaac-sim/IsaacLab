@@ -1131,11 +1131,11 @@ class SDFMeshPropertiesCfg(PhysxSDFMeshPropertiesCfg):
 class PhysxFixedTendonPropertiesCfg:
     """PhysX fixed-tendon properties for an articulation.
 
-    Tendons are a PhysX-only feature -- Newton has no tendon system -- so this class
-    is a pure data carrier that is consumed by the PhysX-specific writer
+    This class configures PhysX tendon schemas and is consumed by the PhysX-specific writer
     :func:`~isaaclab.sim.schemas.modify_fixed_tendon_properties`. The writer authors
     the multi-instance ``PhysxTendonAxisRootAPI`` schema; this cfg class declares no
-    metadata-driven writer plumbing of its own.
+    metadata-driven writer plumbing of its own. For Newton's MuJoCo fixed tendons, use
+    :class:`~isaaclab_newton.sim.schemas.MujocoFixedTendonCfg`.
 
     See :func:`~isaaclab.sim.schemas.modify_fixed_tendon_properties` for more information.
 
@@ -1198,8 +1198,7 @@ class FixedTendonPropertiesCfg(PhysxFixedTendonPropertiesCfg):
 class PhysxSpatialTendonPropertiesCfg:
     """PhysX spatial-tendon properties for an articulation.
 
-    Tendons are a PhysX-only feature -- Newton has no tendon system -- so this class
-    is a pure data carrier that is consumed by the PhysX-specific writer
+    This class configures PhysX spatial-tendon schemas and is consumed by the PhysX-specific writer
     :func:`~isaaclab.sim.schemas.modify_spatial_tendon_properties`. The writer authors
     every existing ``PhysxTendonAttachmentRootAPI`` instance; this cfg class declares no
     metadata-driven writer plumbing of its own.

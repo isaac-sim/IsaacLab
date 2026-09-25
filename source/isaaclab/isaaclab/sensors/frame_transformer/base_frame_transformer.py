@@ -11,8 +11,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
-import isaaclab.utils.string as string_utils
-
+from ...utils import string as string_utils
 from ..sensor_base import SensorBase
 from .base_frame_transformer_data import BaseFrameTransformerData
 

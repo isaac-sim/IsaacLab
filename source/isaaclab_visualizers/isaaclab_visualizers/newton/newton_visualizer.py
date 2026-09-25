@@ -13,6 +13,7 @@ import logging
 import math
 import os
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -849,6 +850,7 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
             self._patch_image_logger()
 
         self.register_ui_callback(self._render_training_controls, position="side")
+        self._close_requested = False
 
     def is_training_paused(self) -> bool:
         """Return whether simulation is paused by viewer controls."""
@@ -861,6 +863,16 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
         in-place, outside the Isaac Lab "Pause Rendering" button.
         """
         return self._paused
+
+    def request_close(self) -> None:
+        """Close the window once the current frame ends."""
+        self._close_requested = True
+
+    def end_frame(self) -> None:
+        """Finish the frame, then close the window if :meth:`request_close` was called."""
+        super().end_frame()
+        if self._close_requested:
+            self.renderer.close()
 
     def on_key_press(self, symbol, modifiers):
         """Forward key presses unless UI is currently capturing input."""
@@ -1439,6 +1451,19 @@ class NewtonVisualizer(BaseVisualizer):
         if not self._is_initialized or self._viewer is None:
             return False
         return self._viewer.is_rendering_paused()
+
+    def is_key_down(self, key: str) -> bool:
+        """Return whether a key is held in the viewer window.
+
+        Args:
+            key: Key name, such as ``"i"`` or ``"space"``.
+
+        Returns:
+            True if the viewer is open and the key is held, False otherwise.
+        """
+        if not self._is_initialized or self._viewer is None:
+            return False
+        return bool(self._viewer.is_key_down(key))
 
     def set_camera_view(
         self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
@@ -2108,6 +2133,25 @@ class NewtonGLVisualizer(NewtonVisualizer):
             metadata=metadata,
             update_frequency=self.cfg.update_frequency,
         )
+
+    def register_ui_callback(self, callback: Callable[[Any], None], position: str = "side") -> None:
+        """Add a panel to the viewer's ImGui interface.
+
+        Args:
+            callback: Callable invoked with the ``imgui`` module every UI frame.
+            position: Newton viewer UI slot, such as ``"side"`` or ``"panel"``.
+        """
+        if self._viewer is not None:
+            self._viewer.register_ui_callback(callback, position=position)
+
+    def request_close(self) -> None:
+        """Close the viewer window once the current frame ends.
+
+        Safe to call from a UI callback, where closing immediately would destroy the GL context
+        mid-frame.
+        """
+        if self._viewer is not None:
+            self._viewer.request_close()
 
     def supports_live_plots(self) -> bool:
         """Newton GL supports live scalar/array plots via the ImGui sidebar."""

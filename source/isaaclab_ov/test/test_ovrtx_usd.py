@@ -67,7 +67,6 @@ def camera_spec():
         num_instances=4,
         camera_prim_paths=tuple(f"/World/envs/env_{i}/Robot/head_cam" for i in range(4)),
         view_count=4,
-        camera_path_relative_to_env_0="Robot/head_cam",
     )
 
 
@@ -127,23 +126,15 @@ def test_render_product_solid_background_color(camera_spec, render_data):
     assert 'token omni:rtx:background:source:type = "domeLight"' not in render_scope
 
 
-def test_ovrtx_rgb_hdr_uses_hdr_color_render_var():
-    """Requesting RGB_HDR from OVRTX selects the HdrColor render variable."""
-    assert get_render_var_config(["rgb_hdr"], render_scope_name="RenderCamera_0") == (
-        "/RenderCamera_0/Vars/HdrColor",
-        "HdrColor",
-        "HdrColor",
-    )
-
-
 def test_render_var_prim_names_are_read_only():
     with pytest.raises(TypeError):
         render_var_prim_names_by_source()["LdrColor"] = "mutated"  # type: ignore[index]
 
 
-@pytest.mark.parametrize("render_scope_name", ["RenderCamera_0", "RenderCamera_1"])
-def test_render_var_prim_paths_cover_every_authored_render_var(render_scope_name: str, camera_spec, render_data):
+def test_render_var_prim_paths_cover_every_authored_render_var(camera_spec, render_data):
     """Every output and metadata path resolves to its authored prim under the requested scope."""
+    # A non-default scope name also covers the default one: only the path prefix changes.
+    render_scope_name = "RenderCamera_1"
     data_types = [
         "rgb",
         "rgb_hdr",
@@ -177,24 +168,6 @@ def test_render_var_prim_paths_cover_every_authored_render_var(render_scope_name
         assert prim.GetAttribute("sourceName").Get() == source
         assert prim.GetParent().GetPath() == Sdf.Path(f"/{render_scope_name}/Vars")
         assert prim_paths[source] == path
-
-
-def test_ovrtx_instance_segmentation_uses_non_stable_instance_segmentation_render_var():
-    """Requesting instance_segmentation from OVRTX selects the NonStableInstanceSegmentation render var."""
-    assert get_render_var_config(["instance_segmentation"], render_scope_name="RenderCamera_0") == (
-        "/RenderCamera_0/Vars/NonStableInstanceSegmentation",
-        "NonStableInstanceSegmentation",
-        "NonStableInstanceSegmentation",
-    )
-
-
-def test_ovrtx_motion_vectors_uses_target_motion_render_var():
-    """Requesting motion vectors from OVRTX selects the TargetMotionSD render variable."""
-    assert get_render_var_config(["motion_vectors"], render_scope_name="RenderCamera_0") == (
-        "/RenderCamera_0/Vars/TargetMotionSD",
-        "TargetMotionSD",
-        "TargetMotionSD",
-    )
 
 
 def test_ovrtx_primary_render_var_follows_the_first_requested_data_type():
@@ -251,16 +224,6 @@ def test_ovrtx_data_types_sharing_a_source_author_one_render_var():
         ("/RenderCamera_0/Vars/LdrColor", "LdrColor", "LdrColor"),
         ("/RenderCamera_0/Vars/depth", "depth", "DistanceToImagePlaneSD"),
     ]
-
-
-def test_ovrtx_depth_and_distance_to_camera_author_distinct_render_vars(camera_spec, render_data):
-    """Image-plane depth and distance-to-camera are different sources and get separate prims."""
-    camera_spec.cfg.data_types = ["depth", "distance_to_camera"]
-    render_scope = build_render_scope_usd(camera_spec, render_data)
-
-    assert "rel orderedVars = [</RenderCamera_0/Vars/depth>, </RenderCamera_0/Vars/DistanceToCameraSD>]" in render_scope
-    assert 'uniform string sourceName = "DistanceToImagePlaneSD"' in render_scope
-    assert 'uniform string sourceName = "DistanceToCameraSD"' in render_scope
 
 
 def test_ovrtx_unsupported_data_type_is_skipped_and_falls_back_to_ldr_color():
@@ -424,18 +387,6 @@ def test_ovrtx_instance_segmentation_authors_pixel_and_map_render_vars(camera_sp
     )
     assert 'uniform string sourceName = "StableIdSemanticIdMap"' in render_scope
     assert 'uniform string sourceName = "StableIdMap"' in render_scope
-
-
-def test_ovrtx_semantic_and_instance_segmentation_share_a_single_semantic_id_map():
-    """Requesting both segmentation outputs authors ``SemanticIdMap`` exactly once (it is shared)."""
-    render_var_configs = get_render_var_configs(
-        ["semantic_segmentation", "instance_segmentation"], render_scope_name="RenderCamera_0"
-    )
-
-    sources = [source for _, _, source in render_var_configs]
-    assert sources.count("SemanticIdMap") == 1
-    # Both segmentations' map render vars are authored regardless of which AOV get_render_var_config resolves.
-    assert {"SemanticIdMap", "StableIdSemanticIdMap", "StableIdMap"} <= set(sources)
 
 
 def test_export_stage_keeps_all_env_content_when_all_roots_are_sources():

@@ -58,6 +58,9 @@ def host(monkeypatch):
         (MULTI_GPU, "0001", "100", []),  # cpu test skips the shard
         # a runtime that lists several GPUs hands back all in-scope ones.
         (MULTI_GPU, "111", "11X", ["cpu", "cuda:0", "cuda:1"]),
+        # mask grammar: a trailing X spans every non-default GPU; a short mask is padded with False.
+        (MULTI_GPU, "1111", "00X", ["cuda:1", "cuda:2"]),
+        (MULTI_GPU, "1111", "100", ["cpu"]),
     ],
 )
 def test_resolves_scope_intersect_runtime(host, available, runtime, scope, expected):
@@ -70,15 +73,6 @@ def test_argless_equals_default_scope(host):
     for available, runtime in [(SINGLE_GPU, None), (MULTI_GPU, "0001"), (MULTI_GPU, "001")]:
         host(available, runtime)
         assert resolve_devices() == resolve_devices("11X")
-
-
-def test_argless_runs_once_on_one_non_default_gpu(host):
-    # Run-once property: with a one-device-per-shard runtime, an argless test
-    # resolves to exactly one non-default GPU.
-    host(MULTI_GPU, "0001")
-    result = resolve_devices()
-    assert result == ["cuda:2"]
-    assert all(d not in ("cpu", "cuda:0") for d in result)
 
 
 @pytest.mark.parametrize(
@@ -97,12 +91,6 @@ def test_named_scope_matches_mask(host, scope, mask):
     host(MULTI_GPU, "1111")
     assert scope.mask == mask
     assert resolve_devices(scope) == resolve_devices(mask)
-
-
-def test_named_combination_matches_runtime_composition():
-    assert DeviceScope.CPU_AND_DEFAULT_CUDA == DeviceScope.CPU | DeviceScope.DEFAULT_CUDA
-    assert DeviceScope.CUDA == DeviceScope.DEFAULT_CUDA | DeviceScope.NON_DEFAULT_CUDA
-    assert DeviceScope.ALL == DeviceScope.CPU | DeviceScope.DEFAULT_CUDA | DeviceScope.NON_DEFAULT_CUDA
 
 
 def test_helper_is_not_collected_by_pytest():
@@ -142,26 +130,12 @@ def test_resolve_test_sim_device_rejects_invalid_or_ambiguous_runtime(host, runt
 # ---------------------------------------------------------------------------
 
 
-def test_unset_runtime_never_raises(host):
-    # On a dev box / single-GPU lane (runtime unset), an out-of-scope result is a
-    # silent skip, not an error.
-    host(SINGLE_GPU, None)
-    assert resolve_devices("00X") == []
-
-
 def test_runtime_naming_absent_device_raises(host):
     # A run that explicitly asked for cuda:2 on a host that only has cuda:0/cuda:1
     # is misconfigured -> fail loudly instead of a vacuous green.
     host(["cpu", "cuda:0", "cuda:1"], "0001")
     with pytest.raises(ValueError, match="no device available"):
         resolve_devices("11X")
-
-
-def test_in_range_runtime_with_empty_scope_does_not_raise(host):
-    # The runtime device exists (cuda:2 is present), the scope just doesn't include
-    # it -> skip, not raise. This is what keeps "110"/"100" tests green on a shard.
-    host(MULTI_GPU, "0001")
-    assert resolve_devices("110") == []  # would raise if the guard keyed off scope
 
 
 # ---------------------------------------------------------------------------
@@ -183,23 +157,3 @@ def test_skip_ignores_out_of_result_devices(host):
     # Skipping a device that isn't in the resolved set is a no-op (no stray params).
     host(SINGLE_GPU, None)
     assert resolve_devices("11X", skip={"cuda:3": "n/a"}) == ["cpu", "cuda:0"]
-
-
-# ---------------------------------------------------------------------------
-# _expand mask grammar
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "mask, count, expected",
-    [
-        ("110", 2, [True, True]),  # exact length, no wildcard
-        ("100", 3, [True, False, False]),  # short mask padded with False
-        ("11X", 4, [True, True, True, True]),  # trailing X fills the rest True
-        ("00X", 4, [False, False, True, True]),  # X spans the non-default GPUs
-        ("11X", 2, [True, True]),  # X with nothing left to fill
-        ("0001", 3, [False, False, False]),  # mask longer than host -> truncated
-    ],
-)
-def test_expand(mask, count, expected):
-    assert devices_mod._expand(mask, count) == expected

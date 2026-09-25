@@ -16,7 +16,7 @@ from collections.abc import Callable
 import numpy as np
 import torch
 
-from isaaclab.utils import configclass
+from ...utils import configclass
 
 try:
     import websockets
@@ -102,7 +102,7 @@ class HaplyDevice(DeviceBase):
         self.feedback_force = {"x": 0.0, "y": 0.0, "z": 0.0}
         self.force_lock = threading.Lock()
 
-        self._additional_callbacks = dict()
+        self._additional_callbacks = {}
 
         # Button state tracking
         self._prev_buttons = {"a": False, "b": False, "c": False}
