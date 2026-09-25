@@ -24,6 +24,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.env_cfgs import EmptyManagerCfg
 from isaaclab.test.integration_scene_cfgs import CartpoleTestSceneCfg
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.integration
@@ -126,7 +127,8 @@ class CurriculumTestEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+# Curriculum address resolution and cfg mutation are device independent, so one device covers them.
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_curriculum_modify_env_param(device):
     """Ensure curriculum terms apply correctly after the fallback and replacement."""
     # new USD stage

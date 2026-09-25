@@ -25,6 +25,7 @@ from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
+from isaaclab.test.utils import test_devices
 from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.integration
@@ -60,38 +61,15 @@ def make_empty_manager_based_env_with_history_cfg(
     return cfg
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_initialization(device):
-    """Test initialization of ManagerBasedEnv."""
-    # create a new stage
-    sim_utils.create_new_stage()
-    # create environment
-    env = ManagerBasedEnv(cfg=make_empty_manager_based_env_cfg(device=device))
-    # check size of action manager terms
-    assert env.action_manager.total_action_dim == 0
-    assert len(env.action_manager.active_terms) == 0
-    assert len(env.action_manager.action_term_dim) == 0
-    # check size of observation manager terms
-    assert len(env.observation_manager.active_terms) == 0
-    assert len(env.observation_manager.group_obs_dim) == 0
-    assert len(env.observation_manager.group_obs_term_dim) == 0
-    assert len(env.observation_manager.group_obs_concatenate) == 0
-    # create actions of correct size (1,0)
-    act = torch.randn_like(env.action_manager.action)
-    # step environment to verify setup
-    for _ in range(2):
-        obs, ext = env.step(action=act)
-    # close the environment
-    env.close()
-
-
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+# Both devices, so the CPU and GPU simulation pipelines each build and step an environment.
+@pytest.mark.parametrize("device", test_devices())
 def test_step_updates_observation_history(device):
-    """Test that a real environment step advances observation history."""
+    """Test that real environment steps advance observation history."""
     # create a new stage
     sim_utils.create_new_stage()
     # create environment with history length of 5
     env = ManagerBasedEnv(cfg=make_empty_manager_based_env_with_history_cfg(device=device))
+    assert env.action_manager.total_action_dim == 0
     history = env.observation_manager._group_obs_term_history_buffer["empty_observation"]["dummy_term"]
 
     torch.testing.assert_close(
@@ -99,11 +77,12 @@ def test_step_updates_observation_history(device):
         torch.zeros((env.num_envs,), device=device, dtype=torch.int64),
     )
 
-    # step the environment and verify that history advances
-    env.step(torch.randn_like(env.action_manager.action))
-    torch.testing.assert_close(
-        history.current_length,
-        torch.ones((env.num_envs,), device=device, dtype=torch.int64),
-    )
+    # step the environment repeatedly and verify that history advances with each step
+    for num_steps in (1, 2):
+        env.step(torch.randn_like(env.action_manager.action))
+        torch.testing.assert_close(
+            history.current_length,
+            torch.full((env.num_envs,), num_steps, device=device, dtype=torch.int64),
+        )
 
     env.close()

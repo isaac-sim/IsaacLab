@@ -6,29 +6,18 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Launch Isaac Sim Simulator first."""
-
-from collections.abc import Sequence
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
-
 from collections import namedtuple
+from collections.abc import Sequence
+from unittest.mock import MagicMock
 
 import pytest
 import torch
 
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import EventManager, EventTermCfg, ManagerTermBase, ManagerTermBaseCfg
-from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.unit
 
 DummyEnv = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim", "dummy1", "dummy2"])
 """Dummy environment for testing."""
@@ -91,26 +80,11 @@ def env():
     # create dummy tensors
     dummy1 = torch.zeros((num_envs, 2), device=device)
     dummy2 = torch.zeros((num_envs, 10), device=device)
-    # create sim
-    sim = SimulationContext()
+    # simulation double that has not started playing, so class terms stay deferred to the physics-ready callback
+    sim = MagicMock()
+    sim.is_playing.return_value = False
     # create dummy environment
-    yield DummyEnv(num_envs, 0.01, device, sim, dummy1, dummy2)
-    SimulationContext.clear_instance()
-
-
-def test_str(env):
-    """Test the string representation of the event manager."""
-    cfg = {
-        "term_1": EventTermCfg(func=increment_dummy1_by_one, mode="interval", interval_range_s=(0.1, 0.1)),
-        "term_2": EventTermCfg(func=reset_dummy1_to_zero, mode="reset"),
-        "term_3": EventTermCfg(func=change_dummy1_by_value, mode="custom", params={"value": 10}),
-        "term_4": EventTermCfg(func=change_dummy1_by_value, mode="custom", params={"value": 2}),
-    }
-    event_man = EventManager(cfg, env)
-
-    # print the expected string
-    print()
-    print(event_man)
+    return DummyEnv(num_envs, 0.01, device, sim, dummy1, dummy2)
 
 
 def test_config_equivalence(env):
@@ -172,6 +146,10 @@ def test_active_terms(env):
     assert len(event_man.active_terms["interval"]) == 1
     assert len(event_man.active_terms["reset"]) == 1
     assert len(event_man.active_terms["custom"]) == 2
+    # the string representation lists each term, with the interval range for interval terms
+    event_man_str = str(event_man)
+    assert "term_4" in event_man_str
+    assert "Interval time range" in event_man_str and "(0.1, 0.1)" in event_man_str
 
 
 def test_class_terms(env):
@@ -194,10 +172,6 @@ def test_config_empty(env):
     """Test the creation of reward manager with empty config."""
     event_man = EventManager(None, env)
     assert len(event_man.active_terms) == 0
-
-    # print the expected string
-    print()
-    print(event_man)
 
 
 def test_invalid_event_func_module(env):

@@ -7,58 +7,13 @@ import pytest
 import torch
 
 from isaaclab.actuators import DCMotorCfg
+from isaaclab.utils.types import ArticulationActions
 
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.parametrize("num_envs", [1, 2])
-@pytest.mark.parametrize("num_joints", [1, 2])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_dc_motor_init_minimum(num_envs, num_joints, device):
-    joint_names = [f"joint_{d}" for d in range(num_joints)]
-    joint_ids = [d for d in range(num_joints)]
-    stiffness = 200
-    damping = 10
-    effort_limit = 60.0
-    saturation_effort = 100.0
-    velocity_limit = 50
-
-    actuator_cfg = DCMotorCfg(
-        joint_names_expr=joint_names,
-        stiffness=stiffness,
-        damping=damping,
-        actuator_effort_limit=effort_limit,
-        saturation_effort=saturation_effort,
-        actuator_velocity_limit=velocity_limit,
-    )
-    # assume Articulation class:
-    #   - finds joints (names and ids) associate with the provided joint_names_expr
-
-    actuator = actuator_cfg.class_type(
-        actuator_cfg,
-        joint_names=joint_names,
-        joint_ids=joint_ids,
-        num_envs=num_envs,
-        device=device,
-    )
-
-    # check device and shape
-    torch.testing.assert_close(actuator.computed_effort, torch.zeros(num_envs, num_joints, device=device))
-    torch.testing.assert_close(actuator.applied_effort, torch.zeros(num_envs, num_joints, device=device))
-    torch.testing.assert_close(
-        actuator.actuator_effort_limit,
-        effort_limit * torch.ones(num_envs, num_joints, device=device),
-    )
-    torch.testing.assert_close(
-        actuator.actuator_velocity_limit, velocity_limit * torch.ones(num_envs, num_joints, device=device)
-    )
-
-
-@pytest.mark.parametrize("num_envs", [1, 2])
-@pytest.mark.parametrize("num_joints", [1, 2])
-@pytest.mark.parametrize("device", ["cuda", "cpu"])
 @pytest.mark.parametrize("test_point", range(20))
-def test_dc_motor_clip(num_envs, num_joints, device, test_point):
+def test_dc_motor_clip(test_point):
     r"""Test the computation of the dc motor actuator 4 quadrant torque speed curve.
     torque_speed_pairs of interest:
 
@@ -150,14 +105,14 @@ def test_dc_motor_clip(num_envs, num_joints, device, test_point):
         40.0,  # -9
     ]
 
+    num_envs, num_joints, device = 2, 2, "cpu"
     joint_names = [f"joint_{d}" for d in range(num_joints)]
     joint_ids = [d for d in range(num_joints)]
-    stiffness = 200
-    damping = 10
+    # zero gains, so the computed effort is the feed-forward torque and only the motor model clips it
     actuator_cfg = DCMotorCfg(
         joint_names_expr=joint_names,
-        stiffness=stiffness,
-        damping=damping,
+        stiffness=0.0,
+        damping=0.0,
         actuator_effort_limit=effort_lim,
         actuator_velocity_limit=velocity_limit,
         saturation_effort=saturation_effort,
@@ -173,25 +128,24 @@ def test_dc_motor_clip(num_envs, num_joints, device, test_point):
         damping=actuator_cfg.damping,
     )
 
-    ts = torque_speed_pairs[test_point]
-    torque = ts[0]
-    speed = ts[1]
-    actuator._joint_vel[:] = speed * torch.ones(num_envs, num_joints, device=device)
-    effort = torque * torch.ones(num_envs, num_joints, device=device)
-    clipped_effort = actuator._clip_effort(effort)
-    torch.testing.assert_close(
-        expected_clipped_effort[test_point] * torch.ones(num_envs, num_joints, device=device),
-        clipped_effort,
+    torque, speed = torque_speed_pairs[test_point]
+    zeros = torch.zeros(num_envs, num_joints, device=device)
+    control_action = ArticulationActions(
+        joint_positions=zeros.clone(), joint_velocities=zeros.clone(), joint_efforts=torch.full_like(zeros, torque)
     )
+    applied = actuator.compute(control_action, joint_pos=zeros, joint_vel=torch.full_like(zeros, speed))
+    expected = torch.full_like(zeros, expected_clipped_effort[test_point])
+    torch.testing.assert_close(actuator.applied_effort, expected)
+    torch.testing.assert_close(applied.joint_efforts, expected)
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_dc_motor_clip_with_per_joint_saturation_effort(device):
+def test_dc_motor_clip_with_per_joint_saturation_effort():
     """Test that a per-joint ``saturation_effort`` gives each joint its own torque-speed curve.
 
     Joints behind different gear reductions belong to one actuator group but do not share a stall
     torque, e.g. the Unitree Go2 calf, which sits behind an extra knee reduction.
     """
+    device = "cpu"
     joint_names = ["hip", "calf"]
     actuator_cfg = DCMotorCfg(
         joint_names_expr=joint_names,

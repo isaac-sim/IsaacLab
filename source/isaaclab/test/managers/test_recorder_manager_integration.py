@@ -22,6 +22,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import DatasetExportMode, RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
 from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.integration
@@ -64,7 +65,8 @@ def get_dataset_shapes(file_path: Path) -> dict[str, tuple[int, ...]]:
     return shapes
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+# Recorder wiring is device independent, so one device covers it.
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_manager_based_env_close_exports_buffered_recorder_data(device: str, tmp_path: Path):
     """Environment stepping and close should record and export buffered episodes."""
     sim_utils.create_new_stage()

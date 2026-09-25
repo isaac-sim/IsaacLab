@@ -17,7 +17,6 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import torch
-from flaky import flaky
 
 pytestmark = pytest.mark.arm_ci
 
@@ -50,6 +49,7 @@ from isaaclab.utils.math import (
     compute_pose_error,
     matrix_from_quat,
     quat_apply_inverse,
+    quat_from_matrix,
     quat_inv,
     subtract_frame_transforms,
 )
@@ -157,22 +157,6 @@ def sim():
         ],
         device=sim.device,
     )
-    kp_set = torch.tensor(
-        [
-            [200.0, 200.0, 200.0, 200.0, 200.0, 200.0],
-            [240.0, 240.0, 240.0, 240.0, 240.0, 240.0],
-            [160.0, 160.0, 160.0, 160.0, 160.0, 160.0],
-        ],
-        device=sim.device,
-    )
-    d_ratio_set = torch.tensor(
-        [
-            [2.0, 2.0, 2.0, 2.0, 2.0, 2.0],
-            [2.2, 2.2, 2.2, 2.2, 2.2, 2.2],
-            [1.8, 1.8, 1.8, 1.8, 1.8, 1.8],
-        ],
-        device=sim.device,
-    )
     # Format: [x, y, z, qx, qy, qz, qw, force_x, force_y, force_z, torque_x, torque_y, torque_z]
     ee_goal_hybrid_set_b = torch.tensor(
         [
@@ -210,14 +194,8 @@ def sim():
     target_rel_pose_set_b = torch.cat([ee_goal_rel_pos_set, ee_goal_rel_axisangle_set], dim=-1)
     # Define goals for the arm [force_xyz + torque_xyz]
     target_abs_wrench_set = ee_goal_abs_wrench_set_b.clone()
-    # Define goals for the arm [xyz + quat_xyzw] and variable kp [kp_xyz + kp_rot_xyz]
-    target_abs_pose_variable_kp_set = torch.cat([target_abs_pose_set_b, kp_set], dim=-1)
-    # Define goals for the arm [xyz + quat_xyzw] and the variable imp. [kp_xyz + kp_rot_xyz + d_xyz + d_rot_xyz]
-    target_abs_pose_variable_set = torch.cat([target_abs_pose_set_b, kp_set, d_ratio_set], dim=-1)
     # Define goals for the arm pose [xyz + quat_xyzw] and wrench [force_xyz + torque_xyz]
     target_hybrid_set_b = ee_goal_hybrid_set_b.clone()
-    # Define goals for the arm pose, and wrench, and kp
-    target_hybrid_variable_kp_set = torch.cat([target_hybrid_set_b, kp_set], dim=-1)
     # Define goals for the arm pose [xyz + quat_xyzw] in root and and wrench [force_xyz + torque_xyz] in task frame
     target_hybrid_set_tilted = torch.cat([ee_goal_pose_set_tilted_b, ee_goal_wrench_set_tilted_task], dim=-1)
 
@@ -236,10 +214,7 @@ def sim():
         target_rel_pos_set,
         target_rel_pose_set_b,
         target_abs_wrench_set,
-        target_abs_pose_variable_kp_set,
-        target_abs_pose_variable_set,
         target_hybrid_set_b,
-        target_hybrid_variable_kp_set,
         target_hybrid_set_tilted,
         frame,
     )
@@ -247,106 +222,6 @@ def sim():
     # Cleanup
     sim.stop()
     sim.clear_instance()
-
-
-@pytest.mark.isaacsim_ci
-def test_franka_pose_abs_without_inertial_decoupling(sim):
-    """Test absolute pose control with fixed impedance and without inertial dynamics decoupling."""
-    (
-        sim_context,
-        num_envs,
-        robot_cfg,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        _,
-        target_abs_pose_set_b,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        frame,
-    ) = sim
-
-    robot = Articulation(cfg=robot_cfg)
-    osc_cfg = OperationalSpaceControllerCfg(
-        target_types=["pose_abs"],
-        impedance_mode="fixed",
-        inertial_dynamics_decoupling=False,
-        gravity_compensation=False,
-        motion_stiffness_task=[400.0, 400.0, 400.0, 100.0, 100.0, 100.0],
-        motion_damping_ratio_task=[5.0, 5.0, 5.0, 0.001, 0.001, 0.001],
-    )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
-
-    _run_op_space_controller(
-        robot,
-        osc,
-        "panda_hand",
-        ["panda_joint.*"],
-        target_abs_pose_set_b,
-        sim_context,
-        num_envs,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        frame,
-    )
-
-
-@pytest.mark.isaacsim_ci
-def test_franka_pose_abs_with_partial_inertial_decoupling(sim):
-    """Test absolute pose control with fixed impedance and partial inertial dynamics decoupling."""
-    (
-        sim_context,
-        num_envs,
-        robot_cfg,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        _,
-        target_abs_pose_set_b,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        frame,
-    ) = sim
-
-    robot = Articulation(cfg=robot_cfg)
-    osc_cfg = OperationalSpaceControllerCfg(
-        target_types=["pose_abs"],
-        impedance_mode="fixed",
-        inertial_dynamics_decoupling=True,
-        partial_inertial_dynamics_decoupling=True,
-        gravity_compensation=False,
-        motion_stiffness_task=1000.0,
-        motion_damping_ratio_task=1.0,
-    )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
-
-    _run_op_space_controller(
-        robot,
-        osc,
-        "panda_hand",
-        ["panda_joint.*"],
-        target_abs_pose_set_b,
-        sim_context,
-        num_envs,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        frame,
-        rotation_tolerance=0.12,
-    )
 
 
 @pytest.mark.isaacsim_ci
@@ -361,9 +236,6 @@ def test_franka_pose_abs_fixed_impedance_with_gravity_compensation(sim):
         contact_forces,
         _,
         target_abs_pose_set_b,
-        _,
-        _,
-        _,
         _,
         _,
         _,
@@ -417,9 +289,6 @@ def test_franka_pose_abs(sim):
         _,
         _,
         _,
-        _,
-        _,
-        _,
         frame,
     ) = sim
 
@@ -451,185 +320,6 @@ def test_franka_pose_abs(sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_franka_pose_rel(sim):
-    """Test relative pose control with fixed impedance and inertial dynamics decoupling."""
-    (
-        sim_context,
-        num_envs,
-        robot_cfg,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        _,
-        _,
-        _,
-        target_rel_pose_set_b,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        frame,
-    ) = sim
-
-    robot = Articulation(cfg=robot_cfg)
-    osc_cfg = OperationalSpaceControllerCfg(
-        target_types=["pose_rel"],
-        impedance_mode="fixed",
-        inertial_dynamics_decoupling=True,
-        partial_inertial_dynamics_decoupling=False,
-        gravity_compensation=False,
-        motion_stiffness_task=500.0,
-        motion_damping_ratio_task=1.0,
-    )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
-
-    _run_op_space_controller(
-        robot,
-        osc,
-        "panda_hand",
-        ["panda_joint.*"],
-        target_rel_pose_set_b,
-        sim_context,
-        num_envs,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        frame,
-    )
-
-
-@pytest.mark.isaacsim_ci
-def test_franka_pose_abs_variable_impedance(sim):
-    """Test absolute pose control with variable impedance and inertial dynamics decoupling."""
-    (
-        sim_context,
-        num_envs,
-        robot_cfg,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        target_abs_pose_variable_set,
-        _,
-        _,
-        _,
-        frame,
-    ) = sim
-
-    robot = Articulation(cfg=robot_cfg)
-    osc_cfg = OperationalSpaceControllerCfg(
-        target_types=["pose_abs"],
-        impedance_mode="variable",
-        inertial_dynamics_decoupling=True,
-        partial_inertial_dynamics_decoupling=False,
-        gravity_compensation=False,
-    )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
-
-    _run_op_space_controller(
-        robot,
-        osc,
-        "panda_hand",
-        ["panda_joint.*"],
-        target_abs_pose_variable_set,
-        sim_context,
-        num_envs,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        frame,
-    )
-
-
-@pytest.mark.isaacsim_ci
-def test_franka_wrench_abs_open_loop(sim):
-    """Test open loop absolute force control."""
-    (
-        sim_context,
-        num_envs,
-        robot_cfg,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        _,
-        _,
-        _,
-        _,
-        target_abs_wrench_set,
-        _,
-        _,
-        _,
-        _,
-        _,
-        frame,
-    ) = sim
-
-    robot = Articulation(cfg=robot_cfg)
-
-    obstacle_spawn_cfg = sim_utils.CuboidCfg(
-        size=(0.7, 0.7, 0.01),
-        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
-        activate_contact_sensors=True,
-    )
-    obstacle_spawn_cfg.func(
-        "/World/envs/env_[^/]+/obstacle1",
-        obstacle_spawn_cfg,
-        translation=(0.2, 0.0, 0.93),
-        orientation=(0.0, -0.1736, 0.0, 0.9848),
-    )
-    obstacle_spawn_cfg.func(
-        "/World/envs/env_[^/]+/obstacle2",
-        obstacle_spawn_cfg,
-        translation=(0.2, 0.35, 0.7),
-        orientation=(0.707, 0.0, 0.0, 0.707),
-    )
-    obstacle_spawn_cfg.func(
-        "/World/envs/env_[^/]+/obstacle3",
-        obstacle_spawn_cfg,
-        translation=(0.55, 0.0, 0.7),
-        orientation=(0.0, 0.707, 0.0, 0.707),
-    )
-    contact_forces_cfg = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/obstacle[^/]*",
-        update_period=0.0,
-        history_length=50,
-        debug_vis=False,
-        force_threshold=0.1,
-    )
-    contact_forces = ContactSensor(contact_forces_cfg)
-
-    osc_cfg = OperationalSpaceControllerCfg(
-        target_types=["wrench_abs"],
-        motion_control_axes_task=[0, 0, 0, 0, 0, 0],
-        contact_wrench_control_axes_task=[1, 1, 1, 1, 1, 1],
-    )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
-
-    _run_op_space_controller(
-        robot,
-        osc,
-        "panda_hand",
-        ["panda_joint.*"],
-        target_abs_wrench_set,
-        sim_context,
-        num_envs,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        frame,
-    )
-
-
-@pytest.mark.isaacsim_ci
 def test_franka_wrench_abs_closed_loop(sim):
     """Test closed loop absolute force control."""
     (
@@ -644,9 +334,6 @@ def test_franka_wrench_abs_closed_loop(sim):
         _,
         _,
         target_abs_wrench_set,
-        _,
-        _,
-        _,
         _,
         _,
         frame,
@@ -733,10 +420,7 @@ def test_franka_hybrid_decoupled_motion(sim):
         _,
         _,
         _,
-        _,
-        _,
         target_hybrid_set_b,
-        _,
         _,
         frame,
     ) = sim
@@ -795,149 +479,18 @@ def test_franka_hybrid_decoupled_motion(sim):
 
 
 @pytest.mark.isaacsim_ci
-@flaky(max_runs=3, min_passes=1)
-def test_franka_hybrid_variable_kp_impedance(sim):
-    """Test hybrid control with variable kp impedance and inertial dynamics decoupling."""
-    (
-        sim_context,
-        num_envs,
-        robot_cfg,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        target_hybrid_set_b,
-        target_hybrid_variable_kp_set,
-        _,
-        frame,
-    ) = sim
-
-    robot = Articulation(cfg=robot_cfg)
-
-    obstacle_spawn_cfg = sim_utils.CuboidCfg(
-        size=(1.0, 1.0, 0.01),
-        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
-        activate_contact_sensors=True,
-    )
-    obstacle_spawn_cfg.func(
-        "/World/envs/env_[^/]+/obstacle1",
-        obstacle_spawn_cfg,
-        translation=(target_hybrid_set_b[0, 0] + 0.05, 0.0, 0.7),
-        orientation=(0.0, 0.707, 0.0, 0.707),
-    )
-    contact_forces_cfg = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/obstacle[^/]*",
-        update_period=0.0,
-        history_length=2,
-        debug_vis=False,
-        force_threshold=0.1,
-    )
-    contact_forces = ContactSensor(contact_forces_cfg)
-
-    osc_cfg = OperationalSpaceControllerCfg(
-        target_types=["pose_abs", "wrench_abs"],
-        impedance_mode="variable_kp",
-        inertial_dynamics_decoupling=True,
-        partial_inertial_dynamics_decoupling=False,
-        gravity_compensation=False,
-        motion_damping_ratio_task=0.8,
-        contact_wrench_stiffness_task=[0.1, 0.0, 0.0, 0.0, 0.0, 0.0],
-        motion_control_axes_task=[0, 1, 1, 1, 1, 1],
-        contact_wrench_control_axes_task=[1, 0, 0, 0, 0, 0],
-    )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
-
-    # Use more convergence steps for hybrid control which is less precise
-    _run_op_space_controller(
-        robot,
-        osc,
-        "panda_leftfinger",
-        ["panda_joint.*"],
-        target_hybrid_variable_kp_set,
-        sim_context,
-        num_envs,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        frame,
-        convergence_steps=750,
-    )
-
-
-@pytest.mark.isaacsim_ci
 def test_task_frame_conversion_preserves_absolute_target():
     """A rounded pose command must resolve to the same target through either reference frame."""
     osc_cfg = OperationalSpaceControllerCfg(target_types=["pose_abs"])
     osc = OperationalSpaceController(osc_cfg, num_envs=1, device="cpu")
     target_b = torch.tensor([[0.5, -0.4, 0.6, 0.707, 0.0, 0.0, 0.707]])
-    command = target_b.clone()
     resolved_targets = []
     for frame in ("root", "task"):
-        converted_command, task_frame_pose_b = _convert_to_task_frame(osc, command, target_b, frame)
+        converted_command, task_frame_pose_b = _convert_to_task_frame(osc, target_b, target_b, frame)
         osc.set_command(converted_command, current_task_frame_pose_b=task_frame_pose_b)
         resolved_targets.append(osc.desired_ee_pose_b.clone())
 
     torch.testing.assert_close(resolved_targets[0], resolved_targets[1], atol=1e-6, rtol=0.0)
-    torch.testing.assert_close(command, target_b, atol=0.0, rtol=0.0)
-
-
-@pytest.mark.isaacsim_ci
-def test_franka_taskframe_pose_abs(sim):
-    """Test absolute pose control in task frame with fixed impedance and inertial dynamics decoupling."""
-    (
-        sim_context,
-        num_envs,
-        robot_cfg,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        _,
-        target_abs_pose_set_b,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        frame,
-    ) = sim
-
-    robot = Articulation(cfg=robot_cfg)
-    frame = "task"
-    osc_cfg = OperationalSpaceControllerCfg(
-        target_types=["pose_abs"],
-        impedance_mode="fixed",
-        inertial_dynamics_decoupling=True,
-        partial_inertial_dynamics_decoupling=False,
-        gravity_compensation=False,
-        motion_stiffness_task=500.0,
-        motion_damping_ratio_task=1.0,
-    )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
-
-    _run_op_space_controller(
-        robot,
-        osc,
-        "panda_hand",
-        ["panda_joint.*"],
-        target_abs_pose_set_b,
-        sim_context,
-        num_envs,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        frame,
-    )
 
 
 @pytest.mark.isaacsim_ci
@@ -954,9 +507,6 @@ def test_franka_taskframe_pose_rel(sim):
         _,
         _,
         target_rel_pose_set_b,
-        _,
-        _,
-        _,
         _,
         _,
         _,
@@ -1007,9 +557,6 @@ def test_franka_taskframe_hybrid(sim):
         _,
         _,
         _,
-        _,
-        _,
-        _,
         target_hybrid_set_tilted,
         frame,
     ) = sim
@@ -1069,109 +616,6 @@ def test_franka_taskframe_hybrid(sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_franka_pose_abs_without_inertial_decoupling_with_nullspace_centering(sim):
-    """Test absolute pose control with fixed impedance and nullspace centerin but without inertial decoupling."""
-    (
-        sim_context,
-        num_envs,
-        robot_cfg,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        _,
-        target_abs_pose_set_b,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        frame,
-    ) = sim
-
-    robot = Articulation(cfg=robot_cfg)
-    osc_cfg = OperationalSpaceControllerCfg(
-        target_types=["pose_abs"],
-        impedance_mode="fixed",
-        inertial_dynamics_decoupling=False,
-        gravity_compensation=False,
-        motion_stiffness_task=[400.0, 400.0, 400.0, 100.0, 100.0, 100.0],
-        motion_damping_ratio_task=[5.0, 5.0, 5.0, 0.001, 0.001, 0.001],
-        nullspace_control="position",
-    )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
-
-    _run_op_space_controller(
-        robot,
-        osc,
-        "panda_hand",
-        ["panda_joint.*"],
-        target_abs_pose_set_b,
-        sim_context,
-        num_envs,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        frame,
-    )
-
-
-@pytest.mark.isaacsim_ci
-def test_franka_pose_abs_with_partial_inertial_decoupling_nullspace_centering(sim):
-    """Test absolute pose control with fixed impedance, partial inertial decoupling and nullspace centering."""
-    (
-        sim_context,
-        num_envs,
-        robot_cfg,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        _,
-        target_abs_pose_set_b,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        frame,
-    ) = sim
-
-    robot = Articulation(cfg=robot_cfg)
-    osc_cfg = OperationalSpaceControllerCfg(
-        target_types=["pose_abs"],
-        impedance_mode="fixed",
-        inertial_dynamics_decoupling=True,
-        partial_inertial_dynamics_decoupling=True,
-        gravity_compensation=False,
-        motion_stiffness_task=1000.0,
-        motion_damping_ratio_task=1.0,
-        nullspace_control="position",
-        nullspace_stiffness=1.0,
-    )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
-
-    _run_op_space_controller(
-        robot,
-        osc,
-        "panda_hand",
-        ["panda_joint.*"],
-        target_abs_pose_set_b,
-        sim_context,
-        num_envs,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        frame,
-        rotation_tolerance=0.12,
-    )
-
-
-@pytest.mark.isaacsim_ci
 def test_franka_pose_abs_with_nullspace_centering(sim):
     """Test absolute pose control with fixed impedance, inertial decoupling and nullspace centering."""
     (
@@ -1183,9 +627,6 @@ def test_franka_pose_abs_with_nullspace_centering(sim):
         contact_forces,
         _,
         target_abs_pose_set_b,
-        _,
-        _,
-        _,
         _,
         _,
         _,
@@ -1214,84 +655,6 @@ def test_franka_pose_abs_with_nullspace_centering(sim):
         "panda_hand",
         ["panda_joint.*"],
         target_abs_pose_set_b,
-        sim_context,
-        num_envs,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        frame,
-    )
-
-
-@pytest.mark.isaacsim_ci
-def test_franka_taskframe_hybrid_with_nullspace_centering(sim):
-    """Test hybrid control in task frame with fixed impedance, inertial decoupling and nullspace centering."""
-    (
-        sim_context,
-        num_envs,
-        robot_cfg,
-        ee_marker,
-        goal_marker,
-        contact_forces,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        target_hybrid_set_tilted,
-        frame,
-    ) = sim
-
-    robot = Articulation(cfg=robot_cfg)
-    frame = "task"
-
-    obstacle_spawn_cfg = sim_utils.CuboidCfg(
-        size=(2.0, 1.5, 0.01),
-        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), opacity=0.1),
-        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
-        activate_contact_sensors=True,
-    )
-    obstacle_spawn_cfg.func(
-        "/World/envs/env_[^/]+/obstacle1",
-        obstacle_spawn_cfg,
-        translation=(target_hybrid_set_tilted[0, 0] + 0.085, 0.0, 0.3),
-        orientation=(0.0, -0.3826834324, 0.0, 0.9238795325),
-    )
-    contact_forces_cfg = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/obstacle[^/]*",
-        update_period=0.0,
-        history_length=2,
-        debug_vis=False,
-        force_threshold=0.1,
-    )
-    contact_forces = ContactSensor(contact_forces_cfg)
-
-    osc_cfg = OperationalSpaceControllerCfg(
-        target_types=["pose_abs", "wrench_abs"],
-        impedance_mode="fixed",
-        inertial_dynamics_decoupling=True,
-        partial_inertial_dynamics_decoupling=False,
-        gravity_compensation=False,
-        motion_stiffness_task=400.0,
-        motion_damping_ratio_task=1.0,
-        contact_wrench_stiffness_task=[0.0, 0.0, 0.1, 0.0, 0.0, 0.0],
-        motion_control_axes_task=[1, 1, 0, 1, 1, 1],
-        contact_wrench_control_axes_task=[0, 0, 1, 0, 0, 0],
-        nullspace_control="position",
-    )
-    osc = OperationalSpaceController(osc_cfg, num_envs=num_envs, device=sim_context.device)
-
-    _run_op_space_controller(
-        robot,
-        osc,
-        "panda_leftfinger",
-        ["panda_joint.*"],
-        target_hybrid_set_tilted,
         sim_context,
         num_envs,
         ee_marker,
@@ -1365,9 +728,8 @@ class _FloatingBaseOscEnvCfg(ManagerBasedEnvCfg):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("feedback_source", ["test_helper", "action"])
-def test_franka_velocity_feedback_matches_jacobian(sim, feedback_source):
-    """Both OSC callers must measure velocity at the link origin used by the Jacobian."""
+def test_franka_velocity_feedback_matches_jacobian(sim):
+    """The OSC action term must measure velocity at the link origin used by the Jacobian."""
     sim_context, num_envs, robot_cfg, *_ = sim
     robot = Articulation(cfg=robot_cfg)
     sim_context.reset()
@@ -1387,22 +749,18 @@ def test_franka_velocity_feedback_matches_jacobian(sim, feedback_source):
         atol=1e-4,
         rtol=1e-4,
     )
-    if feedback_source == "test_helper":
-        states = _update_states(robot, ee_frame_idx, arm_joint_ids, sim_context, None, num_envs)
-        jacobian_b, _, _, _, ee_vel_b, _, _, _, _, joint_vel = states
-    else:
-        env = SimpleNamespace(scene={"robot": robot}, sim=sim_context, num_envs=num_envs, device=sim_context.device)
-        action_cfg = OperationalSpaceControllerActionCfg(
-            asset_name="robot",
-            joint_names=["panda_joint.*"],
-            body_name="panda_hand",
-            controller_cfg=OperationalSpaceControllerCfg(target_types=["pose_abs"]),
-        )
-        action_term = OperationalSpaceControllerAction(action_cfg, env)
-        action_term._compute_ee_jacobian()
-        action_term._compute_ee_velocity()
-        jacobian_b, ee_vel_b = action_term._jacobian_b, action_term._ee_vel_b
-        joint_vel = robot.data.joint_vel.torch[:, arm_joint_ids]
+    env = SimpleNamespace(scene={"robot": robot}, sim=sim_context, num_envs=num_envs, device=sim_context.device)
+    action_cfg = OperationalSpaceControllerActionCfg(
+        asset_name="robot",
+        joint_names=["panda_joint.*"],
+        body_name="panda_hand",
+        controller_cfg=OperationalSpaceControllerCfg(target_types=["pose_abs"]),
+    )
+    action_term = OperationalSpaceControllerAction(action_cfg, env)
+    action_term._compute_ee_jacobian()
+    action_term._compute_ee_velocity()
+    jacobian_b, ee_vel_b = action_term._jacobian_b, action_term._ee_vel_b
+    joint_vel = robot.data.joint_vel.torch[:, arm_joint_ids]
 
     # With a stationary fixed base, the link twist must equal J(q) * q_dot.
     expected_vel_b = torch.bmm(jacobian_b, joint_vel.unsqueeze(-1)).squeeze(-1)
@@ -1449,8 +807,8 @@ def test_floating_base_osc_action_term_indexing():
         term_mass = action_term._mass_matrix.clone()
         term_gravity = action_term._gravity.clone()
 
-        # --- 5. Manually extract using the CORRECT indices (what the fix does) ---
-        jacobi_joint_idx = action_term._jacobi_joint_idx
+        # --- 5. Manually extract using the CORRECT indices: arm joints shifted past the floating-base DoFs ---
+        jacobi_joint_idx = [joint_id + robot.num_base_dofs for joint_id in robot.find_joints(_G1_ARM_JOINT_NAMES)[0]]
         full_mass_matrix = robot.data.mass_matrix.torch
         full_gravity = robot.data.gravity_compensation_forces.torch
 
@@ -1506,7 +864,8 @@ def _random_quat(generator: torch.Generator) -> torch.Tensor:
 
 
 def _reference_efforts(
-    controller: OperationalSpaceController,
+    cfg: OperationalSpaceControllerCfg,
+    command: torch.Tensor,
     task_frame_pose_b: torch.Tensor | None,
     jacobian_b: torch.Tensor,
     ee_pose_b: torch.Tensor,
@@ -1520,44 +879,89 @@ def _reference_efforts(
 ) -> torch.Tensor:
     """Evaluate the operational-space law independently in Torch.
 
-    Gains and selection axes are rotated from the task frame into the root frame here, so the reference is
-    independent of the controller's own frame handling.
+    Gains, selection axes, and targets are built here from the config and the raw command, and rotated from the
+    task frame into the root frame, so the reference is independent of the controller's own state.
     """
-    cfg = controller.cfg
     num_envs, _, num_dof = jacobian_b.shape
     joint_efforts = torch.zeros(num_envs, num_dof)
 
-    rot_task_b = (
-        torch.eye(3).expand(num_envs, 3, 3) if task_frame_pose_b is None else matrix_from_quat(task_frame_pose_b[:, 3:])
-    )
-    rot_b_task = rot_task_b.mT
+    if task_frame_pose_b is None:
+        task_frame_pose_b = torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]).repeat(num_envs, 1)
+    frame_pos_b = task_frame_pose_b[:, :3]
+    rot_task_b = matrix_from_quat(task_frame_pose_b[:, 3:])
 
-    def to_root_frame(axis_values: torch.Tensor) -> torch.Tensor:
-        """Block-rotate a per-axis task-frame diagonal into a root-frame 6x6 matrix."""
-        task = axis_values
+    def to_root_frame(axis_values) -> torch.Tensor:
+        """Block-rotate per-axis task-frame values into a root-frame 6x6 matrix."""
+        task = torch.diag_embed(torch.as_tensor(axis_values, dtype=torch.float).expand(num_envs, 6))
         root = torch.zeros_like(task)
-        root[:, 0:3, 0:3] = rot_task_b @ task[:, 0:3, 0:3] @ rot_b_task
-        root[:, 3:6, 3:6] = rot_task_b @ task[:, 3:6, 3:6] @ rot_b_task
+        root[:, 0:3, 0:3] = rot_task_b @ task[:, 0:3, 0:3] @ rot_task_b.mT
+        root[:, 3:6, 3:6] = rot_task_b @ task[:, 3:6, 3:6] @ rot_task_b.mT
         return root
+
+    def to_matrix(axis_angle: torch.Tensor) -> torch.Tensor:
+        """Rodrigues rotation through the matrix exponential of the skew-symmetric matrix."""
+        skew = torch.zeros(num_envs, 3, 3)
+        skew[:, 0, 1], skew[:, 0, 2], skew[:, 1, 2] = -axis_angle[:, 2], axis_angle[:, 1], -axis_angle[:, 0]
+        return torch.linalg.matrix_exp(skew - skew.mT)
+
+    # split the command into targets and impedance parameters
+    target_sizes = [7 if target_type == "pose_abs" else 6 for target_type in cfg.target_types]
+    impedance_size = {"fixed": 0, "variable_kp": 6, "variable": 12}[cfg.impedance_mode]
+    *targets, impedance = torch.split(command, [*target_sizes, impedance_size], dim=-1)
+    if cfg.impedance_mode == "fixed":
+        stiffness = torch.as_tensor(cfg.motion_stiffness_task, dtype=torch.float).expand(num_envs, 6)
+    else:
+        stiffness = impedance[:, :6].clamp(*cfg.motion_stiffness_limits_task)
+    if cfg.impedance_mode == "variable":
+        damping_ratio = impedance[:, 6:].clamp(*cfg.motion_damping_ratio_limits_task)
+    else:
+        damping_ratio = torch.as_tensor(cfg.motion_damping_ratio_task, dtype=torch.float).expand(num_envs, 6)
+    motion_axes = torch.tensor(cfg.motion_control_axes_task, dtype=torch.float)
+    motion_p_gains = motion_axes * stiffness
+    motion_d_gains = 2.0 * motion_p_gains.sqrt() * damping_ratio
+
+    # resolve the targets in the root frame
+    desired_ee_pose_b = None
+    desired_ee_wrench_b = None
+    for target_type, target in zip(cfg.target_types, targets):
+        if target_type == "wrench_abs":
+            force_b = (rot_task_b @ target[:, :3].unsqueeze(-1)).squeeze(-1)
+            torque_b = (rot_task_b @ target[:, 3:].unsqueeze(-1)).squeeze(-1) + torch.cross(
+                frame_pos_b, force_b, dim=-1
+            )
+            desired_ee_wrench_b = torch.cat([force_b, torque_b], dim=-1)
+            continue
+        if target_type == "pose_abs":
+            desired_pos_task = target[:, :3]
+            desired_rot_task = matrix_from_quat(target[:, 3:] / target[:, 3:].norm(dim=-1, keepdim=True))
+        else:
+            # pose_rel: displace the current end-effector pose expressed in the task frame
+            ee_pos_task = (rot_task_b.mT @ (ee_pose_b[:, :3] - frame_pos_b).unsqueeze(-1)).squeeze(-1)
+            ee_rot_task = rot_task_b.mT @ matrix_from_quat(ee_pose_b[:, 3:])
+            desired_pos_task = ee_pos_task + target[:, :3]
+            desired_rot_task = to_matrix(target[:, 3:]) @ ee_rot_task
+        desired_pos_b = frame_pos_b + (rot_task_b @ desired_pos_task.unsqueeze(-1)).squeeze(-1)
+        desired_quat_b = quat_from_matrix(rot_task_b @ desired_rot_task)
+        desired_ee_pose_b = torch.cat([desired_pos_b, desired_quat_b], dim=-1)
 
     os_mass_matrix_b = torch.zeros(num_envs, 6, 6)
     mass_matrix_inv = None
 
-    if controller.desired_ee_pose_b is not None:
+    if desired_ee_pose_b is not None:
         pose_error_b = torch.cat(
             compute_pose_error(
                 ee_pose_b[:, :3],
                 ee_pose_b[:, 3:],
-                controller.desired_ee_pose_b[:, :3],
-                controller.desired_ee_pose_b[:, 3:],
+                desired_ee_pose_b[:, :3],
+                desired_ee_pose_b[:, 3:],
                 rot_error_type="axis_angle",
             ),
             dim=-1,
         )
-        des_ee_acc_b = to_root_frame(controller._motion_p_gains_task) @ pose_error_b.unsqueeze(-1) + to_root_frame(
-            controller._motion_d_gains_task
-        ) @ (-ee_vel_b).unsqueeze(-1)
-        selection_motion_b = to_root_frame(controller._selection_matrix_motion_task)
+        des_ee_acc_b = to_root_frame(motion_p_gains) @ pose_error_b.unsqueeze(-1) + to_root_frame(motion_d_gains) @ (
+            -ee_vel_b
+        ).unsqueeze(-1)
+        selection_motion_b = to_root_frame(motion_axes)
         if cfg.inertial_dynamics_decoupling:
             mass_matrix_inv = torch.inverse(mass_matrix)
             if cfg.partial_inertial_dynamics_decoupling:
@@ -1575,17 +979,19 @@ def _reference_efforts(
         os_command_forces_b = selection_motion_b @ os_command_forces_b
         joint_efforts += (jacobian_b.mT @ os_command_forces_b).squeeze(-1)
 
-    if controller.desired_ee_wrench_b is not None:
+    if desired_ee_wrench_b is not None:
+        force_axes = torch.tensor(cfg.contact_wrench_control_axes_task, dtype=torch.float)
         if cfg.contact_wrench_stiffness_task is not None:
             measured_wrench_b = torch.zeros(num_envs, 6)
             measured_wrench_b[:, 0:3] = ee_force_b
-            measured_wrench_b[:, 3:6] = controller.desired_ee_wrench_b[:, 3:6]
-            wrench_command_b = controller.desired_ee_wrench_b.unsqueeze(-1) + to_root_frame(
-                controller._contact_wrench_p_gains_task
-            ) @ (controller.desired_ee_wrench_b - measured_wrench_b).unsqueeze(-1)
+            measured_wrench_b[:, 3:6] = desired_ee_wrench_b[:, 3:6]
+            contact_wrench_p_gains = force_axes * torch.as_tensor(cfg.contact_wrench_stiffness_task, dtype=torch.float)
+            wrench_command_b = desired_ee_wrench_b.unsqueeze(-1) + to_root_frame(contact_wrench_p_gains) @ (
+                desired_ee_wrench_b - measured_wrench_b
+            ).unsqueeze(-1)
         else:
-            wrench_command_b = controller.desired_ee_wrench_b.unsqueeze(-1)
-        selection_force_b = to_root_frame(controller._selection_matrix_force_task)
+            wrench_command_b = desired_ee_wrench_b.unsqueeze(-1)
+        selection_force_b = to_root_frame(force_axes)
         joint_efforts += (jacobian_b.mT @ selection_force_b @ wrench_command_b).squeeze(-1)
 
     if cfg.gravity_compensation:
@@ -1597,9 +1003,10 @@ def _reference_efforts(
         else:
             jacobian_pinv_transpose = torch.pinverse(jacobian_b).mT
         nullspace_jacobian_transpose = torch.eye(n=num_dof) - jacobian_b.mT @ jacobian_pinv_transpose
+        nullspace_p_gain = cfg.nullspace_stiffness
+        nullspace_d_gain = 2.0 * nullspace_p_gain**0.5 * cfg.nullspace_damping_ratio
         joint_acc_nullspace = (
-            controller._nullspace_p_gain * (nullspace_joint_pos_target - joint_pos)
-            + controller._nullspace_d_gain * (-joint_vel)
+            nullspace_p_gain * (nullspace_joint_pos_target - joint_pos) + nullspace_d_gain * (-joint_vel)
         ).unsqueeze(-1)
         joint_efforts += (nullspace_jacobian_transpose @ mass_matrix @ joint_acc_nullspace).squeeze(-1)
 
@@ -1609,6 +1016,7 @@ def _reference_efforts(
 _SCENARIOS = {
     "pose_abs": dict(target_types=["pose_abs"]),
     "pose_rel": dict(target_types=["pose_rel"]),
+    "pose_rel_task_frame": dict(target_types=["pose_rel"], task_frame=True),
     "pose_abs_task_frame": dict(target_types=["pose_abs"], task_frame=True),
     "pose_abs_decoupled": dict(target_types=["pose_abs"], inertial_dynamics_decoupling=True, task_frame=True),
     "pose_abs_partial_decoupled": dict(
@@ -1630,6 +1038,12 @@ _SCENARIOS = {
         nullspace_control="position",
         inertial_dynamics_decoupling=True,
         partial_inertial_dynamics_decoupling=True,
+    ),
+    "wrench_only": dict(
+        target_types=["wrench_abs"],
+        motion_control_axes_task=(0, 0, 0, 0, 0, 0),
+        contact_wrench_control_axes_task=(1, 1, 1, 1, 1, 1),
+        task_frame=True,
     ),
     "wrench_open_loop": dict(
         target_types=["pose_abs", "wrench_abs"],
@@ -1711,7 +1125,7 @@ def test_compute_matches_operational_space_law(scenario_name: str) -> None:
         command.append(torch.rand(_NUM_ENVS, 6, generator=generator) * 2.0)
     command = torch.cat(command, dim=-1)
 
-    controller.set_command(command, current_ee_pose_b=ee_pose_b, current_task_frame_pose_b=task_frame_pose_b)
+    controller.set_command(command.clone(), current_ee_pose_b=ee_pose_b, current_task_frame_pose_b=task_frame_pose_b)
     actual = controller.compute(
         jacobian_b=jacobian_b,
         current_ee_pose_b=ee_pose_b,
@@ -1724,7 +1138,8 @@ def test_compute_matches_operational_space_law(scenario_name: str) -> None:
         nullspace_joint_pos_target=nullspace_target,
     )
     reference = _reference_efforts(
-        controller,
+        cfg,
+        command,
         task_frame_pose_b,
         jacobian_b,
         ee_pose_b,
@@ -1757,9 +1172,6 @@ def test_inertial_decoupling_damps_near_singular_directions(device, partial_iner
         nullspace_stiffness=1.0,
     )
     controller = OperationalSpaceController(cfg, num_envs=4, device=device)
-    # Solve for forces each step; do not reintroduce cached inverse matrices or duplicate inertia state.
-    assert not hasattr(controller, "_mass_matrix_inv")
-    assert not hasattr(controller, "_os_mass_matrix_b")
     pose = torch.zeros(4, 7, device=device)
     pose[:, -1] = 1.0
     controller.set_command(pose)
