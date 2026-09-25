@@ -109,6 +109,8 @@ def test_a_wide_job_holds_its_slots_and_is_not_overtaken():
 
     # "wide" needs all three slots; "after" fits beside "narrow" but must not jump the queue.
     harness.wait_running("narrow")
+    with harness._lock:
+        assert not harness._lock.wait_for(lambda: "wide" in harness.started, timeout=0.2)
     harness.finish("narrow")
     harness.wait_running("wide")
     harness.finish("wide")
