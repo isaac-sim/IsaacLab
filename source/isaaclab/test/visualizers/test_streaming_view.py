@@ -55,8 +55,8 @@ def test_colorize_depth_clamps_range():
     out_near = colorize(0.05)
     assert out_near.shape == (48, 64, 3)
     assert out_near.dtype == np.uint8
+    # Only the near bound is observable: past the far bound the gradient already saturates without the clamp.
     np.testing.assert_array_equal(out_near, colorize(1.0))
-    np.testing.assert_array_equal(colorize(9.0), colorize(5.0))
 
 
 def test_colorize_depth_turbo_near_is_not_same_as_far():

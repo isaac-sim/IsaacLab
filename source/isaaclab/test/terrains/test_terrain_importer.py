@@ -16,6 +16,7 @@ from typing import Literal
 
 import numpy as np
 import pytest
+import torch
 import trimesh
 
 from pxr import UsdGeom
@@ -94,6 +95,13 @@ def test_plane():
             visual_material=PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
         )
         terrain_importer = TerrainImporter(terrain_importer_cfg)
+
+        # The importer lays the environments out on a 64 x 64 grid with the configured spacing.
+        origins = terrain_importer.env_origins
+        assert origins.shape == (4096, 3)
+        assert origins.device == torch.device("cuda:0")
+        torch.testing.assert_close(origins[0].cpu(), torch.tensor([126.0, -126.0, 0.0]))
+        torch.testing.assert_close(origins[-1].cpu(), torch.tensor([-126.0, 126.0, 0.0]))
 
         # check if mesh prim path exists
         mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"

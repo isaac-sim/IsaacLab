@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import itertools
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -16,7 +17,7 @@ import warp as wp
 
 from isaaclab.scene_data.scene_data_backend import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.scene_data_provider import SceneDataProvider
-from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.test.utils import test_devices
 
 
 class _Backend(SimpleNamespace, SceneDataBackend):
@@ -192,8 +193,11 @@ def test_transposed_matrices_fuse_format_mapping_and_scale(format_name, scaled):
     assert output.matrices is matrices
 
 
-@pytest.mark.parametrize("format_name", ["Transform", "Vec3_Quat", "Vec3_Matrix33", "Matrix44"])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+# Rotate the device across formats so both the CPU and CUDA fabric paths are exercised.
+@pytest.mark.parametrize(
+    "format_name, device",
+    list(zip(["Transform", "Vec3_Quat", "Vec3_Matrix33", "Matrix44"], itertools.cycle(test_devices()))),
+)
 def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destinations(format_name, device, monkeypatch):
     """Fabric conversion skips solver-only bodies and preserves scales across buffer reallocations."""
     assert set(SceneDataFormat.FabricMatrix44.vars) == {"matrices"}
