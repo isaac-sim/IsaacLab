@@ -47,7 +47,7 @@ class TestFileJob:
     """Test file path; also the key of its result."""
 
     slots: int = 1
-    """Slots the job holds while it runs: the number of ``pytest-xdist`` workers it splits into, or 1."""
+    """Slots the job holds while it runs, e.g. one per ``pytest-xdist`` worker; more than the budget holds them all."""
 
     renders: bool = False
     """Whether the job starts a renderer, and so never runs alongside another job that does."""

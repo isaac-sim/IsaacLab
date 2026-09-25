@@ -92,6 +92,13 @@ is the long pole of its CI job. Each worker holds one of the job's ``TEST_JOBS``
 more workers than the job has slots.
 """
 
+EXCLUSIVE_TESTS = [
+    # Both assert wall-clock limits, which other files running at the same time would eat into.
+    "test_kit_startup_performance.py",
+    "test_robot_load_performance.py",
+]
+"""Test files that run with no other test file alongside them, when a job runs several files at once."""
+
 CUROBO_PLANNER_TESTS = [
     "test_curobo_planner_franka.py",
     "test_curobo_planner_cube_stack.py",

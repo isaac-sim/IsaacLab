@@ -63,7 +63,8 @@ TEST_JOBS_ENV_VAR = "TEST_JOBS"
 """Environment variable naming how many test-file slots a run may use at once; unset or ``1`` runs files one by one.
 
 Each file still runs in its own pytest process. A file listed in :data:`test_settings.PYTEST_WORKERS` holds
-several slots and splits its tests across that many ``pytest-xdist`` workers; any other file holds one. See
+several slots and splits its tests across that many ``pytest-xdist`` workers, one in
+:data:`test_settings.EXCLUSIVE_TESTS` holds them all, and any other file holds one. See
 ``tools/_file_scheduler.py`` for the scheduling rules.
 """
 
@@ -1399,15 +1400,21 @@ def _starts_renderer(test_content: str) -> bool:
     return "enable_cameras=True" in test_content or "ovrtx" in test_content.lower()
 
 
-def _test_file_job(test_file: str) -> TestFileJob:
+def _test_file_job(test_file: str, max_slots: int) -> TestFileJob:
     """Describe a test file to the scheduler: how many slots it holds and whether it starts a renderer."""
     try:
         with open(test_file) as fh:
             test_content = fh.read()
     except OSError:
         test_content = ""
-    workers = test_settings.PYTEST_WORKERS.get(os.path.basename(test_file), 1)
-    return TestFileJob(path=test_file, slots=workers, renders=_starts_renderer(test_content))
+    file_name = os.path.basename(test_file)
+    slots = max_slots if file_name in test_settings.EXCLUSIVE_TESTS else _pytest_workers(file_name)
+    return TestFileJob(path=test_file, slots=slots, renders=_starts_renderer(test_content))
+
+
+def _pytest_workers(file_name: str) -> int:
+    """Return how many ``pytest-xdist`` workers a test file is split across, 1 when it is not split."""
+    return test_settings.PYTEST_WORKERS.get(file_name, 1)
 
 
 @dataclass
@@ -1434,10 +1441,10 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
     max_slots = _test_jobs()
     queue_path = os.environ.get("ISAACLAB_TEST_QUEUE", "")
     if queue_path:
-        jobs = (_test_file_job(test_file) for test_file in _queued_files(queue_path))
+        jobs = (_test_file_job(test_file, max_slots) for test_file in _queued_files(queue_path))
     else:
-        # Files split across workers first: they are the long ones, and can only start once enough slots are free.
-        jobs = sorted((_test_file_job(test_file) for test_file in test_files), key=lambda job: -job.slots)
+        # Wide files first: split ones are the long poles, and wide ones can only start once enough slots are free.
+        jobs = sorted((_test_file_job(test_file, max_slots) for test_file in test_files), key=lambda job: -job.slots)
     if max_slots > 1:
         logger.info(f"Running test files {max_slots} slots at a time; each file's output is printed when it ends")
 
@@ -1449,7 +1456,7 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
             ci_marker=ci_marker,
             pytest_targets=test_node_ids_by_file.get(os.path.normpath(job.path), [str(job.path)]),
             global_k_expr=global_k_expr,
-            workers=min(job.slots, max_slots),
+            workers=min(_pytest_workers(os.path.basename(job.path)), max_slots),
             echo=max_slots == 1,
         )
         # When running under the directory-based work queue (option 2), move the
