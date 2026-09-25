@@ -147,7 +147,7 @@ class InteractiveScene:
         self._ALL_INDICES = torch.arange(self.cfg.num_envs, dtype=torch.long, device=self.device)
 
         self._global_prim_paths = []
-        asset_cfgs, valid_set = self._collect_asset_cfgs()
+        asset_cfgs, world_prototypes, weights = self._collect_asset_cfgs()
         scene_from_cfg = any(
             name not in InteractiveSceneCfg.__dataclass_fields__ and cfg is not None
             for name, cfg in self.cfg.__dict__.items()
@@ -159,20 +159,22 @@ class InteractiveScene:
                 env_spacing=self.cfg.env_spacing,
                 env_template=self._env_fmt,
                 clone_strategy=self.cloner_cfg.clone_strategy,
-                valid_set=valid_set,
+                world_prototypes=world_prototypes,
+                weights=weights,
                 replicate_physics=self.cloner_cfg.replicate_physics,
-            ) as session:
+            ):
+                usd = self.sim.clone_contexts[cloner.UsdReplicateContext]
                 self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
                 with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
                     cloner.usd_replicate(
                         self.stage,
                         [self.env_prim_paths[0]],
                         [self._env_fmt],
-                        session.plan.env_ids,
-                        positions=session.plan.positions,
+                        np.arange(self.num_envs),
+                        positions=usd.positions,
                     )
                 self._add_entities_from_cfg()
-            positions = session.plan.positions
+            positions = usd.positions
         else:
             positions = cloner.grid_transforms(self.num_envs, self.cfg.env_spacing)[0]
             env_0 = self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
@@ -184,7 +186,7 @@ class InteractiveScene:
         if self.cfg.filter_collisions and "physx" in self.physics_backend and scene_from_cfg:
             self.filter_collisions(self._global_prim_paths)
 
-    def _collect_asset_cfgs(self) -> tuple[list[Any], np.ndarray | None]:
+    def _collect_asset_cfgs(self) -> tuple[list[Any], tuple[tuple[int, ...], ...] | None, np.ndarray | None]:
         """Flatten user-declared cfgs and declare shared prim roots for clone planning.
 
         Expands :class:`~isaaclab.assets.RigidObjectCollectionCfg` into its members,
@@ -226,30 +228,34 @@ class InteractiveScene:
         cfgs: list[Any] = []
         clone_asset_names: list[str] = []
         variant_counts: list[int] = []
+        prototype_indices: list[int] = []
+        prototype_count = 0
         for asset_name, child in flat_items:
             if id(child) in nested_visual_material_ids:
                 if child.spawn is not None:
                     child.spawn.spawn_path = child.prim_path
                 continue
             cfgs.append(child)
+            count = cloner.num_spawn_variants(getattr(child, "spawn", None))
             if (
                 cloner.path.match(child.prim_path, self._env_fmt) is not None
                 and isinstance(child, (AssetBaseCfg, CameraCfg, RayCasterCfg))
                 and child.spawn is not None
             ):
                 clone_asset_names.append(asset_name)
-                variant_counts.append(cloner.num_spawn_variants(child.spawn))
+                variant_counts.append(count)
+                prototype_indices.extend(range(prototype_count, prototype_count + count))
+            prototype_count += count
 
         if self.cloner_cfg.clone_combinations and clone_asset_names:
-            valid_set = cloner.make_valid_clone_combinations(
+            worlds, weights = cloner.make_valid_clone_combinations(
                 clone_asset_names,
                 variant_counts,
                 self.cloner_cfg.clone_combinations,
                 all_asset_names=scene_asset_names,
             )
-        else:
-            valid_set = None
-        return cfgs, valid_set
+            return cfgs, tuple(tuple(prototype_indices[index] for index in world) for world in worlds), weights
+        return cfgs, None, None
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.
@@ -354,7 +360,7 @@ class InteractiveScene:
             return self._terrain.env_origins
         plan = self.sim.get_clone_plan()
         if plan is not None and plan is not self._env_origins_plan:
-            self._env_origins = plan.positions
+            self._env_origins = self.sim.clone_contexts[cloner.UsdReplicateContext].positions
             self._env_origins_plan = plan
         if not isinstance(self._env_origins, torch.Tensor):
             self._env_origins = torch.as_tensor(self._env_origins, device=self._ALL_INDICES.device)

@@ -14,6 +14,7 @@ from omni.physx import get_physx_replicator_interface
 from pxr import Sdf, Usd, UsdUtils
 
 from isaaclab import cloner
+from isaaclab.sim import SimulationContext
 
 if TYPE_CHECKING:
     from isaaclab.cloner import ClonePlan
@@ -35,24 +36,24 @@ class PhysxReplicateContext:
         cached_id = cache.GetId(stage)
         self._stage_id = cached_id.ToLongInt() if cached_id.IsValid() else cache.Insert(stage).ToLongInt()
 
-    def replicate(self, plan: ClonePlan) -> None:
+    def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
         """Register the PhysX replicator for this context's source declarations.
 
         Args:
             plan: Replication layout shared by every clone backend.
+            asset_prototype_ids: Asset definitions routed to PhysX.
         """
-        if plan.env_ids is None:
-            raise ValueError("ClonePlan.env_ids is required for replication.")
-        source_indices = plan.context_source_indices[type(self)]
-        sources, destinations, mapping = cloner.query.replication_mapping(plan, source_indices)
-        native_source_indices = set(source_indices)
+        usd = SimulationContext.instance().clone_contexts[cloner.UsdReplicateContext]
+        sources, destinations, mapping = cloner.query.replication_mapping(
+            usd.instances, len(plan.destinations), asset_prototype_ids
+        )
         self._replicate_mapping(
             sources=sources,
             destinations=destinations,
-            env_ids=plan.env_ids,
+            env_ids=np.arange(len(plan.destinations)),
             mapping=mapping,
             has_usd_only_sources=any(
-                set(indices) - native_source_indices for indices in plan.context_source_indices.values()
+                index not in asset_prototype_ids for index, _, _, world_ids in usd.instances if len(world_ids)
             ),
             exclude_self_replication=True,
         )

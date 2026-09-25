@@ -16,7 +16,7 @@ from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager
 from pxr import Gf, Usd, UsdGeom
 
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.cloner import ClonePlan
+from isaaclab.cloner import UsdReplicateContext, make_clone_plan
 from isaaclab.physics import PhysicsManager
 
 
@@ -86,23 +86,20 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
 def test_ovphysx_context_consumes_plan():
     """The registered context publishes the rows routed to it by one clone plan."""
     stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/envs/env_10")
-    UsdGeom.Xform.Define(stage, "/World/envs/env_10/Robot")
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0").AddTranslateOp().Set((2, 0, 0))
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot").AddTranslateOp().Set((0.25, 0, 0))
     recipes = []
     manager = SimpleNamespace(_register_clone_transforms=lambda *recipe: recipes.append(recipe))
-    simulation = SimpleNamespace(stage=stage, physics_manager=manager)
-    plan = ClonePlan(
-        sources=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),),
-        destinations=np.zeros((1, 2), dtype=np.int32),
-        env_ids=np.array([10, 20], dtype=np.int64),
-        positions=np.array([[0.0, 0.0, 0.0], [1.0, 2.0, 3.0]], dtype=np.float32),
-        context_source_indices={OvPhysxReplicateContext: (0,)},
-    )
+    plan = make_clone_plan((AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),), ((0, 0),), 2)
+    usd = UsdReplicateContext(stage, plan, positions=np.array([[2, 0, 0], [5, 2, 3]], dtype=np.float32))
+    simulation = SimpleNamespace(stage=stage, physics_manager=manager, clone_contexts={UsdReplicateContext: usd})
 
-    OvPhysxReplicateContext(simulation).replicate(plan)
+    OvPhysxReplicateContext(simulation).replicate(plan, (0,))
 
-    assert recipes[0][0:2] == ("/World/envs/env_10/Robot", ["/World/envs/env_20/Robot"])
-    assert recipes[0][2][0] == pytest.approx((1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0))
+    assert recipes[0][0:2] == ("/World/envs/env_0/Robot", ["/World/envs/env_1/Robot"])
+    assert recipes[0][2][0] == pytest.approx((5.25, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0))
+    assert recipes[1][1] == ["/World/envs/env_0/Robot_1", "/World/envs/env_1/Robot_1"]
+    np.testing.assert_allclose(recipes[1][2], [(2.25, 0, 0, 0, 0, 0, 1), (5.25, 2, 3, 0, 0, 0, 1)])
 
 
 def test_register_clone_preserves_translation_only_compatibility(monkeypatch):

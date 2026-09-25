@@ -203,11 +203,12 @@ def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
     with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
         sim._app_control_on_stop_handle = None
         InteractiveScene(MySceneCfg(num_envs=4, env_spacing=1.0))
+        instances = sim.clone_contexts[cloner.UsdReplicateContext].instances
 
     assert len(captured) == 1
     plan, replicate_physics, published = captured[0]
     assert published is plan
-    sources, destinations, mapping = cloner.query.replication_mapping(plan)
+    sources, destinations, mapping = cloner.query.replication_mapping(instances, len(plan.destinations))
     assert sources == ("/World/envs/env_0/Robot", "/World/envs/env_0/RigidObj")
     assert destinations == ("/World/envs/env_{}/Robot", "/World/envs/env_{}/RigidObj")
     assert mapping.shape == (2, 4) and mapping.all()
@@ -233,7 +234,14 @@ def test_scene_constructs_plan_owned_markers():
         scene = InteractiveScene(MarkerSceneCfg(num_envs=1, env_spacing=1.0))
 
         assert isinstance(scene["goal"], VisualizationMarkers)
-        assert sim.get_clone_plan().global_paths == ("/Visuals/Goal", "/World/Prop", "/Visuals/Deferred")
+        plan = sim.get_clone_plan()
+        _, shared, worlds = next(cloner.query.iter_worlds(plan))
+        assert tuple(plan.asset_prototypes[index].prim_path for index in shared) == (
+            "/Visuals/Goal",
+            "/World/Prop",
+            "/Visuals/Deferred",
+        )
+        np.testing.assert_array_equal(worlds, [-1])
 
 
 def test_empty_scene_leaves_clone_lifecycle_to_caller():
@@ -263,7 +271,7 @@ def test_empty_scene_leaves_clone_lifecycle_to_caller():
         assert sim.get_clone_plan() is plan
         assert all(scene.stage.GetPrimAtPath(f"{env_template.format(i)}/Cube").IsValid() for i in range(4))
         torch.testing.assert_close(scene.env_origins, torch.from_numpy(positions))
-        for env_id, position in zip(plan.env_ids, positions, strict=True):
+        for env_id, position in enumerate(positions):
             np.testing.assert_allclose(
                 sim_utils.resolve_prim_pose(scene.stage.GetPrimAtPath(env_template.format(env_id)))[0], position
             )
@@ -341,17 +349,19 @@ def test_collect_asset_cfgs_preserves_declarations_and_resolves_namespaces():
     scene.cloner_cfg = CloneCfg()
     scene._env_fmt = scene.cloner_cfg.clone_template
 
-    cfgs, valid_set = scene._collect_asset_cfgs()
-    plan = cloner.make_clone_plan(cfgs, scene.cfg.num_envs, 1.0, valid_set=valid_set)
+    cfgs, world_prototypes, weights = scene._collect_asset_cfgs()
     sensor = scene.cfg.sensor
     cube_cfg, shape_cfg = scene.cfg.objects.rigid_objects.values()
     markers = (sensor.visualizer_cfg, sensor.normal_force_visualizer_cfg, sensor.friction_force_visualizer_cfg)
-    assert plan.sources == (cube_cfg, shape_cfg, scene.cfg.ground, *markers, sensor)
+    assert cfgs == [cube_cfg, shape_cfg, scene.cfg.ground, *markers, sensor]
     assert cube_cfg.prim_path == "/World/envs/env_[^/]+/Cube"
     assert shape_cfg.prim_path == "/World/envs/env_[^/]+/Shape"
-    assert plan.global_paths == ("/World/Ground", sensor.visualizer_cfg.prim_path)
-    np.testing.assert_array_equal(plan.destinations[:2], [[0, 0], [0, 1]])
-    assert (plan.destinations[2:] == -1).all()
+    assert world_prototypes is weights is None
+
+    scene.cloner_cfg.clone_combinations = [cloner.InclusionSet(assets=["objects"])]
+    _, world_prototypes, weights = scene._collect_asset_cfgs()
+    assert world_prototypes == ((0, 1), (0, 2))
+    np.testing.assert_array_equal(weights, [0.5, 0.5])
 
 
 def assert_state_equal(s1: dict, s2: dict, path=""):

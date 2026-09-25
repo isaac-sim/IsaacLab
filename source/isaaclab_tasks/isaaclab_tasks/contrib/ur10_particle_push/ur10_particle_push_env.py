@@ -365,8 +365,8 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
             raise ValueError(
                 f"Reset paddle quaternions have shape {tuple(paddle_quaternion.shape)}; expected {(pose_count, 4)}."
             )
-        plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        resolved = cloner.query.path_to_source(plan, self._robot.cfg.prim_path) if plan is not None else None
+        usd = sim_utils.SimulationContext.instance().clone_contexts.get(cloner.UsdReplicateContext)
+        resolved = cloner.query.path_to_source(usd.instances, self._robot.cfg.prim_path) if usd is not None else None
         if resolved is None:
             raise RuntimeError(f"Could not resolve clone-plan source for {self._robot.cfg.prim_path!r}.")
         source_path = resolved[0]

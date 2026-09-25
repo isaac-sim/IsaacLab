@@ -98,11 +98,16 @@ def test_explicit_global_import_uses_global_world(
             pos=points, vel=[(0.0, 0.0, 0.0)] * len(points), mass=[0.01] * len(points), radius=[0.005] * len(points)
         )
 
-    builder = newton.ModelBuilder()
-    add_usd = mock.Mock(wraps=builder.add_usd)
-    monkeypatch.setattr(builder, "add_usd", add_usd)
+    imports = []
+    add_usd = newton.ModelBuilder.add_usd
+
+    def import_usd(builder, *args, **kwargs):
+        imports.append(kwargs)
+        return add_usd(builder, *args, **kwargs)
+
+    monkeypatch.setattr(newton.ModelBuilder, "add_usd", import_usd)
     manager = SimpleNamespace(
-        create_builder=mock.Mock(return_value=builder),
+        create_builder=newton.ModelBuilder,
         _get_usd_import_schema_resolvers=NewtonManager._get_usd_import_schema_resolvers,
         _inject_terrain_heightfields=mock.Mock(return_value=[]),
     )
@@ -122,7 +127,6 @@ def test_explicit_global_import_uses_global_world(
     monkeypatch.setattr(NewtonManager, "_deformable_registry", (SimpleNamespace(prim_path="/World/Native"),))
     monkeypatch.setattr(replicate_module.NewtonManager, "_cl_inject_sites", mock.Mock(return_value=({}, {}, {})))
     monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", (add_native_particles,))
-    monkeypatch.setattr(replicate_module, "replace_newton_builder_shape_colors", mock.Mock())
     monkeypatch.setattr(NewtonManager, "_builder", None)
     monkeypatch.setattr(NewtonManager, "_cl_site_index_map", {})
     monkeypatch.setattr(NewtonManager, "_cl_fabric_body_bindings", [])
@@ -139,8 +143,8 @@ def test_explicit_global_import_uses_global_world(
         global_paths=global_paths,
     )
 
-    assert [call.kwargs["root_path"] for call in add_usd.call_args_list] == ["/physicsScene", *global_paths]
-    assert all(call.kwargs["load_visual_shapes"] is expected for call in add_usd.call_args_list)
+    assert [kwargs["root_path"] for kwargs in imports] == ["/physicsScene", *global_paths]
+    assert all(kwargs["load_visual_shapes"] is expected for kwargs in imports[1:])
     manager._inject_terrain_heightfields.assert_called_once_with(
         stage, builder, root_paths=("/physicsScene", *global_paths)
     )

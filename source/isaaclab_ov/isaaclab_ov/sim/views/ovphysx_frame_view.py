@@ -314,9 +314,9 @@ class OvPhysxFrameView(BaseFrameView):
         stage = sim_utils.get_current_stage() if stage is None else stage
         self._stage = stage
         sim = sim_utils.SimulationContext.instance()
-        plan = sim.get_clone_plan() if sim is not None else None
-        self._clone_plan = plan
-        source_matches = tuple(cloner.query.iter_sources(plan, prim_path)) if plan is not None else ()
+        usd = sim.clone_contexts.get(cloner.UsdReplicateContext) if sim is not None else None
+        self._usd = usd
+        source_matches = tuple(cloner.query.iter_sources(usd.instances, prim_path)) if usd is not None else ()
         self._source_records = []
         self._prims: list[Usd.Prim] = []
         for source_root, destination_template, source_path, env_ids in source_matches:
@@ -520,11 +520,9 @@ class OvPhysxFrameView(BaseFrameView):
         """Return plan-ordered source prims and projected poses for source-only world sites."""
         if sum(len(env_ids) for _, _, _, env_ids in self._source_records) <= len(self._prims):
             return []
-        plan = self._clone_plan
-        if plan is None:
+        usd = self._usd
+        if usd is None:
             raise RuntimeError("OvPhysxFrameView requires a clone plan for source-only world sites.")
-        plan_env_ids = range(plan.destinations.shape[1]) if plan.env_ids is None else plan.env_ids
-        column_by_env_id = {int(env_id): column for column, env_id in enumerate(plan_env_ids)}
 
         records: list[tuple[int, Usd.Prim, list[float], list[float], str]] = []
         for source_root, destination_template, source_prim, env_ids in self._source_records:
@@ -549,13 +547,13 @@ class OvPhysxFrameView(BaseFrameView):
                 env_id = int(env_id)
                 destination_root = destination_template.format(env_id)
                 destination_world = Gf.Matrix4d(1.0)
-                if plan.positions is not None:
-                    destination_world.SetTranslateOnly(Gf.Vec3d(*map(float, plan.positions[column_by_env_id[env_id]])))
+                if usd.positions is not None:
+                    destination_world.SetTranslateOnly(Gf.Vec3d(*map(float, usd.positions[env_id])))
                 site_world = _gf_matrix_to_xform7(source_world * source_inverse * destination_world)
                 parent_world = _gf_matrix_to_xform7(source_parent_world * source_inverse * destination_world)
                 records.append((env_id, source_prim, site_world, parent_world, destination_root + suffix))
 
-        records.sort(key=lambda record: column_by_env_id[record[0]])
+        records.sort(key=lambda record: record[0])
         return records
 
     def _resolve_rigid_body_ancestor(

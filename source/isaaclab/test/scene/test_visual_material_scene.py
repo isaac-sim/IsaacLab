@@ -99,15 +99,14 @@ def Xform "Robot"
         sim.reset()
 
         assert scene.num_envs == 12
-        assert any(source is cfg.robot for source in scene.clone_plan.sources)
-        assert all(source is not cfg.warm and source is not cfg.cool for source in scene.clone_plan.sources)
+        assert all(source is not cfg.warm and source is not cfg.cool for source in scene.clone_plan.asset_prototypes)
         assert len(cfg.robot.spawn.spawn_paths) == 3
         assert scene["warm"].num_instances == scene["cool"].num_instances == 12
         assert scene["shared"].num_instances == 1
         for env_id in range(scene.num_envs):
             for cloned_material in ("warm", "cool"):
                 assert scene.stage.GetPrimAtPath(f"/World/envs/env_{env_id}/Robot/{cloned_material}").IsValid()
-            material_name = ("warm", "cool", None)[env_id % 3]
+            material_name = ("warm", "cool", None)[env_id // 4]
             material_path = (
                 "/World/shared" if material_name is None else f"/World/envs/env_{env_id}/Robot/{material_name}"
             )

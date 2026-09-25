@@ -99,9 +99,9 @@ class _NewtonRayCasterPoseMixin:
 
     def _register_sites_for_expr(self, prim_expr: str) -> list[str]:
         """Register Newton sites for a prim expression."""
-        plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        if plan is not None:
-            matched = cloner.path.match(prim_expr, plan.clone_template)
+        usd = sim_utils.SimulationContext.instance().clone_contexts.get(cloner.UsdReplicateContext)
+        if usd is not None:
+            matched = cloner.path.match(prim_expr, usd.env_template)
             if matched is not None and not matched.suffix:
                 return [NewtonManager.cl_register_site(None, wp.transform(), per_world=True)]
 

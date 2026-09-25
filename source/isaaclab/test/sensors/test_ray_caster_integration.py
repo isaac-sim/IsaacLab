@@ -33,7 +33,7 @@ import warp as wp
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner.clone_plan import ClonePlan
+from isaaclab.cloner import ClonePlan, UsdReplicateContext
 from isaaclab.sensors.ray_caster import (
     MultiMeshRayCaster,
     MultiMeshRayCasterCamera,
@@ -307,17 +307,14 @@ def test_multi_mesh_uses_clone_plan_geometry_and_backend_object_pose(sim_ground)
 
     # This test intentionally does not author /env_2/Object/part_0. ClonePlan
     # selects source geometry; the object body view supplies env_2's live pose.
-    sim.set_clone_plan(
-        ClonePlan(
-            sources=(
-                AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),
-                AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),
-            ),
-            destinations=np.array([[0, -1, 0], [-1, 0, -1]], dtype=np.int32),
-            env_ids=np.arange(3, dtype=np.int64),
-            positions=None,
-        )
+    plan = ClonePlan(
+        asset_prototypes=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),) * 2,
+        world_prototypes=np.array([0, 1]),
+        world_prototype_starts=np.array([0, 0, 1, 2]),
+        destinations=np.array([0, 1, 0]),
     )
+    sim.set_clone_plan(plan)
+    sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(stage, plan)
     sim_utils.update_stage()
 
     cfg = MultiMeshRayCasterCfg(

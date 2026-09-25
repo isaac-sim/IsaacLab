@@ -184,8 +184,12 @@ def test_legacy_multi_mesh_tracks_ad_hoc_regex_target(sim):
     )
     sensor = MultiMeshRayCaster(sensor_cfg)
 
-    plan = cloner.make_clone_plan((AssetBaseCfg(prim_path="/World/Origin_00/Obstacle"),), 1, 0.0)
-    sim.set_clone_plan(plan)
+    plan = cloner.clone_plan_from_env_0(
+        cloner.CloneCfg(),
+        (AssetBaseCfg(prim_path="/World/Origin_00/Obstacle"),),
+        1,
+        0.0,
+    )
     cloner.replicate(plan)
     sim.reset()
     sensor.update(sim.get_physics_dt(), force_recompute=True)

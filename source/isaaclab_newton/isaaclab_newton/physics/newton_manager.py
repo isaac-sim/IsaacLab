@@ -41,6 +41,7 @@ from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, 
 
 from pxr import Usd, UsdGeom
 
+from isaaclab.cloner import ClonePlan, UsdReplicateContext
 from isaaclab.cloner.path import rebase, under
 from isaaclab.cloner.query import iter_sources
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
@@ -71,7 +72,6 @@ from isaaclab_newton.renderers.visual_material import (
 if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.assets import BaseArticulation
-    from isaaclab.cloner import ClonePlan
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
@@ -212,7 +212,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
         self.geometry_timestamp = 0
         self._geometry_batches = []
 
-    def initialize_geometry(self, plan: ClonePlan) -> None:
+    def initialize_geometry(self, instances: tuple, global_paths: tuple[str, ...]) -> None:
         """Bind imported geometry paths to native particle ranges and capsule endpoints."""
         ranges, visual_ranges = {}, {}
         indices, weights = [], []
@@ -220,10 +220,10 @@ class NewtonSceneDataBackend(SceneDataBackend):
         for entry in NewtonManager._deformable_registry:
             paths = [
                 rebase(path, source, template.format(env_id))
-                for source, template, path, env_ids in iter_sources(plan, entry.vis_mesh_prim_path)
+                for source, template, path, env_ids in iter_sources(instances, entry.vis_mesh_prim_path)
                 for env_id in env_ids
             ]
-            if not paths and any(under(entry.vis_mesh_prim_path, root) for root in plan.global_paths):
+            if not paths and any(under(entry.vis_mesh_prim_path, root) for root in global_paths):
                 paths.append(entry.vis_mesh_prim_path)
             if entry.volume_vis_remap is None:
                 ranges.update(
@@ -1314,7 +1314,11 @@ class NewtonManager(PhysicsManager):
 
             NewtonManager._initialize_fabric_body_prims(cls._usdrt_stage, fabric_hierarchy, usdrt, body_bindings)
 
-        cls._scene_data_backend.initialize_geometry(PhysicsManager._sim.get_clone_plan())
+        instances, global_paths = (), ()
+        if cls._deformable_registry:
+            usd = PhysicsManager._sim.clone_contexts[UsdReplicateContext]
+            instances, global_paths = usd.instances, usd.global_paths
+        cls._scene_data_backend.initialize_geometry(instances, global_paths)
         logger.info("Dispatching PHYSICS_READY callbacks")
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
 
@@ -1547,7 +1551,10 @@ class NewtonManager(PhysicsManager):
 
             positions = np.asarray([pos for pos, _ in poses], dtype=np.float32)
             quaternions = np.asarray([quat for _, quat in poses], dtype=np.float32)
-            mapping = np.ones((1, len(env_paths)), dtype=np.bool_)
+            plan = ClonePlan(
+                (proto_path,), np.asarray([0]), np.asarray([0, 0, 1]), np.zeros(len(env_paths), dtype=np.int32)
+            )
+            env_template = proto_path.rsplit("_", 1)[0] + "_{}"
 
             def record_source_particle_ranges(source, particle_offset, source_builder, source_xform) -> None:
                 if source == proto_path:
@@ -1561,11 +1568,13 @@ class NewtonManager(PhysicsManager):
 
             local_site_map, world_xforms, _ = replicate_builder_mapping(
                 builder=builder,
-                sources=(proto_path,),
-                mapping=mapping,
+                plan=plan,
+                instances=((0, proto_path, env_template, np.arange(len(env_paths))),),
                 positions=positions,
                 quaternions=quaternions,
                 source_builders=source_builders,
+                env_template=env_template,
+                env_ids=np.asarray([index for index, _ in env_paths]),
                 source_site_indices=source_site_indices,
                 env_root_sites=env_root_sites,
                 per_world_builder_hooks=cls._per_world_builder_hooks,

@@ -30,7 +30,6 @@ from ..sim.utils.transforms import resolve_prim_pose
 from .kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
 if TYPE_CHECKING:
-    from ..cloner import ClonePlan
     from .sensor_base_cfg import SensorBaseCfg
 
 logger = logging.getLogger(__name__)
@@ -58,8 +57,6 @@ class SensorBase(ABC):
         self.cfg = cfg.copy()
         self._is_initialized = False
         self._is_visualizing = False
-        # clone plan used for this sensor's latest initialization
-        self._clone_plan: ClonePlan | None = None
         self.stage = sim_utils.get_current_stage()
 
         self._register_callbacks()
@@ -264,18 +261,18 @@ class SensorBase(ABC):
         self._sim_physics_dt = sim.get_physics_dt()
         # Count number of environments. Prefer the active simulation's clone plan when USD
         # only carries the env_0 prototype (e.g. Newton clones solver-side).
-        self._clone_plan = sim.get_clone_plan()
-        clone_plan = self._clone_plan
+        clone_plan = sim.get_clone_plan()
         clone_plan_matches = ()
         if clone_plan is not None:
-            clone_plan_matches = tuple(cloner.query.iter_sources(clone_plan, self.cfg.prim_path))
+            usd = sim.clone_contexts[cloner.UsdReplicateContext]
+            clone_plan_matches = tuple(cloner.query.iter_sources(usd.instances, self.cfg.prim_path))
         if clone_plan_matches:
             self._parent_prims = []
-            self._num_envs = int(clone_plan.destinations.shape[1])
+            self._num_envs = len(clone_plan.destinations)
         elif clone_plan is not None:
             env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
             self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
-            self._num_envs = int(clone_plan.env_ids.size)
+            self._num_envs = len(clone_plan.destinations)
         else:
             env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
             self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
@@ -399,7 +396,6 @@ class SensorBase(ABC):
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         self._is_initialized = False
-        self._clone_plan = None
         sim_ctx = sim_utils.SimulationContext.instance()
         if sim_ctx is not None:
             sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)

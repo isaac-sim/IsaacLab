@@ -43,10 +43,11 @@ The arguments are parallel arrays describing the layout:
   The raw USD function names this argument ``mask``; physics functions name it ``mapping``.
 * ``positions`` / ``quaternions`` — optional per-env world transforms.
 
-Production scene construction retains the asset declarations and selected variants in a
-:class:`~isaaclab.cloner.ClonePlan`. Simulation-owned contexts consume that same plan through
-``context.replicate(plan)`` and derive these execution arrays with
-:func:`~isaaclab.cloner.query.replication_mapping`.
+Production scene construction keeps asset definitions and world membership in a
+:class:`~isaaclab.cloner.ClonePlan`. Each simulation-owned clone context receives that
+plan and the asset-prototype indices routed to it. Native names and placement belong
+to the context, not the plan. :func:`~isaaclab.cloner.query.replication_mapping`
+adapts plain native path mappings to the raw APIs above.
 
 
 Standalone Examples
@@ -133,97 +134,90 @@ Empty PhysX simulations and tools that supply a native Newton builder need no du
 ClonePlan
 ~~~~~~~~~
 
-A plan retains each asset or sensor declaration once and selects its variant for each
-environment. Source and destination paths are derived from those declarations, not stored
-in a second manifest:
+A plan stores topology only. Asset prototypes are reusable cfg definitions; each world
+prototype lists the asset-prototype indices it contains. Repeating an index creates
+another instance with the prototype's default pose. Backends assign native names.
 
 .. list-table::
    :header-rows: 1
-   :widths: 22 78
+   :widths: 25 75
 
    * - Field
      - Meaning
-   * - ``sources``
-     - Original asset and sensor cfg references, including shared assets.
+   * - ``asset_prototypes``
+     - Concrete asset cfg references, one per reusable prototype.
+   * - ``world_prototypes``
+     - Flat array of asset-prototype indices, including repeated instances.
+   * - ``world_prototype_starts``
+     - Slice boundaries into ``world_prototypes``. The first slice is the shared world ``-1``.
    * - ``destinations``
-     - Integer array ``[len(sources), num_envs]`` selecting a variant per asset and environment;
-       ``-1`` means no replicated instance.
-   * - ``env_ids``
-     - Optional NumPy integer array of target env ids; execution requires it.
-   * - ``positions``
-     - Optional per-env world positions [m], shape ``[num_envs, 3]``.
-   * - ``global_paths``
-     - Derived shared-asset roots outside the environment namespace; imported once.
-   * - ``clone_template``
-     - Environment namespace template, such as ``/World/envs/env_{}`` or ``/Lab/Cell{}``.
-   * - ``context_source_indices``
-     - Clone-context types mapped to indices of the source declarations they consume.
+     - World-prototype index selected for each destination world.
 
-The plan describes replication and routing, not asset geometry or native state. Asset
-construction authors the prototypes. Each backend imports its declared roots and records
-the geometry-to-native mappings needed by its consumers; consumers bind after native
-initialization. Clone contexts apply the plan but do not own native runtime resources.
-
-Deformable imports read prototype meshes and expand their paths through the plan without
-copying vertex arrays per environment. Newton cable imports retain ordered native segment
-bindings. MPM spawners author render points under the asset before cloning, then bind the
-importer's particle ranges. None requires geometry-specific fields on ``ClonePlan`` or
-discovery of the completed replicated scene.
-
-For a robot in four environments and a shared ground plane:
-
-.. code-block:: text
-
-    sources      = (robot_cfg, ground_cfg)
-    destinations = [[ 0,  0,  0,  0],   # same robot variant in every environment
-                    [-1, -1, -1, -1]]   # ground is shared, not replicated
-
-Only declared subtrees are cloned. Declaring ``env_0/Robot`` does not authorize cloning
-an undeclared sibling camera. Newton combines homogeneous native prototypes before one
-batched replication; that optimization does not expand the USD import scope.
-
-When envs differ — say a cartpole in every env plus a 2-variant obstacle (box into
-envs 0/1, sphere into envs 2/3):
-
-.. code-block:: text
-
-    sources      = (cartpole_cfg, obstacle_cfg)
-    destinations = [[0, 0, 0, 0],
-                    [0, 0, 1, 1]]
-
-The obstacle cfg retains its two spawner variants. Planning assigns their prototype
-spawn paths in the first environment that uses each: ``env_0/Obstacle`` and ``env_2/Obstacle``.
-
-Querying a plan
-~~~~~~~~~~~~~~~
-
-Anything that has to follow an asset between the two sides of that table — a sensor
-resolving its ``prim_path`` back to the prototype it should read, a ray caster
-loading one mesh per variant — asks :mod:`isaaclab.cloner.query` rather than
-manipulating path strings itself:
+For two reusable assets, four compositions, and sixteen destination worlds:
 
 .. code-block:: python
 
-    from isaaclab import cloner
+    plan = cloner.make_clone_plan(
+        (banana_cfg, franka_cfg),
+        ((0, 1), (0, 1, 1), (0, 0, 1), (1,)),
+        16,
+    )
 
-    # where does this prototype land in env 3?
-    cloner.query.path_to_clone(plan, "/World/envs/env_2/Obstacle", env_id=3)
-    # -> "/World/envs/env_3/Obstacle"
+.. code-block:: text
 
-    # which envs does this prototype reach at all?
-    cloner.query.path_env_ids(plan, "/World/envs/env_2/Obstacle")
-    # -> (2, 3)
+    asset_prototypes       = (banana_cfg, franka_cfg)
+    world_prototypes       = [0,1, 0,1,1, 0,0,1, 1]
+    world_prototype_starts = [0,0,2,5,8,9]
+    destinations           = [0,0,0,0, 1,1,1,1, 2,2,2,2, 3,3,3,3]
 
-    # which prototype is env 2's obstacle cloned from?
-    cloner.query.path_to_source(plan, "/World/envs/env_2/Obstacle")
-    # -> ("/World/envs/env_2/Obstacle", "/World/envs/env_[^/]+/Obstacle", "")
+The leading ``[0, 0]`` describes an empty shared world. To include a shared ground,
+append its cfg to ``asset_prototypes`` and pass ``shared_assets=(2,)``.
+The shared slice then contains index ``2``; its membership is never sampled.
 
-Two obstacle variants share one destination template, so the template alone does not
-identify a prototype — the environment does. A concrete path carries it in the clone
-slot; a ``env_.*`` wildcard does not, and resolves to one representative variant
-unless you pass ``env_id``. Use :func:`~isaaclab.cloner.query.iter_sources` when you
-need every variant behind a template. Note that environment ids are not mask columns:
-column ``j`` stands for ``env_ids[j]``, and the queries speak ids throughout.
+Optional ``weights`` assign relative probabilities to world prototypes. The default
+sequential strategy allocates contiguous groups of worlds in those proportions.
+The random strategy samples world prototypes independently. Neither strategy
+duplicates prototype definitions to represent weights.
+
+``make_clone_plan`` does not mutate cfgs or construct a stage. In the normal workflow,
+``InteractiveScene`` resolves spawner variants into concrete asset prototypes and owns
+authoring and replication. Its USD context holds native source paths, destination
+templates, and environment origins. Other backends import those declared prototypes
+and realize the same topology. Clone contexts do not own native runtime resources.
+
+Only declared subtrees are cloned. Declaring ``env_0/Robot`` does not authorize cloning
+an undeclared sibling camera. Newton composes each selected world prototype once
+before batched native replication; this does not expand its USD import scope.
+
+Querying topology and native paths
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Topology queries depend only on the plan:
+
+.. code-block:: python
+
+    for world_prototype_id, asset_prototype_ids, world_ids in cloner.query.iter_worlds(plan):
+        # Shared assets have world_prototype_id == -1 and world_ids == [-1].
+        # Repeated asset_prototype_ids remain repeated.
+        ...
+
+Path queries take plain native mapping data, not a clone context. For example,
+a USD-backed consumer gets its source/destination mappings from the USD context:
+
+.. code-block:: python
+
+    usd = sim.clone_contexts[cloner.UsdReplicateContext]
+    instances = usd.instances
+    # Each entry: asset-prototype ID, source path, destination template, world IDs.
+    cloner.query.path_to_source(instances, "/World/envs/env_2/Obstacle")
+    cloner.query.path_env_ids(instances, "/World/envs/env_2/Obstacle")
+
+A concrete destination path selects its own world. A wildcard expression selects
+one representative prototype unless ``env_id`` is supplied. Use
+:func:`~isaaclab.cloner.query.iter_sources` for every instance group behind an expression.
+:func:`~isaaclab.cloner.query.path_to_clone` rejects ambiguous single-instance requests
+when a world contains the same asset more than once. The generic query module never
+imports a backend context.
 
 A plan is the *what*. Putting one together and handing it to the backends is
 the *how*. Both Manager-based and Direct environments normally declare their
@@ -289,9 +283,9 @@ heterogeneous scenes.
 Under the Hood
 --------------
 
-Planning retains cfgs in ``sources`` and maps each participating backend to
-its subset in ``context_source_indices``. The active physics manager registers its clone
-context during simulation initialization. Assets use that context by default;
+Planning retains cfgs in ``asset_prototypes``. Dispatch derives each backend's
+participating asset indices from those declarations. The active physics manager
+registers its clone context during simulation initialization. Assets use that context by default;
 :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` can select an explicitly
 registered context instead. Renderer and visualizer cfgs declare their required
 representations through ``cloning_contexts``. They are registered before planning,
@@ -309,13 +303,12 @@ execution contract:
 
 :func:`~isaaclab.cloner.replicate` resolves these types through the
 :class:`~isaaclab.sim.SimulationContext` clone-context registry, orders them by
-``replicate_priority``, and passes the published plan to each one:
+``replicate_priority``, and passes the published plan with the selected asset-prototype IDs:
 
 .. code-block:: python
 
-    plan = published_clone_plan
-    for context_type in plan.context_source_indices:
-        sim.clone_contexts[context_type].replicate(plan)
+    # A backend receives the same topology, restricted to its routed asset definitions.
+    context.replicate(plan, asset_prototype_ids)
 
 Every maintained lifecycle publishes its plan before asset construction. The
 simulation accepts one plan and each backend receives that exact object.
@@ -336,14 +329,13 @@ roots as a global-only plan. This keeps their existing native physics initializa
 .. code-block:: python
 
     # These cfgs declare their existing prims outside the environment namespace.
-    plan = cloner.make_clone_plan((robot_cfg, light_cfg), 1, 0.0)
-    sim.set_clone_plan(plan)
+    plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (robot_cfg, light_cfg), 1, 0.0)
     # Author the declared robot and light here.
     cloner.replicate(plan, replicate_physics=False)
     sim.reset()
 
 USD runs before native physics contexts so the destination topology exists when
-they consume it. No fallback context is constructed during dispatch.
+they consume it. Dispatch derives routing from the asset and consumer cfgs; the plan does not store a second routing map.
 
 Collision Filtering
 -------------------

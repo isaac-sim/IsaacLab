@@ -63,7 +63,9 @@ def _clone_recipes(
         if not len(columns):
             continue
         active_env_ids = env_ids[columns]
-        matched = cloner.path.match(source, destinations[source_index])
+        prefix, suffix = cloner.path.split(destinations[source_index])
+        env_template = prefix + "{}" + suffix.split("/", 1)[0]
+        matched = cloner.path.match(source, env_template)
         self_env_id = int(matched.instance) if matched is not None and matched.instance.isdigit() else None
 
         source_prim = stage.GetPrimAtPath(source)
@@ -73,8 +75,7 @@ def _clone_recipes(
         if self_env_id is None:
             source_anchor_world = Gf.Matrix4d(1.0)
         else:
-            prefix, _ = cloner.path.split(destinations[source_index])
-            source_anchor_path = f"{prefix}{self_env_id}"
+            source_anchor_path = env_template.format(self_env_id)
             source_anchor = stage.GetPrimAtPath(source_anchor_path)
             if not source_anchor.IsValid():
                 raise ValueError(f"OvPhysX clone source anchor prim is not valid on the stage: {source_anchor_path}")
@@ -85,9 +86,10 @@ def _clone_recipes(
         target_transforms = []
         for env_id, column in zip(active_env_ids, columns):
             env_id = int(env_id)
-            if env_id == self_env_id:
+            destination = destinations[source_index].format(env_id)
+            if destination == source:
                 continue
-            targets.append(destinations[source_index].format(env_id))
+            targets.append(destination)
             target_env_world = Gf.Matrix4d(1.0)
             if positions is not None:
                 target_env_world.SetTranslateOnly(Gf.Vec3d(*map(float, positions[column])))
@@ -114,26 +116,27 @@ class OvPhysxReplicateContext:
         self._sim = sim_context
         self.stage = sim_context.stage
 
-    def replicate(self, plan: ClonePlan) -> None:
+    def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
         """Publish clone operations from this context's source declarations.
 
         Args:
             plan: Replication layout shared by every clone backend.
+            asset_prototype_ids: Asset definitions routed to OVPhysX.
 
         Raises:
             ValueError: If positions are malformed or an active source or source anchor prim is invalid.
         """
-        if plan.env_ids is None:
-            raise ValueError("ClonePlan.env_ids is required for replication.")
-        source_indices = plan.context_source_indices[type(self)]
-        sources, destinations, mapping = cloner.query.replication_mapping(plan, source_indices)
+        usd = self._sim.clone_contexts[cloner.UsdReplicateContext]
+        sources, destinations, mapping = cloner.query.replication_mapping(
+            usd.instances, len(plan.destinations), asset_prototype_ids
+        )
         recipes = _clone_recipes(
             stage=self.stage,
             sources=sources,
             destinations=destinations,
-            env_ids=plan.env_ids,
+            env_ids=np.arange(len(plan.destinations)),
             mapping=mapping,
-            positions=plan.positions,
+            positions=usd.positions,
             quaternions=None,
         )
         for source, targets, transforms in recipes:

@@ -25,24 +25,18 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.cloner import (
-    ClonePlan,
+    UsdReplicateContext,
     _fabric_notices,
     disabled_fabric_change_notifies,
-    sequential,
+    make_clone_plan,
     usd_replicate,
 )
 from isaaclab.sim import build_simulation_context
 
 
 def _make_flat_clone_plan(num_variants: int, num_clones: int, destination: str):
-    """Build a flat (sources, destinations, clone_mask) tuple for tests using sequential mapping.
-
-    The PhysX test_cloner tests intentionally bypass cfg-driven planning and exercise
-    physx_replicate / usd_replicate against a hand-built per-variant mask. This helper
-    captures the small amount of flat-plan logic the tests need without re-introducing
-    the legacy ``make_clone_plan(sources, destinations, num_clones, ...)`` signature.
-    """
-    chosen = sequential(np.arange(num_variants, dtype=np.int64)[:, None], num_clones).reshape(-1)
+    """Raw paths and a round-robin mask for testing the native replication API."""
+    chosen = np.arange(num_clones) % num_variants
     mask = np.zeros((num_variants, num_clones), dtype=np.bool_)
     mask[chosen, np.arange(num_clones)] = True
     sources = tuple(destination.format(i) for i in range(num_variants))
@@ -138,13 +132,9 @@ def test_physx_replicate_context_consumes_plan(sim):
     mock_rep, replicate_calls = _make_mock_physx_rep()
     with patch("isaaclab_physx.cloner.replicate.get_physx_replicator_interface", return_value=mock_rep):
         ctx = PhysxReplicateContext(stage)
-        plan = ClonePlan(
-            sources=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),),
-            destinations=np.zeros((1, 3), dtype=np.int32),
-            env_ids=np.arange(3, dtype=np.int64),
-            context_source_indices={PhysxReplicateContext: (0,)},
-        )
-        ctx.replicate(plan)
+        plan = make_clone_plan((AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),), ((0,),), 3)
+        sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(stage, plan)
+        ctx.replicate(plan, (0,))
 
     assert replicate_calls == [2]
 
