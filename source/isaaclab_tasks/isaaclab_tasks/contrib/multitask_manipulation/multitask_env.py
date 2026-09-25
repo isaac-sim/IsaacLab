@@ -21,9 +21,8 @@ class MultitaskManipulationEnv(ManagerBasedRLEnv):
         Args:
             env_ids: Global environment IDs to reset.
         """
+        self.curriculum_manager.compute(env_ids=env_ids)
         global_env_ids = self.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
-
-        self.curriculum_manager.compute(env_ids=global_env_ids)
         for asset_name, asset in (*self.scene.articulations.items(), *self.scene.rigid_objects.items()):
             rows, _ = self._get_entity_selection(asset_name).select(global_env_ids)
             if rows.numel() > 0:
@@ -31,7 +30,7 @@ class MultitaskManipulationEnv(ManagerBasedRLEnv):
 
         if "reset" in self.event_manager.available_modes:
             env_step_count = self._sim_step_counter // self.cfg.decimation
-            self.event_manager.apply(mode="reset", env_ids=global_env_ids, global_env_step_count=env_step_count)
+            self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 
         self.extras["log"] = {}
         managers = (
@@ -45,9 +44,9 @@ class MultitaskManipulationEnv(ManagerBasedRLEnv):
             self.recorder_manager,
         )
         for manager in managers:
-            self.extras["log"].update(manager.reset(global_env_ids))
+            self.extras["log"].update(manager.reset(env_ids))
 
-        self.episode_length_buf[global_env_ids] = 0
+        self.episode_length_buf[env_ids] = 0
 
     def _get_entity_selection(self, asset_name: str) -> SceneEntitySelectionCfg:
         """Return the cached selection configuration for a complete scene asset."""

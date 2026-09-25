@@ -253,12 +253,15 @@ class CollisionAnalyzer:
         num_points = cfg.num_points
         max_output = num_envs * num_bodies * num_points
         self.wp_signs = wp.zeros(max_output, dtype=float, device=device)
-        self._env_ids_i32 = torch.empty(num_envs, dtype=torch.int32, device=device)
+        self._no_env_ids = wp.empty(0, dtype=wp.int32, device=device)
 
     def __call__(self, env: ManagerBasedRLEnv, env_ids: torch.Tensor):
         if isinstance(env_ids, slice):
-            env_ids = env.scene._ALL_INDICES[env_ids]
-        num_query_envs = len(env_ids)
+            num_query_envs = len(range(env.num_envs)[env_ids])
+            start, _, step = env_ids.indices(env.num_envs)
+            wp_env_ids = self._no_env_ids
+        else:
+            num_query_envs, start, step, wp_env_ids = len(env_ids), 0, 0, wp.from_torch(env_ids)
         num_bodies = len(self.body_ids)
         num_points = self.cfg.num_points
 
@@ -288,8 +291,6 @@ class CollisionAnalyzer:
                     device=env.device,
                 )
 
-        self._env_ids_i32[:num_query_envs] = env_ids[:num_query_envs].to(torch.int32)
-        wp_env_ids = wp.from_torch(self._env_ids_i32[:num_query_envs], dtype=wp.int32)
         total_threads = num_query_envs * num_bodies * num_points
         wp.launch(
             get_signed_distance_mega,
@@ -300,6 +301,8 @@ class CollisionAnalyzer:
                 self.wp_body_ids,
                 self.wp_local_pts,
                 wp_env_ids,
+                start,
+                step,
                 self.wp_obs_root_pos,
                 self.wp_obs_root_quat,
                 self.wp_obs_root_scale,
