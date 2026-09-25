@@ -113,7 +113,8 @@ def test_visual_material_defaults():
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("use_custom_material", [True, False])
-def test_plane(device, use_custom_material):
+@pytest.mark.parametrize("num_envs,env_spacing", [(1, 1.0), (4096, 4.0), (16384, 2.5)])
+def test_plane(device, use_custom_material, num_envs, env_spacing):
     """Generates a plane and tests that the resulting mesh has the correct size."""
     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
@@ -124,40 +125,43 @@ def test_plane(device, use_custom_material):
         terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
             prim_path="/World/ground",
             terrain_type="plane",
-            num_envs=4096,
-            env_spacing=4.0,
+            num_envs=num_envs,
+            env_spacing=env_spacing,
             visual_material=visual_material,
         )
         terrain_importer = TerrainImporter(terrain_importer_cfg)
+
+        # These square grids are centered on the world origin.
+        origins = terrain_importer.env_origins
+        half_span = (int(np.sqrt(num_envs)) - 1) * env_spacing / 2.0
+        assert origins.shape == (num_envs, 3)
+        assert origins.device == torch.device(device)
+        torch.testing.assert_close(origins[0].cpu(), torch.tensor([half_span, -half_span, 0.0]))
+        torch.testing.assert_close(origins[-1].cpu(), torch.tensor([-half_span, half_span, 0.0]))
 
         # check if mesh prim path exists
         mesh_prim_path = terrain_importer.cfg.prim_path + "/terrain"
         assert mesh_prim_path in terrain_importer.terrain_prim_paths
 
-        # The visual mesh is bounded to the environment grid while the collision Plane stays infinite.
+        # Leave walking room beyond the outermost origins; collision remains infinite.
+        origins = terrain_importer.env_origins.cpu().numpy()
+        half_size = np.max(np.abs(origins[:, :2]), axis=0) + 50.0
+        expected_scale = (*tuple(half_size / 50.0), 1.0)
         environment = sim.stage.GetPrimAtPath(f"{mesh_prim_path}/Environment")
-        assert tuple(environment.GetAttribute("xformOp:scale").Get()) == pytest.approx((2.6, 2.6, 1.0))
+        assert tuple(environment.GetAttribute("xformOp:scale").Get()) == pytest.approx(expected_scale)
         visual_mesh = UsdGeom.Mesh(sim.stage.GetPrimAtPath(f"{mesh_prim_path}/Environment/Geometry"))
-        assert [tuple(uv) for uv in UsdGeom.PrimvarsAPI(visual_mesh).GetPrimvar("st").Get()] == [
-            (-65.0, -65.0),
-            (65.0, -65.0),
-            (65.0, 65.0),
-            (-65.0, 65.0),
-        ]
+        uvs = np.asarray(UsdGeom.PrimvarsAPI(visual_mesh).GetPrimvar("st").Get())
+        # A texture repeat remains 2 m even when the visual plane grows.
+        np.testing.assert_allclose(np.ptp(uvs, axis=0) * 2.0, half_size * 2.0)
 
         # Direct imports use the same bounded default instead of the legacy 2,000 km visual mesh.
         terrain_importer.import_ground_plane("direct")
         direct_environment = sim.stage.GetPrimAtPath(f"{terrain_importer.cfg.prim_path}/direct/Environment")
-        assert tuple(direct_environment.GetAttribute("xformOp:scale").Get()) == pytest.approx((2.6, 2.6, 1.0))
+        assert tuple(direct_environment.GetAttribute("xformOp:scale").Get()) == pytest.approx(expected_scale)
         direct_mesh = UsdGeom.Mesh(
             sim.stage.GetPrimAtPath(f"{terrain_importer.cfg.prim_path}/direct/Environment/Geometry")
         )
-        assert [tuple(uv) for uv in UsdGeom.PrimvarsAPI(direct_mesh).GetPrimvar("st").Get()] == [
-            (-65.0, -65.0),
-            (65.0, -65.0),
-            (65.0, 65.0),
-            (-65.0, 65.0),
-        ]
+        np.testing.assert_allclose(UsdGeom.PrimvarsAPI(direct_mesh).GetPrimvar("st").Get(), uvs)
 
         # obtain underling mesh
         mesh = _obtain_collision_mesh(mesh_prim_path, mesh_type="Plane")
