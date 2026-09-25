@@ -21,6 +21,10 @@ def test_xr_camera_reference_task_selects_recorded_camera():
     cfg = PickPlaceGR1T2EnvCfg()
 
     assert cfg.isaac_teleop.xr_camera_feeds[0].camera_name == "robot_pov_cam"
+    assert cfg.isaac_teleop.xr_camera_feed_layout.use_scene_partition is False
+    assert cfg.scene.robot_pov_cam.renderer_cfg.default.enable_scene_partitioning == (
+        IsaacRtxRendererCfg().enable_scene_partitioning
+    )
     assert hasattr(cfg.observations.policy, "robot_pov_cam")
     assert cfg.scene.robot_pov_cam.prim_path == "{ENV_REGEX_NS}/Robot/base_link/RobotPOVCam"
     assert isinstance(cfg.scene.robot_pov_cam.renderer_cfg, MultiBackendRendererCfg)
@@ -29,11 +33,14 @@ def test_xr_camera_reference_task_selects_recorded_camera():
     assert cfg.num_rerenders_on_reset == 3
 
 
-def test_locomanipulation_g1_recorded_camera_uses_calibration():
-    """Locomanipulation G1 retains its calibrated camera for recorded observations."""
-    cfg = LocomanipulationG1EnvCfg()
+@pytest.mark.parametrize("env_cfg_type", [LocomanipulationG1EnvCfg, FixedBaseUpperBodyIKG1EnvCfg])
+def test_g1_xr_camera_uses_calibration_and_head_locked_panel(env_cfg_type):
+    """Both G1 tasks present the calibrated camera in a headset-following panel."""
+    cfg = env_cfg_type()
     camera_cfg = cfg.scene.robot_pov_cam
+    feed_cfg = cfg.isaac_teleop.xr_camera_feeds[0]
 
+    assert feed_cfg.camera_name == "robot_pov_cam"
     assert camera_cfg.prim_path == "{ENV_REGEX_NS}/Robot/torso_link/head_link/RobotHeadCam"
     assert (camera_cfg.width, camera_cfg.height) == (640, 480)
     assert camera_cfg.spawn.focal_length == 15.0
@@ -42,18 +49,29 @@ def test_locomanipulation_g1_recorded_camera_uses_calibration():
     assert camera_cfg.offset.pos == (0.04485, 0.0, 0.35325)
     assert camera_cfg.offset.rot == (-0.62721, 0.62721, -0.32651, 0.32651)
     assert camera_cfg.offset.convention == "ros"
+    assert cfg.isaac_teleop.xr_camera_feed_layout.placement == "head_locked"
+    assert cfg.isaac_teleop.xr_camera_feed_layout.use_scene_partition is True
+    assert feed_cfg.offset_m == (0.0, -0.15)
+    assert feed_cfg.panel_width_m == 0.48
+    assert feed_cfg.distance_m == 0.8
+    assert feed_cfg.enable_dlss_ray_reconstruction is True
+    assert feed_cfg.dlss_exec_mode == "quality"
+    assert feed_cfg.max_update_hz == 0.0
+    assert camera_cfg.renderer_cfg.default == IsaacRtxRendererCfg()
+    assert camera_cfg.renderer_cfg.isaacsim_rtx == IsaacRtxRendererCfg()
 
 
-@pytest.mark.parametrize("env_cfg_type", [LocomanipulationG1EnvCfg, FixedBaseUpperBodyIKG1EnvCfg])
-def test_g1_tasks_do_not_enable_xr_camera_pip(env_cfg_type):
-    """G1 tasks do not present a robot camera in XR."""
-    cfg = env_cfg_type()
+def test_fixed_base_g1_pip_preserves_policy_observations_and_fixed_root():
+    """PiP adds a sensor without changing the fixed-base policy observation schema."""
+    cfg = FixedBaseUpperBodyIKG1EnvCfg()
 
-    assert cfg.isaac_teleop.xr_camera_feeds == []
+    assert hasattr(cfg.scene, "robot_pov_cam")
+    assert not hasattr(cfg.observations.policy, "robot_pov_cam")
+    assert cfg.scene.robot.spawn.fix_root_link is True
 
 
 def test_locomanipulation_g1_retains_recorded_camera():
-    """Locomanipulation retains its recorded camera without presenting it in XR."""
+    """Locomanipulation retains its recorded camera while presenting it in XR."""
     cfg = LocomanipulationG1EnvCfg()
 
     assert hasattr(cfg.scene, "robot_pov_cam")
