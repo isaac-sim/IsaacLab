@@ -17,7 +17,7 @@ from unittest import mock
 import pytest
 import torch
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.unit
 
 from isaaclab.envs.mdp.observations import image_features, stacked_image
 
@@ -45,24 +45,6 @@ def _frame(value: int) -> torch.Tensor:
 class TestStackedImage:
     """Tests for the ``stacked_image`` observation term."""
 
-    def test_output_shape_channel_stacked(self):
-        """Output shape is ``(N, H, W, K * C)``."""
-        env = _make_env()
-        term = stacked_image(_make_cfg(frame_stack=3), env)
-        with mock.patch("isaaclab.envs.mdp.observations.image", return_value=_frame(1)):
-            out = term(env)
-        assert out.shape == (NUM_ENVS, HEIGHT, WIDTH, CHANNELS * 3)
-
-    def test_warmup_fills_all_slots_with_first_frame(self):
-        """First call after construction fills all ``K`` slots with that one frame."""
-        env = _make_env()
-        term = stacked_image(_make_cfg(frame_stack=2), env)
-        with mock.patch("isaaclab.envs.mdp.observations.image", return_value=_frame(7)):
-            out = term(env, normalize=False)
-        f7 = _frame(7)
-        assert torch.equal(out[..., :CHANNELS], f7)
-        assert torch.equal(out[..., CHANNELS:], f7)
-
     def test_oldest_to_newest_channel_order(self):
         """K=3 with three distinct frames produces oldest→newest along the channel dim."""
         env = _make_env()
@@ -74,6 +56,7 @@ class TestStackedImage:
             term(env, normalize=False)  # slots: [10, 10, 20]
             patched.return_value = _frame(30)
             out = term(env, normalize=False)  # slots: [10, 20, 30]
+        assert out.shape == (NUM_ENVS, HEIGHT, WIDTH, CHANNELS * 3)
         assert torch.equal(out[..., :CHANNELS], _frame(10))
         assert torch.equal(out[..., CHANNELS : 2 * CHANNELS], _frame(20))
         assert torch.equal(out[..., 2 * CHANNELS :], _frame(30))

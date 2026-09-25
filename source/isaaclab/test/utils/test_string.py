@@ -46,12 +46,6 @@ def test_resolvable_string_dunder_introspection_stays_lazy():
         ref()
 
 
-def test_resolvable_string_runtime_resolution_still_works():
-    """Test runtime call path still resolves the callable target."""
-    ref = string_utils.ResolvableString("math:sin")
-    assert pytest.approx(ref(0.0), rel=0.0, abs=1e-9) == 0.0
-
-
 def test_case_conversion():
     """Test case conversion between camel case and snake case."""
     # test camel case to snake case

@@ -30,6 +30,7 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.integration_scene_cfgs import CartpoleTestSceneCfg
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 
@@ -129,36 +130,6 @@ class EventCfg:
 
 
 @configclass
-class EventCfgFallback:
-    """Configuration for events that tests the fallback mechanism."""
-
-    # Test fallback when /visuals pattern doesn't match
-    test_fallback_texture_randomizer = EventTerm(
-        func=mdp.randomize_visual_texture_material,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=["slider"]),
-            "texture_paths": [
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Bamboo_Planks/Bamboo_Planks_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Cherry/Cherry_BaseColor.png",
-            ],
-            "event_name": "test_fallback_texture_randomizer",
-            "texture_rotation": (0.0, 0.0),
-        },
-    )
-
-    reset_cart_position = EventTerm(
-        func=mdp.reset_joints_by_offset,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]),
-            "position_range": (-1.0, 1.0),
-            "velocity_range": (-0.1, 0.1),
-        },
-    )
-
-
-@configclass
 class CartpoleEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the cartpole environment."""
 
@@ -181,7 +152,8 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
         self.sim.dt = 0.005  # sim step every 5ms: 200Hz
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+# Texture authoring through Replicator is device independent, so one device covers it.
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_texture_randomization(device):
     """Test texture randomization for cartpole environment."""
     # Create a new stage
@@ -198,16 +170,18 @@ def test_texture_randomization(device):
         env = ManagerBasedEnv(cfg=env_cfg)
 
         try:
-            # Simulate physics
-            with torch.inference_mode():
-                for count in range(50):
-                    # Reset every few steps to check nothing breaks
-                    if count % 10 == 0:
-                        env.reset()
-                    # Sample random actions
-                    joint_efforts = torch.randn_like(env.action_manager.action)
-                    # Step the environment
-                    env.step(joint_efforts)
+            # the prestartup term applied cart textures; the reset term applies pole textures
+            env.reset()
+            env.step(torch.randn_like(env.action_manager.action))
+            for term_name in ("cart_texture_randomizer", "pole_texture_randomizer"):
+                term_cfg = env.event_manager.get_term_cfg(term_name)
+                texture_paths = set(term_cfg.params["texture_paths"])
+                applied = [
+                    material.GetChild("Shader").GetAttribute("inputs:diffuse_texture").Get()
+                    for material in term_cfg.func.material_prims
+                ]
+                assert len(applied) == env.num_envs
+                assert all(texture is not None and texture.path in texture_paths for texture in applied), applied
         finally:
             env.close()
     finally:
@@ -227,7 +201,7 @@ def test_texture_randomization_failure_replicate_physics():
         cfg_failure.scene.replicate_physics = True
 
         # Test that creating the environment raises RuntimeError
-        with pytest.raises(RuntimeError):
+        with pytest.raises(RuntimeError, match="Scene replication is enabled"):
             env = ManagerBasedEnv(cfg_failure)
             env.close()
     finally:
