@@ -64,7 +64,7 @@ _production_backends = pytest.mark.parametrize(
 class TestArticulationIndexResolution:
     """Test backend-specific index resolution helpers."""
 
-    @_index_resolution_backends
+    @_production_backends
     @_devices
     def test_resolve_env_ids_handles_tensor_view_shape(self, backend, device):
         art, _ = get_articulation(backend, num_instances=4, device=device)
