@@ -221,7 +221,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
     def __init__(self):
         self._transforms = SceneDataFormat.Transform()
         self.transforms_version = 0
-        self.geometry_version = 0
+        self.geometry_timestamp = 0
         self._geometry_batches = []
 
     def initialize_geometry(self, plan: ClonePlan) -> None:
@@ -294,7 +294,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
             data = state.particle_q if attribute == "points" else state.body_q
             if getattr(source, attribute) is not data:
                 setattr(source, attribute, data)
-                self.geometry_version += 1
+                self.geometry_timestamp += 1
         return [(source, ranges) for source, ranges in self._geometry_batches if ranges]
 
     @property
@@ -328,7 +328,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
         if NewtonManager._transforms_may_change_on_graph_replay:
             # Raw external graph replays bypass Python invalidation, so these reads must stay conservative.
             self.transforms_version += 1
-            self.geometry_version += 1
+            self.geometry_timestamp += 1
         if NewtonManager._eval_fk is not _eval_fk_unbound:
             NewtonManager.forward()
         return NewtonManager.get_state_0()
@@ -471,7 +471,7 @@ class NewtonManager(PhysicsManager):
     _transform_mapping: wp.array | None = None
     _transforms_version_last_update: int | None = None
     _geometry_offsets: dict[str, int] = {}
-    _geometry_version_last_update: int | None = None
+    _geometry_timestamp_last_update: int | None = None
     _visualization_stop_callback: CallbackHandle | None = None
 
     _builder_attribute_solvers: tuple[type[SolverBase], ...] = ()
@@ -647,7 +647,7 @@ class NewtonManager(PhysicsManager):
         """Publish authored rigid-body changes and invalidate cable geometry."""
         if NewtonManager._scene_data_backend is not None:
             NewtonManager._scene_data_backend.transforms_version += 1
-            NewtonManager._scene_data_backend.geometry_version += 1
+            NewtonManager._scene_data_backend.geometry_timestamp += 1
         device = PhysicsManager._device
         if device is not None:
             device = wp.get_device(device)
@@ -657,7 +657,7 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def _mark_particles_dirty(cls) -> None:
         """Invalidate SDP geometry after native particle writes."""
-        NewtonManager._scene_data_backend.geometry_version += 1
+        NewtonManager._scene_data_backend.geometry_timestamp += 1
         device = wp.get_device(PhysicsManager._device)
         if device.is_cuda and device.stream.is_capturing:
             NewtonManager._transforms_may_change_on_graph_replay = True
@@ -870,7 +870,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._transform_mapping = None
         NewtonManager._transforms_version_last_update = None
         NewtonManager._geometry_offsets = {}
-        NewtonManager._geometry_version_last_update = None
+        NewtonManager._geometry_timestamp_last_update = None
         NewtonManager._model_changes = set()
         NewtonManager._scene_data_backend = None
         NewtonManager._cl_pending_sites = {}
@@ -2446,7 +2446,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._transform_mapping = None
         NewtonManager._transforms_version_last_update = None
         NewtonManager._geometry_offsets = geometry_offsets
-        NewtonManager._geometry_version_last_update = None
+        NewtonManager._geometry_timestamp_last_update = None
         cls.update_visualization_state()
         NewtonManager._visualization_stop_callback = sim.physics_manager.register_callback(
             lambda _payload: NewtonManager.clear(),
@@ -2514,10 +2514,10 @@ class NewtonManager(PhysicsManager):
             scene_data_provider.get_geometry_points(
                 output=cls.backend.state_0.particle_q, offsets=cls._geometry_offsets
             )
-            version = scene_data_provider.backend.geometry_version
-            if cls._geometry_version_last_update != version:
+            timestamp = scene_data_provider.backend.geometry_timestamp
+            if cls._geometry_timestamp_last_update != timestamp:
                 cls._mark_sensor_state_dirty()
-                cls._geometry_version_last_update = version
+                cls._geometry_timestamp_last_update = timestamp
 
     @staticmethod
     def _resolve_scene_data_body_paths(body_paths: list[str | None], stage) -> list[str | None]:

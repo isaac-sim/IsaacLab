@@ -388,7 +388,7 @@ class OVRTXRenderer(BaseRenderer):
         self._object_scales: wp.array | None = None
         self._object_scales_by_path: dict[str, tuple[float, float, float]] = {}
         self._geometry_paths: list[str] = []
-        self._geometry_version_last_update = -1
+        self._geometry_timestamp_last_update = -1
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
         self._camera_prim_path: str | None = None
@@ -923,15 +923,15 @@ class OVRTXRenderer(BaseRenderer):
         if self._geometry_points_binding is None:
             return
         points = self._sdp.get_geometry_points()
-        version = self._sdp.backend.geometry_version
-        if self._geometry_version_last_update == version:
+        timestamp = self._sdp.backend.geometry_timestamp
+        if self._geometry_timestamp_last_update == timestamp:
             return
         self._geometry_points_binding.write(
             cast(Any, [points[path] for path in self._geometry_paths]),
             data_access=DataAccess.ASYNC,
             cuda_stream=self._warp_device.stream.cuda_stream,
         )
-        self._geometry_version_last_update = version
+        self._geometry_timestamp_last_update = timestamp
 
     def _update_camera_legacy(
         self,
@@ -1544,7 +1544,7 @@ class OVRTXRenderer(BaseRenderer):
         else:
             self._close_legacy()
         self._geometry_paths = []
-        self._geometry_version_last_update = -1
+        self._geometry_timestamp_last_update = -1
         self._render_product_paths.clear()
         self._output_id_color_buffers.clear()
         self._initialized_scene = False
@@ -1835,8 +1835,8 @@ class OVRTXRenderer(BaseRenderer):
         if self._geometry_points_query is None:
             return
         points = self._sdp.get_geometry_points()
-        version = self._sdp.backend.geometry_version
-        if self._geometry_version_last_update == version:
+        timestamp = self._sdp.backend.geometry_timestamp
+        if self._geometry_timestamp_last_update == timestamp:
             return
         self.backend.stage.write_attribute(
             self._geometry_points_query,
@@ -1847,7 +1847,7 @@ class OVRTXRenderer(BaseRenderer):
             semantic=ovstage.AttributeSemantic.POINT,
             cuda_stream=self._warp_device.stream.cuda_stream,
         ).wait()
-        self._geometry_version_last_update = version
+        self._geometry_timestamp_last_update = timestamp
 
     def _update_camera_ovstage(
         self,

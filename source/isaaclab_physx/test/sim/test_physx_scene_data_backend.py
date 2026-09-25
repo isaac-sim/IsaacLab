@@ -124,7 +124,7 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     backend._setup_deformable_geometry(())
     geometry = provider.get_geometry_points(output=SceneDataFormat.FabricPoints())
     assert geometry._cls is SceneDataFormat.FabricPoints and geometry.points is not None
-    backend.geometry_version += 1
+    backend.geometry_timestamp += 1
     assert provider.get_geometry_points(output=geometry) is geometry
     assert provider.get_transforms(SceneDataFormat.FabricMatrix44())
     assert fabric.force_update.call_count == 4
@@ -253,7 +253,7 @@ def test_deformable_geometry_uses_declared_counts_and_native_order(monkeypatch, 
     read_count = len(reads)
     assert provider.get_geometry_points() is visual
     assert len(reads) == read_count
-    backend.geometry_version += 1
+    backend.geometry_timestamp += 1
     provider.get_geometry_points()
     assert len(reads) == read_count + 2
     backend.clear()

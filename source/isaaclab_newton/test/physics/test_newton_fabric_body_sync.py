@@ -358,7 +358,7 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence():
         provider = SceneDataProvider(
             SimpleNamespace(
                 native_transform_formats=(),
-                geometry_version=0,
+                geometry_timestamp=0,
                 get_geometry_batches=lambda _format=SceneDataFormat.Points: batches,
             )
         )
@@ -377,7 +377,7 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence():
         for (source, _), path in zip(batches, points, strict=True):
             points[path] = wp.array([[4.0, 5.0, 6.0]] * 3, wp.vec3f, device=sim.device)
             source.points = points[path]
-        provider.backend.geometry_version += 1
+        provider.backend.geometry_timestamp += 1
         fabric.update_geometries(provider, 0)
         wp.synchronize_device(sim.device)
         for name in ("Mesh", "Curve"):

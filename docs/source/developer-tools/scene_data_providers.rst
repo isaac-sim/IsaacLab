@@ -48,9 +48,9 @@ The system has three layers:
      paired with exact visual prim paths and ranges compiled during backend construction. It returns
      the requested native representation when available, otherwise the primary representations for
      SDP to convert. The return type is always a list of batches, including native Fabric.
-   - :attr:`SceneDataBackend.geometry_version`: monotonic change counter, including same-step
-     writes and native pointer swaps. Each consumer retains its own ``*_version_last_update``;
-     this is neither a point count nor a shared dirty flag that a reader clears.
+   - :attr:`SceneDataBackend.geometry_timestamp`: logical update timestamp, advanced for same-step
+     writes and native pointer swaps. Cached outputs record the timestamp they contain, like asset
+     data buffers. This is not elapsed simulation time or a shared dirty flag that a reader clears.
    - :attr:`SceneDataBackend.native_geometry_formats`: geometry formats available without conversion.
 
 2. :class:`~isaaclab.scene_data.SceneDataProvider`: wraps a backend and offers format conversion
@@ -154,7 +154,7 @@ Geometry publication
 
 Newton deformable and MPM positions are direct views of native ``particle_q`` ranges. Cable
 publications borrow native body poses and capsule parameters; SDP derives curve endpoints once
-per publication version. Both camera renderers and viewers consume the same cached result.
+per update timestamp. Both camera renderers and viewers consume the same cached result.
 
 ``ClonePlan`` remains a generic replication and routing description. Asset construction authors
 prototype geometry; native import combines those prototypes with the plan and records native
@@ -162,7 +162,7 @@ ranges. Consumers bind to those completed resources, never rediscovering the com
 
 .. code-block:: python
 
-   # Default: read-only native or converted views, cached by producer version.
+   # Default: read-only native or converted views, cached by producer timestamp.
    points_by_path = provider.get_geometry_points()
 
    # A consumer with fixed native storage receives the conversion directly.
@@ -173,6 +173,13 @@ ranges. Consumers bind to those completed resources, never rediscovering the com
 
 The internal flat-node queries and physics-owned geometry sync methods were removed. Rendering
 consumers use ``get_geometry_points``; physics managers no longer run geometry writers from ``pre_render``.
+
+As in articulation and rigid-object data, the current timestamp and a cached buffer's timestamp
+serve different purposes: one identifies current state; the other identifies the state in that buffer.
+Asset data advances ``_sim_timestamp`` with time and invalidates dependent buffers on same-step writes.
+SDP instead advances ``geometry_timestamp`` on those writes, so independently updated consumers all see
+the change. The output's cache owns its freshness check; a downstream upload or BVH may need its own
+invalidation, but should not repeat the conversion's cache bookkeeping.
 
 Data requirements
 ------------------

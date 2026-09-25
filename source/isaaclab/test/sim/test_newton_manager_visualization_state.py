@@ -323,7 +323,7 @@ def test_update_visualization_state_shares_sdp_transforms(monkeypatch, layout):
     )
 
 
-def test_update_visualization_state_writes_final_geometry_once_per_version(monkeypatch):
+def test_update_visualization_state_writes_final_geometry_once_per_timestamp(monkeypatch):
     """SDP writes directly into native render slots, preserving gaps and the destination allocation."""
     import warp as wp
     from isaaclab_newton.physics import NewtonManager
@@ -334,7 +334,7 @@ def test_update_visualization_state_writes_final_geometry_once_per_version(monke
     data = SceneDataFormat.Points()
     data.points = wp.array(np.arange(18, dtype=np.float32).reshape(6, 3), dtype=wp.vec3f, device="cpu")
     ranges = {"/Cells/Cloth/mesh": (1, 2), "/Shared/Particles": (4, 1)}
-    backend = SimpleNamespace(geometry_version=0, get_geometry_batches=lambda _format: [(data, ranges)])
+    backend = SimpleNamespace(geometry_timestamp=0, get_geometry_batches=lambda _format: [(data, ranges)])
     provider = SceneDataProvider(backend)
     particle_q = wp.zeros(6, dtype=wp.vec3f, device="cpu")
     monkeypatch.setattr(
@@ -346,10 +346,10 @@ def test_update_visualization_state_writes_final_geometry_once_per_version(monke
     monkeypatch.setattr(NewtonManager, "_mark_sensor_state_dirty", Mock())
     monkeypatch.setattr(wp, "launch", Mock(wraps=wp.launch))
 
-    for version in (0, 1):
-        if version:
+    for timestamp in (0, 1):
+        if timestamp:
             data.points = wp.array(data.points.numpy() + 10.0, dtype=wp.vec3f, device="cpu")
-            backend.geometry_version += 1
+            backend.geometry_timestamp += 1
         NewtonManager.update_visualization_state(provider)
         NewtonManager.update_visualization_state(provider)
         expected = np.zeros((6, 3), dtype=np.float32)
@@ -357,8 +357,8 @@ def test_update_visualization_state_writes_final_geometry_once_per_version(monke
         expected[3:5] = data.points.numpy()[1:3]
         assert NewtonManager.backend.state_0.particle_q is particle_q
         np.testing.assert_array_equal(particle_q.numpy(), expected)
-        assert wp.launch.call_count == version + 1
-        assert NewtonManager._mark_sensor_state_dirty.call_count == version + 1
+        assert wp.launch.call_count == timestamp + 1
+        assert NewtonManager._mark_sensor_state_dirty.call_count == timestamp + 1
 
 
 @pytest.mark.parametrize("global_path", ["/World/Assets/Cloth", "/World/Assets"])

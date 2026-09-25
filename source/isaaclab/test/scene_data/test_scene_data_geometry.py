@@ -26,7 +26,7 @@ def test_geometry_views_alias_native_ranges_and_follow_pointer_swaps(monkeypatch
     source.points = wp.array(np.arange(18).reshape(6, 3), dtype=wp.vec3f, device="cpu")
     replacement = wp.array(np.arange(18, 36).reshape(6, 3), dtype=wp.vec3f, device="cpu")
     ranges = {"/Cloth/visual": (1, 2), "/Particles/points": (4, 2)}
-    backend = SimpleNamespace(geometry_version=0, get_geometry_batches=lambda _: [(source, ranges)])
+    backend = SimpleNamespace(geometry_timestamp=0, get_geometry_batches=lambda _: [(source, ranges)])
     provider = SceneDataProvider(backend)
     launch, copy = Mock(wraps=wp.launch), Mock(wraps=wp.copy)
     monkeypatch.setattr(wp, "launch", launch)
@@ -38,7 +38,7 @@ def test_geometry_views_alias_native_ranges_and_follow_pointer_swaps(monkeypatch
         np.testing.assert_array_equal(views[path].numpy(), source.points.numpy()[offset : offset + count])
     previous = views["/Cloth/visual"]
     source.points = replacement
-    backend.geometry_version += 1
+    backend.geometry_timestamp += 1
     updated = provider.get_geometry_points()
     assert updated["/Cloth/visual"].ptr != previous.ptr
     np.testing.assert_array_equal(updated["/Cloth/visual"].numpy(), [[21, 22, 23], [24, 25, 26]])
@@ -62,7 +62,7 @@ def test_geometry_views_alias_native_ranges_and_follow_pointer_swaps(monkeypatch
 @pytest.mark.parametrize(
     "source_device,destination_device", [("cpu", "cpu"), ("cpu", "cuda:0"), ("cuda:0", "cpu"), ("cuda:0", "cuda:0")]
 )
-def test_geometry_interpolation_and_reordering_write_once_per_version(
+def test_geometry_interpolation_and_reordering_write_once_per_timestamp(
     monkeypatch, fabric, source_device, destination_device
 ):
     """One conversion writes barycentric vertices directly into the consumer's reordered layout."""
@@ -76,7 +76,7 @@ def test_geometry_interpolation_and_reordering_write_once_per_version(
     source.indices = wp.array(indices, dtype=wp.int32, device=source_device)
     source.weights = wp.array(weights, dtype=wp.float32, device=source_device)
     ranges = {"/First/visual": (0, 2), "/Second/visual": (2, 1)}
-    backend = SimpleNamespace(geometry_version=0, get_geometry_batches=lambda _: [(source, ranges)])
+    backend = SimpleNamespace(geometry_timestamp=0, get_geometry_batches=lambda _: [(source, ranges)])
     provider = SceneDataProvider(backend)
     output = wp.full(6, wp.vec3f(-7), device=destination_device)
     offsets = {"/Second/visual": 0, "/First/visual": 3}
@@ -117,7 +117,7 @@ def test_geometry_interpolation_and_reordering_write_once_per_version(
     assert launch.call_count == destination_launches + 1
     np.testing.assert_allclose(shared["/First/visual"].numpy(), interpolated[:2])
     source.points.assign(nodes + 10)
-    backend.geometry_version += 1
+    backend.geometry_timestamp += 1
     assert provider.get_geometry_points(output=destination, offsets=offsets) is destination
     assert provider.get_geometry_points() is shared
     assert launch.call_count == 2 * (destination_launches + 1)
@@ -126,7 +126,7 @@ def test_geometry_interpolation_and_reordering_write_once_per_version(
     np.testing.assert_allclose(shared["/Second/visual"].numpy(), interpolated[2:] + 10)
     if fabric:
         provider = SceneDataProvider(
-            SimpleNamespace(geometry_version=0, get_geometry_batches=lambda _: [(destination, {})])
+            SimpleNamespace(geometry_timestamp=0, get_geometry_batches=lambda _: [(destination, {})])
         )
         native = SceneDataFormat.FabricPoints()
         launch.reset_mock()
@@ -148,6 +148,6 @@ def test_cable_endpoint_conversion_composes_shape_poses_and_averages_joints():
     )
     source.shape_scale = wp.array([[0.1, 1, 0.1], [0.1, 2, 0.1]], dtype=wp.vec3f, device="cpu")
     source.endpoints = wp.array([[0, -1, 0, -1], [0, 1, 1, -1], [1, 1, 1, 1]], dtype=wp.vec4i, device="cpu")
-    backend = SimpleNamespace(geometry_version=0, get_geometry_batches=lambda _: [(source, {"/Cable/curve": (0, 3)})])
+    backend = SimpleNamespace(geometry_timestamp=0, get_geometry_batches=lambda _: [(source, {"/Cable/curve": (0, 3)})])
     points = SceneDataProvider(backend).get_geometry_points()["/Cable/curve"]
     np.testing.assert_allclose(points.numpy(), [[1, 2, 3], [2.5, 3.25, 3], [2, 0.5, 3]], atol=1e-6)

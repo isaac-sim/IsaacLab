@@ -126,10 +126,11 @@ class SceneDataFormat:
 
 
 class SceneDataBackend:
-    geometry_version: int = 0
-    """Monotonic geometry change counter, including native buffer swaps and same-step writes.
+    geometry_timestamp: int = 0
+    """Logical update timestamp, advanced after native writes or buffer swaps, including within one step.
 
-    Consumers retain their own last-update value; reading does not clear another consumer's changes.
+    This is not elapsed simulation time. Cached outputs record the timestamp they contain;
+    reading one output never clears another output's pending update.
     """
 
     @property

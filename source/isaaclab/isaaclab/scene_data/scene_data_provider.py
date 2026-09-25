@@ -309,7 +309,7 @@ class SceneDataProvider:
 
         Producers supply exact visual prim paths, native pointers and immutable interpolation
         metadata. SDP performs interpolation and destination reordering together, once per
-        publication version and output layout. Only cross-device destinations require staging.
+        update timestamp and output layout. Only cross-device destinations require staging.
 
         Args:
             output: Consumer-owned world-space point buffer [m] or native Fabric destination.
@@ -328,7 +328,7 @@ class SceneDataProvider:
         if fabric and len(batches) == 1 and batches[0][0]._cls is SceneDataFormat.FabricPoints:
             output.points = batches[0][0].points
             return output
-        version = self.backend.geometry_version
+        timestamp = self.backend.geometry_timestamp
         if output is not None:
             if offsets is None:
                 raise ValueError("A geometry destination requires its visual-path offsets.")
@@ -369,8 +369,8 @@ class SceneDataProvider:
                 if bound != offsets.keys():
                     raise KeyError(f"Geometry destinations have no native publication: {offsets.keys() - bound}")
             else:
-                previous_version, jobs, _ = cached
-                if previous_version == version:
+                timestamp_last_update, jobs, _ = cached
+                if timestamp_last_update == timestamp:
                     return output
             for (source, _), (source_indices, destination_indices, transfer) in zip(batches, jobs, strict=True):
                 if len(source_indices):
@@ -395,7 +395,7 @@ class SceneDataProvider:
                         device=destination.device,
                     )
             # Retain conversion buffers, never the consumer's destination or slices of it.
-            self._geometry_destination_cache[output] = (version, jobs, offsets)
+            self._geometry_destination_cache[output] = (timestamp, jobs, offsets)
             return output
         if offsets is not None:
             raise ValueError("Geometry offsets require a destination.")
@@ -412,8 +412,8 @@ class SceneDataProvider:
                 jobs.append((indices, buffer, ranges))
                 views.update((path, buffer[start : start + count]) for path, (start, count) in ranges.items())
         else:
-            previous_version, views, jobs = cached
-            if previous_version == version:
+            timestamp_last_update, views, jobs = cached
+            if timestamp_last_update == timestamp:
                 return views
 
         for index, ((source, _), (indices, buffer, ranges)) in enumerate(zip(batches, jobs, strict=True)):
@@ -430,7 +430,7 @@ class SceneDataProvider:
                     inputs=[source, indices, indices, buffer],
                     device=buffer.device,
                 )
-        self._geometry_view_cache = (version, views, jobs)
+        self._geometry_view_cache = (timestamp, views, jobs)
         return views
 
 

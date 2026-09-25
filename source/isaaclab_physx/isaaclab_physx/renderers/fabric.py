@@ -120,14 +120,14 @@ class FabricBackend:
         batches = provider.backend.get_geometry_batches()
         if self._geometry_bindings is None:
             self._bind_geometries(provider, tuple(path for _, ranges in batches for path in ranges))
-        version = provider.backend.geometry_version
-        for index, (selections, frequency, output, offsets, frame_last_update, version_last_update) in enumerate(
+        timestamp = provider.backend.geometry_timestamp
+        for index, (selections, frequency, output, offsets, frame_last_update, timestamp_last_update) in enumerate(
             self._geometry_bindings
         ):
             selection, write_selection = selections
             changed = selection.PrepareForReuse()
             if not changed and (
-                version == version_last_update or frequency > 1 and frame - frame_last_update < frequency
+                timestamp == timestamp_last_update or frequency > 1 and frame - frame_last_update < frequency
             ):
                 continue
             write_selection.PrepareForReuse()
@@ -144,7 +144,7 @@ class FabricBackend:
                 output,
                 offsets,
                 frame,
-                provider.backend.geometry_version,
+                provider.backend.geometry_timestamp,
             )
 
     def _bind_geometries(self, provider: SceneDataProvider, paths: tuple[str, ...]) -> None:

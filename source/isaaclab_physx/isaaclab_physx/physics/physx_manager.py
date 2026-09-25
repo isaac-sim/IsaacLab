@@ -189,7 +189,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
     def __init__(self):
         self._transforms = SceneDataFormat.Transform()
         self.transforms_version = 0
-        self.geometry_version = 0
+        self.geometry_timestamp = 0
         self.clear()
 
     def clear(self) -> None:
@@ -199,9 +199,9 @@ class PhysxSceneDataBackend(SceneDataBackend):
         self._deformable_bindings: list[tuple[Any, list]] | None = None
         self._transforms.transforms = None
         self.transforms_version += 1
-        self.geometry_version += 1
+        self.geometry_timestamp += 1
         self._transforms_version_last_update = self._fabric_version_last_update = -1
-        self._geometry_version_last_update = -1
+        self._geometry_timestamp_last_update = -1
         self._fabric_transforms = SceneDataFormat.FabricMatrix44()
         self._fabric_selection = None
         self._fabric_points = SceneDataFormat.FabricPoints()
@@ -313,21 +313,21 @@ class PhysxSceneDataBackend(SceneDataBackend):
                 )
             if self._fabric_points_selection.PrepareForReuse() or self._fabric_points.points is None:
                 self._fabric_points.points = wp.fabricarrayarray(data=self._fabric_points_selection, attrib="points")
-                self.geometry_version += 1
-                self._fabric_version_last_update = (self.transforms_version, self.geometry_version)
+                self.geometry_timestamp += 1
+                self._fabric_version_last_update = (self.transforms_version, self.geometry_timestamp)
             return [(self._fabric_points, {})]
-        if self._geometry_version_last_update != self.geometry_version:
+        if self._geometry_timestamp_last_update != self.geometry_timestamp:
             for view, batches in self._deformable_bindings:
                 points = view.get_simulation_nodal_positions().view(wp.vec3f).flatten()
                 for publication, _ in batches:
                     publication.points = points
-            self._geometry_version_last_update = self.geometry_version
+            self._geometry_timestamp_last_update = self.geometry_timestamp
         return [batch for _, batches in self._deformable_bindings for batch in batches]
 
     def _update_fabric(self) -> None:
         """Refresh the native stage once when either poses or geometry changed."""
         PhysxManager.pre_render()
-        version = (self.transforms_version, self.geometry_version)
+        version = (self.transforms_version, self.geometry_timestamp)
         if self._fabric_version_last_update != version:
             PhysxManager._fabric.force_update(0.0, 0.0)
             self._fabric_version_last_update = version
@@ -377,7 +377,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
         if self._fabric_selection.PrepareForReuse() or self._fabric_transforms.matrices is None:
             self._fabric_transforms.matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
             self.transforms_version += 1
-        self._fabric_version_last_update = (self.transforms_version, self.geometry_version)
+        self._fabric_version_last_update = (self.transforms_version, self.geometry_timestamp)
         return self._fabric_transforms
 
 
@@ -502,7 +502,7 @@ class PhysxManager(PhysicsManager):
             cls.backend.simulation_view._backend.initialize_kinematic_bodies()
 
         cls.invalidate_transforms(kinematics=True)
-        cls._scene_data_backend.geometry_version += 1
+        cls._scene_data_backend.geometry_timestamp += 1
         cls.raise_callback_exception_if_any()
 
     @classmethod
@@ -513,7 +513,7 @@ class PhysxManager(PhysicsManager):
             cls.backend.simulation_view.update_articulations_kinematic()
             cls._kinematics_dirty = False
         cls.invalidate_transforms()
-        cls._scene_data_backend.geometry_version += 1
+        cls._scene_data_backend.geometry_timestamp += 1
         if cls._fabric is not None:
             cls._scene_data_backend.get_transforms(SceneDataFormat.FabricMatrix44)
 
@@ -557,7 +557,7 @@ class PhysxManager(PhysicsManager):
         physx_sim.fetch_results()
         cls._kinematics_dirty = False
         cls.invalidate_transforms()
-        cls._scene_data_backend.geometry_version += 1
+        cls._scene_data_backend.geometry_timestamp += 1
         device = PhysicsManager._device
         if "cuda" in device:
             torch.cuda.set_device(device)

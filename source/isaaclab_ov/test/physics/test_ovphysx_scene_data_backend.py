@@ -959,7 +959,7 @@ def test_deformable_only_setup_publishes_declared_geometry_in_native_order(node_
     assert provider.get_geometry_points() is visual
     assert len(reads) == len(bindings)
     values["/Shared"] += 1
-    backend.geometry_version += 1
+    backend.geometry_timestamp += 1
     updated = provider.get_geometry_points()
     assert len(reads) == 2 * len(bindings)
     assert updated["/Shared/vis"] is visual["/Shared/vis"]

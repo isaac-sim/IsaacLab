@@ -32,7 +32,7 @@ def _make_renderer_without_backend() -> tuple[OVRTXRenderer, MagicMock]:
     renderer.backend = SimpleNamespace(renderer=MagicMock())
     renderer._device = "cpu"
     renderer._geometry_paths = []
-    renderer._geometry_version_last_update = -1
+    renderer._geometry_timestamp_last_update = -1
     renderer._use_ovstage = False
     renderer._init_fields_legacy()
     return renderer, renderer.backend.renderer
@@ -54,13 +54,13 @@ def test_geometry_bindings_borrow_mixed_sdp_points_and_follow_pointer_swaps(use_
             ("/Cells/cell_3/Cable/curve", 2),
         )
     }
-    publication = SimpleNamespace(points=points, geometry_version=0)
+    publication = SimpleNamespace(points=points, geometry_timestamp=0)
     last_points = points
 
     def read_points():
         nonlocal last_points
         if publication.points is not last_points:
-            publication.geometry_version += 1
+            publication.geometry_timestamp += 1
             last_points = publication.points
         return publication.points
 
@@ -110,7 +110,7 @@ def test_geometry_bindings_borrow_mixed_sdp_points_and_follow_pointer_swaps(use_
     else:
         assert kwargs["data_access"] is DataAccess.ASYNC
 
-    # The producer advances its version during the request, not before the consumer calls it.
+    # The producer advances its timestamp during the request, not before the consumer calls it.
     publication.points = {path: wp.clone(array) for path, array in reversed(tuple(points.items()))}
     renderer.update_geometries()
     renderer.update_geometries()
