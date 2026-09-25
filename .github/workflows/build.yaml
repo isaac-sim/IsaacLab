@@ -275,6 +275,7 @@ jobs:
         shard-index: "0"
         shard-count: "3"
         warp-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-tasks-1-test
 
   test-isaaclab-tasks-2:
@@ -301,6 +302,7 @@ jobs:
         shard-index: "1"
         shard-count: "3"
         warp-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-tasks-2-test
 
   test-isaaclab-tasks-3:
@@ -327,6 +329,7 @@ jobs:
         shard-index: "2"
         shard-count: "3"
         warp-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-tasks-3-test
 
   test-isaaclab-core:
@@ -352,6 +355,7 @@ jobs:
         shard-index: "0"
         shard-count: "3"
         warp-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-core-1-test
 
   test-isaaclab-core-2:
@@ -377,6 +381,7 @@ jobs:
         shard-index: "1"
         shard-count: "3"
         warp-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-core-2-test
 
   test-isaaclab-core-3:
@@ -402,6 +407,7 @@ jobs:
         shard-index: "2"
         shard-count: "3"
         warp-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-core-3-test
 
   # Kit and non-Kit are written out rather than expressed as a matrix: these job
@@ -486,7 +492,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_rl"
         extra-pip-packages: "leapp==0.6.1 torchrl>=0.13"
-        pytest-workers: "4"
+        test-jobs: "4"
         container-name: isaac-lab-rl-test
 
   test-isaaclab-mimic:
@@ -508,6 +514,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_mimic"
+        test-jobs: "4"
         container-name: isaac-lab-mimic-test
 
   test-isaaclab-contrib:
@@ -529,6 +536,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_contrib"
+        test-jobs: "4"
         container-name: isaac-lab-contrib-test
 
   test-isaaclab-teleop:
@@ -550,6 +558,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_teleop"
+        test-jobs: "4"
         container-name: isaac-lab-teleop-test
 
   test-isaaclab-visualizers:
@@ -571,6 +580,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_visualizers"
+        test-jobs: "4"
         container-name: isaac-lab-visualizers-test
 
   test-isaaclab-assets:
@@ -592,6 +602,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_assets"
+        test-jobs: "4"
         container-name: isaac-lab-assets-test
 
   test-isaaclab-experimental:
@@ -613,6 +624,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_experimental"
+        test-jobs: "4"
         container-name: isaac-lab-experimental-test
 
   test-isaaclab-newton:
@@ -634,10 +646,8 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_newton"
-        # Split each test file across worker processes. Four fit the g7.4xlarge runner:
-        # each worker holds its own simulation, ~1 GB of GPU and ~3.5 GB of host memory.
-        pytest-workers: "4"
         warp-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-newton-test
 
   test-isaaclab-physx:
@@ -659,7 +669,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_physx"
-        pytest-workers: "4"
+        test-jobs: "4"
         container-name: isaac-lab-physx-test
 
   test-isaaclab-ov:
@@ -689,6 +699,7 @@ jobs:
         extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
+        test-jobs: "4"
         container-name: isaac-lab-ov-test
 
     # Folded from the former standalone verify-base-non-root job: reuses the
