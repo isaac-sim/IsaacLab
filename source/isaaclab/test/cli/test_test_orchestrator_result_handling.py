@@ -680,20 +680,48 @@ def test_hung_process_report_names_where_it_is_stuck(monkeypatch, tmp_path: Path
     # `-p hang_dump` needs tools/ importable; the orchestrator gets this from the repo-root conftest.
     env["PYTHONPATH"] = str(TOOLS_DIR) + os.pathsep + env.get("PYTHONPATH", "")
     env["ISAACLAB_HANG_DUMP"] = str(tmp_path / "hangdump.log")
+    env["ISAACLAB_TEST_JOURNAL"] = str(tmp_path / "journal.jsonl")
+    env["ISAACLAB_TEST_PROGRESS_TIMEOUT"] = "8"
     cmd = [sys.executable, "-m", "pytest", "-p", "hang_dump", "-p", "no:cacheprovider", str(test_file)]
 
     # The timeout is wall clock the test has to sit through, so it is only as long as the child needs to
     # reach the wedge -- measured at ~2.6 s spawning eight of these at once, against ~1.4 s idle.
     _returncode, _stdout, _stderr, kill_reason, _wall_time, pre_kill_diag = (
-        orchestrator.capture_test_output_with_timeout(cmd, timeout=8, env=env)
+        orchestrator.capture_test_output_with_timeout(cmd, timeout=20, env=env)
     )
 
     assert kill_reason == "timeout"
+    assert _wall_time < 16, "the progress deadline must fire before the full file budget"
+    assert "No pytest journal progress" in pre_kill_diag
     assert "HANG STACK DUMP" in pre_kill_diag
     assert "wedged_call" in pre_kill_diag, "the dump must name the hung call, not just that a hang happened"
     assert pre_kill_diag.count("----- dump ") > 1, "repeated dumps are what tell a wedged process from a slow one"
     # The stack must sit ahead of the system tables, which ``_get_diagnostics`` truncates off the end.
     assert pre_kill_diag.index("HANG STACK DUMP") < pre_kill_diag.index("SYSTEM DIAGNOSTICS BODY")
+
+
+@posix_only
+@pytest.mark.parametrize("journal_progress", [True, False])
+def test_progress_deadline_tracks_journal_not_console(monkeypatch, tmp_path: Path, journal_progress: bool):
+    orchestrator = _load_orchestrator_module()
+    monkeypatch.setattr(orchestrator, "_capture_system_diagnostics", lambda: "system diagnostics")
+    journal = tmp_path / "journal.jsonl"
+    child = tmp_path / "child.py"
+    child.write_text(
+        "import os, time\n"
+        "for i in range(12):\n"
+        "    print('still noisy', flush=True)\n"
+        + (
+            "    with open(os.environ['ISAACLAB_TEST_JOURNAL'], 'a') as f: f.write('{}\\n')\n"
+            if journal_progress
+            else ""
+        )
+        + "    time.sleep(0.2)\n"
+    )
+    env = dict(os.environ, ISAACLAB_TEST_JOURNAL=str(journal), ISAACLAB_TEST_PROGRESS_TIMEOUT="1")
+    result = orchestrator.capture_test_output_with_timeout([sys.executable, str(child)], timeout=10, env=env)
+    assert result[3] == ("" if journal_progress else "timeout")
+    assert b"still noisy" in result[1]
 
 
 def test_hang_dump_plugin_is_inert_without_signal_support(monkeypatch) -> None:
