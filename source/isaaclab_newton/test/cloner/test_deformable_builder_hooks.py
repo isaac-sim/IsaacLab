@@ -10,16 +10,15 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 import warp as wp
+from isaaclab_newton.assets.deformable_object import DeformableObject
+from isaaclab_newton.assets.deformable_object.deformable_object import (
+    DeformableRegistryEntry,
+    add_deformable_entry_to_builder,
+)
 from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableMaterialCfg
 
 from isaaclab.cloner import ClonePlan
-
-from isaaclab_contrib.deformable import DeformableObject
-from isaaclab_contrib.deformable.deformable_object import (
-    DeformableRegistryEntry,
-    add_deformable_entry_to_builder,
-)
 
 
 class _FakeBuilder:
@@ -83,14 +82,13 @@ def test_builder_hook_preserves_placement_materials_and_rebuild_offsets():
 
 def test_planned_geometry_aliases_surface_nodes_and_interpolates_volume_once(monkeypatch):
     """Sparse planned instances publish exact visual paths without requiring cloned USD meshes."""
+    import isaaclab_newton.assets.deformable_object.deformable_object as deformable
     from isaaclab_newton.physics.newton_manager import NewtonSceneDataBackend
 
     from pxr import Sdf, Usd, UsdGeom, UsdShade
 
     import isaaclab.sim.utils.queries as queries
     from isaaclab.scene_data import SceneDataProvider
-
-    import isaaclab_contrib.deformable.deformable_object as deformable
 
     stage = Usd.Stage.CreateInMemory()
     root = UsdGeom.Xform.Define(stage, "/Scene/copy_0/Volume")

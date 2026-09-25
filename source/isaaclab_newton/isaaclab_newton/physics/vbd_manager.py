@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from newton import Model
 from newton.solvers import SolverVBD
 
+from ..assets.deformable_object.deformable_object import add_registered_deformables_to_builder
 from .newton_manager import NewtonManager
 from .vbd_manager_cfg import VBDSolverCfg
 
@@ -24,14 +25,10 @@ class NewtonVBDManager(NewtonManager):
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
-        """Initialize VBD deformable integration when contrib is available."""
-        try:
-            from isaaclab_contrib.deformable.deformable_object import install_deformable_builder_hooks
-        except ModuleNotFoundError as exc:
-            if exc.name not in {"isaaclab_contrib", "isaaclab_contrib.deformable"}:
-                raise
-        else:
-            install_deformable_builder_hooks()
+        """Register Newton deformable construction for each cloned world."""
+        NewtonManager._deformable_registry = []
+        if add_registered_deformables_to_builder not in NewtonManager._per_world_builder_hooks:
+            NewtonManager._per_world_builder_hooks.append(add_registered_deformables_to_builder)
         super().initialize(sim_context)
 
     @classmethod
@@ -70,17 +67,6 @@ class NewtonVBDManager(NewtonManager):
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = True
         NewtonManager._supports_rigid_body_force_input = not solver_cfg.integrate_with_external_rigid_solver
-
-    @classmethod
-    def _solver_specific_clear(cls) -> None:
-        """Clear contrib deformable integration when available."""
-        try:
-            from isaaclab_contrib.deformable.deformable_object import clear_deformable_builder_hooks
-        except ModuleNotFoundError as exc:
-            if exc.name not in {"isaaclab_contrib", "isaaclab_contrib.deformable"}:
-                raise
-        else:
-            clear_deformable_builder_hooks()
 
     @classmethod
     def _simulate_physics_only(cls) -> None:

@@ -3,11 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-package for externally contributed assets.
+"""Deprecated imports for Newton deformables; use :mod:`isaaclab_newton.assets`."""
 
-This package contains contributed code that depends on Isaac Lab's public API but is not required for core functionality. This includes implementations of Newton solvers for deformables.
-"""
+import warnings
 
 from isaaclab.utils.module import lazy_export
+
+warnings.warn(
+    "isaaclab_contrib.deformable is deprecated; import DeformableObject and DeformableObjectData"
+    " from isaaclab_newton.assets instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 lazy_export()
