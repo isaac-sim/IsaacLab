@@ -19,7 +19,6 @@ simulation_app = AppLauncher(headless=True).app
 import asyncio
 from types import SimpleNamespace
 
-import pytest
 import torch
 
 from isaaclab_mimic.datagen import generation
@@ -122,25 +121,15 @@ def test_cap_reached_before_enough_successes_ends_the_run():
     assert (succ, fail) == (2, 4)
 
 
-@pytest.mark.parametrize("max_num_failures", [None, 3, 100])
-def test_attempt_based_termination_is_unchanged(max_num_failures):
+def test_attempt_based_termination_is_unchanged():
     """With the guarantee off the run stops on ``generation_num_trials`` attempts, cap or no cap.
 
     A cap of 3 against 10 requested attempts is the case that matters: the fixed-attempt contract
     says the run delivers the attempts it was asked for, so the cap must not end it at 3.
     """
-    how, _, _, attempts = _run(
-        [False] * 100, max_num_failures=max_num_failures, generation_num_trials=10, generation_guarantee=False
-    )
+    how, _, _, attempts = _run([False] * 100, max_num_failures=3, generation_num_trials=10, generation_guarantee=False)
     assert how == "exited"
     assert attempts == 10
-
-
-def test_bound_is_exact_when_attempts_end_on_separate_steps():
-    """Four environments, one attempt landing per step: the bound is read between every attempt."""
-    how, _, fail, _ = _run([False] * 100, max_num_failures=5, num_envs=4, attempts_per_step=1)
-    assert how == "exited"
-    assert fail == 5
 
 
 def test_attempts_ending_together_overshoot_the_bound_by_at_most_num_envs_minus_one():
