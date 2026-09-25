@@ -106,7 +106,7 @@ def test_usd_mesh_collision_fragment_writes_approximation_token():
         (
             PhysxTriangleMeshCfg(weld_tolerance=0.01),
             {"physxTriangleMeshCollision:weldTolerance": 0.01},
-            "none",
+            None,
             None,
         ),
         (

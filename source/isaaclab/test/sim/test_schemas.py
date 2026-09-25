@@ -701,6 +701,14 @@ def test_defining_rigid_body_properties_on_prim(setup_simulation):
     schemas.define_rigid_body_properties("/World/cube2", rigid_cfg)
     schemas.define_collision_properties("/World/cube2", collision_cfg)
 
+    # the define_* functions apply the schemas they author
+    for prim_path, apis in (
+        ("/World/cube1", (UsdPhysics.RigidBodyAPI, UsdPhysics.CollisionAPI, UsdPhysics.MassAPI)),
+        ("/World/cube2", (UsdPhysics.RigidBodyAPI, UsdPhysics.CollisionAPI)),
+    ):
+        prim = sim.stage.GetPrimAtPath(prim_path)
+        for api in apis:
+            assert prim.HasAPI(api), f"{prim_path} is missing {api.__name__}"
     # validate the properties; the validators inspect the children (collision: grandchildren) of the given prim
     _validate_rigid_body_properties_on_prim("/World", rigid_cfg)
     _validate_collision_properties_on_prim("/", collision_cfg)
@@ -721,6 +729,9 @@ def test_defining_articulation_properties_on_prim(setup_simulation):
     sim_utils.create_prim("/World/parent/child", prim_type="Cube", translation=(0.0, 0.0, 0.62))
     schemas.define_rigid_body_properties("/World/parent/child", rigid_cfg)
     schemas.define_mass_properties("/World/parent/child", mass_cfg)
+    child_prim = sim.stage.GetPrimAtPath("/World/parent/child")
+    assert child_prim.HasAPI(UsdPhysics.RigidBodyAPI)
+    assert child_prim.HasAPI(UsdPhysics.MassAPI)
     # validate the properties; the validators inspect the children of the given prim
     _validate_rigid_body_properties_on_prim("/World/parent", rigid_cfg)
     _validate_mass_properties_on_prim("/World/parent", mass_cfg)

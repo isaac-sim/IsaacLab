@@ -167,6 +167,7 @@ def test_apply_joint_drive_properties_composes_namespaces():
         stage,
     )
     assert bool(UsdPhysics.DriveAPI(prim, "angular"))  # presence-gated anchor applied
+    assert prim.GetAttribute("drive:angular:physics:type").Get() == "acceleration"
     assert prim.GetAttribute("drive:angular:physics:maxForce").Get() == pytest.approx(80.0, rel=1e-6)
     assert prim.GetAttribute("drive:angular:physics:stiffness").Get() == pytest.approx(10.0 * math.pi / 180.0, rel=1e-6)
     # revolute joint -> rad/s to deg/s conversion via apply_physx_joint

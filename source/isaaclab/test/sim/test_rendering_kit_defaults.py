@@ -87,6 +87,8 @@ def test_rendering_kits_agree_on_rtx_defaults():
     """Both rendering kits define identical values for every shared RTX default."""
     primary, secondary = _RENDERING_KIT
     primary_content, secondary_content = _read_kit(primary), _read_kit(secondary)
+    missing = [key for key in _HIGH_FIDELITY_DEFAULTS if _kit_value(primary_content, key) is None]
+    assert not missing, f"{primary} is missing high-fidelity RTX defaults: {missing}"
     mismatches = {}
     for key in _SHARED_RTX_DEFAULTS:
         primary_value = _kit_value(primary_content, key)

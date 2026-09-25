@@ -64,6 +64,7 @@ def test_init(device, monkeypatch):
     monkeypatch.setattr(PhysxManager, "initialize", classmethod(initialize))
     cfg = SimulationCfg(
         device=device,
+        dt=0.005,
         physics_prim_path="/Physics/PhysX",
         gravity=(0.0, -0.5, -0.5),
         physics_material=RigidBodyMaterialCfg(),
@@ -260,7 +261,7 @@ Reset and Step Tests
 
 
 @pytest.mark.isaacsim_ci
-def test_reset():
+def test_reset(monkeypatch):
     """Test simulation reset, then soft reset, forward, step, and render on the reset simulation."""
     cfg = SimulationCfg(dt=0.01)
     sim = SimulationContext(cfg)
@@ -278,14 +279,24 @@ def test_reset():
     # check that physics sim view is created
     assert sim.physics_sim_view is not None
 
-    # soft reset, forward, stepping with and without rendering, and rendering keep the simulation playing
+    # soft reset keeps the simulation playing
     sim.reset(soft=True)
     assert sim.is_playing()
+
+    # forward delegates to the physics backend exactly once
+    physics_forward = Mock(wraps=PhysxManager.forward)
+    monkeypatch.setattr(PhysxManager, "forward", physics_forward)
     sim.forward()
-    sim.step(render=True)
+    physics_forward.assert_called_once()
+
+    # enable continuous rendering so step(render=True) renders; step(render=False) must not
+    sim.set_setting("/isaaclab/render/rtx_sensors", True)
+    render = Mock(wraps=sim.render)
+    monkeypatch.setattr(sim, "render", render)
     sim.step(render=False)
-    sim.render()
-    assert sim.is_playing()
+    render.assert_not_called()
+    sim.step(render=True)
+    render.assert_called_once()
 
 
 @pytest.mark.isaacsim_ci
