@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -31,8 +31,6 @@ When parsing physics material properties on an object, the following priority is
 Usage:
     .. code-block:: python
 
-        import isaacsim.core.utils.prims as prim_utils
-
         import isaaclab.sim as sim_utils
 
         # create a visual material
@@ -54,7 +52,36 @@ Usage:
 .. _Physics Scene: https://openusd.org/dev/api/usd_physics_page_front.html
 """
 
-from .physics_materials import spawn_deformable_body_material, spawn_rigid_body_material
-from .physics_materials_cfg import DeformableBodyMaterialCfg, PhysicsMaterialCfg, RigidBodyMaterialCfg
-from .visual_materials import spawn_from_mdl_file, spawn_preview_surface
-from .visual_materials_cfg import GlassMdlCfg, MdlFileCfg, PreviewSurfaceCfg, VisualMaterialCfg
+from isaaclab.utils.module import lazy_export
+
+_stub_getattr, _stub_dir, __all__ = lazy_export()
+
+# Names that moved out of this module into ``isaaclab_physx.sim.spawners.materials``.
+# Resolved lazily on first access so importing ``isaaclab.sim.spawners.materials`` does
+# not require ``isaaclab_physx`` to be installed.
+_PHYSX_FORWARDS = frozenset({
+    "DeformableBodyMaterialCfg",
+    "RigidBodyMaterialCfg",
+    "SurfaceDeformableBodyMaterialCfg",
+    "PhysxRigidBodyMaterialCfg",
+    "PhysxDeformableBodyMaterialCfg",
+    "PhysxSurfaceDeformableBodyMaterialCfg",
+})
+
+
+def __getattr__(name):
+    if name in _PHYSX_FORWARDS:
+        try:
+            from isaaclab_physx.sim.spawners.materials import physics_materials_cfg as _physx_cfg
+        except ImportError as e:
+            raise ImportError(
+                f"'isaaclab.sim.spawners.materials.{name}' has moved to"
+                " 'isaaclab_physx.sim.spawners.materials'. Install the isaaclab_physx extension"
+                " or update your import. This forwarding shim is scheduled for removal in 4.0."
+            ) from e
+        return getattr(_physx_cfg, name)
+    return _stub_getattr(name)
+
+
+def __dir__():
+    return sorted(set(_stub_dir()) | _PHYSX_FORWARDS)

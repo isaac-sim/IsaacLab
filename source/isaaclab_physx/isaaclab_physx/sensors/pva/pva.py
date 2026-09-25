@@ -1,0 +1,366 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
+
+import logging
+import math
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
+
+import torch
+import warp as wp
+
+from pxr import UsdGeom
+
+import isaaclab.utils.math as math_utils
+from isaaclab.markers import VisualizationMarkers
+from isaaclab.sensors.pva import BasePva
+from isaaclab.sim.utils.queries import path_expr_to_glob
+
+from isaaclab_physx.physics import PhysxManager as SimulationManager
+
+from .kernels import pva_reset_kernel, pva_update_kernel
+from .pva_data import PvaData
+
+if TYPE_CHECKING:
+    from isaaclab.sensors.pva import PvaCfg
+
+logger = logging.getLogger(__name__)
+
+
+class Pva(BasePva):
+    """The PhysX Pose Velocity Acceleration (PVA) sensor.
+
+    The sensor can be attached to any prim path with a rigid ancestor in its tree and produces body-frame
+    linear acceleration and angular velocity, along with world-frame pose and body-frame linear and angular
+    accelerations/velocities.
+
+    If the provided path is not a rigid body, the closest rigid-body ancestor is used for simulation queries.
+    The fixed transform from that ancestor to the target prim is computed once during initialization and
+    composed with the configured sensor offset.
+
+    .. note::
+
+        Linear and angular accelerations are read from the solver and transported from the body
+        center of mass to the sensor frame. They are kinematic accelerations, so they do not
+        include the gravity bias that the IMU sensor reports.
+
+    .. note::
+
+        The user can configure the sensor offset in the configuration file. The offset is applied relative to the
+        rigid source prim. If the target prim is not a rigid body, the offset is composed with the fixed transform
+        from the rigid ancestor to the target prim. The offset is applied in the body frame of the rigid source prim.
+        The offset is defined as a position vector and a quaternion rotation, which
+        are applied in the order: position, then rotation. The position is applied as a translation
+        in the body frame of the rigid source prim, and the rotation is applied as a rotation
+        in the body frame of the rigid source prim.
+
+    """
+
+    cfg: PvaCfg
+    """The configuration parameters."""
+
+    __backend_name__: str = "physx"
+    """The name of the backend for the PVA sensor."""
+
+    def __init__(self, cfg: PvaCfg):
+        """Initializes the PVA sensor.
+
+        Args:
+            cfg: The configuration parameters.
+        """
+        # initialize base class
+        super().__init__(cfg)
+        # Create empty variables for storing output data
+        self._data = PvaData()
+
+        # Internal: expression used to build the rigid body view (may be different from cfg.prim_path)
+        self._rigid_parent_expr: str | None = None
+        self._raw_transforms: wp.array | None = None
+        self._raw_velocities: wp.array | None = None
+        self._raw_accelerations: wp.array | None = None
+        self._raw_coms: wp.array | None = None
+        self._update_cmd: wp.Launch | None = None
+        # Gravity baked into the recorded command, so a change can be re-bound on replay.
+        self._recorded_gravity_w: tuple[float, float, float] | None = None
+        self._update_env_mask: wp.array | None = None
+        self._use_recorded_launch: bool = False
+
+    def __str__(self) -> str:
+        """Returns: A string containing information about the instance."""
+        return (
+            f"PVA sensor @ '{self.cfg.prim_path}': \n"
+            f"\tview type         : {self._view.__class__}\n"
+            f"\tupdate period (s) : {self.cfg.update_period}\n"
+            f"\tnumber of sensors : {self._view.count}\n"
+        )
+
+    """
+    Properties
+    """
+
+    @property
+    def data(self) -> PvaData:
+        # update sensors if needed
+        self._update_outdated_buffers()
+        # return the data
+        return self._data
+
+    @property
+    def num_instances(self) -> int:
+        return self._view.count
+
+    """
+    Operations
+    """
+
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+        # resolve indices and mask
+        env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
+        # reset the timestamps
+        super().reset(None, env_mask)
+
+        wp.launch(
+            pva_reset_kernel,
+            dim=self._num_envs,
+            inputs=[
+                env_mask,
+                self._data._pos_w,
+                self._data._quat_w,
+                self._data._lin_vel_b,
+                self._data._ang_vel_b,
+                self._data._lin_acc_b,
+                self._data._ang_acc_b,
+                self._data._projected_gravity_b,
+            ],
+            device=self._device,
+        )
+
+    """
+    Implementation.
+    """
+
+    def _initialize_impl(self):
+        """Initializes the sensor handles and internal buffers.
+
+        - If the target prim path is a rigid body, build the view directly on it.
+        - Otherwise find the closest rigid-body ancestor, cache the fixed transform from that ancestor
+          to the target prim, and build the view on the ancestor expression.
+        """
+        # Initialize parent class
+        super()._initialize_impl()
+        # obtain global simulation view
+        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+
+        self._rigid_parent_expr, fixed_pos_b, fixed_quat_b = self._resolve_rigid_body_ancestor_expr()
+        # Create the rigid body view on the ancestor
+        self._view = self._physics_sim_view.create_rigid_body_view(path_expr_to_glob(self._rigid_parent_expr))
+
+        # Unit world-gravity direction. The scene value can change at runtime, so it is
+        # refreshed on every update instead of snapshotted here.
+        self._gravity_w: tuple[float, float, float] | None = None
+        self._gravity_vec_w = wp.vec3f(0.0, 0.0, -1.0)
+        self._refresh_gravity_vec()
+
+        # Create internal buffers
+        self._initialize_buffers_impl()
+
+        # Compose the configured offset with the fixed ancestor->target transform (done once)
+        # new_offset = fixed * cfg.offset
+        # where composition is: p = p_fixed + R_fixed * p_cfg, q = q_fixed * q_cfg
+        if fixed_pos_b is not None and fixed_quat_b is not None:
+            # Broadcast fixed transform across instances
+            fixed_p = torch.tensor(fixed_pos_b, device=self._device).repeat(self._view.count, 1)
+            fixed_q = torch.tensor(fixed_quat_b, device=self._device).repeat(self._view.count, 1)
+
+            cfg_p = wp.to_torch(self._offset_pos_b).clone()
+            cfg_q = wp.to_torch(self._offset_quat_b).clone()
+
+            composed_p = fixed_p + math_utils.quat_apply(fixed_q, cfg_p)
+            composed_q = math_utils.quat_mul(fixed_q, cfg_q)
+
+            self._offset_pos_b = wp.from_torch(composed_p.contiguous(), dtype=wp.vec3f)
+            self._offset_quat_b = wp.from_torch(composed_q.contiguous(), dtype=wp.quatf)
+
+        self._use_recorded_launch = wp.get_device(self._device).is_cuda
+
+    def _refresh_gravity_vec(self):
+        """Refresh the cached gravity buffer when the scene gravity changed.
+
+        Scene gravity is runtime-mutable (see
+        :func:`~isaaclab.envs.mdp.events.randomize_physics_scene_gravity`), so the buffer is
+        re-filled in place rather than reallocated: consumers (and any recorded launch) hold
+        the array pointer, and a fresh allocation would freeze the sensor on the old value.
+        """
+        gravity = self._physics_sim_view.get_gravity()
+        gravity = (float(gravity[0]), float(gravity[1]), float(gravity[2]))
+        if gravity == self._gravity_w:
+            return
+        self._gravity_w = gravity
+        # Mirrors ``math_utils.normalize``: the norm is clamped to eps, so zero scene gravity
+        # yields a zero direction instead of NaNs.
+        scale = 1.0 / max(math.sqrt(gravity[0] ** 2 + gravity[1] ** 2 + gravity[2] ** 2), 1.0e-9)
+        self._gravity_vec_w = wp.vec3f(gravity[0] * scale, gravity[1] * scale, gravity[2] * scale)
+
+    def _update_buffers_impl(self, env_mask: wp.array | None = None):
+        """Fills the buffers of the sensor data."""
+        env_mask = self._resolve_indices_and_mask(None, env_mask)
+        self._refresh_gravity_vec()
+
+        # Refresh the PhysX buffers every update, but create their typed Warp views only once:
+        # the getters lazily allocate their output buffers and refresh the same memory in place
+        # on every call, so the cached views (and the recorded launch that consumes them) stay
+        # valid. A re-backed buffer would silently freeze the sensor data, so fail loudly.
+        transforms = self._view.get_transforms()
+        velocities = self._view.get_velocities()
+        accelerations = self._view.get_accelerations()
+        coms = self._view.get_coms()
+        if self._raw_transforms is None:
+            self._raw_transforms = transforms.view(wp.transformf)
+            self._raw_velocities = velocities.view(wp.spatial_vectorf)
+            self._raw_accelerations = accelerations.view(wp.spatial_vectorf)
+            self._raw_coms = coms.view(wp.transformf)
+        elif (
+            transforms.ptr != self._raw_transforms.ptr
+            or velocities.ptr != self._raw_velocities.ptr
+            or accelerations.ptr != self._raw_accelerations.ptr
+            or coms.ptr != self._raw_coms.ptr
+        ):
+            raise RuntimeError(
+                f"A PhysX rigid body buffer of the sensor at '{self.cfg.prim_path}' was re-allocated"
+                " after its warp view was cached. The cached views and the recorded launch require"
+                " pointer-stable buffers refreshed in place."
+            )
+        wp.copy(self._coms_buffer, self._raw_coms)
+
+        if self._use_recorded_launch:
+            if self._update_cmd is None:
+                try:
+                    self._update_cmd = self._launch_update(env_mask, record_cmd=True)
+                    self._update_env_mask = env_mask
+                    self._recorded_gravity_w = self._gravity_w
+                except Exception as exc:
+                    self._use_recorded_launch = False
+                    logger.warning(
+                        f"Failed to record the update of the PVA sensor at '{self.cfg.prim_path}'."
+                        f" Falling back to eager kernel launches. Reason: {exc}"
+                    )
+            if self._update_cmd is not None:
+                if env_mask is not self._update_env_mask:
+                    self._update_cmd.set_param_by_name("env_mask", env_mask)
+                    self._update_env_mask = env_mask
+                if self._gravity_w != self._recorded_gravity_w:
+                    self._update_cmd.set_param_by_name("gravity_vec_w", self._gravity_vec_w)
+                    self._recorded_gravity_w = self._gravity_w
+                self._update_cmd.launch()
+                return
+
+        self._launch_update(env_mask)
+
+    def _launch_update(self, env_mask: wp.array, record_cmd: bool = False) -> wp.Launch | None:
+        """Launch or record the kernel that updates the PVA data."""
+
+        return wp.launch(
+            pva_update_kernel,
+            dim=self._num_envs,
+            inputs=[
+                env_mask,
+                self._raw_transforms,
+                self._raw_velocities,
+                self._raw_accelerations,
+                self._coms_buffer,
+                self._offset_pos_b,
+                self._offset_quat_b,
+                self._gravity_vec_w,
+                self._timestamp,
+                self._data._pos_w,
+                self._data._quat_w,
+                self._data._lin_vel_b,
+                self._data._ang_vel_b,
+                self._data._lin_acc_b,
+                self._data._ang_acc_b,
+                self._data._projected_gravity_b,
+            ],
+            device=self._device,
+            record_cmd=record_cmd,
+        )
+
+    def _initialize_buffers_impl(self):
+        """Create buffers for storing data."""
+        # Create data buffers via data class
+        self._data.create_buffers(num_envs=self._view.count, device=self._device)
+
+        # Store sensor offset (applied relative to rigid source).
+        # This may be composed later with a fixed ancestor->target transform.
+        offset_pos_torch = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
+        offset_quat_torch = torch.tensor(list(self.cfg.offset.rot), device=self._device).repeat(self._view.count, 1)
+        self._offset_pos_b = wp.from_torch(offset_pos_torch.contiguous(), dtype=wp.vec3f)
+        self._offset_quat_b = wp.from_torch(offset_quat_torch.contiguous(), dtype=wp.quatf)
+
+        # Pre-allocate GPU buffer for COMs (get_coms() returns CPU array)
+        self._coms_buffer = wp.zeros(self._view.count, dtype=wp.transformf, device=self._device)
+
+    def _invalidate_initialize_callback(self, event):
+        """Invalidate the sensor and release cached PhysX and launch state."""
+        super()._invalidate_initialize_callback(event)
+        self._view = None
+        self._raw_transforms = None
+        self._raw_velocities = None
+        self._raw_accelerations = None
+        self._raw_coms = None
+        self._update_cmd = None
+        self._update_env_mask = None
+        self._recorded_gravity_w = None
+
+    def _set_debug_vis_impl(self, debug_vis: bool):
+        # set visibility of markers
+        # note: parent only deals with callbacks. not their visibility
+        if debug_vis:
+            # create markers if necessary for the first time
+            if not hasattr(self, "acceleration_visualizer"):
+                self.acceleration_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
+            # set their visibility to true
+            self.acceleration_visualizer.set_visibility(True)
+        else:
+            if hasattr(self, "acceleration_visualizer"):
+                self.acceleration_visualizer.set_visibility(False)
+
+    def _debug_vis_callback(self, event):
+        # safely return if view becomes invalid
+        # note: this invalidity happens because of isaac sim view callbacks
+        if self._view is None:
+            return
+        # get marker location
+        # -- base state (convert warp -> torch for visualization)
+        base_pos_w = self._data.pos_w.torch.clone()
+        base_pos_w[:, 2] += 0.5
+        # -- resolve the scales
+        default_scale = self.acceleration_visualizer.cfg.markers["arrow"].scale
+        arrow_scale = torch.tensor(default_scale, device=self.device).repeat(self._data.lin_acc_b.torch.shape[0], 1)
+        # get up axis of current stage
+        up_axis = UsdGeom.GetStageUpAxis(self.stage)
+        # arrow-direction; filter out bodies with effectively zero accel (no defined direction)
+        pos_w_torch = self._data.pos_w.torch
+        accel_w = math_utils.quat_apply(self._data.quat_w.torch, self._data.lin_acc_b.torch)
+        valid_indices = (torch.linalg.norm(accel_w, dim=-1) > 1e-5).nonzero(as_tuple=True)[0]
+        if valid_indices.numel() == 0:
+            return
+        pos_filtered = pos_w_torch.index_select(0, valid_indices)
+        accel_filtered = accel_w.index_select(0, valid_indices)
+        rotation_matrix = math_utils.create_rotation_matrix_from_view(
+            pos_filtered,
+            pos_filtered + accel_filtered,
+            up_axis=up_axis,
+            device=self._device,
+        )
+        quat_opengl = math_utils.quat_from_matrix(rotation_matrix)
+        quat_w = math_utils.convert_camera_frame_orientation_convention(quat_opengl, "opengl", "world")
+        # display markers
+        self.acceleration_visualizer.visualize(
+            base_pos_w.index_select(0, valid_indices),
+            quat_w,
+            arrow_scale.index_select(0, valid_indices),
+        )

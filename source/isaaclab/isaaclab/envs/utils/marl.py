@@ -1,13 +1,16 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import gymnasium as gym
+from __future__ import annotations
+
 import math
+from typing import Any
+
+import gymnasium as gym
 import numpy as np
 import torch
-from typing import Any
 
 from ..common import ActionType, AgentID, EnvStepReturn, ObsType, StateType, VecEnvObs, VecEnvStepReturn
 from ..direct_marl_env import DirectMARLEnv
@@ -17,8 +20,8 @@ from ..direct_rl_env import DirectRLEnv
 def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool = False) -> DirectRLEnv:
     """Convert the multi-agent environment instance to a single-agent environment instance.
 
-    The converted environment will be an instance of the single-agent environment interface class (:class:`DirectRLEnv`).
-    As part of the conversion process, the following operations are carried out:
+    The converted environment will be an instance of the single-agent environment interface class
+    (:class:`DirectRLEnv`). As part of the conversion process, the following operations are carried out:
 
     * The observations of all the agents in the original multi-agent environment are concatenated to compose
         the single-agent observation. If the use of the environment state is defined as the observation,
@@ -45,6 +48,7 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
     class Env(DirectRLEnv):
         def __init__(self, env: DirectMARLEnv) -> None:
             self.env: DirectMARLEnv = env.unwrapped
+            self._is_closed = False
 
             # check if it is possible to use the multi-agent environment state as single-agent observation
             self._state_as_observation = state_as_observation
@@ -77,22 +81,66 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
             )
             self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
+            # latest converted observations and extras, refreshed by reset() and step()
+            self._obs_buf: VecEnvObs = {}
+            self._extras: dict = {}
+
+        @property
+        def episode_length_buf(self) -> torch.Tensor:
+            """Episode lengths from the wrapped multi-agent environment."""
+            return self.env.episode_length_buf
+
+        @episode_length_buf.setter
+        def episode_length_buf(self, value: torch.Tensor) -> None:
+            # copy in place so holders of the wrapped environment's buffer stay in sync
+            self.env.episode_length_buf.copy_(value)
+
+        @property
+        def obs_buf(self) -> VecEnvObs:
+            """Latest observations from the wrapped multi-agent environment."""
+            return self._obs_buf
+
+        @property
+        def extras(self) -> dict:
+            """Latest extras from the wrapped multi-agent environment, keyed by agent.
+
+            Includes the single-agent ``"final_obs"`` entry when terminal observations were captured
+            (see :meth:`_convert_final_obs`).
+            """
+            return self._extras
+
+        def _convert_observations(self, obs: dict[AgentID, ObsType]) -> VecEnvObs:
+            """Convert multi-agent observations to the single-agent policy observation."""
+            # FIXME: This implementation assumes the spaces are fundamental ones. Fix it to support composite spaces
+            if self._state_as_observation:
+                return {"policy": self.env.state()}
+            return {
+                "policy": torch.cat(
+                    [obs[agent].reshape(self.num_envs, -1) for agent in self.env.possible_agents], dim=-1
+                )
+            }
+
+        def _convert_final_obs(self, extras: dict) -> dict:
+            """Expose the terminal observations captured by the multi-agent environment to single-agent wrappers.
+
+            :class:`DirectMARLEnv` stores them per agent under ``extras[agent]["final_obs"]`` (see
+            :attr:`DirectMARLEnvCfg.compute_final_obs`), whereas single-agent wrappers read the observation
+            dictionary under ``extras["final_obs"]``. The environment state is not captured before a reset, so no
+            terminal observation is exposed in the state-as-observation mode.
+            """
+            if self._state_as_observation or not all(
+                "final_obs" in extras.get(agent, {}) for agent in self.env.possible_agents
+            ):
+                return extras
+            final_obs = {agent: extras[agent]["final_obs"] for agent in self.env.possible_agents}
+            # shallow copy so the per-agent extras of the wrapped environment stay untouched
+            return {**extras, "final_obs": self._convert_observations(final_obs)}
+
         def reset(self, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[VecEnvObs, dict]:
             obs, extras = self.env.reset(seed, options)
-
-            # use environment state as observation
-            if self._state_as_observation:
-                obs = {"policy": self.env.state()}
-            # concatenate agents' observations
-            # FIXME: This implementation assumes the spaces are fundamental ones. Fix it to support composite spaces
-            else:
-                obs = {
-                    "policy": torch.cat(
-                        [obs[agent].reshape(self.num_envs, -1) for agent in self.env.possible_agents], dim=-1
-                    )
-                }
-
-            return obs, extras
+            self._obs_buf = self._convert_observations(obs)
+            self._extras = extras
+            return self._obs_buf, self._extras
 
         def step(self, action: torch.Tensor) -> VecEnvStepReturn:
             # split single-agent actions to build the multi-agent ones
@@ -107,30 +155,23 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
             # step the environment
             obs, rewards, terminated, time_outs, extras = self.env.step(_actions)
 
-            # use environment state as observation
-            if self._state_as_observation:
-                obs = {"policy": self.env.state()}
-            # concatenate agents' observations
-            # FIXME: This implementation assumes the spaces are fundamental ones. Fix it to support composite spaces
-            else:
-                obs = {
-                    "policy": torch.cat(
-                        [obs[agent].reshape(self.num_envs, -1) for agent in self.env.possible_agents], dim=-1
-                    )
-                }
+            self._obs_buf = self._convert_observations(obs)
+            self._extras = self._convert_final_obs(extras)
 
             # process environment outputs to return single-agent data
             rewards = sum(rewards.values())
             terminated = math.prod(terminated.values()).to(dtype=torch.bool)
             time_outs = math.prod(time_outs.values()).to(dtype=torch.bool)
 
-            return obs, rewards, terminated, time_outs, extras
+            return self._obs_buf, rewards, terminated, time_outs, self._extras
 
         def render(self, recompute: bool = False) -> np.ndarray | None:
             return self.env.render(recompute)
 
         def close(self) -> None:
-            self.env.close()
+            if not self._is_closed:
+                self.env.close()
+                self._is_closed = True
 
     return Env(env)
 
@@ -165,6 +206,7 @@ def multi_agent_with_one_agent(env: DirectMARLEnv, state_as_observation: bool = 
     class Env(DirectMARLEnv):
         def __init__(self, env: DirectMARLEnv) -> None:
             self.env: DirectMARLEnv = env.unwrapped
+            self._is_closed = False
 
             # check if it is possible to use the multi-agent environment state as agent observation
             self._state_as_observation = state_as_observation
@@ -269,6 +311,8 @@ def multi_agent_with_one_agent(env: DirectMARLEnv, state_as_observation: bool = 
             self.env.render(recompute)
 
         def close(self) -> None:
-            self.env.close()
+            if not self._is_closed:
+                self.env.close()
+                self._is_closed = True
 
     return Env(env)

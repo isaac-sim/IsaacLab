@@ -1,7 +1,9 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
+"""Hyperparameter mutation rules for Population-Based Training."""
 
 import random
 from collections.abc import Callable
@@ -33,6 +35,7 @@ def mutate(
     mutation_rate: float,
     change_range: tuple[float, float],
 ) -> dict[str, Any]:
+    """Mutate each parameter that has a rule in *mutations* with probability *mutation_rate*."""
     cmin, cmax = change_range
     out: dict[str, Any] = {}
     for name, val in params.items():

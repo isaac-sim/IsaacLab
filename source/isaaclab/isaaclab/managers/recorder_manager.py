@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,19 +8,20 @@ from __future__ import annotations
 
 import enum
 import os
-import torch
 from collections.abc import Sequence
-from prettytable import PrettyTable
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
-from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
+import torch
+import warp as wp
+from prettytable import PrettyTable
 
+from ..utils import configclass
+from ..utils.datasets import EpisodeData, HDF5DatasetFileHandler
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import RecorderTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
+    from ..envs import ManagerBasedEnv
 
 
 class DatasetExportMode(enum.IntEnum):
@@ -49,6 +50,12 @@ class RecorderManagerBaseCfg:
 
     export_in_record_pre_reset: bool = True
     """Whether to export episodes in the record_pre_reset call."""
+
+    export_in_close: bool = False
+    """Whether to export episodes in the close call."""
+
+    dataset_compression: bool = True
+    """Enable dataset compression."""
 
 
 class RecorderTerm(ManagerTermBase):
@@ -132,6 +139,17 @@ class RecorderTerm(ManagerTermBase):
         """
         return None, None
 
+    def close(self, file_path: str):
+        """Finalize and "clean up" the recorder term.
+
+        This can include tasks such as appending metadata (e.g. labels) to a file
+        and properly closing any associated file handles or resources.
+
+        Args:
+            file_path: the absolute path to the file
+        """
+        pass
+
 
 class RecorderManager(ManagerBase):
     """Manager for recording data from recorder terms."""
@@ -143,8 +161,8 @@ class RecorderManager(ManagerBase):
             cfg: The configuration object or dictionary (``dict[str, RecorderTermCfg]``).
             env: The environment instance.
         """
-        self._term_names: list[str] = list()
-        self._terms: dict[str, RecorderTerm] = dict()
+        self._term_names: list[str] = []
+        self._terms: dict[str, RecorderTerm] = {}
 
         # Do nothing if cfg is None or an empty dict
         if not cfg:
@@ -202,15 +220,7 @@ class RecorderManager(ManagerBase):
 
     def __del__(self):
         """Destructor for recorder."""
-        # Do nothing if no active recorder terms are provided
-        if len(self.active_terms) == 0:
-            return
-
-        if self._dataset_file_handler is not None:
-            self._dataset_file_handler.close()
-
-        if self._failed_episode_dataset_file_handler is not None:
-            self._failed_episode_dataset_file_handler.close()
+        self.close()
 
     """
     Properties.
@@ -270,7 +280,6 @@ class RecorderManager(ManagerBase):
         # Do nothing if no active recorder terms are provided
         if len(self.active_terms) == 0:
             return {}
-
         # resolve environment ids
         if env_ids is None:
             env_ids = list(range(self._env.num_envs))
@@ -322,14 +331,19 @@ class RecorderManager(ManagerBase):
 
         if isinstance(value, dict):
             for sub_key, sub_value in value.items():
+                if isinstance(sub_value, wp.array):
+                    sub_value = wp.to_torch(sub_value)
                 self.add_to_episodes(f"{key}/{sub_key}", sub_value, env_ids)
             return
 
+        if isinstance(value, wp.array):
+            value = wp.to_torch(value)
+        value = value.clone()  # Clone once for all envs
         for value_index, env_id in enumerate(env_ids):
             if env_id not in self._episodes:
                 self._episodes[env_id] = EpisodeData()
                 self._episodes[env_id].env_id = env_id
-            self._episodes[env_id].add(key, value[value_index])
+            self._episodes[env_id].add(key, value[value_index], clone=False)
 
     def set_success_to_episodes(self, env_ids: Sequence[int] | None, success_values: torch.Tensor):
         """Sets the task success values to the episodes for the given environment ids.
@@ -501,7 +515,9 @@ class RecorderManager(ManagerBase):
                 if target_dataset_file_handler is not None:
                     # Use corresponding demo_id if provided, otherwise None
                     current_demo_id = demo_ids[i] if demo_ids is not None else None
-                    target_dataset_file_handler.write_episode(self._episodes[env_id], current_demo_id)
+                    target_dataset_file_handler.write_episode(
+                        self._episodes[env_id], current_demo_id, self.cfg.dataset_compression
+                    )
                     need_to_flush = True
                 # Update episode count
                 if episode_succeeded:
@@ -518,6 +534,22 @@ class RecorderManager(ManagerBase):
                 self._dataset_file_handler.flush()
             if self._failed_episode_dataset_file_handler is not None:
                 self._failed_episode_dataset_file_handler.flush()
+
+    def close(self):
+        """Closes the recorder manager by exporting any remaining data to file as well as properly
+        closes the recorder terms.
+        """
+        # Do nothing if no active recorder terms are provided
+        if len(self.active_terms) == 0:
+            return
+        if self._dataset_file_handler is not None:
+            if self.cfg.export_in_close:
+                self.export_episodes()
+            self._dataset_file_handler.close()
+        if self._failed_episode_dataset_file_handler is not None:
+            self._failed_episode_dataset_file_handler.close()
+        for term in self._terms.values():
+            term.close(os.path.join(self.cfg.dataset_export_dir_path, self.cfg.dataset_filename))
 
     """
     Helper functions.
@@ -538,12 +570,13 @@ class RecorderManager(ManagerBase):
                 "dataset_export_dir_path",
                 "dataset_export_mode",
                 "export_in_record_pre_reset",
+                "export_in_close",
+                "dataset_compression",
             ]:
                 continue
             # check if term config is None
             if term_cfg is None:
                 continue
-            # check valid type
             if not isinstance(term_cfg, RecorderTermCfg):
                 raise TypeError(
                     f"Configuration for the term '{term_name}' is not of type RecorderTermCfg."

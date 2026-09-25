@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -17,12 +17,12 @@ from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates how to use the scene interface.")
-parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
 parser.add_argument("--num_envs", type=int, default=2, help="Number of environments to spawn.")
+AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=args_cli.headless)
+app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
@@ -103,8 +103,8 @@ def main():
     print("[INFO]: Setup complete...")
 
     # default joint targets
-    robot_1_actions = scene.articulations["robot_1"].data.default_joint_pos.clone()
-    robot_2_actions = scene.articulations["robot_2"].data.default_joint_pos.clone()
+    robot_1_actions = scene.articulations["robot_1"].data.default_joint_pos.torch.clone()
+    robot_2_actions = scene.articulations["robot_2"].data.default_joint_pos.torch.clone()
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     sim_time = 0.0
@@ -124,10 +124,10 @@ def main():
             sim_time = 0.0
             count = 0
             # reset root state
-            root_state = scene.articulations["robot_1"].data.default_root_state.clone()
+            root_state = scene.articulations["robot_1"].data.default_root_state.torch.clone()
             root_state[:, :3] += scene.env_origins
-            joint_pos = scene.articulations["robot_1"].data.default_joint_pos
-            joint_vel = scene.articulations["robot_1"].data.default_joint_vel
+            joint_pos = scene.articulations["robot_1"].data.default_joint_pos.torch
+            joint_vel = scene.articulations["robot_1"].data.default_joint_vel.torch
             # -- set root state
             # -- robot 1
             scene.articulations["robot_1"].write_root_pose_to_sim(root_state[:, :7])

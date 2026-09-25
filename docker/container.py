@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,7 +9,14 @@ import argparse
 import shutil
 from pathlib import Path
 
-from utils import ContainerInterface, x11_utils
+# __package__ is empty when this file runs as a script (./docker/container.py), where
+# docker/ is itself on sys.path, and "docker" when the tests import it as docker.container.
+# The relative form keeps docker.utils.* a single module object, so patches applied by the
+# tests affect the same modules this CLI uses.
+if __package__:
+    from .utils import ContainerInterface, x11_utils
+else:
+    from utils import ContainerInterface, x11_utils
 
 
 def parse_cli_args() -> argparse.Namespace:
@@ -26,7 +33,10 @@ def parse_cli_args() -> argparse.Namespace:
     # We have to create separate parent parsers for common options to our subparsers
     parent_parser = argparse.ArgumentParser(add_help=False)
     parent_parser.add_argument(
-        "profile", nargs="?", default="base", help="Optional container profile specification. Example: 'base' or 'ros'."
+        "profile",
+        nargs="?",
+        default="base",
+        help="Optional container profile specification. Examples: 'base', 'ros2', or 'kitless'.",
     )
     parent_parser.add_argument(
         "--files",
@@ -43,7 +53,7 @@ def parse_cli_args() -> argparse.Namespace:
         default=None,
         help=(
             "Allows additional '.env' files to be passed to the docker compose command. These files will be merged with"
-            " '.env.base' in their provided order."
+            " the profile's default environment files in their provided order."
         ),
     )
     parent_parser.add_argument(
@@ -57,9 +67,19 @@ def parse_cli_args() -> argparse.Namespace:
             " passed to suffix, then the produced docker image and container will be named ``isaac-lab-base-custom``."
         ),
     )
+    parent_parser.add_argument(
+        "--info",
+        action="store_true",
+        help="Print the container interface information. This is useful for debugging purposes.",
+    )
 
     # Actual command definition begins here
     subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers.add_parser(
+        "build",
+        help="Build the docker image without creating the container.",
+        parents=[parent_parser],
+    )
     subparsers.add_parser(
         "start",
         help="Build the docker image and create the container in detached mode.",
@@ -96,7 +116,7 @@ def main(args: argparse.Namespace):
     if not shutil.which("docker"):
         raise RuntimeError(
             "Docker is not installed! Please check the 'Docker Guide' for instruction: "
-            "https://isaac-sim.github.io/IsaacLab/source/deployment/docker.html"
+            "https://isaac-sim.github.io/IsaacLab/source/workflows/docker/index.html"
         )
 
     # creating container interface
@@ -107,9 +127,23 @@ def main(args: argparse.Namespace):
         envs=args.env_files,
         suffix=args.suffix,
     )
+    if args.info:
+        print("[INFO] Printing container interface information...\n")
+        ci.print_info()
+        return
 
     print(f"[INFO] Using container profile: {ci.profile}")
-    if args.command == "start":
+    if args.command == "build":
+        # check if x11 forwarding is enabled
+        x11_outputs = x11_utils.x11_check(ci.statefile)
+        # if x11 forwarding is enabled, add the x11 yaml and environment variables
+        if x11_outputs is not None:
+            (x11_yaml, x11_envar) = x11_outputs
+            ci.add_yamls += x11_yaml
+            ci.environ.update(x11_envar)
+        # build the image
+        ci.build()
+    elif args.command == "start":
         # check if x11 forwarding is enabled
         x11_outputs = x11_utils.x11_check(ci.statefile)
         # if x11 forwarding is enabled, add the x11 yaml and environment variables

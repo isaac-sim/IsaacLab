@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -18,19 +18,11 @@ There are two main categories of actuator models that are supported:
   - **Neural Network-based**: Learned motor models from actuator data.
 
 Every actuator model inherits from the :class:`isaaclab.actuators.ActuatorBase` class,
-which defines the common interface for all actuator models. The actuator models are handled
-and called by the :class:`isaaclab.assets.Articulation` class.
+which defines the common interface for all actuator models. Runtime actuator groups,
+commands, and telemetry are handled by :class:`isaaclab.actuators.ActuatorCollection`,
+which is exposed through :attr:`isaaclab.assets.Articulation.actuators`.
 """
 
-from .actuator_base import ActuatorBase
-from .actuator_base_cfg import ActuatorBaseCfg
-from .actuator_net import ActuatorNetLSTM, ActuatorNetMLP
-from .actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
-from .actuator_pd import DCMotor, DelayedPDActuator, IdealPDActuator, ImplicitActuator, RemotizedPDActuator
-from .actuator_pd_cfg import (
-    DCMotorCfg,
-    DelayedPDActuatorCfg,
-    IdealPDActuatorCfg,
-    ImplicitActuatorCfg,
-    RemotizedPDActuatorCfg,
-)
+from ..utils.module import lazy_export
+
+lazy_export()

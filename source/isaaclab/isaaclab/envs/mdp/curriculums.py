@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,12 +13,14 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from isaaclab.managers import CurriculumTermCfg, ManagerTermBase
+import torch
+
+from ...managers import CurriculumTermCfg, ManagerTermBase
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from .. import ManagerBasedRLEnv
 
 
 class modify_reward_weight(ManagerTermBase):
@@ -39,11 +41,9 @@ class modify_reward_weight(ManagerTermBase):
         weight: float,
         num_steps: int,
     ) -> float:
-        # update term settings
         if env.common_step_counter > num_steps:
             self._term_cfg.weight = weight
             env.reward_manager.set_term_cfg(term_name, self._term_cfg)
-
         return self._term_cfg.weight
 
 
@@ -65,7 +65,9 @@ class modify_env_param(ManagerTermBase):
     .. code-block:: python
 
         def modify_fn(env, env_ids, old_value, **modify_params) -> new_value | modify_env_param.NO_CHANGE:
-            ...
+            # modify the value based on the old value and the modify parameters
+            new_value = old_value + modify_params["value"]
+            return new_value
 
     where ``env`` is the learning environment, ``env_ids`` are the sub-environment indices,
     ``old_value`` is the current value of the target attribute, and ``modify_params``
@@ -78,10 +80,10 @@ class modify_env_param(ManagerTermBase):
     current value, and the setter writes a new value back to the attribute.
 
     This term processes getter/setter accessors for a target attribute in an(specified by
-    as an "address" in the term configuration`cfg.params["address"]`) the first time it is called, then on each invocation
-    reads the current value, applies a user-provided `modify_fn`, and writes back
-    the result. Since None in this case can sometime be desirable value to write, we
-    use token, NO_CHANGE, as non-modification signal to this class, see usage below.
+    as an "address" in the term configuration :attr:`cfg.params["address"]`) the first time it is called,
+    then on each invocation reads the current value, applies a user-provided :attr:`modify_fn`,
+    and writes back the result. Since :obj:`None` in this case can sometime be desirable value
+    to write, we use token, :attr:`NO_CHANGE`, as non-modification signal to this class, see usage below.
 
     Usage:
         .. code-block:: python
@@ -101,6 +103,7 @@ class modify_env_param(ManagerTermBase):
                 # to the setter being called, which may add overhead.
                 return mdp.modify_env_param.NO_CHANGE
 
+
             object_physics_material_curriculum = CurrTerm(
                 func=mdp.modify_env_param,
                 params={
@@ -110,9 +113,9 @@ class modify_env_param(ManagerTermBase):
                         "static_friction_range": [0.5, 1.0],
                         "dynamic_friction_range": [0.3, 1.0],
                         "restitution_range": [0.0, 0.5],
-                        "num_step": 120000
-                    }
-                }
+                        "num_step": 120000,
+                    },
+                },
             )
     """
 
@@ -125,11 +128,8 @@ class modify_env_param(ManagerTermBase):
 
     def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        # resolve term configuration
         if "address" not in cfg.params:
             raise ValueError("The 'address' parameter must be specified in the curriculum term configuration.")
-
-        # store current address
         self._address: str = cfg.params["address"]
         # store accessor functions
         self._get_fn: callable = None
@@ -209,7 +209,7 @@ class modify_env_param(ManagerTermBase):
                 # we are accessing a list element
                 name, idx = container_path
                 # find underlying attribute
-                if isinstance(container_path, dict):
+                if isinstance(container, dict):
                     seq = container[name]  # type: ignore[assignment]
                 else:
                     seq = getattr(container, name)
@@ -222,11 +222,9 @@ class modify_env_param(ManagerTermBase):
                 else:
                     container = getattr(container, container_path)
 
-        # save the container and the last part of the path
         self._container = container
         self._last_path = path_parts[-1]  # for "a.b[2].c", this is "c", while for "a.b[2]" it is 2
 
-        # build the getter and setter
         if isinstance(self._container, tuple):
             get_value = lambda: self._container[self._last_path]  # noqa: E731
 
@@ -275,13 +273,14 @@ class modify_term_cfg(modify_env_param):
                     return value
                 return mdp.modify_term_cfg.NO_CHANGE
 
+
             command_object_pose_xrange_adr = CurrTerm(
                 func=mdp.modify_term_cfg,
                 params={
-                    "address": "commands.object_pose.ranges.pos_x",   # note: `_manager.cfg` is omitted
+                    "address": "commands.object_pose.ranges.pos_x",  # note: `_manager.cfg` is omitted
                     "modify_fn": override_value,
-                    "modify_params": {"value": (-.75, -.25), "num_steps": 12000}
-                }
+                    "modify_params": {"value": (-0.75, -0.25), "num_steps": 12000},
+                },
             )
     """
 
@@ -290,3 +289,88 @@ class modify_term_cfg(modify_env_param):
         super().__init__(cfg, env)
         # overwrite the simplified address with the full manager path
         self._address = self._address.replace("s.", "_manager.cfg.", 1)
+
+
+class DifficultyScheduler(ManagerTermBase):
+    """Adaptive difficulty scheduler for curriculum learning.
+
+    Each environment keeps an integer difficulty level. At episode end the level is promoted when the
+    reward term named by ``success_term_name`` reports success for that environment through a sticky
+    boolean ``succeeded`` buffer, and demoted otherwise unless ``promotion_only`` is set. The normalized
+    mean difficulty across environments is exposed as :attr:`difficulty_frac` for other curriculum terms,
+    such as :func:`initial_final_interpolate_fn`, to interpolate their targets.
+    """
+
+    def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        init_difficulty: int = cfg.params.get("init_difficulty", 0)
+        self.current_difficulties = torch.full((env.num_envs,), float(init_difficulty), device=env.device)
+        self.difficulty_frac: float = 0.0
+        """Mean difficulty across environments, normalized by ``max_difficulty``."""
+
+    def get_state(self) -> torch.Tensor:
+        return self.current_difficulties
+
+    def set_state(self, state: torch.Tensor) -> None:
+        self.current_difficulties = state.clone().to(self._env.device)
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        env_ids: Sequence[int],
+        init_difficulty: int = 0,
+        min_difficulty: int = 0,
+        max_difficulty: int = 50,
+        promotion_only: bool = False,
+        success_term_name: str = "success",
+    ) -> float:
+        # the success term must be a class-based reward exposing a per-environment boolean ``succeeded`` buffer
+        succeeded = env.reward_manager.get_term_cfg(success_term_name).func.succeeded[env_ids]
+        current = self.current_difficulties[env_ids]
+        demoted = current if promotion_only else current - 1
+        self.current_difficulties[env_ids] = torch.where(succeeded, current + 1, demoted).clamp(
+            min=min_difficulty, max=max_difficulty
+        )
+        # Python float: the dependent curriculum terms compare and interpolate host-side
+        self.difficulty_frac = (torch.mean(self.current_difficulties) / max(max_difficulty, 1)).item()
+        return self.difficulty_frac
+
+
+def initial_final_interpolate_fn(
+    env: ManagerBasedRLEnv,
+    env_ids: Sequence[int],
+    data: Any,
+    initial_value: Any,
+    final_value: Any,
+    difficulty_term_str: str,
+) -> Any:
+    """Interpolate a term parameter between initial and final values by the current difficulty fraction.
+
+    Intended as the ``modify_fn`` of :class:`modify_term_cfg`. Works on arbitrarily nested lists and
+    tuples; scalars (int and float) are interpolated at the leaves and integers stay integers.
+
+    Args:
+        env: The environment.
+        env_ids: Environments being updated. Unused, the interpolation is shared by all environments.
+        data: Current value of the parameter, which fixes the structure and leaf types of the result.
+        initial_value: Value at zero difficulty.
+        final_value: Value at maximum difficulty.
+        difficulty_term_str: Name of the :class:`DifficultyScheduler` curriculum term to read.
+
+    Returns:
+        The interpolated value, or :attr:`modify_env_param.NO_CHANGE` while the difficulty is below 10%.
+    """
+    difficulty_term: DifficultyScheduler = getattr(env.curriculum_manager.cfg, difficulty_term_str).func
+    frac = difficulty_term.difficulty_frac
+    # leave the parameter at its configured value until the curriculum has made some progress
+    if frac < 0.1:
+        return modify_env_param.NO_CHANGE
+    return _interpolate_nested(initial_value, final_value, data, frac)
+
+
+def _interpolate_nested(initial: Any, final: Any, data: Any, frac: float) -> Any:
+    """Interpolate leaf scalars of nested sequences, preserving the container and leaf types of ``data``."""
+    if isinstance(data, Sequence) and not isinstance(data, (str, bytes)):
+        return type(data)(_interpolate_nested(i, f, d, frac) for i, f, d in zip(initial, final, data))
+    value = frac * (final - initial) + initial
+    return int(value) if isinstance(data, int) else value

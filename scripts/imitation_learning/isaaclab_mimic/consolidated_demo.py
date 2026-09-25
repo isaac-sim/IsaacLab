@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -62,8 +62,8 @@ parser.add_argument(
 )
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
-args_cli = parser.parse_args()
+# parse the arguments, forwarding unrecognized ones as Hydra-style task config overrides
+args_cli, hydra_overrides = parser.parse_known_args()
 
 # launch the simulator
 app_launcher = AppLauncher(args_cli)
@@ -73,11 +73,12 @@ simulation_app = app_launcher.app
 
 import asyncio
 import contextlib
-import gymnasium as gym
-import numpy as np
 import os
 import random
 import time
+
+import gymnasium as gym
+import numpy as np
 import torch
 
 from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
@@ -301,7 +302,6 @@ def env_loop(env, env_action_queue, shared_datagen_info_pool, asyncio_event_loop
     is_first_print = True
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         while True:
-
             actions = torch.zeros(env.unwrapped.action_space.shape)
 
             # get actions from all the data generators
@@ -371,7 +371,7 @@ def main():
         raise ValueError("Task/env name was not specified nor found in the dataset.")
 
     # parse configuration
-    env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=num_envs)
+    env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=num_envs, overrides=hydra_overrides)
     env_cfg.env_name = env_name
 
     # extract success checking function to invoke manually

@@ -1,24 +1,18 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
-import torch
 from dataclasses import MISSING
 
 import pytest
+import torch
 
 import isaaclab.utils.modifiers as modifiers
+from isaaclab.test.utils import test_devices
 from isaaclab.utils import configclass
+
+pytestmark = pytest.mark.unit
 
 
 @configclass
@@ -31,127 +25,25 @@ class ModifierTestCfg:
     num_iter: int = 10
 
 
-def test_scale_modifier():
-    """Test scale modifier."""
-    # create test data
-    init_data = torch.tensor([1.0, 2.0, 3.0])
-    scale = 2.0
-    result = torch.tensor([2.0, 4.0, 6.0])
-
-    # create test config
-    test_cfg = ModifierTestCfg(
-        cfg=modifiers.ModifierCfg(func=modifiers.scale, params={"multiplier": scale}),
-        init_data=init_data,
-        result=result,
-    )
-
-    # test modifier
-    for _ in range(test_cfg.num_iter):
-        output = test_cfg.cfg.func(test_cfg.init_data, **test_cfg.cfg.params)
-        assert torch.allclose(output, test_cfg.result)
+@pytest.mark.parametrize(
+    "func, params, result",
+    [
+        (modifiers.scale, {"multiplier": 2.0}, [2.0, 4.0, 6.0]),
+        (modifiers.bias, {"value": 1.0}, [2.0, 3.0, 4.0]),
+        (modifiers.clip, {"bounds": (1.5, 2.5)}, [1.5, 2.0, 2.5]),
+        (modifiers.clip, {"bounds": (1.5, None)}, [1.5, 2.0, 3.0]),
+        (modifiers.clip, {"bounds": (None, 2.5)}, [1.0, 2.0, 2.5]),
+    ],
+    ids=["scale", "bias", "clip", "clip_no_upper_bound", "clip_no_lower_bound"],
+)
+def test_stateless_modifiers(func, params, result):
+    """Test the stateless scale, bias, and clip modifiers."""
+    cfg = modifiers.ModifierCfg(func=func, params=params)
+    output = cfg.func(torch.tensor([1.0, 2.0, 3.0]), **cfg.params)
+    assert torch.allclose(output, torch.tensor(result))
 
 
-def test_bias_modifier():
-    """Test bias modifier."""
-    # create test data
-    init_data = torch.tensor([1.0, 2.0, 3.0])
-    bias = 1.0
-    result = torch.tensor([2.0, 3.0, 4.0])
-
-    # create test config
-    test_cfg = ModifierTestCfg(
-        cfg=modifiers.ModifierCfg(func=modifiers.bias, params={"value": bias}),
-        init_data=init_data,
-        result=result,
-    )
-
-    # test modifier
-    for _ in range(test_cfg.num_iter):
-        output = test_cfg.cfg.func(test_cfg.init_data, **test_cfg.cfg.params)
-        assert torch.allclose(output, test_cfg.result)
-
-
-def test_clip_modifier():
-    """Test clip modifier."""
-    # create test data
-    init_data = torch.tensor([1.0, 2.0, 3.0])
-    min_val = 1.5
-    max_val = 2.5
-    result = torch.tensor([1.5, 2.0, 2.5])
-
-    # create test config
-    test_cfg = ModifierTestCfg(
-        cfg=modifiers.ModifierCfg(func=modifiers.clip, params={"bounds": (min_val, max_val)}),
-        init_data=init_data,
-        result=result,
-    )
-
-    # test modifier
-    for _ in range(test_cfg.num_iter):
-        output = test_cfg.cfg.func(test_cfg.init_data, **test_cfg.cfg.params)
-        assert torch.allclose(output, test_cfg.result)
-
-
-def test_clip_no_upper_bound_modifier():
-    """Test clip modifier with no upper bound."""
-    # create test data
-    init_data = torch.tensor([1.0, 2.0, 3.0])
-    min_val = 1.5
-    result = torch.tensor([1.5, 2.0, 3.0])
-
-    # create test config
-    test_cfg = ModifierTestCfg(
-        cfg=modifiers.ModifierCfg(func=modifiers.clip, params={"bounds": (min_val, None)}),
-        init_data=init_data,
-        result=result,
-    )
-
-    # test modifier
-    for _ in range(test_cfg.num_iter):
-        output = test_cfg.cfg.func(test_cfg.init_data, **test_cfg.cfg.params)
-        assert torch.allclose(output, test_cfg.result)
-
-
-def test_clip_no_lower_bound_modifier():
-    """Test clip modifier with no lower bound."""
-    # create test data
-    init_data = torch.tensor([1.0, 2.0, 3.0])
-    max_val = 2.5
-    result = torch.tensor([1.0, 2.0, 2.5])
-
-    # create test config
-    test_cfg = ModifierTestCfg(
-        cfg=modifiers.ModifierCfg(func=modifiers.clip, params={"bounds": (None, max_val)}),
-        init_data=init_data,
-        result=result,
-    )
-
-    # test modifier
-    for _ in range(test_cfg.num_iter):
-        output = test_cfg.cfg.func(test_cfg.init_data, **test_cfg.cfg.params)
-        assert torch.allclose(output, test_cfg.result)
-
-
-def test_torch_relu_modifier():
-    """Test torch relu modifier."""
-    # create test data
-    init_data = torch.tensor([-1.0, 0.0, 1.0])
-    result = torch.tensor([0.0, 0.0, 1.0])
-
-    # create test config
-    test_cfg = ModifierTestCfg(
-        cfg=modifiers.ModifierCfg(func=torch.nn.functional.relu),
-        init_data=init_data,
-        result=result,
-    )
-
-    # test modifier
-    for _ in range(test_cfg.num_iter):
-        output = test_cfg.cfg.func(test_cfg.init_data)
-        assert torch.allclose(output, test_cfg.result)
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_digital_filter(device):
     """Test digital filter modifier."""
     # create test data
@@ -187,7 +79,7 @@ def test_digital_filter(device):
         torch.testing.assert_close(processed_data, test_cfg.result)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_integral(device):
     """Test integral modifier."""
     # create test data

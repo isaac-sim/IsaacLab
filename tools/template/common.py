@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,5 +11,5 @@ TASKS_DIR = os.path.join(ROOT_DIR, "source", "isaaclab_tasks", "isaaclab_tasks")
 TEMPLATE_DIR = os.path.join(ROOT_DIR, "tools", "template", "templates")
 
 # RL algorithms
-SINGLE_AGENT_ALGORITHMS = ["AMP", "PPO"]
+SINGLE_AGENT_ALGORITHMS = ["PPO", "AMP", "DISTILLATION"]
 MULTI_AGENT_ALGORITHMS = ["IPPO", "MAPPO"]

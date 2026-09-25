@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,10 +7,7 @@ from __future__ import annotations
 
 import os
 
-import isaacsim
-import omni.kit.commands
-import omni.usd
-
+from ...utils.version import has_kit
 from .asset_converter_base import AssetConverterBase
 from .mjcf_converter_cfg import MjcfConverterCfg
 
@@ -18,9 +15,14 @@ from .mjcf_converter_cfg import MjcfConverterCfg
 class MjcfConverter(AssetConverterBase):
     """Converter for a MJCF description file to a USD file.
 
-    This class wraps around the `isaacsim.asset.importer.mjcf`_ extension to provide a lazy implementation
-    for MJCF to USD conversion. It stores the output USD file in an instanceable format since that is
-    what is typically used in all learning related applications.
+    This class wraps around the `isaacsim.asset.importer.mjcf`_ API to provide a lazy
+    implementation for MJCF to USD conversion. When the full Isaac Sim runtime is available,
+    the Isaac Sim MJCF importer extension is enabled and used; otherwise, the API is loaded
+    from the standalone ``isaacsim-asset-isolated`` package. All conversion logic (USD schema
+    application, fix-base, density, actuator gains, self-collision, mesh merging, asset
+    transformer profile) is performed by :class:`~isaacsim.asset.importer.mjcf.MJCFImporter` —
+    this class only translates :class:`MjcfConverterCfg` into a flat
+    :class:`~isaacsim.asset.importer.mjcf.MJCFImporterConfig`.
 
     .. caution::
         The current lazy conversion implementation does not automatically trigger USD generation if
@@ -28,10 +30,15 @@ class MjcfConverter(AssetConverterBase):
         :obj:`AssetConverterBaseCfg.force_usd_conversion` to True or delete the output directory.
 
     .. note::
-        From Isaac Sim 4.5 onwards, the extension name changed from ``omni.importer.mjcf`` to
-        ``isaacsim.asset.importer.mjcf``. This converter class now uses the latest extension from Isaac Sim.
+        From Isaac Sim 5.0 onwards, the MJCF importer uses the ``mujoco-usd-converter`` library
+        and the :class:`MJCFImporter` / :class:`MJCFImporterConfig` API. The old command-based API
+        (``MJCFCreateAsset`` / ``MJCFCreateImportConfig``) is deprecated.
 
-    .. _isaacsim.asset.importer.mjcf:  https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/ext_isaacsim_asset_importer_mjcf.html
+    .. note::
+        The :attr:`~AssetConverterBaseCfg.make_instanceable` setting from the base class is not
+        supported by the new MJCF importer and will be ignored.
+
+    .. _isaacsim.asset.importer.mjcf: https://docs.isaacsim.omniverse.nvidia.com/latest/importer_exporter/ext_isaacsim_asset_importer_mjcf.html
     """
 
     cfg: MjcfConverterCfg
@@ -41,63 +48,49 @@ class MjcfConverter(AssetConverterBase):
         """Initializes the class.
 
         Args:
-            cfg: The configuration instance for URDF to USD conversion.
+            cfg: The configuration instance for MJCF to USD conversion.
         """
+        # The MJCF importer outputs to: {usd_path}/{robot_name}/{robot_name}.usda
+        # Pre-adjust `usd_file_name` to match this output structure so that lazy conversion works correctly.
+        file_basename = os.path.splitext(os.path.basename(cfg.asset_path))[0]
+        cfg.usd_file_name = os.path.join(file_basename, f"{file_basename}.usda")
         super().__init__(cfg=cfg)
 
-    """
-    Implementation specific methods.
-    """
-
     def _convert_asset(self, cfg: MjcfConverterCfg):
-        """Calls underlying Omniverse command to convert MJCF to USD.
+        """Run the Isaac Sim MJCF importer pipeline.
 
         Args:
             cfg: The configuration instance for MJCF to USD conversion.
         """
-        import_config = self._get_mjcf_import_config()
-        file_basename, _ = os.path.basename(cfg.asset_path).split(".")
-        omni.kit.commands.execute(
-            "MJCFCreateAsset",
+        # Inside Kit the importer ships as an extension and must be enabled before it can be
+        # imported; kitlessly the same module resolves from the standalone importer wheel.
+        if has_kit():
+            from ..utils import enable_extension  # noqa: PLC0415
+
+            enable_extension("isaacsim.asset.importer.mjcf")
+        from isaacsim.asset.importer.mjcf import MJCFImporter, MJCFImporterConfig  # noqa: PLC0415
+
+        import_config = MJCFImporterConfig(
             mjcf_path=cfg.asset_path,
-            import_config=import_config,
-            dest_path=self.usd_path,
-            prim_path=f"/{file_basename}",
+            usd_path=self.usd_dir,
+            import_scene=cfg.import_physics_scene,
+            merge_mesh=cfg.merge_mesh,
+            collision_from_visuals=cfg.collision_from_visuals,
+            collision_type=cfg.collision_type,
+            allow_self_collision=cfg.self_collision,
+            robot_type=cfg.robot_type,
+            fix_base=cfg.fix_base,
+            link_density=cfg.link_density if cfg.link_density > 0.0 else None,
+            override_gain_type=cfg.override_gain_type,
+            override_bias_type=cfg.override_bias_type,
+            override_gain_prm=cfg.override_gain_prm,
+            override_bias_prm=cfg.override_bias_prm,
+            run_asset_transformer=cfg.run_asset_transformer,
+            run_multi_physics_conversion=cfg.run_multi_physics_conversion,
+            debug_mode=cfg.debug_mode,
         )
 
-    def _get_mjcf_import_config(self) -> isaacsim.asset.importer.mjcf.ImportConfig:
-        """Returns the import configuration for MJCF to USD conversion.
-
-        Returns:
-            The constructed ``ImportConfig`` object containing the desired settings.
-        """
-
-        _, import_config = omni.kit.commands.execute("MJCFCreateImportConfig")
-
-        # set the unit scaling factor, 1.0 means meters, 100.0 means cm
-        # import_config.set_distance_scale(1.0)
-        # set imported robot as default prim
-        # import_config.set_make_default_prim(True)
-        # add a physics scene to the stage on import if none exists
-        # import_config.set_create_physics_scene(False)
-        # set flag to parse <site> tag
-        import_config.set_import_sites(True)
-
-        # -- instancing settings
-        # meshes will be placed in a separate usd file
-        import_config.set_make_instanceable(self.cfg.make_instanceable)
-        import_config.set_instanceable_usd_path(self.usd_instanceable_meshes_path)
-
-        # -- asset settings
-        # default density used for links, use 0 to auto-compute
-        import_config.set_density(self.cfg.link_density)
-        # import inertia tensor from urdf, if it is not specified in urdf it will import as identity
-        import_config.set_import_inertia_tensor(self.cfg.import_inertia_tensor)
-
-        # -- physics settings
-        # create fix joint for base link
-        import_config.set_fix_base(self.cfg.fix_base)
-        # self collisions between links in the articulation
-        import_config.set_self_collision(self.cfg.self_collision)
-
-        return import_config
+        generated_usd_path = MJCFImporter(import_config).import_mjcf()
+        if generated_usd_path:
+            generated_usd_path = os.path.normpath(generated_usd_path)
+            self._usd_file_name = os.path.relpath(generated_usd_path, self.usd_dir)

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,9 +9,13 @@
 """
 Base MimicEnvCfg object for Isaac Lab Mimic data generation.
 """
+
+from __future__ import annotations
+
 import enum
 
-from isaaclab.utils import configclass
+from ..managers.recorder_manager import RecorderManagerBaseCfg
+from ..utils import configclass
 
 
 @configclass
@@ -34,8 +38,21 @@ class DataGenConfig:
     Keeping failed demonstrations is useful for visualizing and debugging low success rates.
     """
 
-    max_num_failures: int = 50
-    """Maximum number of failures allowed before stopping generation."""
+    max_num_failures: int | None = None
+    """Maximum number of failed generation attempts before stopping, or None for no limit.
+
+    Only applies together with :attr:`generation_guarantee`. With the guarantee enabled, generation
+    keeps retrying until :attr:`generation_num_trials` demos succeed, so a task whose success rate is
+    low can run for an unbounded number of attempts; this caps that. Defaults to None so the
+    guarantee keeps its usual meaning unless a limit is asked for.
+
+    With the guarantee disabled, generation already stops after :attr:`generation_num_trials`
+    attempts and this field is ignored, so setting it cannot cut a fixed-attempt run short.
+
+    The bound is read once per simulation step. Attempts that end on the step that crosses it are
+    already complete, so a run over ``num_envs`` parallel environments can record up to
+    ``num_envs - 1`` failures beyond the bound; it is exact whenever attempts end on separate steps.
+    """
 
     seed: int = 1
     """Seed for randomization to ensure reproducibility."""
@@ -75,6 +92,9 @@ class DataGenConfig:
 
     use_skillgen: bool = False
     """Whether to use skillgen to generate motion trajectories."""
+
+    use_navigation_controller: bool = False
+    """Whether to use a navigation controller to generate loco-manipulation trajectories."""
 
 
 @configclass
@@ -211,7 +231,8 @@ class SubTaskConstraintConfig:
         - "coordination"
 
         For a "sequential" constraint:
-            - Data from task_constraint_configs is added to task_constraints_dict as "sequential former" task constraint.
+            - Data from task_constraint_configs is added to task_constraints_dict as "sequential former"
+              task constraint.
             - The opposite constraint, of type "sequential latter", is also added to task_constraints_dict.
             - Additionally, a ("fulfilled", Bool) key-value pair is added to task_constraints_dict.
             - This is used to check if the precondition (i.e., the sequential former task) has been met.
@@ -223,9 +244,10 @@ class SubTaskConstraintConfig:
             - The opposite constraint, of type "coordination", is also added to task_constraints_dict.
             - The number of synchronous steps is set to the minimum of subtask_len and concurrent_subtask_len.
             - This ensures both concurrent tasks end at the same time step.
-            - A "selected_src_demo_ind" and "transform" field are used to ensure the transforms used by both subtasks are the same.
+            - A "selected_src_demo_ind" and "transform" field are used to ensure the transforms used by
+              both subtasks are the same.
         """
-        task_constraints_dict = dict()
+        task_constraints_dict = {}
         if self.constraint_type == SubTaskConstraintType.SEQUENTIAL:
             constrained_task_spec_key, constrained_subtask_ind = self.eef_subtask_constraint_tuple[1]
             assert isinstance(constrained_subtask_ind, int)
@@ -308,3 +330,6 @@ class MimicEnvCfg:
 
     # List of configurations for subtask constraints
     task_constraint_configs: list[SubTaskConstraintConfig] = []
+
+    # Optional recorder configuration
+    mimic_recorder_config: RecorderManagerBaseCfg | None = None

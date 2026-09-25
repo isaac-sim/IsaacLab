@@ -1,16 +1,17 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
 from typing import Literal
 
-from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
 from isaaclab.utils import configclass
 
-from . import lights
+from ..spawner_cfg import SpawnerCfg
 
 
 @configclass
@@ -24,7 +25,7 @@ class LightCfg(SpawnerCfg):
         The default values for the attributes are those specified in the their official documentation.
     """
 
-    func: Callable = lights.spawn_light
+    func: Callable | str = "{DIR}.lights:spawn_light"
 
     prim_type: str = MISSING
     """The prim type name for the light prim."""
@@ -129,10 +130,12 @@ class DomeLightCfg(LightCfg):
 
     Valid values are:
 
-    * ``"automatic"``: Tries to determine the layout from the file itself. For example, Renderman texture files embed an explicit parameterization.
+    * ``"automatic"``: Tries to determine the layout from the file itself. For example, Renderman texture files
+      embed an explicit parameterization.
     * ``"latlong"``: Latitude as X, longitude as Y.
     * ``"mirroredBall"``: An image of the environment reflected in a sphere, using an implicitly orthogonal projection.
-    * ``"angular"``: Similar to mirroredBall but the radial dimension is mapped linearly to the angle, providing better sampling at the edges.
+    * ``"angular"``: Similar to mirroredBall but the radial dimension is mapped linearly to the angle, providing better
+      sampling at the edges.
     * ``"cubeMapVerticalCross"``: A cube map with faces laid out as a vertical cross.
     """
 

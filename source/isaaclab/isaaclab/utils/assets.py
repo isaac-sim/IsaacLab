@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,31 +13,590 @@ For more information, please check information on `Omniverse Nucleus`_.
 .. _Omniverse Nucleus: https://docs.omniverse.nvidia.com/nucleus/latest/overview/overview.html
 """
 
-import asyncio
+import contextlib
 import io
+import json
 import logging
 import os
+import posixpath
+import re
+import subprocess
 import tempfile
-import time
-from typing import Literal
+import uuid
+from collections.abc import Iterator
+from types import ModuleType
+from typing import Literal, NotRequired, TypedDict
+from urllib.parse import urlparse
 
-import carb
-import omni.client
+from filelock import FileLock
 
-# import logger
+from ..paths import ISAACLAB_ROOT
+
 logger = logging.getLogger(__name__)
 
-NUCLEUS_ASSET_ROOT_DIR = carb.settings.get_settings().get("/persistent/isaac/asset_root/cloud")
+_UDIM_RE = re.compile(r"<UDIM>", re.IGNORECASE)
+# USDZ packages own their internal dependency layout and must not be rewritten.
+_USD_EXTENSIONS = {".usd", ".usda", ".usdc"}
+_MDL_RESOURCE_RE = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"|/\*.*?\*/|//[^\r\n]*', re.DOTALL)
+_MDL_TEXTURE_RE = re.compile(r"\.(?:bmp|dds|exr|hdr|ies|jpe?g|ktx2?|png|tga|tiff?|tx)(?:[?#].*)?$", re.IGNORECASE)
+_MDL_MODULE_PATTERN = r"(?:(?:\.\.::)++|\.::)[A-Za-z_]\w*+(?:::[A-Za-z_]\w*+)*+(?:::\*)?"
+_MDL_IMPORT_RE = re.compile(rf"\bimport\s++({_MDL_MODULE_PATTERN});")
+_MDL_USING_IMPORT_RE = re.compile(
+    rf"\busing\s++({_MDL_MODULE_PATTERN})\s++import\s++(?:\*|[A-Za-z_]\w*+(?:\s*+,\s*+[A-Za-z_]\w*+)*+);"
+)
+_MDL_RELATIVE_IMPORT_RE = re.compile(
+    r"(?P<prefix>(?:\.\.::)+|\.::)(?P<module>[A-Za-z_]\w*(?:::[A-Za-z_]\w*)*)(?P<wildcard>::\*)?"
+)
+
+
+_KIT_EXPERIENCE_PATH = str(ISAACLAB_ROOT / "apps" / "isaaclab.python.kit")
+
+# Isaac Sim resolves ``persistent.isaac.asset_root.default``, so it is read first. The
+# legacy ``cloud`` setting is only consulted for experience files that predate it.
+_KIT_ASSET_ROOT_SETTINGS = ("default", "cloud")
+
+
+def _parse_kit_asset_root() -> str:
+    """Parse the configured Isaac asset root.
+
+    Returns:
+        Value of ``persistent.isaac.asset_root.default``, or of the legacy
+        ``persistent.isaac.asset_root.cloud``, from ``isaaclab.python.kit``.
+    """
+    with open(_KIT_EXPERIENCE_PATH) as f:
+        lines = f.readlines()
+    for setting in _KIT_ASSET_ROOT_SETTINGS:
+        pattern = re.compile(rf'\s*persistent\.isaac\.asset_root\.{setting}\s*=\s*"([^"]*)"')
+        for line in reversed(lines):  # read from the last line since it's the last setting defined
+            m = pattern.match(line)
+            if m:
+                return m.group(1)
+    return ""
+
+
+_ASSET_REGION_PROFILE_ENV_VAR = "ISAACSIM_ASSET_REGION_PROFILE"
+# Update this value when the China mirror moves to a new Isaac Sim asset release.
+_ISAAC_SIM_ASSET_RELEASE = "6.1"
+_CHINA_ASSET_ENDPOINT = "simready-cn.s3.oss-cn-shanghai.aliyuncs.com"
+_US_ASSET_ROOT = _parse_kit_asset_root()
+
+
+class _StorageProfile(TypedDict):
+    """OmniClient routing and asset-root values for a named asset region profile."""
+
+    asset_root: str
+    endpoint: NotRequired[str]
+    bucket: NotRequired[str]
+    region: NotRequired[str]
+    cdn_url: NotRequired[str]
+    cdn_for_list: NotRequired[bool]
+
+
+_STORAGE_PROFILES: dict[str, _StorageProfile] = {
+    "us": {
+        "asset_root": _US_ASSET_ROOT,
+    },
+    "china": {
+        "endpoint": _CHINA_ASSET_ENDPOINT,
+        "bucket": "simready-cn",
+        "region": "oss-cn-shanghai",
+        "cdn_url": "https://assets.simready.cn/",
+        "cdn_for_list": False,
+        "asset_root": f"https://{_CHINA_ASSET_ENDPOINT}/Assets/Isaac/{_ISAAC_SIM_ASSET_RELEASE}",
+    },
+}
+_CONFIGURED_STORAGE_PROFILES: set[str] = set()
+
+
+def _selected_storage_profile() -> tuple[str, _StorageProfile] | None:
+    """Return the asset region profile selected by the environment, if it is known."""
+    profile_name = os.getenv(_ASSET_REGION_PROFILE_ENV_VAR)
+    if not profile_name:
+        return None
+
+    profile = _STORAGE_PROFILES.get(profile_name)
+    if profile is None:
+        logger.warning("Ignoring %s: no asset region profile named '%s'", _ASSET_REGION_PROFILE_ENV_VAR, profile_name)
+        return None
+    return profile_name, profile
+
+
+def _configure_storage_profile(omni_client: ModuleType) -> None:
+    """Configure the selected profile on an imported ``omni.client`` module."""
+    selected_profile = _selected_storage_profile()
+    if selected_profile is None:
+        return
+
+    profile_name, profile = selected_profile
+    if profile_name in _CONFIGURED_STORAGE_PROFILES:
+        return
+
+    endpoint = profile.get("endpoint")
+    if endpoint:
+        result = omni_client.set_s3_configuration(
+            url=endpoint,
+            bucket=profile.get("bucket"),
+            region=profile.get("region"),
+            cloudfrontUrl=profile.get("cdn_url"),
+            cloudfrontForList=profile.get("cdn_for_list", False),
+            writeConfig=False,
+        )
+        if result != omni_client.Result.OK:
+            raise RuntimeError(f"Asset region profile '{profile_name}' failed to configure {endpoint}: {result}")
+
+    _CONFIGURED_STORAGE_PROFILES.add(profile_name)
+    logger.info("Applied asset region profile '%s'", profile_name)
+
+
+def configure_storage_profile() -> None:
+    """Configure OmniClient routing for the selected asset region profile.
+
+    The configuration is applied in memory and at most once per profile. Isaac Lab
+    launchers and asset helpers call this automatically. Standalone kitless scripts
+    should call it before using ``omni.client`` directly.
+
+    Raises:
+        RuntimeError: When OmniClient rejects the selected asset region profile.
+    """
+    selected_profile = _selected_storage_profile()
+    if selected_profile is None or not selected_profile[1].get("endpoint"):
+        return
+
+    import omni.client  # noqa: PLC0415
+
+    _configure_storage_profile(omni.client)
+
+
+def configure_asset_region_profile() -> None:
+    """Configure the selected asset region profile.
+
+    This name matches the public Asset Region Profile terminology. The existing
+    :func:`configure_storage_profile` initializer remains supported.
+    """
+    configure_storage_profile()
+
+
+def _get_omni_client() -> ModuleType:
+    """Import OmniClient lazily and apply the selected asset region profile."""
+    import omni.client  # noqa: PLC0415
+
+    _configure_storage_profile(omni.client)
+    return omni.client
+
+
+def _resolve_asset_root() -> str:
+    """Resolve the configured Isaac asset root.
+
+    The ``ISAACSIM_ASSET_ROOT`` environment variable follows the public Isaac Sim
+    asset-root precedence. When it is unset, the asset root from the asset region profile
+    named by ``ISAACSIM_ASSET_REGION_PROFILE`` is used. The kit file remains the fallback
+    for kitless use.
+
+    Returns:
+        Value of ``ISAACSIM_ASSET_ROOT`` without its trailing separator, or the value
+        selected by ``ISAACSIM_ASSET_REGION_PROFILE``, or the value configured in
+        ``isaaclab.python.kit``.
+    """
+    # the value is used exactly as ``isaacsim.storage.native`` uses it, so both sides resolve
+    # the same root; only the trailing separator is dropped, for ``/`` and for the documented
+    # Windows ``\``
+    asset_root = os.getenv("ISAACSIM_ASSET_ROOT")
+    if asset_root:
+        return asset_root.rstrip("/\\")
+
+    selected_profile = _selected_storage_profile()
+    if selected_profile is not None:
+        return selected_profile[1]["asset_root"]
+
+    return _parse_kit_asset_root()
+
+
+NUCLEUS_ASSET_ROOT_DIR: str = _resolve_asset_root()
 """Path to the root directory on the Nucleus Server."""
 
-NVIDIA_NUCLEUS_DIR = f"{NUCLEUS_ASSET_ROOT_DIR}/NVIDIA"
+NVIDIA_NUCLEUS_DIR: str = f"{NUCLEUS_ASSET_ROOT_DIR}/NVIDIA"
 """Path to the root directory on the NVIDIA Nucleus Server."""
 
-ISAAC_NUCLEUS_DIR = f"{NUCLEUS_ASSET_ROOT_DIR}/Isaac"
+ISAAC_NUCLEUS_DIR: str = f"{NUCLEUS_ASSET_ROOT_DIR}/Isaac"
 """Path to the ``Isaac`` directory on the NVIDIA Nucleus Server."""
 
-ISAACLAB_NUCLEUS_DIR = f"{ISAAC_NUCLEUS_DIR}/IsaacLab"
+ISAACLAB_NUCLEUS_DIR: str = f"{ISAAC_NUCLEUS_DIR}/IsaacLab"
 """Path to the ``Isaac/IsaacLab`` directory on the NVIDIA Nucleus Server."""
+
+NEWTON_ASSET_REPO_URL: str = "https://github.com/newton-physics/newton-assets.git"
+"""URL of the Newton asset repository."""
+
+NEWTON_ASSET_DIR: str = os.environ.get("NEWTON_ASSET_DIR", NEWTON_ASSET_REPO_URL)
+"""Git repository URL or local checkout directory used for Newton assets."""
+
+GIT_ASSET_CACHE_DIR: str = os.path.join(tempfile.gettempdir(), "asset_cache")
+"""Default local directory where git asset repositories are cached."""
+
+_MIRROR_FINGERPRINT_SUFFIX = ".isaaclab-cache.json"
+"""Suffix of the sidecar file recording the remote revision a locally cached asset came from."""
+
+_REMOTE_FINGERPRINTS: dict[str, dict | None] = {}
+"""Remote metadata per URL, resolved at most once per process."""
+
+_ANNOUNCED_MIRROR_DIRS: set[str] = set()
+"""Cache directories already announced, so the banner is logged once per directory."""
+
+_ANNOUNCED_MIRRORS: set[str] = set()
+"""URLs already announced, so an asset consulted repeatedly is logged once."""
+
+_MIRRORED_URLS: dict[str, str] = {}
+"""Source URL per locally cached copy, recorded as the copy is located rather than recovered
+from its path, so a cache path is never inferred from a directory that merely looks like one."""
+
+_LOCALIZED_ASSETS: dict[str, tuple[str, dict[str, tuple[int, int]]]] = {}
+"""Original roots and file stamps of completed managed trees, recorded per process."""
+
+_GIT_SSH_RE = re.compile(r"^[^@/:]+@[^:]+:.+")
+
+
+def retrieve_git_asset_path(
+    git_path: str, local_path: str, cache_dir: str | None = None, force_update: bool = False
+) -> str:
+    """Return a local path for an asset stored in a git repository.
+
+    Remote repositories are cached under :data:`GIT_ASSET_CACHE_DIR`. If the requested
+    asset is already cached, it is returned without running git. Cache population is
+    serialized, and new checkouts are published atomically so an interrupted clone cannot
+    leave an incomplete cache at the final path.
+
+    Args:
+        git_path: Git repository URL, SSH path, or existing local checkout directory.
+        local_path: Asset path relative to the git repository, or an absolute path inside it.
+        cache_dir: Directory where remote repositories are cached. Defaults to
+            :data:`GIT_ASSET_CACHE_DIR`.
+        force_update: Whether to run ``git pull --ff-only`` for an existing checkout.
+
+    Returns:
+        Local path to the requested asset.
+
+    Raises:
+        FileNotFoundError: When :paramref:`git_path` points to a missing local directory, or the asset is missing.
+        RuntimeError: When the git repository cannot be cloned or updated.
+        ValueError: When :paramref:`local_path` is a URL, resolves outside the git repository, or a cache directory
+            cannot be derived from :paramref:`git_path`.
+    """
+    if _is_git_remote_path(git_path):
+        git_asset_dir = _get_git_asset_cache_dir(git_path, cache_dir)
+        source_path = _resolve_git_asset_source_path(local_path, git_asset_dir)
+        if not force_update and os.path.exists(source_path):
+            return source_path
+
+    git_asset_dir = _get_git_asset_dir(git_path, cache_dir, force_update)
+    source_path = _resolve_git_asset_source_path(local_path, git_asset_dir)
+    if not os.path.exists(source_path):
+        raise FileNotFoundError(f"Unable to find git asset: {source_path}")
+    return source_path
+
+
+def _get_git_asset_dir(git_path: str, cache_dir: str | None = None, force_update: bool = False) -> str:
+    """Return a local checkout for a git asset repository.
+
+    Args:
+        git_path: Git repository URL, SSH path, or existing local checkout directory.
+        cache_dir: Directory where remote repositories are cached.
+        force_update: Whether to update an existing checkout.
+
+    Returns:
+        Path to a local repository checkout.
+
+    Raises:
+        FileNotFoundError: When a local :paramref:`git_path` does not exist.
+        RuntimeError: When a remote checkout cannot be prepared.
+    """
+    if not _is_git_remote_path(git_path):
+        git_asset_dir = os.path.abspath(os.path.expanduser(git_path))
+        if not os.path.isdir(git_asset_dir):
+            raise FileNotFoundError(f"Git asset path does not point to an existing directory: {git_asset_dir}")
+        if force_update and os.path.isdir(os.path.join(git_asset_dir, ".git")):
+            _run_git_command(["git", "-C", git_asset_dir, "pull", "--ff-only"])
+        return git_asset_dir
+
+    git_asset_dir = _get_git_asset_cache_dir(git_path, cache_dir)
+    with FileLock(git_asset_dir + ".lock"):
+        if os.path.isdir(os.path.join(git_asset_dir, ".git")):
+            if force_update:
+                _run_git_command(["git", "-C", git_asset_dir, "pull", "--ff-only"])
+        elif os.path.exists(git_asset_dir):
+            raise RuntimeError(f"Git asset cache exists but is not a git repository: {git_asset_dir}")
+        else:
+            cache_parent = os.path.dirname(git_asset_dir)
+            os.makedirs(cache_parent, exist_ok=True)
+            prefix = f".{os.path.basename(git_asset_dir)}."
+            with tempfile.TemporaryDirectory(prefix=prefix, dir=cache_parent) as temporary_dir:
+                temporary_path = os.path.join(temporary_dir, "checkout")
+                _run_git_command(["git", "clone", "--depth", "1", git_path, temporary_path])
+                os.replace(temporary_path, git_asset_dir)
+
+    return git_asset_dir
+
+
+def _get_git_asset_cache_dir(git_path: str, cache_dir: str | None = None) -> str:
+    """Return the cache directory for a remote git repository.
+
+    Args:
+        git_path: Git repository URL or SSH path.
+        cache_dir: Root cache directory. Defaults to :data:`GIT_ASSET_CACHE_DIR`.
+
+    Returns:
+        Cache checkout path for :paramref:`git_path`.
+    """
+    if cache_dir is None:
+        cache_dir = GIT_ASSET_CACHE_DIR
+    cache_dir = os.path.abspath(os.path.expanduser(cache_dir))
+    return os.path.join(cache_dir, _get_git_asset_repo_name(git_path))
+
+
+def _is_git_remote_path(git_path: str) -> bool:
+    """Return whether a git path is remote.
+
+    Args:
+        git_path: Git repository path.
+
+    Returns:
+        True if :paramref:`git_path` is a URL or SSH git path.
+    """
+    # ``urlparse`` reports a Windows drive letter as a scheme, so a local checkout such as
+    # ``C:\assets`` would otherwise be taken for a repository to clone. No URL scheme is a
+    # single character.
+    return len(urlparse(git_path).scheme) > 1 or _GIT_SSH_RE.match(git_path) is not None
+
+
+def _get_git_asset_repo_name(git_path: str) -> str:
+    """Return the cache directory name for a git repository.
+
+    Args:
+        git_path: Git repository URL or SSH path.
+
+    Returns:
+        Repository name without a trailing ``.git`` suffix.
+
+    Raises:
+        ValueError: When a repository name cannot be derived.
+    """
+    repo_path = urlparse(git_path).path
+    if not repo_path and _GIT_SSH_RE.match(git_path):
+        repo_path = git_path.rsplit(":", 1)[-1]
+    repo_name = os.path.basename(repo_path.rstrip("/"))
+    if repo_name.endswith(".git"):
+        repo_name = repo_name[:-4]
+    if not repo_name:
+        raise ValueError(f"Unable to determine git asset cache directory from git path: {git_path}")
+    return repo_name
+
+
+def _run_git_command(command: list[str]) -> None:
+    """Run a git command.
+
+    Args:
+        command: Git command and arguments.
+
+    Raises:
+        RuntimeError: When git is missing or the command fails.
+    """
+    try:
+        subprocess.run(command, check=True, capture_output=True)
+    except FileNotFoundError as exc:
+        raise RuntimeError("git is required to clone git asset repositories.") from exc
+    except subprocess.CalledProcessError as exc:
+        command_str = " ".join(command)
+        raise RuntimeError(f"Unable to run git asset repository command: {command_str}") from exc
+
+
+def _resolve_git_asset_source_path(local_path: str, git_asset_dir: str) -> str:
+    """Resolve an asset path inside a git checkout.
+
+    Args:
+        local_path: Asset path relative to :paramref:`git_asset_dir`, or an absolute path inside it.
+        git_asset_dir: Local git repository checkout directory.
+
+    Returns:
+        Absolute asset path.
+
+    Raises:
+        ValueError: When :paramref:`local_path` is a URL or escapes :paramref:`git_asset_dir`.
+    """
+    if urlparse(local_path).scheme and not os.path.isabs(local_path):
+        raise ValueError(f"Git asset paths must be local paths, got: {local_path}")
+
+    if os.path.isabs(local_path):
+        source_path = os.path.abspath(os.path.expanduser(local_path))
+    else:
+        source_path = os.path.abspath(os.path.join(git_asset_dir, os.path.expanduser(local_path)))
+
+    try:
+        if os.path.commonpath([git_asset_dir, source_path]) != git_asset_dir:
+            raise ValueError(f"Git asset path resolves outside git repository: {local_path}")
+    except ValueError as exc:
+        raise ValueError(f"Git asset path resolves outside git repository: {local_path}") from exc
+    return source_path
+
+
+def _mirror_path(url: str, download_dir: str) -> str:
+    """Local path a remote ``url`` mirrors to under ``download_dir``, or ``""`` if not a URL.
+
+    The scheme and host are part of the mirror layout so that two servers exposing the same
+    path (for instance a cloud and an on-prem Nucleus) do not share a cache entry.
+    """
+    parsed = urlparse(url.replace(os.sep, "/"))
+    if not parsed.scheme or not parsed.path:
+        return ""
+    # ':' (port separator) is not a valid path character on Windows
+    netloc = parsed.netloc.replace(":", "_")
+    mirrored = os.path.join(download_dir, parsed.scheme, netloc, *parsed.path.lstrip("/").split("/"))
+    # a host is what distinguishes a remote URL from a Windows drive letter, which ``urlparse``
+    # also reports as a scheme
+    if parsed.netloc:
+        _MIRRORED_URLS[os.path.abspath(mirrored)] = url
+    return mirrored
+
+
+def unmirror_file_path(path: str) -> str:
+    """Maps a locally cached asset copy back to the URL it was downloaded from.
+
+    :func:`retrieve_file_path` hands callers a local copy of a remote asset, so a stage built
+    from one records a path that only resolves on the machine holding the cache. An export of
+    that stage can use this to name the source asset instead.
+
+    Only copies this process located are known, so a locally authored path is never mistaken
+    for a cached copy. A copy mirrored by an earlier run is still recognised, because retrieval
+    walks the whole dependency tree even when every file is already cached.
+
+    Args:
+        path: Local filesystem path, typically an asset path read from a USD layer.
+
+    Returns:
+        The URL the copy was cached from, or ``""`` when this process did not cache it.
+    """
+    return _MIRRORED_URLS.get(os.path.abspath(path), "")
+
+
+def _remote_fingerprint(url: str) -> dict | None:
+    """Provider metadata identifying the revision of ``url`` the server currently holds.
+
+    Every reported field is kept, because which ones a provider fills in varies: a Nucleus
+    server reporting a content hash and an HTTP host reporting only a size and a modification
+    time both yield a usable revision marker.
+
+    The answer is resolved once per URL per process, so the existence check, the freshness
+    check and the download path share a single status probe.
+
+    Args:
+        url: Remote asset URL.
+
+    Returns:
+        The reported metadata, or ``None`` when the server does not report the file. That
+        covers both a missing file and an unreachable server, which ``omni.client`` does not
+        distinguish here.
+    """
+    if url not in _REMOTE_FINGERPRINTS:
+        omni_client = _get_omni_client()
+
+        result, entry = omni_client.stat(url.replace(os.sep, "/"))
+        _REMOTE_FINGERPRINTS[url] = (
+            {
+                "hash": str(entry.hash or ""),
+                "version": str(entry.version or ""),
+                "size": int(entry.size or 0),
+                "modified_time": str(entry.modified_time or ""),
+            }
+            if result == omni_client.Result.OK
+            else None
+        )
+    return _REMOTE_FINGERPRINTS[url]
+
+
+def _write_mirror_fingerprint(url: str, mirrored: str) -> None:
+    """Record the remote revision a freshly cached copy was taken from."""
+    fingerprint = _remote_fingerprint(url)
+    if fingerprint is None:
+        return
+    try:
+        with open(mirrored + _MIRROR_FINGERPRINT_SUFFIX, "w", encoding="utf-8") as f:
+            json.dump(fingerprint, f)
+    except OSError as exc:
+        # a copy we cannot annotate is simply re-fetched on the next run
+        logger.debug("Unable to record the asset cache fingerprint for '%s': %s", url, exc)
+
+
+def _mirror_is_current(url: str, mirrored: str) -> bool:
+    """Whether the locally cached copy of ``url`` still matches what the server holds.
+
+    A copy with no recorded fingerprint counts as outdated, so copies left by earlier Isaac Lab
+    versions are re-fetched once and annotated. When the answer cannot be obtained at all --
+    an unreachable server, or a provider that reports no metadata -- the copy is used anyway
+    and the missing guarantee is logged, so offline runs keep working.
+    """
+    remote = _remote_fingerprint(url)
+    if remote is None:
+        logger.warning(
+            "Asset server did not respond for '%s'. Using the local copy at '%s', which may be out of date.",
+            url,
+            mirrored,
+        )
+        return True
+    if not any(remote.values()):
+        logger.warning(
+            "Asset server reports no revision metadata for '%s'. Using the local copy at '%s' without a"
+            " freshness check.",
+            url,
+            mirrored,
+        )
+        return True
+    try:
+        with open(mirrored + _MIRROR_FINGERPRINT_SUFFIX, encoding="utf-8") as f:
+            return json.load(f) == remote
+    except (OSError, ValueError):
+        return False
+
+
+def _announce_local_asset(url: str, mirrored: str, download_dir: str) -> None:
+    """Announce, once per cache directory and once per asset, that a local copy is being used."""
+    if download_dir not in _ANNOUNCED_MIRROR_DIRS:
+        _ANNOUNCED_MIRROR_DIRS.add(download_dir)
+        logger.warning(
+            "Serving remote assets from the local cache under '%s'. Each copy is checked against the server"
+            " before use; delete the directory to force a full re-download.",
+            download_dir,
+        )
+    if url not in _ANNOUNCED_MIRRORS:
+        _ANNOUNCED_MIRRORS.add(url)
+        logger.info("Loading local copy of remote asset '%s' from '%s'.", url, mirrored)
+
+
+def _usable_mirror(url: str, download_dir: str | None = None) -> str:
+    """Local copy to serve ``url`` from, or ``""`` when it has to come from the server."""
+    download_dir = download_dir or tempfile.gettempdir()
+    mirrored = _mirror_path(url, download_dir)
+    if not mirrored or not os.path.isfile(mirrored) or not _mirror_is_current(url, mirrored):
+        return ""
+    _announce_local_asset(url, mirrored, download_dir)
+    return mirrored
+
+
+def _store_mirror(url: str, data: bytes) -> None:
+    """Cache a payload that was just read from the server, so later runs can reuse it."""
+    mirrored = _mirror_path(url, tempfile.gettempdir())
+    if not mirrored:
+        return
+    try:
+        os.makedirs(os.path.dirname(mirrored), exist_ok=True)
+        with FileLock(mirrored + ".lock"):
+            temporary_path = f"{mirrored}.{uuid.uuid4().hex}.partial"
+            try:
+                with open(temporary_path, "wb") as f:
+                    f.write(data)
+                os.replace(temporary_path, mirrored)
+            finally:
+                with contextlib.suppress(OSError):
+                    os.remove(temporary_path)
+            _write_mirror_fingerprint(url, mirrored)
+    except OSError as exc:
+        logger.debug("Unable to cache the asset '%s' locally: %s", url, exc)
 
 
 def check_file_path(path: str) -> Literal[0, 1, 2]:
@@ -55,60 +614,175 @@ def check_file_path(path: str) -> Literal[0, 1, 2]:
     """
     if os.path.isfile(path):
         return 1
-    # we need to convert backslash to forward slash on Windows for omni.client API
-    elif omni.client.stat(path.replace(os.sep, "/"))[0] == omni.client.Result.OK:
+
+    # a locally cached copy that still matches the server answers this without a download
+    if _usable_mirror(path):
         return 2
-    else:
-        return 0
+
+    return 2 if _remote_fingerprint(path) is not None else 0
 
 
-def retrieve_file_path(path: str, download_dir: str | None = None, force_download: bool = True) -> str:
+def retrieve_file_path(path: str, download_dir: str | None = None, force_download: bool = False) -> str:
     """Retrieves the path to a file on the Nucleus Server or locally.
 
-    If the file exists locally, then the absolute path to the file is returned.
-    If the file exists on the Nucleus Server, then the file is downloaded to the local machine
-    and the absolute path to the file is returned.
+    Dependencies are traversed through local files and remote URLs. Changed USD layers
+    are written to working copies, preserving authored layers and raw downloads. Completed
+    managed copies skip discovery while their file stamps match. Remote URLs retain the
+    normal server freshness checks. Renderer module identifiers and USDZ packages
+    retain their existing resolution behavior.
 
     Args:
         path: The path to the file.
         download_dir: The directory where the file should be downloaded. Defaults to None, in which
             case the file is downloaded to the system's temporary directory.
         force_download: Whether to force download the file from the Nucleus Server. This will overwrite
-            the local file if it exists. Defaults to True.
+            the local file if it exists. Defaults to False.
 
     Returns:
         The path to the file on the local machine.
 
     Raises:
         FileNotFoundError: When the file not found locally or on Nucleus Server.
-        RuntimeError: When the file cannot be copied from the Nucleus Server to the local machine. This
-            can happen when the file already exists locally and :attr:`force_download` is set to False.
+        RuntimeError: When the root file or a forced dependency download fails, or a resolved USD copy
+            cannot be saved.
     """
-    # check file status
-    file_status = check_file_path(path)
-    if file_status == 1:
-        return os.path.abspath(path)
-    elif file_status == 2:
-        # resolve download directory
-        if download_dir is None:
-            download_dir = tempfile.gettempdir()
-        else:
-            download_dir = os.path.abspath(download_dir)
-        # create download directory if it does not exist
-        if not os.path.exists(download_dir):
-            os.makedirs(download_dir)
-        # download file in temp directory using os
-        file_name = os.path.basename(omni.client.break_url(path.replace(os.sep, "/")).path)
-        target_path = os.path.join(download_dir, file_name)
-        # check if file already exists locally
-        if not os.path.isfile(target_path) or force_download:
-            # copy file to local machine
-            result = omni.client.copy(path.replace(os.sep, "/"), target_path, omni.client.CopyBehavior.OVERWRITE)
-            if result != omni.client.Result.OK and force_download:
-                raise RuntimeError(f"Unable to copy file: '{path}'. Is the Nucleus Server running?")
-        return os.path.abspath(target_path)
+    # Only trees completed by this process may bypass discovery. A download directory
+    # can also contain raw mirrors, caller-owned files, or interrupted downloads.
+    local_path = os.path.abspath(path)
+    completed = _LOCALIZED_ASSETS.get(local_path)
+    if completed is not None:
+        source, files = completed
+        if not force_download:
+            try:
+                if all(((stat := os.stat(file)).st_mtime_ns, stat.st_size) == stamp for file, stamp in files.items()):
+                    return local_path
+            except OSError:
+                pass
+        path = source
     else:
+        path = unmirror_file_path(local_path) or path
+
+    if check_file_path(path) == 0:
         raise FileNotFoundError(f"Unable to find the file: {path}")
+    root = os.path.abspath(path) if os.path.isfile(path) else path.replace(os.sep, "/")
+    download_dir = os.path.abspath(download_dir or tempfile.gettempdir())
+    prepared = {}
+    files = {}
+    complete = True
+    copy_dir = os.path.join(download_dir, f"isaaclab_usd_{uuid.uuid4().hex}")
+
+    def prepare(source: str) -> str | None:
+        nonlocal complete
+        if source in prepared:
+            return prepared[source]
+        remote = bool(urlparse(source).scheme) and not os.path.isabs(source)
+        target = _mirror_path(source, download_dir) if remote else source
+        prepared[source] = None
+        if _UDIM_RE.search(source):
+            for tile in range(1001, 1101):
+                tile_path = _UDIM_RE.sub(str(tile), source)
+                if check_file_path(tile_path) == 0:
+                    complete = complete and tile != 1001
+                    break
+                prepare(tile_path)
+            prepared[source] = target
+            return target
+
+        # Read detached contents while the download lock protects the raw mirror.
+        suffix = os.path.splitext(target)[1].lower()
+        with _download_file(source, download_dir, force_download) as local_path:
+            if local_path is None:
+                if source == root or (force_download and remote):
+                    raise RuntimeError(f"Unable to copy file: '{source}'")
+                complete = False
+                return None
+            stat = os.stat(local_path)
+            files[local_path] = (stat.st_mtime_ns, stat.st_size)
+            if suffix in _USD_EXTENSIONS:
+                from pxr import Ar, Sdf, UsdUtils  # noqa: PLC0415
+
+                layer = Sdf.Layer.OpenAsAnonymous(local_path)
+            else:
+                refs = _find_mdl_dependencies(local_path) if suffix == ".mdl" else ()
+
+        prepared[source] = local_path
+        if suffix not in _USD_EXTENSIONS:
+            for ref in refs:
+                dependency = prepare(_resolve_reference_url(source, ref))
+                complete = complete and dependency == _resolve_reference_url(local_path, ref)
+            return local_path
+
+        # Reserve before descending so shared children and cycles have one destination.
+        output = os.path.join(copy_dir, str(len(prepared)), os.path.basename(local_path))
+        prepared[source] = output
+        changed = False
+
+        def rewrite(ref: str) -> str:
+            nonlocal changed
+            if not ref:
+                return ref
+            dependency = _resolve_reference_url(source, ref)
+            # Unresolved MDL search identifiers belong to the renderer's module path.
+            if (
+                ref.endswith(".mdl")
+                and Ar.GetResolver().CreateIdentifier(ref, Ar.ResolvedPath(local_path)) == ref
+                and check_file_path(dependency) == 0
+            ):
+                return ref
+            resolved = prepare(dependency) or dependency
+            changed |= resolved != _resolve_reference_url(local_path, ref)
+            return resolved
+
+        UsdUtils.ModifyAssetPaths(layer, rewrite)
+        if changed:
+            os.makedirs(os.path.dirname(output))
+            if not layer.Export(output):
+                raise RuntimeError(f"Unable to save resolved USD layer: {output}")
+            stat = os.stat(output)
+            files[output] = (stat.st_mtime_ns, stat.st_size)
+            if remote:
+                _MIRRORED_URLS[output] = source
+        else:
+            prepared[source] = local_path
+        return prepared[source]
+
+    from ..app.loading_screen import report_activity
+
+    report_activity("Loading assets")
+    try:
+        result = prepare(root)
+        if complete:
+            for source, local_path in prepared.items():
+                if source != local_path:
+                    _LOCALIZED_ASSETS[local_path] = (source, files)
+        return result
+    finally:
+        report_activity(None)
+
+
+@contextlib.contextmanager
+def _download_file(source: str, download_dir: str, force_download: bool) -> Iterator[str | None]:
+    """Yield a local file while holding its remote mirror's download lock."""
+    if os.path.isabs(source) or not urlparse(source).scheme:
+        yield source if os.path.isfile(source) else None
+        return
+    omni_client = _get_omni_client()
+    target = _mirror_path(source, download_dir)
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    with FileLock(target + ".lock"):
+        if force_download or not _usable_mirror(source, download_dir):
+            temporary_path = f"{target}.{uuid.uuid4().hex}.partial"
+            try:
+                result = omni_client.copy(source, temporary_path, omni_client.CopyBehavior.OVERWRITE)
+                if result != omni_client.Result.OK:
+                    yield None
+                    return
+                os.replace(temporary_path, target)
+                _write_mirror_fingerprint(source, target)
+            finally:
+                with contextlib.suppress(OSError):
+                    os.remove(temporary_path)
+        yield target
 
 
 def read_file(path: str) -> io.BytesIO:
@@ -129,82 +803,100 @@ def read_file(path: str) -> io.BytesIO:
         with open(path, "rb") as f:
             return io.BytesIO(f.read())
     elif file_status == 2:
-        file_content = omni.client.read_file(path.replace(os.sep, "/"))[2]
-        return io.BytesIO(memoryview(file_content).tobytes())
+        # Read the local copy when an earlier run already fetched this revision. Actuator
+        # networks and similar payloads are read at every startup, so a remote read re-downloads
+        # megabytes that :func:`retrieve_file_path` already cached.
+        mirrored = _usable_mirror(path)
+        if mirrored:
+            with open(mirrored, "rb") as f:
+                return io.BytesIO(f.read())
+
+        omni_client = _get_omni_client()
+
+        file_content = omni_client.read_file(path.replace(os.sep, "/"))[2]
+        data = memoryview(file_content).tobytes()
+        # cache what was just downloaded, so the next run reads it from disk
+        _store_mirror(path, data)
+        return io.BytesIO(data)
     else:
         raise FileNotFoundError(f"Unable to find the file: {path}")
 
 
-"""
-Nucleus Connection.
-"""
-
-
-def check_usd_path_with_timeout(usd_path: str, timeout: float = 300, log_interval: float = 30) -> bool:
-    """Checks whether the given USD file path is available on the NVIDIA Nucleus server.
-
-    This function synchronously runs an asynchronous USD path availability check,
-    logging progress periodically until it completes. The file is available on the server
-    if the HTTP status code is 200. Otherwise, the file is not available on the server.
-
-    This is useful for checking server responsiveness before attempting to load a remote
-    asset. It will block execution until the check completes or times out.
-
-    Args:
-        usd_path: The remote USD file path to check.
-        timeout: Maximum time (in seconds) to wait for the server check.
-        log_interval: Interval (in seconds) at which progress is logged.
-
-    Returns:
-        Whether the given USD path is available on the server.
-    """
-    start_time = time.time()
-    loop = asyncio.get_event_loop()
-
-    coroutine = _is_usd_path_available(usd_path, timeout)
-    task = asyncio.ensure_future(coroutine)
-
-    next_log_time = start_time + log_interval
-
-    first_log = True
-    while not task.done():
-        now = time.time()
-        if now >= next_log_time:
-            elapsed = int(now - start_time)
-            if first_log:
-                logger.warning(f"Checking server availability for USD path: {usd_path} (timeout: {timeout}s)")
-                first_log = False
-            logger.warning(f"Waiting for server response... ({elapsed}s elapsed)")
-            next_log_time += log_interval
-        loop.run_until_complete(asyncio.sleep(0.1))  # Yield to allow async work
-
-    return task.result()
-
-
-"""
-Helper functions.
-"""
-
-
-async def _is_usd_path_available(usd_path: str, timeout: float) -> bool:
-    """Checks whether the given USD path is available on the Omniverse Nucleus server.
-
-    This function is a asynchronous routine to check the availability of the given USD path on the Omniverse Nucleus server.
-    It will return True if the USD path is available on the server, False otherwise.
-
-    Args:
-        usd_path: The remote or local USD file path to check.
-        timeout: Timeout in seconds for the async stat call.
-
-    Returns:
-        Whether the given USD path is available on the server.
-    """
+def _find_mdl_dependencies(local_path: str) -> set[str]:
+    """Collect MDL resources and relative imports that USD does not discover."""
     try:
-        result, _ = await asyncio.wait_for(omni.client.stat_async(usd_path), timeout=timeout)
-        return result == omni.client.Result.OK
-    except asyncio.TimeoutError:
-        logger.warning(f"Timed out after {timeout}s while checking for USD: {usd_path}")
-        return False
-    except Exception as ex:
-        logger.warning(f"Exception during USD file check: {type(ex).__name__}: {ex}")
-        return False
+        with open(local_path, encoding="utf-8") as f:
+            source = f.read()
+    except OSError as e:
+        logger.warning("Failed to open MDL file: %s (%s)", local_path, e)
+        return set()
+
+    refs = set()
+
+    for match in _MDL_RESOURCE_RE.finditer(source):
+        ref = match.group(1)
+        if ref and _MDL_TEXTURE_RE.search(ref.strip()):
+            refs.add(ref.strip())
+
+    source_code = _MDL_RESOURCE_RE.sub("", source)
+    for match in _MDL_USING_IMPORT_RE.finditer(source_code):
+        refs.update(_find_mdl_import_dependencies(match.group(1)))
+    source_code = _MDL_USING_IMPORT_RE.sub("", source_code)
+    for match in _MDL_IMPORT_RE.finditer(source_code):
+        refs.update(_find_mdl_import_dependencies(match.group(1)))
+
+    return refs
+
+
+def _find_mdl_import_dependencies(import_clause: str) -> set[str]:
+    """Collect local MDL modules referenced by an import clause."""
+    refs = set()
+
+    for match in _MDL_RELATIVE_IMPORT_RE.finditer(import_clause):
+        prefix = match.group("prefix")
+        package_prefix = [".."] * prefix.count("..::")
+        components = [component for component in match.group("module").split("::") if component]
+        if not components:
+            continue
+
+        if match.group("wildcard") is not None:
+            candidate_lengths = (len(components),)
+        else:
+            # ``import .::A::B;`` can mean module ``A::B`` or symbol ``B`` from module ``A``.
+            candidate_lengths = range(1, len(components) + 1)
+
+        for length in candidate_lengths:
+            refs.add(posixpath.join(*(package_prefix + components[:length])) + ".mdl")
+
+    return refs
+
+
+def _resolve_reference_url(base_url: str, ref: str) -> str:
+    """Resolve a USD reference against a base URL.
+
+    Args:
+        base_url: URL or local path containing the reference.
+        ref: Referenced asset path.
+
+    Returns:
+        Resolved URL or local path.
+    """
+    ref = ref.strip()
+    if not ref:
+        return ref
+
+    parsed_ref = urlparse(ref)
+    if parsed_ref.scheme:
+        return ref
+
+    base = urlparse(base_url)
+    if base.scheme == "":
+        base_dir = os.path.dirname(base_url)
+        return os.path.normpath(os.path.join(base_dir, ref))
+
+    base_dir = posixpath.dirname(base.path)
+    if ref.startswith("/"):
+        new_path = posixpath.normpath(ref)
+    else:
+        new_path = posixpath.normpath(posixpath.join(base_dir, ref))
+    return f"{base.scheme}://{base.netloc}{new_path}"

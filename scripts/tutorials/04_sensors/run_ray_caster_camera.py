@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,7 +11,7 @@ The camera sensor is based on using Warp kernels which do ray-casting against st
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_ray_caster_camera.py
+    uv run python scripts/tutorials/04_sensors/run_ray_caster_camera.py --viz kit
 
 """
 
@@ -36,10 +36,9 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import os
-import torch
+from typing import Any
 
-import isaacsim.core.utils.prims as prim_utils
-import omni.replicator.core as rep
+import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.ray_caster import RayCasterCamera, RayCasterCameraCfg, patterns
@@ -53,12 +52,12 @@ def define_sensor() -> RayCasterCamera:
     # Camera base frames
     # In contras to the USD camera, we associate the sensor to the prims at these locations.
     # This means that parent prim of the sensor is the prim at this location.
-    prim_utils.create_prim("/World/Origin_00/CameraSensor", "Xform")
-    prim_utils.create_prim("/World/Origin_01/CameraSensor", "Xform")
+    sim_utils.create_prim("/World/Origin_00/CameraSensor", "Xform")
+    sim_utils.create_prim("/World/Origin_01/CameraSensor", "Xform")
 
     # Setup camera sensor
     camera_cfg = RayCasterCameraCfg(
-        prim_path="/World/Origin_.*/CameraSensor",
+        prim_path="/World/Origin_[^/]+/CameraSensor",
         mesh_prim_paths=["/World/ground"],
         update_period=0.1,
         offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0)),
@@ -98,9 +97,14 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     # extract entities for simplified notation
     camera: RayCasterCamera = scene_entities["camera"]
 
-    # Create replicator writer
-    output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", "ray_caster_camera")
-    rep_writer = rep.BasicWriter(output_dir=output_dir, frame_padding=3)
+    # Create the Replicator writer only when saving. The ray-cast camera itself
+    # is Warp-based and does not require Replicator or RTX rendering extensions.
+    rep_writer: Any | None = None
+    if args_cli.save:
+        import omni.replicator.core as rep
+
+        output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", "ray_caster_camera")
+        rep_writer = rep.BasicWriter(output_dir=output_dir, frame_padding=3)
 
     # Set pose: There are two ways to set the pose of the camera.
     # -- Option-1: Set pose using view
@@ -132,18 +136,17 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
             single_cam_data = convert_dict_to_backend(
                 {k: v[camera_index] for k, v in camera.data.output.items()}, backend="numpy"
             )
-            # Extract the other information
-            single_cam_info = camera.data.info[camera_index]
-
             # Pack data back into replicator format to save them using its writer
             rep_output = {"annotators": {}}
-            for key, data, info in zip(single_cam_data.keys(), single_cam_data.values(), single_cam_info.values()):
+            for key, data in single_cam_data.items():
+                info = camera.data.info.get(key)
                 if info is not None:
                     rep_output["annotators"][key] = {"render_product": {"data": data, **info}}
                 else:
                     rep_output["annotators"][key] = {"render_product": {"data": data}}
             # Save images
             rep_output["trigger_outputs"] = {"on_time": camera.frame[camera_index]}
+            assert rep_writer is not None
             rep_writer.write(rep_output)
 
             # Pointcloud in world frame

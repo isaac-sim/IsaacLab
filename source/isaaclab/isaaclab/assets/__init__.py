@@ -1,13 +1,12 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Sub-package for different assets, such as rigid objects and articulations.
 
-An asset is a physical object that can be spawned in the simulation. The class handles both
-the spawning of the asset into the USD stage as well as initialization of necessary physics
-handles to interact with the asset.
+An :class:`Asset` authors an object in the stage without creating a runtime simulation view.
+:class:`AssetBase` extends it with physics handles and data buffers for objects that need runtime interaction.
 
 Upon construction of the asset instance, the prim corresponding to the asset is spawned into the
 USD stage if the spawn configuration is not None. The spawn configuration is defined in the
@@ -16,7 +15,7 @@ an expression, then the prim is spawned at all the matching paths. Otherwise, a 
 spawned at the configured path. For more information on the spawn configuration, see the
 :mod:`isaaclab.sim.spawners` module.
 
-The asset class also registers callbacks for the stage play/stop events. These are used to
+Runtime-view asset classes also register callbacks for the stage play/stop events. These are used to
 construct the physics handles for the asset as the physics engine is only available when the
 stage is playing. Additionally, the class registers a callback for debug visualization of the
 asset. This can be enabled by setting the :attr:`AssetBaseCfg.debug_vis` attribute to True.
@@ -38,10 +37,6 @@ specified joint targets are not directly applied to the simulator but are instea
 the corresponding actuator torques.
 """
 
-from .articulation import Articulation, ArticulationCfg, ArticulationData
-from .asset_base import AssetBase
-from .asset_base_cfg import AssetBaseCfg
-from .deformable_object import DeformableObject, DeformableObjectCfg, DeformableObjectData
-from .rigid_object import RigidObject, RigidObjectCfg, RigidObjectData
-from .rigid_object_collection import RigidObjectCollection, RigidObjectCollectionCfg, RigidObjectCollectionData
-from .surface_gripper import SurfaceGripper, SurfaceGripperCfg
+from ..utils.module import lazy_export
+
+lazy_export()

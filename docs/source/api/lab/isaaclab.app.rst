@@ -8,6 +8,17 @@
    .. autosummary::
 
       AppLauncher
+      LoadingScreen
+      Scan
+
+   .. rubric:: Functions
+
+   .. autosummary::
+
+      launch_simulation
+      make_physics_cfg
+      report_activity
+      scan
 
 
 Environment variables
@@ -36,34 +47,79 @@ The following details the behavior of the class based on the environment variabl
 
 * **Public IP Address**: When using the environment variable ``LIVESTREAM={1,2}``, set the ``PUBLIC_IP`` envvar to define the public IP address endpoint for livestreaming remotely.
 
-* **Enable cameras**: If the environment variable ``ENABLE_CAMERAS`` is set to 1, then the
-  cameras are enabled. This is useful for running the simulator without a GUI but still rendering the
-  viewport and camera images.
-
-  * ``ENABLE_CAMERAS=1``: Enables the offscreen-render pipeline which allows users to render
-    the scene without launching a GUI.
-
-  .. note::
-
-      The off-screen rendering pipeline only works when used in conjunction with the
-      :class:`isaaclab.sim.SimulationContext` class. This is because the off-screen rendering
-      pipeline enables flags that are internally used by the SimulationContext class.
+Camera and offscreen rendering support is enabled automatically. No environment variable or command-line
+option is required for camera tasks.
 
 
 To set the environment variables, one can use the following command in the terminal:
 
-.. code:: bash
+.. tab-set::
+   :sync-group: os
 
-   export LIVESTREAM=2
-   export ENABLE_CAMERAS=1
-   # run the python script
-   ./isaaclab.sh -p scripts/demos/quadrupeds.py
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux x86_64
+      :sync: linux-x86_64
 
-Alternatively, one can set the environment variables to the python script directly:
+      .. code-block:: bash
 
-.. code:: bash
+         export LIVESTREAM=2
+         # run the python script
+         uv run --extra isaacsim isaaclab demo zoo --physics isaacsim_physx --viz kit
 
-   LIVESTREAM=2 ENABLE_CAMERAS=1 ./isaaclab.sh -p scripts/demos/quadrupeds.py
+      Alternatively, set the environment variable inline for a single invocation:
+
+      .. code-block:: bash
+
+         LIVESTREAM=2 uv run --extra isaacsim isaaclab demo zoo --physics isaacsim_physx --viz kit
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux aarch64 (DGX Spark)
+      :sync: linux-aarch64
+
+      .. code-block:: bash
+
+         export LIVESTREAM=2
+         # run the python script
+         LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 uv run --extra isaacsim isaaclab demo zoo --physics isaacsim_physx --viz kit
+
+      Alternatively, set the environment variable inline for a single invocation:
+
+      .. code-block:: bash
+
+         LIVESTREAM=2 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 uv run --extra isaacsim isaaclab demo zoo --physics isaacsim_physx --viz kit
+
+      .. note::
+
+         Direct Python commands that import Isaac Sim on aarch64 require the
+         ``LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1`` prefix shown above. See
+         :ref:`installation-method-uv`.
+
+      .. warning::
+
+         Livestreaming is not currently supported or validated on DGX Spark. See the
+         :doc:`/source/setup/installation/index` for the current list of features not
+         yet validated on this platform.
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      In Command Prompt:
+
+      .. code-block:: batch
+
+         set LIVESTREAM=2
+         uv run --extra isaacsim isaaclab demo zoo --physics isaacsim_physx --viz kit
+
+      In PowerShell:
+
+      .. code-block:: powershell
+
+         $env:LIVESTREAM = "2"
+         uv run --extra isaacsim isaaclab demo zoo --physics isaacsim_physx --viz kit
+
+      .. note::
+
+         The POSIX inline ``VAR=value <command>`` prefix form used on Linux (for example
+         ``LIVESTREAM=2 uv run ...``) has no Windows equivalent; use one of the two forms
+         above instead.
 
 
 Overriding the environment variables
@@ -77,7 +133,7 @@ The following snippet shows how use the :class:`AppLauncher` in different ways:
 
 .. code:: python
 
-   import argparser
+   import argparse
 
    from isaaclab.app import AppLauncher
 
@@ -111,5 +167,37 @@ Simulation App Launcher
    :members:
 
 
-.. _livestream: https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/manual_livestream_clients.html
+Simulation Launcher
+-------------------
+
+.. autofunction:: launch_simulation
+
+.. autofunction:: make_physics_cfg
+
+.. autofunction:: scan
+
+.. autoclass:: Scan
+   :members:
+
+
+.. _livestream: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html
 .. _`WebRTC Livestream`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab.app` API.
+
+.. currentmodule:: isaaclab.app
+
+.. autosummary::
+   :nosignatures:
+
+   LoadingScreen
+   SettingsManager
+
+.. autoclass:: LoadingScreen
+   :show-inheritance:
+
+.. autoclass:: SettingsManager
+   :show-inheritance:

@@ -1,11 +1,14 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Sub-module that provides a wrapper around the Python 3.7 onwards ``dataclasses`` module."""
 
+import dataclasses
 import inspect
+import re
+import sys
 import types
 from collections.abc import Callable
 from copy import deepcopy
@@ -13,6 +16,10 @@ from dataclasses import MISSING, Field, dataclass, field, replace
 from typing import Any, ClassVar
 
 from .dict import class_to_dict, update_class_from_dict
+from .string import ResolvableString
+
+_CALLABLE_STR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_\\.]*:[A-Za-z_][A-Za-z0-9_]*$")
+_CALLABLE_STR_WITH_DIR_RE = re.compile(r"^\{DIR\}(?:\.[A-Za-z_][A-Za-z0-9_]*)*:[A-Za-z_][A-Za-z0-9_]*$")
 
 _CONFIGCLASS_METHODS = ["to_dict", "from_dict", "replace", "copy", "validate"]
 """List of class methods added at runtime to dataclass."""
@@ -41,13 +48,17 @@ def configclass(cls, **kwargs):
     the above two issues. It also provides additional helper functions for dictionary <-> class
     conversion and easily copying class instances.
 
+    Fields declared with ``field(metadata={"copy": False})`` retain their supplied value by reference
+    during construction, :meth:`copy`, and :meth:`replace`. Use this for borrowed native inputs that
+    must not be duplicated; ordinary configuration fields remain independently copied.
+
     Usage:
 
     .. code-block:: python
 
         from dataclasses import MISSING
 
-        from isaaclab.utils.configclass import configclass
+        from isaaclab.utils import configclass
 
 
         @configclass
@@ -61,6 +72,7 @@ def configclass(cls, **kwargs):
             num_envs: int = MISSING
             episode_length: int = 2000
             viewer: ViewerCfg = ViewerCfg()
+
 
         # create configuration instance
         env_cfg = EnvCfg(num_envs=24)
@@ -83,6 +95,11 @@ def configclass(cls, **kwargs):
 
     .. _dataclass: https://docs.python.org/3/library/dataclasses.html
     """
+    # snapshot field names declared in *this* class body before configclass
+    # merges parent fields — used by _field_module_dir to resolve {DIR} correctly.
+    _own_ann = set(cls.__dict__.get("__annotations__", {}).keys())
+    _own_body = {k for k in cls.__dict__ if not k.startswith("__")}
+    cls.__configclass_own_fields__ = frozenset(_own_ann | _own_body)
     # add type annotations
     _add_annotation_types(cls)
     # add field factory
@@ -153,6 +170,7 @@ def _replace_class_with_kwargs(obj: object, **kwargs) -> object:
             x: int
             y: int
 
+
         c = C(1, 2)
         c1 = c.replace(x=3)
         assert c1.x == 3 and c1.y == 2
@@ -170,6 +188,71 @@ def _replace_class_with_kwargs(obj: object, **kwargs) -> object:
 def _copy_class(obj: object) -> object:
     """Return a new object with the same fields as the original."""
     return replace(obj)
+
+
+def _field_module_dir(obj: Any, key: str | None = None) -> str | None:
+    """Return module parent package path for an object or one of its declared fields."""
+    cls = type(obj)
+    if key is not None:
+        # Use nearest declaration in MRO (subclass override wins).
+        # We prefer __configclass_own_fields__ (the snapshot taken before
+        # _process_mutable_types copies parent fields into every subclass's
+        # __dict__) so that {DIR} resolves relative to the class that
+        # *originally* declared the field, not the subclass that inherited it.
+        for mro_cls in cls.__mro__:
+            if mro_cls is object:
+                continue
+            own_fields = getattr(mro_cls, "__configclass_own_fields__", None)
+            if own_fields is not None:
+                if key in own_fields:
+                    cls = mro_cls
+                    break
+            elif key in mro_cls.__dict__:
+                cls = mro_cls
+                break
+    module_name = getattr(cls, "__module__", "")
+    return module_name.rsplit(".", 1)[0] if "." in module_name else (module_name or None)
+
+
+def _wrap_resolvable_strings(value: Any, module_dir: str | None = None, _seen: set[int] | None = None) -> Any:
+    """Recursively wrap callable-like strings with :class:`ResolvableString`."""
+    if isinstance(value, str) and (_CALLABLE_STR_RE.match(value) or _CALLABLE_STR_WITH_DIR_RE.match(value)):
+        if "{DIR}" in value:
+            if module_dir is None:
+                raise ValueError(f"Cannot resolve '{{DIR}}' in '{value}' because no module context is available.")
+            value = value.replace("{DIR}", module_dir)
+        return ResolvableString(value)
+    is_dataclass_instance = hasattr(value, "__dataclass_fields__") and hasattr(value, "__dict__")
+    is_container = isinstance(value, (list, tuple, dict))
+    if is_dataclass_instance or is_container:
+        if _seen is None:
+            _seen = set()
+        value_id = id(value)
+        if value_id in _seen:
+            return value
+        _seen.add(value_id)
+    if isinstance(value, list):
+        wrapped = [_wrap_resolvable_strings(item, module_dir=module_dir, _seen=_seen) for item in value]
+        if len(wrapped) == len(value) and all(new_item is old_item for new_item, old_item in zip(wrapped, value)):
+            return value
+        return wrapped
+    if isinstance(value, tuple):
+        wrapped = tuple(_wrap_resolvable_strings(item, module_dir=module_dir, _seen=_seen) for item in value)
+        if len(wrapped) == len(value) and all(new_item is old_item for new_item, old_item in zip(wrapped, value)):
+            return value
+        return wrapped
+    if isinstance(value, dict):
+        wrapped = {
+            key: _wrap_resolvable_strings(item, module_dir=module_dir, _seen=_seen) for key, item in value.items()
+        }
+        if len(wrapped) == len(value) and all(wrapped[key] is value[key] for key in value):
+            return value
+        return wrapped
+    if is_dataclass_instance:
+        for key, item in value.__dict__.items():
+            nested_module_dir = _field_module_dir(value, key)
+            setattr(value, key, _wrap_resolvable_strings(item, module_dir=nested_module_dir, _seen=_seen))
+    return value
 
 
 """
@@ -205,20 +288,25 @@ def _add_annotation_types(cls):
             continue
         # get base class annotations
         ann = base.__dict__.get("__annotations__", {})
-        # directly add all annotations from base class
-        hints.update(ann)
         # iterate over base class members
         # Note: Do not change this to dir(base) since it orders the members alphabetically.
         #   This is not desirable since the order of the members is important in some cases.
+        # Note: We add annotated members while iterating over the class members (instead of
+        #   bulk-adding all annotations beforehand) to preserve the declaration order when
+        #   only some members have type annotations. Otherwise, annotated members would jump
+        #   ahead of non-annotated ones in the resulting field order.
         for key in base.__dict__:
             # get class member
             value = getattr(base, key)
             # skip members
             if _skippable_class_member(key, value, hints):
                 continue
+            # add type annotations for members that have explicit type annotations
+            if key in ann:
+                hints[key] = ann[key]
             # add type annotations for members that don't have explicit type annotations
             # for these, we deduce the type from the default value
-            if not isinstance(value, type):
+            elif not isinstance(value, type):
                 if key not in hints:
                     # check if var type is not MISSING
                     # we cannot deduce type from MISSING!
@@ -234,6 +322,10 @@ def _add_annotation_types(cls):
                 #   the name of the type matches the name of the variable.
                 # since Python 3.10, type hints are stored as strings
                 hints[key] = f"type[{value.__name__}]"
+        # add remaining annotations that do not have a corresponding class member (e.g. annotation-only
+        # declarations) or whose member was skipped above. For keys already present in the hints,
+        # this only refreshes the type and keeps their original position.
+        hints.update(ann)
 
     # Note: Do not change this line. `cls.__dict__.get("__annotations__", {})` is different from
     #   `cls.__annotations__` because of inheritance.
@@ -241,15 +333,29 @@ def _add_annotation_types(cls):
     cls.__annotations__ = hints
 
 
-def _validate(obj: object, prefix: str = "") -> list[str]:
+def _validate(
+    obj: object,
+    prefix: str = "",
+    _custom_validators: list[Callable[[], None]] | None = None,
+) -> list[str]:
     """Check the validity of configclass object.
 
     This function checks if the object is a valid configclass object. A valid configclass object contains no MISSING
-    entries.
+    entries. Additionally, ``validate_config`` hooks are called on the root object and every nested configclass to
+    perform domain-specific validation.
+
+    Subclasses can define ``validate_config(self)`` to add custom checks::
+
+        @configclass
+        class MyEnvCfg(ManagerBasedEnvCfg):
+            def validate_config(self):
+                if self.some_field == "bad":
+                    raise ValueError("some_field cannot be 'bad'.")
 
     Args:
         obj: The object to check.
         prefix: The prefix to add to the missing fields. Defaults to ''.
+        _custom_validators: Internal post-order accumulator for custom validation hooks.
 
     Returns:
         A list of missing fields.
@@ -258,6 +364,9 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
         TypeError: When the object is not a valid configuration object.
     """
     missing_fields = []
+    is_root = _custom_validators is None and prefix == ""
+    if _custom_validators is None:
+        _custom_validators = []
 
     if type(obj).__name__ == "MeshConverterCfg":
         return missing_fields
@@ -268,7 +377,7 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
     elif isinstance(obj, (list, tuple)):
         for index, item in enumerate(obj):
             current_path = f"{prefix}[{index}]"
-            missing_fields.extend(_validate(item, prefix=current_path))
+            missing_fields.extend(_validate(item, prefix=current_path, _custom_validators=_custom_validators))
         return missing_fields
     elif isinstance(obj, dict):
         # Convert any non-string keys to strings to allow validation of dict with non-string keys
@@ -286,27 +395,38 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
         if key.startswith("__"):
             continue
         current_path = f"{prefix}.{key}" if prefix else key
-        missing_fields.extend(_validate(value, prefix=current_path))
+        missing_fields.extend(_validate(value, prefix=current_path, _custom_validators=_custom_validators))
+
+    # Collect hooks in post-order so nested configs validate before their owners.
+    # Arbitrary nested objects are traversed for missing fields but do not participate in this protocol.
+    if is_root or getattr(type(obj), "validate", None) is _validate:
+        custom_validate = getattr(obj, "validate_config", None)
+        if callable(custom_validate):
+            _custom_validators.append(custom_validate)
 
     # raise an error only once at the top-level call
-    if prefix == "" and missing_fields:
-        formatted_message = "\n".join(f"  - {field}" for field in missing_fields)
-        raise TypeError(
-            f"Missing values detected in object {obj.__class__.__name__} for the following"
-            f" fields:\n{formatted_message}\n"
-        )
+    if is_root:
+        if missing_fields:
+            formatted_message = "\n".join(f"  - {field}" for field in missing_fields)
+            raise TypeError(
+                f"Missing values detected in object {obj.__class__.__name__} for the following"
+                f" fields:\n{formatted_message}\n"
+            )
+        for custom_validate in _custom_validators:
+            custom_validate()
     return missing_fields
 
 
 def _process_mutable_types(cls):
     """Initialize all mutable elements through :obj:`dataclasses.Field` to avoid unnecessary complaints.
 
-    By default, dataclass requires usage of :obj:`field(default_factory=...)` to reinitialize mutable objects every time a new
-    class instance is created. If a member has a mutable type and it is created without specifying the `field(default_factory=...)`,
-    then Python throws an error requiring the usage of `default_factory`.
+    By default, dataclass requires usage of :obj:`field(default_factory=...)` to reinitialize mutable objects
+    every time a new class instance is created. If a member has a mutable type and it is created without
+    specifying the `field(default_factory=...)`, then Python throws an error requiring the usage of `default_factory`.
 
-    Additionally, Python only explicitly checks for field specification when the type is a list, set or dict. This misses the
-    use-case where the type is class itself. Thus, the code silently carries a bug with it which can lead to undesirable effects.
+    Additionally, Python only explicitly checks for field specification when the type is a list, set or dict.
+    This misses the use-case where the type is class itself. Thus, the code silently carries a bug with it which
+    can lead to undesirable effects.
 
     This function deals with this issue
 
@@ -359,18 +479,15 @@ def _process_mutable_types(cls):
     for key in ann:
         # find matching field in class
         value = class_members.get(key, MISSING)
-        # check if key belongs to ClassVar
-        # in that case, we cannot use default_factory!
-        origin = getattr(ann[key], "__origin__", None)
+        # check if key belongs to ClassVar -- in that case, we cannot use default_factory!
+        # ``from __future__ import annotations`` turns annotations into strings, so we
+        # also detect the string form (``"ClassVar[...]"``) for files using PEP 563.
+        ann_value = ann[key]
+        if isinstance(ann_value, str) and ann_value.startswith(("ClassVar", "typing.ClassVar")):
+            continue
+        origin = getattr(ann_value, "__origin__", None)
         if origin is ClassVar:
             continue
-        # check if f is MISSING
-        # note: commented out for now since it causes issue with inheritance
-        #   of dataclasses when parent have some positional and some keyword arguments.
-        # Ref: https://stackoverflow.com/questions/51575931/class-inheritance-in-python-3-7-dataclasses
-        # TODO: check if this is fixed in Python 3.10
-        # if f is MISSING:
-        #     continue
         if isinstance(value, Field):
             setattr(cls, key, value)
         elif not isinstance(value, type):
@@ -386,9 +503,10 @@ def _custom_post_init(obj):
     proxy type i.e. a read only proxy for mapping objects. The error is thrown when using hierarchical data-classes
     for configuration.
     """
+    borrowed = {name for name, field in obj.__dataclass_fields__.items() if field.metadata.get("copy") is False}
     for key in dir(obj):
         # skip dunder members
-        if key.startswith("__"):
+        if key.startswith("__") or key in borrowed:
             continue
         # get data member
         value = getattr(obj, key)
@@ -396,7 +514,8 @@ def _custom_post_init(obj):
         ann = obj.__class__.__dict__.get(key)
         # duplicate data members that are mutable
         if not callable(value) and not isinstance(ann, property):
-            setattr(obj, key, deepcopy(value))
+            copied_value = deepcopy(value)
+            setattr(obj, key, _wrap_resolvable_strings(copied_value, module_dir=_field_module_dir(obj, key)))
 
 
 def _combined_function(f1: Callable, f2: Callable) -> Callable:
@@ -497,3 +616,54 @@ def _return_f(f: Any) -> Callable[[], Any]:
             return deepcopy(f)
 
     return _wrap
+
+
+def checked_apply(src: Any, target: Any) -> None:
+    """Forward every declared field on ``src`` (a dataclass) onto ``target``.
+
+    Used by Isaac Lab configclasses that mirror an upstream/external dataclass
+    (for example, Newton's ``ShapeConfig``): declare the overridable fields
+    once on the wrapper, then forward them to the upstream object via this
+    helper instead of writing ``setattr`` lines per field.
+
+    Raises :class:`AttributeError` if ``target`` is missing a field declared
+    on ``src``. The two structures must match — the check guards against
+    silent no-ops when the upstream API drifts (the bug class PR #5289 fixed
+    for Newton ``ShapeConfig.contact_margin`` → ``margin``).
+
+    Args:
+        src: Dataclass instance whose declared fields will be forwarded.
+            Field names live here; this is the single source of truth.
+        target: Object to receive the field values. Must already expose
+            an attribute for every declared field on ``src``.
+
+    Raises:
+        AttributeError: If ``target`` does not already have an attribute
+            matching one of ``src``'s declared field names.
+    """
+    if not hasattr(src, "__dataclass_fields__"):
+        raise TypeError(f"checked_apply: src must be a dataclass, got {type(src).__name__}")
+    for f in dataclasses.fields(src):
+        if not hasattr(target, f.name):
+            target_path = f"{type(target).__module__}.{type(target).__name__}"
+            raise AttributeError(
+                f"{target_path} has no attribute `{f.name}`. {type(src).__name__} is out of sync with target."
+            )
+        setattr(target, f.name, getattr(src, f.name))
+
+
+class _CallableModule(types.ModuleType):
+    """Module type that makes :mod:`isaaclab.utils.configclass` usable as the decorator it defines.
+
+    This sub-module and the :func:`configclass` decorator share a name, so ``isaaclab.utils.configclass``
+    can only resolve to one object. Making the module callable lets it be both: ``@configclass`` works
+    on the value exported by :mod:`isaaclab.utils`, and the module's own members stay reachable through
+    ``import isaaclab.utils.configclass as ...`` and dotted attribute access.
+    """
+
+    def __call__(self, cls: type) -> type:
+        """Apply the :func:`configclass` decorator to ``cls``."""
+        return configclass(cls)
+
+
+sys.modules[__name__].__class__ = _CallableModule

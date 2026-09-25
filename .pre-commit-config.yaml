@@ -1,21 +1,19 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 repos:
-  - repo: https://github.com/python/black
-    rev: 24.3.0
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.10
     hooks:
-      - id: black
-        args: ["--line-length", "120", "--unstable"]
-  - repo: https://github.com/pycqa/flake8
-    rev: 7.0.0
-    hooks:
-      - id: flake8
-        additional_dependencies: [flake8-simplify, flake8-return]
+      # Run the linter
+      - id: ruff
+        args: ["--fix"]
+      # Run the formatter
+      - id: ruff-format
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: check-symlinks
@@ -23,29 +21,22 @@ repos:
       - id: check-added-large-files
         args: ["--maxkb=2000"]  # restrict files more than 2 MB. Should use git-lfs instead.
       - id: check-yaml
+        # OSMO workflow specs are Jinja templates, so they only become valid
+        # YAML once the submission-time parameters have been substituted.
+        exclude: '^docker/cluster/osmo_multi_gpu_workflow\.yaml$'
       - id: check-merge-conflict
+        # These verbatim license headings contain a literal "=======" separator.
+        exclude: '^docs/licenses/dependencies/(mujoco|llvmlite|numba)-license\.txt$'
       - id: check-case-conflict
       - id: check-executables-have-shebangs
       - id: check-toml
       - id: end-of-file-fixer
+        exclude: "^(.agents/skills/|.claude/skills$)"
       - id: check-shebang-scripts-are-executable
       - id: detect-private-key
       - id: debug-statements
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
-    hooks:
-      - id: isort
-        name: isort (python)
-        args: ["--profile", "black", "--filter-files"]
-  - repo: https://github.com/asottile/pyupgrade
-    rev: v3.15.1
-    hooks:
-      - id: pyupgrade
-        args: ["--py310-plus"]
-        # FIXME: This is a hack because Pytorch does not like: torch.Tensor | dict aliasing
-        exclude: "source/isaaclab/isaaclab/envs/common.py|source/isaaclab/isaaclab/ui/widgets/image_plot.py|source/isaaclab_tasks/isaaclab_tasks/direct/humanoid_amp/motions/motion_loader.py"
   - repo: https://github.com/codespell-project/codespell
-    rev: v2.2.6
+    rev: v2.4.1
     hooks:
       - id: codespell
         additional_dependencies:
@@ -57,10 +48,10 @@ repos:
   #   hooks:
   #   - id: pyright
   - repo: https://github.com/Lucas-C/pre-commit-hooks
-    rev: v1.5.1
+    rev: v1.5.5
     hooks:
       - id: insert-license
-        files: \.(py|ya?ml)$
+        files: \.(pyi?|ya?ml)$
         args:
           # - --remove-header    # Remove existing license headers. Useful when updating license.
           - --license-filepath
@@ -69,7 +60,7 @@ repos:
         exclude: "source/isaaclab_mimic/|scripts/imitation_learning/isaaclab_mimic/"
   # Apache 2.0 license for mimic files
   - repo: https://github.com/Lucas-C/pre-commit-hooks
-    rev: v1.5.1
+    rev: v1.5.5
     hooks:
       - id: insert-license
         files: ^(source/isaaclab_mimic|scripts/imitation_learning/isaaclab_mimic)/.*\.py$
@@ -84,3 +75,16 @@ repos:
       - id: rst-backticks
       - id: rst-directive-colons
       - id: rst-inline-touching-normal
+  - repo: local
+    hooks:
+      - id: check-changelog-fragments
+        name: check changelog fragments
+        entry: python tools/changelog/cli.py check --include-worktree
+        language: python
+        always_run: true
+        pass_filenames: false
+      - id: check-git-lfs-pointers
+        name: check Git LFS pointers
+        entry: tools/pre_commit/check_git_lfs_pointers.sh
+        language: script
+        pass_filenames: true

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,10 +7,11 @@
 
 from __future__ import annotations
 
-import torch
 from collections.abc import Callable, Sequence
 from dataclasses import MISSING
 from typing import Literal
+
+import torch
 
 from isaaclab.utils import configclass
 
@@ -91,7 +92,7 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
 
     Emulates sensor/film width on a camera.
 
-    Note:
+    .. note::
         The default value is the horizontal aperture of a 35 mm spherical projector.
     """
     vertical_aperture: float | None = None
@@ -137,8 +138,8 @@ class PinholeCameraPatternCfg(PatternBaseCfg):
             0 & 0 & 1
             \end{bmatrix},
 
-        where :math:`f_x` and :math:`f_y` are the focal length along x and y direction, while :math:`c_x` and :math:`c_y` are the
-        principle point offsets along x and y direction respectively.
+        where :math:`f_x` and :math:`f_y` are the focal length along x and y direction, while
+        :math:`c_x` and :math:`c_y` are the principle point offsets along x and y direction, respectively.
 
         Args:
             intrinsic_matrix: Intrinsic matrix of the camera in row-major format.
@@ -193,7 +194,7 @@ class BpearlPatternCfg(PatternBaseCfg):
     # fmt: on
     """Vertical ray angles (in degrees). Defaults to a list of 32 angles.
 
-    Note:
+    .. note::
         We manually set the vertical ray angles to match the Bpearl sensor. The ray-angles
         are not evenly spaced.
     """

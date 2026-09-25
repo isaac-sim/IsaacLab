@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,7 +9,7 @@ This script demonstrates fixed-base API for different robots.
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/isaaclab/test/assets/check_fixed_base_assets.py
+    uv run python source/isaaclab/test/assets/check_fixed_base_assets.py
 
 """
 
@@ -34,8 +34,6 @@ simulation_app = app_launcher.app
 
 import numpy as np
 import torch
-
-import isaacsim.core.utils.prims as prim_utils
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
@@ -75,15 +73,15 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     origins = define_origins(num_origins=4, spacing=2.0)
 
     # Origin 1 with Franka Panda
-    prim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
+    sim_utils.create_prim("/World/Origin1", "Xform", translation=origins[0])
     # -- Robot
     franka = Articulation(FRANKA_PANDA_CFG.replace(prim_path="/World/Origin1/Robot"))
 
     # Origin 2 with Anymal C
-    prim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
+    sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
     # -- Robot
     robot_cfg = ANYMAL_C_CFG.replace(prim_path="/World/Origin2/Robot")
-    robot_cfg.spawn.articulation_props.fix_root_link = True
+    robot_cfg.spawn.fix_root_link = True
     anymal_c = Articulation(robot_cfg)
 
     # return the scene information
@@ -110,13 +108,16 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
             # reset robots
             for index, robot in enumerate(entities.values()):
                 # root state
-                root_state = robot.data.default_root_state.clone()
+                root_state = robot.data.default_root_state.torch.clone()
                 root_state[:, :3] += origins[index]
                 root_state[:, :2] += torch.randn_like(root_state[:, :2]) * 0.25
                 robot.write_root_pose_to_sim(root_state[:, :7])
                 robot.write_root_velocity_to_sim(root_state[:, 7:])
                 # joint state
-                joint_pos, joint_vel = robot.data.default_joint_pos.clone(), robot.data.default_joint_vel.clone()
+                joint_pos, joint_vel = (
+                    robot.data.default_joint_pos.torch.clone(),
+                    robot.data.default_joint_vel.torch.clone(),
+                )
                 robot.write_joint_state_to_sim(joint_pos, joint_vel)
                 # reset the internal state
                 robot.reset()
@@ -126,7 +127,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Articula
             if count % 200 == 0:
                 print("Name: ", name, "is_fixed_base: ", robot.is_fixed_base)
             # generate random joint positions
-            joint_pos_target = robot.data.default_joint_pos + torch.randn_like(robot.data.joint_pos) * 0.1
+            joint_pos_target = robot.data.default_joint_pos.torch + torch.randn_like(robot.data.joint_pos.torch) * 0.1
             # apply action to the robot
             robot.set_joint_position_target(joint_pos_target)
             # write data to sim

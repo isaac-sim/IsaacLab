@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,12 +6,14 @@
 from __future__ import annotations
 
 import colorsys
-import numpy as np
 from contextlib import suppress
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 import omni
-from isaacsim.core.api.simulation_context import SimulationContext
+
+from ...sim import SimulationContext
 
 with suppress(ImportError):
     # isaacsim.gui is not available when running in headless mode.
@@ -27,36 +29,30 @@ if TYPE_CHECKING:
 class LiveLinePlot(UIWidgetWrapper):
     """A 2D line plot widget to display live data.
 
-
     This widget is used to display live data in a 2D line plot. It can be used to display multiple series
     in the same plot.
 
-    It has the following Layout:
-    +-------------------------------------------------------+
-    |                  containing_frame                     |
-    |+-----------------------------------------------------+|
-    |                   main_plot_frame                     |
-    ||+---------------------------------------------------+||
-    |||         plot_frames + grid lines (Z_stacked)      |||
-    |||                                                   |||
-    |||                                                   |||
-    |||               (Live Plot Data)                    |||
-    |||                                                   |||
-    |||                                                   |||
-    |||+-------------------------------------------------+|||
-    |||                   legends_frame                   |||
-    |||                                                   |||
-    |||    [x][Series 1] [x][Series 2] [ ][Series 3]      |||
-    |||+-------------------------------------------------+|||
-    |||                   limits_frame                    |||
-    |||                                                   |||
-    |||        [Y-Limits] [min] [max] [Autoscale]         |||
-    |||+-------------------------------------------------+|||
-    |||                   filter_frame                    |||
-    |||                                                   |||
-    |||                                                   |||
-    |+-----------------------------------------------------+|
-    +-------------------------------------------------------+
+    The widget uses the following layout:
+
+    .. code-block:: text
+
+       +-------------------------------------------------------+
+       |                  containing_frame                     |
+       |+-----------------------------------------------------+|
+       |                   main_plot_frame                     |
+       ||+---------------------------------------------------+||
+       |||         plot_frames + grid lines (Z_stacked)      |||
+       |||               (Live Plot Data)                    |||
+       |||+-------------------------------------------------+|||
+       |||                   legends_frame                   |||
+       |||    [x][Series 1] [x][Series 2] [ ][Series 3]      |||
+       |||+-------------------------------------------------+|||
+       |||                   limits_frame                    |||
+       |||        [Y-Limits] [min] [max] [Autoscale]         |||
+       |||+-------------------------------------------------+|||
+       |||                   filter_frame                    |||
+       |+-----------------------------------------------------+|
+       +-------------------------------------------------------+
 
     """
 
@@ -73,13 +69,16 @@ class LiveLinePlot(UIWidgetWrapper):
         """Create a new LiveLinePlot widget.
 
         Args:
-            y_data: A list of lists of floats containing the data to plot. Each list of floats represents a series in the plot.
+            y_data: A list of lists of floats containing the data to plot. Each list of floats represents a
+                series in the plot.
             y_min: The minimum y value to display. Defaults to -10.
             y_max: The maximum y value to display. Defaults to 10.
             plot_height: The height of the plot in pixels. Defaults to 150.
             show_legend: Whether to display the legend. Defaults to True.
-            legends: A list of strings containing the legend labels for each series. If None, the default labels are "Series_0", "Series_1", etc. Defaults to None.
-            max_datapoints: The maximum number of data points to display. If the number of data points exceeds this value, the oldest data points are removed. Defaults to 200.
+            legends: A list of strings containing the legend labels for each series. If None, the default
+                labels are "Series_0", "Series_1", etc. Defaults to None.
+            max_datapoints: The maximum number of data points to display. If the number of data points exceeds
+                this value, the oldest data points are removed. Defaults to 200.
         """
         super().__init__(self._create_ui_widget())
         self.plot_height = plot_height
@@ -155,9 +154,7 @@ class LiveLinePlot(UIWidgetWrapper):
         Args:
             y_coords: A list of floats containing the y coordinates of the new data points.
         """
-
         for idx, y_coord in enumerate(y_coords):
-
             if len(self._y_data[idx]) > self._max_data_points:
                 self._y_data[idx] = self._y_data[idx][1:]
 
@@ -307,8 +304,13 @@ class LiveLinePlot(UIWidgetWrapper):
                                         height=0,
                                     )
                                     with omni.ui.Placer(offset_x=-20):
+                                        label_value = (
+                                            self._y_max
+                                            - first_space * grid_resolution
+                                            - grid_line_idx * grid_resolution
+                                        )
                                         omni.ui.Label(
-                                            f"{(self._y_max - first_space * grid_resolution - grid_line_idx * grid_resolution):.3f}",
+                                            f"{label_value:.3f}",
                                             width=8,
                                             height=8,
                                             alignment=omni.ui.Alignment.RIGHT_TOP,

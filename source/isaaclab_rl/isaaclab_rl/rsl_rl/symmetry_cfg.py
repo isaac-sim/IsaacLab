@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -26,10 +26,10 @@ class RslRlSymmetryCfg:
     """
 
     use_data_augmentation: bool = False
-    """Whether to use symmetry-based data augmentation. Default is False."""
+    """Whether to use symmetry-based data augmentation. Defaults to False."""
 
     use_mirror_loss: bool = False
-    """Whether to use the symmetry-augmentation loss. Default is False."""
+    """Whether to use the symmetry-augmentation loss. Defaults to False."""
 
     data_augmentation_func: callable = MISSING
     """The symmetry data augmentation function.
@@ -48,4 +48,4 @@ class RslRlSymmetryCfg:
     """
 
     mirror_loss_coeff: float = 0.0
-    """The weight for the symmetry-mirror loss. Default is 0.0."""
+    """The weight for the symmetry-mirror loss. Defaults to 0.0."""

@@ -1,27 +1,35 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Test texture randomization in the cartpole scene using pytest."""
+"""Test curriculum-based environment parameter modification."""
 
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
 
+from types import SimpleNamespace
+
+import pytest
 import torch
 
-import omni.usd
-import pytest
-
 import isaaclab.envs.mdp as mdp
+import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation
-from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.test.env_cfgs import EmptyManagerCfg
+from isaaclab.test.integration_scene_cfgs import CartpoleTestSceneCfg
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleEnvCfg
+pytestmark = pytest.mark.integration
 
 
 def replace_value(env, env_id, data, value, num_steps):
@@ -32,7 +40,44 @@ def replace_value(env, env_id, data, value, num_steps):
 
 
 @configclass
+class ActionsCfg:
+    """Action specifications for the curriculum test environment."""
+
+    joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=100.0)
+
+
+@configclass
+class ObservationsCfg:
+    """Observation specifications for the curriculum test environment."""
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        """Policy observation group."""
+
+        joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
+
+    policy: PolicyCfg = PolicyCfg()
+
+
+@configclass
+class EventCfg:
+    """Reset event specifications for the curriculum test environment."""
+
+    reset_cart_position = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]),
+            "position_range": (-1.0, 1.0),
+            "velocity_range": (-0.5, 0.5),
+        },
+    )
+
+
+@configclass
 class CurriculumsCfg:
+    """Curriculum specifications under test."""
+
     modify_observation_joint_pos = CurrTerm(
         # test writing a term's func.
         func=mdp.modify_term_cfg,
@@ -64,16 +109,35 @@ class CurriculumsCfg:
     )
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@configclass
+class CurriculumTestEnvCfg(ManagerBasedRLEnvCfg):
+    """Minimal cart-pole environment configuration for curriculum tests."""
+
+    scene: CartpoleTestSceneCfg = CartpoleTestSceneCfg(num_envs=16, env_spacing=4.0)
+    actions: ActionsCfg = ActionsCfg()
+    observations: ObservationsCfg = ObservationsCfg()
+    events: EventCfg = EventCfg()
+    rewards: EmptyManagerCfg = EmptyManagerCfg()
+    terminations: EmptyManagerCfg = EmptyManagerCfg()
+    curriculum: CurriculumsCfg = CurriculumsCfg()
+
+    def __post_init__(self) -> None:
+        """Set the simulation timing used by the test."""
+        self.decimation = 2
+        self.episode_length_s = 5.0
+        self.sim.dt = 1 / 120
+        self.sim.render_interval = self.decimation
+
+
+# Curriculum address resolution and cfg mutation are device independent, so one device covers them.
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_curriculum_modify_env_param(device):
     """Ensure curriculum terms apply correctly after the fallback and replacement."""
     # new USD stage
-    omni.usd.get_context().new_stage()
+    sim_utils.create_new_stage()
 
     # configure the cartpole env
-    env_cfg = CartpoleEnvCfg()
-    env_cfg.scene.num_envs = 16
-    env_cfg.curriculum = CurriculumsCfg()
+    env_cfg = CurriculumTestEnvCfg()
     env_cfg.sim.device = device
 
     env = ManagerBasedRLEnv(cfg=env_cfg)
@@ -89,16 +153,27 @@ def test_curriculum_modify_env_param(device):
                 # test before curriculum kicks in, value agrees with default configuration
                 joint_ids = env.event_manager.cfg.reset_cart_position.params["asset_cfg"].joint_ids
                 assert env.observation_manager.cfg.policy.joint_pos_rel.func == mdp.joint_pos_rel
-                assert torch.any(robot.data.joint_pos[:, joint_ids] != 0.0)
+                assert torch.any(robot.data.joint_pos.torch[:, joint_ids] != 0.0)
                 assert env.max_episode_length_s == env_cfg.episode_length_s
 
             if count == 2:
                 # test after curriculum makes effect, value agrees with new values
                 assert env.observation_manager.cfg.policy.joint_pos_rel.func == mdp.joint_pos
                 joint_ids = env.event_manager.cfg.reset_cart_position.params["asset_cfg"].joint_ids
-                assert torch.all(robot.data.joint_pos[:, joint_ids] == 0.0)
+                assert torch.all(robot.data.joint_pos.torch[:, joint_ids] == 0.0)
                 assert env.max_episode_length_s == 20
 
             env.step(actions)
 
     env.close()
+
+
+def test_modify_env_param_indexes_into_dict_values():
+    """An indexed address part resolves through a dictionary key, e.g. ``params.ranges[1].high``."""
+    env = SimpleNamespace(params={"ranges": [SimpleNamespace(high=1.0), SimpleNamespace(high=2.0)]})
+    cfg = CurrTerm(func=mdp.modify_env_param, params={"address": "params.ranges[1].high"})
+    term = mdp.modify_env_param(cfg, env)
+
+    term(env, None, "params.ranges[1].high", modify_fn=lambda env, env_ids, value: value * 10)
+
+    assert env.params["ranges"][1].high == 20.0

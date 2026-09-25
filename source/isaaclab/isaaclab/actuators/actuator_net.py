@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -14,13 +14,13 @@ Currently, the following models are supported:
 
 from __future__ import annotations
 
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.assets import read_file
-from isaaclab.utils.types import ArticulationActions
+import torch
 
+from ..utils.assets import read_file
+from ..utils.types import ArticulationActions
 from .actuator_pd import DCMotor
 
 if TYPE_CHECKING:
@@ -88,7 +88,7 @@ class ActuatorNetLSTM(DCMotor):
         self.computed_effort = torques.reshape(self._num_envs, self.num_joints)
 
         # clip the computed effort based on the motor limits
-        self.applied_effort = self._clip_effort(self.computed_effort)
+        self.applied_effort = self._clip_effort(self.computed_effort, joint_vel)
 
         # return torques
         control_action.joint_efforts = self.applied_effort
@@ -152,9 +152,6 @@ class ActuatorNetMLP(DCMotor):
         # -- velocity
         self._joint_vel_history = self._joint_vel_history.roll(1, 1)
         self._joint_vel_history[:, 0] = joint_vel
-        # save current joint vel for dc-motor clipping
-        self._joint_vel[:] = joint_vel
-
         # compute network inputs
         # -- positions
         pos_input = torch.cat([self._joint_pos_error_history[:, i].unsqueeze(2) for i in self.cfg.input_idx], dim=2)
@@ -178,7 +175,7 @@ class ActuatorNetMLP(DCMotor):
         self.computed_effort = torques.view(self._num_envs, self.num_joints) * self.cfg.torque_scale
 
         # clip the computed effort based on the motor limits
-        self.applied_effort = self._clip_effort(self.computed_effort)
+        self.applied_effort = self._clip_effort(self.computed_effort, joint_vel)
 
         # return torques
         control_action.joint_efforts = self.applied_effort

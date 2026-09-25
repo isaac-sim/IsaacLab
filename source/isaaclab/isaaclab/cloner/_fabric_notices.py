@@ -1,0 +1,219 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Pure-Python ctypes binding for ``omni::fabric::IFabricUsd::setEnableChangeNotifies``.
+
+Acquires the ``omni::fabric::IFabricUsd`` carb interface directly from the Carbonite
+framework so cloning can suspend Fabric's USD notice listener without depending on
+``isaacsim.core.simulation_manager``.
+
+This is a temporary shim for a base-Kit Carbonite interface that has no Python
+binding yet. When Kit exposes this from Python, replace this module with a
+one-line import.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import ctypes
+import logging
+import threading
+from collections.abc import Iterator
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pxr import Usd
+
+logger = logging.getLogger(__name__)
+
+# carb::Framework vtable (carb/Framework.h)
+#   0: loadPluginsEx, 8: unloadAllPlugins, 16: acquireInterfaceWithClient,
+#  24: tryAcquireInterfaceWithClient  ← used here
+_FW_OFF_TRY_ACQUIRE = 24
+
+# omni::fabric::IFabricUsd vtable (omni/fabric/usd/interface/IFabricUsd.h)
+#  0..88: prefetch / export / type-conversion entry points
+#  96: setEnableChangeNotifies(FabricId, bool)
+# 104: getEnableChangeNotifies(FabricId) -> bool
+_IFU_OFF_SET_ENABLE = 96
+_IFU_OFF_GET_ENABLE = 104
+
+
+class _Version(ctypes.Structure):
+    _fields_ = [("major", ctypes.c_uint32), ("minor", ctypes.c_uint32)]
+
+
+class _InterfaceDesc(ctypes.Structure):
+    _fields_ = [("name", ctypes.c_char_p), ("version", _Version)]
+
+
+def _read_u64(addr: int) -> int:
+    return ctypes.c_uint64.from_address(addr).value
+
+
+class FabricNoticeBindings:
+    """Typed wrappers around ``omni::fabric::IFabricUsd``'s notice toggle."""
+
+    def __init__(self) -> None:
+        self._iface_ptr: int = 0
+        self._set_fn = None
+        self._get_fn = None
+        self._validated: bool = False
+
+    def initialize(self) -> bool:
+        """Acquire the ``IFabricUsd`` interface. Returns False if unavailable."""
+        try:
+            libcarb = ctypes.CDLL("libcarb.so")
+        except OSError:
+            logger.info("libcarb.so unavailable — Fabric notice suspension disabled (Linux x86_64 only)")
+            return False
+
+        libcarb.acquireFramework.restype = ctypes.c_void_p
+        libcarb.acquireFramework.argtypes = [ctypes.c_char_p, _Version]
+        fw_ptr = libcarb.acquireFramework(b"isaaclab.cloner", _Version(0, 0))
+        if not fw_ptr:
+            return False
+
+        try_acquire_addr = _read_u64(fw_ptr + _FW_OFF_TRY_ACQUIRE)
+        if not try_acquire_addr:
+            return False
+
+        try_acquire = ctypes.CFUNCTYPE(
+            ctypes.c_void_p,  # IFabricUsd*
+            ctypes.c_char_p,  # clientName
+            _InterfaceDesc,  # desc (by value)
+            ctypes.c_char_p,  # pluginName
+        )(try_acquire_addr)
+
+        desc = _InterfaceDesc(name=b"omni::fabric::IFabricUsd", version=_Version(1, 0))
+
+        ptr = try_acquire(b"isaaclab.cloner", desc, None)
+        if not ptr:
+            return False
+        self._iface_ptr = ptr
+
+        set_addr = _read_u64(ptr + _IFU_OFF_SET_ENABLE)
+        get_addr = _read_u64(ptr + _IFU_OFF_GET_ENABLE)
+        if not (set_addr and get_addr):
+            return False
+
+        # FabricId is uint64; CARB_ABI uses the platform's standard C calling convention
+        self._set_fn = ctypes.CFUNCTYPE(None, ctypes.c_uint64, ctypes.c_bool)(set_addr)
+        self._get_fn = ctypes.CFUNCTYPE(ctypes.c_bool, ctypes.c_uint64)(get_addr)
+        return True
+
+    @property
+    def available(self) -> bool:
+        return self._iface_ptr != 0
+
+    def set_enable(self, fabric_id: int, enable: bool) -> None:
+        if self._set_fn is not None:
+            self._set_fn(ctypes.c_uint64(fabric_id), ctypes.c_bool(enable))
+
+    def is_enabled(self, fabric_id: int) -> bool:
+        if self._get_fn is None:
+            return False
+        return bool(self._get_fn(ctypes.c_uint64(fabric_id)))
+
+    def validate_with(self, fabric_id: int) -> bool:
+        """One-time toggle round-trip — guards against ABI offset drift.
+
+        If Kit's ``IFabricUsd`` vtable layout changes, our hardcoded offsets call the
+        wrong functions and ``set_enable`` no longer flips the flag ``is_enabled`` reads
+        from. This catches that case the first time we have a real fabric_id to work
+        with, and lets the caller fall back to a no-op.
+        """
+        if self._validated:
+            return True
+        original = self.is_enabled(fabric_id)
+        self.set_enable(fabric_id, not original)
+        ok = self.is_enabled(fabric_id) != original
+        self.set_enable(fabric_id, original)
+        self._validated = ok
+        return ok
+
+
+_BINDINGS: FabricNoticeBindings | None = None
+_INIT_TRIED: bool = False
+_LOCK = threading.Lock()
+
+
+def get_bindings() -> FabricNoticeBindings | None:
+    """Return the lazily-initialised bindings, or ``None`` if Kit/Carbonite is unavailable."""
+    global _BINDINGS, _INIT_TRIED
+    with _LOCK:
+        if _BINDINGS is not None:
+            return _BINDINGS
+        if _INIT_TRIED:
+            return None
+        _INIT_TRIED = True
+        b = FabricNoticeBindings()
+        if not b.initialize():
+            return None
+        _BINDINGS = b
+        return _BINDINGS
+
+
+@contextlib.contextmanager
+def disabled_fabric_change_notifies(stage: Usd.Stage, *, restore: bool = True) -> Iterator[None]:
+    """Suspend Fabric's USD notice listener for the body of the ``with`` block.
+
+    The listener is a global ``TfNotice`` that fires on every ``Sdf.CopySpec`` during
+    cloning; toggling it off via ``IFabricUsd::setEnableChangeNotifies`` skips the
+    per-spec Fabric sync that dominates cloning time for large PhysX rigid-body scenes.
+    Same toggle that :meth:`isaacsim.core.cloner.Cloner.disable_change_listener` flips,
+    called directly through Carbonite so we don't take an
+    ``isaacsim.core.simulation_manager`` dependency.
+
+    Falls through to a no-op if the Carbonite interface can't be acquired (e.g. outside
+    a live Kit application).
+
+    Args:
+        stage: USD stage whose Fabric notice handler should be suspended.
+        restore: When ``True`` (default), re-enable the handler on exit. Set to
+            ``False`` if a downstream Fabric resync is about to happen anyway (e.g.
+            right before ``sim.reset()``), to avoid a redundant re-enable.
+
+    Yields:
+        None.
+    """
+    bindings = get_bindings()
+    if bindings is None:
+        yield
+        return
+
+    # Like the rest of the cloner, this module must remain importable before Kit starts.
+    from pxr import UsdUtils  # noqa: PLC0415
+
+    # usdrt only works with a live Kit app — defer import so module load stays cheap.
+    try:
+        import usdrt
+    except ModuleNotFoundError as exc:
+        if exc.name != "usdrt":
+            raise
+        yield
+        return
+
+    # Avoid leaking a strong reference into the global ``StageCache`` for stages we did not
+    # author into the cache: ``Insert`` keeps the stage alive for the rest of the process.
+    cache = UsdUtils.StageCache.Get()
+    cached_id = cache.GetId(stage)
+    stage_id = cached_id.ToLongInt() if cached_id.IsValid() else cache.Insert(stage).ToLongInt()
+    # ``FabricId`` wraps a uint64; the C ABI needs the raw integer.
+    fabric_id = usdrt.Usd.Stage.Attach(stage_id).GetFabricId().id
+    # First-call ABI sanity check — if the toggle doesn't actually round-trip the flag
+    # (e.g. Kit's vtable shifted), fall through to a no-op rather than corrupting state.
+    if not bindings.validate_with(fabric_id):
+        logger.warning("Fabric notice toggle failed round-trip check — suspension disabled")
+        yield
+        return
+    was_enabled = bindings.is_enabled(fabric_id)
+    if was_enabled:
+        bindings.set_enable(fabric_id, False)
+    try:
+        yield
+    finally:
+        if restore and was_enabled:
+            bindings.set_enable(fabric_id, True)

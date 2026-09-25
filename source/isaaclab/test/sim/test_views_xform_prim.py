@@ -1,0 +1,357 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""USD backend tests for FrameView.
+
+Imports the shared contract tests and provides the USD-specific
+``view_factory`` fixture.  Also includes USD-only tests for visibility,
+prim ordering, xformOp standardization, and Isaac Sim comparison.
+"""
+
+from isaaclab.app import AppLauncher
+from isaaclab.test.utils import resolve_test_sim_device
+
+simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
+
+import pytest  # noqa: E402
+import torch  # noqa: E402
+import warp as wp  # noqa: E402
+
+from pxr import Gf, UsdGeom  # noqa: E402
+
+try:
+    from isaaclab.sim.utils import enable_extension  # noqa: E402
+
+    enable_extension("isaacsim.core.experimental.prims")
+    from isaacsim.core.experimental.prims import XformPrim as _IsaacSimXformPrimView
+except (ModuleNotFoundError, ImportError, RuntimeError):
+    _IsaacSimXformPrimView = None
+
+from frame_view_contract_utils import *  # noqa: F401, F403, E402
+from frame_view_contract_utils import CHILD_OFFSET, ViewBundle  # noqa: E402
+
+import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab.sim.views import UsdFrameView as FrameView  # noqa: E402
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
+
+pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
+PARENT_POS = (0.0, 0.0, 1.0)
+USD_ONLY_DEVICES = [resolve_test_sim_device()]
+"""UsdFrameView computes on the host and only places its outputs on the device, which the shared
+contract tests cover per device; the USD-only tests below run on the boot device alone."""
+
+
+@pytest.fixture(autouse=True)
+def test_setup_teardown():
+    sim_utils.create_new_stage()
+    sim_utils.update_stage()
+    yield
+    sim_utils.clear_stage()
+    sim_utils.SimulationContext.clear_instance()
+
+
+# ------------------------------------------------------------------
+# Contract fixture
+# ------------------------------------------------------------------
+
+
+def _get_parent_positions(num_envs, device="cpu"):
+    """Read parent Xform positions from USD."""
+    stage = sim_utils.get_current_stage()
+    xform_cache = UsdGeom.XformCache()
+    positions = []
+    for i in range(num_envs):
+        prim = stage.GetPrimAtPath(f"/World/Parent_{i}")
+        tf = xform_cache.GetLocalToWorldTransform(prim)
+        t = tf.ExtractTranslation()
+        positions.append([float(t[0]), float(t[1]), float(t[2])])
+    return torch.tensor(positions, dtype=torch.float32, device=device)
+
+
+def _set_parent_positions(positions, num_envs):
+    """Write parent Xform positions to USD."""
+    from pxr import Sdf  # noqa: PLC0415
+
+    stage = sim_utils.get_current_stage()
+    with Sdf.ChangeBlock():
+        for i in range(num_envs):
+            prim = stage.GetPrimAtPath(f"/World/Parent_{i}")
+            pos = positions[i]
+            prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(float(pos[0]), float(pos[1]), float(pos[2])))
+
+
+@pytest.fixture
+def view_factory():
+    """USD factory: parent Xform at PARENT_POS + child Xform at CHILD_OFFSET."""
+
+    def factory(num_envs: int, device: str) -> ViewBundle:
+        stage = sim_utils.get_current_stage()
+        for i in range(num_envs):
+            sim_utils.create_prim(f"/World/Parent_{i}", "Xform", translation=PARENT_POS, stage=stage)
+            sim_utils.create_prim(f"/World/Parent_{i}/Child", "Xform", translation=CHILD_OFFSET, stage=stage)
+
+        view = FrameView("/World/Parent_[^/]*/Child", device=device)
+        return ViewBundle(
+            view=view,
+            get_parent_pos=_get_parent_positions,
+            set_parent_pos=_set_parent_positions,
+            teardown=lambda: None,
+        )
+
+    return factory
+
+
+# ==================================================================
+# USD-only: Visibility
+# ==================================================================
+
+
+@pytest.mark.parametrize("device", USD_ONLY_DEVICES)
+def test_visibility_toggle(device):
+    """Test toggling visibility multiple times."""
+    stage = sim_utils.get_current_stage()
+    num_prims = 3
+    for i in range(num_prims):
+        sim_utils.create_prim(f"/World/Object_{i}", "Xform", stage=stage)
+
+    view = FrameView("/World/Object_[^/]*", device=device)
+
+    assert torch.all(view.get_visibility())
+
+    view.set_visibility(torch.zeros(num_prims, dtype=torch.bool, device=device))
+    assert not torch.any(view.get_visibility())
+
+    view.set_visibility(torch.ones(num_prims, dtype=torch.bool, device=device))
+    assert torch.all(view.get_visibility())
+
+    view.set_visibility(
+        torch.tensor([False], dtype=torch.bool, device=device), indices=wp.array([1], dtype=wp.int32, device=device)
+    )
+    vis = view.get_visibility()
+    assert vis[0] and not vis[1] and vis[2]
+
+
+@pytest.mark.parametrize("device", USD_ONLY_DEVICES)
+def test_visibility_parent_inheritance(device):
+    """Making a parent invisible hides all children."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/Parent", "Xform", stage=stage)
+    for i in range(4):
+        sim_utils.create_prim(f"/World/Parent/Child_{i}", "Xform", stage=stage)
+
+    parent_view = FrameView("/World/Parent", device=device)
+    children_view = FrameView("/World/Parent/Child_[^/]*", device=device)
+
+    parent_view.set_visibility(torch.tensor([False], dtype=torch.bool, device=device))
+    assert not torch.any(children_view.get_visibility())
+
+    parent_view.set_visibility(torch.tensor([True], dtype=torch.bool, device=device))
+    assert torch.all(children_view.get_visibility())
+
+
+# ==================================================================
+# USD-only: Prim ordering
+# ==================================================================
+
+
+@pytest.mark.parametrize("device", USD_ONLY_DEVICES)
+def test_prim_ordering_follows_creation_order(device):
+    """Prims are returned in USD creation order (DFS), not alphabetical."""
+    stage = sim_utils.get_current_stage()
+    num_envs = 3
+    for i in range(num_envs):
+        sim_utils.create_prim(f"/World/Env_{i}/Object_1", "Xform", stage=stage)
+        sim_utils.create_prim(f"/World/Env_{i}/Object_0", "Xform", stage=stage)
+        sim_utils.create_prim(f"/World/Env_{i}/Object_A", "Xform", stage=stage)
+
+    view = FrameView("/World/Env_[^/]*/Object_[^/]*", device=device)
+    expected = []
+    for i in range(num_envs):
+        expected += [f"/World/Env_{i}/Object_1", f"/World/Env_{i}/Object_0", f"/World/Env_{i}/Object_A"]
+
+    assert view.prim_paths == expected
+
+
+# ==================================================================
+# USD-only: xformOp standardization
+# ==================================================================
+
+
+@pytest.mark.parametrize("device", USD_ONLY_DEVICES)
+@pytest.mark.parametrize(
+    ("scale_precision", "scale_value"),
+    [
+        (UsdGeom.XformOp.PrecisionHalf, Gf.Vec3h(0.25, 0.5, 0.75)),
+        (UsdGeom.XformOp.PrecisionFloat, Gf.Vec3f(0.01, 0.02, 0.03)),
+        (UsdGeom.XformOp.PrecisionDouble, Gf.Vec3d(0.01, 0.02, 0.03)),
+    ],
+    ids=["half3", "float3", "double3"],
+)
+def test_local_scales_accept_all_usd_precisions(device, scale_precision, scale_value):
+    """Scale reads normalize every legal USD precision without changing the FP32 view contract."""
+    stage = sim_utils.get_current_stage()
+    prim = stage.DefinePrim("/World/ScaledPrim", "Xform")
+    xformable = UsdGeom.Xformable(prim)
+    xformable.AddTranslateOp().Set(Gf.Vec3d(0.0))
+    xformable.AddOrientOp(UsdGeom.XformOp.PrecisionFloat).Set(Gf.Quatf(1.0, Gf.Vec3f(0.0)))
+    xformable.AddScaleOp(scale_precision).Set(scale_value)
+
+    view = FrameView("/World/ScaledPrim", device=device)
+    assert isinstance(prim.GetAttribute("xformOp:scale").Get(), type(scale_value))
+
+    expected = torch.tensor([[float(value) for value in scale_value]], dtype=torch.float32, device=device)
+    scales = view.get_local_scales()
+    assert scales.shape == (1, 3)
+    assert scales.warp.dtype == wp.float32
+    assert scales.torch.dtype == torch.float32
+    torch.testing.assert_close(scales.torch, expected, atol=1e-6, rtol=0)
+
+
+@pytest.mark.parametrize("device", USD_ONLY_DEVICES)
+def test_standardize_transform_op(device):
+    """FrameView standardizes a prim with xformOp:transform to translate/orient/scale."""
+    expected_pos = (3.0, -1.0, 0.5)
+    matrix = Gf.Matrix4d(1.0)
+    matrix.SetTranslateOnly(Gf.Vec3d(*expected_pos))
+
+    stage = sim_utils.get_current_stage()
+    prim = stage.DefinePrim("/World/TransformPrim", "Xform")
+    UsdGeom.Xformable(prim).AddTransformOp().Set(matrix)
+
+    view = FrameView("/World/TransformPrim", device=device)
+    assert sim_utils.validate_standard_xform_ops(view.prims[0])
+
+    ordered_ops = UsdGeom.Xformable(view.prims[0]).GetOrderedXformOps()
+    op_names = [op.GetOpName() for op in ordered_ops]
+    assert op_names == ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    assert ordered_ops[0].Get() == Gf.Vec3d(*expected_pos)
+
+
+# ==================================================================
+# USD-only: Cross-space scale conversion under a scaled parent
+# ==================================================================
+#
+# These exercise the USD-specific world<->local scale math that the shared
+# contract suite cannot cover: the contract fixtures only expose a unit-scale
+# parent, and Newton has no independent local scale (local == world), so the
+# parent-aware conversions below are not universal invariants.  OvPhysxFrameView
+# inherits this behavior by delegating to UsdFrameView.
+
+
+def _make_scaled_parent_child_view(device, parent_scale, child_scale=None):
+    """Build a 1-prim view with a scaled parent (and optional authored child scale)."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/Parent_0", "Xform", translation=PARENT_POS, scale=parent_scale, stage=stage)
+    child_kwargs = {} if child_scale is None else {"scale": child_scale}
+    sim_utils.create_prim("/World/Parent_0/Child", "Xform", translation=CHILD_OFFSET, stage=stage, **child_kwargs)
+    return FrameView("/World/Parent_[^/]*/Child", device=device)
+
+
+@pytest.mark.parametrize("device", USD_ONLY_DEVICES)
+def test_world_scale_composes_with_parent_scale(device):
+    """Under a scaled parent, ``get_world_scales`` returns ``parent_scale * local_scale``.
+
+    Writes the child's local scale via the local-space writer and verifies
+    that reading the world scale composes with the parent's scale.
+    """
+    view = _make_scaled_parent_child_view(device, parent_scale=(2.0, 1.0, 1.0))
+    local_scales = wp.array([wp.vec3f(3.0, 1.0, 1.0)], dtype=wp.vec3f, device=device)
+    with view.xform_local_space_writer() as w:
+        w.set_scales(local_scales)
+
+    world_scales = view.get_world_scales().torch
+    expected = torch.tensor([[6.0, 1.0, 1.0]], dtype=torch.float32, device=device)
+    torch.testing.assert_close(world_scales, expected, atol=1e-5, rtol=0)
+
+
+@pytest.mark.parametrize("device", USD_ONLY_DEVICES)
+def test_local_scale_inverts_parent_when_writing_world_scale(device):
+    """Writing a world scale derives ``local = world / parent_scale`` under a scaled parent.
+
+    Writes the child's world scale via the world-space writer and verifies
+    that the derived local scale is the world scale divided by the
+    parent's scale.
+    """
+    view = _make_scaled_parent_child_view(device, parent_scale=(2.0, 1.0, 1.0))
+    world_scales = wp.array([wp.vec3f(6.0, 1.0, 1.0)], dtype=wp.vec3f, device=device)
+    with view.xform_world_space_writer() as w:
+        w.set_scales(world_scales)
+
+    local_scales = view.get_local_scales().torch
+    expected = torch.tensor([[3.0, 1.0, 1.0]], dtype=torch.float32, device=device)
+    torch.testing.assert_close(local_scales, expected, atol=1e-5, rtol=0)
+
+
+# ==================================================================
+# USD-only: Comparison with Isaac Sim
+# ==================================================================
+
+
+def test_compare_get_world_poses_with_isaacsim():
+    """Compare get_world_poses with Isaac Sim's implementation."""
+    if _IsaacSimXformPrimView is None:
+        pytest.skip("Isaac Sim is not available")
+
+    stage = sim_utils.get_current_stage()
+    num_prims = 10
+    for i in range(num_prims):
+        pos = (i * 2.0, i * 0.5, i * 1.5)
+        quat = (0.0, 0.0, 0.0, 1.0) if i % 2 == 0 else (0.0, 0.0, 0.7071068, 0.7071068)
+        sim_utils.create_prim(f"/World/Env_{i}/Object", "Xform", translation=pos, orientation=quat, stage=stage)
+
+    pattern = "/World/Env_[^/]*/Object"
+    isaacsim_paths = [f"/World/Env_{i}/Object" for i in range(num_prims)]
+    isaaclab_view = FrameView(pattern, device="cpu")
+
+    import omni.usd  # noqa: PLC0415
+
+    context = omni.usd.get_context()
+    context.attach_stage_with_callback(sim_utils.get_current_stage_id())
+    sim_utils.update_stage()
+
+    for kwargs in ({"reset_xform_properties": False}, {"reset_xform_op_properties": False}, {}):
+        try:
+            isaacsim_view = _IsaacSimXformPrimView(isaacsim_paths, **kwargs)
+            break
+        except TypeError as exc:
+            if kwargs and next(iter(kwargs)) in str(exc):
+                continue
+            raise
+
+    isaaclab_pos, isaaclab_quat = (a.torch for a in isaaclab_view.get_world_poses())
+    isaacsim_pos, isaacsim_quat = (wp.to_torch(a).cpu() for a in isaacsim_view.get_world_poses())
+
+    torch.testing.assert_close(isaaclab_pos, isaacsim_pos, atol=1e-5, rtol=0)
+    # Isaac Sim returns (w, x, y, z); Isaac Lab returns (x, y, z, w)
+    torch.testing.assert_close(isaaclab_quat, isaacsim_quat[:, [1, 2, 3, 0]], atol=1e-5, rtol=0)
+
+
+# ==================================================================
+# USD-only: Franka integration
+# ==================================================================
+
+
+@pytest.mark.parametrize("device", USD_ONLY_DEVICES)
+def test_with_franka_robots(device):
+    """Verify FrameView works with real Franka robot USD assets."""
+    stage = sim_utils.get_current_stage()
+    franka_usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/FrankaRobotics/FrankaPanda/franka.usd"
+
+    sim_utils.create_prim("/World/Franka_1", "Xform", usd_path=franka_usd_path, stage=stage)
+    sim_utils.create_prim("/World/Franka_2", "Xform", usd_path=franka_usd_path, stage=stage)
+
+    view = FrameView("/World/Franka_[^/]*", device=device)
+    assert view.count == 2
+
+    positions = view.get_world_poses()[0].torch
+    torch.testing.assert_close(positions, torch.zeros(2, 3, device=device), atol=1e-5, rtol=0)
+
+    new_pos = torch.tensor([[10.0, 10.0, 0.0], [-40.0, -40.0, 0.0]], device=device)
+    new_quat = torch.tensor([[0.0, 0.0, 0.7071068, 0.7071068], [0.0, 0.0, -0.7071068, 0.7071068]], device=device)
+    with view.xform_world_space_writer() as w:
+        w.set_poses(positions=new_pos, orientations=new_quat)
+
+    ret_pos = view.get_world_poses()[0].torch
+    torch.testing.assert_close(ret_pos, new_pos, atol=1e-5, rtol=0)

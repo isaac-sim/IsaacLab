@@ -1,18 +1,21 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
-from isaaclab.devices.openxr import XrCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
-from isaaclab.utils.noise import NoiseModelCfg
-
+if TYPE_CHECKING:
+    from ..devices.openxr import XrCfg
+from ..scene import InteractiveSceneCfg
+from ..sim import SimulationCfg
+from ..utils import configclass
+from ..utils.noise import NoiseModelCfg
 from .common import SpaceType, ViewerCfg
-from .ui import BaseEnvWindow
+from .utils.video_recorder_cfg import VideoRecorderCfg
 
 
 @configclass
@@ -23,14 +26,11 @@ class DirectRLEnvCfg:
     """
 
     # simulation settings
-    viewer: ViewerCfg = ViewerCfg()
-    """Viewer configuration. Default is ViewerCfg()."""
-
     sim: SimulationCfg = SimulationCfg()
     """Physics simulation configuration. Default is SimulationCfg()."""
 
     # ui settings
-    ui_window_class_type: type | None = BaseEnvWindow
+    ui_window_class_type: type | str | None = "isaaclab.envs.ui.base_env_window:BaseEnvWindow"
     """The class type of the UI window. Default is None.
 
     If None, then no UI window is created.
@@ -77,6 +77,23 @@ class DirectRLEnvCfg:
     Note:
         The base :class:`ManagerBasedRLEnv` class does not use this flag directly. It is used by the environment
         wrappers to determine what type of done signal to send to the corresponding learning agent.
+    """
+
+    compute_final_obs: bool = False
+    """Whether to capture the terminal observation before a Same-Step autoreset and expose it.
+
+    Under Same-Step autoreset (see :attr:`~isaaclab.envs.DirectRLEnv.metadata`), an environment that
+    terminates is reset within the same :meth:`~isaaclab.envs.DirectRLEnv.step` call, so the returned
+    observation belongs to the *new* episode. When this flag is True, the observation is computed once
+    more *before* the reset and stored under ``extras["final_obs"]`` (with the same observation noise
+    as the returned observation applied), so wrappers can report it as the true terminal observation
+    for value bootstrapping.
+
+    Defaults to False, which preserves the previous behavior: no terminal observation is captured,
+    ``extras["final_obs"]`` is not populated, and the extra observation computation is skipped.
+
+    Note:
+        Currently consumed by the :class:`~isaaclab_rl.sb3.Sb3VecEnvWrapper` wrapper.
     """
 
     episode_length_s: float = MISSING
@@ -170,7 +187,8 @@ class DirectRLEnvCfg:
     """
 
     observation_noise_model: NoiseModelCfg | None = None
-    """The noise model to apply to the computed observations from the environment. Default is None, which means no noise is added.
+    """The noise model to apply to the computed observations from the environment. Default is None,
+    which means no noise is added.
 
     Please refer to the :class:`isaaclab.utils.noise.NoiseModel` class for more details.
     """
@@ -207,7 +225,8 @@ class DirectRLEnvCfg:
     """
 
     action_noise_model: NoiseModelCfg | None = None
-    """The noise model applied to the actions provided to the environment. Default is None, which means no noise is added.
+    """The noise model applied to the actions provided to the environment. Default is None,
+    which means no noise is added.
 
     Please refer to the :class:`isaaclab.utils.noise.NoiseModel` class for more details.
     """
@@ -231,13 +250,14 @@ class DirectRLEnvCfg:
     """
 
     num_rerenders_on_reset: int = 0
-    """Number of render steps to perform after reset. Defaults to 0, which means no render step will be performed after reset.
+    """Number of render steps to perform after reset. Defaults to 0, which means no render step will be performed
+    after reset.
 
-    * When this is 0, no render step will be performed after reset. Data collected from sensors after performing reset will be stale and will not reflect the
-      latest states in simulation caused by the reset.
-    * When this is greater than 0, the specified number of extra render steps will be performed to update the sensor data
-      to reflect the latest states from the reset. This comes at a cost of performance as additional render
-      steps will be performed after each time an environment is reset.
+    * When this is 0, no render step will be performed after reset. Data collected from sensors after performing
+      reset will be stale and will not reflect the latest states in simulation caused by the reset.
+    * When this is greater than 0, the specified number of extra render steps will be performed to update the
+      sensor data to reflect the latest states from the reset. This comes at a cost of performance as additional
+      render steps will be performed after each time an environment is reset.
     """
 
     wait_for_textures: bool = True
@@ -248,3 +268,40 @@ class DirectRLEnvCfg:
 
     log_dir: str | None = None
     """Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set."""
+
+    video_recorders: list[VideoRecorderCfg] = []
+    """Video recording streams. Each entry records from its configured source independently.
+
+    Leave empty to disable recording. Set ``--video`` on the CLI to auto-populate this list
+    with a default stream from the active visualizer.
+    """
+
+    viewer: ViewerCfg = ViewerCfg()
+    """Deprecated viewer configuration. Use :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`
+    or :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` instead.
+
+    .. deprecated::
+        This field is deprecated and will be removed in a future release. Configure the viewport
+        camera via :class:`~isaaclab.visualizers.VisualizerCfg` on the simulation config::
+
+            from isaaclab.visualizers import VisualizerCfg
+            env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=(4.5, 0.0, 6.0))
+    """
+
+    def play_mode(self):
+        """Adjust the configuration for interactive playback and policy inference.
+
+        Play scripts call this method after the configuration is fully initialized (i.e. after
+        :meth:`__post_init__`) unless the user requests the training configuration as-is.
+        The base implementation applies defaults that are useful for most tasks:
+
+        * caps the number of environments at 50 to keep the scene lightweight, and
+        * disables observation noise.
+
+        Override this method in a task configuration to customize playback behavior. Call
+        ``super().play_mode()`` to keep the shared defaults.
+        """
+        # make a smaller scene for play
+        self.scene.num_envs = min(self.scene.num_envs, 50)
+        # disable observation noise
+        self.observation_noise_model = None

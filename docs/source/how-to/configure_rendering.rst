@@ -1,74 +1,155 @@
-Configuring Rendering Settings
-==============================
+:orphan:
 
-Isaac Lab offers 3 preset rendering modes: performance, balanced, and quality.
-You can select a mode via a command line argument or from within a script, and customize settings as needed.
-Adjust and fine-tune rendering to achieve the ideal balance for your workflow.
+Select and configure a Renderer
+===============================
 
-Selecting a Rendering Mode
---------------------------
+Renderers produce camera-sensor observations. They are distinct from visualizers, which provide
+interactive views for people. Select a renderer for the images your policy or data pipeline needs,
+then tune only the options that affect that workflow.
 
-Rendering modes can be selected in 2 ways.
+Choose a renderer
+-----------------
 
-1. using the ``rendering_mode`` input class argument in :class:`~sim.RenderCfg`
+For tasks that advertise renderer presets, choose a compatible physics and renderer pair at launch.
+Use ``--task <task-name> --help`` to see the presets a task actually supports; renderer availability
+is task-specific.
 
-   .. code-block:: python
+.. list-table:: Renderer choices
+   :header-rows: 1
+   :widths: 20 25 30 25
 
-     # for an example of how this can be used, checkout the tutorial script
-     # scripts/tutorials/00_sim/set_rendering_mode.py
-     render_cfg = sim_utils.RenderCfg(rendering_mode="performance")
+   * - Renderer
+     - Choose it when
+     - Trade-off
+     - Typical command
+   * - Newton Warp
+     - You need the lowest VRAM use and high camera throughput for Newton training.
+     - Lightweight rasterization; it has a smaller output set and does not provide motion vectors
+       or full RTX material transport.
+     - ``physics=newton_mjwarp renderer=newton_renderer presets=rgb``
+   * - OVRTX
+     - You need scalable kit-less RTX rendering and higher visual fidelity.
+     - Uses more VRAM than Newton Warp. Choose RTX Minimal outputs when throughput matters more
+       than photo-real appearance.
+     - ``physics=newton_mjwarp renderer=ovrtx presets=rgb``
+   * - Isaac RTX (legacy)
+     - A workflow must run through Isaac Sim/Kit or needs its broad RTX and Replicator output set.
+     - Requires Isaac Sim and PhysX; do not use it as the default performance path for new work.
+     - ``physics=isaacsim_physx renderer=isaacsim_rtx presets=rgb``
 
-2. using the ``--rendering_mode`` CLI argument, which takes precedence over the ``rendering_mode`` argument in :class:`~sim.RenderCfg`.
+For example, start a camera task with the low-VRAM Newton renderer:
 
-   .. code-block:: bash
+.. code-block:: bash
 
-     ./isaaclab.sh -p scripts/tutorials/00_sim/set_rendering_mode.py --rendering_mode {performance/balanced/quality}
+   uv run isaaclab train --rl_library rsl_rl \
+      --task Isaac-Cartpole-Camera \
+      physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
+Switch the same supported task to the higher-fidelity kit-less RTX renderer:
 
-Note, the ``rendering_mode`` defaults to ``balanced``.
-However, in the case where the launcher argument ``--enable_cameras`` is not set, then
-the default ``rendering_mode`` is not applied and, instead, the default kit rendering settings are used.
+.. code-block:: bash
 
+   uv run isaaclab train --rl_library rsl_rl \
+      --task Isaac-Cartpole-Camera \
+      physics=newton_mjwarp renderer=ovrtx presets=rgb
 
-Example renders from the ``set_rendering_mode.py`` script.
-To help assess rendering, the example scene includes some reflections, translucency, direct and ambient lighting, and several material types.
+The :ref:`renderer details <renderer-details>` and the
+:ref:`camera renderer support matrix <camera-supported-annotators>` are the authoritative references
+for output availability and runtime requirements. Do not compare the renderer choices through a
+camera-count heuristic: measure the complete task and observation configuration you intend to train.
 
--  Quality Mode
+Customize Newton Warp
+---------------------
 
-   .. image:: ../_static/how-to/howto_rendering_example_quality.jpg
-      :width: 100%
-      :alt: Quality Rendering Mode Example
+Newton Warp is the throughput-oriented choice. Begin with its defaults, then enable only the image
+features that matter to the policy. Shadows, textures, ambient lighting, traversal order, and tile
+dimensions are controlled by :class:`~isaaclab_newton.renderers.NewtonWarpRendererCfg`.
 
--  Balanced Mode
+For a task with a camera renderer configuration, enable directional-light shadows with an override:
 
-   .. image:: ../_static/how-to/howto_rendering_example_balanced.jpg
-      :width: 100%
-      :alt: Balanced Rendering Mode Example
+.. code-block:: bash
 
--  Performance Mode
+   uv run isaaclab train --rl_library rsl_rl \
+      --task Isaac-Cartpole-Camera \
+      physics=newton_mjwarp renderer=newton_renderer presets=rgb \
+      env.scene.tiled_camera.renderer_cfg.enable_shadows=true
 
-   .. image:: ../_static/how-to/howto_rendering_example_performance.jpg
-      :width: 100%
-      :alt: Performance Rendering Mode Example
+When defining a camera in Python, configure the renderer directly:
 
-Overwriting Specific Rendering Settings
----------------------------------------
+.. code-block:: python
 
-Preset rendering settings can be overwritten via the :class:`~sim.RenderCfg` class.
+   from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
-There are 2 ways to provide settings that overwrite presets.
+   renderer_cfg = NewtonWarpRendererCfg(
+       enable_textures=True,
+       enable_shadows=True,
+       render_order="tiled",
+   )
 
-1. :class:`~sim.RenderCfg` supports overwriting specific settings via user-friendly setting names that map to underlying RTX settings.
+Use ``render_order`` and the tile dimensions only after profiling a representative scene; they are
+implementation-level throughput controls, not visual-quality settings.
+
+Customize OVRTX
+---------------
+
+OVRTX provides RTX Minimal and photo-real paths without Isaac Sim. Use the regular ``rgb`` output
+when material appearance, reflections, transparency, or the broader RTX output set matter. For
+training that only needs simplified color, select a ``simple_shading_*`` preset instead:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl \
+      --task Isaac-Cartpole-Camera \
+      physics=newton_mjwarp renderer=ovrtx \
+      presets=simple_shading_diffuse_mdl
+
+In RTX Minimal mode, :class:`~isaaclab_ov.renderers.OVRTXRendererCfg.enable_shadows` controls
+directional-light shadow rays. They improve visual faithfulness but cost render time. Path-traced
+OVRTX outputs always cast shadows, so this option does not affect regular ``rgb`` or other AOVs.
+
+.. code-block:: python
+
+   from isaaclab_ov.renderers import OVRTXRendererCfg
+
+   renderer_cfg = OVRTXRendererCfg(enable_shadows=True)
+
+Customize Isaac RTX
+-------------------
+
+Isaac RTX remains available for Isaac Sim and PhysX workflows. The settings below are specific to
+that legacy renderer; use Newton Warp or OVRTX for new Newton and kit-less workloads.
+
+.. note::
+
+   Requesting one of the ``simple_shading_*`` camera data types without a regular color output
+   switches that camera's render product to RTX Minimal mode; the data type selects the shading
+   level. The switch applies per render product, so other cameras and the Kit viewport keep their
+   configured render mode. RTX Minimal uses only the first ``DistantLight`` prim, ignores
+   ``DomeLight`` prims, and may also use configured ambient lighting. When ``rgb``, ``rgba``, or
+   ``rgb_hdr`` is requested from the same render product, it retains its configured render mode to
+   preserve the color output; the ``simple_shading_*`` output remains available but does not receive
+   the RTX Minimal performance improvement.
+
+Overriding Specific Rendering Settings
+--------------------------------------
+
+RTX rendering settings can be overridden via
+:class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`.
+
+There are 2 ways to provide settings that override the defaults.
+
+1. :class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`
+   supports overriding specific settings via user-friendly setting names that
+   map to underlying RTX settings.
    For example:
 
    .. code-block:: python
 
-      render_cfg = sim_utils.RenderCfg(
-         rendering_mode="performance",
-         # user friendly setting overwrites
-         enable_translucency=True, # defaults to False in performance mode
-         enable_reflections=True, # defaults to False in performance mode
-         dlss_mode="3", # defaults to 1 in performance mode
+      global_settings = IsaacRtxRendererGlobalSettingsCfg(
+         # user-friendly setting overrides
+         enable_translucency=True,  # render glass / transmissive surfaces
+         enable_reflections=True,  # render reflections
+         dlss_mode=3,  # 0 (Performance), 1 (Balanced), 2 (Quality, the default), 3 (Auto)
       )
 
    List of user-friendly settings.
@@ -119,19 +200,20 @@ There are 2 ways to provide settings that overwrite presets.
       +----------------------------+--------------------------------------------------------------------------+
 
 
-2. For more control, :class:`~sim.RenderCfg` allows you to overwrite any RTX setting by using the ``carb_settings`` argument.
+2. For more control,
+   :class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`
+   allows you to override any RTX setting by using the ``carb_settings``
+   argument.
 
-   Examples of RTX settings can be found from within the repo, in the render mode preset files located in ``apps/rendering_modes``.
-
-   In addition, the RTX documentation can be found here - https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer.html.
+   The full NVIDIA RTX renderer documentation can be found at
+   https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer.html.
 
    An example usage of ``carb_settings``.
 
    .. code-block:: python
 
-      render_cfg = sim_utils.RenderCfg(
-         rendering_mode="quality",
-         # carb setting overwrites
+      global_settings = IsaacRtxRendererGlobalSettingsCfg(
+         # raw carb setting overrides
          carb_settings={
             "rtx.translucency.enabled": False,
             "rtx.reflections.enabled": False,
@@ -146,6 +228,48 @@ Current Limitations
 For performance reasons, we default to using DLSS for denoising, which generally provides better performance.
 This may result in renders of lower quality, which may be especially evident at lower resolutions.
 Due to this, we recommend using per-tile or per-camera resolution of at least 100 x 100.
-For renders at lower resolutions, we advice setting the ``antialiasing_mode`` attribute in :class:`~sim.RenderCfg` to
+For renders at lower resolutions, we advice setting the ``antialiasing_mode`` attribute in
+:class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg` to
 ``DLAA``, and also potentially enabling ``enable_dl_denoiser``. Both of these settings should help improve render
-quality, but also comes at a cost of performance. Additional rendering parameters can also be specified in :class:`~sim.RenderCfg`.
+quality, but also comes at a cost of performance. Additional rendering parameters can also be specified in
+:class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`.
+
+
+If you observe visual artifacts such as ghosting or disocclusion issues when using tiled rendering, you can try
+adjusting the ``disocclusionScale`` parameter. This setting controls how aggressively the renderer handles
+areas that become newly visible between frames:
+
+.. code-block:: python
+
+   global_settings = IsaacRtxRendererGlobalSettingsCfg(
+      carb_settings={
+         "/rtx/aovConverter/disocclusionScale": 10000,
+      }
+   )
+
+.. note::
+
+   This parameter is not commonly exposed as it may have side effects in certain scenarios.
+   Only use it as a last resort if other quality settings do not resolve the visual artifacts.
+   The value can be adjusted to a very high value to reduce disocclusion artifacts.
+
+
+Rendering UsdVol 3D Gaussian Scenes in Multiple Environments
+------------------------------------------------------------
+
+When using UsdVol volumes with 3D Gaussian particles (e.g. exported from
+`3DGRUT <https://github.com/nv-tlabs/3dgrut?tab=readme-ov-file#exporting-usdz-for-use-in-omniverse-and-isaac-sim>`_)
+in **multiple environments**, you must set the following so the renderer uses the correct compositing path:
+
+.. code-block:: python
+
+   global_settings = IsaacRtxRendererGlobalSettingsCfg(
+      carb_settings={
+         "omni.rtx.nre.compositing.rendererHints": 3,
+      }
+   )
+
+.. warning::
+
+   With multiple environments, each environment holds its own copy of the scene, increasing device memory use,
+   and environments are rendered one after another, which can substantially slow down rendering.

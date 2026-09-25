@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -10,21 +10,24 @@ using Rerun's visualization capabilities. It helps in debugging and validating c
 """
 
 import atexit
-import numpy as np
 import os
 import signal
 import subprocess
 import threading
 import time
-import torch
 import weakref
 from typing import TYPE_CHECKING, Any, Optional
+
+import numpy as np
+import torch
 
 # Check if rerun is installed
 try:
     import rerun as rr
 except ImportError:
     raise ImportError("Rerun is not installed!")
+
+_RR_HAS_TRANSFORM_AXES = hasattr(rr, "TransformAxes3D")
 
 from curobo.types.state import JointState
 
@@ -627,15 +630,17 @@ class PlanVisualizer:
 
             # Always update transform (objects may move between calls)
             # NOTE: World scene objects are already in correct world coordinates, no offset needed
-            rr.log(
-                rr_path,
-                rr.Transform3D(
-                    translation=tform[:3, 3],
-                    mat3x3=tform[:3, :3],
-                    axis_length=0.25,
-                ),
-                static=False,
-            )
+            if _RR_HAS_TRANSFORM_AXES:
+                # rerun >= 0.28: axis_length moved to TransformAxes3D
+                rr.log(rr_path, rr.Transform3D(translation=tform[:3, 3], mat3x3=tform[:3, :3]), static=False)
+                rr.log(rr_path, rr.TransformAxes3D(axis_length=0.25), static=False)
+            else:
+                # rerun <= 0.27: axis_length on Transform3D directly
+                rr.log(
+                    rr_path,
+                    rr.Transform3D(translation=tform[:3, 3], mat3x3=tform[:3, :3], axis_length=0.25),
+                    static=False,
+                )
 
             # Geometry: send only once per node to avoid duplicates
             if rr_path not in self._logged_geometry:
@@ -878,9 +883,7 @@ class PlanVisualizer:
         """
         if len(plan.position) < 2:
             # If only one waypoint, just return it
-            return [
-                plan.position[0] if isinstance(plan.position[0], torch.Tensor) else torch.tensor(plan.position[0])
-            ]  # type: ignore
+            return [plan.position[0] if isinstance(plan.position[0], torch.Tensor) else torch.tensor(plan.position[0])]  # type: ignore
 
         interpolated_positions = []
 

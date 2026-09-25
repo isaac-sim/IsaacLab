@@ -1,3 +1,5 @@
+:orphan:
+
 .. _how-to-add-library:
 
 Adding your own learning library
@@ -6,8 +8,8 @@ Adding your own learning library
 Isaac Lab comes pre-integrated with a number of libraries (such as RSL-RL, RL-Games, SKRL, Stable Baselines, etc.).
 However, you may want to integrate your own library with Isaac Lab or use a different version of the libraries than
 the one installed by Isaac Lab. This is possible as long as the library is available as Python package that supports
-the Python version used by the underlying simulator. For instance, if you are using Isaac Sim 4.0.0 onwards, you need
-to ensure that the library is available for Python 3.11.
+the Python version used by the underlying simulator. For instance, if you are using Isaac Sim 6.0.0 onwards, you need
+to ensure that the library is available for Python 3.12.
 
 Using a different version of a library
 --------------------------------------
@@ -33,7 +35,7 @@ For instance, if you want to use your own modified version of the `rsl-rl`_ libr
      cd IsaacLab
 
      # Note: If you are using a virtual environment, make sure to activate it before running the following command
-     ./isaaclab.sh -p -m pip install -e /path/to/rsl_rl
+     python -m pip install -e /path/to/rsl_rl
 
 In this case, the ``rsl-rl`` library will be installed in the Python environment used by Isaac Lab. You can now use the
 ``rsl-rl`` library in your experiments. To check the library version and other details, you can use the following
@@ -41,23 +43,23 @@ command:
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p -m pip show rsl-rl-lib
+   python -m pip show rsl-rl-lib
 
 This should now show the location of the ``rsl-rl`` library as the directory where you cloned the library.
 For instance, if you cloned the library to ``/home/user/git/rsl_rl``, the output of the above command should be:
 
 .. code-block:: bash
 
-  Name: rsl_rl
-  Version: 3.0.1
-  Summary: Fast and simple RL algorithms implemented in pytorch
-  Home-page: https://github.com/leggedrobotics/rsl_rl
-  Author: ETH Zurich, NVIDIA CORPORATION
-  Author-email:
-  License: BSD-3
-  Location: /home/user/git/rsl_rl
-  Requires: torch, torchvision, numpy, GitPython, onnx
-  Required-by:
+   Name: rsl_rl
+   Version: 3.0.1
+   Summary: Fast and simple RL algorithms implemented in pytorch
+   Home-page: https://github.com/leggedrobotics/rsl_rl
+   Author: ETH Zurich, NVIDIA CORPORATION
+   Author-email:
+   License: BSD-3
+   Location: /home/user/git/rsl_rl
+   Requires: torch, torchvision, numpy, GitPython, onnx
+   Required-by:
 
 
 Integrating a new library

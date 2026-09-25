@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,11 +7,13 @@
 
 from __future__ import annotations
 
+import math
+from typing import TYPE_CHECKING
+
 import numpy as np
 import scipy.spatial.transform as tf
 import torch
 import trimesh
-from typing import TYPE_CHECKING
 
 from .utils import *  # noqa: F401, F403
 from .utils import make_border, make_plane
@@ -39,11 +41,8 @@ def flat_terrain(
     Returns:
         A tuple containing the tri-mesh of the terrain and the origin of the terrain (in m).
     """
-    # compute the position of the terrain
     origin = (cfg.size[0] / 2.0, cfg.size[1] / 2.0, 0.0)
-    # compute the vertices of the terrain
     plane_mesh = make_plane(cfg.size, 0.0, center_zero=False)
-    # return the tri-mesh and the position
     return [plane_mesh], np.array(origin)
 
 
@@ -103,11 +102,8 @@ def pyramid_stairs_terrain(
             box_size = (cfg.platform_width, cfg.platform_width)
         else:
             box_size = (terrain_size[0] - 2 * k * cfg.step_width, terrain_size[1] - 2 * k * cfg.step_width)
-        # compute the quantities of the box
-        # -- location
         box_z = terrain_center[2] + k * step_height / 2.0
         box_offset = (k + 0.5) * cfg.step_width
-        # -- dimensions
         box_height = (k + 2) * step_height
         # generate the boxes
         # top/bottom
@@ -204,11 +200,8 @@ def inverted_pyramid_stairs_terrain(
             box_size = (cfg.platform_width, cfg.platform_width)
         else:
             box_size = (terrain_size[0] - 2 * k * cfg.step_width, terrain_size[1] - 2 * k * cfg.step_width)
-        # compute the quantities of the box
-        # -- location
         box_z = terrain_center[2] - total_height / 2 - (k + 1) * step_height / 2.0
         box_offset = (k + 0.5) * cfg.step_width
-        # -- dimensions
         box_height = total_height - (k + 1) * step_height
         # generate the boxes
         # top/bottom
@@ -253,9 +246,9 @@ def random_grid_terrain(
     """Generate a terrain with cells of random heights and fixed width.
 
     The terrain is generated in the x-y plane and has a height of 1.0. It is then divided into a grid of the
-    specified size :obj:`cfg.grid_width`. Each grid cell is then randomly shifted in the z-direction by a value uniformly
-    sampled between :obj:`cfg.grid_height_range`. At the center of the terrain, a platform of the specified width
-    :obj:`cfg.platform_width` is generated.
+    specified size :obj:`cfg.grid_width`. Each grid cell is then randomly shifted in the z-direction by a value
+    uniformly sampled between :obj:`cfg.grid_height_range`. At the center of the terrain, a platform of the specified
+    width :obj:`cfg.platform_width` is generated.
 
     If :obj:`cfg.holes` is True, the terrain will have randomized grid cells only along the plane extending
     from the platform (like a plus sign). The remaining area remains empty and no border will be added.
@@ -693,11 +686,11 @@ def star_terrain(
         # length changes since the bar is connected to a square border
         bar_length = cfg.size[0]
         if yaw < 0.25 * np.pi:
-            bar_length /= np.math.cos(yaw)
+            bar_length /= math.cos(yaw)
         elif yaw < 0.75 * np.pi:
-            bar_length /= np.math.sin(yaw)
+            bar_length /= math.sin(yaw)
         else:
-            bar_length /= np.math.cos(np.pi - yaw)
+            bar_length /= math.cos(np.pi - yaw)
         # compute the transform of the bar
         transform[0:3, 0:3] = tf.Rotation.from_euler("z", yaw).as_matrix()
         # add the bar to the mesh
@@ -758,13 +751,16 @@ def repeated_objects_terrain(
         MeshRepeatedPyramidsTerrainCfg,
     )
 
-    # if object type is a string, get the function: make_{object_type}
-    if isinstance(cfg.object_type, str):
+    # callables are checked first since resolvable strings such as "{DIR}.utils:make_box" are callable str
+    # subclasses; any other string names a function in this module: make_{object_type}
+    if callable(cfg.object_type):
+        object_func = cfg.object_type
+    elif isinstance(cfg.object_type, str):
         object_func = globals().get(f"make_{cfg.object_type}")
     else:
-        object_func = cfg.object_type
+        object_func = None
     if not callable(object_func):
-        raise ValueError(f"The attribute 'object_type' must be a string or a callable. Received: {object_func}")
+        raise ValueError(f"The attribute 'object_type' must be a string or a callable. Received: {cfg.object_type}")
 
     # Resolve the terrain configuration
     # -- pass parameters to make calling simpler
@@ -810,10 +806,12 @@ def repeated_objects_terrain(
     meshes_list = list()
     # compute quantities
     origin = np.asarray((0.5 * cfg.size[0], 0.5 * cfg.size[1], 0.5 * platform_height))
-    platform_corners = np.asarray([
-        [origin[0] - cfg.platform_width / 2, origin[1] - cfg.platform_width / 2],
-        [origin[0] + cfg.platform_width / 2, origin[1] + cfg.platform_width / 2],
-    ])
+    platform_corners = np.asarray(
+        [
+            [origin[0] - cfg.platform_width / 2, origin[1] - cfg.platform_width / 2],
+            [origin[0] + cfg.platform_width / 2, origin[1] + cfg.platform_width / 2],
+        ]
+    )
     platform_corners[0, :] *= 1 - platform_clearance
     platform_corners[1, :] *= 1 + platform_clearance
     # sample valid center for objects

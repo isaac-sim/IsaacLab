@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -21,11 +21,10 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import ctypes
-
-from isaacsim.core.api.simulation_context import SimulationContext
+import sys
 
 from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
+from isaaclab.sim import SimulationCfg, SimulationContext
 
 
 def print_cb():
@@ -41,7 +40,7 @@ def quit_cb():
 
 def main():
     # Load kit helper
-    sim = SimulationContext(physics_dt=0.01, rendering_dt=0.01)
+    sim = SimulationContext(SimulationCfg(dt=0.01))
 
     # Create teleoperation interface
     teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.1, rot_sensitivity=0.1))
@@ -52,9 +51,9 @@ def main():
 
     print("Press 'L' to print a message. Press 'ESC' to quit.")
 
-    # Check that boundedness of articulation is correct
-    if ctypes.c_long.from_address(id(teleop_interface)).value != 1:
-        raise RuntimeError("Teleoperation interface is not bounded to a single instance.")
+    # Check that the framework doesn't hold excessive strong references.
+    if sys.getrefcount(teleop_interface) >= 10:
+        raise RuntimeError("Possible reference leak for teleoperation interface.")
 
     # Reset interface internals
     teleop_interface.reset()

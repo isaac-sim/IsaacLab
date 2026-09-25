@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -48,7 +48,7 @@ class EmptyWindow:
 
         # keep a dictionary of stacks so that child environments can add their own UI elements
         # this can be done by using the `with` context manager
-        self.ui_window_elements = dict()
+        self.ui_window_elements = {}
         # create main frame
         self.ui_window_elements["main_frame"] = self.ui_window.frame
         with self.ui_window_elements["main_frame"]:

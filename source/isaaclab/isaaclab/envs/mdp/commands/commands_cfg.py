@@ -1,27 +1,29 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 from isaaclab.managers import CommandTermCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import BLUE_ARROW_X_MARKER_CFG, FRAME_MARKER_CFG, GREEN_ARROW_X_MARKER_CFG
 from isaaclab.utils import configclass
 
-from .null_command import NullCommand
-from .pose_2d_command import TerrainBasedPose2dCommand, UniformPose2dCommand
-from .pose_command import UniformPoseCommand
-from .velocity_command import NormalVelocityCommand, UniformVelocityCommand
+if TYPE_CHECKING:
+    from .null_command import NullCommand
+    from .pose_2d_command import TerrainBasedPose2dCommand, UniformPose2dCommand
+    from .pose_command import UniformPoseCommand
+    from .velocity_command import NormalVelocityCommand, UniformVelocityCommand
 
 
 @configclass
 class NullCommandCfg(CommandTermCfg):
     """Configuration for the null command generator."""
 
-    class_type: type = NullCommand
+    class_type: type["NullCommand"] | str = "{DIR}.null_command:NullCommand"
 
     def __post_init__(self):
         """Post initialization."""
@@ -33,7 +35,7 @@ class NullCommandCfg(CommandTermCfg):
 class UniformVelocityCommandCfg(CommandTermCfg):
     """Configuration for the uniform velocity command generator."""
 
-    class_type: type = UniformVelocityCommand
+    class_type: type["UniformVelocityCommand"] | str = "{DIR}.velocity_command:UniformVelocityCommand"
 
     asset_name: str = MISSING
     """Name of the asset in the environment for which the commands are generated."""
@@ -81,6 +83,20 @@ class UniformVelocityCommandCfg(CommandTermCfg):
     ranges: Ranges = MISSING
     """Distribution ranges for the velocity commands."""
 
+    vel_xy_success_threshold: float = 0.5
+    """Threshold on the per-episode mean XY velocity error norm [m/s]."""
+
+    vel_yaw_success_threshold: float = 0.4
+    """Threshold on the per-episode mean yaw velocity error [rad/s]."""
+
+    marker_pos_offset: tuple[float, float, float] = (0.0, 0.0, 0.5)
+    """Offset [m] applied to the robot root position when placing velocity visualization markers.
+
+    The default of ``(0.0, 0.0, 0.5)`` works well for quadrupeds. For taller robots such as
+    humanoids, increase the Z component (e.g. ``(0.0, 0.0, 1.8)``) so the arrows appear above
+    the robot's head rather than clipping through the torso.
+    """
+
     goal_vel_visualizer_cfg: VisualizationMarkersCfg = GREEN_ARROW_X_MARKER_CFG.replace(
         prim_path="/Visuals/Command/velocity_goal"
     )
@@ -100,7 +116,7 @@ class UniformVelocityCommandCfg(CommandTermCfg):
 class NormalVelocityCommandCfg(UniformVelocityCommandCfg):
     """Configuration for the normal velocity command generator."""
 
-    class_type: type = NormalVelocityCommand
+    class_type: type["NormalVelocityCommand"] | str = "{DIR}.velocity_command:NormalVelocityCommand"
     heading_command: bool = False  # --> we don't use heading command for normal velocity command.
 
     @configclass
@@ -133,7 +149,7 @@ class NormalVelocityCommandCfg(UniformVelocityCommandCfg):
 class UniformPoseCommandCfg(CommandTermCfg):
     """Configuration for uniform pose command generator."""
 
-    class_type: type = UniformPoseCommand
+    class_type: type["UniformPoseCommand"] | str = "{DIR}.pose_command:UniformPoseCommand"
 
     asset_name: str = MISSING
     """Name of the asset in the environment for which the commands are generated."""
@@ -172,6 +188,20 @@ class UniformPoseCommandCfg(CommandTermCfg):
     ranges: Ranges = MISSING
     """Ranges for the commands."""
 
+    position_success_threshold: float | None = None
+    """If set, position-error norm [m] below this value (per step) is required for success.
+
+    When both position and orientation thresholds are set, both conditions must be satisfied.
+    The episode-level binary "ever successful" is mean-reduced across environments and logged
+    under ``Metrics/success_rate``. Defaults to ``None``."""
+
+    orientation_success_threshold: float | None = None
+    """If set, orientation-error norm [rad] below this value (per step) is required for success.
+
+    When both position and orientation thresholds are set, both conditions must be satisfied.
+    The episode-level binary "ever successful" is mean-reduced across environments and logged
+    under ``Metrics/success_rate``. Defaults to ``None``."""
+
     goal_pose_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/Command/goal_pose")
     """The configuration for the goal pose visualization marker. Defaults to FRAME_MARKER_CFG."""
 
@@ -189,7 +219,7 @@ class UniformPoseCommandCfg(CommandTermCfg):
 class UniformPose2dCommandCfg(CommandTermCfg):
     """Configuration for the uniform 2D-pose command generator."""
 
-    class_type: type = UniformPose2dCommand
+    class_type: type["UniformPose2dCommand"] | str = "{DIR}.pose_2d_command:UniformPose2dCommand"
 
     asset_name: str = MISSING
     """Name of the asset in the environment for which the commands are generated."""
@@ -219,6 +249,12 @@ class UniformPose2dCommandCfg(CommandTermCfg):
     ranges: Ranges = MISSING
     """Distribution ranges for the position commands."""
 
+    position_success_threshold: float | None = None
+    """If set, XY position-error norm below this value (per step) flags the episode as successful.
+
+    The episode-level binary "ever within threshold" is mean-reduced across environments and
+    logged under ``Metrics/success_rate``. Defaults to ``None`` (success tracking disabled)."""
+
     goal_pose_visualizer_cfg: VisualizationMarkersCfg = GREEN_ARROW_X_MARKER_CFG.replace(
         prim_path="/Visuals/Command/pose_goal"
     )
@@ -232,7 +268,7 @@ class UniformPose2dCommandCfg(CommandTermCfg):
 class TerrainBasedPose2dCommandCfg(UniformPose2dCommandCfg):
     """Configuration for the terrain-based position command generator."""
 
-    class_type = TerrainBasedPose2dCommand
+    class_type: type["TerrainBasedPose2dCommand"] | str = "{DIR}.pose_2d_command:TerrainBasedPose2dCommand"
 
     @configclass
     class Ranges:

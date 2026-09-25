@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -15,19 +15,20 @@ inherit from ``isaaclab.terrains.terrains_cfg.TerrainConfig`` and define the fol
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
-from isaaclab.utils import configclass
-
+from ..utils import configclass
 from .sub_terrain_cfg import SubTerrainBaseCfg
-from .terrain_generator import TerrainGenerator
+
+if TYPE_CHECKING:
+    from .terrain_generator import TerrainGenerator
 
 
 @configclass
 class TerrainGeneratorCfg:
     """Configuration for the terrain generator."""
 
-    class_type: type = TerrainGenerator
+    class_type: type[TerrainGenerator] | str = "{DIR}.terrain_generator:TerrainGenerator"
     """The class to use for the terrain generator.
 
     Defaults to :class:`isaaclab.terrains.terrain_generator.TerrainGenerator`.
@@ -64,7 +65,9 @@ class TerrainGeneratorCfg:
     """The height of the border around the terrain (in m). Defaults to 1.0.
 
     .. note::
-      The default border extends below the ground. If you want to make the border above the ground, choose a negative value.
+      The default border extends below the ground. If you want to make the border above the ground,
+      choose a negative value.
+
     """
 
     num_rows: int = 1

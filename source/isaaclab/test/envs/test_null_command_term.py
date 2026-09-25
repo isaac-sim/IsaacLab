@@ -1,22 +1,15 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
 
 from collections import namedtuple
 
 import pytest
 
 from isaaclab.envs.mdp import NullCommandCfg
+
+pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
@@ -29,9 +22,7 @@ def test_str(env):
     """Test the string representation of the command manager."""
     cfg = NullCommandCfg()
     command_term = cfg.class_type(cfg, env)
-    # print the expected string
-    print()
-    print(command_term)
+    assert "NullCommand" in str(command_term)
 
 
 def test_compute(env):

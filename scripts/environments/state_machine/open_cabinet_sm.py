@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,7 +11,7 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/environments/state_machine/open_cabinet_sm.py --num_envs 32
+    uv run python scripts/environments/state_machine/open_cabinet_sm.py --num_envs 32 --viz kit
 
 """
 
@@ -29,25 +29,25 @@ parser.add_argument(
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
-args_cli = parser.parse_args()
+# parse the arguments, forwarding unrecognized ones as Hydra-style task config overrides
+args_cli, hydra_overrides = parser.parse_known_args()
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=args_cli.headless)
+app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Rest everything else."""
 
-import gymnasium as gym
-import torch
 from collections.abc import Sequence
 
+import gymnasium as gym
+import torch
 import warp as wp
 
 from isaaclab.sensors import FrameTransformer
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.manager_based.manipulation.cabinet.cabinet_env_cfg import CabinetEnvCfg
+from isaaclab_tasks.core.cabinet.cabinet_env_cfg import CabinetEnvCfg
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 # initialize warp
@@ -241,9 +241,6 @@ class OpenDrawerSm:
 
     def compute(self, ee_pose: torch.Tensor, handle_pose: torch.Tensor):
         """Compute the desired state of the robot's end-effector and the gripper."""
-        # convert all transformations from (w, x, y, z) to (x, y, z, w)
-        ee_pose = ee_pose[:, [0, 1, 2, 4, 5, 6, 3]]
-        handle_pose = handle_pose[:, [0, 1, 2, 4, 5, 6, 3]]
         # convert to warp
         ee_pose_wp = wp.from_torch(ee_pose.contiguous(), wp.transform)
         handle_pose_wp = wp.from_torch(handle_pose.contiguous(), wp.transform)
@@ -268,22 +265,21 @@ class OpenDrawerSm:
             device=self.device,
         )
 
-        # convert transformations back to (w, x, y, z)
-        des_ee_pose = self.des_ee_pose[:, [0, 1, 2, 6, 3, 4, 5]]
         # convert to torch
-        return torch.cat([des_ee_pose, self.des_gripper_state.unsqueeze(-1)], dim=-1)
+        return torch.cat([self.des_ee_pose, self.des_gripper_state.unsqueeze(-1)], dim=-1)
 
 
 def main():
     # parse configuration
     env_cfg: CabinetEnvCfg = parse_env_cfg(
-        "Isaac-Open-Drawer-Franka-IK-Abs-v0",
+        "IsaacContrib-Open-Drawer-Franka-IK-Abs",
         device=args_cli.device,
         num_envs=args_cli.num_envs,
         use_fabric=not args_cli.disable_fabric,
+        overrides=hydra_overrides,
     )
     # create environment
-    env = gym.make("Isaac-Open-Drawer-Franka-IK-Abs-v0", cfg=env_cfg)
+    env = gym.make("IsaacContrib-Open-Drawer-Franka-IK-Abs", cfg=env_cfg)
     # reset environment at start
     env.reset()
 
@@ -305,12 +301,14 @@ def main():
             # observations
             # -- end-effector frame
             ee_frame_tf: FrameTransformer = env.unwrapped.scene["ee_frame"]
-            tcp_rest_position = ee_frame_tf.data.target_pos_w[..., 0, :].clone() - env.unwrapped.scene.env_origins
-            tcp_rest_orientation = ee_frame_tf.data.target_quat_w[..., 0, :].clone()
+            tcp_rest_position = ee_frame_tf.data.target_pos_w.torch[..., 0, :].clone() - env.unwrapped.scene.env_origins
+            tcp_rest_orientation = ee_frame_tf.data.target_quat_w.torch[..., 0, :].clone()
             # -- handle frame
             cabinet_frame_tf: FrameTransformer = env.unwrapped.scene["cabinet_frame"]
-            cabinet_position = cabinet_frame_tf.data.target_pos_w[..., 0, :].clone() - env.unwrapped.scene.env_origins
-            cabinet_orientation = cabinet_frame_tf.data.target_quat_w[..., 0, :].clone()
+            cabinet_position = (
+                cabinet_frame_tf.data.target_pos_w.torch[..., 0, :].clone() - env.unwrapped.scene.env_origins
+            )
+            cabinet_orientation = cabinet_frame_tf.data.target_quat_w.torch[..., 0, :].clone()
 
             # advance state machine
             actions = open_sm.compute(

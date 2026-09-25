@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,16 +7,16 @@
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p tools/run_all_tests.py
+    uv run python tools/run_all_tests.py
 
     # for dry run
-    ./isaaclab.sh -p tools/run_all_tests.py --discover_only
+    uv run python tools/run_all_tests.py --discover_only
 
     # for quiet run
-    ./isaaclab.sh -p tools/run_all_tests.py --quiet
+    uv run python tools/run_all_tests.py --quiet
 
     # for increasing timeout (default is 600 seconds)
-    ./isaaclab.sh -p tools/run_all_tests.py --timeout 1000
+    uv run python tools/run_all_tests.py --timeout 1000
 
 """
 
@@ -29,6 +29,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+
 from prettytable import PrettyTable
 
 # Local imports

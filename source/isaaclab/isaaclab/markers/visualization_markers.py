@@ -1,97 +1,65 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""A class to coordinate groups of visual markers (such as spheres, frames or arrows)
-using `UsdGeom.PointInstancer`_ class.
+"""Backend-agnostic facade for coordinating groups of visual markers.
 
-The class :class:`VisualizationMarkers` is used to create a group of visual markers and
-visualize them in the viewport. The markers are represented as :class:`UsdGeom.PointInstancer` prims
-in the USD stage. The markers are created as prototypes in the :class:`UsdGeom.PointInstancer` prim
-and are instanced in the :class:`UsdGeom.PointInstancer` prim. The markers can be visualized by
-passing the indices of the marker prototypes and their translations, orientations and scales.
-The marker prototypes can be configured with the :class:`VisualizationMarkersCfg` class.
-
-.. _UsdGeom.PointInstancer: https://graphics.pixar.com/usd/dev/api/class_usd_geom_point_instancer.html
+The :class:`VisualizationMarkers` class is used to create a group of visual
+markers and visualize them through the active visualizer backends. The marker
+prototypes are configured with :class:`VisualizationMarkersCfg`, and individual
+marker instances can be updated by passing prototype indices and their
+translations, orientations, and scales.
 """
 
-# needed to import for allowing type-hinting: np.ndarray | torch.Tensor | None
 from __future__ import annotations
 
 import logging
+
 import numpy as np
 import torch
-from dataclasses import MISSING
 
-import isaacsim.core.utils.stage as stage_utils
-import omni.kit.commands
-import omni.physx.scripts.utils as physx_utils
-from isaacsim.core.utils.stage import get_current_stage
-from pxr import Gf, PhysxSchema, Sdf, Usd, UsdGeom, UsdPhysics, Vt
+from .. import sim as sim_utils
+from .visualization_markers_cfg import VisualizationMarkersCfg
 
-import isaaclab.sim as sim_utils
-from isaaclab.sim.spawners import SpawnerCfg
-from isaaclab.sim.utils import attach_stage_to_usd_context
-from isaaclab.utils.configclass import configclass
-from isaaclab.utils.math import convert_quat
-
-# import logger
 logger = logging.getLogger(__name__)
 
 
-@configclass
-class VisualizationMarkersCfg:
-    """A class to configure a :class:`VisualizationMarkers`."""
-
-    prim_path: str = MISSING
-    """The prim path where the :class:`UsdGeom.PointInstancer` will be created."""
-
-    markers: dict[str, SpawnerCfg] = MISSING
-    """The dictionary of marker configurations.
-
-    The key is the name of the marker, and the value is the configuration of the marker.
-    The key is used to identify the marker in the class.
-    """
-
-
 class VisualizationMarkers:
-    """A class to coordinate groups of visual markers (loaded from USD).
+    """Coordinate groups of visual markers across active visualizer backends.
 
-    This class allows visualization of different UI markers in the scene, such as points and frames.
-    The class wraps around the `UsdGeom.PointInstancer`_ for efficient handling of objects
-    in the stage via instancing the created marker prototype prims.
+    This class allows visualization of different UI markers in the scene, such
+    as points, frames, arrows, and shapes. Marker prototypes are reusable
+    templates that define variations of objects to visualize. For example, a
+    sphere marker prototype can be used to create many sphere marker instances
+    at different locations.
 
-    A marker prototype prim is a reusable template prim used for defining variations of objects
-    in the scene. For example, a sphere prim can be used as a marker prototype prim to create
-    multiple sphere prims in the scene at different locations. Thus, prototype prims are useful
-    for creating multiple instances of the same prim in the scene.
+    The class parses the configuration to create the marker prototypes in each
+    active backend. The marker prototype name comes from the key in the
+    :attr:`VisualizationMarkersCfg.markers` dictionary, and prototype indices
+    are based on the dictionary order. For example, if the dictionary has two
+    markers, ``"marker1"`` and ``"marker2"``, their prototype indices are 0
+    and 1 respectively. These indices can be passed to :meth:`visualize` as a
+    list or array of integers.
 
-    The class parses the configuration to create different the marker prototypes into the stage. Each marker
-    prototype prim is created as a child of the :class:`UsdGeom.PointInstancer` prim. The prim path for the
-    marker prim is resolved using the key of the marker in the :attr:`VisualizationMarkersCfg.markers`
-    dictionary. The marker prototypes are created using the :meth:`isaacsim.core.utils.create_prim`
-    function, and then instanced using :class:`UsdGeom.PointInstancer` prim to allow creating multiple
-    instances of the marker prims.
-
-    Switching between different marker prototypes is possible by calling the :meth:`visualize` method with
-    the prototype indices corresponding to the marker prototype. The prototype indices are based on the order
-    in the :attr:`VisualizationMarkersCfg.markers` dictionary. For example, if the dictionary has two markers,
-    "marker1" and "marker2", then their prototype indices are 0 and 1 respectively. The prototype indices
-    can be passed as a list or array of integers.
+    Switching between marker prototypes is possible by calling
+    :meth:`visualize` with the corresponding prototype indices. The marker
+    transforms are updated only for the arguments that are provided; omitted
+    translations, orientations, scales, or marker indices are left unchanged
+    when supported by the active backend.
 
     Usage:
-        The following snippet shows how to create 24 sphere markers with a radius of 1.0 at random translations
-        within the range [-1.0, 1.0]. The first 12 markers will be colored red and the rest will be colored green.
+        The following snippet creates 24 sphere markers at random translations.
+        The first 12 markers use the first prototype and the rest use the
+        second prototype.
 
         .. code-block:: python
 
-            import isaaclab.sim as sim_utils
-            from isaaclab.markers import VisualizationMarkersCfg, VisualizationMarkers
+            import numpy as np
 
-            # Create the markers configuration
-            # This creates two marker prototypes, "marker1" and "marker2" which are spheres with a radius of 1.0.
-            # The color of "marker1" is red and the color of "marker2" is green.
+            import isaaclab.sim as sim_utils
+            from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
+
             cfg = VisualizationMarkersCfg(
                 prim_path="/World/Visuals/testMarkers",
                 markers={
@@ -99,48 +67,35 @@ class VisualizationMarkers:
                         radius=1.0,
                         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0)),
                     ),
-                    "marker2": VisualizationMarkersCfg.SphereCfg(
+                    "marker2": sim_utils.SphereCfg(
                         radius=1.0,
                         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
                     ),
-                }
+                },
             )
-            # Create the markers instance
-            # This will create a UsdGeom.PointInstancer prim at the given path along with the marker prototypes.
-            marker = VisualizationMarkers(cfg)
 
-            # Set position of the marker
-            # -- randomly sample translations between -1.0 and 1.0
+            marker = VisualizationMarkers(cfg)
             marker_translations = np.random.uniform(-1.0, 1.0, (24, 3))
-            # -- this will create 24 markers at the given translations
-            # note: the markers will all be `marker1` since the marker indices are not given
+
+            # This creates 24 markers using the first prototype because marker
+            # indices are not given.
             marker.visualize(translations=marker_translations)
 
-            # alter the markers based on their prototypes indices
-            # first 12 markers will be marker1 and the rest will be marker2
-            # 0 -> marker1, 1 -> marker2
+            # 0 -> marker1, 1 -> marker2. Since translations are omitted here,
+            # only the marker prototypes are changed.
             marker_indices = [0] * 12 + [1] * 12
-            # this will change the marker prototypes at the given indices
-            # note: the translations of the markers will not be changed from the previous call
-            #  since the translations are not given.
             marker.visualize(marker_indices=marker_indices)
 
-            # alter the markers based on their prototypes indices and translations
+            # Update both marker prototypes and translations.
             marker.visualize(marker_indices=marker_indices, translations=marker_translations)
 
-    .. _UsdGeom.PointInstancer: https://graphics.pixar.com/usd/dev/api/class_usd_geom_point_instancer.html
-
+    The public API intentionally remains the historical marker API:
+    :meth:`set_visibility`, :meth:`is_visible`, and :meth:`visualize`. Backend
+    details are delegated to Kit and Newton marker implementations.
     """
 
     def __init__(self, cfg: VisualizationMarkersCfg):
-        """Initialize the class.
-
-        When the class is initialized, the :class:`UsdGeom.PointInstancer` is created into the stage
-        and the marker prims are registered into it.
-
-        .. note::
-            If a prim already exists at the given path, the function will find the next free path
-            and create the :class:`UsdGeom.PointInstancer` prim there.
+        """Initialize visualization marker backends from the active simulation context.
 
         Args:
             cfg: The configuration for the markers.
@@ -148,28 +103,19 @@ class VisualizationMarkers:
         Raises:
             ValueError: When no markers are provided in the :obj:`cfg`.
         """
-        # get next free path for the prim
-        prim_path = stage_utils.get_next_free_path(cfg.prim_path)
-        # create a new prim
-        self.stage = get_current_stage()
-        self._instancer_manager = UsdGeom.PointInstancer.Define(self.stage, prim_path)
-        # store inputs
-        self.prim_path = prim_path
-        self.cfg = cfg
-        # check if any markers is provided
-        if len(self.cfg.markers) == 0:
-            raise ValueError(f"The `cfg.markers` cannot be empty. Received: {self.cfg.markers}")
+        if len(cfg.markers) == 0:
+            raise ValueError(f"The `cfg.markers` cannot be empty. Received: {cfg.markers}")
 
-        # create a child prim for the marker
-        self._add_markers_prototypes(self.cfg.markers)
-        # Note: We need to do this the first time to initialize the instancer.
-        #   Otherwise, the instancer will not be "created" and the function `GetInstanceIndices()` will fail.
-        self._instancer_manager.GetProtoIndicesAttr().Set(list(range(self.num_prototypes)))
-        self._instancer_manager.GetPositionsAttr().Set([Gf.Vec3f(0.0)] * self.num_prototypes)
-        self._count = self.num_prototypes
+        self.cfg = cfg
+        self.prim_path = cfg.prim_path
+        self._count = len(cfg.markers)
+        self._is_visible = True
+        self._has_visualized = False
+        self._backends: list[object] = []
+        self._ensure_backends_initialized()
 
     def __str__(self) -> str:
-        """Return: A string representation of the class."""
+        """Return a string representation of the marker group."""
         msg = f"VisualizationMarkers(prim_path={self.prim_path})"
         msg += f"\n\tCount: {self.count}"
         msg += f"\n\tNumber of prototypes: {self.num_prototypes}"
@@ -177,10 +123,6 @@ class VisualizationMarkers:
         for index, (name, marker) in enumerate(self.cfg.markers.items()):
             msg += f"\n\t\t[Index: {index}]: {name}: {marker.to_dict()}"
         return msg
-
-    """
-    Properties.
-    """
 
     @property
     def num_prototypes(self) -> int:
@@ -190,35 +132,20 @@ class VisualizationMarkers:
     @property
     def count(self) -> int:
         """The total number of marker instances."""
-        # TODO: Update this when the USD API is available (Isaac Sim 2023.1)
-        # return self._instancer_manager.GetInstanceCount()
         return self._count
 
-    """
-    Operations.
-    """
-
     def set_visibility(self, visible: bool):
-        """Sets the visibility of the markers.
-
-        The method does this through the USD API.
-
-        Args:
-            visible: flag to set the visibility.
-        """
-        imageable = UsdGeom.Imageable(self._instancer_manager)
-        if visible:
-            imageable.MakeVisible()
-        else:
-            imageable.MakeInvisible()
+        """Set marker visibility for all initialized backends."""
+        self._is_visible = visible
+        self._ensure_backends_initialized()
+        for backend in self._backends:
+            backend.set_visibility(visible)
 
     def is_visible(self) -> bool:
-        """Checks the visibility of the markers.
-
-        Returns:
-            True if the markers are visible, False otherwise.
-        """
-        return self._instancer_manager.GetVisibilityAttr().Get() != UsdGeom.Tokens.invisible
+        """Return whether the marker group is visible."""
+        if self._backends:
+            return any(backend.is_visible() for backend in self._backends)
+        return self._is_visible
 
     def visualize(
         self,
@@ -226,193 +153,201 @@ class VisualizationMarkers:
         orientations: np.ndarray | torch.Tensor | None = None,
         scales: np.ndarray | torch.Tensor | None = None,
         marker_indices: list[int] | np.ndarray | torch.Tensor | None = None,
+        environment_ids: list[int] | np.ndarray | torch.Tensor | None = None,
     ):
-        """Update markers in the viewport.
+        """Update markers in all initialized visualizer backends.
 
         .. note::
-            If the prim `PointInstancer` is hidden in the stage, the function will simply return
-            without updating the markers. This helps in unnecessary computation when the markers
-            are not visible.
+            If the markers are hidden, the function returns without updating
+            backend marker state. This avoids unnecessary work while debug
+            visualization is disabled.
 
-        Whenever updating the markers, the input arrays must have the same number of elements
-        in the first dimension. If the number of elements is different, the `UsdGeom.PointInstancer`
-        will raise an error complaining about the mismatch.
+        Whenever updating the markers, the input arrays must have the same
+        number of elements in the first dimension. Backends generally require
+        all per-marker arrays to describe the same number of marker instances.
 
-        Additionally, the function supports dynamic update of the markers. This means that the
-        number of markers can change between calls. For example, if you have 24 points that you
-        want to visualize, you can pass 24 translations, orientations, and scales. If you want to
-        visualize only 12 points, you can pass 12 translations, orientations, and scales. The
-        function will automatically update the number of markers in the scene.
+        The function supports dynamic updates of the marker count. For example,
+        if you have 24 points to visualize, you can pass 24 translations,
+        orientations, and scales. If you later want to visualize only 12
+        points, you can pass arrays with 12 rows and the backends will update
+        the number of marker instances.
 
-        The function will also update the marker prototypes based on their prototype indices. For instance,
-        if you have two marker prototypes, and you pass the following marker indices: [0, 1, 0, 1], the function
-        will update the first and third markers with the first prototype, and the second and fourth markers
-        with the second prototype. This is useful when you want to visualize different markers in the same
-        scene. The list of marker indices must have the same number of elements as the translations, orientations,
-        or scales. If the number of elements is different, the function will raise an error.
+        The function also updates marker prototypes based on prototype indices.
+        For instance, if there are two marker prototypes and you pass marker
+        indices ``[0, 1, 0, 1]``, the first and third markers use the first
+        prototype and the second and fourth markers use the second prototype.
 
         .. caution::
-            This function will update all the markers instanced from the prototypes. That means
-            if you have 24 markers, you will need to pass 24 translations, orientations, and scales.
-
-            If you want to update only a subset of the markers, you will need to handle the indices
-            yourself and pass the complete arrays to this function.
+            This function updates all markers instanced from the prototypes. If
+            you want to update only a subset of markers, handle the indexing
+            externally and pass complete arrays to this function.
 
         Args:
-            translations: Translations w.r.t. parent prim frame. Shape is (M, 3).
-                Defaults to None, which means left unchanged.
-            orientations: Quaternion orientations (w, x, y, z) w.r.t. parent prim frame. Shape is (M, 4).
-                Defaults to None, which means left unchanged.
-            scales: Scale applied before any rotation is applied. Shape is (M, 3).
-                Defaults to None, which means left unchanged.
-            marker_indices: Decides which marker prototype to visualize. Shape is (M).
-                Defaults to None, which means left unchanged provided that the total number of markers
-                is the same as the previous call. If the number of markers is different, the function
-                will update the number of markers in the scene.
+            translations: Translations w.r.t. parent prim frame. Shape is
+                (M, 3). Defaults to None, which means left unchanged.
+            orientations: Quaternion orientations (x, y, z, w) w.r.t. parent
+                prim frame. Shape is (M, 4). Defaults to None, which means left
+                unchanged.
+            scales: Scale applied before any rotation is applied. Shape is
+                (M, 3). Defaults to None, which means left unchanged.
+            marker_indices: Decides which marker prototype to visualize. Shape
+                is (M). Defaults to None, which means left unchanged provided
+                that the total number of markers is the same as the previous
+                call. If the number of markers is different, the function will
+                update the number of markers.
+            environment_ids: Environment index for each marker instance. Shape
+                is (M). Scene-partition-aware backends assign each instance to
+                the corresponding ``env_<index>`` partition. Defaults to None,
+                which means left unchanged when the marker count is unchanged.
 
         Raises:
             ValueError: When input arrays do not follow the expected shapes.
             ValueError: When the function is called with all None arguments.
         """
-        # check if it is visible (if not then let's not waste time)
+        self._ensure_backends_initialized()
+        # If markers are hidden, do not spend time normalizing or dispatching
+        # marker state to the active backends.
         if not self.is_visible():
             return
-        # check if we have any markers to visualize
-        num_markers = 0
-        # resolve inputs
-        # -- position
-        if translations is not None:
-            if isinstance(translations, torch.Tensor):
-                translations = translations.detach().cpu().numpy()
-            # check that shape is correct
-            if translations.shape[1] != 3 or len(translations.shape) != 2:
-                raise ValueError(f"Expected `translations` to have shape (M, 3). Received: {translations.shape}.")
-            # apply translations
-            self._instancer_manager.GetPositionsAttr().Set(Vt.Vec3fArray.FromNumpy(translations))
-            # update number of markers
-            num_markers = translations.shape[0]
-        # -- orientation
-        if orientations is not None:
-            if isinstance(orientations, torch.Tensor):
-                orientations = orientations.detach().cpu().numpy()
-            # check that shape is correct
-            if orientations.shape[1] != 4 or len(orientations.shape) != 2:
-                raise ValueError(f"Expected `orientations` to have shape (M, 4). Received: {orientations.shape}.")
-            # roll orientations from (w, x, y, z) to (x, y, z, w)
-            # internally USD expects (x, y, z, w)
-            orientations = convert_quat(orientations, to="xyzw")
-            # apply orientations
-            self._instancer_manager.GetOrientationsAttr().Set(Vt.QuathArray.FromNumpy(orientations))
-            # update number of markers
-            num_markers = orientations.shape[0]
-        # -- scales
-        if scales is not None:
-            if isinstance(scales, torch.Tensor):
-                scales = scales.detach().cpu().numpy()
-            # check that shape is correct
-            if scales.shape[1] != 3 or len(scales.shape) != 2:
-                raise ValueError(f"Expected `scales` to have shape (M, 3). Received: {scales.shape}.")
-            # apply scales
-            self._instancer_manager.GetScalesAttr().Set(Vt.Vec3fArray.FromNumpy(scales))
-            # update number of markers
-            num_markers = scales.shape[0]
-        # -- status
-        if marker_indices is not None or num_markers != self._count:
-            # apply marker indices
-            if marker_indices is not None:
-                if isinstance(marker_indices, torch.Tensor):
-                    marker_indices = marker_indices.detach().cpu().numpy()
-                elif isinstance(marker_indices, list):
-                    marker_indices = np.array(marker_indices)
-                # check that shape is correct
-                if len(marker_indices.shape) != 1:
-                    raise ValueError(f"Expected `marker_indices` to have shape (M,). Received: {marker_indices.shape}.")
-                # apply proto indices
-                self._instancer_manager.GetProtoIndicesAttr().Set(Vt.IntArray.FromNumpy(marker_indices))
-                # update number of markers
-                num_markers = marker_indices.shape[0]
-            else:
-                # check that number of markers is not zero
-                if num_markers == 0:
+
+        norm_translations = self._to_tensor(translations, expected_width=3, name="translations")
+        norm_orientations = self._to_tensor(orientations, expected_width=4, name="orientations")
+        norm_scales = self._to_tensor(scales, expected_width=3, name="scales")
+        norm_marker_indices = self._to_index_tensor(marker_indices, name="marker_indices")
+        norm_environment_ids = self._to_index_tensor(environment_ids, name="environment_ids")
+        target_device = self._resolve_target_device(
+            norm_translations, norm_orientations, norm_scales, norm_marker_indices, norm_environment_ids
+        )
+        if norm_translations is not None:
+            norm_translations = norm_translations.to(device=target_device)
+        if norm_orientations is not None:
+            norm_orientations = norm_orientations.to(device=target_device)
+        if norm_scales is not None:
+            norm_scales = norm_scales.to(device=target_device)
+        if norm_marker_indices is not None:
+            norm_marker_indices = norm_marker_indices.to(device=target_device)
+        if norm_environment_ids is not None:
+            norm_environment_ids = norm_environment_ids.to(device=target_device)
+            if torch.any(norm_environment_ids < 0):
+                raise ValueError("Expected `environment_ids` to contain non-negative indices.")
+
+        marker_values = (norm_translations, norm_orientations, norm_scales, norm_marker_indices)
+        marker_counts = {value.shape[0] for value in marker_values if value is not None}
+        if len(marker_counts) > 1:
+            raise ValueError(f"Expected all marker inputs to have the same length. Received: {sorted(marker_counts)}.")
+        num_markers = next(iter(marker_counts), 0)
+
+        if (
+            norm_marker_indices is None
+            and num_markers != 0
+            and (not self._has_visualized or num_markers != self._count)
+        ):
+            norm_marker_indices = torch.zeros(num_markers, dtype=torch.int32, device=target_device)
+        elif norm_marker_indices is None and num_markers == 0:
+            if all(value is None for value in marker_values):
+                if norm_environment_ids is None:
                     raise ValueError("Number of markers cannot be zero! Hint: The function was called with no inputs?")
-                # set all markers to be the first prototype
-                self._instancer_manager.GetProtoIndicesAttr().Set([0] * num_markers)
-        # set number of markers
-        self._count = num_markers
+            num_markers = self._count
 
-    """
-    Helper functions.
-    """
-
-    def _add_markers_prototypes(self, markers_cfg: dict[str, sim_utils.SpawnerCfg]):
-        """Adds markers prototypes to the scene and sets the markers instancer to use them."""
-        # add markers based on config
-        for name, cfg in markers_cfg.items():
-            # resolve prim path
-            marker_prim_path = f"{self.prim_path}/{name}"
-            # create a child prim for the marker
-            marker_prim = cfg.func(prim_path=marker_prim_path, cfg=cfg)
-            # make the asset uninstanceable (in case it is)
-            # point instancer defines its own prototypes so if an asset is already instanced, this doesn't work.
-            self._process_prototype_prim(marker_prim)
-            # add child reference to point instancer
-            self._instancer_manager.GetPrototypesRel().AddTarget(marker_prim_path)
-        # check that we loaded all the prototypes
-        prototypes = self._instancer_manager.GetPrototypesRel().GetTargets()
-        if len(prototypes) != len(markers_cfg):
-            raise RuntimeError(
-                f"Failed to load all the prototypes. Expected: {len(markers_cfg)}. Received: {len(prototypes)}."
+        if norm_environment_ids is not None and norm_environment_ids.shape[0] != num_markers:
+            raise ValueError(
+                "Expected `environment_ids` to contain one index per marker. "
+                f"Received {norm_environment_ids.shape[0]} indices for {num_markers} markers."
             )
 
-    def _process_prototype_prim(self, prim: Usd.Prim):
-        """Process a prim and its descendants to make them suitable for defining prototypes.
+        for backend in self._backends:
+            backend.visualize(
+                norm_translations, norm_orientations, norm_scales, norm_marker_indices, norm_environment_ids
+            )
 
-        Point instancer defines its own prototypes so if an asset is already instanced, this doesn't work.
-        This function checks if the prim at the specified prim path and its descendants are instanced.
-        If so, it makes the respective prim uninstanceable by disabling instancing on the prim.
+        if num_markers != 0:
+            self._count = num_markers
+            self._has_visualized = True
 
-        Additionally, it makes the prim invisible to secondary rays. This is useful when we do not want
-        to see the marker prims on camera images.
+    def __del__(self):
+        for backend in getattr(self, "_backends", []):
+            if hasattr(backend, "close"):
+                backend.close()
 
-        Args:
-            prim: The prim to check.
-        """
-        # check if prim is valid
-        if not prim.IsValid():
-            raise ValueError(f"Prim at path '{prim.GetPrimAtPath()}' is not valid.")
-        # iterate over all prims under prim-path
-        all_prims = [prim]
-        while len(all_prims) > 0:
-            # get current prim
-            child_prim = all_prims.pop(0)
-            # check if it is physics body -> if so, remove it
-            if child_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
-                child_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
-                child_prim.RemoveAPI(PhysxSchema.PhysxArticulationAPI)
-            if child_prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                child_prim.RemoveAPI(UsdPhysics.RigidBodyAPI)
-                child_prim.RemoveAPI(PhysxSchema.PhysxRigidBodyAPI)
-            if child_prim.IsA(UsdPhysics.Joint):
-                child_prim.GetAttribute("physics:jointEnabled").Set(False)
-            # check if prim is instanced -> if so, make it uninstanceable
-            if child_prim.IsInstance():
-                child_prim.SetInstanceable(False)
-            # check if prim is a mesh -> if so, make it invisible to secondary rays
-            if child_prim.IsA(UsdGeom.Gprim):
-                # early attach stage to usd context if stage is in memory
-                # since stage in memory is not supported by the "ChangePropertyCommand" kit command
-                attach_stage_to_usd_context(attaching_early=True)
+    def _ensure_backends_initialized(self) -> None:
+        sim = sim_utils.SimulationContext.instance()
+        if sim is None:
+            self._ensure_kit_backend()
+            return
 
-                # invisible to secondary rays such as depth images
-                omni.kit.commands.execute(
-                    "ChangePropertyCommand",
-                    prop_path=Sdf.Path(f"{child_prim.GetPrimPath().pathString}.primvars:invisibleToSecondaryRays"),
-                    value=True,
-                    prev=None,
-                    type_to_create_if_not_exist=Sdf.ValueTypeNames.Bool,
-                )
-            # add children to list
-            all_prims += child_prim.GetChildren()
+        # Markers need the Kit (USD) backend to appear in any rendered frame: a native GUI window,
+        # RTX sensor rendering, XR, headless offscreen video capture (``has_offscreen_render``), or
+        # a Kit-pumping visualizer. Note that this deliberately does NOT use ``sim.is_rendering``,
+        # which is also true for non-Kit visualizers (e.g. ``newton_gl``) that never pump Kit's
+        # ``app.update()``. Standing up the Kit backend for such a visualizer leaves its raw USD
+        # marker writes undigested by Fabric, which desyncs the point-instancer prototype table
+        # (``FabricManager::initializePointInstancer mismatched prototypes``) and can crash the next
+        # PhysX GPU step.
+        needs_kit_backend = (
+            sim.has_gui
+            or bool(sim.get_setting("/isaaclab/render/rtx_sensors"))
+            or bool(sim.get_setting("/isaaclab/xr/enabled"))
+            or getattr(sim, "has_offscreen_render", False)
+            or any(
+                viz.supports_markers() and viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers
+            )
+        )
+        if needs_kit_backend:
+            self._ensure_kit_backend()
+        if any(
+            viz.supports_markers() and not viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers
+        ):
+            self._ensure_newton_backend()
 
-        # remove any physics on the markers because they are only for visualization!
-        physx_utils.removeRigidBodySubtree(prim)
+    def _ensure_kit_backend(self) -> None:
+        """Create the Kit marker backend if it is not already active."""
+        from isaaclab_visualizers.kit.kit_visualization_markers import KitVisualizationMarkers
+
+        if not any(isinstance(backend, KitVisualizationMarkers) for backend in self._backends):
+            self._backends.append(KitVisualizationMarkers(self.cfg, visible=self._is_visible))
+
+    def _ensure_newton_backend(self) -> None:
+        """Create the Newton-family marker backend if it is not already active."""
+        from isaaclab_visualizers.newton.newton_visualization_markers import NewtonVisualizationMarkers
+
+        if not any(isinstance(backend, NewtonVisualizationMarkers) for backend in self._backends):
+            self._backends.append(NewtonVisualizationMarkers(self.cfg, visible=self._is_visible))
+
+    def _resolve_target_device(self, *values: torch.Tensor | None) -> torch.device:
+        for value in values:
+            if value is not None:
+                return value.device
+        for backend in self._backends:
+            if hasattr(backend, "infer_device"):
+                return backend.infer_device()
+        return torch.device("cpu")
+
+    @staticmethod
+    def _to_tensor(
+        value: np.ndarray | torch.Tensor | None,
+        expected_width: int,
+        name: str,
+    ) -> torch.Tensor | None:
+        if value is None:
+            return None
+        if isinstance(value, np.ndarray):
+            tensor = torch.from_numpy(value)
+        else:
+            tensor = value.detach()
+        if tensor.ndim != 2 or tensor.shape[1] != expected_width:
+            raise ValueError(f"Expected `{name}` to have shape (M, {expected_width}). Received: {tuple(tensor.shape)}.")
+        return tensor.to(dtype=torch.float32)
+
+    @staticmethod
+    def _to_index_tensor(value: list[int] | np.ndarray | torch.Tensor | None, name: str) -> torch.Tensor | None:
+        if value is None:
+            return None
+        if isinstance(value, list):
+            tensor = torch.tensor(value)
+        elif isinstance(value, np.ndarray):
+            tensor = torch.from_numpy(value)
+        else:
+            tensor = value.detach()
+        if tensor.ndim != 1:
+            raise ValueError(f"Expected `{name}` to have shape (M,). Received: {tuple(tensor.shape)}.")
+        return tensor.to(dtype=torch.int32)

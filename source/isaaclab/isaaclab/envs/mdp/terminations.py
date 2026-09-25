@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,16 +11,18 @@ the termination introduced by the function.
 
 from __future__ import annotations
 
-import torch
 from typing import TYPE_CHECKING
 
-from isaaclab.assets import Articulation, RigidObject
-from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import ContactSensor
+import torch
+
+from ...managers import ManagerTermBase, SceneEntityCfg, TerminationTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
-    from isaaclab.managers.command_manager import CommandTerm
+    from ...assets import Articulation, RigidObject
+    from ...managers.command_manager import CommandTerm
+    from ...sensors import ContactSensor
+    from .. import ManagerBasedRLEnv
+    from .commands.pose_command import UniformPoseCommand
 
 """
 MDP terminations.
@@ -42,6 +44,20 @@ def command_resample(env: ManagerBasedRLEnv, command_name: str, num_resamples: i
     return torch.logical_and((command.time_left <= env.step_dt), (command.command_counter == num_resamples))
 
 
+def pose_command_success(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+    """Terminate environments whose pose command satisfies all configured success thresholds.
+
+    Args:
+        env: The environment instance.
+        command_name: Name of the uniform pose command term.
+
+    Returns:
+        A boolean tensor indicating which environments satisfy the pose command.
+    """
+    command: UniformPoseCommand = env.command_manager.get_term(command_name)
+    return command.compute_success()
+
+
 """
 Root terminations.
 """
@@ -54,9 +70,8 @@ def bad_orientation(
 
     This is computed by checking the angle between the projected gravity vector and the z-axis.
     """
-    # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return torch.acos(-asset.data.projected_gravity_b[:, 2]).abs() > limit_angle
+    return torch.acos(-asset.data.projected_gravity_b.torch[:, 2]).abs() > limit_angle
 
 
 def root_height_below_minimum(
@@ -67,9 +82,8 @@ def root_height_below_minimum(
     Note:
         This is currently only supported for flat terrains, i.e. the minimum height is in the world frame.
     """
-    # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return asset.data.root_pos_w[:, 2] < minimum_height
+    return asset.data.root_pos_w.torch[:, 2] < minimum_height
 
 
 """
@@ -79,14 +93,13 @@ Joint terminations.
 
 def joint_pos_out_of_limit(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Terminate when the asset's joint positions are outside of the soft joint limits."""
-    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     if asset_cfg.joint_ids is None:
         asset_cfg.joint_ids = slice(None)
 
-    limits = asset.data.soft_joint_pos_limits[:, asset_cfg.joint_ids]
-    out_of_upper_limits = torch.any(asset.data.joint_pos[:, asset_cfg.joint_ids] > limits[..., 1], dim=1)
-    out_of_lower_limits = torch.any(asset.data.joint_pos[:, asset_cfg.joint_ids] < limits[..., 0], dim=1)
+    limits = asset.data.soft_joint_pos_limits.torch[:, asset_cfg.joint_ids]
+    out_of_upper_limits = torch.any(asset.data.joint_pos.torch[:, asset_cfg.joint_ids] > limits[..., 1], dim=1)
+    out_of_lower_limits = torch.any(asset.data.joint_pos.torch[:, asset_cfg.joint_ids] < limits[..., 0], dim=1)
     return torch.logical_or(out_of_upper_limits, out_of_lower_limits)
 
 
@@ -98,33 +111,41 @@ def joint_pos_out_of_manual_limit(
     Note:
         This function is similar to :func:`joint_pos_out_of_limit` but allows the user to specify the bounds manually.
     """
-    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     if asset_cfg.joint_ids is None:
         asset_cfg.joint_ids = slice(None)
     # compute any violations
-    out_of_upper_limits = torch.any(asset.data.joint_pos[:, asset_cfg.joint_ids] > bounds[1], dim=1)
-    out_of_lower_limits = torch.any(asset.data.joint_pos[:, asset_cfg.joint_ids] < bounds[0], dim=1)
+    out_of_upper_limits = torch.any(asset.data.joint_pos.torch[:, asset_cfg.joint_ids] > bounds[1], dim=1)
+    out_of_lower_limits = torch.any(asset.data.joint_pos.torch[:, asset_cfg.joint_ids] < bounds[0], dim=1)
     return torch.logical_or(out_of_upper_limits, out_of_lower_limits)
 
 
-def joint_vel_out_of_limit(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Terminate when the asset's joint velocities are outside of the soft joint limits."""
-    # extract the used quantities (to enable type-hinting)
-    asset: Articulation = env.scene[asset_cfg.name]
-    # compute any violations
-    limits = asset.data.soft_joint_vel_limits
-    return torch.any(torch.abs(asset.data.joint_vel[:, asset_cfg.joint_ids]) > limits[:, asset_cfg.joint_ids], dim=1)
+class joint_vel_out_of_limit(ManagerTermBase):
+    """Terminate when the asset's joint velocities are outside of the soft joint limits.
+
+    The joint indices are materialized as a device tensor once at construction.
+    """
+
+    def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
+        self._asset: Articulation = env.scene[asset_cfg.name]
+        joint_ids = asset_cfg.joint_ids
+        if isinstance(joint_ids, list):
+            joint_ids = torch.tensor(joint_ids, dtype=torch.long, device=env.device)
+        self._joint_ids = joint_ids
+
+    def __call__(self, env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+        limits = self._asset.data.soft_joint_vel_limits.torch[:, self._joint_ids]
+        return torch.any(torch.abs(self._asset.data.joint_vel.torch[:, self._joint_ids]) > limits, dim=1)
 
 
 def joint_vel_out_of_manual_limit(
     env: ManagerBasedRLEnv, max_velocity: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """Terminate when the asset's joint velocities are outside the provided limits."""
-    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    # compute any violations
-    return torch.any(torch.abs(asset.data.joint_vel[:, asset_cfg.joint_ids]) > max_velocity, dim=1)
+    return torch.any(torch.abs(asset.data.joint_vel.torch[:, asset_cfg.joint_ids]) > max_velocity, dim=1)
 
 
 def joint_effort_out_of_limit(
@@ -136,11 +157,11 @@ def joint_effort_out_of_limit(
     the computed torques to the joint limits. Hence, we check if the computed torques are equal to the applied
     torques. If they are not, it means that clipping has occurred.
     """
-    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     # check if any joint effort is out of limit
     out_of_limits = ~torch.isclose(
-        asset.data.computed_torque[:, asset_cfg.joint_ids], asset.data.applied_torque[:, asset_cfg.joint_ids]
+        asset.actuators.computed_effort.torch[:, asset_cfg.joint_ids],
+        asset.actuators.applied_effort.torch[:, asset_cfg.joint_ids],
     )
     return torch.any(out_of_limits, dim=1)
 
@@ -152,10 +173,9 @@ Contact sensor.
 
 def illegal_contact(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     """Terminate when the contact force on the sensor exceeds the force threshold."""
-    # extract the used quantities (to enable type-hinting)
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    net_contact_forces = contact_sensor.data.net_forces_w_history
+    net_contact_forces = contact_sensor.data.net_normal_forces_w_history.torch
     # check if any contact force exceeds the threshold
     return torch.any(
-        torch.max(torch.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[0] > threshold, dim=1
+        torch.max(torch.linalg.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[0] > threshold, dim=1
     )

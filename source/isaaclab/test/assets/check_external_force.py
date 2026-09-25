@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,9 +9,9 @@ This script checks if the external force is applied correctly on the robot.
 .. code-block:: bash
 
     # Usage to apply force on base
-    ./isaaclab.sh -p source/isaaclab/test/assets/check_external_force.py --body base --force 1000
+    uv run python source/isaaclab/test/assets/check_external_force.py --body base --force 1000
     # Usage to apply force on legs
-    ./isaaclab.sh -p source/isaaclab/test/assets/check_external_force.py --body .*_SHANK --force 100
+    uv run python source/isaaclab/test/assets/check_external_force.py --body .*_SHANK --force 100
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -69,7 +69,7 @@ def main():
     robot_cfg.spawn.func("/World/Anymal_c/Robot_1", robot_cfg.spawn, translation=(0.0, -0.5, 0.65))
     robot_cfg.spawn.func("/World/Anymal_c/Robot_2", robot_cfg.spawn, translation=(0.0, 0.5, 0.65))
     # create handles for the robots
-    robot = Articulation(robot_cfg.replace(prim_path="/World/Anymal_c/Robot.*"))
+    robot = Articulation(robot_cfg.replace(prim_path="/World/Anymal_c/Robot[^/]*"))
 
     # Play the simulator
     sim.reset()
@@ -96,23 +96,23 @@ def main():
             sim_time = 0.0
             count = 0
             # reset root state
-            root_state = robot.data.default_root_state.clone()
+            root_state = robot.data.default_root_state.torch.clone()
             root_state[0, :2] = torch.tensor([0.0, -0.5], device=sim.device)
             root_state[1, :2] = torch.tensor([0.0, 0.5], device=sim.device)
             robot.write_root_pose_to_sim(root_state[:, :7])
             robot.write_root_velocity_to_sim(root_state[:, 7:])
             # reset dof state
-            joint_pos, joint_vel = robot.data.default_joint_pos, robot.data.default_joint_vel
+            joint_pos, joint_vel = robot.data.default_joint_pos.torch, robot.data.default_joint_vel.torch
             robot.write_joint_state_to_sim(joint_pos, joint_vel)
             robot.reset()
             # apply force
-            robot.set_external_force_and_torque(
+            robot.permanent_wrench_composer.set_forces_and_torques(
                 external_wrench_b[..., :3], external_wrench_b[..., 3:], body_ids=body_ids
             )
             # reset command
             print(">>>>>>>> Reset!")
         # apply action to the robot
-        robot.set_joint_position_target(robot.data.default_joint_pos.clone())
+        robot.set_joint_position_target(robot.data.default_joint_pos.torch.clone())
         robot.write_data_to_sim()
         # perform step
         sim.step()

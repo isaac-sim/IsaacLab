@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,25 +7,21 @@ from __future__ import annotations
 
 import copy
 import inspect
-import logging
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
-import omni.timeline
-
-import isaaclab.utils.string as string_utils
-from isaaclab.utils import class_to_dict, string_to_callable
-
+from ..physics import PhysicsEvent, PhysicsManager
+from ..utils import class_to_dict, string_to_callable
+from ..utils import string as string_utils
+from ..utils.modifiers import ModifierCfg
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-
-# import logger
-logger = logging.getLogger(__name__)
+    from ..envs import ManagerBasedEnv
 
 
 class ManagerTermBase(ABC):
@@ -45,12 +41,13 @@ class ManagerTermBase(ABC):
         from isaaclab.utils import configclass
         from isaaclab.utils.mdp import ManagerBase, ManagerTermBaseCfg
 
+
         @configclass
         class MyManagerCfg:
-
             my_term_1: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
             my_term_2: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
             my_term_3: ManagerTermBaseCfg = ManagerTermBaseCfg(...)
+
 
         # define manager instance
         my_manager = ManagerBase(cfg=ManagerCfg(), env=env)
@@ -155,17 +152,19 @@ class ManagerBase(ABC):
         # if the simulation is not playing, we use callbacks to trigger the resolution of the scene
         # entities configuration. this is needed for cases where the manager is created after the
         # simulation, but before the simulation is playing.
-        # FIXME: Once Isaac Sim supports storing this information as USD schema, we can remove this
-        #   callback and resolve the scene entities directly inside `_prepare_terms`.
         if not self._env.sim.is_playing():
             # note: Use weakref on all callbacks to ensure that this object can be deleted when its destructor
-            # is called
-            # The order is set to 20 to allow asset/sensor initialization to complete before the scene entities
-            # are resolved. Those have the order 10.
-            timeline_event_stream = omni.timeline.get_timeline_interface().get_timeline_event_stream()
-            self._resolve_terms_handle = timeline_event_stream.create_subscription_to_pop_by_type(
-                int(omni.timeline.TimelineEventType.PLAY),
-                lambda event, obj=weakref.proxy(self): obj._resolve_terms_callback(event),
+            # is called. The order is set to 20 to allow asset/sensor initialization to complete before the
+            # scene entities are resolved. Those have the order 10.
+
+            physics_mgr_cls = self._env.sim.physics_manager
+            obj_ref = weakref.proxy(self)
+
+            self._resolve_terms_handle = physics_mgr_cls.register_callback(
+                lambda payload: PhysicsManager.safe_callback_invoke(
+                    obj_ref._resolve_terms_callback, None, physics_manager=physics_mgr_cls
+                ),
+                PhysicsEvent.PHYSICS_READY,
                 order=20,
             )
         else:
@@ -177,8 +176,8 @@ class ManagerBase(ABC):
 
     def __del__(self):
         """Delete the manager."""
-        if self._resolve_terms_handle:
-            self._resolve_terms_handle.unsubscribe()
+        if self._resolve_terms_handle is not None:
+            self._resolve_terms_handle.deregister()
             self._resolve_terms_handle = None
 
     """
@@ -272,7 +271,6 @@ class ManagerBase(ABC):
 
         Please check the :meth:`_process_term_cfg_at_play` method for more information.
         """
-        # check if scene entities have been resolved
         if self._is_scene_entities_resolved:
             return
         # check if config is dict already
@@ -289,8 +287,6 @@ class ManagerBase(ABC):
             # process attributes at runtime
             # these properties are only resolvable once the simulation starts playing
             self._process_term_cfg_at_play(term_name, term_cfg)
-
-        # set the flag
         self._is_scene_entities_resolved = True
 
     """
@@ -336,8 +332,7 @@ class ManagerBase(ABC):
             )
 
         # get the corresponding function or functional class
-        if isinstance(term_cfg.func, str):
-            term_cfg.func = string_to_callable(term_cfg.func)
+        term_cfg.func = self._resolve_param_value(term_name, "func", term_cfg.func, resolve_callable=True)
         # check if function is callable
         if not callable(term_cfg.func):
             raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
@@ -383,7 +378,7 @@ class ManagerBase(ABC):
         This function is called when the simulation starts playing. It is used to process the term
         configuration at runtime. This includes:
 
-        * Resolving the scene entity configuration for the term.
+        * Resolving scene entity configurations and nested terms throughout the term configuration.
         * Initializing the term if it is a class.
 
         Since the above steps rely on PhysX to parse over the simulation scene, they are deferred
@@ -393,25 +388,49 @@ class ManagerBase(ABC):
             term_name: The name of the term.
             term_cfg: The term configuration.
         """
-        for key, value in term_cfg.params.items():
-            if isinstance(value, SceneEntityCfg):
-                # load the entity
-                try:
-                    value.resolve(self._env.scene)
-                except ValueError as e:
-                    raise ValueError(f"Error while parsing '{term_name}:{key}'. {e}")
-                # log the entity for checking later
-                msg = f"[{term_cfg.__class__.__name__}:{term_name}] Found entity '{value.name}'."
-                if value.joint_ids is not None:
-                    msg += f"\n\tJoint names: {value.joint_names} [{value.joint_ids}]"
-                if value.body_ids is not None:
-                    msg += f"\n\tBody names: {value.body_names} [{value.body_ids}]"
-                # print the information
-                logger.info(msg)
-            # store the entity
-            term_cfg.params[key] = value
+        for field in fields(term_cfg):
+            value = getattr(term_cfg, field.name)
+            resolved_value = self._resolve_param_value(
+                term_name, field.name, value, resolve_callable=field.name == "func"
+            )
+            if resolved_value is not value:
+                setattr(term_cfg, field.name, resolved_value)
 
-        # initialize the term if it is a class
+        # initialize class-based terms
         if inspect.isclass(term_cfg.func):
-            logger.info(f"Initializing term '{term_name}' with class '{term_cfg.func.__name__}'.")
             term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
+
+    def _resolve_param_value(
+        self, term_name: str, key: str | int, value: Any, *, resolve_callable: bool = False
+    ) -> Any:
+        """Recursively resolve manager-owned values in a term configuration."""
+        if resolve_callable and isinstance(value, str):
+            return string_to_callable(value)
+        if isinstance(value, SceneEntityCfg):
+            try:
+                value.resolve(self._env.scene)
+            except ValueError as e:
+                raise ValueError(f"Error while parsing '{term_name}:{key}'. {e}")
+        elif isinstance(value, ManagerTermBaseCfg):
+            self._process_term_cfg_at_play(f"{term_name}.{key}", value)
+        elif isinstance(value, ModifierCfg):
+            for field in fields(value):
+                field_value = getattr(value, field.name)
+                resolved_value = self._resolve_param_value(
+                    f"{term_name}.{key}", field.name, field_value, resolve_callable=field.name == "func"
+                )
+                if resolved_value is not field_value:
+                    setattr(value, field.name, resolved_value)
+        elif isinstance(value, dict):
+            for sub_key, sub_value in value.items():
+                value[sub_key] = self._resolve_param_value(f"{term_name}.{key}", sub_key, sub_value)
+        elif isinstance(value, list):
+            for i, item in enumerate(value):
+                value[i] = self._resolve_param_value(f"{term_name}.{key}", i, item)
+        elif isinstance(value, tuple):
+            resolved_items = tuple(
+                self._resolve_param_value(f"{term_name}.{key}", i, item) for i, item in enumerate(value)
+            )
+            if any(resolved is not original for resolved, original in zip(resolved_items, value, strict=True)):
+                value = resolved_items
+        return value

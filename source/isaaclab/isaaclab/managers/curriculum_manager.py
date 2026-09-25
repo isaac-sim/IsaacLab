@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,16 +7,17 @@
 
 from __future__ import annotations
 
-import torch
 from collections.abc import Sequence
-from prettytable import PrettyTable
 from typing import TYPE_CHECKING
+
+import torch
+from prettytable import PrettyTable
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CurriculumTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from ..envs import ManagerBasedRLEnv
 
 
 class CurriculumManager(ManagerBase):
@@ -45,9 +46,9 @@ class CurriculumManager(ManagerBase):
             ValueError: If curriculum term configuration does not satisfy its function signature.
         """
         # create buffers to parse and store terms
-        self._term_names: list[str] = list()
-        self._term_cfgs: list[CurriculumTermCfg] = list()
-        self._class_term_cfgs: list[CurriculumTermCfg] = list()
+        self._term_names: list[str] = []
+        self._term_cfgs: list[CurriculumTermCfg] = []
+        self._class_term_cfgs: list[CurriculumTermCfg] = []
 
         # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
@@ -118,7 +119,6 @@ class CurriculumManager(ManagerBase):
         # reset all the curriculum terms
         for term_cfg in self._class_term_cfgs:
             term_cfg.func.reset(env_ids=env_ids)
-        # return logged information
         return extras
 
     def compute(self, env_ids: Sequence[int] | None = None):
@@ -162,7 +162,7 @@ class CurriculumManager(ManagerBase):
                     for key, value in term_state.items():
                         if isinstance(value, torch.Tensor):
                             value = value.item()
-                        terms[term_name].append(value)
+                        data.append(value)
                 else:
                     # log directly if not a dict
                     if isinstance(term_state, torch.Tensor):

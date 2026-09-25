@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,26 +6,18 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Launch Isaac Sim Simulator first."""
-from collections.abc import Sequence
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
-
-import torch
 from collections import namedtuple
+from collections.abc import Sequence
+from unittest.mock import MagicMock
 
 import pytest
+import torch
 
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import EventManager, EventTermCfg, ManagerTermBase, ManagerTermBaseCfg
-from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass
+
+pytestmark = pytest.mark.unit
 
 DummyEnv = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim", "dummy1", "dummy2"])
 """Dummy environment for testing."""
@@ -83,30 +75,16 @@ class increment_dummy2_by_one_class(ManagerTermBase):
 
 @pytest.fixture
 def env():
-    num_envs = 32
+    num_envs = 2
     device = "cpu"
     # create dummy tensors
     dummy1 = torch.zeros((num_envs, 2), device=device)
     dummy2 = torch.zeros((num_envs, 10), device=device)
-    # create sim
-    sim = SimulationContext()
+    # simulation double that has not started playing, so class terms stay deferred to the physics-ready callback
+    sim = MagicMock()
+    sim.is_playing.return_value = False
     # create dummy environment
     return DummyEnv(num_envs, 0.01, device, sim, dummy1, dummy2)
-
-
-def test_str(env):
-    """Test the string representation of the event manager."""
-    cfg = {
-        "term_1": EventTermCfg(func=increment_dummy1_by_one, mode="interval", interval_range_s=(0.1, 0.1)),
-        "term_2": EventTermCfg(func=reset_dummy1_to_zero, mode="reset"),
-        "term_3": EventTermCfg(func=change_dummy1_by_value, mode="custom", params={"value": 10}),
-        "term_4": EventTermCfg(func=change_dummy1_by_value, mode="custom", params={"value": 2}),
-    }
-    event_man = EventManager(cfg, env)
-
-    # print the expected string
-    print()
-    print(event_man)
 
 
 def test_config_equivalence(env):
@@ -168,6 +146,10 @@ def test_active_terms(env):
     assert len(event_man.active_terms["interval"]) == 1
     assert len(event_man.active_terms["reset"]) == 1
     assert len(event_man.active_terms["custom"]) == 2
+    # the string representation lists each term, with the interval range for interval terms
+    event_man_str = str(event_man)
+    assert "term_4" in event_man_str
+    assert "Interval time range" in event_man_str and "(0.1, 0.1)" in event_man_str
 
 
 def test_class_terms(env):
@@ -186,14 +168,22 @@ def test_class_terms(env):
     assert len(event_man._mode_class_term_cfgs["reset"]) == 1
 
 
+def test_class_terms_created_while_playing_are_reset(env, monkeypatch):
+    """Class terms instantiated while the simulation is playing are reset with the manager."""
+    monkeypatch.setattr(env.sim, "is_playing", lambda: True)
+    event_man = EventManager({"term": EventTermCfg(func=reset_dummy2_to_zero_class, mode="reset")}, env)
+    reset_calls = []
+    monkeypatch.setattr(event_man.get_term_cfg("term").func, "reset", lambda env_ids=None: reset_calls.append(env_ids))
+
+    event_man.reset()
+
+    assert reset_calls == [None]
+
+
 def test_config_empty(env):
     """Test the creation of reward manager with empty config."""
     event_man = EventManager(None, env)
     assert len(event_man.active_terms) == 0
-
-    # print the expected string
-    print()
-    print(event_man)
 
 
 def test_invalid_event_func_module(env):
@@ -326,6 +316,55 @@ def test_apply_interval_mode_with_global_time(env):
         # -- random interval
         if term_2_interval_time < 1e-6:
             term_2_interval_time = event_man._interval_term_time_left[1].clone()
+
+
+def test_apply_interval_mode_resample_on_reset(env):
+    """Test that the interval timer is (not) resampled on reset based on ``resample_interval_on_reset``.
+
+    Using a fixed (zero-width) interval range makes the resampling deterministic: after one apply
+    the timer should read ``interval - dt``, and on reset it should either be restored to the fixed
+    interval (when resampling) or keep counting down (when not resampling).
+    """
+    interval_s = 1.0  # large compared to env.dt so the term does not fire during the test
+
+    cfg = {
+        # default behavior (resample_interval_on_reset=True): timer is resampled on reset
+        "term_resample": EventTermCfg(
+            func=increment_dummy1_by_one,
+            mode="interval",
+            interval_range_s=(interval_s, interval_s),
+            is_global_time=False,
+        ),
+        # alternative behavior: per-env timer is preserved across resets
+        "term_no_resample": EventTermCfg(
+            func=increment_dummy2_by_one,
+            mode="interval",
+            interval_range_s=(interval_s, interval_s),
+            is_global_time=False,
+            resample_interval_on_reset=False,
+        ),
+    }
+
+    event_man = EventManager(cfg, env)
+
+    # both timers initialize to the fixed interval
+    expected_init = torch.full((env.num_envs,), interval_s, device=env.device)
+    torch.testing.assert_close(event_man._interval_term_time_left[0], expected_init)
+    torch.testing.assert_close(event_man._interval_term_time_left[1], expected_init)
+
+    # apply once to decrement the timers (no firing since interval >> dt)
+    event_man.apply("interval", dt=env.dt)
+    expected_after_apply = torch.full((env.num_envs,), interval_s - env.dt, device=env.device)
+    torch.testing.assert_close(event_man._interval_term_time_left[0], expected_after_apply)
+    torch.testing.assert_close(event_man._interval_term_time_left[1], expected_after_apply)
+
+    # reset all environments
+    event_man.reset(env_ids=torch.arange(env.num_envs, device=env.device))
+
+    # term with resampling is restored to the fixed interval
+    torch.testing.assert_close(event_man._interval_term_time_left[0], expected_init)
+    # term without resampling keeps counting down across the reset
+    torch.testing.assert_close(event_man._interval_term_time_left[1], expected_after_apply)
 
 
 def test_apply_reset_mode(env):

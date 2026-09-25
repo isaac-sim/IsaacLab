@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -23,18 +23,21 @@ headless = True
 app_launcher = AppLauncher(headless=headless)
 simulation_app: Any = app_launcher.app
 
+from collections.abc import Generator
+
 import gymnasium as gym
 import torch
-from collections.abc import Generator
 
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs.manager_based_env import ManagerBasedEnv
 from isaaclab.markers import FRAME_MARKER_CFG, VisualizationMarkers
 
-from isaaclab_mimic.envs.franka_stack_ik_rel_mimic_env_cfg import FrankaCubeStackIKRelMimicEnvCfg
+import isaaclab_mimic.envs  # noqa: F401
 from isaaclab_mimic.motion_planners.curobo.curobo_planner import CuroboPlanner
 from isaaclab_mimic.motion_planners.curobo.curobo_planner_cfg import CuroboPlannerCfg
+
+from isaaclab_tasks.utils import parse_env_cfg
 
 GRIPPER_OPEN_CMD: float = 1.0
 GRIPPER_CLOSE_CMD: float = -1.0
@@ -83,7 +86,7 @@ def _execute_gripper_action(
         _env_step_with_action(env, action)
 
 
-DOWN_FACING_QUAT = torch.tensor([0.0, 1.0, 0.0, 0.0], dtype=torch.float32)
+DOWN_FACING_QUAT = torch.tensor([1.0, 0.0, 0.0, 0.0], dtype=torch.float32)
 
 
 @pytest.fixture(scope="class")
@@ -92,8 +95,7 @@ def cube_stack_test_env() -> Generator[dict[str, Any], None, None]:
     random.seed(SEED)
     torch.manual_seed(SEED)
 
-    env_cfg = FrankaCubeStackIKRelMimicEnvCfg()
-    env_cfg.scene.num_envs = 1
+    env_cfg = parse_env_cfg("Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0", num_envs=1)
     for frame in env_cfg.scene.ee_frame.target_frames:
         if frame.name == "end_effector":
             print(f"Setting end effector offset from {frame.offset.pos} to (0.0, 0.0, 0.0) for SkillGen parity")
@@ -163,7 +165,7 @@ class TestCubeStackPlanner:
     def _get_cube_pos(self, cube_name: str) -> torch.Tensor:
         """Return the current world position of a cube's root (x, y, z)."""
         obj: RigidObject = self.env.scene[cube_name]
-        return obj.data.root_pos_w[0, :3].clone().detach()
+        return obj.data.root_pos_w.torch[0, :3].clone().detach()
 
     def _place_pose_over_cube(self, cube_name: str, height_offset: float) -> torch.Tensor:
         """Compute a goal pose directly above the named cube using the latest pose."""
@@ -204,9 +206,9 @@ class TestCubeStackPlanner:
             self._visualize_goal_pose(pos_place, quat_place)
 
         # Plan with attached object
-        assert self.planner.update_world_and_plan_motion(
-            place_pose, expected_attached_object="cube_1"
-        ), "Failed to plan placement trajectory with attached cube"
+        assert self.planner.update_world_and_plan_motion(place_pose, expected_attached_object="cube_1"), (
+            "Failed to plan placement trajectory with attached cube"
+        )
         _execute_plan(self.env, self.planner, gripper_binary_action=GRIPPER_CLOSE_CMD)
 
         # Release cube 1
@@ -221,9 +223,9 @@ class TestCubeStackPlanner:
             quat_pg = math_utils.quat_from_matrix(pre_grasp_pose[:3, :3].unsqueeze(0))[0].detach().cpu()
             self._visualize_goal_pose(pos_pg, quat_pg)
 
-        assert self.planner.update_world_and_plan_motion(
-            pre_grasp_pose, expected_attached_object=None
-        ), "Failed to plan retract motion"
+        assert self.planner.update_world_and_plan_motion(pre_grasp_pose, expected_attached_object=None), (
+            "Failed to plan retract motion"
+        )
         _execute_plan(self.env, self.planner, gripper_binary_action=GRIPPER_OPEN_CMD)
 
         # Grasp cube 3
@@ -237,9 +239,9 @@ class TestCubeStackPlanner:
             quat_place = math_utils.quat_from_matrix(place_pose[:3, :3].unsqueeze(0))[0].detach().cpu()
             self._visualize_goal_pose(pos_place, quat_place)
 
-        assert self.planner.update_world_and_plan_motion(
-            place_pose, expected_attached_object="cube_3"
-        ), "Failed to plan placement trajectory with attached cube"
+        assert self.planner.update_world_and_plan_motion(place_pose, expected_attached_object="cube_3"), (
+            "Failed to plan placement trajectory with attached cube"
+        )
         _execute_plan(self.env, self.planner, gripper_binary_action=GRIPPER_CLOSE_CMD)
 
         # Release cube 3

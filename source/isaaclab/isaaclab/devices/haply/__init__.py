@@ -1,10 +1,10 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Haply device interface for teleoperation."""
 
-from .se3_haply import HaplyDevice, HaplyDeviceCfg
+from ...utils.module import lazy_export
 
-__all__ = ["HaplyDevice", "HaplyDeviceCfg"]
+lazy_export()

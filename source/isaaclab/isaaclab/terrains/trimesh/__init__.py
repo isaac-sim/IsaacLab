@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,18 +12,6 @@ tri-mesh primitive. Thus, this representation is more computationally and memory
 efficient than the height-field representation, but it is not as flexible.
 """
 
-from .mesh_terrains_cfg import (
-    MeshBoxTerrainCfg,
-    MeshFloatingRingTerrainCfg,
-    MeshGapTerrainCfg,
-    MeshInvertedPyramidStairsTerrainCfg,
-    MeshPitTerrainCfg,
-    MeshPlaneTerrainCfg,
-    MeshPyramidStairsTerrainCfg,
-    MeshRailsTerrainCfg,
-    MeshRandomGridTerrainCfg,
-    MeshRepeatedBoxesTerrainCfg,
-    MeshRepeatedCylindersTerrainCfg,
-    MeshRepeatedPyramidsTerrainCfg,
-    MeshStarTerrainCfg,
-)
+from ...utils.module import lazy_export
+
+lazy_export()

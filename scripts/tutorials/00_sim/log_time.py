@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,7 +10,7 @@ It accompanies the tutorial on docker usage.
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/00_sim/log_time.py
+    uv run python scripts/tutorials/00_sim/log_time.py
 
 """
 
@@ -45,7 +45,7 @@ def main():
         os.mkdir(log_dir_path)
     # In the container, the absolute path will be
     # /workspace/isaaclab/logs/docker_tutorial, because
-    # all python execution is done through /workspace/isaaclab/isaaclab.sh
+    # all Python execution is done through the uv-managed workspace
     # and the calling process' path will be /workspace/isaaclab
     log_dir_path = os.path.abspath(os.path.join(log_dir_path, "docker_tutorial"))
     if not os.path.isdir(log_dir_path):

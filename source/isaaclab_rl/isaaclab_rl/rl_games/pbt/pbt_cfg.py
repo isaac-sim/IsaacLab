@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -53,11 +53,13 @@ class PbtCfg:
     """Lower and upper bound of multiplicative change factor (sampled in [change_min, change_max])."""
 
     mutation: dict[str, str] = {}
-    """Mutation strings indicating which parameter will be mutated when pbt restart
-    example:
+    """Mutation strings indicating which parameter will be mutated when pbt restart.
+
+    Example::
+
         {
-            "agent.params.config.learning_rate": "mutate_float"
-            "agent.params.config.grad_norm": "mutate_float"
-            "agent.params.config.entropy_coef": "mutate_float"
+            "agent.params.config.learning_rate": "mutate_float",
+            "agent.params.config.grad_norm": "mutate_float",
+            "agent.params.config.entropy_coef": "mutate_float",
         }
     """

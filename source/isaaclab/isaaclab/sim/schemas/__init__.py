@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -32,94 +32,84 @@ Locally, the schemas are defined in the following files:
 
 """
 
-from .schemas import (
-    PHYSX_MESH_COLLISION_CFGS,
-    USD_MESH_COLLISION_CFGS,
-    activate_contact_sensors,
-    define_articulation_root_properties,
-    define_collision_properties,
-    define_deformable_body_properties,
-    define_mass_properties,
-    define_mesh_collision_properties,
-    define_rigid_body_properties,
-    modify_articulation_root_properties,
-    modify_collision_properties,
-    modify_deformable_body_properties,
-    modify_fixed_tendon_properties,
-    modify_joint_drive_properties,
-    modify_mass_properties,
-    modify_mesh_collision_properties,
-    modify_rigid_body_properties,
-    modify_spatial_tendon_properties,
-)
-from .schemas_cfg import (
-    ArticulationRootPropertiesCfg,
-    BoundingCubePropertiesCfg,
-    BoundingSpherePropertiesCfg,
-    CollisionPropertiesCfg,
-    ConvexDecompositionPropertiesCfg,
-    ConvexHullPropertiesCfg,
-    DeformableBodyPropertiesCfg,
-    FixedTendonPropertiesCfg,
-    JointDrivePropertiesCfg,
-    MassPropertiesCfg,
-    MeshCollisionPropertiesCfg,
-    RigidBodyPropertiesCfg,
-    SDFMeshPropertiesCfg,
-    SpatialTendonPropertiesCfg,
-    TriangleMeshPropertiesCfg,
-    TriangleMeshSimplificationPropertiesCfg,
+from ...utils.module import lazy_export
+
+_stub_getattr, _stub_dir, __all__ = lazy_export()
+
+# Names that moved out of this module into ``isaaclab_physx.sim.schemas``.
+# Resolved lazily on first access so importing ``isaaclab.sim.schemas`` does
+# not require ``isaaclab_physx`` to be installed.
+_PHYSX_FORWARDS = frozenset(
+    {
+        "RigidBodyPropertiesCfg",
+        "JointDrivePropertiesCfg",
+        "PhysxRigidBodyPropertiesCfg",
+        "PhysxJointDrivePropertiesCfg",
+        "CollisionPropertiesCfg",
+        "PhysxCollisionPropertiesCfg",
+        "DeformableBodyPropertiesCfg",
+        "PhysxDeformableBodyPropertiesCfg",
+        "ArticulationRootPropertiesCfg",
+        "PhysxArticulationRootPropertiesCfg",
+        "MeshCollisionPropertiesCfg",
+        "ConvexHullPropertiesCfg",
+        "ConvexDecompositionPropertiesCfg",
+        "TriangleMeshPropertiesCfg",
+        "TriangleMeshSimplificationPropertiesCfg",
+        "SDFMeshPropertiesCfg",
+        "PhysxConvexHullPropertiesCfg",
+        "PhysxConvexDecompositionPropertiesCfg",
+        "PhysxTriangleMeshPropertiesCfg",
+        "PhysxTriangleMeshSimplificationPropertiesCfg",
+        "PhysxSDFMeshPropertiesCfg",
+        "FixedTendonPropertiesCfg",
+        "SpatialTendonPropertiesCfg",
+        "PhysxFixedTendonPropertiesCfg",
+        "PhysxSpatialTendonPropertiesCfg",
+    }
 )
 
-__all__ = [
-    # articulation root
-    "ArticulationRootPropertiesCfg",
-    "define_articulation_root_properties",
-    "modify_articulation_root_properties",
-    # rigid bodies
-    "RigidBodyPropertiesCfg",
-    "define_rigid_body_properties",
-    "modify_rigid_body_properties",
-    "activate_contact_sensors",
-    # colliders
-    "CollisionPropertiesCfg",
-    "define_collision_properties",
-    "modify_collision_properties",
-    # deformables
-    "DeformableBodyPropertiesCfg",
-    "define_deformable_body_properties",
-    "modify_deformable_body_properties",
-    # joints
-    "JointDrivePropertiesCfg",
-    "modify_joint_drive_properties",
-    # mass
-    "MassPropertiesCfg",
-    "define_mass_properties",
-    "modify_mass_properties",
-    # mesh colliders
-    "MeshCollisionPropertiesCfg",
-    "define_mesh_collision_properties",
-    "modify_mesh_collision_properties",
-    # bounding cube
-    "BoundingCubePropertiesCfg",
-    # bounding sphere
-    "BoundingSpherePropertiesCfg",
-    # convex decomposition
-    "ConvexDecompositionPropertiesCfg",
-    # convex hull
-    "ConvexHullPropertiesCfg",
-    # sdf mesh
-    "SDFMeshPropertiesCfg",
-    # triangle mesh
-    "TriangleMeshPropertiesCfg",
-    # triangle mesh simplification
-    "TriangleMeshSimplificationPropertiesCfg",
-    # tendons
-    "FixedTendonPropertiesCfg",
-    "SpatialTendonPropertiesCfg",
-    "modify_fixed_tendon_properties",
-    "modify_spatial_tendon_properties",
-    # Constants for configs that use PhysX vs USD API
-    "PHYSX_MESH_COLLISION_CFGS",
-    "USD_MESH_COLLISION_CFGS",
-]
+# Names that moved out of this module into ``isaaclab_newton.sim.schemas``.
+# Resolved lazily on first access so importing ``isaaclab.sim.schemas`` does
+# not require ``isaaclab_newton`` to be installed.
+_NEWTON_FORWARDS = frozenset(
+    {
+        "MujocoRigidBodyPropertiesCfg",
+        "MujocoJointDrivePropertiesCfg",
+        "NewtonRigidBodyPropertiesCfg",
+        "NewtonJointDrivePropertiesCfg",
+        "NewtonCollisionPropertiesCfg",
+        "NewtonMeshCollisionPropertiesCfg",
+        "NewtonMaterialPropertiesCfg",
+        "NewtonArticulationRootPropertiesCfg",
+        "NewtonSDFCollisionPropertiesCfg",
+    }
+)
+
+
+def __getattr__(name):
+    if name in _PHYSX_FORWARDS:
+        try:
+            from isaaclab_physx.sim.schemas import schemas_cfg as _physx_cfg
+        except ImportError as e:
+            raise ImportError(
+                f"'isaaclab.sim.schemas.{name}' has moved to 'isaaclab_physx.sim.schemas'."
+                " Install the isaaclab_physx extension or update your import. This forwarding"
+                " shim is scheduled for removal in 4.0."
+            ) from e
+        return getattr(_physx_cfg, name)
+    if name in _NEWTON_FORWARDS:
+        try:
+            from isaaclab_newton.sim.schemas import schemas_cfg as _newton_cfg
+        except ImportError as e:
+            raise ImportError(
+                f"'isaaclab.sim.schemas.{name}' has moved to 'isaaclab_newton.sim.schemas'."
+                " Install the isaaclab_newton extension or update your import. This forwarding"
+                " shim is scheduled for removal in 4.0."
+            ) from e
+        return getattr(_newton_cfg, name)
+    return _stub_getattr(name)
+
+
+def __dir__():
+    return sorted(set(_stub_dir()) | _PHYSX_FORWARDS | _NEWTON_FORWARDS)

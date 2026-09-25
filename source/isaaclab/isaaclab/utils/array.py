@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,13 +8,13 @@
 # needed to import for allowing type-hinting: torch.device | str | None
 from __future__ import annotations
 
-import numpy as np
-import torch
 from typing import Union
 
+import numpy as np
+import torch
 import warp as wp
 
-TensorData = Union[np.ndarray, torch.Tensor, wp.array]
+TensorData = Union[np.ndarray, torch.Tensor, wp.array]  # noqa: UP007
 """Type definition for a tensor data.
 
 Union of numpy, torch, and warp arrays.
@@ -34,7 +34,7 @@ The keys are the name of the backend ("numpy", "torch", "warp") and the values a
 TENSOR_TYPE_CONVERSIONS = {
     "numpy": {wp.array: lambda x: x.numpy(), torch.Tensor: lambda x: x.detach().cpu().numpy()},
     "torch": {wp.array: lambda x: wp.torch.to_torch(x), np.ndarray: lambda x: torch.from_numpy(x)},
-    "warp": {np.array: lambda x: wp.array(x), torch.Tensor: lambda x: wp.torch.from_torch(x)},
+    "warp": {np.ndarray: lambda x: wp.array(x), torch.Tensor: lambda x: wp.torch.from_torch(x)},
 }
 """A nested dictionary containing the conversion functions for each backend.
 

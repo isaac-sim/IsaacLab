@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -22,7 +22,9 @@ Args:
 
 import argparse
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import AppLauncher, scan
+
+from isaaclab_tasks.utils import resolve_task_config
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Evaluate robomimic policy for Isaac Lab environment.")
@@ -40,37 +42,34 @@ parser.add_argument(
 parser.add_argument(
     "--norm_factor_max", type=float, default=None, help="Optional: maximum value of the normalization factor."
 )
-parser.add_argument("--enable_pinocchio", default=False, action="store_true", help="Enable Pinocchio.")
-
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
-args_cli = parser.parse_args()
-
-if args_cli.enable_pinocchio:
-    # Import pinocchio before AppLauncher to force the use of the version installed by IsaacLab and not the one installed by Isaac Sim
-    # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
-    import pinocchio  # noqa: F401
+# parse the arguments, forwarding unrecognized ones as Hydra-style task config overrides
+args_cli, hydra_overrides = parser.parse_known_args()
 
 # launch omniverse app
-app_launcher = AppLauncher(args_cli)
+# Only enable rendering for tasks that actually declare Kit camera sensors: this script also
+# plays policies trained on low-dimensional observations, which should not pay for the RTX
+# renderer. ``resolve_task_config`` is safe to call before Kit is launched, and ``scan`` is the
+# same detection ``launch_simulation`` uses, so this matches how camera enabling is resolved
+# elsewhere now that the ``--enable_cameras`` flag is gone.
+# ``overrides`` must be passed explicitly: this script keeps its own flags in ``sys.argv`` rather
+# than stripping them, so letting Hydra fall back to reading ``sys.argv`` makes it reject them.
+env_cfg_for_scan, _ = resolve_task_config(args_cli.task, "", overrides=hydra_overrides)
+app_launcher = AppLauncher(args_cli, enable_cameras=scan(env_cfg_for_scan, args_cli).has_kit_camera)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
 import copy
+import random
+
 import gymnasium as gym
 import numpy as np
-import random
-import torch
-
 import robomimic.utils.file_utils as FileUtils
 import robomimic.utils.torch_utils as TorchUtils
-
-if args_cli.enable_pinocchio:
-    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
-    import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
+import torch
 
 from isaaclab_tasks.utils import parse_env_cfg
 
@@ -143,7 +142,13 @@ def rollout(policy, env, success_term, horizon, device):
 def main():
     """Run a trained policy from robomimic with Isaac Lab environment."""
     # parse configuration
-    env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=1, use_fabric=not args_cli.disable_fabric)
+    env_cfg = parse_env_cfg(
+        args_cli.task,
+        device=args_cli.device,
+        num_envs=1,
+        use_fabric=not args_cli.disable_fabric,
+        overrides=hydra_overrides,
+    )
 
     # Set observations to dictionary mode for Robomimic
     env_cfg.observations.policy.concatenate_terms = False
@@ -170,14 +175,15 @@ def main():
     # Acquire device
     device = TorchUtils.get_torch_device(try_to_use_cuda=True)
 
-    # Run policy
-    results = []
-    for trial in range(args_cli.num_rollouts):
-        print(f"[INFO] Starting trial {trial}")
-        policy, _ = FileUtils.policy_from_checkpoint(ckpt_path=args_cli.checkpoint, device=device)
-        terminated, traj = rollout(policy, env, success_term, args_cli.horizon, device)
-        results.append(terminated)
-        print(f"[INFO] Trial {trial}: {terminated}\n")
+    with torch.inference_mode():
+        # Run policy
+        results = []
+        for trial in range(args_cli.num_rollouts):
+            print(f"[INFO] Starting trial {trial}")
+            policy, _ = FileUtils.policy_from_checkpoint(ckpt_path=args_cli.checkpoint, device=device)
+            terminated, traj = rollout(policy, env, success_term, args_cli.horizon, device)
+            results.append(terminated)
+            print(f"[INFO] Trial {trial}: {terminated}\n")
 
     print(f"\nSuccessful trials: {results.count(True)}, out of {len(results)} trials")
     print(f"Success rate: {results.count(True) / len(results)}")

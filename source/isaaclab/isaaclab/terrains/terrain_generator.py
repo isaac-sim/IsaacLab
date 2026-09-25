@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,17 +6,17 @@
 from __future__ import annotations
 
 import logging
-import numpy as np
 import os
-import torch
-import trimesh
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.dict import dict_to_md5_hash
-from isaaclab.utils.io import dump_yaml
-from isaaclab.utils.timer import Timer
-from isaaclab.utils.warp import convert_to_warp_mesh
+import numpy as np
+import torch
+import trimesh
 
+from ..utils.dict import dict_to_md5_hash
+from ..utils.io import dump_yaml
+from ..utils.timer import Timer
+from ..utils.warp import convert_to_warp_mesh
 from .trimesh.utils import make_border
 from .utils import color_meshes_by_height, find_flat_patches
 
@@ -24,7 +24,6 @@ if TYPE_CHECKING:
     from .sub_terrain_cfg import FlatPatchSamplingCfg, SubTerrainBaseCfg
     from .terrain_generator_cfg import TerrainGeneratorCfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -52,21 +51,23 @@ class TerrainGenerator:
 
     .. math::
 
-        \text{difficulty} = \frac{\text{row_id} + \eta}{\text{num_rows}} \times (\text{upper} - \text{lower}) + \text{lower}
+        \text{difficulty} =
+            \frac{\text{row_id} + \eta}{\text{num_rows}} \times (\text{upper} - \text{lower}) + \text{lower}
 
     where :math:`\eta\sim\mathcal{U}(0, 1)` is a random perturbation to the difficulty, and
     :math:`(\text{lower}, \text{upper})` is the range of the difficulty parameter, specified using the
     :attr:`~TerrainGeneratorCfg.difficulty_range` parameter.
 
     If a curriculum is not used, the terrains are generated randomly. In this case, the difficulty parameter
-    is randomly sampled from the specified range, given by the :attr:`~TerrainGeneratorCfg.difficulty_range` parameter:
+    is randomly sampled from the specified range, given by the :attr:`~TerrainGeneratorCfg.difficulty_range`
+    parameter:
 
     .. math::
 
         \text{difficulty} \sim \mathcal{U}(\text{lower}, \text{upper})
 
-    If the :attr:`~TerrainGeneratorCfg.flat_patch_sampling` is specified for a sub-terrain, flat patches are sampled
-    on the terrain. These can be used for spawning robots, targets, etc. The sampled patches are stored
+    If the :attr:`~TerrainGeneratorCfg.flat_patch_sampling` is specified for a sub-terrain, flat patches are
+    sampled on the terrain. These can be used for spawning robots, targets, etc. The sampled patches are stored
     in the :obj:`flat_patches` dictionary. The key specifies the intention of the flat patches and the
     value is a tensor containing the flat patches for each sub-terrain.
 
@@ -147,7 +148,7 @@ class TerrainGenerator:
         # buffer for storing valid patches
         self.flat_patches = {}
         # create a list of all sub-terrains
-        self.terrain_meshes = list()
+        self.terrain_meshes = []
         self.terrain_origins = np.zeros((self.cfg.num_rows, self.cfg.num_cols, 3))
 
         # parse configuration and add sub-terrains

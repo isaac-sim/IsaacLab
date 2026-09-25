@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,9 +7,19 @@
 """Launch Isaac Sim Simulator first."""
 
 
+# Isaac Lab does not use Warp autodiff; skipping adjoint codegen roughly halves the
+# time spent building kernels on a cold kernel cache.
+import warp as wp
+
+wp.config.enable_backward = False
+
 import argparse
+import sys
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils.string import list_intersection, string_to_callable
+
+from isaaclab_tasks.utils import setup_preset_cli
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Replay demonstrations in Isaac Lab environments.")
@@ -33,43 +43,55 @@ parser.add_argument(
     ),
 )
 parser.add_argument(
-    "--enable_pinocchio",
+    "--validate_success_rate",
     action="store_true",
     default=False,
-    help="Enable Pinocchio.",
+    help="Validate the replay success rate using the task environment termination criteria",
+)
+parser.add_argument(
+    "--reset_sim_buffer_each_episode",
+    action="store_true",
+    default=False,
+    help=(
+        "Before loading each episode's initial state, call env.sim.reset() to clear"
+        " simulation buffers. Only valid with --num_envs 1."
+    ),
 )
 
+parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
-args_cli = parser.parse_args()
+args_cli, hydra_args = setup_preset_cli(parser)
 # args_cli.headless = True
-
-if args_cli.enable_pinocchio:
-    # Import pinocchio before AppLauncher to force the use of the version installed by IsaacLab and not the one installed by Isaac Sim
-    # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
-    import pinocchio  # noqa: F401
 
 # launch the simulator
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
+# Call an external callback if requested.
+remaining_args_env_registration = None
+if args_cli.external_callback:
+    external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
+    remaining_args_env_registration = external_callback_function()
+
+# Hand arguments consumed by neither this parser nor the callback over to Hydra.
+hydra_args = list_intersection(hydra_args, remaining_args_env_registration)
+sys.argv = [sys.argv[0]] + hydra_args
+
 """Rest everything follows."""
 
 import contextlib
-import gymnasium as gym
 import os
+
+import gymnasium as gym
 import torch
 
 from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
-if args_cli.enable_pinocchio:
-    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
-    import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
-
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+from isaaclab_tasks.utils import resolve_task_config
 
 is_paused = False
 
@@ -114,6 +136,123 @@ def compare_states(state_from_dataset, runtime_state, runtime_env_index) -> (boo
     return states_matched, output_log
 
 
+def replay_episodes_loop(  # noqa: C901
+    env,
+    dataset_file_handler: HDF5DatasetFileHandler,
+    episode_names: list[str],
+    episode_count: int,
+    episode_indices_to_replay: list[int],
+    num_envs: int,
+    success_term,
+    state_validation_enabled: bool,
+    idle_action: torch.Tensor,
+    reset_sim_buffer_each_episode: bool,
+) -> tuple[int, int, list[int]]:
+    """Run the replay loop until all selected episodes finish or the app exits.
+
+    Returns:
+        Tuple of (replayed_episode_count, recorded_episode_count, failed_demo_ids).
+    """
+    replayed_episode_count = 0
+    recorded_episode_count = 0
+    current_episode_indices: list[int | None] = [None] * num_envs
+    failed_demo_ids: list[int] = []
+
+    with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
+        while simulation_app.is_running() and not simulation_app.is_exiting():
+            env_episode_data_map = {index: EpisodeData() for index in range(num_envs)}
+            first_loop = True
+            has_next_action = True
+            episode_ended = [False] * num_envs
+            while has_next_action:
+                # initialize actions with idle action so those without next action will not move
+                actions = idle_action.clone()
+                has_next_action = False
+                for env_id in range(num_envs):
+                    env_next_action = env_episode_data_map[env_id].get_next_action()
+                    if env_next_action is None:
+                        # check if the episode is successful after the whole episode_data is
+                        if (
+                            (success_term is not None)
+                            and (current_episode_indices[env_id]) is not None
+                            and (not episode_ended[env_id])
+                        ):
+                            if bool(success_term.func(env, **success_term.params)[env_id]):
+                                recorded_episode_count += 1
+                                plural_trailing_s = "s" if recorded_episode_count > 1 else ""
+
+                                print(
+                                    f"Successfully replayed {recorded_episode_count} episode{plural_trailing_s} out"
+                                    f" of {replayed_episode_count} demos."
+                                )
+                            else:
+                                # if not successful, add to failed demo IDs list
+                                cid = current_episode_indices[env_id]
+                                if cid is not None and cid not in failed_demo_ids:
+                                    failed_demo_ids.append(cid)
+
+                            episode_ended[env_id] = True
+
+                        next_episode_index = None
+                        while episode_indices_to_replay:
+                            next_episode_index = episode_indices_to_replay.pop(0)
+
+                            if next_episode_index < episode_count:
+                                episode_ended[env_id] = False
+                                break
+                            next_episode_index = None
+
+                        if next_episode_index is not None:
+                            replayed_episode_count += 1
+                            current_episode_indices[env_id] = next_episode_index
+                            print(f"{replayed_episode_count:4}: Loading #{next_episode_index} episode to env_{env_id}")
+                            episode_data = dataset_file_handler.load_episode(
+                                episode_names[next_episode_index], env.device
+                            )
+                            env_episode_data_map[env_id] = episode_data
+                            # Set initial state for the new episode
+                            initial_state = episode_data.get_initial_state()
+                            if reset_sim_buffer_each_episode:
+                                env.sim.reset()
+                            env.reset_to(initial_state, torch.tensor([env_id], device=env.device), is_relative=True)
+                            # Get the first action for the new episode
+                            env_next_action = env_episode_data_map[env_id].get_next_action()
+                            has_next_action = True
+                        else:
+                            continue
+                    else:
+                        has_next_action = True
+                    actions[env_id] = env_next_action
+                if not has_next_action:
+                    # Stop before stepping once every environment has exhausted its recorded actions.
+                    break
+                if first_loop:
+                    first_loop = False
+                else:
+                    while is_paused:
+                        env.sim.render()
+                        continue
+                env.step(actions)
+
+                if state_validation_enabled:
+                    state_from_dataset = env_episode_data_map[0].get_next_state()
+                    if state_from_dataset is not None:
+                        print(
+                            f"Validating states at action-index: {env_episode_data_map[0].next_state_index - 1:4}",
+                            end="",
+                        )
+                        current_runtime_state = env.scene.get_state(is_relative=True)
+                        states_matched, comparison_log = compare_states(state_from_dataset, current_runtime_state, 0)
+                        if states_matched:
+                            print("\t- matched.")
+                        else:
+                            print("\t- mismatched.")
+                            print(comparison_log)
+            break
+
+    return replayed_episode_count, recorded_episode_count, failed_demo_ids
+
+
 def main():
     """Replay episodes loaded from a file."""
     global is_paused
@@ -130,7 +269,7 @@ def main():
         print("No episodes found in the dataset.")
         exit()
 
-    episode_indices_to_replay = args_cli.select_episodes
+    episode_indices_to_replay = list(args_cli.select_episodes)
     if len(episode_indices_to_replay) == 0:
         episode_indices_to_replay = list(range(episode_count))
 
@@ -140,8 +279,27 @@ def main():
         raise ValueError("Task/env name was not specified nor found in the dataset.")
 
     num_envs = args_cli.num_envs
+    if args_cli.reset_sim_buffer_each_episode and num_envs != 1:
+        raise ValueError(
+            "--reset_sim_buffer_each_episode is only supported with a single environment (--num_envs 1). "
+            f"Got num_envs={num_envs}. Use --num_envs 1 or disable --reset_sim_buffer_each_episode."
+        )
 
-    env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=num_envs)
+    env_cfg, _ = resolve_task_config(env_name, "")
+    env_cfg.sim.device = args_cli.device
+    env_cfg.scene.num_envs = num_envs
+
+    # extract success checking function to invoke in the main loop
+    success_term = None
+    if args_cli.validate_success_rate:
+        if hasattr(env_cfg.terminations, "success"):
+            success_term = env_cfg.terminations.success
+            env_cfg.terminations.success = None
+        else:
+            print(
+                "No success termination term was found in the environment."
+                " Will not be able to mark recorded demos as successful."
+            )
 
     # Disable all recorders and terminations
     env_cfg.recorders = {}
@@ -164,7 +322,7 @@ def main():
 
     # Get idle action (idle actions are applied to envs without next action)
     if hasattr(env_cfg, "idle_action"):
-        idle_action = env_cfg.idle_action.repeat(num_envs, 1)
+        idle_action = torch.tensor(env_cfg.idle_action, device=env.unwrapped.device).repeat(num_envs, 1)
     else:
         idle_action = torch.zeros(env.action_space.shape)
 
@@ -172,72 +330,33 @@ def main():
     env.reset()
     teleop_interface.reset()
 
-    # simulate environment -- run everything in inference mode
     episode_names = list(dataset_file_handler.get_episode_names())
-    replayed_episode_count = 0
-    with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
-        while simulation_app.is_running() and not simulation_app.is_exiting():
-            env_episode_data_map = {index: EpisodeData() for index in range(num_envs)}
-            first_loop = True
-            has_next_action = True
-            while has_next_action:
-                # initialize actions with idle action so those without next action will not move
-                actions = idle_action
-                has_next_action = False
-                for env_id in range(num_envs):
-                    env_next_action = env_episode_data_map[env_id].get_next_action()
-                    if env_next_action is None:
-                        next_episode_index = None
-                        while episode_indices_to_replay:
-                            next_episode_index = episode_indices_to_replay.pop(0)
-                            if next_episode_index < episode_count:
-                                break
-                            next_episode_index = None
+    replayed_episode_count, recorded_episode_count, failed_demo_ids = replay_episodes_loop(
+        env,
+        dataset_file_handler,
+        episode_names,
+        episode_count,
+        episode_indices_to_replay,
+        num_envs,
+        success_term,
+        state_validation_enabled,
+        idle_action,
+        args_cli.reset_sim_buffer_each_episode,
+    )
 
-                        if next_episode_index is not None:
-                            replayed_episode_count += 1
-                            print(f"{replayed_episode_count :4}: Loading #{next_episode_index} episode to env_{env_id}")
-                            episode_data = dataset_file_handler.load_episode(
-                                episode_names[next_episode_index], env.device
-                            )
-                            env_episode_data_map[env_id] = episode_data
-                            # Set initial state for the new episode
-                            initial_state = episode_data.get_initial_state()
-                            env.reset_to(initial_state, torch.tensor([env_id], device=env.device), is_relative=True)
-                            # Get the first action for the new episode
-                            env_next_action = env_episode_data_map[env_id].get_next_action()
-                            has_next_action = True
-                        else:
-                            continue
-                    else:
-                        has_next_action = True
-                    actions[env_id] = env_next_action
-                if first_loop:
-                    first_loop = False
-                else:
-                    while is_paused:
-                        env.sim.render()
-                        continue
-                env.step(actions)
-
-                if state_validation_enabled:
-                    state_from_dataset = env_episode_data_map[0].get_next_state()
-                    if state_from_dataset is not None:
-                        print(
-                            f"Validating states at action-index: {env_episode_data_map[0].next_state_index - 1 :4}",
-                            end="",
-                        )
-                        current_runtime_state = env.scene.get_state(is_relative=True)
-                        states_matched, comparison_log = compare_states(state_from_dataset, current_runtime_state, 0)
-                        if states_matched:
-                            print("\t- matched.")
-                        else:
-                            print("\t- mismatched.")
-                            print(comparison_log)
-            break
     # Close environment after replay in complete
     plural_trailing_s = "s" if replayed_episode_count > 1 else ""
     print(f"Finished replaying {replayed_episode_count} episode{plural_trailing_s}.")
+
+    # Print success statistics only if validation was enabled
+    if success_term is not None:
+        print(f"Successfully replayed: {recorded_episode_count}/{replayed_episode_count}")
+
+        # Print failed demo IDs if any
+        if failed_demo_ids:
+            print(f"\nFailed demo IDs ({len(failed_demo_ids)} total):")
+            print(f"  {sorted(failed_demo_ids)}")
+
     env.close()
 
 

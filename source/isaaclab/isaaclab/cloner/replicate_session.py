@@ -1,0 +1,129 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Clone-plan publication and dispatch."""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Iterable
+from typing import TYPE_CHECKING, Any
+
+import numpy as np
+
+from ..sim import SimulationContext
+from .clone_plan import make_clone_plan
+from .cloner_cfg import DEFAULT_ENV_TEMPLATE
+from .cloner_strategies import sequential
+
+if TYPE_CHECKING:
+    from .clone_plan import ClonePlan
+
+
+def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
+    """Dispatch the active fully routed clone plan.
+
+    Planning derives routing from the input cfgs; dispatch does not rediscover or reshape that mapping.
+    Every context is owned by the active :class:`~isaaclab.sim.SimulationContext` and receives
+    only ``plan``.
+
+    Args:
+        plan: Replication layout to dispatch.
+        replicate_physics: Whether the active physics context clones each environment.
+            Other declared contexts still build their scene representations when False.
+    """
+    sim = SimulationContext.instance()
+    if sim is None:
+        raise RuntimeError("Clone-plan replication requires an active SimulationContext.")
+    if sim.get_clone_plan() is not plan:
+        raise ValueError("replicate() requires the active SimulationContext's ClonePlan.")
+    context_types = tuple(
+        context_type
+        for context_type in plan.context_rows
+        if replicate_physics or context_type is not sim.physics_manager.clone_context_type
+    )
+    missing = [context_type for context_type in context_types if context_type not in sim.clone_contexts]
+    if missing:
+        names = ", ".join(f"{context_type.__module__}.{context_type.__qualname__}" for context_type in missing)
+        raise RuntimeError(f"Clone contexts must be registered before plan dispatch: {names}.")
+
+    contexts = [sim.clone_contexts[context_type] for context_type in context_types]
+    for context in sorted(contexts, key=lambda item: item.replicate_priority):
+        context.replicate(plan)
+
+
+class ReplicateSession:
+    """Folds :func:`make_clone_plan` and :func:`replicate` into a ``with`` block.
+
+    ``__enter__`` builds and publishes the complete plan while assigning each cfg's
+    ``spawn_path``; ``__exit__`` dispatches that same plan.
+
+    Example:
+
+        .. code-block:: python
+
+            with cloner.ReplicateSession(cfgs, num_clones=128, env_spacing=2.0):
+                for cfg in cfgs:
+                    cfg.class_type(cfg)
+    """
+
+    def __init__(
+        self,
+        cfgs: Iterable[Any],
+        num_clones: int,
+        env_spacing: float,
+        *,
+        global_paths: tuple[str, ...] = (),
+        clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential,
+        valid_set: np.ndarray | None = None,
+        replicate_physics: bool = True,
+        env_template: str = DEFAULT_ENV_TEMPLATE,
+    ):
+        """Capture arguments for :func:`make_clone_plan` and :func:`replicate`.
+
+        Args:
+            cfgs: Asset cfgs with resolved ``prim_path``.
+            num_clones: Number of target envs.
+            env_spacing: Grid spacing between env origins [m].
+            global_paths: Complete shared-asset roots declared by the composition root. Defaults to none.
+            clone_strategy: Prototype-to-env assignment function.
+            valid_set: Optional ``[num_combos, num_groups]`` integer array of valid
+                prototype combinations; ``None`` uses the full cartesian product.
+            replicate_physics: Whether physics replication clones each environment;
+                forwarded to :func:`replicate`.
+            env_template: Path template for a replicated env prim, ``{}`` marking the env index.
+        """
+        self._cfgs = cfgs
+        self._replicate_physics = replicate_physics
+        self._kwargs = dict(
+            num_clones=num_clones,
+            env_spacing=env_spacing,
+            global_paths=global_paths,
+            clone_strategy=clone_strategy,
+            valid_set=valid_set,
+            env_template=env_template,
+        )
+        self._plan: ClonePlan | None = None
+
+    def __enter__(self) -> ReplicateSession:
+        if (sim := SimulationContext.instance()) is None:
+            raise RuntimeError("Clone planning requires an active SimulationContext.")
+        if sim.get_clone_plan() is not None:
+            raise RuntimeError("A SimulationContext owns exactly one clone lifecycle.")
+        self._plan = make_clone_plan(self._cfgs, **self._kwargs)
+        sim.set_clone_plan(self._plan)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        if exc_type is None:
+            replicate(self.plan, replicate_physics=self._replicate_physics)
+        elif (sim := SimulationContext.instance()) is not None and sim.get_clone_plan() is self._plan:
+            sim.set_clone_plan(None)
+
+    @property
+    def plan(self) -> ClonePlan:
+        """The :class:`~isaaclab.cloner.ClonePlan` produced in :meth:`__enter__`."""
+        if self._plan is None:
+            raise RuntimeError("ReplicateSession.plan is only available inside the with block.")
+        return self._plan

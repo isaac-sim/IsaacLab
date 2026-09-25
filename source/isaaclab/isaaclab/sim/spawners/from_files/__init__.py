@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,9 +9,11 @@ Currently, the following spawners are supported:
 
 * :class:`UsdFileCfg`: Spawn an asset from a USD file.
 * :class:`UrdfFileCfg`: Spawn an asset from a URDF file.
+* :class:`MeshFileCfg`: Spawn a mesh from a mesh file or from in-memory triangle data.
 * :class:`GroundPlaneCfg`: Spawn a ground plane using the grid-world USD file.
 
 """
 
-from .from_files import spawn_from_urdf, spawn_from_usd, spawn_ground_plane
-from .from_files_cfg import GroundPlaneCfg, UrdfFileCfg, UsdFileCfg
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

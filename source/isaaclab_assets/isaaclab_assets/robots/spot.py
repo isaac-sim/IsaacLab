@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,6 +10,9 @@ The following configuration parameters are available:
 
 * :obj:`SPOT_CFG`: The Spot robot with delay PD and remote PD actuators.
 """
+
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import DelayedPDActuatorCfg, RemotizedPDActuatorCfg
@@ -135,7 +138,7 @@ SPOT_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/BostonDynamics/spot/spot.usd",
         activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
             retain_accelerations=False,
             linear_damping=0.0,
@@ -144,9 +147,12 @@ SPOT_CFG = ArticulationCfg(
             max_angular_velocity=1000.0,
             max_depenetration_velocity=1.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.5),
@@ -162,7 +168,7 @@ SPOT_CFG = ArticulationCfg(
     actuators={
         "spot_hip": DelayedPDActuatorCfg(
             joint_names_expr=[".*_h[xy]"],
-            effort_limit=45.0,
+            actuator_effort_limit=45.0,
             stiffness=60.0,
             damping=1.5,
             min_delay=0,  # physics time steps (min: 2.0*0=0.0ms)
@@ -171,7 +177,7 @@ SPOT_CFG = ArticulationCfg(
         "spot_knee": RemotizedPDActuatorCfg(
             joint_names_expr=[".*_kn"],
             joint_parameter_lookup=joint_parameter_lookup,
-            effort_limit=None,  # torque limits are handled based experimental data (`RemotizedPDActuatorCfg.data`)
+            actuator_effort_limit=None,  # Torque limits are based on experimental data (`RemotizedPDActuatorCfg.data`).
             stiffness=60.0,
             damping=1.5,
             min_delay=0,  # physics time steps (min: 2.0*0=0.0ms)

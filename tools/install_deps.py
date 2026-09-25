@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -30,8 +30,9 @@ For more information, please check the `documentation`_.
 import argparse
 import os
 import shutil
-import toml
 from subprocess import PIPE, STDOUT, Popen
+
+import tomllib
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="A utility to install dependencies based on extension.toml files.")
@@ -64,8 +65,8 @@ def install_apt_packages(paths: list[str]):
                 )
                 continue
             # Load the extension.toml file and check for apt_deps
-            with open(f"{path}/config/extension.toml") as fd:
-                ext_toml = toml.load(fd)
+            with open(f"{path}/config/extension.toml", "rb") as fd:
+                ext_toml = tomllib.load(fd)
                 if "isaac_lab_settings" in ext_toml and "apt_deps" in ext_toml["isaac_lab_settings"]:
                     deps = ext_toml["isaac_lab_settings"]["apt_deps"]
                     print(f"[INFO] Installing the following apt packages: {deps}")
@@ -107,8 +108,8 @@ def install_rosdep_packages(paths: list[str], ros_distro: str = "humble"):
                 )
                 continue
             # Load the extension.toml file and check for ros_ws
-            with open(f"{path}/config/extension.toml") as fd:
-                ext_toml = toml.load(fd)
+            with open(f"{path}/config/extension.toml", "rb") as fd:
+                ext_toml = tomllib.load(fd)
                 if "isaac_lab_settings" in ext_toml and "ros_ws" in ext_toml["isaac_lab_settings"]:
                     # resolve the path to the ROS workspace
                     ws_path = ext_toml["isaac_lab_settings"]["ros_ws"]
@@ -125,15 +126,17 @@ def install_rosdep_packages(paths: list[str], ros_distro: str = "humble"):
                         run_and_print(["rosdep", "init"])
                         run_and_print(["rosdep", "update", f"--rosdistro={ros_distro}"])
                     # install rosdep packages
-                    run_and_print([
-                        "rosdep",
-                        "install",
-                        "--from-paths",
-                        f"{ws_path}/src",
-                        "--ignore-src",
-                        "-y",
-                        f"--rosdistro={ros_distro}",
-                    ])
+                    run_and_print(
+                        [
+                            "rosdep",
+                            "install",
+                            "--from-paths",
+                            f"{ws_path}/src",
+                            "--ignore-src",
+                            "-y",
+                            f"--rosdistro={ros_distro}",
+                        ]
+                    )
                 else:
                     print(f"[INFO] No rosdep packages specified for the extension at: {path}")
         else:

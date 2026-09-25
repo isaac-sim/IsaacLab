@@ -1,1120 +1,925 @@
+:orphan:
+
 .. _cloudxr-teleoperation:
 
-Setting up CloudXR Teleoperation
-================================
+Setting up Isaac Teleop with CloudXR
+=====================================
 
 .. currentmodule:: isaaclab
 
-`NVIDIA CloudXR`_ enables seamless, high-fidelity immersive streaming to extended reality (XR)
-devices over any network.
+`Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_ (https://github.com/NVIDIA/IsaacTeleop) is the unified framework for high-fidelity
+teleoperation in Isaac Lab. It provides standardized device interfaces, a flexible retargeting
+pipeline, and bundled `NVIDIA CloudXR`_ streaming for immersive XR-based teleoperation.
 
-Isaac Lab developers can use CloudXR with Isaac Lab to build teleoperation workflows that require
-immersive XR rendering for increased spatial acuity and/or hand tracking for teleoperation of
-dextrous robots.
+This guide walks you through setting up CloudXR, connecting an XR device, and running your first
+teleoperation session. For additional details see the `Isaac Teleop Quick Start
+<https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html>`_.
 
-In these workflows, Isaac Lab renders and submits stereo views of the robot simulation to CloudXR,
-which then encodes and streams the rendered views to a compatible XR device in realtime using a
-low-latency, GPU-accelerated pipeline. Control inputs such as hand tracking data are sent from the
-XR device back to Isaac Lab through CloudXR, where they can be used to control the robot.
+.. tip::
 
-This guide explains how to use CloudXR and `Apple Vision Pro`_ for immersive streaming and
-teleoperation in Isaac Lab.
+   For architecture details, retargeting pipelines, control scheme recommendations, and how to
+   add new embodiments or devices, see the :ref:`isaac-teleop-feature` page.
+
+
+Prerequisites
+-------------
+
+* **Isaac Lab** installed with the ``teleop`` extra (see :ref:`install-isaac-teleop` below).
+  That section also covers the system libraries the CloudXR runtime needs.
+
+* **Isaac Lab workstation**
+
+  * Ubuntu 22.04 or Ubuntu 24.04
+  * CPU: x86_64 (ARM support coming soon)
+  * GPU: NVIDIA GPU required. For 45 FPS with 120 Hz physics:
+
+    * CPU: AMD Ryzen Threadripper 7960x or higher
+    * GPU: 1x RTX PRO 6000 (or equivalent, e.g. 1x RTX 5090) or higher
+    * Memory: 64 GB RAM
+
+  * For driver requirements see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide.
+  * Python 3.12 or newer
+  * CUDA 12.8 (recommended)
+  * NVIDIA Driver 580.95.05 (recommended)
+
+* **Wifi 6 capable router**
+
+  * A strong wireless connection is essential for a high-quality streaming experience. Refer to
+    the `CloudXR Network Setup`_ guide for detailed requirements, router configuration, and
+    troubleshooting.
+  * We recommend a dedicated router; concurrent usage will degrade quality.
+  * The XR device and Isaac Lab workstation must be IP-reachable from one another. Many
+    institutional wireless networks prevent device-to-device connectivity.
+
+.. note::
+
+   Teleoperation is not currently supported on DGX Spark.
+
+
+.. _teleop-workstation-capability-check:
+
+Workstation capability check
+----------------------------
+
+When a teleop session starts, Isaac Lab measures the workstation against the spec above and
+reports any unmet requirement. The result is printed to the terminal and pushed to the connected
+XR client, where it appears as a dismissible banner in the headset -- so the warning is visible
+to the operator wearing the device, not only in a terminal they cannot see.
+
+The check is **advisory and never blocks a session**. It reports:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Requirement
+     - Threshold
+   * - CPU single-thread
+     - At least 80% of the reference CPU (AMD Ryzen Threadripper 7960X)
+   * - CPU governor
+     - ``performance``, unless the single-thread score already meets its threshold
+   * - CPU boost clock
+     - 4.0 GHz
+   * - CPU physical cores
+     - 8
+   * - GPU memory
+     - 24 GB
+   * - GPU architecture
+     - Compute capability 8.9 (Ada) or newer
+   * - NVIDIA driver
+     - 580 or newer
+   * - System memory
+     - 60 GiB (a nominal 64 GB machine)
+   * - CPU architecture
+     - ``x86_64``
+
+Thresholds are numeric rather than a list of approved CPU and GPU models, so equivalent hardware
+passes. CPU single-thread throughput is weighted most heavily and is measured with a short
+benchmark rather than inferred from the core count: Pink IK and CPU-side physics are
+single-thread bound, so a machine with fewer but faster cores teleoperates better than one with
+many slow cores.
+
+.. tip::
+
+   **The CPU governor is only reported when the machine is also measurably slow.** Ubuntu
+   defaults to ``powersave``, which costs per-frame ramp-up latency in the bursty workload
+   teleoperation generates. The governor is a proxy for delivered throughput, though, so a
+   workstation whose single-thread score already meets its threshold is fast enough whatever
+   the governor says and is not flagged. Setting ``performance`` remains a setup step -- see
+   :ref:`install-isaac-teleop`.
+
+If a probe is unavailable (for example, ``cpufreq`` is not exposed inside a container), that item
+is reported as skipped rather than failed.
+
+On a multi-GPU workstation the GPU checks measure the device the session runs on -- the one
+selected with ``--device`` -- not simply the first adapter. The reported value names the ordinal
+(e.g. ``cuda:1``) so it is clear which GPU was measured.
+
+To use the check on its own -- for example to qualify a machine before setting up a session:
+
+.. code-block:: bash
+
+   uv run --extra teleop,isaacsim python -c "from isaaclab_teleop import check_system_requirements; print(check_system_requirements().format_table())"
+
+
+.. _install-isaac-teleop:
+
+Install Isaac Teleop
+--------------------
+
+Use this path to teleoperate robots from an XR headset and to record demonstrations for
+imitation learning. It uses the ``teleop`` extra, which carries `Isaac Teleop
+<https://github.com/NVIDIA/IsaacTeleop>`__ with its CloudXR streaming runtime, and Isaac Sim
+itself for the Kit XR runtime that renders the stereo view. One flag covers the whole
+workflow.
+
+XR teleoperation is supported on **Linux x86_64 only**. The ``teleop`` extra gates
+``isaacteleop`` and ``dex-retargeting`` behind platform markers, so on Windows or aarch64 the
+extra resolves but installs nothing usable. It is also not supported on DGX Spark.
+
+``isaaclab teleop`` groups the three workflow scripts: ``run`` for a live session, ``record``
+to capture demonstrations, and ``replay`` to play a dataset back. :ref:`The next section
+<run-isaac-lab-with-the-cloudxr-runtime>` walks through a session once setup is complete.
 
 .. note::
 
-   See :ref:`manus-vive-handtracking` for more information on supported hand-tracking peripherals.
+   ``teleop`` cannot be combined with ``ov`` or ``ovphysx`` in a single ``uv run``: the
+   bundled Isaac Sim pins ``packaging==26.0`` while those runtimes require ``<24``. Install
+   the OV runtimes separately when you need them.
 
+Complete these steps first:
 
-Overview
---------
+#. Install the system libraries required by the CloudXR runtime:
 
-Using CloudXR with Isaac Lab involves the following components:
+   .. code-block:: bash
 
-* **Isaac Lab** is used to simulate the robot environment and apply control data received from the
-  teleoperator.
+      sudo apt-get update && sudo apt-get install -y libvulkan1 libbsd0
 
-* The **NVIDIA CloudXR Runtime** runs on the Isaac Lab workstation in a Docker container, and streams
-  the virtual simulation from Isaac Lab to compatible XR devices.
+   The CloudXR runtime links against Vulkan at runtime. If your system already has the
+   NVIDIA driver installed, ``libvulkan1`` may already be present.
 
-* The **Isaac XR Teleop Sample Client** is a sample app for Apple Vision Pro which enables
-  immersive streaming and teleoperation of an Isaac Lab simulation using CloudXR.
+#. Set the CPU frequency governor to ``performance``:
 
-This guide will walk you through how to:
+   .. code-block:: bash
 
-* :ref:`run-isaac-lab-with-the-cloudxr-runtime`
+      # cpupower ships in linux-tools; install it if the command is not found
+      sudo apt-get install -y linux-tools-common linux-tools-$(uname -r)
 
-* :ref:`use-apple-vision-pro`, including how to :ref:`build-apple-vision-pro`,
-  :ref:`teleoperate-apple-vision-pro`, and :ref:`manus-vive-handtracking`.
+      sudo cpupower frequency-set -g performance
 
-* :ref:`develop-xr-isaac-lab`, including how to :ref:`run-isaac-lab-with-xr`,
-  :ref:`configure-scene-placement`, and :ref:`optimize-xr-performance`.
+   Ubuntu defaults to the ``powersave`` governor, which measurably increases Pink IK solve
+   latency and lowers the achievable teleop frame rate. Because IK and CPU-side physics are
+   single-thread bound, this is one of the highest-impact settings on the workstation.
 
-* :ref:`control-robot-with-xr`, including the :ref:`openxr-device-architecture`,
-  :ref:`control-robot-with-xr-retargeters`, and how to implement :ref:`control-robot-with-xr-callbacks`.
+   Verify the change:
 
-As well as :ref:`xr-known-issues`.
+   .. code-block:: bash
 
+      cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 
-System Requirements
--------------------
+   Expected output: ``performance``.
 
-Prior to using CloudXR with Isaac Lab, please review the following system requirements:
+   .. note::
 
-  * Isaac Lab workstation
+      This setting does not survive a reboot. Re-run the command after restarting, or make it
+      persistent with a systemd unit or your distribution's ``cpupower`` service configuration.
+      The :ref:`teleop-workstation-capability-check` reports the governor at session start, so a
+      machine that has reverted to ``powersave`` is flagged before you notice the frame rate.
 
-    * Ubuntu 22.04 or Ubuntu 24.04
-    * Hardware requirements to sustain 45 FPS with a 120Hz physics simulation:
-       * CPU: 16-Cores AMD Ryzen Threadripper Pro 5955WX or higher
-       * Memory: 64GB RAM
-       * GPU: 1x RTX PRO 6000 GPUs (or equivalent e.g. 1x RTX 5090) or higher
-    * For details on driver requirements, please see the `Technical Requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`_ guide
-    * `Docker`_ 26.0.0+, `Docker Compose`_ 2.25.0+, and the `NVIDIA Container Toolkit`_. Refer to
-      the Isaac Lab :ref:`deployment-docker` for how to install.
+#. ``isaacteleop`` ships as part of the ``teleop`` extra, so no separate pip install step is
+   required — but note that it comes from the extra rather than from the ``isaaclab_teleop``
+   package metadata, so installing ``isaaclab_teleop`` on its own does **not** pull it in.
+   For building from source or plugin development, see the `Isaac Teleop GitHub
+   <https://github.com/NVIDIA/IsaacTeleop>`_.
 
-  * Apple Vision Pro
+#. Configure the firewall to allow CloudXR traffic. The required ports depend on the
+   client type.
 
-    * visionOS 26
-    * Apple M3 Pro chip with an 11-core CPU with at least 5 performance cores and 6 efficiency cores
-    * 16GB unified memory
-    * 256 GB SSD
+   **For Apple native clients** (CloudXR Framework):
 
-  * Apple Silicon based Mac (for building the Isaac XR Teleop Sample Client App for Apple Vision Pro
-    with Xcode)
+   .. code-block:: bash
 
-    * macOS Sequoia 15.6 or later
-    * Xcode 26.0
+      # Signaling (use one based on connection mode)
+      sudo ufw allow 48010/tcp   # Standard mode
+      sudo ufw allow 48322/tcp   # Secure mode
+      # Video
+      sudo ufw allow 47998/udp
+      sudo ufw allow 48005/udp
+      sudo ufw allow 48008/udp
+      sudo ufw allow 48012/udp
+      # Input
+      sudo ufw allow 47999/udp
+      # Audio
+      sudo ufw allow 48000/udp
+      sudo ufw allow 48002/udp
 
-  * Wifi 6 capable router
+   **For web clients** (CloudXR.js via the built-in WSS proxy):
 
-    * A strong wireless connection is essential for a high-quality streaming experience. Refer to the
-      requirements of `Omniverse Spatial Streaming`_ for more details.
-    * We recommend using a dedicated router, as concurrent usage will degrade quality
-    * The Apple Vision Pro and Isaac Lab workstation must be IP-reachable from one another (note:
-      many institutional wireless networks will prevent devices from reaching each other, resulting
-      in the Apple Vision Pro being unable to find the Isaac Lab workstation on the network)
+   .. code-block:: bash
 
-.. note::
-   If you are using DGX Spark, check `DGX Spark Limitations <https://isaac-sim.github.io/IsaacLab/release/2.3.0/source/setup/installation/index.html#dgx-spark-details-and-limitations>`_ for compatibility.
+      sudo ufw allow 49100/tcp   # Signaling (WebRTC)
+      sudo ufw allow 47998/udp   # Media stream
+      sudo ufw allow 48322/tcp   # WSS proxy (HTTPS)
 
-
-.. _`Omniverse Spatial Streaming`: https://docs.omniverse.nvidia.com/avp/latest/setup-network.html
+   For full network requirements and Windows firewall instructions, see the
+   `CloudXR Network Setup <https://docs.nvidia.com/cloudxr-sdk/latest/requirement/network_setup.html#firewall-configuration>`__
+   documentation.
 
 
 .. _run-isaac-lab-with-the-cloudxr-runtime:
 
-Run Isaac Lab with the CloudXR Runtime
---------------------------------------
+Run Isaac Lab with CloudXR
+--------------------------
 
-The CloudXR Runtime runs in a Docker container on your Isaac Lab workstation, and is responsible for
-streaming the Isaac Lab simulation to a compatible XR device.
+The CloudXR runtime launches automatically when a teleop script is started. No separate
+terminal or ``source`` step is needed. Launch a teleoperation session directly:
 
-Ensure that `Docker`_, `Docker Compose`_, and the `NVIDIA Container Toolkit`_ are installed on your
-Isaac Lab workstation as described in the Isaac Lab :ref:`deployment-docker`.
+.. tab-set::
 
-Also ensure that your firewall allows connections to the ports used by CloudXR by running:
+   .. tab-item:: uv (Recommended)
 
-.. code:: bash
+      .. code-block:: bash
 
-   sudo ufw allow 47998:48000,48005,48008,48012/udp
-   sudo ufw allow 48010/tcp
+         uv run --extra teleop,isaacsim isaaclab teleop run \
+             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+             --visualizer kit \
+             --xr
 
-There are two options to run the CloudXR Runtime Docker container:
+   .. tab-item:: isaaclab.sh / isaaclab.bat
 
-.. dropdown:: Option 1 (Recommended): Use Docker Compose to run the Isaac Lab and CloudXR Runtime
-              containers together
-   :open:
-
-   On your Isaac Lab workstation:
-
-   #. From the root of the Isaac Lab repository, start the Isaac Lab and CloudXR Runtime containers
-      using the Isaac Lab ``container.py`` script
-
-      .. code:: bash
-
-         ./docker/container.py start \
-             --files docker-compose.cloudxr-runtime.patch.yaml \
-             --env-file .env.cloudxr-runtime
-
-      If prompted, elect to activate X11 forwarding, which is necessary to see the Isaac Sim UI.
-
-      .. note::
-
-         The ``container.py`` script is a thin wrapper around Docker Compose. The additional
-         ``--files`` and ``--env-file`` arguments augment the base Docker Compose configuration to
-         additionally run the CloudXR Runtime
-
-         For more details on ``container.py`` and running Isaac Lab with Docker Compose, see the
-         :ref:`deployment-docker`.
-
-   #. Enter the Isaac Lab base container with:
-
-      .. code:: bash
-
-         ./docker/container.py enter base
-
-      From within the Isaac Lab base container, you can run Isaac Lab scripts that use XR.
-
-   #. Run an example teleop task with:
-
-      .. code:: bash
+      .. code-block:: bash
 
          ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task Isaac-PickPlace-GR1T2-Abs-v0 \
-             --teleop_device handtracking \
-             --enable_pinocchio
+             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+             --visualizer kit \
+             --xr
 
-   #. You'll want to leave the container running for the next steps. But once you are finished, you can
-      stop the containers with:
+To verify that the headset and controller tracking poses are reaching Isaac Lab, add
+``--enable_debug_visualization`` to the command. The visualization draws red markers at tracked
+hand joints and RGB axes at tracked controller aim poses. See
+:ref:`isaac-teleop-tracking-debug-visualization` for details.
 
-      .. code:: bash
+.. attention::
 
-         ./docker/container.py stop \
-             --files docker-compose.cloudxr-runtime.patch.yaml \
-             --env-file .env.cloudxr-runtime
+   **First run — EULA acceptance required.**
+   On the first launch, Isaac Sim will prompt you to accept the NVIDIA Omniverse License
+   Agreement before the simulation starts:
 
-      .. tip::
+   .. code-block:: text
 
-         If you encounter issues on restart, you can run the following command to clean up orphaned
-         containers:
+      By installing or using Isaac Sim, I agree to the terms of NVIDIA OMNIVERSE LICENSE AGREEMENT
+      in https://docs.isaacsim.omniverse.nvidia.com/latest/common/NVIDIA_Omniverse_License_Agreement.html
 
-         .. code:: bash
+      Do you accept the EULA? (Yes/No):
 
-            docker system prune -f
+   Type ``Yes`` and press **Enter** to continue. If this prompt goes unnoticed the script
+   will appear to hang — check your terminal output if Isaac Sim does not start within a
+   few seconds.
 
-.. dropdown:: Option 2: Run Isaac Lab as a local process and CloudXR Runtime container with Docker
+.. tip::
 
-   Isaac Lab can be run as a local process that connects to the CloudXR Runtime Docker container.
-   However, this method requires manually specifying a shared directory for communication between
-   the Isaac Lab instance and the CloudXR Runtime.
+   The ``IsaacContrib-PickPlace-Locomanipulation-G1-Abs`` task above uses **motion
+   controllers** as its input mode: the controller grip poses drive the arms, the trigger and
+   squeeze buttons close the TriHand fingers, and the thumbsticks drive locomotion and hip
+   height. Hold a controller in each hand rather than relying on optical hand tracking. Other
+   tasks expect hand tracking instead -- see the :ref:`isaac-teleop-control-schemes` table for
+   the full list.
 
-   On your Isaac Lab workstation:
+To switch the CloudXR device profile at launch time (e.g. from Quest to Apple Vision Pro),
+use the ``--cloudxr_env`` flag. Apple Vision Pro tracks hands rather than motion controllers,
+so pair it with a hand-tracking task such as
+``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs``:
 
-   #. From the root of the Isaac Lab repository, create a local folder for temporary cache files:
+.. tab-set::
 
-      .. code:: bash
+   .. tab-item:: uv (Recommended)
 
-         mkdir -p $(pwd)/openxr
+      .. code-block:: bash
 
-   #. Start the CloudXR Runtime, mounting the directory created above to the ``/openxr`` directory in
-      the container:
+         uv run --extra teleop,isaacsim isaaclab teleop run \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit \
+             --xr \
+             --cloudxr_env avp
 
-      .. code:: bash
+   .. tab-item:: isaaclab.sh / isaaclab.bat
 
-         docker run -it --rm --name cloudxr-runtime \
-             --user $(id -u):$(id -g) \
-             --gpus=all \
-             -e "ACCEPT_EULA=Y" \
-             --mount type=bind,src=$(pwd)/openxr,dst=/openxr \
-             -p 48010:48010 \
-             -p 47998:47998/udp \
-             -p 47999:47999/udp \
-             -p 48000:48000/udp \
-             -p 48005:48005/udp \
-             -p 48008:48008/udp \
-             -p 48012:48012/udp \
-             nvcr.io/nvidia/cloudxr-runtime:5.0.1
-
-      .. note::
-         If you choose a particular GPU instead of ``all``, you need to make sure Isaac Lab also runs
-         on that GPU.
-
-      .. tip::
-
-         If you encounter issues on running cloudxr-runtime container, you can run the following
-         command to clean up the orphaned container:
-
-         .. code:: bash
-
-            docker stop cloudxr-runtime
-            docker rm cloudxr-runtime
-
-   #. In a new terminal where you intend to run Isaac Lab, export the following environment
-      variables, which reference the directory created above:
-
-      .. code:: bash
-
-         export XDG_RUNTIME_DIR=$(pwd)/openxr/run
-         export XR_RUNTIME_JSON=$(pwd)/openxr/share/openxr/1/openxr_cloudxr.json
-
-      You can now run Isaac Lab scripts that use XR.
-
-   #. Run an example teleop task with:
-
-      .. code:: bash
+      .. code-block:: bash
 
          ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task Isaac-PickPlace-GR1T2-Abs-v0 \
-             --teleop_device handtracking \
-             --enable_pinocchio
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit \
+             --xr \
+             --cloudxr_env avp
 
-With Isaac Lab and the CloudXR Runtime running:
+For details on the shipped ``.env`` profiles and how to customise them, see
+:ref:`isaac-teleop-cloudxr-profiles` in the feature guide.
 
-#. In the Isaac Sim UI: locate the Panel named **AR** and choose the following options:
+Then in the Isaac Sim UI:
+
+#. Locate the panel named **XR** and choose the following options:
 
    * Selected Output Plugin: **OpenXR**
-
    * OpenXR Runtime: **System OpenXR Runtime**
 
    .. figure:: ../_static/setup/cloudxr_ar_panel.jpg
       :align: center
       :figwidth: 50%
-      :alt: Isaac Sim UI: AR Panel
+      :alt: Isaac Sim UI: XR Panel
 
-   .. note::
-      Isaac Sim lets you choose from several OpenXR runtime options:
+#. Click **Start XR**.
 
-      * **System OpenXR Runtime**: Use a runtime installed outside of Isaac Lab, such as the CloudXR Runtime set up via Docker in this tutorial.
-
-      * **CloudXR Runtime (5.0)**: Use the built-in CloudXR Runtime.
-
-      * **Custom**: Allow you to specify and run any custom OpenXR Runtime of your choice.
-
-#. Click **Start AR**.
-
-The Viewport should show two eyes being rendered, and you should see the status "AR profile is
-active".
+You should see "Waiting for connection" displayed in the status bar at the bottom of the viewport.
+The dual-eye stereo render only becomes active once a headset connects and playback begins on the device.
 
 .. figure:: ../_static/setup/cloudxr_viewport.jpg
    :align: center
    :figwidth: 100%
-   :alt: Isaac Lab viewport rendering two eyes
+   :alt: Isaac Lab viewport showing "Waiting for connection" status after clicking Start XR
 
-Isaac Lab is now ready to receive connections from a CloudXR client. The next sections will walk
-you through building and connecting a CloudXR client.
+Isaac Lab is now ready to receive connections from a CloudXR client.
 
-.. admonition:: Learn More about Teleoperation and Imitation Learning in Isaac Lab
+.. note::
 
-   To learn more about the Isaac Lab teleoperation scripts, and how to build new teleoperation and
-   imitation learning workflows in Isaac Lab, see :ref:`teleoperation-imitation-learning`.
+   **Running headless (no local UI).** The commands above use ``--visualizer kit`` to open the
+   local Kit viewport, where you click **Start XR**. On a server or cloud instance without a
+   display, run headless instead: omit ``--visualizer`` (headless is the default) or pass
+   ``--visualizer none`` / ``--viz none``. In headless XR the AR session starts automatically --
+   there is no viewport to click **Start XR** -- so Isaac Lab begins streaming as soon as a
+   CloudXR client connects. The ``--headless`` flag was removed in Isaac Lab 3.0; ``HEADLESS=1``
+   in the environment also forces headless.
 
+.. note::
 
-.. _use-apple-vision-pro:
-
-Use Apple Vision Pro for Teleoperation
---------------------------------------
-
-This section will walk you through building and installing the Isaac XR Teleop Sample Client for
-Apple Vision Pro, connecting to Isaac Lab, and teleoperating a simulated robot.
-
-
-.. _build-apple-vision-pro:
-
-Build and Install the Isaac XR Teleop Sample Client App for Apple Vision Pro
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-On your Mac:
-
-#. Clone the `Isaac XR Teleop Sample Client`_ GitHub repository:
+   **ERROR_STREAMSDK_PORT_UNAVAILABLE / port 49100 already in use.** The CloudXR runtime
+   binds TCP port 49100 for WebRTC signaling. If a previous CloudXR runtime instance is still
+   running, ``Server::create`` fails with this error. Identify the process holding the port,
+   confirm it is safe to stop, then terminate it -- try a graceful ``kill`` before escalating
+   to ``kill -9``:
 
    .. code-block:: bash
 
-      git clone git@github.com:isaac-sim/isaac-xr-teleop-sample-client-apple.git
+      ss -tlnp | grep 49100  # or: lsof -i :49100
+      kill $(lsof -ti tcp:49100)       # SIGTERM first
+      kill -9 $(lsof -ti tcp:49100)    # only if it is still running
 
-#. Check out the App version that matches your Isaac Lab version:
-
-   +-------------------+---------------------+
-   | Isaac Lab Version | Client App Version  |
-   +-------------------+---------------------+
-   | 2.3               | v2.3.0              |
-   +-------------------+---------------------+
-   | 2.2               | v2.2.0              |
-   +-------------------+---------------------+
-   | 2.1               | v1.0.0              |
-   +-------------------+---------------------+
-
-   .. code-block:: bash
-
-      git checkout <client_app_version>
-
-#. Follow the README in the repository to build and install the app on your Apple Vision Pro.
+   Alternatively, set a different port with the ``NV_CXR_SERVER_PORT`` environment variable.
 
 
-.. _teleoperate-apple-vision-pro:
+.. _connect-xr-device:
 
-Teleoperate an Isaac Lab Robot with Apple Vision Pro
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Connect an XR Device
+--------------------
 
-With the Isaac XR Teleop Sample Client installed on your Apple Vision Pro, you are ready to connect
-to Isaac Lab.
+Isaac Teleop supports several XR headsets. You only need **one** of the devices below --
+choose the tab that matches your hardware.
 
-.. tip::
+.. tab-set::
 
-   **Before wearing the headset**, you can first verify connectivity from your Mac:
+   .. tab-item:: Meta Quest 3 / Pico 4 Ultra
+      :selected:
 
-   .. code:: bash
+      .. _connect-quest-pico:
 
-      # Test signaling port (replace <isaac-lab-ip> with your workstation IP)
-      nc -vz <isaac-lab-ip> 48010
+      Meta Quest 3 and Pico 4 Ultra connect to Isaac Lab via the
+      `CloudXR.js <https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html>`_
+      WebXR client. The built-in environments default to the ``cloudxrjs-cloudxr.env`` profile
+      (``auto-webrtc``), which is the correct setting for these devices.
 
-   Expected output: ``Connection to <ip> port 48010 [tcp/*] succeeded!``
+      .. note::
 
-   If the connection fails, check that the runtime container is running (``docker ps``) and no stale
-   runtime container is blocking ports.
+         Pico 4 Ultra requires Pico OS 15.4.4U or later and must use HTTPS mode.
 
-On your Isaac Lab workstation:
+      #. Launch the teleop script as shown in
+         :ref:`run-isaac-lab-with-the-cloudxr-runtime`. The CloudXR runtime and WSS proxy
+         start automatically.
 
-#. Ensure that Isaac Lab and CloudXR are both running as described in
-   :ref:`run-isaac-lab-with-the-cloudxr-runtime`, including starting Isaac Lab with a script that
-   supports teleoperation. For example:
+      #. Open the browser on your headset and navigate to the hosted CloudXR.js client:
+         `<https://nvidia.github.io/IsaacTeleop/client/release-1.4.x>`_.
 
-   .. code-block:: bash
+         .. note::
 
-      ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-          --task Isaac-PickPlace-GR1T2-Abs-v0 \
-          --teleop_device handtracking \
-          --enable_pinocchio
+            The web client URL is versioned. The ``release-1.4.x`` path corresponds to the
+            Isaac Teleop version Isaac Lab is pinned to (``isaacteleop~=1.4.0`` in the
+            ``teleop`` extra of the root ``pyproject.toml``). When Isaac Lab bumps its Isaac
+            Teleop pin, update this link to the matching client release.
 
-   .. note::
-      Recall that the script above should either be run within the Isaac Lab Docker container
-      (Option 1, recommended), or with environment variables configured to a directory shared by a
-      running CloudXR Runtime Docker container (Option 2).
+         .. tip::
 
-#. Locate the Panel named **AR**.
+            For rapid development, you can test the CloudXR.js client on a desktop browser
+            before deploying to headsets.
 
-#. Click **Start AR** and ensure that the Viewport shows two eyes being rendered.
+      #. Enter the IP address of your Isaac Lab host machine in the **Server IP** field.
 
-Back on your Apple Vision Pro:
+      #. Because the WSS proxy uses a self-signed certificate, you must accept it before
+         connecting. Click the **Click https://<ip>:48322/ to accept cert** link that
+         appears on the page.
 
-#. Open the Isaac XR Teleop Sample Client. You should see a UI window:
+         .. image:: ../_static/setup/cloudxr_accept_cert.jpg
+            :alt: CloudXR.js certificate acceptance link
+            :align: center
+            :width: 400
 
-   .. figure:: ../_static/setup/cloudxr_avp_connect_ui.jpg
-      :align: center
-      :figwidth: 50%
-      :alt: Isaac Sim UI: AR Panel
+         A new tab opens with a **"Your connection is not private"** warning. Click
+         **Advanced**, then click **Proceed to <ip> (unsafe)**.
 
-#. Enter the IP address of your Isaac Lab workstation.
+         .. image:: ../_static/setup/cloudxr_accept_cert_not_private.jpg
+            :alt: Browser privacy warning for self-signed certificate
+            :align: center
+            :width: 500
 
-   .. note::
-      The Apple Vision Pro and Isaac Lab machine must be IP-reachable from one another.
+         The browser will show a **"Certificate Accepted"** page confirming the certificate
+         has been accepted. Close this tab and return to the CloudXR.js client page.
 
-      We recommend using a dedicated Wifi 6 router for this process, as many institutional wireless
-      networks will prevent devices from reaching each other, resulting in the Apple Vision Pro
-      being unable to find the Isaac Lab workstation on the network.
+         .. image:: ../_static/setup/cloudxr_accept_cert_accepted.jpg
+            :alt: Certificate accepted confirmation page
+            :align: center
+            :width: 400
 
-#. Click **Connect**.
+      #. Click **Connect** to begin teleoperation.
 
-   The first time you attempt to connect, you may need to allow the application access to
-   permissions such as hand tracking and local network usage, and then connect again.
+         For advanced configuration, troubleshooting, and additional details, see the
+         `CloudXR.js User Guide
+         <https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html>`_.
 
-#. After a brief period, you should see the Isaac Lab simulation rendered in the Apple Vision Pro,
-   as well as a set of controls for teleoperation.
+   .. tab-item:: Apple Vision Pro
 
-   .. figure:: ../_static/setup/cloudxr_avp_teleop_ui.jpg
-      :align: center
-      :figwidth: 50%
-      :alt: Isaac Sim UI: AR Panel
+      .. _use-apple-vision-pro:
 
-#. Click **Play** to begin teleoperating the simulated robot. The robot motion should now be
-   directed by your hand movements.
+      Apple Vision Pro connects to Isaac Lab via the native `Isaac XR Teleop Sample Client`_ app.
 
-   You may repeatedly **Play**, **Stop**, and **Reset** the teleoperation session using the UI
-   controls.
+      .. important::
 
-   .. tip::
-      For teleoperation tasks that require bimanual manipulation, visionOS accessibility features
-      can be used to control teleoperation without the use of hand gestures. For example, in order
-      to enable voice control of the UI:
+         Apple Vision Pro requires the ``auto-native`` device profile. Pass the ``avp``
+         shorthand when launching the teleop script:
 
-      #. In **Settings** > **Accessibility** > **Voice Control**, Turn on **Voice Control**
+         .. tab-set::
 
-      #. In **Settings** > **Accessibility** > **Voice Control** > **Commands** > **Basic
-         Navigation** > Turn on **<item name>**
+            .. tab-item:: uv (Recommended)
 
-      #. Now you can say "Play", "Stop", and "Reset" to control teleoperation while the app is
-         connected.
+               .. code-block:: bash
 
-#. Teleoperate the simulated robot by moving your hands.
+                  uv run --extra teleop,isaacsim isaaclab teleop run \
+                      --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+                      --visualizer kit --xr \
+                      --cloudxr_env avp
 
-   .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cloudxr_bimanual_teleop.gif
-      :align: center
-      :alt: Isaac Lab teleoperation of a bimanual dexterous robot with CloudXR
+            .. tab-item:: isaaclab.sh / isaaclab.bat
 
-   .. note::
+               .. code-block:: bash
 
-      The red dots represent the tracked position of the hand joints. Latency or offset between the
-      motion of the dots and the robot may be caused by the limits of the robot joints and/or robot
-      controller.
+                  ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+                      --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+                      --visualizer kit --xr \
+                      --cloudxr_env avp
 
-   .. note::
-      When the inverse kinematics solver fails to find a valid solution, an error message will appear
-      in the XR device display. To recover from this state, click the **Reset** button to return
-      the robot to its original pose and continue teleoperation.
+         See :ref:`isaac-teleop-cloudxr-profiles` for details on the shipped profiles.
 
-      .. figure:: ../_static/setup/cloudxr_avp_ik_error.jpg
-         :align: center
-         :figwidth: 80%
-         :alt: IK Error Message Display in XR Device
+      .. _build-apple-vision-pro:
 
+      .. rubric:: Build and Install the Client App
 
+      Requirements:
 
-#. When you are finished with the example, click **Disconnect** to disconnect from Isaac Lab.
+      * Apple Vision Pro with visionOS 26, Apple M3 Pro chip (11-core CPU), 16 GB unified memory
+      * Apple Silicon Mac with macOS Sequoia 15.6+ and Xcode 26.0
 
-.. admonition:: Learn More about Teleoperation and Imitation Learning in Isaac Lab
+      On your Mac:
 
-   See :ref:`teleoperation-imitation-learning` to learn how to record teleoperated demonstrations
-   and build teleoperation and imitation learning workflows with Isaac Lab.
+      #. Clone the `Isaac XR Teleop Sample Client`_ repository:
+
+         .. code-block:: bash
+
+            git clone git@github.com:isaac-sim/isaac-xr-teleop-sample-client-apple.git
+
+      #. Check out the version that matches your Isaac Lab version:
+
+         +-------------------+---------------------+
+         | Isaac Lab Version | Client App Version  |
+         +-------------------+---------------------+
+         | 3.0               | v3.0.0              |
+         +-------------------+---------------------+
+         | 2.3               | v2.3.0              |
+         +-------------------+---------------------+
+
+         .. code-block:: bash
+
+            git checkout <client_app_version>
+
+      #. Follow the README in the repository to build and install the app on your Apple Vision
+         Pro.
+
+      .. _teleoperate-apple-vision-pro:
+
+      .. rubric:: Teleoperate with Apple Vision Pro
+
+      .. tip::
+
+         **Before wearing the headset**, verify connectivity from your Mac:
+
+         .. code:: bash
+
+            nc -vz <isaac-lab-ip> 48010
+
+         Expected output: ``Connection to <ip> port 48010 [tcp/*] succeeded!``
+
+      On your Isaac Lab workstation, ensure Isaac Lab and CloudXR are running as described in
+      :ref:`run-isaac-lab-with-the-cloudxr-runtime`.
+
+      On your Apple Vision Pro:
+
+      #. Open the Isaac XR Teleop Sample Client.
+
+         .. figure:: ../_static/setup/cloudxr_avp_connect_ui.jpg
+            :align: center
+            :figwidth: 50%
+            :alt: Apple Vision Pro connect UI
+
+      #. Enter the IP address of your Isaac Lab workstation and click **Connect**.
+
+         .. note::
+
+            The Apple Vision Pro and workstation must be IP-reachable from one another. We
+            recommend a dedicated Wifi 6 router.
+
+      #. After a brief period you should see the simulation rendered in the headset along with
+         teleoperation controls.
+
+         .. figure:: ../_static/setup/cloudxr_avp_teleop_ui.jpg
+            :align: center
+            :figwidth: 50%
+            :alt: Apple Vision Pro teleop UI
+
+      #. Click **Play** to begin teleoperating. Use **Play**, **Stop**, and **Reset** to control
+         the session.
+
+         .. tip::
+
+            For bimanual tasks, visionOS voice control enables hands-free UI:
+
+            #. **Settings** > **Accessibility** > **Voice Control** > Turn on **Voice Control**
+            #. Enable **<item name>** under **Commands** > **Basic Navigation**
+            #. Say "Play", "Stop", or "Reset" while the app is connected.
+
+      #. Teleoperate the robot by moving your hands.
+
+         .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/cloudxr_bimanual_teleop.gif
+            :align: center
+            :alt: Bimanual dexterous teleoperation with CloudXR
+
+         .. note::
+
+            If the IK solver fails, an error message appears in the headset. Click **Reset** to
+            return the robot to its original pose and continue.
+
+            .. figure:: ../_static/setup/cloudxr_avp_ik_error.jpg
+               :align: center
+               :figwidth: 80%
+               :alt: IK error message in XR device
+
+      #. Click **Disconnect** when finished.
 
 
 .. _manus-vive-handtracking:
 
-Manus + Vive Hand Tracking
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Manus gloves and HTC Vive trackers can provide hand tracking when optical hand tracking from a headset is occluded.
-This setup expects Manus gloves with a Manus SDK license and Vive trackers attached to the gloves.
-Requires Isaac Sim 5.1 or later.
-
-Run the teleoperation example with Manus + Vive tracking:
-
-.. dropdown:: Installation instructions
-   :open:
-
-   Vive tracker integration is provided through the libsurvive library.
-
-   To install, clone the repository, build the python package, and install the required udev rules.
-   In your Isaac Lab virtual environment, run the following commands:
-
-   .. code-block:: bash
-
-      git clone https://github.com/collabora/libsurvive.git
-      cd libsurvive
-      pip install scikit-build
-      python setup.py install
-
-      sudo cp ./useful_files/81-vive.rules /etc/udev/rules.d/
-      sudo udevadm control --reload-rules && sudo udevadm trigger
-
-
-   The Manus integration is provided through the Isaac Sim teleoperation input plugin framework.
-   Install the plugin by following the build and installation steps in `isaac-teleop-device-plugins <https://github.com/isaac-sim/isaac-teleop-device-plugins>`_.
-
-In the same terminal from which you will launch Isaac Lab, set:
-
-.. code-block:: bash
-
-      export ISAACSIM_HANDTRACKER_LIB=<path to isaac-teleop-device-plugins>/build-manus-default/lib/libIsaacSimManusHandTracking.so
-
-Once the plugin is installed, run the teleoperation example:
-
-.. code-block:: bash
-
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task Isaac-PickPlace-GR1T2-Abs-v0 \
-       --teleop_device manusvive \
-       --xr \
-       --enable_pinocchio
-
-The recommended workflow, is to start Isaac Lab, click **Start AR**, and then put on the Manus gloves, vive trackers, and
-headset. Once you are ready to begin the session, use voice commands to launch the Isaac XR teleop sample client and
-connect to Isaac Lab.
-
-Isaac Lab automatically calibrates the Vive trackers using wrist pose data from the Apple Vision Pro during the initial
-frames of the session. If calibration fails, for example, if the red dots do not accurately follow the teleoperator's
-hands, restart Isaac Lab and begin with your hands in a palm-up position to improve calibration reliability.
-
-For optimal performance, position the lighthouse above the hands, tilted slightly downward.
-Ensure the lighthouse remains stable; a stand is recommended to prevent wobbling.
-
-Ensure that while the task is being teleoperated, the hands remain stable and visible to the lighthouse at all times.
-See: `Installing the Base Stations <https://www.vive.com/us/support/vive/category_howto/installing-the-base-stations.html>`_
-and `Tips for Setting Up the Base Stations <https://www.vive.com/us/support/vive/category_howto/tips-for-setting-up-the-base-stations.html>`_
-
-.. note::
-
-   On first launch of the Manus Vive device, the Vive lighthouses may take a few seconds to calibrate. Keep the Vive trackers
-   stable and visible to the lighthouse during this time. If the light houses are moved or if tracking fails or is unstable,
-   calibration can be forced by deleting the calibration file at: ``$XDG_RUNTIME_DIR/libsurvive/config.json``. If XDG_RUNTIME_DIR
-   is not set, the default directory is ``~/.config/libsurvive``.
-
-   For more information consult the libsurvive documentation: `libsurvive <https://github.com/collabora/libsurvive>`_.
-
-For optimal performance, position the lighthouse above the hands, tilted slightly downward.
-One lighthouse is sufficient if both hands are visible.
-Ensure the lighthouse remains stable; a stand is recommended to prevent wobbling.
-
-.. note::
-
-   To avoid resource contention and crashes, ensure Manus and Vive devices are connected to different USB controllers/buses.
-   Use ``lsusb -t`` to identify different buses and connect devices accordingly.
-
-   Vive trackers are automatically calculated to map to the left and right wrist joints obtained from a stable
-   OpenXR hand tracking wrist pose.
-   This auto-mapping calculation supports up to 2 Vive trackers;
-   if more than 2 Vive trackers are detected, it uses the first two trackers detected for calibration, which may not be correct.
-
-.. _develop-xr-isaac-lab:
-
-Develop for XR in Isaac Lab
----------------------------
-
-This section will walk you through how to develop XR environments in Isaac Lab for building
-teleoperation workflows.
-
-
-.. _run-isaac-lab-with-xr:
-
-Run Isaac Lab with XR Extensions Enabled
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-In order to enable extensions necessary for XR, and to see the AR Panel in the UI, Isaac Lab must be
-loaded with an XR experience file. This can be done automatically by passing the ``--xr`` flag to
-any Isaac Lab script that uses :class:`app.AppLauncher`.
-
-For example: you can enable and use XR in any of the :ref:`tutorials` by invoking them with the
-additional ``--xr`` flag.
-
-
-.. _configure-scene-placement:
-
-Configure XR Scene Placement
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Placement of the robot simulation within the XR device's local coordinate frame can be achieved
-using an XR anchor, and is configurable using the ``xr`` field (type :class:`openxr.XrCfg`) in the
-environment configuration.
-
-Specifically: the pose specified by the ``anchor_pos`` and ``anchor_rot`` fields of the
-:class:`openxr.XrCfg` will appear at the origin of the XR device's local coordinate frame, which
-should be on the floor.
-
-.. note::
-
-   On Apple Vision Pro, the local coordinate frame can be reset to a point on the floor beneath the
-   user by holding the digital crown.
-
-For example: if a robot should appear at the position of the user, the ``anchor_pos`` and
-``anchor_rot`` properties should be set to a pose on the floor directly beneath the robot.
-
-.. note::
-
-   The XR anchor configuration is applied in :class:`openxr.OpenXRDevice` by creating a prim at the
-   position of the anchor, and modifying the ``xr/profile/ar/anchorMode`` and
-   ``/xrstage/profile/ar/customAnchor`` settings.
-
-   If you are running a script that does not use :class:`openxr.OpenXRDevice`, you will need to do
-   this explicitly.
-
-
-.. _optimize-xr-performance:
-
-Optimize XR Performance
-~~~~~~~~~~~~~~~~~~~~~~~
-
-.. dropdown:: Configure the physics and render time step
-   :open:
-
-   In order to provide a high-fidelity immersive experience, it is recommended to ensure that the
-   simulation render time step roughly matches the XR device display time step.
-
-   It is also important to ensure that this time step can be simulated and rendered in real time.
-
-   The Apple Vision Pro display runs at 90Hz, but many Isaac Lab simulations will not achieve 90Hz
-   performance when rendering stereo views for XR; so for best experience on Apple Vision Pro, we
-   suggest running with a simulation dt of 90Hz and a render interval of 2, meaning that the
-   simulation is rendered once for every two simulation steps, or at 45Hz, if performance allows.
-
-   You can still set the simulation dt lower or higher depending on your requirements, but this may
-   result in the simulation appearing faster or slower when rendered in XR.
-
-   Overriding the time step configuration for an environment can be done by modifying the
-   :class:`sim.SimulationCfg` in the environment's ``__post_init__`` function. For instance:
-
-   .. code-block:: python
-
-      @configclass
-      class XrTeleopEnvCfg(ManagerBasedRLEnvCfg):
-
-          def __post_init__(self):
-              self.sim.dt = 1.0 / 90
-              self.sim.render_interval = 2
-
-   Also note that by default the CloudXR Runtime attempts to dynamically adjust its pacing based on
-   how long Isaac Lab takes to render. If render times are highly variable, this can lead to the
-   simulation appearing to speed up or slow down when rendered in XR. If this is an issue, the
-   CloudXR Runtime can be configured to use a fixed time step by setting the environment variable
-   ``NV_PACER_FIXED_TIME_STEP_MS`` to an integer quantity when starting the CloudXR Runtime Docker
-   containere.
-
-
-.. dropdown:: Try running physics on CPU
-   :open:
-
-   It is currently recommended to try running Isaac Lab teleoperation scripts with the ``--device
-   cpu`` flag. This will cause Physics calculations to be done on the CPU, which may be reduce
-   latency when only a single environment is present in the simulation.
-
-
-.. _control-robot-with-xr:
-
-Control the Robot with XR Device Inputs
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Isaac Lab provides a flexible architecture for using XR tracking data to control
-simulated robots. This section explains the components of this architecture and how they work together.
-
-.. _openxr-device-architecture:
-
-OpenXR Device
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The :class:`isaaclab.devices.OpenXRDevice` is the core component that enables XR-based teleoperation in Isaac Lab.
-This device interfaces with CloudXR to receive tracking data from the XR headset and transform it into robot control
-commands.
-
-At its heart, XR teleoperation requires mapping (or "retargeting") user inputs, such as hand movements and poses,
-into robot control signals. Isaac Lab makes this straightforward through its OpenXRDevice and Retargeter architecture.
-The OpenXRDevice captures hand tracking data via Isaac Sim's OpenXR API, then passes this data through one or more
-Retargeters that convert it into robot actions.
-
-The OpenXRDevice also integrates with the XR device's user interface when using CloudXR, allowing users to trigger
-simulation events directly from their XR environment.
-
-.. _control-robot-with-xr-retargeters:
-
-Retargeting Architecture
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Retargeters are specialized components that convert raw tracking data into meaningful control signals
-for robots. They implement the :class:`isaaclab.devices.RetargeterBase` interface and are passed to
-the OpenXRDevice during initialization.
-
-Isaac Lab provides three main retargeters for hand tracking:
-
-.. dropdown:: Se3RelRetargeter (:class:`isaaclab.devices.openxr.retargeters.Se3RelRetargeter`)
-
-   * Generates incremental robot commands from relative hand movements
-   * Best for precise manipulation tasks
-
-.. dropdown:: Se3AbsRetargeter (:class:`isaaclab.devices.openxr.retargeters.Se3AbsRetargeter`)
-
-   * Maps hand position directly to robot end-effector position
-   * Enables 1:1 spatial control
-
-.. dropdown:: GripperRetargeter (:class:`isaaclab.devices.openxr.retargeters.GripperRetargeter`)
-
-   * Controls gripper state based on thumb-index finger distance
-   * Used alongside position retargeters for full robot control
-
-.. dropdown:: GR1T2Retargeter (:class:`isaaclab.devices.openxr.retargeters.GR1T2Retargeter`)
-
-   * Retargets OpenXR hand tracking data to GR1T2 hand end-effector commands
-   * Handles both left and right hands, converting hand poses to joint angles for the GR1T2 robot's hands
-   * Supports visualization of tracked hand joints
-
-.. dropdown:: UnitreeG1Retargeter (:class:`isaaclab.devices.openxr.retargeters.UnitreeG1Retargeter`)
-
-   * Retargets OpenXR hand tracking data to Unitree G1 using Inspire 5-finger hand end-effector commands
-   * Handles both left and right hands, converting hand poses to joint angles for the G1 robot's hands
-   * Supports visualization of tracked hand joints
-
-Retargeters can be combined to control different robot functions simultaneously.
-
-Using Retargeters with Hand Tracking
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Here's an example of setting up hand tracking:
-
-.. code-block:: python
-
-   from isaaclab.devices import OpenXRDevice, OpenXRDeviceCfg
-   from isaaclab.devices.openxr.retargeters import Se3AbsRetargeter, GripperRetargeter
-
-   # Create retargeters
-   position_retargeter = Se3AbsRetargeter(
-       bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT,
-       zero_out_xy_rotation=True,
-       use_wrist_position=False  # Use pinch position (thumb-index midpoint) instead of wrist
-   )
-   gripper_retargeter = GripperRetargeter(bound_hand=OpenXRDevice.TrackingTarget.HAND_RIGHT)
-
-   # Create OpenXR device with hand tracking and both retargeters
-   device = OpenXRDevice(
-       OpenXRDeviceCfg(xr_cfg=env_cfg.xr),
-       retargeters=[position_retargeter, gripper_retargeter],
-   )
-
-   # Main control loop
-   while True:
-       # Get the latest commands from the XR device
-       commands = device.advance()
-       if commands is None:
-           continue
-
-       # Apply the commands to the environment
-       obs, reward, terminated, truncated, info = env.step(commands)
-
-       if terminated or truncated:
-           break
-
-Here's a diagram for the dataflow and algorithm used in humanoid teleoperation. Using Apple Vision Pro, we collect 26 keypoints for each hand.
-The wrist keypoint is used to control the hand end-effector, while the remaining hand keypoints are used for hand retargeting.
-
-.. figure:: ../_static/teleop/teleop_diagram.jpg
-  :align: center
-  :figwidth: 80%
-  :alt: teleop_diagram
-
-For dex-retargeting, we are currently using the Dexpilot optimizer, which relies on the five fingertips and the palm for retargeting. It is essential
-that the links used for retargeting are defined exactly at the fingertips—not in the middle of the fingers—to ensure accurate optimization.Please refer
-to the image below for hand asset selection, find a suitable hand asset, or add fingertip links in IsaacLab as needed.
-
-.. figure:: ../_static/teleop/hand_asset.jpg
-  :align: center
-  :figwidth: 60%
-  :alt: hand_asset
-
-.. _control-robot-with-xr-callbacks:
-
-Adding Callbacks for XR UI Events
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The OpenXRDevice can handle events triggered by user interactions with XR UI elements like buttons and menus.
-When a user interacts with these elements, the device triggers registered callback functions:
-
-.. code-block:: python
-
-   # Register callbacks for teleop control events
-   device.add_callback("RESET", reset_callback)
-   device.add_callback("START", start_callback)
-   device.add_callback("STOP", stop_callback)
-
-When the user interacts with the XR UI, these callbacks will be triggered to control the simulation
-or recording process. You can also add custom messages from the client side using custom keys that will
-trigger these callbacks, allowing for programmatic control of the simulation alongside direct user interaction.
-The custom keys can be any string value that matches the callback registration.
-
-
-Teleop Environment Configuration
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-XR-based teleoperation can be integrated with Isaac Lab's environment configuration system using the
-``teleop_devices`` field in your environment configuration:
-
-.. code-block:: python
-
-   from dataclasses import field
-   from isaaclab.envs import ManagerBasedEnvCfg
-   from isaaclab.devices import DevicesCfg, OpenXRDeviceCfg
-   from isaaclab.devices.openxr import XrCfg
-   from isaaclab.devices.openxr.retargeters import Se3AbsRetargeterCfg, GripperRetargeterCfg
-
-   @configclass
-   class MyEnvironmentCfg(ManagerBasedEnvCfg):
-       """Configuration for a teleoperation-enabled environment."""
-
-       # Add XR configuration with custom anchor position
-       xr: XrCfg = XrCfg(
-           anchor_pos=[0.0, 0.0, 0.0],
-           anchor_rot=[1.0, 0.0, 0.0, 0.0]
-       )
-
-       # Define teleoperation devices
-       teleop_devices: DevicesCfg = field(default_factory=lambda: DevicesCfg(
-           # Configuration for hand tracking with absolute position control
-           handtracking=OpenXRDeviceCfg(
-               xr_cfg=None,  # Will use environment's xr config
-               retargeters=[
-                   Se3AbsRetargeterCfg(
-                       bound_hand=0,  # HAND_LEFT enum value
-                       zero_out_xy_rotation=True,
-                       use_wrist_position=False,
-                   ),
-                   GripperRetargeterCfg(bound_hand=0),
-               ]
-           ),
-           # Add other device configurations as needed
-       ))
-
-
-Teleop Device Factory
-^^^^^^^^^^^^^^^^^^^^^
-
-To create a teleoperation device from your environment configuration, use the ``create_teleop_device`` factory function:
-
-.. code-block:: python
-
-   from isaaclab.devices import create_teleop_device
-   from isaaclab.envs import ManagerBasedEnv
-
-   # Create environment from configuration
-   env_cfg = MyEnvironmentCfg()
-   env = ManagerBasedEnv(env_cfg)
-
-   # Define callbacks for teleop events
-   callbacks = {
-       "RESET": lambda: print("Reset simulation"),
-       "START": lambda: print("Start teleoperation"),
-       "STOP": lambda: print("Stop teleoperation"),
-   }
-
-   # Create teleop device from configuration with callbacks
-   device_name = "handtracking"  # Must match a key in teleop_devices
-   device = create_teleop_device(
-       device_name,
-       env_cfg.teleop_devices,
-       callbacks=callbacks
-   )
-
-   # Use device in control loop
-   while True:
-       # Get the latest commands from the device
-       commands = device.advance()
-       if commands is None:
-           continue
-
-       # Apply commands to environment
-       obs, reward, terminated, truncated, info = env.step(commands)
-
-
-Extending the Retargeting System
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The retargeting system is designed to be extensible. You can create custom retargeters by following these steps:
-
-1. Create a configuration dataclass for your retargeter:
-
-.. code-block:: python
-
-   from dataclasses import dataclass
-   from isaaclab.devices.retargeter_base import RetargeterCfg
-
-   @dataclass
-   class MyCustomRetargeterCfg(RetargeterCfg):
-       """Configuration for my custom retargeter."""
-       scaling_factor: float = 1.0
-       filter_strength: float = 0.5
-       # Add any other configuration parameters your retargeter needs
-
-2. Implement your retargeter class by extending the RetargeterBase:
-
-.. code-block:: python
-
-   from isaaclab.devices.retargeter_base import RetargeterBase
-   from isaaclab.devices import OpenXRDevice
-   import torch
-   from typing import Any
-
-   class MyCustomRetargeter(RetargeterBase):
-       """A custom retargeter that processes OpenXR tracking data."""
-
-       def __init__(self, cfg: MyCustomRetargeterCfg):
-           """Initialize retargeter with configuration.
-
-           Args:
-               cfg: Configuration object for retargeter settings.
-           """
-           super().__init__()
-           self.scaling_factor = cfg.scaling_factor
-           self.filter_strength = cfg.filter_strength
-           # Initialize any other required attributes
-
-       def retarget(self, data: dict) -> Any:
-           """Transform raw tracking data into robot control commands.
-
-           Args:
-               data: Dictionary containing tracking data from OpenXRDevice.
-                   Keys are TrackingTarget enum values, values are joint pose dictionaries.
-
-           Returns:
-               Any: The transformed control commands for the robot.
-           """
-           # Access hand tracking data using TrackingTarget enum
-           right_hand_data = data[OpenXRDevice.TrackingTarget.HAND_RIGHT]
-
-           # Extract specific joint positions and orientations
-           wrist_pose = right_hand_data.get("wrist")
-           thumb_tip_pose = right_hand_data.get("thumb_tip")
-           index_tip_pose = right_hand_data.get("index_tip")
-
-           # Access head tracking data
-           head_pose = data[OpenXRDevice.TrackingTarget.HEAD]
-
-           # Process the tracking data and apply your custom logic
-           # ...
-
-           # Return control commands in appropriate format
-           return torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])  # Example output
-
-3. Register your retargeter by setting ``retargeter_type`` on the config class:
-
-.. code-block:: python
-
-   # Import your retargeter at the top of your module
-   from my_package.retargeters import MyCustomRetargeter, MyCustomRetargeterCfg
-
-   # Link the config to the implementation for factory construction
-   MyCustomRetargeterCfg.retargeter_type = MyCustomRetargeter
-
-4. Now you can use your custom retargeter in teleop device configurations:
-
-.. code-block:: python
-
-   from isaaclab.devices import OpenXRDeviceCfg, DevicesCfg
-   from isaaclab.devices.openxr import XrCfg
-   from my_package.retargeters import MyCustomRetargeterCfg
-
-   # Create XR configuration for proper scene placement
-   xr_config = XrCfg(anchor_pos=[0.0, 0.0, 0.0], anchor_rot=[1.0, 0.0, 0.0, 0.0])
-
-   # Define teleop devices with custom retargeter
-   teleop_devices = DevicesCfg(
-       handtracking=OpenXRDeviceCfg(
-           xr_cfg=xr_config,
-           retargeters=[
-               MyCustomRetargeterCfg(
-                   scaling_factor=1.5,
-                   filter_strength=0.7,
-               ),
-           ]
-       ),
-   )
-
-As the OpenXR capabilities expand beyond hand tracking to include head tracking and other features,
-additional retargeters can be developed to map this data to various robot control paradigms.
-
-
-Creating Custom Teleop Devices
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-You can create and register your own custom teleoperation devices by following these steps:
-
-1. Create a configuration dataclass for your device:
-
-.. code-block:: python
-
-   from dataclasses import dataclass
-   from isaaclab.devices import DeviceCfg
-
-   @dataclass
-   class MyCustomDeviceCfg(DeviceCfg):
-       """Configuration for my custom device."""
-       sensitivity: float = 1.0
-       invert_controls: bool = False
-       # Add any other configuration parameters your device needs
-
-2. Implement your device class by inheriting from DeviceBase:
-
-.. code-block:: python
-
-   from isaaclab.devices import DeviceBase
-   import torch
-
-   class MyCustomDevice(DeviceBase):
-       """A custom teleoperation device."""
-
-       def __init__(self, cfg: MyCustomDeviceCfg):
-           """Initialize the device with configuration.
-
-           Args:
-               cfg: Configuration object for device settings.
-           """
-           super().__init__()
-           self.sensitivity = cfg.sensitivity
-           self.invert_controls = cfg.invert_controls
-           # Initialize any other required attributes
-           self._device_input = torch.zeros(7)  # Example: 6D pose + gripper
-
-       def reset(self):
-           """Reset the device state."""
-           self._device_input.zero_()
-           # Reset any other state variables
-
-       def add_callback(self, key: str, func):
-           """Add callback function for a button/event.
-
-           Args:
-               key: Button or event name.
-               func: Callback function to be called when event occurs.
-           """
-           # Implement callback registration
-           pass
-
-       def advance(self) -> torch.Tensor:
-           """Get the latest commands from the device.
-
-           Returns:
-               torch.Tensor: Control commands (e.g., delta pose + gripper).
-           """
-           # Update internal state based on device input
-           # Return command tensor
-           return self._device_input
-
-3. Register your device with the teleoperation device factory by adding it to the ``DEVICE_MAP``:
-
-.. code-block:: python
-
-   # Import your device at the top of your module
-   from my_package.devices import MyCustomDevice, MyCustomDeviceCfg
-
-   # Add your device to the factory
-   from isaaclab.devices.teleop_device_factory import DEVICE_MAP
-
-   # Register your device type with its constructor
-   DEVICE_MAP[MyCustomDeviceCfg] = MyCustomDevice
-
-4. Now you can use your custom device in environment configurations:
-
-.. code-block:: python
-
-   from dataclasses import field
-   from isaaclab.envs import ManagerBasedEnvCfg
-   from isaaclab.devices import DevicesCfg
-   from my_package.devices import MyCustomDeviceCfg
-
-   @configclass
-   class MyEnvironmentCfg(ManagerBasedEnvCfg):
-       """Environment configuration with custom teleop device."""
-
-       teleop_devices: DevicesCfg = field(default_factory=lambda: DevicesCfg(
-           my_custom_device=MyCustomDeviceCfg(
-               sensitivity=1.5,
-               invert_controls=True,
-           ),
-       ))
-
-
-.. _xr-known-issues:
-
-Known Issues
+Manus Gloves
 ------------
 
-* ``XR_ERROR_VALIDATION_FAILURE: xrWaitFrame(frameState->type == 0)`` when stopping AR Mode
+Manus gloves provide high-fidelity finger tracking via the Manus SDK. This is useful when optical
+hand tracking from the headset is occluded or when higher-precision finger data is needed. Because
+the gloves feed the hand-tracking pipeline, pair them with a hand-tracking task such as
+``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs`` rather than a controller-driven one. Manus
+tracking data flows through the same API as headset-based optical hand tracking in Isaac Teleop,
+so the same retargeters and pipelines work with both input sources.
 
-  This error message can be safely ignored. It is caused by a race condition in the exit handler for
-  AR Mode.
+.. note::
 
-* ``XR_ERROR_INSTANCE_LOST in xrPollEvent: Call to "xrt_session_poll_events" failed``
+   Manus glove support has been migrated into Isaac Teleop as a native plugin. The previous
+   ``isaac-teleop-device-plugins`` repository and the ``libsurvive``-based Vive tracker integration
+   are no longer required.
 
-  This error may occur if the CloudXR runtime exits before Isaac Lab. Restart the CloudXR
-  runtime to resume teleoperation.
+Prerequisites
+^^^^^^^^^^^^^
 
-* ``[omni.usd] TF_PYTHON_EXCEPTION`` when starting/stopping AR Mode
+* **Manus gloves with a Manus SDK license**, paired with the MANUS Core application so they are
+  connected and calibrated. See the `MANUS Getting Started guide for Linux
+  <https://docs.manus-meta.com/3.1.1/Plugins/SDK/Linux/>`_.
 
-  This error message can be safely ignored. It is caused by a race condition in the enter/exit
-  handler for AR Mode.
+* **The** ``manus_hand_plugin`` **plugin, built from Isaac Teleop source**: glove tracking data is
+  streamed by a standalone C++ plugin that you run alongside the sim.
 
-* ``Invalid version string in _ParseVersionString``
+  .. important::
 
-  This error message can be caused by shader assets authored with older versions of USD, and can
-  typically be ignored.
+     ``manus_hand_plugin`` is **not** shipped with Isaac Lab, is **not** part of the
+     ``isaacteleop`` pip package, and is not in any release archive. It exists only after building
+     the `Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_ repository from source. If
+     ``install/plugins/manus/manus_hand_plugin`` does not exist in your Isaac Teleop checkout, this
+     step has not been completed.
 
-* The XR device connects successfully, but no video is displayed, even though the Isaac Lab viewport responds to tracking.
+  Clone the repository and check out the release branch matching the ``isaacteleop`` version Isaac
+  Lab is pinned to (``isaacteleop~=1.4.0`` in the ``teleop`` extra of the root
+  ``pyproject.toml``), so the plugin's wire format matches the ``isaacteleop`` package Isaac Lab
+  installs:
 
-  This error occurs when the GPU index differs between the host and the container, causing CUDA
-  to load on the wrong GPU. To fix this, set ``NV_GPU_INDEX`` in the runtime container to ``0``, ``1``,
-  or ``2`` to ensure the GPU selected by CUDA matches the host.
+  .. code-block:: bash
+
+     git clone https://github.com/NVIDIA/IsaacTeleop.git
+     cd IsaacTeleop
+     git checkout release/1.4.x
+
+  .. note::
+
+     When Isaac Lab bumps its Isaac Teleop pin, check out the matching ``release/<version>.x``
+     branch instead.
+
+  Grant the host access to the Manus dongle **once, on the host machine**. Run this outside any
+  container -- udev rules are processed by ``systemd-udevd``, which does not run inside Docker, so
+  installing rules from a container has no effect:
+
+  .. code-block:: bash
+
+     cd src/plugins/manus
+     ./install_udev_rules.sh
+     # then unplug and replug the Manus dongle
+
+  Then, inside the environment you build in (devcontainer, Isaac ROS container, or bare host),
+  install ``clang-format-14`` -- a missing ``clang-format-14`` is the most common cause of a
+  failed build, because the root ``CMakeLists.txt`` enforces the format check by default on
+  Linux and ``install_manus.sh`` does not install it for you:
+
+  .. code-block:: bash
+
+     sudo apt-get update
+     sudo apt-get install -y clang-format-14
+
+  Then download the Manus SDK and build and install the plugin:
+
+  .. code-block:: bash
+
+     cd /path/to/IsaacTeleop/src/plugins/manus
+     ./install_manus.sh
+
+  The script installs the remaining required system packages, downloads the Manus SDK, and builds
+  and installs the plugin and its diagnostic CLI tool. The plugin is installed to
+  ``<IsaacTeleop>/install/plugins/manus/manus_hand_plugin``. Every later command in this section
+  runs from the Isaac Teleop checkout root; substitute your own path for ``/path/to/IsaacTeleop``.
+
+  Verify the build and that the gloves are tracking with the diagnostic CLI tool, which opens a
+  **MANUS Data Visualizer** window showing the hand skeleton. Only one process can hold the Manus
+  SDK connection at a time, so stop the CLI tool before starting the plugin:
+
+  .. code-block:: bash
+
+     cd /path/to/IsaacTeleop
+     ./install/bin/manus_hand_tracker_printer
+
+  See the `Manus plugin documentation`_ for manual installation without ``install_manus.sh``, the
+  full data-path reference (skeleton injection, flex-sensor tensors, haptics), and
+  troubleshooting.
+
+* **A Meta Quest 3 or Pico 4 Ultra controller per hand**, required for wrist positioning. Each
+  MANUS glove has a Universal Mount on the back of the wrist strap; clip the controller into it
+  so the controller's grip pose drives wrist placement while the glove tracks the fingers. See
+  `Wrist Positioning -- Controllers vs Optical Hand Tracking`_ in the Manus plugin documentation
+  for how the plugin selects between controller and optical wrist tracking.
+
+  .. list-table::
+     :widths: 50 50
+
+     * - .. figure:: ../_static/setup/manus_controller_mount_left.jpg
+            :align: center
+            :width: 90%
+            :alt: Meta Quest 3 controller mounted on the left MANUS glove's Universal Mount
+
+            Left glove
+       - .. figure:: ../_static/setup/manus_controller_mount_right.jpg
+            :align: center
+            :width: 90%
+            :alt: Meta Quest 3 controller mounted on the right MANUS glove's Universal Mount
+
+            Right glove
+
+Run the simulation
+^^^^^^^^^^^^^^^^^^
+
+Launch a teleoperation session paired with a hand-tracking task, as shown in
+:ref:`run-isaac-lab-with-the-cloudxr-runtime`:
+
+.. tab-set::
+
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run --extra teleop,isaacsim isaaclab teleop run \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit --xr
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+             --visualizer kit --xr
+
+.. important::
+
+   Manus gloves and other external push-device peripherals require
+   ``NV_CXR_ENABLE_PUSH_DEVICES=1``. The shipped ``.env`` profiles set this to ``0``
+   (optimised for headset optical hand tracking). Create a custom ``.env`` file with the value set
+   to ``1`` and pass it via ``--cloudxr_env`` instead of the plain command above:
+
+   .. tab-set::
+
+      .. tab-item:: uv (Recommended)
+
+         .. code-block:: bash
+
+            # Copy a shipped profile and enable push devices
+            cp $(uv run --extra teleop,isaacsim python -c \
+                "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
+            sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
+
+            uv run --extra teleop,isaacsim isaaclab teleop run \
+                --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+                --visualizer kit --xr \
+                --cloudxr_env ~/manus.env
+
+      .. tab-item:: isaaclab.sh / isaaclab.bat
+
+         .. code-block:: bash
+
+            # Copy a shipped profile and enable push devices
+            cp $(python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
+            sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
+
+            ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+                --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+                --visualizer kit --xr \
+                --cloudxr_env ~/manus.env
+
+   See :ref:`isaac-teleop-cloudxr-profiles` for full details on customising profiles.
+
+Wait for **"Waiting for connection"** in the viewport status bar (or, running headless, for the
+CloudXR runtime to finish starting) before launching the plugin -- see
+:ref:`run-isaac-lab-with-the-cloudxr-runtime`.
+
+Start the plugin
+^^^^^^^^^^^^^^^^
+
+Isaac Lab does not spawn the plugin for you. Once the sim is up and CloudXR is waiting for a
+connection, in a **separate terminal**, source the environment file the runtime writes on startup
+(this points the OpenXR loader at CloudXR) and start the plugin:
+
+.. code-block:: bash
+
+   cd /path/to/IsaacTeleop
+   source ~/.cloudxr/run/cloudxr.env
+   ./install/plugins/manus/manus_hand_plugin
+
+By default the plugin enables human hand injection, flex-sensor push, and haptic read. Restrict
+datasets with ``--datasets=`` (comma-separated) -- see the `Manus plugin documentation`_ for
+details on each data path:
+
+.. code-block:: bash
+
+   ./install/plugins/manus/manus_hand_plugin --datasets=human,sensors,haptic
+   ./install/plugins/manus/manus_hand_plugin --datasets=human          # skeleton only
+
+Start teleoperation
+^^^^^^^^^^^^^^^^^^^
+
+#. Put on the Manus gloves and headset.
+#. Connect the headset to Isaac Lab: for Meta Quest 3 / Pico 4 Ultra, follow the
+   :ref:`connection steps above <connect-quest-pico>`; for Apple Vision Pro, follow
+   :ref:`the Apple Vision Pro steps <use-apple-vision-pro>`. No additional pairing step is
+   required for the gloves once the headset is connected -- Manus tracking data replaces the
+   headset's own hand tracking on the same OpenXR path.
+#. Send the start command from the headset (Meta Quest 3 / Pico 4 Ultra: the CloudXR.js
+   **Connect** button; Apple Vision Pro: the **Play** button in the Isaac XR Teleop Sample
+   Client).
+
+Move your hands and the simulated follower will mirror the glove-tracked finger joints in real
+time.
 
 
-Kubernetes Deployment
----------------------
+Run with Docker
+---------------
 
-For information on deploying XR Teleop for Isaac Lab on a Kubernetes cluster, see :ref:`cloudxr-teleoperation-cluster`.
+Teleoperation runs in a **single container**. Build the image yourself and run a single container.
+Do **not** use Docker Compose, which is a multi-container setup as we had in Isaac Lab 2.x. All
+components run inside one container with Isaac Lab in this release.
+
+The CloudXR runtime auto-launches when a teleop script is started, so no separate
+runtime command is needed.
+
+.. attention::
+
+   Recent Isaac Lab Docker images (3.0.0-beta2 and later) run as a **non-root** user
+   (uid/gid 1000). Persistent named volumes or host directories that were created by an
+   earlier root-based image are owned by ``root`` and are **not writable** by the runtime
+   user. The XR teleop workflow trips on this first, because it writes the extension
+   registry cache under the runtime home. The failure looks like::
+
+      [Error] [carb.scripting-python.plugin] PermissionError: [Errno 13] Permission denied: '/root/.local/share/ov/data/exts'
+
+   followed by a cascade of extension-registry errors::
+
+      [Error] [omni.ext.plugin] Syncing with extension registry unavailable.
+
+   To fix it, make the persistent storage writable by uid/gid 1000 before relaunching:
+
+   * **Docker Compose:** recreate the named volumes, e.g.
+
+     .. code-block:: bash
+
+        docker compose --file docker-compose.yaml --profile base --env-file .env.base down --volumes
+
+     See :ref:`deployment-docker` for details. To preserve cached data instead of
+     deleting it, ``chown`` the volume: ``docker run --rm -v docker_isaac-data:/data alpine
+     chown -R 1000:1000 /data``.
+   * **Single container with bind mounts:** pre-create the host directories and
+     ``sudo chown -R 1000:1000`` them before launching, so the non-root user can write to
+     them.
+
+Because the Isaac Lab container runs with ``network_mode: host``, the container's ports are
+exposed directly on the host network stack. The host firewall therefore governs whether XR
+devices can reach Isaac Lab. Apply the same ``ufw`` rules from :ref:`install-isaac-teleop`
+**on the host machine** before starting the container:
+
+.. tab-set::
+
+   .. tab-item:: Meta Quest 3 / Pico 4 Ultra (web client)
+
+      .. code-block:: bash
+
+         sudo ufw allow 49100/tcp   # Signaling (WebRTC)
+         sudo ufw allow 47998/udp   # Media stream
+         sudo ufw allow 48322/tcp   # WSS proxy — required for cert acceptance and streaming
+
+   .. tab-item:: Apple Vision Pro (native client)
+
+      .. code-block:: bash
+
+         sudo ufw allow 48010/tcp   # Standard mode signaling
+         sudo ufw allow 48322/tcp   # Secure mode signaling
+         sudo ufw allow 47998/udp
+         sudo ufw allow 48005/udp
+         sudo ufw allow 48008/udp
+         sudo ufw allow 48012/udp
+         sudo ufw allow 47999/udp
+         sudo ufw allow 48000/udp
+         sudo ufw allow 48002/udp
+
+.. note::
+
+   If port 48322 is not open, the headset browser will show **"This site can't be reached"**
+   when navigating to the certificate-acceptance page — the TCP connection fails before any
+   certificate exchange occurs.
+
+Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
+
+.. tab-set::
+
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         uv run --extra teleop,isaacsim isaaclab teleop record \
+           --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+           --num_demos 5 \
+           --dataset_file ./datasets/dataset.hdf5 \
+           --xr --visualizer kit
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/tools/record_demos.py \
+           --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+           --num_demos 5 \
+           --dataset_file ./datasets/dataset.hdf5 \
+           --xr --visualizer kit
+
+Then in the Isaac Sim UI, set the XR panel to **System OpenXR Runtime** and click **Start XR**.
+
+For a fully headless experience, replace ``--visualizer kit`` with ``--visualizer none`` or
+``--viz none`` and the XR teleop session will run automatically.
+
+.. admonition:: Next Steps
+
+   * **Architecture, retargeting, and control schemes**: :ref:`isaac-teleop-feature`
+   * **Teleoperation for imitation learning**: :ref:`teleoperation-imitation-learning`
+   * **API reference**: :ref:`isaaclab_teleop-api`
+
 
 ..
   References
 .. _`Apple Vision Pro`: https://www.apple.com/apple-vision-pro/
-.. _`Docker Compose`: https://docs.docker.com/compose/install/linux/#install-using-the-repository
-.. _`Docker`: https://docs.docker.com/desktop/install/linux-install/
 .. _`NVIDIA CloudXR`: https://developer.nvidia.com/cloudxr-sdk
-.. _`NVIDIA Container Toolkit`: https://github.com/NVIDIA/nvidia-container-toolkit
 .. _`Isaac XR Teleop Sample Client`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
+.. _`CloudXR Network Setup`: https://docs.nvidia.com/cloudxr-sdk/latest/requirement/network_setup.html
+.. _`CloudXR.js`: https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html
+.. _`Manus plugin documentation`: https://nvidia.github.io/IsaacTeleop/main/device/manus.html
+.. _`Wrist Positioning -- Controllers vs Optical Hand Tracking`: https://nvidia.github.io/IsaacTeleop/main/device/manus.html#wrist-positioning-controllers-vs-optical-hand-tracking

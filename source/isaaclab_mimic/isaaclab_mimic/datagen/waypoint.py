@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -6,10 +6,12 @@
 """
 A collection of classes used to represent waypoints and trajectories.
 """
+
 import asyncio
 import inspect
-import torch
 from copy import deepcopy
+
+import torch
 
 import isaaclab.utils.math as PoseUtils
 from isaaclab.envs import ManagerBasedRLMimicEnv
@@ -323,7 +325,8 @@ class WaypointTrajectory:
             if need_fixed:
                 # segment of constant target poses equal to @other's first target pose
 
-                # account for the fact that we pop'd the first element of @other in anticipation of an interpolation segment
+                # account for the fact that we pop'd the first element of
+                # @other in anticipation of an interpolation segment
                 num_steps_fixed_to_use = num_steps_fixed if need_interp else (num_steps_fixed + 1)
                 self.add_waypoint_sequence_for_target_pose(
                     pose=target_for_interpolation.pose,
@@ -378,11 +381,8 @@ class MultiWaypoint:
             env_action_queue: The asyncio queue to put the action into.
 
         Returns:
-            A dictionary containing the state, observation, action, and success of the multi-waypoint actions.
+            The success of the multi-waypoint actions.
         """
-        # current state
-        state = env.scene.get_state(is_relative=True)
-
         # construct action from target poses and gripper actions
         target_eef_pose_dict = {eef_name: waypoint.pose for eef_name, waypoint in self.waypoints.items()}
         gripper_action_dict = {eef_name: waypoint.gripper_action for eef_name, waypoint in self.waypoints.items()}
@@ -409,18 +409,11 @@ class MultiWaypoint:
 
         # step environment
         if env_action_queue is None:
-            obs, _, _, _, _ = env.step(play_action)
+            env.step(play_action)
         else:
             await env_action_queue.put((env_id, play_action[0]))
             await env_action_queue.join()
-            obs = env.obs_buf
 
         success = bool(success_term.func(env, **success_term.params)[env_id])
 
-        result = dict(
-            states=[state],
-            observations=[obs],
-            actions=[play_action],
-            success=success,
-        )
-        return result
+        return success

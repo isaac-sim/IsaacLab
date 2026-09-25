@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,7 +9,7 @@ This script demonstrates the FrameTransformer sensor by visualizing the frames t
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_frame_transformer.py
+    uv run python scripts/tutorials/04_sensors/run_frame_transformer.py --viz kit
 
 """
 
@@ -27,18 +27,24 @@ AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=args_cli.headless)
+app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
 import math
+
 import torch
 
-import isaacsim.util.debug_draw._debug_draw as omni_debug_draw
+from isaaclab.sim.utils import enable_extension
+
+enable_extension("isaacsim.util.debug_draw")
+
+from isaacsim.util.debug_draw import _debug_draw as omni_debug_draw
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
@@ -50,20 +56,23 @@ from isaaclab.sim import SimulationContext
 ##
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort:skip
 
+ROBOT_PRIM_PATH = "/World/envs/env_0/Robot"
+ROBOT_PRIM_PATH_EXPR = "/World/envs/env_.*/Robot"
+
 
 def define_sensor() -> FrameTransformer:
     """Defines the FrameTransformer sensor to add to the scene."""
     # define offset
     rot_offset = math_utils.quat_from_euler_xyz(torch.zeros(1), torch.zeros(1), torch.tensor(-math.pi / 2))
-    pos_offset = math_utils.quat_apply(rot_offset, torch.tensor([0.08795, 0.01305, -0.33797]))
+    pos_offset = math_utils.quat_apply(rot_offset[0], torch.tensor([0.08795, 0.01305, -0.33797]))
 
     # Example using .* to get full body + LF_FOOT
     frame_transformer_cfg = FrameTransformerCfg(
-        prim_path="/World/Robot/base",
+        prim_path=f"{ROBOT_PRIM_PATH_EXPR}/base",
         target_frames=[
-            FrameTransformerCfg.FrameCfg(prim_path="/World/Robot/.*"),
+            FrameTransformerCfg.FrameCfg(prim_path=f"{ROBOT_PRIM_PATH_EXPR}/.*"),
             FrameTransformerCfg.FrameCfg(
-                prim_path="/World/Robot/LF_SHANK",
+                prim_path=f"{ROBOT_PRIM_PATH_EXPR}/LF_SHANK",
                 name="LF_FOOT_USER",
                 offset=OffsetCfg(pos=tuple(pos_offset.tolist()), rot=tuple(rot_offset[0].tolist())),
             ),
@@ -85,7 +94,7 @@ def design_scene() -> dict:
     cfg = sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     cfg.func("/World/Light", cfg)
     # -- Robot
-    robot = Articulation(ANYMAL_C_CFG.replace(prim_path="/World/Robot"))
+    robot = Articulation(ANYMAL_C_CFG.replace(prim_path=ROBOT_PRIM_PATH))
     # -- Sensors
     frame_transformer = define_sensor()
 
@@ -122,7 +131,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     # Simulate physics
     while simulation_app.is_running():
         # perform this loop at policy control freq (50 Hz)
-        robot.set_joint_position_target(robot.data.default_joint_pos.clone())
+        robot.set_joint_position_target_index(target=robot.data.default_joint_pos.torch.clone())
         robot.write_data_to_sim()
         # perform step
         sim.step()
@@ -145,10 +154,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
                 print(f"Displaying Frame ID {frame_index}: {frame_names[frame_index]}")
 
             # visualize frame
-            source_pos = frame_transformer.data.source_pos_w
-            source_quat = frame_transformer.data.source_quat_w
-            target_pos = frame_transformer.data.target_pos_w[:, frame_index]
-            target_quat = frame_transformer.data.target_quat_w[:, frame_index]
+            source_pos = frame_transformer.data.source_pos_w.torch
+            source_quat = frame_transformer.data.source_quat_w.torch
+            target_pos = frame_transformer.data.target_pos_w.torch[:, frame_index]
+            target_quat = frame_transformer.data.target_quat_w.torch[:, frame_index]
             # draw the frames
             transform_visualizer.visualize(
                 torch.cat([source_pos, target_pos], dim=0), torch.cat([source_quat, target_quat], dim=0)
@@ -169,7 +178,11 @@ def main():
     # Set main camera
     sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
     # Design scene
+    global_paths = ("/World/defaultGroundPlane", "/World/Light", ROBOT_PRIM_PATH)
+    plan = cloner.make_clone_plan((), 1, 0.0, global_paths=global_paths)
+    sim.set_clone_plan(plan)
     scene_entities = design_scene()
+    cloner.replicate(plan, replicate_physics=False)
     # Play the simulator
     sim.reset()
     # Now we are ready!

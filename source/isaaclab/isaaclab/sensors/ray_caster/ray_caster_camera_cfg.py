@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,13 +6,14 @@
 """Configuration for the ray-cast camera sensor."""
 
 from dataclasses import MISSING
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
-from isaaclab.utils import configclass
-
+from ...utils import configclass
 from .patterns import PinholeCameraPatternCfg
-from .ray_caster_camera import RayCasterCamera
 from .ray_caster_cfg import RayCasterCfg
+
+if TYPE_CHECKING:
+    from .ray_caster_camera import RayCasterCamera
 
 
 @configclass
@@ -26,19 +27,20 @@ class RayCasterCameraCfg(RayCasterCfg):
         pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
         """Translation w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0)."""
 
-        rot: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)
-        """Quaternion rotation (w, x, y, z) w.r.t. the parent frame. Defaults to (1.0, 0.0, 0.0, 0.0)."""
+        rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
+        """Quaternion rotation (x, y, z, w) w.r.t. the parent frame. Defaults to (0.0, 0.0, 0.0, 1.0)."""
 
         convention: Literal["opengl", "ros", "world"] = "ros"
         """The convention in which the frame offset is applied. Defaults to "ros".
 
-        - ``"opengl"`` - forward axis: ``-Z`` - up axis: ``+Y`` - Offset is applied in the OpenGL (Usd.Camera) convention.
+        - ``"opengl"`` - forward axis: ``-Z`` - up axis: ``+Y`` - Offset is applied in the OpenGL (Usd.Camera)
+          convention.
         - ``"ros"``    - forward axis: ``+Z`` - up axis: ``-Y`` - Offset is applied in the ROS convention.
         - ``"world"``  - forward axis: ``+X`` - up axis: ``+Z`` - Offset is applied in the World Frame convention.
 
         """
 
-    class_type: type = RayCasterCamera
+    class_type: type["RayCasterCamera"] | str = "{DIR}.ray_caster_camera:RayCasterCamera"
 
     offset: OffsetCfg = OffsetCfg()
     """The offset pose of the sensor's frame from the sensor's parent frame. Defaults to identity."""
@@ -51,8 +53,8 @@ class RayCasterCameraCfg(RayCasterCfg):
 
     - ``"max"``: Values are clipped to the maximum value.
     - ``"zero"``: Values are clipped to zero.
-    - ``"none``: No clipping is applied. Values will be returned as ``inf`` for ``distance_to_camera`` and ``nan``
-      for ``distance_to_image_plane`` data type.
+    - ``"none"``: No clipping is applied. Values will be returned as ``inf`` for missed rays in both
+      ``distance_to_camera`` and ``distance_to_image_plane`` data types.
     """
 
     pattern_cfg: PinholeCameraPatternCfg = MISSING

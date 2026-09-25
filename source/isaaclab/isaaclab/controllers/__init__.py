@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -11,7 +11,6 @@ or inverse kinematics control. The controller is responsible for generating the 
 commands to be sent to the robot.
 """
 
-from .differential_ik import DifferentialIKController
-from .differential_ik_cfg import DifferentialIKControllerCfg
-from .operational_space import OperationalSpaceController
-from .operational_space_cfg import OperationalSpaceControllerCfg
+from ..utils.module import lazy_export
+
+lazy_export()

@@ -1,42 +1,56 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
+import copy
 import logging
-import torch
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import carb
-from isaacsim.core.cloner import GridCloner
-from isaacsim.core.prims import XFormPrim
-from isaacsim.core.utils.stage import get_current_stage
-from isaacsim.core.version import get_version
-from pxr import PhysxSchema
+import numpy as np
 
-import isaaclab.sim as sim_utils
-from isaaclab.assets import (
+if TYPE_CHECKING:
+    from isaaclab_physx.assets import SurfaceGripper
+
+    from ..terrains.terrain_importer import TerrainImporter
+
+import torch
+import warp as wp
+
+# Note: This is a temporary import for the VisuoTactileSensorCfg class.
+# It will be removed once the VisuoTactileSensor class is added to the core Isaac Lab framework.
+from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensorCfg
+
+from .. import cloner
+from .. import sim as sim_utils
+from ..assets import (
     Articulation,
     ArticulationCfg,
+    Asset,
     AssetBaseCfg,
+    CableObject,
+    CableObjectCfg,
     DeformableObject,
     DeformableObjectCfg,
     RigidObject,
     RigidObjectCfg,
     RigidObjectCollection,
     RigidObjectCollectionCfg,
-    SurfaceGripper,
-    SurfaceGripperCfg,
+    VisualMaterial,
+    VisualMaterialCfg,
 )
-from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, SensorBaseCfg
-from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils import get_current_stage_id
-from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
-
+from ..markers import VisualizationMarkers, VisualizationMarkersCfg
+from ..sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, RayCasterCfg, SensorBase, SensorBaseCfg
+from ..sim import SimulationContext
+from ..sim.utils.stage import get_current_stage, get_current_stage_id
 from .interactive_scene_cfg import InteractiveSceneCfg
 
-# import logger
+if TYPE_CHECKING:
+    from pxr import Sdf  # noqa: F401
+
 logger = logging.getLogger(__name__)
 
 
@@ -73,9 +87,10 @@ class InteractiveScene:
 
         from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 
+
         @configclass
         class MySceneCfg(InteractiveSceneCfg):
-
+            # ANYmal-C robot spawned in each environment
             robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     Then the robot can be accessed from the scene as follows:
@@ -92,14 +107,6 @@ class InteractiveScene:
         # access the robot based on its type
         robot = scene.articulations["robot"]
 
-    If the :class:`InteractiveSceneCfg` class does not include asset entities, the cloning process
-    can still be triggered if assets were added to the stage outside of the :class:`InteractiveScene` class:
-
-    .. code-block:: python
-
-        scene = InteractiveScene(cfg=InteractiveSceneCfg(num_envs=128, replicate_physics=True))
-        scene.clone_environments()
-
     .. note::
         It is important to note that the scene only performs common operations on the entities. For example,
         resetting the internal buffers, writing the buffers to the simulation and updating the buffers from the
@@ -115,162 +122,137 @@ class InteractiveScene:
         Args:
             cfg: The configuration class for the scene.
         """
-        # check that the config is valid
         cfg.validate()
-        # store inputs
         self.cfg = cfg
-        # initialize scene elements
         self._terrain = None
-        self._articulations = dict()
-        self._deformable_objects = dict()
-        self._rigid_objects = dict()
-        self._rigid_object_collections = dict()
-        self._sensors = dict()
-        self._surface_grippers = dict()
-        self._extras = dict()
-        # get stage handle
+        self._articulations = {}
+        self._cable_objects = {}
+        self._deformable_objects = {}
+        self._rigid_objects = {}
+        self._rigid_object_collections = {}
+        self._sensors = {}
+        self._surface_grippers = {}
+        self._visual_materials = {}
+        self._extras: dict[str, Asset | VisualizationMarkers] = {}
         self.sim = SimulationContext.instance()
         self.stage = get_current_stage()
         self.stage_id = get_current_stage_id()
-        # physics scene path
+        self.physics_backend = self.sim.physics_manager.__name__.lower()
         self._physics_scene_path = None
-        # prepare cloner for environment replication
-        self.cloner = GridCloner(spacing=self.cfg.env_spacing, stage=self.stage)
-        self.cloner.define_base_env(self.env_ns)
-        self.env_prim_paths = self.cloner.generate_paths(f"{self.env_ns}/env", self.cfg.num_envs)
-        # create source prim
-        self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
-        # allocate env indices
+        self.cloner_cfg = copy.deepcopy(self.cfg.clone_cfg)
+        self.cloner_cfg.replicate_physics = self.cfg.replicate_physics
+        # the template is authoritative; the regex form is the same namespace spelled for matching
+        self._env_fmt = self.cloner_cfg.clone_template
+        self.env_prim_paths = [self._env_fmt.format(i) for i in range(self.cfg.num_envs)]
         self._ALL_INDICES = torch.arange(self.cfg.num_envs, dtype=torch.long, device=self.device)
-        # when replicate_physics=False, we assume heterogeneous environments and clone the xforms first.
-        # this triggers per-object level cloning in the spawner.
-        if not self.cfg.replicate_physics:
-            # check version of Isaac Sim to determine whether clone_in_fabric is valid
-            isaac_sim_version = float(".".join(get_version()[2]))
-            if isaac_sim_version < 5:
-                # clone the env xform
-                env_origins = self.cloner.clone(
-                    source_prim_path=self.env_prim_paths[0],
-                    prim_paths=self.env_prim_paths,
-                    replicate_physics=False,
-                    copy_from_source=True,
-                    enable_env_ids=(
-                        self.cfg.filter_collisions if self.device != "cpu" else False
-                    ),  # this won't do anything because we are not replicating physics
-                )
-            else:
-                # clone the env xform
-                env_origins = self.cloner.clone(
-                    source_prim_path=self.env_prim_paths[0],
-                    prim_paths=self.env_prim_paths,
-                    replicate_physics=False,
-                    copy_from_source=True,
-                    enable_env_ids=(
-                        self.cfg.filter_collisions if self.device != "cpu" else False
-                    ),  # this won't do anything because we are not replicating physics
-                    clone_in_fabric=self.cfg.clone_in_fabric,
-                )
-            self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
+
+        self._global_prim_paths = []
+        asset_cfgs, global_paths, valid_set = self._collect_asset_cfgs()
+        scene_from_cfg = any(
+            name not in InteractiveSceneCfg.__dataclass_fields__ and cfg is not None
+            for name, cfg in self.cfg.__dict__.items()
+        )
+        if scene_from_cfg:
+            with cloner.ReplicateSession(
+                asset_cfgs,
+                num_clones=self.num_envs,
+                env_spacing=self.cfg.env_spacing,
+                global_paths=global_paths,
+                env_template=self._env_fmt,
+                clone_strategy=self.cloner_cfg.clone_strategy,
+                valid_set=valid_set,
+                replicate_physics=self.cloner_cfg.replicate_physics,
+            ) as session:
+                self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
+                with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
+                    cloner.usd_replicate(
+                        self.stage,
+                        [self.env_prim_paths[0]],
+                        [self._env_fmt],
+                        session.plan.env_ids,
+                        positions=session.plan.positions,
+                    )
+                self._add_entities_from_cfg()
+            positions = session.plan.positions
         else:
-            # otherwise, environment origins will be initialized during cloning at the end of environment creation
-            self._default_env_origins = None
+            positions = cloner.grid_transforms(self.num_envs, self.cfg.env_spacing)[0]
+            env_0 = self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
+            sim_utils.standardize_xform_ops(env_0, translation=tuple(map(float, positions[0])))
+        self._env_origins = positions
+        self._env_origins_plan = self.sim.get_clone_plan()
 
-        self._global_prim_paths = list()
-        if self._is_scene_setup_from_cfg():
-            # add entities from config
-            self._add_entities_from_cfg()
-            # clone environments on a global scope if environment is homogeneous
-            if self.cfg.replicate_physics:
-                self.clone_environments(copy_from_source=False)
-            # replicate physics if we have more than one environment
-            # this is done to make scene initialization faster at play time
-            if self.cfg.replicate_physics and self.cfg.num_envs > 1:
-                # check version of Isaac Sim to determine whether clone_in_fabric is valid
-                isaac_sim_version = float(".".join(get_version()[2]))
-                if isaac_sim_version < 5:
-                    self.cloner.replicate_physics(
-                        source_prim_path=self.env_prim_paths[0],
-                        prim_paths=self.env_prim_paths,
-                        base_env_path=self.env_ns,
-                        root_path=self.env_regex_ns.replace(".*", ""),
-                        enable_env_ids=self.cfg.filter_collisions if self.device != "cpu" else False,
-                    )
-                else:
-                    self.cloner.replicate_physics(
-                        source_prim_path=self.env_prim_paths[0],
-                        prim_paths=self.env_prim_paths,
-                        base_env_path=self.env_ns,
-                        root_path=self.env_regex_ns.replace(".*", ""),
-                        enable_env_ids=self.cfg.filter_collisions if self.device != "cpu" else False,
-                        clone_in_fabric=self.cfg.clone_in_fabric,
-                    )
+        # Collision filtering is PhysX-only (matches both physx and ovphysx).
+        if self.cfg.filter_collisions and "physx" in self.physics_backend and scene_from_cfg:
+            self.filter_collisions(self._global_prim_paths)
 
-            # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
-            # to filter collisions if replicate_physics is not enabled
-            # additionally, env_ids is only supported in GPU simulation
-            if (not self.cfg.replicate_physics and self.cfg.filter_collisions) or self.device == "cpu":
-                self.filter_collisions(self._global_prim_paths)
+    def _collect_asset_cfgs(self) -> tuple[list[Any], tuple[str, ...], np.ndarray | None]:
+        """Flatten user-declared cfgs and declare shared prim roots for clone planning.
 
-    def clone_environments(self, copy_from_source: bool = False):
-        """Creates clones of the environment ``/World/envs/env_0``.
-
-        Args:
-            copy_from_source: (bool): If set to False, clones inherit from /World/envs/env_0 and mirror its changes.
-            If True, clones are independent copies of the source prim and won't reflect its changes (start-up time
-            may increase). Defaults to False.
+        Expands :class:`~isaaclab.assets.RigidObjectCollectionCfg` into its members,
+        resolves ``{ENV_REGEX_NS}`` macros, lets an enclosing asset's row own nested materials,
+        and returns env-scoped configs with a spawner, global roots, and valid clone combinations.
         """
-        # check if user spawned different assets in individual environments
-        # this flag will be None if no multi asset is spawned
-        carb_settings_iface = carb.settings.get_settings()
-        has_multi_assets = carb_settings_iface.get("/isaaclab/spawn/multi_assets")
-        if has_multi_assets and self.cfg.replicate_physics:
-            logger.warning(
-                "Varying assets might have been spawned under different environments."
-                " However, the replicate physics flag is enabled in the 'InteractiveScene' configuration."
-                " This may adversely affect PhysX parsing. We recommend disabling this property."
-            )
 
-        # check version of Isaac Sim to determine whether clone_in_fabric is valid
-        isaac_sim_version = float(".".join(get_version()[2]))
-        if isaac_sim_version < 5:
-            # clone the environment
-            env_origins = self.cloner.clone(
-                source_prim_path=self.env_prim_paths[0],
-                prim_paths=self.env_prim_paths,
-                replicate_physics=self.cfg.replicate_physics,
-                copy_from_source=copy_from_source,
-                enable_env_ids=(
-                    self.cfg.filter_collisions if self.device != "cpu" else False
-                ),  # this automatically filters collisions between environments
+        cfg_fields = InteractiveSceneCfg.__dataclass_fields__
+        items = [(name, cfg) for name, cfg in self.cfg.__dict__.items() if name not in cfg_fields and cfg is not None]
+        scene_asset_names = [name for name, _ in items]
+        flat_items: list[tuple[str, Any]] = []
+        for asset_name, asset_cfg in items:
+            children = list(
+                asset_cfg.rigid_objects.values() if isinstance(asset_cfg, RigidObjectCollectionCfg) else [asset_cfg]
+            )
+            children.extend(value for value in vars(asset_cfg).values() if isinstance(value, VisualizationMarkersCfg))
+            for child in children:
+                child.prim_path = cloner.expand_env_regex_ns(child.prim_path, self._env_fmt)
+                flat_items.append((asset_name, child))
+        flat_items.sort(key=lambda item: isinstance(item[1], SensorBaseCfg))
+
+        owner_paths = [
+            cfg.prim_path
+            for _name, cfg in flat_items
+            if isinstance(cfg, AssetBaseCfg)
+            and not isinstance(cfg, VisualMaterialCfg)
+            and cfg.spawn is not None
+            and cloner.path.match(cfg.prim_path, self._env_fmt) is not None
+        ]
+        nested_visual_material_ids = {
+            id(cfg)
+            for _name, cfg in flat_items
+            if isinstance(cfg, VisualMaterialCfg)
+            and any(cloner.path.relative_to(cfg.prim_path, owner) not in (None, "") for owner in owner_paths)
+        }
+        nested_material_names = {name for name, cfg in flat_items if id(cfg) in nested_visual_material_ids}
+        scene_asset_names = [name for name in scene_asset_names if name not in nested_material_names]
+
+        cfgs: list[Any] = []
+        global_paths: tuple[str, ...] = ()
+        clone_asset_names: list[str] = []
+        variant_counts: list[int] = []
+        for asset_name, child in flat_items:
+            if isinstance(child, CameraCfg):
+                self.sim.get_or_create_backend(child.renderer_cfg)
+            if id(child) in nested_visual_material_ids:
+                if child.spawn is not None:
+                    child.spawn.spawn_path = child.prim_path
+                continue
+            if cloner.path.match(child.prim_path, self._env_fmt) is None:
+                if child.prim_path not in global_paths:
+                    global_paths += (child.prim_path,)
+            elif isinstance(child, (AssetBaseCfg, CameraCfg, RayCasterCfg)) and child.spawn is not None:
+                cfgs.append(child)
+                clone_asset_names.append(asset_name)
+                variant_counts.append(cloner.num_spawn_variants(child.spawn))
+
+        if self.cloner_cfg.clone_combinations and clone_asset_names:
+            valid_set = cloner.make_valid_clone_combinations(
+                clone_asset_names,
+                variant_counts,
+                self.cloner_cfg.clone_combinations,
+                all_asset_names=scene_asset_names,
             )
         else:
-            # clone the environment
-            env_origins = self.cloner.clone(
-                source_prim_path=self.env_prim_paths[0],
-                prim_paths=self.env_prim_paths,
-                replicate_physics=self.cfg.replicate_physics,
-                copy_from_source=copy_from_source,
-                enable_env_ids=(
-                    self.cfg.filter_collisions if self.device != "cpu" else False
-                ),  # this automatically filters collisions between environments
-                clone_in_fabric=self.cfg.clone_in_fabric,
-            )
-
-        # since env_ids is only applicable when replicating physics, we have to fallback to the previous method
-        # to filter collisions if replicate_physics is not enabled
-        # additionally, env_ids is only supported in GPU simulation
-        if (not self.cfg.replicate_physics and self.cfg.filter_collisions) or self.device == "cpu":
-            # if scene is specified through cfg, this is already taken care of
-            if not self._is_scene_setup_from_cfg():
-                logger.warning(
-                    "Collision filtering can only be automatically enabled when replicate_physics=True and using GPU"
-                    " simulation. Please call scene.filter_collisions(global_prim_paths) to filter collisions across"
-                    " environments."
-                )
-
-        # in case of heterogeneous cloning, the env origins is specified at init
-        if self._default_env_origins is None:
-            self._default_env_origins = torch.tensor(env_origins, device=self.device, dtype=torch.float32)
+            valid_set = None
+        return cfgs, global_paths, valid_set
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.
@@ -298,7 +280,8 @@ class InteractiveScene:
             self._global_prim_paths += global_prim_paths
 
         # filter collisions within each environment instance
-        self.cloner.filter_collisions(
+        cloner.filter_collisions(
+            self.stage,
             self.physics_scene_path,
             "/World/collisions",
             self.env_prim_paths,
@@ -323,11 +306,21 @@ class InteractiveScene:
     def physics_scene_path(self) -> str:
         """The path to the USD Physics Scene."""
         if self._physics_scene_path is None:
+            # Prefer a prim with PhysxSceneAPI applied (Isaac Sim flow).  Fall
+            # back to any UsdPhysics.Scene prim (kitless OvPhysX flow does not
+            # load the omni.physx schema, so the auto-created scene only
+            # carries the stock USD type without PhysxSceneAPI).
+            fallback_path: str | None = None
             for prim in self.stage.Traverse():
-                if prim.HasAPI(PhysxSchema.PhysxSceneAPI):
+                if "PhysxSceneAPI" in prim.GetAppliedSchemas():
                     self._physics_scene_path = prim.GetPrimPath().pathString
                     logger.info(f"Physics scene prim path: {self._physics_scene_path}")
                     break
+                if fallback_path is None and prim.GetTypeName() == "PhysicsScene":
+                    fallback_path = prim.GetPrimPath().pathString
+            if self._physics_scene_path is None and fallback_path is not None:
+                self._physics_scene_path = fallback_path
+                logger.info(f"Physics scene prim path (no PhysxSceneAPI): {self._physics_scene_path}")
             if self._physics_scene_path is None:
                 raise RuntimeError("No physics scene found! Please make sure one exists.")
         return self._physics_scene_path
@@ -344,17 +337,13 @@ class InteractiveScene:
 
     @property
     def env_ns(self) -> str:
-        """The namespace ``/World/envs`` in which all environments created.
-
-        The environments are present w.r.t. this namespace under "env_{N}" prim,
-        where N is a natural number.
-        """
-        return "/World/envs"
+        """The namespace ``/World/envs`` in which all environments are created."""
+        return self._env_fmt.rsplit("/", 1)[0]
 
     @property
     def env_regex_ns(self) -> str:
-        """The namespace ``/World/envs/env_.*`` in which all environments created."""
-        return f"{self.env_ns}/env_.*"
+        """The namespace ``/World/envs/env_[^/]+`` in which all environments are created."""
+        return self._env_fmt.format("[^/]+")
 
     @property
     def num_envs(self) -> int:
@@ -363,11 +352,16 @@ class InteractiveScene:
 
     @property
     def env_origins(self) -> torch.Tensor:
-        """The origins of the environments in the scene. Shape is (num_envs, 3)."""
+        """Per-env world origins, shape ``(num_envs, 3)``."""
         if self._terrain is not None:
             return self._terrain.env_origins
-        else:
-            return self._default_env_origins
+        plan = self.sim.get_clone_plan()
+        if plan is not None and plan is not self._env_origins_plan:
+            self._env_origins = plan.positions
+            self._env_origins_plan = plan
+        if not isinstance(self._env_origins, torch.Tensor):
+            self._env_origins = torch.as_tensor(self._env_origins, device=self._ALL_INDICES.device)
+        return self._env_origins
 
     @property
     def terrain(self) -> TerrainImporter | None:
@@ -383,6 +377,11 @@ class InteractiveScene:
     def articulations(self) -> dict[str, Articulation]:
         """A dictionary of articulations in the scene."""
         return self._articulations
+
+    @property
+    def cable_objects(self) -> dict[str, CableObject]:
+        """A dictionary of cable objects in the scene."""
+        return self._cable_objects
 
     @property
     def deformable_objects(self) -> dict[str, DeformableObject]:
@@ -410,11 +409,26 @@ class InteractiveScene:
         return self._surface_grippers
 
     @property
-    def extras(self) -> dict[str, XFormPrim]:
-        """A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.
+    def visual_materials(self) -> dict[str, VisualMaterial]:
+        """Scene-declared runtime-writable visual materials."""
+        return self._visual_materials
 
-        The keys are the names of the miscellaneous objects, and the values are the `XFormPrim`_
-        of the corresponding prims.
+    @property
+    def clone_plan(self) -> cloner.ClonePlan | None:
+        """Clone plan owned by the active simulation.
+
+        Forwards to :meth:`SimulationContext.get_clone_plan`, which is the canonical owner.
+        The plan records the source paths, destination templates, and the per-env source
+        assignment mask. Cfg-owned scenes publish it before constructing their entities;
+        direct scenes publish it when their explicit clone lifecycle begins.
+        """
+        return self.sim.get_clone_plan()
+
+    @property
+    def extras(self) -> dict[str, Asset | VisualizationMarkers]:
+        """A dictionary of scene entities without runtime simulation views.
+
+        The keys are the names of miscellaneous authoring-only assets or visualization markers.
 
         As an example, lights or other props in the scene that do not have any attributes or properties that you
         want to alter at runtime can be added to this dictionary.
@@ -422,8 +436,6 @@ class InteractiveScene:
         Note:
             These are not reset or updated by the scene. They are mainly other prims that are not necessarily
             handled by the interactive scene, but are useful to be accessed by the user.
-
-        .. _XFormPrim: https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.core.prims/docs/index.html#isaacsim.core.prims.XFormPrim
 
         """
         return self._extras
@@ -450,6 +462,8 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.reset(env_ids)
+        for cable_object in self._cable_objects.values():
+            cable_object.reset(env_ids)
         for deformable_object in self._deformable_objects.values():
             deformable_object.reset(env_ids)
         for rigid_object in self._rigid_objects.values():
@@ -467,6 +481,8 @@ class InteractiveScene:
         # -- assets
         for articulation in self._articulations.values():
             articulation.write_data_to_sim()
+        for cable_object in self._cable_objects.values():
+            cable_object.write_data_to_sim()
         for deformable_object in self._deformable_objects.values():
             deformable_object.write_data_to_sim()
         for rigid_object in self._rigid_objects.values():
@@ -482,9 +498,15 @@ class InteractiveScene:
         Args:
             dt: The amount of time passed from last :meth:`update` call.
         """
+        # Publish transforms before eager sensors read their Fabric-backed poses.
+        if not self.cfg.lazy_sensor_update:
+            self.sim.render_context.update_scene_state(self.sim.get_physics_step_count())
+
         # -- assets
         for articulation in self._articulations.values():
             articulation.update(dt)
+        for cable_object in self._cable_objects.values():
+            cable_object.update(dt)
         for deformable_object in self._deformable_objects.values():
             deformable_object.update(dt)
         for rigid_object in self._rigid_objects.values():
@@ -494,8 +516,19 @@ class InteractiveScene:
         for surface_gripper in self._surface_grippers.values():
             surface_gripper.update(dt)
         # -- sensors
+        force_recompute = not self.cfg.lazy_sensor_update
+        batched_sensors: list[SensorBase] = []
         for sensor in self._sensors.values():
-            sensor.update(dt, force_recompute=not self.cfg.lazy_sensor_update)
+            if force_recompute and sensor.supports_batch_update:
+                # Defer buffer refresh until all sensors have advanced.
+                sensor.update(dt, force_recompute=False)
+                batched_sensors.append(sensor)
+            else:
+                sensor.update(dt, force_recompute=force_recompute)
+
+        # Process batched sensors only during eager updates.
+        if batched_sensors:
+            SensorBase._process_batch(batched_sensors)
 
     """
     Operations: Scene State.
@@ -523,38 +556,48 @@ class InteractiveScene:
         for asset_name, articulation in self._articulations.items():
             asset_state = state["articulation"][asset_name]
             # root state
-            root_pose = asset_state["root_pose"].clone()
+            root_pose = asset_state["root_pose"].clone().to(self.device)
             if is_relative:
                 root_pose[:, :3] += self.env_origins[env_ids]
-            root_velocity = asset_state["root_velocity"].clone()
-            articulation.write_root_pose_to_sim(root_pose, env_ids=env_ids)
-            articulation.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
+            root_velocity = asset_state["root_velocity"].clone().to(self.device)
+            articulation.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
+            articulation.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
             # joint state
-            joint_position = asset_state["joint_position"].clone()
-            joint_velocity = asset_state["joint_velocity"].clone()
-            articulation.write_joint_state_to_sim(joint_position, joint_velocity, env_ids=env_ids)
+            joint_position = asset_state["joint_position"].clone().to(self.device)
+            joint_velocity = asset_state["joint_velocity"].clone().to(self.device)
+            articulation.write_joint_position_to_sim_index(position=joint_position, env_ids=env_ids)
+            articulation.write_joint_velocity_to_sim_index(velocity=joint_velocity, env_ids=env_ids)
             # FIXME: This is not generic as it assumes PD control over the joints.
             #   This assumption does not hold for effort controlled joints.
-            articulation.set_joint_position_target(joint_position, env_ids=env_ids)
-            articulation.set_joint_velocity_target(joint_velocity, env_ids=env_ids)
+            articulation.set_joint_position_target_index(target=joint_position, env_ids=env_ids)
+            articulation.set_joint_velocity_target_index(target=joint_velocity, env_ids=env_ids)
+        # cable objects
+        for asset_name, cable_object in self._cable_objects.items():
+            asset_state = state["cable_object"][asset_name]
+            segment_pose = asset_state["segment_pose"].clone().to(self.device)
+            if is_relative:
+                segment_pose[..., :3] += self.env_origins[env_ids, None, :]
+            segment_velocity = asset_state["segment_velocity"].clone().to(self.device)
+            cable_object.write_segment_pose_to_sim_index(segment_pose=segment_pose, env_ids=env_ids)
+            cable_object.write_segment_velocity_to_sim_index(segment_velocity=segment_velocity, env_ids=env_ids)
         # deformable objects
         for asset_name, deformable_object in self._deformable_objects.items():
             asset_state = state["deformable_object"][asset_name]
-            nodal_position = asset_state["nodal_position"].clone()
+            nodal_position = asset_state["nodal_position"].clone().to(self.device)
             if is_relative:
-                nodal_position[:, :3] += self.env_origins[env_ids]
-            nodal_velocity = asset_state["nodal_velocity"].clone()
+                nodal_position += self.env_origins[env_ids, None, :]
+            nodal_velocity = asset_state["nodal_velocity"].clone().to(self.device)
             deformable_object.write_nodal_pos_to_sim(nodal_position, env_ids=env_ids)
             deformable_object.write_nodal_velocity_to_sim(nodal_velocity, env_ids=env_ids)
         # rigid objects
         for asset_name, rigid_object in self._rigid_objects.items():
             asset_state = state["rigid_object"][asset_name]
-            root_pose = asset_state["root_pose"].clone()
+            root_pose = asset_state["root_pose"].clone().to(self.device)
             if is_relative:
                 root_pose[:, :3] += self.env_origins[env_ids]
-            root_velocity = asset_state["root_velocity"].clone()
-            rigid_object.write_root_pose_to_sim(root_pose, env_ids=env_ids)
-            rigid_object.write_root_velocity_to_sim(root_velocity, env_ids=env_ids)
+            root_velocity = asset_state["root_velocity"].clone().to(self.device)
+            rigid_object.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
+            rigid_object.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
         # surface grippers
         for asset_name, surface_gripper in self._surface_grippers.items():
             asset_state = state["gripper"][asset_name]
@@ -570,6 +613,7 @@ class InteractiveScene:
         Based on the type of the entity, the state comprises of different components.
 
         * For an articulation, the state comprises of the root pose, root velocity, and joint position and velocity.
+        * For a cable object, the state comprises of the segment pose and velocity.
         * For a deformable object, the state comprises of the nodal position and velocity.
         * For a rigid object, the state comprises of the root pose and root velocity.
 
@@ -592,14 +636,20 @@ class InteractiveScene:
                         "joint_velocity": torch.Tensor,
                     },
                 },
-                "deformable_object": {
+                "cable_object": {
                     "entity_3_name": {
+                        "segment_pose": torch.Tensor,
+                        "segment_velocity": torch.Tensor,
+                    }
+                },
+                "deformable_object": {
+                    "entity_4_name": {
                         "nodal_position": torch.Tensor,
                         "nodal_velocity": torch.Tensor,
                     }
                 },
                 "rigid_object": {
-                    "entity_4_name": {
+                    "entity_5_name": {
                         "root_pose": torch.Tensor,
                         "root_velocity": torch.Tensor,
                     }
@@ -615,40 +665,49 @@ class InteractiveScene:
         Returns:
             A dictionary of the state of the scene entities.
         """
-        state = dict()
+        state = {}
         # articulations
-        state["articulation"] = dict()
+        state["articulation"] = {}
         for asset_name, articulation in self._articulations.items():
-            asset_state = dict()
-            asset_state["root_pose"] = articulation.data.root_pose_w.clone()
+            asset_state = {}
+            asset_state["root_pose"] = articulation.data.root_pose_w.torch.clone()
             if is_relative:
                 asset_state["root_pose"][:, :3] -= self.env_origins
-            asset_state["root_velocity"] = articulation.data.root_vel_w.clone()
-            asset_state["joint_position"] = articulation.data.joint_pos.clone()
-            asset_state["joint_velocity"] = articulation.data.joint_vel.clone()
+            asset_state["root_velocity"] = articulation.data.root_vel_w.torch.clone()
+            asset_state["joint_position"] = articulation.data.joint_pos.torch.clone()
+            asset_state["joint_velocity"] = articulation.data.joint_vel.torch.clone()
             state["articulation"][asset_name] = asset_state
-        # deformable objects
-        state["deformable_object"] = dict()
-        for asset_name, deformable_object in self._deformable_objects.items():
-            asset_state = dict()
-            asset_state["nodal_position"] = deformable_object.data.nodal_pos_w.clone()
+        # cable objects
+        state["cable_object"] = {}
+        for asset_name, cable_object in self._cable_objects.items():
+            asset_state = {}
+            asset_state["segment_pose"] = cable_object.data.segment_pose_w.torch.clone()
             if is_relative:
-                asset_state["nodal_position"][:, :3] -= self.env_origins
-            asset_state["nodal_velocity"] = deformable_object.data.nodal_vel_w.clone()
+                asset_state["segment_pose"][..., :3] -= self.env_origins[:, None, :]
+            asset_state["segment_velocity"] = cable_object.data.segment_velocity_w.torch.clone()
+            state["cable_object"][asset_name] = asset_state
+        # deformable objects
+        state["deformable_object"] = {}
+        for asset_name, deformable_object in self._deformable_objects.items():
+            asset_state = {}
+            asset_state["nodal_position"] = deformable_object.data.nodal_pos_w.torch.clone()
+            if is_relative:
+                asset_state["nodal_position"] -= self.env_origins[:, None, :]
+            asset_state["nodal_velocity"] = deformable_object.data.nodal_vel_w.torch.clone()
             state["deformable_object"][asset_name] = asset_state
         # rigid objects
-        state["rigid_object"] = dict()
+        state["rigid_object"] = {}
         for asset_name, rigid_object in self._rigid_objects.items():
-            asset_state = dict()
-            asset_state["root_pose"] = rigid_object.data.root_pose_w.clone()
+            asset_state = {}
+            asset_state["root_pose"] = rigid_object.data.root_pose_w.torch.clone()
             if is_relative:
                 asset_state["root_pose"][:, :3] -= self.env_origins
-            asset_state["root_velocity"] = rigid_object.data.root_vel_w.clone()
+            asset_state["root_velocity"] = rigid_object.data.root_vel_w.torch.clone()
             state["rigid_object"][asset_name] = asset_state
         # surface grippers
-        state["gripper"] = dict()
+        state["gripper"] = {}
         for asset_name, gripper in self._surface_grippers.items():
-            state["gripper"][asset_name] = gripper.state.clone()
+            state["gripper"][asset_name] = wp.to_torch(gripper.state).clone()
         return state
 
     """
@@ -664,11 +723,13 @@ class InteractiveScene:
         all_keys = ["terrain"]
         for asset_family in [
             self._articulations,
+            self._cable_objects,
             self._deformable_objects,
             self._rigid_objects,
             self._rigid_object_collections,
             self._sensors,
             self._surface_grippers,
+            self._visual_materials,
             self._extras,
         ]:
             all_keys += list(asset_family.keys())
@@ -683,7 +744,6 @@ class InteractiveScene:
         Returns:
             The scene entity.
         """
-        # check if it is a terrain
         if key == "terrain":
             return self._terrain
 
@@ -691,11 +751,13 @@ class InteractiveScene:
         # check if it is in other dictionaries
         for asset_family in [
             self._articulations,
+            self._cable_objects,
             self._deformable_objects,
             self._rigid_objects,
             self._rigid_object_collections,
             self._sensors,
             self._surface_grippers,
+            self._visual_materials,
             self._extras,
         ]:
             out = asset_family.get(key)
@@ -710,30 +772,40 @@ class InteractiveScene:
     Internal methods.
     """
 
-    def _is_scene_setup_from_cfg(self) -> bool:
-        """Check if scene entities are setup from the config or not.
-
-        Returns:
-            True if scene entities are setup from the config, False otherwise.
-        """
-        return any(
-            not (asset_name in InteractiveSceneCfg.__dataclass_fields__ or asset_cfg is None)
-            for asset_name, asset_cfg in self.cfg.__dict__.items()
-        )
-
-    def _add_entities_from_cfg(self):
+    def _add_entities_from_cfg(self):  # noqa: C901
         """Add scene entities from the config."""
+        from isaaclab_physx.assets import SurfaceGripperCfg  # noqa: PLC0415
+
+        from ..terrains.terrain_importer_cfg import TerrainImporterCfg  # noqa: PLC0415
+
         # store paths that are in global collision filter
         self._global_prim_paths = list()
-        # parse the entire scene config and resolve regex
-        for asset_name, asset_cfg in self.cfg.__dict__.items():
-            # skip keywords
-            # note: easier than writing a list of keywords: [num_envs, env_spacing, lazy_sensor_update]
-            if asset_name in InteractiveSceneCfg.__dataclass_fields__ or asset_cfg is None:
-                continue
-            # resolve regex
-            if hasattr(asset_cfg, "prim_path"):
-                asset_cfg.prim_path = asset_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
+        # Parent prototypes must exist before anything spawned below them; sensors initialize last.
+        all_items = [
+            (k, v)
+            for k, v in self.cfg.__dict__.items()
+            if k not in InteractiveSceneCfg.__dataclass_fields__ and v is not None
+        ]
+        ordered_items = sorted(
+            all_items,
+            key=lambda item: (
+                isinstance(item[1], SensorBaseCfg),
+                len(sim_utils.split_path_expr(getattr(item[1], "prim_path", ""))),
+            ),
+        )
+
+        for asset_name, asset_cfg in ordered_items:
+            # set spawn_path on spawner if cloning is needed
+            if hasattr(asset_cfg, "spawn") and asset_cfg.spawn is not None:
+                is_multi_spawner = isinstance(
+                    asset_cfg.spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)
+                )
+                if cloner.path.match(asset_cfg.prim_path, self._env_fmt) is None:
+                    asset_cfg.spawn.spawn_path = asset_cfg.prim_path
+                elif is_multi_spawner and not asset_cfg.spawn.spawn_paths:
+                    raise RuntimeError(f"Clone planning did not assign spawn_paths for '{asset_cfg.prim_path}'.")
+                elif not is_multi_spawner and asset_cfg.spawn.spawn_path is None:
+                    raise RuntimeError(f"Clone planning did not assign spawn_path for '{asset_cfg.prim_path}'.")
             # create asset
             if isinstance(asset_cfg, TerrainImporterCfg):
                 # terrains are special entities since they define environment origins
@@ -742,50 +814,74 @@ class InteractiveScene:
                 self._terrain = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, ArticulationCfg):
                 self._articulations[asset_name] = asset_cfg.class_type(asset_cfg)
+            elif isinstance(asset_cfg, CableObjectCfg):
+                self._cable_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, DeformableObjectCfg):
                 self._deformable_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCfg):
                 self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCollectionCfg):
                 for rigid_object_cfg in asset_cfg.rigid_objects.values():
-                    rigid_object_cfg.prim_path = rigid_object_cfg.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
+                    # set spawn_path on spawner if cloning is needed
+                    if hasattr(rigid_object_cfg, "spawn") and rigid_object_cfg.spawn is not None:
+                        is_multi_spawner = isinstance(
+                            rigid_object_cfg.spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)
+                        )
+                        if cloner.path.match(rigid_object_cfg.prim_path, self._env_fmt) is None:
+                            rigid_object_cfg.spawn.spawn_path = rigid_object_cfg.prim_path
+                        elif is_multi_spawner and not rigid_object_cfg.spawn.spawn_paths:
+                            raise RuntimeError(
+                                f"Clone planning did not assign spawn_paths for '{rigid_object_cfg.prim_path}'."
+                            )
+                        elif not is_multi_spawner and rigid_object_cfg.spawn.spawn_path is None:
+                            raise RuntimeError(
+                                f"Clone planning did not assign spawn_path for '{rigid_object_cfg.prim_path}'."
+                            )
                 self._rigid_object_collections[asset_name] = asset_cfg.class_type(asset_cfg)
                 for rigid_object_cfg in asset_cfg.rigid_objects.values():
                     if hasattr(rigid_object_cfg, "collision_group") and rigid_object_cfg.collision_group == -1:
                         asset_paths = sim_utils.find_matching_prim_paths(rigid_object_cfg.prim_path)
                         self._global_prim_paths += asset_paths
             elif isinstance(asset_cfg, SurfaceGripperCfg):
-                # add surface grippers to scene
                 self._surface_grippers[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, SensorBaseCfg):
                 # Update target frame path(s)' regex name space for FrameTransformer
                 if isinstance(asset_cfg, FrameTransformerCfg):
-                    updated_target_frames = []
                     for target_frame in asset_cfg.target_frames:
-                        target_frame.prim_path = target_frame.prim_path.format(ENV_REGEX_NS=self.env_regex_ns)
-                        updated_target_frames.append(target_frame)
-                    asset_cfg.target_frames = updated_target_frames
+                        target_frame.prim_path = cloner.expand_env_regex_ns(target_frame.prim_path, self._env_fmt)
                 elif isinstance(asset_cfg, ContactSensorCfg):
-                    updated_filter_prim_paths_expr = []
-                    for filter_prim_path in asset_cfg.filter_prim_paths_expr:
-                        updated_filter_prim_paths_expr.append(filter_prim_path.format(ENV_REGEX_NS=self.env_regex_ns))
-                    asset_cfg.filter_prim_paths_expr = updated_filter_prim_paths_expr
+                    asset_cfg.filter_prim_paths_expr = [
+                        cloner.expand_env_regex_ns(p, self._env_fmt) for p in asset_cfg.filter_prim_paths_expr
+                    ]
+                    if hasattr(asset_cfg, "sensor_shape_prim_expr") and asset_cfg.sensor_shape_prim_expr:
+                        asset_cfg.sensor_shape_prim_expr = [
+                            cloner.expand_env_regex_ns(p, self._env_fmt) for p in asset_cfg.sensor_shape_prim_expr
+                        ]
+                    if hasattr(asset_cfg, "filter_shape_prim_expr") and asset_cfg.filter_shape_prim_expr:
+                        asset_cfg.filter_shape_prim_expr = [
+                            cloner.expand_env_regex_ns(p, self._env_fmt) for p in asset_cfg.filter_shape_prim_expr
+                        ]
+                elif isinstance(asset_cfg, VisuoTactileSensorCfg):
+                    if hasattr(asset_cfg, "camera_cfg") and asset_cfg.camera_cfg is not None:
+                        asset_cfg.camera_cfg.prim_path = cloner.expand_env_regex_ns(
+                            asset_cfg.camera_cfg.prim_path, self._env_fmt
+                        )
+                    if (
+                        hasattr(asset_cfg, "contact_object_prim_path_expr")
+                        and asset_cfg.contact_object_prim_path_expr is not None
+                    ):
+                        asset_cfg.contact_object_prim_path_expr = cloner.expand_env_regex_ns(
+                            asset_cfg.contact_object_prim_path_expr, self._env_fmt
+                        )
 
                 self._sensors[asset_name] = asset_cfg.class_type(asset_cfg)
-            elif isinstance(asset_cfg, AssetBaseCfg):
-                # manually spawn asset
-                if asset_cfg.spawn is not None:
-                    asset_cfg.spawn.func(
-                        asset_cfg.prim_path,
-                        asset_cfg.spawn,
-                        translation=asset_cfg.init_state.pos,
-                        orientation=asset_cfg.init_state.rot,
-                    )
-                # store xform prim view corresponding to this asset
-                # all prims in the scene are Xform prims (i.e. have a transform component)
-                self._extras[asset_name] = XFormPrim(asset_cfg.prim_path, reset_xform_properties=False)
+            elif isinstance(asset_cfg, VisualMaterialCfg):
+                self._visual_materials[asset_name] = asset_cfg.class_type(asset_cfg)
+            elif isinstance(asset_cfg, (VisualizationMarkersCfg, AssetBaseCfg)):
+                self._extras[asset_name] = asset_cfg.class_type(asset_cfg)
             else:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
+
             # store global collision paths
             if hasattr(asset_cfg, "collision_group") and asset_cfg.collision_group == -1:
                 asset_paths = sim_utils.find_matching_prim_paths(asset_cfg.prim_path)

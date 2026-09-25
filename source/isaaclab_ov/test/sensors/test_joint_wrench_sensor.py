@@ -1,0 +1,268 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# ignore private usage of variables warning
+# pyright: reportPrivateUsage=none
+
+"""Real-backend tests for the OVPhysX JointWrenchSensor.
+
+Wrench values and frames are checked against analytic loads by the shared
+``test_joint_wrench_frame`` contract imported below; the local tests cover
+initialization, body resolution, and reset behavior.
+
+The OVPhysX runtime fixes device mode (CPU vs GPU) when the process creates
+its first ``ovphysx.PhysX`` instance. Full coverage therefore requires two
+pytest runs -- once with ``-k 'cpu'`` and once with
+``-k 'cuda:0'``.  The ``_ovphysx_skip_other_device`` autouse fixture below
+preempts the manager's :exc:`RuntimeError` by ``pytest.skip``-ing on the
+unlocked device so single-device runs finish cleanly.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test" / "sensors"))
+
+import pytest
+import torch
+import warp as wp
+
+# OVRTX-only CI jobs collect the consolidated isaaclab_ov test suite without
+# the optional ovphysx wheel. Skip the OVPhysX tests gracefully in that case.
+pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
+
+from isaaclab_ov import tensor_types as TT  # noqa: E402
+from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
+from isaaclab_physx.sim.schemas import PhysxJointCfg  # noqa: E402
+from joint_wrench_contract import test_joint_wrench_frame  # noqa: E402, F401
+
+import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab.actuators import ImplicitActuatorCfg  # noqa: E402
+from isaaclab.assets import Articulation, ArticulationCfg  # noqa: E402
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
+from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg  # noqa: E402
+from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
+from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
+from isaaclab.utils import configclass  # noqa: E402
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
+
+from isaaclab_assets.robots.ant import ANT_CFG  # noqa: E402
+
+wp.init()
+
+pytestmark = pytest.mark.device_split
+
+# ---------------------------------------------------------------------------
+# Device-lock autouse fixture (copied from test_contact_sensor.py)
+# ---------------------------------------------------------------------------
+
+_LOCKED_DEVICE: list[str | None] = [None]
+"""Device the session pins to on the first parametrized test that runs."""
+
+
+@pytest.fixture(autouse=True)
+def _ovphysx_skip_other_device(request):
+    """Skip parametrized tests on the device the session is not pinned to."""
+    callspec = getattr(request.node, "callspec", None)
+    device = callspec.params.get("device") if callspec is not None else None
+    if device is None:
+        return
+    locked = _LOCKED_DEVICE[0]
+    if locked is None:
+        _LOCKED_DEVICE[0] = device
+        return
+    if device != locked:
+        pytest.skip(
+            f"ovphysx process-global device lock is held by '{locked}'; cannot run '{device}' "
+            "tests in the same session.  Run pytest twice (once per device) for full coverage."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Simulation context helper (mirrors test_contact_sensor.py)
+# ---------------------------------------------------------------------------
+
+
+def _ovphysx_sim_context(device: str, **kwargs):
+    """Wrapper around :func:`build_simulation_context` that injects OVPhysX cfg."""
+    dt = kwargs.pop("dt", 1.0 / 120.0)
+    gravity_enabled = kwargs.pop("gravity_enabled", True)
+    gravity = (0.0, 0.0, -9.81) if gravity_enabled else (0.0, 0.0, 0.0)
+    sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device=device, dt=dt, gravity=gravity)
+    return build_simulation_context(device=device, sim_cfg=sim_cfg, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# Scene configurations (copied from the PhysX test verbatim)
+# ---------------------------------------------------------------------------
+
+
+def _make_single_joint_articulation_cfg() -> ArticulationCfg:
+    """Single-joint revolute test articulation (root ``CenterPivot`` + arm ``Arm``)."""
+    return ArticulationCfg(
+        prim_path="{ENV_REGEX_NS}/Robot",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
+            joint_drive_props=[
+                sim_utils.UsdPhysicsDriveCfg(max_force=80.0),
+                PhysxJointCfg(max_joint_velocity=5.0),
+            ],
+        ),
+        actuators={
+            "joint": ImplicitActuatorCfg(
+                joint_names_expr=[".*"],
+                stiffness=2000.0,
+                damping=100.0,
+            ),
+        },
+        init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+    )
+
+
+@configclass
+class _SingleJointSceneCfg(InteractiveSceneCfg):
+    """Scene with a single-joint articulation and the joint-wrench sensor."""
+
+    env_spacing = 2.0
+    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+    robot = _make_single_joint_articulation_cfg()
+    wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+
+
+@configclass
+class _NestedRootAntSceneCfg(InteractiveSceneCfg):
+    """Ant USD asset whose articulation root is nested under the configured asset prim."""
+
+    env_spacing = 4.0
+    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+    robot = ANT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+
+
+@pytest.fixture
+def sim(device):
+    """Simulation context using the OVPhysX backend."""
+    with _ovphysx_sim_context(device) as sim_ctx:
+        sim_ctx._app_control_on_stop_handle = None
+        yield sim_ctx
+
+
+@pytest.fixture(params=["cuda:0", "cpu"])
+def device(request):
+    """Supply the device to imported contract tests as well as backend-local tests."""
+    return request.param
+
+
+# ---------------------------------------------------------------------------
+# Sensor data — pre-init contract
+# ---------------------------------------------------------------------------
+
+
+def test_data_before_init_is_none():
+    """``force``/``torque`` return ``None`` before :meth:`create_buffers` runs."""
+    from isaaclab_ov.sensors.joint_wrench import JointWrenchSensorData
+
+    data = JointWrenchSensorData()
+    assert data.force is None
+    assert data.torque is None
+
+
+# ---------------------------------------------------------------------------
+# Initialization and shapes
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_initialization_and_shapes(sim, device):
+    """Sensor initializes on sim reset and exposes correctly-shaped buffers."""
+    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=2))
+    sim.reset()
+
+    robot: Articulation = scene["robot"]
+    sensor: JointWrenchSensor = scene["wrench"]
+    sim.step()
+    scene.update(sim.get_physics_dt())
+
+    num_envs = 2
+    num_bodies = robot.num_bodies
+    assert sensor.data.force.torch.shape == (num_envs, num_bodies, 3)
+    assert sensor.data.torque.torch.shape == (num_envs, num_bodies, 3)
+    assert sensor.body_names == robot.body_names
+    assert sensor.find_bodies("Arm") == ([robot.body_names.index("Arm")], ["Arm"])
+    sensor_str = str(sensor)
+    assert "ovphysx" in sensor_str
+    assert "Joint wrench sensor" in sensor_str
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_nested_articulation_root_resolution(sim, device):
+    """Resolve a nested articulation root and preserve the wrench belonging to each physical link."""
+    scene = InteractiveScene(_NestedRootAntSceneCfg(num_envs=1))
+    sim.reset()
+
+    robot: Articulation = scene["robot"]
+    sensor: JointWrenchSensor = scene["wrench"]
+    sim.step()
+    scene.update(sim.get_physics_dt())
+
+    assert sensor.body_names == robot.body_names
+    assert sensor.data.force.torch.shape == (1, robot.num_bodies, 3)
+    assert sensor.data.torque.torch.shape == (1, robot.num_bodies, 3)
+
+    # The single-joint analytic contract cannot detect a gather that duplicates one link across the others.
+    expected = wp.to_torch(robot.root_view.get_attribute(TT.LINK_INCOMING_JOINT_FORCE)).reshape(1, robot.num_bodies, 6)
+    assert not torch.allclose(expected[:, 2:], expected[:, 1:2].expand_as(expected[:, 2:]))
+    torch.testing.assert_close(sensor.data.force.torch, expected[..., :3], rtol=1e-4, atol=1e-5)
+    torch.testing.assert_close(sensor.data.torque.torch, expected[..., 3:], rtol=1e-4, atol=1e-5)
+
+
+# ---------------------------------------------------------------------------
+# Physical correctness
+# ---------------------------------------------------------------------------
+
+# Checked against analytic loads by the shared ``test_joint_wrench_frame`` imported above.
+
+
+# ---------------------------------------------------------------------------
+# Reset behavior
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_reset_with_env_ids_only_zeros_selected_envs(sim, device):
+    """Partial reset via env_ids should zero the selected envs and preserve the others; a full reset zeros all.
+
+    The public read after the full reset is also the regression for #4970: it must not surface the
+    pre-reset wrenches that OVPhysX still holds.
+    """
+    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=4))
+    sim.reset()
+
+    sensor: JointWrenchSensor = scene["wrench"]
+    for _ in range(100):
+        sim.step()
+        scene.update(sim.get_physics_dt())
+
+    force_before = sensor.data.force.torch.clone()
+    assert torch.any(force_before != 0), "Expected non-zero data before reset"
+
+    sensor.reset(env_ids=[0, 2])
+
+    force_after = wp.to_torch(sensor._data._force)
+    torch.testing.assert_close(force_after[0], torch.zeros_like(force_after[0]))
+    torch.testing.assert_close(force_after[2], torch.zeros_like(force_after[2]))
+    torch.testing.assert_close(force_after[1], force_before[1])
+    torch.testing.assert_close(force_after[3], force_before[3])
+
+    # A reset without env_ids clears every environment.
+    sensor.reset()
+    force_after = wp.to_torch(sensor._data._force)
+    torque_after = wp.to_torch(sensor._data._torque)
+    torch.testing.assert_close(force_after, torch.zeros_like(force_after))
+    torch.testing.assert_close(torque_after, torch.zeros_like(torque_after))
+    torch.testing.assert_close(sensor.data.force.torch, torch.zeros_like(force_after))
+    torch.testing.assert_close(sensor.data.torque.torch, torch.zeros_like(torque_after))

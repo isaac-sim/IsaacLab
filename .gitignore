@@ -7,6 +7,9 @@
 # Omniverse
 **/*.dmp
 **/.thumbs
+# Kit's ImGui UI-state file, written to the process working directory by long
+# sessions with a GUI-backed visualizer (e.g. --visualizer kit).
+**/imgui.ini
 
 # No USD files allowed in the repo
 **/*.usd
@@ -42,6 +45,7 @@ docker/.container.cfg
 **/.neptune/*
 docker/artifacts/
 *.tmp
+**/__tracked_surface.stl
 
 # Doc Outputs
 **/docs/_build/*
@@ -64,8 +68,31 @@ _build
 # Teleop Recorded Dataset
 /datasets/
 
+# Local Franka Pour reset-generator references retained while the public one-file workflow is slimmed.
+/scripts/tools/generate_franka_pour_reset_dataset_legacy.py
+/source/isaaclab_tasks/isaaclab_tasks/contrib/franka_pour/reset_dataset_generator_legacy.py
+
 # Tests
-tests/
+/tests/
 
 # Docker history
 .isaac-lab-docker-history
+
+# TacSL sensor
+**/tactile_record/*
+**/gelsight_r15_data/*
+
+# No benchmarks output
+/benchmarks/
+benchmark_*.json
+/pyrightconfig.json
+
+
+# Ruff cache
+**/.ruff_cache/
+
+# Isaac Lab CI environments in native mode
+**/_isaaclab_install_ci_*
+
+# Superpowers (Claude Code plugin artifacts)
+docs/superpowers/

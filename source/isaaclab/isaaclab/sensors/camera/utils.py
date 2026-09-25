@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -8,14 +8,14 @@
 # needed to import for allowing type-hinting: torch.device | str | None
 from __future__ import annotations
 
-import numpy as np
-import torch
 from collections.abc import Sequence
 
+import numpy as np
+import torch
 import warp as wp
 
-import isaaclab.utils.math as math_utils
-from isaaclab.utils.array import TensorData, convert_to_torch
+from ...utils import math as math_utils
+from ...utils.array import TensorData, convert_to_torch
 
 """
 Depth <-> Pointcloud conversions.
@@ -41,7 +41,7 @@ def transform_points(
     Args:
         points: a tensor of shape (p, 3) or (n, p, 3) comprising of 3d points in source frame.
         position: The position of source frame in target frame. Defaults to None.
-        orientation: The orientation (w, x, y, z) of source frame in target frame.
+        orientation: The orientation (x, y, z, w) of source frame in target frame.
             Defaults to None.
         device: The device for torch where the computation
             should be executed. Defaults to None, i.e. takes the device that matches the depth image.
@@ -107,7 +107,7 @@ def create_pointcloud_from_depth(
         keep_invalid: Whether to keep invalid points in the cloud or not. Invalid points
             correspond to pixels with depth values 0.0 or NaN. Defaults to False.
         position: The position of the camera in a target frame. Defaults to None.
-        orientation: The orientation (w, x, y, z) of the camera in a target frame. Defaults to None.
+        orientation: The orientation (x, y, z, w) of the camera in a target frame. Defaults to None.
         device: The device for torch where the computation should be executed.
             Defaults to None, i.e. takes the device that matches the depth image.
 
@@ -170,9 +170,10 @@ def create_pointcloud_from_rgbd(
 
     The ``rgb`` attribute is used to resolve the corresponding point's color:
 
-    - If a ``np.array``/``wp.array``/``torch.tensor`` of shape (H, W, 3), then the corresponding channels encode RGB values.
+    - If a ``np.array``/``wp.array``/``torch.tensor`` of shape (H, W, 3), then the corresponding channels
+      encode the RGB values.
     - If a tuple, then the point cloud has a single color specified by the values (r, g, b).
-    - If None, then default color is white, i.e. (0, 0, 0).
+    - If None, then default color is black, i.e. (0, 0, 0).
 
     If the input ``normalize_rgb`` is set to :obj:`True`, then the RGB values are normalized to be in the range [0, 1].
 
@@ -182,7 +183,7 @@ def create_pointcloud_from_rgbd(
         rgb: Color for generated point cloud. Defaults to None.
         normalize_rgb: Whether to normalize input rgb. Defaults to False.
         position: The position of the camera in a target frame. Defaults to None.
-        orientation: The orientation `(w, x, y, z)` of the camera in a target frame. Defaults to None.
+        orientation: The orientation `(x, y, z, w)` of the camera in a target frame. Defaults to None.
         device: The device for torch where the computation should be executed. Defaults to None, in which case
             it takes the device that matches the depth image.
         num_channels: Number of channels in RGB pointcloud. Defaults to 3.
@@ -231,12 +232,12 @@ def create_pointcloud_from_rgbd(
             points_rgb = rgb.permute(1, 0, 2).reshape(-1, 3)
         elif isinstance(rgb, (tuple, list)):
             # same color for all points
-            points_rgb = torch.Tensor((rgb,) * num_points, device=device, dtype=torch.uint8)
+            points_rgb = torch.tensor(rgb, device=points_xyz.device, dtype=torch.uint8).repeat(num_points, 1)
         else:
-            # default color is white
-            points_rgb = torch.Tensor(((0, 0, 0),) * num_points, device=device, dtype=torch.uint8)
+            # default color is black
+            points_rgb = torch.zeros((num_points, 3), device=points_xyz.device, dtype=torch.uint8)
     else:
-        points_rgb = torch.Tensor(((0, 0, 0),) * num_points, device=device, dtype=torch.uint8)
+        points_rgb = torch.zeros((num_points, 3), device=points_xyz.device, dtype=torch.uint8)
     # normalize color values
     if normalize_rgb:
         points_rgb = points_rgb.float() / 255

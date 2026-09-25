@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -15,16 +15,11 @@ import sys
 def import_packages(package_name: str, blacklist_pkgs: list[str] | None = None):
     """Import all sub-packages in a package recursively.
 
-    It is easier to use this function to import all sub-packages in a package recursively
-    than to manually import each sub-package.
-
-    It replaces the need of the following code snippet on the top of each package's ``__init__.py`` file:
-
-    .. code-block:: python
-
-        import .locomotion.velocity
-        import .manipulation.reach
-        import .manipulation.lift
+    Only **packages** (directories with ``__init__.py``) are imported — plain
+    ``.py`` modules (e.g. ``env_cfg.py``, ``env.py``) are skipped.  This is
+    sufficient because ``gym.register()`` calls live exclusively in
+    ``__init__.py`` files, and avoids eagerly importing every config module
+    at startup.
 
     Args:
         package_name: The package name.
@@ -60,34 +55,42 @@ def _walk_packages(
         ``pkgutil.walk_packages`` function for more details.
 
     """
+    # Default blacklist
     if blacklist_pkgs is None:
         blacklist_pkgs = []
 
-    def seen(p, m={}):
+    def seen(p: str, m: dict[str, bool] = {}) -> bool:
+        """Check if a package has been seen before."""
         if p in m:
             return True
-        m[p] = True  # noqa: R503
+        m[p] = True
+        return False
 
     for info in pkgutil.iter_modules(path, prefix):
         # check blacklisted
         if any([black_pkg_name in info.name for black_pkg_name in blacklist_pkgs]):
             continue
 
-        # yield the module info
+        # Only import packages (directories with __init__.py), not plain .py
+        # modules.  The walk exists to trigger gym.register() calls which live
+        # exclusively in __init__.py files.  Skipping bare modules avoids
+        # eagerly importing every env_cfg / env / agent config at startup.
+        if not info.ispkg:
+            continue
+
         yield info
 
-        if info.ispkg:
-            try:
-                __import__(info.name)
-            except Exception:
-                if onerror is not None:
-                    onerror(info.name)
-                else:
-                    raise
+        try:
+            __import__(info.name)
+        except Exception:
+            if onerror is not None:
+                onerror(info.name)
             else:
-                path = getattr(sys.modules[info.name], "__path__", None) or []
+                raise
+        else:
+            path: list = getattr(sys.modules[info.name], "__path__", [])
 
-                # don't traverse path items we've seen before
-                path = [p for p in path if not seen(p)]
+            # don't traverse path items we've seen before
+            path = [p for p in path if not seen(p)]
 
-                yield from _walk_packages(path, info.name + ".", onerror, blacklist_pkgs)
+            yield from _walk_packages(path, info.name + ".", onerror, blacklist_pkgs)

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -53,13 +53,6 @@ Usage with a class modifier:
 
 """
 
-# isort: off
-from .modifier_cfg import ModifierCfg
-from .modifier_base import ModifierBase
-from .modifier import DigitalFilter
-from .modifier_cfg import DigitalFilterCfg
-from .modifier import Integrator
-from .modifier_cfg import IntegratorCfg
+from ..module import lazy_export
 
-# isort: on
-from .modifier import bias, clip, scale
+lazy_export()

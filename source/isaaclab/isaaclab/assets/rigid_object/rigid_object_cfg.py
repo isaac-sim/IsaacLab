@@ -1,12 +1,15 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from typing import TYPE_CHECKING
 
+from ...utils import configclass
 from ..asset_base_cfg import AssetBaseCfg
-from .rigid_object import RigidObject
+
+if TYPE_CHECKING:
+    from .rigid_object import RigidObject
 
 
 @configclass
@@ -26,7 +29,7 @@ class RigidObjectCfg(AssetBaseCfg):
     # Initialize configurations.
     ##
 
-    class_type: type = RigidObject
+    class_type: type["RigidObject"] | str = "{DIR}.rigid_object:RigidObject"
 
     init_state: InitialStateCfg = InitialStateCfg()
     """Initial state of the rigid object. Defaults to identity pose with zero velocity."""

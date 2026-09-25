@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,7 +9,7 @@ This script demonstrates how to use the ray-caster sensor.
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_ray_caster.py
+    uv run python scripts/tutorials/04_sensors/run_ray_caster.py --viz kit
 
 """
 
@@ -32,8 +32,6 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
-
-import isaacsim.core.utils.prims as prim_utils
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
@@ -71,15 +69,15 @@ def design_scene() -> dict:
     # Each group will have a robot in it
     origins = [[0.25, 0.25, 0.0], [-0.25, 0.25, 0.0], [0.25, -0.25, 0.0], [-0.25, -0.25, 0.0]]
     for i, origin in enumerate(origins):
-        prim_utils.create_prim(f"/World/Origin{i}", "Xform", translation=origin)
+        sim_utils.create_prim(f"/World/Origin{i}", "Xform", translation=origin)
     # -- Balls
     cfg = RigidObjectCfg(
         prim_path="/World/Origin.*/ball",
         spawn=sim_utils.SphereCfg(
             radius=0.25,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
         ),
     )
@@ -99,8 +97,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     balls: RigidObject = scene_entities["balls"]
 
     # define an initial position of the sensor
-    ball_default_state = balls.data.default_root_state.clone()
-    ball_default_state[:, :3] = torch.rand_like(ball_default_state[:, :3]) * 10
+    ball_default_pose = balls.data.default_root_pose.torch.clone()
+    ball_default_pose[:, :3] = torch.rand_like(ball_default_pose[:, :3]) * 10
+    ball_default_vel = balls.data.default_root_vel.torch.clone()
 
     # Create a counter for resetting the scene
     step_count = 0
@@ -109,8 +108,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
         # Reset the scene
         if step_count % 250 == 0:
             # reset the balls
-            balls.write_root_pose_to_sim(ball_default_state[:, :7])
-            balls.write_root_velocity_to_sim(ball_default_state[:, 7:])
+            balls.write_root_pose_to_sim_index(root_pose=ball_default_pose)
+            balls.write_root_velocity_to_sim_index(root_velocity=ball_default_vel)
             # reset the sensor
             ray_caster.reset()
             # reset the counter
@@ -120,7 +119,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
         # Update the ray-caster
         with Timer(
             f"Ray-caster update with {4} x {ray_caster.num_rays} rays with max height of"
-            f" {torch.max(ray_caster.data.pos_w).item():.2f}"
+            f" {torch.max(ray_caster.data.pos_w.torch).item():.2f}"
         ):
             ray_caster.update(dt=sim.get_physics_dt(), force_recompute=True)
         # Update counter

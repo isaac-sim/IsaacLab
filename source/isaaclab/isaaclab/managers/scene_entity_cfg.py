@@ -1,15 +1,20 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Configuration terms for different managers."""
 
-from dataclasses import MISSING
+from __future__ import annotations
 
-from isaaclab.assets import Articulation, RigidObject, RigidObjectCollection
-from isaaclab.scene import InteractiveScene
-from isaaclab.utils import configclass
+from dataclasses import MISSING
+from typing import TYPE_CHECKING
+
+from ..utils import configclass
+
+if TYPE_CHECKING:
+    from ..assets import Articulation, RigidObject, RigidObjectCollection
+    from ..scene import InteractiveScene
 
 
 @configclass
@@ -105,7 +110,8 @@ class SceneEntityCfg:
     For more details, see the :meth:`isaaclab.utils.string.resolve_matching_names` function.
 
     .. note::
-        This attribute is only used when :attr:`joint_names`, :attr:`body_names`, or :attr:`object_collection_names` are specified.
+        This attribute is only used when :attr:`joint_names`, :attr:`body_names`, or :attr:`object_collection_names`
+        are specified.
 
     """
 
@@ -124,9 +130,9 @@ class SceneEntityCfg:
             ValueError: If both ``joint_names`` and ``joint_ids`` are specified and are not consistent.
             ValueError: If both ``fixed_tendon_names`` and ``fixed_tendon_ids`` are specified and are not consistent.
             ValueError: If both ``body_names`` and ``body_ids`` are specified and are not consistent.
-            ValueError: If both ``object_collection_names`` and ``object_collection_ids`` are specified and are not consistent.
+            ValueError: If both ``object_collection_names`` and ``object_collection_ids`` are specified and
+                are not consistent.
         """
-        # check if the entity is valid
         if self.name not in scene.keys():
             raise ValueError(f"The scene entity '{self.name}' does not exist. Available entities: {scene.keys()}.")
 
@@ -222,12 +228,15 @@ class SceneEntityCfg:
         if self.body_names is not None or self.body_ids != slice(None):
             entity: RigidObject = scene[self.name]
             # -- if both are not their default values, check if they are valid
+            # use find_sensors/num_sensors for ContactSensor, find_bodies/num_bodies for others
+            _find_fn = entity.find_sensors if hasattr(entity, "find_sensors") else entity.find_bodies
+            _num_bodies = entity.num_sensors if hasattr(entity, "num_sensors") else entity.num_bodies
             if self.body_names is not None and self.body_ids != slice(None):
                 if isinstance(self.body_names, str):
                     self.body_names = [self.body_names]
                 if isinstance(self.body_ids, int):
                     self.body_ids = [self.body_ids]
-                body_ids, _ = entity.find_bodies(self.body_names, preserve_order=self.preserve_order)
+                body_ids, _ = _find_fn(self.body_names, preserve_order=self.preserve_order)
                 body_names = [entity.body_names[i] for i in self.body_ids]
                 if body_ids != self.body_ids or body_names != self.body_names:
                     raise ValueError(
@@ -240,10 +249,10 @@ class SceneEntityCfg:
             elif self.body_names is not None:
                 if isinstance(self.body_names, str):
                     self.body_names = [self.body_names]
-                self.body_ids, _ = entity.find_bodies(self.body_names, preserve_order=self.preserve_order)
+                self.body_ids, _ = _find_fn(self.body_names, preserve_order=self.preserve_order)
                 # performance optimization (slice offers faster indexing than list of indices)
                 # only all bodies in the entity order are selected
-                if len(self.body_ids) == entity.num_bodies and self.body_names == entity.body_names:
+                if len(self.body_ids) == _num_bodies and self.body_names == entity.body_names:
                     self.body_ids = slice(None)
             # -- from body indices to body names
             elif self.body_ids != slice(None):

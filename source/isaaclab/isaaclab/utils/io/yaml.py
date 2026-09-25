@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,9 +6,10 @@
 """Utilities for file I/O with yaml."""
 
 import os
+
 import yaml
 
-from isaaclab.utils import class_to_dict
+from .. import class_to_dict
 
 
 def load_yaml(filename: str) -> dict:
@@ -45,8 +46,9 @@ def dump_yaml(filename: str, data: dict | object, sort_keys: bool = False):
     if not filename.endswith("yaml"):
         filename += ".yaml"
     # create directory
-    if not os.path.exists(os.path.dirname(filename)):
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
+    directory = os.path.dirname(filename)
+    if directory and not os.path.exists(directory):
+        os.makedirs(directory, exist_ok=True)
     # convert data into dictionary
     if not isinstance(data, dict):
         data = class_to_dict(data)

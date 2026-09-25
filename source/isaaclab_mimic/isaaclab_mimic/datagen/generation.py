@@ -1,21 +1,23 @@
-# Copyright (c) 2024-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
 
 import asyncio
 import contextlib
-import torch
+import sys
+import traceback
 from typing import Any
+
+import torch
 
 from isaaclab.envs import ManagerBasedRLMimicEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import DatasetExportMode, TerminationTermCfg
+from isaaclab.managers.recorder_manager import RecorderManagerBaseCfg
 
 from isaaclab_mimic.datagen.data_generator import DataGenerator
 from isaaclab_mimic.datagen.datagen_info_pool import DataGenInfoPool
-
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 # global variable to keep track of the data generation statistics
 num_success = 0
@@ -47,14 +49,20 @@ async def run_data_generator(
     """
     global num_success, num_failures, num_attempts
     while True:
-        results = await data_generator.generate(
-            env_id=env_id,
-            success_term=success_term,
-            env_reset_queue=env_reset_queue,
-            env_action_queue=env_action_queue,
-            pause_subtask=pause_subtask,
-            motion_planner=motion_planner,
-        )
+        try:
+            results = await data_generator.generate(
+                env_id=env_id,
+                success_term=success_term,
+                env_reset_queue=env_reset_queue,
+                env_action_queue=env_action_queue,
+                pause_subtask=pause_subtask,
+                motion_planner=motion_planner,
+            )
+        except Exception as e:
+            sys.stderr.write(traceback.format_exc())
+            sys.stderr.flush()
+            raise e
+
         if bool(results["success"]):
             num_success += 1
         else:
@@ -68,6 +76,7 @@ def env_loop(
     env_action_queue: asyncio.Queue,
     shared_datagen_info_pool: DataGenInfoPool,
     asyncio_event_loop: asyncio.AbstractEventLoop,
+    data_gen_tasks: asyncio.Future | None = None,
 ):
     """Main asyncio loop for the environment.
 
@@ -77,6 +86,8 @@ def env_loop(
         env_action_queue: The asyncio queue to handle actions to for executing actions.
         shared_datagen_info_pool: The shared datagen info pool that stores source demo info.
         asyncio_event_loop: The main asyncio event loop.
+        data_gen_tasks: The gathered async data generation future. When provided, the loop
+            will exit early if all tasks finish unexpectedly (e.g. due to an unhandled exception).
     """
     global num_success, num_failures, num_attempts
     env_id_tensor = torch.tensor([0], dtype=torch.int64, device=env.device)
@@ -84,21 +95,23 @@ def env_loop(
     # simulate environment -- run everything in inference mode
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
         while True:
-
             # check if any environment needs to be reset while waiting for actions
             while env_action_queue.qsize() != env.num_envs:
                 asyncio_event_loop.run_until_complete(asyncio.sleep(0))
+                if data_gen_tasks is not None and data_gen_tasks.done():
+                    exc = data_gen_tasks.exception()
+                    if exc is not None:
+                        raise exc
+                    return
                 while not env_reset_queue.empty():
                     env_id_tensor[0] = env_reset_queue.get_nowait()
                     env.reset(env_ids=env_id_tensor)
                     env_reset_queue.task_done()
 
             actions = torch.zeros(env.action_space.shape)
-
-            # get actions from all the data generators
-            for i in range(env.num_envs):
-                # an async-blocking call to get an action from a data generator
-                env_id, action = asyncio_event_loop.run_until_complete(env_action_queue.get())
+            get_tasks = [env_action_queue.get() for _ in range(env.num_envs)]
+            results = asyncio_event_loop.run_until_complete(asyncio.gather(*get_tasks))
+            for env_id, action in results:
                 actions[env_id] = action
 
             # perform action on environment
@@ -127,11 +140,24 @@ def env_loop(
                     print(f"Reached {generation_num_trials} successes/attempts. Exiting.")
                     break
 
+                # with the success guarantee on, nothing else bounds the run: a task that rarely
+                # succeeds retries forever. max_num_failures is the opt-in bound on that. Without the
+                # guarantee the check above already stops on generation_num_trials attempts, so the
+                # cap has nothing to add and must not cut a fixed-attempt run short.
+                max_num_failures = env.cfg.datagen_config.max_num_failures
+                if generation_guarantee and max_num_failures is not None and num_failures >= max_num_failures:
+                    print(
+                        f"Reached {num_failures} failures (max_num_failures={max_num_failures}) after"
+                        f" {num_success}/{generation_num_trials} successes. Exiting."
+                    )
+                    break
+
             # check that simulation is stopped or not
             if env.sim.is_stopped():
                 break
 
-    env.close()
+    # Do not close env here: async data generator tasks may still be running.
+    # Caller must close env after cancelling and awaiting those tasks.
 
 
 def setup_env_config(
@@ -141,6 +167,8 @@ def setup_env_config(
     num_envs: int,
     device: str,
     generation_num_trials: int | None = None,
+    recorder_cfg: RecorderManagerBaseCfg | None = None,
+    dataset_compression: bool = True,
 ) -> tuple[Any, Any]:
     """Configure the environment for data generation.
 
@@ -151,6 +179,8 @@ def setup_env_config(
         num_envs: Number of environments to run
         device: Device to run on
         generation_num_trials: Optional override for number of trials
+        recorder_cfg: Recorder manager configuration. Overrides recorder configurations supplied by the environment.
+        dataset_compression: Whether to enable dataset compression
 
     Returns:
         tuple containing:
@@ -160,6 +190,8 @@ def setup_env_config(
     Raises:
         NotImplementedError: If no success termination term found
     """
+    from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+
     env_cfg = parse_env_cfg(env_name, device=device, num_envs=num_envs)
 
     if generation_num_trials is not None:
@@ -180,9 +212,13 @@ def setup_env_config(
     env_cfg.observations.policy.concatenate_terms = False
 
     # Setup recorders
-    env_cfg.recorders = ActionStateRecorderManagerCfg()
+    if recorder_cfg is None:
+        recorder_cfg = env_cfg.mimic_recorder_config
+    env_cfg.recorders = recorder_cfg if recorder_cfg is not None else ActionStateRecorderManagerCfg()
     env_cfg.recorders.dataset_export_dir_path = output_dir
     env_cfg.recorders.dataset_filename = output_file_name
+
+    env_cfg.recorders.dataset_compression = dataset_compression
 
     if env_cfg.datagen_config.generation_keep_failed:
         env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_FAILED_IN_SEPARATE_FILES
@@ -216,8 +252,7 @@ def setup_async_generation(
     asyncio_event_loop = asyncio.get_event_loop()
     env_reset_queue = asyncio.Queue()
     env_action_queue = asyncio.Queue()
-    shared_datagen_info_pool_lock = asyncio.Lock()
-    shared_datagen_info_pool = DataGenInfoPool(env, env.cfg, env.device, asyncio_lock=shared_datagen_info_pool_lock)
+    shared_datagen_info_pool = DataGenInfoPool(env, env.cfg, env.device)
     shared_datagen_info_pool.load_from_dataset_file(input_file)
     print(f"Loaded {shared_datagen_info_pool.num_datagen_infos} to datagen info pool")
 

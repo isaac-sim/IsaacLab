@@ -1,0 +1,64 @@
+#!/bin/bash
+set -e
+
+SELF_DIR="$(dirname "$(realpath "$0")")"
+cd "$SELF_DIR/../.."
+
+VERSION=$(cat VERSION)
+BUILD_DIR=$SELF_DIR/build/stage
+DIST_DIR=$SELF_DIR/build/dist
+
+# Compose a PEP 440 local version when CI metadata is provided so the wheel is
+# traceable to a specific build and commit. With both env vars set the version
+# becomes e.g. "3.0.0+build123.abc1234" (build number is monotonic, sha slug
+# pins the source). If either is missing, fall back to the plain VERSION so
+# local dev builds stay simple.
+WHEEL_BUILD_NUMBER="${WHEEL_BUILD_NUMBER:-}"
+WHEEL_SHA="${WHEEL_SHA:-}"
+if [ -n "$WHEEL_BUILD_NUMBER" ] && [ -n "$WHEEL_SHA" ]; then
+  SHA_SLUG="${WHEEL_SHA:0:7}"
+  WHEEL_VERSION="${VERSION}+build${WHEEL_BUILD_NUMBER}.${SHA_SLUG}"
+else
+  WHEEL_VERSION="${VERSION}"
+fi
+echo "[WHEEL VERSION] $WHEEL_VERSION"
+
+# Platform tags matching the official IsaacLab wheel
+PYTHON_TAG="${PYTHON_TAG:-cp312}"
+ABI_TAG="${ABI_TAG:-cp312}"
+# Auto-detect platform
+ARCH=$(uname -m)
+case "$ARCH" in
+    x86_64|AMD64)  PLATFORM_TAG="${PLATFORM_TAG:-manylinux_2_35_x86_64}" ;;
+    aarch64|arm64) PLATFORM_TAG="${PLATFORM_TAG:-manylinux_2_35_aarch64}" ;;
+    *)             PLATFORM_TAG="${PLATFORM_TAG:-linux_$ARCH}" ;;
+esac
+
+rm -rf "$BUILD_DIR" "$DIST_DIR"
+
+# Stage the same aggregate source tree used by the PEP 517 Git-source backend.
+python3 "$SELF_DIR/stage.py" "$BUILD_DIR" "$WHEEL_VERSION"
+
+# 4. Build the wheel
+cd "$BUILD_DIR"
+export PIP_RETRIES="${PIP_RETRIES:-12}"
+export UV_HTTP_RETRIES="${UV_HTTP_RETRIES:-12}"
+# Prefer --user to avoid polluting system Python; fall back to --break-system-packages
+# for environments where --user is unsupported (e.g. Docker, ephemeral CI runners).
+python3 -m pip install --user build wheel 2>/dev/null || python3 -m pip install --break-system-packages build wheel
+python3 -m build --wheel --outdir "$DIST_DIR/"
+
+# 5. Retag the wheel to match official platform tags
+# cd "$DIST_DIR"
+# GENERIC_WHL=$(ls isaaclab-*.whl)
+# echo "Retagging $GENERIC_WHL -> $PYTHON_TAG-$ABI_TAG-$PLATFORM_TAG"
+# python3 -m wheel tags --python-tag "$PYTHON_TAG" --abi-tag "$ABI_TAG" --platform-tag "$PLATFORM_TAG" "$GENERIC_WHL"
+# # Remove the generic wheel (wheel tags creates a new file)
+# TAGGED_WHL=$(ls isaaclab-*"$PLATFORM_TAG"*.whl 2>/dev/null)
+# if [ "$GENERIC_WHL" != "$TAGGED_WHL" ] && [ -n "$TAGGED_WHL" ]; then
+#     rm -f "$GENERIC_WHL"
+# fi
+
+echo ""
+echo "[WHEEL BUILT]"
+ls -lh $DIST_DIR/isaaclab-*.whl

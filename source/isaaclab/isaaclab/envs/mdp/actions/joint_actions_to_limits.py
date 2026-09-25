@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -6,9 +6,10 @@
 from __future__ import annotations
 
 import logging
-import torch
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
+
+import torch
 
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
@@ -16,12 +17,10 @@ from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
-
+    from ... import ManagerBasedEnv
+    from ...utils.io_descriptors import GenericActionIODescriptor
     from . import actions_cfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -55,8 +54,11 @@ class JointPositionToLimitsAction(ActionTerm):
         super().__init__(cfg, env)
 
         # resolve the joints over which the action term is applied
-        self._joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names)
-        self._num_joints = len(self._joint_ids)
+        joint_ids, self._joint_names = self._asset.find_joints(
+            self.cfg.joint_names, preserve_order=cfg.preserve_order, as_proxy=True
+        )
+        self._num_joints = len(joint_ids)
+        self._joint_ids = joint_ids.torch
         # log the resolved joint names for debugging
         logger.info(
             f"Resolved joint names for the action term {self.__class__.__name__}:"
@@ -64,7 +66,7 @@ class JointPositionToLimitsAction(ActionTerm):
         )
 
         # Avoid indexing across all joints for efficiency
-        if self._num_joints == self._asset.num_joints:
+        if self._num_joints == self._asset.num_joints and not cfg.preserve_order:
             self._joint_ids = slice(None)
 
         # create tensors for raw and processed actions
@@ -77,17 +79,22 @@ class JointPositionToLimitsAction(ActionTerm):
         elif isinstance(cfg.scale, dict):
             self._scale = torch.ones(self.num_envs, self.action_dim, device=self.device)
             # resolve the dictionary config
-            index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.scale, self._joint_names)
+            index_list, _, value_list = string_utils.resolve_matching_names_values(
+                self.cfg.scale, self._joint_names, preserve_order=cfg.preserve_order
+            )
             self._scale[:, index_list] = torch.tensor(value_list, device=self.device)
         else:
             raise ValueError(f"Unsupported scale type: {type(cfg.scale)}. Supported types are float and dict.")
+
         # parse clip
         if self.cfg.clip is not None:
             if isinstance(cfg.clip, dict):
                 self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
                     self.num_envs, self.action_dim, 1
                 )
-                index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._joint_names)
+                index_list, _, value_list = string_utils.resolve_matching_names_values(
+                    self.cfg.clip, self._joint_names, preserve_order=cfg.preserve_order
+                )
                 self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
             else:
                 raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
@@ -160,14 +167,14 @@ class JointPositionToLimitsAction(ActionTerm):
             # rescale within the joint limits
             actions = math_utils.unscale_transform(
                 actions,
-                self._asset.data.soft_joint_pos_limits[:, self._joint_ids, 0],
-                self._asset.data.soft_joint_pos_limits[:, self._joint_ids, 1],
+                self._asset.data.soft_joint_pos_limits.torch[:, self._joint_ids, 0],
+                self._asset.data.soft_joint_pos_limits.torch[:, self._joint_ids, 1],
             )
             self._processed_actions[:] = actions[:]
 
     def apply_actions(self):
         # set position targets
-        self._asset.set_joint_position_target(self.processed_actions, joint_ids=self._joint_ids)
+        self._asset.set_joint_position_target_index(target=self.processed_actions, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         self._raw_actions[env_ids] = 0.0
@@ -183,7 +190,9 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
 
     .. math::
 
-        \text{applied action} = \alpha \times \text{processed actions} + (1 - \alpha) \times \text{previous applied action}
+        \text{applied action} =
+            \alpha \times \text{processed actions} +
+            (1 - \alpha) \times \text{previous applied action}
 
     where :math:`\alpha` is the weight for the moving average, :math:`\text{processed actions}` are the
     processed actions, and :math:`\text{previous action}` is the previous action that was applied to the articulation's
@@ -259,12 +268,14 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         # check if specific environment ids are provided
         if env_ids is None:
-            env_ids = slice(None)
+            super().reset(slice(None))
+            self._prev_applied_actions[:] = self._asset.data.joint_pos.torch[:, self._joint_ids]
         else:
-            env_ids = env_ids[:, None]
-        super().reset(env_ids)
-        # reset history to current joint positions
-        self._prev_applied_actions[env_ids, :] = self._asset.data.joint_pos[env_ids, self._joint_ids]
+            super().reset(env_ids)
+            curr_applied_actions = self._asset.data.joint_pos.torch[env_ids[:, None], self._joint_ids].view(
+                len(env_ids), -1
+            )
+            self._prev_applied_actions[env_ids, :] = curr_applied_actions
 
     def process_actions(self, actions: torch.Tensor):
         # apply affine transformations
@@ -275,8 +286,8 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
         # clamp the targets
         self._processed_actions[:] = torch.clamp(
             ema_actions,
-            self._asset.data.soft_joint_pos_limits[:, self._joint_ids, 0],
-            self._asset.data.soft_joint_pos_limits[:, self._joint_ids, 1],
+            self._asset.data.soft_joint_pos_limits.torch[:, self._joint_ids, 0],
+            self._asset.data.soft_joint_pos_limits.torch[:, self._joint_ids, 1],
         )
         # update previous targets
         self._prev_applied_actions[:] = self._processed_actions[:]

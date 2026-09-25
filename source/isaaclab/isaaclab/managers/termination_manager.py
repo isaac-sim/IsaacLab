@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,16 +7,17 @@
 
 from __future__ import annotations
 
-import torch
 from collections.abc import Sequence
-from prettytable import PrettyTable
 from typing import TYPE_CHECKING
+
+import torch
+from prettytable import PrettyTable
 
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import TerminationTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from ..envs import ManagerBasedRLEnv
 
 
 class TerminationManager(ManagerBase):
@@ -54,9 +55,9 @@ class TerminationManager(ManagerBase):
             env: An environment object.
         """
         # create buffers to parse and store terms
-        self._term_names: list[str] = list()
-        self._term_cfgs: list[TerminationTermCfg] = list()
-        self._class_term_cfgs: list[TerminationTermCfg] = list()
+        self._term_names: list[str] = []
+        self._term_cfgs: list[TerminationTermCfg] = []
+        self._class_term_cfgs: list[TerminationTermCfg] = []
 
         # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
@@ -126,28 +127,27 @@ class TerminationManager(ManagerBase):
     """
 
     def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
-        """Returns the episodic counts of individual termination terms.
+        """Returns the per-term mean activation across environments.
 
         Args:
             env_ids: The environment ids. Defaults to None, in which case
                 all environments are considered.
 
         Returns:
-            Dictionary of episodic sum of individual reward terms.
+            Dictionary mapping each termination term to its mean activation.
         """
-        # resolve environment ids
         if env_ids is None:
             env_ids = slice(None)
         # add to episode dict
         extras = {}
-        last_episode_done_stats = self._last_episode_dones.float().mean(dim=0)
+        # move to host once; per-element .item() would sync per term
+        last_episode_done_stats = self._last_episode_dones.float().mean(dim=0).cpu()
         for i, key in enumerate(self._term_names):
             # store information
             extras["Episode_Termination/" + key] = last_episode_done_stats[i].item()
-        # reset all the reward terms
+        # reset all the termination terms
         for term_cfg in self._class_term_cfgs:
             term_cfg.func.reset(env_ids=env_ids)
-        # return logged information
         return extras
 
     def compute(self) -> torch.Tensor:

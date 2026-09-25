@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -9,7 +9,7 @@ This script demonstrates how to simulate a mobile manipulator.
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/isaaclab/test/assets/check_ridgeback_franka.py
+    uv run python source/isaaclab/test/assets/check_ridgeback_franka.py
 
 """
 
@@ -64,7 +64,7 @@ def add_robots() -> Articulation:
     robot_cfg.spawn.func("/World/Robot_1", robot_cfg.spawn, translation=(0.0, -1.0, 0.0))
     robot_cfg.spawn.func("/World/Robot_2", robot_cfg.spawn, translation=(0.0, 1.0, 0.0))
     # -- Create interface
-    robot = Articulation(cfg=robot_cfg.replace(prim_path="/World/Robot.*"))
+    robot = Articulation(cfg=robot_cfg.replace(prim_path="/World/Robot[^/]*"))
 
     return robot
 
@@ -72,7 +72,7 @@ def add_robots() -> Articulation:
 def run_simulator(sim: sim_utils.SimulationContext, robot: Articulation):
     """Runs the simulator by applying actions to the robot at every time-step"""
     # dummy action
-    actions = robot.data.default_joint_pos.clone()
+    actions = robot.data.default_joint_pos.torch.clone()
 
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -87,12 +87,15 @@ def run_simulator(sim: sim_utils.SimulationContext, robot: Articulation):
             sim_time = 0.0
             ep_step_count = 0
             # reset dof state
-            joint_pos, joint_vel = robot.data.default_joint_pos.clone(), robot.data.default_joint_vel.clone()
+            joint_pos, joint_vel = (
+                robot.data.default_joint_pos.torch.clone(),
+                robot.data.default_joint_vel.torch.clone(),
+            )
             robot.write_joint_state_to_sim(joint_pos, joint_vel)
             # reset internals
             robot.reset()
             # reset command
-            actions = torch.rand_like(robot.data.default_joint_pos) + robot.data.default_joint_pos
+            actions = torch.rand_like(robot.data.default_joint_pos.torch) + robot.data.default_joint_pos.torch
             # -- base
             actions[:, 0:3] = 0.0
             # -- gripper

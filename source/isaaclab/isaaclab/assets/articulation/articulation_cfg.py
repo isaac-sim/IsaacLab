@@ -1,15 +1,20 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from dataclasses import MISSING
+from typing import TYPE_CHECKING, Any
 
-from isaaclab.actuators import ActuatorBaseCfg
-from isaaclab.utils import configclass
-
+from ...actuators import ActuatorBaseCfg
+from ...utils import configclass
 from ..asset_base_cfg import AssetBaseCfg
-from .articulation import Articulation
+from .ordering import ArticulationOrderingConvention
+
+if TYPE_CHECKING:
+    from .articulation import Articulation
 
 
 @configclass
@@ -36,7 +41,7 @@ class ArticulationCfg(AssetBaseCfg):
     # Initialize configurations.
     ##
 
-    class_type: type = Articulation
+    class_type: type[Articulation] | str = "{DIR}.articulation:Articulation"
 
     articulation_root_prim_path: str | None = None
     """Path to the articulation root prim under the :attr:`prim_path`. Defaults to None, in which case the class
@@ -63,9 +68,66 @@ class ArticulationCfg(AssetBaseCfg):
     The soft joint position limits are accessible through the :attr:`ArticulationData.soft_joint_pos_limits` attribute.
     """
 
+    joint_ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None = None
+    """Public joint-name ordering convention or complete explicit permutation.
+
+    Accepts ``"physx"``, ``"mjwarp"``, and ``"robot_schema"`` aliases, the
+    corresponding :class:`ArticulationOrderingConvention` members, or a list or
+    tuple (normalized to a tuple at initialization) containing every backend joint name exactly once.
+
+    ``None`` is the default: public joint order follows active backend solver-view
+    order and no ordering map is installed. An order that resolves to backend
+    order is normalized to ``None`` as well, so an installed map always denotes
+    an actual permutation. Symbolic resolution and map construction occur during
+    articulation initialization only, not each step.
+    """
+
+    body_ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None = None
+    """Public body-name ordering convention or complete explicit permutation.
+
+    Accepts ``"physx"``, ``"mjwarp"``, and ``"robot_schema"`` aliases, the
+    corresponding :class:`ArticulationOrderingConvention` members, or a list or
+    tuple (normalized to a tuple at initialization) containing every backend body name exactly once.
+
+    ``None`` is the default: public body order follows active backend solver-view
+    order and no ordering map is installed. An order that resolves to backend
+    order is normalized to ``None`` as well, so an installed map always denotes
+    an actual permutation. Symbolic resolution and map construction occur during
+    articulation initialization only, not each step.
+
+    For fixed-base articulations, the backend root body must remain at public index
+    zero; all remaining bodies may be permuted. Floating-base orders may relocate
+    the root body.
+    """
+
     actuators: dict[str, ActuatorBaseCfg] = MISSING
-    """Actuators for the robot with corresponding joint names."""
+    """Actuators for the robot with corresponding joint names.
+
+    Each joint can belong to at most one actuator group.
+    """
 
     actuator_value_resolution_debug_print = False
     """Print the resolution of actuator final value when input cfg is different from USD value, Defaults to False
     """
+
+    def _post_spawn(self, stage: Any) -> None:
+        """Author ``NewtonActuator`` USD prims from :attr:`actuators` after spawn.
+
+        Invoked by :class:`~isaaclab.assets.AssetBase` once the articulation's prims
+        exist on the stage. Delegates to
+        :func:`~isaaclab.sim.schemas.define_actuator_properties`, which gates itself
+        on ``sim_cfg.use_newton_actuators`` and silently no-ops when the simulation
+        is not configured for Newton-native actuators.
+        """
+        if self.actuators is MISSING:
+            return
+        from ...sim.schemas.schemas_actuators import define_actuator_properties  # noqa: PLC0415
+
+        # In InteractiveScene, articulated assets are often spawned first under
+        # a template path (for example ``/World/template/Robot``) and cloned
+        # into ``{ENV_REGEX_NS}`` later. Author NewtonActuator prims on the
+        # actual spawned source prim so clones inherit them.
+        author_prim_path = (
+            self.spawn.spawn_path if self.spawn is not None and self.spawn.spawn_path is not None else self.prim_path
+        )
+        define_actuator_properties(author_prim_path, self.actuators, stage=stage)

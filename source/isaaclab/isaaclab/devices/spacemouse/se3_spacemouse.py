@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -7,17 +7,21 @@
 
 from __future__ import annotations
 
-import hid
-import numpy as np
 import threading
 import time
-import torch
 from collections.abc import Callable
-from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+import hid
+import numpy as np
+import torch
 from scipy.spatial.transform import Rotation
 
-from ..device_base import DeviceBase, DeviceCfg
-from .utils import convert_buffer
+from ..device_base import DeviceBase
+from .utils import convert_buffer, describe_open_failure, device_not_found_message, resolve_device_name
+
+if TYPE_CHECKING:
+    from .se3_spacemouse_cfg import Se3SpaceMouseCfg
 
 
 class Se3SpaceMouse(DeviceBase):
@@ -42,6 +46,15 @@ class Se3SpaceMouse(DeviceBase):
 
     """
 
+    SUPPORTED_DEVICES = (
+        "SpaceMouse Compact",
+        "SpaceMouse Wireless",
+        "SpaceNavigator",
+        "SpaceNavigator for Notebooks",
+        "3Dconnexion Universal Receiver",
+    )
+    """Product names of the 3Dconnexion models handled by this device."""
+
     def __init__(self, cfg: Se3SpaceMouseCfg):
         """Initialize the space-mouse layer.
 
@@ -64,7 +77,7 @@ class Se3SpaceMouse(DeviceBase):
         self._delta_pos = np.zeros(3)  # (x, y, z)
         self._delta_rot = np.zeros(3)  # (roll, pitch, yaw)
         # dictionary for additional callbacks
-        self._additional_callbacks = dict()
+        self._additional_callbacks = {}
         # run a thread for listening to device updates
         self._thread = threading.Thread(target=self._run_device)
         self._thread.daemon = True
@@ -72,7 +85,9 @@ class Se3SpaceMouse(DeviceBase):
 
     def __del__(self):
         """Destructor for the class."""
-        self._thread.join()
+        thread = getattr(self, "_thread", None)
+        if thread is not None and thread.is_alive():
+            thread.join()
 
     def __str__(self) -> str:
         """Returns: A string containing the information of joystick."""
@@ -130,22 +145,32 @@ class Se3SpaceMouse(DeviceBase):
     def _find_device(self):
         """Find the device connected to computer."""
         found = False
+        enumerated_devices: list = []
+        open_failures: list[str] = []
+        last_error: OSError | None = None
         # implement a timeout for device search
         for _ in range(5):
-            for device in hid.enumerate():
-                if (
-                    device["product_string"] == "SpaceMouse Compact"
-                    or device["product_string"] == "SpaceMouse Wireless"
-                    or device["product_string"] == "3Dconnexion Universal Receiver"
-                ):
-                    # set found flag
-                    found = True
-                    vendor_id = device["vendor_id"]
-                    product_id = device["product_id"]
-                    # connect to the device
-                    self._device.close()
+            enumerated_devices = hid.enumerate()
+            # a supported device that cannot be opened must not hide another one that can, so keep
+            # scanning and only report the failures if no device could be opened at all
+            open_failures = []
+            for device in enumerated_devices:
+                device_name = resolve_device_name(device, self.SUPPORTED_DEVICES)
+                if device_name is None:
+                    continue
+                vendor_id = device["vendor_id"]
+                product_id = device["product_id"]
+                # connect to the device
+                try:
                     self._device.open(vendor_id, product_id)
-                    self._device_name = device["product_string"]
+                except OSError as exc:
+                    open_failures.append(describe_open_failure(device_name, vendor_id, product_id, exc))
+                    last_error = exc
+                    continue
+                # set found flag
+                found = True
+                self._device_name = device_name
+                break
             # check if device found
             if not found:
                 time.sleep(1.0)
@@ -153,7 +178,9 @@ class Se3SpaceMouse(DeviceBase):
                 break
         # no device found: return false
         if not found:
-            raise OSError("No device found by SpaceMouse. Is the device connected?")
+            raise OSError(
+                device_not_found_message(self.SUPPORTED_DEVICES, enumerated_devices, open_failures)
+            ) from last_error
 
     def _run_device(self):
         """Listener thread that keeps pulling new messages."""
@@ -202,14 +229,3 @@ class Se3SpaceMouse(DeviceBase):
                             self._additional_callbacks["R"]()
                     if data[1] == 3:
                         self._read_rotation = not self._read_rotation
-
-
-@dataclass
-class Se3SpaceMouseCfg(DeviceCfg):
-    """Configuration for SE3 space mouse devices."""
-
-    gripper_term: bool = True
-    pos_sensitivity: float = 0.4
-    rot_sensitivity: float = 0.8
-    retargeters: None = None
-    class_type: type[DeviceBase] = Se3SpaceMouse

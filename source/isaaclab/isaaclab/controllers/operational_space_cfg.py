@@ -1,21 +1,25 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from collections.abc import Sequence
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from ..utils import configclass
 
-from .operational_space import OperationalSpaceController
+if TYPE_CHECKING:
+    from .operational_space import OperationalSpaceController
 
 
 @configclass
 class OperationalSpaceControllerCfg:
     """Configuration for operational-space controller."""
 
-    class_type: type = OperationalSpaceController
+    class_type: type[OperationalSpaceController] | str = "{DIR}.operational_space:OperationalSpaceController"
     """The associated controller class."""
 
     target_types: Sequence[str] = MISSING
@@ -37,6 +41,24 @@ class OperationalSpaceControllerCfg:
 
     partial_inertial_dynamics_decoupling: bool = False
     """Whether to ignore the inertial coupling between the translational & rotational motions."""
+
+    inertia_conditioning_thresholds: tuple[float, float] = (1.0e-5, 1.0e-4)
+    """Lower and upper relative eigenvalue thresholds for inertial decoupling near singularities.
+
+    Each eigenvalue of :math:`J M^{-1} J^T` is divided by its largest eigenvalue. Directions at or below
+    the lower threshold receive damping equal to the lower threshold times the largest eigenvalue,
+    added before inversion. A cubic smoothstep reduces this damping to zero at the upper threshold,
+    where the usual inverse is recovered. This bounds amplification without discarding weak directions.
+    Inertia calculations use double precision to limit cancellation near singularities.
+    Thresholds must satisfy ``0 < lower < upper <= 1``. With partial decoupling, each block is filtered
+    separately. The ratios depend on the task's translational and rotational scaling.
+
+    Full inertial decoupling uses the same damping for posture control: undamped directions remain
+    dynamically decoupled, while weak directions gradually become available to posture control.
+    Decoupling is approximate in damped directions. For singularity handling in operational space, see
+    `Chang and Khatib (1995) <https://khatib.stanford.edu/publications/pdfs/Chang_1995.pdf>`_.
+    Actuator effort limits must still be enforced separately.
+    """
 
     gravity_compensation: bool = False
     """Whether to perform gravity compensation."""

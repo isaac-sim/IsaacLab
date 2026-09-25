@@ -1,0 +1,1210 @@
+Changelog
+---------
+
+3.4.0 (2026-09-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an OVRTX ``render_batch()`` implementation that submitted all requested camera
+  products in one native renderer step while preserving the single-camera ``render()`` interface.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX joint-wrench sensors applying an extra frame transformation to readings that are already
+  expressed in the child-side joint frame at the joint anchor, and removed the redundant USD frame buffers.
+  Force and torque values changed for joints with non-identity child frames; the documented frame
+  convention is unchanged.
+
+
+3.3.2 (2026-09-24)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Cached OVRTX render-var frame keys during camera initialization, avoiding repeated version checks and
+  path construction during frame processing. Existing camera output behavior and APIs remained unchanged.
+* Derived OVRTX cloned camera paths from the authored absolute source path in
+  ``CameraRenderSpec.camera_prim_paths``. Remove the ``camera_path_relative_to_env_0`` argument
+  when constructing render specs; OVRTX validated the source path under
+  ``/World/envs/env_0/`` and resolved the per-environment paths internally.
+* Changed the external-wrench writers to submit through
+  :meth:`~isaaclab.utils.wrench_composer.WrenchComposer.get_forces_and_torques`. A wrench that is already
+  global-frame at the center of mass is now packed without rotating it into the body frame and back,
+  and an all-local-frame wrench no longer reads the body transforms before packing.
+* Published OVPhysX rigid poses directly into shared scene-data storage and invalidated cached transforms after
+  physics steps and manual pose writes. Binding failures were surfaced instead of publishing incomplete poses.
+* Routed OVRTX rigid transforms through cached SDP matrix requests, preserving authored scales without a Newton
+  rigid-state intermediary. Existing renderer configurations remained valid; Newton-backed deformable, particle,
+  and cable geometry transport remained unchanged.
+* Captured OVRTX authored scales from clone-plan prototypes and shared roots, including bodies outside the
+  default environment namespace.
+
+Fixed
+^^^^^
+
+* Fixed OVRTX scenes with more than one camera failing at startup with
+  ``Layout-compatible non-array tensor shape[0] (N) must equal binding prim count (1)``. Cameras
+  registered after the first one bound the camera prims authored on the USD stage, which is one
+  prototype per spawn variant rather than one per environment whenever USD replication does not
+  run, as in kitless runs on OvPhysx and Newton. Every camera now binds one prim per environment,
+  for both its transform and its calibration columns.
+
+
+3.3.1 (2026-09-23)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Centralized camera identity and simplified USD helper inputs. Pass ``render_scope_name``
+  explicitly to ``OVRTXCameraRenderData`` and render-var configuration helpers. Pass ``spec`` and ``render_data``
+  to ``build_render_scope_usd`` and ``build_render_product_as_string`` instead of individual camera fields.
+  The product builder returns a complete USD layer string; pass it directly to USD loaders without adding
+  a header or default-prim metadata, and use ``OVRTXCameraRenderData.render_product_path`` instead of
+  unpacking a path from the builder's return value.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``build_render_var_frame_keys`` and ``RENDER_VAR_FRAME_KEYS``.
+  Use ``render_var_prim_names_by_source()`` for the static source-to-prim-name mapping. Direct frame readers
+  must use source names on OVRTX 0.4 and ``/<camera scope>/Vars/<prim name>`` paths on OVRTX 0.5 and later.
+
+Fixed
+^^^^^
+
+* Fixed OVRTX 0.5 camera output and segmentation metadata lookups to use each camera's
+  authored RenderVar paths, preventing empty images and missing segmentation maps.
+  Kept OVRTX 0.4 support by resolving frame keys in the shared output lookup helper.
+* Fixed OVRTX cloning of homogeneous scenes, where every spawner is single-variant and the clone plan replicates the
+  environment roots themselves. The exported stage retained those roots, so cloning targeted prims that already
+  existed. The env roots were trimmed for such plans and kept for plans whose rows target prims beneath them.
+
+
+3.3.0 (2026-09-22)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated the optional OV dependencies to ``ovrtx==0.5.0.377615``,
+  ``ovstage==0.2.0.377349``, ``ovphysx==0.6.3``, and ``omniverseclient==2.74.0``. Upgrade
+  them together with ``uv sync --inexact --extra ov``.
+* **Breaking:** OvPhysX CPU-backed property writes require CPU-resident ``values``,
+  ``indices``, and ``mask`` arrays.
+* Declared OVRTX's Newton geometry adapter before cloning so it used the shared clone plan.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX ``FrameTransformer`` reusing the last offset when distinct bodies
+  share the same implicit frame name.
+* Fixed OVRTX cameras sharing a renderer to use separate tiled render products and pose bindings,
+  preserving each sensor's resolution, output types, and camera poses across environment copies.
+  Released each camera's render product during cleanup.
+* Applied runtime camera calibration through bulk device writes in both OVRTX binding and ovstage
+  paths. Previously camera updates only synchronized poses, leaving calibration changes unapplied
+  in the renderer-owned scene. Native tiled-projection restrictions were unchanged.
+* Scoped calibration bindings and queries to each camera's render data so cameras sharing a renderer
+  no longer overwrote each other's calibration. Accessed native resources through the shared backend
+  for calibration binding, updates, and cleanup.
+
+
+3.2.0 (2026-09-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``OvPhysxBackendCfg`` and ``OVRTXBackendCfg`` for cfg-only native resource acquisition through the registry.
+  ``OvPhysxCfg`` continued to configure the physics manager and its scene policy.
+* Exposed ``OvPhysxManager.backend`` and ``OVRTXRenderer.backend`` as borrowed native resources owned by the registry.
+
+Changed
+^^^^^^^
+
+* Moved OVPhysX runtime and attached OVStage ownership into the simulation backend registry, preserving
+  the existing reset, native teardown order, and public ``OvPhysxManager.get_physx_instance()`` API.
+* Moved OVRTX engine and detached-stage ownership into the same registry. Camera bindings stayed on the renderer;
+  renderer closure released only its bindings, leaving shared native resources alive until simulation shutdown.
+  Native engine destruction preceded detached-stage release, including cleanup before scene attachment.
+
+
+3.1.3 (2026-09-17)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :func:`~isaaclab_ov.stage.create_ovstage` to select the ovstage hierarchy computation
+  model from the installed ovstage version instead of always requesting
+  ``HierarchyComputationModel.CPU_INCREMENTAL``. ovstage 0.2 and later place objects correctly
+  under ``GPU_INCREMENTAL``, which moves world-transform computation off the host; ovstage 0.1
+  keeps the host model. The version is resolved once at import by the new
+  :mod:`isaaclab_ov.ovstage_compat` module. No migration is required: the public extras stay
+  pinned to ``ovstage==0.1.1.355824``, so the host model remains in force until that pin moves,
+  and a missing or unparsable install also keeps the host model.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX articulation joint properties (stiffness, damping, armature, position/velocity/effort
+  limits, friction) and body mass/inertia being re-read from their CPU-only bindings on every simulation
+  step. These static properties are now read once after invalidation and kept current by the
+  ``write_*`` / ``set_*`` setters. This removes three blocking host round-trips per physics step from the
+  native Newton actuator path, which made it several times slower than the Isaac Lab actuator path on
+  OVPhysX at large environment counts.
+
+
+3.1.2 (2026-09-16)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed implicit actuator PD estimates being submitted as additional joint forces
+  alongside the native ovphysx joint drives. Implicit actuators now submit only
+  their feedforward effort commands while retaining PD estimates as telemetry.
+
+
+3.1.1 (2026-09-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Disabled the reversed-joint sign correction for OvPhysX 0.6 and newer, which already returned Jacobians and mass matrices
+  in the public joint basis. Preserved the correction for the default OvPhysX 0.5.11
+  runtime and custom joint and body ordering on both versions.
+* Removed an unnecessary reversed-joint sign correction from gravity compensation forces on OvPhysX 0.5.11.
+* Registered the OvPhysX codeless physics schemas with OVStage before scene population when its registration API was
+  available, including when the host USD registry already provided those schemas.
+* Fixed :class:`~isaaclab_ov.sensors.ContactSensor` reporting the last in-contact force forever after a body
+  left contact on GPU (issue #7613), when the sensor was configured with ``history_length=0`` and its data
+  was read less often than every physics step (for example once per policy step with
+  ``lazy_sensor_update=True``). PhysX zeroes the net contact force of a body only on the exact physics step
+  where its contact is lost, so a lazily refreshed sensor skipped that step. The ovphysx contact bindings
+  are now read on every physics step regardless of the history length, while the warp kernels that consume
+  the fetched buffers stay lazy.
+
+
+3.1.0 (2026-09-08)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`compute_first_contact` and :meth:`compute_first_air` on the contact sensor silently
+  missing touchdowns and lift-offs once the simulation had run for a few seconds (issue #7283).
+  Their ``abs_tol`` argument now defaults to ``None``, which resolves to half the sensor update
+  interval instead of a fixed ``1e-8``. The old value was around 100x smaller than the float32
+  rounding error of the sensor clock, so most transitions were dropped. Callers that relied on the
+  previous behavior can pass ``abs_tol=1e-8`` explicitly.
+  Both methods now also refresh outdated sensor buffers before comparing, so a sensor with
+  ``history_length=0`` no longer reports the previous step's transitions when it is queried before
+  its data is read.
+
+
+3.0.2 (2026-09-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Projected source-only world frames from clone-plan positions when destination USD environment prims are absent.
+
+
+3.0.1 (2026-09-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added version-selected support for the OVPhysX 0.6 ``warmup()`` and ``destroy()``
+  lifecycle APIs while retaining the released 0.5.11 ``warmup_gpu()`` and
+  ``release()`` path. The public extras remain pinned to ``ovphysx==0.5.11``.
+
+Fixed
+^^^^^
+
+* Fixed fixed tendons being named after the joint carrying the tendon's root rather than after the
+  tendon instance itself, which gave the same tendon a different name on each physics engine and
+  left it unreachable from a shared configuration.
+
+* Fixed every fixed tendon being counted twice, which made ``fixed_tendon_ids=None`` address twice
+  as many tendons as the articulation has and index past the end of every fixed-tendon buffer. The
+  prim's applied schemas were read from both ``GetAppliedSchemas()`` and the ``apiSchemas``
+  metadata, which report the same entries.
+
+
+3.0.0 (2026-09-05)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_ov.tensor_types.DOF_DRIVE_TYPE`,
+  :attr:`~isaaclab_ov.tensor_types.DOF_DRIVE_MODEL`,
+  :attr:`~isaaclab_ov.tensor_types.BODY_DISABLE_GRAVITY`,
+  :attr:`~isaaclab_ov.tensor_types.CONTACT_OFFSET`,
+  :attr:`~isaaclab_ov.tensor_types.REST_OFFSET`,
+  :attr:`~isaaclab_ov.tensor_types.RIGID_BODY_DISABLE_GRAVITY`,
+  :attr:`~isaaclab_ov.tensor_types.RIGID_BODY_CONTACT_OFFSET`, and
+  :attr:`~isaaclab_ov.tensor_types.RIGID_BODY_REST_OFFSET` tensor type aliases,
+  documenting the shape, dtype and units of each.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Routed production OvPhysX cloning through the simulation-owned
+  ``OvPhysxReplicateContext.replicate(plan)`` contract and removed ``PHYSICS_CONTEXT``, ``queue(...)``,
+  and ``queue_mapping(...)``. Standalone tooling may continue to use ``ovphysx_replicate(...)`` with
+  NumPy arrays; its unused ``device`` argument was removed.
+* Changed the IMU and PVA sensors to read rigid-body accelerations from the solver through the
+  ``RIGID_BODY_ACCELERATION`` tensor binding, including the transport terms for the sensor offset
+  from the center of mass, instead of finite-differencing the body velocity between updates. The
+  reported acceleration is available from the first update, is independent of the sensor update
+  period, and no longer spikes when velocities are written directly (for example on environment
+  resets or teleports).
+
+Fixed
+^^^^^
+
+* Fixed OVRTX transform synchronization dropping authored scale from clone-plan destinations.
+* Fixed :class:`~isaaclab_ov.sim.views.OvPhysxView` routing eight CPU-resident
+  tensor types to the simulation device. The per-collision-shape contact and rest
+  offsets, the articulation and rigid-body gravity-disable flags, and the DOF drive
+  type and drive model are CPU-resident even on a GPU simulation, but were absent
+  from the internal CPU-only classification. Reads and writes of these types
+  incurred a hidden per-call host-to-device staging copy, and a correctly placed
+  host buffer was rejected with ``OvPhysxView.DeviceMismatch``. Residency was
+  measured on a GPU simulation by counting CUDA memcpys around a binding read.
+* **Breaking:** Fixed ``articulation_dof_drive_type`` not being classified as
+  read-only. The underlying tensor type is read-only, but
+  :meth:`~isaaclab_ov.sim.views.OvPhysxView.set_attribute` previously accepted
+  writes to it and silently forwarded them. Such calls now raise
+  ``OvPhysxView.ReadOnlyAttribute``. Remove any write to this attribute; drive
+  type is authored through the USD drive schema, not the tensor path.
+* Fixed :meth:`~isaaclab_ov.physics.OvPhysxManager.get_gravity` returning the construction-time
+  gravity after :meth:`~isaaclab_ov.physics.OvPhysxManager.set_gravity` changed the running scene.
+  The manager now tracks the applied gravity vector, while ``SimulationCfg.gravity`` stays the
+  nominal value that randomization terms resample from.
+* Fixed :class:`~isaaclab_ov.sensors.Imu` and :class:`~isaaclab_ov.sensors.Pva` reporting gravity
+  captured at sensor initialization. Both sensors now re-read the scene gravity on every update, so
+  runtime randomization through :func:`~isaaclab.envs.mdp.events.randomize_physics_scene_gravity`
+  is reflected in the accelerometer bias and the projected gravity direction.
+
+
+2.6.0 (2026-09-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``OVRTX_SHADER_CACHE_PATH`` support to
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` for selecting the NVIDIA driver
+  shader-cache directory.
+
+
+2.5.0 (2026-09-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.enable_shadows`, which authors
+  ``omni:rtx:minimal:castShadows`` on the OVRTX render product. It applies to the
+  ``simple_shading_*`` data types, which are the ones that select RTX Minimal mode; OVRTX's
+  path-traced modes provide no shadow switch and always cast shadows.
+* Added translation of :attr:`~isaaclab.physics.PhysicsCfg.deterministic` in ``OvPhysxManager``, which
+  enables ``physxScene:enableEnhancedDeterminism``. Reproducibility on OvPhysX is best-effort and is
+  not verified end to end.
+
+Changed
+^^^^^^^
+
+* Changed the OVRTX renderer to turn shadows off by default in RTX Minimal mode. Renders that need
+  cast shadows from the ``simple_shading_*`` data types must now set
+  ``OVRTXRendererCfg(enable_shadows=True)``.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX CPU-only property writes (joint stiffness, damping, limits, armature, friction,
+  body mass, center of mass, and inertia) on GPU simulations consuming their pinned-host staging
+  buffers before the asynchronous device-to-host copy had completed. Environments could silently
+  receive stale (typically zero) property values, which made repeated training runs diverge.
+  Every pinned-host staging copy in :class:`~isaaclab_ov.assets.Articulation`,
+  :class:`~isaaclab_ov.assets.RigidObject`, and :class:`~isaaclab_ov.assets.RigidObjectCollection`
+  now waits for the device stream before the CPU setter runs.
+
+
+2.4.0 (2026-08-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config-owned construction to ``OVRTXRendererCfg`` through its ``class_type`` field.
+
+
+2.3.1 (2026-08-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added compatibility with the OVRTX 0.5 ``frame.render_vars`` API, which keys render vars by the
+  authored RenderVar prim path (for example ``/Render/Vars/LdrColor``) instead of the source name.
+  The key form is resolved from the installed ``ovrtx`` version when
+  :mod:`isaaclab_ov.renderers.ovrtx_compat` is imported; OVRTX 0.4 keeps source-name keys and the
+  public extras stay pinned to ``ovrtx==0.4.1.364340``.
+
+Changed
+^^^^^^^
+
+* Updated the optional ovphysx runtime to 0.5.11. OVStage attachment now honors
+  explicit CUDA device selection. OVStage-backed articulation link and DOF
+  indices now use stable path-derived ordering, which may differ from 0.5.10;
+  use reported paths or names when identity matters.
+
+
+2.3.0 (2026-08-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_ov.physics.OvPhysxCfg.cooked_collider_cache_dir` to select where OVPhysX
+  writes its cooked-collider cache. It defaults to a per-user directory under the system temporary
+  directory, so cooked colliders are reusable across runs from that directory. Set it to ``None`` to
+  use the runtime default.
+
+Fixed
+^^^^^
+
+* Fixed OvPhysX writing its cooked-collider cache into the directory holding the Python interpreter,
+  which logged ``omni.datastore`` errors when that directory was not writable.
+
+
+2.2.3 (2026-08-27)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the ``isaaclab_ov.renderers.ovrtx_mapping`` module
+  (:func:`map_attribute_for_warp_writes` and ``cuda_device_id``). Nothing calls it since GPU
+  transform updates moved to caller-owned buffers with
+  ``binding.write(data_access=DataAccess.ASYNC, cuda_stream=...)``, and mapping OVRTX attribute
+  memory for per-frame GPU writes is an anti-pattern: every map/unmap cycle is a hidden
+  ``cudaMalloc``/``cudaFree``, and the API is deprecated in ovrtx and refused in BORROW attach
+  mode. Migration: write into a persistent caller-owned Warp buffer and hand it to
+  ``binding.write(..., cuda_stream=<producing Warp stream>)``; if mapping is unavoidable, pass the
+  producing stream explicitly via ``unmap(stream=...)`` — the mapping's context manager commits
+  without any CUDA sync.
+
+Fixed
+^^^^^
+
+* Fixed the OVRTX renderer re-deriving its CUDA device per call site from the device string, which
+  split a bare ``"cuda"`` across GPUs on multi-GPU processes: render-product device ids parsed it
+  to device 0 while Warp resolved kernel launches and sync streams on its current CUDA device. The
+  renderer now resolves the Warp device once when the render spec arrives, normalizes its device
+  string from it, and derives the render-product device ids and every CUDA sync stream — attribute
+  writes on both the legacy and ovstage paths, and render-var reads — from the cached device.
+
+
+2.2.2 (2026-08-26)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed an illegal memory access (CUDA error 700) when rendering with OVRTX on a device other than
+  ``cuda:0``. The OVRTX render product is now pinned to the renderer's CUDA device through its
+  ``deviceIds`` attribute, so its render var buffers are allocated on the same device as the Warp
+  kernels that extract camera tiles from them. Previously OVRTX chose the device itself, which on a
+  multi-GPU machine placed the buffers on ``cuda:0`` while the extraction kernels ran on the
+  simulation device.
+
+
+2.2.1 (2026-08-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX object and camera transform updates to write a caller-owned GPU buffer instead of mapping and unmapping OVRTX memory every frame.
+
+
+2.2.0 (2026-08-22)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added batched GPU material-channel writes for both OVRTX detached-scene APIs.
+
+Changed
+^^^^^^^
+
+* Changed the OVRTX ovstage path to write object transforms, camera transforms and deformable or
+  particle points straight from their Warp GPU buffers as CUDA DLTensors, removing the per-frame
+  host copies that ``ovstage 0.1.0`` required.
+* Changed those writes to be ordered by handing ovstage the producing Warp stream
+  (``write_attribute(cuda_stream=...)``), replacing the device-wide ``wp.synchronize_device`` with
+  stream-scoped producer ordering, and matching the legacy OVRTX binding path. The write is still
+  awaited, so the calling thread can block; the gain is the removed host copy and the narrower
+  synchronization scope, not a nonblocking handoff.
+* **Breaking:** Changed :class:`~isaaclab_ov.renderers.OVRTXRenderer` to raise :class:`ValueError` when a camera
+  requests ``rgb`` or ``rgba`` together with a ``simple_shading_*`` data type, or more than one
+  distinct ``simple_shading_*`` data type. These outputs all read the ``LdrColor`` render var and
+  simple shading additionally requires the render product to be in RTX Minimal mode, so one render
+  product cannot serve them. Previously the conflict was resolved silently and produced wrongly
+  shaded or empty images. Request the conflicting outputs from separate cameras. Repeated identical
+  simple-shading requests still collapse to one render var.
+
+Fixed
+^^^^^
+
+* Cleared ``ContactSensorData.force_matrix_w_history`` when resetting an
+  OVPhysX contact sensor.
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` authoring only one pixel render var when a
+  camera requested several data types, which left every other requested output empty. The render
+  product now authors one render var per requested data type, so combinations such as ``rgb`` with
+  ``normals``, ``albedo``, ``motion_vectors``, segmentation, and depth are rendered together.
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` filling ``depth``,
+  ``distance_to_image_plane``, and ``distance_to_camera`` from a single depth render var, which
+  returned euclidean distance for the image-plane outputs (or the reverse) when they were requested
+  together. Each output is now extracted from the source that measures it.
+
+
+2.1.1 (2026-08-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added live scene gravity updates through sealed OvStage control ordinals.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX shape material bindings to allocate CPU buffers during GPU simulation.
+
+
+2.1.0 (2026-08-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OVPhysX execution of supported native explicit actuators through the
+  shared host adapter when
+  :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` is enabled.
+* Added OVRTX cable curve point updates driven by Newton segment shapes.
+* Added :func:`~isaaclab_ov.renderers.map_attribute_for_warp_writes`, a context manager that maps
+  an OVRTX attribute binding for CUDA writes and unmaps it with the producing Warp stream as the
+  CUDA sync. Use it instead of ``with binding.map(...)`` for GPU writes: the binding's own context
+  manager unmaps without a CUDA sync, so OVRTX's commit is not ordered against the fill.
+
+Changed
+^^^^^^^
+
+* Routed OVPhysX articulation actuator setup, compute, reset, and command
+  submission through :class:`~isaaclab.actuators.ActuatorCollection`.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` dropping authored USD scale when syncing
+  Newton body transforms into OVRTX, which rendered scaled assets (for example Shadow Hand) at
+  unit scale.
+* Fixed the OVRTX renderer's GPU transform writes (object and camera ``omni:xform`` mappings)
+  committing without CUDA synchronization against the Warp kernels that fill the mapped buffers.
+  The commit is now ordered on the producing Warp stream, as the OVRTX API contract requires;
+  previously the ordering held only through CUDA legacy default-stream serialization, an
+  implementation detail the contract does not promise.
+
+
+2.0.5 (2026-08-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the optional OVRTX runtime dependency to the public ``ovrtx==0.4.1.364340`` package and
+  enabled synchronous texture streaming for deterministic material readiness. Reinstall the OVRTX
+  extra with ``uv sync --extra ovrtx`` to use the supported runtime.
+* Updated OvPhysX to ``0.5.10`` and OVStage to ``0.1.1.355824``, which must be installed together.
+  Reinstall the Omniverse extras with ``uv sync --extra ov`` to use the supported runtime pair.
+
+
+2.0.4 (2026-08-18)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Improved OVRTX camera-output throughput on Linux. A render var has to be read in an order that
+  respects render completion, and on Linux blocking the calling thread on the render-completion
+  event measures faster than a GPU-side wait. Camera outputs are now read that way on Linux, worth
+  15-70% more end-to-end throughput depending on task and environment count. Other platforms order
+  the read on the consuming Warp stream, which Linux can also be switched to by setting
+  ``ISAAC_LAB_OVRTX_DISABLE_LINUX_CUDA_CPU_SYNC=1``. Camera outputs themselves are unchanged.
+
+
+2.0.3 (2026-08-16)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Constrained the optional OVRTX runtime to ``ovrtx>0.4.0,<0.4.1`` to retain the validated
+  OVRTX 0.4.0 rendering outputs. Users with OVRTX 0.4.1 should downgrade until its output
+  changes are adopted with updated rendering baselines.
+* Changed :class:`~isaaclab_ov.renderers.OVRTXRenderer` to suppress the OVRTX deprecation warnings
+  emitted for the legacy stage API. Isaac Lab still drives that API until the ovstage path becomes
+  the default, so the warnings were noise no user of this renderer could act on. The option is set
+  only when the installed OVRTX build exposes it, so older wheels are unaffected.
+
+Fixed
+^^^^^
+
+* Fixed OVRTX environment placement by authoring root translations from the clone plan after
+  cloning instead of capturing transforms from the USD stage.
+
+
+2.0.2 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+
+Fixed
+^^^^^
+
+* Fixed the OVRTX deformable render bindings leaving the environment slot unresolved, so they
+  bound against a path expression instead of the concrete per-environment mesh prims.
+* Fixed physics views receiving a regular expression where the engine expects a glob. The
+  conversion rewrote only ``.*`` and left a segment-safe wildcard untouched, so the view matched
+  no bodies; it now goes through :func:`~isaaclab.sim.utils.path_expr_to_glob`.
+
+
+2.0.1 (2026-08-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.physics.OvPhysxManager` attaching its OVStage at an
+  unsealed write ordinal. ``ovstage.population.open_usd_from_string()`` only
+  completes population; it never commits the ordinal it wrote to. Newer
+  ``ovphysx`` releases fail the parse when attaching at an unsealed ordinal and
+  yield an empty scene, so every articulation, rigid body, and sensor binding
+  resolved to zero prims. The manager now calls ``advance_write_floor().wait()``
+  to seal the ordinal before ``attach_ovstage()``.
+
+
+2.0.0 (2026-08-12)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Merged the ``isaaclab_ovphysx`` distribution into
+  ``isaaclab_ov``. Install ``isaaclab_ov`` and replace
+  ``isaaclab_ovphysx`` imports with ``isaaclab_ov``.
+
+
+1.0.0 (2026-08-11)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the OV-RTX override of the unused temporal-camera-data capability method.
+
+
+0.10.5 (2026-08-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ``isaaclab_ppisp`` import error raised by
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` when ``CameraCfg.isp_cfg`` is set. It
+  pointed at ``pip install isaaclab[all]``, but the ``all`` extra never carried
+  ``isaaclab_ppisp`` -- the extension ships with the base ``isaaclab`` wheel.
+
+
+0.10.4 (2026-08-06)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX installations to use the OVStage release compatible with the pinned OV runtime stack.
+
+
+0.10.3 (2026-08-05)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed cameras using the OVRTX renderer losing their MDL materials after an environment is torn
+  down, which left surfaces such as the ground plane unshaded in the ``simple_shading_diffuse_mdl``
+  and ``simple_shading_full_mdl`` outputs. Per-camera cleanup no longer releases the stage queries,
+  tensor bindings and render products shared by every camera on the backend; those are released by
+  :meth:`~isaaclab.renderers.BaseRenderer.close` when the simulation is torn down.
+
+
+0.10.2 (2026-08-04)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX missing-runtime errors to recommend supported uv-managed and
+  direct-wheel commands.
+
+
+0.10.1 (2026-08-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the missing OVRTX runtime error to recommend the uv-managed ``ovrtx`` extra.
+
+
+0.10.0 (2026-07-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an opt-in ovstage scene-ownership path to :class:`~isaaclab_ov.renderers.OVRTXRenderer`,
+  enabled by setting ``ISAAC_LAB_OVRTX_USE_OVSTAGE=1`` with the ``ovstage`` wheel installed. Under
+  this split-ownership model ovstage owns the scene data and ovrtx owns only rendering, replacing
+  the renderer-owned scene APIs deprecated in ovrtx 0.4. The path is selected once per renderer and
+  covers stage population, environment cloning, scene partitions, and the camera, rigid-body,
+  deformable, and particle-cloud updates. It defaults to off, so existing deployments are
+  unaffected until the variable is set.
+* Added support for :attr:`~isaaclab.sensors.camera.CameraCfg.background_color` in
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer`. When set, authors
+  ``omni:rtx:background:source:type = "color"`` and ``omni:rtx:background:source:color`` on the
+  USD render product instead of the default ``"domeLight"`` background.
+
+
+0.9.0 (2026-07-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated :class:`~isaaclab_ov.renderers.OVRTXRenderer` to use the renamed
+  ``"instance_segmentation"`` data type key (previously ``"instance_segmentation_fast"``).
+  Output buffer and ``camera.data.info`` dict keys now use the new name.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` to return ``int32`` instance IDs (shape
+  ``(B, H, W, 1)``) when ``colorize_instance_segmentation=False``, matching the Isaac RTX renderer.
+  Previously the non-colorized path incorrectly declared ``uint32``.
+
+
+0.8.0 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``idToLabels`` (instance to USD prim path) and ``idToSemantics`` (instance to semantic label)
+  mappings to the OVRTX renderer's ``instance_segmentation_fast`` output, exposed through
+  ``camera.data.info["instance_segmentation_fast"]``. The mappings are decoded from the
+  ``StableIdSemanticIdMap``, ``StableIdMap``, and ``SemanticIdMap`` render vars and are keyed by the raw
+  ``(r, g, b, a)`` color tuple when ``colorize_instance_segmentation=True`` (matching Replicator's fast
+  instance-segmentation node) or by the raw instance ID otherwise.
+* Added OVRTX rendering to stream Newton MPM particle positions into registered
+  ``UsdGeom.Points`` prims, so kitless cameras can visualize MPM particle clouds.
+
+Changed
+^^^^^^^
+
+* Changed the colorized ``semantic_segmentation`` ``idToLabels`` keys produced by the OVRTX renderer from the
+  stringified ``"(r, g, b, a)"`` form to raw ``(r, g, b, a)`` tuples, matching Replicator's fast segmentation
+  nodes and the Isaac RTX renderer. Index ``camera.data.info["semantic_segmentation"]["idToLabels"]`` with an
+  ``(r, g, b, a)`` tuple instead of its string form.
+* Removed support for ``instance_id_segmentation_fast`` from the OVRTX renderer, as it has no
+  real-world sensor equivalent. Requesting this data type via
+  :class:`~isaaclab_ov.renderers.OVRTXRendererCfg` will now raise an error at camera allocation
+  time. Use ``instance_segmentation_fast`` or ``semantic_segmentation`` instead.
+* Updated the optional OVRTX runtime dependency to ``ovrtx>=0.4.0,<0.5.0``. Reinstall the OVRTX
+  extra with ``./isaaclab.sh -i 'ov[ovrtx]'`` to use the supported 0.4 runtime.
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``,
+  ensuring standalone pip installs resolve local checkouts without a package index.
+
+Fixed
+^^^^^
+
+* Fixed the OVRTX renderer raising ``RuntimeError: Cannot convert Torch type torch.uint32`` when reading a
+  non-colorized ID segmentation output (``semantic_segmentation``, ``instance_segmentation_fast``, or
+  ``instance_id_segmentation_fast`` with the corresponding ``colorize_*`` flag set to ``False``) on Torch
+  builds that expose ``torch.uint32``.
+* Fixed the OVRTX renderer producing string keys (e.g. ``"0"``, ``"1"``, ``"2"``) instead of integer keys
+  in the non-colorized ``idToLabels`` and ``idToSemantics`` mappings for ``semantic_segmentation`` and
+  ``instance_segmentation_fast``. Index ``camera.data.info[...]["idToLabels"]`` and
+  ``camera.data.info[...]["idToSemantics"]`` with integer pixel/semantic IDs when
+  ``colorize_semantic_segmentation=False`` or ``colorize_instance_segmentation=False``.
+* Worked around OVRTX 0.4 tiled RenderProducts retaining only cameras present at stage load by
+  initially authoring only the resolvable source camera and rewriting the relationship after runtime cloning.
+
+
+0.7.1 (2026-07-15)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added deformable body rendering support in
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` for Newton surface and volume
+  deformables. :meth:`~isaaclab_ov.renderers.ovrtx_renderer.OVRTXRenderer.update_geometries`
+  syncs ``particle_q`` mesh points into OVRTX bindings each frame through
+  asynchronous zero-copy handoffs.
+
+Fixed
+^^^^^
+
+* Fixed deprecation warnings emitted during OVRTX rendering by replacing uses
+  of the deprecated ``MappedRenderVar.tensor`` accessor with direct DLPack
+  reads in :class:`~isaaclab_ov.renderers.OVRTXRenderer`.
+
+
+0.7.0 (2026-07-09)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added semantic-segmentation label metadata to the OVRTX renderer. The
+  ``SemanticIdMap`` render var is now decoded into
+  ``camera.data.info["semantic_segmentation"]["idToLabels"]``, matching the
+  Isaac RTX / Replicator contract (keys are semantic IDs or RGBA colors, values
+  are ``{semantic_type: label}`` dicts, always including ``BACKGROUND`` and
+  ``UNLABELLED``).
+* Added :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.colorize_semantic_segmentation`
+  to select between colorized RGBA (``uint8``) and raw ``int32`` semantic-ID
+  output, at parity with the Isaac RTX renderer.
+
+Fixed
+^^^^^
+
+* Fixed the OVRTX segmentation colorization hash to use 32-bit wraparound
+  arithmetic (it previously widened to ``uint64``, changing the hashed bits).
+  Colorized semantic and instance segmentation IDs now map to the same colors
+  as ``omni.replicator`` / the Isaac RTX renderer.
+
+
+0.6.0 (2026-07-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``motion_vectors`` data type support to :class:`~isaaclab_ov.renderers.OVRTXRenderer`.
+
+Fixed
+^^^^^
+
+* Removed overly broad ``except Exception`` handling in :class:`~isaaclab_ov.renderers.ovrtx_renderer.OVRTXRenderer`
+  that downgraded failures in scene initialization, camera and object binding setup, scene partition writes,
+  Newton transform syncing, and :meth:`~isaaclab_ov.renderers.ovrtx_renderer.OVRTXRenderer.render` to log
+  warnings and silently continue. These now propagate so callers can decide how to handle the failure.
+
+
+0.5.4 (2026-07-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.colorize_instance_segmentation` and
+  :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.colorize_instance_id_segmentation` config fields
+  to :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`.
+* Added support for the ``instance_segmentation_fast`` and ``instance_id_segmentation_fast``
+  data types in the OVRTX renderer, via the ``NonStableInstanceSegmentation`` and
+  ``InstanceSegmentationSD`` AOVs respectively. When the corresponding
+  :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.colorize_instance_segmentation` /
+  :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.colorize_instance_id_segmentation` flag is
+  ``True`` (default), instance IDs are colorized and returned as ``uint8`` RGBA; when ``False``,
+  raw ``uint32`` instance IDs are returned.
+
+Changed
+^^^^^^^
+
+* Consolidated the OVRTX tile-extraction Warp kernels into a single generic
+  :func:`~isaaclab_ov.renderers.ovrtx_renderer_kernels.extract_all_tiles_kernel`.
+
+
+0.5.3 (2026-07-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS`` environment variable to control whether
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` enables OVRTX GPU transform reads.
+
+
+0.5.2 (2026-06-26)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``"normals"`` support to :class:`~isaaclab_ov.renderers.OVRTXRenderer`. The renderer now
+  declares :attr:`~isaaclab.renderers.RenderBufferKind.NORMALS` in
+  :meth:`~isaaclab_ov.renderers.OVRTXRenderer.supported_output_types` (3-channel ``float32``) and
+  extracts the ``NormalSD`` AOV from each rendered frame into the output buffer.
+
+
+0.5.1 (2026-06-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``distance_to_camera`` incorrectly mapping to ``DistanceToImagePlaneSD`` in the OVRTX
+  renderer backend. It now correctly uses ``DistanceToCameraSD``, matching the intended semantics
+  of eye-space ray length versus perpendicular image-plane distance.
+
+
+0.5.0 (2026-06-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Overrode :meth:`provides_temporal_camera_data` on :class:`OVRTXRenderer` to return ``True``
+  only for the ``rgb``/``rgba`` beauty buffer (temporally accumulated by DLSS), matching Isaac RTX;
+  other AOVs return ``False``.
+
+
+0.4.6 (2026-06-16)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX camera PPISP/HDR rendering to disable Gaussian skip-tonemapping before renderer initialization.
+
+
+0.4.5 (2026-06-12)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Extended the :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.use_ovrtx_cloning` path to support
+  heterogeneous scenes as well as homogeneous ones. :meth:`~isaaclab_ov.renderers.OVRTXRenderer.prepare_stage`
+  now exports only :class:`~isaaclab.cloner.ClonePlan` source prototypes plus global stage metadata, and
+  replication uses OVRTX cloning API (``clone_usd``) for all rows in the published clone plan instead of
+  cloning only ``/World/envs/env_0``.
+
+
+0.4.4 (2026-06-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX package resolution so ``isaaclab_ppisp`` is only required when camera ``isp_cfg`` is set.
+
+
+0.4.3 (2026-06-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the OVRTX renderer to raise a clear, actionable error when the optional
+  ``ovrtx`` runtime wheel is not installed, pointing users to
+  ``./isaaclab.sh -i 'ov[ovrtx]'`` instead of a cryptic ``No module named 'ovrtx'``.
+
+
+0.4.2 (2026-06-02)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed legacy OVRTX 0.2.x code paths from :class:`~isaaclab_ov.renderers.OVRTXRenderer`.
+* Removed the "experimental" statement from the ``isaaclab_ov`` package documentation.
+
+
+0.4.1 (2026-05-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed default OVRTX log file path by using the cross-platform temp directory instead of Linux-specific path ``/tmp``.
+
+
+0.4.0 (2026-05-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an HDR output (:attr:`~isaaclab.renderers.RenderBufferKind.RGB_HDR`) to :class:`~isaaclab_ov.renderers.OVRTXRenderer`, sourced from the OVRTX HDR render var.
+* Added internal :class:`~isaaclab.renderers.PpispPipeline` composition in :class:`~isaaclab_ov.renderers.OVRTXRenderer`: when :attr:`~isaaclab.sensors.camera.CameraCfg.isp_cfg` is set the renderer allocates its own HDR scratch tensor and dispatches the PPISP kernel into the camera's ``rgb`` / ``rgba`` output after each render.
+* Added a :meth:`~isaaclab.renderers.BaseRenderer.prepare_cameras` override on :class:`~isaaclab_ov.renderers.OVRTXRenderer` that authors a neutral ``OmniRtxCameraExposureAPI_1`` schema on each camera prim so RTX-side tonemapping does not double-process the ISP output.
+
+
+0.3.0 (2026-05-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the ``[ovrtx]`` optional extra for :mod:`isaaclab_ov` to ``ovrtx>=0.3.0,<0.4.0``
+ (previously ``>=0.2.0,<0.3.0``). The renderer remains compatible with ``ovrtx`` 0.2.x when
+ that version is installed separately; the extra now tracks the supported 0.3.x line by default.
+
+
+0.2.1 (2026-05-17)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.temp_usd_dir` defaults to ``None``. Set it to a writable
+  directory when you want the combined stage written to disk for debugging.
+
+Removed
+^^^^^^^
+
+* Removed :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.temp_usd_suffix`. When a temp file is written, the renderer
+  uses ``ovrtx_renderer_stage.usda`` filename under the configured temp directory.
+
+Fixed
+^^^^^
+
+* Avoided OVRTX staging disk I/O by exporting the prepared USD to memory and loading it with ``open_usd_from_string``
+  instead of always writing intermediate scene and combined USD files.
+
+
+0.2.0 (2026-05-16)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renamed the ``use_cloning`` field on :class:`~isaaclab_ov.renderers.OVRTXRendererCfg` to ``use_ovrtx_cloning``.
+  Changed its default value to ``True``. This will bring notable speedup for the total startup time (Launch to Train),
+  esp. for large-scale env setups. On Isaac-Dexsuite-Kuka-Allegro-Lift-v0 with 1024 env clones, the total startup time
+  dropped from ~78s to ~43s. Note that if ``use_ovrtx_cloning`` is enabled but the env setup is heterogeneous, the
+  OVRTX renderer will disable the internal cloning path and logs a warning, exporting the full multi-environment stage
+  instead (same effect as setting ``use_ovrtx_cloning`` to ``False`` for that run).
+* Updated :class:`~isaaclab_ov.renderers.OVRTXRenderer` to accept
+  :class:`~isaaclab.utils.warp.ProxyArray` in :meth:`set_outputs` and :meth:`update_camera`,
+  matching the updated :class:`~isaaclab.renderers.BaseRenderer` interface. Output buffers are
+  accessed via their underlying warp array directly.
+
+Fixed
+^^^^^
+
+* Fixed :class:`OVRTXRenderer` crash on multi-GPU systems when ``sim.device``
+  is not ``cuda:0``. All Warp kernel launches, buffer allocations, and OVRTX
+  ``binding.map()`` calls now use the device from :class:`CameraRenderSpec`
+  instead of hardcoded defaults.
+* Fixed cloned environments disappearing from tiled camera output if
+  :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.use_ovrtx_cloning` is set to ``True``,
+  by correcting scene-partition attribute creation on env roots and cameras.
+
+
+0.1.9 (2026-05-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** :class:`~isaaclab_ov.renderers.OVRTXRenderer` now reads the
+  Newton ``Model`` and ``State`` it binds OVRTX attributes against from
+  :meth:`~isaaclab_newton.physics.NewtonManager.get_model` /
+  :meth:`~isaaclab_newton.physics.NewtonManager.get_state` instead of the
+  removed ``BaseSceneDataProvider.get_newton_model()`` /
+  ``get_newton_state()``.
+
+
+0.1.8 (2026-05-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton transform synchronization for Warp 1.13 compatibility in the
+  RTX renderer.
+
+
+0.1.7 (2026-05-12)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Construct the underlying OVRTX ``Renderer`` in
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` ``__init__`` instead of
+  during :meth:`~isaaclab_ov.renderers.OVRTXRenderer.prepare_stage`. This
+  pairs with the new pre-physics ``__init__`` /
+  post-physics :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.initialize`
+  lifecycle: when invoked eagerly via
+  :meth:`~isaaclab.scene.InteractiveScene.initialize_renderers`, the OVRTX
+  ``Renderer`` is created before
+  :meth:`~isaaclab.sim.SimulationContext.reset` (and therefore before
+  ovphysx initialises), which OVRTX 0.3 requires.
+* Replaced an ``assert`` on the OVRTX ``Renderer`` construction with an
+  explicit :class:`RuntimeError` so the failure is reported even when
+  Python is run with ``-O``.
+* Renamed the internal ``OVRTXRenderer.initialize(spec)`` helper to
+  ``_initialize_from_spec(spec)`` to avoid shadowing the new
+  no-arg :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.initialize`
+  lifecycle hook.
+
+
+0.1.6 (2026-05-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Set ``keep_system_alive=True`` on the internal OVRTX ``RendererConfig`` in
+  :class:`~isaaclab_ov.renderers.ovrtx_renderer.OVRTXRenderer` so the renderer
+  system is not torn down prematurely during pytest sessions.
+* Initialize Warp runtime for OvRTX renderer.
+
+
+0.1.5 (2026-05-08)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Bumped Newton pin to ``v1.2.0rc2``. Pulls in IsaacLab-relevant fixes from
+  `newton-physics/newton#2678 <https://github.com/newton-physics/newton/pull/2678>`_
+  and `newton-physics/newton#2720
+  <https://github.com/newton-physics/newton/pull/2720>`_ (``SolverKamino``
+  reset under ``world_mask``), the upstream tendon-scoping fix from
+  `newton-physics/newton#2659
+  <https://github.com/newton-physics/newton/pull/2659>`_ ("Scope USD
+  custom-frequency parsing"), and a VRAM-leak fix on example reset
+  (`newton-physics/newton#2710
+  <https://github.com/newton-physics/newton/pull/2710>`_).
+* Newton ``v1.2.0rc2`` requires ``warp-lang==1.13.0``, ``mujoco==3.8.0``,
+  and ``mujoco-warp==3.8.0.1``. ``warp-lang``/``mujoco``/``mujoco-warp``
+  pins live in :mod:`isaaclab` and ``tools/wheel_builder/res/python_packages.toml``;
+  the Newton pin is mirrored across :mod:`isaaclab_newton`,
+  :mod:`isaaclab_visualizers` (3×), :mod:`isaaclab_physx` (``[newton]``
+  extra), and the wheel-builder TOML.
+* Updated ``wp.math.transform_to_matrix`` to ``wp.transform_to_matrix`` in
+  :mod:`~isaaclab_newton.physics.newton_manager` and
+  :mod:`~isaaclab_ov.renderers.ovrtx_renderer_kernels` to match the
+  ``warp-lang`` 1.13 API (the ``wp.math`` namespace was removed).
+
+
+0.1.4 (2026-05-08)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Modified the OVRTX renderer to use the new patterns from renderer/camera decoupling.
+
+Fixed
+^^^^^
+
+* Fixed ``AttributeError: 'Renderer' object has no attribute 'add_usd'`` in
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` when using ``ovrtx`` 0.3.0 or
+  newer. The renderer now calls :meth:`ovrtx.Renderer.open_usd` on 0.3.0+ and
+  falls back to ``Renderer.add_usd`` on older versions.
+
+
+0.1.3 (2026-04-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Simple-shading outputs, with RTX Minimal mode resolved from the requested camera data types and written on
+  the injected render product in USD.
+* Expanded unit tests for OVRTX Warp kernels in ``test_ovrtx_renderer_kernels.py``.
+
+Changed
+^^^^^^^
+
+* OVRTX integration now branches ``read_gpu_transforms``, depth tile extraction, and semantic ID coloring kernels on
+  ovrtx **0.3.0** vs older versions so tiled buffers and transforms stay correct across ovrtx versions.
+* RGB tiling reads ``LdrColor`` and supports both 3- and 4-channel buffers.
+
+Removed
+^^^^^^^
+
+* Removed ``OVRTXRendererCfg.simple_shading_mode``. Request simple shading via the simple-shading data types on the
+  camera instead; the renderer derives RTX minimal mode from the data types.
+
+0.1.2 (2026-03-23)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Semantic segmentation in :class:`~isaaclab_ov.renderers.OVRTXRenderer` maps
+  semantic instance IDs to RGBA using the same pseudo-random per-ID HSV scheme as the
+  Isaac Sim RTX render backend, so OVRTX and Isaac RTX produce matching colors for the
+  same IDs. Numeric IDs ``0`` (BACKGROUND) and ``1`` (UNLABELLED) use fixed RGBA.
+
+0.1.1 (2026-03-07)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``ovrtx>=0.2.0,<0.3.0`` as a declared dependency, installable from the
+  public NVIDIA package index (``pypi.nvidia.com``).
+* Added ``ov`` to the list of valid sub-packages for selective installation via
+  ``./isaaclab.sh -i ov``.
+
+0.1.0 (2026-03-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :mod:`isaaclab_ov.renderers` module with OVRTX renderer for tiled camera
+  rendering:
+
+  * :class:`~isaaclab_ov.renderers.OVRTXRenderer` and
+    :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`: RTX-based rendering via the
+    ovrtx library, with stage export, USD cloning, and camera/object bindings.
+
+  * :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`: Base
+    interface hook for stage preprocessing before create_render_data (OVRTX
+    exports USD stage; Isaac RTX and Newton Warp use no-op implementations).

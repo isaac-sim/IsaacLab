@@ -1,8 +1,871 @@
 Release Notes
 #############
 
-The release notes are now available in the `Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab/releases>`_.
-We summarize the release notes here for convenience.
+The release notes are also available in the
+`Isaac Lab GitHub repository <https://github.com/isaac-sim/IsaacLab/releases>`_. The entries below reproduce the
+published release text in reStructuredText format, excluding externally hosted media.
+
+v3.0.0-beta2.patch1
+===================
+
+`View this release on GitHub <https://github.com/isaac-sim/IsaacLab/releases/tag/v3.0.0-beta2.patch1>`__.
+
+This is a small patch release on top of the previous Isaac Lab 3.0.0 Beta 2 release, including an update to support
+Isaac Sim 6.0.1, which includes fixes and improvements for NuRec workflows. See the
+`Isaac Sim 6.0.1 release notes <https://docs.isaacsim.omniverse.nvidia.com/6.0.1/overview/release_notes.html>`_.
+Additionally, some fixes were introduced for Isaac Lab dependencies and docker image to better support
+compatibility with Isaac Sim.
+
+What's Changed
+--------------
+
+* Bump h5py version to ``>=3.16.0`` by @peterd-NV in
+  `PR #6266 <https://github.com/isaac-sim/IsaacLab/pull/6266>`_.
+* Updates Isaac Sim to version 6.0.1 by @kellyguo11 in
+  `PR #6277 <https://github.com/isaac-sim/IsaacLab/pull/6277>`_.
+* [Fix] Cherry-pick Isaac Sim 6.0 streaming crash fix by @hujc7 in
+  `PR #6295 <https://github.com/isaac-sim/IsaacLab/pull/6295>`_.
+
+`Full Changelog <https://github.com/isaac-sim/IsaacLab/compare/v3.0.0-beta2...v3.0.0-beta2.patch1>`_.
+
+v3.0.0-beta2
+============
+
+`View this release on GitHub <https://github.com/isaac-sim/IsaacLab/releases/tag/v3.0.0-beta2>`__.
+
+Isaac Lab 3.0 Beta 2 is a stabilization and enablement release for the Isaac Lab 3.0 beta development. It builds on
+`v3.0.0-beta <https://github.com/isaac-sim/IsaacLab/releases/tag/v3.0.0-beta>`_ with additional features and
+improvements on Newton support (VBD, solver coupling, Kamino, rough terrain, sensors), multi-backend physics,
+simplified training and installation commands, kit-less workflows, visualizers, rendering, teleoperation, learning
+exports, installation, CI, and documentation.
+
+This release is compatible with the latest release of
+`Isaac Sim 6.0 <https://docs.isaacsim.omniverse.nvidia.com/6.0.0/installation/download.html>`_.
+
+.. warning::
+
+   This is a beta release. The ``develop`` branch is still under active development and may continue to receive
+   breaking changes, error-message changes, or performance tuning before the final 3.0 release. Please check out the
+   ``develop`` branch for the latest development updates.
+
+Highlights
+----------
+
+Multi-Backend Stabilization
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The multi-backend architecture introduced in the first 3.0 beta has been hardened across PhysX, Newton, OVPhysX,
+Isaac RTX, OVRTX, and kit-less execution paths. This release improves backend selection, scene-data routing,
+clone-plan handling, sensor reset behavior, runtime compatibility checks, and error reporting when unsupported
+physics, renderer, or visualizer combinations are requested.
+
+Newton Physics & Kit-Less Workflows
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Newton and OVPhysX support have been expanded and stabilized for larger kit-less training and visualization
+workflows:
+
+* Adds Newton ray-caster, frame-transformer, IMU/PVA, contact, joint-wrench, deformable, and VBD-coupling support
+  across the relevant packages.
+* Adds Newton rough-terrain locomotion presets for quadrupeds and bipeds, plus additional MJWarp presets for
+  manipulation, navigation, and Spot environments.
+* Adds documentation for Newton installation, supported features, MJWarp, Kamino, VBD, solver comparison, Warp
+  environment migration, and the Newton manager abstraction.
+* Fixes heterogeneous replication, clone-plan source resolution, stale sensor data after resets, Newton visualizer
+  updates on PhysX simulations, and Newton camera/site frame poses.
+* Adds initial experimental support for OvPhysX (kit-less version of PhysX).
+
+Rendering, Cameras & PPISP
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Rendering received broad updates across Isaac RTX, OVRTX, and Newton Warp:
+
+* Adds ``isaaclab_ppisp``, a renderer-backend-agnostic physically plausible image signal processing pipeline for
+  converting HDR scene-linear output to LDR camera images.
+* Adds HDR render outputs and internal PPISP composition to Isaac RTX, OVRTX, and Newton Warp renderers when
+  ``CameraCfg.isp_cfg`` is configured.
+* Moves the tiled-camera implementation into ``Camera`` and improves tiled-camera support in Kit and Newton
+  visualizers.
+* Fixes OVRTX multi-GPU operation, cloned-environment camera output, temp-file handling, missing-runtime errors, and
+  package resolution for optional PPISP installs.
+* Adds rendering correctness, image comparison, visualizer integration, and performance tests.
+
+Visualizers & Scene Data
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The visualizer system now has stronger backend-agnostic scene-data support:
+
+* Adds a scene-data backend hook for active ``InteractiveScene`` access.
+* Improves scene-data providers for PhysX, Newton, and OVPhysX so visualizers can discover transforms, contacts, and
+  sensors consistently.
+* Adds tiled camera views to Kit and Newton visualizers.
+* Fixes visualizer startup ordering, Kit visualizer crashes, Newton visualizer updates on PhysX scenes, and
+  camera/video recording behavior when multiple visualizers are active.
+
+Teleoperation, Mimic & Policy Deployment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Teleoperation and imitation-learning workflows were updated for the 3.0 stack:
+
+* Adds Isaac Teleop MCAP record/replay support and a non-interactive ``teleop_replay_agent.py`` for CI replay.
+* Defers optional ``isaacteleop`` imports so task configs can be parsed without the Isaac Teleop runtime installed.
+* Improves CloudXR defaults, XR performance guidance, native keyboard/gamepad/SpaceMouse mappings, and RMPFlow
+  teleoperation behavior.
+* Updates Mimic installation to include ``isaaclab_teleop`` and removes the obsolete
+  ``nvidia-srl-usd-to-urdf`` dependency.
+* Adds LEAPP policy export documentation and fixes RSL-RL recurrent policy export, projected-gravity export,
+  checkpoint selection, and policy-deployment guides.
+
+Installation, Docker & CI
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This release simplifies setup while adding significant infrastructure hardening:
+
+* Adds experimental root-level ``uv run train`` and ``uv run play`` workflows so training and playback can be
+  launched from a fresh checkout without manually creating or activating an environment.
+* Simplifies install extras to ``isaacsim`` and ``all``, replacing older per-submodule extras such as ``tasks``,
+  ``rl``, and ``assets``.
+* Pins the released Isaac Sim Docker image to 6.0.0 and keeps Python pinned to 3.12.
+* Updates PyTorch to ``2.10.0`` with CUDA 12.8 wheels on x86_64/Windows and CUDA 13.0 wheels for aarch64.
+* Adds install CI, wheel build automation, package-scoped test runners, Docker volume and non-root-user fixes, and
+  published image tags.
+* Improves aarch64, DGX Spark, ARM Docker, Windows, uv, and pip installation documentation.
+* Pins third-party GitHub Actions to commit SHAs and improves CI cleanup, cancellation, sharding, diagnostics, and
+  docs-only behavior.
+
+New & Expanded Capabilities
+---------------------------
+
+Core
+~~~~
+
+* Adds ProxyArray and asset/sensor-level property caching for faster repeated data access.
+* Adds scene-data provider APIs and docs for backend-neutral transform access.
+* Adds schema-configuration documentation and backend-neutral deformable APIs.
+* Adds GPU transform reads, performance optimizations for asset writes, and startup-time profiling tools.
+
+Physics & Rendering Backends
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Adds OVPhysX articulation, rigid object collection, contact sensor, frame view, scene-data backend, and runtime
+  install diagnostics.
+* Adds HDR camera output and PPISP integration, deformable API migration, ray-caster fixes, and multi-GPU Fabric
+  frame-view support.
+* Adds Newton deformable support, rigid-deformable coupling, ray-caster support, solver configuration exports,
+  contact accessors, and updated Newton package pins.
+
+Learning & Environments
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* Adds unified ``train`` and ``play`` console entry points that dispatch by ``--rl_library`` across ``rsl_rl``,
+  ``rl_games``, ``skrl``, ``sb3``, and ``rlinf``.
+* Refactors per-library train/play scripts under ``scripts/reinforcement_learning/`` around a shared dispatch helper,
+  reducing duplicated launcher and parser logic.
+* Adds typed preset selectors such as ``physics=physx``, ``physics=newton_mjwarp``, and ``renderer=...`` to unified
+  training and play scripts. For example:
+  ``train --rl_library rl_games --task=Isaac-Cartpole-RGB-Camera-Direct-v0 physics=newton_mjwarp renderer=newton_renderer presets=rgb``.
+* Adds validation for unsupported backend/renderer/visualizer combinations with clearer errors.
+* Adds public helpers for enumerating task presets.
+* Expands Newton presets for locomotion, manipulation, navigation, and Warp-first experimental environments.
+* Adds success-rate metric logging across RL tasks.
+
+Documentation
+~~~~~~~~~~~~~
+
+* Reworks installation, quickstart, ecosystem, Docker, CloudXR, Teleop, visualizer, renderer, physical-backend,
+  migration, and environment documentation.
+* Adds policy-deployment guides for reach policies and LEAPP exports.
+* Adds profiling, proxy-array, camera-output, video-recording, tiled-camera, schema-cfg, and physical-backend
+  documentation.
+* Removes remaining ``--headless`` references in favor of ``--viz`` / ``--visualizer``.
+
+Breaking Changes
+----------------
+
+Preset CLI
+~~~~~~~~~~
+
+``isaaclab_tasks.utils.fold_preset_tokens`` has been removed. ``setup_preset_cli()`` now returns ``physics=``,
+``renderer=``, and ``presets=`` tokens verbatim, and ``register_task()`` parses them directly. Scripts should assign
+the returned remainder to ``sys.argv`` unchanged.
+
+Teleoperation Replay
+~~~~~~~~~~~~~~~~~~~~
+
+The transitional ``isaaclab_teleop.automation`` package, including ``XcrReplayConfig`` and ``start_xcr_replay``, has
+been removed. Replay workflows now use Isaac Teleop MCAP replay through
+``scripts/environments/teleoperation/teleop_replay_agent.py``.
+
+The legacy lazy ``teleop_devices`` accessor on GR1T2 pick-place environment configs has also been removed. Use
+``env_cfg.isaac_teleop`` or construct legacy OpenXR devices explicitly.
+
+Deformable APIs
+~~~~~~~~~~~~~~~
+
+Generic deformable object and material APIs have moved from ``isaaclab_physx`` into backend-neutral
+``isaaclab.assets`` and ``isaaclab.sim`` imports. The old generic PhysX deformable aliases are deprecated in favor of
+PhysX-specific names.
+
+OVRTX Renderer Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``OVRTXRendererCfg.use_cloning`` has been renamed to ``use_ovrtx_cloning``, and ``temp_usd_suffix`` has been removed.
+Temporary USD output now uses a fixed filename under ``temp_usd_dir`` when enabled.
+
+Camera Aliases
+~~~~~~~~~~~~~~
+
+``TiledCamera`` has been folded into ``Camera``. Existing tiled-camera aliases remain as compatibility surface where
+available, but new code should use ``Camera`` and ``CameraCfg``.
+
+Notable Fixes
+-------------
+
+Core Runtime
+~~~~~~~~~~~~
+
+* Fixes SimulationContext reset ordering so initial visualizers are created before timeline event pumping can
+  invalidate new PhysX tensor views.
+* Guards environment, asset, sensor, and callback destructors during Python shutdown.
+* Fixes memory leaks when closing manager-based, direct RL, and direct MARL environments.
+* Fixes safe callable resolution for lambda strings by validating expressions and evaluating them without Python
+  builtins.
+* Fixes local and remote asset dependency retrieval for MDL materials and textures.
+
+Backends & Sensors
+~~~~~~~~~~~~~~~~~~
+
+* Fixes stale sensor data after environment resets for PhysX and Newton contact, IMU, PVA, and joint-wrench sensors.
+* Fixes PhysX scene-data rigid-body discovery when joint prims share names or carry rigid-body API metadata.
+* Fixes Newton and OVRTX heterogeneous replication, clone-plan path resolution, and camera transform handling.
+* Fixes OVPhysX optional runtime pins and missing-runtime install errors.
+* Fixes OVRTX package resolution so PPISP is only required when camera ISP is configured.
+
+Training & Deployment
+~~~~~~~~~~~~~~~~~~~~~
+
+* Fixes ``rl_games`` and SB3 checkpoint fallback when best/final checkpoints are not yet written.
+* Fixes skrl JAX multihost imports, RSL-RL recurrent LEAPP export, and LEAPP projected-gravity export.
+* Fixes AutoMate PhysX sizing, assembly ID validation, Numba dependency removal, and downstream argument forwarding.
+* Fixes RLinf optional dependencies for DGX Spark and aarch64.
+* Fixes native teleoperation mappings for Franka reach tasks and RMPFlow quaternion handling.
+
+Updated Dependencies
+--------------------
+
+* Isaac Sim 6.0.0 Docker image.
+* Python ``>=3.12,<3.13``.
+* PyTorch ``2.10.0``, TorchAudio ``2.10.0``, TorchVision ``0.25.0``.
+* CUDA 12.8 PyTorch wheels for Linux x86_64, Windows, and AMD64 markers; CUDA 13.0 wheels for Linux aarch64/arm64
+  markers.
+* Newton package pins updated along the 1.2.1 line.
+* OVPhysX optional runtime pinned to ``ovphysx==0.4.13``.
+* OVRTX optional runtime updated along the 0.3.x line.
+* ``pyglet>=2.1.6,<3`` added for Newton GL video recording.
+* ``isaaclab_ppisp`` added as the shared camera ISP extension, loaded by renderers only when camera ISP is configured.
+
+Known Limitations
+-----------------
+
+* This remains a beta release; the release branch may still receive breaking changes before the final Isaac Lab 3.0
+  release. We anticipate the branch will stabilize towards a final Isaac Lab 3.0 release in the coming 1-2 months.
+* Newton remains under active development. Some features, task presets, and surface gripper workflows remain
+  backend-specific or unsupported.
+* Surface grippers require CPU simulation with ``physics=isaacsim_physx``, including the UR10 Long/Short Suction
+  and Galbot Right Arm Suction stacking tasks and the Galbot Mimic variants. Pass ``--device cpu`` for teleoperation;
+  zero and random agents preserve the tasks' CPU defaults when ``--device`` is omitted.
+* Pink IK dependencies are provided by the standard installation only on Linux x86_64 and aarch64. The Windows
+  uv/pip installation does not provide Pinocchio, so Pink IK tasks cannot run with that installation.
+* OVRTX and OVPhysX require their optional runtime wheels. Isaac Lab now reports clearer install guidance when those
+  wheels are missing, but those backends are still optional installs.
+
+Migration Notes
+---------------
+
+* Replace ``--headless`` usage with ``--viz`` / ``--visualizer`` or omit visualizers for fully headless runs.
+* Replace ``presets=...`` only where broad preset broadcast is intended; prefer typed selectors such as
+  ``physics=...`` and ``renderer=...`` when selecting backend-specific behavior.
+* Remove ``fold_preset_tokens(...)`` wrappers from custom scripts that integrate with the preset CLI.
+* Move deformable imports to backend-neutral ``isaaclab.assets`` and ``isaaclab.sim`` APIs where possible.
+* Migrate tiled-camera code toward ``Camera`` / ``CameraCfg``.
+* Use ``ProxyArray.torch`` or ``ProxyArray.warp`` explicitly when crossing between Torch and Warp code.
+* Use Isaac Teleop MCAP replay and ``teleop_replay_agent.py`` for replay automation instead of the removed XCR
+  automation helpers.
+
+v3.0.0-beta
+===========
+
+`View this release on GitHub <https://github.com/isaac-sim/IsaacLab/releases/tag/v3.0.0-beta>`__.
+
+Isaac Lab 3.0 Beta is the next major release of Isaac Lab, built on **Isaac Sim 6.0** and introducing a ground-up
+architectural overhaul. This release brings multi-backend physics, a pluggable renderer system, Warp-native data
+pipelines, and a kit-less installation mode — enabling faster, more flexible robot learning research.
+
+.. warning::
+
+   This is a beta release. The ``develop`` branch is under active development and may experience breaking changes,
+   error messages, or performance regressions in some use cases.
+
+Highlights
+----------
+
+Multi-Backend Physics Architecture
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Isaac Lab 3.0 introduces a **factory-based multi-backend architecture** that separates simulation backend-specific
+code from the core API. Asset and sensor classes (e.g., ``Articulation``, ``RigidObject``, and
+``ContactSensor``) are now backed by abstract base classes, with backend-specific implementations in dedicated
+extension packages:
+
+* **``isaaclab_physx``** — Full PhysX backend (default), including deformable objects, surface grippers, contact
+  sensors, IMU, and frame transformers.
+* **``isaaclab_newton``** — New Newton physics backend powered by MuJoCo-Warp, supporting MJWarp, XPBD, and
+  Featherstone solvers with CUDA-graph acceleration.
+
+Your existing imports from ``isaaclab.assets`` and ``isaaclab.sensors`` continue to work — the factory automatically
+dispatches to the active backend at runtime.
+
+Newton Physics Backend
+~~~~~~~~~~~~~~~~~~~~~~
+
+The new ``isaaclab_newton`` extension enables running Isaac Lab environments **without Isaac Sim** (kit-less mode).
+Newton support includes:
+
+* Articulations, rigid objects, and rigid object collections.
+* Contact sensors.
+* MuJoCo-Warp solver with configurable integrators (``implicitfast``, ``euler``) and contact models (``pyramidal``,
+  ``elliptic``).
+* CUDA graph support for high-throughput stepping.
+* Newton-compatible presets for 20+ environments (locomotion, manipulation, classic control).
+
+Pluggable Renderer System
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A new ``BaseRenderer`` abstraction supports configuration-owned implementations managed by
+``RenderContext``:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 25 50
+
+   * - Backend
+     - Requires Isaac Sim?
+     - Best For
+   * - **Isaac RTX**
+     - Yes
+     - Full sensor fidelity, photorealistic rendering
+   * - **OVRTX**
+     - No (+ ``isaaclab_ov[ovrtx]``)
+     - Kit-less RTX pipeline
+   * - **Newton Warp**
+     - No (kit-less)
+     - Fast training without RTX
+
+Pluggable Visualizer System
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Isaac Lab 3.0 introduces a new **pluggable visualizer framework** (``isaaclab_visualizers``) with four interchangeable
+backends, all decoupled from the physics engine and renderer:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 25 55
+
+   * - Visualizer
+     - Best For
+     - Key Features
+   * - **Omniverse (Kit)**
+     - High-fidelity, Isaac Sim integration
+     - USD stage, visual markers, live training plots
+   * - **Newton**
+     - Fast iteration, low overhead
+     - OpenGL rendering, physics debug markers (joints, contacts, COM), interactive camera controls
+   * - **Rerun**
+     - Remote viewing & replay
+     - Web viewer, timeline scrubbing, ``.rrd`` recording/export
+   * - **Viser**
+     - Web-based sharing & recording
+     - Browser-based via Newton Warp renderer, public share URLs, ``.viser`` recording
+
+**Launch from the CLI** with the new ``--viz`` flag (replaces the deprecated ``--headless`` flag).
+
+Multiple visualizers at once:
+
+.. code-block:: bash
+
+   python train.py --task Isaac-Cartpole-v0 --viz kit,newton,rerun
+
+Single visualizer:
+
+.. code-block:: bash
+
+   python train.py --task Isaac-Cartpole-v0 --viz newton
+
+Web-based Viser visualizer:
+
+.. code-block:: bash
+
+   python train.py --task Isaac-Cartpole-v0 --viz viser
+
+Headless (no visualizers):
+
+.. code-block:: bash
+
+   python train.py --task Isaac-Cartpole-v0
+
+Warp-Native Data Pipeline
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+All ``.data.*`` properties on asset and sensor classes now return **``wp.array``** (NVIDIA Warp) instead of
+``torch.Tensor``. Internal state buffers use structured warp types (``wp.vec3f``, ``wp.quatf``, ``wp.transformf``,
+``wp.spatial_vectorf``), and fused GPU kernels replace Python-level loops for state extraction, velocity transforms,
+and data write-back. Convert back to torch with ``wp.to_torch()`` when needed.
+
+Preset System for Multi-Backend Environments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A new ``PresetCfg`` pattern allows a single environment config to declare named variants for different backends.
+Select a preset at launch:
+
+Run with Newton backend:
+
+.. code-block:: bash
+
+   python train.py task=Isaac-Ant-v0 presets=newton
+
+Run with default PhysX backend:
+
+.. code-block:: bash
+
+   python train.py task=Isaac-Ant-v0
+
+Lazy Exporting & Resolvable Strings
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+All packages now use lazy exporting with ``.pyi`` stubs, so importing a top-level module (e.g.,
+``import isaaclab.sensors``) no longer eagerly pulls in heavyweight dependencies. Config fields like ``class_type``
+store references as resolvable strings that are resolved only after ``SimulationApp`` is initialized, enabling
+automatic physics-backend selection.
+
+Isaac Teleop Integration
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+XR teleoperation is now powered by Isaac Teleop via the new ``isaaclab_teleop`` extension, replacing the previous
+``isaaclab.devices.openxr`` stack. The new system provides a unified teleoperation interface with pipeline-based
+retargeting configuration.
+
+Breaking Changes
+----------------
+
+Quaternion Format: WXYZ → XYZW
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+All quaternions throughout Isaac Lab now use XYZW ordering to align with Warp, PhysX, and Newton conventions.
+Hard-coded quaternion values must be updated. A quaternion finder tool is provided to help locate and fix
+quaternions.
+
+Data Properties Return ``wp.array``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+All ``.data.*`` properties now return ``wp.array``. Wrap with ``wp.to_torch()`` for PyTorch compatibility. An
+automated migration tool is available at ``scripts/tools/wrap_warp_to_torch.py``.
+
+Write Method Index/Mask Split
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+All asset write methods have been split into ``_index`` and ``_mask`` variants. The previous
+``write_*_to_sim(data, env_ids)`` pattern is replaced by:
+
+* ``write_*_to_sim_index(data, env_ids)`` — sparse indexed data.
+* ``write_*_to_sim_mask(data, env_mask)`` — full data with boolean mask.
+
+Deprecated APIs
+~~~~~~~~~~~~~~~
+
+* ``root_physx_view`` → use ``root_view``.
+* ``object_*`` naming on ``RigidObjectCollection`` → use ``body_*``.
+* ``--headless`` CLI argument → use ``--visualizer`` / ``--viz``.
+* ``OpenXRDevice`` / ``OpenXRDeviceCfg`` → use ``IsaacTeleopDevice`` / ``IsaacTeleopCfg``.
+* Sensor ``pose_w``, ``pos_w``, and ``quat_w`` properties → use ``FrameTransformer``.
+
+URDF & MJCF Importers Updated
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Both importers have been rewritten for Isaac Sim 6.0. Several configuration settings have been removed, renamed, or
+replaced. See the
+`migration guide <https://isaac-sim.github.io/IsaacLab/develop/source/migration/migrating_to_isaaclab_3-0.html>`__
+for details.
+
+Updated Dependencies
+--------------------
+
+* Python 3.12.
+* PyTorch 2.10.0+cu128.
+* NumPy 2.3.1.
+* Isaac Sim 6.0.
+
+Known Limitations
+-----------------
+
+* Ubuntu only — The ``develop`` branch is currently available on Ubuntu. Windows support and Isaac Lab pip wheels will
+  be available soon.
+* Newton backend is in active development — Not all environments have Newton presets yet. Some features (e.g.,
+  deformable objects, surface grippers, material randomization) are PhysX-only.
+* Performance regressions may be observed in some use cases as the multi-backend architecture stabilizes.
+* Breaking changes may still occur on the ``develop`` branch before the final 3.0 release.
+
+Migration Guide
+---------------
+
+For a comprehensive guide on migrating from Isaac Lab 2.x to 3.0, including code examples, API rename tables, and
+automated tooling, see the
+`migration guide <https://isaac-sim.github.io/IsaacLab/develop/source/migration/migrating_to_isaaclab_3-0.html>`__.
+
+v2.3.2
+======
+
+What's Changed
+--------------
+
+This release focuses on stability, infrastructure improvements, workflow refinements, and incremental feature expansions, along with some significant new features, including **Multirotor and thruster support for drones**, **Multi-mesh RayCaster**, **Visual-based tactile sensor**, **Haply device integration**, and new **OpenArm environments**. It includes improvements to training workflows, teleoperation and Mimic pipelines, Ray integration, simulation utilities, and developer tooling, along with a large number of robustness and quality-of-life fixes.
+
+This will be our final release on the current **main** branch as we shift our development focus towards the **develop** branch. We anticipate large restructuring changes to happen on **develop**. While we hope to continue taking in contributions from the community, we will focus more time on our development towards Isaac Lab 3.0. For existing PRs, please re-target the target branch to **develop** to stay up-to-date with the latest changes.
+
+New Features
+------------
+
+Core & Simulation
+~~~~~~~~~~~~~~~~~
+
+* Adds Raycaster with tracking support for dynamic meshes by @renezurbruegg in https://github.com/isaac-sim/IsaacLab/pull/3298
+* Adds visual-based tactile sensor with shape sensing example by @JuanaDd in https://github.com/isaac-sim/IsaacLab/pull/3420
+* Adds wrench composers allowing the composition of multiple wrenches on the same bodies by @AntoineRichard in https://github.com/isaac-sim/IsaacLab/pull/3287
+* Adds multirotor/thruster actuator, multirotor asset and manager-based ARL drone task https://github.com/isaac-sim/IsaacLab/pull/3760 by @mihirk284 @grzemal @Zwoelf12
+* Adds automatic transform discovery for IMU sensors to find valid parent bodies by @bmccann-bdai in https://github.com/isaac-sim/IsaacLab/pull/3864
+* Adds friction force reporting to ContactSensor by @gattra-rai in https://github.com/isaac-sim/IsaacLab/pull/3563
+* Adds MJCF spawner for importing MJCF-based assets by @KyleM73 in https://github.com/isaac-sim/IsaacLab/pull/1672
+
+Learning & Environments
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* Adds OpenArm environments by @JinnnK in https://github.com/isaac-sim/IsaacLab/pull/4089
+
+Mimic & Teleoperation
+~~~~~~~~~~~~~~~~~~~~~
+
+* Adds Haply device API with force feedback and teleoperation demo by @mingxueg-nv in https://github.com/isaac-sim/IsaacLab/pull/3873
+* Refactors retargeters and adds Quest retargeters for G1 tasks by @rwiltz in https://github.com/isaac-sim/IsaacLab/pull/3950
+* Adds Arena G1 locomanipulation retargeters by @rwiltz in https://github.com/isaac-sim/IsaacLab/pull/4140
+* Adds APIs to Isaac Lab Mimic for loco-manipulation data generation by @peterd-NV in https://github.com/isaac-sim/IsaacLab/pull/3992
+
+Improvements
+------------
+
+Core & Simulation
+~~~~~~~~~~~~~~~~~
+
+* Adds preserve-order flag to JointPositionToLimitsAction by @renezurbruegg in https://github.com/isaac-sim/IsaacLab/pull/3716
+* Adds parsing of instanced meshes to prim fetching utilities by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/3367
+* Adds configurable logdir parameter to environments by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/3391
+* Exposes PhysX flag solveArticulationContactLast via PhysxCfg by @ooctipus in https://github.com/isaac-sim/IsaacLab/pull/3502
+* Removes pickle dependency for config load and dump by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/3709
+* Improves recorder manager to support custom demo indices by @rebeccazhang0707 in https://github.com/isaac-sim/IsaacLab/pull/3552
+* Normalizes Python logging by replacing remaining omni.log usage by @pascal-roth in https://github.com/isaac-sim/IsaacLab/pull/3912
+* Replaces Isaac Sim stage_utils, prim_utils, and nucleus_utils with Isaac Lab implementations by @pascal-roth in https://github.com/isaac-sim/IsaacLab/pull/3921, https://github.com/isaac-sim/IsaacLab/pull/3923, https://github.com/isaac-sim/IsaacLab/pull/3924
+* Breaks actuator configuration into multiple files to avoid circular imports by @bmccann-bdai in https://github.com/isaac-sim/IsaacLab/pull/3994
+* Moves logging configuration into shared utilities by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/4298
+* Caches Isaac Sim package version for faster lookup by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/4299
+* Simplifies imports of stage and prim utilities by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/4286
+* Randomizes viscous and dynamic joint friction consistent with Isaac Sim 5.0 by @GiulioRomualdi in https://github.com/isaac-sim/IsaacLab/pull/3318
+* Prevents randomization of rigid body mass to zero or negative values by @jtigue-bdai in https://github.com/isaac-sim/IsaacLab/pull/4060
+* Improves image plotting normalization and colorization by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/4302
+* Adds Fabric backend support to isaaclab.sim.views.XformPrimView by @ooctipus in https://github.com/isaac-sim/IsaacLab/pull/4374
+
+Learning & Environments
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* Enhances PBT usability with small workflow improvements by @ooctipus in https://github.com/isaac-sim/IsaacLab/pull/3449
+* Supports vectorized environments for pick-and-place demo by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/3996
+* Registers direct environments to Gymnasium using string-style imports by @ooctipus in https://github.com/isaac-sim/IsaacLab/pull/3803
+* Updates Gymnasium dependency to version 1.2.1 by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/3696
+* Updates SB3 PPO configuration to reduce excessive training time by @ooctipus in https://github.com/isaac-sim/IsaacLab/pull/3726
+* Adds support for validating replay success using task termination conditions by @yami007007 in https://github.com/isaac-sim/IsaacLab/pull/4170
+* Adds early stopping support for Ray-based training by @ozhanozen in https://github.com/isaac-sim/IsaacLab/pull/3276
+* Adds support for custom ProgressReporter implementations in Ray integration by @ozhanozen in https://github.com/isaac-sim/IsaacLab/pull/3269
+* Updates rsl_rl to version 3.1.2 to support state-dependent standard deviation by @ashwinvkNV in https://github.com/isaac-sim/IsaacLab/pull/3867
+
+Infrastructure
+~~~~~~~~~~~~~~
+
+* Switches linting and import sorting to Ruff by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/4329, https://github.com/isaac-sim/IsaacLab/pull/4377
+* Moves flake8 and pytest configuration into pyproject.toml by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/4335, https://github.com/isaac-sim/IsaacLab/pull/4376
+* Removes dependency on XformPrim for create_prim by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/4307
+* Updates copyright year to 2026 by @ashwinvkNV in https://github.com/isaac-sim/IsaacLab/pull/4311
+* Restricts .gitignore dataset rule to top-level directory only by @louislelay in https://github.com/isaac-sim/IsaacLab/pull/3400
+* Adds uv as an alternative to conda in isaaclab.sh by @KyleM73 in https://github.com/isaac-sim/IsaacLab/pull/3172
+* Fixes transformers dependency for theia issue and failing tests by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/4484
+
+Bug Fixes
+---------
+
+Core & Simulation
+~~~~~~~~~~~~~~~~~
+
+* Fixes missing actuator indices variable in joint randomization by @ooctipus in https://github.com/isaac-sim/IsaacLab/pull/3447
+* Fixes ViewportCameraController numpy array missing datatype by @T-K-233 in https://github.com/isaac-sim/IsaacLab/pull/3375
+* Fixes PDActuator docstring mismatch with implementation by @lorenwel in https://github.com/isaac-sim/IsaacLab/pull/3493
+* Fixes rail difficulty-based height computation in mesh terrains by @KyleM73 in https://github.com/isaac-sim/IsaacLab/pull/3254
+* Fixes contact threshold handling when activating contact sensors by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/3498
+* Fixes indexing errors in joint parameter randomization by @GiulioRomualdi in https://github.com/isaac-sim/IsaacLab/pull/4051
+* Fixes noisy velocities near joint limits by @AntoineRichard in https://github.com/isaac-sim/IsaacLab/pull/3989
+* Fixes mesh converter not setting collision approximation attributes by @Soappyooo in https://github.com/isaac-sim/IsaacLab/pull/4082
+* Fixes returned normal tensor shape in TiledCamera by @Rabbit-Hu in https://github.com/isaac-sim/IsaacLab/pull/4241
+* Fixes advanced indexing shape mismatch in JointPositionToLimitsAction by @ooctipus in https://github.com/isaac-sim/IsaacLab/pull/3865
+* Fixes teleoperation crash when using DirectRL environments by @emmanuel-ferdman in https://github.com/isaac-sim/IsaacLab/pull/4364
+* Fixes lidar pattern horizontal resolution bug by @pascal-roth in https://github.com/isaac-sim/IsaacLab/pull/4452
+
+Learning & Environments
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* Fixes CUDA version parsing for AutoMate environments by @yijieg in https://github.com/isaac-sim/IsaacLab/pull/3795
+
+Infrastructure & Tooling
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Fixes CI behavior to correctly fail fork PRs when general tests fail by @nv-apoddubny in https://github.com/isaac-sim/IsaacLab/pull/3412
+* Fixes docker availability check in isaaclab.sh on systems without Docker by @klakhi in https://github.com/isaac-sim/IsaacLab/pull/4180
+* Forces CRLF line endings for .bat files to avoid Windows execution errors by @jiang131072 in https://github.com/isaac-sim/IsaacLab/pull/3624
+* Fixes environment test failures and disables unstable tests by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/3413
+* Fixes vulnerability in eval usage for Ray resource parsing by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/4425
+* Fixes curobo dockerfile for CI runs by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/4462
+
+Documentation
+-------------
+
+* Improves contribution guidelines for Isaac Lab by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/3403
+* Abstracts common installation steps in documentation by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/3445
+* Updates SkillGen documentation with data generation commands and success rates by @njawale42 in https://github.com/isaac-sim/IsaacLab/pull/3702
+* Adds Newton Beta documentation updates and visualizer guidance by @kellyguo11 and @Milad-Rakhsha-NV in https://github.com/isaac-sim/IsaacLab/pull/3518, https://github.com/isaac-sim/IsaacLab/pull/3551
+* Adds automated checks for broken documentation links and fixes existing ones by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/3888
+* Updates technical report link for Isaac Lab by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/4074
+* Adds clarification on missing pip in uv virtual environments by @DBinK in https://github.com/isaac-sim/IsaacLab/pull/4055
+* Adds keyword filtering documentation for list_envs.py by @louislelay in https://github.com/isaac-sim/IsaacLab/pull/3384
+* Adds documentation for Multirotor feature by @Mayankm96 in https://github.com/isaac-sim/IsaacLab/pull/4400
+* Adds documentation for PVD and OVD comparison by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/4409
+
+Migration Guide
+---------------
+
+External Force and Torque Application - Wrench Composers
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+The ``set_external_force_and_torque()`` method on articulations, rigid bodies, and rigid body collections has been deprecated in favor of a new composable wrench system.
+
+Related PR: https://github.com/isaac-sim/IsaacLab/pull/3287
+
+**New Features:**
+- **Permanent Wrench Composer**: Applies forces/torques that persist across simulation steps until explicitly changed
+- **Instantaneous Wrench Composer**: Applies forces/torques for a single simulation step, then automatically resets
+- **Composability**: Multiple forces and torques can now be added together on the same body
+- **Mixed Frame Support**: Seamlessly compose local and global frame wrenches
+
+**Migration Guide:**
+
+**Old API (Deprecated):**
+
+.. code-block:: python
+
+    # Old method - overwrites previous forces
+    asset.set_external_force_and_torque(
+        forces=torch.ones(1, 1, 3),
+        torques=torch.ones(1, 1, 3),
+        body_ids=[0],
+        env_ids=[0],
+        is_global=False,
+    )
+
+**New API:**
+
+.. code-block:: python
+
+    # Set initial permanent forces (replaces previous)
+    asset.permanent_wrench_composer.set_forces_and_torques(
+        forces=torch.ones(1, 1, 3),
+        env_ids=[0],
+        body_ids=[0],
+    )
+
+    # Compose additional forces on the same body
+    asset.permanent_wrench_composer.add_forces_and_torques(
+        forces=torch.ones(1, 1, 3),
+        env_ids=[0],
+        body_ids=[0],
+        is_global=True,  # Mix local and global frames
+    )
+
+    # Add torques independently
+    asset.permanent_wrench_composer.add_forces_and_torques(
+        torques=torch.ones(1, 1, 3),
+        env_ids=[0],
+        body_ids=[0],
+    )
+
+    # Apply forces and torques together with custom application points
+    asset.permanent_wrench_composer.add_forces_and_torques(
+        forces=torch.ones(1, 1, 3),
+        torques=torch.ones(1, 1, 3),
+        positions=torch.ones(1, 1, 3),
+        env_ids=[0],
+        body_ids=[0],
+    )
+
+**Instantaneous Wrenches (New):**
+
+.. code-block:: python
+
+    # Apply forces for a single simulation step only
+    asset.instantaneous_wrench_composer.add_forces_and_torques(
+        forces=torch.ones(1, 1, 3),
+        env_ids=[0],
+        body_ids=[0],
+    )
+
+    # Multiple instantaneous wrenches compose automatically
+    asset.instantaneous_wrench_composer.add_forces_and_torques(
+        forces=torch.ones(1, 2, 3),  # Add more forces
+        env_ids=[0],
+        body_ids=[0, 1],
+    )
+    # These are automatically reset after write_data_to_sim()
+
+**Key Differences:**
+
+- ``set_forces_and_torques()`` replaces existing wrenches
+- ``add_forces_and_torques()`` composes with existing wrenches
+- Permanent and instantaneous wrenches compose automatically
+- Instantaneous wrenches auto-clear after each simulation step
+
+**Use Cases:**
+- **Drones**: Compose thrust forces with aerodynamic drag and wind disturbances
+- **Boats**: Apply buoyancy forces with wave-induced motions
+
+
+Formatting and Linting - Migration to Ruff
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The project has migrated from multiple tools (``flake8`` for linting, ``black`` for formatting, ``isort`` for import sorting) to a unified toolchain using ``ruff`` for all formatting and linting tasks.
+
+Related PRs: https://github.com/isaac-sim/IsaacLab/pull/4329, https://github.com/isaac-sim/IsaacLab/pull/4377, https://github.com/isaac-sim/IsaacLab/pull/4335, https://github.com/isaac-sim/IsaacLab/pull/4376
+
+
+**Why:**
+
+- Faster performance (10-100x speedup)
+- Unified configuration in ``pyproject.toml``
+- More consistent formatting and linting rules
+- Simplified developer workflow
+
+**Migration Steps:**
+
+1. **Update configuration files:**
+
+   .. code-block:: bash
+
+      # Copy the updated configuration from the main branch
+      # Files to update: pyproject.toml, .pre-commit-config.yaml
+
+2. **Apply new formatting:**
+
+   .. code-block:: bash
+
+      ./isaaclab.sh --format
+
+3. **Resolve merge conflicts:**
+   If you encounter merge conflicts after updating, they likely originate from formatting differences. After copying the new configuration files, rerun the formatting command and commit the changes.
+
+.. note::
+
+   Pre-commit hooks will automatically run ``ruff`` on staged files. Ensure your code is formatted
+   before committing to avoid CI failures.
+
+
+USD Utilities - Unified ``isaaclab.sim.utils`` Module
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Isaac Lab now provides its own comprehensive USD utility module (``isaaclab.sim.utils``) instead of relying on scattered utilities from Isaac Sim's ``isaacsim.core.utils`` packages.
+
+Related PR: https://github.com/isaac-sim/IsaacLab/pull/4286
+
+**Why:**
+
+- **Better Organization**: All USD operations grouped into logical submodules (stage, prims, queries, transforms, semantics)
+- **Type Hints**: Full type annotations for better IDE support and code safety
+- **Version Compatibility**: Handles differences between Isaac Sim versions automatically
+
+**Old API (Isaac Sim utilities):**
+
+.. code-block:: python
+
+    import isaac.core.utils.stage as stage_utils
+    import isaac.core.utils.prims as prim_utils
+
+    # Stage operations
+    stage_utils.create_new_stage()
+    current_stage = stage_utils.get_current_stage()
+
+    # Prim operations
+    prim_utils.create_prim("/World/Cube", "Cube")
+    prim_utils.delete_prim("/World/OldObject")
+
+**New API (Isaac Lab utilities):**
+
+.. code-block:: python
+
+    import isaaclab.sim as sim_utils
+
+    # Stage operations
+    sim_utils.create_new_stage()
+    current_stage = sim_utils.get_current_stage()
+
+    # Prim operations
+    sim_utils.create_prim("/World/Cube", "Cube", attributes={"size": 1.0})
+    sim_utils.delete_prim("/World/OldObject")
+
+**Legacy Support:**
+
+For backward compatibility, legacy functions are still available in ``isaaclab.sim.utils.legacy``, but it's recommended to migrate to the new APIs or use USD directly.
+
+**Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v2.3.1...v2.3.2
+
+v2.3.1
+======
+
+What's Changed
+--------------
+
+This is a small patch release with a few critical fixes that impacted user workflows.
+
+Key fixes include:
+* The behavior of termination logging has changed in the manager-based workflow, where ``get_done_term`` now returns the current step value instead of the last episode value.
+* Additionally, a breaking change in the URDF importer was introduced in Isaac Sim 5.1, where the merge joints flag is no longer supported. We have now introduced a patch in the importer to return the behavior. Moving forward, we plan to deprecate this flag in favor of preserving asset definitions from URDFs directly without performing additional processing during the import process.
+
+Bug Fixes
+---------
+
+* Updates URDF importer to 2.4.31 to continue support for merge-joints by @kellyguo11 in https://github.com/isaac-sim/IsaacLab/pull/4000
+* Separates per-step termination and last-episode termination bookkeeping by @ooctipus in https://github.com/isaac-sim/IsaacLab/pull/3745
+* Uses effort_limit from USD if not specified in actuator cfg by @JuanaDd in https://github.com/isaac-sim/IsaacLab/pull/3522
+* Fixes type name for tendon properties in from_files config by @KyleM73 in https://github.com/isaac-sim/IsaacLab/pull/3941
+* Fixes duplicated text in pip installation docs by @shryt in https://github.com/isaac-sim/IsaacLab/pull/3969
+* Pins python version of pre-commmit.yaml workflow by @hhansen-bdai in https://github.com/isaac-sim/IsaacLab/pull/3929
+
+Documentation
+-------------
+
+* Updates the mimic teleop doc to link to the locomotion policy training by @huihuaNvidia2023 in https://github.com/isaac-sim/IsaacLab/pull/4053
+
+**Full Changelog**: https://github.com/isaac-sim/IsaacLab/compare/v2.3.0...v2.3.1
 
 v2.3.0
 ======
@@ -160,7 +1023,7 @@ Mimic and Teleoperation
 * Adds dgx spark limitations link to teleop docs by @lotusl-code in https://github.com/isaac-sim/IsaacLab/pull/3805
 * Adds Cosmos Transfer1 limitation for DGX spark by @shauryadNv in https://github.com/isaac-sim/IsaacLab/pull/3817
 * Updates DGX spark limitations for SkillGen in the documentation by @njawale42 in https://github.com/isaac-sim/IsaacLab/pull/3748
-* Adds the Isaac-PickPlace-G1-InspireFTP-Abs-v0 Task into Envs Docs by @yami007007 in https://github.com/isaac-sim/IsaacLab/pull/3479
+* Adds the IsaacContrib-PickPlace-G1-InspireFTP-Abs Task into Envs Docs by @yami007007 in https://github.com/isaac-sim/IsaacLab/pull/3479
 
 Infrastructure
 ~~~~~~~~~~~~~~
@@ -1312,12 +2175,12 @@ New Features
 * Adds the direct workflow multi-agent environments ``Isaac-Cart-Double-Pendulum-Direct-v0`` and ``Isaac-Shadow-Hand-Over-Direct-v0`` by @Toni-SM
 * Adds throughput benchmarking scripts for the different learning workflows by @kellyguo11
 * Adds results for the benchmarks in the documentation
-  `here <https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/performance_benchmarks.html>`__
+  :ref:`here <developer_tools_benchmarking_run>`
   for different types of hardware by @kellyguo11
 * Adds the direct workflow Allegro hand environment by @kellyguo11
 * Adds video recording to the play scripts in RL workflows by @j3soon
 * Adds comparison tables for the supported RL libraries
-  `here <https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_frameworks.html>`__ by @kellyguo11
+  :doc:`here </source/concepts/reinforcement_learning>` by @kellyguo11
 * Add APIs for deformable asset by @masoudmoghani
 * Adds support for MJCF converter by @qqqwan
 * Adds a function to define camera configs through intrinsic matrix by @pascal-roth
@@ -1414,15 +2277,35 @@ Due to the above change, the command line interaction with some of the scripts h
 
 Before:
 
-.. code:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --headless --cpu
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+          uv run python source/standalone/workflows/sb3/train.py --task Isaac-Cartpole --cpu
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+          ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole --cpu
 
 Now:
 
-.. code:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole-v0 --headless --device cpu
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+          uv run python source/standalone/workflows/sb3/train.py --task Isaac-Cartpole --device cpu
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+          ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole --device cpu
 
 Renaming of teleoperation device CLI in standalone scripts
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1433,15 +2316,36 @@ this conflict, the teleoperation-device now needs to be specified through ``--te
 
 Before:
 
-.. code:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --device keyboard
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+          uv run python source/standalone/environments/teleoperation/teleop_se3_agent.py --task IsaacContrib-Lift-Cube-Franka-IK-Rel --num_envs 1 --device keyboard
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+          ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task IsaacContrib-Lift-Cube-Franka-IK-Rel --num_envs 1 --device keyboard
 
 Now:
 
-.. code:: bash
+.. tab-set::
 
-    ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device keyboard
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+          uv run python source/standalone/environments/teleoperation/teleop_se3_agent.py --task IsaacContrib-Lift-Cube-Franka-IK-Rel --num_envs 1 --teleop_device keyboard
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+          ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task IsaacContrib-Lift-Cube-Franka-IK-Rel --num_envs 1 --teleop_device keyboard
 
 
 Using Python-version of container utility script
@@ -1585,7 +2489,7 @@ Welcome to the first official release of Isaac Lab!
 
 Building upon the foundation of the `Orbit <https://isaac-orbit.github.io/>`_ framework, we have integrated
 the RL environment designing workflow from `OmniIsaacGymEnvs <https://github.com/NVIDIA-Omniverse/OmniIsaacGymEnvs>`_.
-This allows users to choose a suitable :ref:`task-design approach <ref_arch>`
+This allows users to choose a suitable :ref:`task-design approach <feature-workflows>`
 for their applications.
 
 While we maintain backward compatibility with Isaac Sim 2023.1.1, we highly recommend using Isaac Lab with
@@ -1618,18 +2522,5 @@ Improvements
 * Added lazy buffer implementation for rigid object and articulation data. Instead of updating all the quantities
   at every step call, the lazy buffers are updated only when the user queries them
 * Added SKRL support to more environments
-
-Breaking Changes
-----------------
-
-For users coming from Orbit, this release brings certain breaking changes. Please check the migration guide for more information.
-
-Migration Guide
----------------
-
-Please find detailed migration guides as follows:
-
-* `From Orbit to IsaacLab <https://isaac-sim.github.io/IsaacLab/main/source/migration/migrating_from_orbit.html>`_
-* `From OmniIsaacGymEnvs to IsaacLab <https://isaac-sim.github.io/IsaacLab/main/source/migration/migrating_from_omniisaacgymenvs.html>`_
 
 .. _simple script: https://gist.github.com/kellyguo11/3e8f73f739b1c013b1069ad372277a85

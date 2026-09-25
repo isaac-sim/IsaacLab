@@ -7,10 +7,11 @@ from __future__ import annotations
 
 import copy
 import functools
-import numpy as np
-import trimesh
 from collections.abc import Callable
 from typing import TYPE_CHECKING
+
+import numpy as np
+import trimesh
 
 if TYPE_CHECKING:
     from .hf_terrains_cfg import HfTerrainBaseCfg
@@ -70,7 +71,6 @@ def height_field_to_mesh(func: Callable) -> Callable:
         y2 = int((cfg.size[1] * 0.5 + 1) / cfg.horizontal_scale)
         origin_z = np.max(heights[x1:x2, y1:y2]) * cfg.vertical_scale
         origin = np.array([0.5 * cfg.size[0], 0.5 * cfg.size[1], origin_z])
-        # return mesh and origin
         return [mesh], origin
 
     return wrapper
@@ -169,7 +169,6 @@ def convert_height_field_to_mesh(
         - **triangles** (np.ndarray(int)): Array of shape (num_triangles, 3).
           Each row represents the indices of the 3 vertices connected by this triangle.
     """
-    # read height field
     num_rows, num_cols = height_field.shape
     # create a mesh grid of the height field
     y = np.linspace(0, (num_cols - 1) * horizontal_scale, num_cols)
