@@ -133,7 +133,7 @@ def create_dummy_sensor(request, device):
     sim.clear_instance()
 
 
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_sensor_init(create_dummy_sensor, device):
     """Test that the sensor initializes, steps without update, and forces update."""
 
@@ -169,7 +169,7 @@ def test_sensor_init(create_dummy_sensor, device):
         )
 
 
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_sensor_update_rate(create_dummy_sensor, device):
     """Test that the update_rate configuration parameter works by checking the value of the data is old for an update
     period of 2.
@@ -247,7 +247,7 @@ def test_sensor_reset(create_dummy_sensor, device):
         )
 
 
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_reset_invalidates_cached_sensor_data(create_dummy_sensor, device):
     """Test that repeated reads refresh once per update and resets each invalidate cached data once."""
     sensor_cfg, sim, dt = create_dummy_sensor

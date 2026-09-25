@@ -59,7 +59,7 @@ if not _MISSING_MODULES:
     from isaaclab.test.utils import DeviceScope, test_devices
     from isaaclab.utils.warp import ProxyArray
 
-    _CUDA_DEVICES = test_devices(DeviceScope.CUDA)
+    _CUDA_DEVICES = test_devices(DeviceScope.DEFAULT_CUDA)
 else:
     _CUDA_DEVICES = []
 

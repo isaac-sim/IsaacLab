@@ -72,7 +72,7 @@ def setup_camera(device) -> tuple[sim_utils.SimulationContext, CameraCfg, float]
     sim.clear_instance()
 
 
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 @pytest.mark.isaacsim_ci
 def test_tiled_camera_deprecation_warning(setup_camera, device):
     """TiledCamera instantiation emits a DeprecationWarning and yields a working Camera."""

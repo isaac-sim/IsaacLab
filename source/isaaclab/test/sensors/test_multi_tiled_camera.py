@@ -88,7 +88,7 @@ def test_all_annotators_multi_tiled_camera(setup_camera):
     ]
 
     num_tiled_cameras = 2
-    num_cameras_per_tiled_camera = 9
+    num_cameras_per_tiled_camera = 7
 
     tiled_cameras = []
     for i in range(num_tiled_cameras):

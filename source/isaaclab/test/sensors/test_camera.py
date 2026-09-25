@@ -663,7 +663,7 @@ def test_camera_all_annotators(setup_camera_device, device):
     del camera
 
 
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def test_camera_segmentation_non_colorize(setup_camera_device, device):
     """Test segmentation outputs with colorization disabled produce correct dtypes and info."""
     sim, camera_cfg, dt = setup_camera_device
@@ -689,11 +689,13 @@ def test_camera_segmentation_non_colorize(setup_camera_device, device):
         assert camera.data.output[seg_type].shape == (num_cameras, camera_cfg.height, camera_cfg.width, 1)
         assert camera.data.output[seg_type].dtype == wp.int32
         assert isinstance(camera.data.info[seg_type], dict)
+        # Scene objects must produce non-zero IDs, so a dropped buffer copy cannot pass.
+        assert (camera.data.output[seg_type].torch != 0).any()
 
     del camera
 
 
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_camera_data_types_ordering(setup_camera_device, device):
     """Test that requesting specific data types produces the expected output keys."""
     sim, camera_cfg, dt = setup_camera_device

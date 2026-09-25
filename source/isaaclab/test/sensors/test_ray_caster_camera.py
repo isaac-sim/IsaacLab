@@ -125,8 +125,6 @@ def test_camera_init(setup_sim):
     cam_cfg_2.prim_path = "/World/Camera_2"
     sim_utils.create_prim("/World/Camera_2", "Xform")
     camera_2 = RayCasterCamera(cam_cfg_2)
-    # check that the loaded meshes are equal
-    assert camera.meshes == camera_2.meshes
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -141,6 +139,20 @@ def test_camera_init(setup_sim):
     assert camera.data.intrinsic_matrices.torch.shape == (1, 3, 3)
     assert camera.data.image_shape == (camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width)
     assert camera.data.info == {camera_cfg.data_types[0]: None}
+
+    # both cameras share one cached ground mesh and must see it identically from the same pose
+    mesh_keys = [key for key in camera.meshes if key[0] == camera_cfg.mesh_prim_paths[0]]
+    assert len(mesh_keys) == 1
+    eyes = torch.tensor([POSITION], dtype=torch.float32, device=camera.device)
+    targets = torch.zeros_like(eyes)
+    for cam in (camera, camera_2):
+        cam.set_world_poses_from_view(eyes.clone(), targets.clone())
+        cam.update(dt, force_recompute=True)
+    depth_1 = camera.data.output["distance_to_image_plane"].torch
+    # the optical axis hits the ground at the origin, so the center depth is the eye-to-origin distance
+    center_row, center_col = camera_cfg.pattern_cfg.height // 2, camera_cfg.pattern_cfg.width // 2
+    assert depth_1[0, center_row, center_col, 0].item() == pytest.approx(float(np.linalg.norm(POSITION)), abs=0.02)
+    torch.testing.assert_close(camera_2.data.output["distance_to_image_plane"].torch, depth_1)
 
     # check the camera reset
     camera.reset()
