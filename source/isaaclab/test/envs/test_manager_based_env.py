@@ -93,13 +93,6 @@ def test_step_updates_observation_history(device, env_type, cfg_factory, monkeyp
     torch.testing.assert_close(history.current_length, torch.tensor([3, 1, 3], device=device))
     env.reset_to({}, env_ids=slice(0, None, 2))
     torch.testing.assert_close(history.current_length, torch.tensor([1, 2, 1], device=device))
-    with pytest.raises(TypeError, match="env_ids"):
-        env.reset(None)
-    with pytest.raises(TypeError, match="env_ids"):
-        env.reset(env_ids=None)
-    with pytest.raises(TypeError, match="env_ids"):
-        env.reset_to({}, env_ids=None)
-    torch.testing.assert_close(history.current_length, torch.tensor([1, 2, 1], device=device))
     env.reset()
     assert reset_history.call_args.kwargs["batch_ids"] == slice(None)
     torch.testing.assert_close(history.current_length, torch.ones_like(history.current_length))

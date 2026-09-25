@@ -3,8 +3,8 @@ Changed
 
 * **Breaking:** Changed ``ManagerBasedEnv.reset`` / ``reset_to`` to accept positive-step slices or device-resident
   one-dimensional ``torch.int32`` / ``torch.int64`` indices, defaulting to ``slice(None)``. Omit the selector for
-  all environments; explicit ``env_ids=None`` raises. Callers are responsible for supplying indices with the
-  correct dtype and device; reset methods do not validate or transfer index tensors.
+  all environments. Callers are responsible for supplying a supported selector with the correct dtype and
+  device; reset methods do not validate or transfer index tensors.
 * Made the selector the first positional argument of ``ManagerBasedEnv.reset``. Pass the seed and Gymnasium
   options by keyword, for example ``env.reset(seed=42)``.
 * Preserved slices through manager buffer resets to avoid advanced-indexing copies and scalar transfers.

@@ -126,8 +126,6 @@ class EventManager(ManagerBase):
 
         Explicit None is not supported. The selector is passed directly to stateful terms.
         """
-        if env_ids is None:
-            raise TypeError("env_ids must be a slice or device indices; omit it to reset all environments.")
         # call all terms that are classes
         for mode_cfg in self._mode_class_term_cfgs.values():
             for term_cfg in mode_cfg:
@@ -194,9 +192,6 @@ class EventManager(ManagerBase):
         if mode not in self._mode_term_names:
             logger.warning(f"Event mode '{mode}' is not defined. Skipping event.")
             return
-
-        if mode == "reset" and env_ids is None:
-            raise TypeError("Reset events require explicit environment indices.")
 
         # ensure class-based terms are resolved before applying
         # the timeline PLAY callback may not have fired yet, so we resolve synchronously

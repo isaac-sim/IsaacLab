@@ -182,9 +182,6 @@ def test_class_terms_created_while_playing_are_reset(env, monkeypatch):
     selected = slice(1, None, 2)
     event_man.reset(selected)
     assert reset_calls[-1] is selected
-    with pytest.raises(TypeError, match="env_ids"):
-        event_man.reset(None)
-    assert len(reset_calls) == 2
 
 
 def test_config_empty(env):

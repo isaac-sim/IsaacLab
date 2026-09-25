@@ -424,9 +424,6 @@ class ManagerBasedEnv:
         Returns:
             A tuple containing the observations and extras.
         """
-        if env_ids is None:
-            raise TypeError("env_ids must be a slice or device indices; omit it to reset all environments.")
-
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
 
@@ -485,9 +482,6 @@ class ManagerBasedEnv:
             is_relative: If set to True, the state is considered relative to the environment origins.
                 Defaults to False.
         """
-        if env_ids is None:
-            raise TypeError("env_ids must be a slice or device indices; omit it to reset all environments.")
-
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
 
