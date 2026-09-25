@@ -104,20 +104,6 @@ def test_solve_writes_output_buffer(monkeypatch):
     assert torch.allclose(wp.to_torch(result), torch.tensor([[2.0, 3.0], [4.0, 5.0]]))
 
 
-def test_constraint_objectives_carry_no_target_or_action(monkeypatch):
-    _patch_newton_ik(monkeypatch)
-    solver = _pose_solver(
-        objectives=[
-            NewtonIKPoseObjectiveCfg(body_name="ee"),
-            NewtonIKJointLimitObjectiveCfg(weight=0.1),
-        ]
-    )
-    # Only the pose objective is named and command-driven; the joint limit is a
-    # pure constraint (no name, no action dimensions).
-    assert list(solver.objectives_by_name) == ["ee"]
-    assert [obj.action_dim for obj in solver.objectives] == [6, 0]
-
-
 def test_multiple_pose_objectives_register_distinct_targets(monkeypatch):
     _patch_newton_ik(monkeypatch)
     solver = _pose_solver(
@@ -127,7 +113,10 @@ def test_multiple_pose_objectives_register_distinct_targets(monkeypatch):
             NewtonIKJointLimitObjectiveCfg(weight=0.1),
         ]
     )
+    # Only pose objectives are named and command-driven; the joint limit is a
+    # pure constraint (no name, no action dimensions).
     assert list(solver.objectives_by_name) == ["ee", "torso"]
+    assert [obj.action_dim for obj in solver.objectives] == [6, 6, 0]
     assert solver.objectives_by_name["ee"].link_index == 0
     assert solver.objectives_by_name["torso"].link_index == 1
 
