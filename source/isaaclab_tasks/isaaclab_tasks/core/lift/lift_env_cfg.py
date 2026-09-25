@@ -3,28 +3,102 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Base configuration for the lift and reorient (arm plus hand) environments."""
+
 from dataclasses import MISSING
 
-from isaaclab_physx.assets import DeformableObjectCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.markers import VisualizationMarkersCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg
-from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
+from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg, RigidBodyMaterialCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils.noise import UniformNoiseCfg as Unoise
+from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_tasks.utils import PresetCfg
 
 from . import mdp
+from .adr_curriculum import CurriculumCfg
+
+##
+# Scene assets
+##
+
+TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
+    size=(0.8, 1.5, 0.04),
+    rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+    collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+    # spawned invisible: the command term's success markers draw the table, tinted by success
+    visible=False,
+)
+"""Table the object rests on."""
+
+OBJECT_PHYSICS = {
+    "physics_material": RigidBodyMaterialCfg(static_friction=0.5),
+    "collision_props": [PhysxCollisionCfg(contact_offset=0.002)],
+}
+"""Physics properties shared by the graspable object shapes."""
+
+
+@configclass
+class ObjectCfg(PresetCfg):
+    """Graspable object presets: a set of primitive shapes, or a single cube for OvPhysX."""
+
+    shapes = sim_utils.MultiAssetSpawnerCfg(
+        assets_cfg=[
+            MeshCuboidCfg(size=(0.05, 0.1, 0.1), **OBJECT_PHYSICS),
+            MeshCuboidCfg(size=(0.05, 0.05, 0.1), **OBJECT_PHYSICS),
+            MeshCuboidCfg(size=(0.025, 0.1, 0.1), **OBJECT_PHYSICS),
+            MeshCuboidCfg(size=(0.025, 0.05, 0.1), **OBJECT_PHYSICS),
+            MeshCuboidCfg(size=(0.025, 0.025, 0.1), **OBJECT_PHYSICS),
+            MeshCuboidCfg(size=(0.01, 0.1, 0.1), **OBJECT_PHYSICS),
+            MeshSphereCfg(radius=0.05, **OBJECT_PHYSICS),
+            MeshSphereCfg(radius=0.025, **OBJECT_PHYSICS),
+            MeshCapsuleCfg(radius=0.04, height=0.025, **OBJECT_PHYSICS),
+            MeshCapsuleCfg(radius=0.04, height=0.01, **OBJECT_PHYSICS),
+            MeshCapsuleCfg(radius=0.04, height=0.1, **OBJECT_PHYSICS),
+            MeshCapsuleCfg(radius=0.025, height=0.1, **OBJECT_PHYSICS),
+            MeshCapsuleCfg(radius=0.025, height=0.2, **OBJECT_PHYSICS),
+            MeshCapsuleCfg(radius=0.01, height=0.2, **OBJECT_PHYSICS),
+            MeshConeCfg(radius=0.05, height=0.1, **OBJECT_PHYSICS),
+            MeshConeCfg(radius=0.025, height=0.1, **OBJECT_PHYSICS),
+        ],
+        rigid_props=PhysxRigidBodyCfg(
+            solver_position_iteration_count=16, solver_velocity_iteration_count=0, disable_gravity=False
+        ),
+        collision_props=[
+            sim_utils.UsdPhysicsCollisionCfg(),
+            sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
+        ],
+        mass_props=sim_utils.MassCfg(mass=0.2),
+    )
+    cube = sim_utils.CuboidCfg(
+        size=(0.05, 0.05, 0.05),
+        physics_material=RigidBodyMaterialCfg(static_friction=0.5),
+        rigid_props=PhysxRigidBodyCfg(
+            solver_position_iteration_count=16, solver_velocity_iteration_count=0, disable_gravity=False
+        ),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        mass_props=sim_utils.MassCfg(mass=0.2),
+    )
+    default = shapes
+    ovphysx = cube
+
 
 ##
 # Scene definition
@@ -32,37 +106,41 @@ from . import mdp
 
 
 @configclass
-class ObjectTableSceneCfg(InteractiveSceneCfg):
-    """Configuration for the lift scene with a robot and a object.
-    This is the abstract base implementation, the exact scene is defined in the derived classes
-    which need to set the target object, robot and end-effector frames
-    """
+class SceneCfg(InteractiveSceneCfg):
+    """Scene with a robot, a table and the graspable object."""
 
-    # robots: will be populated by agent env cfg
+    # robot
     robot: ArticulationCfg = MISSING
-    # end-effector sensor: will be populated by agent env cfg
-    ee_frame: FrameTransformerCfg = MISSING
-    # target object: will be populated by agent env cfg
-    object: RigidObjectCfg | DeformableObjectCfg = MISSING
 
-    # Table
-    table = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Table",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0, 0], rot=[0, 0, 0.707, 0.707]),
-        spawn=UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"),
+    # object
+    object: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Object",
+        spawn=ObjectCfg(),  # type: ignore
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.1, 0.35)),
+    )
+
+    # table
+    table: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/table",
+        spawn=TABLE_SPAWN_CFG,
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(0.0, 0.0, 0.0, 1.0)),
     )
 
     # plane
     plane = AssetBaseCfg(
         prim_path="/World/GroundPlane",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0, 0, -1.05]),
-        spawn=GroundPlaneCfg(),
+        init_state=AssetBaseCfg.InitialStateCfg(),
+        spawn=sim_utils.GroundPlaneCfg(color=(1.0, 1.0, 1.0)),
+        collision_group=-1,
     )
 
     # lights
-    light = AssetBaseCfg(
-        prim_path="/World/light",
-        spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+    sky_light = AssetBaseCfg(
+        prim_path="/World/skyLight",
+        spawn=sim_utils.DomeLightCfg(
+            intensity=750.0,
+            texture_file=f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Skies/PolyHaven/kloofendal_43d_clear_puresky_4k.hdr",
+        ),
     )
 
 
@@ -75,24 +153,32 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 class CommandsCfg:
     """Command terms for the MDP."""
 
-    object_pose = mdp.UniformPoseCommandCfg(
+    object_pose = mdp.ObjectUniformPoseCommandCfg(
         asset_name="robot",
-        body_name=MISSING,  # will be set by agent env cfg
-        resampling_time_range=(5.0, 5.0),
-        debug_vis=True,
-        ranges=mdp.UniformPoseCommandCfg.Ranges(
-            pos_x=(0.4, 0.6), pos_y=(-0.25, 0.25), pos_z=(0.25, 0.5), roll=(0.0, 0.0), pitch=(0.0, 0.0), yaw=(0.0, 0.0)
+        object_name="object",
+        resampling_time_range=(4.0, 6.0),
+        debug_vis=False,
+        ranges=mdp.ObjectUniformPoseCommandCfg.Ranges(
+            pos_x=(-0.7, -0.3),
+            pos_y=(-0.25, 0.25),
+            pos_z=(0.55, 0.95),
+            roll=(-3.14, 3.14),
+            pitch=(-3.14, 3.14),
+            yaw=(0.0, 0.0),
+        ),
+        success_vis_asset_name="table",
+        success_visualizer_cfg=VisualizationMarkersCfg(
+            prim_path="/Visuals/SuccessMarkers",
+            markers={
+                "failure": TABLE_SPAWN_CFG.replace(
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.25, 0.15, 0.15)), visible=True
+                ),
+                "success": TABLE_SPAWN_CFG.replace(
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.25, 0.15)), visible=True
+                ),
+            },
         ),
     )
-
-
-@configclass
-class ActionsCfg:
-    """Action specifications for the MDP."""
-
-    # will be set by agent env cfg
-    arm_action: mdp.JointPositionActionCfg | mdp.DifferentialInverseKinematicsActionCfg = MISSING
-    gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
 
 
 @configclass
@@ -103,65 +189,296 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        object_position = ObsTerm(func=mdp.object_position_in_robot_root_frame)
-        target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+        object_quat_b = ObsTerm(func=mdp.object_quat_b, noise=Unoise(n_min=-0.0, n_max=0.0))
+        target_object_pose_b = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
         actions = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
+            self.history_length = 5
+
+    @configclass
+    class ProprioObsCfg(ObsGroup):
+        """Observations for proprioception group."""
+
+        joint_pos = ObsTerm(func=mdp.joint_pos, noise=Unoise(n_min=-0.0, n_max=0.0))
+        joint_vel = ObsTerm(func=mdp.joint_vel, noise=Unoise(n_min=-0.0, n_max=0.0))
+        hand_tips_state_b = ObsTerm(
+            func=mdp.body_state_b,
+            noise=Unoise(n_min=-0.0, n_max=0.0),
+            # positions [m] and quaternions stay well within this range
+            clip=(-2.0, 2.0),
+            params={
+                # pose-only: body velocities are the most solver-sensitive observables and do not transfer
+                # across physics backends; the observation history carries the velocity information
+                "include_vel": False,
+                "body_asset_cfg": SceneEntityCfg("robot"),
+                "base_asset_cfg": SceneEntityCfg("robot"),
+            },
+        )
+        contact: ObsTerm = MISSING
+
+        def __post_init__(self):
+            self.enable_corruption = True
+            self.concatenate_terms = True
+            self.history_length = 5
+
+    @configclass
+    class PerceptionObsCfg(ObsGroup):
+        """Observations for perception group."""
+
+        object_point_cloud = ObsTerm(
+            func=mdp.object_point_cloud_b,
+            noise=Unoise(n_min=-0.0, n_max=0.0),
+            clip=(-2.0, 2.0),  # [m]
+            params={"num_points": 64, "flatten": True},
+        )
+
+        def __post_init__(self):
+            self.enable_corruption = True
+            self.concatenate_dim = 0
+            self.concatenate_terms = True
+            self.flatten_history_dim = True
+            self.history_length = 5
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
+    proprio: ProprioObsCfg = ProprioObsCfg()
+    perception: PerceptionObsCfg = PerceptionObsCfg()
 
 
 @configclass
 class EventCfg:
     """Configuration for events."""
 
-    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
-
-    reset_object_position = EventTerm(
-        func=mdp.reset_root_state_uniform,
-        mode="reset",
+    robot_physics_material = EventTerm(
+        func=mdp.randomize_rigid_body_material,
+        mode="startup",
         params={
-            "pose_range": {"x": (-0.1, 0.1), "y": (-0.25, 0.25), "z": (0.0, 0.0)},
-            "velocity_range": {},
-            "asset_cfg": SceneEntityCfg("object", body_names="Object"),
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+            "static_friction_range": [0.5, 1.0],
+            "dynamic_friction_range": [0.5, 1.0],
+            "restitution_range": [0.0, 0.0],
+            "num_buckets": 250,
         },
     )
+
+    object_physics_material = EventTerm(
+        func=mdp.randomize_rigid_body_material,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("object", body_names=".*"),
+            "static_friction_range": [0.5, 1.0],
+            "dynamic_friction_range": [0.5, 1.0],
+            "restitution_range": [0.0, 0.0],
+            "num_buckets": 250,
+        },
+    )
+
+    object_physics_inertia = EventTerm(
+        func=mdp.randomize_rigid_body_inertia,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("object"),
+            "inertia_distribution_params": [0.01, 0.01],
+            "operation": "add",
+            "diagonal_only": True,
+        },
+    )
+
+    joint_stiffness_and_damping = EventTerm(
+        func=mdp.randomize_actuator_gains,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
+            "stiffness_distribution_params": [0.5, 2.0],
+            "damping_distribution_params": [0.5, 2.0],
+            "operation": "scale",
+        },
+    )
+
+    joint_friction = EventTerm(
+        func=mdp.randomize_joint_parameters,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
+            "friction_distribution_params": [0.0, 5.0],
+            "operation": "scale",
+        },
+    )
+
+    object_scale_mass = EventTerm(
+        func=mdp.randomize_rigid_body_mass,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("object"),
+            "mass_distribution_params": [0.2, 2.5],
+            "operation": "scale",
+        },
+    )
+
+    # gravity curriculum: starting without gravity and gradually introducing full gravity makes
+    # learning smoother and removes the need for a separate lifting reward
+    variable_gravity = EventTerm(
+        func=mdp.randomize_physics_scene_gravity,
+        mode="reset",
+        params={
+            "gravity_distribution_params": ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
+            "operation": "abs",
+        },
+    )
+
+    # robot configs add their static-obstacle geometry to ``params["valid_criteria"]``
+    conditional_reset = EventTerm(
+        func="isaaclab_tasks.core.lift.mdp.events:conditional_reset",
+        mode="reset",
+        params={
+            "terms": {
+                "reset_root": EventTerm(
+                    func=mdp.reset_root_state_uniform,
+                    mode="reset",
+                    params={
+                        "pose_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "yaw": [-0.0, 0.0]},
+                        "velocity_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "z": [-0.0, 0.0]},
+                        "asset_cfg": SceneEntityCfg("robot"),
+                    },
+                ),
+                "reset_robot_joints": EventTerm(
+                    func=mdp.reset_joints_by_offset,
+                    mode="reset",
+                    params={
+                        "position_range": [-0.50, 0.50],
+                        "velocity_range": [0.0, 0.0],
+                    },
+                ),
+                "reset_robot_wrist_joint": EventTerm(
+                    func=mdp.reset_joints_by_offset,
+                    mode="reset",
+                    params={
+                        "asset_cfg": SceneEntityCfg("robot", joint_names=["wrist"]),
+                        "position_range": [-3, 3],
+                        "velocity_range": [0.0, 0.0],
+                    },
+                ),
+                "reset_object": EventTerm(
+                    func=mdp.reset_root_state_uniform,
+                    mode="reset",
+                    params={
+                        "pose_range": {
+                            "x": [-0.2, 0.2],
+                            "y": [-0.2, 0.2],
+                            "z": [0.0, 0.4],
+                            "roll": [-3.14, 3.14],
+                            "pitch": [-3.14, 3.14],
+                            "yaw": [-3.14, 3.14],
+                        },
+                        "velocity_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "z": [-0.0, 0.0]},
+                        "asset_cfg": SceneEntityCfg("object"),
+                    },
+                ),
+                # spawn-in-hand curriculum: a small share of episodes starts with the object at the
+                # gripper (uniform random orientation, small body-frame offset); interpenetrating draws
+                # are rejected by object_robot_clearance. Must stay last: it reads the gripper pose after
+                # the robot reset terms.
+                "reset_object_to_target": EventTerm(
+                    func="isaaclab_tasks.core.lift.mdp.events:reset_to_target",
+                    mode="reset",
+                    params={
+                        "pose_range": {"x": [-0.04, 0.04], "y": [-0.04, 0.04], "z": [-0.04, 0.04]},
+                        "velocity_range": {},
+                        "probability": 0.25,
+                        # robot configs must point this at their gripper body and may shift
+                        # the z range along the approach axis (e.g. between the fingertips)
+                        "target_cfg": MISSING,
+                        "asset_cfg": SceneEntityCfg("object"),
+                    },
+                ),
+            },
+            "buffer_size_per_group": 1024,
+            # harvest more candidates than the bank holds and keep the subset that is spread widest
+            # over the diversity feature; ``1.0`` keeps the states first-come instead.
+            "diversity_feature": mdp.GraspTravelDistanceCfg(
+                asset_name="robot",
+                body_names=MISSING,  # overridden by robot configs
+                object_name="object",
+                command_name="object_pose",
+            ),
+            "valid_criteria": {
+                "object_robot_clearance": mdp.MeshClearanceCfg(
+                    asset_name="robot",
+                    body_names=".*",
+                    object_name="object",
+                    num_object_points=64,
+                    min_clearance=0.0,
+                ),
+                "robot_table_clearance": mdp.SlabClearanceCfg(
+                    asset_name="robot",
+                    body_names=MISSING,  # overridden by robot configs
+                    object_name="object",
+                    obstacle_slabs=[((-0.95, -0.15), (-0.75, 0.75), 0.255), (None, None, 0.0)],  # table dimension
+                    num_object_points=64,
+                    min_clearance=0.02,
+                ),
+            },
+            # restart from the banked states the policy solves about half the time rather than
+            # drawing uniformly, which keeps the already-mastered and still-hopeless states from
+            # taking up most of the episodes
+            "success_monitor": mdp.SuccessMonitorCfg(target_success_rate=0.5),
+        },
+    )
+
+
+@configclass
+class ActionsCfg:
+    """Action specifications for the MDP, set by the robot-specific configurations."""
 
 
 @configclass
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    reaching_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.1}, weight=1.0)
+    action_l2 = RewTerm(func=mdp.action_l2, weight=-0.01)
 
-    lifting_object = RewTerm(func=mdp.object_is_lifted, params={"minimal_height": 0.04}, weight=15.0)
+    fingers_to_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.4}, weight=0.05)
 
-    object_goal_tracking = RewTerm(
-        func=mdp.object_goal_distance,
-        params={"std": 0.3, "minimal_height": 0.04, "command_name": "object_pose", "success_threshold": 0.05},
-        weight=16.0,
-    )
-
-    object_goal_tracking_fine_grained = RewTerm(
-        func=mdp.object_goal_distance,
-        params={"std": 0.05, "minimal_height": 0.04, "command_name": "object_pose"},
+    # Progress rewards pay once per ``min_improvement`` of ground gained on the best error so far,
+    # so ground already credited cannot be earned again by backing off and re-approaching.
+    position_tracking = RewTerm(
+        func=mdp.position_command_progress,
         weight=5.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "min_improvement": 0.0025,
+            "command_name": "object_pose",
+            "align_asset_cfg": SceneEntityCfg("object"),
+        },
     )
 
-    # action penalty
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-4)
-
-    joint_vel = RewTerm(
-        func=mdp.joint_vel_l2,
-        weight=-1e-4,
-        params={"asset_cfg": SceneEntityCfg("robot")},
+    orientation_tracking = RewTerm(
+        func=mdp.orientation_command_progress,
+        weight=10.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "min_improvement": 0.015,
+            "command_name": "object_pose",
+            "align_asset_cfg": SceneEntityCfg("object"),
+        },
     )
+
+    success = RewTerm(
+        func=mdp.success_reward,
+        weight=10,
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "pos_std": 0.05,
+            "rot_std": 0.5,
+            "command_name": "object_pose",
+            "align_asset_cfg": SceneEntityCfg("object"),
+        },
+    )
+
+    early_termination = RewTerm(func=mdp.is_terminated_term, weight=-50.0, params={"term_keys": ["abnormal_robot"]})
 
 
 @configclass
@@ -170,22 +487,56 @@ class TerminationsCfg:
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
-    object_dropping = DoneTerm(
-        func=mdp.root_height_below_minimum, params={"minimum_height": -0.05, "asset_cfg": SceneEntityCfg("object")}
+    object_out_of_bound = DoneTerm(
+        func=mdp.out_of_bound,
+        params={
+            "in_bound_range": {"x": (-1.5, 0.5), "y": (-2.0, 2.0), "z": (0.3, 2.0)},
+            "asset_cfg": SceneEntityCfg("object"),
+        },
     )
+
+    abnormal_robot = DoneTerm(func=mdp.joint_vel_out_of_limit)
+
+
+##
+# Physics backend presets
+##
 
 
 @configclass
-class CurriculumCfg:
-    """Curriculum terms for the MDP."""
+class PhysicsCfg(PresetCfg):
+    """Physics backend presets for the lift environments."""
 
-    action_rate = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "action_rate", "weight": -1e-1, "num_steps": 10000}
+    isaacsim_physx = PhysxCfg(
+        bounce_threshold_velocity=0.01,
+        gpu_max_rigid_patch_count=4 * 5 * 2**15,
+        gpu_found_lost_pairs_capacity=2**26,
     )
-
-    joint_vel = CurrTerm(
-        func=mdp.modify_reward_weight, params={"term_name": "joint_vel", "weight": -1e-1, "num_steps": 10000}
+    ovphysx = OvPhysxCfg(
+        gpu_max_rigid_patch_count=4 * 5 * 2**15,
+        gpu_found_lost_pairs_capacity=2**26,
     )
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            solver="newton",
+            integrator="implicitfast",
+            njmax=300,
+            nconmax=200,
+            impratio=1.0,
+            cone="pyramidal",
+            update_data_interval=2,
+            iterations=100,
+            ls_iterations=50,
+            use_mujoco_contacts=False,
+            ccd_iterations=35,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(rigid_contact_max=4000000),
+        default_shape_cfg=NewtonShapeCfg(),
+        num_substeps=2,
+        debug_mode=False,
+    )
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    default = newton_mjwarp
 
 
 ##
@@ -194,11 +545,11 @@ class CurriculumCfg:
 
 
 @configclass
-class LiftEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the lifting environment."""
+class ReorientEnvCfg(ManagerBasedRLEnvCfg):
+    """Object reorientation environment, also the base of the lift environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=2.5)
+    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -207,20 +558,54 @@ class LiftEnvCfg(ManagerBasedRLEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
-    curriculum: CurriculumCfg = CurriculumCfg()
+    curriculum: CurriculumCfg | None = CurriculumCfg()
 
     def __post_init__(self):
         """Post initialization."""
         # general settings
-        self.decimation = 2
-        self.episode_length_s = 5.0
-        # simulation settings
-        self.sim.dt = 0.01  # 100Hz
-        self.sim.render_interval = self.decimation
+        self.decimation = 4  # 30 Hz
+        self.episode_length_s = 12.0
+        self.is_finite_horizon = False
 
-        self.sim.physics = PhysxCfg(
-            bounce_threshold_velocity=0.01,
-            gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
-            gpu_total_aggregate_pairs_capacity=16 * 1024,
-            friction_correlation_distance=0.00625,
-        )
+        # commands: track the full pose
+        self.commands.object_pose.position_only = False
+
+        # simulation settings
+        self.sim.dt = 1 / 120
+        self.sim.render_interval = self.decimation
+        self.sim.physics = PhysicsCfg()
+        # visualizer settings
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(-2.25, 0.0, 0.75), lookat=(0.0, 0.0, 0.45))
+
+    def play_mode(self):
+        super().play_mode()
+        self.commands.object_pose.debug_vis = True
+        # the bank shapes what a policy trains on; at play it only has to supply starts for the
+        # handful of environments the parent left, so it is harvested small and taken as it comes
+        # rather than making the viewer wait through an oversampled prefill and its spread pass
+        reset_params = self.events.conditional_reset.params
+        reset_params["buffer_size_per_group"] = 32
+        reset_params["oversample_factor"] = 1.0
+        reset_params["diversity_feature"] = None
+        if self.curriculum is not None:
+            self.curriculum.adr.params["init_difficulty"] = self.curriculum.adr.params["max_difficulty"]
+            self.curriculum.adr.params["promotion_only"] = True
+            # the parent turned observation corruption off, which leaves the noise terms nothing to scale
+            self.curriculum.disable_observation_noise_terms()
+
+
+@configclass
+class LiftEnvCfg(ReorientEnvCfg):
+    """Object lifting environment: the reorientation environment tracking position only."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        # commands and rewards: track the position only
+        self.commands.object_pose.position_only = True
+        self.rewards.orientation_tracking = None
+        if self.curriculum is not None:
+            self.rewards.success.params["rot_std"] = None
+
+    def play_mode(self):
+        super().play_mode()
+        self.commands.object_pose.position_only = True

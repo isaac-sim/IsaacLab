@@ -8,9 +8,10 @@ __all__ = [
     "DelayBuffer",
     "TimestampedBuffer",
     "TimestampedBufferWarp",
+    "reset_timestamps",
 ]
 
 from .circular_buffer import CircularBuffer
 from .delay_buffer import DelayBuffer
-from .timestamped_buffer import TimestampedBuffer
+from .timestamped_buffer import TimestampedBuffer, reset_timestamps
 from .timestamped_buffer_warp import TimestampedBufferWarp

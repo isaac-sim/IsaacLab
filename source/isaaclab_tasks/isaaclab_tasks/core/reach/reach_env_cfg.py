@@ -3,17 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Base configuration for the end-effector reach environments."""
+
 from dataclasses import MISSING
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
+import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
-from isaaclab.devices import DevicesCfg
-from isaaclab.devices.gamepad import Se3GamepadCfg
-from isaaclab.devices.keyboard import Se3KeyboardCfg
-from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ActionTermCfg as ActionTerm
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
@@ -23,64 +23,46 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import CollisionPropertiesCfg, RigidBodyPropertiesCfg, UsdFileCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
+from isaaclab.visualizers import VisualizerCfg
 
-import isaaclab_tasks.core.reach.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
+
+##
+# Physics backend presets
+##
 
 
 @configclass
 class ReachPhysicsCfg(PresetCfg):
-    default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
-    physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+    """Physics backend presets for the reach environments."""
+
+    isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
 
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
-            njmax=50,
+            njmax=100,
             nconmax=20,
             cone="pyramidal",
             integrator="implicitfast",
             impratio=1,
+            update_data_interval=2,
         ),
-        num_substeps=1,
+        num_substeps=2,
         debug_mode=False,
+        use_cuda_graph=True,
     )
+    default: NewtonCfg = newton_mjwarp
 
 
 ##
 # Scene definition
 ##
-
-
-@configclass
-class TableCfg(PresetCfg):
-    physx = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Table",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0, 0), rot=(0, 0, 0.707, 0.707)),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
-        ),
-    )
-
-    newton_mjwarp: ArticulationCfg = ArticulationCfg(
-        prim_path="/World/envs/env_.*/Table",
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.5, 0.15, -0.5), rot=(0, 0, 0.707, 0.707), joint_pos={}, joint_vel={}
-        ),
-        spawn=sim_utils.CuboidCfg(
-            size=(0.9, 1.3, 1.00),
-            collision_props=CollisionPropertiesCfg(),
-            rigid_props=RigidBodyPropertiesCfg(rigid_body_enabled=True),
-        ),
-        actuators={},
-        articulation_root_prim_path="",
-    )
-
-    default = physx
 
 
 @configclass
@@ -94,7 +76,14 @@ class ReachSceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -1.05)),
     )
 
-    table = TableCfg()
+    table = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Table",
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0.0, -0.5)),
+        spawn=sim_utils.CuboidCfg(
+            size=(0.9, 1.3, 1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        ),
+    )
 
     # robots
     robot: ArticulationCfg = MISSING
@@ -121,6 +110,7 @@ class CommandsCfg:
         resampling_time_range=(4.0, 4.0),
         debug_vis=True,
         position_success_threshold=0.05,
+        orientation_success_threshold=0.2,
         ranges=mdp.UniformPoseCommandCfg.Ranges(
             pos_x=(0.35, 0.65),
             pos_y=(-0.2, 0.2),
@@ -186,19 +176,16 @@ class RewardsCfg:
         weight=-0.2,
         params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "command_name": "ee_pose"},
     )
-    end_effector_position_tracking_fine_grained = RewTerm(
-        func=mdp.position_command_error_tanh,
-        weight=0.1,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "std": 0.1, "command_name": "ee_pose"},
-    )
     end_effector_orientation_tracking = RewTerm(
         func=mdp.orientation_command_error,
         weight=-0.1,
         params={"asset_cfg": SceneEntityCfg("robot", body_names=MISSING), "command_name": "ee_pose"},
     )
+    success = RewTerm(func=mdp.is_terminated_term, weight=10.0, params={"term_keys": ["success"]})
 
-    # action penalty
+    # control and physical motion penalties
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.0001)
+    action_magnitude = RewTerm(func=mdp.action_l2, weight=-0.005)
     joint_vel = RewTerm(
         func=mdp.joint_vel_l2,
         weight=-0.0001,
@@ -210,6 +197,10 @@ class RewardsCfg:
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
+    success = DoneTerm(
+        func=mdp.pose_command_success,
+        params={"command_name": "ee_pose"},
+    )
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
 
@@ -250,27 +241,11 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         """Post initialization."""
         # general settings
-        self.decimation = 2
-        self.sim.render_interval = self.decimation
+        self.decimation = 4
         self.episode_length_s = 12.0
-        self.viewer.eye = (3.5, 3.5, 3.5)
         # simulation settings
-        self.sim.dt = 1.0 / 60.0
+        self.sim.dt = 1 / 120
+        self.sim.render_interval = self.decimation
         self.sim.physics = ReachPhysicsCfg()
-
-        self.teleop_devices = DevicesCfg(
-            devices={
-                "keyboard": Se3KeyboardCfg(
-                    gripper_term=False,
-                    sim_device=self.sim.device,
-                ),
-                "gamepad": Se3GamepadCfg(
-                    gripper_term=False,
-                    sim_device=self.sim.device,
-                ),
-                "spacemouse": Se3SpaceMouseCfg(
-                    gripper_term=False,
-                    sim_device=self.sim.device,
-                ),
-            },
-        )
+        # visualizer settings
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(3.5, 3.5, 3.5))

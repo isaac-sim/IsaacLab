@@ -14,12 +14,11 @@ import threading
 from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.version import get_isaac_sim_version, has_kit
+from ...utils.version import get_isaac_sim_version, has_kit
 
 if TYPE_CHECKING:
     from pxr import Sdf, Usd, UsdUtils  # noqa: F401
 
-# import logger
 logger = logging.getLogger(__name__)
 _context = threading.local()  # thread-local storage to handle nested contexts and concurrent access
 
@@ -57,6 +56,17 @@ def _check_ancestral(prim: Usd.Prim) -> bool:
         return False
 
     return _check_ancestral_node(prim_index.rootNode)
+
+
+def _is_uri_path(asset_path: str) -> bool:
+    """Return whether an asset path has an explicit URI scheme."""
+    scheme = asset_path.split("://", 1)[0]
+    return (
+        scheme != asset_path
+        and len(scheme) > 1
+        and scheme[0].isalpha()
+        and all(c.isalnum() or c in "+-." for c in scheme[1:])
+    )
 
 
 def resolve_paths(
@@ -105,15 +115,22 @@ def resolve_paths(
     dst_dir = os.path.dirname(dst_layer.realPath or dst_layer.identifier)
 
     def _modify_path(asset_path: str) -> str:
-        if not asset_path:
+        if not asset_path or _is_uri_path(asset_path):
             return asset_path
         resolved = src_layer.ComputeAbsolutePath(asset_path)
-        if store_relative_path and resolved and dst_dir:
+        if resolved and _is_uri_path(resolved):
+            return resolved
+        # Search-path identifiers (e.g. the MDL module ``OmniPBR.mdl``) come back unchanged: they
+        # are resolved against the renderer's module path, not the layer's directory. Re-anchoring
+        # one would make it relative to the process working directory and point at nothing.
+        if not os.path.isabs(resolved):
+            return asset_path
+        if store_relative_path and dst_dir:
             try:
                 return os.path.relpath(resolved, dst_dir)
             except ValueError:
                 return resolved
-        return resolved or asset_path
+        return resolved
 
     UsdUtils.ModifyAssetPaths(dst_layer, _modify_path)
 
@@ -123,15 +140,27 @@ def resolve_paths(
 # ##############################################################################
 
 
-try:
-    # _context is a singleton design in isaacsim and for that reason
-    #  until we fully replace all modules that references the singleton(such as XformPrim, Prim ....), we have to point
-    #  that singleton to this _context
-    from isaacsim.core.experimental.utils import stage as sim_stage
+_isaacsim_stage_context_synced = False
 
+
+def _sync_isaacsim_stage_context() -> None:
+    """Point Isaac Sim's stage helper at Isaac Lab's thread-local stage context."""
+    global _isaacsim_stage_context_synced
+
+    if _isaacsim_stage_context_synced or not has_kit():
+        return
+
+    try:
+        # Do not enable ``isaacsim.core.experimental.utils`` here. Stage creation is used by
+        # Newton tests before Newton imports Warp, and enabling Isaac Sim experimental utils can
+        # make Kit's importer expose the bundled ``omni.warp.core`` package ahead of pip Warp.
+        from isaacsim.core.experimental.utils import stage as sim_stage  # noqa: PLC0415
+    except ImportError:
+        return
+
+    # Isaac Sim stage helpers read this singleton context.
     sim_stage._context = _context  # type: ignore
-except ImportError:
-    pass
+    _isaacsim_stage_context_synced = True
 
 
 def create_new_stage() -> Usd.Stage:
@@ -154,6 +183,8 @@ def create_new_stage() -> Usd.Stage:
                        sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
                        pathResolverContext=<invalid repr>)
     """
+    _sync_isaacsim_stage_context()
+
     from pxr import Usd, UsdUtils  # noqa: PLC0415
 
     stage: Usd.Stage = Usd.Stage.CreateInMemory()
@@ -213,6 +244,8 @@ def open_stage(usd_path: str) -> Usd.Stage:
         ValueError: When input path is not a supported file type by USD.
         RuntimeError: When failed to open the stage.
     """
+    _sync_isaacsim_stage_context()
+
     from pxr import Usd  # noqa: PLC0415
 
     if not Usd.Stage.IsSupportedFile(usd_path):
@@ -351,32 +384,24 @@ def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
     """
     from pxr import Sdf, Usd  # noqa: PLC0415
 
-    # check if USD file is supported
     if not Usd.Stage.IsSupportedFile(usd_path):
         raise ValueError(f"The USD file at path '{usd_path}' is not supported.")
 
-    # create new layer
     layer = Sdf.Layer.CreateNew(usd_path)
     if layer is None:
         raise RuntimeError(f"Failed to create new USD layer at path '{usd_path}'.")
 
-    # get root layer
     root_layer = get_current_stage().GetRootLayer()
-    # transfer content from root layer to new layer
     layer.TransferContent(root_layer)
 
     # resolve paths so asset references remain valid from the new location
     resolve_paths(root_layer.identifier, layer.identifier)
 
-    # save layer
     result = layer.Save()
     if not result:
         logger.error(f"Failed to save USD layer to path '{usd_path}'.")
-
-    # if requested, open the saved USD file in place
     if save_and_reload_in_place and result:
         open_stage(usd_path)
-
     return result
 
 
@@ -483,7 +508,6 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
         # Custom predicate must also pass the deletable check
         return predicate(prim) and _is_prim_deletable(prim)
 
-    # get all prims to delete
     prims = get_all_matching_child_prims("/", _predicate_from_path)
     # convert prims to prim paths
     prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
@@ -510,6 +534,8 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
                        sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
                        pathResolverContext=<invalid repr>)
     """
+    _sync_isaacsim_stage_context()
+
     # First check thread-local context for an in-memory stage
     stage = getattr(_context, "stage", None)
     if stage is not None:
@@ -538,7 +564,6 @@ def get_current_stage_id() -> int:
     """
     from pxr import UsdUtils  # noqa: PLC0415
 
-    # get current stage
     stage = get_current_stage()
     if stage is None:
         raise RuntimeError("No current stage available. Did you create a stage?")
@@ -552,5 +577,31 @@ def get_current_stage_id() -> int:
         if not stage.GetRootLayer():
             raise RuntimeError("Stage has no root layer - cannot cache an incomplete stage.")
         stage_id = stage_cache.Insert(stage).ToLongInt()
-    # return stage ID
     return stage_id
+
+
+def show_stage_in_viewport(usd_path: str) -> None:
+    """Open a USD file in the running Kit viewport and block until the app is closed.
+
+    Opens the stage through the Kit USD context so it appears in the viewport (or the
+    livestream client), then spins the Kit update loop until the window is closed or the
+    loop is interrupted. Must only be called inside a running Kit process; use
+    :func:`~isaaclab.utils.version.has_kit` or :meth:`~isaaclab.app.AppLauncher.has_gui`
+    to gate the call.
+
+    Args:
+        usd_path: Path of the USD file to display.
+    """
+    import omni.usd  # noqa: PLC0415
+
+    # A failed open leaves the previously loaded stage in the viewport, which would look like a
+    # successful preview of the wrong asset, so surface the failure instead of blocking on it.
+    result = omni.usd.get_context().open_stage(usd_path)
+    opened = result[0] if isinstance(result, tuple) else result
+    if opened is False:
+        raise RuntimeError(f"Failed to open the USD stage in the Kit viewport: {usd_path}")
+
+    app = omni.kit.app.get_app_interface()
+    with contextlib.suppress(KeyboardInterrupt):
+        while app.is_running():
+            app.update()

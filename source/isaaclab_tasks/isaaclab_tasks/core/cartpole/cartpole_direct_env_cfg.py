@@ -3,67 +3,42 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the direct-workflow cartpole environment."""
+
 from __future__ import annotations
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
+import math
 
-from isaaclab.assets import ArticulationCfg
+import isaaclab.sim as sim_utils
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils.configclass import configclass
-
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
+from .cartpole_common import LIGHT_ORIENTATION, CartpolePhysicsCfg
+
 
 @configclass
-class CartpolePhysicsCfg(PresetCfg):
-    default: PhysxCfg = PhysxCfg()
-    physx: PhysxCfg = PhysxCfg()
-    newton_mjwarp: NewtonCfg = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            njmax=5,
-            nconmax=3,
-            cone="pyramidal",
-            impratio=1,
-            integrator="implicitfast",
-        ),
-        num_substeps=1,
-        debug_mode=False,
-        use_cuda_graph=True,
+class CartpoleSceneCfg(InteractiveSceneCfg):
+    """Cartpole assets constructed and cloned as one scene."""
+
+    ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
+    cartpole: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    light = AssetBaseCfg(
+        prim_path="/World/Light",
+        spawn=sim_utils.DistantLightCfg(intensity=2000.0),
+        init_state=AssetBaseCfg.InitialStateCfg(rot=LIGHT_ORIENTATION),
     )
-    newton_kamino: NewtonCfg = NewtonCfg(
-        solver_cfg=KaminoSolverCfg(
-            integrator="moreau",
-            use_collision_detector=True,
-            sparse_jacobian=True,
-            constraints_alpha=0.1,
-            padmm_max_iterations=100,
-            padmm_primal_tolerance=1e-4,
-            padmm_dual_tolerance=1e-4,
-            padmm_compl_tolerance=1e-4,
-            padmm_rho_0=0.05,
-            padmm_eta=1e-5,
-            padmm_use_acceleration=True,
-            padmm_warmstart_mode="containers",
-            padmm_contact_warmstart_method="geom_pair_net_force",
-            padmm_use_graph_conditionals=False,
-            collision_detector_pipeline="unified",
-            collision_detector_max_contacts_per_pair=8,
-        ),
-        num_substeps=1,
-        debug_mode=False,
-        use_cuda_graph=True,
-    )
-    ovphysx: OvPhysxCfg = OvPhysxCfg()
 
 
 @configclass
 class CartpoleEnvCfg(DirectRLEnvCfg):
+    """Configuration for the direct-workflow cartpole balancing environment."""
+
     # env
     decimation = 2
     episode_length_s = 5.0
@@ -75,23 +50,26 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
     # simulation
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=CartpolePhysicsCfg())
 
-    # robot
-    robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
     cart_dof_name = "slider_to_cart"
     pole_dof_name = "cart_to_pole"
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(
+    scene: CartpoleSceneCfg = CartpoleSceneCfg(
         num_envs=4096, env_spacing=4.0, replicate_physics=True, clone_in_fabric=True
     )
 
     # reset
     max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
-    initial_pole_angle_range = [-0.25, 0.25]  # the range in which the pole angle is sampled from on reset [rad]
-
+    initial_cart_position_range = (-1.0, 1.0)  # [m]
+    initial_cart_velocity_range = (-0.5, 0.5)  # [m/s]
+    initial_pole_angle_range = (-0.25 * math.pi, 0.25 * math.pi)  # [rad]
+    initial_pole_velocity_range = (-0.25 * math.pi, 0.25 * math.pi)  # [rad/s]
     # reward scales
     rew_scale_alive = 1.0
     rew_scale_terminated = -2.0
     rew_scale_pole_pos = -1.0
     rew_scale_cart_vel = -0.01
     rew_scale_pole_vel = -0.005
+
+    def __post_init__(self):
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(8.0, 0.0, 5.0))

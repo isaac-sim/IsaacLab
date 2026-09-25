@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script checks if the app can be launched with non-headless app and start the simulation.
+This script checks that the ``isaaclab.python.kit`` experience launches and steps the simulation without hanging.
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -24,7 +24,9 @@ simulation_app = app_launcher.app
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
+
+pytestmark = pytest.mark.integration
 
 
 @configclass
@@ -37,8 +39,8 @@ class SensorsSceneCfg(InteractiveSceneCfg):
 
 def run_simulator(
     sim: sim_utils.SimulationContext,
-):
-    """Run the simulator."""
+) -> int:
+    """Run the simulator and return the number of steps taken."""
 
     count = 0
 
@@ -47,20 +49,18 @@ def run_simulator(
         # perform step
         sim.step()
         count += 1
+    return count
 
 
 @pytest.mark.isaacsim_ci
-def test_non_headless_launch():
+def test_full_experience_launch_steps():
     # Initialize the simulation context
     sim_cfg = sim_utils.SimulationCfg(dt=0.005)
     sim = sim_utils.SimulationContext(sim_cfg)
     # design scene
     scene_cfg = SensorsSceneCfg(num_envs=1, env_spacing=2.0)
-    scene = InteractiveScene(scene_cfg)
-    print(scene)
+    InteractiveScene(scene_cfg)
     # Play the simulator
     sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # Run the simulator
-    run_simulator(sim)
+    # the app must keep running for every requested step instead of stopping early
+    assert run_simulator(sim) == 100

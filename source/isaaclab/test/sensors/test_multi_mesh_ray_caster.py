@@ -13,7 +13,9 @@ import trimesh
 import warp as wp
 
 from isaaclab.utils.math import matrix_from_quat, quat_from_euler_xyz, random_orientation
-from isaaclab.utils.warp.ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_single_mesh
+from isaaclab.utils.warp.ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_mesh, raycast_single_mesh
+
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(scope="module")
@@ -101,8 +103,23 @@ def test_raycast_multi_cubes(device, trimesh_box, rays):
 def test_raycast_single_cube(device, single_mesh, rays):
     """Test raycasting against a single cube."""
     ray_starts, ray_directions, expected_ray_hits = rays
-    _, single_mesh_id = single_mesh
+    wp_mesh, single_mesh_id = single_mesh
 
+    # check the wp.Mesh implementation
+    ray_hits, ray_distance, ray_normal, ray_face_id = raycast_mesh(
+        ray_starts,
+        ray_directions,
+        wp_mesh,
+        return_distance=True,
+        return_normal=True,
+        return_face_id=True,
+    )
+    torch.testing.assert_close(ray_hits, expected_ray_hits)
+    torch.testing.assert_close(ray_distance, torch.tensor([[4.5, 4.5]], dtype=torch.float32, device=device))
+    torch.testing.assert_close(ray_normal, torch.tensor([[[0, 0, -1], [0, 0, -1]]], dtype=torch.float32, device=device))
+    torch.testing.assert_close(ray_face_id, torch.tensor([[3, 8]], dtype=torch.int32, device=device))
+
+    # check the mesh-id implementation
     ray_hits, ray_distance, ray_normal, ray_face_id = raycast_single_mesh(
         ray_starts,
         ray_directions,

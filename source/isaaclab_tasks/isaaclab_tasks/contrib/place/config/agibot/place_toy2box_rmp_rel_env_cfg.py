@@ -6,7 +6,9 @@
 import os
 from dataclasses import MISSING
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
@@ -19,17 +21,19 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg
-from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg, RigidBodyPropertiesCfg
+from isaaclab.sim.schemas import MassCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.place import mdp as place_mdp
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.mdp import franka_stack_events
 from isaaclab_tasks.contrib.stack.stack_env_cfg import ObjectTableSceneCfg
+from isaaclab_tasks.utils import PresetCfg
 
 ##
 # Pre-defined configs
@@ -172,11 +176,54 @@ class TerminationsCfg:
 
 
 @configclass
+class PhysicsCfg(PresetCfg):
+    """Physics backend presets for Agibot place tasks."""
+
+    isaacsim_physx = PhysxCfg(
+        bounce_threshold_velocity=0.01,
+        gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
+        gpu_total_aggregate_pairs_capacity=16 * 1024,
+        friction_correlation_distance=0.00625,
+    )
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            solver="newton",
+            integrator="implicitfast",
+            njmax=300,
+            nconmax=200,
+            impratio=10.0,
+            cone="elliptic",
+            update_data_interval=2,
+            iterations=100,
+            ls_iterations=15,
+            ls_parallel=False,
+            use_mujoco_contacts=False,
+            ccd_iterations=35,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(),
+        default_shape_cfg=NewtonShapeCfg(),
+        num_substeps=2,
+        debug_mode=False,
+    )
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    default = isaacsim_physx
+
+
+def raise_if_unsupported_newton_physics(env_cfg: ManagerBasedRLEnvCfg) -> None:
+    """Reject Newton physics while the Agibot collision mesh cannot compile."""
+    if isinstance(env_cfg.sim.physics, NewtonCfg):
+        raise ValueError(
+            "The Agibot A2D asset contains a generated convex collision mesh whose volume is too small for "
+            "Newton MJWarp. Re-run this task with physics=isaacsim_physx (the default)."
+        )
+
+
+@configclass
 class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the stacking environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=3.0, replicate_physics=False)
+    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=3.0, replicate_physics=True)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -194,16 +241,14 @@ class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
 
         self.sim.render_interval = self.decimation
 
-        self.sim.physics = PhysxCfg(
-            bounce_threshold_velocity=0.01,
-            gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
-            gpu_total_aggregate_pairs_capacity=16 * 1024,
-            friction_correlation_distance=0.00625,
-        )
+        self.sim.physics = PhysicsCfg()
 
-        # set viewer to see the whole scene
-        self.viewer.eye = [1.5, -1.0, 1.5]
-        self.viewer.lookat = [0.5, 0.0, 0.0]
+        # visualizer camera settings
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(1.5, -1.0, 1.5), lookat=(0.5, 0.0, 0.0))
+
+    def validate_config(self):
+        """Reject backend combinations that the configured robot cannot run on."""
+        raise_if_unsupported_newton_physics(self)
 
 
 """
@@ -243,7 +288,6 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
             body_name="right_gripper_center",
             controller=AGIBOT_RIGHT_ARM_RMPFLOW_CFG,
             scale=1.0,
-            body_offset=RMPFlowActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.0]),
             use_relative_mode=self.use_relative_mode,
         )
 
@@ -261,22 +305,22 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
         self.gripper_threshold = 0.2
 
         # Rigid body properties of toy_truck and box
-        toy_truck_properties = RigidBodyPropertiesCfg(
-            solver_position_iteration_count=16,
-            solver_velocity_iteration_count=1,
-            max_angular_velocity=1000.0,
-            max_linear_velocity=1000.0,
-            max_depenetration_velocity=5.0,
-            disable_gravity=False,
-        )
+        toy_truck_properties = [
+            PhysxRigidBodyCfg(
+                solver_position_iteration_count=16,
+                solver_velocity_iteration_count=1,
+                max_angular_velocity=1000.0,
+                max_linear_velocity=1000.0,
+                max_depenetration_velocity=5.0,
+                disable_gravity=False,
+            )
+        ]
 
         box_properties = toy_truck_properties.copy()
 
         # Notes: remember to add Physics/Mass properties to the toy_truck mesh to make grasping successful,
         # then you can use below MassPropertiesCfg to set the mass of the toy_truck
-        toy_mass_properties = MassPropertiesCfg(
-            mass=0.05,
-        )
+        toy_mass_properties = [MassCfg(mass=0.05)]
 
         self.scene.toy_truck = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/ToyTruck",
@@ -310,16 +354,13 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
                 FrameTransformerCfg.FrameCfg(
                     prim_path="{ENV_REGEX_NS}/Robot/right_gripper_center",
                     name="end_effector",
-                    offset=OffsetCfg(
-                        pos=[0.0, 0.0, 0.0],
-                    ),
                 ),
             ],
         )
 
         # add contact force sensor for grasped checking
         self.scene.contact_grasp = ContactSensorCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/right_.*_Pad_Link",
+            prim_path="{ENV_REGEX_NS}/Robot/right_[^/]*_Pad_Link",
             update_period=0.05,
             history_length=6,
             debug_vis=True,

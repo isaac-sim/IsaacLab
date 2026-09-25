@@ -77,26 +77,19 @@ def cubes_stacked(
     else:
         if hasattr(env.cfg, "gripper_joint_names"):
             gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
-            assert len(gripper_joint_ids) == 2, "Terminations only support parallel gripper for now"
-
-            stacked = torch.logical_and(
-                torch.isclose(
-                    robot.data.joint_pos.torch[:, gripper_joint_ids[0]],
-                    torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device),
-                    atol=atol,
-                    rtol=rtol,
-                ),
-                stacked,
-            )
-            stacked = torch.logical_and(
-                torch.isclose(
-                    robot.data.joint_pos.torch[:, gripper_joint_ids[1]],
-                    torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device),
-                    atol=atol,
-                    rtol=rtol,
-                ),
-                stacked,
-            )
+            assert len(gripper_joint_ids) >= 1, "Terminations require at least one gripper joint"
+            # Success also requires the gripper to be released (every jaw back at the open value).
+            open_val = torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device)
+            for joint_id in gripper_joint_ids:
+                stacked = torch.logical_and(
+                    torch.isclose(
+                        robot.data.joint_pos.torch[:, joint_id],
+                        open_val,
+                        atol=atol,
+                        rtol=rtol,
+                    ),
+                    stacked,
+                )
         else:
             raise ValueError("No gripper_joint_names found in environment config")
 

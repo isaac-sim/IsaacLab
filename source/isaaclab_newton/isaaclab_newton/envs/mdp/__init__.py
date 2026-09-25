@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton backend implementations of MDP event terms."""
+"""Newton-specific MDP components."""
 
 from isaaclab.utils.module import lazy_export
 

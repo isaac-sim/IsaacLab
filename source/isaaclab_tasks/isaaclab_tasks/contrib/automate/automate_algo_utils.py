@@ -88,23 +88,50 @@ def get_imitation_reward_from_dtw(ref_traj, curr_ee_pos, prev_ee_traj, criterion
     prev_ee_pos = prev_ee_traj[:, 0, :]  # select the first ee pos in robot traj
     min_dist_traj_idx, min_dist_step_idx, min_dist_per_env = get_closest_state_idx(ref_traj, prev_ee_pos)
 
+    eef_traj = torch.cat((prev_ee_traj[:, 1:, :], curr_ee_pos.unsqueeze(1)), dim=1)
+    selected_trajs: list[torch.Tensor] = []
+    selected_traj_lengths = torch.empty((curr_ee_pos.shape[0],), dtype=torch.long, device=device)
+    max_selected_traj_len = 0
+
     for i in range(curr_ee_pos.shape[0]):
-        traj_idx = min_dist_traj_idx[i]
-        step_idx = min_dist_step_idx[i]
+        traj_idx = int(min_dist_traj_idx[i].item())
+        step_idx = int(min_dist_step_idx[i].item())
         curr_ee_pos_i = curr_ee_pos[i].reshape(1, 3)
 
         # NOTE: in reference trajectories, larger index -> closer to goal
         traj = ref_traj[traj_idx, step_idx:, :].reshape((1, -1, 3))
 
         _, curr_step_idx, _ = get_closest_state_idx(traj, curr_ee_pos_i)
+        curr_step_idx = int(curr_step_idx.item())
 
         if curr_step_idx == 0:
-            selected_pos = ref_traj[traj_idx, step_idx, :].reshape((1, 1, 3))
-            selected_traj = torch.cat([selected_pos, selected_pos], dim=1)
+            selected_traj = ref_traj[traj_idx, step_idx, :].reshape((1, 3)).repeat(2, 1)
         else:
-            selected_traj = ref_traj[traj_idx, step_idx : (curr_step_idx + step_idx), :].reshape((1, -1, 3))
-        eef_traj = torch.cat((prev_ee_traj[i, 1:, :], curr_ee_pos_i)).reshape((1, -1, 3))
-        soft_dtw[i] = criterion(eef_traj, selected_traj)
+            selected_traj = ref_traj[traj_idx, step_idx : (curr_step_idx + step_idx), :]
+
+        traj_len = selected_traj.shape[0]
+        selected_trajs.append(selected_traj)
+        selected_traj_lengths[i] = traj_len
+        max_selected_traj_len = max(max_selected_traj_len, traj_len)
+
+    if hasattr(criterion, "forward_with_lengths") and not getattr(criterion, "normalize", False):
+        padded_selected_trajs = torch.zeros(
+            (curr_ee_pos.shape[0], max_selected_traj_len, ref_traj.shape[-1]), dtype=ref_traj.dtype, device=device
+        )
+        for i, selected_traj in enumerate(selected_trajs):
+            padded_selected_trajs[i, : selected_traj.shape[0], :] = selected_traj
+        soft_dtw = criterion.forward_with_lengths(eef_traj, padded_selected_trajs, selected_traj_lengths)
+    else:
+        selected_trajs_by_len: dict[int, list[torch.Tensor]] = {}
+        env_ids_by_len: dict[int, list[int]] = {}
+        for i, selected_traj in enumerate(selected_trajs):
+            traj_len = selected_traj.shape[0]
+            selected_trajs_by_len.setdefault(traj_len, []).append(selected_traj)
+            env_ids_by_len.setdefault(traj_len, []).append(i)
+
+        for traj_len, selected_trajs_by_curr_len in selected_trajs_by_len.items():
+            env_ids = torch.tensor(env_ids_by_len[traj_len], dtype=torch.long, device=device)
+            soft_dtw[env_ids] = criterion(eef_traj[env_ids], torch.stack(selected_trajs_by_curr_len, dim=0))
 
     w_task_progress = 1 - (min_dist_step_idx / ref_traj.shape[1])
 

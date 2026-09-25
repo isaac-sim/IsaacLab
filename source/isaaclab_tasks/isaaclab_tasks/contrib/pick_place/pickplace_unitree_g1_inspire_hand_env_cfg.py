@@ -21,10 +21,10 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg
+from isaaclab.sim.schemas import MassCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
-from isaaclab.utils.configclass import configclass
 
 from . import mdp
 
@@ -266,11 +266,11 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     # Table
     packing_table = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/PackingTable",
+        prim_path="{ENV_REGEX_NS}/PackingTable",
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         ),
     )
 
@@ -280,16 +280,14 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
             scale=(0.75, 0.75, 0.75),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=MassPropertiesCfg(
-                mass=0.05,
-            ),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=MassCfg(mass=0.05),
         ),
     )
 
     # Humanoid robot w/ arms higher
     robot: ArticulationCfg = G1_INSPIRE_FTP_CFG.replace(
-        prim_path="/World/envs/env_.*/Robot",
+        prim_path="{ENV_REGEX_NS}/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0, 0, 1.0),
             rot=(0.0, 0.0, 0.7071, 0.7071),
@@ -397,14 +395,14 @@ class ActionsCfg:
             fail_on_joint_limit_violation=False,
             variable_input_tasks=[
                 FrameTaskCfg(
-                    frame="g1_29dof_rev_1_0_left_wrist_yaw_link",
+                    frame="left_wrist_yaw_link",
                     position_cost=8.0,  # [cost] / [m]
                     orientation_cost=2.0,  # [cost] / [rad]
                     lm_damping=10,  # dampening for solver for step jumps
                     gain=0.5,
                 ),
                 FrameTaskCfg(
-                    frame="g1_29dof_rev_1_0_right_wrist_yaw_link",
+                    frame="right_wrist_yaw_link",
                     position_cost=8.0,  # [cost] / [m]
                     orientation_cost=2.0,  # [cost] / [rad]
                     lm_damping=10,  # dampening for solver for step jumps
@@ -414,8 +412,8 @@ class ActionsCfg:
                     cost=0.5,
                     lm_damping=1,
                     controlled_frames=[
-                        "g1_29dof_rev_1_0_left_wrist_yaw_link",
-                        "g1_29dof_rev_1_0_right_wrist_yaw_link",
+                        "left_wrist_yaw_link",
+                        "right_wrist_yaw_link",
                     ],
                     controlled_joints=[
                         "left_shoulder_pitch_joint",

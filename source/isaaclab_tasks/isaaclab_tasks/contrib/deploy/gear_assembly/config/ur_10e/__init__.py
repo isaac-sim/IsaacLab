@@ -14,7 +14,7 @@ from . import agents
 
 # UR10e with 2F-140 gripper
 gym.register(
-    id="Isaac-Deploy-GearAssembly-UR10e-2F140-v0",
+    id="IsaacContrib-Deploy-GearAssembly-UR10e-2F140",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -23,18 +23,9 @@ gym.register(
     },
 )
 
-gym.register(
-    id="Isaac-Deploy-GearAssembly-UR10e-2F140-Play-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:UR10e2F140GearAssemblyEnvCfg_PLAY",
-    },
-)
-
 # UR10e with 2F-85 gripper
 gym.register(
-    id="Isaac-Deploy-GearAssembly-UR10e-2F85-v0",
+    id="IsaacContrib-Deploy-GearAssembly-UR10e-2F85",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -43,18 +34,9 @@ gym.register(
     },
 )
 
-gym.register(
-    id="Isaac-Deploy-GearAssembly-UR10e-2F85-Play-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:UR10e2F85GearAssemblyEnvCfg_PLAY",
-    },
-)
-
 # UR10e with 2F-140 gripper - ROS Inference
 gym.register(
-    id="Isaac-Deploy-GearAssembly-UR10e-2F140-ROS-Inference-v0",
+    id="IsaacContrib-Deploy-GearAssembly-UR10e-2F140-ROS-Inference",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -65,7 +47,7 @@ gym.register(
 
 # UR10e with 2F-85 gripper - ROS Inference
 gym.register(
-    id="Isaac-Deploy-GearAssembly-UR10e-2F85-ROS-Inference-v0",
+    id="IsaacContrib-Deploy-GearAssembly-UR10e-2F85-ROS-Inference",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={

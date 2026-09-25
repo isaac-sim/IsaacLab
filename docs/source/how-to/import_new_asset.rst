@@ -1,3 +1,5 @@
+:orphan:
+
 Importing a New Asset
 =====================
 
@@ -10,8 +12,9 @@ complex data sets. While this format is widely used in the film and animation
 industry, it is less common in the robotics community.
 
 To this end, NVIDIA has developed various importers that allow you to import
-assets from other file formats into USD. These importers are available as
-extensions to Omniverse Kit:
+assets from other file formats into USD. These importers are available through
+Omniverse Kit workflows, and the URDF/MJCF Python importers can also be used
+from a standalone pip wheel:
 
 * **URDF Importer** - Import assets from URDF files.
 * **MJCF Importer** - Import assets from MJCF files.
@@ -23,6 +26,12 @@ the asset into its USD representation. Once the asset is in USD format, you can
 use the Omniverse Kit to edit the asset and export it to other file formats. Isaac Sim includes
 these importers by default. They can also be enabled manually in Omniverse Kit.
 
+Isaac Lab's URDF and MJCF converter utilities first use the importer APIs from
+Isaac Sim when the full runtime is installed. In kit-less environments they fall back
+to the standalone importers described in
+:ref:`installation-standalone-importers` below.
+The Kit visualizer and GUI import dialogs still require an Omniverse Kit runtime.
+
 
 An important note to use assets for large-scale simulation is to ensure that they
 are in `instanceable`_ format. This allows the asset to be efficiently loaded
@@ -30,6 +39,66 @@ into memory and used multiple times in a scene. Otherwise, the asset will be
 loaded into memory multiple times, which can cause performance issues.
 For more details on instanceable assets, please check the Isaac Sim `documentation`_.
 
+
+.. _installation-standalone-importers:
+
+Standalone URDF/MJCF importers
+------------------------------
+
+The URDF and MJCF converter scripts run without Isaac Sim. The standalone
+importers are optional; install them with the ``isaaclab[importers]`` command in
+:ref:`installation-importers-extra` before running these scripts.
+Optionally pass ``--viz newton_gl`` (or ``rerun`` / ``viser``) to preview the converted asset in a
+kit-less Isaac Lab visualizer:
+
+.. code-block:: bash
+
+   uv run --extra importers isaaclab -p scripts/tools/convert_urdf.py \
+     path/to/robot.urdf path/to/output_dir --merge_joints
+
+   uv run --extra importers isaaclab -p scripts/tools/convert_mjcf.py \
+     path/to/model.xml path/to/output.usd --merge_mesh
+
+If Isaac Sim is installed in the same environment, Isaac Lab uses the Isaac Sim importer
+extensions first. The standalone wheel is used only when the full Isaac Sim runtime is not
+available.
+
+
+.. _import-new-asset-multi-backend:
+
+Multi-backend assets
+--------------------
+
+A converted asset can carry shared USD physics and backend-specific attributes. The
+Isaac Sim 6.1 standalone URDF and MJCF importers produce layered output such as:
+
+.. code-block:: text
+
+   robot_name.usda                    interface USD and Physics variant selection
+   payloads/base.usda                 composed asset
+   payloads/instances.usda            reusable geometry
+   payloads/Physics/physics.usda      shared physics and compatible backend attributes
+
+Additional physics layers depend on the source asset and importer version. A layer named
+``physx.usda`` or ``mujoco.usda`` does not by itself mean that a variant with that name exists.
+Inspect the interface USD's ``Physics`` variant set before requesting a backend-specific variant.
+
+:attr:`~sim.converters.AssetConverterBaseCfg.physics_variant` defaults to ``physics``.
+The tested Isaac Sim 6.1 output exposes ``physics`` and ``none``; ``none`` omits the physics
+payload. Isaac Lab selects the requested variant explicitly and raises an error if the
+asset has a ``Physics`` variant set without that variant. Do not assume that ``physx``
+or ``mujoco`` is selectable on every converted asset.
+
+``run_multi_physics_conversion``, enabled by default, asks the importer to convert supported
+backend-specific physics attributes. This does not guarantee equivalent solver behavior or
+support for every source feature. Validate masses, inertias, collisions and joint control on
+the intended physics backend.
+
+With ``run_asset_transformer=False``, the tested converters produce flat output without a
+``Physics`` variant set. Isaac Lab leaves that output unchanged rather than selecting a variant.
+For an existing layered asset, :attr:`~sim.UsdFileCfg.variants` can override an available
+selection at spawn time.
+Use :ref:`asset-config-backends` to choose configuration overrides for the selected backend.
 
 Using URDF Importer
 -------------------
@@ -44,17 +113,17 @@ is then passed to the :class:`~sim.converters.UrdfConverter` class.
    See the :doc:`/source/migration/migrating_to_isaaclab_3-0` for a full list of breaking changes.
 
 The URDF importer has various configuration parameters that can be set to control the behavior of the importer.
-The default values for the importer's configuration parameters are specified are in the :class:`~sim.converters.UrdfConverterCfg` class, and they are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the ``convert_urdf.py``, and they are marked with ``*`` in the list. For a comprehensive list of the configuration parameters, please check the the documentation at `URDF importer`_.
+The default values for the importer's configuration parameters are specified in the :class:`~sim.converters.UrdfConverterCfg` class, and they are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the ``convert_urdf.py``, and they are marked with ``*`` in the list. For a comprehensive list of the configuration parameters, please check the documentation at `URDF importer`_.
 
 Articulation and joint structure
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * :attr:`~sim.converters.UrdfConverterCfg.fix_base` * - Whether to fix the base of the robot.
   This depends on whether you have a floating-base or fixed-base robot. The command-line flag is
-  ``--fix-base`` where when set, the importer will fix the base of the robot, otherwise it will default to floating-base.
+  ``--fix_base`` where when set, the importer will fix the base of the robot, otherwise it will default to floating-base.
 * :attr:`~sim.converters.UrdfConverterCfg.merge_fixed_joints` * - Whether to merge the fixed joints.
   Usually, this should be set to ``True`` to reduce the asset complexity. The command-line flag is
-  ``--merge-joints`` where when set, the importer will merge the fixed joints, otherwise it will default to not merging the fixed joints.
+  ``--merge_joints`` where when set, the importer will merge the fixed joints, otherwise it will default to not merging the fixed joints.
 * :attr:`~sim.converters.UrdfConverterCfg.joint_drive` - The configuration for the joint drives on the robot.
 
   * :attr:`~sim.converters.UrdfConverterCfg.JointDriveCfg.drive_type` - The drive type for the joints.
@@ -96,7 +165,8 @@ Asset resolution and output
 * :attr:`~sim.converters.UrdfConverterCfg.run_asset_transformer` - Run the asset transformer to convert
   the flattened USD into a layered USD (interface USD + payloads). Defaults to ``True``.
 * :attr:`~sim.converters.UrdfConverterCfg.run_multi_physics_conversion` - Also emit MuJoCo-compatible joint
-  attributes alongside PhysX. Defaults to ``True``.
+  attributes alongside the PhysX ones, so the asset carries both backends. Defaults to ``True``.
+  See :ref:`import-new-asset-multi-backend`.
 * :attr:`~sim.converters.UrdfConverterCfg.debug_mode` - Write intermediate conversion artifacts next to the
   output USD for inspection. Defaults to ``False``.
 
@@ -125,13 +195,18 @@ pre-processed URDF and the original URDF are:
 * We removed the ``<gazebo>`` tag from the URDF. This tag is not supported by the URDF importer.
 * We removed the ``<transmission>`` tag from the URDF. This tag is not supported by the URDF importer.
 * We removed various collision bodies from the URDF to reduce the complexity of the asset.
-* We changed all the joint's damping and friction parameters to ``0.0``. This ensures that we can perform
-  effort-control on the joints without PhysX adding additional damping.
+* We changed all the joint's damping and friction parameters to ``0.0``. On PhysX this ensures that we
+  can perform effort-control on the joints without the imported drive adding damping of its own. On
+  Newton the actuator configuration decides the target mode instead --- see
+  :ref:`import-new-asset-ensure-drives-exist`.
 * The ``<dont_collapse>`` URDF tag is **no longer supported** in URDF importer 3.0. Fixed joint
   merging is now a Python pre-processing step that merges all fixed joints when
   ``merge_fixed_joints`` is enabled. If you need to preserve a specific fixed joint, disable
   ``merge_fixed_joints`` entirely or restructure the URDF to use a non-fixed joint type
   (e.g. revolute with zero-range limits).
+
+Map the ROS package directory with ``--ros_package_path NAME PATH`` so the importer can
+resolve the robot's ``package://`` mesh references, including when fixed joints are merged.
 
 The following shows the steps to clone the repository and run the converter:
 
@@ -144,40 +219,42 @@ The following shows the steps to clone the repository and run the converter:
 
       .. code-block:: bash
 
-        # clone a repository with URDF files
-        git clone git@github.com:isaac-orbit/anymal_d_simple_description.git
+         # clone a repository with URDF files
+         git clone git@github.com:isaac-orbit/anymal_d_simple_description.git
 
-        # go to top of the Isaac Lab repository
-        cd IsaacLab
-        # run the converter
-        ./isaaclab.sh -p scripts/tools/convert_urdf.py \
-          ../anymal_d_simple_description/urdf/anymal.urdf \
-          source/isaaclab_assets/data/Robots/ANYbotics/ \
-          --merge-joints \
-          --joint-stiffness 0.0 \
-          --joint-damping 0.0 \
-          --joint-target-type none \
-          --viz kit
+         # go to top of the Isaac Lab repository
+         cd IsaacLab
+         # run the converter
+         uv run --extra importers isaaclab -p scripts/tools/convert_urdf.py \
+           ../anymal_d_simple_description/urdf/anymal.urdf \
+           source/isaaclab_assets/data/Robots/ANYbotics/ \
+           --merge_joints \
+           --ros_package_path anymal_d_simple_description ../anymal_d_simple_description \
+           --joint_stiffness 0.0 \
+           --joint_damping 0.0 \
+           --joint_target_type none \
+           --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
-        :: clone a repository with URDF files
-        git clone git@github.com:isaac-orbit/anymal_d_simple_description.git
+         :: clone a repository with URDF files
+         git clone git@github.com:isaac-orbit/anymal_d_simple_description.git
 
-        :: go to top of the Isaac Lab repository
-        cd IsaacLab
-        :: run the converter
-        isaaclab.bat -p scripts\tools\convert_urdf.py ^
-          ..\anymal_d_simple_description\urdf\anymal.urdf ^
-          source\isaaclab_assets\data\Robots\ANYbotics\ ^
-          --merge-joints ^
-          --joint-stiffness 0.0 ^
-          --joint-damping 0.0 ^
-          --joint-target-type none ^
-          --viz kit
+         :: go to top of the Isaac Lab repository
+         cd IsaacLab
+         :: run the converter
+         uv run --extra importers isaaclab -p scripts\tools\convert_urdf.py ^
+           ..\anymal_d_simple_description\urdf\anymal.urdf ^
+           source\isaaclab_assets\data\Robots\ANYbotics\ ^
+           --merge_joints ^
+           --ros_package_path anymal_d_simple_description ..\anymal_d_simple_description ^
+           --joint_stiffness 0.0 ^
+           --joint_damping 0.0 ^
+           --joint_target_type none ^
+           --viz kit
 
 Executing the above script will create a USD file inside the
 ``source/isaaclab_assets/data/Robots/ANYbotics/anymal/`` directory (the subdirectory name
@@ -194,10 +271,15 @@ is derived automatically from the robot name in the URDF):
    actually used. Delete stale subdirectories manually (or wipe ``usd_dir``) if you do not
    want them to accumulate on disk.
 
-The examples above pass ``--viz kit`` to open the GUI and inspect the converted asset.
-To run the script headless and exit after the conversion is complete, omit ``--viz kit``.
+.. _import-new-asset-preview:
 
-You can press play on the opened window to see the asset in the scene. The asset should fall under gravity. If it blows up, then it might be that you have self-collisions present in the URDF.
+The examples pass ``--viz kit`` to open the converted asset in the Isaac Sim viewport, which
+requires a full Isaac Sim installation. Use ``--viz newton_gl``, ``--viz rerun``, or ``--viz viser``
+for a kit-less preview instead. Omit ``--viz`` to exit as soon as the conversion completes.
+
+Inspect the converted geometry and articulation in the viewer, then validate dynamics in the
+intended simulation backend. Check self-collisions, masses, inertias, and actuator gains if
+the asset is unstable.
 
 
 .. figure:: ../_static/tutorials/tutorial_convert_urdf.jpg
@@ -219,7 +301,7 @@ The default values for the importer's configuration parameters are specified in 
 :class:`~sim.converters.MjcfConverterCfg` class. The configuration parameters are listed below.
 We made a few commonly modified settings to be available as command-line arguments when calling the
 ``convert_mjcf.py``, and they are marked with ``*`` in the list. For a comprehensive list of the configuration
-parameters, please check the the documentation at `MJCF importer`_.
+parameters, please check the documentation at `MJCF importer`_.
 
 .. note::
    The MJCF importer was rewritten in Isaac Sim 5.0 to use the ``mujoco-usd-converter`` library.
@@ -230,14 +312,14 @@ Geometry, collisions, and materials
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * :attr:`~sim.converters.MjcfConverterCfg.merge_mesh` * - Whether to merge meshes where possible to
-  optimize the model. The command-line flag is ``--merge-mesh``.
+  optimize the model. The command-line flag is ``--merge_mesh``.
 * :attr:`~sim.converters.MjcfConverterCfg.collision_from_visuals` * - Whether to generate collision
-  geometry from visual geometries. The command-line flag is ``--collision-from-visuals``.
+  geometry from visual geometries. The command-line flag is ``--collision_from_visuals``.
 * :attr:`~sim.converters.MjcfConverterCfg.collision_type` * - The collision shape simplification to
   apply. One of ``"Convex Hull"`` (default), ``"Convex Decomposition"``, ``"Bounding Sphere"``, or
-  ``"Bounding Cube"``. The command-line flag is ``--collision-type``.
+  ``"Bounding Cube"``. The command-line flag is ``--collision_type``.
 * :attr:`~sim.converters.MjcfConverterCfg.self_collision` * - Whether to activate self-collisions
-  between links of the articulation. The command-line flag is ``--self-collision``.
+  between links of the articulation. The command-line flag is ``--self_collision``.
 
 Articulation and physics
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -248,7 +330,7 @@ Articulation and physics
   ``<inertial>`` properties are missing in the MJCF. ``0.0`` (default) leaves densities unchanged.
 * :attr:`~sim.converters.MjcfConverterCfg.import_physics_scene` * - Import physics scene properties
   (gravity, time step, etc.) from the MJCF file. Defaults to ``False``. The command-line flag is
-  ``--import-physics-scene``.
+  ``--import_physics_scene``.
 
 Actuator overrides
 ~~~~~~~~~~~~~~~~~~
@@ -275,7 +357,9 @@ Asset resolution and output
 * :attr:`~sim.converters.MjcfConverterCfg.run_asset_transformer` - Run the asset transformer to convert
   the flattened USD into a layered USD (interface USD + payloads). Defaults to ``True``.
 * :attr:`~sim.converters.MjcfConverterCfg.run_multi_physics_conversion` - Convert compatible MuJoCo
-  attributes to PhysX attributes (e.g. actuator gains). Defaults to ``True``.
+  attributes to PhysX attributes (e.g. actuator gains), so the asset carries both backends. Note this
+  is the opposite direction to the URDF importer. Defaults to ``True``.
+  See :ref:`import-new-asset-multi-backend`.
 * :attr:`~sim.converters.MjcfConverterCfg.debug_mode` - Write intermediate conversion artifacts next to
   the output USD for inspection. Defaults to ``False``.
 
@@ -298,34 +382,34 @@ The following shows the steps to clone the repository and run the converter:
 
       .. code-block:: bash
 
-        # clone a repository with MJCF files
-        git clone git@github.com:google-deepmind/mujoco_menagerie.git
+         # clone a repository with MJCF files
+         git clone git@github.com:google-deepmind/mujoco_menagerie.git
 
-        # go to top of the Isaac Lab repository
-        cd IsaacLab
-        # run the converter
-        ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
-          ../mujoco_menagerie/unitree_h1/h1.xml \
-          source/isaaclab_assets/data/Robots/Unitree/h1.usd \
-          --merge-mesh \
-          --viz kit
+         # go to top of the Isaac Lab repository
+         cd IsaacLab
+         # run the converter
+         uv run --extra importers isaaclab -p scripts/tools/convert_mjcf.py \
+           ../mujoco_menagerie/unitree_h1/h1.xml \
+           source/isaaclab_assets/data/Robots/Unitree/h1.usd \
+           --merge_mesh \
+           --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
-        :: clone a repository with MJCF files
-        git clone git@github.com:google-deepmind/mujoco_menagerie.git
+         :: clone a repository with MJCF files
+         git clone git@github.com:google-deepmind/mujoco_menagerie.git
 
-        :: go to top of the Isaac Lab repository
-        cd IsaacLab
-        :: run the converter
-        isaaclab.bat -p scripts\tools\convert_mjcf.py ^
-          ..\mujoco_menagerie\unitree_h1\h1.xml ^
-          source\isaaclab_assets\data\Robots\Unitree\h1.usd ^
-          --merge-mesh ^
-          --viz kit
+         :: go to top of the Isaac Lab repository
+         cd IsaacLab
+         :: run the converter
+         uv run --extra importers isaaclab -p scripts\tools\convert_mjcf.py ^
+           ..\mujoco_menagerie\unitree_h1\h1.xml ^
+           source\isaaclab_assets\data\Robots\Unitree\h1.usd ^
+           --merge_mesh ^
+           --viz kit
 
 Executing the above script will create the USD file inside the
 ``source/isaaclab_assets/data/Robots/Unitree/`` directory:
@@ -341,6 +425,8 @@ Executing the above script will create the USD file inside the
    actually used. Delete stale subdirectories manually (or wipe ``usd_dir``) if you do not
    want them to accumulate on disk.
 
+See :ref:`Previewing converted assets <import-new-asset-preview>` for the ``--viz`` options.
+
 .. figure:: ../_static/tutorials/tutorial_convert_mjcf.jpg
     :align: center
     :figwidth: 100%
@@ -348,59 +434,39 @@ Executing the above script will create the USD file inside the
 
 
 .. _import-new-asset-ensure-drives-exist:
+.. _ensuring-joint-drives-exist-on-every-joint:
 
-Ensuring joint drives exist on every joint
-------------------------------------------
+Joint drives on each physics backend
+------------------------------------
 
-A common pitfall when porting a freshly-imported asset across physics backends
-is that joints which actuate fine in PhysX silently do nothing in a
-Newton-based backend (MuJoCo Warp, XPBD, Featherstone, Semi-implicit).
+The URDF and MJCF importers write joint drives into the USD. How those drives are then
+interpreted depends on the physics backend, and on whether an Isaac Lab actuator configuration
+takes over. (Mesh assets have no joints, so none of this applies to them.)
 
-The URDF and MJCF importers both write a ``PhysicsDriveAPI`` to every
-articulated joint, but the stiffness and damping on that drive are often left
-at ``0`` — the assumption being that the actuator gains are authored at runtime
-by an :class:`~isaaclab.actuators.ImplicitActuatorCfg` or
-:class:`~isaaclab.actuators.IdealPDActuatorCfg`. This is the recommended way to
-keep gains tunable per task without re-importing the USD.
+**PhysX** starts from the imported USD drive properties. Isaac Lab's actuator configuration
+can override the gains and limits before simulation. The ANYmal example above passes
+``--joint_stiffness 0.0 --joint_damping 0.0 --joint_target_type none`` so the imported
+drive does not add PD effort when the asset is used for effort control.
 
-PhysX creates a solver actuator for every joint regardless of the authored
-gains, so the runtime writes from ``ImplicitActuatorCfg.stiffness`` /
-``damping`` always take effect. Newton's USD importer, by contrast, only
-materialises a solver actuator when the authored drive reports a non-zero
-stiffness or damping — a joint whose authored gains are both zero is treated
-as passive and is dropped from the actuator set, so subsequent runtime writes
-have nothing to attach to.
+**Newton** resolves the target mode from the Isaac Lab actuator configuration instead of from the
+USD alone. When an articulation uses an Isaac Lab actuator configuration, Newton resolves
+each configured joint's target mode before constructing the solver. For an
+:class:`~isaaclab.actuators.ImplicitActuatorCfg`, stiffness-only, damping-only,
+both-gain, and zero-gain configurations select position, velocity, combined
+position/velocity, and effort modes respectively. A gain set to ``None`` keeps
+the corresponding imported USD value. An explicit actuator configuration uses
+effort mode because Isaac Lab computes its effort directly.
 
-The recommended fix is to opt the spawn config into the cross-backend bridge by
-setting :attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist`
-to ``True``:
+Joints without an Isaac Lab actuator configuration retain their imported USD settings.
+Consequently, an asset with zero-gain USD drives no longer needs
+:attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist` solely
+to make configured joints actuate in Newton.
 
-.. code:: python
-
-   spawn=sim_utils.UsdFileCfg(
-       usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Agility/Cassie/cassie.usd",
-       joint_drive_props=sim_utils.JointDrivePropertiesCfg(ensure_drives_exist=True),
-       ...
-   )
-
-When ``ensure_drives_exist=True``, every drive whose authored stiffness *and*
-damping are both zero is updated with a minimal placeholder stiffness
-(``1e-3``) before the simulation starts. This is enough for Newton's importer
-to create the actuator; the actual gains are then overwritten by the actuator
-model at runtime, so the placeholder has no effect on the simulated dynamics.
-Drives whose authored gains are non-zero are left untouched.
-
-This is how ``isaaclab_assets.CASSIE_CFG`` keeps Cassie working across both
-PhysX and Newton — the asset ships with zero-gain drives because it relies on
-``ImplicitActuatorCfg`` for the legs, and the spawn config enables
-:attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist` so
-that both backends see the same actuator set.
-
-You can leave the flag at its default ``False`` for assets that author non-zero
-drive gains in the USD itself, or for assets driven by an
-:class:`~isaaclab.actuators.IdealPDActuatorCfg` that explicitly zeroes the
-solver drive and applies torque externally.
-
+The ``ensure_drives_exist`` option remains useful when a workflow needs to
+author placeholder drives independently of an Isaac Lab actuator configuration.
+When enabled, it assigns a minimal placeholder stiffness (``1e-3``) to zero-gain
+drives before simulation startup so that every drive exists in the imported
+model.
 
 Using Mesh Importer
 -------------------
@@ -434,48 +500,48 @@ the steps to clone the repository and run the converter:
 
       .. code-block:: bash
 
-        # clone a repository with URDF files
-        git clone git@github.com:NVIDIA-Omniverse/IsaacGymEnvs.git
+         # clone a repository with mesh files
+         git clone git@github.com:NVIDIA-Omniverse/IsaacGymEnvs.git
 
-        # go to top of the Isaac Lab repository
-        cd IsaacLab
-        # run the converter
-        ./isaaclab.sh -p scripts/tools/convert_mesh.py \
-          ../IsaacGymEnvs/assets/trifinger/objects/meshes/cube_multicolor.obj \
-          source/isaaclab_assets/data/Props/CubeMultiColor/cube_multicolor.usd \
-          --make-instanceable \
-          --collision-approximation convexDecomposition \
-          --mass 1.0
+         # go to top of the Isaac Lab repository
+         cd IsaacLab
+         # run the converter
+         uv run isaaclab -p scripts/tools/convert_mesh.py \
+           ../IsaacGymEnvs/assets/trifinger/objects/meshes/cube_multicolor.obj \
+           source/isaaclab_assets/data/Props/CubeMultiColor/cube_multicolor.usd \
+           --make-instanceable \
+           --collision-approximation convexDecomposition \
+           --mass 1.0 \
+           --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
-        :: clone a repository with URDF files
-        git clone git@github.com:NVIDIA-Omniverse/IsaacGymEnvs.git
+         :: clone a repository with mesh files
+         git clone git@github.com:NVIDIA-Omniverse/IsaacGymEnvs.git
 
-        :: go to top of the Isaac Lab repository
-        cd IsaacLab
-        :: run the converter
-        isaaclab.bat -p scripts\tools\convert_mesh.py ^
-          ..\IsaacGymEnvs\assets\trifinger\objects\meshes\cube_multicolor.obj ^
-          source\isaaclab_assets\data\Props\CubeMultiColor\cube_multicolor.usd ^
-          --make-instanceable ^
-          --collision-approximation convexDecomposition ^
-          --mass 1.0
+         :: go to top of the Isaac Lab repository
+         cd IsaacLab
+         :: run the converter
+         uv run isaaclab -p scripts\tools\convert_mesh.py ^
+           ..\IsaacGymEnvs\assets\trifinger\objects\meshes\cube_multicolor.obj ^
+           source\isaaclab_assets\data\Props\CubeMultiColor\cube_multicolor.usd ^
+           --make-instanceable ^
+           --collision-approximation convexDecomposition ^
+           --mass 1.0 ^
+           --viz kit
 
-You may need to press 'F' to zoom in on the asset after import.
-
-Similar to the URDF and MJCF converter, executing the above script will create two USD files inside the
-``source/isaaclab_assets/data/Props/CubeMultiColor/`` directory. Additionally,
-if you press play on the opened window, you should see the asset fall down under the influence
-of gravity.
+The mesh converter requires Isaac Sim. The command writes the converted USD and its
+instanceable mesh payload under ``source/isaaclab_assets/data/Props/CubeMultiColor/`` and opens
+the Isaac Sim viewport. Select the asset and press ``F`` to frame it in the viewport.
+Omit ``--viz kit`` to convert without opening a preview.
 
 * If you do not set the ``--mass`` flag, then no rigid body properties will be added to the asset.
   It will be imported as a static asset.
-* If you also do not set the ``--collision-approximation`` flag, then the asset will not have any collider
-  properties as well and will be imported as a visual asset.
+* Set ``--collision-approximation none`` to omit collider properties. The default is
+  ``convexDecomposition``, so omitting this flag still creates collision geometry.
 
 
 .. figure:: ../_static/tutorials/tutorial_convert_mesh.jpg

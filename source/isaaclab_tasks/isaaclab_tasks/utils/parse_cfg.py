@@ -7,18 +7,19 @@
 
 from __future__ import annotations
 
-import collections
 import importlib
+import importlib.util
 import inspect
 import os
 import re
 import warnings
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
 import yaml
 
-from isaaclab_tasks.utils.hydra import _user_stacklevel, resolve_presets
+from isaaclab_tasks.utils.hydra import resolve_task_config, user_stacklevel
 
 if TYPE_CHECKING:
     from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
@@ -60,6 +61,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
 
     Raises:
         ValueError: If the entry point key is not available in the gym registry for the task.
+        ImportError: If a Python configuration requires a missing Pink IK dependency.
     """
     spec = gym.spec(task_name.split(":")[-1])
     # Emit a FutureWarning when loading the env cfg for a retired task
@@ -78,33 +80,23 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
             warnings.warn(
                 f"Task '{spec.id}' is deprecated and will be removed in a future release. Use '{new_command}'.",
                 FutureWarning,
-                stacklevel=_user_stacklevel(),
+                stacklevel=user_stacklevel(),
             )
     # obtain the configuration entry point
     cfg_entry_point = spec.kwargs.get(entry_point_key)
     # check if entry point exists
     if cfg_entry_point is None:
-        # get existing agents and algorithms
-        agents = collections.defaultdict(list)
-        for k in spec.kwargs:
-            if k.endswith("_cfg_entry_point") and k != "env_cfg_entry_point":
-                spec = (
-                    k.replace("_cfg_entry_point", "")
-                    .replace("rl_games", "rl-games")
-                    .replace("rsl_rl", "rsl-rl")
-                    .split("_")
-                )
-                agent = spec[0].replace("-", "_")
-                algorithms = [item.upper() for item in (spec[1:] if len(spec) > 1 else ["PPO"])]
-                agents[agent].extend(algorithms)
-        msg = "\nExisting RL library (and algorithms) config entry points: "
-        for agent, algorithms in agents.items():
-            msg += f"\n  |-- {agent}: {', '.join(algorithms)}"
+        agent_entries = sorted(
+            key for key in spec.kwargs if key.endswith("_cfg_entry_point") and key != "env_cfg_entry_point"
+        )
+        msg = "\nExisting agent configuration entry points:"
+        if agent_entries:
+            msg += "".join(f"\n  |-- {key}" for key in agent_entries)
         # raise error
         raise ValueError(
             f"Could not find configuration for the environment: '{task_name}'."
             f"\nPlease check that the gym registry has the entry point: '{entry_point_key}'."
-            f"{msg if agents else ''}"
+            f"{msg if agent_entries else ''}"
         )
     # parse the default config file
     if isinstance(cfg_entry_point, str) and cfg_entry_point.endswith(".yaml"):
@@ -122,39 +114,68 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
         with open(config_file, encoding="utf-8") as f:
             cfg = yaml.full_load(f)
     else:
-        if callable(cfg_entry_point):
-            # resolve path to the module location
-            mod_path = inspect.getfile(cfg_entry_point)
+        try:
+            if callable(cfg_entry_point):
+                # resolve path to the module location
+                mod_path = inspect.getfile(cfg_entry_point)
+                # load the configuration
+                cfg_cls = cfg_entry_point()
+            elif isinstance(cfg_entry_point, str):
+                # resolve path to the module location
+                mod_name, attr_name = cfg_entry_point.split(":")
+                mod = importlib.import_module(mod_name)
+                cfg_cls = getattr(mod, attr_name)
+            else:
+                cfg_cls = cfg_entry_point
             # load the configuration
-            cfg_cls = cfg_entry_point()
-        elif isinstance(cfg_entry_point, str):
-            # resolve path to the module location
-            mod_name, attr_name = cfg_entry_point.split(":")
-            mod = importlib.import_module(mod_name)
-            cfg_cls = getattr(mod, attr_name)
-        else:
-            cfg_cls = cfg_entry_point
-        # load the configuration
-        print(f"[INFO]: Parsing configuration from: {cfg_entry_point}")
-        if callable(cfg_cls):
-            cfg = cfg_cls()
-        else:
-            cfg = cfg_cls
+            print(f"[INFO]: Parsing configuration from: {cfg_entry_point}")
+            if callable(cfg_cls):
+                cfg = cfg_cls()
+            else:
+                cfg = cfg_cls
+            if entry_point_key == "env_cfg_entry_point" and getattr(cfg, "actions", None) is not None:
+                from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
+
+                # Pink action implementations load lazily; report missing dependencies before simulator startup.
+                actions = cfg.actions if isinstance(cfg.actions, dict) else vars(cfg.actions)
+                if any(isinstance(action, PinkInverseKinematicsActionCfg) for action in actions.values()):
+                    for module_name in ("pinocchio", "pink", "qpsolvers", "daqp"):
+                        if importlib.util.find_spec(module_name) is None:
+                            raise ModuleNotFoundError(f"No module named '{module_name}'", name=module_name)
+        except ModuleNotFoundError as exc:
+            if exc.name not in {"pinocchio", "pink", "qpsolvers", "daqp"}:
+                raise
+            raise ImportError(
+                f"Task '{task_name}' could not load Pink IK dependency '{exc.name}'. "
+                "Pink IK requires Linux x86_64 or aarch64 with the standard Isaac Lab installation. "
+                "Install the pin, pin-pink, and daqp versions specified in pyproject.toml on a supported platform. "
+                "The standard Windows installation does not provide Pinocchio."
+            ) from exc
     return cfg
 
 
 def parse_env_cfg(
-    task_name: str, device: str = "cuda:0", num_envs: int | None = None, use_fabric: bool | None = None
+    task_name: str,
+    device: str | None = None,
+    num_envs: int | None = None,
+    use_fabric: bool | None = None,
+    overrides: Sequence[str] = (),
 ) -> ManagerBasedRLEnvCfg | DirectRLEnvCfg:
     """Parse configuration for an environment and override based on inputs.
 
     Args:
         task_name: The name of the environment.
-        device: The device to run the simulation on. Defaults to "cuda:0".
+        device: The device to run the simulation on. Defaults to None, in which case it is left unchanged.
         num_envs: Number of environments to create. Defaults to None, in which case it is left unchanged.
         use_fabric: Whether to enable/disable fabric interface. If false, all read/write operations go through USD.
             This slows down the simulation but allows seeing the changes in the USD through the USD stage.
             Defaults to None, in which case it is left unchanged.
+        overrides: Hydra-style ``key=value`` overrides (e.g. ``["physics=isaacsim_physx"]``) applied on top of the
+            task's registered configuration, using the same syntax as the ``physics=``/``renderer=``/``presets=``
+            selectors documented for Hydra-driven scripts. Defaults to an empty sequence, in which case the task's
+            registered defaults are used unchanged. A single override must still be wrapped in a list or tuple
+            (e.g. ``["physics=isaacsim_physx"]``, not ``"physics=isaacsim_physx"``); a bare string is itself a
+            ``Sequence[str]`` of characters and would otherwise be split one character at a time.
 
     Returns:
         The parsed configuration object.
@@ -162,24 +183,25 @@ def parse_env_cfg(
     Raises:
         RuntimeError: If the configuration for the task is not a class. We assume users always use a class for the
             environment configuration.
+        TypeError: If ``overrides`` is a bare string instead of a list or tuple of override strings.
     """
-    # load the default configuration
-    cfg = load_cfg_from_registry(task_name.split(":")[-1], "env_cfg_entry_point")
+    if isinstance(overrides, str):
+        raise TypeError(
+            f"'overrides' must be a list or tuple of 'key=value' strings, not a bare string: {overrides!r}. Wrap"
+            f" it in a list, e.g. overrides=[{overrides!r}]."
+        )
+
+    # Compose the registered task through the same boundary used by Hydra entry points.
+    cfg, _ = resolve_task_config(task_name, None, overrides=overrides)
 
     # check that it is not a dict
     # we assume users always use a class for the configuration
     if isinstance(cfg, dict):
         raise RuntimeError(f"Configuration for the task: '{task_name}' is not a class. Please provide a class.")
 
-    # Resolve any PresetCfg wrappers to their default preset so the config
-    # is usable without a Hydra CLI override (e.g. in tests).
-    # Must happen BEFORE attribute overrides, otherwise overrides on PresetCfg wrapper
-    # fields (e.g. cfg.scene when scene is a PresetCfg) get discarded when the wrapper
-    # is replaced by its .default.
-    cfg = resolve_presets(cfg)
-
     # simulation device
-    cfg.sim.device = device
+    if device is not None:
+        cfg.sim.device = device
     # disable fabric to read/write through USD
     if use_fabric is not None:
         cfg.sim.use_fabric = use_fabric
@@ -191,7 +213,12 @@ def parse_env_cfg(
 
 
 def get_checkpoint_path(
-    log_path: str, run_dir: str = ".*", checkpoint: str = ".*", other_dirs: list[str] = None, sort_alpha: bool = True
+    log_path: str,
+    run_dir: str = ".*",
+    checkpoint: str = ".*",
+    other_dirs: list[str] = None,
+    sort_alpha: bool = True,
+    preferred_checkpoint: str | None = None,
 ) -> str:
     """Get path to the model checkpoint in input directory.
 
@@ -207,10 +234,15 @@ def get_checkpoint_path(
             recent directory created inside :attr:`log_path`.
         other_dirs: The intermediate directories between the run directory and the checkpoint file. Defaults to
             None, which implies that checkpoint file is directly under the run directory.
-        checkpoint: The regex expression for the model checkpoint file. Defaults to the most recent
-            torch-model saved in the :attr:`run_dir` directory.
+        checkpoint: The regex expression for the model checkpoint file. Defaults to ``".*"``, which matches all
+            checkpoints and selects the most recent one.
         sort_alpha: Whether to sort the runs by alphabetical order. Defaults to True.
             If False, the folders in :attr:`run_dir` are sorted by the last modified time.
+        preferred_checkpoint: An optional regex expression that is matched before :attr:`checkpoint`. When it is
+            provided and matches at least one file, that match is used; otherwise resolution falls back to
+            :attr:`checkpoint`. This allows preferring a specific checkpoint (e.g. the best or final model) while
+            still resolving the latest available checkpoint when the preferred file has not been written yet (e.g.
+            for short runs). Defaults to None, which matches :attr:`checkpoint` directly.
 
     Returns:
         The path to the model checkpoint.
@@ -222,7 +254,7 @@ def get_checkpoint_path(
     """
     # check if runs present in directory
     try:
-        # find all runs in the directory that math the regex expression
+        # find all runs in the directory that match the regex expression
         runs = [
             os.path.join(log_path, run) for run in os.scandir(log_path) if run.is_dir() and re.match(run_dir, run.name)
         ]
@@ -236,16 +268,26 @@ def get_checkpoint_path(
             run_path = os.path.join(runs[-1], *other_dirs)
         else:
             run_path = runs[-1]
-    except IndexError:
+    # os.scandir raises FileNotFoundError when the directory is absent; same meaning: no runs.
+    except (IndexError, FileNotFoundError):
         raise ValueError(f"No runs present in the directory: '{log_path}' match: '{run_dir}'.")
 
-    # list all model checkpoints in the directory
-    model_checkpoints = [f for f in os.listdir(run_path) if re.match(checkpoint, f)]
+    # prefer ``preferred_checkpoint`` when given and it matches; otherwise fall back to the general
+    # ``checkpoint`` pattern (e.g. resolve the latest numbered checkpoint when the preferred best/final
+    # checkpoint file has not been written yet)
+    model_checkpoints = []
+    if preferred_checkpoint is not None:
+        model_checkpoints = [f for f in os.listdir(run_path) if re.match(preferred_checkpoint, f)]
+    if len(model_checkpoints) == 0:
+        model_checkpoints = [f for f in os.listdir(run_path) if re.match(checkpoint, f)]
     # check if any checkpoints are present
     if len(model_checkpoints) == 0:
-        raise ValueError(f"No checkpoints in the directory: '{run_path}' match '{checkpoint}'.")
-    # sort alphabetically while ensuring that *_10 comes after *_9
-    model_checkpoints.sort(key=lambda m: f"{m:0>15}")
+        patterns = f"'{checkpoint}'"
+        if preferred_checkpoint is not None:
+            patterns = f"'{preferred_checkpoint}' nor '{checkpoint}'"
+        raise ValueError(f"No checkpoints in the directory: '{run_path}' match {patterns}.")
+    # sort naturally so numbered checkpoints such as *_10 come after *_9 even with long filename prefixes
+    model_checkpoints.sort(key=lambda m: [int(token) if token.isdigit() else token for token in re.split(r"(\d+)", m)])
     # get latest matched checkpoint file
     checkpoint_file = model_checkpoints[-1]
 

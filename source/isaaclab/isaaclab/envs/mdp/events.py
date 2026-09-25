@@ -17,24 +17,43 @@ from __future__ import annotations
 import logging
 import math
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import torch
 
-import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
-from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
-from isaaclab.utils.version import compare_versions
+from ... import sim as sim_utils
+from ...managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
+from ...utils import math as math_utils
+from ...utils.version import compare_versions
+from .physics_events import (  # noqa: F401
+    randomize_actuator_gains,
+    randomize_fixed_tendon_parameters,
+    randomize_joint_parameters,
+    randomize_physics_scene_gravity,
+    randomize_rigid_body_collider_offsets,
+    randomize_rigid_body_com,
+    randomize_rigid_body_inertia,
+    randomize_rigid_body_mass,
+    randomize_rigid_body_material,
+    randomize_rigid_body_scale,
+)
 
 if TYPE_CHECKING:
     from isaaclab_physx.assets import DeformableObject
 
-    from isaaclab.assets import Articulation, RigidObject
-    from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.terrains import TerrainImporter
+    from ...assets import Articulation, RigidObject
+    from ...terrains import TerrainImporter
+    from .. import ManagerBasedEnv
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+def _is_all_body_selection(body_ids: list[int] | slice, num_bodies: int) -> bool:
+    """Return whether a body selector covers the entire asset."""
+    if body_ids == slice(None):
+        return True
+    return sorted(body_ids) == list(range(num_bodies))
 
 
 def apply_external_force_torque(
@@ -51,7 +70,6 @@ def apply_external_force_torque(
     applied to the bodies by calling ``asset.set_external_force_and_torque``. The forces and torques are only
     applied when ``asset.write_data_to_sim()`` is called in the environment.
     """
-    # extract the used quantities (to enable type-hinting)
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
     # resolve environment ids
     if env_ids is None:
@@ -94,7 +112,6 @@ def push_by_setting_velocity(
     are ``x``, ``y``, ``z``, ``roll``, ``pitch``, and ``yaw``. The values are tuples of the form ``(min, max)``.
     If the dictionary does not contain a key, the velocity is set to zero for that axis.
     """
-    # extract the used quantities (to enable type-hinting)
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
     # velocities
@@ -107,50 +124,59 @@ def push_by_setting_velocity(
     asset.write_root_velocity_to_sim_index(root_velocity=vel_w, env_ids=env_ids)
 
 
-def reset_root_state_uniform(
-    env: ManagerBasedEnv,
-    env_ids: torch.Tensor,
-    pose_range: dict[str, tuple[float, float]],
-    velocity_range: dict[str, tuple[float, float]],
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-):
+class reset_root_state_uniform(ManagerTermBase):
     """Reset the asset root state to a random position and velocity uniformly within the given ranges.
 
-    This function randomizes the root position and velocity of the asset.
+    This term randomizes the root position and velocity of the asset.
 
     * It samples the root position from the given ranges and adds them to the default root position, before setting
       them into the physics simulation.
     * It samples the root orientation from the given ranges and sets them into the physics simulation.
     * It samples the root velocity from the given ranges and sets them into the physics simulation.
 
-    The function takes a dictionary of pose and velocity ranges for each axis and rotation. The keys of the
+    The term takes a dictionary of pose and velocity ranges for each axis and rotation. The keys of the
     dictionary are ``x``, ``y``, ``z``, ``roll``, ``pitch``, and ``yaw``. The values are tuples of the form
     ``(min, max)``. If the dictionary does not contain a key, the position or velocity is set to zero for that axis.
+
+    The range dictionaries are materialized as device tensors once at construction.
     """
-    # extract the used quantities (to enable type-hinting)
-    asset: RigidObject | Articulation = env.scene[asset_cfg.name]
-    # get default root state
-    default_root_pose = asset.data.default_root_pose.torch[env_ids].clone()
-    default_root_vel = asset.data.default_root_vel.torch[env_ids].clone()
 
-    # poses
-    range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-    ranges = torch.tensor(range_list, device=asset.device)
-    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+        keys = ("x", "y", "z", "roll", "pitch", "yaw")
+        pose_range = cfg.params.get("pose_range", {})
+        velocity_range = cfg.params.get("velocity_range", {})
+        self._pose_ranges = torch.tensor([tuple(pose_range.get(key, (0.0, 0.0))) for key in keys], device=env.device)
+        self._velocity_ranges = torch.tensor(
+            [tuple(velocity_range.get(key, (0.0, 0.0))) for key in keys], device=env.device
+        )
 
-    positions = default_root_pose[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
-    orientations_delta = math_utils.quat_from_euler_xyz(rand_samples[:, 3], rand_samples[:, 4], rand_samples[:, 5])
-    orientations = math_utils.quat_mul(default_root_pose[:, 3:7], orientations_delta)
-    # velocities
-    range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-    ranges = torch.tensor(range_list, device=asset.device)
-    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor,
+        pose_range: dict[str, tuple[float, float]],
+        velocity_range: dict[str, tuple[float, float]],
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    ):
+        asset: RigidObject | Articulation = env.scene[asset_cfg.name]
+        # tensor indexing already returns a copy, and the values are only read below
+        default_root_pose = asset.data.default_root_pose.torch[env_ids]
+        default_root_vel = asset.data.default_root_vel.torch[env_ids]
 
-    velocities = default_root_vel + rand_samples
+        ranges = self._pose_ranges
+        rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
 
-    # set into the physics simulation
-    asset.write_root_pose_to_sim_index(root_pose=torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
-    asset.write_root_velocity_to_sim_index(root_velocity=velocities, env_ids=env_ids)
+        positions = default_root_pose[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
+        orientations_delta = math_utils.quat_from_euler_xyz(rand_samples[:, 3], rand_samples[:, 4], rand_samples[:, 5])
+        orientations = math_utils.quat_mul(default_root_pose[:, 3:7], orientations_delta)
+        # velocities
+        ranges = self._velocity_ranges
+        rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
+
+        velocities = default_root_vel + rand_samples
+        asset.write_root_pose_to_sim_index(root_pose=torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
+        asset.write_root_velocity_to_sim_index(root_velocity=velocities, env_ids=env_ids)
 
 
 def reset_root_state_with_random_orientation(
@@ -180,7 +206,6 @@ def reset_root_state_with_random_orientation(
     The values are tuples of the form ``(min, max)``. If the dictionary does not contain a particular key,
     the position is set to zero for that axis.
     """
-    # extract the used quantities (to enable type-hinting)
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
     # get default root state
     default_root_pose = asset.data.default_root_pose.torch[env_ids].clone()
@@ -236,11 +261,9 @@ def reset_root_state_from_terrain(
     Raises:
         ValueError: If the terrain does not have valid flat patches under the key "init_pos".
     """
-    # access the used quantities (to enable type-hinting)
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
     terrain: TerrainImporter = env.scene.terrain
 
-    # obtain all flat patches corresponding to the valid poses
     valid_positions: torch.Tensor = terrain.flat_patches.get("init_pos")
     if valid_positions is None:
         raise ValueError(
@@ -252,7 +275,6 @@ def reset_root_state_from_terrain(
     ids = torch.randint(0, valid_positions.shape[2], size=(len(env_ids),), device=env.device)
     positions = valid_positions[terrain.terrain_levels[env_ids], terrain.terrain_types[env_ids], ids]
     positions += asset.data.default_root_pose.torch[env_ids, :3]
-
     # sample random orientations
     range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["roll", "pitch", "yaw"]]
     ranges = torch.tensor(range_list, device=asset.device)
@@ -285,7 +307,6 @@ def reset_joints_by_scale(
     This function samples random values from the given ranges and scales the default joint positions and velocities
     by these values. The scaled values are then set into the physics simulation.
     """
-    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
 
     # cast env_ids to allow broadcasting
@@ -326,7 +347,6 @@ def reset_joints_by_offset(
     This function samples random values from the given ranges and biases the default joint positions and velocities
     by these values. The biased values are then set into the physics simulation.
     """
-    # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
 
     # cast env_ids to allow broadcasting
@@ -355,6 +375,156 @@ def reset_joints_by_offset(
     asset.write_joint_velocity_to_sim_index(velocity=joint_vel, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
 
 
+class reset_joints_within_limits_range(ManagerTermBase):
+    """Reset an articulation's joints to a random position in the given limit ranges.
+
+    This function samples random values for the joint position and velocities from the given limit ranges.
+    The values are then set into the physics simulation.
+
+    The parameters to the function are:
+
+    * :attr:`position_range` - a dictionary of position ranges for each joint. The keys of the dictionary are the
+      joint names (or regular expressions) of the asset.
+    * :attr:`velocity_range` - a dictionary of velocity ranges for each joint. The keys of the dictionary are the
+      joint names (or regular expressions) of the asset.
+    * :attr:`use_default_offset` - a boolean flag to indicate if the ranges are offset by the default joint state.
+      Defaults to False.
+    * :attr:`asset_cfg` - the configuration of the asset to reset. Defaults to the entity named "robot" in the scene.
+    * :attr:`operation` - whether the ranges are scaled values of the joint limits, or absolute limits.
+       Defaults to "abs".
+
+    The dictionary values are a tuple of the form ``(a, b)``. Based on the operation, these values are
+    interpreted differently:
+
+    * If the operation is "abs", the values are the absolute minimum and maximum values for the joint, i.e.
+      the joint range becomes ``[a, b]``.
+    * If the operation is "scale", the values are the scaling factors for the joint limits, i.e. the joint range
+      becomes ``[a * min_joint_limit, b * max_joint_limit]``.
+
+    If the ``a`` or the ``b`` value is ``None``, the joint limits are used instead.
+
+    Note:
+        If the dictionary does not contain a key, the joint position or joint velocity is set to the default value for
+        that joint.
+
+    """
+
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+
+        # check if the cfg has the required parameters
+        if "position_range" not in cfg.params or "velocity_range" not in cfg.params:
+            raise ValueError(
+                "The term 'reset_joints_within_limits_range' requires parameters: 'position_range' and"
+                f" 'velocity_range'. Received: {list(cfg.params.keys())}."
+            )
+
+        # parse the parameters
+        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
+        use_default_offset = cfg.params.get("use_default_offset", False)
+        operation = cfg.params.get("operation", "abs")
+        # check if the operation is valid
+        if operation not in ["abs", "scale"]:
+            raise ValueError(
+                f"For event 'reset_joints_within_limits_range', unknown operation: '{operation}'."
+                " Please use 'abs' or 'scale'."
+            )
+
+        self._asset: Articulation = env.scene[asset_cfg.name]
+        default_joint_pos = self._asset.data.default_joint_pos.torch[0]
+        default_joint_vel = self._asset.data.default_joint_vel.torch[0]
+
+        # create buffers to store the joint position range
+        self._pos_ranges = self._asset.data.soft_joint_pos_limits.torch[0].clone()
+        # parse joint position ranges
+        pos_joint_ids = []
+        for joint_name, joint_range in cfg.params["position_range"].items():
+            # find the joint ids
+            joint_ids = self._asset.find_joints(joint_name)[0]
+            pos_joint_ids.extend(joint_ids)
+
+            # set the joint position ranges based on the given values
+            if operation == "abs":
+                if joint_range[0] is not None:
+                    self._pos_ranges[joint_ids, 0] = joint_range[0]
+                if joint_range[1] is not None:
+                    self._pos_ranges[joint_ids, 1] = joint_range[1]
+            else:  # operation == "scale"
+                if joint_range[0] is not None:
+                    self._pos_ranges[joint_ids, 0] *= joint_range[0]
+                if joint_range[1] is not None:
+                    self._pos_ranges[joint_ids, 1] *= joint_range[1]
+            # add the default offset
+            if use_default_offset:
+                self._pos_ranges[joint_ids] += default_joint_pos[joint_ids].unsqueeze(1)
+
+        # store the joint pos ids (used later to sample the joint positions)
+        self._pos_joint_ids = torch.tensor(pos_joint_ids, device=self._pos_ranges.device)
+        self._pos_ranges = self._pos_ranges[self._pos_joint_ids]
+
+        # create buffers to store the joint velocity range
+        soft_joint_vel_limits_torch = self._asset.data.soft_joint_vel_limits.torch[0]
+        self._vel_ranges = torch.stack([-soft_joint_vel_limits_torch, soft_joint_vel_limits_torch], dim=1)
+        # parse joint velocity ranges
+        vel_joint_ids = []
+        for joint_name, joint_range in cfg.params["velocity_range"].items():
+            # find the joint ids
+            joint_ids = self._asset.find_joints(joint_name)[0]
+            vel_joint_ids.extend(joint_ids)
+
+            # set the joint velocity ranges based on the given values
+            if operation == "abs":
+                if joint_range[0] is not None:
+                    self._vel_ranges[joint_ids, 0] = joint_range[0]
+                if joint_range[1] is not None:
+                    self._vel_ranges[joint_ids, 1] = joint_range[1]
+            else:  # operation == "scale"
+                if joint_range[0] is not None:
+                    self._vel_ranges[joint_ids, 0] = joint_range[0] * self._vel_ranges[joint_ids, 0]
+                if joint_range[1] is not None:
+                    self._vel_ranges[joint_ids, 1] = joint_range[1] * self._vel_ranges[joint_ids, 1]
+            # add the default offset
+            if use_default_offset:
+                self._vel_ranges[joint_ids] += default_joint_vel[joint_ids].unsqueeze(1)
+
+        # store the joint vel ids (used later to sample the joint positions)
+        self._vel_joint_ids = torch.tensor(vel_joint_ids, device=self._vel_ranges.device)
+        self._vel_ranges = self._vel_ranges[self._vel_joint_ids]
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor,
+        position_range: dict[str, tuple[float | None, float | None]],
+        velocity_range: dict[str, tuple[float | None, float | None]],
+        use_default_offset: bool = False,
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+        operation: Literal["abs", "scale"] = "abs",
+    ):
+        # get default joint state
+        joint_pos = self._asset.data.default_joint_pos.torch[env_ids].clone()
+        joint_vel = self._asset.data.default_joint_vel.torch[env_ids].clone()
+
+        if len(self._pos_joint_ids) > 0:
+            joint_pos_shape = (len(env_ids), len(self._pos_joint_ids))
+            joint_pos[:, self._pos_joint_ids] = math_utils.sample_uniform(
+                self._pos_ranges[:, 0], self._pos_ranges[:, 1], joint_pos_shape, device=joint_pos.device
+            )
+            joint_pos_limits = self._asset.data.soft_joint_pos_limits.torch[0, self._pos_joint_ids]
+            joint_pos = joint_pos.clamp(joint_pos_limits[:, 0], joint_pos_limits[:, 1])
+
+        if len(self._vel_joint_ids) > 0:
+            joint_vel_shape = (len(env_ids), len(self._vel_joint_ids))
+            joint_vel[:, self._vel_joint_ids] = math_utils.sample_uniform(
+                self._vel_ranges[:, 0], self._vel_ranges[:, 1], joint_vel_shape, device=joint_vel.device
+            )
+            joint_vel_limits = self._asset.data.soft_joint_vel_limits.torch[0, self._vel_joint_ids]
+            joint_vel = joint_vel.clamp(-joint_vel_limits, joint_vel_limits)
+
+        self._asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self._asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
+
+
 def reset_nodal_state_uniform(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor,
@@ -374,7 +544,6 @@ def reset_nodal_state_uniform(
     dictionary are ``x``, ``y``, ``z``. The values are tuples of the form ``(min, max)``.
     If the dictionary does not contain a key, the position or velocity is set to zero for that axis.
     """
-    # extract the used quantities (to enable type-hinting)
     asset: DeformableObject = env.scene[asset_cfg.name]
     # get default root state
     nodal_state = asset.data.default_nodal_state_w.torch[env_ids].clone()
@@ -433,6 +602,12 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor, reset_jo
         if reset_joint_targets:
             articulation_asset.set_joint_position_target_index(target=default_joint_pos, env_ids=env_ids)
             articulation_asset.set_joint_velocity_target_index(target=default_joint_vel, env_ids=env_ids)
+    # cable objects
+    for cable_object in env.scene.cable_objects.values():
+        segment_pose = cable_object.data.default_segment_pose_w.torch[env_ids].clone()
+        segment_velocity = cable_object.data.default_segment_velocity_w.torch[env_ids].clone()
+        cable_object.write_segment_pose_to_sim_index(segment_pose=segment_pose, env_ids=env_ids)
+        cable_object.write_segment_velocity_to_sim_index(segment_velocity=segment_velocity, env_ids=env_ids)
     # deformable objects
     for deformable_object in env.scene.deformable_objects.values():
         # obtain default and set into the physics simulation
@@ -478,27 +653,19 @@ class randomize_visual_texture_material(ManagerTermBase):
                 " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
             )
 
-        # enable replicator extension if not already enabled (local: isaacsim only available with Kit)
-        from isaacsim.core.experimental.utils.app import enable_extension  # noqa: PLC0415
-
-        enable_extension("omni.replicator.core")
+        # enable replicator extension if not already enabled (local: Kit-only import)
+        sim_utils.enable_extension("omni.replicator.core")
         # we import the module here since we may not always need the replicator
         import omni.replicator.core as rep  # noqa: PLC0415
 
         # read parameters from the configuration
         asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
-
-        # obtain the asset entity
         asset = env.scene[asset_cfg.name]
 
         # join all bodies in the asset
         body_names = asset_cfg.body_names
-        if isinstance(body_names, str):
-            body_names_regex = body_names
-        elif isinstance(body_names, list):
-            body_names_regex = "|".join(body_names)
-        else:
-            body_names_regex = ".*"
+        body_names_regex = "|".join(body_names) if isinstance(body_names, list) else body_names
+        body_names_regex = f"(?:{body_names_regex})" if isinstance(body_names_regex, str) else ".*"
 
         # create the affected prim path
         # Check if the pattern with '/visuals' yields results when matching `body_names_regex`.
@@ -506,7 +673,7 @@ class randomize_visual_texture_material(ManagerTermBase):
         asset_main_prim_path = asset.cfg.prim_path
         pattern_with_visuals = f"{asset_main_prim_path}/{body_names_regex}/visuals"
         # Use sim_utils to check if any prims currently match this pattern
-        matching_prims = sim_utils.find_matching_prim_paths(pattern_with_visuals)
+        matching_prims = sim_utils.resolve_matching_prims_from_source(pattern_with_visuals, raise_if_no_matches=False)
         if matching_prims:
             # If matches are found, use the pattern with /visuals
             prim_path = pattern_with_visuals
@@ -544,7 +711,6 @@ class randomize_visual_texture_material(ManagerTermBase):
                     )
                 return prims_group.node
 
-            # Register the event to the replicator
             with rep.trigger.on_custom_event(event_name=event_name):
                 rep_texture_randomization()
         else:
@@ -649,10 +815,8 @@ class randomize_visual_color(ManagerTermBase):
         """
         super().__init__(cfg, env)
 
-        # enable replicator extension if not already enabled (local: isaacsim only available with Kit)
-        from isaacsim.core.experimental.utils.app import enable_extension  # noqa: PLC0415
-
-        enable_extension("omni.replicator.core")
+        # enable replicator extension if not already enabled (local: Kit-only import)
+        sim_utils.enable_extension("omni.replicator.core")
         # we import the module here since we may not always need the replicator
         import omni.replicator.core as rep  # noqa: PLC0415
 
@@ -674,9 +838,30 @@ class randomize_visual_color(ManagerTermBase):
         asset = env.scene[asset_cfg.name]
 
         # create the affected prim path
-        if not mesh_name.startswith("/"):
-            mesh_name = "/" + mesh_name
-        mesh_prim_path = f"{asset.cfg.prim_path}{mesh_name}"
+        # note: Never match the articulation root prim. Authoring on the root (the SetInstanceable
+        #   and material binding below) invalidates the PhysX articulation view, crashing a later
+        #   at-play body-name resolution (root_view.shared_metatype becomes None). So we scope to
+        #   descendant visual prims, mirroring randomize_visual_texture_material.
+        if mesh_name:
+            # explicit mesh override
+            if not mesh_name.startswith("/"):
+                mesh_name = "/" + mesh_name
+            mesh_prim_path = f"{asset.cfg.prim_path}{mesh_name}"
+        else:
+            # default: the configured bodies' visual meshes
+            body_names = asset_cfg.body_names
+            body_names_regex = "|".join(body_names) if isinstance(body_names, list) else body_names
+            body_names_regex = f"(?:{body_names_regex})" if isinstance(body_names_regex, str) else ".*"
+            pattern_with_visuals = f"{asset.cfg.prim_path}/{body_names_regex}/visuals"
+            if sim_utils.resolve_matching_prims_from_source(pattern_with_visuals, raise_if_no_matches=False):
+                mesh_prim_path = pattern_with_visuals
+            else:
+                # fall back to any descendant if the asset has no ".../visuals" layout
+                mesh_prim_path = f"{asset.cfg.prim_path}/.*"
+                logging.info(
+                    f"Pattern '{pattern_with_visuals}' found no prims. Falling back to '{mesh_prim_path}'"
+                    " for color randomization."
+                )
         # TODO: Need to make it work for multiple meshes.
 
         # extract the replicator version
@@ -686,8 +871,6 @@ class randomize_visual_color(ManagerTermBase):
         if compare_versions(version, "1.12.4") < 0:
             colors = cfg.params.get("colors")
             event_name = cfg.params.get("event_name")
-
-            # parse the colors into replicator format
             if isinstance(colors, dict):
                 # (r, g, b) - low, high --> (low_r, low_g, low_b) and (high_r, high_g, high_b)
                 color_low = [colors[key][0] for key in ["r", "g", "b"]]
@@ -704,7 +887,6 @@ class randomize_visual_color(ManagerTermBase):
 
                 return prims_group.node
 
-            # Register the event to the replicator
             with rep.trigger.on_custom_event(event_name=event_name):
                 rep_color_randomization()
         else:
@@ -770,8 +952,3 @@ class randomize_visual_color(ManagerTermBase):
             random_colors = self.color_rng.generator.uniform(colors[0], colors[1], size=(num_prims, 3))
 
             rep.functional.modify.attribute(self.material_prims, "diffuse_color_constant", random_colors)
-
-
-"""
-Internal helper functions.
-"""

@@ -1,3 +1,5 @@
+:orphan:
+
 Recording Animations of Simulations
 ===================================
 
@@ -54,7 +56,7 @@ In standalone Isaac Lab environments, pass the ``--disable_fabric`` flag:
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/environments/state_machine/lift_cube_sm.py --num_envs 8 --device cpu --disable_fabric --viz kit
+   python scripts/environments/state_machine/lift_cube_sm.py --num_envs 8 --device cpu --disable_fabric --viz kit
 
 After launching, the Isaac Lab UI window will display a "Record Animation" button.
 Click to begin recording. Click again to stop.
@@ -64,11 +66,24 @@ The following files are saved to the ``recordings/`` folder:
 - ``Stage.usd`` — the original stage with physics disabled
 - ``TimeSample_tk001.usd`` — the animation (time-sampled) layer
 
-To play back:
+To play back, open Isaac Sim:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-  ./isaaclab.sh -s  # Opens Isaac Sim
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -s
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         isaaclab.bat -s
 
 Inside the Layers panel, insert both ``Stage.usd`` and ``TimeSample_tk001.usd`` as sublayers.
 The animation will now play back when you hit the play button.
@@ -83,6 +98,16 @@ The OVD Recorder uses OmniPVD to record simulation data and bake it directly int
 This method is more scalable and better suited for large-scale training scenarios (e.g. multi-env RL).
 
 It’s not UI-controlled—the whole process is enabled through CLI flags and runs automatically.
+
+.. note::
+
+   The OVD Recorder uses OmniPVD, which only records **PhysX** simulations. If the active physics backend is not
+   PhysX (for example, Newton, which is the default for many tasks), Isaac Lab raises an error at startup naming
+   the active backend instead of recording. Select the PhysX backend by adding ``physics=isaacsim_physx`` to the
+   command line, as shown below.
+
+   The PhysX backend requires Isaac Sim. If it isn't installed yet, add ``--extra isaacsim`` to the ``uv run``
+   command; see :ref:`installation-optional-extras` for details.
 
 
 Workflow Summary
@@ -99,12 +124,22 @@ Example Usage
 
 To record an animation:
 
-.. code-block:: bash
+.. tab-set::
+   :sync-group: os
 
-  ./isaaclab.sh -p scripts/tutorials/03_envs/run_cartpole_rl_env.py \
-    --anim_recording_enabled \
-    --anim_recording_start_time 1 \
-    --anim_recording_stop_time 3
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         uv run python scripts/tutorials/03_envs/run_cartpole_rl_env.py --anim_recording_enabled --anim_recording_start_time 1 --anim_recording_stop_time 3 physics=isaacsim_physx
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         uv run python scripts\tutorials\03_envs\run_cartpole_rl_env.py --anim_recording_enabled --anim_recording_start_time 1 --anim_recording_stop_time 3 physics=isaacsim_physx
 
 .. note::
 

@@ -1,6 +1,139 @@
 Changelog
 ---------
 
+2.0.9 (2026-09-20)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the locomanipulation SDG scene configurations to author rigid-body properties with
+  :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` instead of the deprecated
+  :class:`~isaaclab_physx.sim.schemas.RigidBodyPropertiesCfg`. The authored USD attributes are
+  unchanged.
+
+
+2.0.8 (2026-09-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed locomanipulation SDG generation with NuRec backgrounds by enabling camera capture, applying Isaac RTX
+  Gaussian renderer settings, syncing randomized fixture poses, and recording the projected scene state after
+  placement. ``--high_res_video`` now records RGB observations at 512x320 instead of 960x540; update MP4
+  conversion dimensions and model input shapes accordingly.
+
+
+2.0.7 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Enabled contact reporting for the G1 locomanipulation SDG environment so its inherited hand
+  contact sensors initialize correctly.
+
+
+2.0.6 (2026-09-05)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the ``datagen_config.max_num_failures = 25`` assignment from the shipped Mimic environment
+  configs. The field was never read when those lines were written, so honouring it now would newly
+  cap every shipped task at 25 failed attempts and cut short any run asking for a large number of
+  demos. Set the field explicitly to opt into a cap.
+
+Fixed
+^^^^^
+
+* Fixed the Mimic generation loop never bounding a run by failure count. ``env_loop`` now stops when
+  ``datagen_config.max_num_failures`` failed attempts have accumulated, alongside the existing stop
+  on enough successes or attempts.
+
+
+2.0.5 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+
+
+2.0.4 (2026-08-08)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`SceneAsset` leaking its cached frame view when the view is rebuilt,
+  which left the view's backend state to be released on garbage collection.
+
+
+2.0.3 (2026-08-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``ModuleNotFoundError: No module named 'ipywidgets'`` when running dataset generation
+  from an environment without the ``mimic`` extra. ``isaaclab_mimic.datagen.utils`` imported
+  ``ipywidgets`` and ``IPython`` at module scope even though only its interactive notebook
+  helpers use them, so importing the module for its path helpers pulled in dependencies the
+  generation path never needs.
+
+
+2.0.2 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for environment-provided demonstration recorder configurations during Mimic generation.
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``,
+  ensuring standalone pip installs resolve local checkouts without a package index.
+
+Fixed
+^^^^^
+
+* Fixed locomanipulation path planning to enable the MobilityGen extension before importing
+  its Isaac Sim modules.
+* Fixed ``SceneAsset`` pose queries in the locomanipulation SDG utilities to
+  build their frame view on demand, since static scene assets no longer carry
+  a runtime view in :class:`~isaaclab.scene.InteractiveScene`.
+
+
+2.0.1 (2026-06-14)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the ``nvidia-srl-usd-to-urdf`` dependency now that Pink IK conversion uses Isaac Sim's URDF exporter.
+
+
+2.0.0 (2026-06-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Renamed the registered Mimic/Skillgen environment IDs to use the ``IsaacContrib-``
+  prefix instead of ``Isaac-`` and dropped the trailing ``-v0`` version suffix, matching the
+  contributed task naming convention. Update ``gym.make`` / ``--task`` calls accordingly, for example
+  ``Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0`` → ``IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic``.
+
+
 1.3.1 (2026-06-02)
 ~~~~~~~~~~~~~~~~~~
 

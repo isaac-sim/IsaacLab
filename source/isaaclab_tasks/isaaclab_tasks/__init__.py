@@ -10,24 +10,15 @@ The package is structured as follows:
 - ``core``: Core task families maintained as part of Isaac Lab.
 - ``contrib``: Contributed task families. These may depend on ``core`` tasks, but
   ``core`` tasks never depend on ``contrib`` tasks.
+- ``benchmark``: Benchmark-only task families used to measure simulation and rendering
+  throughput. These may depend on ``core`` and ``contrib`` tasks, but neither depends
+  on ``benchmark`` tasks.
 - ``utils``: These include utility functions for the tasks.
 
 """
 
 import importlib.metadata
 import os
-import tomllib
-
-ISAACLAB_TASKS_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
-"""Path to the extension source directory."""
-
-_ext_toml = os.path.join(ISAACLAB_TASKS_EXT_DIR, "config", "extension.toml")
-if os.path.exists(_ext_toml):
-    with open(_ext_toml, "rb") as _f:
-        ISAACLAB_TASKS_METADATA = tomllib.load(_f)
-else:
-    ISAACLAB_TASKS_METADATA = {}
-"""Extension metadata dictionary parsed from the extension.toml file."""
 
 try:
     __version__ = importlib.metadata.version("isaaclab_tasks")

@@ -1,3 +1,5 @@
+:orphan:
+
 Profiling Isaac Lab with Nsight Systems
 =======================================
 
@@ -28,7 +30,7 @@ Prerequisites
 
   .. code-block:: bash
 
-     ./isaaclab.sh -p -m pip install nvtx
+     python -m pip install nvtx
 
 
 Running a Profile
@@ -36,16 +38,31 @@ Running a Profile
 
 The following command shows how to capture a profile for the ``Isaac-Cartpole`` task via the ``rsl_rl`` training framework with 3 iterations:
 
-.. code-block:: bash
+.. tab-set::
 
-   nsys profile \
-       -t nvtx,cuda \
-       --python-functions-trace=scripts/benchmarks/nsys_trace.json \
-       -o my_profile \
-       ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-           --task=Isaac-Cartpole \
-           --headless \
-           --max_iterations=3
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: bash
+
+         nsys profile \
+             -t nvtx,cuda \
+             --python-functions-trace=scripts/benchmarks/nsys_trace.json \
+             -o my_profile \
+             uv run isaaclab train --rl_library rsl_rl \
+                 --task=Isaac-Cartpole \
+                 --max_iterations=3
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: bash
+
+         nsys profile \
+             -t nvtx,cuda \
+             --python-functions-trace=scripts/benchmarks/nsys_trace.json \
+             -o my_profile \
+             ./isaaclab.sh train --rl_library rsl_rl \
+                 --task=Isaac-Cartpole \
+                 --max_iterations=3
 
 Flags:
 
@@ -88,7 +105,7 @@ After editing the JSON, run the sync test to confirm every entry resolves:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p -m pytest scripts/benchmarks/test/test_nsys_trace.py
+   python -m pytest scripts/benchmarks/test/test_nsys_trace.py
 
 
 Troubleshooting
@@ -96,7 +113,7 @@ Troubleshooting
 
 - **An expected domain doesn't appear in the timeline:**
 
-  - Confirm ``nvtx`` is installed in your Isaac Lab environment (``./isaaclab.sh -p -m pip show nvtx``).
+  - Confirm ``nvtx`` is installed in your Isaac Lab environment (``python -m pip show nvtx``).
   - Make sure the function is actually called during the profiled run.
   - Verify the JSON entry by running the sync test (above).
 
@@ -109,6 +126,6 @@ Troubleshooting
 See Also
 --------
 
-- :doc:`simulation_performance` - broader simulation performance tuning tips.
+- :ref:`simulation-performance-troubleshooting` - checks for unexpectedly slow simulation or training.
 - `Nsight Systems User Guide <https://docs.nvidia.com/nsight-systems/UserGuide/index.html>`_ - official ``nsys`` documentation.
 - `NVTX Python package <https://nvtx.readthedocs.io/>`_ - the package nsys uses to emit NVTX ranges from Python.

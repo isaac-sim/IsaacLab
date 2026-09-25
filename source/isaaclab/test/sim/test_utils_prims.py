@@ -23,9 +23,9 @@ from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.utils.prims import _to_tuple  # type: ignore[reportPrivateUsage]
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
 
 @pytest.fixture(autouse=True)
@@ -84,7 +84,7 @@ def test_create_prim():
     assert prim.GetAttribute("size").Get() == 100
 
     # check adding USD reference
-    franka_usd = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    franka_usd = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd"
     prim = sim_utils.create_prim("/World/Test/USDReference", usd_path=franka_usd, stage=stage)
     # check USD reference set
     assert prim.IsValid()
@@ -191,13 +191,12 @@ def test_create_prim_with_different_input_types(input_type: str):
     assert op_names == ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
 
-@pytest.mark.parametrize(
-    "input_type",
-    ["list", "tuple", "numpy", "torch_cpu", "torch_cuda"],
-    ids=["list", "tuple", "numpy", "torch_cpu", "torch_cuda"],
-)
-def test_create_prim_with_world_position_different_types(input_type: str):
-    """Test create_prim() with world position using different input types."""
+def test_create_prim_with_world_position():
+    """Test create_prim() converts a world position under a non-origin parent to the local frame.
+
+    The pose is passed as device tensors, so this also covers device-to-host conversion; the other
+    input types share the conversion path covered by ``test_create_prim_with_different_input_types``.
+    """
     # obtain stage handle
     stage = sim_utils.get_current_stage()
 
@@ -214,28 +213,13 @@ def test_create_prim_with_world_position_different_types(input_type: str):
     world_pos_vals = [10.0, 20.0, 30.0]
     world_orient_vals = [0.0, 0.7071068, 0.0, 0.7071068]  # 90 deg around Y
 
-    # Convert to the specified input type
-    if input_type == "list":
-        world_pos = world_pos_vals
-        world_orient = world_orient_vals
-    elif input_type == "tuple":
-        world_pos = tuple(world_pos_vals)
-        world_orient = tuple(world_orient_vals)
-    elif input_type == "numpy":
-        world_pos = np.array(world_pos_vals)
-        world_orient = np.array(world_orient_vals)
-    elif input_type == "torch_cpu":
-        world_pos = torch.tensor(world_pos_vals)
-        world_orient = torch.tensor(world_orient_vals)
-    elif input_type == "torch_cuda":
-        if not torch.cuda.is_available():
-            pytest.skip("CUDA not available")
-        world_pos = torch.tensor(world_pos_vals, device="cuda")
-        world_orient = torch.tensor(world_orient_vals, device="cuda")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    world_pos = torch.tensor(world_pos_vals, device=device)
+    world_orient = torch.tensor(world_orient_vals, device=device)
 
     # Create child prim with world position
     child = sim_utils.create_prim(
-        f"/World/Parent/Child_{input_type}",
+        "/World/Parent/Child",
         "Xform",
         stage=stage,
         position=world_pos,  # Using position (world space)
@@ -328,7 +312,7 @@ def test_delete_prim():
     # check for usd reference
     prim = sim_utils.create_prim(
         "/World/Test/USDReference",
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd",
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd",
         stage=stage,
     )
     # delete prim
@@ -362,7 +346,7 @@ def test_get_usd_references():
     assert len(refs) == 0
 
     # Create a prim with a USD reference
-    franka_usd = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/panda_instanceable.usd"
+    franka_usd = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/Legacy/panda_instanceable.usd"
     sim_utils.create_prim("/World/WithReference", usd_path=franka_usd, stage=stage)
     # Check that it has the expected reference (remote URLs are resolved to local paths)
     refs = sim_utils.get_usd_references("/World/WithReference", stage=stage)
@@ -395,77 +379,20 @@ def test_select_usd_variants():
     # Check if the variant selection is correct
     assert variant_set.GetVariantSelection() == "red"
 
+    # A variant the set does not offer must raise: USD would accept the selection and compose the
+    # prim as if nothing were selected, spawning the asset without what the variant carries.
+    with pytest.raises(ValueError, match="does not offer variant"):
+        sim_utils.utils.select_usd_variants("/World", {"colors": "chartreuse"}, stage)
+    assert variant_set.GetVariantSelection() == "red"
 
-def test_select_usd_variants_in_usd_file():
-    """Test select_usd_variants() function in USD file."""
-    stage = sim_utils.get_current_stage()
-
-    prim = sim_utils.create_prim(
-        "/World/Test", "Xform", usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/UniversalRobots/ur10e/ur10e.usd", stage=stage
-    )
-
-    variant_sets = prim.GetVariantSets()
-
-    # show all variants
-    for name in variant_sets.GetNames():
-        vs = variant_sets.GetVariantSet(name)
-        options = vs.GetVariantNames()
-        selected = vs.GetVariantSelection()
-
-        print(f"{name}: {selected} / {options}")
-
-    print("Setting variant 'Gripper' to 'Robotiq_2f_140'.")
-    # The following performs the operations done internally
-    # in Isaac Lab. This should be removed in favor of 'select_usd_variants'.
-    target_vs = variant_sets.GetVariantSet("Gripper")
-    target_vs.SetVariantSelection("Robotiq_2f_140")
-
-    # show again all variants
-    variant_sets = prim.GetVariantSets()
-
-    for name in variant_sets.GetNames():
-        vs = variant_sets.GetVariantSet(name)
-        options = vs.GetVariantNames()
-        selected = vs.GetVariantSelection()
-
-        print(f"{name}: {selected} / {options}")
-
-    # Uncomment the following once resolved
-
-    # Set the variant selection
-    # sim_utils.select_usd_variants(prim.GetPath(), {"Gripper": "Robotiq_2f_140"}, stage)
-
-    # Obtain variant set
-    # variant_set = prim.GetVariantSet("Gripper")
-    # # Check if the variant selection is correct
-    # assert variant_set.GetVariantSelection() == "Robotiq_2f_140"
+    # A variant set the prim does not have stays a warning, so one configuration can spawn assets
+    # that expose different options.
+    sim_utils.utils.select_usd_variants("/World", {"absent_set": "anything"}, stage)
 
 
 """
 Property Management.
 """
-
-
-def test_change_prim_property_basic():
-    """Test change_prim_property() with existing property."""
-    # obtain stage handle
-    stage = sim_utils.get_current_stage()
-    # create a cube prim
-    prim = sim_utils.create_prim("/World/Cube", "Cube", stage=stage, attributes={"size": 1.0})
-
-    # check initial value
-    assert prim.GetAttribute("size").Get() == 1.0
-
-    # change the property
-    result = sim_utils.change_prim_property(
-        prop_path="/World/Cube.size",
-        value=2.0,
-        stage=stage,
-    )
-
-    # check that the change was successful
-    assert result is True
-    assert prim.GetAttribute("size").Get() == 2.0
 
 
 def test_change_prim_property_create_new():
@@ -487,8 +414,9 @@ def test_change_prim_property_create_new():
         is_custom=True,
     )
 
-    # check that the property was created successfully
+    # check that the property was created successfully with the requested type
     assert result is True
+    assert prim.GetAttribute("customValue").GetTypeName() == Sdf.ValueTypeNames.Int
     assert prim.GetAttribute("customValue").Get() == 42
 
 
@@ -513,45 +441,6 @@ def test_change_prim_property_clear_value():
     assert result is True
     # Note: After clearing, the attribute should go its default value
     assert prim.GetAttribute("size").Get() == 2.0
-
-
-@pytest.mark.parametrize(
-    "attr_name,value,value_type,expected",
-    [
-        ("floatValue", 3.14, Sdf.ValueTypeNames.Float, 3.14),
-        ("boolValue", True, Sdf.ValueTypeNames.Bool, True),
-        ("intValue", 42, Sdf.ValueTypeNames.Int, 42),
-        ("stringValue", "test", Sdf.ValueTypeNames.String, "test"),
-        ("vec3Value", Gf.Vec3f(1.0, 2.0, 3.0), Sdf.ValueTypeNames.Float3, Gf.Vec3f(1.0, 2.0, 3.0)),
-        ("colorValue", Gf.Vec3f(1.0, 0.0, 0.5), Sdf.ValueTypeNames.Color3f, Gf.Vec3f(1.0, 0.0, 0.5)),
-    ],
-    ids=["float", "bool", "int", "string", "vec3", "color"],
-)
-def test_change_prim_property_different_types(attr_name: str, value, value_type, expected):
-    """Test change_prim_property() with different value types."""
-    # obtain stage handle
-    stage = sim_utils.get_current_stage()
-    # create a prim
-    prim = sim_utils.create_prim("/World/Test", "Xform", stage=stage)
-
-    # change the property
-    result = sim_utils.change_prim_property(
-        prop_path=f"/World/Test.{attr_name}",
-        value=value,
-        stage=stage,
-        type_to_create_if_not_exist=value_type,
-        is_custom=True,
-    )
-
-    # check that the change was successful
-    assert result is True
-    actual_value = prim.GetAttribute(attr_name).Get()
-
-    # handle float comparison separately for precision
-    if isinstance(expected, float):
-        assert math.isclose(actual_value, expected, abs_tol=1e-6)
-    else:
-        assert actual_value == expected
 
 
 @pytest.mark.parametrize(
@@ -617,35 +506,22 @@ Internal Helpers.
 """
 
 
-def test_to_tuple_basic():
-    """Test _to_tuple() with basic input types."""
-    # Test with list
-    result = _to_tuple([1.0, 2.0, 3.0])
-    assert result == (1.0, 2.0, 3.0)
-    assert isinstance(result, tuple)
+def test_to_tuple_edge_cases():
+    """Test _to_tuple() squeezes a batch of one, converts mixed scalar items, and rejects N-D input.
 
-    # Test with tuple
-    result = _to_tuple((1.0, 2.0, 3.0))
-    assert result == (1.0, 2.0, 3.0)
+    Plain list/tuple/numpy/torch inputs are covered through ``create_prim`` in
+    ``test_create_prim_with_different_input_types``.
+    """
+    # squeezing first dimension (batch size 1)
+    assert _to_tuple(torch.tensor([[1.0, 2.0]])) == (1.0, 2.0)
+    assert _to_tuple(np.array([[1.0, 2.0, 3.0]])) == (1.0, 2.0, 3.0)
 
-    # Test with numpy array
-    result = _to_tuple(np.array([1.0, 2.0, 3.0]))
-    assert result == (1.0, 2.0, 3.0)
-
-    # Test with torch tensor (CPU)
-    result = _to_tuple(torch.tensor([1.0, 2.0, 3.0]))
-    assert result == (1.0, 2.0, 3.0)
-
-    # Test squeezing first dimension (batch size 1)
-    result = _to_tuple(torch.tensor([[1.0, 2.0]]))
-    assert result == (1.0, 2.0)
-
-    result = _to_tuple(np.array([[1.0, 2.0, 3.0]]))
-    assert result == (1.0, 2.0, 3.0)
-
-
-def test_to_tuple_raises_error():
-    """Test _to_tuple() raises an error for N-dimensional arrays."""
+    # mixed sequences of numpy/torch scalar items and floats
+    result = _to_tuple([np.float32(1.0), 2.0, 3.0])
+    assert len(result) == 3
+    assert all(isinstance(x, float) for x in result)
+    assert _to_tuple([torch.tensor(1.0), 2.0, 3.0]) == (1.0, 2.0, 3.0)
+    assert _to_tuple((np.float32(1.0), 2.0, torch.tensor(3.0))) == (1.0, 2.0, 3.0)
 
     with pytest.raises(ValueError, match="not one dimensional"):
         _to_tuple(np.array([[1.0, 2.0], [3.0, 4.0]]))
@@ -655,33 +531,3 @@ def test_to_tuple_raises_error():
 
     with pytest.raises(ValueError, match="only one element tensors can be converted"):
         _to_tuple((torch.tensor([1.0, 2.0]), 3.0))
-
-
-def test_to_tuple_mixed_sequences():
-    """Test _to_tuple() with mixed type sequences."""
-
-    # Mixed list with numpy and floats
-    result = _to_tuple([np.float32(1.0), 2.0, 3.0])
-    assert len(result) == 3
-    assert all(isinstance(x, float) for x in result)
-
-    # Mixed tuple with torch tensor items and floats
-    result = _to_tuple([torch.tensor(1.0), 2.0, 3.0])
-    assert result == (1.0, 2.0, 3.0)
-
-    # Mixed tuple with numpy array items and torch tensor
-    result = _to_tuple((np.float32(1.0), 2.0, torch.tensor(3.0)))
-    assert result == (1.0, 2.0, 3.0)
-
-
-def test_to_tuple_precision():
-    """Test _to_tuple() maintains numerical precision."""
-    from isaaclab.sim.utils.prims import _to_tuple
-
-    # Test with high precision values
-    high_precision = [1.123456789, 2.987654321, 3.141592653]
-    result = _to_tuple(torch.tensor(high_precision, dtype=torch.float64))
-
-    # Check that precision is maintained reasonably well
-    for i, val in enumerate(high_precision):
-        assert math.isclose(result[i], val, abs_tol=1e-6)

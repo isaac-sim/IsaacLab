@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import logging
-import re
 import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -21,12 +20,13 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
-from .kernels import resolve_view_ids
+from .kernels import resolve_view_ids_kernel
 from .rigid_object_collection_data import RigidObjectCollectionData
 
 if TYPE_CHECKING:
@@ -191,17 +191,15 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            composer.compose_to_body_frame()
+            force_user, torque_user, is_global = composer.get_forces_and_torques()
             self.root_view.apply_forces_and_torques_at_position(
-                force_data=self.reshape_data_to_view_2d(composer.out_force_b.warp, device=self.device).view(wp.float32),
-                torque_data=self.reshape_data_to_view_2d(composer.out_torque_b.warp, device=self.device).view(
-                    wp.float32
-                ),
+                force_data=self.reshape_data_to_view_2d(force_user, device=self.device).view(wp.float32),
+                torque_data=self.reshape_data_to_view_2d(torque_user, device=self.device).view(wp.float32),
                 position_data=None,
                 indices=self._env_body_ids_to_view_ids(
                     self._ALL_ENV_INDICES, self._ALL_BODY_INDICES, device=self.device
                 ),
-                is_global=False,
+                is_global=is_global,
             )
         self._instantaneous_wrench_composer.reset()
 
@@ -218,22 +216,28 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     """
 
     def find_bodies(
-        self, name_keys: str | Sequence[str], preserve_order: bool = False
-    ) -> tuple[torch.Tensor, list[str]]:
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[torch.Tensor | ProxyArray, list[str]]:
         """Find bodies in the rigid body collection based on the name keys.
 
-        Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
+        Please check the :func:`isaaclab.utils.string.resolve_matching_names` function for more
         information on the name matching.
 
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Whether to return cached proxy indices. Defaults to False.
 
         Returns:
-            A tuple of lists containing the body indices and names.
+            Matched body indices and names.
         """
         obj_ids, obj_names = string_utils.resolve_matching_names(name_keys, self.body_names, preserve_order)
-        return torch.tensor(obj_ids, device=self.device, dtype=torch.int32), obj_names
+        resolved_ids = self._resolve_finder_indices(obj_ids, domain="body", as_proxy=as_proxy, legacy_type="tensor")
+        return resolved_ids, obj_names
 
     """
     Operations - Write to simulation.
@@ -245,6 +249,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_poses: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body pose over selected environment and body indices into the simulation.
 
@@ -252,6 +257,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         .. note::
             This method expects partial data.
+
+        .. note::
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -262,8 +270,12 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
-        self.write_body_link_pose_to_sim_index(body_poses=body_poses, env_ids=env_ids, body_ids=body_ids)
+        self.write_body_link_pose_to_sim_index(
+            body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, skip_forward=skip_forward
+        )
 
     def write_body_pose_to_sim_mask(
         self,
@@ -271,6 +283,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_poses: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body pose over selected environment mask into the simulation.
 
@@ -278,6 +291,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         .. note::
             This method expects full data.
+
+        .. note::
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -288,6 +304,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         if env_mask is not None:
             env_ids = self._resolve_env_mask(env_mask)
@@ -298,7 +316,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         else:
             body_ids = self._ALL_BODY_INDICES
         self.write_body_link_pose_to_sim_index(
-            body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True
+            body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True, skip_forward=skip_forward
         )
 
     def write_body_velocity_to_sim_index(
@@ -307,6 +325,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_velocities: torch.Tensor | wp.array,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body velocity over selected environment and body indices into the simulation.
 
@@ -318,6 +337,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         .. note::
             This method expects partial data.
 
+        .. note::
+            May trigger per-environment FK recomputation for the affected environments.
+
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
@@ -328,8 +350,12 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (len(env_ids), len(body_ids)) / (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
-        self.write_body_com_velocity_to_sim_index(body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids)
+        self.write_body_com_velocity_to_sim_index(
+            body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids, skip_forward=skip_forward
+        )
 
     def write_body_velocity_to_sim_mask(
         self,
@@ -337,6 +363,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_velocities: torch.Tensor | wp.array,
         body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body velocity over selected environment mask into the simulation.
 
@@ -344,6 +371,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         .. note::
             This sets the velocity of the body's center of mass rather than the body's frame.
+
+        .. note::
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. note::
             This method expects full data.
@@ -358,6 +388,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         if env_mask is not None:
             env_ids = self._resolve_env_mask(env_mask)
@@ -368,7 +400,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         else:
             body_ids = self._ALL_BODY_INDICES
         self.write_body_com_velocity_to_sim_index(
-            body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids, full_data=True
+            body_velocities=body_velocities,
+            env_ids=env_ids,
+            body_ids=body_ids,
+            full_data=True,
+            skip_forward=skip_forward,
         )
 
     def write_body_link_pose_to_sim_index(
@@ -378,6 +414,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body link pose over selected environment and body indices into the simulation.
 
@@ -385,6 +422,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         .. note::
             This method expects partial data.
+
+        .. note::
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -396,16 +436,24 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (len(env_ids), len(body_ids)) / (num_instances, num_bodies) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
             full_data: Whether to expect full data. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
-            self.assert_shape_and_dtype(body_poses, (self.num_instances, self.num_bodies), wp.transformf, "body_poses")
+            self.assert_shape_and_dtype(
+                body_poses,
+                (self.num_instances, self.num_bodies),
+                wp.transformf,
+                "body_poses",
+                axis_sizes=(env_ids.shape[0], body_ids.shape[0]),
+            )
         else:
             self.assert_shape_and_dtype(body_poses, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "body_poses")
         wp.launch(
-            shared_kernels.set_body_link_pose_to_sim,
+            shared_kernels.set_body_link_pose_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 body_poses,
@@ -418,24 +466,25 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             ],
             device=self.device,
         )
-        # Invalidate dependent timestamps
-        self.data._body_com_pose_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
-        self.data._body_link_state_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
+        # Let the data class handle invalidation of pose-dependent properties.
+        if not skip_forward:
+            self.data._reset_pose()
         # set into simulation
         view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids, device=self.device)
         self.root_view.set_transforms(
             self.reshape_data_to_view_2d(self.data._body_link_pose_w.data, device=self.device).view(wp.float32),
             indices=view_ids,
         )
+        SimulationManager.invalidate_transforms()
 
     def write_body_link_pose_to_sim_mask(
         self,
         *,
         body_poses: torch.Tensor | wp.array,
+        body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body link pose over selected environment mask into the simulation.
 
@@ -444,6 +493,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         .. note::
             This method expects full data.
 
+        .. note::
+            May trigger per-environment FK recomputation for the affected environments.
+
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
@@ -451,15 +503,19 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Args:
             body_poses: Body link poses in simulation frame. Shape is (num_instances, num_bodies, 7)
                 or (num_instances, num_bodies) with dtype wp.transformf.
+            body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            body_ids: Body indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
+            body_ids: Deprecated, use :attr:`body_mask` instead. Body indices. Defaults to None.
         """
         if env_mask is not None:
             env_ids = self._resolve_env_mask(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
+        body_ids = self._resolve_mask_writer_body_ids(body_mask, body_ids)
         self.write_body_link_pose_to_sim_index(
-            body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True
+            body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True, skip_forward=skip_forward
         )
 
     def write_body_com_pose_to_sim_index(
@@ -469,6 +525,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body center of mass pose over selected environment and body indices into the simulation.
 
@@ -477,6 +534,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         .. note::
             This method expects partial data.
+
+        .. note::
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -488,16 +548,24 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (len(env_ids), len(body_ids)) / (num_instances, num_bodies) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
             full_data: Whether to expect full data. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
-            self.assert_shape_and_dtype(body_poses, (self.num_instances, self.num_bodies), wp.transformf, "body_poses")
+            self.assert_shape_and_dtype(
+                body_poses,
+                (self.num_instances, self.num_bodies),
+                wp.transformf,
+                "body_poses",
+                axis_sizes=(env_ids.shape[0], body_ids.shape[0]),
+            )
         else:
             self.assert_shape_and_dtype(body_poses, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "body_poses")
         wp.launch(
-            shared_kernels.set_body_com_pose_to_sim,
+            shared_kernels.set_body_com_pose_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 body_poses,
@@ -512,23 +580,25 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             ],
             device=self.device,
         )
-        # Invalidate dependent timestamps
-        self.data._body_link_state_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
+        # Let the data class handle invalidation of pose-dependent properties.
+        if not skip_forward:
+            self.data._reset_pose(from_link=False)
         # set into simulation
         view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids, device=self.device)
         self.root_view.set_transforms(
             self.reshape_data_to_view_2d(self.data._body_link_pose_w.data, device=self.device).view(wp.float32),
             indices=view_ids,
         )
+        SimulationManager.invalidate_transforms()
 
     def write_body_com_pose_to_sim_mask(
         self,
         *,
         body_poses: torch.Tensor | wp.array,
+        body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body center of mass pose over selected environment mask into the simulation.
 
@@ -538,6 +608,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         .. note::
             This method expects full data.
 
+        .. note::
+            May trigger per-environment FK recomputation for the affected environments.
+
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
@@ -545,14 +618,20 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Args:
             body_poses: Body center of mass poses in simulation frame. Shape is (num_instances, num_bodies, 7)
                 or (num_instances, num_bodies) with dtype wp.transformf.
+            body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            body_ids: Body indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
+            body_ids: Deprecated, use :attr:`body_mask` instead. Body indices. Defaults to None.
         """
         if env_mask is not None:
             env_ids = self._resolve_env_mask(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
-        self.write_body_com_pose_to_sim_index(body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True)
+        body_ids = self._resolve_mask_writer_body_ids(body_mask, body_ids)
+        self.write_body_com_pose_to_sim_index(
+            body_poses=body_poses, env_ids=env_ids, body_ids=body_ids, full_data=True, skip_forward=skip_forward
+        )
 
     def write_body_com_velocity_to_sim_index(
         self,
@@ -561,6 +640,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body center of mass velocity over selected environment and body indices into the simulation.
 
@@ -568,6 +648,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         .. note::
             This sets the velocity of the body's center of mass rather than the body's frame.
+
+        .. note::
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. note::
             This method expects partial data.
@@ -582,20 +665,26 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (len(env_ids), len(body_ids)) / (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
             full_data: Whether to expect full data. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
             self.assert_shape_and_dtype(
-                body_velocities, (self.num_instances, self.num_bodies), wp.spatial_vectorf, "body_velocities"
+                body_velocities,
+                (self.num_instances, self.num_bodies),
+                wp.spatial_vectorf,
+                "body_velocities",
+                axis_sizes=(env_ids.shape[0], body_ids.shape[0]),
             )
         else:
             self.assert_shape_and_dtype(
                 body_velocities, (env_ids.shape[0], body_ids.shape[0]), wp.spatial_vectorf, "body_velocities"
             )
         wp.launch(
-            shared_kernels.set_body_com_velocity_to_sim,
+            shared_kernels.set_body_com_velocity_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 body_velocities,
@@ -609,11 +698,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             ],
             device=self.device,
         )
-        # Invalidate dependent timestamps
-        self.data._body_link_vel_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
-        self.data._body_link_state_w.timestamp = -1.0
+        # Let the data class handle invalidation of velocity-dependent properties.
+        if not skip_forward:
+            self.data._reset_velocity()
         # set into simulation
         view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids, device=self.device)
         self.root_view.set_velocities(
@@ -625,8 +712,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self,
         *,
         body_velocities: torch.Tensor | wp.array,
+        body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body center of mass velocity over selected environment mask into the simulation.
 
@@ -638,6 +727,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         .. note::
             This method expects full data.
 
+        .. note::
+            May trigger per-environment FK recomputation for the affected environments.
+
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
@@ -646,15 +738,23 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_velocities: Body center of mass velocities in simulation frame.
                 Shape is (num_instances, num_bodies, 6)
                 or (num_instances, num_bodies) with dtype wp.spatial_vectorf.
+            body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            body_ids: Body indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
+            body_ids: Deprecated, use :attr:`body_mask` instead. Body indices. Defaults to None.
         """
         if env_mask is not None:
             env_ids = self._resolve_env_mask(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
+        body_ids = self._resolve_mask_writer_body_ids(body_mask, body_ids)
         self.write_body_com_velocity_to_sim_index(
-            body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids, full_data=True
+            body_velocities=body_velocities,
+            env_ids=env_ids,
+            body_ids=body_ids,
+            full_data=True,
+            skip_forward=skip_forward,
         )
 
     def write_body_link_velocity_to_sim_index(
@@ -664,6 +764,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body link velocity over selected environment and body indices into the simulation.
 
@@ -675,6 +776,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         .. note::
             This method expects partial data.
 
+        .. note::
+            May trigger per-environment FK recomputation for the affected environments.
+
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
@@ -685,13 +789,19 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (len(env_ids), len(body_ids)) / (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
             full_data: Whether to expect full data. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
             self.assert_shape_and_dtype(
-                body_velocities, (self.num_instances, self.num_bodies), wp.spatial_vectorf, "body_velocities"
+                body_velocities,
+                (self.num_instances, self.num_bodies),
+                wp.spatial_vectorf,
+                "body_velocities",
+                axis_sizes=(env_ids.shape[0], body_ids.shape[0]),
             )
         else:
             self.assert_shape_and_dtype(
@@ -699,7 +809,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             )
         # Access body_com_pose_b and body_link_pose_w to ensure they are current.
         wp.launch(
-            shared_kernels.set_body_link_velocity_to_sim,
+            shared_kernels.set_body_link_velocity_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 body_velocities,
@@ -716,10 +826,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             ],
             device=self.device,
         )
-        # Invalidate dependent timestamps
-        self.data._body_link_state_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
+        # Let the data class handle invalidation of velocity-dependent properties.
+        if not skip_forward:
+            self.data._reset_velocity(from_com=False)
         # set into simulation
         view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids, device=self.device)
         self.root_view.set_velocities(
@@ -731,8 +840,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self,
         *,
         body_velocities: torch.Tensor | wp.array,
+        body_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the body link velocity over selected environment mask into the simulation.
 
@@ -744,6 +855,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         .. note::
             This method expects full data.
 
+        .. note::
+            May trigger per-environment FK recomputation for the affected environments.
+
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
@@ -751,15 +865,23 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Args:
             body_velocities: Body link velocities in simulation frame. Shape is (num_instances, num_bodies, 6)
                 or (num_instances, num_bodies) with dtype wp.spatial_vectorf.
+            body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            body_ids: Body indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
+            body_ids: Deprecated, use :attr:`body_mask` instead. Body indices. Defaults to None.
         """
         if env_mask is not None:
             env_ids = self._resolve_env_mask(env_mask)
         else:
             env_ids = self._ALL_ENV_INDICES
+        body_ids = self._resolve_mask_writer_body_ids(body_mask, body_ids)
         self.write_body_link_velocity_to_sim_index(
-            body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids, full_data=True
+            body_velocities=body_velocities,
+            env_ids=env_ids,
+            body_ids=body_ids,
+            full_data=True,
+            skip_forward=skip_forward,
         )
 
     """
@@ -794,12 +916,18 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
-            self.assert_shape_and_dtype(masses, (self.num_instances, self.num_bodies), wp.float32, "masses")
+            self.assert_shape_and_dtype(
+                masses,
+                (self.num_instances, self.num_bodies),
+                wp.float32,
+                "masses",
+                axis_sizes=(env_ids.shape[0], body_ids.shape[0]),
+            )
         else:
             self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 masses,
@@ -879,12 +1007,18 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
-            self.assert_shape_and_dtype(coms, (self.num_instances, self.num_bodies), wp.transformf, "coms")
+            self.assert_shape_and_dtype(
+                coms,
+                (self.num_instances, self.num_bodies),
+                wp.transformf,
+                "coms",
+                axis_sizes=(env_ids.shape[0], body_ids.shape[0]),
+            )
         else:
             self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_body_com_pose_to_buffer,
+            shared_kernels.write_body_com_pose_to_buffer_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 coms,
@@ -899,6 +1033,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # Invalidate the cached buffer
         self.data._body_com_pose_b.timestamp = self.data._sim_timestamp
+        self.data._reset_body_com_pose_b_dependents()
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         # Convert from instance order (num_instances, num_bodies, 7) to view order (num_bodies*num_instances, 7) for
         # PhysX.
@@ -967,12 +1102,18 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         if full_data:
-            self.assert_shape_and_dtype(inertias, (self.num_instances, self.num_bodies, 9), wp.float32, "inertias")
+            self.assert_shape_and_dtype(
+                inertias,
+                (self.num_instances, self.num_bodies, 9),
+                wp.float32,
+                "inertias",
+                axis_sizes=(env_ids.shape[0], body_ids.shape[0]),
+            )
         else:
             self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_body_inertia_to_buffer,
+            shared_kernels.write_body_inertia_to_buffer_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 inertias,
@@ -1167,20 +1308,18 @@ class RigidObjectCollection(BaseRigidObjectCollection):
     Internal helper.
     """
 
-    def _resolve_env_ids(self, env_ids) -> wp.array:
-        """Resolve environment indices to a warp array."""
+    def _resolve_env_ids(self, env_ids) -> wp.array | torch.Tensor:
+        """Resolve environment indices."""
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_ENV_INDICES
-        if isinstance(env_ids, torch.Tensor):
-            if env_ids.dtype == torch.int64:
-                env_ids = env_ids.to(torch.int32)
-            return wp.from_torch(env_ids, dtype=wp.int32)
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
         return env_ids
 
-    def _resolve_body_ids(self, body_ids) -> wp.array:
-        """Resolve body indices to a warp array."""
+    def _resolve_body_ids(self, body_ids) -> wp.array | torch.Tensor:
+        """Resolve body indices."""
+        if isinstance(body_ids, ProxyArray):
+            raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if isinstance(body_ids, list):
             return wp.array(body_ids, dtype=wp.int32, device=self.device)
         if body_ids is None or (body_ids == slice(None)):
@@ -1189,10 +1328,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             return wp.from_torch(
                 torch.arange(self.num_bodies, dtype=torch.int32, device=self.device)[body_ids], dtype=wp.int32
             )
-        if isinstance(body_ids, torch.Tensor):
-            if body_ids.dtype == torch.int64:
-                body_ids = body_ids.to(torch.int32)
-            return wp.from_torch(body_ids, dtype=wp.int32)
         return body_ids
 
     def _resolve_env_mask(self, env_mask: wp.array | None) -> torch.Tensor | wp.array:
@@ -1200,26 +1335,36 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         if env_mask is not None:
             if isinstance(env_mask, wp.array):
                 env_mask = wp.to_torch(env_mask)
-            env_ids = torch.nonzero(env_mask)[:, 0].to(torch.int32)
+            env_ids = torch.nonzero(env_mask)[:, 0]
         else:
             env_ids = self._ALL_ENV_INDICES
         return env_ids
+
+    def _resolve_mask_writer_body_ids(
+        self, body_mask: wp.array | None, body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None
+    ) -> Sequence[int] | torch.Tensor | wp.array | slice:
+        """Resolve the bodies of a mask writer, accepting the deprecated ``body_ids`` in place of ``body_mask``."""
+        if body_ids is None:
+            return self._resolve_body_mask(body_mask)
+        if body_mask is not None:
+            raise ValueError("Pass either 'body_mask' or the deprecated 'body_ids', not both.")
+        warnings.warn(
+            "The 'body_ids' argument of the rigid object collection mask writers is deprecated. Please use"
+            " 'body_mask' instead.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        return body_ids
 
     def _resolve_body_mask(self, body_mask: wp.array | None) -> torch.Tensor | wp.array:
         """Resolve body mask to indices via torch.nonzero."""
         if body_mask is not None:
             if isinstance(body_mask, wp.array):
                 body_mask = wp.to_torch(body_mask)
-            body_ids = torch.nonzero(body_mask)[:, 0].to(torch.int32)
+            body_ids = torch.nonzero(body_mask)[:, 0]
         else:
             body_ids = self._ALL_BODY_INDICES
         return body_ids
-
-    def _get_cpu_env_ids(self, env_ids: wp.array | torch.Tensor) -> wp.array:
-        """Get CPU environment indices."""
-        if isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids, dtype=wp.int32)
-        return wp.clone(env_ids, device="cpu")
 
     def _initialize_impl(self):
         # clear body names list to prevent double counting on re-initialization
@@ -1230,13 +1375,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         def has_rigid_body_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
+        resolve_kwargs = {"predicate": has_rigid_body_api, "expected_num_matches": 1}
         root_prim_path_exprs = []
-        for name, rigid_body_cfg in self.cfg.rigid_objects.items():
-            asset_prim, root_expr = sim_utils.resolve_matching_prims_from_source(rigid_body_cfg.prim_path)[0]
-            walk_root = asset_prim.GetPath().pathString
-            root_prims = sim_utils.get_all_matching_child_prims(walk_root, has_rigid_body_api, expected_num_matches=1)
-            root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
-            root_prim_path_exprs.append(root_prim_path_expr.replace(".*", "*"))
+        for name, obj_cfg in self.cfg.rigid_objects.items():
+            _, root_expr = sim_utils.resolve_matching_prims_from_source(obj_cfg.prim_path, **resolve_kwargs)[0]
+            root_prim_path_exprs.append(sim_utils.path_expr_to_glob(root_expr))
             self._body_names_list.append(name)
 
         # -- object view
@@ -1269,10 +1412,18 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._ALL_BODY_INDICES = wp.array(
             np.arange(self.num_bodies, dtype=np.int32), device=self.device, dtype=wp.int32
         )
+        num_view_ids = self.num_instances * self.num_bodies
+        self._ALL_VIEW_INDICES = wp.array(np.arange(num_view_ids, dtype=np.int32), device=self.device)
+        self._sim_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device=self.device)
+        self._sim_view_ids_views: dict[int, wp.array] = {}
+        self._cpu_all_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=True)
+        wp.copy(self._cpu_all_view_ids, self._ALL_VIEW_INDICES)
+        self._cpu_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=True)
+        self._cpu_view_ids_views: dict[int, wp.array] = {}
 
         # external wrench composer
-        self._instantaneous_wrench_composer = WrenchComposer(self)
-        self._permanent_wrench_composer = WrenchComposer(self)
+        self._instantaneous_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
+        self._permanent_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
 
         # set information about rigid body into data
         self._data.body_names = self.body_names
@@ -1308,27 +1459,56 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Returns:
             The view indices.
         """
-        # the order is body_0/env_0, body_0/env_1, body_0/env_..., body_1/env_0, body_1/env_1, ...
-        # return a flat tensor of indices
-        # ensure env_ids and body_ids are on the target device
+        if env_ids is self._ALL_ENV_INDICES and body_ids is self._ALL_BODY_INDICES:
+            return self._cpu_all_view_ids if device == "cpu" else self._ALL_VIEW_INDICES
         if isinstance(env_ids, torch.Tensor):
-            env_ids = wp.from_torch(env_ids.to(torch.int32), dtype=wp.int32)
+            env_ids = env_ids.to(device=self.device)
+        elif str(env_ids.device) != self.device:
+            env_ids = wp.clone(env_ids, device=self.device)
         if isinstance(body_ids, torch.Tensor):
-            body_ids = wp.from_torch(body_ids.to(torch.int32), dtype=wp.int32)
-        if env_ids.device != device:
-            env_ids = wp.clone(env_ids, device=device)
-        if body_ids.device != device:
-            body_ids = wp.clone(body_ids, device=device)
+            body_ids = body_ids.to(device=self.device)
+        elif str(body_ids.device) != self.device:
+            body_ids = wp.clone(body_ids, device=self.device)
         num_query_envs = env_ids.shape[0]
-        view_ids = wp.zeros(num_query_envs * body_ids.shape[0], dtype=wp.int32, device=device)
+        count = num_query_envs * body_ids.shape[0]
+        view_ids = self._sim_view_ids_view(count)
         wp.launch(
-            resolve_view_ids,
+            resolve_view_ids_kernel(env_ids, body_ids),
             dim=(num_query_envs, body_ids.shape[0]),
             inputs=[env_ids, body_ids, num_query_envs, self.num_instances],
             outputs=[view_ids],
-            device=device,
+            device=self.device,
         )
-        return view_ids
+        if device != "cpu" or self.device == "cpu":
+            return view_ids
+        cpu_view_ids = self._cpu_view_ids_view(count)
+        wp.copy(cpu_view_ids, view_ids)
+        wp.synchronize_stream(self.device)
+        return cpu_view_ids
+
+    def _sim_view_ids_view(self, count: int) -> wp.array:
+        """Return a cached prefix of the device view-index scratch."""
+        if count not in self._sim_view_ids_views:
+            self._sim_view_ids_views[count] = wp.array(
+                ptr=self._sim_view_ids.ptr,
+                shape=(count,),
+                dtype=wp.int32,
+                device=self.device,
+                copy=False,
+            )
+        return self._sim_view_ids_views[count]
+
+    def _cpu_view_ids_view(self, count: int) -> wp.array:
+        """Return a cached prefix of the CPU view-index scratch."""
+        if count not in self._cpu_view_ids_views:
+            self._cpu_view_ids_views[count] = wp.array(
+                ptr=self._cpu_view_ids.ptr,
+                shape=(count,),
+                dtype=wp.int32,
+                device="cpu",
+                copy=False,
+            )
+        return self._cpu_view_ids_views[count]
 
     """
     Internal simulation callbacks.
@@ -1354,10 +1534,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self._clear_callbacks()
             return
         for prim_path_expr in [obj.prim_path for obj in self.cfg.rigid_objects.values()]:
-            result = re.match(
-                pattern="^" + "/".join(prim_path_expr.split("/")[: prim_path.count("/") + 1]) + "$", string=prim_path
-            )
-            if result:
+            if sim_utils.matches_path_expr_prefix(prim_path_expr, prim_path):
                 self._clear_callbacks()
                 return
 

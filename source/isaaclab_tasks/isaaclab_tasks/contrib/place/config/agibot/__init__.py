@@ -13,7 +13,7 @@ import gymnasium as gym
 # Agibot Right Arm: place toy2box task, with RmpFlow
 ##
 gym.register(
-    id="Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0",
+    id="IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.place_toy2box_rmp_rel_env_cfg:RmpFlowAgibotPlaceToy2BoxEnvCfg",
@@ -25,7 +25,7 @@ gym.register(
 # Agibot Left Arm: place upright mug task, with RmpFlow
 ##
 gym.register(
-    id="Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0",
+    id="IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.place_upright_mug_rmp_rel_env_cfg:RmpFlowAgibotPlaceUprightMugEnvCfg",

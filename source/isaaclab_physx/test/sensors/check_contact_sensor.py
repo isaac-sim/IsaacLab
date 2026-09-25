@@ -8,7 +8,7 @@ This script demonstrates how to use the contact sensor sensor in Isaac Lab.
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p source/isaaclab/test/sensors/test_contact_sensor.py --num_robots 2
+    uv run python source/isaaclab/test/sensors/test_contact_sensor.py --num_robots 2
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -34,6 +34,7 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
@@ -79,13 +80,13 @@ def main():
 
     # Enable hydra scene-graph instancing
     # this is needed to visualize the scene when flatcache is enabled
-    sim._settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
+    sim.set_setting("/persistent/omnihydra/useSceneGraphInstancing", True)
 
     # Create environment clones using Lab's cloner utilities
     num_envs = args_cli.num_robots
     env_fmt = "/World/envs/env_{}"
-    env_ids = torch.arange(num_envs, dtype=torch.long, device=sim.device)
-    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=2.0, device=sim.device)
+    env_ids = np.arange(num_envs, dtype=np.int64)
+    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=2.0)
     # Everything under the namespace "/World/envs/env_0" will be cloned
     sim.stage.DefinePrim("/World/envs/env_0", "Xform")
     # Clone the scene
@@ -94,12 +95,12 @@ def main():
     # Design props
     design_scene()
     # Spawn things into the scene
-    robot_cfg = ANYMAL_C_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     robot_cfg.spawn.activate_contact_sensors = True
     robot = Articulation(cfg=robot_cfg)
     # Contact sensor
     contact_sensor_cfg = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/Robot/.*_FOOT",
+        prim_path="{ENV_REGEX_NS}/Robot/[^/]*_FOOT",
         track_air_time=True,
         track_contact_points=True,
         track_friction_forces=True,
@@ -108,7 +109,7 @@ def main():
     )
     contact_sensor = ContactSensor(cfg=contact_sensor_cfg)
     # filter collisions within each environment instance
-    physics_scene_path = sim.get_physics_context().prim_path
+    physics_scene_path = sim.cfg.physics_prim_path
     lab_cloner.filter_collisions(
         sim.stage, physics_scene_path, "/World/collisions", envs_prim_paths, global_paths=["/World/defaultGroundPlane"]
     )

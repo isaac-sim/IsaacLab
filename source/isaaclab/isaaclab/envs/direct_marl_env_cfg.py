@@ -9,13 +9,12 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from isaaclab.devices.openxr import XrCfg
+    from ..devices.openxr import XrCfg
 
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg
-from isaaclab.utils.configclass import configclass
-from isaaclab.utils.noise import NoiseModelCfg
-
+from ..scene import InteractiveSceneCfg
+from ..sim import SimulationCfg
+from ..utils import configclass
+from ..utils.noise import NoiseModelCfg
 from .common import AgentID, SpaceType, ViewerCfg
 from .utils.video_recorder_cfg import VideoRecorderCfg
 
@@ -28,9 +27,6 @@ class DirectMARLEnvCfg:
     """
 
     # simulation settings
-    viewer: ViewerCfg = ViewerCfg()
-    """Viewer configuration. Default is ViewerCfg()."""
-
     sim: SimulationCfg = SimulationCfg()
     """Physics simulation configuration. Default is SimulationCfg()."""
 
@@ -82,6 +78,20 @@ class DirectMARLEnvCfg:
     Note:
         The base :class:`ManagerBasedRLEnv` class does not use this flag directly. It is used by the environment
         wrappers to determine what type of done signal to send to the corresponding learning agent.
+    """
+
+    compute_final_obs: bool = False
+    """Whether to capture the per-agent terminal observation before a Same-Step autoreset and expose it.
+
+    Under Same-Step autoreset (see :attr:`~isaaclab.envs.DirectMARLEnv.metadata`), an agent whose
+    environment terminates is reset within the same :meth:`~isaaclab.envs.DirectMARLEnv.step` call, so
+    the returned observation belongs to the *new* episode. When this flag is True, the observation is
+    computed once more *before* the reset and stored per agent under ``extras[agent]["final_obs"]``
+    (with the same observation noise as the returned observation applied), so wrappers can report it as
+    the true terminal observation for value bootstrapping.
+
+    Defaults to False, which preserves the previous behavior: no terminal observation is captured,
+    ``extras[agent]["final_obs"]`` is not populated, and the extra observation computation is skipped.
     """
 
     episode_length_s: float = MISSING
@@ -236,5 +246,39 @@ class DirectMARLEnvCfg:
     log_dir: str | None = None
     """Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set."""
 
-    video_recorder: VideoRecorderCfg = VideoRecorderCfg()
-    """Configuration for video recording when ``render_mode="rgb_array"`` (i.e. ``--video``)."""
+    viewer: ViewerCfg = ViewerCfg()
+    """Deprecated viewer configuration. Use :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`
+    or :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` instead.
+
+    .. deprecated::
+        This field is deprecated and will be removed in a future release. Configure the viewport
+        camera via :class:`~isaaclab.visualizers.VisualizerCfg` on the simulation config::
+
+            from isaaclab.visualizers import VisualizerCfg
+            env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=(4.5, 0.0, 6.0))
+    """
+
+    video_recorders: list[VideoRecorderCfg] = []
+    """Video recording streams. Each entry records from its configured source independently.
+
+    Leave empty to disable recording. Set ``--video`` on the CLI to auto-populate this list
+    with a default stream from the active visualizer.
+    """
+
+    def play_mode(self):
+        """Adjust the configuration for interactive playback and policy inference.
+
+        Play scripts call this method after the configuration is fully initialized (i.e. after
+        :meth:`__post_init__`) unless the user requests the training configuration as-is.
+        The base implementation applies defaults that are useful for most tasks:
+
+        * caps the number of environments at 50 to keep the scene lightweight, and
+        * disables observation noise for all agents.
+
+        Override this method in a task configuration to customize playback behavior. Call
+        ``super().play_mode()`` to keep the shared defaults.
+        """
+        # make a smaller scene for play
+        self.scene.num_envs = min(self.scene.num_envs, 50)
+        # disable observation noise for all agents
+        self.observation_noise_model = None

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 import warp as wp
 
 from isaaclab.sensors.frame_transformer.base_frame_transformer import BaseFrameTransformer
+from isaaclab.sim.utils.queries import split_path_expr
 
 from isaaclab_newton.physics import NewtonManager
 
@@ -62,7 +63,7 @@ class FrameTransformer(BaseFrameTransformer):
         self._stride: int = 0
 
         self._sensor_index: int | None = None
-        self._source_frame_body_name: str = cfg.prim_path.rsplit("/", 1)[-1]
+        self._source_frame_body_name: str = split_path_expr(cfg.prim_path)[-1]
 
         # Register world-origin reference site
         self._world_origin_label = NewtonManager.cl_register_site(None, wp.transform())
@@ -81,12 +82,12 @@ class FrameTransformer(BaseFrameTransformer):
             label = NewtonManager.cl_register_site(target_frame.prim_path, target_offset)
 
             self._target_labels.append(label)
-            body_name = target_frame.prim_path.rsplit("/", 1)[-1]
+            body_name = split_path_expr(target_frame.prim_path)[-1]
             self._target_frame_body_names.append(target_frame.name or body_name)
             self._num_targets += 1
 
         # Set target frame names for base class find_bodies() and data container
-        self._target_frame_names = [t.name or t.prim_path.rsplit("/", 1)[-1] for t in cfg.target_frames]
+        self._target_frame_names = [t.name or split_path_expr(t.prim_path)[-1] for t in cfg.target_frames]
         self._data._target_frame_names = self._target_frame_names
 
         logger.info(
@@ -333,9 +334,9 @@ class FrameTransformer(BaseFrameTransformer):
     def _invalidate_initialize_callback(self, event):
         """Clears references to the native sensor and re-registers sites.
 
-        ``NewtonManager.close()`` calls ``clear()`` before dispatching ``STOP``,
-        so ``_cl_pending_sites`` is already empty when this callback fires.
-        Re-registering here ensures sites survive a close/reinit cycle.
+        Re-registering here ensures sites survive a non-teardown stop/reinit cycle.
+        During ``NewtonManager.close()``, Newton state is cleared after ``STOP`` so
+        stale registrations from old sensors cannot leak into the next context.
         """
         super()._invalidate_initialize_callback(event)
         self._newton_transforms = None

@@ -3,245 +3,375 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Video recorder implementation.
+"""Step-driven internal video recorder.
 
-Backend resolution (``--video`` + ``--visualizer``):
-
-1. **Active visualizer** - ``"kit"`` uses the Kit camera; ``"newton"`` uses the Newton GL viewer.
-   ``"viser"`` / ``"rerun"`` have no capture API and fall through to rule 2.
-2. **Physics/renderer stack** -
-   - PhysX or Isaac RTX uses the Kit camera;
-   - Newton physics or Newton Warp uses the Newton GL viewer.
-   Kit wins when both signals present.  Raises if nothing resolves.
-
-Set :attr:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg.backend_source` to ``"renderer"``
-to ignore active visualizers and record from the physics/renderer stack.
-
-Camera sync when a visualizer drives the backend: construction copies the visualizer config's
-``eye`` / ``lookat`` into the recorder config; each :meth:`~VideoRecorder.render_rgb_array`
-call then re-reads the Newton viewer's live ``camera.pos/pitch/yaw``. Kit video uses the
-configured ``eye`` / ``lookat`` at construction time.
-
-See :mod:`video_recorder_cfg` for configuration.
+Recording is triggered by env.step() calls, not by the Gym render loop.
+Frames are sourced from the configured visualizer or scene sensor and written
+to mp4 files via moviepy.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Literal
+import os
+import re
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-if TYPE_CHECKING:
-    from isaaclab.scene import InteractiveScene
+try:
+    from moviepy.editor import ImageSequenceClip
+except ImportError:
+    ImageSequenceClip = None  # type: ignore[assignment,misc]
 
+if TYPE_CHECKING:
     from .video_recorder_cfg import VideoRecorderCfg
 
 logger = logging.getLogger(__name__)
 
-_VideoBackend = Literal["kit", "newton_gl"]
-
-# visualizer types that map to a supported video backend.
-# viser and rerun are intentionally absent - they have no video-capture API.
-_VISUALIZER_TO_VIDEO_BACKEND: dict[str, _VideoBackend] = {
-    "kit": "kit",
-    "newton": "newton_gl",
-}
+_VALID_SOURCE_KINDS = ("visualizer", "sensor")
 
 
-def _resolve_video_backend(
-    scene: InteractiveScene, backend_source: str = "visualizer"
-) -> tuple[_VideoBackend, str | None]:
-    """Return ``(backend, matched_visualizer_type)`` for the active scene.
+def _parse_source(source: str) -> tuple[str, str, str]:
+    """Parse a source string into (kind, type_or_name, sub).
 
-    ``matched_visualizer_type`` is ``"kit"`` / ``"newton"`` when a visualizer drove the
-    selection, or ``None`` when the physics/renderer preset stack was used instead.
+    Source strings use ``:`` as the sole delimiter: ``"<kind>:<type>:<sub>"``.
 
-    Args:
-        scene: The interactive scene that owns the sim context.
-        backend_source: ``"visualizer"`` to let active visualizers choose the backend, or ``"renderer"``
-            to ignore active visualizers and use the physics/renderer stack.
-
-    Raises:
-        RuntimeError: If no supported backend is detected.
+    Returns:
+        ``(kind, type_or_name, sub)`` where ``kind`` is ``"visualizer"`` or
+        ``"sensor"``, ``type_or_name`` is the visualizer type or sensor name,
+        and ``sub`` is the sub-channel (e.g. ``"tiled"``).
     """
-    if backend_source not in ("visualizer", "renderer"):
-        raise ValueError("VideoRecorderCfg.backend_source must be either 'visualizer' or 'renderer'.")
-
-    # Prefer the visualizer backend when --visualizer is active alongside --video.
-    visualizer_types: list[str] = scene.sim.resolve_visualizer_types() if backend_source == "visualizer" else []
-    if visualizer_types:
-        # kit takes priority when multiple visualizers are active
-        for preferred in ("kit", "newton"):
-            if preferred in visualizer_types:
-                backend = _VISUALIZER_TO_VIDEO_BACKEND[preferred]
-                logger.debug("[VideoRecorder] Using '%s' backend from active '%s' visualizer.", backend, preferred)
-                return backend, preferred
-        # only unsupported visualizer types (viser, rerun) are active.
-        logger.warning(
-            "[VideoRecorder] Active visualizer(s) %s do not support video capture; "
-            "falling back to physics/renderer stack detection.",
-            visualizer_types,
-        )
-
-    # fall back to physics/renderer preset stack detection.
-    sim = scene.sim
-    physics_name = sim.physics_manager.__name__.lower()
-    renderer_types: list[str] = scene._sensor_renderer_types()
-
-    use_kit = "physx" in physics_name or "isaac_rtx" in renderer_types
-    use_newton_gl = "newton" in physics_name or "newton_warp" in renderer_types
-
-    if use_kit:
-        return "kit", None
-    if use_newton_gl:
-        return "newton_gl", None
-    raise RuntimeError(
-        "Video recording (--video) requires a supported backend: "
-        "PhysX or Isaac RTX renderer (Kit camera), or Newton physics / Newton Warp renderer (GL viewer). "
-        "No supported backend detected; do not use --video for this setup."
-    )
-
-
-def _sync_camera_from_visualizer(
-    scene: InteractiveScene,
-    visualizer_type: str,
-    cfg: VideoRecorderCfg,
-) -> None:
-    """Overwrite ``cfg.eye`` and ``cfg.lookat`` from the active visualizer.
-
-    Args:
-        scene: The interactive scene that owns the sim context.
-        visualizer_type: The visualizer type string matched by ``_resolve_video_backend``
-            (e.g. ``"kit"`` or ``"newton"``).
-        cfg: The recorder configuration to update in place.
-    """
-    try:
-        resolved_cfgs = scene.sim._resolve_visualizer_cfgs()
-    except Exception as exc:
-        logger.debug("[VideoRecorder] Could not resolve visualizer cfgs for camera sync: %s", exc)
-        return
-
-    for vcfg in resolved_cfgs:
-        if getattr(vcfg, "visualizer_type", None) != visualizer_type:
-            continue
-        pos = getattr(vcfg, "eye", None)
-        tgt = getattr(vcfg, "lookat", None)
-        if pos is None or tgt is None:
-            break
-        cfg.eye = tuple(float(x) for x in pos)
-        cfg.lookat = tuple(float(x) for x in tgt)
-        logger.debug(
-            "[VideoRecorder] Camera synced from '%s' visualizer: position=%s, target=%s.",
-            visualizer_type,
-            cfg.eye,
-            cfg.lookat,
-        )
-        return
-
-    logger.debug(
-        "[VideoRecorder] Could not find eye/lookat on '%s' visualizer cfg; keeping existing camera values.",
-        visualizer_type,
-    )
+    # Only lowercase the kind (parts[0]); preserve original casing for sensor names and visualizer types.
+    parts = source.strip().split(":")
+    kind = parts[0].lower() if parts else ""
+    type_or_name = parts[1] if len(parts) > 1 else ""
+    sub = parts[2].lower() if len(parts) > 2 else ""
+    return kind, type_or_name, sub
 
 
 class VideoRecorder:
-    """Records perspective video frames from the scene's active renderer.
+    """Records one video stream per :class:`VideoRecorderCfg` entry.
 
-    Args:
-        cfg: Recorder configuration.
-        scene: The interactive scene that owns the sensors.
+    Instantiated by the env base class; ``step()`` is called once per env step
+    after physics and rendering have completed.
+
+    Raises:
+        ImportError: If ``moviepy`` is not installed.
+        ValueError: If :attr:`~VideoRecorderCfg.source` has an unrecognized kind.
+        RuntimeError: On the first recording step if the requested visualizer or
+            sensor cannot be found or does not support frame capture.
     """
 
-    def __init__(self, cfg: VideoRecorderCfg, scene: InteractiveScene):
+    def __init__(self, cfg: VideoRecorderCfg, env: object):
+        kind, _, _ = _parse_source(cfg.source)
+        if kind not in _VALID_SOURCE_KINDS:
+            raise ValueError(
+                f"[VideoRecorder] Unrecognized source kind '{kind}' in source='{cfg.source}'. "
+                f"Expected one of: {_VALID_SOURCE_KINDS}."
+            )
+
+        if ImageSequenceClip is None:
+            raise ImportError("moviepy is required for video recording. Install it with: pip install 'moviepy<2'")
+
         self.cfg = cfg
-        self._scene = scene
-        self._backend: _VideoBackend | None = None
-        self._capture = None
-        # visualizer type that drove backend selection (or None when using physics/renderer stack).
-        self._matched_visualizer: str | None = None
-        # live visualizer instance - looked up lazily on first render_rgb_array() call because
-        # visualizers are initialised by sim.reset(), which runs after VideoRecorder.__init__.
-        self._live_visualizer = None
+        self._env = env
+        self._frames: list[np.ndarray] = []
+        self._step_count = 0
+        self._frames_step_count = 0
+        self._clip_index = self._next_clip_index()
+        self._recording = False
+        # Set to True after the first unrecoverable frame-capture error so that
+        # subsequent steps do not propagate the exception or repeat the log message.
+        self._frame_error_logged: bool = False
+        # Set to True after the Kit/Newton cubric warning is emitted. The condition it
+        # reports is fixed configuration state, so warning once per recorder is enough;
+        # without this the message repeats on every captured frame.
+        self._cubric_warning_logged: bool = False
 
-        if cfg.env_render_mode == "rgb_array":
-            backend_source = getattr(cfg, "backend_source", "visualizer")
-            self._backend, self._matched_visualizer = _resolve_video_backend(scene, backend_source)
-            if self._matched_visualizer is not None:
-                _sync_camera_from_visualizer(scene, self._matched_visualizer, cfg)
-            if self._backend == "newton_gl":
-                try:
-                    import pyglet as _pyglet  # noqa: F401 - verify pyglet is available
-                except ImportError as e:
-                    raise ImportError(
-                        "The Newton GL video backend requires 'pyglet'. Install IsaacLab with './isaaclab.sh -i'."
-                    ) from e
-                from isaaclab_newton.video_recording.newton_gl_perspective_video import (
-                    create_newton_gl_perspective_video,
-                )
-                from isaaclab_newton.video_recording.newton_gl_perspective_video_cfg import NewtonGlPerspectiveVideoCfg
+    def step(self) -> None:
+        """Advance the recorder by one env step."""
+        self._step_count += 1
 
-                ncfg = NewtonGlPerspectiveVideoCfg(
-                    window_width=cfg.window_width,
-                    window_height=cfg.window_height,
-                    eye=cfg.eye,
-                    lookat=cfg.lookat,
-                )
-                self._capture = create_newton_gl_perspective_video(ncfg)
-            else:
-                from isaaclab_physx.video_recording.isaacsim_kit_perspective_video import (
-                    create_isaacsim_kit_perspective_video,
-                )
-                from isaaclab_physx.video_recording.isaacsim_kit_perspective_video_cfg import (
-                    IsaacsimKitPerspectiveVideoCfg,
-                )
-
-                kcfg = IsaacsimKitPerspectiveVideoCfg(
-                    eye=cfg.eye,
-                    lookat=cfg.lookat,
-                    window_width=cfg.window_width,
-                    window_height=cfg.window_height,
-                )
-                self._capture = create_isaacsim_kit_perspective_video(kcfg)
-
-    def _sync_newton_camera(self) -> None:
-        """Push the Newton visualizer's live camera pose into the capture object.
-
-        Called once per :meth:`render_rgb_array` when a Newton visualizer is active.
-        The live visualizer instance is resolved lazily (visualizers are initialised by
-        ``sim.reset()``, which runs after ``VideoRecorder.__init__``).
-        """
-        if self._live_visualizer is None:
-            for viz in self._scene.sim.visualizers:
-                if getattr(getattr(viz, "cfg", None), "visualizer_type", None) == "newton":
-                    self._live_visualizer = viz
-                    break
-            if self._live_visualizer is None:
-                return
-
-        viewer = getattr(self._live_visualizer, "_viewer", None)
-        if viewer is None:
+        # Skip steps before the configured offset.
+        if self._step_count <= self.cfg.step_offset:
             return
 
-        import math
+        effective_step = self._step_count - self.cfg.step_offset
+        should_trigger = self._check_trigger(effective_step)
 
-        cam = viewer.camera
-        pos = (float(cam.pos[0]), float(cam.pos[1]), float(cam.pos[2]))
-        yaw_rad = math.radians(float(cam.yaw))
-        pitch_rad = math.radians(float(cam.pitch))
-        dx = math.cos(pitch_rad) * math.cos(yaw_rad)
-        dy = math.cos(pitch_rad) * math.sin(yaw_rad)
-        dz = math.sin(pitch_rad)
-        target = (pos[0] + dx, pos[1] + dy, pos[2] + dz)
-        self._capture.update_camera(pos, target)
+        if should_trigger:
+            if self._recording:
+                self._close_clip()
+            self._recording = True
+            self._frames_step_count = 0
 
-    def render_rgb_array(self) -> np.ndarray | None:
-        """Return an RGB frame for the resolved backend. Fails if backend is unavailable."""
-        if self._backend is None or self._capture is None:
+        if self._recording:
+            self._frames_step_count += 1
+            if self._frames_step_count % self.cfg.frame_stride == 0:
+                frame = self._get_frame()
+                if frame is not None:
+                    self._frames.append(frame)
+            if self._frames_step_count >= self.cfg.video_length:
+                self._close_clip()
+
+    def close(self) -> None:
+        """Flush any buffered frames and close the current clip."""
+        if self._recording and self._frames:
+            self._close_clip()
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    def _check_trigger(self, effective_step: int) -> bool:
+        if self.cfg.video_interval <= 0:
+            return effective_step == 1
+        return (effective_step - 1) % self.cfg.video_interval == 0
+
+    def _get_frame(self) -> np.ndarray | None:
+        if self._frame_error_logged:
             return None
-        if self._matched_visualizer == "newton":
-            # Newton GL camera state lives in the capture object and must be synced each frame
-            # to follow interactive viewer movement.
-            self._sync_newton_camera()
-        # Kit capture uses the configured eye/lookat applied to the recording camera at construction time.
-        return self._capture.render_rgb_array()
+        try:
+            kind, type_or_name, sub = _parse_source(self.cfg.source)
+            if kind == "visualizer":
+                return self._frame_from_visualizer(type_or_name, sub)
+            if kind == "sensor":
+                return self._frame_from_sensor(type_or_name, gt_type=sub)
+            # Unreachable: kind was validated in __init__, but keeps type checkers happy.
+            return None  # pragma: no cover
+        except RuntimeError as exc:
+            logger.error(
+                "[VideoRecorder] Frame capture failed for source=%r: %s  "
+                "Further capture attempts for this stream will be suppressed.",
+                self.cfg.source,
+                exc,
+            )
+            self._frame_error_logged = True
+            return None
+
+    def _frame_from_visualizer(self, viz_type: str, sub: str) -> np.ndarray | None:
+        sim = getattr(self._env, "sim", None)
+        if sim is None:
+            raise RuntimeError(
+                "[VideoRecorder] env.sim is not available; cannot capture frames. "
+                "Ensure the environment is fully initialized before recording starts."
+            )
+        visualizers = getattr(sim, "visualizers", [])
+
+        if viz_type:
+            # "newton" is a backward-compatible alias for the newton_gl visualizer type.
+            # The canonical visualizer_type on NewtonGLVisualizerCfg is "newton_gl", but
+            # source strings in tutorials and docs use the shorter "newton" form.
+            _newton_aliases = ("newton_gl",)
+            if viz_type == "newton":
+                candidates = [v for v in visualizers if getattr(v.cfg, "visualizer_type", None) in _newton_aliases]
+            else:
+                candidates = [v for v in visualizers if getattr(v.cfg, "visualizer_type", None) == viz_type]
+            if not candidates:
+                active = [getattr(v.cfg, "visualizer_type", "unknown") for v in visualizers]
+                raise RuntimeError(
+                    f"[VideoRecorder] source='visualizer:{viz_type}' requested but no '{viz_type}' "
+                    f"visualizer is active (active: {active or ['none']}). "
+                    f"Pass --viz {viz_type} or add the corresponding VisualizerCfg to sim.visualizer_cfgs."
+                )
+        else:
+            # Auto: pick the first active visualizer that supports frame capture.
+            candidates = [v for v in visualizers if hasattr(v, "render_rgb_array")]
+            if not candidates:
+                active = [getattr(v.cfg, "visualizer_type", "unknown") for v in visualizers]
+                raise RuntimeError(
+                    "[VideoRecorder] source='visualizer' found no recording-capable visualizer "
+                    f"(active: {active or ['none']}). "
+                    "Pass --viz kit, --viz newton_gl, or --viz newton_rtx, or use "
+                    "source='sensor:<name>' to record from a scene sensor."
+                )
+
+        # Kit Replicator requires cubric to propagate Newton Fabric transforms to RTX's
+        # scene delegate. Without cubric, frames will be black. Log a warning but allow
+        # the capture to proceed — users with cubric available will get correct frames.
+        if viz_type == "kit" and not self._cubric_warning_logged:
+            physics_backend = getattr(getattr(sim, "physics_manager", None), "video_capture_backend", lambda: None)()
+            if physics_backend == "newton_gl":
+                self._cubric_warning_logged = True
+                logger.warning(
+                    "[VideoRecorder] source='visualizer:kit' with Newton physics requires cubric "
+                    "to propagate Fabric transforms to RTX. Frames may be black if cubric is "
+                    "unavailable. Use source='visualizer:newton' for guaranteed capture."
+                )
+
+        viz = candidates[0]
+        if not sim.is_rendering:
+            sim.forward()
+        if sub == "streaming_view":
+            if not hasattr(viz, "render_tiled_rgb_array"):
+                raise RuntimeError(
+                    f"[VideoRecorder] source='visualizer:{viz_type}:streaming_view' requested but the "
+                    f"'{viz_type}' visualizer does not support streaming view capture."
+                )
+            if not getattr(getattr(viz, "cfg", None), "streaming_view", False):
+                cfg_name = {
+                    "kit": "KitVisualizerCfg",
+                    "newton_gl": "NewtonGLVisualizerCfg",
+                    "newton": "NewtonGLVisualizerCfg",
+                }.get(viz_type or "", "VisualizerCfg")
+                raise RuntimeError(
+                    f"[VideoRecorder] source='visualizer:{viz_type}:streaming_view' requested but "
+                    f"streaming_view is not enabled on the '{viz_type}' visualizer. "
+                    f"Enable it by setting streaming_view=True on the visualizer config:\n\n"
+                    f"    {cfg_name}(streaming_view=True, ...)\n\n"
+                    f"A streaming camera is auto-created from the streaming_cam_* fields. "
+                    f"To use an existing scene camera, set streaming_sensor_prim_path instead."
+                )
+            return viz.render_tiled_rgb_array()
+
+        if not hasattr(viz, "render_rgb_array"):
+            raise RuntimeError(
+                f"[VideoRecorder] source='visualizer:{viz_type or '<auto>'}' does not support frame "
+                "capture: the visualizer has no render_rgb_array() implementation."
+            )
+
+        frame = viz.render_rgb_array()
+        if frame is None:
+            viz_type_name = getattr(getattr(viz, "cfg", None), "visualizer_type", "unknown")
+            raise RuntimeError(
+                f"[VideoRecorder] render_rgb_array() returned None for '{viz_type_name}' visualizer. "
+                "Use a capture-capable visualizer or source='sensor:<name>' instead."
+            )
+        return frame
+
+    def _frame_from_sensor(self, name: str, gt_type: str = "rgb") -> np.ndarray | None:
+        from .camera_colorizer import (
+            SUPPORTED_GT_TYPES,
+            CameraFrameColorizer,
+            sensor_key_for_gt_type,
+        )
+
+        gt_type = gt_type or "rgb"
+        if gt_type not in SUPPORTED_GT_TYPES:
+            raise RuntimeError(
+                f"[VideoRecorder] Unsupported GT type '{gt_type}' in sensor source. "
+                f"Valid types: {sorted(SUPPORTED_GT_TYPES)}. "
+                f"Use source='sensor:{name}:<type>' where <type> is one of the valid types."
+            )
+
+        scene = getattr(self._env, "scene", None)
+        if scene is None:
+            raise RuntimeError(
+                "[VideoRecorder] env.scene is not available; cannot capture sensor frames. "
+                "Ensure the environment is fully initialized before recording starts."
+            )
+        sensors = getattr(scene, "sensors", {})
+        sensor = sensors.get(name)
+        if sensor is None:
+            available = sorted(sensors.keys())
+            truncated = available[:8]
+            suffix = f" … and {len(available) - 8} more" if len(available) > 8 else ""
+            hint = (
+                " Add a CameraCfg to your scene (e.g. InteractiveSceneCfg.tiled_camera) "
+                "to enable sensor-based recording."
+                if not available
+                else ""
+            )
+            raise RuntimeError(
+                f"[VideoRecorder] Sensor '{name}' not found in env.scene.sensors "
+                f"(available: [{', '.join(repr(s) for s in truncated)}{suffix}]).{hint}"
+            )
+        output = getattr(getattr(sensor, "data", None), "output", None)
+        if output is None:
+            raise RuntimeError(
+                f"[VideoRecorder] Sensor '{name}' has no data output. "
+                "Ensure the sensor is initialized and has been stepped at least once."
+            )
+        available_keys = frozenset(output.keys())
+        try:
+            sensor_key = sensor_key_for_gt_type(gt_type, available_keys)
+        except (ValueError, KeyError):
+            raise RuntimeError(
+                f"[VideoRecorder] Sensor '{name}' has no '{gt_type}' output "
+                f"(available: {sorted(available_keys)}). "
+                f"Ensure the sensor's data_types includes '{gt_type}'."
+            )
+        data = output[sensor_key]
+        # ProxyArray or torch.Tensor: shape (N, H, W, C)
+        raw = data.torch if hasattr(data, "torch") else data
+        return CameraFrameColorizer.colorize(
+            raw[0],
+            gt_type,
+            depth_min=self.cfg.depth_colormap_min,
+            depth_max=self.cfg.depth_colormap_max,
+        )
+
+    def _effective_output_dir(self) -> str:
+        return self.cfg.output_dir or "videos"
+
+    def _clip_path(self, index: int) -> str:
+        return os.path.join(self._effective_output_dir(), f"{self.cfg.output_filename_prefix}_{index:04d}.mp4")
+
+    def _next_clip_index(self) -> int:
+        return max(self._existing_clip_indices(), default=-1) + 1
+
+    def _existing_clip_indices(self) -> list[int]:
+        output_dir = self._effective_output_dir()
+        if not os.path.isdir(output_dir):
+            return []
+
+        pattern = re.compile(rf"^{re.escape(str(self.cfg.output_filename_prefix))}_(?P<index>\d+)\.mp4$")
+        return [
+            int(match.group("index"))
+            for filename in os.listdir(output_dir)
+            if (match := pattern.match(filename)) is not None
+        ]
+
+    def _close_clip(self) -> None:
+        if not self._frames:
+            self._recording = False
+            return
+        try:
+            os.makedirs(self._effective_output_dir(), exist_ok=True)
+            path = self._clip_path(self._clip_index)
+            fps = self.cfg.fps
+            if fps is None:
+                base_fps = self._env.metadata.get("render_fps") if hasattr(self._env, "metadata") else None
+                if base_fps is None:
+                    step_dt = getattr(self._env, "step_dt", None)
+                    base_fps = round(1.0 / step_dt) if step_dt else 30
+                # frame_stride subsamples: one frame every N steps, so playback fps scales down.
+                fps = max(1, round(base_fps / self.cfg.frame_stride))
+            # Warn if the clip appears to be all-black (mean pixel < 2/255).
+            # This can happen with Kit+Newton when cubric is unavailable.
+            sample = self._frames[len(self._frames) // 2]
+            mean_pixel = float(np.mean(sample))
+            if mean_pixel < 2.0:
+                logger.warning(
+                    "[VideoRecorder] source=%r: sampled frame appears mostly black "
+                    "(mean pixel value %.1f/255). For Kit+Newton, ensure cubric is available "
+                    "to propagate Fabric transforms to the RTX renderer, or switch to "
+                    "source='visualizer:newton_gl' for guaranteed capture.",
+                    self.cfg.source,
+                    mean_pixel,
+                )
+            clip = ImageSequenceClip(self._frames, fps=fps)
+            clip.write_videofile(path, codec="libx264", audio=False, logger=None)
+            logger.info("[VideoRecorder] Wrote %d frames to %s", len(self._frames), path)
+            self._clip_index += 1
+            self._maybe_delete_old_clips()
+        except Exception:
+            logger.exception("[VideoRecorder] Failed to write clip.")
+        finally:
+            self._frames = []
+            self._recording = False
+
+    def _maybe_delete_old_clips(self) -> None:
+        if self.cfg.keep_last_n_clips is None:
+            return
+        cutoff = self._clip_index - self.cfg.keep_last_n_clips
+        for index in self._existing_clip_indices():
+            if index >= cutoff:
+                continue
+            path = self._clip_path(index)
+            try:
+                os.remove(path)
+                logger.debug("[VideoRecorder] Deleted old clip %s", path)
+            except FileNotFoundError:
+                pass

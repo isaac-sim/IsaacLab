@@ -13,8 +13,8 @@ from typing import TYPE_CHECKING
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.markers.config import VISUO_TACTILE_SENSOR_MARKER_CFG
 from isaaclab.sensors import CameraCfg, SensorBaseCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from .visuotactile_sensor import VisuoTactileSensor
@@ -154,7 +154,7 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
         The expression can contain the environment namespace regex ``{ENV_REGEX_NS}`` which
         will be replaced with the environment namespace.
 
-        Example: ``{ENV_REGEX_NS}/ContactObject`` will be replaced with ``/World/envs/env_.*/ContactObject``.
+        Example: ``{ENV_REGEX_NS}/ContactObject`` will be replaced with ``/World/envs/env_[^/]+/ContactObject``.
 
     .. attention::
         For force field computation to work properly, the contact object must have an SDF collision mesh.

@@ -30,7 +30,8 @@ runs:
         venv="$RUNNER_TEMP/collect-venv"
         collected="$RUNNER_TEMP/install-ci-collected.txt"
         python3 -m venv "$venv"
-        "$venv/bin/pip" install --quiet pytest pytest-timeout
+        bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" \
+          "$venv/bin/pip" install --quiet pytest pytest-timeout
         # -m "not skip" hides tests with @pytest.mark.skip; they would just
         # report SKIPPED at run time and clutter the collected inventory.
         args=( --collect-only -q -m "not skip" source/isaaclab/test/install_ci )

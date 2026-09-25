@@ -50,6 +50,7 @@ Shapes
   .. autosummary::
 
     ShapeCfg
+    CableCfg
     CapsuleCfg
     ConeCfg
     CuboidCfg
@@ -57,6 +58,12 @@ Shapes
     SphereCfg
 
 .. autoclass:: ShapeCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_cable
+
+.. autoclass:: CableCfg
     :members:
     :exclude-members: __init__, func
 
@@ -211,6 +218,9 @@ Sensors
 
     PinholeCameraCfg
     FisheyeCameraCfg
+    OpenCvDistortionCfg
+    OpenCvPinholeDistortionCfg
+    OpenCvFisheyeDistortionCfg
 
 .. autofunction:: spawn_camera
 
@@ -219,6 +229,18 @@ Sensors
     :exclude-members: __init__, func
 
 .. autoclass:: FisheyeCameraCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autoclass:: OpenCvDistortionCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autoclass:: OpenCvPinholeDistortionCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autoclass:: OpenCvFisheyeDistortionCfg
     :members:
     :exclude-members: __init__, func
 
@@ -233,6 +255,7 @@ From Files
 
     UrdfFileCfg
     UsdFileCfg
+    MeshFileCfg
     GroundPlaneCfg
 
 .. autofunction:: spawn_from_urdf
@@ -244,6 +267,12 @@ From Files
 .. autofunction:: spawn_from_usd
 
 .. autoclass:: UsdFileCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_from_mesh
+
+.. autoclass:: MeshFileCfg
     :members:
     :exclude-members: __init__, func
 
@@ -264,9 +293,14 @@ Materials
 
     VisualMaterialCfg
     PreviewSurfaceCfg
+    PbrMdlCfg
     MdlFileCfg
     GlassMdlCfg
     PhysicsMaterialCfg
+    CableMaterialCfg
+    RigidBodyMaterialBaseCfg
+    RigidBodyMaterialFragment
+    UsdPhysicsRigidBodyMaterialCfg
     RigidBodyMaterialCfg
     DeformableBodyMaterialBaseCfg
     SurfaceDeformableBodyMaterialBaseCfg
@@ -283,6 +317,10 @@ Visual Materials
 .. autofunction:: spawn_preview_surface
 
 .. autoclass:: PreviewSurfaceCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autoclass:: PbrMdlCfg
     :members:
     :exclude-members: __init__, func
 
@@ -303,7 +341,30 @@ Physical Materials
     :members:
     :exclude-members: __init__, func
 
+.. autoclass:: CableMaterialCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_physics_material
+
 .. autofunction:: spawn_rigid_body_material
+
+.. autoclass:: RigidBodyMaterialBaseCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_rigid_body_material_from_fragments
+
+.. autoclass:: RigidBodyMaterialFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autoclass:: UsdPhysicsRigidBodyMaterialCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
 
 .. autoclass:: RigidBodyMaterialCfg
     :members:

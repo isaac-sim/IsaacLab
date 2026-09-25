@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import isaaclab.envs.mdp as mdp
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
-import isaaclab_tasks.core.reach.mdp as mdp
 from isaaclab_tasks.contrib.reach.config.openarm.unimanual.reach_openarm_uni_env_cfg import (
     ReachEnvCfg,
 )
@@ -64,15 +64,3 @@ class OpenArmReachEnvCfg(ReachEnvCfg):
         # override command generator body
         # end-effector is along z-direction
         self.commands.ee_pose.body_name = "openarm_hand"
-
-
-@configclass
-class OpenArmReachEnvCfg_PLAY(OpenArmReachEnvCfg):
-    def __post_init__(self):
-        # post init of parent
-        super().__post_init__()
-        # make a smaller scene for play
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        # disable randomization for play
-        self.observations.policy.enable_corruption = False

@@ -7,6 +7,9 @@
 
 from __future__ import annotations
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
@@ -20,18 +23,19 @@ HUMANOID_28_CFG = ArticulationCfg(
     prim_path="{ENV_REGEX_NS}/Robot",
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Classic/Humanoid28/humanoid_28.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=None,
-            max_depenetration_velocity=10.0,
-            enable_gyroscopic_forces=True,
+        rigid_props=PhysxRigidBodyCfg(
+            disable_gravity=None, max_depenetration_velocity=10.0, enable_gyroscopic_forces=True
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True,
-            solver_position_iteration_count=4,
-            solver_velocity_iteration_count=0,
-            sleep_threshold=0.005,
-            stabilization_threshold=0.001,
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=True,
+                solver_position_iteration_count=4,
+                solver_velocity_iteration_count=0,
+                sleep_threshold=0.005,
+                stabilization_threshold=0.001,
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
+        ],
         copy_from_source=False,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -43,7 +47,7 @@ HUMANOID_28_CFG = ArticulationCfg(
             joint_names_expr=[".*"],
             stiffness=None,
             damping=None,
-            velocity_limit_sim={".*": 100.0},
+            joint_velocity_limit={".*": 100.0},
         ),
     },
 )

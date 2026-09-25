@@ -12,7 +12,7 @@ from . import agents
 ##
 
 gym.register(
-    id="Isaac-Forge-PegInsert-Direct-v0",
+    id="IsaacContrib-Forge-PegInsert-Direct",
     entry_point=f"{__name__}.forge_env:ForgeEnv",
     disable_env_checker=True,
     kwargs={
@@ -22,7 +22,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Forge-GearMesh-Direct-v0",
+    id="IsaacContrib-Forge-GearMesh-Direct",
     entry_point=f"{__name__}.forge_env:ForgeEnv",
     disable_env_checker=True,
     kwargs={
@@ -32,7 +32,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Forge-NutThread-Direct-v0",
+    id="IsaacContrib-Forge-NutThread-Direct",
     entry_point=f"{__name__}.forge_env:ForgeEnv",
     disable_env_checker=True,
     kwargs={

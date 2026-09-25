@@ -3,16 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from .assembly_tasks_cfg import ASSET_DIR, Insertion
 
@@ -70,6 +73,98 @@ class CtrlCfg:
 
 
 @configclass
+class AssemblySceneCfg(InteractiveSceneCfg):
+    """AutoMate assembly assets constructed and cloned through one scene plan."""
+
+    ground = AssetBaseCfg(
+        prim_path="/World/ground",
+        spawn=sim_utils.GroundPlaneCfg(),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -0.4)),
+    )
+    table = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Table",
+        spawn=sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.55, 0.0, 0.0), rot=(0.0, 0.0, 0.70711, 0.70711)),
+    )
+    robot = ArticulationCfg(
+        prim_path="{ENV_REGEX_NS}/Robot",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ASSET_DIR}/franka_mimic.usd",
+            activate_contact_sensors=False,
+            rigid_props=PhysxRigidBodyCfg(
+                disable_gravity=True,
+                max_depenetration_velocity=5.0,
+                linear_damping=0.0,
+                angular_damping=0.0,
+                max_linear_velocity=1000.0,
+                max_angular_velocity=3666.0,
+                enable_gyroscopic_forces=True,
+                solver_position_iteration_count=192,
+                solver_velocity_iteration_count=1,
+                max_contact_impulse=1e32,
+            ),
+            articulation_props=[
+                PhysxArticulationCfg(
+                    enabled_self_collisions=False,
+                    solver_position_iteration_count=192,
+                    solver_velocity_iteration_count=1,
+                ),
+                NewtonArticulationCfg(self_collision_enabled=False),
+            ],
+            collision_props=PhysxCollisionCfg(contact_offset=0.005, rest_offset=0.0),
+        ),
+        init_state=ArticulationCfg.InitialStateCfg(
+            joint_pos={
+                "panda_joint1": 0.00871,
+                "panda_joint2": -0.10368,
+                "panda_joint3": -0.00794,
+                "panda_joint4": -1.49139,
+                "panda_joint5": -0.00083,
+                "panda_joint6": 1.38774,
+                "panda_joint7": 0.0,
+                "panda_finger_joint2": 0.04,
+            },
+            pos=(0.0, 0.0, 0.0),
+            rot=(0.0, 0.0, 0.0, 1.0),
+        ),
+        actuators={
+            "panda_arm1": ImplicitActuatorCfg(
+                joint_names_expr=["panda_joint[1-4]"],
+                stiffness=0.0,
+                damping=0.0,
+                friction=0.0,
+                armature=0.0,
+                joint_effort_limit=87,
+                joint_velocity_limit=124.6,
+            ),
+            "panda_arm2": ImplicitActuatorCfg(
+                joint_names_expr=["panda_joint[5-7]"],
+                stiffness=0.0,
+                damping=0.0,
+                friction=0.0,
+                armature=0.0,
+                joint_effort_limit=12,
+                joint_velocity_limit=149.5,
+            ),
+            "panda_hand": ImplicitActuatorCfg(
+                joint_names_expr=["panda_finger_joint[1-2]"],
+                joint_effort_limit=40.0,
+                joint_velocity_limit=0.04,
+                stiffness=7500.0,
+                damping=173.0,
+                friction=0.1,
+                armature=0.0,
+            ),
+        },
+    )
+    fixed_asset: ArticulationCfg | None = None
+    held_asset: RigidObjectCfg | None = None
+    light = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+    )
+
+
+@configclass
 class AssemblyEnvCfg(DirectRLEnvCfg):
     decimation = 8
     action_space = 6
@@ -98,7 +193,7 @@ class AssemblyEnvCfg(DirectRLEnvCfg):
         "delta_pos",
     ]
 
-    task_name: str = "insertion"  # peg_insertion, gear_meshing, nut_threading
+    task_name: str = "insertion"
     tasks: dict = {"insertion": Insertion()}
     obs_rand: ObsRandCfg = ObsRandCfg()
     ctrl: CtrlCfg = CtrlCfg()
@@ -118,6 +213,7 @@ class AssemblyEnvCfg(DirectRLEnvCfg):
             friction_correlation_distance=0.00625,
             gpu_max_rigid_contact_count=2**23,
             gpu_max_rigid_patch_count=2**23,
+            gpu_collision_stack_size=2**27,
             gpu_max_num_partitions=1,  # Important for stable simulation.
         ),
         physics_material=RigidBodyMaterialCfg(
@@ -126,77 +222,7 @@ class AssemblyEnvCfg(DirectRLEnvCfg):
         ),
     )
 
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=128, env_spacing=2.0)
-
-    robot = ArticulationCfg(
-        prim_path="/World/envs/env_.*/Robot",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ASSET_DIR}/franka_mimic.usd",
-            # usd_path=f'{ASSET_DIR}/automate_franka.usd',
-            activate_contact_sensors=False,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=True,
-                max_depenetration_velocity=5.0,
-                linear_damping=0.0,
-                angular_damping=0.0,
-                max_linear_velocity=1000.0,
-                max_angular_velocity=3666.0,
-                enable_gyroscopic_forces=True,
-                solver_position_iteration_count=192,
-                solver_velocity_iteration_count=1,
-                max_contact_impulse=1e32,
-            ),
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                enabled_self_collisions=False,
-                solver_position_iteration_count=192,
-                solver_velocity_iteration_count=1,
-            ),
-            collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(
-            joint_pos={
-                "panda_joint1": 0.00871,
-                "panda_joint2": -0.10368,
-                "panda_joint3": -0.00794,
-                "panda_joint4": -1.49139,
-                "panda_joint5": -0.00083,
-                "panda_joint6": 1.38774,
-                "panda_joint7": 0.0,
-                "panda_finger_joint2": 0.04,
-            },
-            pos=(0.0, 0.0, 0.0),
-            rot=(0.0, 0.0, 0.0, 1.0),
-        ),
-        actuators={
-            "panda_arm1": ImplicitActuatorCfg(
-                joint_names_expr=["panda_joint[1-4]"],
-                stiffness=0.0,
-                damping=0.0,
-                friction=0.0,
-                armature=0.0,
-                effort_limit=87,
-                velocity_limit=124.6,
-            ),
-            "panda_arm2": ImplicitActuatorCfg(
-                joint_names_expr=["panda_joint[5-7]"],
-                stiffness=0.0,
-                damping=0.0,
-                friction=0.0,
-                armature=0.0,
-                effort_limit=12,
-                velocity_limit=149.5,
-            ),
-            "panda_hand": ImplicitActuatorCfg(
-                joint_names_expr=["panda_finger_joint[1-2]"],
-                effort_limit=40.0,
-                velocity_limit=0.04,
-                stiffness=7500.0,
-                damping=173.0,
-                friction=0.1,
-                armature=0.0,
-            ),
-        },
-    )
+    scene: AssemblySceneCfg = AssemblySceneCfg(num_envs=128, env_spacing=2.0)
     # contact_sensor: ContactSensorCfg = ContactSensorCfg(
-    #     prim_path="/World/envs/env_.*/Robot/.*", update_period=0.0, history_length=1, debug_vis=True
+    #     prim_path="{ENV_REGEX_NS}/Robot/[^/]*", update_period=0.0, history_length=1, debug_vis=True
     # )

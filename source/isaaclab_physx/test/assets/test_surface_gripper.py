@@ -37,7 +37,7 @@ from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 # from isaacsim.robot.surface_gripper import GripperView
 
-_RUNNING_CI = (
+_RUNNING_CI = bool(
     os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("GITLAB_CI")
 )
 
@@ -65,7 +65,7 @@ def generate_surface_gripper_cfgs(
     articulation_cfg = ArticulationCfg(
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Tests/SurfaceGripper/test_gripper.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=kinematic_enabled),
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0.0, 0.0, 0.5),
@@ -117,8 +117,8 @@ def generate_surface_gripper(
     # Create Top-level Xforms, one for each articulation
     for i in range(num_surface_grippers):
         sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
-    articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_.*/Robot"))
-    surface_gripper_cfg = surface_gripper_cfg.replace(prim_path="/World/Env_.*/Robot/Gripper/SurfaceGripper")
+    articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_[^/]*/Robot"))
+    surface_gripper_cfg = surface_gripper_cfg.replace(prim_path="/World/Env_[^/]*/Robot/Gripper/SurfaceGripper")
     surface_gripper = SurfaceGripper(surface_gripper_cfg)
 
     return surface_gripper, articulation, translations
@@ -126,12 +126,12 @@ def generate_surface_gripper(
 
 def generate_grippable_object(sim, num_grippable_objects: int):
     object_cfg = RigidObjectCfg(
-        prim_path="/World/Env_.*/Object",
+        prim_path="/World/Env_[^/]*/Object",
         spawn=sim_utils.CuboidCfg(
             size=(1.0, 1.0, 1.0),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
@@ -168,13 +168,18 @@ def sim(request):
     _RUNNING_CI,
     reason="Isaac Sim SurfaceGripperView initialization can deadlock in CI; keep CUDA fail-fast coverage only.",
 )
-def test_initialization(sim, num_articulations, device, add_ground_plane) -> None:
-    """Test initialization for articulation with a surface gripper.
+def test_close_and_open_command(sim, num_articulations, device, add_ground_plane) -> None:
+    """Test that the close/open commands actually drive the surface gripper status.
 
-    This test verifies that:
-    1. The surface gripper is initialized correctly.
-    2. The command and state buffers have the correct shapes.
-    3. The command and state are initialized to the correct values.
+    This is a regression test for the command plumbing: a single ``close`` command must move the
+    gripper out of the *open* state into a *closing* (or *closed*) state, and a subsequent ``open``
+    command must bring it back to the *open* state.
+
+    .. note::
+        The shared ``test_gripper.usd`` does not contain a separate grippable rigid body (the cube
+        at the attachment point is a link of the gripper articulation), so the gripper cannot latch
+        onto anything and will not reach the *closed* state. We therefore only assert that the
+        command takes effect (the status leaves *open*), which is the deterministic behavior.
 
     Args:
         num_articulations: The number of articulations to initialize.
@@ -192,22 +197,36 @@ def test_initialization(sim, num_articulations, device, add_ground_plane) -> Non
 
     assert articulation.is_initialized
     assert surface_gripper.is_initialized
-
-    # Check that the command and state buffers have the correct shapes
     assert surface_gripper.command.shape == (num_articulations,)
     assert surface_gripper.state.shape == (num_articulations,)
+    # after a reset the gripper is idle (0.0) and open (-1.0)
+    assert torch.all(wp.to_torch(surface_gripper.command) == 0.0)
+    assert torch.all(wp.to_torch(surface_gripper.state) == -1.0)
 
-    # Check that the command and state are initialized to the correct values
-    assert wp.to_torch(surface_gripper.command).item() == 0.0  # Idle command after a reset
-    assert wp.to_torch(surface_gripper.state).item() == -1.0  # Open state after a reset
-
-    # Simulate physics
-    for _ in range(10):
-        # perform rendering
+    # send a single close command (the action term is edge-triggered, so commands are sent once)
+    close_cmd = wp.array([1.0] * num_articulations, dtype=wp.float32, device=device)
+    surface_gripper.set_grippers_command_index(close_cmd)
+    surface_gripper.write_data_to_sim()
+    # step the simulation so the gripper reacts to the command
+    for _ in range(3):
         sim.step()
-        # update articulation
         articulation.update(sim.cfg.dt)
         surface_gripper.update(sim.cfg.dt)
+    # the close command must take effect: status is "closing" (0.0) or "closed" (1.0), never "open" (-1.0)
+    state_after_close = wp.to_torch(surface_gripper.state)
+    assert torch.all(state_after_close >= 0.0), f"close command had no effect, state={state_after_close.tolist()}"
+
+    # send a single open command; the gripper must return to the open state
+    open_cmd = wp.array([-1.0] * num_articulations, dtype=wp.float32, device=device)
+    surface_gripper.set_grippers_command_index(open_cmd)
+    surface_gripper.write_data_to_sim()
+    for _ in range(3):
+        sim.step()
+        articulation.update(sim.cfg.dt)
+        surface_gripper.update(sim.cfg.dt)
+    # the open command must take effect: status is back to "open" (-1.0)
+    state_after_open = wp.to_torch(surface_gripper.state)
+    assert torch.all(state_after_open == -1.0), f"open command had no effect, state={state_after_open.tolist()}"
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
@@ -223,7 +242,7 @@ def test_raise_error_if_not_cpu(sim, device, add_ground_plane) -> None:
         surface_gripper_cfg, articulation_cfg, num_articulations, device
     )
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="only supported on CPU"):
         sim.reset()
 
 

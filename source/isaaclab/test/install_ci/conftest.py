@@ -41,6 +41,18 @@ def isaaclab_root() -> Path:
     return find_isaaclab_root()
 
 
+@pytest.fixture(scope="session")
+def uv_overrides() -> Path:
+    """Path to the self-contained uv overrides used by wheel installation tests."""
+    return Path(__file__).resolve().parent / "uv_pip" / "uv-overrides.txt"
+
+
+@pytest.fixture(scope="session")
+def cartpole_smoke_script() -> Path:
+    """Path to the shared Cartpole smoke probe executed inside installed environments."""
+    return Path(__file__).resolve().parent / "misc" / "cartpole_training_smoke.py"
+
+
 @pytest.fixture
 def tmp_venv(tmp_path: Path):
     """Create a temporary Python virtual-environment and tear it down after the test.
@@ -100,6 +112,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 
 def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line("markers", "smoke: tests for core installation, task, and RL functionality")
     config.addinivalue_line("markers", "bug: bug-regression tests (use bug id as argument)")
     config.addinivalue_line("markers", "gpu: tests that require a GPU")
     config.addinivalue_line("markers", "docker: tests that only run inside Docker")
@@ -110,6 +123,9 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "install_path_cli: tests that exercise the ./isaaclab.sh -i install path")
     config.addinivalue_line(
         "markers", "install_path_uv_pip: tests that exercise the uv pip install <wheel> install path"
+    )
+    config.addinivalue_line(
+        "markers", "install_path_uv_run: tests that exercise the uv run (committed lockfile) install path"
     )
     config.addinivalue_line("markers", "timeout: per-test timeout in seconds")
 

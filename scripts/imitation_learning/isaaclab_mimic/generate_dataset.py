@@ -12,6 +12,7 @@ Main data generation script.
 import argparse
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils.string import list_intersection, string_to_callable
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Generate demonstrations for Isaac Lab environments.")
@@ -44,15 +45,32 @@ parser.add_argument(
     default=False,
     help="Disables dataset compression",
 )
+parser.add_argument(
+    "--external_callback",
+    default=None,
+    help="Fully qualified path to an externally defined callback.",
+)
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
-args_cli = parser.parse_args()
+args_cli, remaining_args = parser.parse_known_args()
 
-# launch the simulator
-app_launcher = AppLauncher(args_cli)
+# Mimic environments may use camera observations or an RTX renderer. Request
+# rendering support here so callers do not need a legacy CLI flag.
+app_launcher = AppLauncher(args_cli, enable_cameras=True)
 simulation_app = app_launcher.app
+
+# Call an external callback if requested.
+remaining_args_env_registration = None
+if args_cli.external_callback:
+    external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
+    remaining_args_env_registration = external_callback_function()
+
+# Error on unrecognized arguments.
+unrecognized_args = list_intersection(remaining_args, remaining_args_env_registration)
+if unrecognized_args:
+    parser.error(f"unrecognized arguments: {' '.join(unrecognized_args)}")
 
 """Rest everything follows."""
 
@@ -70,8 +88,6 @@ from isaaclab.envs import ManagerBasedRLMimicEnv
 import isaaclab_mimic.envs  # noqa: F401
 from isaaclab_mimic.datagen.generation import env_loop, setup_async_generation, setup_env_config
 from isaaclab_mimic.datagen.utils import get_env_name_from_dataset, setup_output_paths
-
-import isaaclab_tasks  # noqa: F401
 
 # import logger
 logger = logging.getLogger(__name__)

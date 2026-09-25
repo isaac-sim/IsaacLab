@@ -10,7 +10,7 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from isaaclab.renderers.renderer_cfg import RendererCfg
+    from ..renderers.renderer_cfg import RendererCfg
 
 logger = logging.getLogger(__name__)
 
@@ -73,13 +73,16 @@ class FactoryBase:
     def _get_backend(cls, *args, **kwargs) -> str:
         """Return active backend name for this factory.
 
-        Falls back to ``"physx"`` for backward compatibility when no simulation
-        context is initialized yet.
+        Falls back to ``"newton"`` when no simulation context is initialized yet.
         """
         # Import lazily to avoid import cycles at module load time.
-        from isaaclab.sim.simulation_context import SimulationContext
+        from ..sim.simulation_context import SimulationContext
 
-        manager_name = SimulationContext.instance().physics_manager.__name__.lower()
+        sim_context = SimulationContext.instance()
+        if sim_context is None:
+            return "newton"
+
+        manager_name = sim_context.physics_manager.__name__.lower()
         if manager_name.startswith("newton"):
             return "newton"
         if manager_name.startswith("ovphysx"):
@@ -90,12 +93,24 @@ class FactoryBase:
             raise ValueError(f"Unknown physics manager: {manager_name}")
 
     @classmethod
+    def _get_package_name(cls, backend: str) -> str:
+        """Return the package that hosts a given backend key."""
+        return "isaaclab_ov" if backend == "ovphysx" else f"isaaclab_{backend}"
+
+    @classmethod
     def _get_module_name(cls, backend: str) -> str:
         """Return module path that hosts backend implementation for a given backend key."""
-        return f"isaaclab_{backend}.{cls._module_subpath}"
+        return f"{cls._get_package_name(backend)}.{cls._module_subpath}"
 
-    def __new__(cls, *args, **kwargs):
-        """Create a new instance of an implementation based on the backend."""
+    @classmethod
+    def resolve_class(cls, *args, **kwargs) -> type:
+        """Resolve the concrete backend implementation class without instantiating it.
+
+        Selects the backend via :meth:`_get_backend`, lazily importing and registering the
+        implementation class on first use, and returns it. Takes the same arguments as the
+        constructor (the backend selector reads from them). Useful for querying class-level
+        behavior (e.g. capability classmethods) before a sim/instance exists.
+        """
         backend = cls._get_backend(*args, **kwargs)
 
         if cls == FactoryBase:
@@ -104,13 +119,11 @@ class FactoryBase:
         # If backend is not in registry, try to import it and register the class.
         # This is done to only import the module once.
         if backend not in cls._registry:
-            # Construct the module name from the backend and the determined subpath.
             module_name = cls._get_module_name(backend)
             try:
                 module = importlib.import_module(module_name)
                 class_name = getattr(cls, "_backend_class_names", {}).get(backend, cls.__name__)
                 module_class = getattr(module, class_name)
-                # Manually register the class
                 cls.register(backend, module_class)
 
             except ImportError as e:
@@ -130,7 +143,11 @@ class FactoryBase:
                 f"A module was found at '{module_name}', but it did not contain a class with the name {class_name!r}.\n"
                 f"Currently available backends: {available}."
             ) from None
-        # Return an instance of the chosen class.
+        return impl
+
+    def __new__(cls, *args, **kwargs):
+        """Create a new instance of an implementation based on the backend."""
+        impl = cls.resolve_class(*args, **kwargs)
         return impl(*args, **kwargs)
 
     @classmethod

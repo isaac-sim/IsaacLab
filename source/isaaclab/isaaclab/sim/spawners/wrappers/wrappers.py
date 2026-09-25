@@ -11,7 +11,8 @@ from typing import TYPE_CHECKING
 from pxr import Usd
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.spawners.from_files import UsdFileCfg
+
+from ..from_files import UsdFileCfg
 
 if TYPE_CHECKING:
     from . import wrappers_cfg
@@ -51,14 +52,19 @@ def spawn_multi_asset(
             )
         asset_prim_paths = list(cfg.spawn_paths)
     else:
-        split_path = prim_path.split("/")
+        # split on separators only: a segment wildcard is written as a character class whose
+        # text contains a '/' that is not a separator.
+        split_path = sim_utils.split_path_expr(prim_path)
         prefix_path, base_name = "/".join(split_path[:-1]), split_path[-1]
-        if ".*" not in base_name:
+        # the base name carries the index slot as a segment wildcard, in any of its spellings.
+        # Normalizing to glob collapses them to the single '*' that the index replaces.
+        base_glob = sim_utils.path_expr_to_glob(base_name)
+        if "*" not in base_glob:
             raise ValueError(
-                f" The base name '{base_name}' in the prim path '{prim_path}' must contain '.*' to indicate"
-                " the path each individual multiple-asset to be spawned."
+                f" The base name '{base_name}' in the prim path '{prim_path}' must contain a segment wildcard"
+                " (e.g. '.*' or '[^/]*') to indicate the path each individual multiple-asset to be spawned."
             )
-        asset_prim_paths = [f"{prefix_path}/{base_name.replace('.*', str(i))}" for i in range(len(cfg.assets_cfg))]
+        asset_prim_paths = [f"{prefix_path}/{base_glob.replace('*', str(i))}" for i in range(len(cfg.assets_cfg))]
 
     if cfg.random_choice:
         logger.warning(
@@ -70,7 +76,6 @@ def spawn_multi_asset(
     for asset_prim_path, asset_cfg in zip(asset_prim_paths, cfg.assets_cfg):
         if asset_prim_path is None:
             continue
-        # append semantic tags if specified
         if cfg.semantic_tags is not None:
             if asset_cfg.semantic_tags is None:
                 asset_cfg.semantic_tags = cfg.semantic_tags

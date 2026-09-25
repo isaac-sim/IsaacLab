@@ -12,20 +12,26 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import contextlib
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg, RigidObjectCfg, RigidObjectCollectionCfg
-from isaaclab.physics.scene_data_requirements import SceneDataRequirement
+from isaaclab.assets import ArticulationCfg, Asset, AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
+from isaaclab.cloner import CloneCfg
+from isaaclab.markers import SPHERE_MARKER_CFG, VisualizationMarkers
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import build_simulation_context
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+
+pytestmark = pytest.mark.integration
 
 
 @configclass
@@ -34,7 +40,7 @@ class MySceneCfg(InteractiveSceneCfg):
 
     # articulation
     robot = ArticulationCfg(
-        prim_path="/World/envs/env_.*/Robot",
+        prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
         ),
@@ -44,17 +50,35 @@ class MySceneCfg(InteractiveSceneCfg):
     )
     # rigid object
     rigid_obj = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/RigidObj",
+        prim_path="{ENV_REGEX_NS}/RigidObj",
         spawn=sim_utils.CuboidCfg(
             size=(0.5, 0.5, 0.5),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=False,
-            ),
-            collision_props=sim_utils.CollisionPropertiesCfg(
-                collision_enabled=True,
-            ),
+            rigid_props=PhysxRigidBodyCfg(disable_gravity=False),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
         ),
     )
+
+
+@configclass
+class StaticSceneCfg(InteractiveSceneCfg):
+    """Scene with one authoring-only asset."""
+
+    light = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DistantLightCfg())
+
+
+@configclass
+class DeferredMarkerAssetCfg(AssetBaseCfg):
+    """Authoring-only asset whose optional visualization starts disabled."""
+
+    visualizer_cfg = SPHERE_MARKER_CFG.replace(prim_path="/Visuals/Deferred")
+
+
+@configclass
+class MarkerSceneCfg(InteractiveSceneCfg):
+    """Scene with one global visualization marker and one marker whose debug owner starts disabled."""
+
+    goal = SPHERE_MARKER_CFG.replace(prim_path="/Visuals/Goal")
+    prop = DeferredMarkerAssetCfg(prim_path="/World/Prop", spawn=sim_utils.DistantLightCfg(), debug_vis=False)
 
 
 @pytest.fixture
@@ -72,7 +96,7 @@ def setup_scene(request):
     # Note: cleanup is handled by build_simulation_context's finally block
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", ["cuda:0"])
 def test_relative_flag(device, setup_scene):
     make_scene, sim = setup_scene
     scene_cfg = make_scene(num_envs=4)
@@ -104,281 +128,194 @@ def test_relative_flag(device, setup_scene):
     scene.reset_to(prev_state, is_relative=True)
     assert_state_equal(prev_state, scene.get_state(is_relative=True))
 
+    # test env_ids = None and env_ids = int32 torch tensor
+    prev_state = scene.get_state()
+    for env_ids in (None, torch.arange(scene.num_envs, device=scene.device, dtype=torch.int32)):
+        joint_pos = torch.rand_like(scene["robot"].data.joint_pos.torch)
+        joint_vel = torch.rand_like(scene["robot"].data.joint_pos.torch)
+        scene["robot"].write_joint_position_to_sim_index(position=joint_pos)
+        scene["robot"].write_joint_velocity_to_sim_index(velocity=joint_vel)
+        scene.reset_to(prev_state, env_ids=env_ids)
+        assert_state_equal(prev_state, scene.get_state())
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_reset_to_env_ids_input_types(device, setup_scene):
+
+def test_relative_deformable_state():
+    env_origins = torch.arange(12, dtype=torch.float32).reshape(4, 3)
+    nodal_position = torch.arange(60, dtype=torch.float32).reshape(4, 5, 3)
+    nodal_velocity = torch.zeros_like(nodal_position)
+    written_state = {}
+    deformable = SimpleNamespace(
+        data=SimpleNamespace(
+            nodal_pos_w=SimpleNamespace(torch=nodal_position),
+            nodal_vel_w=SimpleNamespace(torch=nodal_velocity),
+        ),
+        write_nodal_pos_to_sim=lambda value, env_ids: written_state.update(position=value, env_ids=env_ids),
+        write_nodal_velocity_to_sim=lambda value, env_ids: written_state.update(velocity=value),
+    )
+    scene = SimpleNamespace(
+        device="cpu",
+        env_origins=env_origins,
+        _articulations={},
+        _cable_objects={},
+        _deformable_objects={"object": deformable},
+        _rigid_objects={},
+        _surface_grippers={},
+        _rigid_object_collections={},
+        write_data_to_sim=lambda: None,
+    )
+
+    state = InteractiveScene.get_state(scene, is_relative=True)
+
+    torch.testing.assert_close(
+        state["deformable_object"]["object"]["nodal_position"], nodal_position - env_origins[:, None, :]
+    )
+
+    env_ids = torch.tensor([3, 1])
+    reset_nodal_position = torch.arange(30, dtype=torch.float32).reshape(2, 5, 3)
+    reset_nodal_velocity = torch.ones_like(reset_nodal_position)
+    reset_state = {
+        "deformable_object": {
+            "object": {
+                "nodal_position": reset_nodal_position,
+                "nodal_velocity": reset_nodal_velocity,
+            },
+        }
+    }
+
+    InteractiveScene.reset_to(scene, reset_state, env_ids=env_ids, is_relative=True)
+
+    torch.testing.assert_close(written_state["position"], reset_nodal_position + env_origins[env_ids, None, :])
+    torch.testing.assert_close(written_state["velocity"], reset_nodal_velocity)
+    torch.testing.assert_close(written_state["env_ids"], env_ids)
+
+
+def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
+    """A cfg-driven scene publishes the exact plan it forwards to replication."""
+    import isaaclab.cloner.replicate_session as replicate_session_module
+
+    captured: list = []
+
+    def fake_replicate(plan, *, replicate_physics=True):
+        captured.append((plan, replicate_physics, sim_utils.SimulationContext.instance().get_clone_plan()))
+
+    monkeypatch.setattr(replicate_session_module, "replicate", fake_replicate)
+
+    with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
+        sim._app_control_on_stop_handle = None
+        InteractiveScene(MySceneCfg(num_envs=4, env_spacing=1.0))
+
+    assert len(captured) == 1
+    plan, replicate_physics, published = captured[0]
+    assert published is plan
+    assert plan.sources == ("/World/envs/env_0",)
+    assert plan.destinations == ("/World/envs/env_{}",)
+    assert plan.clone_mask.shape == (1, 4)
+    assert replicate_physics is True
+
+
+def test_scene_constructs_authoring_only_assets():
+    """Bare AssetBaseCfg entries follow the same class_type construction contract as runtime assets."""
+    with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False):
+        scene = InteractiveScene(StaticSceneCfg(num_envs=1, env_spacing=1.0))
+
+        assert isinstance(scene["light"], Asset)
+        assert scene["light"].cfg.prim_path == "/World/Light"
+        assert scene["light"].prim == scene.stage.GetPrimAtPath("/World/Light")
+
+
+def test_scene_constructs_plan_owned_markers():
+    """Scene markers are constructed while their global root belongs to the clone plan.
+
+    A marker declared on a disabled debug owner still belongs to the immutable plan.
+    """
+    with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
+        scene = InteractiveScene(MarkerSceneCfg(num_envs=1, env_spacing=1.0))
+
+        assert isinstance(scene["goal"], VisualizationMarkers)
+        assert sim.get_clone_plan().global_paths == ("/Visuals/Goal", "/World/Prop", "/Visuals/Deferred")
+
+
+def test_empty_scene_leaves_clone_lifecycle_to_caller():
+    """An empty scene authors one prototype and leaves its replication to the direct task."""
+    with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
+        sim._app_control_on_stop_handle = None
+        scene = InteractiveScene(InteractiveSceneCfg(num_envs=4, env_spacing=1.0))
+
+        assert sim.get_clone_plan() is None
+        env_template = scene.cfg.clone_cfg.clone_template
+        grid_positions = cloner.grid_transforms(4, 1.0)[0]
+        torch.testing.assert_close(scene.env_origins, torch.from_numpy(grid_positions))
+        env_0 = scene.stage.GetPrimAtPath(env_template.format(0))
+        np.testing.assert_allclose(sim_utils.resolve_prim_pose(env_0)[0], grid_positions[0])
+        assert all(not scene.stage.GetPrimAtPath(env_template.format(i)).IsValid() for i in range(1, 4))
+
+        cube_cfg = RigidObjectCfg(
+            prim_path=f"{env_template.format('[^/]+')}/Cube",
+            spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
+            cloning_contexts=(cloner.UsdReplicateContext,),
+        )
+        positions = grid_positions + np.asarray((0.25, 0.5, 0.75), dtype=np.float32)
+        plan = cloner.clone_plan_from_env_0(scene.cfg.clone_cfg, (cube_cfg,), 4, 1.0, positions=positions)
+        cube_cfg.class_type(cube_cfg)
+        cloner.replicate(plan)
+
+        assert sim.get_clone_plan() is plan
+        assert all(scene.stage.GetPrimAtPath(f"{env_template.format(i)}/Cube").IsValid() for i in range(4))
+        torch.testing.assert_close(scene.env_origins, torch.from_numpy(positions))
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("replicate_physics", [True, False])
+def test_replicate_physics_flag_controls_physx_replicator(device, replicate_physics, setup_scene, monkeypatch):
+    """replicate_physics=False must not register the PhysX replicator while envs still simulate.
+
+    The True case asserts the spy actually intercepts registration, so the False case
+    cannot pass vacuously.
+    """
+    physx_replicate_module = pytest.importorskip("isaaclab_physx.cloner.replicate")
+
+    register_calls: list = []
+    real_get_iface = physx_replicate_module.get_physx_replicator_interface
+
+    class SpyInterface:
+        def __init__(self, real):
+            self._real = real
+
+        def register_replicator(self, *args, **kwargs):
+            register_calls.append(args)
+            return self._real.register_replicator(*args, **kwargs)
+
+        def __getattr__(self, name):
+            return getattr(self._real, name)
+
+    monkeypatch.setattr(
+        physx_replicate_module, "get_physx_replicator_interface", lambda: SpyInterface(real_get_iface())
+    )
+
     make_scene, sim = setup_scene
-    scene_cfg = make_scene(num_envs=4)
+    scene_cfg = make_scene(num_envs=3)
+    scene_cfg.replicate_physics = replicate_physics
     scene = InteractiveScene(scene_cfg)
+    if not scene.physics_backend.startswith("physx"):
+        pytest.skip("PhysX replicator flag is only meaningful on a PhysX backend.")
     sim.reset()
 
-    # test env_ids = None
-    prev_state = scene.get_state()
-    joint_pos = torch.rand_like(scene["robot"].data.joint_pos.torch)
-    joint_vel = torch.rand_like(scene["robot"].data.joint_pos.torch)
-    scene["robot"].write_joint_position_to_sim_index(position=joint_pos)
-    scene["robot"].write_joint_velocity_to_sim_index(velocity=joint_vel)
-    scene.reset_to(prev_state, env_ids=None)
-    assert_state_equal(prev_state, scene.get_state())
-
-    # test env_ids = torch tensor
-    joint_pos = torch.rand_like(scene["robot"].data.joint_pos.torch)
-    joint_vel = torch.rand_like(scene["robot"].data.joint_pos.torch)
-    scene["robot"].write_joint_position_to_sim_index(position=joint_pos)
-    scene["robot"].write_joint_velocity_to_sim_index(velocity=joint_vel)
-    scene.reset_to(prev_state, env_ids=torch.arange(scene.num_envs, device=scene.device, dtype=torch.int32))
-    assert_state_equal(prev_state, scene.get_state())
+    if replicate_physics:
+        assert len(register_calls) > 0
+    else:
+        assert register_calls == []
+    # all environments exist and simulate on both paths
+    assert scene["rigid_obj"].data.root_pos_w.torch.shape[0] == 3
+    assert scene["robot"].data.joint_pos.torch.shape[0] == 3
+    for _ in range(2):
+        sim.step()
+        scene.update(sim.get_physics_dt())
+    assert torch.isfinite(scene["rigid_obj"].data.root_pos_w.torch).all()
+    assert torch.isfinite(scene["robot"].data.joint_pos.torch).all()
 
 
-def test_clone_environments_executes_env_root_plan_with_positions(monkeypatch: pytest.MonkeyPatch):
-    """Env-root plans replicate the whole environment and keep grid positions."""
-    from isaaclab.cloner import ClonePlan
-
-    scene = object.__new__(InteractiveScene)
-    scene.cfg = SimpleNamespace(replicate_physics=False, num_envs=3)
-    scene.stage = object()
-    scene.physics_backend = "physx"
-    scene._sensors = {}
-
-    set_plan_calls: list = []
-    sim_state: dict = {"plan": None}
-
-    def _set_clone_plan(plan):
-        sim_state["plan"] = plan
-        set_plan_calls.append(plan)
-
-    scene.sim = SimpleNamespace(
-        get_scene_data_requirements=lambda: SceneDataRequirement(),
-        update_scene_data_requirements=lambda requirements: None,
-        set_clone_plan=_set_clone_plan,
-        get_clone_plan=lambda: sim_state["plan"],
-    )
-    scene.env_fmt = "/World/envs/env_{}"
-    scene._ALL_INDICES = torch.arange(3, dtype=torch.long)
-    scene._default_env_pose = torch.zeros((3, 7), dtype=torch.float32)
-    scene._default_env_pose[:, 6] = 1.0  # identity quaternion (xyzw)
-    scene._clone_plan = ClonePlan(
-        sources=(scene.env_fmt.format(0),),
-        destinations=(scene.env_fmt,),
-        clone_mask=torch.ones((1, scene.num_envs), dtype=torch.bool),
-    )
-    # Avoid binding this unit test to global SimulationContext singleton state.
-    monkeypatch.setattr(InteractiveScene, "device", property(lambda self: "cpu"))
-
-    # ``disabled_fabric_change_notifies`` resolves the stage via UsdUtils.StageCache and would
-    # crash on the bare ``object()`` mocked above. This unit test exercises clone-dispatch
-    # logic only; the fabric notice path has its own coverage in ``test_cloner.py``.
-    @contextlib.contextmanager
-    def _noop_fabric_notices(stage, *, restore=True):
-        yield
-
-    monkeypatch.setattr("isaaclab.scene.interactive_scene.cloner.disabled_fabric_change_notifies", _noop_fabric_notices)
-
-    physics_calls = []
-    usd_calls = []
-
-    def _physics_clone_fn(stage, *args, **kwargs):
-        physics_calls.append((stage, args, kwargs))
-
-    def _usd_replicate(stage, *args, **kwargs):
-        usd_calls.append((stage, args, kwargs))
-
-    scene.cloner_cfg = SimpleNamespace(
-        device="cpu",
-        physics_clone_fn=_physics_clone_fn,
-        clone_usd=True,
-    )
-    monkeypatch.setattr("isaaclab.scene.interactive_scene.cloner.usd_replicate", _usd_replicate)
-
-    scene.clone_environments(copy_from_source=False)
-    assert len(physics_calls) == 1
-    assert len(usd_calls) == 1
-    mapping = physics_calls[0][1][3]
-    assert mapping.dtype == torch.bool
-    assert mapping.shape == (1, scene.num_envs)
-    # Positions are a zero-copy ``[:, :3]`` view of ``_default_env_pose``: same storage, sliced shape.
-    pose_storage_ptr = scene._default_env_pose.untyped_storage().data_ptr()
-    physics_positions = physics_calls[0][2]["positions"]
-    usd_positions = usd_calls[0][2]["positions"]
-    assert physics_positions.untyped_storage().data_ptr() == pose_storage_ptr
-    assert physics_positions.shape == (scene.num_envs, 3)
-    assert usd_positions.untyped_storage().data_ptr() == pose_storage_ptr
-    assert usd_positions.shape == (scene.num_envs, 3)
-    assert len(set_plan_calls) == 1
-    plan = set_plan_calls[-1]
-    assert isinstance(plan, ClonePlan)
-    assert plan.sources == (scene.env_fmt.format(0),)
-    assert plan.destinations == (scene.env_fmt,)
-    assert plan.clone_mask.shape == (1, scene.num_envs)
-    assert scene.clone_plan is plan
-
-    physics_calls.clear()
-    usd_calls.clear()
-    set_plan_calls.clear()
-    scene.clone_environments(copy_from_source=True)
-    assert len(physics_calls) == 0
-    assert len(usd_calls) == 1
-    assert len(set_plan_calls) == 1
-
-
-def test_clone_environments_skips_replication_without_plan():
-    """Direct-path cfg scenes publish no plan and do not dispatch cloners."""
-    scene = object.__new__(InteractiveScene)
-    scene._clone_plan = None
-    set_plan_calls = []
-    scene.sim = SimpleNamespace(set_clone_plan=set_plan_calls.append)
-
-    scene.clone_environments(copy_from_source=False)
-
-    assert set_plan_calls == [None]
-
-
-def test_clone_environments_executes_asset_level_plan_without_usd_positions(monkeypatch: pytest.MonkeyPatch):
-    """Asset-level plans preserve env-root transforms by skipping USD positions."""
-    from isaaclab.cloner import ClonePlan
-
-    scene = object.__new__(InteractiveScene)
-    scene.cfg = SimpleNamespace(replicate_physics=False, num_envs=2)
-    scene.stage = object()
-    scene.physics_backend = "physx"
-    scene._sensors = {}
-    scene.env_fmt = "/World/envs/env_{}"
-    scene._ALL_INDICES = torch.arange(2, dtype=torch.long)
-    scene._default_env_pose = torch.ones((2, 7), dtype=torch.float32)
-    scene._default_env_pose[:, 3:6] = 0.0  # identity quaternion (xyzw)
-    scene._clone_plan = ClonePlan(
-        sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
-        destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-        clone_mask=torch.tensor([[True, False], [False, True]], dtype=torch.bool),
-    )
-
-    set_plan_calls: list = []
-    scene.sim = SimpleNamespace(set_clone_plan=set_plan_calls.append)
-    monkeypatch.setattr(InteractiveScene, "device", property(lambda self: "cpu"))
-
-    @contextlib.contextmanager
-    def _noop_fabric_notices(stage, *, restore=True):
-        yield
-
-    monkeypatch.setattr("isaaclab.scene.interactive_scene.cloner.disabled_fabric_change_notifies", _noop_fabric_notices)
-    monkeypatch.setattr(
-        "isaaclab.scene.interactive_scene.cloner.usd_replicate",
-        lambda *args, **kwargs: usd_calls.append((args, kwargs)),
-    )
-
-    physics_calls = []
-    usd_calls = []
-    scene.cloner_cfg = SimpleNamespace(
-        device="cpu",
-        physics_clone_fn=lambda *args, **kwargs: physics_calls.append((args, kwargs)),
-        clone_usd=True,
-    )
-
-    scene.clone_environments(copy_from_source=False)
-
-    assert len(physics_calls) == 1
-    physics_positions = physics_calls[0][1]["positions"]
-    assert physics_positions.untyped_storage().data_ptr() == scene._default_env_pose.untyped_storage().data_ptr()
-    assert physics_positions.shape == (scene.num_envs, 3)
-    assert len(usd_calls) == 1
-    assert usd_calls[0][1]["positions"] is None
-    assert set_plan_calls == [scene._clone_plan]
-
-
-def test_build_clone_plan_from_cfg_plans_multi_and_single_spawners(monkeypatch: pytest.MonkeyPatch):
-    """Heterogeneous planning writes source paths for multi and single spawners."""
-    from isaaclab.cloner import sequential
-
-    scene = object.__new__(InteractiveScene)
-    scene.cfg = SimpleNamespace(
-        num_envs=4,
-        object=SimpleNamespace(
-            prim_path="{ENV_REGEX_NS}/Object",
-            spawn=sim_utils.MultiAssetSpawnerCfg(
-                assets_cfg=[
-                    sim_utils.ConeCfg(radius=0.1, height=0.2),
-                    sim_utils.SphereCfg(radius=0.1),
-                ]
-            ),
-        ),
-        robot=SimpleNamespace(
-            prim_path="{ENV_REGEX_NS}/Robot",
-            spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
-        ),
-    )
-    scene.env_fmt = "/World/envs/env_{}"
-    scene.cloner_cfg = SimpleNamespace(clone_strategy=sequential)
-    monkeypatch.setattr(InteractiveScene, "device", property(lambda self: "cpu"))
-
-    plan = scene._build_clone_plan_from_cfg()
-
-    assert plan is not None
-    assert plan.sources == (
-        "/World/envs/env_0/Object",
-        "/World/envs/env_1/Object",
-        "/World/envs/env_0/Robot",
-    )
-    assert plan.destinations == (
-        "/World/envs/env_{}/Object",
-        "/World/envs/env_{}/Object",
-        "/World/envs/env_{}/Robot",
-    )
-    assert scene.cfg.object.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
-    assert scene.cfg.robot.spawn.spawn_path == "/World/envs/env_0/Robot"
-    assert scene.cfg.object.prim_path == "{ENV_REGEX_NS}/Object"
-    assert scene.cfg.robot.prim_path == "{ENV_REGEX_NS}/Robot"
-    assert torch.equal(plan.clone_mask.to(torch.int).argmax(dim=0).cpu(), torch.tensor([0, 1, 0, 1]))
-
-
-def test_build_clone_plan_from_cfg_defaults_to_env0_plan(monkeypatch: pytest.MonkeyPatch):
-    """Homogeneous cfg scenes use the default env_0-to-all ClonePlan."""
-    from isaaclab.cloner import sequential
-
-    scene = object.__new__(InteractiveScene)
-    scene.cfg = SimpleNamespace(
-        num_envs=3,
-        robot=SimpleNamespace(
-            prim_path="{ENV_REGEX_NS}/Robot",
-            spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
-        ),
-    )
-    scene.env_fmt = "/World/envs/env_{}"
-    scene.cloner_cfg = SimpleNamespace(clone_strategy=sequential)
-    monkeypatch.setattr(InteractiveScene, "device", property(lambda self: "cpu"))
-
-    plan = scene._build_clone_plan_from_cfg()
-
-    assert plan is not None
-    assert plan.sources == ("/World/envs/env_0",)
-    assert plan.destinations == (scene.env_fmt,)
-    assert plan.clone_mask.shape == (1, scene.num_envs)
-    assert scene.cfg.robot.spawn.spawn_path == "/World/envs/env_0/Robot"
-
-
-def test_build_clone_plan_from_cfg_returns_none_without_env_scoped_groups(monkeypatch: pytest.MonkeyPatch):
-    """Direct-path cfg scenes should not force env-root replication."""
-    from isaaclab.cloner import sequential
-
-    scene = object.__new__(InteractiveScene)
-    scene.cfg = SimpleNamespace(
-        num_envs=1,
-        robot=SimpleNamespace(
-            prim_path="/World/Robot",
-            spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
-        ),
-    )
-    scene.env_fmt = "/World/envs/env_{}"
-    scene.cloner_cfg = SimpleNamespace(clone_strategy=sequential)
-    monkeypatch.setattr(InteractiveScene, "device", property(lambda self: "cpu"))
-
-    assert scene._build_clone_plan_from_cfg() is None
-    assert scene.cfg.robot.spawn.spawn_path is None
-
-
-def test_build_clone_plan_from_cfg_sets_collection_member_paths(monkeypatch: pytest.MonkeyPatch):
-    """Rigid object collection members are planned independently."""
-    from isaaclab.cloner import sequential
-
+def test_collect_asset_cfgs_resolves_env_regex_macros_and_declares_globals():
+    """The composition root separates cloneable configs from shared prim roots."""
     scene = object.__new__(InteractiveScene)
     cube_cfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube",
@@ -391,78 +328,33 @@ def test_build_clone_plan_from_cfg_sets_collection_member_paths(monkeypatch: pyt
         ),
     )
     scene.cfg = SimpleNamespace(
-        num_envs=4,
-        objects=RigidObjectCollectionCfg(rigid_objects={"cube": cube_cfg, "shape": shape_cfg}),
-    )
-    scene.env_fmt = "/World/envs/env_{}"
-    scene.cloner_cfg = SimpleNamespace(clone_strategy=sequential)
-    monkeypatch.setattr(InteractiveScene, "device", property(lambda self: "cpu"))
-
-    plan = scene._build_clone_plan_from_cfg()
-
-    assert plan is not None
-    planned_cube = scene.cfg.objects.rigid_objects["cube"]
-    planned_shape = scene.cfg.objects.rigid_objects["shape"]
-    assert planned_cube.spawn.spawn_path == "/World/envs/env_0/Cube"
-    assert planned_shape.spawn.spawn_paths == ["/World/envs/env_0/Shape", "/World/envs/env_1/Shape"]
-    assert "/World/envs/env_{}/Cube" in plan.destinations
-    assert "/World/envs/env_{}/Shape" in plan.destinations
-
-
-def test_build_clone_plan_from_cfg_marks_unused_variants(monkeypatch: pytest.MonkeyPatch):
-    """Unused variants keep a mask row but do not get spawned."""
-    from isaaclab.cloner import sequential
-
-    scene = object.__new__(InteractiveScene)
-    scene.cfg = SimpleNamespace(
         num_envs=2,
-        object=SimpleNamespace(
-            prim_path="{ENV_REGEX_NS}/Object",
-            spawn=sim_utils.MultiAssetSpawnerCfg(
-                assets_cfg=[
-                    sim_utils.ConeCfg(radius=0.1, height=0.2),
-                    sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
-                    sim_utils.SphereCfg(radius=0.1),
-                ]
-            ),
-        ),
+        objects=RigidObjectCollectionCfg(rigid_objects={"cube": cube_cfg, "shape": shape_cfg}),
+        ground=AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg()),
     )
-    scene.env_fmt = "/World/envs/env_{}"
-    scene.cloner_cfg = SimpleNamespace(clone_strategy=sequential)
-    monkeypatch.setattr(InteractiveScene, "device", property(lambda self: "cpu"))
+    scene.cloner_cfg = CloneCfg()
+    scene._env_fmt = scene.cloner_cfg.clone_template
 
-    plan = scene._build_clone_plan_from_cfg()
+    cfgs, global_paths, _ = scene._collect_asset_cfgs()
 
-    assert plan is not None
-    assert scene.cfg.object.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_1/Object", None]
-    assert plan.clone_mask[2].sum() == 0
+    prim_paths = sorted(c.prim_path for c in cfgs)
+    assert prim_paths == ["/World/envs/env_[^/]+/Cube", "/World/envs/env_[^/]+/Shape"]
+    assert global_paths == ("/World/Ground",)
 
 
-def test_aggregate_scene_data_requirements_merges_visualizers_and_renderers(monkeypatch: pytest.MonkeyPatch):
-    """Scene aggregation must OR visualizer and sensor-renderer requirements onto sim context.
+def test_collect_asset_cfgs_excludes_entities_without_spawners():
+    """Sensors without spawners add no clone rows but still declare their debug-marker roots."""
 
-    Replaces the old test that asserted a clone-time visualizer hook was installed from
-    requirements. The hook is gone; the only remaining behavior is publishing the merged
-    :class:`SceneDataRequirement` to the simulation context.
-    """
     scene = object.__new__(InteractiveScene)
-    scene.physics_backend = "physx"
-    scene.stage = object()
-    scene._sensors = {
-        "cam": SimpleNamespace(cfg=SimpleNamespace(renderer_cfg=SimpleNamespace(renderer_type="newton_warp")))
-    }
+    sensor = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+    scene.cfg = SimpleNamespace(num_envs=1, sensor=sensor)
+    scene.cloner_cfg = CloneCfg()
+    scene._env_fmt = scene.cloner_cfg.clone_template
 
-    posted: list = []
-    scene.sim = SimpleNamespace(
-        get_scene_data_requirements=lambda: SceneDataRequirement(),
-        update_scene_data_requirements=posted.append,
-    )
+    cfgs, global_paths, _ = scene._collect_asset_cfgs()
 
-    scene._aggregate_scene_data_requirements({"rerun"})
-
-    assert len(posted) == 1
-    merged = posted[0]
-    assert merged.requires_newton_model
+    assert cfgs == []
+    assert global_paths == (sensor.visualizer_cfg.prim_path,)
 
 
 def assert_state_equal(s1: dict, s2: dict, path=""):

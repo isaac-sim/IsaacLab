@@ -55,10 +55,14 @@ class LeeControllerBase:
         root_quat_exp = root_quat_w.unsqueeze(1).expand(num_envs, self.robot.num_bodies, 4)
         body_link_pos_delta = body_link_pos_w - root_pos_w.unsqueeze(1)
 
-        body_masses = self._to_torch(self.robot.root_view.get_masses())
+        # Use the public-order `data.body_mass`/`data.body_inertia` buffers (not the
+        # backend-order `root_view.get_masses()`/`get_inertias()`) so each body pairs
+        # correctly with the public-order `body_com_pos_b`/`body_com_quat_b`/
+        # `body_link_pos_w`/`body_link_quat_w` buffers above.
+        body_masses = self._to_torch(self.robot.data.body_mass)
         body_inv_mass_local = torch.where(body_masses > 0, 1.0 / body_masses, torch.zeros_like(body_masses))
         self.mass, self.robot_inertia, _ = aggregate_inertia_about_robot_com(
-            self._to_torch(self.robot.root_view.get_inertias()),
+            self._to_torch(self.robot.data.body_inertia),
             body_inv_mass_local,
             body_com_pos_b,
             body_com_quat_b,

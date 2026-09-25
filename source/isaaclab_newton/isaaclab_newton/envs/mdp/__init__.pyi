@@ -3,13 +3,31 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+__all__ = [
+    "RandomizePhysicsSceneGravity",
+    "RandomizeRigidBodyColliderOffsets",
+    "RandomizeRigidBodyMaterial",
+    "NewtonDifferentialInverseKinematicsAction",
+    "NewtonDifferentialInverseKinematicsActionCfg",
+    "NewtonInverseKinematicsAction",
+    "NewtonInverseKinematicsActionCfg",
+    "NewtonOperationalSpaceControllerAction",
+    "NewtonOperationalSpaceControllerActionCfg",
+    "randomize_visual_shape",
+]
+
+from .actions import (
+    NewtonDifferentialInverseKinematicsAction,
+    NewtonDifferentialInverseKinematicsActionCfg,
+    NewtonInverseKinematicsAction,
+    NewtonInverseKinematicsActionCfg,
+    NewtonOperationalSpaceControllerAction,
+    NewtonOperationalSpaceControllerActionCfg,
+)
+from .events import randomize_visual_shape
+
 from .physics_events import (
-    RandomizeActuatorGains,
-    RandomizeFixedTendonParameters,
-    RandomizeJointParameters,
     RandomizePhysicsSceneGravity,
     RandomizeRigidBodyColliderOffsets,
-    RandomizeRigidBodyCom,
     RandomizeRigidBodyMaterial,
-    RandomizeRigidBodyScale,
 )

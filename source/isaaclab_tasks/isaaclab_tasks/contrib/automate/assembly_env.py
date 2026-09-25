@@ -10,10 +10,8 @@ import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import DirectRLEnv
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.math import (
     axis_angle_from_quat,
     combine_frame_transforms,
@@ -40,9 +38,14 @@ class AssemblyEnv(DirectRLEnv):
         cfg.observation_space = sum([OBS_DIM_CFG[obs] for obs in cfg.obs_order])
         cfg.state_space = sum([STATE_DIM_CFG[state] for state in cfg.state_order])
         self.cfg_task = cfg.tasks[cfg.task_name]
+        cfg.scene.fixed_asset = self.cfg_task.fixed_asset
+        cfg.scene.held_asset = self.cfg_task.held_asset
 
         super().__init__(cfg, render_mode, **kwargs)
 
+        self._robot, self._fixed_asset, self._held_asset = [
+            self.scene[name] for name in ("robot", "fixed_asset", "held_asset")
+        ]
         self._set_body_inertias()
         self._init_tensors()
         self._set_default_dynamics_parameters()
@@ -82,13 +85,11 @@ class AssemblyEnv(DirectRLEnv):
 
     def _set_body_inertias(self):
         """Note: this is to account for the asset_options.armature parameter in IGE."""
-        inertias = wp.to_torch(self._robot.root_view.get_inertias())
-        offset = torch.zeros_like(inertias)
-        offset[:, :, [0, 4, 8]] += 0.01
-        new_inertias = inertias + offset
-        self._robot.root_view.set_inertias(
-            wp.from_torch(new_inertias), wp.from_torch(torch.arange(self.num_envs, dtype=torch.int32))
-        )
+        # Apply the offset through the asset setter (instead of the raw tensor view) so
+        # ``data.body_inertia`` stays coherent and the update is ordering-safe by construction.
+        inertias = self._robot.data.body_inertia.torch.clone()
+        inertias[:, :, [0, 4, 8]] += 0.01
+        self._robot.set_inertias_index(inertias=inertias)
 
     def _set_default_dynamics_parameters(self):
         """Set parameters defining dynamic interactions."""
@@ -246,31 +247,6 @@ class AssemblyEnv(DirectRLEnv):
         keypoint_offsets[:, -1] = torch.linspace(0.0, 1.0, num_keypoints, device=self.device) - 0.5
 
         return keypoint_offsets
-
-    def _setup_scene(self):
-        """Initialize simulation scene."""
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg(), translation=(0.0, 0.0, -0.4))
-
-        # spawn a usd file of a table into the scene
-        cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
-        cfg.func(
-            "/World/envs/env_.*/Table", cfg, translation=(0.55, 0.0, 0.0), orientation=(0.0, 0.0, 0.70711, 0.70711)
-        )
-
-        self._robot = Articulation(self.cfg.robot)
-        self._fixed_asset = Articulation(self.cfg_task.fixed_asset)
-        self._held_asset = RigidObject(self.cfg_task.held_asset)
-
-        self.scene.clone_environments(copy_from_source=False)
-        self.scene.filter_collisions()
-
-        self.scene.articulations["robot"] = self._robot
-        self.scene.articulations["fixed_asset"] = self._fixed_asset
-        self.scene.rigid_objects["held_asset"] = self._held_asset
-
-        # add lights
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-        light_cfg.func("/World/Light", light_cfg)
 
     def _compute_intermediate_values(self, dt):
         """Get values computed from raw tensors. This includes adding noise."""
@@ -716,7 +692,7 @@ class AssemblyEnv(DirectRLEnv):
             delta_hand_pose = torch.cat((pos_error, axis_angle_error), dim=-1)
 
             # Solve DLS problem.
-            delta_dof_pos = fc._get_delta_dof_pos(
+            delta_dof_pos = fc.get_delta_dof_pos(
                 delta_pose=delta_hand_pose,
                 ik_method="dls",
                 jacobian=self.fingertip_midpoint_jacobian[env_ids],

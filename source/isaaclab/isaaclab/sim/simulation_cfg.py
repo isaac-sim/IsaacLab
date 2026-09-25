@@ -11,216 +11,24 @@ configuring the environment instances, viewer settings, and simulation parameter
 
 from __future__ import annotations
 
-from typing import Any, Literal  # Literal used by RenderCfg
+from dataclasses import MISSING
+from typing import Literal
 
-from isaaclab.physics import PhysicsCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
-from isaaclab.utils.configclass import configclass
-from isaaclab.visualizers import VisualizerCfg
+from ..physics import PhysicsCfg
+from ..utils import configclass
+from ..visualizers import VisualizerCfg
+from .spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
 
 
 @configclass
-class RenderCfg:
-    """Configuration for Omniverse RTX Renderer.
+class BackendCfg:
+    """Construction inputs and value identity for a simulation-owned resource.
 
-    These parameters are used to configure the Omniverse RTX Renderer.
-
-    The defaults for IsaacLab are set in the experience files:
-
-    * ``apps/isaaclab.python.rendering.kit``: Setting used when running the simulation with the GUI enabled.
-    * ``apps/isaaclab.python.headless.rendering.kit``: Setting used when running the simulation in headless mode.
-
-    Setting any value here will override the defaults of the experience files.
-
-    For more information, see the `Omniverse RTX Renderer documentation`_.
-
-    .. _Omniverse RTX Renderer documentation: https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer.html
+    Finalize all fields before registration and treat them as read-only afterward.
     """
 
-    enable_translucency: bool | None = None
-    """Enables translucency for specular transmissive surfaces such as glass.
-
-    This comes at the cost of some performance. Default is False.
-    This is set by the variable: ``/rtx/translucency/enabled``.
-    """
-
-    enable_reflections: bool | None = None
-    """Enables reflections at the cost of some performance. Default is False.
-
-    This is set by the variable: ``/rtx/reflections/enabled``.
-    """
-
-    enable_global_illumination: bool | None = None
-    """Enables Diffused Global Illumination at the cost of some performance. Default is False.
-
-    This is set by the variable: ``/rtx/indirectDiffuse/enabled``.
-    """
-
-    antialiasing_mode: Literal["Off", "FXAA", "DLSS", "TAA", "DLAA"] | None = None
-    """Selects the anti-aliasing mode to use. Defaults to DLSS.
-
-    - **DLSS**: Boosts performance by using AI to output higher resolution frames from a lower resolution input.
-      DLSS samples multiple lower resolution images and uses motion data and feedback from prior frames to reconstruct
-      native quality images.
-    - **DLAA**: Provides higher image quality with an AI-based anti-aliasing technique. DLAA uses the same
-      Super Resolution technology developed for DLSS, reconstructing a native resolution image to maximize
-      image quality.
-
-    This is set by the variable: ``/rtx/post/dlss/execMode``.
-    """
-
-    enable_dlssg: bool | None = None
-    """"Enables the use of DLSS-G. Default is False.
-
-    DLSS Frame Generation boosts performance by using AI to generate more frames. DLSS analyzes sequential frames
-    and motion data to create additional high quality frames.
-
-    .. note::
-
-        This feature requires an Ada Lovelace architecture GPU. Enabling this feature also enables additional
-        thread-related activities, which can hurt performance.
-
-    This is set by the variable: ``/rtx-transient/dlssg/enabled``.
-    """
-
-    enable_dl_denoiser: bool | None = None
-    """Enables the use of a DL denoiser.
-
-    The DL denoiser can help improve the quality of renders, but comes at a cost of performance.
-
-    This is set by the variable: ``/rtx-transient/dldenoiser/enabled``.
-    """
-
-    dlss_mode: Literal[0, 1, 2, 3] | None = None
-    """For DLSS anti-aliasing, selects the performance/quality tradeoff mode. Default is 0.
-
-    Valid values are:
-
-    * 0 (Performance)
-    * 1 (Balanced)
-    * 2 (Quality)
-    * 3 (Auto)
-
-    This is set by the variable: ``/rtx/post/dlss/execMode``.
-    """
-
-    enable_direct_lighting: bool | None = None
-    """Enable direct light contributions from lights. Default is False.
-
-    This is set by the variable: ``/rtx/directLighting/enabled``.
-    """
-
-    samples_per_pixel: int | None = None
-    """Defines the Direct Lighting samples per pixel. Default is 1.
-
-    A higher value increases the direct lighting quality at the cost of performance.
-
-    This is set by the variable: ``/rtx/directLighting/sampledLighting/samplesPerPixel``.
-    """
-
-    enable_shadows: bool | None = None
-    """Enables shadows at the cost of performance. Defaults to True.
-
-    When disabled, lights will not cast shadows.
-
-    This is set by the variable: ``/rtx/shadows/enabled``.
-    """
-
-    enable_ambient_occlusion: bool | None = None
-    """Enables ambient occlusion at the cost of some performance. Default is False.
-
-    This is set by the variable: ``/rtx/ambientOcclusion/enabled``.
-    """
-
-    dome_light_upper_lower_strategy: Literal[0, 3, 4] | None = None
-    """Selects how to sample the Dome Light. Default is 0.
-    For more information, refer to the `documentation`_.
-
-    .. _documentation: https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer_common.html#dome-light
-
-    Valid values are:
-
-    * 0: **Image-Based Lighting (IBL)** - Most accurate even for high-frequency Dome Light textures.
-      Can introduce sampling artifacts in real-time mode.
-    * 3: **Limited Image-Based Lighting** - Only sampled for reflection and refraction. Fastest, but least
-      accurate. Good for cases where the Dome Light contributes less than other light sources.
-    * 4: **Approximated Image-Based Lighting** - Fast and artifacts-free sampling in real-time mode but only
-      works well with a low-frequency texture (e.g., a sky with no sun disc where the sun is instead a separate
-      Distant Light). Requires enabling Direct Lighting denoiser.
-
-    This is set by the variable: ``/rtx/domeLight/upperLowerStrategy``.
-    """
-
-    max_bounces: int | None = None
-    """Maximum number of ray bounces for path tracing (RT2). Default is 2.
-
-    For global illumination (indirect diffuse), this should be at least 3.
-
-    This is set by the variable: ``/rtx/rtpt/maxBounces``.
-    """
-
-    split_glass: bool | None = None
-    """Enables separate glass ray splitting for improved glass rendering (RT2). Default is False.
-
-    Enabling this can reduce noise on glass materials at the cost of performance.
-
-    This is set by the variable: ``/rtx/rtpt/splitGlass``.
-    """
-
-    split_clearcoat: bool | None = None
-    """Enables separate clearcoat ray splitting (RT2). Default is False.
-
-    Enabling this can reduce noise on clearcoat materials at the cost of performance.
-
-    This is set by the variable: ``/rtx/rtpt/splitClearcoat``.
-    """
-
-    split_rough_reflection: bool | None = None
-    """Enables separate rough reflection ray splitting (RT2). Default is False.
-
-    Enabling this can reduce noise on rough reflective materials at the cost of performance.
-
-    This is set by the variable: ``/rtx/rtpt/splitRoughReflection``.
-    """
-
-    ambient_light_intensity: float | None = None
-    """Scene ambient light intensity. Default is 1.0.
-
-    This is set by the variable: ``/rtx/sceneDb/ambientLightIntensity``.
-    """
-
-    ambient_occlusion_denoiser_mode: Literal[0, 1] | None = None
-    """Ambient occlusion denoiser mode. Default is 1.
-
-    Valid values are:
-
-    * 0: Higher quality denoising
-    * 1: Performance-oriented denoising
-
-    This is set by the variable: ``/rtx/ambientOcclusion/denoiserMode``.
-    """
-
-    view_tile_limit: int | None = None
-    """Maximum number of view tiles. Default is 1000000.
-
-    This setting helps avoid silent trimming of tiles.
-
-    This is set by the variable: ``/rtx/viewTile/limit``.
-    """
-
-    carb_settings: dict[str, Any] | None = None
-    """A general dictionary for users to supply all carb rendering settings with native names.
-
-    The keys of the dictionary can be formatted like a carb setting, .kit file setting, or python variable.
-    For instance, a key value pair can be ``/rtx/translucency/enabled: False`` (carb),
-    ``rtx.translucency.enabled: False`` (.kit), or ``rtx_translucency_enabled: False`` (python).
-    """
-
-    rendering_mode: Literal["performance", "balanced", "quality"] | None = None
-    """The rendering mode.
-
-    This behaves the same as the passing the CLI arg ``--rendering_mode`` to an executable script.
-    """
+    class_type: type = MISSING
+    """Resource class constructed as ``class_type(cfg)``; must implement ``close()``."""
 
 
 @configclass
@@ -250,8 +58,8 @@ class SimulationCfg:
     physics_prim_path: str = "/physicsScene"
     """The prim path where the USD PhysicsScene is created. Default is "/physicsScene"."""
 
-    physics_material: RigidBodyMaterialCfg = RigidBodyMaterialCfg()
-    """Default physics material settings for rigid bodies. Default is RigidBodyMaterialCfg.
+    physics_material: RigidBodyMaterialBaseCfg = RigidBodyMaterialBaseCfg()
+    """Default physics material settings for rigid bodies. Default is RigidBodyMaterialBaseCfg.
 
     The physics engine defaults to this physics material for all the rigid body prims that do not have any
     physics material specified on them.
@@ -288,20 +96,18 @@ class SimulationCfg:
         with the GUI enabled. This is to allow certain GUI features to work properly.
     """
 
-    use_newton_actuators: bool = False
-    """Use Newton-native actuators instead of IsaacLab explicit actuator models.
+    use_newton_actuators: bool = True
+    """Use native actuators for supported explicit actuator configurations. Default is True.
 
-    When ``True``, explicit actuator configs (e.g. :class:`IdealPDActuatorCfg`,
-    :class:`DCMotorCfg`) are translated into ``NewtonActuator`` USD prims and
-    stepped by the physics engine.  The Lab config values (stiffness, damping,
-    effort_limit, etc.) take precedence: for every joint covered by a Lab
-    actuator config, any existing ``NewtonActuator`` prim targeting that joint
-    is replaced by one synthesised from the config.  Joints that are *not*
-    covered by a Lab config keep their USD-authored actuators (if any).
+    When ``True``, supported explicit configs, such as :class:`IdealPDActuatorCfg`
+    and :class:`DCMotorCfg`, author ``NewtonActuator`` USD prims. Newton executes
+    them in its solver. PhysX and OVPhysX execute them through a shared host
+    adapter during :meth:`~isaaclab.assets.Articulation.write_data_to_sim`.
 
-    :class:`ImplicitActuatorCfg` entries are still instantiated normally and
-    their gains are written to the simulation, so joints that use implicit
-    actuation continue to work as expected.
+    Config values take precedence over existing USD actuators for covered joints.
+    Joints without a config keep their USD-authored actuators. Implicit actuators
+    are unchanged: the solver applies their drive gains. Set this flag to ``False``
+    to use the deprecated Isaac Lab actuator execution path.
     """
 
     physics: PhysicsCfg | None = None
@@ -310,9 +116,6 @@ class SimulationCfg:
     This configuration determines which physics manager to use. Override with
     a different config (e.g., NewtonManagerCfg) to use a different physics backend.
     """
-
-    render: RenderCfg = RenderCfg()
-    """Render settings. Default is RenderCfg()."""
 
     create_stage_in_memory: bool = False
     """If stage is first created in memory. Default is False.
@@ -335,3 +138,12 @@ class SimulationCfg:
 
     visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg = []
     """The visualizer configuration(s). Default is an empty list."""
+
+    default_visualizer_cfg: VisualizerCfg | None = None
+    """Default visualizer settings applied to any visualizer that is selected at runtime.
+
+    This is a hint only — it does **not** add a visualizer to :attr:`visualizer_cfgs`.
+    Fields such as :attr:`~isaaclab.visualizers.VisualizerCfg.eye` and
+    :attr:`~isaaclab.visualizers.VisualizerCfg.background_color` are forwarded to each resolved
+    visualizer unless that visualizer already has an explicitly customised value.
+    """

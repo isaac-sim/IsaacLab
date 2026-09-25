@@ -9,18 +9,32 @@
 
     NewtonManager
     NewtonCfg
-    NewtonSolverCfg
-    MJWarpSolverCfg
-    XPBDSolverCfg
-    FeatherstoneSolverCfg
-    KaminoSolverCfg
+    NewtonBackendCfg
+    NewtonSoftContactCfg
     NewtonCollisionPipelineCfg
-    HydroelasticSDFCfg
-    NewtonShapeCfg
-    NewtonMJWarpManager
-    NewtonXPBDManager
     NewtonFeatherstoneManager
     NewtonKaminoManager
+    NewtonMPMManager
+    NewtonMJWarpManager
+    NewtonVBDManager
+    NewtonShapeCfg
+    NewtonSolverCfg
+    NewtonXPBDManager
+    MJWarpSolverCfg
+    VBDSolverCfg
+    XPBDSolverCfg
+    FeatherstoneSolverCfg
+    KaminoCollisionDetectorCfg
+    KaminoConstraintsCfg
+    KaminoDVICfg
+    KaminoDVISolverCfg
+    KaminoDynamicsCfg
+    KaminoFKCfg
+    KaminoMaterialsCfg
+    KaminoPADMMCfg
+    KaminoPADMMSolverCfg
+    MPMSolverCfg
+    HydroelasticSDFCfg
 
 .. currentmodule:: isaaclab_newton.physics
 
@@ -40,12 +54,27 @@ Physics Configuration
   :show-inheritance:
   :exclude-members: __init__
 
+.. autoclass:: NewtonBackendCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: NewtonSoftContactCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
 .. autoclass:: NewtonSolverCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
 
 .. autoclass:: MJWarpSolverCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: VBDSolverCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
@@ -60,7 +89,52 @@ Physics Configuration
   :show-inheritance:
   :exclude-members: __init__
 
-.. autoclass:: KaminoSolverCfg
+.. autoclass:: KaminoPADMMCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: KaminoDVICfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: KaminoDynamicsCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: KaminoConstraintsCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: KaminoFKCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: KaminoCollisionDetectorCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: KaminoMaterialsCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: KaminoPADMMSolverCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: KaminoDVISolverCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: MPMSolverCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
@@ -88,6 +162,11 @@ Solver Managers
   :inherited-members:
   :show-inheritance:
 
+.. autoclass:: NewtonVBDManager
+  :members:
+  :inherited-members:
+  :show-inheritance:
+
 .. autoclass:: NewtonXPBDManager
   :members:
   :inherited-members:
@@ -99,6 +178,11 @@ Solver Managers
   :show-inheritance:
 
 .. autoclass:: NewtonKaminoManager
+  :members:
+  :inherited-members:
+  :show-inheritance:
+
+.. autoclass:: NewtonMPMManager
   :members:
   :inherited-members:
   :show-inheritance:

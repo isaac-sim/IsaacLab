@@ -11,7 +11,11 @@ from pathlib import Path
 from isaaclab.app import AppLauncher
 
 # launch Kit app
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
+simulation_app = AppLauncher(
+    headless=True,
+    enable_cameras=True,
+    visualizer_intent={"has_any_visualizers": True, "has_kit_visualizer": True},
+).app
 
 import pytest  # noqa: E402
 
@@ -28,9 +32,12 @@ run_cartpole_env_visualizers_tiled_camera_motion = _viz_utils.run_cartpole_env_v
 pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.flaky(max_runs=2, min_passes=1)]
 
 
-def test_visualizer_tiled_integration_physx(caplog: pytest.LogCaptureFixture) -> None:
+def test_visualizer_tiled_integration_physx(
+    caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture[str]
+) -> None:
     """Cartpole env + tiled Kit/Newton visualizers on PhysX."""
     run_cartpole_env_visualizers_tiled_camera_motion("physx", caplog)
+    _viz_utils.assert_no_newton_imgui_bundle_warning(capsys, caplog)
 
 
 if __name__ == "__main__":

@@ -46,11 +46,19 @@ def test_launch_simulation_passes_visualizer_intent_to_applauncher(monkeypatch):
     captured: dict[str, object] = {}
 
     class _FakeAppLauncher:
+        is_available = staticmethod(lambda: True)
+
         def __init__(self, launcher_args):
             captured["launcher_args"] = launcher_args
             captured["closed"] = False
             self.app = types.SimpleNamespace(close=lambda: captured.update({"closed": True}))
 
+    monkeypatch.setitem(sys.modules, "isaaclab.utils", types.SimpleNamespace(has_kit=lambda: False))
+    monkeypatch.setitem(
+        sys.modules,
+        "isaaclab.utils.assets",
+        types.SimpleNamespace(configure_storage_profile=lambda: None),
+    )
     monkeypatch.setitem(sys.modules, "isaaclab.app", types.SimpleNamespace(AppLauncher=_FakeAppLauncher))
     monkeypatch.setattr("importlib.util.find_spec", lambda name: object() if name == "omni.kit" else None)
 
@@ -65,6 +73,7 @@ def test_launch_simulation_passes_visualizer_intent_to_applauncher(monkeypatch):
     assert getattr(forwarded_args, "visualizer_intent") == {
         "has_any_visualizers": True,
         "has_kit_visualizer": True,
+        "has_kit_streaming_view": False,
     }
     assert captured["closed"] is True
 
@@ -74,6 +83,8 @@ def test_launch_simulation_kitless_viz_none_sets_disable_all(monkeypatch):
     captured = {"types": None, "explicit": None, "disable_all": None}
 
     class _FakeAppLauncher:
+        is_available = staticmethod(lambda: True)
+
         @staticmethod
         def sync_visualizer_cli_settings_to_carb(launcher_args: dict) -> None:
             captured["types"] = " ".join(launcher_args["visualizer"]) if launcher_args.get("visualizer") else ""
@@ -89,3 +100,27 @@ def test_launch_simulation_kitless_viz_none_sets_disable_all(monkeypatch):
         pass
 
     assert captured == {"types": "", "explicit": True, "disable_all": True}
+
+
+def test_launch_simulation_kitless_applies_python_logging_level(monkeypatch):
+    """Kitless mode should apply the resolved Python logging level before yielding."""
+    captured: dict[str, object] = {}
+
+    def fake_resolve(launcher_args):
+        captured["resolve_args"] = launcher_args
+        return 42
+
+    def fake_apply(level):
+        captured["applied_level"] = level
+
+    _force_kitless(monkeypatch)
+    monkeypatch.setattr(sim_launcher, "resolve_python_logging_level", fake_resolve)
+    monkeypatch.setattr(sim_launcher, "apply_python_logging_level", fake_apply)
+
+    env_cfg = _DummyEnvCfg(_DummySimCfg(None))
+    launcher_args = argparse.Namespace(visualizer=None, visualizer_explicit=True)
+    with sim_launcher.launch_simulation(env_cfg, launcher_args):
+        pass
+
+    assert captured["resolve_args"] is launcher_args
+    assert captured["applied_level"] == 42

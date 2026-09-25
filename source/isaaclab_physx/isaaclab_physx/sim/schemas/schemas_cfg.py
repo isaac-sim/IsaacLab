@@ -6,17 +6,27 @@
 from __future__ import annotations
 
 import warnings
-from typing import ClassVar
+from collections.abc import Callable
+from typing import ClassVar, Literal
 
 from isaaclab.sim.schemas.schemas_cfg import (
     ArticulationRootBaseCfg,
+    ArticulationRootFragment,
     CollisionBaseCfg,
+    CollisionFragment,
     DeformableBodyPropertiesBaseCfg,
+    FixedTendonFragment,
     JointDriveBaseCfg,
+    JointDriveFragment,
     MeshCollisionBaseCfg,
+    MeshCollisionFragment,
     RigidBodyBaseCfg,
+    RigidBodyFragment,
+    SpatialTendonFragment,
+    _deprecate_field_alias,
+    _deprecated_schema_cfg,
 )
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 @configclass
@@ -87,7 +97,7 @@ class PhysXDeformableBodyPropertiesCfg:
     r"""Distance below which self-collision is disabled [m].
 
     The default value of -inf indicates that the simulation selects a suitable value.
-    Constrained to range [:attr:`rest_offset` \* 2, inf].
+    Constrained to range [:attr:`~isaaclab.sim.schemas.CollisionBaseCfg.rest_offset` \* 2, inf].
     """
 
     enable_speculative_c_c_d: bool | None = None
@@ -124,47 +134,9 @@ class PhysXDeformableBodyPropertiesCfg:
 
 
 @configclass
-class PhysxDeformableCollisionPropertiesCfg:
-    """PhysX-specific collision properties for a deformable body.
-
-    These properties are set with the prefix ``physxCollision:<property_name>``.
-
-    See the PhysX documentation for more information on the available properties.
-
-    .. note::
-        This class is distinct from
-        :class:`~isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg` (lowercase x),
-        which is the rigid-body collision cfg layered on
-        :class:`~isaaclab.sim.schemas.CollisionBaseCfg`. This class is used internally
-        as a base of :class:`DeformableBodyPropertiesCfg`.
-    """
-
-    _usd_namespace: ClassVar[str | None] = "physxCollision"
-    _usd_applied_schema: ClassVar[str | None] = "PhysxCollisionAPI"
-    _usd_field_exceptions: ClassVar[dict] = {}
-
-    contact_offset: float | None = None
-    """Contact offset for the collision shape [m].
-
-    The collision detector generates contact points as soon as two shapes get closer than the sum of their
-    contact offsets. This quantity should be non-negative which means that contact generation can potentially start
-    before the shapes actually penetrate.
-    """
-
-    rest_offset: float | None = None
-    """Rest offset for the collision shape [m].
-
-    The rest offset quantifies how close a shape gets to others at rest, At rest, the distance between two
-    vertically stacked objects is the sum of their rest offsets. If a pair of shapes have a positive rest
-    offset, the shapes will be separated at rest by an air gap.
-    """
-
-
-@configclass
 class PhysxDeformableBodyPropertiesCfg(
     OmniPhysicsDeformableBodyPropertiesCfg,
     PhysXDeformableBodyPropertiesCfg,
-    PhysxDeformableCollisionPropertiesCfg,
 ):
     """PhysX-specific properties to apply to a deformable body.
 
@@ -172,10 +144,12 @@ class PhysxDeformableBodyPropertiesCfg(
     The configuration allows users to specify the properties of the deformable body,
     such as the solver iteration counts, damping, and self-collision.
 
-    An FEM-based deformable body is created by providing a collision mesh and simulation mesh. The collision mesh
-    is used for collision detection and the simulation mesh is used for simulation.
+    An FEM-based deformable body is simulated on a simulation mesh, which also acts as its collider.
 
     See :meth:`modify_deformable_body_properties` for more information.
+
+    .. note::
+        Collision offsets belong on the mesh spawner's ``collision_props``, not here.
 
     .. note::
         If the values are :obj:`None`, they are not modified. This is useful when you want to set only a subset of
@@ -187,15 +161,15 @@ class PhysxDeformableBodyPropertiesCfg(
 class DeformableBodyPropertiesCfg(PhysxDeformableBodyPropertiesCfg):
     """Deprecated: use :class:`PhysxDeformableBodyPropertiesCfg`.
 
-    .. deprecated:: 4.6.x
+    .. deprecated:: 3.1
         ``DeformableBodyPropertiesCfg`` has moved to
         :class:`PhysxDeformableBodyPropertiesCfg` for PhysX-specific deformable properties
-        and is scheduled for removal in 5.0.
+        and is scheduled for removal in 4.0.
     """
 
     def __post_init__(self):
         warnings.warn(
-            "'DeformableBodyPropertiesCfg' is deprecated and will be removed in 5.0. Use"
+            "'DeformableBodyPropertiesCfg' is deprecated and will be removed in 3.2. Use"
             " 'isaaclab_physx.sim.schemas.PhysxDeformableBodyPropertiesCfg' instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -203,6 +177,7 @@ class DeformableBodyPropertiesCfg(PhysxDeformableBodyPropertiesCfg):
         super().__post_init__()
 
 
+@_deprecated_schema_cfg("[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]")
 @configclass
 class PhysxRigidBodyPropertiesCfg(RigidBodyBaseCfg):
     """PhysX-specific rigid body properties.
@@ -216,6 +191,11 @@ class PhysxRigidBodyPropertiesCfg(RigidBodyBaseCfg):
         the properties and leave the rest as-is.
 
     .. _PhysxRigidBodyAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_rigid_body_a_p_i.html
+
+    .. deprecated:: 3.1
+        Use :class:`PhysxRigidBodyCfg` instead, passed in the spawner's ``rigid_props`` slot
+        alongside :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` for the ``physics:*``
+        fields. This class will be removed in 3.2.
     """
 
     # PhysX-specific fields below all live under the ``PhysxRigidBodyAPI`` schema's
@@ -262,28 +242,130 @@ class PhysxRigidBodyPropertiesCfg(RigidBodyBaseCfg):
 
 
 @configclass
-class RigidBodyPropertiesCfg(PhysxRigidBodyPropertiesCfg):
-    """Deprecated: use :class:`PhysxRigidBodyPropertiesCfg` or :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`.
+class PhysxRigidBodyCfg(RigidBodyFragment):
+    """``physxRigidBody:*`` rigid-body attributes from `PhysxRigidBodyAPI`_.
 
-    .. deprecated:: 4.6.22
-        ``RigidBodyPropertiesCfg`` has been split into
-        :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg` (solver-common) and
-        :class:`PhysxRigidBodyPropertiesCfg` (PhysX-specific) and relocated to
-        :mod:`isaaclab_physx.sim.schemas`. This alias preserves backwards compatibility and is
-        scheduled for removal in 5.0.
+    A single-namespace fragment (see :class:`~isaaclab.sim.schemas.SchemaFragment`) for the
+    PhysX rigid-body add-on schema. Applied alongside :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg`
+    via :func:`~isaaclab.sim.schemas.apply_rigid_body_properties`.
+
+    .. _PhysxRigidBodyAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_rigid_body_a_p_i.html
     """
 
+    _usd_namespace: ClassVar[str | None] = "physxRigidBody"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxRigidBodyAPI"
+
+    linear_damping: float | None = None
+    """Linear damping coefficient for the body [1/s]."""
+
+    angular_damping: float | None = None
+    """Angular damping coefficient for the body [1/s]."""
+
+    max_linear_velocity: float | None = None
+    """Maximum linear velocity for the body [m/s]."""
+
+    max_angular_velocity: float | None = None
+    """Maximum angular velocity for the body [deg/s]."""
+
+    max_depenetration_velocity: float | None = None
+    """Maximum depenetration velocity permitted to be introduced by the solver [m/s]."""
+
+    max_contact_impulse: float | None = None
+    """The limit on the impulse that may be applied at a contact [N·s]."""
+
+    enable_gyroscopic_forces: bool | None = None
+    """Enables computation of gyroscopic forces on the rigid body."""
+
+    retain_accelerations: bool | None = None
+    """Carries over forces/accelerations over sub-steps."""
+
+    solver_position_iteration_count: int | None = None
+    """Solver position iteration counts for the body."""
+
+    solver_velocity_iteration_count: int | None = None
+    """Solver velocity iteration counts for the body."""
+
+    sleep_threshold: float | None = None
+    """Mass-normalized kinetic energy threshold below which an actor may go to sleep [m²/s²]."""
+
+    stabilization_threshold: float | None = None
+    """Mass-normalized kinetic energy threshold below which an actor may participate in stabilization [m²/s²]."""
+
+    disable_gravity: bool | None = None
+    """Disable gravity for the body.
+
+    PhysX honors this per-body via ``physxRigidBody:disableGravity``: setting True excludes the
+    body from world gravity integration.
+    """
+
+
+@_deprecated_schema_cfg("[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]")
+@configclass
+class RigidBodyPropertiesCfg(PhysxRigidBodyPropertiesCfg):
+    """Deprecated: use the rigid-body schema fragments.
+
+    .. deprecated:: 3.1
+        Pass ``[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]`` in the spawner's
+        ``rigid_props`` slot instead: :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg`
+        carries the ``physics:*`` fields and :class:`PhysxRigidBodyCfg` the
+        ``physxRigidBody:*`` ones (including ``disable_gravity``). This class will be removed
+        in 3.2.
+    """
+
+
+@configclass
+class PhysxJointCfg(JointDriveFragment):
+    """``physxJoint:*`` joint attributes from `PhysxJointAPI`_.
+
+    A single-namespace fragment (see :class:`~isaaclab.sim.schemas.SchemaFragment`) for the
+    PhysX joint add-on schema. Applied alongside :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg`
+    via :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`. Written with the dedicated
+    :func:`~isaaclab_physx.sim.schemas.apply_physx_joint` writer, which converts
+    :attr:`max_joint_velocity` from rad/s to deg/s for angular (revolute) joints.
+
+    .. _PhysxJointAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_joint_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxJoint"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxJointAPI"
+    # Override the generic applier: ``max_joint_velocity`` needs joint-type-aware rad->deg
+    # conversion for angular joints, which ``apply_namespaced`` cannot do.
+    func: Callable | str = "isaaclab_physx.sim.schemas:apply_physx_joint"
+
     def __post_init__(self):
-        warnings.warn(
-            "'RigidBodyPropertiesCfg' is deprecated and will be removed in 5.0. Use"
-            " 'isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg' for PhysX properties, or"
-            " 'isaaclab.sim.schemas.RigidBodyBaseCfg' for solver-common properties only.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__post_init__()
+        # Deprecation alias: ``max_velocity`` -> ``max_joint_velocity`` (the USD attr is
+        # ``maxJointVelocity``). Mirrors the legacy :class:`JointDriveBaseCfg` alias forwarding.
+        _deprecate_field_alias(self, "max_velocity", "max_joint_velocity")
+
+    max_joint_velocity: float | None = None
+    """Maximum velocity of the joint [m/s for linear joints, rad/s for angular joints].
+
+    Notes:
+        Today this writes ``physxJoint:maxJointVelocity`` (a PhysX add-on schema attribute).
+        Newton's USD importer consumes the same attribute via its PhysX-bridge resolver and
+        populates ``Model.joint_velocity_limit``; the PhysX engine consumes it natively.
+
+    .. note::
+        Authored in rad/s; :func:`~isaaclab_physx.sim.schemas.apply_physx_joint` converts it to
+        deg/s for angular (revolute) joints (PhysX's angular convention) and writes linear
+        (prismatic) joints unchanged, matching the legacy
+        :func:`~isaaclab.sim.schemas.modify_joint_drive_properties`.
+    """
+
+    max_velocity: float | None = None
+    """Deprecated alias for :attr:`max_joint_velocity`.
+
+    .. deprecated:: 3.1
+        Use :attr:`max_joint_velocity` instead. The cfg field is renamed so its snake_case name
+        maps identity-style to the USD camelCase attribute (``physxJoint:maxJointVelocity``). The
+        alias is forwarded to :attr:`max_joint_velocity` in :meth:`__post_init__` and will be
+        removed in 3.2.
+    """
 
 
+@_deprecated_schema_cfg(
+    "[UsdPhysicsDriveCfg(...), PhysxJointCfg(...)] (and set ensure_drives_exist on the spawner cfg)"
+)
 @configclass
 class PhysxJointDrivePropertiesCfg(JointDriveBaseCfg):
     """PhysX-specific joint drive properties.
@@ -300,6 +382,14 @@ class PhysxJointDrivePropertiesCfg(JointDriveBaseCfg):
     See :meth:`~isaaclab.sim.schemas.modify_joint_drive_properties` for more information.
 
     .. _PhysxJointAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_joint_a_p_i.html
+
+    .. deprecated:: 3.1
+        Use :class:`PhysxJointCfg` instead, passed in the spawner's ``joint_drive_props`` slot
+        alongside :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` for the
+        ``UsdPhysics.DriveAPI`` fields (``drive_type``, ``stiffness``, ``damping`` and
+        ``max_force``; ``max_effort`` remains a deprecated alias of ``max_force``, as
+        ``max_velocity`` is of :attr:`PhysxJointCfg.max_joint_velocity`). ``ensure_drives_exist``
+        is now a field on the spawner cfg. This class will be removed in 3.2.
     """
 
     # ``max_joint_velocity`` on the base remains routed via ``_usd_field_exceptions``
@@ -309,29 +399,79 @@ class PhysxJointDrivePropertiesCfg(JointDriveBaseCfg):
     _usd_namespace: ClassVar[str | None] = "physxJoint"
 
 
+@_deprecated_schema_cfg(
+    "[UsdPhysicsDriveCfg(...), PhysxJointCfg(...)] (and set ensure_drives_exist on the spawner cfg)"
+)
 @configclass
 class JointDrivePropertiesCfg(PhysxJointDrivePropertiesCfg):
-    """Deprecated: use :class:`PhysxJointDrivePropertiesCfg` or :class:`~isaaclab.sim.schemas.JointDriveBaseCfg`.
+    """Deprecated: use the joint-drive schema fragments.
 
-    .. deprecated:: 4.6.22
-        ``JointDrivePropertiesCfg`` has been split into
-        :class:`~isaaclab.sim.schemas.JointDriveBaseCfg` (solver-common) and
-        :class:`PhysxJointDrivePropertiesCfg` (PhysX-specific) and relocated to
-        :mod:`isaaclab_physx.sim.schemas`. This alias preserves backwards compatibility and is
-        scheduled for removal in 5.0.
+    .. deprecated:: 3.1
+        Pass ``[UsdPhysicsDriveCfg(...), PhysxJointCfg(...)]`` in the spawner's
+        ``joint_drive_props`` slot instead: :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg`
+        carries the ``UsdPhysics.DriveAPI`` fields and :class:`PhysxJointCfg` carries
+        ``max_joint_velocity``. ``ensure_drives_exist`` is now an argument of
+        :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`. This class will be removed
+        in 3.2.
     """
 
-    def __post_init__(self):
-        warnings.warn(
-            "'JointDrivePropertiesCfg' is deprecated and will be removed in 5.0. Use"
-            " 'isaaclab_physx.sim.schemas.PhysxJointDrivePropertiesCfg' for PhysX properties, or"
-            " 'isaaclab.sim.schemas.JointDriveBaseCfg' for solver-common properties only.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__post_init__()
+
+@configclass
+class PhysxCollisionCfg(CollisionFragment):
+    """``physxCollision:*`` collision attributes from `PhysxCollisionAPI`_.
+
+    A single-namespace fragment (see :class:`~isaaclab.sim.schemas.SchemaFragment`) for the
+    PhysX collision add-on schema. Applied alongside
+    :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` via
+    :func:`~isaaclab.sim.schemas.apply_collision_properties`.
+
+    The :attr:`contact_offset` / :attr:`rest_offset` knobs live here as plain
+    ``physxCollision:*`` fields. Newton's USD importer consumes the same attributes via its
+    PhysX-bridge resolver, so they are not duplicated on the Newton collision fragment.
+
+    .. _PhysxCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_collision_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxCollisionAPI"
+
+    contact_offset: float | None = None
+    """Contact offset for the collision shape [m].
+
+    The collision detector generates contact points as soon as two shapes get closer than the sum
+    of their contact offsets. This quantity should be non-negative, which means contact generation
+    can potentially start before the shapes actually penetrate.
+
+    Writes ``physxCollision:contactOffset``. Newton's USD importer consumes the same attribute via
+    its PhysX-bridge resolver.
+    """
+
+    rest_offset: float | None = None
+    """Rest offset for the collision shape [m].
+
+    The rest offset quantifies how close a shape gets to others at rest. At rest, the distance
+    between two vertically stacked objects is the sum of their rest offsets. If a pair of shapes
+    have a positive rest offset, the shapes will be separated at rest by an air gap.
+
+    Writes ``physxCollision:restOffset``. Newton's USD importer consumes the same attribute via its
+    PhysX-bridge resolver.
+    """
+
+    torsional_patch_radius: float | None = None
+    """Radius of the contact patch for applying torsional friction [m].
+
+    It is used to approximate rotational friction introduced by the compression of contacting
+    surfaces. If the radius is zero, no torsional friction is applied.
+    """
+
+    min_torsional_patch_radius: float | None = None
+    """Minimum radius of the contact patch for applying torsional friction [m]."""
 
 
+@_deprecated_schema_cfg(
+    "[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)] (and move mesh_collision_property to the"
+    " spawner's mesh_collision_props slot)"
+)
 @configclass
 class PhysxCollisionPropertiesCfg(CollisionBaseCfg):
     """PhysX-specific rigid-body collision properties.
@@ -348,6 +488,13 @@ class PhysxCollisionPropertiesCfg(CollisionBaseCfg):
         the properties and leave the rest as-is.
 
     .. _PhysxCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_collision_a_p_i.html
+
+    .. deprecated:: 3.1
+        Use :class:`PhysxCollisionCfg` instead, passed in the spawner's ``collision_props`` slot
+        alongside :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` for ``collision_enabled``.
+        The nested ``mesh_collision_property`` has no fragment: pass the mesh-collision fragments
+        in the spawner's ``mesh_collision_props`` slot instead. This class will be removed in
+        3.2.
     """
 
     # PhysX torsional-friction fields below live under the ``PhysxCollisionAPI`` schema's
@@ -367,6 +514,7 @@ class PhysxCollisionPropertiesCfg(CollisionBaseCfg):
     """Minimum radius of the contact patch for applying torsional friction [m]."""
 
 
+@_deprecated_schema_cfg("[PhysxArticulationCfg(...)] (and set fix_root_link on the spawner cfg)")
 @configclass
 class PhysxArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
     """PhysX-specific articulation-root properties.
@@ -386,6 +534,14 @@ class PhysxArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
         the properties and leave the rest as-is.
 
     .. _PhysxArticulationAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_articulation_a_p_i.html
+
+    .. deprecated:: 3.1
+        Use :class:`PhysxArticulationCfg` instead, passed in the spawner's ``articulation_props``
+        slot; it also carries the inherited ``articulation_enabled``. The non-USD
+        ``fix_root_link`` flag has no fragment: it is a field on the spawner cfg and the
+        ``fix_root_link`` argument of
+        :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`. This class will be
+        removed in 3.2.
     """
 
     # PhysX articulation-root fields below live under the ``PhysxArticulationAPI`` schema's
@@ -425,57 +581,252 @@ class PhysxArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
 
 
 @configclass
-class ArticulationRootPropertiesCfg(PhysxArticulationRootPropertiesCfg):
-    """Deprecated: use :class:`PhysxArticulationRootPropertiesCfg` or the solver-common base class.
+class PhysxArticulationCfg(ArticulationRootFragment):
+    """``physxArticulation:*`` articulation-root attributes from `PhysxArticulationAPI`_.
 
-    Use :class:`PhysxArticulationRootPropertiesCfg` for PhysX-specific properties or
-    :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg` for solver-common properties only.
+    A single-namespace fragment (see :class:`~isaaclab.sim.schemas.SchemaFragment`) for the PhysX
+    articulation add-on schema. Applied alongside other articulation-root fragments via
+    :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`, which applies the
+    ``UsdPhysics.ArticulationRootAPI`` anchor (presence-gated). This fragment owns the
+    ``PhysxArticulationAPI`` applied schema.
 
-    .. deprecated:: 4.6.24
-        ``ArticulationRootPropertiesCfg`` has been split into
-        :class:`~isaaclab.sim.schemas.ArticulationRootBaseCfg` (solver-common
-        ``fix_root_link`` and the PhysX-namespaced but IL-Newton-consumed
-        ``articulation_enabled``) and
-        :class:`PhysxArticulationRootPropertiesCfg` (PhysX-specific
-        self-collisions, TGS solver iter / sleep / stabilization thresholds)
-        and relocated to :mod:`isaaclab_physx.sim.schemas`. This alias preserves
-        backwards compatibility and is scheduled for removal in 5.0.
+    .. _PhysxArticulationAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_articulation_a_p_i.html
     """
 
-    def __post_init__(self):
-        warnings.warn(
-            "'ArticulationRootPropertiesCfg' is deprecated and will be removed in 5.0. Use"
-            " 'isaaclab_physx.sim.schemas.PhysxArticulationRootPropertiesCfg' for PhysX properties, or"
-            " 'isaaclab.sim.schemas.ArticulationRootBaseCfg' for solver-common properties only.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__post_init__()
+    _usd_namespace: ClassVar[str | None] = "physxArticulation"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxArticulationAPI"
+
+    articulation_enabled: bool | None = None
+    """Whether to enable or disable the articulation.
+
+    PhysX honors this per-articulation at sim time via ``physxArticulation:articulationEnabled``:
+    setting False makes PhysX skip the articulation in its solver passes.
+    """
+
+    enabled_self_collisions: bool | None = None
+    """Whether self-collisions between bodies in the same articulation are enabled.
+
+    Written to ``physxArticulation:enabledSelfCollisions``. The Newton-native counterpart is
+    :attr:`~isaaclab_newton.sim.schemas.NewtonArticulationCfg.self_collision_enabled`
+    (``newton:selfCollisionEnabled``).
+    """
+
+    solver_position_iteration_count: int | None = None
+    """Solver position iteration counts for the articulation."""
+
+    solver_velocity_iteration_count: int | None = None
+    """Solver velocity iteration counts for the articulation."""
+
+    sleep_threshold: float | None = None
+    """Mass-normalized kinetic energy threshold below which an actor may go to sleep [m²/s²]."""
+
+    stabilization_threshold: float | None = None
+    """Mass-normalized kinetic energy threshold below which an articulation may participate in
+    stabilization [m²/s²]."""
+
+
+@_deprecated_schema_cfg("[PhysxArticulationCfg(...)] (and set fix_root_link on the spawner cfg)")
+@configclass
+class ArticulationRootPropertiesCfg(PhysxArticulationRootPropertiesCfg):
+    """Deprecated: use the articulation-root schema fragments.
+
+    .. deprecated:: 3.1
+        Pass :class:`PhysxArticulationCfg` in the spawner's ``articulation_props`` slot
+        instead; it carries ``articulation_enabled``, ``enabled_self_collisions`` and the TGS
+        solver / sleep / stabilization thresholds. The non-USD ``fix_root_link`` flag is now
+        the ``fix_root_link`` argument of
+        :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`. For Newton-native
+        self-collision control use
+        :class:`~isaaclab_newton.sim.schemas.NewtonArticulationCfg`. This class will be
+        removed in 3.2.
+    """
+
+
+@_deprecated_schema_cfg(
+    "[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)] (and move mesh_collision_property to the"
+    " spawner's mesh_collision_props slot)"
+)
+@configclass
+class CollisionPropertiesCfg(PhysxCollisionPropertiesCfg):
+    """Deprecated: use the collision schema fragments.
+
+    .. deprecated:: 3.1
+        Pass ``[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)]`` in the spawner's
+        ``collision_props`` slot instead:
+        :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` carries ``collision_enabled``
+        and :class:`PhysxCollisionCfg` the ``physxCollision:*`` offsets and torsional-patch
+        fields. The nested ``mesh_collision_property`` has no fragment: pass the mesh-collision
+        fragments in the spawner's ``mesh_collision_props`` slot instead. This class will be
+        removed in 3.2.
+    """
+
+
+# -------------------------------------------------------------------------------------
+# Mesh-collision cooking fragments (single-namespace; PhysX cooking add-on schemas).
+#
+# Each fragment owns one ``physx*Collision:*`` namespace + applied schema; its
+# ``mesh_approximation_name`` default encodes the ``physics:approximation`` token its cooking
+# schema implies. The token is written by the family writer
+# ``isaaclab.sim.schemas.apply_mesh_collision_properties``; tuning attrs go via ``apply_namespaced``.
+# -------------------------------------------------------------------------------------
 
 
 @configclass
-class CollisionPropertiesCfg(PhysxCollisionPropertiesCfg):
-    """Deprecated: use :class:`PhysxCollisionPropertiesCfg` or :class:`~isaaclab.sim.schemas.CollisionBaseCfg`.
+class PhysxConvexHullCfg(MeshCollisionFragment):
+    """``physxConvexHullCollision:*`` mesh-cooking attributes from `PhysxConvexHullCollisionAPI`_.
 
-    .. deprecated:: 4.6.23
-        ``CollisionPropertiesCfg`` has been split into
-        :class:`~isaaclab.sim.schemas.CollisionBaseCfg` (solver-common) and
-        :class:`PhysxCollisionPropertiesCfg` (PhysX-specific) and relocated to
-        :mod:`isaaclab_physx.sim.schemas`. This alias preserves backwards compatibility and is
-        scheduled for removal in 5.0.
+    A single-namespace fragment (see :class:`~isaaclab.sim.schemas.SchemaFragment`) for the PhysX
+    convex-hull cooking schema. The ``convexHull`` token is written to ``physics:approximation`` by
+    :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+
+    .. _PhysxConvexHullCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_hull_collision_a_p_i.html
     """
 
-    def __post_init__(self):
-        warnings.warn(
-            "'CollisionPropertiesCfg' is deprecated and will be removed in 5.0. Use"
-            " 'isaaclab_physx.sim.schemas.PhysxCollisionPropertiesCfg' for PhysX properties, or"
-            " 'isaaclab.sim.schemas.CollisionBaseCfg' for solver-common properties only.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__post_init__()
+    _usd_namespace: ClassVar[str | None] = "physxConvexHullCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxConvexHullCollisionAPI"
+
+    mesh_approximation_name: str = "convexHull"
+    """Name of mesh collision approximation method. Default: "convexHull"."""
+
+    hull_vertex_limit: int | None = None
+    """Convex hull vertex limit used for convex hull cooking [dimensionless]. Defaults to 64."""
+
+    min_thickness: float | None = None
+    """Convex hull min thickness [m]. Range: [0, inf). Default value is 0.001."""
 
 
+@configclass
+class PhysxConvexDecompositionCfg(MeshCollisionFragment):
+    """``physxConvexDecompositionCollision:*`` mesh-cooking attributes from `PhysxConvexDecompositionCollisionAPI`_.
+
+    A single-namespace fragment for the PhysX convex-decomposition cooking schema. The
+    ``convexDecomposition`` token is written to ``physics:approximation`` by
+    :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+
+    .. _PhysxConvexDecompositionCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_decomposition_collision_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxConvexDecompositionCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxConvexDecompositionCollisionAPI"
+
+    mesh_approximation_name: str = "convexDecomposition"
+    """Name of mesh collision approximation method. Default: "convexDecomposition"."""
+
+    hull_vertex_limit: int | None = None
+    """Convex hull vertex limit used for convex hull cooking [dimensionless]. Defaults to 64."""
+
+    max_convex_hulls: int | None = None
+    """Maximum of convex hulls created during convex decomposition [dimensionless]. Default value is 32."""
+
+    min_thickness: float | None = None
+    """Convex hull min thickness [m]. Range: [0, inf). Default value is 0.001."""
+
+    voxel_resolution: int | None = None
+    """Voxel resolution used for convex decomposition [dimensionless]. Defaults to 500,000 voxels."""
+
+    error_percentage: float | None = None
+    """Convex decomposition error percentage parameter [%]. Defaults to 10 percent."""
+
+    shrink_wrap: bool | None = None
+    """Attempts to adjust the convex hull points so that they are projected onto the surface of the
+    original graphics mesh. Defaults to False.
+    """
+
+
+@configclass
+class PhysxTriangleMeshCfg(MeshCollisionFragment):
+    """``physxTriangleMeshCollision:*`` mesh-cooking attributes from `PhysxTriangleMeshCollisionAPI`_.
+
+    A single-namespace fragment for the PhysX triangle-mesh cooking schema (PhysX-only colliders).
+
+    .. _PhysxTriangleMeshCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_collision_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxTriangleMeshCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxTriangleMeshCollisionAPI"
+
+    mesh_approximation_name: str = "none"
+    """Name of mesh collision approximation method. Default: "none" (uses triangle mesh)."""
+
+    weld_tolerance: float | None = None
+    """Mesh weld tolerance controlling the distance at which vertices are welded [m].
+
+    Default ``-inf`` autocomputes the welding tolerance from the mesh size; ``0`` disables welding.
+    Range: [0, inf).
+    """
+
+
+@configclass
+class PhysxTriangleMeshSimplificationCfg(MeshCollisionFragment):
+    """``physxTriangleMeshSimplificationCollision:*`` attributes from `PhysxTriangleMeshSimplificationCollisionAPI`_.
+
+    A single-namespace fragment for the PhysX triangle-mesh-simplification cooking schema. The
+    ``meshSimplification`` token is written to ``physics:approximation`` by
+    :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+
+    .. _PhysxTriangleMeshSimplificationCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_simplification_collision_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxTriangleMeshSimplificationCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxTriangleMeshSimplificationCollisionAPI"
+
+    mesh_approximation_name: str = "meshSimplification"
+    """Name of mesh collision approximation method. Default: "meshSimplification"."""
+
+    simplification_metric: float | None = None
+    """Mesh simplification accuracy [dimensionless]. Defaults to 0.55."""
+
+    weld_tolerance: float | None = None
+    """Mesh weld tolerance controlling the distance at which vertices are welded [m].
+
+    Default ``-inf`` autocomputes the welding tolerance from the mesh size; ``0`` disables welding.
+    Range: [0, inf).
+    """
+
+
+@configclass
+class PhysxSDFMeshCfg(MeshCollisionFragment):
+    """``physxSDFMeshCollision:*`` mesh-cooking attributes from `PhysxSDFMeshCollisionAPI`_.
+
+    A single-namespace fragment for the PhysX signed-distance-field cooking schema (PhysX-only
+    colliders). The ``sdf`` token is written to ``physics:approximation`` by
+    :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+
+    .. _PhysxSDFMeshCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_s_d_f_mesh_collision_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxSDFMeshCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxSDFMeshCollisionAPI"
+
+    mesh_approximation_name: str = "sdf"
+    """Name of mesh collision approximation method. Default: "sdf"."""
+
+    sdf_margin: float | None = None
+    """Margin to increase the size of the SDF relative to the mesh bounding-box diagonal [dimensionless].
+
+    Scale-independent (fraction of the bounding-box diagonal). Default value is 0.01. Range: [0, inf).
+    """
+
+    sdf_narrow_band_thickness: float | None = None
+    """Size of the narrow band around the mesh surface with high-resolution SDF samples [dimensionless].
+
+    Scale-independent (fraction of the bounding-box diagonal). Default value is 0.01. Range: [0, 1].
+    """
+
+    sdf_resolution: int | None = None
+    """Uniform SDF sampling resolution (largest AABB extent divided by this value) [dimensionless].
+
+    Default value is 256. Range: (1, inf).
+    """
+
+    sdf_subgrid_resolution: int | None = None
+    """Subgrid resolution enabling SDF sparsity; ``0`` selects a dense SDF [dimensionless].
+
+    Default value is 6. Range: [0, inf).
+    """
+
+
+@_deprecated_schema_cfg("[PhysxConvexHullCfg(...)]")
 @configclass
 class PhysxConvexHullPropertiesCfg(MeshCollisionBaseCfg):
     """PhysX convex-hull cooking properties for a mesh collider.
@@ -489,6 +840,10 @@ class PhysxConvexHullPropertiesCfg(MeshCollisionBaseCfg):
 
     Original PhysX Documentation:
     https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_hull_collision_a_p_i.html
+
+    .. deprecated:: 3.1
+        Use :class:`PhysxConvexHullCfg` instead, passed in the spawner's ``mesh_collision_props``
+        slot. This class will be removed in 3.2.
     """
 
     _usd_applied_schema: ClassVar[str | None] = "PhysxConvexHullCollisionAPI"
@@ -509,6 +864,7 @@ class PhysxConvexHullPropertiesCfg(MeshCollisionBaseCfg):
     """
 
 
+@_deprecated_schema_cfg("[PhysxConvexDecompositionCfg(...)]")
 @configclass
 class PhysxConvexDecompositionPropertiesCfg(MeshCollisionBaseCfg):
     """PhysX convex-decomposition cooking properties for a mesh collider.
@@ -517,6 +873,10 @@ class PhysxConvexDecompositionPropertiesCfg(MeshCollisionBaseCfg):
 
     Original PhysX Documentation:
     https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_decomposition_collision_a_p_i.html
+
+    .. deprecated:: 3.1
+        Use :class:`PhysxConvexDecompositionCfg` instead, passed in the spawner's
+        ``mesh_collision_props`` slot. This class will be removed in 3.2.
     """
 
     _usd_applied_schema: ClassVar[str | None] = "PhysxConvexDecompositionCollisionAPI"
@@ -557,6 +917,7 @@ class PhysxConvexDecompositionPropertiesCfg(MeshCollisionBaseCfg):
     """
 
 
+@_deprecated_schema_cfg("[PhysxTriangleMeshCfg(...)]")
 @configclass
 class PhysxTriangleMeshPropertiesCfg(MeshCollisionBaseCfg):
     """PhysX triangle-mesh cooking properties for a mesh collider.
@@ -567,6 +928,10 @@ class PhysxTriangleMeshPropertiesCfg(MeshCollisionBaseCfg):
 
     Original PhysX Documentation:
     https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_collision_a_p_i.html
+
+    .. deprecated:: 3.1
+        Use :class:`PhysxTriangleMeshCfg` instead, passed in the spawner's
+        ``mesh_collision_props`` slot. This class will be removed in 3.2.
     """
 
     _usd_applied_schema: ClassVar[str | None] = "PhysxTriangleMeshCollisionAPI"
@@ -583,6 +948,7 @@ class PhysxTriangleMeshPropertiesCfg(MeshCollisionBaseCfg):
     """
 
 
+@_deprecated_schema_cfg("[PhysxTriangleMeshSimplificationCfg(...)]")
 @configclass
 class PhysxTriangleMeshSimplificationPropertiesCfg(MeshCollisionBaseCfg):
     """PhysX triangle-mesh-simplification cooking properties for a mesh collider.
@@ -591,6 +957,10 @@ class PhysxTriangleMeshSimplificationPropertiesCfg(MeshCollisionBaseCfg):
 
     Original PhysX Documentation:
     https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_simplification_collision_a_p_i.html
+
+    .. deprecated:: 3.1
+        Use :class:`PhysxTriangleMeshSimplificationCfg` instead, passed in the spawner's
+        ``mesh_collision_props`` slot. This class will be removed in 3.2.
     """
 
     _usd_applied_schema: ClassVar[str | None] = "PhysxTriangleMeshSimplificationCollisionAPI"
@@ -612,6 +982,7 @@ class PhysxTriangleMeshSimplificationPropertiesCfg(MeshCollisionBaseCfg):
     """
 
 
+@_deprecated_schema_cfg("[PhysxSDFMeshCfg(...)]")
 @configclass
 class PhysxSDFMeshPropertiesCfg(MeshCollisionBaseCfg):
     """PhysX SDF-mesh cooking properties for a mesh collider.
@@ -625,6 +996,10 @@ class PhysxSDFMeshPropertiesCfg(MeshCollisionBaseCfg):
 
     More details and steps for optimizing SDF results can be found here:
     https://nvidia-omniverse.github.io/PhysX/physx/5.2.1/docs/RigidBodyCollision.html#dynamic-triangle-meshes-with-sdfs
+
+    .. deprecated:: 3.1
+        Use :class:`PhysxSDFMeshCfg` instead, passed in the spawner's ``mesh_collision_props``
+        slot. This class will be removed in 3.2.
     """
 
     _usd_applied_schema: ClassVar[str | None] = "PhysxSDFMeshCollisionAPI"
@@ -677,132 +1052,90 @@ class PhysxSDFMeshPropertiesCfg(MeshCollisionBaseCfg):
     """
 
 
+@_deprecated_schema_cfg("[UsdPhysicsMeshCollisionCfg(...)]")
 @configclass
 class MeshCollisionPropertiesCfg(MeshCollisionBaseCfg):
-    """Deprecated: use :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg`.
+    """Deprecated: use :class:`~isaaclab.sim.schemas.UsdPhysicsMeshCollisionCfg`.
 
-    .. deprecated:: 4.6.25
-        ``MeshCollisionPropertiesCfg`` was the flat (non-leaf) base of the legacy
-        mesh-collision cfg family. It has been renamed to
-        :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg` to match the rest of the
-        consumption-gated split. This alias preserves backwards compatibility and is
-        scheduled for removal in 5.0.
+    .. deprecated:: 3.1
+        Pass :class:`~isaaclab.sim.schemas.UsdPhysicsMeshCollisionCfg` in the spawner's
+        ``mesh_collision_props`` slot instead; it carries the ``physics:approximation`` token.
+        Add a cooking fragment (:class:`PhysxConvexHullCfg`,
+        :class:`PhysxConvexDecompositionCfg`, :class:`PhysxTriangleMeshCfg`,
+        :class:`PhysxTriangleMeshSimplificationCfg` or :class:`PhysxSDFMeshCfg`) for the
+        matching PhysX cooking tunables. This class will be removed in 3.2.
     """
 
-    def __post_init__(self):
-        warnings.warn(
-            "'MeshCollisionPropertiesCfg' is deprecated and will be removed in 5.0. Use"
-            " 'isaaclab.sim.schemas.MeshCollisionBaseCfg' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__post_init__()
 
-
+@_deprecated_schema_cfg("[PhysxConvexHullCfg(...)]")
 @configclass
 class ConvexHullPropertiesCfg(PhysxConvexHullPropertiesCfg):
-    """Deprecated: use :class:`PhysxConvexHullPropertiesCfg`.
+    """Deprecated: use :class:`PhysxConvexHullCfg`.
 
-    .. deprecated:: 4.6.25
-        Renamed and relocated. This alias preserves backwards compatibility and is
-        scheduled for removal in 5.0.
+    .. deprecated:: 3.1
+        Pass :class:`PhysxConvexHullCfg` in the spawner's ``mesh_collision_props`` slot instead; its default
+        approximation token replaces the legacy ``mesh_approximation_name`` string. This class
+        will be removed in 3.2.
     """
 
-    def __post_init__(self):
-        warnings.warn(
-            "'ConvexHullPropertiesCfg' is deprecated and will be removed in 5.0. Use"
-            " 'isaaclab_physx.sim.schemas.PhysxConvexHullPropertiesCfg' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__post_init__()
 
-
+@_deprecated_schema_cfg("[PhysxConvexDecompositionCfg(...)]")
 @configclass
 class ConvexDecompositionPropertiesCfg(PhysxConvexDecompositionPropertiesCfg):
-    """Deprecated: use :class:`PhysxConvexDecompositionPropertiesCfg`.
+    """Deprecated: use :class:`PhysxConvexDecompositionCfg`.
 
-    .. deprecated:: 4.6.25
-        Renamed and relocated. This alias preserves backwards compatibility and is
-        scheduled for removal in 5.0.
+    .. deprecated:: 3.1
+        Pass :class:`PhysxConvexDecompositionCfg` in the spawner's ``mesh_collision_props`` slot instead; its default
+        approximation token replaces the legacy ``mesh_approximation_name`` string. This class
+        will be removed in 3.2.
     """
 
-    def __post_init__(self):
-        warnings.warn(
-            "'ConvexDecompositionPropertiesCfg' is deprecated and will be removed in 5.0. Use"
-            " 'isaaclab_physx.sim.schemas.PhysxConvexDecompositionPropertiesCfg' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__post_init__()
 
-
+@_deprecated_schema_cfg("[PhysxTriangleMeshCfg(...)]")
 @configclass
 class TriangleMeshPropertiesCfg(PhysxTriangleMeshPropertiesCfg):
-    """Deprecated: use :class:`PhysxTriangleMeshPropertiesCfg`.
+    """Deprecated: use :class:`PhysxTriangleMeshCfg`.
 
-    .. deprecated:: 4.6.25
-        Renamed and relocated. This alias preserves backwards compatibility and is
-        scheduled for removal in 5.0.
+    .. deprecated:: 3.1
+        Pass :class:`PhysxTriangleMeshCfg` in the spawner's ``mesh_collision_props`` slot instead; its default
+        approximation token replaces the legacy ``mesh_approximation_name`` string. This class
+        will be removed in 3.2.
     """
 
-    def __post_init__(self):
-        warnings.warn(
-            "'TriangleMeshPropertiesCfg' is deprecated and will be removed in 5.0. Use"
-            " 'isaaclab_physx.sim.schemas.PhysxTriangleMeshPropertiesCfg' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__post_init__()
 
-
+@_deprecated_schema_cfg("[PhysxTriangleMeshSimplificationCfg(...)]")
 @configclass
 class TriangleMeshSimplificationPropertiesCfg(PhysxTriangleMeshSimplificationPropertiesCfg):
-    """Deprecated: use :class:`PhysxTriangleMeshSimplificationPropertiesCfg`.
+    """Deprecated: use :class:`PhysxTriangleMeshSimplificationCfg`.
 
-    .. deprecated:: 4.6.25
-        Renamed and relocated. This alias preserves backwards compatibility and is
-        scheduled for removal in 5.0.
+    .. deprecated:: 3.1
+        Pass :class:`PhysxTriangleMeshSimplificationCfg` in the spawner's ``mesh_collision_props``
+        slot instead; its default approximation token replaces the legacy
+        ``mesh_approximation_name`` string. This class will be removed in 3.2.
     """
 
-    def __post_init__(self):
-        warnings.warn(
-            "'TriangleMeshSimplificationPropertiesCfg' is deprecated and will be removed in 5.0. Use"
-            " 'isaaclab_physx.sim.schemas.PhysxTriangleMeshSimplificationPropertiesCfg' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__post_init__()
 
-
+@_deprecated_schema_cfg("[PhysxSDFMeshCfg(...)]")
 @configclass
 class SDFMeshPropertiesCfg(PhysxSDFMeshPropertiesCfg):
-    """Deprecated: use :class:`PhysxSDFMeshPropertiesCfg`.
+    """Deprecated: use :class:`PhysxSDFMeshCfg`.
 
-    .. deprecated:: 4.6.25
-        Renamed and relocated. This alias preserves backwards compatibility and is
-        scheduled for removal in 5.0.
+    .. deprecated:: 3.1
+        Pass :class:`PhysxSDFMeshCfg` in the spawner's ``mesh_collision_props`` slot instead; its default
+        approximation token replaces the legacy ``mesh_approximation_name`` string. This class
+        will be removed in 3.2.
     """
-
-    def __post_init__(self):
-        warnings.warn(
-            "'SDFMeshPropertiesCfg' is deprecated and will be removed in 5.0. Use"
-            " 'isaaclab_physx.sim.schemas.PhysxSDFMeshPropertiesCfg' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__post_init__()
 
 
 @configclass
 class PhysxFixedTendonPropertiesCfg:
     """PhysX fixed-tendon properties for an articulation.
 
-    Tendons are a PhysX-only feature -- Newton has no tendon system -- so this class
-    is a pure data carrier that is consumed by the PhysX-specific writer
+    This class configures PhysX tendon schemas and is consumed by the PhysX-specific writer
     :func:`~isaaclab.sim.schemas.modify_fixed_tendon_properties`. The writer authors
     the multi-instance ``PhysxTendonAxisRootAPI`` schema; this cfg class declares no
-    metadata-driven writer plumbing of its own.
+    metadata-driven writer plumbing of its own. For Newton's MuJoCo fixed tendons, use
+    :class:`~isaaclab_newton.sim.schemas.MujocoFixedTendonCfg`.
 
     See :func:`~isaaclab.sim.schemas.modify_fixed_tendon_properties` for more information.
 
@@ -831,23 +1164,29 @@ class PhysxFixedTendonPropertiesCfg:
     """
 
     rest_length: float | None = None
-    """Spring rest length of the tendon."""
+    """Spring rest length of the tendon [m]."""
+
+    lower_limit: float | None = None
+    """Lower limit of the tendon's length [m]."""
+
+    upper_limit: float | None = None
+    """Upper limit of the tendon's length [m]."""
 
 
 @configclass
 class FixedTendonPropertiesCfg(PhysxFixedTendonPropertiesCfg):
     """Deprecated: use :class:`PhysxFixedTendonPropertiesCfg`.
 
-    .. deprecated:: 4.6.x
+    .. deprecated:: 3.1
         ``FixedTendonPropertiesCfg`` was relocated to
         :mod:`isaaclab_physx.sim.schemas` and renamed to
         :class:`PhysxFixedTendonPropertiesCfg`. The legacy name remains as a
-        deprecation alias and is scheduled for removal in 5.0.
+        deprecation alias and is scheduled for removal in 4.0.
     """
 
     def __post_init__(self):
         warnings.warn(
-            "'FixedTendonPropertiesCfg' is deprecated and will be removed in 5.0. Use"
+            "'FixedTendonPropertiesCfg' is deprecated and will be removed in 3.2. Use"
             " 'isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg' instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -859,11 +1198,10 @@ class FixedTendonPropertiesCfg(PhysxFixedTendonPropertiesCfg):
 class PhysxSpatialTendonPropertiesCfg:
     """PhysX spatial-tendon properties for an articulation.
 
-    Tendons are a PhysX-only feature -- Newton has no tendon system -- so this class
-    is a pure data carrier that is consumed by the PhysX-specific writer
+    This class configures PhysX spatial-tendon schemas and is consumed by the PhysX-specific writer
     :func:`~isaaclab.sim.schemas.modify_spatial_tendon_properties`. The writer authors
-    the multi-instance ``PhysxTendonAttachmentRootAPI`` / ``PhysxTendonAttachmentLeafAPI``
-    schemas; this cfg class declares no metadata-driven writer plumbing of its own.
+    every existing ``PhysxTendonAttachmentRootAPI`` instance; this cfg class declares no
+    metadata-driven writer plumbing of its own.
 
     See :func:`~isaaclab.sim.schemas.modify_spatial_tendon_properties` for more information.
 
@@ -896,18 +1234,138 @@ class PhysxSpatialTendonPropertiesCfg:
 class SpatialTendonPropertiesCfg(PhysxSpatialTendonPropertiesCfg):
     """Deprecated: use :class:`PhysxSpatialTendonPropertiesCfg`.
 
-    .. deprecated:: 4.6.x
+    .. deprecated:: 3.1
         ``SpatialTendonPropertiesCfg`` was relocated to
         :mod:`isaaclab_physx.sim.schemas` and renamed to
         :class:`PhysxSpatialTendonPropertiesCfg`. The legacy name remains as a
-        deprecation alias and is scheduled for removal in 5.0.
+        deprecation alias and is scheduled for removal in 4.0.
     """
 
     def __post_init__(self):
         warnings.warn(
-            "'SpatialTendonPropertiesCfg' is deprecated and will be removed in 5.0. Use"
+            "'SpatialTendonPropertiesCfg' is deprecated and will be removed in 3.2. Use"
             " 'isaaclab_physx.sim.schemas.PhysxSpatialTendonPropertiesCfg' instead.",
             DeprecationWarning,
             stacklevel=2,
         )
         super().__post_init__()
+
+
+@configclass
+class PhysxTendonAxisRootCfg(FixedTendonFragment):
+    """Whole-tendon attributes from `PhysxTendonAxisRootAPI`_.
+
+    This is a *tune-not-apply* fragment: the source asset owns the
+    ``PhysxTendonAxisRootAPI:<instance>`` topology, and this fragment selects existing instances
+    to tune. Use :class:`PhysxTendonAxisCfg` for the per-joint-axis properties of the same
+    fixed tendon.
+
+    Dispatched via :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`.
+
+    .. _PhysxTendonAxisRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_axis_root_a_p_i.html
+    """
+
+    _usd_applied_schema: ClassVar[str | None] = "PhysxTendonAxisRootAPI"
+    func: Callable | str = "isaaclab_physx.sim.schemas.schemas:_tune_tendon_schema"
+
+    instance_names: str | list[str] | None = None
+    """Existing tendon instances to tune; ``None`` selects all root instances."""
+
+    tendon_enabled: bool | None = None
+    """Whether to enable or disable the tendon."""
+
+    stiffness: float | None = None
+    """Spring stiffness term acting on the tendon's length [N/m]."""
+
+    damping: float | None = None
+    """The damping term acting on both the tendon length and the tendon-length limits [N·s/m]."""
+
+    limit_stiffness: float | None = None
+    """Limit stiffness term acting on the tendon's length limits [N/m]."""
+
+    offset: float | None = None
+    """Length offset term for the tendon [m].
+
+    It defines an amount to be added to the accumulated length computed for the tendon. This allows the application
+    to actuate the tendon by shortening or lengthening it.
+    """
+
+    rest_length: float | None = None
+    """Spring rest length of the tendon [m]."""
+
+    lower_limit: float | None = None
+    """Lower limit of the tendon's length [m]."""
+
+    upper_limit: float | None = None
+    """Upper limit of the tendon's length [m]."""
+
+
+@configclass
+class PhysxTendonAxisCfg(FixedTendonFragment):
+    """Per-joint-axis attributes from `PhysxTendonAxisAPI`_.
+
+    The source asset owns each ``PhysxTendonAxisAPI:<instance>``. This fragment selects existing
+    instances on the matched joint prims and tunes their contribution to a fixed tendon. A
+    ``PhysxTendonAxisRootAPI`` automatically includes the axis API with the same instance name, so
+    this fragment can target both the root joint and AxisAPI-only child joints.
+
+    Dispatched via :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`.
+
+    .. _PhysxTendonAxisAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_axis_a_p_i.html
+    """
+
+    _usd_applied_schema: ClassVar[str | None] = "PhysxTendonAxisAPI"
+    func: Callable | str = "isaaclab_physx.sim.schemas.schemas:_tune_tendon_schema"
+
+    instance_names: str | list[str] | None = None
+    """Existing tendon-axis instances to tune; ``None`` selects all axis instances."""
+
+    gearing: list[float] | None = None
+    """Joint gearing per entry in :attr:`joint_axis` [unitless or m/deg, depending on joint axis]."""
+
+    force_coefficient: list[float] | None = None
+    """Joint force coefficient per entry in :attr:`joint_axis` [unitless or m, depending on joint axis]."""
+
+    joint_axis: list[Literal["transX", "transY", "transZ", "rotX", "rotY", "rotZ"]] | None = None
+    """Joint axes corresponding to :attr:`gearing` and :attr:`force_coefficient`."""
+
+
+@configclass
+class PhysxTendonAttachmentRootCfg(SpatialTendonFragment):
+    """Whole-tendon attributes from `PhysxTendonAttachmentRootAPI`_.
+
+    A spatial-tendon fragment (see :class:`~isaaclab.sim.schemas.SpatialTendonFragment`) for the
+    PhysX spatial-tendon schema. This is a *tune-not-apply* fragment: the source asset owns the
+    ``PhysxTendonAttachmentRootAPI:<instance>`` topology, and this fragment selects existing roots
+    to tune. Its fields are whole-tendon dynamics; attachment and leaf properties remain
+    asset-authored.
+
+    Dispatched via :func:`~isaaclab.sim.schemas.apply_spatial_tendon_properties`.
+
+    .. _PhysxTendonAttachmentRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_attachment_root_a_p_i.html
+    """
+
+    _usd_applied_schema: ClassVar[str | None] = "PhysxTendonAttachmentRootAPI"
+    func: Callable | str = "isaaclab_physx.sim.schemas.schemas:_tune_tendon_schema"
+
+    instance_names: str | list[str] | None = None
+    """Existing spatial-tendon instances to tune; ``None`` selects all attachment roots."""
+
+    tendon_enabled: bool | None = None
+    """Whether to enable or disable the tendon."""
+
+    stiffness: float | None = None
+    """Spring stiffness term acting on the tendon's length [N/m]."""
+
+    damping: float | None = None
+    """The damping term acting on both the tendon length and the tendon-length limits [N·s/m]."""
+
+    limit_stiffness: float | None = None
+    """Limit stiffness term acting on the tendon's length limits [N/m]."""
+
+    offset: float | None = None
+    """Length offset term for the tendon [m].
+
+    It defines an amount to be added to the accumulated length computed for the tendon. This allows the application
+    to actuate the tendon by shortening or lengthening it.
+    """

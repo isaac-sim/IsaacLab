@@ -11,19 +11,6 @@ in the future. They are contributed by the community to extend the capabilities 
 """
 
 import importlib.metadata
-import os
-import tomllib
-
-ISAACLAB_CONTRIB_EXT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
-"""Path to the extension source directory."""
-
-_ext_toml = os.path.join(ISAACLAB_CONTRIB_EXT_DIR, "config", "extension.toml")
-if os.path.exists(_ext_toml):
-    with open(_ext_toml, "rb") as _f:
-        ISAACLAB_CONTRIB_METADATA = tomllib.load(_f)
-else:
-    ISAACLAB_CONTRIB_METADATA = {}
-"""Extension metadata dictionary parsed from the extension.toml file."""
 
 try:
     __version__ = importlib.metadata.version("isaaclab_contrib")

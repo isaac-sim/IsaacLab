@@ -5,10 +5,116 @@
 
 """Configuration for Isaac RTX (Replicator) Renderer."""
 
-from typing import Literal
+from __future__ import annotations
 
+from dataclasses import field
+from typing import TYPE_CHECKING, Any, Literal
+
+import warp as wp
+
+from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
+from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
+
+if TYPE_CHECKING:
+    from .isaac_rtx_renderer import IsaacRtxRenderer
+
+
+SIMPLE_SHADING_MODES = {
+    "simple_shading_constant_diffuse": 1,
+    "simple_shading_diffuse_mdl": 2,
+    "simple_shading_full_mdl": 3,
+}
+"""RTX Minimal shading levels keyed by their public camera output names."""
+
+
+@configclass
+class IsaacRtxRendererGlobalSettingsCfg:
+    """Global Isaac RTX renderer settings.
+
+    These settings are applied to Kit/RTX carb settings. They are carried by
+    :class:`IsaacRtxRendererCfg` so they are owned by the Isaac RTX backend, but
+    they affect the process-global RTX renderer rather than a single camera.
+    """
+
+    enable_translucency: bool | None = None
+    """Enable translucency for specular transmissive surfaces such as glass."""
+
+    enable_reflections: bool | None = None
+    """Enable reflections."""
+
+    enable_global_illumination: bool | None = None
+    """Enable diffuse global illumination."""
+
+    antialiasing_mode: Literal["Off", "FXAA", "DLSS", "TAA", "DLAA"] | None = None
+    """Anti-aliasing mode selected through Replicator."""
+
+    enable_dlssg: bool | None = None
+    """Enable DLSS frame generation."""
+
+    enable_dl_denoiser: bool | None = None
+    """Enable DL denoiser."""
+
+    dlss_mode: Literal[0, 1, 2, 3] | None = None
+    """DLSS performance/quality mode."""
+
+    enable_direct_lighting: bool | None = None
+    """Enable direct light contributions from lights."""
+
+    samples_per_pixel: int | None = None
+    """Direct lighting samples per pixel."""
+
+    enable_shadows: bool | None = None
+    """Enable shadow rendering."""
+
+    enable_ambient_occlusion: bool | None = None
+    """Enable ambient occlusion."""
+
+    dome_light_upper_lower_strategy: Literal[0, 3, 4] | None = None
+    """Dome light sampling strategy."""
+
+    max_bounces: int | None = None
+    """Maximum number of ray bounces for RTPT."""
+
+    split_glass: bool | None = None
+    """Enable separate glass ray splitting."""
+
+    split_clearcoat: bool | None = None
+    """Enable separate clearcoat ray splitting."""
+
+    split_rough_reflection: bool | None = None
+    """Enable separate rough-reflection ray splitting."""
+
+    ambient_light_intensity: float | None = None
+    """Scene ambient light intensity."""
+
+    ambient_occlusion_denoiser_mode: Literal[0, 1] | None = None
+    """Ambient occlusion denoiser mode."""
+
+    subpixel_mode: int | None = None
+    """RTX subpixel mode."""
+
+    enable_cached_raytracing: bool | None = None
+    """Enable cached ray tracing."""
+
+    max_samples_per_launch: int | None = None
+    """Path tracing maximum samples per launch."""
+
+    view_tile_limit: int | None = None
+    """Maximum number of view tiles."""
+
+    show_all_partitions_by_default: bool | None = None
+    """Optionally show partitioned content in cameras without a partition token.
+
+    ``None`` preserves the launch-time setting. :class:`~isaaclab.app.AppLauncher`
+    enables the all-environment spectator view before RTX startup when the Kit
+    viewport is enabled or Kit visualization, recording, livestreaming, or XR is
+    requested. Environments must be spatially separated when this setting is enabled.
+    """
+
+    carb_settings: dict[str, Any] | None = None
+    """Raw carb settings applied after named fields."""
 
 
 @configclass
@@ -20,8 +126,22 @@ class IsaacRtxRendererCfg(RendererCfg):
     pipeline.
     """
 
+    class_type: type[IsaacRtxRenderer] | str = "{DIR}.isaac_rtx_renderer:IsaacRtxRenderer"
+    """Renderer implementation class."""
+
     renderer_type: str = "isaac_rtx"
     """Type identifier for Isaac RTX renderer."""
+
+    global_settings: IsaacRtxRendererGlobalSettingsCfg = IsaacRtxRendererGlobalSettingsCfg()
+    """Global Kit/RTX quality settings applied before RTX Hydra attach."""
+
+    enable_scene_partitioning: bool = field(default_factory=isaac_rtx_per_env_scene_partition_enabled)
+    """Enable per-environment scene-partition authoring.
+
+    Enabled by default. Assigning this field explicitly overrides the construction
+    default. The legacy ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION``
+    environment variable still supplies that default when set.
+    """
 
     semantic_filter: str | list[str] = "*:*"
     """A string or a list specifying a semantic filter predicate. Defaults to ``"*:*"``.
@@ -90,3 +210,28 @@ class IsaacRtxRendererCfg(RendererCfg):
     - ``"zero"``: Values are clipped to zero.
     - ``"none"``: No clipping is applied. Values will be returned as ``inf``.
     """
+
+    def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
+        """Return the per-output layouts supported by current Isaac RTX releases."""
+
+        def segmentation_spec(colorize: bool) -> RenderBufferSpec:
+            return RenderBufferSpec(4, wp.uint8) if colorize else RenderBufferSpec(1, wp.int32)
+
+        specs = {
+            RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32),
+            RenderBufferKind.ALBEDO: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
+            RenderBufferKind.MOTION_VECTORS: RenderBufferSpec(2, wp.float32),
+            RenderBufferKind.SEMANTIC_SEGMENTATION: segmentation_spec(self.colorize_semantic_segmentation),
+            RenderBufferKind.INSTANCE_SEGMENTATION: segmentation_spec(self.colorize_instance_segmentation),
+            RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST: segmentation_spec(self.colorize_instance_id_segmentation),
+        }
+        specs.update(
+            {RenderBufferKind(shading_type): RenderBufferSpec(3, wp.uint8) for shading_type in SIMPLE_SHADING_MODES}
+        )
+        return specs

@@ -118,7 +118,77 @@ a {
     width: min(100%, 480px);
 }
 
+.nurec-gif-grid,
+.nurec-gif-grid td {
+    border: none;
+}
+
+.nurec-gif-grid td {
+    vertical-align: top;
+}
+
+.nurec-gif-grid figure {
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 360px;
+}
+
+figure.nurec-gif-cover img,
+figure.nurec-gif-contain img {
+    aspect-ratio: 16 / 9;
+    display: block;
+    object-position: center;
+    width: 100%;
+}
+
+figure.nurec-gif-cover img {
+    object-fit: cover;
+}
+
+figure.nurec-gif-contain img {
+    object-fit: contain;
+}
+
+.nurec-gif-grid figcaption {
+    font-family: "NVIDIA Sans", "Inter", "Segoe UI", sans-serif;
+    font-size: 0.86rem;
+    line-height: 1.35;
+}
+
+.nurec-gif-grid figcaption p {
+    margin-bottom: 0.15rem;
+}
+
+.nurec-gif-grid figcaption .line-block {
+    margin-top: 0;
+}
+
+.nurec-gif-grid-single figcaption {
+    margin-left: 50%;
+    max-width: calc(100vw - 2rem);
+    transform: translateX(-50%);
+    width: max-content;
+}
+
+.nurec-gif-grid-single figcaption .line-block .line:nth-child(2) {
+    white-space: nowrap;
+}
+
+/* Allow long renderer preset names to wrap without changing their copied text. */
+.renderer-preset-grid figcaption span.pre {
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
 /* Keep sphinx-copybutton visible on code blocks (not only on hover). */
 button.copybtn {
     opacity: 1;
+}
+
+/* Force readable code-block text in dark mode; some rendering paths were
+   showing unstyled text in a dark color against the dark code background. */
+html[data-theme="dark"] pre,
+html[data-theme="dark"] .highlight,
+html[data-theme="dark"] .highlight pre {
+    color: #ffffff !important;
 }

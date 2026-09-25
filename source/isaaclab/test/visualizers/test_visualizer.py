@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for visualizer config factory and base visualizer behavior."""
+"""Unit tests for visualizer config construction and base visualizer behavior."""
 
 from __future__ import annotations
 
@@ -13,40 +13,49 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from isaaclab.envs.utils.camera_view import apply_camera_view_from_origins
+from isaaclab.envs.utils.camera_view import apply_camera_view_from_origins, prim_world_positions
+from isaaclab.utils.string import ResolvableString
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
-from isaaclab.visualizers.visualizer import Visualizer
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+
 #
-# Config factory
+# Config construction
 #
 
 
-def test_create_visualizer_raises_for_base_cfg():
-    cfg = VisualizerCfg()
-    with pytest.raises(ValueError, match="Cannot create visualizer from base VisualizerCfg class"):
-        cfg.create_visualizer()
+@pytest.mark.parametrize(
+    "module_name,cfg_name,implementation",
+    [
+        ("isaaclab_visualizers.kit", "KitVisualizerCfg", "KitVisualizer"),
+        ("isaaclab_visualizers.newton", "NewtonGLVisualizerCfg", "NewtonGLVisualizer"),
+        ("isaaclab_visualizers.newton", "NewtonRTXVisualizerCfg", "NewtonRTXVisualizer"),
+        ("isaaclab_visualizers.rerun", "RerunVisualizerCfg", "RerunVisualizer"),
+        ("isaaclab_visualizers.viser", "ViserVisualizerCfg", "ViserVisualizer"),
+    ],
+)
+def test_visualizer_cfg_names_its_implementation(module_name, cfg_name, implementation):
+    cfg_type = getattr(pytest.importorskip(module_name), cfg_name)
+    class_type = cfg_type().class_type
+    assert isinstance(class_type, ResolvableString)
+    assert class_type.__name__ == implementation
 
 
-def test_visualizer_cfg_tiled_camera_view_is_opt_in():
+def test_visualizer_cfg_streaming_view_is_opt_in():
     cfg = VisualizerCfg()
     assert cfg.focal_length == 12.0
-    assert cfg.tiled_cam_view is False
-    assert cfg.tiled_cam_num == 16
+    assert cfg.background_color == (0.3, 0.55, 0.82)
+    assert cfg.streaming_view is False
+    assert cfg.streaming_envs == 32
+    assert cfg.streaming_cam_renderer is None
 
 
-def test_create_visualizer_raises_for_unknown_type():
-    cfg = VisualizerCfg(visualizer_type="unknown-backend")
-    with pytest.raises(ValueError, match="not registered"):
-        cfg.create_visualizer()
-
-
-def test_create_visualizer_raises_import_error_when_backend_unavailable(monkeypatch):
-    monkeypatch.setattr(Visualizer, "_get_module_name", classmethod(lambda cls, backend: "does.not.exist"))
-    cfg = VisualizerCfg(visualizer_type="newton")
-    with pytest.raises(ImportError, match="isaaclab_visualizers"):
-        cfg.create_visualizer()
+def test_visualizer_cfg_validates_background_color():
+    assert VisualizerCfg(background_color=None).background_color is None
+    assert VisualizerCfg(background_color=[0, 0.5, 1]).background_color == (0.0, 0.5, 1.0)
+    with pytest.raises(ValueError, match="three normalized RGB values"):
+        VisualizerCfg(background_color=(0.0, 0.5, 1.1))
 
 
 #
@@ -126,13 +135,36 @@ def test_apply_camera_view_from_origins_forwards_env_ids():
     assert camera.update_poses_calls == [None]
 
 
+def test_prim_world_positions_prefers_scene_articulation_state():
+    body_pos_w = torch.tensor(
+        [
+            [[1.0, 2.0, 3.0], [10.0, 20.0, 30.0]],
+            [[4.0, 5.0, 6.0], [40.0, 50.0, 60.0]],
+        ]
+    )
+    articulation = SimpleNamespace(
+        cfg=SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot"),
+        body_names=["base", "foot"],
+        data=SimpleNamespace(
+            root_pos_w=SimpleNamespace(torch=torch.zeros((2, 3))),
+            body_pos_w=SimpleNamespace(torch=body_pos_w),
+        ),
+        find_bodies=lambda name, **_: ([0], [name]),
+    )
+    scene = SimpleNamespace(articulations={"robot": articulation})
+
+    positions = prim_world_positions(None, "/World/envs/*/Robot/base", [1, 0], scene=scene)
+
+    assert torch.equal(positions, torch.tensor([[4.0, 5.0, 6.0], [1.0, 2.0, 3.0]]))
+
+
 def test_compute_visualized_env_ids_cap_only_returns_none():
     """Cap-only path: :meth:`_compute_visualized_env_ids` is ``None``.
 
     The cap is applied later by ``resolve_visible_env_indices``.
     """
-    viz = _DummyVisualizer(_make_cfg(visible_env_indices=None))
-    viz._scene_data_provider = _FakeProvider(num_envs=8)
+    viz = _DummyVisualizer(_make_cfg(max_visible_envs=3, visible_env_indices=None))
+    viz._scene_data_provider = _FakeProvider(num_envs=10)
     assert viz._compute_visualized_env_ids() is None
 
 
@@ -140,19 +172,6 @@ def test_compute_visualized_env_ids_from_visible_indices_filters_out_of_range():
     viz = _DummyVisualizer(_make_cfg(visible_env_indices=[-1, 0, 3, 99]))
     viz._scene_data_provider = _FakeProvider(num_envs=4)
     assert viz._compute_visualized_env_ids() == [0, 3]
-
-
-@pytest.mark.skipif(not _HAS_ISAACLAB_VIZ, reason="isaaclab_visualizers not installed")
-def test_partial_visualization_cap_only_uses_resolver():
-    """With ``visible_env_indices`` unset, :func:`resolve_visible_env_indices` applies ``max_visible_envs``."""
-    from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
-
-    cfg = _make_cfg(max_visible_envs=3, visible_env_indices=None)
-    viz = _DummyVisualizer(cfg)
-    viz._scene_data_provider = _FakeProvider(num_envs=10)
-    assert viz._compute_visualized_env_ids() is None
-    assert resolve_visible_env_indices(None, cfg.max_visible_envs, 10) == [0, 1, 2]
-    assert resolve_visible_env_indices(None, 3, 10) == [0, 1, 2]
 
 
 @pytest.mark.skipif(not _HAS_ISAACLAB_VIZ, reason="isaaclab_visualizers not installed")
@@ -177,19 +196,6 @@ def test_compute_visualized_env_ids_random_cap_only_sorted_once():
     assert viz2._compute_visualized_env_ids() == [1, 5]
 
 
-@pytest.mark.skipif(not _HAS_ISAACLAB_VIZ, reason="isaaclab_visualizers not installed")
-def test_explicit_visible_env_indices_truncated_by_max_visible_envs():
-    """Explicit indices from :meth:`_compute_visualized_env_ids`; ``max_visible_envs`` truncates from the end."""
-    from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
-
-    cfg = _make_cfg(visible_env_indices=[0, 2, 4], max_visible_envs=1)
-    viz = _DummyVisualizer(cfg)
-    viz._scene_data_provider = _FakeProvider(num_envs=10)
-    ids = viz._compute_visualized_env_ids()
-    assert ids == [0, 2, 4]
-    assert resolve_visible_env_indices(ids, cfg.max_visible_envs, 10) == [0]
-
-
 def test_resolve_camera_pose_from_usd_path_uses_provider_transforms():
     transforms = {
         "order": ["/World/envs/env_%d/Camera"],
@@ -201,3 +207,9 @@ def test_resolve_camera_pose_from_usd_path_uses_provider_transforms():
     pos, target = viz._resolve_camera_pose_from_usd_path("/World/envs/env_0/Camera")
     assert pos == (1.0, 2.0, 3.0)
     assert target == pytest.approx((1.0, 2.0, 2.0))
+
+
+def test_physics_backend_returns_none_without_simulation_context():
+    """physics_backend is None when no SimulationContext is active."""
+    viz = _DummyVisualizer(_make_cfg())
+    assert viz.physics_backend is None

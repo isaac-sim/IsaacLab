@@ -7,8 +7,7 @@ from __future__ import annotations
 
 from dataclasses import MISSING
 
-from isaaclab.utils.configclass import configclass
-
+from ..utils import configclass
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 
 
@@ -40,6 +39,22 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     Note:
         The base :class:`ManagerBasedRLEnv` class does not use this flag directly. It is used by the environment
         wrappers to determine what type of done signal to send to the corresponding learning agent.
+    """
+
+    compute_final_obs: bool = False
+    """Whether to capture the terminal observation before a Same-Step autoreset and expose it.
+
+    Under Same-Step autoreset (see :attr:`~isaaclab.envs.ManagerBasedRLEnv.metadata`), an environment
+    that terminates is reset within the same :meth:`~isaaclab.envs.ManagerBasedRLEnv.step` call, so the
+    returned observation belongs to the *new* episode. When this flag is True, the observation is
+    computed once more *before* the reset and stored under ``extras["final_obs"]``, so wrappers can
+    report it as the true terminal observation for value bootstrapping.
+
+    Defaults to False, which preserves the previous behavior: no terminal observation is captured,
+    ``extras["final_obs"]`` is not populated, and the extra observation computation is skipped.
+
+    Note:
+        Currently consumed by the :class:`~isaaclab_rl.sb3.Sb3VecEnvWrapper` wrapper.
     """
 
     episode_length_s: float = MISSING
@@ -79,3 +94,24 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
 
     Please refer to the :class:`isaaclab.managers.CommandManager` class for more details.
     """
+
+    def play_mode(self):
+        """Adjust the configuration for interactive playback and policy inference.
+
+        Play scripts call this method after the configuration is fully initialized (i.e. after
+        :meth:`__post_init__`) unless the user requests the training configuration as-is.
+        The base implementation applies defaults that are useful for most tasks:
+
+        * caps the number of environments at 50 to keep the scene lightweight, and
+        * disables observation corruption for all observation groups.
+
+        Override this method in a task configuration to customize playback behavior. Call
+        ``super().play_mode()`` to keep the shared defaults.
+        """
+        # make a smaller scene for play
+        self.scene.num_envs = min(self.scene.num_envs, 50)
+        # disable observation corruption for all observation groups
+        for group_name in getattr(self.observations, "__dataclass_fields__", {}):
+            group = getattr(self.observations, group_name)
+            if hasattr(group, "enable_corruption"):
+                group.enable_corruption = False

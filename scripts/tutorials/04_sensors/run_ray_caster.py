@@ -9,7 +9,7 @@ This script demonstrates how to use the ray-caster sensor.
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/04_sensors/run_ray_caster.py --viz kit
+    uv run python scripts/tutorials/04_sensors/run_ray_caster.py --viz kit
 
 """
 
@@ -75,9 +75,9 @@ def design_scene() -> dict:
         prim_path="/World/Origin.*/ball",
         spawn=sim_utils.SphereCfg(
             radius=0.25,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
         ),
     )

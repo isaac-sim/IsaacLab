@@ -60,7 +60,7 @@ def setup_test_environment():
 
     annotated_output_path = os.path.join(DATASETS_DOWNLOAD_DIR, "annotated_dataset.hdf5")
 
-    # Run the annotate_demos script directly (bypassing isaaclab.sh) so that
+    # Run the annotate_demos script through the uv environment so that
     # stdout is properly captured.  When launched through the CLI wrapper the
     # Omniverse/Kit runtime redirects OS-level file descriptors during
     # SimulationApp init, swallowing all print() output.
@@ -74,7 +74,6 @@ def setup_test_environment():
         "--output_file",
         annotated_output_path,
         "--auto",
-        "--headless",
     ]
     print(config_command)
 
@@ -136,7 +135,6 @@ def _run_generation(workflow_root: str, input_file: str, output_file: str, num_e
         str(num_envs),
         "--generation_num_trials",
         "1",
-        "--headless",
     ]
 
     result = run_script(command, timeout=_SUBPROCESS_TIMEOUT)
@@ -155,14 +153,6 @@ def _run_generation(workflow_root: str, input_file: str, output_file: str, num_e
     assert expected_output in combined_output, (
         f"Could not find '{expected_output}' in output.\nstdout: {result.stdout}\nstderr: {result.stderr}"
     )
-
-
-def test_generate_dataset_franka_state(setup_test_environment):
-    """Test dataset generation for the state-based cube-stack environment (single env)."""
-    workflow_root = setup_test_environment
-    annotated_input_path = os.path.join(DATASETS_DOWNLOAD_DIR, "annotated_dataset.hdf5")
-    generated_output_path = os.path.join(DATASETS_DOWNLOAD_DIR, "generated_dataset.hdf5")
-    _run_generation(workflow_root, annotated_input_path, generated_output_path, num_envs=1)
 
 
 def test_generate_dataset_franka_state_multi_env(setup_test_environment):

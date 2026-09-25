@@ -20,15 +20,13 @@ from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.controllers.operational_space import OperationalSpaceController
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.sensors import ContactSensor, ContactSensorCfg, FrameTransformer, FrameTransformerCfg
-from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
-
+    from ... import ManagerBasedEnv
+    from ...utils.io_descriptors import GenericActionIODescriptor
     from . import actions_cfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -90,6 +88,9 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         self._ik_controller = DifferentialIKController(
             cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device
         )
+        # joint limits are injected lazily on the first apply (asset data is populated by then) so
+        # the controller can do null-space joint-limit avoidance; only needed when joint_limit_avoidance_gain > 0.
+        self._limits_injected = False
 
         # create tensors for raw and processed actions
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
@@ -201,6 +202,12 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # obtain quantities from simulation
         ee_pos_curr, ee_quat_curr = self._compute_frame_pose()
         joint_pos = self._asset.data.joint_pos.torch[:, self._joint_ids]
+        # lazily provide joint limits to the controller for null-space joint-limit avoidance
+        # (limits are uniform across envs for these articulations; env 0 is representative)
+        if not self._limits_injected and getattr(self.cfg.controller, "joint_limit_avoidance_gain", 0.0) > 0.0:
+            limits = self._asset.data.soft_joint_pos_limits.torch[0, self._joint_ids, :]
+            self._ik_controller.set_joint_pos_limits(limits[:, 0].clone(), limits[:, 1].clone())
+            self._limits_injected = True
         # compute the delta in joint-space
         if ee_quat_curr.norm() != 0:
             jacobian = self._compute_frame_jacobian()
@@ -247,18 +254,14 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         self._jacobian_b[:] = self.jacobian_b
         # account for the offset
         if self.cfg.body_offset is not None:
-            # Modify the jacobian to account for the offset
-            # -- translational part
-            # v_link = v_ee + w_ee x r_link_ee = v_J_ee * q + w_J_ee * q x r_link_ee
-            #        = (v_J_ee + w_J_ee x r_link_ee ) * q
-            #        = (v_J_ee - r_link_ee_[x] @ w_J_ee) * q
-            self._jacobian_b[:, 0:3, :] += torch.bmm(
-                -math_utils.skew_symmetric_matrix(self._offset_pos), self._jacobian_b[:, 3:, :]
+            # Express the lever arm in root axes; a rigid offset leaves angular velocity unchanged.
+            body_quat_b = math_utils.quat_mul(
+                math_utils.quat_inv(self._asset.data.root_quat_w.torch),
+                self._asset.data.body_quat_w.torch[:, self._body_idx],
             )
-            # -- rotational part
-            # w_link = R_link_ee @ w_ee
-            self._jacobian_b[:, 3:, :] = torch.bmm(
-                math_utils.matrix_from_quat(self._offset_rot), self._jacobian_b[:, 3:, :]
+            offset_pos_b = math_utils.quat_apply(body_quat_b, self._offset_pos)
+            self._jacobian_b[:, 0:3, :] += torch.bmm(
+                -math_utils.skew_symmetric_matrix(offset_pos_b), self._jacobian_b[:, 3:, :]
             )
 
         return self._jacobian_b
@@ -340,18 +343,13 @@ class OperationalSpaceControllerAction(ActionTerm):
             def has_rigid_body_api(prim) -> bool:
                 return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
-            matches = resolve_matching_prims_from_source(self._asset.cfg.prim_path, raise_if_no_matches=False)
-            if not matches:
-                raise ValueError(f"No prim found at '{self._asset.cfg.prim_path}'.")
-            asset_prim, root_expr = matches[0]
-            walk_root = asset_prim.GetPath().pathString
-            rigid_prims = get_all_matching_child_prims(
-                walk_root, predicate=has_rigid_body_api, traverse_instance_prims=False
-            )
-            if not rigid_prims:
+            prim_path = self._asset.cfg.prim_path
+            resolve_kwargs = {"raise_if_no_matches": False, "traverse_instance_prims": False}
+            rigid_matches = resolve_matching_prims_from_source(prim_path, has_rigid_body_api, **resolve_kwargs)
+            if not rigid_matches:
                 raise ValueError(f"No descendant rigid body found under the expression: '{self._asset.cfg.prim_path}'.")
-            root_rigidbody_path = root_expr + rigid_prims[0].GetPath().pathString[len(walk_root) :]
-            task_frame_transformer_path = "/World/envs/env_.*/" + self.cfg.task_frame_rel_path
+            _, root_rigidbody_path = rigid_matches[0]
+            task_frame_transformer_path = f"{self._env.scene.env_regex_ns}/{self.cfg.task_frame_rel_path}"
             task_frame_transformer_cfg = FrameTransformerCfg(
                 prim_path=root_rigidbody_path,
                 target_frames=[
@@ -616,7 +614,6 @@ class OperationalSpaceControllerAction(ActionTerm):
             ValueError: If the nullspace joint pos targets are not set when null space control is set to 'position'.
             ValueError: If an invalid value is set for nullspace joint pos targets.
         """
-
         if self.cfg.nullspace_joint_pos_target != "none" and self.cfg.controller_cfg.nullspace_control != "position":
             raise ValueError("Nullspace joint targets can only be set when null space control is set to 'position'.")
 
@@ -646,9 +643,8 @@ class OperationalSpaceControllerAction(ActionTerm):
         / :attr:`~isaaclab.controllers.OperationalSpaceControllerCfg.nullspace_control`
         and
         :attr:`~isaaclab.controllers.OperationalSpaceControllerCfg.gravity_compensation`
-        respectively. This avoids an unconditional engine call on backends
-        that don't expose the corresponding primitive (Newton has no
-        gravity-compensation API).
+        respectively. This avoids unconditional engine calls when the controller
+        does not consume the corresponding quantity.
 
         Note: For floating-base robots the Jacobian / mass-matrix / gravity-compensation
         DoF axis prepends 6 floating-base columns. We use ``self._jacobi_joint_idx``
@@ -673,19 +669,15 @@ class OperationalSpaceControllerAction(ActionTerm):
 
         # account for the offset
         if self.cfg.body_offset is not None:
-            # Modify the jacobian to account for the offset
-            # -- translational part
-            # v_link = v_ee + w_ee x r_link_ee = v_J_ee * q + w_J_ee * q x r_link_ee
-            #        = (v_J_ee + w_J_ee x r_link_ee ) * q
-            #        = (v_J_ee - r_link_ee_[x] @ w_J_ee) * q
+            # Express the lever arm in root axes; a rigid offset leaves angular velocity unchanged.
+            body_quat_b = math_utils.quat_mul(
+                math_utils.quat_inv(self._asset.data.root_quat_w.torch),
+                self._asset.data.body_quat_w.torch[:, self._ee_body_idx],
+            )
+            offset_pos_b = math_utils.quat_apply(body_quat_b, self._offset_pos)
             self._jacobian_b[:, 0:3, :] += torch.bmm(
-                -math_utils.skew_symmetric_matrix(self._offset_pos), self._jacobian_b[:, 3:, :]
-            )  # type: ignore
-            # -- rotational part
-            # w_link = R_link_ee @ w_ee
-            self._jacobian_b[:, 3:, :] = torch.bmm(
-                math_utils.matrix_from_quat(self._offset_rot), self._jacobian_b[:, 3:, :]
-            )  # type: ignore
+                -math_utils.skew_symmetric_matrix(offset_pos_b), self._jacobian_b[:, 3:, :]
+            )
 
     def _compute_ee_pose(self):
         """Computes the pose of the ee frame in root frame."""
@@ -709,10 +701,10 @@ class OperationalSpaceControllerAction(ActionTerm):
 
     def _compute_ee_velocity(self):
         """Computes the velocity of the ee frame in root frame."""
-        # Extract end-effector velocity in the world frame
-        self._ee_vel_w[:] = self._asset.data.body_vel_w.torch[:, self._ee_body_idx, :]
+        # Match the link-origin reference point used by the pose and Jacobian.
+        self._ee_vel_w[:] = self._asset.data.body_link_vel_w.torch[:, self._ee_body_idx, :]
         # Compute the relative velocity in the world frame
-        relative_vel_w = self._ee_vel_w - self._asset.data.root_vel_w.torch
+        relative_vel_w = self._ee_vel_w - self._asset.data.root_link_vel_w.torch
 
         # Convert ee velocities from world to root frame
         root_quat_w = self._asset.data.root_quat_w.torch
@@ -732,7 +724,7 @@ class OperationalSpaceControllerAction(ActionTerm):
         # Obtain contact forces only if the contact sensor is available
         if self._contact_sensor is not None:
             self._contact_sensor.update(self._sim_dt)
-            self._ee_force_w[:] = self._contact_sensor.data.net_forces_w.torch[:, 0, :]  # type: ignore
+            self._ee_force_w[:] = self._contact_sensor.data.net_normal_forces_w.torch[:, 0, :]  # type: ignore
             # Rotate forces and torques into root frame
             self._ee_force_b[:] = math_utils.quat_apply_inverse(self._asset.data.root_quat_w.torch, self._ee_force_w)
 

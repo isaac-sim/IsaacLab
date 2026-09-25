@@ -6,14 +6,16 @@
 """
 This script uses the cloner API to check if asset has been instanced properly.
 
+An asset path may be a local file or a Nucleus/HTTPS URL; remote assets are downloaded before use.
+
 Usage with different inputs (replace `<Asset-Path>` and `<Asset-Path-Instanced>` with the path to the
 original asset and the instanced asset respectively):
 
 ```bash
-./isaaclab.sh  -p source/tools/check_instanceable.py <Asset-Path> -n 4096 --headless --physics
-./isaaclab.sh  -p source/tools/check_instanceable.py <Asset-Path-Instanced> -n 4096 --headless --physics
-./isaaclab.sh  -p source/tools/check_instanceable.py <Asset-Path> -n 4096 --headless
-./isaaclab.sh  -p source/tools/check_instanceable.py <Asset-Path-Instanced> -n 4096 --headless
+uv run python scripts/tools/check_instanceable.py <Asset-Path> -n 4096 --physics
+uv run python scripts/tools/check_instanceable.py <Asset-Path-Instanced> -n 4096 --physics
+uv run python scripts/tools/check_instanceable.py <Asset-Path> -n 4096
+uv run python scripts/tools/check_instanceable.py <Asset-Path-Instanced> -n 4096
 ```
 
 Output from the above commands:
@@ -42,7 +44,6 @@ Output from the above commands:
 
 import argparse
 import contextlib
-import os
 
 from isaaclab.app import AppLauncher
 
@@ -64,12 +65,16 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
+from isaaclab.sim.utils import enable_extension
+
+enable_extension("isaacsim.core.cloner")
+
 from isaacsim.core.cloner import GridCloner
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils import Timer
-from isaaclab.utils.assets import check_file_path
+from isaaclab.utils.assets import check_file_path, retrieve_file_path
 
 
 def main():
@@ -83,16 +88,10 @@ def main():
     # get stage handle
     stage = sim_utils.get_current_stage()
 
-    # enable fabric which avoids passing data over to USD structure
-    # this speeds up the read-write operation of GPU buffers
-    if sim.get_physics_context().use_gpu_pipeline:
-        sim.get_physics_context().enable_fabric(True)
-    # increase GPU buffer dimensions
-    sim.get_physics_context().set_gpu_found_lost_aggregate_pairs_capacity(2**25)
-    sim.get_physics_context().set_gpu_total_aggregate_pairs_capacity(2**21)
+    # Fabric and PhysX GPU buffers are configured through SimulationCfg/PhysxCfg defaults.
     # enable hydra scene-graph instancing
     # this is needed to visualize the scene when fabric is enabled
-    sim._settings.set_bool("/persistent/omnihydra/useSceneGraphInstancing", True)
+    sim.set_setting("/persistent/omnihydra/useSceneGraphInstancing", True)
 
     # Create interface to clone the scene
     cloner = GridCloner(spacing=args_cli.spacing, stage=stage)
@@ -101,8 +100,10 @@ def main():
     # Spawn things into stage
     sim_utils.create_prim("/World/Light", "DistantLight")
 
-    # Everything under the namespace "/World/envs/env_0" will be cloned
-    sim_utils.create_prim("/World/envs/env_0/Asset", "Xform", usd_path=os.path.abspath(args_cli.input))
+    # Everything under the namespace "/World/envs/env_0" will be cloned.
+    # Resolve through retrieve_file_path so Nucleus/HTTPS inputs are downloaded first; applying
+    # os.path.abspath() to a URL would prepend the working directory and corrupt it.
+    sim_utils.create_prim("/World/envs/env_0/Asset", "Xform", usd_path=retrieve_file_path(args_cli.input))
     # Clone the scene
     num_clones = args_cli.num_clones
 

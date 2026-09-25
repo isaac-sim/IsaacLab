@@ -14,11 +14,10 @@ import warp as wp
 
 from pxr import UsdGeom
 
-import isaaclab.utils.math as math_utils
-from isaaclab.sensors.camera import CameraData
-from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.kernels import raycast_mesh_masked_kernel
-
+from ...utils import math as math_utils
+from ...utils.warp import ProxyArray
+from ...utils.warp.kernels import raycast_mesh_masked_kernel
+from ..camera import CameraData
 from ..sensor_base import SensorBase
 from . import kernels as ray_caster_kernels
 from .base_ray_caster import BaseRayCaster
@@ -57,7 +56,6 @@ class BaseRayCasterCamera(BaseRayCaster):
         "instance_id_segmentation",
         "instance_id_segmentation_fast",
         "instance_segmentation",
-        "instance_segmentation_fast",
         "semantic_segmentation",
         "skeleton_data",
         "motion_vectors",

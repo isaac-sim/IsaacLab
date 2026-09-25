@@ -9,18 +9,24 @@ from __future__ import annotations
 
 import sys
 import types
-from unittest.mock import MagicMock, patch
+from contextlib import nullcontext
+from types import SimpleNamespace
+from unittest.mock import MagicMock, call, patch
 
+import numpy as np
 import pytest
 import warp as wp
 from packaging import version
 
 from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
-
-pytestmark = pytest.mark.isaacsim_ci
+from isaaclab.scene_data import SceneDataFormat
+from isaaclab.sim import SimulationContext
+from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 
 def _install_omni_stubs(monkeypatch):
+    sim = SimpleNamespace(stage=object(), device="cpu", get_scene_data_provider=MagicMock())
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
     omni_module = sys.modules.get("omni", types.ModuleType("omni"))
     replicator_module = types.ModuleType("omni.replicator")
     replicator_core_module = types.ModuleType("omni.replicator.core")
@@ -32,6 +38,8 @@ def _install_omni_stubs(monkeypatch):
     monkeypatch.setitem(sys.modules, "omni.replicator.core", replicator_core_module)
     monkeypatch.setitem(sys.modules, "omni.syntheticdata", syntheticdata_module)
     monkeypatch.setitem(sys.modules, "omni.usd", usd_module)
+    monkeypatch.setitem(sys.modules, "usdrt", MagicMock())
+    monkeypatch.setitem(sys.modules, "usdrt.hierarchy", MagicMock())
     monkeypatch.setattr(omni_module, "replicator", replicator_module, raising=False)
     monkeypatch.setattr(omni_module, "syntheticdata", syntheticdata_module, raising=False)
     monkeypatch.setattr(omni_module, "usd", usd_module, raising=False)
@@ -40,15 +48,529 @@ def _install_omni_stubs(monkeypatch):
     return replicator_core_module, syntheticdata_module
 
 
-def test_isaac_rtx_supported_output_types_include_rgb_hdr(monkeypatch):
-    """Isaac RTX advertises RGB_HDR as a 3-channel float renderer output."""
+@pytest.mark.parametrize("isaac_sim_version", ["5.1", "6.0"])
+def test_isaac_rtx_supported_output_types_include_rgb_hdr(monkeypatch, isaac_sim_version):
+    """Isaac RTX advertises RGB_HDR as a 3-channel float output; ALBEDO and simple shading need Isaac Sim 6.0+."""
     _install_omni_stubs(monkeypatch)
     from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer
     from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
 
     renderer = IsaacRtxRenderer.__new__(IsaacRtxRenderer)
     renderer.cfg = IsaacRtxRendererCfg()
-    with patch("isaaclab_physx.renderers.isaac_rtx_renderer.get_isaac_sim_version", return_value=version.parse("6.0")):
+    with patch(
+        "isaaclab_physx.renderers.isaac_rtx_renderer.get_isaac_sim_version",
+        return_value=version.parse(isaac_sim_version),
+    ):
         specs = renderer.supported_output_types()
 
     assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)
+    requires_6_0 = [
+        RenderBufferKind.ALBEDO,
+        RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE,
+        RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL,
+        RenderBufferKind.SIMPLE_SHADING_FULL_MDL,
+    ]
+    is_supported = isaac_sim_version == "6.0"
+    assert all((kind in specs) is is_supported for kind in requires_6_0)
+
+
+def test_native_fabric_geometry_needs_no_separate_publication(monkeypatch):
+    _install_omni_stubs(monkeypatch)
+    from isaaclab_physx.renderers.fabric import FabricBackend
+
+    provider = SimpleNamespace(
+        backend=SimpleNamespace(native_transform_formats=(SceneDataFormat.FabricMatrix44,)),
+        get_geometry_points=MagicMock(),
+    )
+    FabricBackend.__new__(FabricBackend).update_geometries(provider, 0)
+    provider.get_geometry_points.assert_not_called()
+
+
+def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch):
+    """Each tiled render product gets a fresh ``rp_<uuid4.hex>`` name.
+
+    Unique names avoid collisions across concurrent tiled cameras and sequential
+    create/destroy cycles in one Kit process (e.g. ``simple_shading_*`` pytest).
+    uuid4 provides 122 random bits, so birthday-paradox collision chance among n
+    names is ~n^2 / 2^123 — negligible for Isaac Lab workloads.
+    """
+    replicator_core_module, syntheticdata_module = _install_omni_stubs(monkeypatch)
+    monkeypatch.setattr(syntheticdata_module, "SyntheticData", MagicMock(), raising=False)
+
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    from pxr import Sdf, UsdGeom
+
+    import isaaclab.sim.utils.stage as stage_utils
+
+    # Stub Kit settings / stage so create_render_data can run without Isaac Sim.
+    # has_gui=False keeps the depth-only color-render branch inactive for rgb cameras.
+    settings = MagicMock()
+    settings.get.return_value = False
+    stage = MagicMock()
+    stage.SelectPrims.return_value.GetCount.return_value = 1
+    # Pass the Camera prim check that gates render-product creation.
+    stage.GetPrimAtPath.return_value.IsA.side_effect = lambda typ: typ is UsdGeom.Camera
+
+    # Capture the ``name=`` kwarg passed to Replicator; the returned HydraTexture
+    # and annotator registry only need to exist so create_render_data can finish.
+    rp = MagicMock()
+    rp.path = "/Render/rp_test"
+    create_tiled = MagicMock(return_value=rp)
+    annotator = MagicMock()
+    registry = MagicMock()
+    registry.get_annotator.return_value = annotator
+    replicator_core_module.create = SimpleNamespace(render_product_tiled=create_tiled)
+    replicator_core_module.AnnotatorRegistry = registry
+
+    # Minimal CameraRenderSpec: one rgb tiled camera is enough to exercise naming.
+    spec = SimpleNamespace(
+        camera_prim_paths=["/World/envs/env_0/Camera"],
+        device="cpu",
+        cfg=SimpleNamespace(
+            data_types=["rgb"],
+            width=64,
+            height=64,
+            isp_cfg=None,
+            colorize_semantic_segmentation=False,
+            colorize_instance_segmentation=False,
+            colorize_instance_id_segmentation=False,
+        ),
+    )
+    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg()
+
+    # Create many products with the same spec: names must still all differ (the
+    # sequential simple_shading_* / multi-camera collision case this fix targets).
+    num_names = 256
+    names: list[str] = []
+    with (
+        patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
+        patch.object(rtx_renderer, "get_isaac_sim_version", return_value=version.parse("6.0")),
+        patch.object(stage_utils, "get_current_stage", return_value=stage),
+    ):
+        for _ in range(num_names):
+            renderer.create_render_data(spec)
+            names.append(create_tiled.call_args.kwargs["name"])
+
+    # Every call must mint a distinct name — a reused default was the original bug.
+    assert len(set(names)) == num_names
+    for name in names:
+        # Contract: ``rp_`` + uuid4().hex so the token is a valid USD identifier
+        # (no hyphens) and cannot collide with path-derived names.
+        assert name.startswith("rp_")
+        hex_part = name.removeprefix("rp_")
+        # uuid4().hex is 32 lowercase hex digits (128 bits; 122 of them random).
+        assert len(hex_part) == 32
+        assert all(c in "0123456789abcdef" for c in hex_part)
+        # Replicator builds a USD prim from this name; reject illegal identifiers.
+        assert Sdf.Path.IsValidIdentifier(name)
+        assert Sdf.Path.IsValidPathString(f"/Render/{name}")
+
+
+@pytest.mark.parametrize(
+    ("data_types", "expected_shading_mode", "expected_minimal_render_mode"),
+    [
+        pytest.param(["simple_shading_constant_diffuse"], 1, True, id="constant_diffuse"),
+        pytest.param(["simple_shading_diffuse_mdl"], 2, True, id="diffuse_mdl"),
+        pytest.param(["simple_shading_full_mdl"], 3, True, id="full_mdl"),
+        pytest.param(
+            ["simple_shading_constant_diffuse", "simple_shading_full_mdl"],
+            1,
+            True,
+            id="multiple_modes_use_first",
+        ),
+        pytest.param(["rgb", "simple_shading_full_mdl"], 3, False, id="rgb_keeps_path_tracing"),
+        pytest.param(["rgba", "simple_shading_full_mdl"], 3, False, id="rgba_keeps_path_tracing"),
+        pytest.param(["rgb_hdr", "simple_shading_full_mdl"], 3, False, id="rgb_hdr_keeps_path_tracing"),
+    ],
+)
+def test_simple_shading_configures_its_render_product(
+    monkeypatch, data_types, expected_shading_mode, expected_minimal_render_mode
+):
+    """Simple shading must configure its product without altering requested color output.
+
+    Selecting a shading level alone leaves the product in ``RealTimePathTracing`` and keeps the
+    full path-tracing cost. Products without regular color output are switched to RTX Minimal;
+    mixed color products retain path tracing. The shading level is authored on the render product
+    rather than through process-wide carb settings.
+    """
+    replicator_core_module, syntheticdata_module = _install_omni_stubs(monkeypatch)
+    monkeypatch.setattr(syntheticdata_module, "SyntheticData", MagicMock(), raising=False)
+
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    from pxr import Sdf, UsdGeom
+
+    import isaaclab.sim.utils.stage as stage_utils
+
+    settings = MagicMock()
+    settings.get.return_value = False
+
+    rp = MagicMock()
+    rp.path = "/Render/OmniverseKit/HydraTextures/rp_test"
+
+    # Record the authored attributes per name; one mock per attribute keeps their ``Set`` calls
+    # distinguishable.
+    authored_attributes: dict[str, MagicMock] = {}
+    operation_order = []
+
+    def _create_attribute(name, value_type):
+        operation_order.append("settings")
+        attribute = MagicMock(value_type=value_type)
+        authored_attributes[name] = attribute
+        return attribute
+
+    render_product_prim = MagicMock()
+    render_product_prim.IsValid.return_value = True
+    render_product_prim.CreateAttribute.side_effect = _create_attribute
+
+    camera_prim = MagicMock()
+    camera_prim.IsA.side_effect = lambda typ: typ is UsdGeom.Camera
+
+    stage = MagicMock()
+    stage.SelectPrims.return_value.GetCount.return_value = 1
+    stage.GetPrimAtPath.side_effect = lambda path: render_product_prim if path == rp.path else camera_prim
+
+    annotator = MagicMock()
+    annotator.attach.side_effect = lambda *_args: operation_order.append("attach")
+    registry = MagicMock()
+    registry.get_annotator.return_value = annotator
+    replicator_core_module.create = SimpleNamespace(render_product_tiled=MagicMock(return_value=rp))
+    replicator_core_module.AnnotatorRegistry = registry
+
+    spec = SimpleNamespace(
+        camera_prim_paths=["/World/envs/env_0/Camera"],
+        device="cpu",
+        cfg=SimpleNamespace(
+            data_types=data_types,
+            width=64,
+            height=64,
+            isp_cfg=None,
+            colorize_semantic_segmentation=False,
+            colorize_instance_segmentation=False,
+            colorize_instance_id_segmentation=False,
+        ),
+    )
+    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg()
+
+    with (
+        patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
+        patch.object(rtx_renderer, "get_isaac_sim_version", return_value=version.parse("6.0")),
+        patch.object(stage_utils, "get_current_stage", return_value=stage),
+        patch.object(rtx_renderer.Usd, "EditContext", return_value=nullcontext()),
+    ):
+        renderer.create_render_data(spec)
+
+    assert operation_order.index("settings") > max(
+        index for index, operation in enumerate(operation_order) if operation == "attach"
+    )
+    stage.GetSessionLayer.assert_called_once()
+    if expected_minimal_render_mode:
+        assert authored_attributes["omni:rtx:rendermode"].Set.call_args == call("Minimal")
+        assert authored_attributes["omni:rtx:rendermode"].value_type == Sdf.ValueTypeNames.Token
+    else:
+        assert "omni:rtx:rendermode" not in authored_attributes
+    assert authored_attributes["omni:rtx:minimal:mode"].Set.call_args == call(expected_shading_mode)
+    assert authored_attributes["omni:rtx:minimal:mode"].value_type == Sdf.ValueTypeNames.Int
+
+    # The shading level must not leak into process-wide state, where the last camera would win.
+    global_setting_calls = [
+        setting_call
+        for setting_call in (
+            *settings.set_int.call_args_list,
+            *settings.set.call_args_list,
+            *settings.set_bool.call_args_list,
+        )
+        if setting_call.args
+        and setting_call.args[0] in ("/rtx/minimal/mode", "/rtx/rendermode", "/rtx/sdg/force/disableColorRender")
+    ]
+    assert global_setting_calls == []
+
+
+@pytest.mark.parametrize(
+    ("has_gui", "expected_disable_color_render"),
+    [
+        pytest.param(True, False, id="gui-keeps-color-rendering"),
+        pytest.param(False, True, id="headless-uses-depth-only-rendering"),
+    ],
+)
+def test_depth_only_camera_color_render_setting(monkeypatch, has_gui, expected_disable_color_render):
+    """Depth-only cameras must not disable color rendering for an active GUI.
+
+    ``disableColorRender`` is a global RTX setting, so enabling it for a depth-only
+    camera also blacks out the viewport. Headless execution should retain the
+    depth-only optimization.
+    """
+    _, syntheticdata_module = _install_omni_stubs(monkeypatch)
+    monkeypatch.setattr(syntheticdata_module, "SyntheticData", MagicMock(), raising=False)
+
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    import isaaclab.sim.utils.stage as stage_utils
+
+    settings = MagicMock()
+    settings.get.return_value = has_gui
+
+    # Camera validation terminates create_render_data immediately after the
+    # color-render setting is selected, keeping this a lightweight unit test.
+    stage = MagicMock()
+    stage.SelectPrims.return_value.GetCount.return_value = 1
+    stage.GetPrimAtPath.return_value.IsA.return_value = False
+    spec = SimpleNamespace(
+        camera_prim_paths=["/World/NotACamera"],
+        cfg=SimpleNamespace(data_types=["depth"]),
+    )
+    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg()
+
+    with (
+        patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
+        patch.object(rtx_renderer, "get_isaac_sim_version", return_value=version.parse("6.0")),
+        patch.object(stage_utils, "get_current_stage", return_value=stage),
+        pytest.raises(RuntimeError, match="is not a Camera"),
+    ):
+        renderer.create_render_data(spec)
+
+    color_render_calls = [
+        setting_call
+        for setting_call in settings.set_bool.call_args_list
+        if setting_call.args[0] == "/rtx/sdg/force/disableColorRender"
+    ]
+    assert color_render_calls[-1] == call("/rtx/sdg/force/disableColorRender", expected_disable_color_render)
+
+
+_MISSING = object()
+
+
+def test_init_enables_replicator_before_applying_global_settings(monkeypatch):
+    """IsaacRtxRenderer enables Replicator before settings can import its module."""
+    _install_omni_stubs(monkeypatch)
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    call_order = []
+    settings = MagicMock()
+    settings.get.return_value = False
+
+    def _record_enable(extension_name):
+        assert extension_name == "omni.replicator.core"
+        call_order.append("enable")
+
+    def _record_global_settings(*_args):
+        call_order.append("global_settings")
+
+    with (
+        patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
+        patch.object(rtx_renderer, "enable_extension", side_effect=_record_enable),
+        patch.object(rtx_renderer, "apply_isaac_rtx_global_settings", side_effect=_record_global_settings),
+        patch.object(rtx_renderer, "ensure_rtx_hydra_engine_attached"),
+    ):
+        rtx_renderer.IsaacRtxRenderer(IsaacRtxRendererCfg())
+
+    assert call_order == ["enable", "global_settings"]
+
+
+@pytest.mark.parametrize("configured_value", [None, False, True])
+def test_init_applies_only_explicit_global_spectator_view_setting(monkeypatch, configured_value):
+    """Isaac RTX should preserve launch intent unless the renderer config overrides it."""
+    _install_omni_stubs(monkeypatch)
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import (
+        IsaacRtxRendererCfg,
+        IsaacRtxRendererGlobalSettingsCfg,
+    )
+
+    settings = MagicMock()
+    settings.get.return_value = False
+    # The unset case uses the default renderer config, which must preserve the launch setting.
+    if configured_value is None:
+        cfg = IsaacRtxRendererCfg()
+    else:
+        cfg = IsaacRtxRendererCfg(
+            global_settings=IsaacRtxRendererGlobalSettingsCfg(show_all_partitions_by_default=configured_value)
+        )
+    with (
+        patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
+        patch.object(rtx_renderer, "enable_extension"),
+        patch.object(rtx_renderer, "ensure_rtx_hydra_engine_attached"),
+    ):
+        rtx_renderer.IsaacRtxRenderer(cfg)
+
+    spectator_calls = [
+        setting_call
+        for setting_call in settings.set.call_args_list
+        if setting_call.args[0] == ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+    ]
+    expected_calls = (
+        [] if configured_value is None else [call(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING, configured_value)]
+    )
+    assert spectator_calls == expected_calls
+
+
+@pytest.mark.parametrize(
+    ("stored", "expected_called"),
+    [
+        pytest.param(True, True, id="deterministic-true-applies-settings"),
+        pytest.param(False, False, id="deterministic-false-skips-settings"),
+        pytest.param(_MISSING, False, id="deterministic-missing-skips-settings"),
+    ],
+)
+def test_deterministic_flag_gates_rtx_determinism_settings(monkeypatch, stored, expected_called):
+    """IsaacRtxRenderer applies RTX determinism settings only when ``/isaaclab/render/deterministic`` is true."""
+    _install_omni_stubs(monkeypatch)
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    # RTX rendering requires cameras to be enabled.
+    settings_values = {"/isaaclab/cameras_enabled": True}
+    if stored is not _MISSING:
+        settings_values["/isaaclab/render/deterministic"] = stored
+
+    settings = MagicMock()
+    settings.get.side_effect = settings_values.get
+    determinism_mock = MagicMock()
+
+    with (
+        patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
+        patch.object(rtx_renderer, "enable_extension"),
+        patch.object(rtx_renderer, "apply_isaac_rtx_global_settings"),
+        patch.object(rtx_renderer, "apply_isaac_rtx_determinism_settings", determinism_mock),
+        patch.object(rtx_renderer, "ensure_rtx_hydra_engine_attached"),
+    ):
+        rtx_renderer.IsaacRtxRenderer(IsaacRtxRendererCfg())
+
+    assert determinism_mock.called is expected_called
+    if expected_called:
+        determinism_mock.assert_called_once_with(settings)
+
+
+@pytest.mark.parametrize(
+    ("data_type", "batched"), [("rgba", False), ("normals", True)], ids=["rgba-single", "normals-batch"]
+)
+def test_render_treats_empty_annotator_frame_as_not_ready(monkeypatch, data_type, batched):
+    """An empty warm-up frame should clear its output without slicing or launching a reshape."""
+    _install_omni_stubs(monkeypatch)
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    annotator = MagicMock()
+    annotator.get_data.return_value = np.empty((0, 0, 4), dtype=np.uint8)
+    output_buffer = MagicMock()
+    render_data = SimpleNamespace(
+        annotators={data_type: annotator},
+        output_data={data_type: SimpleNamespace(warp=output_buffer)},
+        spec=SimpleNamespace(
+            view_count=1,
+            device="cpu",
+            cfg=SimpleNamespace(width=64, height=64),
+        ),
+        renderer_info={},
+        ppisp_pipeline=None,
+        _hdr_scratch_wp=None,
+    )
+    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg()
+
+    with (
+        patch.object(rtx_renderer, "ensure_isaac_rtx_render_update") as update,
+        patch.object(rtx_renderer.wp, "launch") as launch,
+    ):
+        if batched:
+            renderer.render_batch([render_data])
+        else:
+            renderer.render(render_data)
+
+    update.assert_called_once_with()
+    output_buffer.zero_.assert_called_once_with()
+    launch.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "states",
+    [
+        pytest.param(("no_spec", "no_output"), id="uninitialized"),
+        pytest.param(("no_spec", "ready", "no_output", "ready"), id="mixed"),
+    ],
+)
+def test_render_batch_updates_once_before_extracting_ready_cameras(monkeypatch, states):
+    """Ready cameras share one RTX update and receive their own annotator pixels."""
+    _install_omni_stubs(monkeypatch)
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg()
+    operations = MagicMock()
+    render_data_list = []
+    expected_calls = [call.update()] if "ready" in states else []
+    expected_outputs = []
+    for index, state in enumerate(states):
+        annotator = getattr(operations, f"camera_{index}")
+        frame = np.full((1, 1, 4), index + 1, dtype=np.uint8)
+        annotator.get_data.return_value = frame
+        output_buffer = wp.zeros((1, 1, 1, 4), dtype=wp.uint8, device="cpu")
+        render_data_list.append(
+            SimpleNamespace(
+                annotators={"rgba": annotator},
+                output_data=None if state == "no_output" else {"rgba": SimpleNamespace(warp=output_buffer)},
+                spec=(
+                    None
+                    if state == "no_spec"
+                    else SimpleNamespace(view_count=1, device="cpu", cfg=SimpleNamespace(width=1, height=1))
+                ),
+                renderer_info={},
+                ppisp_pipeline=None,
+                _hdr_scratch_wp=None,
+            )
+        )
+        if state == "ready":
+            expected_calls.append(getattr(call, f"camera_{index}").get_data())
+            expected_outputs.append((output_buffer, frame[np.newaxis]))
+
+    with patch.object(rtx_renderer, "ensure_isaac_rtx_render_update", operations.update):
+        renderer.render_batch(render_data_list)
+
+    assert operations.mock_calls == expected_calls
+    for output_buffer, expected in expected_outputs:
+        np.testing.assert_array_equal(output_buffer.numpy(), expected)
+
+
+def test_isaac_rtx_read_output_clears_stale_metadata_and_keeps_seeded_keys(monkeypatch):
+    """read_output replaces (not merges): a dropped annotator info resets its info entry, seeded keys persist."""
+    _install_omni_stubs(monkeypatch)
+    from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer
+
+    from isaaclab.sensors.camera.camera_data import CameraData
+
+    renderer = IsaacRtxRenderer.__new__(IsaacRtxRenderer)
+
+    # ``camera_data.info`` is seeded with one key per output (mirrors ``camera_data.output``); both start None.
+    camera_data = CameraData()
+    camera_data.info = {"rgb": None, "semantic_segmentation": None}
+
+    # Frame 1: the segmentation annotator emits metadata, so its info lands in camera_data.info.
+    id_to_labels = {"2": {"class": "cartpole"}}
+    render_data = SimpleNamespace(renderer_info={"semantic_segmentation": {"idToLabels": id_to_labels}})
+    renderer.read_output(render_data, camera_data)
+    assert camera_data.info["semantic_segmentation"] == {"idToLabels": id_to_labels}
+
+    # Frame 2: the annotator emits no info (``renderer_info`` value is None or the key is gone).
+    render_data = SimpleNamespace(renderer_info={"semantic_segmentation": None})
+    renderer.read_output(render_data, camera_data)
+
+    # The stale idToLabels must be cleared, and the seeded keys (rgb, semantic_segmentation) must remain.
+    assert camera_data.info == {"rgb": None, "semantic_segmentation": None}
+
+
+def test_isaac_rtx_publishes_fabric_visual_material_writer(monkeypatch):
+    """Isaac RTX exposes the renderer-owned Fabric writer factory."""
+    _install_omni_stubs(monkeypatch)
+    from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer
+    from isaaclab_physx.renderers.visual_material import FabricVisualMaterialWriter
+
+    assert IsaacRtxRenderer.__new__(IsaacRtxRenderer).visual_material_writer is FabricVisualMaterialWriter

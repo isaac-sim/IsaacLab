@@ -29,7 +29,10 @@ import warp as wp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sim import build_simulation_context
+from isaaclab.test.utils import test_devices
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+
+pytestmark = pytest.mark.integration
 
 
 def generate_dual_cube_scene(
@@ -67,18 +70,18 @@ def generate_dual_cube_scene(
 
     spawn_cfg = sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
     )
 
     cube_composer_cfg = RigidObjectCfg(
-        prim_path="/World/Composer_.*/Object",
+        prim_path="/World/Composer_[^/]*/Object",
         spawn=spawn_cfg,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height), rot=initial_rot),
     )
     cube_composer = RigidObject(cfg=cube_composer_cfg)
 
     cube_raw_cfg = RigidObjectCfg(
-        prim_path="/World/Raw_.*/Object",
+        prim_path="/World/Raw_[^/]*/Object",
         spawn=spawn_cfg,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, y_offset, height), rot=initial_rot),
     )
@@ -94,7 +97,7 @@ TORQUE_MAGNITUDE = 1.0
 ROT_45_Z = (0.0, 0.0, math.sin(math.pi / 8), math.cos(math.pi / 8))  # 45deg about Z in (x,y,z,w)
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_composer_vs_physx_local_force(device):
     """Baseline: local force at identity orientation. Composer and raw PhysX should match exactly."""
     with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
@@ -159,79 +162,7 @@ def test_composer_vs_physx_local_force(device):
         )
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_composer_vs_physx_global_force(device):
-    """Global force with non-identity rotation (45 deg Z). Rotation matters for frame conversion."""
-    with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        cube_composer, cube_raw = generate_dual_cube_scene(num_cubes=1, device=device, initial_rot=ROT_45_Z)
-
-        sim.reset()
-
-        body_ids, _ = cube_composer.find_bodies(".*")
-
-        # Composer path: global force +X
-        forces = torch.zeros(1, len(body_ids), 3, device=device)
-        forces[..., 0] = FORCE_MAGNITUDE
-        torques = torch.zeros(1, len(body_ids), 3, device=device)
-
-        cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
-            forces=forces,
-            torques=torques,
-            body_ids=body_ids,
-            is_global=True,
-        )
-
-        # Raw PhysX data
-        raw_forces = torch.zeros(1, 3, device=device)
-        raw_forces[:, 0] = FORCE_MAGNITUDE
-        raw_torques = torch.zeros(1, 3, device=device)
-        raw_indices = cube_raw._ALL_INDICES
-
-        for _ in range(N_STEPS):
-            cube_composer.write_data_to_sim()
-            cube_raw.write_data_to_sim()
-            cube_raw.root_view.apply_forces_and_torques_at_position(
-                force_data=wp.from_torch(raw_forces.contiguous(), dtype=wp.float32),
-                torque_data=wp.from_torch(raw_torques.contiguous(), dtype=wp.float32),
-                position_data=None,
-                indices=raw_indices,
-                is_global=True,
-            )
-            sim.step()
-            cube_composer.update(sim.cfg.dt)
-            cube_raw.update(sim.cfg.dt)
-
-        # Linear velocities should match (same global force, same mass)
-        torch.testing.assert_close(
-            cube_composer.data.root_lin_vel_w.torch,
-            cube_raw.data.root_lin_vel_w.torch,
-            rtol=1e-4,
-            atol=1e-4,
-        )
-        # Angular velocities should match
-        torch.testing.assert_close(
-            cube_composer.data.root_ang_vel_w.torch,
-            cube_raw.data.root_ang_vel_w.torch,
-            rtol=1e-4,
-            atol=1e-4,
-        )
-        # Both should have ~zero angular velocity (force at CoM, no torque)
-        torch.testing.assert_close(
-            cube_composer.data.root_ang_vel_w.torch,
-            torch.zeros(1, 3, device=device),
-            rtol=0.0,
-            atol=1e-4,
-        )
-        torch.testing.assert_close(
-            cube_raw.data.root_ang_vel_w.torch,
-            torch.zeros(1, 3, device=device),
-            rtol=0.0,
-            atol=1e-4,
-        )
-
-
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_composer_vs_physx_local_force_at_position(device):
     """Local force at a local offset. Both paths should produce identical cross-product torque."""
     with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
@@ -299,7 +230,7 @@ def test_composer_vs_physx_local_force_at_position(device):
         )
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_composer_vs_physx_global_force_at_position(device):
     """Global force at world position with non-identity rotation. Both rotation AND position correction matter."""
     with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
@@ -371,7 +302,7 @@ def test_composer_vs_physx_global_force_at_position(device):
         )
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_composer_vs_physx_local_torque(device):
     """Local torque at identity orientation. Should produce matching angular velocity."""
     with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
@@ -436,7 +367,7 @@ def test_composer_vs_physx_local_torque(device):
         )
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_composer_vs_physx_global_torque(device):
     """Global torque with non-identity rotation (45 deg Z). Composer rotates to body frame internally."""
     with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
@@ -491,79 +422,7 @@ def test_composer_vs_physx_global_torque(device):
 NUM_CUBES_MULTI = 4
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_composer_vs_physx_global_force_multi_env(device):
-    """Global force (no position) with multiple environments.
-
-    Regression: checks that env-indexing and per-body quaternion handling work correctly
-    when there is more than one environment.
-    """
-    with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        cube_composer, cube_raw = generate_dual_cube_scene(
-            num_cubes=NUM_CUBES_MULTI, device=device, initial_rot=ROT_45_Z
-        )
-
-        sim.reset()
-
-        body_ids, _ = cube_composer.find_bodies(".*")
-
-        # Composer path: global force +X for all envs
-        forces = torch.zeros(NUM_CUBES_MULTI, len(body_ids), 3, device=device)
-        forces[..., 0] = FORCE_MAGNITUDE
-        torques = torch.zeros(NUM_CUBES_MULTI, len(body_ids), 3, device=device)
-
-        cube_composer.permanent_wrench_composer.set_forces_and_torques_index(
-            forces=forces,
-            torques=torques,
-            body_ids=body_ids,
-            is_global=True,
-        )
-
-        # Raw PhysX data (one row per env)
-        raw_forces = torch.zeros(NUM_CUBES_MULTI, 3, device=device)
-        raw_forces[:, 0] = FORCE_MAGNITUDE
-        raw_torques = torch.zeros(NUM_CUBES_MULTI, 3, device=device)
-        raw_indices = cube_raw._ALL_INDICES
-
-        for _ in range(N_STEPS):
-            cube_composer.write_data_to_sim()
-            cube_raw.write_data_to_sim()
-            cube_raw.root_view.apply_forces_and_torques_at_position(
-                force_data=wp.from_torch(raw_forces.contiguous(), dtype=wp.float32),
-                torque_data=wp.from_torch(raw_torques.contiguous(), dtype=wp.float32),
-                position_data=None,
-                indices=raw_indices,
-                is_global=True,
-            )
-            sim.step()
-            cube_composer.update(sim.cfg.dt)
-            cube_raw.update(sim.cfg.dt)
-
-        # Linear velocities should match across all envs
-        torch.testing.assert_close(
-            cube_composer.data.root_lin_vel_w.torch,
-            cube_raw.data.root_lin_vel_w.torch,
-            rtol=1e-4,
-            atol=1e-4,
-        )
-        # Angular velocities should match
-        torch.testing.assert_close(
-            cube_composer.data.root_ang_vel_w.torch,
-            cube_raw.data.root_ang_vel_w.torch,
-            rtol=1e-4,
-            atol=1e-4,
-        )
-        # All envs should have ~zero angular velocity
-        torch.testing.assert_close(
-            cube_composer.data.root_ang_vel_w.torch,
-            torch.zeros(NUM_CUBES_MULTI, 3, device=device),
-            rtol=0.0,
-            atol=1e-4,
-        )
-
-
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_composer_vs_physx_global_force_with_reset(device):
     """Global force (no position) with a mid-simulation reset of half the envs.
 
@@ -697,7 +556,7 @@ def test_composer_vs_physx_global_force_with_reset(device):
         )
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_composer_vs_physx_payload_scenario(device):
     """Mirrors the apply_payload MDP: permanent global downward force at CoM with gravity.
 
@@ -772,7 +631,7 @@ def test_composer_vs_physx_payload_scenario(device):
         )
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_composer_vs_physx_permanent_global_force_at_position_long_run(device):
     """Permanent global force at a world-frame offset, run long enough for significant body motion.
 

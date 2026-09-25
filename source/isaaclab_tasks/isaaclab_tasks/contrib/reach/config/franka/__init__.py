@@ -10,27 +10,15 @@ import gymnasium as gym
 ##
 
 ##
-# Inverse Kinematics - Absolute Pose Control
+# Deprecated inverse-kinematics task aliases.
 ##
 
 gym.register(
-    id="Isaac-Reach-Franka-IK-Abs-v0",
+    id="IsaacContrib-Reach-Franka-IK-Abs",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.ik_abs_env_cfg:FrankaReachEnvCfg",
-    },
-    disable_env_checker=True,
-)
-
-##
-# Inverse Kinematics - Relative Pose Control
-##
-
-gym.register(
-    id="Isaac-Reach-Franka-IK-Rel-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.ik_rel_env_cfg:FrankaReachEnvCfg",
+        "deprecated": {"alias": "--task Isaac-Reach-Franka physics=isaacsim_physx presets=diffik_abs"},
     },
     disable_env_checker=True,
 )

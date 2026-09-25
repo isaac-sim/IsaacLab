@@ -12,9 +12,10 @@ from typing import ClassVar, Literal
 from isaaclab.sim.spawners.materials.physics_materials_cfg import (
     DeformableBodyMaterialBaseCfg,
     RigidBodyMaterialBaseCfg,
+    RigidBodyMaterialFragment,
     SurfaceDeformableBodyMaterialBaseCfg,
 )
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 @configclass
@@ -112,15 +113,15 @@ class PhysxSurfaceDeformableBodyMaterialCfg(
 class DeformableBodyMaterialCfg(PhysxDeformableBodyMaterialCfg):
     """Deprecated: use :class:`PhysxDeformableBodyMaterialCfg`.
 
-    .. deprecated:: 4.6.x
+    .. deprecated:: 3.1
         ``DeformableBodyMaterialCfg`` has moved to
         :class:`PhysxDeformableBodyMaterialCfg` for PhysX-specific deformable materials
-        and is scheduled for removal in 5.0.
+        and is scheduled for removal in 4.0.
     """
 
     def __post_init__(self):
         warnings.warn(
-            "'DeformableBodyMaterialCfg' is deprecated and will be removed in 5.0. Use"
+            "'DeformableBodyMaterialCfg' is deprecated and will be removed in 3.2. Use"
             " 'isaaclab_physx.sim.spawners.materials.PhysxDeformableBodyMaterialCfg' instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -132,15 +133,15 @@ class DeformableBodyMaterialCfg(PhysxDeformableBodyMaterialCfg):
 class SurfaceDeformableBodyMaterialCfg(PhysxSurfaceDeformableBodyMaterialCfg):
     """Deprecated: use :class:`PhysxSurfaceDeformableBodyMaterialCfg`.
 
-    .. deprecated:: 4.6.x
+    .. deprecated:: 3.1
         ``SurfaceDeformableBodyMaterialCfg`` has moved to
         :class:`PhysxSurfaceDeformableBodyMaterialCfg` for PhysX-specific surface
-        deformable materials and is scheduled for removal in 5.0.
+        deformable materials and is scheduled for removal in 4.0.
     """
 
     def __post_init__(self):
         warnings.warn(
-            "'SurfaceDeformableBodyMaterialCfg' is deprecated and will be removed in 5.0. Use"
+            "'SurfaceDeformableBodyMaterialCfg' is deprecated and will be removed in 3.2. Use"
             " 'isaaclab_physx.sim.spawners.materials.PhysxSurfaceDeformableBodyMaterialCfg' instead.",
             DeprecationWarning,
             stacklevel=2,
@@ -154,12 +155,13 @@ class PhysxRigidBodyMaterialCfg(RigidBodyMaterialBaseCfg):
 
     Extends :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` with the
     `PhysxMaterialAPI`_ schema fields: compliant-contact spring (stiffness/damping) and the
-    friction/restitution combine-mode tokens. None of these fields have a Newton consumer
-    today; they are PhysX-engine-only knobs.
+    friction/restitution combine-mode tokens. Newton's USD importer also recognizes stiffness and
+    damping as fallback contact parameters; the acceleration-spring flag and combine modes are
+    PhysX-only.
 
     See :meth:`~isaaclab.sim.spawners.materials.spawn_rigid_body_material` for more information.
 
-    .. _PhysxMaterialAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_material_a_p_i.html
+    .. _PhysxMaterialAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_material_a_p_i.html
     """
 
     # -- Class metadata (not dataclass fields) --
@@ -172,14 +174,23 @@ class PhysxRigidBodyMaterialCfg(RigidBodyMaterialBaseCfg):
     """Spring stiffness for a compliant contact model using implicit springs.
 
     A higher stiffness results in behavior closer to a rigid contact. The compliant contact model
-    is only enabled if the stiffness is larger than 0. PhysX-only; not consumed by Newton.
+    is only enabled if the stiffness is larger than 0. Newton's USD importer also recognizes this
+    attribute as a fallback contact-stiffness value.
     """
 
     compliant_contact_damping: float | None = None
     """Damping coefficient for a compliant contact model using implicit springs.
 
     Irrelevant if compliant contacts are disabled when :attr:`compliant_contact_stiffness` is set
-    to zero and rigid contacts are active. PhysX-only; not consumed by Newton.
+    to zero and rigid contacts are active. Newton's USD importer also recognizes this attribute as
+    a fallback contact-damping value.
+    """
+
+    compliant_contact_acceleration_spring: bool | None = None
+    """Whether the compliant contact spring is formulated in acceleration (rather than force) units.
+
+    Only relevant when compliant contacts are enabled (:attr:`compliant_contact_stiffness` is
+    non-zero). PhysX-only; not consumed by Newton.
     """
 
     friction_combine_mode: Literal["average", "min", "multiply", "max"] | None = None
@@ -202,23 +213,90 @@ class PhysxRigidBodyMaterialCfg(RigidBodyMaterialBaseCfg):
         <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/structPxCombineMode.html>`__.
     """
 
+    damping_combine_mode: Literal["average", "min", "multiply", "max"] | None = None
+    """Determines the way the (compliant-contact) damping coefficient is combined during collisions.
+
+    .. attention::
+
+        When two physics materials with different combine modes collide, the combine mode with
+        the higher priority will be used. The priority order is provided `here
+        <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/structPxCombineMode.html>`__.
+    """
+
+
+@configclass
+class PhysxMaterialCfg(RigidBodyMaterialFragment):
+    """``physxMaterial:*`` rigid-body material attributes from `PhysxMaterialAPI`_.
+
+    Single-namespace fragment (see :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment`)
+    for the PhysX material namespace: compliant-contact spring (stiffness/damping), which Newton's
+    USD importer can read as fallback contact parameters, plus PhysX-only acceleration-spring and
+    combine-mode knobs. The ``PhysxMaterialAPI`` schema is applied (and the ``physxMaterial:*``
+    attributes authored) by the generic :func:`~isaaclab.sim.schemas.apply_namespaced` writer.
+    ``None`` fields are left unchanged.
+
+    .. _PhysxMaterialAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_material_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxMaterial"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxMaterialAPI"
+
+    compliant_contact_stiffness: float | None = None
+    """Spring stiffness for a compliant contact model using implicit springs.
+
+    A higher stiffness results in behavior closer to a rigid contact. The compliant contact model is
+    only enabled if the stiffness is larger than 0. Writes ``physxMaterial:compliantContactStiffness``.
+    """
+
+    compliant_contact_damping: float | None = None
+    """Damping coefficient for a compliant contact model using implicit springs.
+
+    Irrelevant if compliant contacts are disabled (``compliant_contact_stiffness`` is zero). Writes
+    ``physxMaterial:compliantContactDamping``.
+    """
+
+    compliant_contact_acceleration_spring: bool | None = None
+    """Whether the compliant contact spring is formulated in acceleration (rather than force) units.
+
+    Writes ``physxMaterial:compliantContactAccelerationSpring``. Only relevant when compliant
+    contacts are enabled (:attr:`compliant_contact_stiffness` is non-zero).
+    """
+
+    friction_combine_mode: Literal["average", "min", "multiply", "max"] | None = None
+    """How friction is combined during collisions. Writes ``physxMaterial:frictionCombineMode``."""
+
+    restitution_combine_mode: Literal["average", "min", "multiply", "max"] | None = None
+    """How restitution is combined during collisions. Writes ``physxMaterial:restitutionCombineMode``."""
+
+    damping_combine_mode: Literal["average", "min", "multiply", "max"] | None = None
+    """How the (compliant-contact) damping coefficient is combined during collisions.
+
+    Writes ``physxMaterial:dampingCombineMode``.
+
+    .. attention::
+
+        When two physics materials with different combine modes collide, the combine mode with
+        the higher priority will be used. The priority order is provided `here
+        <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/structPxCombineMode.html>`__.
+    """
+
 
 @configclass
 class RigidBodyMaterialCfg(PhysxRigidBodyMaterialCfg):
     """Deprecated: use :class:`PhysxRigidBodyMaterialCfg` or
     :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg`.
 
-    .. deprecated:: 4.6.22
+    .. deprecated:: 3.1
         ``RigidBodyMaterialCfg`` has been split into
         :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` (solver-common) and
         :class:`PhysxRigidBodyMaterialCfg` (PhysX-specific) and relocated to
         :mod:`isaaclab_physx.sim.spawners.materials`. This alias preserves backwards compatibility
-        and is scheduled for removal in 5.0.
+        and is scheduled for removal in 4.0.
     """
 
     def __post_init__(self):
         warnings.warn(
-            "'RigidBodyMaterialCfg' is deprecated and will be removed in 5.0. Use"
+            "'RigidBodyMaterialCfg' is deprecated and will be removed in 3.2. Use"
             " 'isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg' for PhysX"
             " properties, or 'isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg' for"
             " solver-common properties only.",

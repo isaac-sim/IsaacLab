@@ -3,22 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Direct-workflow cartpole balancing environment."""
+
 from __future__ import annotations
 
-import math
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
 
-import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.math import sample_uniform
+from isaaclab.utils.math import sample_uniform, wrap_to_pi
 
 if TYPE_CHECKING:
-    from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
+    from .cartpole_direct_env_cfg import CartpoleEnvCfg
 
 
 class CartpoleEnv(DirectRLEnv):
@@ -29,30 +27,13 @@ class CartpoleEnv(DirectRLEnv):
     def __init__(self, cfg: CartpoleEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
+        self.cartpole = self.scene["cartpole"]
         self._cart_dof_idx, _ = self.cartpole.find_joints(self.cfg.cart_dof_name)
         self._pole_dof_idx, _ = self.cartpole.find_joints(self.cfg.pole_dof_name)
         self.action_scale = self.cfg.action_scale
 
         self.joint_pos = self.cartpole.data.joint_pos.torch
         self.joint_vel = self.cartpole.data.joint_vel.torch
-
-    def _setup_scene(self):
-        self.cartpole = Articulation(self.cfg.robot_cfg)
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-
-        # clone and replicate
-        self.scene.clone_environments(copy_from_source=False)
-
-        # we need to explicitly filter collisions for CPU simulation
-        if self.device == "cpu":
-            self.scene.filter_collisions(global_prim_paths=[])
-
-        # add articulation to scene
-        self.scene.articulations["cartpole"] = self.cartpole
-
-        # add lights
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-        light_cfg.func("/World/Light", light_cfg)
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = self.action_scale * actions.clone()
@@ -61,20 +42,21 @@ class CartpoleEnv(DirectRLEnv):
         self.cartpole.set_joint_effort_target_index(target=self.actions, joint_ids=self._cart_dof_idx)
 
     def _get_observations(self) -> dict:
+        joint_pos_rel = self.joint_pos - self.cartpole.data.default_joint_pos.torch
+        joint_vel_rel = self.joint_vel - self.cartpole.data.default_joint_vel.torch
         obs = torch.cat(
             (
-                self.joint_pos[:, self._pole_dof_idx[0]].unsqueeze(dim=1),
-                self.joint_vel[:, self._pole_dof_idx[0]].unsqueeze(dim=1),
-                self.joint_pos[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
-                self.joint_vel[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
+                joint_pos_rel[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
+                joint_pos_rel[:, self._pole_dof_idx[0]].unsqueeze(dim=1),
+                joint_vel_rel[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
+                joint_vel_rel[:, self._pole_dof_idx[0]].unsqueeze(dim=1),
             ),
             dim=-1,
         )
-        observations = {"policy": obs}
-        return observations
+        return {"policy": obs}
 
     def _get_rewards(self) -> torch.Tensor:
-        total_reward = compute_rewards(
+        return compute_rewards(
             self.cfg.rew_scale_alive,
             self.cfg.rew_scale_terminated,
             self.cfg.rew_scale_pole_pos,
@@ -84,36 +66,59 @@ class CartpoleEnv(DirectRLEnv):
             self.joint_vel[:, self._pole_dof_idx[0]],
             self.joint_vel[:, self._cart_dof_idx[0]],
             self.reset_terminated,
+            self.step_dt,
         )
-        return total_reward
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         self.joint_pos = self.cartpole.data.joint_pos.torch
         self.joint_vel = self.cartpole.data.joint_vel.torch
 
-        time_out = self.episode_length_buf >= self.max_episode_length - 1
+        time_out = self.episode_length_buf >= self.max_episode_length
         out_of_bounds = torch.any(torch.abs(self.joint_pos[:, self._cart_dof_idx]) > self.cfg.max_cart_pos, dim=1)
-        out_of_bounds = out_of_bounds | torch.any(torch.abs(self.joint_pos[:, self._pole_dof_idx]) > math.pi / 2, dim=1)
         return out_of_bounds, time_out
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
         if env_ids is None:
             env_ids = self.cartpole._ALL_INDICES
 
-        # Log survival success rate before resetting
+        # log the survival success rate before resetting (survived = timed out without terminating early)
         survived = self.reset_time_outs[env_ids].float()
         self.extras.setdefault("log", {})["Metrics/success_rate"] = survived.mean().item()
 
         super()._reset_idx(env_ids)
 
         joint_pos = self.cartpole.data.default_joint_pos.torch[env_ids].clone()
-        joint_pos[:, self._pole_dof_idx] += sample_uniform(
-            self.cfg.initial_pole_angle_range[0] * math.pi,
-            self.cfg.initial_pole_angle_range[1] * math.pi,
-            joint_pos[:, self._pole_dof_idx].shape,
+        joint_pos[:, self._cart_dof_idx] += sample_uniform(
+            self.cfg.initial_cart_position_range[0],
+            self.cfg.initial_cart_position_range[1],
+            joint_pos[:, self._cart_dof_idx].shape,
             joint_pos.device,
         )
         joint_vel = self.cartpole.data.default_joint_vel.torch[env_ids].clone()
+        joint_vel[:, self._cart_dof_idx] += sample_uniform(
+            self.cfg.initial_cart_velocity_range[0],
+            self.cfg.initial_cart_velocity_range[1],
+            joint_vel[:, self._cart_dof_idx].shape,
+            joint_vel.device,
+        )
+        joint_pos[:, self._pole_dof_idx] += sample_uniform(
+            self.cfg.initial_pole_angle_range[0],
+            self.cfg.initial_pole_angle_range[1],
+            joint_pos[:, self._pole_dof_idx].shape,
+            joint_pos.device,
+        )
+        joint_vel[:, self._pole_dof_idx] += sample_uniform(
+            self.cfg.initial_pole_velocity_range[0],
+            self.cfg.initial_pole_velocity_range[1],
+            joint_vel[:, self._pole_dof_idx].shape,
+            joint_vel.device,
+        )
+
+        # clamp the sampled state to the joint limits (matches the manager-based reset_joints_by_offset)
+        joint_pos_limits = self.cartpole.data.soft_joint_pos_limits.torch[env_ids]
+        joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
+        joint_vel_limits = self.cartpole.data.soft_joint_vel_limits.torch[env_ids]
+        joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
 
         default_root_pose = self.cartpole.data.default_root_pose.torch[env_ids].clone()
         default_root_pose[:, :3] += self.scene.env_origins[env_ids]
@@ -139,11 +144,13 @@ def compute_rewards(
     pole_vel: torch.Tensor,
     cart_vel: torch.Tensor,
     reset_terminated: torch.Tensor,
-):
+    step_dt: float,
+) -> torch.Tensor:
+    pole_pos = wrap_to_pi(pole_pos)
     rew_alive = rew_scale_alive * (1.0 - reset_terminated.float())
     rew_termination = rew_scale_terminated * reset_terminated.float()
     rew_pole_pos = rew_scale_pole_pos * torch.sum(torch.square(pole_pos).unsqueeze(dim=1), dim=-1)
     rew_cart_vel = rew_scale_cart_vel * torch.sum(torch.abs(cart_vel).unsqueeze(dim=1), dim=-1)
     rew_pole_vel = rew_scale_pole_vel * torch.sum(torch.abs(pole_vel).unsqueeze(dim=1), dim=-1)
-    total_reward = rew_alive + rew_termination + rew_pole_pos + rew_cart_vel + rew_pole_vel
+    total_reward = (rew_alive + rew_termination + rew_pole_pos + rew_cart_vel + rew_pole_vel) * step_dt
     return total_reward

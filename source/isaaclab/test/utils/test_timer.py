@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import statistics
 import time
 
 import pytest
@@ -10,149 +11,101 @@ import warp as wp
 
 wp.init()
 
+import isaaclab.utils.timer as timer_module
 from isaaclab.utils.timer import Timer, TimerError
 
-# number of decimal places to check
-PRECISION_PLACES = 2
+pytestmark = pytest.mark.unit
 
 
-def test_timer_as_object():
+class _FakeClock:
+    """Manually advanced replacement for :func:`time.perf_counter`."""
+
+    def __init__(self):
+        self.now = 100.0
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float):
+        self.now += seconds
+
+
+@pytest.fixture
+def clock(monkeypatch) -> _FakeClock:
+    """Patch the timer clock so elapsed times are exact and tests do not sleep."""
+    fake_clock = _FakeClock()
+    monkeypatch.setattr(timer_module.time, "perf_counter", fake_clock)
+    return fake_clock
+
+
+def test_timer_as_object(clock):
     """Test using a `Timer` as a regular object."""
     Timer.reset()
     timer = Timer()
     timer.start()
-    assert abs(0 - timer.time_elapsed) < 10 ** (-PRECISION_PLACES)
-    time.sleep(1)
-    assert abs(1 - timer.time_elapsed) < 10 ** (-PRECISION_PLACES)
+    assert timer.time_elapsed == 0.0
+    clock.advance(1.0)
+    assert timer.time_elapsed == 1.0
     timer.stop()
-    assert abs(1 - timer.total_run_time) < 10 ** (-PRECISION_PLACES)
+    assert timer.total_run_time == 1.0
 
 
-def test_timer_as_context_manager():
+def test_timer_as_context_manager(clock):
     """Test using a `Timer` as a context manager."""
     Timer.reset()
     with Timer() as timer:
-        assert abs(0 - timer.time_elapsed) < 10 ** (-PRECISION_PLACES)
-        time.sleep(1)
-        assert abs(1 - timer.time_elapsed) < 10 ** (-PRECISION_PLACES)
+        assert timer.time_elapsed == 0.0
+        clock.advance(1.0)
+        assert timer.time_elapsed == 1.0
+    assert timer.total_run_time == 1.0
 
 
-def test_timer_with_name_logs_to_global_dict():
-    """Test that a named timer logs to the global timing_info dict with correct keys."""
+def test_named_timer_statistics(clock):
+    """Test that a named timer logs its single measurement to the global dict and the getters."""
     Timer.reset()
     timer_name = "test_named_timer"
 
     with Timer(name=timer_name):
-        time.sleep(0.01)
+        clock.advance(0.5)
 
-    assert timer_name in Timer.timing_info
     info = Timer.timing_info[timer_name]
-    assert "last" in info
-    assert "mean" in info
-    assert "std" in info
-    assert "n" in info
+    assert set(info) == {"last", "mean", "std", "n"}
     assert info["n"] == 1
-
-
-def test_get_timer_info_returns_last_elapsed():
-    """Test that get_timer_info returns the last elapsed time (backward compatibility)."""
-    Timer.reset()
-    timer_name = "test_get_info"
-
-    with Timer(name=timer_name):
-        time.sleep(0.02)
-
+    assert info["last"] == 0.5
+    # For a single measurement, std is 0 and mean equals last
+    assert info["std"] == 0.0
+    assert info["mean"] == info["last"]
+    # get_timer_info returns the last elapsed time (backward compatibility)
     last_time = Timer.get_timer_info(timer_name)
     assert isinstance(last_time, float)
-    assert last_time >= 0.02
-    assert last_time == Timer.timing_info[timer_name]["last"]
+    assert last_time == info["last"]
+    assert Timer.get_timer_statistics(timer_name) == info
 
 
-def test_get_timer_info_nonexistent_raises():
-    """Test that get_timer_info raises TimerError for non-existent timer."""
+@pytest.mark.parametrize("getter", [Timer.get_timer_info, Timer.get_timer_statistics])
+def test_timer_getters_nonexistent_raise(getter):
+    """Test that the timer getters raise TimerError for a non-existent timer."""
     Timer.reset()
 
     with pytest.raises(TimerError):
-        Timer.get_timer_info("nonexistent_timer")
+        getter("nonexistent_timer")
 
 
-def test_get_timer_statistics():
-    """Test get_timer_statistics returns correct keys and values for single measurement."""
-    Timer.reset()
-    timer_name = "test_statistics"
-
-    with Timer(name=timer_name):
-        time.sleep(0.02)
-
-    stats = Timer.get_timer_statistics(timer_name)
-    assert "mean" in stats
-    assert "std" in stats
-    assert "n" in stats
-    assert stats["n"] == 1
-    # For single measurement, std should be 0
-    assert stats["std"] == 0.0
-
-
-def test_get_timer_statistics_nonexistent_raises():
-    """Test that get_timer_statistics raises TimerError for non-existent timer."""
-    Timer.reset()
-
-    with pytest.raises(TimerError):
-        Timer.get_timer_statistics("nonexistent_timer")
-
-
-def test_welford_statistics_multiple_iterations():
-    """Test that Welford's algorithm correctly computes statistics over multiple iterations."""
+def test_welford_statistics_multiple_iterations(clock):
+    """Test that Welford's algorithm correctly computes statistics over multiple timer instances."""
     Timer.reset()
     timer_name = "test_welford"
-    num_iterations = 5
-    sleep_duration = 0.02
-    measurements = []
+    durations = [1.0, 2.0, 3.0, 4.0, 5.0]
 
-    for _ in range(num_iterations):
+    for duration in durations:
         with Timer(name=timer_name):
-            time.sleep(sleep_duration)
-        measurements.append(Timer.timing_info[timer_name]["last"])
+            clock.advance(duration)
 
     stats = Timer.get_timer_statistics(timer_name)
-
-    # Check n incremented correctly
-    assert stats["n"] == num_iterations
-
-    # Check mean is approximately correct
-    expected_mean = sum(measurements) / len(measurements)
-    assert abs(stats["mean"] - expected_mean) < 1e-9
-
-    # Check std is non-negative and reasonable
-    assert stats["std"] >= 0
-    # Std should be bounded by the range of measurements
-    measurement_range = max(measurements) - min(measurements)
-    assert stats["std"] <= measurement_range
-
-
-def test_multiple_timer_instances_same_name():
-    """Test that different timer instances with same name share statistics in global dict."""
-    Timer.reset()
-    timer_name = "shared_timer"
-
-    # First timer instance
-    timer1 = Timer(name=timer_name)
-    timer1.start()
-    time.sleep(0.01)
-    timer1.stop()
-
-    assert Timer.timing_info[timer_name]["n"] == 1
-    first_mean = Timer.timing_info[timer_name]["mean"]
-
-    # Second timer instance with same name
-    timer2 = Timer(name=timer_name)
-    timer2.start()
-    time.sleep(0.02)
-    timer2.stop()
-
-    assert Timer.timing_info[timer_name]["n"] == 2
-    # Mean should have changed
-    assert Timer.timing_info[timer_name]["mean"] != first_mean
+    assert stats["n"] == len(durations)
+    assert stats["last"] == durations[-1]
+    assert stats["mean"] == pytest.approx(statistics.mean(durations))
+    assert stats["std"] == pytest.approx(statistics.stdev(durations))
 
 
 def test_global_enable_toggle():
@@ -210,38 +163,22 @@ def test_enable_display_output(capsys):
         Timer.enable_display_output = True
 
 
-def test_time_unit_multiplier():
+@pytest.mark.parametrize("time_unit, multiplier", [("ms", 1e3), ("us", 1e6), ("ns", 1e9)])
+def test_time_unit_multiplier(clock, time_unit, multiplier):
     """Test that time_unit correctly scales the string representation."""
     Timer.reset()
 
-    timer = Timer(time_unit="ms")
+    timer = Timer(time_unit=time_unit)
     timer.start()
-    time.sleep(0.01)
+    clock.advance(0.5)
     timer.stop()
 
     # total_run_time always returns seconds
-    assert timer.total_run_time >= 0.01
-    # __str__ should show milliseconds
-    output = str(timer)
-    assert "ms" in output
-    # The numeric value should be >= 10 (0.01s = 10ms)
-    numeric_part = float(output.split()[0])
-    assert numeric_part >= 10.0
-
-
-def test_time_unit_us_and_ns():
-    """Test microsecond and nanosecond time units."""
-    timer_us = Timer(time_unit="us")
-    timer_us.start()
-    time.sleep(0.001)
-    timer_us.stop()
-    assert "us" in str(timer_us)
-
-    timer_ns = Timer(time_unit="ns")
-    timer_ns.start()
-    time.sleep(0.001)
-    timer_ns.stop()
-    assert "ns" in str(timer_ns)
+    assert timer.total_run_time == 0.5
+    # __str__ should show the configured unit
+    value, unit = str(timer).split()
+    assert unit == time_unit
+    assert float(value) == pytest.approx(0.5 * multiplier)
 
 
 def test_invalid_time_unit_raises():
@@ -266,17 +203,3 @@ def test_reset_specific_timer():
 
     assert "keep" in Timer.timing_info
     assert "remove" not in Timer.timing_info
-
-
-def test_get_timer_statistics_includes_last():
-    """Test that get_timer_statistics includes the 'last' key."""
-    Timer.reset()
-
-    with Timer(name="stats_last"):
-        time.sleep(0.01)
-
-    stats = Timer.get_timer_statistics("stats_last")
-    assert "last" in stats
-    assert stats["last"] >= 0.01
-    # For single measurement, mean equals last
-    assert stats["mean"] == stats["last"]

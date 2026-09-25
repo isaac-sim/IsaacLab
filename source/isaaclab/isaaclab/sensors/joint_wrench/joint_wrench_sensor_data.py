@@ -9,12 +9,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.backend_utils import FactoryBase
-
+from ...utils.backend_utils import FactoryBase
 from .base_joint_wrench_sensor_data import BaseJointWrenchSensorData
 
 if TYPE_CHECKING:
     from isaaclab_newton.sensors.joint_wrench import JointWrenchSensorData as NewtonJointWrenchSensorData
+    from isaaclab_ov.sensors.joint_wrench import JointWrenchSensorData as OvPhysxJointWrenchSensorData
     from isaaclab_physx.sensors.joint_wrench import JointWrenchSensorData as PhysXJointWrenchSensorData
 
 
@@ -23,6 +23,11 @@ class JointWrenchSensorData(FactoryBase, BaseJointWrenchSensorData):
 
     def __new__(
         cls, *args, **kwargs
-    ) -> BaseJointWrenchSensorData | PhysXJointWrenchSensorData | NewtonJointWrenchSensorData:
+    ) -> (
+        BaseJointWrenchSensorData
+        | PhysXJointWrenchSensorData
+        | NewtonJointWrenchSensorData
+        | OvPhysxJointWrenchSensorData
+    ):
         """Create a new instance of joint-wrench sensor data based on the backend."""
         return super().__new__(cls, *args, **kwargs)

@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import Literal
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from .rnd_cfg import RslRlRndCfg
 from .symmetry_cfg import RslRlSymmetryCfg
@@ -114,9 +114,8 @@ class RslRlRNNModelCfg(RslRlMLPModelCfg):
 class RslRlCNNModelCfg(RslRlMLPModelCfg):
     """Configuration for CNN model."""
 
-    class_name: str = "isaaclab_rl.rsl_rl.models:CNNModel"
-    """The model class name. Defaults to Isaac Lab's :class:`~isaaclab_rl.rsl_rl.models.CNNModel`.
-    """
+    class_name: str = "CNNModel"
+    """The model class name. Defaults to CNNModel."""
 
     @configclass
     class CNNCfg:
@@ -239,6 +238,13 @@ class RslRlBaseRunnerCfg:
 
     num_steps_per_env: int = MISSING
     """The number of steps per environment per update."""
+
+    init_at_random_ep_len: bool = True
+    """Whether to randomize each environment's episode length before learning.
+
+    Defaults to True. Disable this for curricula whose first recorded outcomes must come from
+    complete episodes.
+    """
 
     max_iterations: int = MISSING
     """The maximum number of iterations."""

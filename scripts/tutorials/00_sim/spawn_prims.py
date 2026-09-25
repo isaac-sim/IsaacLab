@@ -8,7 +8,7 @@
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/00_sim/spawn_prims.py
+    uv run python scripts/tutorials/00_sim/spawn_prims.py
 
 """
 

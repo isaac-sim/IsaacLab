@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_physx.assets import SurfaceGripperCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.envs.mdp.actions.actions_cfg import SurfaceGripperBinaryActionCfg
@@ -11,14 +12,17 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.mdp import franka_stack_events
-from isaaclab_tasks.contrib.stack.stack_env_cfg import StackEnvCfg
+from isaaclab_tasks.contrib.stack.stack_env_cfg import (
+    StackEnvCfg,
+    raise_if_surface_gripper_on_gpu,
+    raise_if_surface_gripper_on_newton,
+)
 
 from isaaclab_assets.robots.universal_robots import (  # isort: skip
     UR10_LONG_SUCTION_CFG,
@@ -68,19 +72,26 @@ class EventCfgLongSuction:
 @configclass
 class UR10CubeStackEnvCfg(StackEnvCfg):
     # Rigid body properties of each cube
-    cube_properties = RigidBodyPropertiesCfg(
-        solver_position_iteration_count=16,
-        solver_velocity_iteration_count=1,
-        max_angular_velocity=1000.0,
-        max_linear_velocity=1000.0,
-        max_depenetration_velocity=5.0,
-        disable_gravity=False,
-    )
+    cube_properties = [
+        PhysxRigidBodyCfg(
+            solver_position_iteration_count=16,
+            solver_velocity_iteration_count=1,
+            max_angular_velocity=1000.0,
+            max_linear_velocity=1000.0,
+            max_depenetration_velocity=5.0,
+            disable_gravity=False,
+        )
+    ]
     cube_scale = (1.0, 1.0, 1.0)
     # Listens to the required transforms
     marker_cfg = FRAME_MARKER_CFG.copy()
     marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
     marker_cfg.prim_path = "/Visuals/FrameTransformer"
+
+    def validate_config(self):
+        # Surface grippers used by these suction robots are PhysX-only.
+        raise_if_surface_gripper_on_newton(self)
+        raise_if_surface_gripper_on_gpu(self)
 
     def __post_init__(self):
         # post init of parent
@@ -145,7 +156,7 @@ class UR10LongSuctionCubeStackEnvCfg(UR10CubeStackEnvCfg):
         super().__post_init__()
 
         # Suction grippers currently require CPU simulation
-        self.device = "cpu"
+        self.sim.device = "cpu"
 
         # Set events
         self.events = EventCfgLongSuction()
@@ -185,7 +196,7 @@ class UR10ShortSuctionCubeStackEnvCfg(UR10CubeStackEnvCfg):
         super().__post_init__()
 
         # Suction grippers currently require CPU simulation
-        self.device = "cpu"
+        self.sim.device = "cpu"
 
         # Set UR10 as robot
         self.scene.robot = UR10_SHORT_SUCTION_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")

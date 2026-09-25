@@ -14,28 +14,44 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import pytest
-import torch
+from types import SimpleNamespace
+from unittest.mock import patch
 
-from pxr import UsdGeom
+import numpy as np
+import pytest
+
+from pxr import Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner import ClonePlan, make_clone_plan, sequential, usd_replicate
-from isaaclab.cloner.cloner_utils import iter_clone_plan_matches, resolve_clone_plan_source
+from isaaclab import cloner
+from isaaclab.cloner import (
+    ClonePlan,
+    ReplicateSession,
+    UsdReplicateContext,
+    grid_transforms,
+    make_clone_plan,
+    sequential,
+    usd_replicate,
+)
 from isaaclab.sim import build_simulation_context
+from isaaclab.sim.utils import queries
+from isaaclab.test.utils import resolve_test_sim_device
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
 
-@pytest.fixture(params=["cpu", "cuda"])
-def sim(request):
-    """Provide a fresh simulation context for each test on CPU and CUDA."""
-    with build_simulation_context(device=request.param, dt=0.01, add_lighting=False) as sim:
+@pytest.fixture
+def sim():
+    """Provide a fresh simulation context for each test.
+
+    The cloner utilities author USD and plan bookkeeping only, with no device branch, so one device suffices.
+    """
+    with build_simulation_context(device=resolve_test_sim_device(), dt=0.01, add_lighting=False) as sim:
         yield sim
 
 
 def test_usd_replicate_with_positions_and_mask(sim):
-    """Replicate sources to selected envs and author translate ops from positions."""
+    """Replicate sources only to the envs selected by the mask."""
     # Prepare sources under /World/template
     sim_utils.create_prim("/World/template", "Xform")
     sim_utils.create_prim("/World/template/A", "Xform")
@@ -43,13 +59,13 @@ def test_usd_replicate_with_positions_and_mask(sim):
 
     # Prepare destination env namespaces
     num_envs = 3
-    env_ids = torch.arange(num_envs, dtype=torch.long)
+    env_ids = np.arange(num_envs, dtype=np.int64)
     sim_utils.create_prim("/World/envs", "Xform")
     for i in range(num_envs):
         sim_utils.create_prim(f"/World/envs/env_{i}", "Xform")
 
     # Map A -> env 0 and 2; B -> env 1 only
-    mask = torch.zeros((2, num_envs), dtype=torch.bool)
+    mask = np.zeros((2, num_envs), dtype=np.bool_)
     mask[0, [0, 2]] = True
     mask[1, [1]] = True
 
@@ -61,7 +77,7 @@ def test_usd_replicate_with_positions_and_mask(sim):
         mask=mask,
     )
 
-    # Validate replication and translate op
+    # Validate replication follows the mask
     stage = sim_utils.get_current_stage()
     assert stage.GetPrimAtPath("/World/envs/env_0/Object/A").IsValid()
     assert not stage.GetPrimAtPath("/World/envs/env_0/Object/B").IsValid()
@@ -69,11 +85,95 @@ def test_usd_replicate_with_positions_and_mask(sim):
     assert not stage.GetPrimAtPath("/World/envs/env_1/Object/A").IsValid()
     assert stage.GetPrimAtPath("/World/envs/env_2/Object/A").IsValid()
 
-    # Check xformOp:translate authored for env_2/A
-    prim = stage.GetPrimAtPath("/World/envs/env_2/Object/A")
-    xform = UsdGeom.Xformable(prim)
-    ops = xform.GetOrderedXformOps()
-    assert any(op.GetOpType() == UsdGeom.XformOp.TypeTranslate for op in ops)
+
+def test_usd_replicate_context_consumes_plan(sim):
+    """UsdReplicateContext consumes the same plan used by every clone backend."""
+    sim_utils.create_prim("/World/template/A", "Xform")
+    sim_utils.create_prim("/World/envs", "Xform")
+
+    stage = sim_utils.get_current_stage()
+    ctx = UsdReplicateContext(stage)
+    plan = ClonePlan(
+        sources=("/World/template/A",),
+        destinations=("/World/envs/env_{}",),
+        clone_mask=np.asarray([[False, True]], dtype=np.bool_),
+        env_ids=np.asarray([10, 20], dtype=np.int64),
+        positions=np.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float32),
+        context_rows={UsdReplicateContext: (0,)},
+    )
+    ctx.replicate(plan)
+
+    assert not stage.GetPrimAtPath("/World/envs/env_10").IsValid()
+    prim = stage.GetPrimAtPath("/World/envs/env_20")
+    assert prim.IsValid()
+    assert tuple(UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(0).ExtractTranslation()) == (4.0, 5.0, 6.0)
+
+
+def test_usd_replicate_nested_asset_preserves_local_offset_with_positions(sim):
+    """Grid positions are authored on env roots but not on nested replicated assets."""
+    camera_offset = (0.57, -0.8, 0.5)
+    num_envs = 2
+    env_ids = np.arange(num_envs, dtype=np.int64)
+    positions, _ = grid_transforms(num_envs, 3.0)
+
+    sim_utils.create_prim("/World/envs", "Xform")
+    sim_utils.create_prim("/World/envs/env_0", "Xform")
+    sim_utils.create_prim("/World/envs/env_0/Camera", "Camera", translation=camera_offset)
+
+    stage = sim_utils.get_current_stage()
+    usd_replicate(
+        stage,
+        sources=["/World/envs/env_0"],
+        destinations=["/World/envs/env_{}"],
+        env_ids=env_ids,
+        positions=positions,
+    )
+    usd_replicate(
+        stage,
+        sources=["/World/envs/env_0/Camera"],
+        destinations=["/World/envs/env_{}/Camera"],
+        env_ids=env_ids,
+        positions=positions,
+    )
+
+    for env_idx in range(num_envs):
+        env_prim = stage.GetPrimAtPath(f"/World/envs/env_{env_idx}")
+        assert env_prim.IsValid()
+        env_translate = env_prim.GetAttribute("xformOp:translate").Get()
+        assert env_translate is not None
+        expected_env_pos = positions[env_idx].tolist()
+        assert (env_translate[0], env_translate[1], env_translate[2]) == pytest.approx(expected_env_pos)
+
+        camera_prim = stage.GetPrimAtPath(f"/World/envs/env_{env_idx}/Camera")
+        assert camera_prim.IsValid()
+        camera_translate = camera_prim.GetAttribute("xformOp:translate").Get()
+        assert camera_translate is not None
+        assert (camera_translate[0], camera_translate[1], camera_translate[2]) == pytest.approx(camera_offset)
+
+
+def test_disabled_fabric_change_notifies_noops_when_usdrt_unavailable(monkeypatch):
+    """Fabric notice suspension no-ops when Carbonite bindings exist but ``usdrt`` does not."""
+    import builtins
+
+    from isaaclab.cloner import _fabric_notices
+
+    class _FakeBindings:
+        def validate_with(self, fabric_id: int) -> bool:
+            raise AssertionError("missing usdrt should prevent fabric-id lookup")
+
+    monkeypatch.setattr(_fabric_notices, "get_bindings", lambda: _FakeBindings())
+
+    real_import = builtins.__import__
+
+    def _import_without_usdrt(name, *args, **kwargs):
+        if name == "usdrt":
+            raise ModuleNotFoundError("No module named 'usdrt'", name="usdrt")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _import_without_usdrt)
+
+    with _fabric_notices.disabled_fabric_change_notifies(Usd.Stage.CreateInMemory()):
+        pass
 
 
 def test_usd_replicate_depth_order_parent_child(sim):
@@ -84,7 +184,7 @@ def test_usd_replicate_depth_order_parent_child(sim):
     sim_utils.create_prim("/World/template/Parent/Child", "Xform")
 
     # Destinations (single env)
-    env_ids = torch.tensor([0, 1], dtype=torch.long)
+    env_ids = np.asarray([0, 1], dtype=np.int64)
     sim_utils.create_prim("/World/envs", "Xform")
     sim_utils.create_prim("/World/envs/env_0", "Xform")
     sim_utils.create_prim("/World/envs/env_1", "Xform")
@@ -104,16 +204,7 @@ def test_usd_replicate_depth_order_parent_child(sim):
 
 
 def test_usd_replicate_self_copy_skips_copy_spec(sim):
-    """usd_replicate must not call Sdf.CopySpec when source and destination paths are identical.
-
-    Sdf.CopySpec(src, src) is a no-op in the current USD version so it does not corrupt children,
-    but the call is still wasteful. The guard ensures it is skipped entirely. This test mocks
-    Sdf.CopySpec to verify it is called exactly once (for env_1) and never for the self case (env_0).
-    """
-    from unittest.mock import patch
-
-    import isaaclab.cloner.cloner_utils as _cloner_mod
-
+    """usd_replicate must not call Sdf.CopySpec when source and destination paths are identical."""
     stage = sim_utils.get_current_stage()
     sim_utils.create_prim("/World/envs", "Xform")
     sim_utils.create_prim("/World/envs/env_0", "Xform")
@@ -122,22 +213,21 @@ def test_usd_replicate_self_copy_skips_copy_spec(sim):
     sim_utils.create_prim("/World/envs/env_1", "Xform")
 
     copy_calls: list[tuple[str, str]] = []
-    real_copy_spec = _cloner_mod.Sdf.CopySpec
+    real_copy_spec = Sdf.CopySpec
 
-    def capturing_copy_spec(src_layer, src_path, dst_layer, dst_path):
+    def capturing_copy_spec(src_layer, src_path, dst_layer, dst_path, *args):
         copy_calls.append((str(src_path), str(dst_path)))
-        return real_copy_spec(src_layer, src_path, dst_layer, dst_path)
+        return real_copy_spec(src_layer, src_path, dst_layer, dst_path, *args)
 
-    with patch.object(_cloner_mod.Sdf, "CopySpec", capturing_copy_spec):
+    with patch.object(Sdf, "CopySpec", capturing_copy_spec):
         usd_replicate(
             stage,
             sources=["/World/envs/env_0"],
             destinations=["/World/envs/env_{}"],
-            env_ids=torch.tensor([0, 1], dtype=torch.long),
-            mask=torch.ones((1, 2), dtype=torch.bool),
+            env_ids=np.asarray([0, 1], dtype=np.int64),
+            mask=np.ones((1, 2), dtype=np.bool_),
         )
 
-    # CopySpec must be called for env_1 but never for env_0 (self-copy)
     assert all(src != dst for src, dst in copy_calls), f"Self-copy detected in CopySpec calls: {copy_calls}"
     assert any(dst == "/World/envs/env_1" for _, dst in copy_calls), "CopySpec was not called for env_1"
 
@@ -147,10 +237,10 @@ def test_usd_replicate_self_copy_skips_copy_spec(sim):
     [
         (
             ["/World/rig_0_alpha", "/World/rig_0_beta", "/World/rig_0_gamma"],
-            "/World/rig_0_.*/Sensor",
+            "/World/rig_0_[^/]*/Sensor",
             ["/World/rig_0_alpha/Sensor", "/World/rig_0_beta/Sensor", "/World/rig_0_gamma/Sensor"],
             "/World/rig_00/Sensor",
-            "/World/rig_0_.*",
+            "/World/rig_0_[^/]*",
         ),
         (
             [
@@ -159,7 +249,7 @@ def test_usd_replicate_self_copy_skips_copy_spec(sim):
                 "/World/group_b/slot_0",
                 "/World/group_b/slot_1",
             ],
-            "/World/group_.*/slot_.*/Sensor",
+            "/World/group_[^/]*/slot_[^/]*/Sensor",
             [
                 "/World/group_a/slot_0/Sensor",
                 "/World/group_a/slot_1/Sensor",
@@ -167,7 +257,7 @@ def test_usd_replicate_self_copy_skips_copy_spec(sim):
                 "/World/group_b/slot_1/Sensor",
             ],
             "/World/group_0/slot_0/Sensor",
-            "/World/group_.*/slot_.*",
+            "/World/group_[^/]*/slot_[^/]*",
         ),
         (
             ["/World/template/Object"],
@@ -181,19 +271,7 @@ def test_usd_replicate_self_copy_skips_copy_spec(sim):
 def test_clone_decorator_wildcard_patterns(
     sim, parent_paths, spawn_pattern, expected_child_paths, bad_path, match_expr
 ):
-    """The @clone decorator handles two distinct wildcard patterns correctly.
-
-    Case A – ``.*`` in root_path (parent is a regex): the child prim is spawned at
-    ``source_prim_paths[0]`` as a prototype and then copied to every other matching
-    parent via ``Sdf.CopySpec``, so **all** parents end up with the child.  The old
-    ``prim_path.replace(".*", "0")`` approach created spurious intermediate prims
-    that inflated ``find_matching_prims`` counts and broke tiled-camera initialization.
-
-    Case B – ``.*`` only in asset_path (leaf): no parent regex, so
-    ``source_prim_paths == [root_path]`` (one entry, no copy step).  Replacing
-    ``".*"`` → ``"0"`` in the asset name gives the intended prototype name
-    (e.g. ``proto_asset_0``) under the single real parent.
-    """
+    """The @clone decorator handles two distinct wildcard patterns correctly."""
     for path in parent_paths:
         sim_utils.create_prim(path, "Xform")
 
@@ -202,19 +280,16 @@ def test_clone_decorator_wildcard_patterns(
 
     stage = sim_utils.get_current_stage()
 
-    # Every expected child path must exist
     for child_path in expected_child_paths:
         assert stage.GetPrimAtPath(child_path).IsValid(), (
             f"Prim was not spawned at '{child_path}'. The @clone decorator may have used the wrong spawn path."
         )
 
-    # The spurious path from the old replace(".*", "0") must NOT exist
     assert not stage.GetPrimAtPath(bad_path).IsValid(), (
         f"Spurious prim found at '{bad_path}'. "
         "The @clone decorator incorrectly derived the spawn path by replacing '.*' with '0'."
     )
 
-    # find_matching_prims must see exactly the original parents — no spurious extras
     all_matching = sim_utils.find_matching_prims(match_expr)
     assert len(all_matching) == len(parent_paths), (
         f"Expected {len(parent_paths)} matching prims, got {len(all_matching)}. "
@@ -222,181 +297,174 @@ def test_clone_decorator_wildcard_patterns(
     )
 
 
-def test_make_clone_plan_returns_flat_source_rows(sim):
-    """make_clone_plan exposes the flat source-to-env mask used by scene cloning."""
-    sources, destinations, clone_mask = make_clone_plan(
-        [["/World/envs/env_0/Object", "/World/envs/env_1/Object"]],
-        ["/World/envs/env_{}/Object"],
+def test_make_clone_plan_homogeneous_returns_env_root_plan(sim):
+    """Homogeneous (single-variant) cfgs produce one source row at the env root."""
+    cube = SimpleNamespace(
+        prim_path="/World/envs/env_[^/]+/Robot",
+        spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
+        cloning_contexts=None,
+    )
+    plan = make_clone_plan(
+        cfgs=[cube],
         num_clones=4,
-        clone_strategy=sequential,
-        device=sim.cfg.device,
+        env_spacing=1.0,
+        global_paths=("/World/Ground",),
     )
 
-    assert sources == ("/World/envs/env_0/Object", "/World/envs/env_1/Object")
-    assert destinations == ("/World/envs/env_{}/Object", "/World/envs/env_{}/Object")
-    assert clone_mask.shape == (2, 4)
-    assert clone_mask.dtype == torch.bool
-    assert torch.all(clone_mask.sum(dim=0) == 1)
-    actual_source_idx = clone_mask.to(torch.int).argmax(dim=0).cpu()
-    assert torch.equal(actual_source_idx, torch.tensor([0, 1, 0, 1]))
+    assert plan.sources == ("/World/envs/env_0",)
+    assert plan.destinations == ("/World/envs/env_{}",)
+    assert plan.clone_mask.shape == (1, 4)
+    assert plan.clone_mask.all()
+    assert plan.cfg_rows[id(cube)] == (0,)
+    assert plan.global_paths == ("/World/Ground",)
+    assert plan.env_ids.shape == (4,)
+    assert plan.positions.shape == (4, 3)
+    assert cube.spawn.spawn_path == "/World/envs/env_0/Robot"
 
 
-def test_iter_clone_plan_matches(sim):
-    """ClonePlan entries can be matched by destination path expression."""
-    sources, destinations, clone_mask = make_clone_plan(
-        [["/World/envs/env_0/Object", "/World/envs/env_1/Object"]],
-        ["/World/envs/env_{}/Object"],
+def test_resolve_matching_prims_from_source_searches_only_plan_source(sim):
+    """Clone-aware regex discovery traverses its plan source, never cloned destinations."""
+    stage = sim_utils.get_current_stage()
+    for path in (
+        "/World/envs/env_0/Robot/foo",
+        "/World/envs/env_0/Robot/foo/bar",
+        "/World/envs/env_1/Robot/clone_only",
+    ):
+        stage.DefinePrim(path, "Xform")
+    plan = ClonePlan(
+        sources=("/World/envs/env_0/Robot",),
+        destinations=("/World/envs/env_{}/Robot",),
+        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        env_ids=np.arange(2, dtype=np.int64),
+        positions=np.zeros((2, 3), dtype=np.float32),
+    )
+    sim.set_clone_plan(plan)
+
+    matches = queries.resolve_matching_prims_from_source(r"/World/envs/env_[^/]+/Robot/[^A]+")
+
+    # the clone-only prim under env_1 would match the expression if cloned destinations were traversed
+    assert [prim.GetPath().pathString for prim, _ in matches] == [
+        "/World/envs/env_0/Robot/foo",
+        "/World/envs/env_0/Robot/foo/bar",
+    ]
+    assert [path_expr for _, path_expr in matches] == [
+        "/World/envs/env_[^/]+/Robot/foo",
+        "/World/envs/env_[^/]+/Robot/foo/bar",
+    ]
+
+
+def test_make_clone_plan_heterogeneous_mutates_spawn_paths(sim):
+    """Multi-variant spawners get per-variant spawn_paths and contribute multiple plan rows."""
+    multi_cfg = SimpleNamespace(
+        prim_path="/World/envs/env_[^/]+/Object",
+        cloning_contexts=None,
+        spawn=sim_utils.MultiAssetSpawnerCfg(
+            assets_cfg=[
+                sim_utils.ConeCfg(radius=0.1, height=0.2),
+                sim_utils.SphereCfg(radius=0.1),
+            ]
+        ),
+    )
+    plain_cfg = SimpleNamespace(
+        prim_path="/World/envs/env_[^/]+/Robot",
+        spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
+        cloning_contexts=None,
+    )
+    plan = make_clone_plan(
+        cfgs=[multi_cfg, plain_cfg],
         num_clones=4,
+        env_spacing=1.0,
+        global_paths=("/World/Ground",),
         clone_strategy=sequential,
-        device=sim.cfg.device,
     )
-    plan = ClonePlan(sources=sources, destinations=destinations, clone_mask=clone_mask)
 
-    matches = list(iter_clone_plan_matches(plan, "/World/envs/env_.*/Object/Body/Camera"))
+    assert plan.destinations == (
+        "/World/envs/env_{}/Object",
+        "/World/envs/env_{}/Object",
+        "/World/envs/env_{}/Robot",
+    )
+    assert plan.cfg_rows[id(multi_cfg)] == (0, 1)
+    assert plan.cfg_rows[id(plain_cfg)] == (2,)
+    assert plan.global_paths == ("/World/Ground",)
+    assert multi_cfg.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
+    assert plain_cfg.spawn.spawn_path == "/World/envs/env_0/Robot"
 
-    assert matches == [
-        (
-            "/World/envs/env_0/Object",
-            "/World/envs/env_{}/Object",
-            "/World/envs/env_0/Object/Body/Camera",
-            (0, 2),
+
+def test_make_clone_plan_records_globals_outside_replication_rows(sim):
+    """Global cfgs are named by the plan without becoming rows a backend might copy."""
+    plan = make_clone_plan(
+        cfgs=[],
+        num_clones=3,
+        env_spacing=1.0,
+        global_paths=("/World/global/Robot", "/World/ground"),
+    )
+
+    assert plan.sources == ()
+    assert plan.destinations == ()
+    assert plan.clone_mask.shape == (0, 3)
+    assert plan.cfg_rows == {}
+    assert plan.global_paths == ("/World/global/Robot", "/World/ground")
+
+
+def test_clone_plan_from_env_0_uses_flat_cfg_manifest(sim):
+    """The homogeneous helper publishes exact env/global roots before construction."""
+    robot = SimpleNamespace(prim_path="{ENV_REGEX_NS}/Robot", spawn=sim_utils.CuboidCfg(size=(0.1,) * 3))
+    sensor = SimpleNamespace(prim_path="{ENV_REGEX_NS}/Robot/Sensor", spawn=None)
+    prop = SimpleNamespace(
+        prim_path="{ENV_REGEX_NS}/Prop",
+        spawn=sim_utils.MultiAssetSpawnerCfg(assets_cfg=[sim_utils.SphereCfg(radius=0.1)]),
+        cloning_contexts=(UsdReplicateContext,),
+    )
+    light = SimpleNamespace(prim_path="/World/Light", spawn=sim_utils.DistantLightCfg(), cloning_contexts=())
+    light_reference = SimpleNamespace(prim_path="/World/Light/Reference", spawn=None, cloning_contexts=())
+    plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (robot, sensor, prop, light, light_reference), 4, 1.0)
+
+    assert sim.get_clone_plan() is plan
+    assert plan.sources == ("/World/envs/env_0",)
+    assert plan.destinations == ("/World/envs/env_{}",)
+    assert plan.cfg_rows == {id(robot): (0,), id(sensor): (0,), id(prop): (0,)}
+    assert plan.context_rows[UsdReplicateContext] == (0,)
+    assert plan.global_paths == ("/World/Light",)
+    assert plan.clone_mask.all() and plan.clone_mask.shape == (1, 4)
+    np.testing.assert_array_equal(plan.env_ids, np.arange(4, dtype=np.int64))
+    assert robot.prim_path == "/World/envs/env_[^/]+/Robot"
+    assert robot.spawn.spawn_path == "/World/envs/env_0/Robot"
+    assert prop.spawn.spawn_path is None
+    assert prop.spawn.spawn_paths == ["/World/envs/env_0/Prop"]
+    assert light.spawn.spawn_path == "/World/Light"
+
+
+@pytest.mark.parametrize("nested", [SimpleNamespace(scene=object()), (SimpleNamespace(prim_path="/World/A"),)])
+def test_clone_plan_from_env_0_rejects_cfg_tree_inputs(sim, nested):
+    """The cloner accepts a flat construction manifest, never an outer cfg tree."""
+    with pytest.raises(AttributeError):
+        cloner.clone_plan_from_env_0(cloner.CloneCfg(), (nested,), 2, 1.0)
+    assert sim.get_clone_plan() is None
+
+
+def test_clone_plan_from_env_0_rejects_multi_variant_spawner_atomically(sim):
+    """Heterogeneous spawners remain untouched when the homogeneous helper rejects them."""
+    valid_cfg = SimpleNamespace(prim_path="{ENV_REGEX_NS}/Robot", spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)))
+    cfg = SimpleNamespace(
+        prim_path="{ENV_REGEX_NS}/Object",
+        spawn=sim_utils.MultiAssetSpawnerCfg(
+            assets_cfg=[sim_utils.SphereCfg(radius=0.1), sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))]
         ),
-        (
-            "/World/envs/env_1/Object",
-            "/World/envs/env_{}/Object",
-            "/World/envs/env_1/Object/Body/Camera",
-            (1, 3),
-        ),
-    ]
-
-    plan = ClonePlan(
-        sources=("/World/envs/env_3/Object",),
-        destinations=("/World/envs/env_{}/Object",),
-        clone_mask=torch.tensor([[False, False, True, True]], device=sim.cfg.device),
     )
-
-    matches = list(iter_clone_plan_matches(plan, "/World/envs/env_.*/Object/Body/Camera"))
-
-    assert matches == [
-        (
-            "/World/envs/env_3/Object",
-            "/World/envs/env_{}/Object",
-            "/World/envs/env_3/Object/Body/Camera",
-            (2, 3),
-        )
-    ]
-
-    plan = ClonePlan(
-        sources=("/World/source/Object",),
-        destinations=("/World/scenes/{}/Object",),
-        clone_mask=torch.tensor([[True, True]], device=sim.cfg.device),
-    )
-
-    matches = list(iter_clone_plan_matches(plan, "/World/scenes/.*/Object/Body/Camera"))
-
-    assert matches == [
-        (
-            "/World/source/Object",
-            "/World/scenes/{}/Object",
-            "/World/source/Object/Body/Camera",
-            (0, 1),
-        )
-    ]
-
-    plan = ClonePlan(
-        sources=("/World/source",),
-        destinations=("/World/scenes/{}",),
-        clone_mask=torch.tensor([[True, True]], device=sim.cfg.device),
-    )
-
-    matches = list(iter_clone_plan_matches(plan, "/World/scenes/.*/Object/Body/Camera"))
-
-    assert matches == [
-        (
-            "/World/source",
-            "/World/scenes/{}",
-            "/World/source/Object/Body/Camera",
-            (0, 1),
-        )
-    ]
-
-    plan = ClonePlan(
-        sources=("/World/envs/env_0", "/World/envs/env_0/Object"),
-        destinations=("/World/envs/env_{}", "/World/envs/env_{}/Object"),
-        clone_mask=torch.tensor([[True, True], [True, True]], device=sim.cfg.device),
-    )
-
-    matches = list(iter_clone_plan_matches(plan, "/World/envs/env_.*/Object/Body/Camera"))
-
-    assert matches == [
-        (
-            "/World/envs/env_0/Object",
-            "/World/envs/env_{}/Object",
-            "/World/envs/env_0/Object/Body/Camera",
-            (0, 1),
-        )
-    ]
+    with pytest.raises(ValueError, match="single-variant"):
+        cloner.clone_plan_from_env_0(cloner.CloneCfg(), (valid_cfg, cfg), 2, 1.0)
+    assert valid_cfg.prim_path == "{ENV_REGEX_NS}/Robot"
+    assert valid_cfg.spawn.spawn_path is None
+    assert cfg.prim_path == "{ENV_REGEX_NS}/Object"
+    assert cfg.spawn.spawn_paths is None
+    assert sim.get_clone_plan() is None
 
 
-def test_resolve_clone_plan_source_nested_templates_pick_most_specific(sim):
-    """A path owned by both an ancestor and a descendant template resolves to the descendant."""
-    plan = ClonePlan(
-        sources=("/World/envs/env_0/Robot", "/World/envs/env_0/Robot/ee_link/palm_link/Camera"),
-        destinations=("/World/envs/env_{}/Robot", "/World/envs/env_{}/Robot/ee_link/palm_link/Camera"),
-        clone_mask=torch.tensor([[True, True], [True, True]], device=sim.cfg.device),
-    )
+def test_replicate_session_clears_plan_when_asset_init_fails(sim):
+    """ReplicateSession clears an unconsumed plan when construction raises."""
+    with pytest.raises(RuntimeError, match="asset boom"):
+        with ReplicateSession(cfgs=[], num_clones=2, env_spacing=1.0) as session:
+            assert sim.get_clone_plan() is session.plan
+            raise RuntimeError("asset boom")
 
-    # The camera path matches both templates; the more specific (longer-matching) one wins.
-    resolved = resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_0/Robot/ee_link/palm_link/Camera")
-
-    assert resolved == (
-        "/World/envs/env_0/Robot/ee_link/palm_link/Camera",
-        "/World/envs/env_*/Robot/ee_link/palm_link/Camera",
-        "",
-    )
-
-    # A path that only the ancestor template owns still resolves against it with its suffix.
-    resolved = resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_0/Robot/base")
-
-    assert resolved == ("/World/envs/env_0/Robot", "/World/envs/env_*/Robot", "/base")
-
-
-def test_resolve_clone_plan_source_ambiguous_templates_raise(sim):
-    """Two distinct, equally specific templates owning a path remain a genuine ambiguity."""
-    plan = ClonePlan(
-        sources=("/World/envs/env_0/Robot", "/World/envs/env_0/Robot"),
-        destinations=("/World/envs/{}/Robot", "/World/{}/env_0/Robot"),
-        clone_mask=torch.tensor([[True, True], [True, True]], device=sim.cfg.device),
-    )
-
-    with pytest.raises(ValueError, match="matches multiple destination templates"):
-        resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_0/Robot")
-
-
-def test_resolve_clone_plan_source_merges_same_template_rows(sim):
-    """Heterogeneous source rows sharing one template OR-merge their masks for the coverage check."""
-    # One logical asset cloned from two source variants onto the same destination template.
-    # Neither row alone covers all envs; row 0 -> envs (0, 2), row 1 -> envs (1, 3).
-    plan = ClonePlan(
-        sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
-        destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-        clone_mask=torch.tensor([[True, False, True, False], [False, True, False, True]], device=sim.cfg.device),
-    )
-
-    # The union of both rows covers every env, so resolution succeeds and reports the first row's source.
-    resolved = resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_.*/Object/Body/Camera")
-
-    assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_*/Object", "/Body/Camera")
-
-
-def test_resolve_clone_plan_source_partial_coverage_raises(sim):
-    """When the matching rows' merged mask misses an env, partial coverage is rejected."""
-    # Row 0 -> envs (0, 2), row 1 -> env (1); env 3 is covered by neither row.
-    plan = ClonePlan(
-        sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
-        destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-        clone_mask=torch.tensor([[True, False, True, False], [False, True, False, False]], device=sim.cfg.device),
-    )
-
-    with pytest.raises(NotImplementedError, match="partial-env heterogeneous coverage"):
-        resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_.*/Object/Body/Camera")
+    assert sim.get_clone_plan() is None

@@ -28,11 +28,13 @@ import warp as wp
 
 from isaaclab.envs.common import VecEnvObs
 from isaaclab.envs.manager_based_env_cfg import ManagerBasedEnvCfg
-from isaaclab.envs.ui import ViewportCameraController
-from isaaclab.envs.utils.io_descriptors import export_articulations_data, export_scene_data
+from isaaclab.envs.utils.io_descriptors import (
+    _warn_io_descriptors_deprecated,
+    export_articulations_data,
+    export_scene_data,
+)
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
-from isaaclab.ui.widgets import ManagerLiveVisualizer
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
@@ -76,6 +78,14 @@ class ManagerBasedEnvWarp:
         cfg.validate()
         # store inputs to class
         self.cfg = cfg
+        # Video recording is not supported on Warp environments.
+        if getattr(cfg, "video_recorders", None):
+            import logging as _logging
+
+            _logging.getLogger(__name__).warning(
+                "cfg.video_recorders is set but ManagerBasedEnvWarp does not support VideoRecorder. "
+                "No clips will be written. Use ManagerBasedEnv for video recording support."
+            )
         # initialize internal variables
         self._is_closed = False
         # temporary debug runtime config for manager source/call switching.
@@ -134,7 +144,6 @@ class ManagerBasedEnvWarp:
             with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
                 # attach_stage_to_usd_context()
-                self.scene.initialize_renderers()
         print("[INFO]: Scene manager: ", self.scene)
 
         # Shared per-env Warp RNG state (accessible to all managers/terms via `env`).
@@ -156,17 +165,6 @@ class ManagerBasedEnvWarp:
 
         # Persistent scalar buffer for global env step count (stable pointer for capture).
         self._global_env_step_count_wp = wp.zeros((1,), dtype=wp.int32, device=self.device)
-
-        # set up camera viewport controller
-        # viewport is not available in other rendering modes so the function will throw a warning
-        # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
-        # non-rendering modes.
-        viz_str = self.sim.get_setting("/isaaclab/visualizer") or ""
-        available_visualizers = [v.strip() for v in viz_str.split(",") if v.strip()]
-        if "kit" in available_visualizers and bool(viz_str):
-            self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
-        else:
-            self.viewport_camera_controller = None
 
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
@@ -201,12 +199,13 @@ class ManagerBasedEnvWarp:
         # add timeline event to load managers
         self.load_managers()
 
+        # Wire live plots into all active visualizers and build Kit omni.ui panels when present.
+        self.setup_manager_visualizers()
+
         # extend UI elements
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
         if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
-            # setup live visualizers
-            self.setup_manager_visualizers()
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
             # if no window, then we don't need to store the window
@@ -301,18 +300,31 @@ class ManagerBasedEnvWarp:
     def get_IO_descriptors(self):
         """Get the IO descriptors for the environment.
 
+        .. deprecated:: 3.0
+           IO descriptors will be removed in Isaac Lab 3.2. Use the LEAPP
+           export workflow for supported RSL-RL/PyTorch deployments.
+
         Returns:
             A dictionary with keys as the group names and values as the IO descriptors.
         """
+        _warn_io_descriptors_deprecated(stacklevel=3)
+        return self._collect_io_descriptors()
+
+    def _collect_io_descriptors(self):
+        """Collect IO descriptors without emitting a deprecation warning."""
         return {
-            "observations": self.observation_manager.get_IO_descriptors,
-            "actions": self.action_manager.get_IO_descriptors,
+            "observations": self.observation_manager._collect_io_descriptors(),
+            "actions": self.action_manager._collect_io_descriptors(),
             "articulations": export_articulations_data(self),
             "scene": export_scene_data(self),
         }
 
     def export_IO_descriptors(self, output_dir: str | None = None):
         """Export the IO descriptors for the environment.
+
+        .. deprecated:: 3.0
+           IO descriptors will be removed in Isaac Lab 3.2. Use the LEAPP
+           export workflow for supported RSL-RL/PyTorch deployments.
 
         Args:
             output_dir: The directory to export the IO descriptors to.
@@ -321,7 +333,8 @@ class ManagerBasedEnvWarp:
 
         import yaml
 
-        IO_descriptors = self.get_IO_descriptors
+        _warn_io_descriptors_deprecated(stacklevel=3)
+        IO_descriptors = self._collect_io_descriptors()
 
         if output_dir is None:
             if self.cfg.log_dir is not None:
@@ -383,11 +396,15 @@ class ManagerBasedEnvWarp:
             self.event_manager.apply(mode="startup")
 
     def setup_manager_visualizers(self):
-        """Creates live visualizers for manager terms."""
-
+        """Wire manager terms into live plots for all active visualizer backends."""
+        managers = {
+            "action_manager": self.action_manager,
+            "observation_manager": self.observation_manager,
+        }
+        for viz in self.sim.visualizers:
+            viz.add_live_plots(managers)
         self.manager_visualizers = {
-            "action_manager": ManagerLiveVisualizer(manager=self.action_manager),
-            "observation_manager": ManagerLiveVisualizer(manager=self.observation_manager),
+            name: mlv for v in self.sim.visualizers for name, mlv in getattr(v, "kit_manager_visualizers", {}).items()
         }
 
     """
@@ -537,10 +554,8 @@ class ManagerBasedEnvWarp:
         self.recorder_manager.record_pre_step()
 
         # check if we need to do rendering within the physics loop
-        # note: checked here once to avoid multiple checks within the loop
-        is_rendering = bool(self.sim.settings.get("/isaaclab/visualizer")) or self.sim.settings.get(
-            "/isaaclab/render/rtx_sensors"
-        )
+        # note: hoisted out of the decimation loop; is_rendering does live settings lookups
+        is_rendering = self.sim.is_rendering
 
         # perform physics stepping
         for _ in range(self.cfg.decimation):
@@ -594,7 +609,6 @@ class ManagerBasedEnvWarp:
         """Cleanup for the environment."""
         if not self._is_closed:
             # destructor is order-sensitive
-            del self.viewport_camera_controller
             del self.action_manager
             del self.observation_manager
             del self.event_manager

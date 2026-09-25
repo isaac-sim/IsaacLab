@@ -187,15 +187,21 @@ _IS_WINDOWS = platform.system() == "Windows"
 
 
 def cuda_torch_index_url() -> str:
-    """Return the documented CUDA-matched torch wheel index URL for the current platform.
+    """Return the documented CUDA 13 torch wheel index URL for all supported platforms."""
+    return "https://download.pytorch.org/whl/cu130"
 
-    Mirrors ``docs/source/setup/installation/pip_installation.rst``:
-    ``cu130`` on aarch64 (e.g. GB10 / DGX Spark, which expose CUDA capability 12.x),
-    ``cu128`` on x86_64.
+
+def pinned_torch_specs() -> list[str]:
+    """Return the pinned ``torch``/``torchvision`` install specs from the repo pyproject.
+
+    Reads ``[tool.isaaclab.versions]`` (the single source of truth) so these
+    install commands track the same versions as the docs and the install CLI.
     """
-    if platform.machine().lower() in ("aarch64", "arm64"):
-        return "https://download.pytorch.org/whl/cu130"
-    return "https://download.pytorch.org/whl/cu128"
+    import tomllib
+
+    with (find_isaaclab_root() / "pyproject.toml").open("rb") as fd:
+        versions = tomllib.load(fd)["tool"]["isaaclab"]["versions"]
+    return [f"torch=={versions['torch']}", f"torchvision=={versions['torchvision']}"]
 
 
 def aarch64_isaacsim_env() -> dict[str, str]:

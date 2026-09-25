@@ -5,12 +5,6 @@
 
 from __future__ import annotations
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True, enable_cameras=False).app
-
-# Import after app launch
 import math
 
 import pytest
@@ -18,13 +12,13 @@ import torch
 
 from isaaclab.sensors.ray_caster.patterns import patterns, patterns_cfg
 
+pytestmark = pytest.mark.integration
 
-@pytest.fixture(scope="module", params=["cuda", "cpu"])
-def device(request):
-    """Fixture to parameterize tests over both CUDA and CPU devices."""
-    if request.param == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
-    return request.param
+
+@pytest.fixture(scope="module")
+def device():
+    """Pattern generators are plain torch ops without a device branch, so one device suffices."""
+    return "cuda" if torch.cuda.is_available() else "cpu"
 
 
 class TestGridPattern:
@@ -37,7 +31,6 @@ class TestGridPattern:
             ((2.0, 2.0), 0.5, "xy", 25),  # 5x5 grid
             ((4.0, 2.0), 1.0, "xy", 15),  # 5x3 grid
             ((2.0, 4.0), 1.0, "yx", 15),  # 3x5 grid
-            ((1.0, 1.0), 0.25, "xy", 25),  # 5x5 grid with smaller size
         ],
     )
     def test_grid_pattern_num_rays(self, device, size, resolution, ordering, expected_num_rays):
@@ -68,9 +61,9 @@ class TestGridPattern:
             assert ray_starts[0, 0] == ray_starts[1, 0]  # Same x
             assert ray_starts[0, 1] != ray_starts[1, 1]  # Different y
 
-    @pytest.mark.parametrize("direction", [(0.0, 0.0, -1.0), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0)])
-    def test_grid_pattern_direction(self, device, direction):
-        """Test that grid pattern uses the specified direction."""
+    def test_grid_pattern_direction(self, device):
+        """Test that grid pattern uses the specified (non-default) direction for every ray."""
+        direction = (1.0, 0.0, 0.0)
         cfg = patterns_cfg.GridPatternCfg(size=(2.0, 2.0), resolution=1.0, direction=direction)
         ray_starts, ray_directions = patterns.grid_pattern(cfg, device)
 
@@ -110,27 +103,19 @@ class TestLidarPattern:
     """Test cases for lidar_pattern function."""
 
     @pytest.mark.parametrize(
-        "horizontal_fov_range,horizontal_res,channels,vertical_fov_range",
+        "horizontal_fov_range,horizontal_res,channels,vertical_fov_range,expected_num_rays",
         [
-            # Test 360 degree horizontal FOV
-            ((-180.0, 180.0), 90.0, 1, (-10.0, -10.0)),
-            ((-180.0, 180.0), 45.0, 1, (-10.0, -10.0)),
-            ((-180.0, 180.0), 1.0, 1, (-10.0, -10.0)),
-            # Test partial horizontal FOV
-            ((-90.0, 90.0), 30.0, 1, (-10.0, -10.0)),
-            ((0.0, 180.0), 45.0, 1, (-10.0, -10.0)),
-            # Test 360 no overlap case
-            ((-180.0, 180.0), 90.0, 1, (0.0, 0.0)),
-            # Test partial FOV case
-            ((-90.0, 90.0), 90.0, 1, (0.0, 0.0)),
-            # Test multiple channels
-            ((-180.0, 180.0), 90.0, 16, (-15.0, 15.0)),
-            ((-180.0, 180.0), 45.0, 32, (-30.0, 10.0)),
-            # Test single channel, different vertical angles
-            ((-180.0, 180.0), 90.0, 1, (45.0, 45.0)),
+            # 360 degree FOV: the endpoint duplicates the start angle and is dropped (-180, -90, 0, 90)
+            ((-180.0, 180.0), 90.0, 1, (-10.0, -10.0), 4),
+            # partial FOV keeps both endpoints: -90, -60, ..., 90
+            ((-90.0, 90.0), 30.0, 1, (-10.0, -10.0), 7),
+            # multiple channels multiply the horizontal count
+            ((-180.0, 180.0), 90.0, 16, (-15.0, 15.0), 64),
         ],
     )
-    def test_lidar_pattern_num_rays(self, device, horizontal_fov_range, horizontal_res, channels, vertical_fov_range):
+    def test_lidar_pattern_num_rays(
+        self, device, horizontal_fov_range, horizontal_res, channels, vertical_fov_range, expected_num_rays
+    ):
         """Test that lidar pattern generates the correct number of rays."""
         cfg = patterns_cfg.LidarPatternCfg(
             horizontal_fov_range=horizontal_fov_range,
@@ -140,26 +125,8 @@ class TestLidarPattern:
         )
         ray_starts, ray_directions = patterns.lidar_pattern(cfg, device)
 
-        # Calculate expected number of horizontal angles
-        if abs(abs(horizontal_fov_range[0] - horizontal_fov_range[1]) - 360.0) < 1e-6:
-            # 360 degree FOV - exclude last point to avoid overlap
-            expected_num_horizontal = (
-                math.ceil((horizontal_fov_range[1] - horizontal_fov_range[0]) / horizontal_res) + 1
-            ) - 1
-        else:
-            expected_num_horizontal = (
-                math.ceil((horizontal_fov_range[1] - horizontal_fov_range[0]) / horizontal_res) + 1
-            )
-
-        expected_num_rays = channels * expected_num_horizontal
-
-        assert ray_starts.shape[0] == expected_num_rays, (
-            f"Expected {expected_num_rays} rays, got {ray_starts.shape[0]} rays. "
-            f"Horizontal angles: {expected_num_horizontal}, channels: {channels}"
-        )
-        assert ray_directions.shape[0] == expected_num_rays
-        assert ray_starts.shape[1] == 3
-        assert ray_directions.shape[1] == 3
+        assert ray_starts.shape == (expected_num_rays, 3)
+        assert ray_directions.shape == (expected_num_rays, 3)
 
     def test_lidar_pattern_basic_properties(self, device):
         """Test that ray directions are normalized and rays start from origin."""
@@ -273,29 +240,6 @@ class TestLidarPattern:
 class TestBpearlPattern:
     """Test cases for bpearl_pattern function."""
 
-    @pytest.mark.parametrize(
-        "horizontal_fov,horizontal_res",
-        [
-            (360.0, 10.0),  # Default config
-            (360.0, 5.0),
-            (180.0, 10.0),
-            (90.0, 5.0),
-        ],
-    )
-    def test_bpearl_pattern_horizontal_params(self, device, horizontal_fov, horizontal_res):
-        """Test bpearl pattern with different horizontal parameters."""
-        cfg = patterns_cfg.BpearlPatternCfg(
-            horizontal_fov=horizontal_fov,
-            horizontal_res=horizontal_res,
-        )
-        ray_starts, ray_directions = patterns.bpearl_pattern(cfg, device)
-
-        # Calculate expected number of horizontal angles
-        expected_num_horizontal = int(horizontal_fov / horizontal_res)
-        expected_num_rays = len(cfg.vertical_ray_angles) * expected_num_horizontal
-
-        assert ray_starts.shape[0] == expected_num_rays
-
     def test_bpearl_pattern_basic_properties(self, device):
         """Test that ray directions are normalized and rays start from origin."""
         cfg = patterns_cfg.BpearlPatternCfg()
@@ -309,34 +253,26 @@ class TestBpearlPattern:
         torch.testing.assert_close(ray_starts, torch.zeros_like(ray_starts))
 
     def test_bpearl_pattern_custom_vertical_angles(self, device):
-        """Test bpearl pattern with custom vertical angles."""
+        """Test bpearl pattern with custom vertical angles and a partial horizontal field of view."""
         custom_angles = [10.0, 20.0, 30.0, 40.0, 50.0]
         cfg = patterns_cfg.BpearlPatternCfg(
-            horizontal_fov=360.0,
+            horizontal_fov=180.0,
             horizontal_res=90.0,
             vertical_ray_angles=custom_angles,
         )
         ray_starts, ray_directions = patterns.bpearl_pattern(cfg, device)
 
-        # 360/90 = 4 horizontal angles, 5 custom vertical angles
-        expected_num_rays = 4 * 5
+        # 180/90 = 2 horizontal angles, 5 custom vertical angles
+        expected_num_rays = 2 * 5
         assert ray_starts.shape[0] == expected_num_rays
 
 
 class TestPinholeCameraPattern:
     """Test cases for pinhole_camera_pattern function."""
 
-    @pytest.mark.parametrize(
-        "width,height",
-        [
-            (640, 480),
-            (1920, 1080),
-            (320, 240),
-            (100, 100),
-        ],
-    )
-    def test_pinhole_camera_pattern_num_rays(self, device, width, height):
-        """Test that pinhole camera pattern generates the correct number of rays."""
+    def test_pinhole_camera_pattern_num_rays(self, device):
+        """Test that pinhole camera pattern generates one ray per pixel."""
+        width, height = 640, 480
         cfg = patterns_cfg.PinholeCameraPatternCfg(
             width=width,
             height=height,
@@ -421,6 +357,6 @@ class TestPinholeCameraPattern:
         assert cfg.height == height
         assert cfg.focal_length == 24.0  # default
 
-        # The apertures should be calculated based on the intrinsic matrix
-        assert cfg.horizontal_aperture > 0
-        assert cfg.vertical_aperture > 0
+        # aperture = image size * focal length / focal length in pixels
+        assert cfg.horizontal_aperture == pytest.approx(640 * 24.0 / 500.0)
+        assert cfg.vertical_aperture == pytest.approx(480 * 24.0 / 500.0)

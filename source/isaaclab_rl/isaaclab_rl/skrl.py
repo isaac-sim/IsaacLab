@@ -24,17 +24,80 @@ Or, equivalently, by directly calling the skrl library API as follows:
 
 """
 
-# needed to import for type hinting: Agent | list[Agent]
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Literal
 
+from packaging import version
+
+from .utils.env_types import check_env_type
+
 if TYPE_CHECKING:
-    from isaaclab.envs import (
-        DirectMARLEnv,
-        DirectRLEnv,
-        ManagerBasedRLEnv,
-    )
+    from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedRLEnv
+
+SKRL_MIN_VERSION = "2.1.0"
+"""Oldest skrl release supported by the entrypoints."""
+
+
+def check_skrl_version() -> None:
+    """Exit with an installation hint when the installed skrl release is too old.
+
+    Raises:
+        SystemExit: If the installed skrl version is older than :data:`SKRL_MIN_VERSION`.
+    """
+    # skrl is an optional dependency; only the entrypoints that run it need it installed
+    import skrl
+
+    if version.parse(skrl.__version__) < version.parse(SKRL_MIN_VERSION):
+        skrl.logger.error(
+            f"Unsupported skrl version: {skrl.__version__}. "
+            f"Install supported version using 'pip install skrl>={SKRL_MIN_VERSION}'"
+        )
+        raise SystemExit(1)
+
+
+def import_skrl_runner(ml_framework: Literal["torch", "jax"]) -> type:
+    """Return the skrl :class:`Runner` implementation of the selected ML framework.
+
+    Args:
+        ml_framework: ML framework the agent runs on.
+
+    Raises:
+        ValueError: If the ML framework has no skrl runner.
+    """
+    if ml_framework == "torch":
+        from skrl.utils.runner.torch import Runner
+    elif ml_framework == "jax":
+        from skrl.utils.runner.jax import Runner
+    else:
+        raise ValueError(f"Invalid ML framework for the skrl runner: {ml_framework}. Available options: 'torch', 'jax'")
+    return Runner
+
+
+def resolve_skrl_agent_cfg_entry_point(agent: str | None, algorithm: str | None) -> str:
+    """Return the explicit agent recipe, an algorithm recipe, or the canonical recipe."""
+    if agent is not None:
+        return agent
+    if algorithm is None or algorithm.lower() == "ppo":
+        return "skrl_cfg_entry_point"
+    return f"skrl_{algorithm.lower()}_cfg_entry_point"
+
+
+def resolve_skrl_algorithm(agent_cfg: Mapping[str, object], requested_algorithm: str | None = None) -> str:
+    """Return ``agent.class``, rejecting malformed configs and explicit-selector mismatches."""
+    agent = agent_cfg.get("agent")
+    agent_class = agent.get("class") if isinstance(agent, Mapping) else None
+    if not isinstance(agent_class, str) or not agent_class.strip():
+        raise ValueError("The resolved SKRL configuration must define a non-empty 'agent.class' string.")
+
+    algorithm = agent_class.lower()
+    if requested_algorithm is not None and requested_algorithm.lower() != algorithm:
+        raise ValueError(
+            f"Requested SKRL algorithm {requested_algorithm!r} does not match the resolved agent.class {agent_class!r}."
+        )
+    return algorithm
+
 
 """
 Vectorized environment wrapper.
@@ -66,32 +129,14 @@ def SkrlVecEnvWrapper(
     Reference:
         https://skrl.readthedocs.io/en/latest/api/envs/wrapping.html
     """
-    # check that input is valid
-    # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
-    from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedRLEnv
+    check_env_type(env, allow_multi_agent=True)
 
-    try:
-        from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
-    except ImportError:
-        DirectRLEnvWarp = None
-        ManagerBasedRLEnvWarp = None
-
-    allowed_types = (ManagerBasedRLEnv, DirectRLEnv, DirectMARLEnv)
-    if DirectRLEnvWarp is not None:
-        allowed_types += (DirectRLEnvWarp,)
-    if ManagerBasedRLEnvWarp is not None:
-        allowed_types += (ManagerBasedRLEnvWarp,)
-
-    if not isinstance(env.unwrapped, allowed_types):
-        raise ValueError(
-            "The environment must be inherited from ManagerBasedRLEnv, DirectRLEnv, DirectMARLEnv,"
-            f" DirectRLEnvWarp or ManagerBasedRLEnvWarp. Environment type: {type(env)}"
-        )
-
-    # import statements according to the ML framework
+    # the skrl wrapper module depends on the selected ML framework
     if ml_framework.startswith("torch"):
         from skrl.envs.wrappers.torch import wrap_env
     elif ml_framework.startswith("jax"):
+        # preload submodule that skrl's distributed models use without importing (broken on recent JAX)
+        import jax.experimental.multihost_utils  # noqa: F401
         from skrl.envs.wrappers.jax import wrap_env
     elif ml_framework.startswith("warp"):
         from skrl.envs.wrappers.warp import wrap_env

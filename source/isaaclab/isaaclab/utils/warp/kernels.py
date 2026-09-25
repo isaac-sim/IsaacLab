@@ -7,7 +7,10 @@
 
 from typing import Any
 
+import torch
 import warp as wp
+
+from .index_kernel import IndexKernelDispatcher
 
 ##
 # Raycasting
@@ -56,7 +59,6 @@ def raycast_mesh_kernel(
         return_normal: Whether to return the ray hit normals. Defaults to False.
         return_face_id: Whether to return the ray hit face ids. Defaults to False.
     """
-    # get the thread id
     tid = wp.tid()
 
     t = float(0.0)  # hit distance along ray
@@ -196,7 +198,6 @@ def raycast_static_meshes_kernel(
         return_face_id: Whether to return the ray hit face ids. Defaults to False.
         return_mesh_id: Whether to return the mesh id. Defaults to False.
     """
-    # get the thread id
     tid_mesh_id, tid_env, tid_ray = wp.tid()
 
     direction = ray_directions[tid_env, tid_ray]
@@ -291,7 +292,6 @@ def raycast_dynamic_meshes_kernel(
         return_face_id: Whether to return the ray hit face ids. Defaults to False.
         return_mesh_id: Whether to return the mesh id. Defaults to False.
     """
-    # get the thread id
     tid_mesh_id, tid_env, tid_ray = wp.tid()
     if not env_mask[tid_env]:
         return
@@ -341,46 +341,48 @@ def reshape_tiled_image(
     is assumed to be tiled in the x and y directions. The output image is a batch of images with the
     specified height, width, and number of channels.
 
+    The tiled buffer is indexed as a 3D array rather than flattened to 1D so that the number of
+    cameras and the camera resolution are bounded per dimension instead of by their product. A
+    flattened view of a large tiled buffer can exceed the maximum size of a single Warp array
+    dimension, see https://nvidia.github.io/warp/stable/user_guide/limitations.html#arrays.
+
     Args:
-        tiled_image_buffer: The input image buffer. Shape is (height * width * num_channels * num_cameras,).
+        tiled_image_buffer: The input image buffer. Shape is
+            (num_tiles_y * image_height, num_tiles_x * image_width, num_channels).
         batched_image: The output image. Shape is (num_cameras, height, width, num_channels).
         image_width: The width of the image.
         image_height: The height of the image.
         num_channels: The number of channels in the image.
         num_tiles_x: The number of tiles in x-direction.
     """
-    # get the thread id
     camera_id, height_id, width_id = wp.tid()
 
     # resolve the tile indices
     tile_x_id = camera_id % num_tiles_x
     tile_y_id = camera_id // num_tiles_x
-    # compute the start index of the pixel in the tiled image buffer
-    pixel_start = (
-        num_channels * num_tiles_x * image_width * (image_height * tile_y_id + height_id)
-        + num_channels * tile_x_id * image_width
-        + num_channels * width_id
-    )
+    # resolve the pixel position within the tiled image buffer
+    row = image_height * tile_y_id + height_id
+    col = image_width * tile_x_id + width_id
 
     # copy the pixel values into the batched image
     for i in range(num_channels):
-        batched_image[camera_id, height_id, width_id, i] = batched_image.dtype(tiled_image_buffer[pixel_start + i])
+        batched_image[camera_id, height_id, width_id, i] = batched_image.dtype(tiled_image_buffer[row, col, i])
 
 
 # uint32 -> int32 conversion is required for non-colored segmentation annotators
 wp.overload(
     reshape_tiled_image,
-    {"tiled_image_buffer": wp.array(dtype=wp.uint32), "batched_image": wp.array(dtype=wp.uint32, ndim=4)},
+    {"tiled_image_buffer": wp.array(dtype=wp.uint32, ndim=3), "batched_image": wp.array(dtype=wp.uint32, ndim=4)},
 )
 # uint8 is used for 4 channel annotators
 wp.overload(
     reshape_tiled_image,
-    {"tiled_image_buffer": wp.array(dtype=wp.uint8), "batched_image": wp.array(dtype=wp.uint8, ndim=4)},
+    {"tiled_image_buffer": wp.array(dtype=wp.uint8, ndim=3), "batched_image": wp.array(dtype=wp.uint8, ndim=4)},
 )
 # float32 is used for single channel annotators
 wp.overload(
     reshape_tiled_image,
-    {"tiled_image_buffer": wp.array(dtype=wp.float32), "batched_image": wp.array(dtype=wp.float32, ndim=4)},
+    {"tiled_image_buffer": wp.array(dtype=wp.float32, ndim=3), "batched_image": wp.array(dtype=wp.float32, ndim=4)},
 )
 
 ##
@@ -390,8 +392,8 @@ wp.overload(
 
 @wp.kernel
 def set_forces_to_dual_buffers_index(
-    env_ids: wp.array(dtype=wp.int32),
-    body_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    body_ids: wp.array(dtype=Any),
     forces: wp.array2d(dtype=wp.vec3f),
     torques: wp.array2d(dtype=wp.vec3f),
     positions: wp.array2d(dtype=wp.vec3f),
@@ -414,8 +416,8 @@ def set_forces_to_dual_buffers_index(
     Any of ``forces``, ``torques``, or ``positions`` may be ``None`` (null array).
     """
     tid_env, tid_body = wp.tid()
-    ei = env_ids[tid_env]
-    bi = body_ids[tid_body]
+    ei = wp.int32(env_ids[tid_env])
+    bi = wp.int32(body_ids[tid_body])
 
     if is_global:
         if torques:
@@ -447,8 +449,8 @@ def set_forces_to_dual_buffers_index(
 
 @wp.kernel
 def add_forces_to_dual_buffers_index(
-    env_ids: wp.array(dtype=wp.int32),
-    body_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
+    body_ids: wp.array(dtype=Any),
     forces: wp.array2d(dtype=wp.vec3f),
     torques: wp.array2d(dtype=wp.vec3f),
     positions: wp.array2d(dtype=wp.vec3f),
@@ -465,8 +467,8 @@ def add_forces_to_dual_buffers_index(
     Dispatched with ``dim=(len(env_ids), len(body_ids))``.
     """
     tid_env, tid_body = wp.tid()
-    ei = env_ids[tid_env]
-    bi = body_ids[tid_body]
+    ei = wp.int32(env_ids[tid_env])
+    bi = wp.int32(body_ids[tid_body])
 
     if is_global:
         if forces:
@@ -655,7 +657,7 @@ def compose_wrench_to_body_frame(
 
 @wp.kernel
 def reset_wrench_composer_index(
-    env_ids: wp.array(dtype=wp.int32),
+    env_ids: wp.array(dtype=Any),
     global_force_w: wp.array2d(dtype=wp.vec3f),
     global_torque_w: wp.array2d(dtype=wp.vec3f),
     global_force_at_com_w: wp.array2d(dtype=wp.vec3f),
@@ -669,7 +671,7 @@ def reset_wrench_composer_index(
     Dispatched with ``dim=(len(env_ids), num_bodies)``.
     """
     tid_env, tid_body = wp.tid()
-    ei = env_ids[tid_env]
+    ei = wp.int32(env_ids[tid_env])
     z = wp.vec3f(0.0)
     global_force_w[ei, tid_body] = z
     global_torque_w[ei, tid_body] = z
@@ -678,6 +680,109 @@ def reset_wrench_composer_index(
     local_torque_b[ei, tid_body] = z
     out_force_b[ei, tid_body] = z
     out_torque_b[ei, tid_body] = z
+
+
+_SET_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER = IndexKernelDispatcher(
+    set_forces_to_dual_buffers_index, ("env_ids", "body_ids")
+)
+_ADD_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER = IndexKernelDispatcher(
+    add_forces_to_dual_buffers_index, ("env_ids", "body_ids")
+)
+_RESET_WRENCH_COMPOSER_INDEX_DISPATCHER = IndexKernelDispatcher(reset_wrench_composer_index, ("env_ids",))
+
+
+def set_forces_to_dual_buffers_index_kernel(
+    env_ids: "wp.array | torch.Tensor", body_ids: "wp.array | torch.Tensor"
+) -> wp.Kernel:
+    """Select the indexed wrench-set worker for the selector dtypes."""
+    return _SET_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER.select(env_ids, body_ids)
+
+
+def add_forces_to_dual_buffers_index_kernel(
+    env_ids: "wp.array | torch.Tensor", body_ids: "wp.array | torch.Tensor"
+) -> wp.Kernel:
+    """Select the indexed wrench-add worker for the selector dtypes."""
+    return _ADD_FORCES_TO_DUAL_BUFFERS_INDEX_DISPATCHER.select(env_ids, body_ids)
+
+
+def reset_wrench_composer_index_kernel(env_ids: "wp.array | torch.Tensor") -> wp.Kernel:
+    """Select the indexed wrench-reset worker for the selector dtype."""
+    return _RESET_WRENCH_COMPOSER_INDEX_DISPATCHER.select(env_ids)
+
+
+##
+# Image normalization
+##
+
+
+@wp.kernel(enable_backward=False)
+def normalize_image_uint8(
+    src: wp.array4d(dtype=wp.uint8),
+    mean: wp.array2d(dtype=wp.float32),
+    out: wp.array4d(dtype=wp.float32),
+    channel_dim: wp.int32,
+):
+    """Compute ``out = src / 255.0 - mean`` per element, with ``mean`` broadcast over the spatial dims.
+
+    ``mean`` must be precomputed by the caller as the per-(batch, channel) mean of
+    ``src / 255.0`` along the two non-batch, non-channel axes.
+
+    Dispatch with ``dim=src.shape``. The spatial axes are symmetric; only the channel index
+    lookup differs between BHWC and BCHW layouts.
+
+    Args:
+        src: Input uint8 image. Shape is ``(B, H, W, C)`` or ``(B, C, H, W)``.
+        mean: Per-(batch, channel) mean of ``src / 255.0``. Shape is ``(B, C)``.
+        out: Output float32 tensor. Same shape as ``src``.
+        channel_dim: Resolved positive position of the channel axis -- ``1`` (BCHW) or
+            ``3`` (BHWC). Constant across all threads; the wrapper validates the value
+            and resolves negatives before launch.
+    """
+    b, d1, d2, d3 = wp.tid()
+    if channel_dim == 1:
+        c = d1
+    else:
+        c = d3
+    out[b, d1, d2, d3] = wp.float32(src[b, d1, d2, d3]) / 255.0 - mean[b, c]
+
+
+@wp.kernel(enable_backward=False)
+def spatial_sum_uint8_tiled(
+    src: wp.array4d(dtype=wp.uint8),
+    partials: wp.array3d(dtype=wp.int32),
+    tile_size: wp.int32,
+    channel_dim: wp.int32,
+):
+    """Tiled int32 partial sums of a uint8 image along its spatial axes.
+
+    Caller collapses the result with ``partials.sum(dim=1)`` to recover the per-``(b, c)``
+    total. Dispatch with ``dim=(B, NUM_TILES, C)`` where ``NUM_TILES = ceil(H / tile_size)``;
+    C innermost gives stride-1 reads on src's contiguous trailing dim for BHWC inputs.
+
+    Args:
+        src: Input image. Shape is ``(B, H, W, C)`` or ``(B, C, H, W)``.
+        partials: Output partial sums. Shape is ``(B, NUM_TILES, C)``.
+        tile_size: Number of H rows reduced per thread.
+        channel_dim: Resolved positive position of the channel axis -- ``1`` (BCHW) or
+            ``3`` (BHWC). Constant across all threads; selects which spatial axes to
+            iterate and where to read the channel index.
+    """
+    b, tile, c = wp.tid()
+    h_start = tile * tile_size
+    s = wp.int32(0)
+    if channel_dim == 1:
+        # BCHW: spatial axes are (2, 3); first spatial axis (H) is at position 2.
+        h_end = wp.min(h_start + tile_size, src.shape[2])
+        for i in range(h_start, h_end):
+            for j in range(src.shape[3]):
+                s += wp.int32(src[b, c, i, j])
+    else:
+        # BHWC: spatial axes are (1, 2); first spatial axis (H) is at position 1.
+        h_end = wp.min(h_start + tile_size, src.shape[1])
+        for i in range(h_start, h_end):
+            for j in range(src.shape[2]):
+                s += wp.int32(src[b, i, j, c])
+    partials[b, tile, c] = s
 
 
 @wp.kernel
@@ -705,3 +810,48 @@ def reset_wrench_composer_mask(
         local_torque_b[tid_env, tid_body] = z
         out_force_b[tid_env, tid_body] = z
         out_torque_b[tid_env, tid_body] = z
+
+
+##
+# Element-wise arithmetic.
+##
+
+
+@wp.kernel
+def subtract_2d(
+    a: wp.array2d(dtype=wp.float32),
+    b: wp.array2d(dtype=wp.float32),
+    out: wp.array2d(dtype=wp.float32),
+):
+    """Compute ``out = a - b`` element-wise over a 2D array."""
+    i, j = wp.tid()
+    out[i, j] = a[i, j] - b[i, j]
+
+
+@wp.kernel
+def gather_subtract_2d(
+    a: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=Any),
+    item_ids: wp.array(dtype=Any),
+    b: wp.array2d(dtype=wp.float32),
+    out: wp.array2d(dtype=wp.float32),
+):
+    """Compute ``out[i, j] = a[env_ids[i], item_ids[j]] - b[i, j]``.
+
+    Args:
+        a: Full array. Shape is (num_envs, num_items).
+        env_ids: Environment indices selecting rows of ``a``. Shape is (num_selected_envs,).
+        item_ids: Item indices selecting columns of ``a``. Shape is (num_selected_items,).
+        b: Partial array. Shape is (num_selected_envs, num_selected_items).
+        out: Output array. Shape is (num_selected_envs, num_selected_items).
+    """
+    i, j = wp.tid()
+    out[i, j] = a[wp.int32(env_ids[i]), wp.int32(item_ids[j])] - b[i, j]
+
+
+_GATHER_SUBTRACT_2D_DISPATCHER = IndexKernelDispatcher(gather_subtract_2d, ("env_ids", "item_ids"))
+
+
+def gather_subtract_2d_kernel(env_ids: "wp.array | torch.Tensor", item_ids: "wp.array | torch.Tensor") -> wp.Kernel:
+    """Select the gather-subtract worker for the selector dtypes."""
+    return _GATHER_SUBTRACT_2D_DISPATCHER.select(env_ids, item_ids)

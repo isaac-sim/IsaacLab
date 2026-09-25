@@ -3,17 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import logging
 import tempfile
 from dataclasses import MISSING
 
-try:
-    from isaaclab_teleop import XrCfg
+from isaaclab_teleop import XrCfg
 
-    _TELEOP_AVAILABLE = True
-except ImportError:
-    _TELEOP_AVAILABLE = False
-    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
+# Marker consumed by ``env_test_utils._is_teleop_env`` to bucket teleop
+# environments in the test suite.
+_TELEOP_AVAILABLE = True
+
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -29,8 +28,10 @@ from isaaclab.sensors import CameraCfg
 
 # from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+
+from isaaclab_tasks.utils.presets import set_isaac_rtx_global_settings
 
 from . import mdp
 
@@ -46,12 +47,12 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     # Table
     table = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Table",
+        prim_path="{ENV_REGEX_NS}/Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/table.usd",
             scale=(1.0, 1.0, 1.3),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
         ),
     )
 
@@ -61,7 +62,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_scale.usd",
             scale=(1.0, 1.0, 1.0),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
         ),
     )
 
@@ -71,8 +72,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_bowl_yellow.usd",
             scale=(1.0, 1.0, 1.5),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            collision_props=PhysxCollisionCfg(contact_offset=0.005),
         ),
     )
 
@@ -82,7 +83,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_beaker_red.usd",
             scale=(0.45, 0.45, 1.3),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
         ),
     )
 
@@ -92,8 +93,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/factory_m16_nut_green.usd",
             scale=(0.5, 0.5, 0.5),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            collision_props=PhysxCollisionCfg(contact_offset=0.005),
         ),
     )
 
@@ -103,12 +104,12 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_bin_blue.usd",
             scale=(0.75, 1.0, 1.0),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
         ),
     )
 
     robot: ArticulationCfg = GR1T2_CFG.replace(
-        prim_path="/World/envs/env_.*/Robot",
+        prim_path="{ENV_REGEX_NS}/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0, 0, 0.93),
             rot=(0.0, 0.0, 0.7071, 0.7071),
@@ -358,13 +359,12 @@ class NutPourGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
 
         # Set settings for camera rendering
         self.num_rerenders_on_reset = 3
-        self.sim.render.antialiasing_mode = "DLAA"  # Use DLAA for higher quality rendering
+        set_isaac_rtx_global_settings(self.scene.robot_pov_cam.renderer_cfg, antialiasing_mode="DLAA")
 
         # List of image observations in policy observations
         self.image_obs_list = ["robot_pov_cam"]
 
-        if _TELEOP_AVAILABLE:
-            self.xr = XrCfg(
-                anchor_pos=(0.0, 0.0, 0.0),
-                anchor_rot=(0.0, 0.0, 0.0, 1.0),
-            )
+        self.xr = XrCfg(
+            anchor_pos=(0.0, 0.0, 0.0),
+            anchor_rot=(0.0, 0.0, 0.0, 1.0),
+        )

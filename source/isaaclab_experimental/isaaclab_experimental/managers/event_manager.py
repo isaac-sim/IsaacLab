@@ -29,8 +29,9 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
+from isaaclab.managers.manager_term_cfg import EventTermCfg
+
 from .manager_base import ManagerBase
-from .manager_term_cfg import EventTermCfg
 
 logger = logging.getLogger(__name__)
 

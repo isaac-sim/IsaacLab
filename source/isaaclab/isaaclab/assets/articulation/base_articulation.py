@@ -8,23 +8,43 @@
 
 from __future__ import annotations
 
+import logging
 import warnings
 from abc import abstractmethod
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import torch
 import warp as wp
 
 from ...sim import SimulationContext
+from ...utils.buffers import TimestampedBufferWarp
 from ...utils.leapp.leapp_semantics import OutputKindEnum, joint_names_resolver, leapp_tensor_semantics
+from ...utils.warp import ProxyArray
 from ..asset_base import AssetBase
+from . import ordering_kernels
+from .ordering import ArticulationNameMap, ArticulationOrderingConvention, build_articulation_name_map
+from .ordering_resolvers import _resolve_articulation_ordering_names
 
 if TYPE_CHECKING:
-    from isaaclab.utils.wrench_composer import WrenchComposer
-
+    from ...actuators import ActuatorCollection
+    from ...utils.wrench_composer import WrenchComposer
     from .articulation_cfg import ArticulationCfg
-    from .articulation_data import ArticulationData
+    from .base_articulation_data import BaseArticulationData
+
+logger = logging.getLogger(__name__)
+
+
+def _as_bool_mask(mask: torch.Tensor | wp.array | None) -> wp.array | None:
+    """Coerce legacy nonzero-selectable masks to the ``wp.bool`` masks the command API expects.
+
+    Deprecated with the ``set_joint_*_target_mask`` forwarders that consume it;
+    remove together in 4.0.
+    """
+    if mask is None or (isinstance(mask, wp.array) and mask.dtype == wp.bool):
+        return mask
+    mask_torch = wp.to_torch(mask) if isinstance(mask, wp.array) else mask
+    return wp.from_torch((mask_torch != 0).contiguous(), dtype=wp.bool)
 
 
 class BaseArticulation(AssetBase):
@@ -71,6 +91,12 @@ class BaseArticulation(AssetBase):
         # update the articulation state, where dt is the simulation time step
         my_articulation.update(dt)
 
+    .. note::
+        Index-based writer selectors must contain unique environment, joint, and
+        body indices. Repeated selector entries issue concurrent writes to the
+        same simulation cell, so the winning value is undefined. Use a mask when
+        a selection may contain duplicates.
+
     .. _`USD ArticulationRootAPI`: https://openusd.org/dev/api/class_usd_physics_articulation_root_a_p_i.html
 
     """
@@ -81,12 +107,23 @@ class BaseArticulation(AssetBase):
     __backend_name__: str = "base"
     """The name of the backend for the articulation."""
 
-    actuators: dict
-    """Dictionary of actuator instances for the articulation.
+    __backend_native_orderings__: tuple[str, ...] = ()
+    """Symbolic convention names this backend's native order already satisfies.
 
-    The keys are the actuator names and the values are the actuator instances. The actuator instances
-    are initialized based on the actuator configurations specified in the :attr:`ArticulationCfg.actuators`
-    attribute. They are used to compute the joint commands during the :meth:`write_data_to_sim` function.
+    A convention listed here takes the identity fast path in ordering
+    resolution: requesting it returns backend names without any cross-backend
+    discovery. The base default is empty; concrete backends declare the
+    :class:`ArticulationOrderingConvention` values (e.g. ``("physx",)``) their
+    solver-view order matches.
+    """
+
+    actuators: ActuatorCollection
+    """Runtime actuator collection for the articulation.
+
+    This read-only mapping exposes configured groups and owns articulation-wide
+    actuator commands and telemetry. Configure membership through
+    :attr:`ArticulationCfg.actuators` before construction; set runtime commands
+    through ``articulation.actuators.target_command``.
     """
 
     def __init__(self, cfg: ArticulationCfg):
@@ -98,6 +135,17 @@ class BaseArticulation(AssetBase):
         super().__init__(cfg)
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
+        # Set when a fixed-tendon target is commanded, cleared once ``write_data_to_sim`` has
+        # pushed it: carrying tendons alone schedules no write, and a property buffered
+        # through the offset setter keeps its explicit-write contract.
+        self._fixed_tendon_target_dirty = False
+        # Per-articulation cache of resolved cross-backend convention name orderings,
+        # populated lazily while ordering maps are resolved. A single resolution may
+        # query the same convention for both joints and bodies, so results are keyed
+        # by ``(convention, kind)``.
+        self._ordering_convention_name_cache: dict[
+            tuple[ArticulationOrderingConvention, Literal["joint", "body"]], tuple[str, ...]
+        ] = {}
 
     """
     Properties
@@ -105,7 +153,7 @@ class BaseArticulation(AssetBase):
 
     @property
     @abstractmethod
-    def data(self) -> ArticulationData:
+    def data(self) -> BaseArticulationData:
         raise NotImplementedError()
 
     @property
@@ -144,10 +192,18 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @property
-    @abstractmethod
     def joint_names(self) -> list[str]:
-        """Ordered names of joints in articulation."""
-        raise NotImplementedError()
+        """Joint names in public API order.
+
+        The order follows :attr:`ArticulationCfg.joint_ordering` when configured
+        and otherwise matches :attr:`backend_joint_names`. Once the articulation
+        installs its resolved names on :attr:`data`, those are returned directly;
+        before that, the property falls back to :attr:`backend_joint_names`.
+        """
+        names = self.data.joint_names
+        if names is not None:
+            return list(names)
+        return list(self.backend_joint_names)
 
     @property
     @abstractmethod
@@ -162,20 +218,231 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @property
-    @abstractmethod
     def body_names(self) -> list[str]:
-        """Ordered names of bodies in articulation."""
-        raise NotImplementedError()
+        """Body names in public API order.
+
+        The order follows :attr:`ArticulationCfg.body_ordering` when configured
+        and otherwise matches :attr:`backend_body_names`. Once the articulation
+        installs its resolved names on :attr:`data`, those are returned directly;
+        before that, the property falls back to :attr:`backend_body_names`.
+        """
+        names = self.data.body_names
+        if names is not None:
+            return list(names)
+        return list(self.backend_body_names)
+
+    @property
+    def backend_joint_names(self) -> list[str]:
+        """Joint names in active backend solver-view order.
+
+        Concrete backends must override this property so its order matches
+        ``root_view`` metadata and joint-indexed solver arrays even when
+        :attr:`joint_names` uses another public order.
+
+        The inherited compatibility fallback emits :class:`DeprecationWarning`
+        and returns :attr:`joint_names`. A subclass relying on that fallback
+        therefore receives public order and cannot expose a distinct solver order.
+
+        Raises:
+            NotImplementedError: If the subclass overrides neither
+                :attr:`joint_names` nor this property, since the two inherited
+                fallbacks delegate to each other and cannot produce names.
+        """
+        if type(self).joint_names is BaseArticulation.joint_names:
+            raise NotImplementedError(f"{type(self).__name__} must override joint_names or backend_joint_names.")
+        warnings.warn(
+            f"{type(self).__name__} must override backend_joint_names before it becomes abstract in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.joint_names
+
+    @property
+    def backend_body_names(self) -> list[str]:
+        """Body names in active backend solver-view order.
+
+        Concrete backends must override this property so its order matches
+        ``root_view`` metadata and body-indexed solver arrays even when
+        :attr:`body_names` uses another public order.
+
+        The inherited compatibility fallback emits :class:`DeprecationWarning`
+        and returns :attr:`body_names`. A subclass relying on that fallback
+        therefore receives public order and cannot expose a distinct solver order.
+
+        Raises:
+            NotImplementedError: If the subclass overrides neither
+                :attr:`body_names` nor this property, since the two inherited
+                fallbacks delegate to each other and cannot produce names.
+        """
+        if type(self).body_names is BaseArticulation.body_names:
+            raise NotImplementedError(f"{type(self).__name__} must override body_names or backend_body_names.")
+        warnings.warn(
+            f"{type(self).__name__} must override backend_body_names before it becomes abstract in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_names
+
+    @property
+    def joint_ordering(self) -> ArticulationNameMap | None:
+        """Bidirectional map between backend and public joint order.
+
+        The map is ``None`` whenever the public and backend orders coincide:
+        either no ordering is configured, or the configured ordering resolved
+        to the backend's native order. A non-``None`` map always denotes an
+        actual permutation.
+        """
+        return self.data.joint_ordering
+
+    @property
+    def body_ordering(self) -> ArticulationNameMap | None:
+        """Bidirectional map between backend and public body order.
+
+        The map is ``None`` whenever the public and backend orders coincide:
+        either no ordering is configured, or the configured ordering resolved
+        to the backend's native order. A non-``None`` map always denotes an
+        actual permutation.
+        """
+        return self.data.body_ordering
+
+    def map_joint_ids_to_backend(self, joint_ids: Sequence[int] | slice) -> Sequence[int] | slice:
+        """Translate public joint indices to active-backend joint indices.
+
+        Backend solver views expose joint metadata and joint-indexed arrays in
+        :attr:`backend_joint_names` order, which can differ from the public
+        :attr:`joint_names` order selected by :attr:`joint_ordering`. Consumers
+        that pick joints with public indices (for example event terms) must
+        convert those indices before addressing backend arrays.
+
+        When :attr:`joint_ordering` is ``None`` the public and backend orders
+        coincide and :paramref:`joint_ids` is returned unchanged without any
+        per-index lookup.
+
+        Args:
+            joint_ids: Joint indices in public :attr:`joint_names` order, or a
+                slice selecting them.
+
+        Returns:
+            The selected joint indices expressed in :attr:`backend_joint_names`
+            order, or :paramref:`joint_ids` unchanged when the orders coincide.
+            A slice is expanded to its backend indices under a permutation.
+        """
+        ordering = self.joint_ordering
+        if ordering is None:
+            return joint_ids
+        if isinstance(joint_ids, slice):
+            return list(ordering.user_to_backend_indices[joint_ids])
+        return [ordering.user_to_backend_indices[joint_id] for joint_id in joint_ids]
+
+    def map_body_ids_to_backend(self, body_ids: Sequence[int] | slice) -> Sequence[int] | slice:
+        """Translate public body indices to active-backend body indices.
+
+        Backend solver views expose body metadata and body-indexed arrays in
+        :attr:`backend_body_names` order, which can differ from the public
+        :attr:`body_names` order selected by :attr:`body_ordering`. Consumers
+        that pick bodies with public indices (for example event terms) must
+        convert those indices before addressing backend arrays.
+
+        When :attr:`body_ordering` is ``None`` the public and backend orders
+        coincide and :paramref:`body_ids` is returned unchanged without any
+        per-index lookup.
+
+        Args:
+            body_ids: Body indices in public :attr:`body_names` order, or a
+                slice selecting them.
+
+        Returns:
+            The selected body indices expressed in :attr:`backend_body_names`
+            order, or :paramref:`body_ids` unchanged when the orders coincide.
+            A slice is expanded to its backend indices under a permutation.
+        """
+        ordering = self.body_ordering
+        if ordering is None:
+            return body_ids
+        if isinstance(body_ids, slice):
+            return list(ordering.user_to_backend_indices[body_ids])
+        return [ordering.user_to_backend_indices[body_id] for body_id in body_ids]
 
     @property
     @abstractmethod
     def root_view(self):
-        """Root view for the asset.
+        """Root articulation view in active backend order.
+
+        Name metadata and joint- or body-indexed arrays exposed by this view always
+        use backend solver-view order, regardless of the configured public order.
+        Use :attr:`joint_ordering` or :attr:`body_ordering` when converting axes.
 
         .. note::
-            Use this view with caution. It requires handling of tensors in a specific way.
+            Use this view with caution. It requires handling backend tensors in
+            the backend-specific way.
         """
         raise NotImplementedError()
+
+    def _resolve_and_install_ordering_maps(self) -> None:
+        """Resolve configured articulation name orderings and store maps on :attr:`data`.
+
+        This is the single install site for ordering state: the resolved maps live
+        only on :attr:`data` (:attr:`~BaseArticulationData.joint_ordering` and
+        :attr:`~BaseArticulationData.body_ordering`) and every read path checks
+        them there. Orderings that resolve to the backend's native order are
+        normalized to ``None``, so a non-``None`` map always denotes an actual
+        permutation and ``is not None`` checks alone decide whether reordering is
+        active.
+        """
+        joint_names, joint_ordering = self._resolve_axis_ordering("joint")
+        self.data.joint_names = joint_names
+        self.data.joint_ordering = joint_ordering
+
+        body_names, body_ordering = self._resolve_axis_ordering("body")
+        if body_ordering is not None and self.is_fixed_base:
+            root_body_name = self.backend_body_names[0]
+            requested_index = body_ordering.backend_to_user_indices[0]
+            if requested_index != 0:
+                raise ValueError(
+                    f"Invalid body_ordering for fixed-base articulation '{self.cfg.prim_path}': root body "
+                    f"'{root_body_name}' must remain at public index 0, but was requested at index "
+                    f"{requested_index}. Put '{root_body_name}' first; all remaining bodies may be reordered "
+                    "freely."
+                )
+        self.data.body_names = body_names
+        self.data.body_ordering = body_ordering
+
+        self.data._apply_ordering_maps_after_resolve()
+
+    def _resolve_axis_ordering(self, kind: Literal["joint", "body"]) -> tuple[list[str], ArticulationNameMap | None]:
+        """Resolve one axis's public names and permutation from the configuration.
+
+        Args:
+            kind: Articulation element kind to resolve.
+
+        Returns:
+            The public names for the axis and its permutation map, where ``None``
+            means public order equals backend order (no ordering configured, or a
+            configured ordering that resolved to the backend's native order).
+        """
+        backend_names = tuple(self.backend_joint_names if kind == "joint" else self.backend_body_names)
+        cfg_ordering = self.cfg.joint_ordering if kind == "joint" else self.cfg.body_ordering
+        if cfg_ordering is None:
+            return list(backend_names), None
+
+        user_names = _resolve_articulation_ordering_names(
+            kind=kind,
+            backend_names=backend_names,
+            ordering=cfg_ordering,
+            active_backend_name=self.__backend_name__,
+            articulation=self,
+        )
+        ordering = build_articulation_name_map(
+            kind=kind, backend_names=backend_names, user_names=user_names, device=self.device
+        )
+        if ordering is None:
+            logger.info(
+                "Configured %s_ordering for '%s' resolves to the backend's native order; no reordering"
+                " will be applied.",
+                kind,
+                self.cfg.prim_path,
+            )
+        return list(user_names), ordering
 
     @property
     def num_base_dofs(self) -> int:
@@ -259,25 +526,38 @@ class BaseArticulation(AssetBase):
     """
 
     @abstractmethod
-    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+    def find_bodies(
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find bodies in the articulation based on the name keys.
 
-        Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
+        Please check the :func:`isaaclab.utils.string.resolve_matching_names` function for more
         information on the name matching.
 
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Whether to return cached, immutable :class:`ProxyArray` indices. Use ``.warp`` or
+                ``.torch`` and reacquire after invalidation. Defaults to False.
 
         Returns:
-            A tuple of lists containing the body indices and names.
+            Matched body indices and names. Indices are a list by default or a cached proxy when requested.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def find_joints(
-        self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+        self,
+        name_keys: str | Sequence[str],
+        joint_subset: list[str] | None = None,
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find joints in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -288,16 +568,23 @@ class BaseArticulation(AssetBase):
             joint_subset: A subset of joints to search for. Defaults to None, which means all joints
                 in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Whether to return proxy indices. See :meth:`find_bodies`. Subsets use asset-global
+                proxy indices.
 
         Returns:
-            A tuple of lists containing the joint indices, names.
+            Matched joint indices and names. Indices are a list by default or a cached proxy when requested.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def find_fixed_tendons(
-        self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+        self,
+        name_keys: str | Sequence[str],
+        tendon_subsets: list[str] | None = None,
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find fixed tendons in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -309,16 +596,23 @@ class BaseArticulation(AssetBase):
             tendon_subsets: A subset of joints with fixed tendons to search for. Defaults to None, which means
                 all joints in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Whether to return proxy indices. See :meth:`find_bodies`. Subsets use asset-global
+                proxy indices.
 
         Returns:
-            A tuple of lists containing the tendon indices, names.
+            Matched fixed-tendon indices and names. Indices are a list by default or a cached proxy when requested.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def find_spatial_tendons(
-        self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+        self,
+        name_keys: str | Sequence[str],
+        tendon_subsets: list[str] | None = None,
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find spatial tendons in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -329,9 +623,11 @@ class BaseArticulation(AssetBase):
             tendon_subsets: A subset of tendons to search for. Defaults to None, which means all tendons
                 in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Whether to return proxy indices. See :meth:`find_bodies`. Subsets use asset-global
+                proxy indices.
 
         Returns:
-            A tuple of lists containing the tendon indices, names.
+            Matched spatial-tendon indices and names. Indices are a list by default or a cached proxy when requested.
         """
         raise NotImplementedError()
 
@@ -345,6 +641,7 @@ class BaseArticulation(AssetBase):
         *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root pose over selected environment indices into the simulation.
 
@@ -361,6 +658,8 @@ class BaseArticulation(AssetBase):
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -370,6 +669,7 @@ class BaseArticulation(AssetBase):
         *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root pose over selected environment mask into the simulation.
 
@@ -386,6 +686,8 @@ class BaseArticulation(AssetBase):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -395,6 +697,7 @@ class BaseArticulation(AssetBase):
         *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root link pose over selected environment indices into the simulation.
 
@@ -411,6 +714,8 @@ class BaseArticulation(AssetBase):
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -420,6 +725,7 @@ class BaseArticulation(AssetBase):
         *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root link pose over selected environment mask into the simulation.
 
@@ -436,6 +742,8 @@ class BaseArticulation(AssetBase):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -445,6 +753,7 @@ class BaseArticulation(AssetBase):
         *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass pose over selected environment indices into the simulation.
 
@@ -462,6 +771,8 @@ class BaseArticulation(AssetBase):
             root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -471,6 +782,7 @@ class BaseArticulation(AssetBase):
         *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass pose over selected environment mask into the simulation.
 
@@ -488,6 +800,8 @@ class BaseArticulation(AssetBase):
             root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -497,6 +811,7 @@ class BaseArticulation(AssetBase):
         *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
@@ -516,6 +831,8 @@ class BaseArticulation(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
                 or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -525,6 +842,7 @@ class BaseArticulation(AssetBase):
         *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass velocity over selected environment mask into the simulation.
 
@@ -544,6 +862,8 @@ class BaseArticulation(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -553,6 +873,7 @@ class BaseArticulation(AssetBase):
         *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
@@ -572,6 +893,8 @@ class BaseArticulation(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
                 or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -581,6 +904,7 @@ class BaseArticulation(AssetBase):
         *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass velocity over selected environment mask into the simulation.
 
@@ -600,6 +924,8 @@ class BaseArticulation(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -609,6 +935,7 @@ class BaseArticulation(AssetBase):
         *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root link velocity over selected environment indices into the simulation.
 
@@ -628,6 +955,8 @@ class BaseArticulation(AssetBase):
             root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6)
                 or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -637,6 +966,7 @@ class BaseArticulation(AssetBase):
         *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root link velocity over selected environment mask into the simulation.
 
@@ -656,6 +986,8 @@ class BaseArticulation(AssetBase):
             root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -666,6 +998,7 @@ class BaseArticulation(AssetBase):
         position: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Write joint positions to the simulation.
 
@@ -680,6 +1013,8 @@ class BaseArticulation(AssetBase):
             position: Joint positions. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all instances).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -690,6 +1025,7 @@ class BaseArticulation(AssetBase):
         position: torch.Tensor | wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Write joint positions to the simulation.
 
@@ -704,6 +1040,8 @@ class BaseArticulation(AssetBase):
             position: Joint positions. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -714,6 +1052,7 @@ class BaseArticulation(AssetBase):
         velocity: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Write joint velocities to the simulation.
 
@@ -728,6 +1067,8 @@ class BaseArticulation(AssetBase):
             velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all instances).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -738,6 +1079,7 @@ class BaseArticulation(AssetBase):
         velocity: torch.Tensor | wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Write joint velocities to the simulation.
 
@@ -752,6 +1094,8 @@ class BaseArticulation(AssetBase):
             velocity: Joint velocities. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -1080,6 +1424,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         joint_friction_coeff: torch.Tensor | float | wp.array,
+        joint_dynamic_friction_coeff: torch.Tensor | float | wp.array | None = None,
+        joint_viscous_friction_coeff: torch.Tensor | float | wp.array | None = None,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -1099,6 +1445,11 @@ class BaseArticulation(AssetBase):
 
         Args:
             joint_friction_coeff: Backend-specific joint friction values. Shape is (len(env_ids), len(joint_ids)).
+            joint_dynamic_friction_coeff: Backend-specific dynamic friction values with the same shape.
+                If None, the dynamic component is not updated. Backends without a dynamic friction
+                property warn on nonzero values.
+            joint_viscous_friction_coeff: Backend-specific viscous friction values with the same shape.
+                If None, the viscous component is not updated.
             joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all instances).
         """
@@ -1284,173 +1635,280 @@ class BaseArticulation(AssetBase):
         """
         raise NotImplementedError()
 
-    @abstractmethod
     @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_POSITION, element_names_resolver=joint_names_resolver)
     def set_joint_position_target_index(
         self,
         *,
-        target: torch.Tensor | wp.array,
+        target: torch.Tensor | wp.array(dtype=wp.float32),
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
     ) -> None:
         """Set joint position targets into internal buffers.
 
-        .. note::
-            This method expects partial data.
+        .. deprecated::
+            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            ``set_position_index``.
 
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+        .. note::
+            This method accepts partial or full data.
 
         This function does not apply the joint targets to the simulation. It only fills the buffers with
         the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
-            target: Joint position targets. Shape is (len(env_ids), len(joint_ids)).
+            target: Joint position targets [m or rad, depending on joint type]. Shape is
+                ``(len(env_ids), len(joint_ids))``, or ``(num_instances, num_joints)`` when
+                :paramref:`full_data` is true.
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all instances).
+            full_data: Whether :paramref:`target` contains all articulation joints and instances.
         """
-        raise NotImplementedError()
+        warnings.warn(
+            "Articulation.set_joint_position_target_index is deprecated. Use "
+            "articulation.actuators.target_command.set_position_index instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.actuators.target_command.set_position_index(
+            value=target, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
+        )
 
-    @abstractmethod
+    def _write_deprecated_native_actuator_gain(
+        self,
+        writer_name: Literal["write_actuator_stiffness_to_sim", "write_actuator_damping_to_sim"],
+        gain_name: Literal["kp", "kd"],
+        values: torch.Tensor,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
+    ) -> None:
+        """Warn and forward a legacy native-controller gain write."""
+        from ...actuators.newton import write_group_parameter  # noqa: PLC0415
+
+        warnings.warn(
+            f"{writer_name} is deprecated in 3.x and will be removed in 3.1. Use "
+            "randomize_actuator_gains for managed randomization or "
+            "isaaclab.actuators.newton.write_group_parameter for direct controller writes.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        # Split the articulation-level joint selection into per-group columns.
+        joint_ids_long = joint_ids.to(self.device, dtype=torch.long)
+        for group_name in getattr(self.actuators, "_native_group_names", ()):
+            group_joints = self.actuators._group_joint_indices[group_name]
+            if isinstance(group_joints, slice):
+                in_group = torch.ones_like(joint_ids_long, dtype=torch.bool)
+                group_columns = joint_ids_long
+            else:
+                column_of_joint = torch.full((self.num_joints,), -1, dtype=torch.long, device=self.device)
+                group_joints = group_joints.to(self.device, dtype=torch.long)
+                column_of_joint[group_joints] = torch.arange(group_joints.numel(), device=self.device)
+                columns = column_of_joint[joint_ids_long]
+                in_group = columns >= 0
+                group_columns = columns[in_group]
+            if not bool(in_group.any()):
+                continue
+            write_group_parameter(
+                self.actuators,
+                group_name,
+                "controller",
+                gain_name,
+                values[:, in_group],
+                env_ids=env_ids,
+                joint_ids=group_columns,
+            )
+
     @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_POSITION, element_names_resolver=joint_names_resolver)
     def set_joint_position_target_mask(
         self,
         *,
-        target: torch.Tensor | wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+        target: torch.Tensor | wp.array(dtype=wp.float32),
+        joint_mask: wp.array(dtype=wp.bool) | None = None,
+        env_mask: wp.array(dtype=wp.bool) | None = None,
     ) -> None:
         """Set joint position targets into internal buffers.
 
+        .. deprecated::
+            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            ``set_position_mask``.
+
         .. note::
             This method expects full data.
-
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
 
         This function does not apply the joint targets to the simulation. It only fills the buffers with
         the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
-            target: Joint position targets. Shape is (num_instances, num_joints).
+            target: Joint position targets [m or rad, depending on joint type]. Shape is
+                ``(num_instances, num_joints)``.
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        raise NotImplementedError()
+        warnings.warn(
+            "Articulation.set_joint_position_target_mask is deprecated. Use "
+            "articulation.actuators.target_command.set_position_mask instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.actuators.target_command.set_position_mask(
+            value=target,
+            joint_mask=_as_bool_mask(joint_mask),
+            env_mask=_as_bool_mask(env_mask),
+        )
 
-    @abstractmethod
     @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_VELOCITY, element_names_resolver=joint_names_resolver)
     def set_joint_velocity_target_index(
         self,
         *,
-        target: torch.Tensor | wp.array,
+        target: torch.Tensor | wp.array(dtype=wp.float32),
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
     ) -> None:
         """Set joint velocity targets into internal buffers.
 
-        .. note::
-            This method expects partial data.
+        .. deprecated::
+            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            ``set_velocity_index``.
 
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+        .. note::
+            This method accepts partial or full data.
 
         This function does not apply the joint targets to the simulation. It only fills the buffers with
         the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
-            target: Joint velocity targets. Shape is (len(env_ids), len(joint_ids)).
+            target: Joint velocity targets [m/s or rad/s, depending on joint type]. Shape is
+                ``(len(env_ids), len(joint_ids))``, or ``(num_instances, num_joints)`` when
+                :paramref:`full_data` is true.
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all instances).
+            full_data: Whether :paramref:`target` contains all articulation joints and instances.
         """
-        raise NotImplementedError()
+        warnings.warn(
+            "Articulation.set_joint_velocity_target_index is deprecated. Use "
+            "articulation.actuators.target_command.set_velocity_index instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.actuators.target_command.set_velocity_index(
+            value=target, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
+        )
 
-    @abstractmethod
     @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_VELOCITY, element_names_resolver=joint_names_resolver)
     def set_joint_velocity_target_mask(
         self,
         *,
-        target: torch.Tensor | wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+        target: torch.Tensor | wp.array(dtype=wp.float32),
+        joint_mask: wp.array(dtype=wp.bool) | None = None,
+        env_mask: wp.array(dtype=wp.bool) | None = None,
     ) -> None:
         """Set joint velocity targets into internal buffers.
 
+        .. deprecated::
+            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            ``set_velocity_mask``.
+
         .. note::
             This method expects full data.
-
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
 
         This function does not apply the joint targets to the simulation. It only fills the buffers with
         the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
-            target: Joint velocity targets. Shape is (num_instances, num_joints).
+            target: Joint velocity targets [m/s or rad/s, depending on joint type]. Shape is
+                ``(num_instances, num_joints)``.
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        raise NotImplementedError()
+        warnings.warn(
+            "Articulation.set_joint_velocity_target_mask is deprecated. Use "
+            "articulation.actuators.target_command.set_velocity_mask instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.actuators.target_command.set_velocity_mask(
+            value=target,
+            joint_mask=_as_bool_mask(joint_mask),
+            env_mask=_as_bool_mask(env_mask),
+        )
 
-    @abstractmethod
     @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_EFFORT, element_names_resolver=joint_names_resolver)
     def set_joint_effort_target_index(
         self,
         *,
-        target: torch.Tensor | wp.array,
+        target: torch.Tensor | wp.array(dtype=wp.float32),
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
     ) -> None:
         """Set joint efforts into internal buffers.
 
-        .. note::
-            This method expects partial data.
+        .. deprecated::
+            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            ``set_effort_index``.
 
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+        .. note::
+            This method accepts partial or full data.
 
         This function does not apply the joint targets to the simulation. It only fills the buffers with
         the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
-            target: Joint effort targets. Shape is (len(env_ids), len(joint_ids)).
+            target: Joint effort targets [N or N·m, depending on joint type]. Shape is
+                ``(len(env_ids), len(joint_ids))``, or ``(num_instances, num_joints)`` when
+                :paramref:`full_data` is true.
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all instances).
+            full_data: Whether :paramref:`target` contains all articulation joints and instances.
         """
-        raise NotImplementedError()
+        warnings.warn(
+            "Articulation.set_joint_effort_target_index is deprecated. Use "
+            "articulation.actuators.target_command.set_effort_index instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.actuators.target_command.set_effort_index(
+            value=target, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
+        )
 
-    @abstractmethod
     @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_EFFORT, element_names_resolver=joint_names_resolver)
     def set_joint_effort_target_mask(
         self,
         *,
-        target: torch.Tensor | wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+        target: torch.Tensor | wp.array(dtype=wp.float32),
+        joint_mask: wp.array(dtype=wp.bool) | None = None,
+        env_mask: wp.array(dtype=wp.bool) | None = None,
     ) -> None:
         """Set joint efforts into internal buffers.
 
+        .. deprecated::
+            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            ``set_effort_mask``.
+
         .. note::
             This method expects full data.
-
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
 
         This function does not apply the joint targets to the simulation. It only fills the buffers with
         the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
-            target: Joint effort targets. Shape is (num_instances, num_joints).
+            target: Joint effort targets [N or N·m, depending on joint type]. Shape is
+                ``(num_instances, num_joints)``.
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        raise NotImplementedError()
+        warnings.warn(
+            "Articulation.set_joint_effort_target_mask is deprecated. Use "
+            "articulation.actuators.target_command.set_effort_mask instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.actuators.target_command.set_effort_mask(
+            value=target,
+            joint_mask=_as_bool_mask(joint_mask),
+            env_mask=_as_bool_mask(env_mask),
+        )
 
     """
     Operations - Tendons.
@@ -1738,6 +2196,68 @@ class BaseArticulation(AssetBase):
             fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are updated.
                 Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def set_fixed_tendon_position_target_index(
+        self,
+        *,
+        target: torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Command the target length of fixed tendons.
+
+        A fixed tendon's length is a weighted sum of the joint angles it spans, so one command
+        drives every joint on it while the split between them is left to contact and inertia.
+
+        This is the backend-neutral way to actuate a tendon. The solver produces the force from the
+        gains the asset authors, and each backend reaches it through its native mechanism -- PhysX
+        by shifting the tendon's length offset, MuJoCo/Newton by driving the actuator whose
+        transmission is the tendon. Callers command the target and do not select a mechanism.
+
+        Unlike the tendon property setters, this is a per-step control input and does not require
+        :meth:`write_fixed_tendon_properties_to_sim_index`.
+
+        .. note::
+            This method expects partial data.
+
+        Args:
+            target: Target tendon length [m or rad, depending on the spanned joints' type].
+                Shape is (len(env_ids), len(fixed_tendon_ids)).
+            fixed_tendon_ids: The tendon indices to command. Defaults to None (all fixed tendons).
+            env_ids: The environment indices to command. Defaults to None (all instances).
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def set_fixed_tendon_position_target_mask(
+        self,
+        *,
+        target: torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Command the target length of fixed tendons.
+
+        Same control input as :meth:`set_fixed_tendon_position_target_index`, selecting the tendons
+        and environments by mask instead of by index.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            target: Target tendon length [m or rad, depending on the spanned joints' type].
+                Shape is (num_instances, num_fixed_tendons).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are commanded.
+                Shape is (num_fixed_tendons,).
+            env_mask: Environment mask. If None, then all the instances are commanded.
+                Shape is (num_instances,).
         """
         raise NotImplementedError()
 
@@ -2145,8 +2665,138 @@ class BaseArticulation(AssetBase):
         super()._invalidate_initialize_callback(event)
 
     """
-    Internal helpers -- Actuators.
+    Internal helpers -- Ordering.
     """
+
+    _ordering_joint_staging_names: tuple[str, ...] = ()
+    """Backend-order joint-target staging attributes managed by :meth:`_ordering_configure_backend_staging`.
+
+    Each named attribute is a 2-D ``(num_instances, num_joints)`` ``wp.float32``
+    staging buffer, allocated while a nonidentity joint ordering is active and set
+    to ``None`` otherwise. Backends override this tuple to declare their staging;
+    the default empty tuple keeps identity-only backends at a no-op.
+    """
+
+    def _joint_user_to_backend_map(self) -> wp.array:
+        """Device public-to-backend joint map, or the identity map when no ordering is active.
+
+        The identity fallback reads ``_ALL_JOINT_INDICES``, an index buffer that
+        backends allocate without a base-class default (a backend-owned contract,
+        like the staging attributes named by :attr:`_ordering_joint_staging_names`),
+        so unconditional launch sites -- for example in-graph publish kernels that
+        always gather -- get a valid map either way. Conditional sites should read
+        :attr:`~BaseArticulationData.joint_ordering` directly and skip the launch
+        when it is ``None``.
+        """
+        ordering = self.data.joint_ordering
+        return ordering.user_to_backend if ordering is not None else self._ALL_JOINT_INDICES
+
+    def _joint_backend_to_user_map(self) -> wp.array:
+        """Device backend-to-public joint map, or the identity map when no ordering is active.
+
+        See :meth:`_joint_user_to_backend_map` for the identity-fallback contract.
+        """
+        ordering = self.data.joint_ordering
+        return ordering.backend_to_user if ordering is not None else self._ALL_JOINT_INDICES
+
+    def _body_user_to_backend_map(self) -> wp.array:
+        """Device public-to-backend body map, or the identity map when no ordering is active.
+
+        See :meth:`_joint_user_to_backend_map` for the identity-fallback contract;
+        the body fallback reads ``_ALL_BODY_INDICES``.
+        """
+        ordering = self.data.body_ordering
+        return ordering.user_to_backend if ordering is not None else self._ALL_BODY_INDICES
+
+    def _body_backend_to_user_map(self) -> wp.array:
+        """Device backend-to-public body map, or the identity map when no ordering is active.
+
+        See :meth:`_body_user_to_backend_map` for the identity-fallback contract.
+        """
+        ordering = self.data.body_ordering
+        return ordering.backend_to_user if ordering is not None else self._ALL_BODY_INDICES
+
+    def _ordering_configure_backend_staging(self) -> None:
+        """Allocate or release backend-order joint-target staging after ordering maps change.
+
+        Iterates :attr:`_ordering_joint_staging_names`, allocating each declared
+        staging buffer while a nonidentity joint ordering is active and clearing it
+        to ``None`` otherwise. Backends that also stage body-indexed buffers extend
+        this via ``super()`` before handling their own body staging.
+        """
+        for backend_name in self._ordering_joint_staging_names:
+            if not hasattr(self, backend_name):
+                continue
+            if self.data.joint_ordering is not None:
+                if getattr(self, backend_name) is None:
+                    setattr(
+                        self,
+                        backend_name,
+                        wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device),
+                    )
+            else:
+                setattr(self, backend_name, None)
+
+    def _get_backend_ordered_joint_buffer(
+        self,
+        user_buffer: wp.array,
+        backend_buffer: wp.array | TimestampedBufferWarp | None,
+        *,
+        component_count: int | None = None,
+    ) -> wp.array:
+        """Return a backend-order view or copy of a public-order joint buffer.
+
+        When :paramref:`component_count` is ``None`` the buffer is treated as
+        two-dimensional (per joint); otherwise it is treated as three-dimensional
+        with that many trailing components per joint.
+
+        Avoid this modify-then-reorder helper on per-step hot paths: it costs a
+        full extra kernel launch over the buffer. Prefer the fused
+        ``write_*_user_to_backend`` write paths from
+        :mod:`isaaclab.assets.articulation.ordering_kernels`, which write the
+        public and backend buffers in a single launch. This helper exists for
+        infrequent property writers where the extra launch is irrelevant.
+
+        Args:
+            user_buffer: Public-order joint buffer to reorder.
+            backend_buffer: Backend-order staging destination, either a raw Warp
+                array or a :class:`~isaaclab.utils.buffers.TimestampedBufferWarp`.
+                Required when the articulation has a non-identity joint ordering.
+            component_count: Number of trailing components per joint for a
+                three-dimensional buffer, or ``None`` for a two-dimensional buffer.
+
+        Returns:
+            :paramref:`user_buffer` when the joint ordering is identity; otherwise
+            the backend-order staging array populated from :paramref:`user_buffer`.
+
+        Raises:
+            RuntimeError: If a non-identity joint ordering is active but no backend
+                staging buffer was provided.
+        """
+        ordering = self.data.joint_ordering
+        if ordering is None:
+            return user_buffer
+        if backend_buffer is None:
+            detail = "backend staging" if component_count is None else "3-D backend staging"
+            raise RuntimeError(f"{self.__backend_name__} joint ordering requires {detail}.")
+        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBufferWarp) else backend_buffer
+        if component_count is None:
+            wp.launch(
+                ordering_kernels.reorder_2d_user_to_backend,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[user_buffer, ordering.backend_to_user],
+                outputs=[backend_data],
+                device=self.device,
+            )
+        else:
+            wp.launch(
+                ordering_kernels.reorder_3d_user_to_backend,
+                dim=(self.num_instances, self.num_joints, component_count),
+                inputs=[user_buffer, ordering.backend_to_user],
+                outputs=[backend_data],
+                device=self.device,
+            )
+        return backend_data
 
     @abstractmethod
     def _process_actuators_cfg(self) -> None:
@@ -2156,15 +2806,6 @@ class BaseArticulation(AssetBase):
     @abstractmethod
     def _process_tendons(self) -> None:
         """Process fixed and spatial tendons."""
-        raise NotImplementedError()
-
-    @abstractmethod
-    def _apply_actuator_model(self) -> None:
-        """Processes joint commands for the articulation by forwarding them to the actuators.
-
-        The actions are first processed using actuator models. Depending on the robot configuration,
-        the actuator models compute the joint level simulation commands and sets them into the PhysX buffers.
-        """
         raise NotImplementedError()
 
     """
@@ -2594,48 +3235,60 @@ class BaseArticulation(AssetBase):
 
     def set_joint_position_target(
         self,
-        target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        target: torch.Tensor | wp.array(dtype=wp.float32),
+        joint_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`set_joint_position_target_index`."""
+        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+        ``set_position_index``.
+        """
         warnings.warn(
-            "The function 'set_joint_position_target' will be deprecated in a future release. Please"
-            " use 'set_joint_position_target_index' instead.",
+            "Articulation.set_joint_position_target is deprecated. Use "
+            "articulation.actuators.target_command.set_position_index instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_joint_position_target_index(target=target, joint_ids=joint_ids, env_ids=env_ids)
+        if isinstance(joint_ids, slice):
+            joint_ids = range(self.num_joints)[joint_ids]
+        self.actuators.target_command.set_position_index(value=target, joint_ids=joint_ids, env_ids=env_ids)
 
     def set_joint_velocity_target(
         self,
-        target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        target: torch.Tensor | wp.array(dtype=wp.float32),
+        joint_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`set_joint_velocity_target_index`."""
+        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+        ``set_velocity_index``.
+        """
         warnings.warn(
-            "The function 'set_joint_velocity_target' will be deprecated in a future release. Please"
-            " use 'set_joint_velocity_target_index' instead.",
+            "Articulation.set_joint_velocity_target is deprecated. Use "
+            "articulation.actuators.target_command.set_velocity_index instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_joint_velocity_target_index(target=target, joint_ids=joint_ids, env_ids=env_ids)
+        if isinstance(joint_ids, slice):
+            joint_ids = range(self.num_joints)[joint_ids]
+        self.actuators.target_command.set_velocity_index(value=target, joint_ids=joint_ids, env_ids=env_ids)
 
     def set_joint_effort_target(
         self,
-        target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        target: torch.Tensor | wp.array(dtype=wp.float32),
+        joint_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`set_joint_effort_target_index`."""
+        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+        ``set_effort_index``.
+        """
         warnings.warn(
-            "The function 'set_joint_effort_target' will be deprecated in a future release. Please"
-            " use 'set_joint_effort_target_index' instead.",
+            "Articulation.set_joint_effort_target is deprecated. Use "
+            "articulation.actuators.target_command.set_effort_index instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_joint_effort_target_index(target=target, joint_ids=joint_ids, env_ids=env_ids)
+        if isinstance(joint_ids, slice):
+            joint_ids = range(self.num_joints)[joint_ids]
+        self.actuators.target_command.set_effort_index(value=target, joint_ids=joint_ids, env_ids=env_ids)
 
     def set_fixed_tendon_stiffness(
         self,

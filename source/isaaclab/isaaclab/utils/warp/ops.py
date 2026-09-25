@@ -5,7 +5,6 @@
 
 """Wrapping around warp kernels for compatibility with torch tensors."""
 
-# needed to import for allowing type-hinting: torch.Tensor | None
 from __future__ import annotations
 
 import numpy as np
@@ -22,6 +21,60 @@ from . import kernels
 # Cache of all-True env masks keyed by (n_envs, device) to avoid per-call allocations in
 # raycast_dynamic_meshes. Populated lazily on first call with a given (n_envs, device) pair.
 _all_env_mask_cache: dict[tuple[int, str], wp.array] = {}
+
+
+# Tile size for the spatial-axis split in :func:`_uint8_spatial_mean`. Tuned on L40;
+# robust across modern NVIDIA arches (Ampere/Ada/Hopper) at R256.
+_UINT8_SUM_TILE_HW: int = 32
+
+# Cache of int32 partials scratch tensors keyed by (src.shape, device, channel_dim). Avoids
+# per-call allocation in :func:`_uint8_spatial_mean`. channel_dim is part of the key so
+# BCHW and BHWC inputs with otherwise-identical shape get separate scratch slots. Typically
+# holds one entry per training run (camera resolution, device, and layout are all fixed).
+_uint8_sum_partials_cache: dict[tuple[tuple[int, ...], str, int], torch.Tensor] = {}
+
+
+def _uint8_spatial_mean(src: torch.Tensor, scale: float, channel_dim: int = 3) -> torch.Tensor:
+    """Per-(batch, channel) mean of a uint8 image scaled by ``1 / scale``.
+
+    Equivalent to ``src.sum(dim=spatial_dims, dtype=int64).float() / scale`` where
+    ``spatial_dims`` is the pair of non-batch, non-channel axes. The int64
+    promotion is safe at any resolution; the per-tile Warp accumulator stays
+    int32 (overflow-safe up to ~16M values per tile).
+
+    Args:
+        src: Input image. Shape is ``(B, H, W, C)`` (BHWC) or ``(B, C, H, W)`` (BCHW),
+            dtype ``torch.uint8``, contiguous.
+        scale: Multiplier for the per-channel sum. Pass ``H * W * 255`` to get the mean
+            of ``src / 255``.
+        channel_dim: Resolved positive position of the channel axis -- ``1`` (BCHW) or
+            ``3`` (BHWC). Defaults to ``3`` (BHWC) for back-compat with internal callers.
+
+    Returns:
+        Per-(batch, channel) mean as float32. Shape is ``(B, C)``.
+    """
+    if channel_dim == 1:
+        b, c, h, _ = src.shape
+    else:
+        b, h, _, c = src.shape
+    device_str = str(src.device)
+    cache_key = (src.shape, device_str, channel_dim)
+    partials = _uint8_sum_partials_cache.get(cache_key)
+    if partials is None:
+        num_tiles = (h + _UINT8_SUM_TILE_HW - 1) // _UINT8_SUM_TILE_HW
+        # C innermost: adjacent threads stride-1 along src's contiguous trailing dim (BHWC fast path).
+        partials = torch.empty((b, num_tiles, c), dtype=torch.int32, device=src.device)
+        _uint8_sum_partials_cache[cache_key] = partials
+
+    src_wp = wp.from_torch(src, dtype=wp.uint8)
+    partials_wp = wp.from_torch(partials, dtype=wp.int32)
+    wp.launch(
+        kernel=kernels.spatial_sum_uint8_tiled,
+        dim=partials.shape,
+        inputs=[src_wp, partials_wp, _UINT8_SUM_TILE_HW, channel_dim],
+        device=device_str,
+    )
+    return partials.sum(dim=1, dtype=torch.int64).float() / scale
 
 
 def raycast_mesh(
@@ -60,19 +113,16 @@ def raycast_mesh(
             Will only return if :attr:`return_face_id` is True else returns None.
             The returned tensor contains :obj:`int(-1)` for missed hits.
     """
-    # extract device and shape information
     shape = ray_starts.shape
     device = ray_starts.device
     # device of the mesh
     torch_device = wp.device_to_torch(mesh.device)
-    # reshape the tensors
     ray_starts = ray_starts.to(torch_device).view(-1, 3).contiguous()
     ray_directions = ray_directions.to(torch_device).view(-1, 3).contiguous()
     num_rays = ray_starts.shape[0]
     # create output tensor for the ray hits
     ray_hits = torch.full((num_rays, 3), float("inf"), device=torch_device).contiguous()
 
-    # map the memory to warp arrays
     ray_starts_wp = wp.from_torch(ray_starts, dtype=wp.vec3)
     ray_directions_wp = wp.from_torch(ray_directions, dtype=wp.vec3)
     ray_hits_wp = wp.from_torch(ray_hits, dtype=wp.vec3)
@@ -98,7 +148,6 @@ def raycast_mesh(
         ray_face_id = None
         ray_face_id_wp = wp.empty((1,), dtype=wp.int32, device=torch_device)
 
-    # launch the warp kernel
     wp.launch(
         kernel=kernels.raycast_mesh_kernel,
         dim=num_rays,
@@ -232,7 +281,6 @@ def raycast_dynamic_meshes(
             Will only return if :attr:`return_mesh_id` is True else returns None.
             The returned tensor contains :obj:`-1` for missed hits.
     """
-    # extract device and shape information
     shape = ray_starts.shape
     device = ray_starts.device
 
@@ -298,7 +346,6 @@ def raycast_dynamic_meshes(
     ###
     if mesh_positions_w is None and mesh_orientations_w is None:
         # Static mesh case, no need to pass in positions and rotations.
-        # launch the warp kernel
         wp.launch(
             kernel=kernels.raycast_static_meshes_kernel,
             dim=[n_meshes, n_envs, n_rays_per_env],
@@ -404,3 +451,87 @@ def convert_to_warp_mesh(points: np.ndarray, indices: np.ndarray, device: str) -
         points=wp.array(points.astype(np.float32), dtype=wp.vec3, device=device),
         indices=wp.array(indices.astype(np.int32).flatten(), dtype=wp.int32, device=device),
     )
+
+
+def normalize_image_uint8(
+    src: torch.Tensor,
+    channel_dim: int = -1,
+    out: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """Compute ``(src / 255.0) - mean(src / 255.0, spatial_dims, keepdim=True)`` via a fused Warp kernel.
+
+    Equivalent to the pure-PyTorch expression to within float32 precision. Pass an ``out``
+    tensor to reuse storage across steps.
+
+    Supports both image layouts via ``channel_dim``:
+
+    - BHWC (``channel_dim=-1`` or ``3``, the default): mean is taken over axes (1, 2).
+    - BCHW (``channel_dim=-3`` or ``1``): mean is taken over axes (2, 3).
+
+    Note:
+        Most callers should go through :func:`isaaclab.utils.images.normalize_camera_image`,
+        which dispatches non-uint8 / non-RGB inputs to a PyTorch fallback.
+
+    Args:
+        src: Input uint8 image tensor. Shape is ``(B, H, W, C)`` or ``(B, C, H, W)``.
+            Must be contiguous.
+        channel_dim: Position of the channel axis. Must resolve to ``1`` (BCHW) or ``3`` (BHWC).
+            Negative values are supported (``-1`` == BHWC, ``-3`` == BCHW). Defaults to ``-1``.
+        out: Optional pre-allocated float32 output. Same shape as ``src``, contiguous, on the
+            same device. If omitted, a fresh tensor is allocated. Defaults to None.
+
+            .. warning::
+
+                If you pass the same ``out`` tensor across calls that happen on either
+                side of an environment-step boundary (i.e., the result of one call is
+                still being read by the RL trainer when the next call is made), the
+                returned observation will alias the latest call's output and the
+                trainer will see overwritten data. Use a ping-pong of two ``out``
+                buffers, or omit ``out`` entirely, when the result lifetime crosses
+                ``env.step()`` boundaries.
+
+    Returns:
+        The normalized float32 tensor. Same object as ``out`` when provided.
+
+    Raises:
+        ValueError: If ``src`` is not 4D uint8, not contiguous, ``channel_dim`` does not
+            resolve to 1 or 3, or ``out``'s shape / dtype / device does not match.
+    """
+    if src.dtype != torch.uint8 or src.ndim != 4:
+        raise ValueError(f"src must be a 4D uint8 tensor; got dtype={src.dtype}, ndim={src.ndim}")
+    if not src.is_contiguous():
+        raise ValueError("src must be contiguous (Warp kernel reads it as a 4D wp.array)")
+
+    # Resolve negative channel_dim to its positive index in [1, src.ndim - 1].
+    resolved_channel_dim = channel_dim + src.ndim if channel_dim < 0 else channel_dim
+    if resolved_channel_dim not in (1, 3):
+        raise ValueError(
+            f"channel_dim must resolve to 1 (BCHW) or 3 (BHWC) for 4D input;"
+            f" got channel_dim={channel_dim} -> {resolved_channel_dim}"
+        )
+
+    if out is None:
+        out = torch.empty(src.shape, dtype=torch.float32, device=src.device)
+    elif out.shape != src.shape or out.dtype != torch.float32 or out.device != src.device:
+        raise ValueError(
+            f"out shape/dtype/device mismatch: expected {tuple(src.shape)}/float32/{src.device},"
+            f" got {tuple(out.shape)}/{out.dtype}/{out.device}"
+        )
+    elif not out.is_contiguous():
+        raise ValueError("out must be contiguous")
+
+    # Spatial dims = the two non-batch, non-channel axes; mean is shape (B, C) for both layouts.
+    spatial_dims = tuple(d for d in (1, 2, 3) if d != resolved_channel_dim)
+    spatial_size = src.shape[spatial_dims[0]] * src.shape[spatial_dims[1]]
+    mean = _uint8_spatial_mean(src, spatial_size * 255.0, channel_dim=resolved_channel_dim)
+
+    src_wp = wp.from_torch(src, dtype=wp.uint8)
+    mean_wp = wp.from_torch(mean, dtype=wp.float32)
+    out_wp = wp.from_torch(out, dtype=wp.float32)
+    wp.launch(
+        kernel=kernels.normalize_image_uint8,
+        dim=src.shape,
+        inputs=[src_wp, mean_wp, out_wp, resolved_channel_dim],
+        device=str(src.device),
+    )
+    return out
