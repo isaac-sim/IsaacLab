@@ -14,8 +14,9 @@ import numpy as np
 import pytest
 from isaaclab_newton.cloner import copy_newton_clone_source, newton_builder_world_hook
 from isaaclab_newton.physics import NewtonCfg, NewtonManager
+from isaaclab_newton.physics.newton_manager import NewtonSceneDataBackend
 
-from pxr import Usd, UsdGeom, UsdLux, UsdPhysics
+from pxr import Sdf, Usd, UsdGeom, UsdLux, UsdPhysics, UsdShade
 
 replicate_module = importlib.import_module("isaaclab_newton.cloner.replicate")
 
@@ -80,7 +81,7 @@ def test_copy_newton_clone_source_owns_mutable_geometry(monkeypatch):
 def test_explicit_global_import_uses_global_world(
     monkeypatch, load_visual_shapes, is_rendering, rgb_array, visual_shapes_required, expected
 ):
-    """Global imports honor visual requirements and leave native deformables to world hooks."""
+    """Global imports honor visual requirements and import shared deformables exactly once."""
     stage = Usd.Stage.CreateInMemory()
     UsdPhysics.Scene.Define(stage, "/physicsScene")
     UsdGeom.Xform.Define(stage, "/World")
@@ -91,12 +92,12 @@ def test_explicit_global_import_uses_global_world(
     native_mesh = UsdGeom.TetMesh.Define(stage, "/World/Native/sim")
     native_mesh.CreatePointsAttr(points)
     native_mesh.CreateTetVertexIndicesAttr([(0, 1, 2, 3)])
+    root = stage.GetPrimAtPath("/World/Native")
+    root.SetMetadata("apiSchemas", Sdf.TokenListOp.CreateExplicit(["OmniPhysicsDeformableBodyAPI"]))
+    material = UsdShade.Material.Define(stage, "/World/Native/Material")
+    material.GetPrim().CreateAttribute("newton:density", Sdf.ValueTypeNames.Float).Set(1000.0)
+    UsdShade.MaterialBindingAPI.Apply(root).Bind(material, materialPurpose="physics")
     global_paths = ("/World/Ground", "/World/Light", "/World/Native")
-
-    def add_native_particles(builder, *_args):
-        builder.add_particles(
-            pos=points, vel=[(0.0, 0.0, 0.0)] * len(points), mass=[0.01] * len(points), radius=[0.005] * len(points)
-        )
 
     builder = newton.ModelBuilder()
     add_usd = mock.Mock(wraps=builder.add_usd)
@@ -111,6 +112,7 @@ def test_explicit_global_import_uses_global_world(
         "_sim",
         SimpleNamespace(
             physics_manager=manager,
+            device="cpu",
             cfg=SimpleNamespace(
                 physics=NewtonCfg(load_visual_shapes=load_visual_shapes), physics_prim_path="/physicsScene"
             ),
@@ -119,9 +121,9 @@ def test_explicit_global_import_uses_global_world(
             visual_shapes_required=visual_shapes_required,
         ),
     )
-    monkeypatch.setattr(NewtonManager, "_deformable_registry", (SimpleNamespace(prim_path="/World/Native"),))
+    monkeypatch.setattr(NewtonManager, "_scene_data_backend", NewtonSceneDataBackend())
     monkeypatch.setattr(replicate_module.NewtonManager, "_cl_inject_sites", mock.Mock(return_value=({}, {}, {})))
-    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", (add_native_particles,))
+    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", ())
     monkeypatch.setattr(replicate_module, "replace_newton_builder_shape_colors", mock.Mock())
     monkeypatch.setattr(NewtonManager, "_builder", None)
     monkeypatch.setattr(NewtonManager, "_cl_site_index_map", {})
@@ -148,5 +150,6 @@ def test_explicit_global_import_uses_global_world(
     ground_index = model.shape_label.index("/World/Ground")
     assert model.shape_world.numpy()[ground_index] == -1
     assert model.world_count == 2
-    assert model.particle_count == len(points) * model.world_count
+    assert model.particle_count == len(points)
+    np.testing.assert_array_equal(model.particle_world.numpy(), -1)
     assert "/World/Light" not in model.shape_label  # USD lights are not Newton physics entities.

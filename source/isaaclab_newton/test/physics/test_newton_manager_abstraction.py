@@ -808,13 +808,15 @@ def test_production_imports_scope_mujoco_joint_properties(
         PhysicsManager,
         "_sim",
         SimpleNamespace(
-            physics_manager=manager_cls, cfg=SimpleNamespace(physics=physics_cfg, physics_prim_path=physics_prim_path)
+            physics_manager=manager_cls,
+            device="cpu",
+            cfg=SimpleNamespace(physics=physics_cfg, physics_prim_path=physics_prim_path),
         ),
     )
     monkeypatch.setattr(PhysicsManager, "_cfg", physics_cfg)
     monkeypatch.setattr(PhysicsManager, "_device", "cpu")
     monkeypatch.setattr(NewtonManager, "_builder", None)
-    monkeypatch.setattr(NewtonManager, "_deformable_registry", [])
+    monkeypatch.setattr(NewtonManager, "_scene_data_backend", newton_manager_module.NewtonSceneDataBackend())
     monkeypatch.setattr(NewtonManager, "_cl_pending_sites", {})
     monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", [])
     monkeypatch.setattr(NewtonManager, "_world_xforms", None)

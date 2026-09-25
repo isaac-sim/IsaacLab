@@ -190,7 +190,7 @@ class InteractiveScene:
 
         Expands :class:`~isaaclab.assets.RigidObjectCollectionCfg` into its members,
         resolves ``{ENV_REGEX_NS}`` macros, lets an enclosing asset's row own nested materials,
-        and returns env-scoped configs with a spawner, global roots, and valid clone combinations.
+        and returns env-scoped configs, global roots, and valid clone combinations.
         """
 
         cfg_fields = InteractiveSceneCfg.__dataclass_fields__
@@ -238,8 +238,9 @@ class InteractiveScene:
             if cloner.path.match(child.prim_path, self._env_fmt) is None:
                 if child.prim_path not in global_paths:
                     global_paths += (child.prim_path,)
-            elif isinstance(child, (AssetBaseCfg, CameraCfg, RayCasterCfg)) and child.spawn is not None:
-                cfgs.append(child)
+                continue
+            cfgs.append(child)
+            if isinstance(child, (AssetBaseCfg, CameraCfg, RayCasterCfg)) and child.spawn is not None:
                 clone_asset_names.append(asset_name)
                 variant_counts.append(cloner.num_spawn_variants(child.spawn))
 

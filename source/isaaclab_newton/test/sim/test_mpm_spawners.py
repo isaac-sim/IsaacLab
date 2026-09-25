@@ -107,7 +107,7 @@ def test_mpm_points_author_and_import_through_usd(stage, monkeypatch):
     state = SimpleNamespace(particle_q=wp.zeros(12, dtype=wp.vec3f, device="cpu"))
     monkeypatch.setattr(NewtonSceneDataBackend, "state", property(lambda self: state))
     backend = NewtonSceneDataBackend()
-    backend.initialize_geometry(plan)
+    backend.initialize_geometry()
     monkeypatch.setattr(NewtonManager, "_scene_data_backend", backend)
     asset = SimpleNamespace(
         cfg=SimpleNamespace(prim_path="/Scene/copy_[^/]+/Media", spawn=cfg),

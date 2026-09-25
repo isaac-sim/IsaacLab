@@ -146,6 +146,8 @@ fields listed below are that table's columns:
      - Meaning
    * - ``sources``
      - Source prim paths, one per replication row.
+   * - ``asset_paths``
+     - Declared asset paths or expressions, retained even when one row clones the whole environment.
    * - ``destinations``
      - Destination templates with ``"{}"`` for the env id, one per row.
    * - ``clone_mask``

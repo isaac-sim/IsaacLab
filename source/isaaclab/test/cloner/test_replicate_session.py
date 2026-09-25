@@ -135,6 +135,7 @@ def test_camera_registers_rendering_before_planning_and_shares_the_plan(simulati
     assert plan.sources == ("/Lab/Cell0",)
     assert plan.destinations == ("/Lab/Cell{}",)
     assert plan.global_paths == (ground.prim_path,)
+    assert set(plan.asset_paths) == {camera.prim_path, ground.prim_path}
     assert plan.cfg_rows[id(camera)] == (0,)
     assert plan.context_rows == {_Context: (), _RenderContext: (0,)}
     replicate_session.replicate(plan)

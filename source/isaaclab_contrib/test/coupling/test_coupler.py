@@ -577,7 +577,6 @@ def test_nested_solver_scopes_mujoco_joint_properties(
     monkeypatch.setattr(newton_manager_module, "replace_newton_builder_shape_colors", lambda *args: None)
     monkeypatch.setattr(newton_manager_module, "import_builder_visual_material_paths", lambda *args: None)
     monkeypatch.setattr(NewtonManager, "_builder", None)
-    monkeypatch.setattr(NewtonManager, "_deformable_registry", [])
     monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", [])
 
     NewtonCouplerManager.instantiate_builder_from_stage()

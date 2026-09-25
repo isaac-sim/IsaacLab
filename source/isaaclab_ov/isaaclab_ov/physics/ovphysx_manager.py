@@ -217,7 +217,9 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             self._deformable_bindings.append((view, tensor_type, buffer))
             offset += view.count * count
         offsets = np.cumsum(np.r_[0, counts[:-1]])
-        self._geometry_batches = deformable_geometry_batches(native_entries, points, offsets)
+        self._geometry_batches = deformable_geometry_batches(native_entries, offsets, device=device)
+        for publication, _ in self._geometry_batches:
+            publication.points = points
 
     def get_geometry_batches(self, output_format: Any = SceneDataFormat.Points) -> list:
         """Publish native positions with exact visual paths and interpolation metadata.

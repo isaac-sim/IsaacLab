@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -13,14 +14,11 @@ import numpy as np
 import torch
 import warp as wp
 
-import isaaclab.sim as sim_utils
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.physics import PhysicsEvent
-from isaaclab.scene_data.deformable_vis_remap import build_volume_vis_barycentric_remap
 from isaaclab.utils.warp import ProxyArray
 
-from ...cloner.newton_clone_utils import DeformableRegistryEntry
 from ...physics.newton_manager import NewtonManager as SimulationManager
 from .deformable_object_data import DeformableObjectData
 from .kernels import (
@@ -49,8 +47,8 @@ class DeformableObject(BaseDeformableObject):
     a per-instance indexing layer on top of those flat arrays, enabling the standard
     :class:`BaseDeformableObject` interface for reading/writing nodal state.
 
-    The asset registers its authored prototype geometry and material parameters. Newton cloning
-    constructs the native meshes and records particle ranges; the asset binds to them afterward.
+    Newton cloning imports the authored prototypes and replicates their native element ranges.
+    Initialization selects this asset's ranges from the completed backend, without reading USD.
     """
 
     cfg: DeformableObjectCfg
@@ -66,12 +64,6 @@ class DeformableObject(BaseDeformableObject):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-
-        # initialize deformable type to None, should be set to either surface or volume on initialization
-        self._deformable_type: str | None = None
-
-        # Read mesh from the spawned USD prim and register in the deformable registry.
-        self._registry_entry = self._register_deformable()
 
         # Register custom vec6f type for nodal state validation.
         self._DTYPE_TO_TORCH_TRAILING_DIMS = {**self._DTYPE_TO_TORCH_TRAILING_DIMS, vec6f: (6,)}
@@ -459,218 +451,21 @@ class DeformableObject(BaseDeformableObject):
         self._invalidate_nodal_pos_cache()
         self._invalidate_nodal_vel_cache()
 
-    def _register_deformable(self) -> DeformableRegistryEntry:
-        """Read mesh from the spawned USD prim and register in NewtonManager's deformable registry.
-
-        Returns:
-            The registry entry (also stored on NewtonManager._deformable_registry).
-
-        Note:
-            pxr imports are deferred to this method (not module level) so that
-            ``resolve_task_config`` can import the env-cfg module before Kit
-            starts without polluting the ``pxr`` module cache.
-        """
-        from pxr import Gf, UsdGeom, UsdShade
-
-        # Resolve the path of the actually-spawned template prim. This must mirror
-        # :meth:`AssetBase.__init__`: ``spawn_path`` is set by ``InteractiveScene``
-        # when the asset is part of the template-based cloning flow (the spawn
-        # lives at ``/World/template/<Asset>/proto_asset_*`` and per-env clones at
-        # ``/World/envs/env_*/<Asset>`` are not yet authored). For Direct envs
-        # that spawn straight at the cloned regex, ``spawn_path`` is unset, so
-        # we fall back to ``prim_path`` — which already matches the spawned prim.
-        # The cloned-regex ``cfg.prim_path`` is still used below to build the
-        # registry entry's :attr:`sim_mesh_prim_path` / :attr:`vis_mesh_prim_path`
-        # so post-replicate consumers resolve all per-env clones.
-        lookup_path = (
-            self.cfg.spawn.spawn_path
-            if self.cfg.spawn is not None and self.cfg.spawn.spawn_path is not None
-            else self.cfg.prim_path
-        )
-        template_prim = sim_utils.find_first_matching_prim(lookup_path)
-        if template_prim is None:
-            raise RuntimeError(f"Failed to find prim for expression: '{lookup_path}'.")
-        template_prim_path = template_prim.GetPrimPath()
-
-        # Discover sim / visual mesh prims under the template.
-        # The spawner authors a visual UsdGeom.Mesh and a separate simulation mesh
-        # (UsdGeom.TetMesh for volume, UsdGeom.Mesh for surface) with a
-        # ``*DeformableSimAPI`` applied, so we split candidates by that schema.
-        def _is_sim_mesh(prim) -> bool:
-            # composed view: also sees token-authored (unregistered) schemas, unlike GetAppliedSchemas
-            return any("DeformableSimAPI" in api for api in prim.GetPrimTypeInfo().GetAppliedAPISchemas())
-
-        tet_prims = sim_utils.get_all_matching_child_prims(template_prim_path, lambda p: p.GetTypeName() == "TetMesh")
-        mesh_prims = sim_utils.get_all_matching_child_prims(template_prim_path, lambda p: p.GetTypeName() == "Mesh")
-
-        if len(tet_prims) > 1:
-            raise ValueError(
-                f"Found multiple TetMesh prims under '{template_prim_path}': "
-                f"{[p.GetPrimPath() for p in tet_prims]}."
-                " Deformable body schema supports only one simulation mesh per asset."
-            )
-
-        # Pick simulation and visual mesh prims.
-        if len(tet_prims) == 1:
-            deformable_type = "volume"
-            mesh_prim = tet_prims[0]
-            vis_candidates = [p for p in mesh_prims if not _is_sim_mesh(p)]
-        elif len(mesh_prims) > 0:
-            deformable_type = "surface"
-            sim_candidates = [p for p in mesh_prims if _is_sim_mesh(p)]
-            vis_candidates = [p for p in mesh_prims if not _is_sim_mesh(p)]
-            if len(sim_candidates) > 1:
-                raise ValueError(
-                    f"Found multiple simulation Mesh prims under '{template_prim_path}': "
-                    f"{[p.GetPrimPath() for p in sim_candidates]}."
-                    " Deformable body schema supports only one simulation mesh per asset."
-                )
-            # Fall back to the single authored Mesh when no explicit sim mesh was tagged
-            # (legacy / self-simulated surfaces where the visual mesh *is* the sim mesh).
-            mesh_prim = sim_candidates[0] if sim_candidates else vis_candidates[0]
-            if not sim_candidates:
-                vis_candidates = []  # visual == sim, no separate embedding target
-        else:
-            raise ValueError(
-                f"Could not find any surface or volume mesh in '{template_prim_path}'. Please check asset."
-            )
-
-        # Revert visual and simulation mesh prim paths back to template-relative form for registry storage,
-        # since the actual prim paths will differ per world instance after replication.
-        # When vis_candidates is empty the visual mesh IS the simulation mesh
-        # (e.g. a plain surface cloth with no separate visual embedding).
-        vis_mesh_prim = vis_candidates[0] if vis_candidates else mesh_prim
-        vis_mesh_prim_path = str(vis_mesh_prim.GetPrimPath())
-        vis_mesh_prim_path = self.cfg.prim_path + vis_mesh_prim_path[len(template_prim_path.pathString) :]
-        sim_mesh_prim_path = str(mesh_prim.GetPrimPath())
-        sim_mesh_prim_path = self.cfg.prim_path + sim_mesh_prim_path[len(template_prim_path.pathString) :]
-        logger.info("Registered visual UsdGeom.Mesh at %s.", vis_mesh_prim_path)
-
-        # Bake the template prim's xform directly into the vertex positions.
-        xform_cache = UsdGeom.XformCache()
-
-        def _bake_points(raw_pts, prim) -> list[wp.vec3]:
-            mesh_to_parent_frame = (
-                xform_cache.GetLocalToWorldTransform(prim)
-                * xform_cache.GetLocalToWorldTransform(template_prim.GetParent()).GetInverse()
-            )
-            out = []
-            for p in raw_pts:
-                q = mesh_to_parent_frame.Transform(Gf.Vec3d(float(p[0]), float(p[1]), float(p[2])))
-                out.append(wp.vec3(float(q[0]), float(q[1]), float(q[2])))
-            return out
-
-        if deformable_type == "volume":
-            tet_mesh = UsdGeom.TetMesh(mesh_prim)
-            pts = tet_mesh.GetPointsAttr().Get()
-            vertices = _bake_points(pts, mesh_prim)
-            raw_tet_indices = tet_mesh.GetTetVertexIndicesAttr().Get()
-            indices = []
-            for vec4i in raw_tet_indices:
-                indices.extend([int(vec4i[0]), int(vec4i[1]), int(vec4i[2]), int(vec4i[3])])
-            logger.info("Registered UsdGeom.TetMesh: %d vertices, %d tetrahedra.", len(pts), len(indices) // 4)
-        else:  # surface
-            usd_mesh = UsdGeom.Mesh(mesh_prim)
-            pts = usd_mesh.GetPointsAttr().Get()
-            vertices = _bake_points(pts, mesh_prim)
-            indices = list(usd_mesh.GetFaceVertexIndicesAttr().Get())
-            logger.info("Registered UsdGeom.Mesh: %d vertices.", len(pts))
-
-        volume_vis_remap = None
-        if vis_mesh_prim != mesh_prim:
-            vis_points = UsdGeom.PointBased(vis_mesh_prim).GetPointsAttr().Get()
-            vis_vertices = np.asarray(_bake_points(vis_points, vis_mesh_prim), dtype=np.float32)
-            sim_vertices = np.asarray(vertices, dtype=np.float32)
-            if not np.array_equal(sim_vertices, vis_vertices):
-                if deformable_type != "volume":
-                    raise ValueError(f"Surface visual topology differs from its native nodes: {template_prim_path}")
-                volume_vis_remap = build_volume_vis_barycentric_remap(
-                    sim_vertices, np.asarray(indices, dtype=np.int32), vis_vertices
-                )
-                if volume_vis_remap is None:
-                    raise ValueError(f"Cannot bind visual vertices to deformable tetrahedra: {template_prim_path}")
-
-        # init_pos/init_rot are already baked into the vertices by the Xform
-        # transform above. Setting them to identity prevents add_cloth_mesh/add_soft_mesh
-        # from applying them a second time.
-        # Note: add_deformable_entry_to_builder passes init_rot directly to
-        # wp.quat(x, y, z, w), so identity must be (0, 0, 0, 1) not (1, 0, 0, 0).
-        init_pos = (0.0, 0.0, 0.0)
-        init_rot = (0.0, 0.0, 0.0, 1.0)
-
-        # Look up the bound deformable physics material
-        if not template_prim.HasAPI(UsdShade.MaterialBindingAPI):
-            raise ValueError(
-                f"Template prim '{template_prim_path}' must have a UsdShade.MaterialBindingAPI applied"
-                " with a Newton deformable physics material target."
-            )
-        material_targets = UsdShade.MaterialBindingAPI(template_prim).GetDirectBindingRel("physics").GetTargets()
-        stage = template_prim.GetStage()
-        material_prim = None
-        for mat_path in material_targets:
-            mat_prim = stage.GetPrimAtPath(mat_path)
-            if mat_prim.GetAttribute("newton:density").IsValid():
-                material_prim = mat_prim
-                break
-        if material_prim is None:
-            raise ValueError(
-                f"Could not find a Newton deformable physics material"
-                f" among the physics material targets of '{template_prim_path}'."
-            )
-
-        def _get_material_attr(name: str, default):
-            attr = material_prim.GetAttribute(name)
-            return attr.Get() if attr.IsValid() else default
-
-        density = _get_material_attr("newton:density", DeformableRegistryEntry.density)
-        particle_radius = _get_material_attr("newton:particleRadius", DeformableRegistryEntry.particle_radius)
-        k_mu = _get_material_attr("newton:kMu", DeformableRegistryEntry.k_mu)
-        k_lambda = _get_material_attr("newton:kLambda", DeformableRegistryEntry.k_lambda)
-        k_damp = _get_material_attr("newton:kDamp", DeformableRegistryEntry.k_damp)
-
-        tri_ke = _get_material_attr("newton:triKe", DeformableRegistryEntry.tri_ke)
-        tri_ka = _get_material_attr("newton:triKa", DeformableRegistryEntry.tri_ka)
-        tri_kd = _get_material_attr("newton:triKd", DeformableRegistryEntry.tri_kd)
-        edge_ke = _get_material_attr("newton:edgeKe", DeformableRegistryEntry.edge_ke)
-        edge_kd = _get_material_attr("newton:edgeKd", DeformableRegistryEntry.edge_kd)
-
-        entry = DeformableRegistryEntry(
-            prim_path=self.cfg.prim_path,
-            sim_mesh_prim_path=sim_mesh_prim_path,
-            vis_mesh_prim_path=vis_mesh_prim_path,
-            vertices=vertices,
-            indices=indices,
-            deformable_type=deformable_type,
-            volume_vis_remap=volume_vis_remap,
-            init_pos=init_pos,
-            init_rot=init_rot,
-            density=density,
-            tri_ke=tri_ke,
-            tri_ka=tri_ka,
-            tri_kd=tri_kd,
-            edge_ke=edge_ke,
-            edge_kd=edge_kd,
-            particle_radius=particle_radius,
-            k_mu=k_mu,
-            k_lambda=k_lambda,
-            k_damp=k_damp,
-        )
-        SimulationManager._deformable_registry.append(entry)
-        self._deformable_type = deformable_type
-        return entry
-
     def _initialize_impl(self):
         """Initialize physics handles and buffers after the Newton model is ready."""
-        entry = self._registry_entry
-        self._num_instances = len(entry.particle_offsets)
-        self._particles_per_body = entry.particles_per_body
-        self._recorded_particle_offsets = entry.particle_offsets
-
-        if self._num_instances == 0:
-            raise RuntimeError(
-                f"No deformable body instances found for '{self.cfg.prim_path}'. "
-                "Ensure clone-plan replication or MODEL_INIT processed the registry."
-            )
+        # Replace this selection with Newton's family views when the pinned version includes
+        # https://github.com/newton-physics/newton/pull/3326.
+        pattern = re.compile(self.cfg.prim_path)
+        selected = [
+            value for path, value in SimulationManager.backend.deformable_ranges.items() if pattern.fullmatch(path)
+        ]
+        if not selected:
+            raise RuntimeError(f"No imported deformable matches '{self.cfg.prim_path}'.")
+        self._particles_per_body, self._deformable_type = selected[0][1:]
+        if any((count, kind) != selected[0][1:] for _, count, kind in selected):
+            raise ValueError(f"Deformable selection '{self.cfg.prim_path}' requires equal particle counts and types.")
+        self._num_instances = len(selected)
+        self._recorded_particle_offsets = [offset for offset, _, _ in selected]
 
         logger.info("Newton deformable object initialized at: %s", self.cfg.prim_path)
         logger.info("Number of instances: %d", self._num_instances)

@@ -6,130 +6,90 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 import warp as wp
 from newton import GeoType, JointType, ModelBuilder, ShapeFlags
 
-from pxr import Usd, UsdGeom, UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.cloner import path as clone_path
+from isaaclab.scene_data.deformable_discovery import DeformableStageEntry, deformable_entry
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
+from isaaclab.utils.string import to_camel_case
 
 from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
-
-if TYPE_CHECKING:
-    from isaaclab.scene_data.deformable_vis_remap import VolumeVisRemap
-
-
-@dataclass
-class DeformableRegistryEntry:
-    """Prototype geometry and the particle ranges recorded during Newton replication.
-
-    Assets register prototype data before cloning and bind to the recorded ranges afterward.
-    """
-
-    prim_path: str
-    sim_mesh_prim_path: str
-    vis_mesh_prim_path: str
-    vertices: list
-    indices: list
-    init_pos: tuple[float, float, float]
-    init_rot: tuple[float, float, float, float]  # (x, y, z, w)
-    deformable_type: str | None = None  # "volume" or "surface"
-    # Cloth params
-    density: float = 1.0
-    tri_ke: float = 1e4
-    tri_ka: float = 1e4
-    tri_kd: float = 1.5e-6
-    edge_ke: float = 5.0
-    edge_kd: float = 1e-2
-    particle_radius: float = 0.008
-    # Tet params
-    k_mu: float = 1e5
-    k_lambda: float = 1e5
-    k_damp: float = 0.0
-    # Filled by the Newton clone context:
-    particle_offsets: list[int] = field(default_factory=list)
-    particles_per_body: int = 0
-    volume_vis_remap: VolumeVisRemap | None = None
-    """Prototype interpolation tables when visual vertices differ from native simulation nodes."""
+from isaaclab_newton.sim.spawners.materials import (
+    NewtonDeformableBodyMaterialCfg,
+    NewtonSurfaceDeformableBodyMaterialCfg,
+)
 
 
-def add_deformable_entry_to_builder(
-    builder: ModelBuilder,
-    entry: DeformableRegistryEntry,
-    env_idx: int,
-    env_position: np.ndarray,
-    env_rotation: np.ndarray,
-) -> None:
-    """Add one deformable instance and record its native particle range.
+def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, *, root_path: str) -> DeformableStageEntry:
+    """Import one declared deformable's geometry, Newton material, and native element ranges.
 
     Args:
-        builder: Builder whose current world receives the deformable.
-        entry: Prototype mesh data and material properties.
-        env_idx: Environment index; zero starts a fresh set of particle ranges.
-        env_position: World position [m] for this environment.
-        env_rotation: World orientation as an xyzw quaternion for this environment.
+        builder: Source builder that receives the complete deformable prototype.
+        stage: Stage containing the authored geometry and bound physics material.
+        root_path: Deformable-body prim path.
+
+    Returns:
+        Prototype geometry for SDP's visual-mesh binding.
+
+    Note:
+        Replace this importer with native ``add_usd`` when Isaac Lab's authored schemas and
+        Newton material attributes have parity (newton-physics/newton#3036 and #3038).
+        The native USD importer landed in #3192; that alone does not establish material parity.
+        Remove private group recording when the pinned Newton includes #3326's native recording.
     """
-    if env_idx == 0:
-        entry.particle_offsets.clear()
-        entry.particles_per_body = 0
-
-    before_count = builder.particle_count
-    env_pos = wp.vec3(float(env_position[0]), float(env_position[1]), float(env_position[2]))
-    env_rot = wp.quat(*map(float, env_rotation))
-    init_pos = wp.vec3(*entry.init_pos)
-    init_rot = wp.quat(*entry.init_rot)
-    body_pos = env_pos + wp.quat_rotate(env_rot, init_pos)
-    body_rot = env_rot * init_rot
-
-    if entry.deformable_type == "volume":
-        builder.add_soft_mesh(
-            pos=body_pos,
-            rot=body_rot,
-            scale=1.0,
-            vel=wp.vec3(0.0, 0.0, 0.0),
-            vertices=entry.vertices,
-            indices=entry.indices,
-            density=entry.density,
-            k_mu=entry.k_mu,
-            k_lambda=entry.k_lambda,
-            k_damp=entry.k_damp,
-            particle_radius=entry.particle_radius,
-        )
-    elif entry.deformable_type == "surface":
-        builder.add_cloth_mesh(
-            pos=body_pos,
-            rot=body_rot,
-            scale=1.0,
-            vel=wp.vec3(0.0, 0.0, 0.0),
-            vertices=entry.vertices,
-            indices=entry.indices,
-            density=entry.density,
-            tri_ke=entry.tri_ke,
-            tri_ka=entry.tri_ka,
-            tri_kd=entry.tri_kd,
-            edge_ke=entry.edge_ke,
-            edge_kd=entry.edge_kd,
-            particle_radius=entry.particle_radius,
-        )
+    prim = stage.GetPrimAtPath(root_path)
+    geometry = deformable_entry(prim)
+    if geometry is None:
+        raise ValueError(f"No simulation mesh found under deformable {root_path!r}.")
+    material = next(
+        (
+            stage.GetPrimAtPath(path)
+            for path in UsdShade.MaterialBindingAPI(prim).GetDirectBindingRel("physics").GetTargets()
+            if stage.GetPrimAtPath(path).GetAttribute("newton:density").IsValid()
+        ),
+        None,
+    )
+    if material is None:
+        raise ValueError(f"Deformable {root_path!r} requires a bound Newton physics material.")
+    if geometry.deformable_type == "volume":
+        add_mesh = builder.add_soft_mesh
+        defaults = NewtonDeformableBodyMaterialCfg()
+        names = ("density", "particle_radius", "k_mu", "k_lambda", "k_damp")
     else:
-        raise ValueError(
-            f"Invalid deformable type '{entry.deformable_type}' for registry entry with prim path '{entry.prim_path}'"
-        )
+        add_mesh = builder.add_cloth_mesh
+        defaults = NewtonSurfaceDeformableBodyMaterialCfg()
+        names = ("density", "particle_radius", "tri_ke", "tri_ka", "tri_kd", "edge_ke", "edge_kd")
+    material_kwargs = {}
+    for name in names:
+        attr = material.GetAttribute(f"newton:{to_camel_case(name, to='cC')}")
+        material_kwargs[name] = attr.Get() if attr.IsValid() else getattr(defaults, name)
 
-    delta = builder.particle_count - before_count
-    entry.particle_offsets.append(before_count)
-    if env_idx == 0:
-        entry.particles_per_body = delta
-    elif entry.particles_per_body != delta:
-        raise RuntimeError(
-            f"Deformable body '{entry.prim_path}' produced {delta} particles in env {env_idx}, "
-            f"but env 0 produced {entry.particles_per_body}."
+    particle_start, tri_start = builder.particle_count, len(builder.tri_indices)
+    edge_start, tet_start = len(builder.edge_indices), len(builder.tet_indices)
+    add_mesh(
+        vertices=geometry.vertices,
+        indices=geometry.indices,
+        pos=wp.vec3(*geometry.init_pos),
+        rot=wp.quat(*geometry.init_rot),
+        scale=1.0,
+        vel=wp.vec3(),
+        label=root_path,
+        **material_kwargs,
+    )
+    particle_range = (particle_start, builder.particle_count)
+    if geometry.deformable_type == "volume":
+        builder._record_soft_group(root_path, particle_range, (tet_start, len(builder.tet_indices)))
+    else:
+        builder._record_cloth_group(
+            root_path, particle_range, (tri_start, len(builder.tri_indices)), (edge_start, len(builder.edge_indices))
         )
+    return geometry
 
 
 def _has_visible_non_collision_geometry(stage: Usd.Stage, prim_path: str) -> bool:
@@ -339,6 +299,26 @@ def _compose_world_xforms(world_p: np.ndarray, world_q: np.ndarray, local: Seque
     return out
 
 
+def _rotate_builder_particles(
+    builder: ModelBuilder, source: ModelBuilder, particle_start: int, tet_start: int, xform: np.ndarray
+) -> None:
+    """Apply particle and rest-frame rotations omitted by Newton's builder composition."""
+    # Remove when the pinned Newton fixes newton-physics/newton#4115, including tet rest frames.
+    if source.particle_count == 0 or np.array_equal(xform[3:], (0.0, 0.0, 0.0, 1.0)):
+        return
+    particle_slice = slice(particle_start, particle_start + source.particle_count)
+    builder.particle_q[particle_slice] = (
+        _quat_rotate(xform[3:], np.asarray(source.particle_q, dtype=np.float32)) + xform[:3]
+    ).tolist()
+    builder.particle_qd[particle_slice] = _quat_rotate(
+        xform[3:], np.asarray(source.particle_qd, dtype=np.float32)
+    ).tolist()
+    if source.tet_count:
+        # Dm^-1 rotates on the right: (R Dm)^-1 = Dm^-1 R^T.
+        poses = np.asarray(source.tet_poses, dtype=np.float32).reshape(-1, 3, 3)
+        builder.tet_poses[tet_start : tet_start + source.tet_count] = _quat_rotate(xform[3:], poses).tolist()
+
+
 def _invert_xform(xform: Sequence[float] | np.ndarray) -> np.ndarray:
     """Inverse of a single xyzw transform, assuming a unit quaternion."""
     xform = np.asarray(xform, dtype=np.float32)
@@ -354,7 +334,9 @@ def _label_groups(builder: ModelBuilder) -> dict[str, list]:
     for frequency in builder.custom_frequencies.values():
         if frequency.label_attribute is not None:
             groups[frequency.label_attribute] = builder.custom_attributes[frequency.label_attribute].values
-    groups["mujoco:equality_constraint_label"] = builder.custom_attributes["mujoco:equality_constraint_label"].values
+    for name, attribute in builder.custom_attributes.items():
+        if name.endswith("_label"):
+            groups[name] = attribute.values
     return groups
 
 
@@ -433,8 +415,8 @@ def replicate_builder_mapping(
         # Site index after replicate: base_shape + world * stride + source_local_index.
         base_shape = builder.shape_count
         shape_stride = source_builder.shape_count
-        particle_stride = source_builder.particle_count if source_builder_added is not None else 0
-        base_particle = builder.particle_count if source_builder_added is not None else 0
+        particle_stride = source_builder.particle_count
+        base_particle, base_tet = builder.particle_count, builder.tet_count
         source_xform_inv = _invert_xform(xforms_np[0])
         xforms = _compose_world_xforms(positions, quaternions, source_xform_inv)
 
@@ -450,6 +432,15 @@ def replicate_builder_mapping(
             for name, labels in original_labels.items():
                 label_groups[name][:] = labels
 
+        if particle_stride:
+            for world in np.flatnonzero(np.any(xforms[:, 3:] != (0.0, 0.0, 0.0, 1.0), axis=1)):
+                _rotate_builder_particles(
+                    builder,
+                    source_builder,
+                    base_particle + world * particle_stride,
+                    base_tet + world * source_builder.tet_count,
+                    xforms[world],
+                )
         if source_builder_added is not None:
             for world in range(num_worlds):
                 particle_offset = base_particle + world * particle_stride
@@ -499,8 +490,9 @@ def replicate_builder_mapping(
         for row in rows_per_world[col]:
             source_builder = source_builders[sources[row]]
             shape_offset = builder.shape_count
-            particle_offset = builder.particle_count if source_builder_added is not None else 0
+            particle_offset, tet_offset = builder.particle_count, builder.tet_count
             builder.add_builder(source_builder, xform=source_xforms[row, col])
+            _rotate_builder_particles(builder, source_builder, particle_offset, tet_offset, source_xforms[row, col])
             if source_builder_added is not None:
                 source_builder_added(sources[row], particle_offset, source_builder, source_xforms[row, col])
 

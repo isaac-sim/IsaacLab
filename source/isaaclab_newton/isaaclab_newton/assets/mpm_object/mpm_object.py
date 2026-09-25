@@ -2,7 +2,6 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
 from __future__ import annotations
 
 import logging
@@ -36,8 +35,6 @@ from .kernels import (
 from .mpm_object_data import MPMObjectData
 
 if TYPE_CHECKING:
-    from newton import ModelBuilder
-
     from .mpm_object_cfg import MPMObjectCfg
 
 logger = logging.getLogger(__name__)
@@ -64,24 +61,13 @@ def reset_registered_mpm_particle_ranges() -> None:
 def record_registered_mpm_particle_ranges(
     path_particle_map: dict[str, tuple[int, int]],
     destination_particle_offset: int = 0,
-    *,
-    builder: ModelBuilder | None = None,
-    source_builder: ModelBuilder | None = None,
-    source_xform: Sequence[float] | None = None,
 ) -> None:
     """Record MPM particle ranges from a USD import.
 
     Args:
         path_particle_map: Source-local half-open particle ranges keyed by USD prim path.
         destination_particle_offset: Particle count before merging a source builder.
-        builder: Optional destination builder containing the merged particles.
-        source_builder: Optional source builder containing the imported particles.
-        source_xform: Optional source-to-destination transform as ``(x, y, z, qx, qy, qz, qw)``.
     """
-    transform_args = (builder, source_builder, source_xform)
-    if any(value is not None for value in transform_args) and not all(value is not None for value in transform_args):
-        raise ValueError("builder, source_builder, and source_xform must be provided together.")
-
     for entry in SimulationManager._mpm_object_registry:
         points_path = f"{entry.cfg.spawn.spawn_path}{_SIMULATION_POINTS_SUFFIX}"
         if particle_range := path_particle_map.get(points_path):
@@ -96,61 +82,8 @@ def record_registered_mpm_particle_ranges(
                 )
 
             destination_start = destination_particle_offset + int(start)
-            if builder is not None and source_builder is not None and source_xform is not None:
-                _restore_imported_mpm_transform(
-                    builder,
-                    source_builder,
-                    int(start),
-                    int(end),
-                    destination_start,
-                    source_xform,
-                    points_path,
-                )
             entry.particles_per_object = particle_count
             entry.particle_offsets.append(destination_start)
-
-
-def _restore_imported_mpm_transform(
-    builder: ModelBuilder,
-    source_builder: ModelBuilder,
-    source_start: int,
-    source_end: int,
-    destination_start: int,
-    source_xform: Sequence[float],
-    points_path: str,
-) -> None:
-    """Apply the rotation that Newton builder merging omits for particles."""
-    # TODO: Remove this workaround when https://github.com/newton-physics/newton/issues/4115 is fixed.
-    particle_count = source_end - source_start
-    destination_end = destination_start + particle_count
-    if source_start < 0 or source_end > source_builder.particle_count:
-        raise ValueError(
-            f"MPM source range {(source_start, source_end)} for '{points_path}' exceeds "
-            f"the source builder's {source_builder.particle_count} particles."
-        )
-    if destination_start < 0 or destination_end > builder.particle_count:
-        raise ValueError(
-            f"MPM destination range {(destination_start, destination_end)} for '{points_path}' exceeds "
-            f"the destination builder's {builder.particle_count} particles."
-        )
-
-    xform = np.asarray(source_xform, dtype=np.float32)
-    if xform.shape != (7,) or not np.all(np.isfinite(xform)):
-        raise ValueError(f"MPM source transform for '{points_path}' must contain seven finite values; got {xform}.")
-    rotation = xform[3:]
-    if np.array_equal(rotation, np.array((0.0, 0.0, 0.0, 1.0), dtype=np.float32)):
-        return
-
-    positions = np.asarray(source_builder.particle_q[source_start:source_end], dtype=np.float32)
-    velocities = np.asarray(source_builder.particle_qd[source_start:source_end], dtype=np.float32)
-    builder.particle_q[destination_start:destination_end] = (_rotate_vectors(positions, rotation) + xform[:3]).tolist()
-    builder.particle_qd[destination_start:destination_end] = _rotate_vectors(velocities, rotation).tolist()
-
-
-def _rotate_vectors(vectors: np.ndarray, quaternion: np.ndarray) -> np.ndarray:
-    """Rotate vectors by one ``xyzw`` quaternion."""
-    twice_cross = 2.0 * np.cross(quaternion[:3], vectors)
-    return vectors + quaternion[3] * twice_cross + np.cross(quaternion[:3], twice_cross)
 
 
 class MPMObject(BaseDeformableObject):

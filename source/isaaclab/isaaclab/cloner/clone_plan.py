@@ -70,6 +70,13 @@ class ClonePlan:
     global_paths: tuple[str, ...] = ()
     """Unique prim paths for scene assets shared by every environment."""
 
+    asset_paths: tuple[str, ...] = ()
+    """Declared asset paths or expressions, including roots coalesced into one replication row.
+
+    Importers resolve expressions through :func:`~isaaclab.cloner.query.iter_sources` before
+    reading the named prims. No asset instances or configuration objects are retained.
+    """
+
 
 def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z") -> tuple[np.ndarray, np.ndarray]:
     """Create centered grid transforms as host arrays.
@@ -287,12 +294,12 @@ def make_clone_plan(
     envs, and returns a self-contained :class:`ClonePlan` with ``cfg_rows`` populated.
 
     Each input cfg's ``spawn_path`` / ``spawn_paths`` is mutated so the subsequent
-    asset constructor spawns the prototype into its first active environment. Every cfg
-    is an env-scoped entity with a spawner. Shared assets are declared explicitly through
-    ``global_paths`` and are never replicated.
+    asset constructor spawns the prototype into its first active environment. Configurations
+    without a spawner declare existing assets but add no replication rows. Shared assets are
+    declared explicitly through ``global_paths`` and are never replicated.
 
     Args:
-        cfgs: Cloneable asset cfgs with resolved env-scoped ``prim_path`` and ``spawn``.
+        cfgs: Asset cfgs with resolved env-scoped ``prim_path`` and optional ``spawn``.
         num_clones: Number of target envs.
         env_spacing: Distance between neighboring grid env origins [m].
         global_paths: Complete shared-asset roots declared by the scene composition root. Defaults to none.
@@ -308,6 +315,7 @@ def make_clone_plan(
         to the rows it owns, and whose ``global_paths`` names shared scene assets.
     """
     cfgs = tuple(cfgs)
+    asset_paths = tuple(dict.fromkeys((*global_paths, *(cfg.prim_path for cfg in cfgs))))
     global_paths = _minimal_roots(global_paths)
     sim = sim_utils.SimulationContext.instance()
 
@@ -316,11 +324,15 @@ def make_clone_plan(
     for cfg in cfgs:
         if isinstance(cfg, CameraCfg) and sim is not None:
             sim.get_or_create_backend(cfg.renderer_cfg)
+        spawn = getattr(cfg, "spawn", None)
+        if spawn is None:
+            continue
         matched = match(cfg.prim_path, env_template)
-        count = num_spawn_variants(cfg.spawn)
+        count = num_spawn_variants(spawn)
         if count <= 0:
             raise ValueError(f"Spawner at '{cfg.prim_path}' must have at least one variant.")
-        groups.append((cfg, cfg.spawn, env_template + matched.suffix, count))
+        groups.append((cfg, spawn, env_template + matched.suffix, count))
+    cfgs = tuple(cfg for cfg, _, _, _ in groups)
     env_ids = np.arange(num_clones, dtype=np.int64)
     positions, _ = grid_transforms(num_clones, env_spacing)
 
@@ -336,6 +348,7 @@ def make_clone_plan(
             cfg_rows={},
             context_rows=_context_rows(cfgs, {}, set(), global_paths),
             global_paths=global_paths,
+            asset_paths=asset_paths,
         )
 
     # 3) Homogeneous (every cfg is single-variant): emit the simpler env-root plan.
@@ -353,6 +366,7 @@ def make_clone_plan(
             cfg_rows=cfg_rows,
             context_rows=_context_rows(cfgs, cfg_rows, {0}, global_paths),
             global_paths=global_paths,
+            asset_paths=asset_paths,
         )
 
     # 4) Heterogeneous: enumerate prototype combos, build per-row mask, mutate spawn paths.
@@ -426,6 +440,7 @@ def make_clone_plan(
         cfg_rows=cfg_rows,
         context_rows=_context_rows(cfgs, cfg_rows, populated_rows, global_paths),
         global_paths=global_paths,
+        asset_paths=asset_paths,
     )
 
 
@@ -490,6 +505,7 @@ def clone_plan_from_env_0(
         cfg_rows=cfg_rows,
         context_rows=_context_rows(env_cfgs, cfg_rows, {0}, global_paths),
         global_paths=global_paths,
+        asset_paths=tuple(dict.fromkeys(prim_path for _, prim_path, _, _ in records)),
     )
     for cfg, prim_path, matched, spawn in records:
         cfg.prim_path = prim_path

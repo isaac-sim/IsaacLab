@@ -1,0 +1,1 @@
+Adapted native geometry publication to separate static bindings from native state pointers.

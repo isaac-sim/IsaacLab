@@ -368,7 +368,7 @@ def test_collect_asset_cfgs_resolves_env_regex_macros_and_declares_globals():
     assert global_paths == ("/World/Ground",)
 
 
-def test_collect_asset_cfgs_excludes_entities_without_spawners():
+def test_collect_asset_cfgs_retains_entities_without_spawners():
     """Sensors without spawners add no clone rows but still declare their debug-marker roots."""
 
     scene = object.__new__(InteractiveScene)
@@ -379,7 +379,7 @@ def test_collect_asset_cfgs_excludes_entities_without_spawners():
 
     cfgs, global_paths, _ = scene._collect_asset_cfgs()
 
-    assert cfgs == []
+    assert cfgs == [sensor]
     assert global_paths == (sensor.visualizer_cfg.prim_path,)
 
 

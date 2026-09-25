@@ -15,17 +15,23 @@ import numpy as np
 import warp as wp
 from newton import ModelBuilder
 
-from pxr import Usd, UsdGeom
+from pxr import Sdf, Usd, UsdGeom
 
 from isaaclab.cloner import ClonePlan
-from isaaclab.cloner.path import rebase
+from isaaclab.cloner.path import rebase, under
 from isaaclab.cloner.query import iter_sources
 from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.scene_data.deformable_discovery import deformable_prototypes, expand_deformable_entries
+from isaaclab.scene_data.deformable_discovery import (
+    deformable_geometry_batches,
+    deformable_prototypes,
+    expand_deformable_entries,
+)
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
+from isaaclab.sim.utils.queries import has_deformable_body_api
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     _restore_visible_colliders_without_visual_shapes,
+    add_deformable_from_usd,
     build_source_builders,
     replicate_builder_mapping,
 )
@@ -131,22 +137,25 @@ def _replicate_newton(
     builder = create_builder()
     import_paths = (sim.cfg.physics_prim_path, *plan.global_paths) if simulation else plan.global_paths
     if simulation:
-        global_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths)
-        # Native deformables are appended by per-world hooks, not the USD importer.
-        ignore_paths = [
+        paths = set(sources) | set(plan.global_paths)
+        for path in plan.asset_paths:
+            paths.update(source_path for source, _, source_path, _ in iter_sources(plan, path) if source in sources)
+            if any(under(path, root) for root in (*sources, *plan.global_paths)):
+                paths.add(path)
+        deformable_paths = [
             path
-            for entry in NewtonManager._deformable_registry
-            for _, _, path, _ in iter_sources(plan, entry.prim_path)
+            for path in sorted(paths)
+            if (prim := stage.GetPrimAtPath(path))
+            and has_deformable_body_api(prim)
+            and not prim.IsA(UsdGeom.Points)
+            and not prim.IsA(UsdGeom.BasisCurves)
         ]
-        global_ignore_paths.extend(ignore_paths)
-        global_ignore_paths.extend(entry.prim_path for entry in NewtonManager._deformable_registry)
+        ignore_paths = list(deformable_paths)
+        global_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths)
+        global_ignore_paths.extend((*plan.sources, *ignore_paths))
     else:
         entries = deformable_prototypes(stage, plan, rows)
-        ignore_paths = list(
-            dict.fromkeys(
-                path for entry in entries for path in (entry.root_path, entry.sim_mesh_path, entry.vis_mesh_path)
-            )
-        )
+        ignore_paths = [entry.root_path for entry in entries]
         global_ignore_paths = [*plan.sources, *ignore_paths]
 
     import_results = []
@@ -182,6 +191,14 @@ def _replicate_newton(
         skip_mesh_approximation=not simulation,
         import_results_out=source_import_results,
     )
+    if simulation:
+        entries = []
+        for path in deformable_paths:
+            owner = Sdf.Path(path)
+            while owner != Sdf.Path.absoluteRootPath and str(owner) not in source_builders:
+                owner = owner.GetParentPath()
+            source_builder = builder if owner == Sdf.Path.absoluteRootPath else source_builders[str(owner)]
+            entries.append(add_deformable_from_usd(source_builder, stage, root_path=path))
 
     # Keep only renderable cables from this representation's actual imports.
     cable_counts = {}
@@ -221,9 +238,6 @@ def _replicate_newton(
         record_registered_mpm_particle_ranges(
             source_import_results[source].get("path_particle_map", {}),
             particle_offset,
-            builder=builder,
-            source_builder=source_builder,
-            source_xform=source_xform,
         )
 
     local_site_map, world_xforms, fabric_body_bindings = replicate_builder_mapping(
@@ -252,6 +266,17 @@ def _replicate_newton(
             for path, count in cable_counts.items()
         }
     if simulation:
+        geometry = expand_deformable_entries(plan, entries, rows)
+        ranges = {
+            label: start
+            for family in ("cloth", "soft")
+            for label, start in zip(
+                getattr(builder, f"_{family}_label"), getattr(builder, f"_{family}_particle_start"), strict=True
+            )
+        }
+        NewtonManager._scene_data_backend._geometry_batches = deformable_geometry_batches(
+            geometry, [ranges[entry.root_path] for entry in geometry], device=sim.device
+        )
         NewtonManager._cl_site_index_map = site_index_map
         NewtonManager._cl_fabric_body_bindings = fabric_body_bindings
         NewtonManager._world_xforms = world_xforms
@@ -297,6 +322,8 @@ def newton_physics_replicate(
     quaternions: np.ndarray | None = None,
     up_axis: str = "Z",
     global_paths: tuple[str, ...] = (),
+    *,
+    asset_paths: tuple[str, ...] = (),
 ) -> tuple[ModelBuilder, dict[str, Any]]:
     """Replicate prims into a Newton ``ModelBuilder`` using a per-source mapping.
 
@@ -310,6 +337,7 @@ def newton_physics_replicate(
         quaternions: Optional per-environment orientations in xyzw order.
         up_axis: Up axis for the Newton model builder.
         global_paths: Shared scene-asset roots imported once. Defaults to none.
+        asset_paths: Declared asset roots within the sources, including deformables imported with Newton materials.
 
     Returns:
         Tuple of the populated Newton model builder and stage metadata.
@@ -321,8 +349,14 @@ def newton_physics_replicate(
         clone_mask=mapping,
         positions=positions,
         global_paths=global_paths,
+        asset_paths=asset_paths,
     )
     builder, stage_info, _ = _replicate_newton(
-        stage, plan, tuple(range(len(sources))), PhysicsManager._sim, up_axis=up_axis, quaternions=quaternions
+        stage,
+        plan,
+        tuple(range(len(sources))),
+        PhysicsManager._sim,
+        up_axis=up_axis,
+        quaternions=quaternions,
     )
     return builder, stage_info

@@ -77,8 +77,6 @@ from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, 
 
 from pxr import Usd, UsdGeom
 
-from isaaclab.cloner.path import rebase, under
-from isaaclab.cloner.query import iter_sources
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationContext
@@ -107,7 +105,6 @@ from isaaclab_newton.renderers.visual_material import (
 if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.assets import BaseArticulation
-    from isaaclab.cloner import ClonePlan
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
@@ -192,6 +189,18 @@ class NewtonBackend:
 
     def __init__(self, cfg: NewtonBackendCfg):
         self.model = cfg.builder.finalize(device=cfg.device)
+        # Newton 1.6 preserves groups through builder replication but not finalization.
+        # Remove this snapshot when the pinned Newton includes newton-physics/newton#3326.
+        self.deformable_ranges = {
+            label: (start, end - start, kind)
+            for family, kind in (("cloth", "surface"), ("soft", "volume"))
+            for label, start, end in zip(
+                getattr(cfg.builder, f"_{family}_label"),
+                getattr(cfg.builder, f"_{family}_particle_start"),
+                getattr(cfg.builder, f"_{family}_particle_end"),
+                strict=True,
+            )
+        }
         self.model.num_envs = self.model.world_count if cfg.num_envs is None else cfg.num_envs
         if cfg.gravity is not None:
             self.model.set_gravity(cfg.gravity)
@@ -208,6 +217,7 @@ class NewtonBackend:
     def close(self) -> None:
         """Drop native handles after consumers release their bindings."""
         self.control = self.state_1 = self.state_0 = self.model = None
+        self.deformable_ranges.clear()
 
 
 class NewtonSceneDataBackend(SceneDataBackend):
@@ -222,44 +232,15 @@ class NewtonSceneDataBackend(SceneDataBackend):
         self._transforms = SceneDataFormat.Transform()
         self.transforms_version = 0
         self.geometry_timestamp = 0
-        self._geometry_batches = []
+        self._geometry_batches = [(SceneDataFormat.Points(), {})]
 
-    def initialize_geometry(self, plan: ClonePlan) -> None:
+    def initialize_geometry(self) -> None:
         """Bind imported geometry paths to native particle ranges and capsule endpoints."""
-        ranges, visual_ranges = {}, {}
-        indices, weights = [], []
-        visual_offset = 0
-        for entry in NewtonManager._deformable_registry:
-            paths = [
-                rebase(path, source, template.format(env_id))
-                for source, template, path, env_ids in iter_sources(plan, entry.vis_mesh_prim_path)
-                for env_id in env_ids
-            ]
-            if not paths and any(under(entry.vis_mesh_prim_path, root) for root in plan.global_paths):
-                paths.append(entry.vis_mesh_prim_path)
-            if entry.volume_vis_remap is None:
-                ranges.update(
-                    (path, (offset, entry.particles_per_body))
-                    for path, offset in zip(paths, entry.particle_offsets, strict=True)
-                )
-            else:
-                prototype_indices = entry.volume_vis_remap.tet_vertex_indices.numpy()
-                prototype_weights = entry.volume_vis_remap.bary_weights.numpy()
-                count = len(prototype_indices)
-                for path, offset in zip(paths, entry.particle_offsets, strict=True):
-                    indices.append(prototype_indices + offset)
-                    weights.append(prototype_weights)
-                    visual_ranges[path] = (visual_offset, count)
-                    visual_offset += count
-        source = SceneDataFormat.Points()
-        source.points = self.state.particle_q
-        self._geometry_batches = [(source, ranges)]
-        if visual_ranges:
-            source = SceneDataFormat.WeightedPoints()
-            source.points = self.state.particle_q
-            source.indices = wp.array(np.concatenate(indices), dtype=wp.int32, device=source.points.device)
-            source.weights = wp.array(np.concatenate(weights), dtype=wp.float32, device=source.points.device)
-            self._geometry_batches.append((source, visual_ranges))
+        self._geometry_batches = [
+            (source, ranges)
+            for source, ranges in self._geometry_batches
+            if source._cls is not SceneDataFormat.CapsuleEndpoints
+        ]
         endpoints, ranges = [], {}
         offset = 0
         for path, shapes in NewtonManager._cable_bindings.items():
@@ -498,7 +479,6 @@ class NewtonManager(PhysicsManager):
     # path. Single-model consumers (e.g. batched Newton IK) finalize a single-env
     # model from these and resolve it via ``query.path_to_source``.
     _cl_protos: dict[str, ModelBuilder] = {}
-    _deformable_registry: list = []
     _per_world_builder_hooks: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
 
     @classmethod
@@ -872,7 +852,6 @@ class NewtonManager(PhysicsManager):
         NewtonManager._transforms_may_change_on_graph_replay = False
         NewtonManager._cable_bindings = {}
         NewtonManager._mpm_object_registry = []
-        NewtonManager._deformable_registry = []
         NewtonManager._per_world_builder_hooks = []
         NewtonManager._up_axis = "Z"
         NewtonManager._transform_mapping = None
@@ -1353,7 +1332,7 @@ class NewtonManager(PhysicsManager):
 
             NewtonManager._initialize_fabric_body_prims(cls._usdrt_stage, fabric_hierarchy, usdrt, body_bindings)
 
-        cls._scene_data_backend.initialize_geometry(PhysicsManager._sim.get_clone_plan())
+        cls._scene_data_backend.initialize_geometry()
         logger.info("Dispatching PHYSICS_READY callbacks")
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
 
@@ -1593,9 +1572,6 @@ class NewtonManager(PhysicsManager):
                     record_registered_mpm_particle_ranges(
                         import_result.get("path_particle_map", {}),
                         particle_offset,
-                        builder=builder,
-                        source_builder=source_builder,
-                        source_xform=source_xform,
                     )
 
             local_site_map, world_xforms, _ = replicate_builder_mapping(

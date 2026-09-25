@@ -1,0 +1,1 @@
+Bound static deformable geometry without fetching native positions during initialization.

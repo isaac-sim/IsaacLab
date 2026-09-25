@@ -269,9 +269,8 @@ class PhysxSceneDataBackend(SceneDataBackend):
             counts = np.asarray([entry.vertex_count for entry in ordered], dtype=np.int32)
             if np.any(counts > view.max_simulation_nodes_per_body):
                 raise RuntimeError("PhysX deformable node capacity is smaller than the clone plan requires.")
-            points = view.get_simulation_nodal_positions().view(wp.vec3f).flatten()
             native_offsets = np.arange(view.count) * view.max_simulation_nodes_per_body
-            batches = deformable_geometry_batches(ordered, points, native_offsets)
+            batches = deformable_geometry_batches(ordered, native_offsets, device=str(PhysicsManager._device))
             bindings.append((view, batches))
         self._deformable_bindings = bindings
 
