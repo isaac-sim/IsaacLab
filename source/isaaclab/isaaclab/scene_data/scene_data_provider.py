@@ -5,18 +5,17 @@
 
 from __future__ import annotations
 
-import logging
 import re
 from collections import deque
 from typing import TYPE_CHECKING, Any
+from weakref import WeakKeyDictionary
 
 import numpy as np
 import warp as wp
 
 from .. import sim as sim_utils
+from .geometry_points import convert_geometry_fabric_kernel, convert_geometry_points_kernel
 from .scene_data_backend import SceneDataBackend, SceneDataFormat
-
-logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -30,7 +29,7 @@ REQUIRES_STAGE_AND_MODEL: dict[str, tuple[bool, bool]] = {
     "viser": (False, True),
     "isaac_rtx": (True, False),
     "newton_warp": (False, True),
-    "ovrtx": (True, True),
+    "ovrtx": (True, False),
 }
 
 
@@ -66,6 +65,8 @@ class SceneDataProvider:
         self._num_envs_cache: int | None = None
         self._interactive_scene: Any | None = None
         self._transform_cache: dict[tuple, tuple[int, Any]] = {}
+        self._geometry_view_cache: tuple | None = None
+        self._geometry_destination_cache = WeakKeyDictionary()
 
     def get_transforms(
         self,
@@ -298,103 +299,139 @@ class SceneDataProvider:
                 return wp.array(mapping, dtype=wp.int32, device=_publication_device(input))
         return None
 
-    def create_geometry_mapping(
+    def get_geometry_points(
         self,
-        paths: list[str | None],
-        particle_offsets: list[int],
-    ) -> wp.array(dtype=wp.int32) | None:
-        """Create a mapping from backend geometry entities to consumer particle offsets.
+        *,
+        output: wp.array | SceneDataFormat.FabricPoints | None = None,
+        offsets: dict[str, int] | None = None,
+    ) -> dict[str, wp.array] | wp.array | SceneDataFormat.FabricPoints:
+        """Borrow visual point views or convert directly into the requested native destination.
 
-        For each geometry entity in the sim backend, the resulting array stores the
-        destination particle offset in the consumer buffer. Entities whose path does not
-        appear in ``paths`` receive ``-1`` and are skipped during copy.
+        Producers supply exact visual prim paths, native pointers and immutable interpolation
+        metadata. SDP performs interpolation and destination reordering together, once per
+        update timestamp and output layout. Only cross-device destinations require staging.
 
         Args:
-            paths: Desired consumer entity paths in particle-offset order.
-            particle_offsets: Particle offset in the consumer buffer for each ``paths`` entry.
+            output: Consumer-owned world-space point buffer [m] or native Fabric destination.
+                Omit to borrow shared point views. ``FabricPoints`` without offsets borrows
+                native Fabric storage when the producer publishes it.
+            offsets: Visual prim paths mapped to flat-buffer offsets or Fabric array indices.
+                Keep this mapping immutable for the destination's lifetime.
 
         Returns:
-            A Warp int32 array of length ``len(geometry_paths)`` containing destination
-            particle offsets, or ``None`` when no geometry is available or every entity
-            maps identically in order.
+            Read-only world-space views by visual prim path when no output is supplied;
+            otherwise the supplied destination, populated directly on the same device.
         """
-        input_paths = self.backend.geometry_paths
-        input_counts = self.backend.geometry_counts
-        if not input_paths or not input_counts:
-            return None
+        fabric = output is not None and not isinstance(output, wp.array)
+        requested_format = SceneDataFormat.FabricPoints if fabric and offsets is None else SceneDataFormat.Points
+        batches = self.backend.get_geometry_batches(requested_format)
+        if fabric and len(batches) == 1 and batches[0][0]._cls is SceneDataFormat.FabricPoints:
+            output.points = batches[0][0].points
+            return output
+        timestamp = self.backend.geometry_timestamp
+        if output is not None:
+            if offsets is None:
+                raise ValueError("A geometry destination requires its visual-path offsets.")
+            destination = output.points if fabric else output
+            cached = self._geometry_destination_cache.get(output)
+            if cached is None or cached[2] is not offsets:
+                jobs, bound = [], set()
+                for source, ranges in batches:
+                    selected = {path: bounds for path, bounds in ranges.items() if path in offsets}
+                    count = sum(count for _, count in selected.values())
+                    indices = np.empty((3 if fabric else 2, count), dtype=np.int32)
+                    cursor = 0
+                    for path, (start, count) in selected.items():
+                        vertices = np.arange(count)
+                        indices[0, cursor : cursor + count] = start + vertices
+                        indices[1, cursor : cursor + count] = offsets[path] if fabric else offsets[path] + vertices
+                        if fabric:
+                            indices[2, cursor : cursor + count] = vertices
+                        elif offsets[path] < 0 or offsets[path] + count > len(output):
+                            raise ValueError("Geometry destination range exceeds its output buffer.")
+                        cursor += count
+                    device = _publication_device(source)
+                    source_indices = wp.array(indices[0], device=device)
+                    destination_indices = wp.array(
+                        indices[1:].T if fabric else indices[1],
+                        dtype=wp.vec2i if fabric else wp.int32,
+                        device=destination.device,
+                    )
+                    transfer = None
+                    if cursor and device != destination.device:
+                        staging = SceneDataFormat.Points()
+                        staging.points = wp.empty(
+                            cursor, wp.vec3f, device=destination.device, pinned=destination.device.is_cpu
+                        )
+                        transfer = (wp.empty(cursor, wp.vec3f, device=device), staging, wp.array(dtype=wp.int32))
+                    jobs.append((source_indices, destination_indices, transfer))
+                    bound.update(selected)
+                if bound != offsets.keys():
+                    raise KeyError(f"Geometry destinations have no native publication: {offsets.keys() - bound}")
+            else:
+                timestamp_last_update, jobs, _ = cached
+                if timestamp_last_update == timestamp:
+                    return output
+            for (source, _), (source_indices, destination_indices, transfer) in zip(batches, jobs, strict=True):
+                if len(source_indices):
+                    device = _publication_device(source)
+                    count = len(source_indices)
+                    if transfer is not None:
+                        packed, staging, identity = transfer
+                        wp.launch(
+                            convert_geometry_points_kernel,
+                            dim=count,
+                            inputs=[source, source_indices, identity, packed],
+                            device=device,
+                        )
+                        wp.copy(staging.points, packed)
+                        if destination.device.is_cpu:
+                            wp.synchronize_stream(device)
+                        source, source_indices = staging, identity
+                    wp.launch(
+                        convert_geometry_fabric_kernel if fabric else convert_geometry_points_kernel,
+                        dim=count,
+                        inputs=[source, source_indices, destination_indices, destination],
+                        device=destination.device,
+                    )
+            # Retain conversion buffers, never the consumer's destination or slices of it.
+            self._geometry_destination_cache[output] = (timestamp, jobs, offsets)
+            return output
+        if offsets is not None:
+            raise ValueError("Geometry offsets require a destination.")
+        cached = self._geometry_view_cache
+        if cached is None:
+            views, jobs = {}, []
+            for source, ranges in batches:
+                device = _publication_device(source)
+                count = max((start + count for start, count in ranges.values()), default=0)
+                buffer = (
+                    source.points if source._cls is SceneDataFormat.Points else wp.empty(count, wp.vec3f, device=device)
+                )
+                indices = wp.array(dtype=wp.int32, device=device)
+                jobs.append((indices, buffer, ranges))
+                views.update((path, buffer[start : start + count]) for path, (start, count) in ranges.items())
+        else:
+            timestamp_last_update, views, jobs = cached
+            if timestamp_last_update == timestamp:
+                return views
 
-        path_to_offset = {
-            path: offset for path, offset in zip(paths, particle_offsets, strict=True) if path is not None
-        }
-        mapping = [-1] * len(input_paths)
-        identity = True
-        flat_offset = 0
-        for index, path in enumerate(input_paths):
-            dest_offset = path_to_offset.get(path, -1)
-            mapping[index] = dest_offset
-            if dest_offset != flat_offset:
-                identity = False
-            flat_offset += int(input_counts[index])
-
-        if identity and all(value >= 0 for value in mapping):
-            return None
-        points = self.backend.points
-        return wp.array(mapping, dtype=wp.int32, device=_publication_device(points))
-
-    def get_points(
-        self,
-        output: SceneDataFormat.Points,
-        mapping: wp.array(dtype=wp.int32) | None = None,
-        allow_passthrough: bool = True,
-    ) -> bool:
-        """Copy sim backend geometry points into ``output``.
-
-        Args:
-            output: Pre-allocated :class:`SceneDataFormat.Points` buffer (typically aliased
-                to shadow ``particle_q``).
-            mapping: Optional destination particle-offset array from
-                :meth:`create_geometry_mapping`.
-            allow_passthrough: When ``True`` and no mapping is needed, alias ``output.points``
-                directly to the backend buffer.
-
-        Returns:
-            ``True`` when points were copied or passed through, ``False`` when the backend
-            exposes no geometry.
-        """
-        if self.point_count == 0:
-            return False
-
-        input_points = self.backend.points
-        if input_points.points is None:
-            return False
-
-        if mapping is None and allow_passthrough:
-            output.points = input_points.points
-            return True
-
-        if output.points is None:
-            output.points = wp.empty(self.point_count, dtype=wp.vec3f, device=input_points.points.device)
-
-        entity_counts = self.backend.geometry_counts
-        if not entity_counts:
-            wp.copy(output.points, input_points.points)
-            return True
-
-        from isaaclab.scene_data.geometry_points import scatter_geometry_points
-
-        scatter_geometry_points(
-            input_points.points,
-            output.points,
-            entity_counts,
-            mapping,
-            device=str(output.points.device),
-        )
-        return True
-
-    @property
-    def point_count(self) -> int:
-        """Number of geometry points available from the sim backend."""
-        return self.backend.point_count
+        for index, ((source, _), (indices, buffer, ranges)) in enumerate(zip(batches, jobs, strict=True)):
+            if source._cls is SceneDataFormat.Points:
+                if buffer is not source.points:
+                    buffer = source.points
+                    jobs[index] = (indices, buffer, ranges)
+                    views.update((path, buffer[start : start + count]) for path, (start, count) in ranges.items())
+                continue
+            if len(buffer):
+                wp.launch(
+                    convert_geometry_points_kernel,
+                    dim=len(buffer),
+                    inputs=[source, indices, indices, buffer],
+                    device=buffer.device,
+                )
+        self._geometry_view_cache = (timestamp, views, jobs)
+        return views
 
 
 class ConversionKernels:

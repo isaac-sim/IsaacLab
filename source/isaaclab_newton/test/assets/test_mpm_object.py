@@ -18,6 +18,7 @@ from isaaclab_newton.physics import MPMSolverCfg, NewtonCfg, NewtonMPMManager
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg
 
 from isaaclab.assets import RigidObjectCfg
+from isaaclab.cloner.query import iter_sources
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.utils import configclass
@@ -53,7 +54,7 @@ def test_mpm_object_initializes_from_interactive_scene():
         assert media.num_instances == 2
         assert media.particles_per_object == 1
         assert media.data.particle_pos_w.torch.shape == (2, 1, 3)
-        assert not NewtonMPMManager._particle_visual_prims
+        assert not sim.get_scene_data_provider().get_geometry_points()
 
         default_state = media.data.default_particle_state_w.torch.clone()
         shifted_state = default_state[0:1].clone()
@@ -121,7 +122,7 @@ def test_mpm_solver_refreshes_kinematic_rigid_body_transforms():
         np.testing.assert_allclose(body_q, root_pose.detach().cpu().numpy()[0], rtol=1.0e-5, atol=1.0e-6)
 
 
-def test_mpm_object_creates_usd_points_without_kit_visualizer(monkeypatch):
+def test_mpm_object_publishes_points_without_kit_visualizer():
     @configclass
     class MPMSceneCfg(InteractiveSceneCfg):
         media = MPMObjectCfg(
@@ -142,7 +143,6 @@ def test_mpm_object_creates_usd_points_without_kit_visualizer(monkeypatch):
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        monkeypatch.setattr(sim, "resolve_visualizer_types", lambda: ["newton"])
         scene = InteractiveScene(MPMSceneCfg(num_envs=2, env_spacing=1.0))
 
         from pxr import UsdGeom  # noqa: PLC0415
@@ -150,37 +150,32 @@ def test_mpm_object_creates_usd_points_without_kit_visualizer(monkeypatch):
         sim.reset()
 
         media = scene["media"]
-        records = NewtonMPMManager._particle_visual_prims
-        assert len(records) == media.num_instances
-
+        provider = sim.get_scene_data_provider()
+        publication = provider.get_geometry_points()
         expected_paths = [f"/World/envs/env_{env_idx}/Sand/Particles" for env_idx in range(media.num_instances)]
-        assert list(records) == expected_paths
+        assert list(publication) == expected_paths
 
-        for env_idx, prim_path in enumerate(expected_paths):
-            record = records[prim_path]
-            assert record.offset == media._recorded_particle_offsets[env_idx]
-            assert record.count == media.particles_per_object
-            assert record.sync_frequency == 1
-
-            points_prim = media.stage.GetPrimAtPath(prim_path)
+        for _, _, source_path, _ in iter_sources(sim.get_clone_plan(), media.cfg.prim_path):
+            points_prim = media.stage.GetPrimAtPath(source_path + "/Particles")
             assert points_prim.IsValid()
             points = UsdGeom.Points(points_prim)
-            assert points.GetResetXformStack()
+            assert not points.GetResetXformStack()
             assert len(points.GetPointsAttr().Get()) == media.particles_per_object
             assert len(points.GetWidthsAttr().Get()) == media.particles_per_object
             assert tuple(points.GetDisplayColorAttr().Get()[0]) == pytest.approx((0.1, 0.2, 0.3))
 
-        # The USD points follow the simulated particles of their own environment.
-        points_prims = [UsdGeom.Points(media.stage.GetPrimAtPath(prim_path)) for prim_path in expected_paths]
-        points_before = [np.asarray(points.GetPointsAttr().Get(), dtype=np.float32) for points in points_prims]
-
+        before = np.stack([values.numpy() for values in publication.values()])
         for _ in range(3):
             sim.step(render=False)
             scene.update(sim.get_physics_dt())
-            sim.render()
+            publication = provider.get_geometry_points()
+        actual = np.stack([values.numpy() for values in publication.values()])
+        expected = media.data.particle_pos_w.torch.cpu().numpy()
+        assert np.any(actual != before)
+        np.testing.assert_allclose(actual, expected, atol=1.0e-6)
 
-        particle_pos = media.data.particle_pos_w.torch.detach().cpu().numpy()
-        for env_idx, points in enumerate(points_prims):
-            points_after = np.asarray(points.GetPointsAttr().Get(), dtype=np.float32)
-            assert np.max(np.abs(points_after - points_before[env_idx])) > 0.0
-            np.testing.assert_allclose(points_after, particle_pos[env_idx], rtol=1.0e-5, atol=1.0e-6)
+        state = media.data.particle_state_w.torch.clone()
+        state[..., 2] += 0.05
+        media.write_particle_state_to_sim_index(state)
+        actual = np.stack([values.numpy() for values in provider.get_geometry_points().values()])
+        np.testing.assert_allclose(actual, state[..., :3].cpu().numpy(), atol=1.0e-6)

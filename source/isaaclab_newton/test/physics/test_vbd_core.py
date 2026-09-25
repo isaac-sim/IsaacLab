@@ -172,7 +172,6 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
 def test_vbd_colors_prebuilt_builder_before_start(monkeypatch):
     """VBD colors a prebuilt builder before starting simulation."""
     physics = importlib.import_module("isaaclab_newton.physics")
-    deformable_module = importlib.import_module("isaaclab_contrib.deformable.deformable_object")
     events = []
 
     class Builder:
@@ -181,7 +180,6 @@ def test_vbd_colors_prebuilt_builder_before_start(monkeypatch):
 
     monkeypatch.setattr(physics.NewtonVBDManager, "_builder", Builder())
     monkeypatch.setattr(NewtonManager, "start_simulation", classmethod(lambda cls: events.append("start")))
-    monkeypatch.setattr(deformable_module, "setup_registered_deformable_fabric_sync", lambda manager_cls: None)
 
     physics.NewtonVBDManager.start_simulation()
 

@@ -3,7 +3,7 @@ Scene Data Provider
 
 :class:`~isaaclab.scene_data.SceneDataProvider` bridges physics simulation backends and the
 visualizers/renderers that consume scene data. It exposes a single Warp-native read path for
-body transforms regardless of which physics backend (PhysX or Newton) is active, so renderers
+body transforms and visual geometry regardless of which physics backend is active, so renderers
 and visualizers can stay backend-agnostic.
 
 Overview
@@ -44,11 +44,14 @@ The system has three layers:
    - :attr:`SceneDataBackend.transform_paths`: list of USD prim paths, one per transform.
    - :attr:`SceneDataBackend.native_transform_formats`: formats published without conversion.
      PhysX publishes either packed poses or Fabric matrices and refreshes only the requested representation.
-   - :attr:`SceneDataBackend.points`: flattened deformable nodal positions as
-     :class:`SceneDataFormat.Points` (optional; rigid-only backends return an empty buffer).
-   - :attr:`SceneDataBackend.point_count`: total number of geometry points.
-   - :attr:`SceneDataBackend.geometry_paths`: one USD prim path per deformable body instance.
-   - :attr:`SceneDataBackend.geometry_counts`: unpadded nodal count per geometry entity.
+   - :meth:`SceneDataBackend.get_geometry_batches`: native point arrays or interpolation inputs,
+     paired with exact visual prim paths and ranges compiled during backend construction. It returns
+     the requested native representation when available, otherwise the primary representations for
+     SDP to convert. The return type is always a list of batches, including native Fabric.
+   - :attr:`SceneDataBackend.geometry_timestamp`: logical update timestamp, advanced for same-step
+     writes and native pointer swaps. Cached outputs record the timestamp they contain, like asset
+     data buffers. This is not elapsed simulation time or a shared dirty flag that a reader clears.
+   - :attr:`SceneDataBackend.native_geometry_formats`: geometry formats available without conversion.
 
 2. :class:`~isaaclab.scene_data.SceneDataProvider`: wraps a backend and offers format conversion
    plus index re-mapping.
@@ -60,11 +63,12 @@ The system has three layers:
    - :meth:`SceneDataProvider.create_mapping`: builds a remap array from the backend's prim
      paths to a consumer's desired ordering. Used when a renderer or visualizer wants
      transforms indexed by its own body list rather than by the physics view order.
-   - :meth:`SceneDataProvider.get_points`: copies backend deformable nodal positions into a
-     consumer buffer, optionally remapping entity slices via
-     :meth:`SceneDataProvider.create_geometry_mapping`.
-   - :meth:`SceneDataProvider.create_geometry_mapping`: maps backend deformable entities to
-     consumer particle offsets in a shadow Newton ``particle_q`` buffer.
+   - :meth:`SceneDataProvider.get_geometry_points`: read-only world-space point views keyed by
+     exact visual prim path. Native point ranges alias the producer; interpolation and destination
+     reordering are fused into one cached conversion. Consumers with fixed native storage pass
+     that array or ``FabricPoints`` as ``output`` and visual-path offsets as ``offsets``. These
+     calls return the supplied destination. Destination caches retain indexing metadata, not the
+     consumer's buffers, and expire with the destination.
    - :meth:`SceneDataProvider.get_camera_transforms`: discovers per-camera, per-env world
      transforms from the USD stage.
    - :attr:`SceneDataProvider.usd_stage`: USD stage handle for stage-walking consumers.
@@ -96,17 +100,14 @@ the shared clone plan before initialization. Its rigid ``body_q`` binds to SDP's
 ``Transform`` array; no intermediate per-frame copy into a second state buffer is required.
 OVRTX requests ``TransposedMatrix44d`` directly from SDP, including destination ordering and
 static scale in the same conversion. It no longer reads Newton state for rigid transforms.
-When the scene has PhysX or OVPhysX deformables, the shadow model also allocates
-``particle_q`` render slots for soft/cloth meshes, syncs simulation nodal positions through
-:meth:`SceneDataProvider.get_points` with ``allow_passthrough=False`` into a separate
-sim-sized buffer, and remaps or copies those positions into the render-sized ``particle_q``
-buffer each frame. Volume deformables with mismatched sim and visual vertex counts use a
-barycentric sim-to-visual remap so Newton Warp and OVRTX render the paired visual mesh rather
-than tet simulation topology. The shadow deformable registry exposes render-slot offsets and
-``particles_per_body`` counts for OVRTX point bindings.
+For deformables with different simulation and visual meshes, the producer compiles barycentric
+indices and weights from the declared prototype once. SDP applies that interpolation directly into
+the Newton representation's final ``particle_q`` slots. There is no intermediate simulation-sized
+buffer and no consumer-owned remap. Native PhysX padded nodal arrays are borrowed without packing.
 
-The deformable and cable geometry bridge remains separate from this rigid-transform path.
-OVRTX still uses Newton geometry metadata for those features.
+OVRTX receives the same exact visual-path publications through SDP. It neither imports Newton
+managers nor requests a Newton model. Meshes, particle clouds, and cable curves use one point-binding
+path.
 
 PhysX owns its native Fabric refresh and publishes the resulting matrices through SDP without
 fetching packed poses. ``isaaclab_physx.renderers.fabric.FabricBackend`` owns the shared native stage
@@ -124,7 +125,13 @@ bound once. Fabric's selection reuse API reports scene-wide structural changes; 
 array views without repeating path matching or scale capture. Otherwise GPU propagation
 reuses the hierarchy topology. Clean requests never acquire writable Fabric arrays.
 Renderers do not select a physics-specific synchronization path.
-``FabricMatrix44`` contains only matrix storage, not bindings or native engine handles.
+The same Fabric resource receives geometry through ``update_geometries(provider, frame)``.
+PhysX publishes its native ``FabricPoints`` without a conversion or rewrite. Foreign mesh points
+are interpolated directly into GPU Fabric storage. The current Kit Hydra path requires CPU Fabric
+destinations for ``Points`` and ``BasisCurves``; SDP handles their device transfer without USD
+attribute writes. Only destinations whose update interval has elapsed are transferred. World-space
+point destinations reset their transform stack to avoid applying the environment or body pose twice.
+``FabricMatrix44`` and ``FabricPoints`` contain only array storage, not bindings or native engine handles.
 
 Newton backend
 --------------
@@ -141,6 +148,38 @@ capture requests these transforms on demand rather than on every visualizer step
 Externally replayed CUDA graphs do not call Python write hooks. After writes have been captured,
 Newton conservatively republishes transforms when read so an unannounced replay cannot leave
 rendering stale. Those reads do not benefit from clean-publication caching.
+
+Geometry publication
+--------------------
+
+Newton deformable and MPM positions are direct views of native ``particle_q`` ranges. Cable
+publications borrow native body poses and capsule parameters; SDP derives curve endpoints once
+per update timestamp. Both camera renderers and viewers consume the same cached result.
+
+``ClonePlan`` remains a generic replication and routing description. Asset construction authors
+prototype geometry; native import combines those prototypes with the plan and records native
+ranges. Consumers bind to those completed resources, never rediscovering the completed stage.
+
+.. code-block:: python
+
+   # Default: read-only native or converted views, cached by producer timestamp.
+   points_by_path = provider.get_geometry_points()
+
+   # A consumer with fixed native storage receives the conversion directly.
+   provider.get_geometry_points(output=state.particle_q, offsets=visual_path_offsets)
+
+   # A Fabric consumer supplies native storage and its exact visual-path row indices.
+   provider.get_geometry_points(output=fabric_points, offsets=visual_path_rows)
+
+The internal flat-node queries and physics-owned geometry sync methods were removed. Rendering
+consumers use ``get_geometry_points``; physics managers no longer run geometry writers from ``pre_render``.
+
+As in articulation and rigid-object data, the current timestamp and a cached buffer's timestamp
+serve different purposes: one identifies current state; the other identifies the state in that buffer.
+Asset data advances ``_sim_timestamp`` with time and invalidates dependent buffers on same-step writes.
+SDP instead advances ``geometry_timestamp`` on those writes, so independently updated consumers all see
+the change. The output's cache owns its freshness check; a downstream upload or BVH may need its own
+invalidation, but should not repeat the conversion's cache bookkeeping.
 
 Data requirements
 ------------------
@@ -173,7 +212,7 @@ consumer construction time, before the shared clone plan is built:
      - Yes
      - No
    * - OVRTX renderer
-     - Yes
+     - No
      - Yes
 
 See Also

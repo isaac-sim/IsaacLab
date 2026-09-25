@@ -66,3 +66,19 @@ def test_backend_adapters_do_not_duplicate_scene_ownership() -> None:
         assert not any(isinstance(node, ast.ClassDef) for node in ast.walk(tree)), (
             f"{adapter.relative_to(_REPO_ROOT)} must not define backend-local scene classes"
         )
+
+
+def test_geometry_transport_does_not_cross_backend_ownership() -> None:
+    """Renderers consume SDP; physics does not own Fabric geometry destinations or shadow remapping."""
+    for path in (_REPO_ROOT / "source/isaaclab_ov/isaaclab_ov/renderers").glob("*.py"):
+        modules = _imported_modules(ast.parse(path.read_text()))
+        assert not {module.split(".", 1)[0] for module in modules} & {"newton", "isaaclab_newton"}, path
+    for path in (_REPO_ROOT / "source/isaaclab_newton/isaaclab_newton/physics").glob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.ClassDef):
+                assert node.name not in {"ShadowDeformableEntity", "ShadowDeformableRegistryGroup"}, path
+            if isinstance(node, ast.FunctionDef):
+                assert not any(
+                    argument.annotation is not None and "fabricarray" in ast.unparse(argument.annotation)
+                    for argument in node.args.args
+                ), (path, node.name)

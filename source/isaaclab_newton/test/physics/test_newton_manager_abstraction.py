@@ -1319,12 +1319,9 @@ def test_initialize_solver_prepares_picking_before_graph_capture(
         monkeypatch.setitem(sys.modules, "usdrt", Mock())
         monkeypatch.setattr(NewtonMJWarpManager, "_clone_physics_only", False)
         monkeypatch.setattr(newton_manager_module, "get_current_stage", lambda **kwargs: Mock())
-        for kind in ("body", "cable", "particle"):
-            monkeypatch.setattr(
-                NewtonManager,
-                f"_initialize_fabric_{kind}_prims",
-                staticmethod(lambda *args, kind=kind: events.append(kind)),
-            )
+        monkeypatch.setattr(
+            NewtonManager, "_initialize_fabric_body_prims", staticmethod(lambda *args: events.append("body"))
+        )
 
         def on_physics_ready(_):
             events.append("ready")
@@ -1359,7 +1356,7 @@ def test_initialize_solver_prepares_picking_before_graph_capture(
         sim.reset()
         sim.reset()
 
-    assert events == ["body", "cable", "ready", "particle", *expected_events] * 2
+    assert events == ["body", "ready", *expected_events] * 2
 
 
 # ---------------------------------------------------------------------------
