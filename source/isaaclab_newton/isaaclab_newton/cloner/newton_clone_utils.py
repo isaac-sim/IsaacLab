@@ -413,51 +413,70 @@ def rename_builder_labels(
     skip_entity_labels: bool = False,
 ) -> list[tuple[str, int]]:
     """Rewrite source-root labels to per-env destination roots and return Fabric body bindings."""
-    fabric_body_bindings: list[tuple[str, int]] = []
+    bindings_by_source: list[list[tuple[str, int]]] = [[] for _ in sources]
     bound_body_indices: set[int] = set()
+    # Visit each label once, testing only the sources actually copied into its world.
+    # Preserve source order: destinations can fall under a later source root.
+    rules_by_world: dict[int, list[tuple[int, str, str]]] = {}
     for source_index, source in enumerate(sources):
         source_root = source.rstrip("/") or "/"
         world_cols = np.flatnonzero(mapping[source_index])
-        # Pre-normalize the destination roots
         destination = destinations[source_index]
-        world_roots = {int(col): (destination.format(int(env_ids[col])).rstrip("/") or "/") for col in world_cols}
+        for col in world_cols:
+            world_root = destination.format(int(env_ids[col])).rstrip("/") or "/"
+            rules_by_world.setdefault(int(col), []).append((source_index, source_root, world_root))
 
-        def _rename_pair(values, worlds, src_root=source_root, roots=world_roots, *, collect_body_bindings=False):
-            rows = (
-                ((index, value, worlds[index]) for index, value in values.items())
-                if isinstance(values, dict)
-                else ((index, value, world) for index, (value, world) in enumerate(zip(values, worlds, strict=True)))
-            )
-            for index, value, world in rows:
-                suffix = clone_path.relative_to(value, src_root) if isinstance(value, str) else None
-                if world is None or suffix is None:
-                    continue
-                world_root = roots.get(int(world))
-                if world_root is None:
+    def _rename_pair(values, worlds, rules, *, collect_body_bindings=False):
+        rows = (
+            ((index, value, worlds[index]) for index, value in values.items())
+            if isinstance(values, dict)
+            else ((index, value, world) for index, (value, world) in enumerate(zip(values, worlds, strict=True)))
+        )
+        for index, value, world in rows:
+            if world is None or not isinstance(value, str):
+                continue
+            for source_index, source_root, world_root in rules.get(int(world), ()):
+                suffix = clone_path.relative_to(value, source_root)
+                if suffix is None:
                     continue
                 renamed_value = world_root + suffix
                 if renamed_value != value:
                     values[index] = renamed_value
+                    value = renamed_value
                     if collect_body_bindings:
-                        fabric_body_bindings.append((renamed_value, index))
+                        bindings_by_source[source_index].append((renamed_value, index))
                         bound_body_indices.add(index)
 
-        if not skip_entity_labels:
-            for name, labels in vars(builder).items():
-                worlds = getattr(builder, f"{name[:-6]}_world", None) if name.endswith("_label") else None
-                if isinstance(labels, list) and worlds is not None:
-                    _rename_pair(labels, worlds, collect_body_bindings=name == "body_label")
+    label_pairs = []
+    if not skip_entity_labels:
+        for name, labels in vars(builder).items():
+            worlds = getattr(builder, f"{name[:-6]}_world", None) if name.endswith("_label") else None
+            if isinstance(labels, list) and worlds is not None:
+                label_pairs.append((labels, worlds, name == "body_label"))
 
-        custom_attrs = builder.custom_attributes.values()
-        worlds_by_freq = {attr.frequency: attr.values for attr in custom_attrs if attr.references == "world"}
-        for attr in custom_attrs:
-            if attr.dtype is not str or not attr.values:
-                continue
-            if attr.namespace == "isaaclab" and attr.name == "visual_material_path":
-                _rename_pair(attr.values, builder.shape_world)
-            elif worlds := worlds_by_freq.get(attr.frequency):
-                _rename_pair(attr.values, worlds)
+    custom_attrs = builder.custom_attributes.values()
+    worlds_by_freq = {attr.frequency: attr.values for attr in custom_attrs if attr.references == "world"}
+    for attr in custom_attrs:
+        if attr.dtype is not str or not attr.values:
+            continue
+        if attr.namespace == "isaaclab" and attr.name == "visual_material_path":
+            label_pairs.append((attr.values, builder.shape_world, False))
+        elif worlds := worlds_by_freq.get(attr.frequency):
+            label_pairs.append((attr.values, worlds, False))
 
+    rule_groups = [rules_by_world]
+    if len({id(values) for values, _, _ in label_pairs}) != len(label_pairs):
+        # User-assigned aliases can observe rewrites through another field. Retain
+        # the original source-major traversal for that uncommon case.
+        rule_groups = [{} for _ in sources]
+        for world, rules in rules_by_world.items():
+            for rule in rules:
+                rule_groups[rule[0]][world] = [rule]
+    for rules in rule_groups:
+        for values, worlds, collect_body_bindings in label_pairs:
+            _rename_pair(values, worlds, rules, collect_body_bindings=collect_body_bindings)
+
+    fabric_body_bindings = [binding for bindings in bindings_by_source for binding in bindings]
     fabric_body_bindings.extend(
         (label, index) for index, label in enumerate(builder.body_label) if index not in bound_body_indices
     )
