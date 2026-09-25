@@ -152,7 +152,7 @@ class CommandsCfg:
             ik_hover_height=0.02,
             ik_iters=(1, 4),
             ik_seed_joint_noise=0.25,
-            buffer_size=8192,
+            buffer_size=None,
             normal_weight=0.1,
             pre_solve_reset=EventTerm(
                 func=mdp.reset_root_state_uniform,

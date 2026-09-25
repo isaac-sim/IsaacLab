@@ -124,10 +124,11 @@ class LetterTypingCommandCfg(CommandTermCfg):
         """Enable the success-conditioned replay curriculum (needs :attr:`ik`; a silent no-op without it). Does
         NOT gate the reset IK snap itself - that runs on every reset whenever :attr:`ik` is set."""
 
-        buffer_size: int = 4096
+        buffer_size: int | None = 4096
         """Number of reset snapshots to cache (also the number of slots the success monitor tracks). Built in
         ``ceil(size / num_envs)`` reset-IK batches on the first reset, so keep it a small multiple of
-        ``num_envs`` to bound the one-time build cost."""
+        ``num_envs`` to bound the one-time build cost. ``None`` caches one snapshot per environment, using
+        every environment in one full reset-IK batch. Explicit sizes must be positive."""
 
         beta_target: float = 0.5
         """Target success rate the replay sampler is peaked at. A snapshot's sampling score is the Beta kernel

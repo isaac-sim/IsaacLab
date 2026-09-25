@@ -282,7 +282,9 @@ class LetterTypingCommand(CommandTerm):
         # so the logged curves have no NaN gaps (see reset()).
         self._split_last: dict[str, float] = {}
         if self._cur_enabled:
-            cap = int(cur.buffer_size)
+            cap = self.num_envs if cur.buffer_size is None else int(cur.buffer_size)
+            if cap <= 0:
+                raise ValueError("reset.buffer_size must be positive or None (one snapshot per environment).")
             self._cur_buffer_size = cap
             self._cur_reset_assets = (
                 tuple(cur.reset_assets) if cur.reset_assets is not None else (cfg.asset_name, cfg.object_name)
@@ -531,13 +533,14 @@ class LetterTypingCommand(CommandTerm):
         with tqdm(total=cap, desc="[typing] building reset-curriculum buffer (IK)", unit="snap") as pbar:
             for start in range(0, cap, self.num_envs):
                 n = min(self.num_envs, cap - start)
-                ids = all_ids[:n]
+                # Partial batches must not favor the first clone variants when envs are grouped.
+                ids = all_ids if n == self.num_envs else torch.randperm(self.num_envs, device=self.device)[:n]
                 # Load this batch's cached command into the live state so the reset-IK aims at the right key.
-                self.target[:n] = tgt[start : start + n]
-                self.typed[:n] = typd[start : start + n]
-                self.target_len[:n] = tlen[start : start + n]
-                self.typed_len[:n] = typlen[start : start + n]
-                self.prefix_len[:n] = self._prefix_len()[:n]
+                self.target[ids] = tgt[start : start + n]
+                self.typed[ids] = typd[start : start + n]
+                self.target_len[ids] = tlen[start : start + n]
+                self.typed_len[ids] = typlen[start : start + n]
+                self.prefix_len[ids] = self._prefix_len()[ids]
                 self._solve_reset_pose(ids)
                 state = get_reset_state(self._env, ids, self._cur_reset_assets, is_relative=True)
                 if self._buf_state is None:
@@ -548,7 +551,7 @@ class LetterTypingCommand(CommandTerm):
                 ee_quat = self.robot.data.body_quat_w.torch[:, self._ik_body_idx]
                 tip = ee_pos + quat_apply(ee_quat, self._ik_offset)
                 reach = torch.linalg.norm(tip - (self.target_key_pos_w() + self._ik_hover), dim=-1)
-                self._buf_reach[start : start + n] = reach[:n]
+                self._buf_reach[start : start + n] = reach[ids]
                 pbar.update(n)
         self._buffer_built = True
         self._log_buffer_stats()
