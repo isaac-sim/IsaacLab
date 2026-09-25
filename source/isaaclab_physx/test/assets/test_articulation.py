@@ -2104,56 +2104,23 @@ def test_get_jacobians_link_origin_contract(sim, num_articulations, device, arti
 @pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.isaacsim_ci
-def test_jacobian_refreshes_after_manual_joint_write(
-    sim, num_articulations, device, articulation_type, gravity_enabled
-):
-    """After ``write_joint_position_to_sim_index`` (no sim step), the Jacobian and mass matrix
-    reads must reflect the new joint state — not the previous one.
-
-    PhysX-side counterpart to the Newton test of the same name. PhysX's
-    :attr:`body_link_jacobian_w` triggers FK indirectly through
-    :attr:`body_link_pose_w` (used by the shift kernel); :attr:`body_com_jacobian_w` is
-    a passthrough to ``_root_view.get_jacobians()``. This test confirms that PhysX's
-    tensor view returns up-to-date Jacobians after a manual joint write — i.e., that
-    PhysX internally refreshes FK on ``get_jacobians`` (or that our property does).
-    Failure means we need to add ``update_articulations_kinematic()`` before the
-    passthrough.
-    """
+def test_dynamics_refresh_after_manual_joint_write(sim, num_articulations, device, articulation_type, gravity_enabled):
+    """Each Jacobian and mass-matrix read independently reflects a manual joint write without stepping."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
     sim.reset()
     sim.step()
     articulation.update(sim.cfg.dt)
 
-    # Read J at the baseline joint state.
-    J_link_0 = articulation.data.body_link_jacobian_w.torch.clone()
-    J_com_0 = articulation.data.body_com_jacobian_w.torch.clone()
-    M_0 = articulation.data.mass_matrix.torch.clone()
-
-    # Manually write a different joint state — large delta to make the change visible.
-    # No sim.step / update — FK becomes stale.
-    q_target = articulation.data.joint_pos.torch.clone() + 0.5
+    q_initial = articulation.data.joint_pos.torch.clone()
     env_ids = wp.array([0], dtype=wp.int32, device=device)
-    articulation.write_joint_position_to_sim_index(position=q_target, env_ids=env_ids)
-
-    # Read J again. With the FK trigger, J reflects q_target and differs from J at baseline.
-    # Without the trigger, body_q stays at baseline, J unchanged.
-    J_link_1 = articulation.data.body_link_jacobian_w.torch.clone()
-    J_com_1 = articulation.data.body_com_jacobian_w.torch.clone()
-    M_1 = articulation.data.mass_matrix.torch.clone()
-
-    assert not torch.allclose(J_link_0, J_link_1, atol=1e-3), (
-        "body_link_jacobian_w did not change after manual joint write — "
-        "FK trigger likely missing (eval_jacobian / shift kernel reading stale state.body_q)."
-    )
-    assert not torch.allclose(J_com_0, J_com_1, atol=1e-3), (
-        "body_com_jacobian_w did not change after manual joint write — "
-        "PhysX get_jacobians may not auto-refresh FK; consider adding update_articulations_kinematic()."
-    )
-    assert not torch.allclose(M_0, M_1, atol=1e-3), (
-        "mass_matrix did not change after manual joint write — "
-        "PhysX get_generalized_mass_matrices may not auto-refresh FK."
-    )
+    for property_name in ("body_link_jacobian_w", "body_com_jacobian_w", "mass_matrix"):
+        articulation.write_joint_position_to_sim_index(position=q_initial, env_ids=env_ids)
+        before = getattr(articulation.data, property_name).torch.clone()
+        # A separate write for each getter prevents another getter from refreshing FK on its behalf.
+        articulation.write_joint_position_to_sim_index(position=q_initial + 0.5, env_ids=env_ids)
+        after = getattr(articulation.data, property_name).torch.clone()
+        assert not torch.allclose(before, after, atol=1e-3), f"{property_name} stayed stale after a joint write"
 
 
 @pytest.mark.parametrize("num_articulations", [1])
