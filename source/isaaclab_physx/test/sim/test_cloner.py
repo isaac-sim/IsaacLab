@@ -63,7 +63,7 @@ def sim(request):
 
 # Replicator bookkeeping (mapping checks, world lists, Fabric notices) does not depend on the
 # simulation device, so those tests run on CUDA only.
-cuda_only = pytest.mark.parametrize("sim", test_devices(DeviceScope.CUDA), indirect=True)
+cuda_only = pytest.mark.parametrize("sim", test_devices(DeviceScope.DEFAULT_CUDA), indirect=True)
 
 
 @cuda_only
@@ -471,7 +471,7 @@ def _run_sphere_velocity_sim(sim, use_physx_replicate: bool, num_steps: int = 10
     return torch.stack(velocities)
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def test_physx_replicate_vs_no_replicate(device):
     """Test that physx_replicate does not change the physics behavior of env_0.
 

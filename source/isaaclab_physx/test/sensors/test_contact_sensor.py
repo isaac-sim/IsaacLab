@@ -382,7 +382,7 @@ def test_sphere_contact_time(setup_simulation, device, terrain, track_contact_da
     _run_contact_sensor_test(SPHERE_CFG, sim_dt, device, terrain, track_contact_data, durations)
 
 
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_first_transition_with_aged_clock(setup_simulation, device):
     """Regression for #7283: transitions must still be reported once the sensor clock has aged.
 
@@ -577,7 +577,7 @@ def _author_nested_chain(prim_path: str):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_nested_rigid_body_hierarchy(setup_simulation, device):
     """Checks contact sensor creation and per-body data ordering on nested rigid-body hierarchies.
 
@@ -683,7 +683,7 @@ def test_contact_sensor_no_stale_data_after_reset(setup_simulation, device):
         )
 
 
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 @pytest.mark.parametrize(
     ("history_length", "update_period_steps", "expected_fetches", "expected_last_update"),
     [(0, 1, 4, 0.0), (3, 1, 4, 0.01), (3, 2, 4, 0.0075)],
