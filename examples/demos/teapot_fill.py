@@ -114,7 +114,7 @@ parser.add_argument(
 parser.add_argument(
     "--fluid_render_mode",
     type=str,
-    default="surface",
+    default="particles",
     choices=["particles", "surface", "both"],
     help="Fluid visualization: raw MPM particles, reconstructed surface mesh, or both.",
 )
