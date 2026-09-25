@@ -413,6 +413,26 @@ def rename_builder_labels(
     skip_entity_labels: bool = False,
 ) -> list[tuple[str, int]]:
     """Rewrite source-root labels to per-env destination roots and return Fabric body bindings."""
+    label_pairs = []
+    if not skip_entity_labels:
+        for name, labels in vars(builder).items():
+            worlds = getattr(builder, f"{name[:-6]}_world", None) if name.endswith("_label") else None
+            if isinstance(labels, list) and worlds is not None:
+                label_pairs.append((labels, worlds, name == "body_label"))
+
+    custom_attrs = builder.custom_attributes.values()
+    worlds_by_freq = {attr.frequency: attr.values for attr in custom_attrs if attr.references == "world"}
+    for attr in custom_attrs:
+        if attr.dtype is not str or not attr.values:
+            continue
+        if attr.namespace == "isaaclab" and attr.name == "visual_material_path":
+            label_pairs.append((attr.values, builder.shape_world, False))
+        elif worlds := worlds_by_freq.get(attr.frequency):
+            label_pairs.append((attr.values, worlds, False))
+
+    if not label_pairs:
+        return [(label, index) for index, label in enumerate(builder.body_label)]
+
     bindings_by_source: list[list[tuple[str, int]]] = [[] for _ in sources]
     bound_body_indices: set[int] = set()
     # Visit each label once, testing only the sources actually copied into its world.
@@ -446,23 +466,6 @@ def rename_builder_labels(
                     if collect_body_bindings:
                         bindings_by_source[source_index].append((renamed_value, index))
                         bound_body_indices.add(index)
-
-    label_pairs = []
-    if not skip_entity_labels:
-        for name, labels in vars(builder).items():
-            worlds = getattr(builder, f"{name[:-6]}_world", None) if name.endswith("_label") else None
-            if isinstance(labels, list) and worlds is not None:
-                label_pairs.append((labels, worlds, name == "body_label"))
-
-    custom_attrs = builder.custom_attributes.values()
-    worlds_by_freq = {attr.frequency: attr.values for attr in custom_attrs if attr.references == "world"}
-    for attr in custom_attrs:
-        if attr.dtype is not str or not attr.values:
-            continue
-        if attr.namespace == "isaaclab" and attr.name == "visual_material_path":
-            label_pairs.append((attr.values, builder.shape_world, False))
-        elif worlds := worlds_by_freq.get(attr.frequency):
-            label_pairs.append((attr.values, worlds, False))
 
     rule_groups = [rules_by_world]
     if len({id(values) for values, _, _ in label_pairs}) != len(label_pairs):

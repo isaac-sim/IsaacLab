@@ -211,7 +211,7 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         positions = np.array([[2.0, 0.0, 0.0], [5.0, 0.0, 0.0], [8.0, 0.0, 0.0]], dtype=np.float32)
 
         with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
-            local_site_map, _, _ = replicate_builder_mapping(
+            local_site_map, _, bindings = replicate_builder_mapping(
                 builder,
                 (source_path,),
                 np.ones((1, 3), dtype=np.bool_),
@@ -225,6 +225,7 @@ class TestReplicateBuilderMapping(unittest.TestCase):
             )
 
         replicate.assert_called_once()
+        self.assertEqual(bindings, [(label, index) for index, label in enumerate(builder.body_label)])
         for name, index in (("ee", site_idx), ("origin", root_site_idx)):
             self.assertEqual(
                 local_site_map[name], [[base_shape + world * source.shape_count + index] for world in range(3)]

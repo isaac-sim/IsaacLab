@@ -82,6 +82,9 @@ class ArticulationData(BaseArticulationData):
 
     Depending on the settings, the two frames may not coincide with each other. In the robotics sense, the actor frame
     can be interpreted as the link frame.
+
+    Jacobian, mass-matrix, and gravity-force buffers are allocated on first access and retained.
+    With CUDA memory pools disabled, access these quantities before capturing a graph.
     """
 
     __backend_name__: str = "newton"
@@ -1047,7 +1050,7 @@ class ArticulationData(BaseArticulationData):
         # segments. Newton allocates its RNEA scratch internally on every call through
         # Warp's stream-ordered mempool allocator — capture-safe when mempools are
         # enabled (validated by Newton's own graph-capture test) — so only the output
-        # and gather buffers need pre-allocation here.
+        # and gather buffers are retained here.
         self._root_view.eval_inverse_dynamics_passive(
             SimulationManager.get_state_0(),
             gravity_force=self._gravity_force_full_buf,
