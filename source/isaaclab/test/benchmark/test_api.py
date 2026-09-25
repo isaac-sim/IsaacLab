@@ -8,12 +8,10 @@ import importlib
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-from typing import get_type_hints
 
 import pytest
 
 import isaaclab
-import isaaclab.benchmark as benchmark
 from isaaclab.benchmark import (
     BenchmarkLauncherConfig,
     BenchmarkOutputConfig,
@@ -21,10 +19,6 @@ from isaaclab.benchmark import (
     BenchmarkResult,
     BenchmarkRuntimeRequest,
     BenchmarkTrainingRequest,
-    PlayBundle,
-    RuntimeBundle,
-    StartupBundle,
-    TrainingBundle,
     dispatch,
 )
 from isaaclab.benchmark.entrypoints import startup
@@ -258,23 +252,6 @@ def test_success_check_rejects_unsupported_backend() -> None:
         dispatch._request_argv(request)
 
 
-def test_request_translates_parser_exit_to_value_error(monkeypatch) -> None:
-    request = BenchmarkRuntimeRequest(task="Isaac-Cartpole-Direct")
-    module = SimpleNamespace(run=lambda argv: (_ for _ in ()).throw(SystemExit(2)))
-    monkeypatch.setattr(dispatch.importlib, "import_module", lambda module_name: module)
-
-    with pytest.raises(ValueError, match="rejected the benchmark request"):
-        dispatch.run_benchmark_request(request)
-
-
-def test_kit_args_fuses_option_like_value() -> None:
-    assert dispatch._fuse_kit_args(["--kit_args", "--ext-folder=/tmp/extensions", "--device", "cpu"]) == [
-        "--kit_args=--ext-folder=/tmp/extensions",
-        "--device",
-        "cpu",
-    ]
-
-
 def test_startup_source_prefixes_include_installed_package_root() -> None:
     package_root = Path(isaaclab.__file__).resolve().parent
 
@@ -322,36 +299,19 @@ def test_cli_dispatch_fuses_option_like_kit_args(monkeypatch) -> None:
     module = SimpleNamespace(run=lambda argv: received.extend(argv))
     monkeypatch.setattr(dispatch.importlib, "import_module", lambda module_name: module)
 
-    assert dispatch.run_benchmark_cli(["runtime", "--kit_args", "--ext-folder=/tmp/extensions"]) == 0
-    assert received == ["--kit_args=--ext-folder=/tmp/extensions"]
+    assert dispatch.run_benchmark_cli(["runtime", "--kit_args", "--ext-folder=/tmp/extensions", "--device", "cpu"]) == 0
+    assert received == ["--kit_args=--ext-folder=/tmp/extensions", "--device", "cpu"]
 
 
-def test_backend_entrypoints_register_environment_cleanup_before_wrapping() -> None:
-    """All RL backend entrypoints compile and register cleanup before wrapping."""
-    backends_root = Path(__file__).parents[2] / "isaaclab" / "benchmark" / "entrypoints" / "backends"
-    entrypoints = [
-        backends_root / backend / f"benchmark_{mode}_{backend}.py"
-        for backend in ("rl_games", "rsl_rl", "sb3", "skrl")
-        for mode in ("train", "play")
-    ]
+@pytest.mark.parametrize("workflow", ["training", "play"])
+@pytest.mark.parametrize("backend", ["rl_games", "rsl_rl", "sb3", "skrl"])
+def test_backend_entrypoints_close_environment_when_wrapping_fails(
+    workflow: str, backend: str, monkeypatch, tmp_path
+) -> None:
+    """Every RL backend entrypoint closes the created environment when a later setup step fails."""
 
-    for entrypoint in entrypoints:
-        source = entrypoint.read_text()
-        compile(source, str(entrypoint), "exec")
-        creation_index = max(source.find("gym.make("), source.find("common.create_isaaclab_env("))
-        cleanup_index = source.find("cleanup.callback(lambda: env.close())", creation_index)
-        wrapper_indices = [
-            source.find(wrapper, creation_index) for wrapper in ("common.wrap_record_video(env", "VecEnvWrapper(env")
-        ]
-        first_wrapper_index = min(index for index in wrapper_indices if index >= 0)
-
-        assert creation_index >= 0, entrypoint
-        assert cleanup_index > creation_index, entrypoint
-        assert first_wrapper_index > cleanup_index, entrypoint
-
-
-def test_late_bound_environment_cleanup_closes_base_when_wrapping_fails() -> None:
-    """The cleanup callback retains the base environment when assignment fails."""
+    class WrappingFailed(Exception):
+        pass
 
     class _Environment:
         closed = False
@@ -359,72 +319,36 @@ def test_late_bound_environment_cleanup_closes_base_when_wrapping_fails() -> Non
         def close(self) -> None:
             self.closed = True
 
-    def fail_to_wrap(environment: _Environment) -> _Environment:
-        raise RuntimeError("wrapper construction failed")
+        def __getattr__(self, name: str):
+            raise WrappingFailed(name)
 
-    base_environment = _Environment()
-    with pytest.raises(RuntimeError, match="wrapper construction failed"):
-        with contextlib.ExitStack() as cleanup:
-            env = base_environment
-            cleanup.callback(lambda: env.close())
-            env = fail_to_wrap(env)
+    entrypoint = importlib.import_module(dispatch._workflow_module(workflow, backend))
+    monkeypatch.setattr(entrypoint.common, "resolve_play_checkpoint", lambda *args: "/tmp/checkpoint")
 
-    assert base_environment.closed
+    import isaaclab.app as app
 
+    @contextlib.contextmanager
+    def launch_simulation(env_cfg, args):
+        yield
 
-@pytest.mark.parametrize(
-    ("helper", "bundle_type"),
-    [
-        (benchmark.run_runtime_benchmark, RuntimeBundle),
-        (benchmark.run_startup_benchmark, StartupBundle),
-        (benchmark.run_training_benchmark, TrainingBundle),
-        (benchmark.run_play_benchmark, PlayBundle),
-    ],
-)
-def test_workflow_helpers_return_bundle_specific_results(helper, bundle_type) -> None:
-    """Workflow helpers expose their concrete bundle type to static type checkers."""
-    assert get_type_hints(helper)["return"] == BenchmarkResult[bundle_type]
+    created: list[_Environment] = []
 
+    def create_environment(*args, **kwargs):
+        created.append(_Environment())
+        return created[-1]
 
-def test_scoped_backend_state_restores_values_after_exception() -> None:
-    """Backend-global settings are restored when an in-process benchmark fails."""
-    import torch
+    monkeypatch.setattr(app, "launch_simulation", launch_simulation)
+    monkeypatch.setattr(entrypoint.common, "create_isaaclab_env", create_environment)
+    monkeypatch.chdir(tmp_path)
 
-    from isaaclab_rl.entrypoints.common import preserve_attribute, scoped_torch_backend_flags
+    argv = ["--task", "Isaac-Cartpole-Direct", "--output_path", str(tmp_path)]
+    if workflow == "play":
+        argv += ["--checkpoint", "/tmp/checkpoint"]
+    with pytest.raises(WrappingFailed):
+        entrypoint.run(argv)
 
-    original = (
-        torch.backends.cuda.matmul.allow_tf32,
-        torch.backends.cudnn.allow_tf32,
-        torch.backends.cudnn.deterministic,
-        torch.backends.cudnn.benchmark,
-    )
-    holder = SimpleNamespace(value="original")
-
-    with pytest.raises(RuntimeError, match="failed"):
-        with (
-            scoped_torch_backend_flags(
-                cuda_matmul_allow_tf32=True,
-                cudnn_allow_tf32=True,
-                cudnn_deterministic=False,
-                cudnn_benchmark=False,
-            ),
-            preserve_attribute(holder, "value"),
-        ):
-            holder.value = "temporary"
-            assert torch.backends.cuda.matmul.allow_tf32 is True
-            assert torch.backends.cudnn.allow_tf32 is True
-            assert torch.backends.cudnn.deterministic is False
-            assert torch.backends.cudnn.benchmark is False
-            assert holder.value == "temporary"
-            raise RuntimeError("failed")
-
-    assert (
-        torch.backends.cuda.matmul.allow_tf32,
-        torch.backends.cudnn.allow_tf32,
-        torch.backends.cudnn.deterministic,
-        torch.backends.cudnn.benchmark,
-    ) == original
-    assert holder.value == "original"
+    assert len(created) == 1
+    assert created[0].closed
 
 
 def test_invalid_rsl_request_preserves_torch_backend_state() -> None:

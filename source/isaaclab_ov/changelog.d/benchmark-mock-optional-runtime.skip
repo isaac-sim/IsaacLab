@@ -1,0 +1,1 @@
+Deferred optional OvPhysX tensor types until mock binding sets are constructed or randomized, keeping signature inspection and basic mock reads independent of the runtime wheel.

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import itertools
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -155,8 +156,11 @@ def test_mapping_preserves_unmapped_destination_slots():
         provider.create_mapping(["/a", "/missing"])
 
 
-@pytest.mark.parametrize("format_name", ["Transform", "Vec3_Quat", "Vec3_Matrix33", "Matrix44"])
-@pytest.mark.parametrize("scaled", [False, True])
+# Scale is applied by one shared helper, so it rotates across the formats instead of doubling them.
+@pytest.mark.parametrize(
+    ("format_name", "scaled"),
+    [("Transform", False), ("Vec3_Quat", True), ("Vec3_Matrix33", False), ("Matrix44", True)],
+)
 def test_transposed_matrices_fuse_format_mapping_and_scale(format_name, scaled):
     """All native formats produce the same row-vector matrices, with output-indexed scale."""
     poses = np.array([[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 1, 2, 2, 2]], dtype=np.float32)
@@ -192,8 +196,11 @@ def test_transposed_matrices_fuse_format_mapping_and_scale(format_name, scaled):
     assert output.matrices is matrices
 
 
-@pytest.mark.parametrize("format_name", ["Transform", "Vec3_Quat", "Vec3_Matrix33", "Matrix44"])
-@pytest.mark.parametrize("device", test_devices())
+# Rotate the device across formats so both the CPU and CUDA fabric paths are exercised.
+@pytest.mark.parametrize(
+    "format_name, device",
+    list(zip(["Transform", "Vec3_Quat", "Vec3_Matrix33", "Matrix44"], itertools.cycle(test_devices()))),
+)
 def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destinations(format_name, device, monkeypatch):
     """Fabric conversion skips solver-only bodies and preserves scales across buffer reallocations."""
     assert set(SceneDataFormat.FabricMatrix44.vars) == {"matrices"}

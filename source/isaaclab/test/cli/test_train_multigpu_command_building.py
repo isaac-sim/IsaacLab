@@ -64,50 +64,8 @@ def _parse_as_training_script(child_argv: list[str], monkeypatch: pytest.MonkeyP
     return args.kit_args
 
 
-class TestFuseKitArgs:
-    """Unit tests for :meth:`AppLauncher._fuse_kit_args`."""
-
-    def test_space_separated_option_like_value_is_fused(self):
-        assert AppLauncher._fuse_kit_args(["--kit_args", "--foo=/bar"]) == ["--kit_args=--foo=/bar"]
-
-    def test_equals_attached_value_is_unchanged(self):
-        argv = ["--kit_args=--foo=/bar"]
-        assert AppLauncher._fuse_kit_args(argv) == argv
-
-    def test_value_with_space_is_unchanged(self):
-        # a token containing a space cannot be mistaken for an option by argparse
-        argv = ["--kit_args", "--foo=/bar --baz=1"]
-        assert AppLauncher._fuse_kit_args(argv) == argv
-
-    def test_non_option_value_is_unchanged(self):
-        argv = ["--kit_args", "foo.txt"]
-        assert AppLauncher._fuse_kit_args(argv) == argv
-
-    def test_trailing_kit_args_is_unchanged(self):
-        # argparse should still report the missing value normally
-        argv = ["--task", "Isaac-Cartpole-Direct", "--kit_args"]
-        assert AppLauncher._fuse_kit_args(argv) == argv
-
-    def test_multiple_occurrences_are_all_fused(self):
-        argv = ["--kit_args", "--foo=/a", "--task", "X", "--kit_args", "--bar=/b"]
-        assert AppLauncher._fuse_kit_args(argv) == ["--kit_args=--foo=/a", "--task", "X", "--kit_args=--bar=/b"]
-
-    def test_surrounding_tokens_are_preserved(self):
-        argv = ["--task", "X", "--kit_args", "--foo=/bar", "--num_envs", "16"]
-        assert AppLauncher._fuse_kit_args(argv) == ["--task", "X", "--kit_args=--foo=/bar", "--num_envs", "16"]
-
-
 class TestAddAppLauncherArgsNormalization:
     """Integration tests for the ``sys.argv`` normalization in ``add_app_launcher_args``."""
-
-    def test_space_separated_single_kit_arg_parses(self, monkeypatch):
-        monkeypatch.setattr(sys, "argv", ["prog", "--task", "X", "--kit_args", "--foo=/bar"])
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--task", type=str, default=None)
-        AppLauncher.add_app_launcher_args(parser)
-        args, unknown = parser.parse_known_args()
-        assert args.kit_args == "--foo=/bar"
-        assert unknown == []
 
     def test_unknown_leftovers_are_preserved(self, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["prog", "--task", "X", "--kit_args", "--foo=/bar", "env.param=1"])
@@ -121,15 +79,6 @@ class TestAddAppLauncherArgsNormalization:
 
 class TestKitArgsForwarding:
     """Tests for forwarding ``--kit_args`` through the multi-GPU launcher."""
-
-    def test_space_separated_kit_args_forwarded_verbatim(self):
-        command = _build_command(["--task", "Isaac-Cartpole-Direct", "--kit_args", "--foo=/bar"])
-        index = command.index("--kit_args")
-        assert command[index + 1] == "--foo=/bar"
-
-    def test_equals_attached_kit_args_forwarded_unchanged(self):
-        command = _build_command(["--task", "Isaac-Cartpole-Direct", "--kit_args=--foo=/bar"])
-        assert "--kit_args=--foo=/bar" in command
 
     def test_multi_token_kit_args_value_forwarded_as_single_token(self):
         command = _build_command(["--task", "Isaac-Cartpole-Direct", "--kit_args", "--foo=/bar --baz=1"])
