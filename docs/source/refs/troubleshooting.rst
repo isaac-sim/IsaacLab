@@ -156,14 +156,14 @@ prompt when launching an Isaac Lab process:
 
       .. code:: bash
 
-          uv run --extra isaacsim python scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
+          uv run --extra isaacsim isaaclab demo zoo --physics isaacsim_physx --viz kit --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
 
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code:: bash
 
-          ./isaaclab.sh -p scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
+          ./isaaclab.sh demo zoo --physics isaacsim_physx --viz kit --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
 
 GPU buffer capacity errors
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

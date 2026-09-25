@@ -24,8 +24,9 @@ from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
+from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
 from isaaclab_contrib.custom_coupling import CoupledMJWarpVBDSolverCfg
@@ -77,48 +78,45 @@ def generate_robot_and_two_cubes(
     """Create one robot, one colliding cube, and one free cube."""
     sim_utils.create_prim("/World/env_0", "Xform", translation=(0.0, 0.0, 0.0))
 
-    cfg = sim_utils.GroundPlaneCfg()
-    cfg.func("/World/defaultGroundPlane", cfg)
-
+    ground_cfg = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
     robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/env_[^/]+/Robot")
+    colliding_cube_cfg = DeformableObjectCfg(
+        prim_path="/World/env_[^/]+/cube_collide",
+        spawn=sim_utils.MeshCuboidCfg(
+            size=(0.05, 0.05, 0.05),
+            deformable_props=NewtonDeformableBodyPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.8, 0.2)),
+            physics_material=NewtonDeformableBodyMaterialCfg(
+                density=500.0,
+                k_mu=1e5,
+                k_lambda=1e5,
+                particle_radius=0.005,
+            ),
+        ),
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=colliding_cube_pos),
+    )
+    free_cube_cfg = DeformableObjectCfg(
+        prim_path="/World/env_[^/]+/cube_free",
+        spawn=sim_utils.MeshCuboidCfg(
+            size=(0.05, 0.05, 0.05),
+            deformable_props=NewtonDeformableBodyPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.2, 0.2)),
+            physics_material=NewtonDeformableBodyMaterialCfg(
+                density=500.0,
+                k_mu=1e4,
+                k_lambda=1e4,
+                particle_radius=0.005,
+            ),
+        ),
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=free_cube_pos),
+    )
+    plan = clone_plan_from_env_0(
+        CloneCfg(clone_template="/World/env_{}"), (ground_cfg, robot_cfg, colliding_cube_cfg, free_cube_cfg), 1, 0.0
+    )
+    ground_cfg.class_type(ground_cfg)
     robot = Articulation(robot_cfg)
-
-    colliding_cube = DeformableObject(
-        cfg=DeformableObjectCfg(
-            prim_path="/World/env_[^/]+/cube_collide",
-            spawn=sim_utils.MeshCuboidCfg(
-                size=(0.05, 0.05, 0.05),
-                deformable_props=NewtonDeformableBodyPropertiesCfg(),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.8, 0.2)),
-                physics_material=NewtonDeformableBodyMaterialCfg(
-                    density=500.0,
-                    k_mu=1e5,
-                    k_lambda=1e5,
-                    particle_radius=0.005,
-                ),
-            ),
-            init_state=DeformableObjectCfg.InitialStateCfg(pos=colliding_cube_pos),
-        )
-    )
-
-    free_cube = DeformableObject(
-        cfg=DeformableObjectCfg(
-            prim_path="/World/env_[^/]+/cube_free",
-            spawn=sim_utils.MeshCuboidCfg(
-                size=(0.05, 0.05, 0.05),
-                deformable_props=NewtonDeformableBodyPropertiesCfg(),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.2, 0.2)),
-                physics_material=NewtonDeformableBodyMaterialCfg(
-                    density=500.0,
-                    k_mu=1e4,
-                    k_lambda=1e4,
-                    particle_radius=0.005,
-                ),
-            ),
-            init_state=DeformableObjectCfg.InitialStateCfg(pos=free_cube_pos),
-        )
-    )
-
+    colliding_cube, free_cube = DeformableObject(colliding_cube_cfg), DeformableObject(free_cube_cfg)
+    replicate(plan)
     return robot, colliding_cube, free_cube
 
 
@@ -129,38 +127,37 @@ def generate_lateral_rigid_and_deformable_cubes(
     """Create rigid and deformable cubes for lateral contact."""
     sim_utils.create_prim("/World/env_0", "Xform", translation=(0.0, 0.0, 0.0))
 
-    rigid_cube = RigidObject(
-        cfg=RigidObjectCfg(
-            prim_path="/World/env_[^/]+/rigid_cube",
-            spawn=sim_utils.CuboidCfg(
-                size=(0.2, 0.2, 0.2),
-                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
-                mass_props=sim_utils.MassCfg(mass=0.05),
-                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.8)),
-            ),
-            init_state=RigidObjectCfg.InitialStateCfg(pos=rigid_cube_pos),
-        )
+    rigid_cube_cfg = RigidObjectCfg(
+        prim_path="/World/env_[^/]+/rigid_cube",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.2, 0.2, 0.2),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.05),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.8)),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=rigid_cube_pos),
     )
-
-    deformable_cube = DeformableObject(
-        cfg=DeformableObjectCfg(
-            prim_path="/World/env_[^/]+/deformable_cube",
-            spawn=sim_utils.MeshCuboidCfg(
-                size=(0.08, 0.08, 0.08),
-                deformable_props=NewtonDeformableBodyPropertiesCfg(),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.2, 0.2)),
-                physics_material=NewtonDeformableBodyMaterialCfg(
-                    density=1000.0,
-                    k_mu=1e5,
-                    k_lambda=1e5,
-                    particle_radius=0.005,
-                ),
+    deformable_cube_cfg = DeformableObjectCfg(
+        prim_path="/World/env_[^/]+/deformable_cube",
+        spawn=sim_utils.MeshCuboidCfg(
+            size=(0.08, 0.08, 0.08),
+            deformable_props=NewtonDeformableBodyPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.2, 0.2)),
+            physics_material=NewtonDeformableBodyMaterialCfg(
+                density=1000.0,
+                k_mu=1e5,
+                k_lambda=1e5,
+                particle_radius=0.005,
             ),
-            init_state=DeformableObjectCfg.InitialStateCfg(pos=deformable_cube_pos),
-        )
+        ),
+        init_state=DeformableObjectCfg.InitialStateCfg(pos=deformable_cube_pos),
     )
-
+    plan = clone_plan_from_env_0(
+        CloneCfg(clone_template="/World/env_{}"), (rigid_cube_cfg, deformable_cube_cfg), 1, 0.0
+    )
+    rigid_cube, deformable_cube = RigidObject(rigid_cube_cfg), DeformableObject(deformable_cube_cfg)
+    replicate(plan)
     return rigid_cube, deformable_cube
 
 

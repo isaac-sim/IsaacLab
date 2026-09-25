@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import logging
-import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -425,8 +424,7 @@ class RenderData:
                 k2=_coefficient(cfg.k2),
                 k3=_coefficient(cfg.k3),
                 k4=_coefficient(cfg.k4),
-                # Limit fisheye rays to the forward hemisphere.
-                max_fov=math.pi,
+                max_fov=cfg.max_fov,
             )
 
         return self.newton_sensor.utils.compute_camera_rays_pinhole_opencv(
@@ -483,12 +481,12 @@ class NewtonWarpRenderer(BaseRenderer):
 
     def initialize(self) -> None:
         """Post-physics setup: read the built Newton model and construct the sensor."""
-        self._newton_model = NewtonManager.get_model()
-        if self._newton_model is None:
+        model = NewtonManager.get_model()
+        if model is None:
             raise RuntimeError("NewtonWarpRenderer requires a clone-built model before initialization.")
 
         self.newton_sensor = newton.sensors.SensorTiledCamera(
-            self._newton_model,
+            model,
             default_render_config=newton.sensors.SensorTiledCamera.RenderConfig(
                 enable_textures=self.cfg.enable_textures,
                 enable_shadows=self.cfg.enable_shadows,
@@ -562,7 +560,7 @@ class NewtonWarpRenderer(BaseRenderer):
         ):
             if self._seg_mapper is None:
                 clone_plan = SimulationContext.instance().get_clone_plan()
-                self._seg_mapper = NewtonSegmentationMapper(self._newton_model, self._stage, self.cfg, clone_plan)
+                self._seg_mapper = NewtonSegmentationMapper(self.newton_sensor.model, self._stage, self.cfg, clone_plan)
         if RenderBufferKind.SEMANTIC_SEGMENTATION in spec.cfg.data_types:
             self._seg_mapper.build_mapping(
                 RenderBufferKind.SEMANTIC_SEGMENTATION, bool(self.cfg.colorize_semantic_segmentation)
@@ -579,12 +577,9 @@ class NewtonWarpRenderer(BaseRenderer):
         """Store output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""
         render_data.set_outputs(output_data)
 
-    def update_transforms(self):
-        """Sync Newton scene state before rendering.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
-        sim = SimulationContext.instance()
-        sim.physics_manager.forward()
-        NewtonManager.update_visualization_state()
+    def update_transforms(self) -> None:
+        """No-op: the shared sensor pipeline refreshes transforms immediately before rendering."""
+        pass
 
     def update_geometries(self) -> None:
         """No-op for Newton Warp - geometry is read directly from Newton state during render.
@@ -631,7 +626,7 @@ class NewtonWarpRenderer(BaseRenderer):
 
         if render_data.sensor_task_name is None:
             render_data.sensor_task_name = f"newton_warp_render:{id(render_data)}"
-            tri_indices = self._newton_model.tri_indices
+            tri_indices = self.newton_sensor.model.tri_indices
             # Warp mesh refits allocate graph nodes and are not supported inside a conditional graph body.
             graph_capturable = tri_indices is None or tri_indices.shape[0] == 0
             NewtonManager._register_sensor_task(

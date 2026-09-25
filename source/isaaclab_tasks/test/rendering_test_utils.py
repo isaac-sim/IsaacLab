@@ -2336,8 +2336,7 @@ def rendering_test_mpm_particles(
     """Golden-image AOV coverage for USD-stage MPM particle rendering.
 
     Covers the ``UsdGeom.Points`` clouds authored by
-    :func:`~isaaclab_newton.sim.spawners.mpm.visualization.create_mpm_particle_visualization`
-    and re-synced every frame by ``NewtonManager.sync_particles_to_usd``. The camera frames the
+    MPM spawners and updated by the shared Fabric resource through SDP. The camera frames the
     UR10 particle pile head-on so the particles, not the workcell, dominate the frame.
 
     MPM runs only on Newton's coupled MPM/MJWarp solver, so ``UR10ParticlePushEnvCfg`` pins

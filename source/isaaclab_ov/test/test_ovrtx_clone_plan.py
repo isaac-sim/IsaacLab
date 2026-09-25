@@ -10,10 +10,10 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
-import torch
 
 from isaaclab.cloner.clone_plan import ClonePlan
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
@@ -33,7 +33,7 @@ pytestmark = [
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXCameraRenderData, OVRTXRenderer, _write_file  # noqa: E402
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXCameraRenderData, OVRTXRenderer  # noqa: E402
 
     from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade  # noqa: E402
 else:
@@ -45,7 +45,6 @@ else:
     Usd = None
     UsdGeom = None
     UsdShade = None
-    _write_file = None
 
 
 _PRE_OVRTX_STAGE_FILE = "pre_ovrtx_renderer_stage.usda"
@@ -66,29 +65,6 @@ def _make_multi_env_stage(num_envs: int) -> Usd.Stage:
         UsdGeom.Camera.Define(stage, f"{env_path}/Camera")
 
     return stage
-
-
-def _assert_export_contains_env_roots_and_children(exported: str, env_indices: range | list[int]) -> None:
-    """Listed environment roots appear in the stage export."""
-    for env_idx in env_indices:
-        assert f'def Xform "env_{env_idx}"' in exported
-        assert f'def Xform "Object_env{env_idx}_only"' in exported
-
-    assert exported.count('def Xform "Robot"') == len(env_indices)
-    assert exported.count('def Camera "Camera"') == len(env_indices)
-
-
-def _assert_export_contains_empty_env_roots(exported: str, env_indices: range | list[int]) -> None:
-    """Listed environment roots remain while their non-source children are omitted."""
-    for env_idx in env_indices:
-        assert f'def Xform "env_{env_idx}"' in exported
-        assert f'def Xform "Object_env{env_idx}_only"' not in exported
-
-
-def _assert_export_omits_env_roots(exported: str, env_indices: range | list[int]) -> None:
-    """Listed environment roots are absent from the export."""
-    for env_idx in env_indices:
-        assert f'def Xform "env_{env_idx}"' not in exported
 
 
 def _patch_simulation_context(monkeypatch: pytest.MonkeyPatch, clone_plan: ClonePlan | None) -> None:
@@ -121,6 +97,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer._exported_usd_string = None
     renderer._initialized_scene = False
     renderer._use_ovstage = False
+    renderer._sdp = SimpleNamespace(backend=SimpleNamespace(transform_paths=[]), get_geometry_points=lambda: {})
     renderer._object_scales = None
     renderer._object_scales_by_path = {}
     return renderer
@@ -307,17 +284,6 @@ def test_clone_sources_ovstage_writes_plan_positions_after_cloning(monkeypatch: 
     np.testing.assert_array_equal(xforms[0], expected)
 
 
-def test_write_file_creates_parent_directory_and_writes_utf8(tmp_path: Path):
-    """_write_file creates nested directories and writes UTF-8 content."""
-    output_dir = tmp_path / "nested" / "usd"
-
-    _write_file(output_dir, "stage.usda", "#usda 1.0\n")
-
-    output_path = output_dir / "stage.usda"
-    assert output_path.is_file()
-    assert output_path.read_text(encoding="utf-8") == "#usda 1.0\n"
-
-
 @pytest.mark.parametrize(
     "clone_plan",
     [
@@ -360,65 +326,36 @@ def test_prepare_stage_rejects_non_dense_environment_ids(monkeypatch: pytest.Mon
         _make_ovrtx_renderer_without_backend().prepare_stage(_make_multi_env_stage(2), 2)
 
 
-def test_capture_object_scales_populates_source_and_destination_scale_array():
-    """Projected source scales reach the body array without replacing a real destination scale."""
+@pytest.mark.parametrize("env_template", ["/World/envs/env_{}", "/World/Instances/World_{}"])
+def test_capture_object_scales_populates_source_and_destination_scale_array(env_template):
+    """Only declared prototype and shared scales reach the body array, independent of namespace."""
     stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World")
-    UsdGeom.Xform.Define(stage, "/World/envs")
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0")
-    UsdGeom.Xform.Define(stage, "/World/envs/env_1")
-    UsdGeom.Xform.Define(stage, "/World/envs/env_2")
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0/Object").AddScaleOp().Set(Gf.Vec3d(1.0, 1.0, 8.0))
-    UsdGeom.Xform.Define(stage, "/World/envs/env_1/Object").AddScaleOp().Set(Gf.Vec3d(1.0, 1.0, 4.0))
+    UsdGeom.Xform.Define(stage, f"{env_template.format(0)}/Object").AddScaleOp().Set(Gf.Vec3d(1, 1, 8))
+    UsdGeom.Xform.Define(stage, f"{env_template.format(1)}/Object").AddScaleOp().Set(Gf.Vec3d(1, 1, 4))
+    UsdGeom.Xform.Define(stage, "/World/Shared").AddScaleOp().Set(Gf.Vec3d(2, 3, 4))
+    UsdGeom.Xform.Define(stage, "/World/envs/Unplanned").AddScaleOp().Set(Gf.Vec3d(5, 6, 7))
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._device = "cpu"
     plan = ClonePlan(
-        sources=("/World/envs/env_0",),
-        destinations=("/World/envs/env_{}",),
-        clone_mask=torch.ones((1, 3), dtype=torch.bool),
-        env_ids=torch.arange(3),
+        sources=(env_template.format(0), env_template.format(1)),
+        destinations=(env_template, env_template),
+        clone_mask=np.array([[True, False, True], [False, True, False]]),
+        env_ids=np.arange(3),
+        global_paths=("/World/Shared",),
     )
 
     renderer._capture_object_scales(stage, plan)
     scales = renderer._create_object_scale_array(
-        ["/World/envs/env_0/Object", "/World/envs/env_1/Object", "/World/envs/env_2/Object"]
+        [f"{env_template.format(index)}/Object" for index in range(3)] + ["/World/Shared"]
     )
 
-    np.testing.assert_allclose(scales.numpy(), np.array([[1.0, 1.0, 8.0], [1.0, 1.0, 4.0], [1.0, 1.0, 8.0]]))
+    np.testing.assert_allclose(scales.numpy(), [[1, 1, 8], [1, 1, 4], [1, 1, 8], [2, 3, 4]])
+    assert "/World/envs/Unplanned" not in renderer._object_scales_by_path
 
 
-def test_prepare_stage_keeps_material_binding_inside_clone_source(monkeypatch: pytest.MonkeyPatch):
-    """A row export keeps its bound material beneath the root cloned by OVRTX."""
-    num_envs = 3
-    stage = _make_multi_env_stage(num_envs)
-    source = "/World/envs/env_0/Robot"
-    material = UsdShade.Material.Define(stage, f"{source}/warm")
-    body = UsdGeom.Xform.Define(stage, f"{source}/Body").GetPrim()
-    UsdShade.MaterialBindingAPI.Apply(body)
-    UsdShade.MaterialBindingAPI(body).Bind(material)
-    plan = ClonePlan(
-        sources=(source,),
-        destinations=("/World/envs/env_{}/Robot",),
-        clone_mask=np.ones((1, num_envs), dtype=np.bool_),
-        env_ids=np.arange(num_envs, dtype=np.int64),
-        positions=np.zeros((num_envs, 3), dtype=np.float32),
-    )
-    _patch_simulation_context(monkeypatch, plan)
-    renderer = _make_ovrtx_renderer_without_backend()
-
-    renderer.prepare_stage(stage, num_envs)
-
-    exported_layer = Sdf.Layer.CreateAnonymous(".usda")
-    assert exported_layer.ImportFromString(renderer._exported_usd_string)
-    exported_stage = Usd.Stage.Open(exported_layer)
-    binding = UsdShade.MaterialBindingAPI(exported_stage.GetPrimAtPath(f"{source}/Body")).GetDirectBindingRel()
-    assert binding.GetTargets() == [Sdf.Path(f"{source}/warm")]
-    assert exported_stage.GetPrimAtPath(f"{source}/warm")
-    assert not exported_stage.GetPrimAtPath("/World/envs/env_1/Robot")
-
-
-def test_prepare_stage_writes_pre_ovrtx_stage_dump(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """prepare_stage writes the raw stage before OVRTX-specific preparation."""
+@pytest.mark.parametrize("dump_enabled", [False, True])
+def test_prepare_stage_writes_debug_dump_only_when_requested(tmp_path, monkeypatch, dump_enabled):
+    """The optional dump preserves the raw stage; default preparation performs no file writes."""
     _patch_simulation_context(
         monkeypatch,
         ClonePlan(
@@ -432,43 +369,18 @@ def test_prepare_stage_writes_pre_ovrtx_stage_dump(tmp_path: Path, monkeypatch: 
 
     stage = _make_multi_env_stage(2)
     renderer = _make_ovrtx_renderer_without_backend()
-    renderer.cfg.temp_usd_dir = str(tmp_path)
+    output_dir = tmp_path / "nested" / "usd"
+    renderer.cfg.temp_usd_dir = str(output_dir) if dump_enabled else None
+    if not dump_enabled:
+        monkeypatch.setattr(ovrtx_renderer_module, "_write_file", Mock(side_effect=AssertionError("Unexpected dump")))
     expected_pre_export = stage.ExportToString()
 
     renderer.prepare_stage(stage, 2)
 
-    pre_stage_path = tmp_path / _PRE_OVRTX_STAGE_FILE
-    assert pre_stage_path.is_file()
-    assert pre_stage_path.read_text(encoding="utf-8") == expected_pre_export
-    assert (tmp_path / _OVRTX_STAGE_FILE).exists() is False
-
-
-def test_prepare_stage_skips_temp_usd_write_when_temp_usd_dir_unset(monkeypatch: pytest.MonkeyPatch):
-    """prepare_stage does not write debug dumps when temp_usd_dir is None."""
-    _patch_simulation_context(
-        monkeypatch,
-        ClonePlan(
-            sources=("/World/envs/env_0",),
-            destinations=("/World/envs/env_{}",),
-            clone_mask=np.ones((1, 2), dtype=np.bool_),
-            env_ids=np.arange(2, dtype=np.int64),
-            positions=np.zeros((2, 3), dtype=np.float32),
-        ),
-    )
-    write_calls: list[tuple[Path, str, str]] = []
-
-    def _record_write(output_dir: Path, file_name: str, content: str) -> None:
-        write_calls.append((output_dir, file_name, content))
-
-    monkeypatch.setattr("isaaclab_ov.renderers.ovrtx_renderer._write_file", _record_write)
-
-    stage = _make_multi_env_stage(2)
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer.cfg.temp_usd_dir = None
-
-    renderer.prepare_stage(stage, 2)
-
-    assert write_calls == []
+    assert output_dir.exists() is dump_enabled
+    if dump_enabled:
+        assert (output_dir / _PRE_OVRTX_STAGE_FILE).read_text(encoding="utf-8") == expected_pre_export
+    assert (output_dir / _OVRTX_STAGE_FILE).exists() is False
 
 
 def test_initialize_camera_render_data_from_spec_writes_combined_stage_dump(tmp_path: Path):
@@ -558,7 +470,7 @@ def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_a
     renderer.backend.renderer.bind_attribute = lambda **_kwargs: object()
     renderer.backend.renderer.write_attribute = lambda **_kwargs: None
     renderer._setup_xform_bindings_legacy = lambda: None
-    renderer._setup_deformable_bindings_legacy = lambda _num_envs: None
+    renderer._setup_geometry_bindings_legacy = lambda: None
 
     spec = _make_camera_render_spec(num_envs=num_envs)
     render_data = OVRTXCameraRenderData(spec, "cpu", render_scope_name="RenderCamera_0")
@@ -574,48 +486,34 @@ def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_a
     ]
 
 
-def test_prepare_stage_stores_clone_plan_and_exports(monkeypatch: pytest.MonkeyPatch):
-    """prepare_stage stores the clone plan and exports only its source-row content."""
-    num_envs = 4
-
-    published = ClonePlan(
-        sources=("/World/envs/env_0",),
-        destinations=("/World/envs/env_{}",),
-        clone_mask=np.ones((1, num_envs), dtype=np.bool_),
-        env_ids=np.arange(num_envs, dtype=np.int64),
-        positions=np.zeros((num_envs, 3), dtype=np.float32),
+@pytest.mark.parametrize("suffix", ["", "/Robot"])
+def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatch, suffix):
+    """Keep prototype contents and material bindings, retaining only needed destination ancestors."""
+    stage = _make_multi_env_stage(3)
+    source = f"/World/envs/env_0{suffix}"
+    material = UsdShade.Material.Define(stage, f"{source}/warm")
+    body = UsdGeom.Xform.Define(stage, f"{source}/Body").GetPrim()
+    UsdShade.MaterialBindingAPI.Apply(body)
+    UsdShade.MaterialBindingAPI(body).Bind(material)
+    plan = ClonePlan(
+        sources=(source,),
+        destinations=(f"/World/envs/env_{{}}{suffix}",),
+        clone_mask=np.ones((1, 3), dtype=np.bool_),
+        env_ids=np.arange(3),
+        positions=np.zeros((3, 3), dtype=np.float32),
     )
-    _patch_simulation_context(monkeypatch, published)
-
-    stage = _make_multi_env_stage(num_envs)
+    _patch_simulation_context(monkeypatch, plan)
     renderer = _make_ovrtx_renderer_without_backend()
-
-    renderer.prepare_stage(stage, 4)
-
-    assert renderer._clone_plan is published
-
-    # Only the env_0 source subtree keeps content. The rows clone the env roots themselves, so the
-    # remaining roots are trimmed: OVRTX refuses to clone onto a prim that already exists.
-    _assert_export_contains_env_roots_and_children(renderer._exported_usd_string, [0])
-    _assert_export_omits_env_roots(renderer._exported_usd_string, [1, 2, 3])
-
-
-def test_prepare_stage_keeps_env_roots_when_rows_target_prims_beneath_them(monkeypatch: pytest.MonkeyPatch):
-    """Rows cloning below the env roots keep them, since they carry transforms cloning cannot recreate."""
-    num_envs = 3
-
-    _patch_simulation_context(
-        monkeypatch,
-        ClonePlan(
-            sources=("/World/envs/env_0/Robot",),
-            destinations=("/World/envs/env_{}/Robot",),
-            clone_mask=np.ones((1, num_envs), dtype=np.bool_),
-            env_ids=np.arange(num_envs, dtype=np.int64),
-            positions=np.zeros((num_envs, 3), dtype=np.float32),
-        ),
-    )
-    renderer = _make_ovrtx_renderer_without_backend()
-
-    renderer.prepare_stage(_make_multi_env_stage(num_envs), num_envs)
-
-    _assert_export_contains_empty_env_roots(renderer._exported_usd_string, [1, 2])
+    renderer.prepare_stage(stage, 3)
+    exported = Usd.Stage.CreateInMemory()
+    assert exported.GetRootLayer().ImportFromString(renderer._exported_usd_string)
+    binding = UsdShade.MaterialBindingAPI(exported.GetPrimAtPath(f"{source}/Body")).GetDirectBindingRel()
+    assert binding.GetTargets() == [Sdf.Path(f"{source}/warm")]
+    assert exported.GetPrimAtPath(f"{source}/warm")
+    assert exported.GetPrimAtPath("/World/envs/env_0/Robot")
+    assert bool(exported.GetPrimAtPath("/World/envs/env_0/Camera")) is (not suffix)
+    for env_id in (1, 2):
+        root = f"/World/envs/env_{env_id}"
+        assert bool(exported.GetPrimAtPath(root)) is bool(suffix)
+        assert not exported.GetPrimAtPath(f"{root}/Robot")
+        assert not exported.GetPrimAtPath(f"{root}/Object_env{env_id}_only")

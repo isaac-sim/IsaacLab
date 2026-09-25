@@ -24,6 +24,7 @@ try:
     from isaaclab_physx.assets.rigid_object.rigid_object import RigidObject as PhysXRigidObject
     from isaaclab_physx.assets.rigid_object.rigid_object_data import RigidObjectData as PhysXRigidObjectData
     from isaaclab_physx.physics import PhysxManager as SimulationManager
+    from isaaclab_physx.physics.physx_manager import PhysxSceneDataBackend
     from isaaclab_physx.test.fixtures.views import MockRigidBodyViewWarp as PhysXMockRigidBodyViewWarp
 except ImportError:
     pass
@@ -32,6 +33,7 @@ else:
     _mock_physics_sim_view = MagicMock()
     _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
     SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
+    SimulationManager._scene_data_backend = PhysxSceneDataBackend()
 
     BACKENDS.append("physx")
 
@@ -86,8 +88,8 @@ def create_physx_rigid_object(
     data.body_names = body_names
 
     # Create wrench composers
-    mock_inst_wrench = WrenchComposer(rigid_object)
-    mock_perm_wrench = WrenchComposer(rigid_object)
+    mock_inst_wrench = WrenchComposer(rigid_object, supports_world_at_com=True)
+    mock_perm_wrench = WrenchComposer(rigid_object, supports_world_at_com=True)
     object.__setattr__(rigid_object, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(rigid_object, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -104,10 +106,6 @@ def create_physx_rigid_object(
     # Cached .view(wp.float32) wrappers
     object.__setattr__(rigid_object, "_root_link_pose_w_f32", None)
     object.__setattr__(rigid_object, "_root_com_vel_w_f32", None)
-    object.__setattr__(rigid_object, "_inst_wrench_force_f32", None)
-    object.__setattr__(rigid_object, "_inst_wrench_torque_f32", None)
-    object.__setattr__(rigid_object, "_perm_wrench_force_f32", None)
-    object.__setattr__(rigid_object, "_perm_wrench_torque_f32", None)
 
     # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes
     N, B = num_instances, 1  # rigid object has 1 body
@@ -247,8 +245,8 @@ def create_ovphysx_rigid_object(
     obj._create_buffers()
 
     # Use production wrench composers for interface coverage.
-    mock_inst_wrench = WrenchComposer(obj)
-    mock_perm_wrench = WrenchComposer(obj)
+    mock_inst_wrench = WrenchComposer(obj, supports_world_at_com=True)
+    mock_perm_wrench = WrenchComposer(obj, supports_world_at_com=True)
     object.__setattr__(obj, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(obj, "_permanent_wrench_composer", mock_perm_wrench)
 

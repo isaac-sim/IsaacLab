@@ -1636,6 +1636,19 @@ class TestArticulationWritersRoot:
             method(root_velocity=_make_bad_data_warp((num_instances,), device, wp.spatial_vectorf))
 
 
+@_backends
+@pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 4, 5)])
+@pytest.mark.parametrize("device", ["cpu"])
+def test_deprecated_joint_friction_writers(backend, num_instances, num_joints, num_bodies, device, articulation_iface):
+    """The deprecated joint friction writers forward to the index writer on every backend."""
+    art, _ = articulation_iface
+    friction = torch.full((num_instances, num_joints), 0.5, device=device)
+    with pytest.warns(DeprecationWarning):
+        art.write_joint_friction_coefficient_to_sim(friction)
+    with pytest.warns(DeprecationWarning):
+        art.write_joint_friction_to_sim(friction)
+
+
 # ---------------------------------------------------------------------------
 # Tests: Joint writers — torch/warp × index/mask × all/subset × negative
 # ---------------------------------------------------------------------------
@@ -2012,7 +2025,8 @@ class TestArticulationDataAliases:
 # Tendon tests — parametrize, properties, finders, data, writers
 # ---------------------------------------------------------------------------
 
-# Newton does not support tendons (always 0), so exclude it from tendon tests.
+# Newton's fixed-tendon solver integration is covered in isaaclab_newton/test/assets/test_articulation.py.
+# This fixture matrix also requires spatial tendons and PhysX-specific properties.
 _tendon_backends = pytest.mark.parametrize("backend", [b for b in BACKENDS if b != "newton"], indirect=False)
 
 _tendon_dims = pytest.mark.parametrize(
@@ -2460,10 +2474,8 @@ _FIXED_TENDON_METHODS = [
     ("set_fixed_tendon_limit_stiffness", "limit_stiffness", wp.float32, True),
     ("set_fixed_tendon_rest_length", "rest_length", wp.float32, True),
     ("set_fixed_tendon_offset", "offset", wp.float32, True),
+    ("set_fixed_tendon_position_limit", "limit", wp.vec2f, True),
 ]
-# Note: set_fixed_tendon_position_limit is excluded because the PhysX backend stores
-# pos_limits as (N, T, 2) float32 while the setter validates (N, T) float32. This data
-# layout mismatch prevents consistent testing across mock and PhysX backends.
 
 
 class TestArticulationWritersFixedTendon:

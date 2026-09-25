@@ -4,10 +4,21 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "NewtonDifferentialInverseKinematicsAction",
+    "NewtonDifferentialInverseKinematicsActionCfg",
     "NewtonInverseKinematicsAction",
     "NewtonInverseKinematicsActionCfg",
+    "NewtonOperationalSpaceControllerAction",
+    "NewtonOperationalSpaceControllerActionCfg",
     "randomize_visual_shape",
 ]
 
-from .actions import NewtonInverseKinematicsAction, NewtonInverseKinematicsActionCfg
+from .actions import (
+    NewtonDifferentialInverseKinematicsAction,
+    NewtonDifferentialInverseKinematicsActionCfg,
+    NewtonInverseKinematicsAction,
+    NewtonInverseKinematicsActionCfg,
+    NewtonOperationalSpaceControllerAction,
+    NewtonOperationalSpaceControllerActionCfg,
+)
 from .events import randomize_visual_shape

@@ -81,8 +81,8 @@ def _make_scene_cfg(num_envs: int, env_spacing: float = 2.0) -> InteractiveScene
             prim_path="{ENV_REGEX_NS}/SensorBody",
             spawn=sim_utils.CuboidCfg(
                 size=(0.1, 0.1, 0.1),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+                mass_props=sim_utils.MassCfg(mass=1.0),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
         )
