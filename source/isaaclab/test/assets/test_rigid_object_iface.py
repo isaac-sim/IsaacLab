@@ -22,7 +22,7 @@ import torch
 import warp as wp
 from _rigid_object_iface_test_utils import BACKENDS, get_rigid_object
 
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = pytest.mark.integration
 
@@ -44,7 +44,7 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
 # Common parametrize decorators. Pure bookkeeping (counts, names, finders, aliases) runs on CPU only;
 # getters and writers keep every test device because PhysX stages through CPU-pinned buffers on CUDA.
 _backends = pytest.mark.parametrize("backend", BACKENDS, indirect=False)
-_devices = pytest.mark.parametrize("device", test_devices())
+_devices = pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 _NUM_INSTANCES = 2
 _index_resolution_backends = pytest.mark.parametrize(
     "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False

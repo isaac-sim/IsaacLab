@@ -23,7 +23,7 @@ import torch
 import warp as wp
 from _articulation_iface_test_utils import BACKEND_UNAVAILABLE_REASONS, BACKENDS, get_articulation
 
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = pytest.mark.integration
 
@@ -45,7 +45,7 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
 # Common parametrize decorators. Pure bookkeeping (counts, names, finders, aliases) runs on CPU only;
 # getters and writers keep every test device because PhysX stages through CPU-pinned buffers on CUDA.
 _backends = pytest.mark.parametrize("backend", BACKENDS, indirect=False)
-_devices = pytest.mark.parametrize("device", test_devices())
+_devices = pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 # One fixture with distinct instance, joint, and body counts so any swapped axis shows up.
 _NUM_INSTANCES, _NUM_JOINTS, _NUM_BODIES = 2, 6, 7
 _index_resolution_backends = pytest.mark.parametrize(
@@ -912,9 +912,9 @@ class TestArticulationWritersRoot:
             method(root_velocity=_make_bad_data_warp((num_instances,), device, wp.spatial_vectorf))
 
 
-@pytest.mark.parametrize("backend", BACKENDS[:1])
+@pytest.mark.parametrize("backend", BACKENDS)
 def test_deprecated_joint_friction_writers(backend):
-    """The deprecated joint friction writers forward to the index writer (shim lives in the base class)."""
+    """The deprecated joint friction writers warn and forward to the index writer on every backend."""
     num_instances, num_joints = 2, 4
     art, _ = get_articulation(backend, num_instances, num_joints, 5, device="cpu")
     for writer_name, value in (("write_joint_friction_coefficient_to_sim", 0.5), ("write_joint_friction_to_sim", 0.25)):
