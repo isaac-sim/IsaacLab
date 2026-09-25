@@ -13,7 +13,7 @@ import torch
 
 newton = pytest.importorskip("newton")
 
-from isaaclab_newton.assets.mpm_object import MPMObjectCfg
+from isaaclab_newton.assets.mpm_object import MPMObject, MPMObjectCfg
 from isaaclab_newton.physics import MPMSolverCfg, NewtonCfg, NewtonMPMManager
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg
 
@@ -50,6 +50,7 @@ def test_mpm_object_initializes_from_interactive_scene():
         sim.reset()
 
         media = scene["media"]
+        assert isinstance(media, MPMObject)
         assert media.num_instances == 2
         assert media.particles_per_object == 1
         assert media.data.particle_pos_w.torch.shape == (2, 1, 3)
