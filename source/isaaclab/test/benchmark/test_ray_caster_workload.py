@@ -5,9 +5,8 @@
 
 """Tests for shared ray-caster workload geometry."""
 
-import math
-
 from isaaclab.benchmark.sensor_suites import rough_terrain_size
+from isaaclab.cloner import grid_transforms
 
 
 def test_default_rough_terrain_covers_every_environment_ray_grid() -> None:
@@ -18,9 +17,10 @@ def test_default_rough_terrain_covers_every_environment_ray_grid() -> None:
 
     terrain_size = rough_terrain_size(num_envs, env_spacing, ray_grid_size)
 
-    columns = math.ceil(math.sqrt(num_envs))
-    rows = math.ceil(num_envs / columns)
-    required_extent = max(columns - 1, rows - 1) * env_spacing + ray_grid_size
+    # Derive the extent from the environment origins the scene actually lays out.
+    positions, _ = grid_transforms(num_envs, env_spacing)
+    xy_span = positions[:, :2].max(axis=0) - positions[:, :2].min(axis=0)
+    required_extent = float(xy_span.max()) + ray_grid_size
     assert terrain_size >= required_extent
 
 

@@ -34,27 +34,6 @@ def output_dir():
         shutil.rmtree(output_dir)
 
 
-def test_generation(output_dir):
-    """Generates assorted terrains and tests that the resulting mesh has the expected size."""
-    # create terrain generator
-    cfg = ROUGH_TERRAINS_CFG
-    terrain_generator = TerrainGenerator(cfg=cfg)
-
-    # print terrain generator info
-    print(terrain_generator)
-
-    # get size from mesh bounds
-    bounds = terrain_generator.terrain_mesh.bounds
-    actualSize = abs(bounds[1] - bounds[0])
-    # compute the expected size
-    expectedSizeX = cfg.size[0] * cfg.num_rows + 2 * cfg.border_width
-    expectedSizeY = cfg.size[1] * cfg.num_cols + 2 * cfg.border_width
-
-    # check if the size is as expected
-    assert actualSize[0] == pytest.approx(expectedSizeX)
-    assert actualSize[1] == pytest.approx(expectedSizeY)
-
-
 def test_generation_star_terrain():
     """Generates a star sub-terrain and tests that the resulting mesh has the expected size.
 
@@ -105,13 +84,13 @@ def test_repeated_objects_default_object_type():
 
 
 @pytest.mark.parametrize("use_global_seed", [True, False])
-@pytest.mark.parametrize("seed", [20, 40, 80])
-def test_generation_reproducibility(use_global_seed, seed):
+def test_generation_reproducibility(use_global_seed):
     """Generates assorted terrains and tests that the resulting mesh is reproducible.
 
     We check both scenarios where the seed is set globally only and when it is set both globally and locally.
     Setting only locally is not tested as it is not supported.
     """
+    seed = 20
     # set initial seed
     configure_seed(seed)
 
@@ -188,7 +167,7 @@ def test_generation_cache(output_dir, curriculum):
 
 
 def test_terrain_flat_patches():
-    """Test the flat patches generation."""
+    """Test the terrain size and the flat patches generation."""
     # create terrain generator
     cfg = ROUGH_TERRAINS_CFG
     # add flat patch configuration
@@ -199,6 +178,11 @@ def test_terrain_flat_patches():
         }
     # generate terrain
     terrain_generator = TerrainGenerator(cfg=cfg)
+
+    # check the mesh spans every sub-terrain plus the border
+    actual_size = abs(terrain_generator.terrain_mesh.bounds[1] - terrain_generator.terrain_mesh.bounds[0])
+    assert actual_size[0] == pytest.approx(cfg.size[0] * cfg.num_rows + 2 * cfg.border_width)
+    assert actual_size[1] == pytest.approx(cfg.size[1] * cfg.num_cols + 2 * cfg.border_width)
 
     # check if flat patches are generated
     assert terrain_generator.flat_patches

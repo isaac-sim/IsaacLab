@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from importlib import util
@@ -46,6 +47,17 @@ def _generate_wheel_pyproject(source_checkout_root: Path, tmp_path: Path) -> dic
         return tomllib.load(f)
 
 
+@pytest.fixture(scope="module")
+def generated_wheel_project(source_checkout_root: Path, tmp_path_factory) -> dict:
+    """Return the ``[project]`` table generated once for this module."""
+    return _generate_wheel_pyproject(source_checkout_root, tmp_path_factory.mktemp("wheel"))["project"]
+
+
+def _requirement_name(requirement: str) -> str:
+    """Return the normalized distribution name of a requirement string."""
+    return re.split(r"[\s\[<>=!~;@]", requirement, maxsplit=1)[0].lower()
+
+
 def _generate_uv_overrides(source_checkout_root: Path, tmp_path: Path) -> list[str]:
     """Run ``gen_uv_overrides.py`` against the root pyproject and return its requirements."""
     output = tmp_path / "uv-overrides.txt"
@@ -61,18 +73,16 @@ def _generate_uv_overrides(source_checkout_root: Path, tmp_path: Path) -> list[s
     return output.read_text(encoding="utf-8").splitlines()
 
 
-def test_wheel_builder_drops_workspace_members(source_checkout_root: Path, tmp_path):
+def test_wheel_builder_drops_workspace_members(generated_wheel_project: dict):
     """The generated wheel metadata must not depend on the bundled ``isaaclab*`` packages."""
-    generated = _generate_wheel_pyproject(source_checkout_root, tmp_path)
-    dependencies = generated["project"]["dependencies"]
+    dependencies = generated_wheel_project["dependencies"]
 
     assert not [dep for dep in dependencies if dep.lower().startswith("isaaclab")]
 
 
-def test_wheel_builder_includes_template_generator_dependencies(source_checkout_root: Path, tmp_path):
+def test_wheel_builder_includes_template_generator_dependencies(generated_wheel_project: dict):
     """The generated wheel must install everything required by the project generator."""
-    generated = _generate_wheel_pyproject(source_checkout_root, tmp_path)
-    dependencies = set(generated["project"]["dependencies"])
+    dependencies = set(generated_wheel_project["dependencies"])
 
     assert {"Jinja2", "rich"} <= dependencies
     assert "InquirerPy" not in dependencies
@@ -93,27 +103,18 @@ def test_wheel_console_delegates_to_the_full_isaaclab_cli(source_checkout_root: 
     cli.assert_called_once_with()
 
 
-def test_wheel_console_uses_compatibility_dispatcher(source_checkout_root: Path, tmp_path):
+def test_wheel_console_uses_compatibility_dispatcher(generated_wheel_project: dict):
     """The generated console script must preserve legacy installed-wheel options."""
-    generated = _generate_wheel_pyproject(source_checkout_root, tmp_path)
-
-    assert generated["project"]["scripts"]["isaaclab"] == "isaaclab.__main__:main"
+    assert generated_wheel_project["scripts"]["isaaclab"] == "isaaclab.__main__:main"
 
 
-def test_wheel_builder_includes_isaacsim_extra(source_checkout_root: Path, tmp_path):
-    """The ``isaacsim`` extra must ship in the generated wheel metadata."""
-    generated = _generate_wheel_pyproject(source_checkout_root, tmp_path)
-    optional_dependencies = generated["project"]["optional-dependencies"]
-
-    assert "isaacsim" in optional_dependencies
-    assert any(dep.startswith("isaacsim[") for dep in optional_dependencies["isaacsim"])
-
-
-def test_wheel_builder_omits_integrations_without_published_wheels(source_checkout_root: Path, tmp_path):
+def test_wheel_builder_omits_integrations_without_published_wheels(
+    source_checkout_root: Path, generated_wheel_project: dict
+):
     """Git-only RL-Games and Robomimic requirements must stay out of published metadata."""
     with (source_checkout_root / "pyproject.toml").open("rb") as f:
         source_project = tomllib.load(f)["project"]
-    generated_project = _generate_wheel_pyproject(source_checkout_root, tmp_path)["project"]
+    generated_project = generated_wheel_project
 
     # Source checkouts retain the integrations through their Git requirements.
     assert any(dep.startswith("rl-games @ git+") for dep in source_project["optional-dependencies"]["rl-games"])
@@ -128,23 +129,21 @@ def test_wheel_builder_omits_integrations_without_published_wheels(source_checko
     assert not any(dep.startswith("robomimic") for dep in generated_requirements)
 
 
-def test_wheel_builder_keeps_standalone_importers_explicit(source_checkout_root: Path, tmp_path):
-    """The wheel must expose standalone importers only through their explicit extra."""
-    generated = _generate_wheel_pyproject(source_checkout_root, tmp_path)
-    project = generated["project"]
+def test_wheel_builder_keeps_explicit_extras_opt_in(source_checkout_root: Path, generated_wheel_project: dict):
+    """Isaac Sim, standalone importers, and PyTetWild ship only through their explicit root extras."""
+    with (source_checkout_root / "pyproject.toml").open("rb") as f:
+        root_optional = tomllib.load(f)["project"]["optional-dependencies"]
+    generated_optional = generated_wheel_project["optional-dependencies"]
 
-    assert "isaacsim-asset-isolated==6.1.0.0" not in project["dependencies"]
-    assert "tinyobjloader==2.0.0rc13" not in project["dependencies"]
-    assert project["optional-dependencies"]["importers"] == [
-        "isaacsim-asset-isolated==6.1.0.0",
-        "tinyobjloader==2.0.0rc13",
-    ]
+    for extra in ("isaacsim", "importers", "tetrahedralization"):
+        assert generated_optional[extra] == root_optional[extra]
+    dependency_names = {_requirement_name(dep) for dep in generated_wheel_project["dependencies"]}
+    assert not dependency_names & {"isaacsim", "isaacsim-asset-isolated", "tinyobjloader", "pytetwild"}
 
 
-def test_wheel_builder_expands_all_extra_into_concrete_requirements(source_checkout_root: Path, tmp_path):
+def test_wheel_builder_expands_all_extra_into_concrete_requirements(generated_wheel_project: dict):
     """``isaaclab[all]`` must contain concrete curated requirements."""
-    generated = _generate_wheel_pyproject(source_checkout_root, tmp_path)
-    optional_dependencies = generated["project"]["optional-dependencies"]
+    optional_dependencies = generated_wheel_project["optional-dependencies"]
     all_extra = optional_dependencies["all"]
 
     assert not any(dep.lower().startswith("isaaclab") for dep in all_extra)
@@ -165,33 +164,18 @@ def test_wheel_builder_expands_all_extra_into_concrete_requirements(source_check
         assert not any(dep.startswith(prefix) for dep in all_extra), f"'{prefix}' must not be in the 'all' extra"
 
 
-def test_wheel_builder_rsl_rl_pin_matches_root_pyproject(source_checkout_root: Path, tmp_path):
+def test_wheel_builder_rsl_rl_pin_matches_root_pyproject(source_checkout_root: Path, generated_wheel_project: dict):
     """The bundled wheel metadata must install the RSL-RL version declared at the root."""
     expected_pin = _root_rsl_rl_pin(source_checkout_root)
-    generated = _generate_wheel_pyproject(source_checkout_root, tmp_path)
 
     # RSL-RL is a core dependency (default training library) and also exposed as an extra.
-    core_pins = [dep for dep in generated["project"]["dependencies"] if dep.startswith("rsl-rl-lib==")]
+    core_pins = [dep for dep in generated_wheel_project["dependencies"] if dep.startswith("rsl-rl-lib==")]
     assert core_pins == [expected_pin]
 
-    optional_dependencies = generated["project"]["optional-dependencies"]
+    optional_dependencies = generated_wheel_project["optional-dependencies"]
     # RSL-RL is also exposed through its own ``rsl-rl`` extra.
     rsl_rl_pins = [dep for dep in optional_dependencies["rsl-rl"] if dep.startswith("rsl-rl-lib==")]
     assert rsl_rl_pins == [expected_pin]
-
-
-def test_wheel_builder_keeps_tetrahedralization_explicit(source_checkout_root: Path, tmp_path):
-    """The generated wheel must expose PyTetWild only through its explicit extra."""
-    generated = _generate_wheel_pyproject(source_checkout_root, tmp_path)
-    project = generated["project"]
-    optional_dependencies = project["optional-dependencies"]
-
-    assert not any(dep.startswith("pytetwild") for dep in project["dependencies"])
-    assert optional_dependencies["tetrahedralization"] == ["pytetwild[all]>=0.3.0,<0.4"]
-    for name, deps in optional_dependencies.items():
-        if name == "tetrahedralization":
-            continue
-        assert not any(dep.startswith("pytetwild") for dep in deps)
 
 
 def test_wheel_builder_uv_overrides_match_root_pyproject(source_checkout_root: Path, tmp_path):
