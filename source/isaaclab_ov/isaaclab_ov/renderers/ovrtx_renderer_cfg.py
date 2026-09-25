@@ -53,9 +53,6 @@ class OVRTXRendererCfg(RendererCfg):
     renderer_type: str = "ovrtx"
     """Type identifier for OVRTX renderer."""
 
-    cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
-    """Newton geometry adapter used by the current OVRTX scene bindings."""
-
     temp_usd_dir: str | None = None
     """Directory for temporary USD debug dumps written during OVRTX stage preparation.
 

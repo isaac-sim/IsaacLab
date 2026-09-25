@@ -16,11 +16,12 @@ import os
 import re
 import time
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar
 
+import numpy as np
 import torch
 import warp as wp
 
@@ -37,12 +38,9 @@ import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
-    build_deformable_root_path_lookup,
-    build_deformable_vertex_count_lookup,
-    discover_deformables_on_stage,
-    group_deformable_root_paths_for_views,
-    resolve_deformable_root_path,
-    resolve_deformable_vertex_count,
+    deformable_geometry_batches,
+    deformable_prototypes,
+    expand_deformable_entries,
 )
 from isaaclab.utils.string import to_camel_case
 
@@ -51,6 +49,7 @@ from isaaclab_physx.cloner import PhysxReplicateContext
 from .physx_manager_cfg import PhysxBackendCfg
 
 if TYPE_CHECKING:
+    from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
     from isaaclab.sim.simulation_context import SimulationContext
 
     from .physx_manager_cfg import PhysxCfg
@@ -190,25 +189,23 @@ class PhysxSceneDataBackend(SceneDataBackend):
     def __init__(self):
         self._transforms = SceneDataFormat.Transform()
         self.transforms_version = 0
-        self._points_data = SceneDataFormat.Points()
+        self.geometry_timestamp = 0
         self.clear()
 
     def clear(self) -> None:
         """Drop the native binding and its derived views after simulation stops."""
         self.backend = None
         self._rigid_body_view: omni.physics.tensors.RigidBodyView | None = None
-        self._volume_deformable_view: omni.physics.tensors.DeformableBodyView | None = None
-        self._surface_deformable_view: omni.physics.tensors.DeformableBodyView | None = None
+        self._deformable_bindings: list[tuple[Any, list]] | None = None
         self._transforms.transforms = None
         self.transforms_version += 1
-        self._poses_version = self._fabric_version = -1
+        self.geometry_timestamp += 1
+        self._transforms_version_last_update = self._fabric_version_last_update = -1
+        self._geometry_timestamp_last_update = -1
         self._fabric_transforms = SceneDataFormat.FabricMatrix44()
         self._fabric_selection = None
-        self._points_data.points = None
-        self._geometry_paths: list[str] = []
-        self._geometry_counts: list[int] = []
-        self._merged_points: wp.array | None = None
-        self._geometry_discovered: bool = False
+        self._fabric_points = SceneDataFormat.FabricPoints()
+        self._fabric_points_selection = None
 
     def get_rigid_body_view(self) -> omni.physics.tensors.RigidBodyView | None:
         """Lazily create a rigid body view covering all rigid bodies in the scene.
@@ -253,116 +250,87 @@ class PhysxSceneDataBackend(SceneDataBackend):
         self._rigid_body_view = self.backend.simulation_view.create_rigid_body_view(body_paths)
         return self._rigid_body_view
 
-    def _discover_deformable_geometry(self) -> None:
-        """Discover stage deformables and create PhysX volume/surface views once."""
-        if self._geometry_discovered:
-            return
-        stage: Usd.Stage | None = omni.usd.get_context().get_stage()
-        if stage is None or self.backend is None:
-            return
-        self._geometry_discovered = True
-
-        entries = discover_deformables_on_stage(stage)
-        if not entries:
-            return
-
-        path_to_count = build_deformable_vertex_count_lookup(entries)
-        path_to_root = build_deformable_root_path_lookup(entries)
-        path_to_type = {entry.root_path: entry.deformable_type for entry in entries}
-        grouped_paths = group_deformable_root_paths_for_views(list(path_to_type.keys()), path_to_type)
-
-        volume_patterns, exact_volume = grouped_paths["volume"]
-        surface_patterns, exact_surface = grouped_paths["surface"]
-
-        if volume_patterns or exact_volume:
-            self._volume_deformable_view = self.backend.simulation_view.create_volume_deformable_body_view(
-                [*volume_patterns, *exact_volume]
-            )
-        if surface_patterns or exact_surface:
-            self._surface_deformable_view = self.backend.simulation_view.create_surface_deformable_body_view(
-                [*surface_patterns, *exact_surface]
-            )
-
-        device = PhysicsManager._device or "cpu"
-        self._geometry_paths = []
-        self._geometry_counts = []
-        for view in (self._volume_deformable_view, self._surface_deformable_view):
-            if view is None or view._backend is None:
+    def _setup_deformable_geometry(self, entries: Sequence[DeformableStageEntry]) -> None:
+        """Bind exact visual mesh paths directly to padded native nodal buffers."""
+        bindings = []
+        for deformable_type in ("volume", "surface"):
+            declared = [entry for entry in entries if entry.deformable_type == deformable_type]
+            if not declared:
                 continue
-            max_nodes = int(view.max_simulation_nodes_per_body)
-            for path in view.prim_paths:
-                # Prefer USD-discovered unpadded counts over padded max_nodes so
-                # SceneData ↔ shadow particle_q slices stay size-aligned.
-                resolved = resolve_deformable_vertex_count(path, path_to_count, fallback=-1)
-                if resolved < 0:
-                    logger.warning(
-                        "No USD vertex count for deformable path '%s'; using padded max_simulation_nodes_per_body=%d.",
-                        path,
-                        max_nodes,
-                    )
-                    count = max_nodes
-                else:
-                    count = min(int(resolved), max_nodes)
-                # Views may report a child mesh; publish the discovered root so
-                # create_geometry_mapping matches shadow entity root_path exactly.
-                self._geometry_paths.append(resolve_deformable_root_path(path, path_to_root))
-                self._geometry_counts.append(count)
-
-        total_points = sum(self._geometry_counts)
-        if total_points > 0:
-            self._merged_points = wp.empty(total_points, dtype=wp.vec3f, device=device)
-
-    def _refresh_merged_points(self) -> None:
-        """Merge volume and surface deformable nodal positions into :attr:`points`."""
-        from isaaclab.scene_data.geometry_points import pack_body_nodal_slices
-
-        self._discover_deformable_geometry()
-        if self._merged_points is None:
-            self._points_data.points = None
-            return
-
-        write_offset = 0
-        path_index = 0
-        device = str(self._merged_points.device)
-        for view in (self._volume_deformable_view, self._surface_deformable_view):
-            if view is None or view._backend is None:
-                continue
-            nodal = view.get_simulation_nodal_positions().view(wp.vec3f).reshape((view.count, -1))
-            view_counts = [self._geometry_counts[path_index + body_idx] for body_idx in range(view.count)]
-            pack_body_nodal_slices(
-                nodal,
-                self._merged_points,
-                view_counts,
-                device=device,
-                dest_base_offset=write_offset,
-            )
-            write_offset += sum(int(count) for count in view_counts)
-            path_index += view.count
-        self._points_data.points = self._merged_points
+            paths = [entry.root_path for entry in declared]
+            if deformable_type == "volume":
+                view = self.backend.simulation_view.create_volume_deformable_body_view(paths)
+            else:
+                view = self.backend.simulation_view.create_surface_deformable_body_view(paths)
+            by_path = {path: entry for entry in declared for path in (entry.root_path, entry.sim_mesh_path)}
+            ordered = [by_path[path] for path in view.prim_paths]
+            if sorted(entry.root_path for entry in ordered) != sorted(paths):
+                raise RuntimeError("PhysX deformable view does not cover the declared clone-plan entries.")
+            counts = np.asarray([entry.vertex_count for entry in ordered], dtype=np.int32)
+            if np.any(counts > view.max_simulation_nodes_per_body):
+                raise RuntimeError("PhysX deformable node capacity is smaller than the clone plan requires.")
+            points = view.get_simulation_nodal_positions().view(wp.vec3f).flatten()
+            native_offsets = np.arange(view.count) * view.max_simulation_nodes_per_body
+            batches = deformable_geometry_batches(ordered, points, native_offsets)
+            bindings.append((view, batches))
+        self._deformable_bindings = bindings
 
     @property
-    def points(self) -> SceneDataFormat.Points:
-        """Return flattened PhysX deformable nodal positions."""
-        self._refresh_merged_points()
-        return self._points_data
+    def native_geometry_formats(self) -> tuple[Any, ...]:
+        """Expose initialized geometry formats, including native Fabric points when available.
 
-    @property
-    def point_count(self) -> int:
-        """Return the total unpadded PhysX deformable nodal count."""
-        self._discover_deformable_geometry()
-        return sum(self._geometry_counts)
+        Raises:
+            RuntimeError: If scene geometry was not initialized from a clone plan.
+        """
+        if self._deformable_bindings is None:
+            raise RuntimeError("Declare and replicate a ClonePlan before requesting scene geometry.")
+        formats = tuple(dict.fromkeys(batch[0]._cls for _, batches in self._deformable_bindings for batch in batches))
+        return (*formats, SceneDataFormat.FabricPoints) if PhysxManager._fabric is not None else formats
 
-    @property
-    def geometry_paths(self) -> list[str]:
-        """Return one USD prim path per PhysX deformable body instance."""
-        self._discover_deformable_geometry()
-        return self._geometry_paths
+    def get_geometry_batches(self, output_format: Any = SceneDataFormat.Points) -> Any:
+        """Publish padded native nodes or native Fabric points without an intermediate copy.
 
-    @property
-    def geometry_counts(self) -> list[int]:
-        """Return the unpadded nodal count for each PhysX deformable body."""
-        self._discover_deformable_geometry()
-        return self._geometry_counts
+        Raises:
+            RuntimeError: If scene geometry was not initialized from a clone plan.
+        """
+        if self._deformable_bindings is None:
+            raise RuntimeError("Declare and replicate a ClonePlan before requesting scene geometry.")
+        if output_format is SceneDataFormat.FabricPoints and PhysxManager._fabric is not None:
+            self._update_fabric()
+            if self._fabric_points_selection is None:
+                stage = usdrt.Usd.Stage.Attach(PhysxManager._stage_id)
+                for _, batches in self._deformable_bindings:
+                    for _, paths in batches:
+                        for path in paths:
+                            prim = stage.GetPrimAtPath(path)
+                            prim.CreateAttribute("isaaclab:geometry", usdrt.Sdf.ValueTypeNames.Bool, True).Set(True)
+                self._fabric_points_selection = stage.SelectPrims(
+                    require_attrs=[
+                        (usdrt.Sdf.ValueTypeNames.Point3fArray, "points", usdrt.Usd.Access.Read),
+                        (usdrt.Sdf.ValueTypeNames.Bool, "isaaclab:geometry", usdrt.Usd.Access.Read),
+                    ],
+                    device=str(PhysicsManager._device),
+                )
+            if self._fabric_points_selection.PrepareForReuse() or self._fabric_points.points is None:
+                self._fabric_points.points = wp.fabricarrayarray(data=self._fabric_points_selection, attrib="points")
+                self.geometry_timestamp += 1
+                self._fabric_version_last_update = (self.transforms_version, self.geometry_timestamp)
+            return [(self._fabric_points, {})]
+        if self._geometry_timestamp_last_update != self.geometry_timestamp:
+            for view, batches in self._deformable_bindings:
+                points = view.get_simulation_nodal_positions().view(wp.vec3f).flatten()
+                for publication, _ in batches:
+                    publication.points = points
+            self._geometry_timestamp_last_update = self.geometry_timestamp
+        return [batch for _, batches in self._deformable_bindings for batch in batches]
+
+    def _update_fabric(self) -> None:
+        """Refresh the native stage once when either poses or geometry changed."""
+        PhysxManager.pre_render()
+        version = (self.transforms_version, self.geometry_timestamp)
+        if self._fabric_version_last_update != version:
+            PhysxManager._fabric.force_update(0.0, 0.0)
+            self._fabric_version_last_update = version
 
     @property
     def native_transform_formats(self) -> tuple[Any, ...]:
@@ -375,9 +343,9 @@ class PhysxSceneDataBackend(SceneDataBackend):
     def transforms(self) -> SceneDataFormat.Transform:
         """Publish native rigid-body poses [m, xyzw]."""
         PhysxManager.pre_render()
-        if self._poses_version != self.transforms_version and (view := self.get_rigid_body_view()):
+        if self._transforms_version_last_update != self.transforms_version and (view := self.get_rigid_body_view()):
             self._transforms.transforms = view.get_transforms().view(wp.transformf)
-            self._poses_version = self.transforms_version
+            self._transforms_version_last_update = self.transforms_version
         return self._transforms
 
     @property
@@ -398,9 +366,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
         """Publish the requested native representation, refreshing only that representation."""
         if output_format is not SceneDataFormat.FabricMatrix44 or PhysxManager._fabric is None:
             return self.transforms
-        PhysxManager.pre_render()
-        if self._fabric_version != self.transforms_version:
-            PhysxManager._fabric.force_update(0.0, 0.0)
+        self._update_fabric()
         if self._fabric_selection is None:
             stage = usdrt.Usd.Stage.Attach(PhysxManager._stage_id)
             self._fabric_selection = stage.SelectPrims(
@@ -411,7 +377,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
         if self._fabric_selection.PrepareForReuse() or self._fabric_transforms.matrices is None:
             self._fabric_transforms.matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
             self.transforms_version += 1
-        self._fabric_version = self.transforms_version
+        self._fabric_version_last_update = (self.transforms_version, self.geometry_timestamp)
         return self._fabric_transforms
 
 
@@ -536,6 +502,7 @@ class PhysxManager(PhysicsManager):
             cls.backend.simulation_view._backend.initialize_kinematic_bodies()
 
         cls.invalidate_transforms(kinematics=True)
+        cls._scene_data_backend.geometry_timestamp += 1
         cls.raise_callback_exception_if_any()
 
     @classmethod
@@ -546,6 +513,7 @@ class PhysxManager(PhysicsManager):
             cls.backend.simulation_view.update_articulations_kinematic()
             cls._kinematics_dirty = False
         cls.invalidate_transforms()
+        cls._scene_data_backend.geometry_timestamp += 1
         if cls._fabric is not None:
             cls._scene_data_backend.get_transforms(SceneDataFormat.FabricMatrix44)
 
@@ -589,6 +557,7 @@ class PhysxManager(PhysicsManager):
         physx_sim.fetch_results()
         cls._kinematics_dirty = False
         cls.invalidate_transforms()
+        cls._scene_data_backend.geometry_timestamp += 1
         device = PhysicsManager._device
         if "cuda" in device:
             torch.cuda.set_device(device)
@@ -998,6 +967,11 @@ class PhysxManager(PhysicsManager):
 
         stage_id = get_current_stage_id()
 
+        sim = PhysicsManager._sim
+        entries = None
+        if (plan := sim.get_clone_plan()) is not None:
+            entries = expand_deformable_entries(plan, deformable_prototypes(sim.stage, plan))
+
         is_gpu = "cuda" in PhysicsManager.get_device()
 
         physx = omni.physx.get_physx_interface()
@@ -1023,12 +997,13 @@ class PhysxManager(PhysicsManager):
             return
 
         # Register the complete tensor view only after PhysX has loaded the stage.
-        sim = PhysicsManager._sim
         cls.backend = sim.get_or_create_backend(PhysxBackendCfg(stage_id=stage_id))
         cls._scene_data_backend.backend = cls.backend
 
         # Final update after view creation
         physx.update_simulation(cls.get_physics_dt(), 0.0)
+        if entries is not None:
+            cls._scene_data_backend._setup_deformable_geometry(entries)
         cls._view_created = True
 
         cls._event_bus.dispatch_event(IsaacEvents.SIMULATION_VIEW_CREATED.value, payload={})

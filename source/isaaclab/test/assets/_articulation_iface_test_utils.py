@@ -54,9 +54,12 @@ try:
     from isaaclab_ov.assets.articulation.articulation import Articulation as OvPhysxArticulation
     from isaaclab_ov.assets.articulation.articulation_data import ArticulationData as OvPhysxArticulationData
     from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
+    from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager, OvPhysxSceneDataBackend
 except ImportError as error:
     BACKEND_UNAVAILABLE_REASONS["ovphysx"] = f"{type(error).__name__}: {error}"
 else:
+    # Writers bump the scene-data transform version that ``initialize()`` would normally create.
+    OvPhysxManager._scene_data_backend = OvPhysxSceneDataBackend()
     BACKENDS.append("ovphysx")
 
 

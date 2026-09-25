@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+3.4.0 (2026-09-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an OVRTX ``render_batch()`` implementation that submitted all requested camera
+  products in one native renderer step while preserving the single-camera ``render()`` interface.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX joint-wrench sensors applying an extra frame transformation to readings that are already
+  expressed in the child-side joint frame at the joint anchor, and removed the redundant USD frame buffers.
+  Force and torque values changed for joints with non-identity child frames; the documented frame
+  convention is unchanged.
+
+
 3.3.2 (2026-09-24)
 ~~~~~~~~~~~~~~~~~~
 

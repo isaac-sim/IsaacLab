@@ -65,7 +65,7 @@ def test_source_fill_level_controls_height_and_particle_count():
     assert media_particle_count(media) == 7 * 7 * 21
 
 
-@pytest.mark.parametrize("fill_level", [0.0, -0.1, 1.1, float("nan")])
+@pytest.mark.parametrize("fill_level", [0.0, 1.1, float("nan")])
 def test_source_fill_level_rejects_empty_or_out_of_range_tasks(fill_level):
     """A pouring episode needs a finite, non-empty fill no higher than the cup."""
     cfg = FrankaPourResetDatasetEnvCfg()

@@ -39,8 +39,7 @@ def _wrench_in_frame(points, forces, rot, pos):
     return (rot_t @ force.unsqueeze(-1)).squeeze(-1), (rot_t @ torque.unsqueeze(-1)).squeeze(-1)
 
 
-@pytest.mark.parametrize("rotate_frames", [False, True])
-def test_change_FT_frame_matches_point_force_reference(rotate_frames):
+def test_change_FT_frame_matches_point_force_reference():
     forge_utils = _load_forge_utils_module()
     generator = torch.Generator().manual_seed(0)
     num = 64
@@ -51,12 +50,8 @@ def test_change_FT_frame_matches_point_force_reference(rotate_frames):
 
     source_pos = torch.randn((num, 3), generator=generator, dtype=torch.float64)
     target_pos = torch.randn((num, 3), generator=generator, dtype=torch.float64)
-    if rotate_frames:
-        source_rot = _random_rotation_matrices(num, generator)
-        target_rot = _random_rotation_matrices(num, generator)
-    else:
-        source_rot = torch.eye(3, dtype=torch.float64).expand(num, 3, 3)
-        target_rot = source_rot
+    source_rot = _random_rotation_matrices(num, generator)
+    target_rot = _random_rotation_matrices(num, generator)
 
     source_F, source_T = _wrench_in_frame(points, forces, source_rot, source_pos)
     expected_F, expected_T = _wrench_in_frame(points, forces, target_rot, target_pos)

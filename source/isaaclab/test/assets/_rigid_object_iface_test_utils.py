@@ -52,9 +52,12 @@ try:
     from isaaclab_ov.assets.rigid_object.rigid_object import RigidObject as OvPhysxRigidObject
     from isaaclab_ov.assets.rigid_object.rigid_object_data import RigidObjectData as OvPhysxRigidObjectData
     from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
+    from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager, OvPhysxSceneDataBackend
 except ImportError:
     pass
 else:
+    # Writers bump the scene-data transform version that ``initialize()`` would normally create.
+    OvPhysxManager._scene_data_backend = OvPhysxSceneDataBackend()
     BACKENDS.append("ovphysx")
 
 

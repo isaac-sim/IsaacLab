@@ -26,9 +26,8 @@ from isaaclab_tasks.core.cartpole.mdp.observations import CameraImageStack
 pytestmark = pytest.mark.unit
 
 
-@pytest.fixture(params=["cpu", "cuda:0"] if torch.cuda.is_available() else ["cpu"])
-def device(request):
-    return request.param
+# The term is device-agnostic torch bookkeeping, so CPU suffices.
+_DEVICE = "cpu"
 
 
 def _observe(images: torch.Tensor, frame_stack: int, device: str) -> torch.Tensor:
@@ -50,12 +49,12 @@ def _to_expected_layout(images: torch.Tensor, frame_stack: int) -> torch.Tensor:
 
 
 @pytest.mark.parametrize("frame_stack", [1, 2])
-def test_colorized_segmentation_is_normalized_like_rgb(device, frame_stack):
+def test_colorized_segmentation_is_normalized_like_rgb(frame_stack):
     """Colorized uint8 RGBA segmentation gets the same ``(x / 255) - per-image mean`` as RGB."""
     torch.manual_seed(0)
-    images = torch.randint(0, 255, (2, 8, 8, 4), dtype=torch.uint8, device=device)
+    images = torch.randint(0, 255, (2, 8, 8, 4), dtype=torch.uint8, device=_DEVICE)
 
-    observation = _observe(images, frame_stack, device)
+    observation = _observe(images, frame_stack, _DEVICE)
 
     expected = images.float() / 255.0
     expected = expected - torch.mean(expected, dim=(1, 2), keepdim=True)
@@ -64,11 +63,11 @@ def test_colorized_segmentation_is_normalized_like_rgb(device, frame_stack):
 
 
 @pytest.mark.parametrize("frame_stack", [1, 2])
-def test_non_colorized_segmentation_is_cast_to_float(device, frame_stack):
+def test_non_colorized_segmentation_is_cast_to_float(frame_stack):
     """Non-colorized int32 label ids are cast to float32 and, carrying no scale, left unrescaled."""
-    images = torch.arange(2 * 8 * 8, dtype=torch.int32, device=device).reshape(2, 8, 8, 1) % 5
+    images = torch.arange(2 * 8 * 8, dtype=torch.int32, device=_DEVICE).reshape(2, 8, 8, 1) % 5
 
-    observation = _observe(images, frame_stack, device)
+    observation = _observe(images, frame_stack, _DEVICE)
 
     assert observation.dtype == torch.float32
     torch.testing.assert_close(observation, _to_expected_layout(images.float(), frame_stack))
