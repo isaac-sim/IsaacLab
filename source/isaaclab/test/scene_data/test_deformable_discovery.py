@@ -13,8 +13,6 @@ from pxr import Gf, Sdf, Usd, UsdGeom
 
 from isaaclab.cloner import ClonePlan
 from isaaclab.scene_data.deformable_discovery import (
-    _matrix4d_to_numpy,
-    _transform_points,
     deformable_entry,
     deformable_prototypes,
     expand_deformable_entries,
@@ -27,30 +25,8 @@ def _add_api_schemas(prim: Usd.Prim, schemas: list[str]) -> None:
     prim.SetMetadata("apiSchemas", api_schemas)
 
 
-def test_transform_points_matches_usd_matrix4d_transform():
-    """Numpy baking must use USD row-vector convention (``p @ M``)."""
-    matrix = Gf.Matrix4d(1.0)
-    matrix.SetRotate(Gf.Rotation(Gf.Vec3d(0.0, 1.0, 0.0), 30.0))
-    matrix.SetTranslateOnly(Gf.Vec3d(0.5, -0.1, 0.25))
-    points = np.array(
-        [
-            [0.15, -0.025, 0.025],
-            [-0.15, 0.025, -0.025],
-            [0.0, 0.0, 0.1],
-        ],
-        dtype=np.float32,
-    )
-
-    baked = _transform_points(_matrix4d_to_numpy(matrix), points)
-    expected = np.array(
-        [list(matrix.Transform(Gf.Vec3d(float(p[0]), float(p[1]), float(p[2])))) for p in points],
-        dtype=np.float32,
-    )
-    assert np.allclose(baked, expected, atol=1e-6)
-
-
 def test_deformable_entry_volume_tet_mesh():
-    """Classify tetrahedra and prefer the named visual over unrelated child meshes."""
+    """Classify tetrahedra, bake sim vertices, and prefer the named visual over unrelated child meshes."""
     stage = Usd.Stage.CreateInMemory()
     root = UsdGeom.Xform.Define(stage, "/World/envs/env_0/SoftBody").GetPrim()
     _add_api_schemas(root, ["OmniPhysicsDeformableBodyAPI"])
@@ -59,6 +35,9 @@ def test_deformable_entry_volume_tet_mesh():
     points = [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0), Gf.Vec3f(0.0, 0.0, 1.0)]
     tet.CreatePointsAttr(points)
     tet.CreateTetVertexIndicesAttr([Gf.Vec4i(0, 1, 2, 3)])
+    # A rotated and translated sim mesh: vertices are baked into the root's parent frame.
+    tet.AddTranslateOp().Set(Gf.Vec3d(0.5, -0.1, 0.25))
+    tet.AddRotateYOp().Set(30.0)
     for name in ("decoration", "visual", "props/unrelated"):
         mesh = UsdGeom.Mesh.Define(stage, f"/World/envs/env_0/SoftBody/{name}")
         mesh.CreatePointsAttr(points)
@@ -72,6 +51,10 @@ def test_deformable_entry_volume_tet_mesh():
     assert entry.root_path.endswith("/SoftBody")
     assert entry.sim_mesh_path.endswith("/simulation")
     assert entry.vis_mesh_path.endswith("/visual")
+    # USD's own row-vector transform is the reference for the baked vertices.
+    matrix = tet.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+    expected = np.array([list(matrix.Transform(Gf.Vec3d(p))) for p in points], dtype=np.float32)
+    np.testing.assert_allclose(entry.vertices, expected, atol=1e-6)
 
 
 def test_deformable_entry_surface_mesh():
