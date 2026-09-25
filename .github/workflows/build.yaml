@@ -807,8 +807,8 @@ jobs:
         warp-cache: restore
         ovrtx-shader-cache: restore
         ovrtx-shader-cache-trees: kit
-        # The three files run side by side, each split across two workers.
-        test-jobs: "6"
+        # The three files run side by side; the kit and kitless files split across two workers each.
+        test-jobs: "5"
         container-name: isaac-lab-contrib-environments-test
 
   test-record-video:

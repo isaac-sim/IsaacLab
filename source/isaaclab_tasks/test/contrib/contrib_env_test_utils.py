@@ -11,10 +11,16 @@ PhysX but no renderer, and ``kit_cameras`` environments also need the RTX render
 starting Isaac Sim. The runtime comes from :func:`isaaclab.app.sim_launcher.scan`, the same check
 ``launch_simulation`` uses to decide whether to start Isaac Sim, so a new environment lands in the right file
 without being listed anywhere.
+
+Many contributed environments are variants of one another: the same task and robot with other colors, action
+spaces, or an inference wrapper. A smoke test catches an environment that no longer builds, steps, or resets,
+which variants share, so only one environment per task package, robot, and runtime is smoke-tested.
 """
 
+from collections import defaultdict
 from typing import Literal
 
+import gymnasium as gym
 import pytest
 
 from isaaclab.app.sim_launcher import scan
@@ -60,14 +66,41 @@ def task_runtime(task_name: str) -> Runtime:
     return "kit_cameras" if config_scan.has_kit_camera else "kit"
 
 
+def _variant_family(task_name: str) -> tuple[str, str]:
+    """Return the task package and robot directory an environment's configuration is defined in.
+
+    Contributed tasks keep per-robot configurations under ``<task package>/config/<robot>/``; a task without
+    that layout is its own robot.
+    """
+    entry_point = gym.spec(task_name).kwargs["env_cfg_entry_point"]
+    module = entry_point.partition(":")[0] if isinstance(entry_point, str) else entry_point.__module__
+    parts = module.split(".")
+    if "config" not in parts[:-1]:
+        return ".".join(parts[:-1]), ""
+    config_index = parts.index("config")
+    robot = parts[config_index + 1] if config_index + 1 < len(parts) - 1 else ""
+    return ".".join(parts[:config_index]), robot
+
+
 def contrib_environment_params(runtime: Runtime) -> list:
-    """Return each contributed environment that launches with ``runtime``, with its documented test marks."""
-    params = []
+    """Return one contributed environment per task package, robot, and runtime, for the tasks that use ``runtime``.
+
+    Each family is represented by an environment that is not skipped, preferring the shortest task ID (usually
+    the base variant). A family whose environments are all skipped keeps one, so its skip reason stays visible.
+    """
+    tasks_by_family: dict[tuple[str, str, Runtime], list[str]] = defaultdict(list)
+    task_marks = {}
     for task_param in setup_environment(multi_agent=False, tier="contrib", exclude_task_names=_COVERED_TASKS):
         task_name = getattr(task_param, "values", (task_param,))[0]
-        if task_runtime(task_name) != runtime:
+        task_marks[task_name] = getattr(task_param, "marks", ())
+        tasks_by_family[(*_variant_family(task_name), task_runtime(task_name))].append(task_name)
+
+    params = []
+    for (_, _, family_runtime), task_names in sorted(tasks_by_family.items()):
+        if family_runtime != runtime:
             continue
-        marks = getattr(task_param, "marks", ())
+        task_name = min(task_names, key=lambda name: (_skip_reason(name) is not None, len(name), name))
+        marks = task_marks[task_name]
         if (skip_reason := _skip_reason(task_name)) is not None:
             marks = (*marks, pytest.mark.skip(reason=skip_reason))
         params.append(pytest.param(task_name, id=task_name, marks=marks))

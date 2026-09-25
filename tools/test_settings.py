@@ -85,9 +85,9 @@ PER_TEST_STARTUP_TIMEOUTS = {
 PYTEST_WORKERS = {
     # 20 independent export round trips, ~18 min serially: the RL job's long pole.
     "test_leapp_export_flow.py": 4,
-    # Contributed-environment smoke tests: ~80 environment runs of several seconds to 2 min each.
+    # Contributed-environment smoke tests: environment runs of several seconds to 2 min each. The camera file
+    # stays whole: its workers would each start the RTX renderer, and one environment dominates it.
     "test_contrib_environments_kit.py": 2,
-    "test_contrib_environments_kit_cameras.py": 2,
     "test_contrib_environments_kitless.py": 2,
 }
 """Test files split across ``pytest-xdist`` workers, and how many.
