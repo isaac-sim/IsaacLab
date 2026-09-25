@@ -35,6 +35,7 @@
     KaminoPADMMSolverCfg
     MPMSolverCfg
     HydroelasticSDFCfg
+    SurfaceVelocity
 
 .. currentmodule:: isaaclab_newton.physics
 
@@ -153,6 +154,13 @@ Physics Configuration
   :members:
   :show-inheritance:
   :exclude-members: __init__
+
+Surface Velocity
+----------------
+
+.. autoclass:: SurfaceVelocity
+  :members:
+  :show-inheritance:
 
 Solver Managers
 ---------------

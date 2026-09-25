@@ -28,6 +28,7 @@ __all__ = [
     "NewtonShapeCfg",
     "NewtonSoftContactCfg",
     "NewtonSolverCfg",
+    "SurfaceVelocity",
     "NewtonVBDManager",
     "VBDSolverCfg",
     "NewtonXPBDManager",
@@ -61,6 +62,7 @@ from .newton_manager_cfg import (
     NewtonSoftContactCfg,
     NewtonSolverCfg,
 )
+from .surface_velocity import SurfaceVelocity
 from .vbd_manager import NewtonVBDManager
 from .vbd_manager_cfg import VBDSolverCfg
 from .xpbd_manager import NewtonXPBDManager

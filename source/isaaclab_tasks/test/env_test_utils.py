@@ -231,7 +231,7 @@ def _configure_osc_smoke_actions(env, actions: torch.Tensor) -> None:
 
 def _run_environments(
     task_name,
-    device,
+    device: str | None,
     num_envs,
     num_steps=20,
     multi_agent=False,
@@ -243,7 +243,7 @@ def _run_environments(
 
     Args:
         task_name: Name of the environment.
-        device: Device to use (e.g., 'cuda').
+        device: Device override to use (e.g., 'cuda'), or None to preserve the task default.
         num_envs: Number of environments.
         num_steps: Number of simulation steps.
         multi_agent: Whether the environment is multi-agent.
@@ -284,7 +284,7 @@ def _run_environments(
 
 def _check_random_actions(
     task_name: str,
-    device: str,
+    device: str | None,
     num_envs: int,
     num_steps: int = 20,
     multi_agent: bool = False,
@@ -296,7 +296,7 @@ def _check_random_actions(
 
     Args:
         task_name: Name of the environment.
-        device: Device to use (e.g., 'cuda').
+        device: Device override to use (e.g., 'cuda'), or None to preserve the task default.
         num_envs: Number of environments.
         num_steps: Number of simulation steps.
         multi_agent: Whether the environment is multi-agent.
