@@ -1,6 +1,59 @@
 Changelog
 ---------
 
+8.0.0 (2026-09-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :mod:`isaaclab_newton.controllers` with :class:`~isaaclab_newton.controllers.NewtonDifferentialIKController`,
+  :class:`~isaaclab_newton.controllers.NewtonJointImpedanceController`, and
+  :class:`~isaaclab_newton.controllers.NewtonOperationalSpaceController`. They wrap the model-free controllers in
+  :mod:`newton.controllers` for any physics backend, and their configurations expose every Newton option,
+  including differential IK posture control, joint-impedance Coriolis and acceleration feedforward, and
+  operational-space selection frames and live gains.
+* Added :class:`~isaaclab_newton.envs.mdp.NewtonDifferentialInverseKinematicsActionCfg` and
+  :class:`~isaaclab_newton.envs.mdp.NewtonOperationalSpaceControllerActionCfg` to drive the Newton controllers
+  from manager-based environments.
+
+Changed
+^^^^^^^
+
+* Shared Newton rigid-body transforms through SceneDataProvider publications, including solver state-buffer
+  swaps, and moved Fabric bindings into the Kit rendering integration. Explicit Fabric synchronization
+  continued to work without a Kit viewer or RTX camera. Newton render-only states under foreign
+  physics now reference shared SDP transforms instead of copying them; consumers must treat their
+  ``body_q`` arrays as read-only. Particle and cable synchronization remained unchanged.
+* Reconciled authored state writes only while pending, instead of re-running forward kinematics for
+  every new transform publication. Rendering requested rigid Fabric updates through SDP rather
+  than the physics pre-render hook. Captured external writes retained conservative reconciliation.
+* **Breaking:** Removed implicit USD-stage import when Newton started without a builder.
+  Use ``InteractiveScene`` to construct and replicate configured USD assets before initialization.
+  Native tools can continue supplying a builder
+  through ``NewtonManager.set_builder(builder)`` without declaring a clone plan.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Moved :mod:`isaaclab_newton.ik` to :mod:`isaaclab_newton.controllers.ik` without an alias. Replace
+  imports such as ``from isaaclab_newton.ik import NewtonIKSolver`` with
+  ``from isaaclab_newton.controllers.ik import NewtonIKSolver``, and ``isaaclab_newton.ik.<module>`` with
+  ``isaaclab_newton.controllers.ik.<module>``.
+
+Fixed
+^^^^^
+
+* Replaced the fixed 180-degree OpenCV fisheye ray limit with the camera's configured
+  ``max_fov``. Calibrated rays beyond the forward hemisphere can now be rendered without
+  changing the existing default or introducing per-frame ray generation.
+* Fixed the deprecated :meth:`~isaaclab_newton.assets.Articulation.write_joint_friction_coefficient_to_sim` and
+  :meth:`~isaaclab_newton.assets.Articulation.write_joint_friction_to_sim` always raising ``TypeError``. The Newton
+  override passed arguments that :meth:`~isaaclab_newton.assets.Articulation.write_joint_friction_coefficient_to_sim_index`
+  does not accept; it is removed in favor of the base class implementation.
+* Prevented globally declared native deformables from being imported twice through clone plans.
+
+
 7.0.1 (2026-09-24)
 ~~~~~~~~~~~~~~~~~~
 

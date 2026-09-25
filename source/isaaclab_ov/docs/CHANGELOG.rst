@@ -1,6 +1,31 @@
 Changelog
 ---------
 
+3.2.0 (2026-09-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an OVRTX ``render_batch()`` implementation that submitted all requested camera
+  products in one native renderer step while preserving the single-camera ``render()`` interface.
+
+Changed
+^^^^^^^
+
+* Derived OVRTX cloned camera paths from the authored absolute source path in
+  ``CameraRenderSpec.camera_prim_paths``. Remove the ``camera_path_relative_to_env_0`` argument
+  when constructing render specs; OVRTX validated the source path under
+  ``/World/envs/env_0/`` and resolved the per-environment paths internally.
+* Published OVPhysX rigid poses directly into shared scene-data storage and invalidated cached transforms after
+  physics steps and manual pose writes. Binding failures were surfaced instead of publishing incomplete poses.
+* Routed OVRTX rigid transforms through cached SDP matrix requests, preserving authored scales without a Newton
+  rigid-state intermediary. Existing renderer configurations remained valid; Newton-backed deformable, particle,
+  and cable geometry transport remained unchanged.
+* Captured OVRTX authored scales from clone-plan prototypes and shared roots, including bodies outside the
+  default environment namespace.
+
+
 3.1.2 (2026-09-24)
 ~~~~~~~~~~~~~~~~~~
 

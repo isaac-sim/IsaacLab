@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+19.1.1 (2026-09-25)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab_tasks.contrib.forge.forge_utils.change_FT_frame` applying the inverse rotation and the
+  wrong lever-arm sign when re-expressing a force/torque reading in another frame. The FORGE force observation
+  is unchanged because the environment uses identity rotations and only consumes the force components.
+
+
 19.1.0 (2026-09-24)
 ~~~~~~~~~~~~~~~~~~~
 

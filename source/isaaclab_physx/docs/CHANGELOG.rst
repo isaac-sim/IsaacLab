@@ -1,6 +1,42 @@
 Changelog
 ---------
 
+7.1.2 (2026-09-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Published PhysX rigid transforms and their producer-owned version through SDP, and routed Isaac RTX
+  transform updates through one simulation-owned ``FabricBackend`` shared with Kit while preserving
+  native PhysX Fabric updates. Stage/device identified the resource; transforms remained binding state,
+  with SDP passed explicitly to updates. Fabric selection and hierarchy state moved out of core ``RenderContext``.
+  Kit app updates requested current SDP transforms without an additional physics ``forward()`` call.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``body_ids`` argument of the :class:`~isaaclab_physx.assets.RigidObjectCollection` mask writers
+  listed above. Pass a boolean ``body_mask`` of shape (num_bodies,) instead, or use the ``*_index`` writers with
+  ``body_ids``.
+
+Fixed
+^^^^^
+
+* Fixed joint-wrench sensors applying an extra frame transformation to PhysX readings, which already used
+  the child-side joint frame and anchor. Removed the redundant USD frame buffers. Force and torque values
+  changed for joints with non-identity child frames; the sensor's documented frame convention was preserved.
+* Replaced circular frame-conversion checks with a shared Newton/PhysX integration test using a known mass,
+  gravity, and lever arm to calculate the expected nonzero wrench independently.
+* Fixed :meth:`~isaaclab_physx.assets.RigidObjectCollection.write_body_link_pose_to_sim_mask`,
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.write_body_com_pose_to_sim_mask`,
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.write_body_com_velocity_to_sim_mask`, and
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.write_body_link_velocity_to_sim_mask` not accepting the
+  ``body_mask`` argument that the base class and the other backends declare.
+* Avoided repeated Isaac RTX render-update checks by checking once per camera batch before
+  extracting each camera's annotator outputs.
+
+
 7.1.1 (2026-09-24)
 ~~~~~~~~~~~~~~~~~~
 
