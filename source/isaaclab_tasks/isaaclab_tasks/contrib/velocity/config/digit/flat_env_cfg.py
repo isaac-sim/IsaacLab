@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from .rough_env_cfg import DigitRoughEnvCfg
 
@@ -21,17 +21,3 @@ class DigitFlatEnvCfg(DigitRoughEnvCfg):
         self.observations.policy.height_scan = None
         # Remove terrain curriculum.
         self.curriculum.terrain_levels = None
-
-
-class DigitFlatEnvCfg_PLAY(DigitFlatEnvCfg):
-    def __post_init__(self) -> None:
-        super().__post_init__()
-
-        # Make a smaller scene for play.
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        # Disable randomization for play.
-        self.observations.policy.enable_corruption = False
-        # Remove random pushing.
-        self.events.base_external_force_torque = None
-        self.events.push_robot = None

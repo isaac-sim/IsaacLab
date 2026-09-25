@@ -21,11 +21,13 @@ from isaaclab.sim.schemas.schemas_cfg import (
     MeshCollisionFragment,
     RigidBodyBaseCfg,
     RigidBodyFragment,
+    _deprecated_schema_cfg,
 )
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
+@_deprecated_schema_cfg("[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]")
 @configclass
 class NewtonRigidBodyPropertiesCfg(RigidBodyBaseCfg):
     """Newton-targeted rigid body properties.
@@ -40,11 +42,18 @@ class NewtonRigidBodyPropertiesCfg(RigidBodyBaseCfg):
     rigid-body fields can be added without an API change.
 
     See :meth:`~isaaclab.sim.schemas.modify_rigid_body_properties` for more information.
+
+    .. deprecated:: 3.1
+        Use rigid-body fragments in the spawner's ``rigid_props`` slot instead:
+        :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` for the ``physics:*`` fields and
+        :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg` for the inherited
+        ``disable_gravity``, whose only USD home is ``physxRigidBody:disableGravity`` (Newton's
+        importer reads it). This class carries no ``mjc:*`` field; add
+        :class:`MujocoRigidBodyCfg` only for ``gravcomp``. This class will be removed in 3.2.
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"
     _usd_applied_schema: ClassVar[str | None] = None
-    _usd_field_exceptions: ClassVar[dict] = {}
 
 
 @configclass
@@ -65,6 +74,7 @@ class NewtonDeformableBodyPropertiesCfg(DeformableBodyPropertiesBaseCfg):
     _usd_field_exceptions: ClassVar[dict] = {}
 
 
+@_deprecated_schema_cfg("[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...), MujocoRigidBodyCfg(...)]")
 @configclass
 class MujocoRigidBodyPropertiesCfg(NewtonRigidBodyPropertiesCfg):
     """MuJoCo-solver-specific rigid body properties.
@@ -76,11 +86,20 @@ class MujocoRigidBodyPropertiesCfg(NewtonRigidBodyPropertiesCfg):
 
     .. note::
         If the values are None, they are not modified.
+
+    .. deprecated:: 3.1
+        Pass ``[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...), MujocoRigidBodyCfg(...)]`` in
+        the spawner's ``rigid_props`` slot instead:
+        :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` carries the inherited
+        ``rigid_body_enabled`` / ``kinematic_enabled``,
+        :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg` the inherited ``disable_gravity``,
+        and :class:`MujocoRigidBodyCfg` the ``mjc:gravcomp`` field defined here. Naming only
+        :class:`MujocoRigidBodyCfg` would silently drop the inherited fields. This class will be
+        removed in 3.2.
     """
 
     _usd_namespace: ClassVar[str | None] = "mjc"
     _usd_applied_schema: ClassVar[str | None] = None
-    _usd_field_exceptions: ClassVar[dict] = {}
 
     gravcomp: float | None = None
     """Gravity compensation scale for the body [dimensionless].
@@ -145,6 +164,9 @@ class MujocoJointCfg(JointDriveFragment):
     """
 
 
+@_deprecated_schema_cfg(
+    "[UsdPhysicsDriveCfg(...), PhysxJointCfg(...)] (and set ensure_drives_exist on the spawner cfg)"
+)
 @configclass
 class NewtonJointDrivePropertiesCfg(JointDriveBaseCfg):
     """Newton-targeted joint drive properties.
@@ -159,13 +181,25 @@ class NewtonJointDrivePropertiesCfg(JointDriveBaseCfg):
     joint-drive fields can be added without an API change.
 
     See :meth:`~isaaclab.sim.schemas.modify_joint_drive_properties` for more information.
+
+    .. deprecated:: 3.1
+        Use joint-drive fragments in the spawner's ``joint_drive_props`` slot instead:
+        :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` for the ``UsdPhysics.DriveAPI`` fields
+        (``drive_type``, ``stiffness``, ``damping``, ``max_force``) and
+        :class:`~isaaclab_physx.sim.schemas.PhysxJointCfg` for ``max_joint_velocity``, whose only
+        USD home is ``physxJoint:maxJointVelocity``. This class carries no ``mjc:*`` field; add
+        :class:`MujocoJointCfg` only for ``actuatorgravcomp``. ``ensure_drives_exist`` has no
+        fragment: it is a field on the spawner cfg. This class will be removed in 3.2.
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"
     _usd_applied_schema: ClassVar[str | None] = None
-    _usd_field_exceptions: ClassVar[dict] = {}
 
 
+@_deprecated_schema_cfg(
+    "[UsdPhysicsDriveCfg(...), PhysxJointCfg(...), MujocoJointCfg(...)] (and set ensure_drives_exist on"
+    " the spawner cfg)"
+)
 @configclass
 class MujocoJointDrivePropertiesCfg(NewtonJointDrivePropertiesCfg):
     """MuJoCo-solver-specific joint drive properties.
@@ -177,11 +211,19 @@ class MujocoJointDrivePropertiesCfg(NewtonJointDrivePropertiesCfg):
 
     .. note::
         If the values are None, they are not modified.
+
+    .. deprecated:: 3.1
+        Pass ``[UsdPhysicsDriveCfg(...), PhysxJointCfg(...), MujocoJointCfg(...)]`` in the
+        spawner's ``joint_drive_props`` slot instead:
+        :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` carries the inherited
+        ``UsdPhysics.DriveAPI`` fields, :class:`~isaaclab_physx.sim.schemas.PhysxJointCfg` the
+        inherited ``max_joint_velocity``, and :class:`MujocoJointCfg` the ``mjc:actuatorgravcomp``
+        field defined here. ``ensure_drives_exist`` has no fragment: it is a field on the spawner
+        cfg. This class will be removed in 3.2.
     """
 
     _usd_namespace: ClassVar[str | None] = "mjc"
     _usd_applied_schema: ClassVar[str | None] = "MjcJointAPI"
-    _usd_field_exceptions: ClassVar[dict] = {}
 
     actuatorgravcomp: bool | None = None
     """Route gravity compensation forces through the actuator channel.
@@ -189,6 +231,75 @@ class MujocoJointDrivePropertiesCfg(NewtonJointDrivePropertiesCfg):
     When ``True``, compensation forces go to ``qfrc_actuator`` (subject to force limits).
     Requires body-level :attr:`MujocoRigidBodyPropertiesCfg.gravcomp`.
     Written to ``mjc:actuatorgravcomp`` via ``MjcJointAPI``.
+    """
+
+
+@configclass
+class MujocoCollisionCfg(CollisionFragment):
+    """``mjc:*`` per-collider attributes for Newton's MuJoCo solver.
+
+    These attributes tune the MuJoCo contact model on each collision shape. They are applied
+    alongside :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` via
+    :func:`~isaaclab.sim.schemas.apply_collision_properties`.
+
+    The fragment overrides :attr:`func` with
+    :func:`~isaaclab_newton.sim.schemas.apply_mujoco_collision` because ``solimp`` and ``solref``
+    are authored as fixed-length USD arrays.
+
+    .. note::
+        If a value is ``None``, the corresponding attribute is not modified and Newton uses the
+        imported value or the MuJoCo default.
+    """
+
+    _usd_namespace: ClassVar[str | None] = "mjc"
+    _usd_applied_schema: ClassVar[str | None] = None
+
+    func: Callable | str = "isaaclab_newton.sim.schemas:apply_mujoco_collision"
+
+    condim: Literal[1, 3, 4, 6] | None = None
+    """Number of dimensions in the contact friction cone [dimensionless].
+
+    ``1`` is frictionless, ``3`` adds tangential friction, ``4`` adds torsional friction, and
+    ``6`` adds rolling friction. Written to ``mjc:condim``. Defaults to ``3`` in Newton when the
+    attribute is not authored.
+    """
+
+    group: int | None = None
+    """MuJoCo geometry group [dimensionless].
+
+    Written to ``mjc:group``. Valid values are 0 through 5. This grouping controls MuJoCo
+    visualization and inertia-inference selection; it is not an Isaac Lab collision-filter group.
+    """
+
+    priority: int | None = None
+    """Contact-parameter precedence for this collider [dimensionless].
+
+    Written to ``mjc:priority``. When two colliders have different priorities, MuJoCo uses the
+    higher-priority collider's contact parameters. Values must be non-negative.
+    """
+
+    solimp: tuple[float, float, float, float, float] | None = None
+    """Contact impedance parameters ``(dmin, dmax, width, midpoint, power)``.
+
+    Component units are [dimensionless, dimensionless, m, dimensionless, dimensionless].
+    Written to ``mjc:solimp`` as a five-element array. Newton defaults to
+    ``(0.9, 0.95, 0.001, 0.5, 2.0)`` when the attribute is not authored.
+    """
+
+    solmix: float | None = None
+    """Contact-parameter mixing weight [dimensionless].
+
+    Written to ``mjc:solmix``. MuJoCo uses this weight to combine compatible contact parameters
+    when the colliders have equal :attr:`priority`. Values must be non-negative. Defaults to
+    ``1.0`` in Newton when the attribute is not authored.
+    """
+
+    solref: tuple[float, float] | None = None
+    """Contact reference parameters.
+
+    In positive format, the components are ``(time_constant [s], damping_ratio [dimensionless])``.
+    In non-positive direct format, they are ``(-stiffness [s^-2], -damping [s^-1])``. Written to
+    ``mjc:solref`` as a two-element array.
     """
 
 
@@ -227,6 +338,10 @@ class NewtonCollisionCfg(CollisionFragment):
     """
 
 
+@_deprecated_schema_cfg(
+    "[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...), NewtonCollisionCfg(...)] (and move"
+    " mesh_collision_property to the spawner's mesh_collision_props slot)"
+)
 @configclass
 class NewtonCollisionPropertiesCfg(CollisionBaseCfg):
     """Newton-specific collision properties.
@@ -238,11 +353,19 @@ class NewtonCollisionPropertiesCfg(CollisionBaseCfg):
 
     .. note::
         If the values are None, they are not modified.
+
+    .. deprecated:: 3.1
+        Pass ``[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...), NewtonCollisionCfg(...)]`` in
+        the spawner's ``collision_props`` slot instead:
+        :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` carries ``collision_enabled``,
+        :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` the inherited ``contact_offset`` /
+        ``rest_offset``, and :class:`NewtonCollisionCfg` the ``newton:*`` fields defined here. The
+        nested ``mesh_collision_property`` has no fragment: pass the mesh-collision fragments in
+        the spawner's ``mesh_collision_props`` slot instead. This class will be removed in 3.2.
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"
     _usd_applied_schema: ClassVar[str | None] = "NewtonCollisionAPI"
-    _usd_field_exceptions: ClassVar[dict] = {}
 
     contact_margin: float | None = None
     """Outward inflation of the collision surface [m].
@@ -262,6 +385,11 @@ class NewtonCollisionPropertiesCfg(CollisionBaseCfg):
     """
 
 
+@_deprecated_schema_cfg(
+    "[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...), NewtonCollisionCfg(...),"
+    " UsdPhysicsMeshCollisionCfg(...), NewtonMeshCollisionCfg(...)] (and move mesh_collision_property"
+    " to the spawner's mesh_collision_props slot)"
+)
 @configclass
 class NewtonMeshCollisionPropertiesCfg(NewtonCollisionPropertiesCfg, MeshCollisionBaseCfg):
     """Newton-specific mesh collision properties.
@@ -272,11 +400,18 @@ class NewtonMeshCollisionPropertiesCfg(NewtonCollisionPropertiesCfg, MeshCollisi
 
     .. note::
         If the values are None, they are not modified.
+
+    .. deprecated:: 3.1
+        Pass :class:`NewtonMeshCollisionCfg` together with
+        :class:`~isaaclab.sim.schemas.UsdPhysicsMeshCollisionCfg` (for ``mesh_approximation_name``)
+        in the spawner's ``mesh_collision_props`` slot, and the inherited collision fields as
+        ``[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...), NewtonCollisionCfg(...)]`` in the
+        ``collision_props`` slot. Naming only :class:`NewtonMeshCollisionCfg` would silently drop
+        the inherited fields. This class will be removed in 3.2.
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"
     _usd_applied_schema: ClassVar[str | None] = "NewtonMeshCollisionAPI"
-    _usd_field_exceptions: ClassVar[dict] = {}
 
     max_hull_vertices: int | None = None
     """Maximum vertices in the convex hull approximation [dimensionless].
@@ -287,6 +422,11 @@ class NewtonMeshCollisionPropertiesCfg(NewtonCollisionPropertiesCfg, MeshCollisi
     """
 
 
+@_deprecated_schema_cfg(
+    "[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...), NewtonCollisionCfg(...),"
+    " NewtonSDFCollisionCfg(...)] (and move mesh_collision_property to the spawner's"
+    " mesh_collision_props slot)"
+)
 @configclass
 class NewtonSDFCollisionPropertiesCfg(NewtonCollisionPropertiesCfg):
     """Newton-specific SDF and hydroelastic collision properties.
@@ -298,11 +438,17 @@ class NewtonSDFCollisionPropertiesCfg(NewtonCollisionPropertiesCfg):
 
     .. note::
         If the values are None, they are not modified.
+
+    .. deprecated:: 3.1
+        Pass :class:`NewtonSDFCollisionCfg` in the spawner's ``mesh_collision_props`` slot (its
+        cooking schema implies the ``sdf`` approximation token), and the inherited collision
+        fields as ``[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...), NewtonCollisionCfg(...)]``
+        in the ``collision_props`` slot. Naming only :class:`NewtonSDFCollisionCfg` would silently
+        drop the inherited fields. This class will be removed in 3.2.
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"
     _usd_applied_schema: ClassVar[str | None] = "NewtonSDFCollisionAPI"
-    _usd_field_exceptions: ClassVar[dict] = {}
 
     sdf_max_resolution: int | None = None
     """Maximum SDF grid dimension.
@@ -536,13 +682,14 @@ class NewtonMaterialPropertiesCfg(RigidBodyMaterialBaseCfg):
 class MujocoFixedTendonCfg(FixedTendonFragment):
     """``mjc:*`` fixed-tendon attributes for a ``MjcTendon`` prim.
 
-    The Mujoco fixed-tendon fragment. Newton has no tendon solver; this models only the ``mjc:*``
-    tune path the Newton/Mujoco importer reads from a ``MjcTendon`` prim, carrying only the fields
-    that path maps. Overrides :attr:`func` with a custom applier
+    Newton's MuJoCo solver supports fixed tendons. This fragment tunes the spring stiffness and
+    damping read from a ``MjcTendon`` prim; limit response is configured separately in MuJoCo.
+    Overrides :attr:`func` with a custom applier
     (:func:`~isaaclab_newton.sim.schemas.apply_mujoco_fixed_tendon`) that gates on the ``MjcTendon``
-    prim type. Can be combined with :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonCfg` in the same
-    fragment list passed to :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`, which
-    dispatches each fragment to its own applier independently.
+    prim type. Can be combined with
+    :class:`~isaaclab_physx.sim.schemas.PhysxTendonAxisRootCfg` in the same fragment list passed to
+    :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`, which dispatches each fragment to
+    its own applier independently.
     """
 
     # Not namespace-driven: the custom applier gates on the ``MjcTendon`` prim type and writes the
@@ -560,6 +707,9 @@ class MujocoFixedTendonCfg(FixedTendonFragment):
     """Damping term acting on the tendon length [N·s/m]."""
 
 
+@_deprecated_schema_cfg(
+    "[PhysxArticulationCfg(...), NewtonArticulationCfg(...)] (and set fix_root_link on the spawner cfg)"
+)
 @configclass
 class NewtonArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
     """Newton-specific articulation root properties.
@@ -571,6 +721,17 @@ class NewtonArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
 
     .. note::
         If the values are None, they are not modified.
+
+    .. deprecated:: 3.1
+        Pass ``[PhysxArticulationCfg(...), NewtonArticulationCfg(...)]`` in the spawner's
+        ``articulation_props`` slot instead:
+        :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg` carries the inherited
+        ``articulation_enabled``, whose only USD home is
+        ``physxArticulation:articulationEnabled``, and :class:`NewtonArticulationCfg` the
+        ``newton:selfCollisionEnabled`` field defined here. The non-USD ``fix_root_link`` flag has
+        no fragment: it is a field on the spawner cfg and the ``fix_root_link`` argument of
+        :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`. This class will be
+        removed in 3.2.
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"

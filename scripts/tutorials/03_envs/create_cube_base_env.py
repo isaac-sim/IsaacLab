@@ -51,6 +51,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
@@ -62,7 +63,8 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 ##
 # Custom action term
@@ -180,8 +182,8 @@ class MySceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/cube",
         spawn=sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0, disable_gravity=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0, disable_gravity=True),
+            mass_props=sim_utils.MassCfg(mass=1.0),
             physics_material=sim_utils.RigidBodyMaterialCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
         ),
@@ -305,8 +307,7 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
         self.sim.render_interval = 2  # render interval should be a multiple of decimation
         self.sim.device = args_cli.device
         # viewer settings
-        self.viewer.eye = (5.0, 5.0, 5.0)
-        self.viewer.lookat = (0.0, 0.0, 2.0)
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(5.0, 5.0, 5.0), lookat=(0.0, 0.0, 2.0))
 
 
 def main():

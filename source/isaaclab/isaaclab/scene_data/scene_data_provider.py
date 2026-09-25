@@ -5,23 +5,56 @@
 
 from __future__ import annotations
 
-import contextlib
 import re
 from collections import deque
 from typing import TYPE_CHECKING, Any
+from weakref import WeakKeyDictionary
 
 import numpy as np
 import warp as wp
 
-import isaaclab.sim as sim_utils
-
+from .. import sim as sim_utils
+from .geometry_points import convert_geometry_fabric_kernel, convert_geometry_points_kernel
 from .scene_data_backend import SceneDataBackend, SceneDataFormat
 
 if TYPE_CHECKING:
     from pxr import Usd
 
+REQUIRES_STAGE_AND_MODEL: dict[str, tuple[bool, bool]] = {
+    "kit": (True, False),
+    "newton_gl": (False, True),
+    "newton": (False, True),
+    "newton_rtx": (False, True),
+    "rerun": (False, True),
+    "viser": (False, True),
+    "isaac_rtx": (True, False),
+    "newton_warp": (False, True),
+    "ovrtx": (True, False),
+}
+
+
+def _publication_device(data: Any) -> wp.Device:
+    """Return the common device of a populated scene-data publication."""
+    data_format = data._cls
+    arrays = tuple(array for name in data_format.vars if (array := getattr(data, name)) is not None)
+    if not arrays:
+        raise ValueError(f"{data_format.__name__} contains no published arrays.")
+    device = arrays[0].device
+    if any(array.device != device for array in arrays[1:]):
+        raise ValueError(f"{data_format.__name__} arrays must share one device.")
+    return device
+
+
+def _init_output(output: Any, count: int, device: wp.Device) -> None:
+    """Allocate missing output fields on the source publication device."""
+    for field_name, field_value in output._cls.vars.items():
+        if getattr(output, field_name) is None:
+            setattr(output, field_name, wp.empty(count, dtype=field_value.type.dtype, device=device))
+
 
 class SceneDataProvider:
+    """Borrow or convert published arrays; producers own native refresh, renderers own destination lifecycle."""
+
     def __init__(self, backend: SceneDataBackend):
         """Initialize the scene data provider.
 
@@ -31,6 +64,103 @@ class SceneDataProvider:
         self.backend = backend
         self._num_envs_cache: int | None = None
         self._interactive_scene: Any | None = None
+        self._transform_cache: dict[tuple, tuple[int, Any]] = {}
+        self._geometry_view_cache: tuple | None = None
+        self._geometry_destination_cache = WeakKeyDictionary()
+
+    def get_transforms(
+        self,
+        output: SceneDataFormat.Vec3_Quat
+        | SceneDataFormat.Transform
+        | SceneDataFormat.Matrix44
+        | SceneDataFormat.Vec3_Matrix33
+        | SceneDataFormat.TransposedMatrix44d
+        | SceneDataFormat.FabricMatrix44,
+        mapping: wp.array | wp.fabricarray | None = None,
+        allow_passthrough: bool = True,
+        *,
+        count: int | None = None,
+        scales: wp.array | None = None,
+    ) -> bool:
+        """Bind shared transforms or write them directly into caller-owned output arrays.
+
+        With passthrough enabled, matching native arrays are borrowed without a copy; other
+        layouts share SDP-owned buffers converted once per producer version. Treat these arrays
+        as read-only. With passthrough disabled, conversion writes directly into ``output``.
+        Fabric destinations must already be bound by their rendering owner.
+
+        Args:
+            output: A :class:`SceneDataFormat` struct instance specifying the requested format.
+                Missing non-Fabric arrays are allocated when passthrough is disabled.
+            mapping: Native-to-output indices from :meth:`create_mapping`, or identity ordering.
+                Fabric destinations use their native output-to-source index attribute.
+            allow_passthrough: Whether to bind shared arrays instead of writing caller-owned arrays.
+            count: Destination count when remapping, or the native transform count.
+            scales: Static output scales for ``TransposedMatrix44d``, shape [count], or
+                source-indexed authored scales for Fabric. Mapping and scales are immutable
+                for a binding's lifetime; replace their arrays when the layout changes.
+
+        Returns:
+            True if transforms are available in ``output``, False if no transforms are published
+            or the format conversion is unsupported.
+        """
+        # Warp exposes the struct's field/type descriptor as _cls, not its Python type.
+        output_format = output._cls
+        fabric = output_format is SceneDataFormat.FabricMatrix44
+        source = self.backend.get_transforms(output_format)
+        source_format = source._cls
+        version = self.backend.transforms_version
+        native_count = next(
+            (len(array) for name in source_format.vars if (array := getattr(source, name)) is not None), 0
+        )
+        if native_count == 0:
+            return False
+        count = native_count if count is None else count
+        if mapping is None and count != native_count:
+            raise ValueError("A different destination count requires an explicit transform mapping.")
+        if scales is not None and output_format not in (
+            SceneDataFormat.TransposedMatrix44d,
+            SceneDataFormat.FabricMatrix44,
+        ):
+            raise ValueError("Static scales require double-precision row-vector matrix destinations.")
+        if source_format is output_format and mapping is None and scales is None:
+            result = source
+            if not allow_passthrough:
+                _init_output(output, count, _publication_device(source))
+                for name in output_format.vars:
+                    wp.copy(getattr(output, name), getattr(source, name))
+                return True
+        else:
+            # A Fabric binding keeps its authored scales across selection reallocations.
+            key = (output_format, scales) if fabric else (output_format, mapping, count, scales)
+            cached = self._transform_cache.get(key) if allow_passthrough else None
+            if not allow_passthrough or fabric:
+                result = output
+            else:
+                result = cached[1] if cached is not None else output_format()
+            if cached is None or cached[0] != version or cached[1] is not result:
+                # Fabric changes storage and indexing, not the matrix conversion.
+                format_name = "TransposedMatrix44d" if fabric else output_format.__name__
+                kernel = getattr(ConversionKernels, f"convert_{source_format.__name__}_to_{format_name}", None)
+                if kernel is None:
+                    return False
+                device = _publication_device(source)
+                _init_output(result, count, device)
+                inputs = [source, mapping if mapping is not None else wp.array(dtype=wp.int32)]
+                if output_format is SceneDataFormat.TransposedMatrix44d or fabric:
+                    inputs.append(scales)
+                wp.launch(
+                    kernel,
+                    dim=len(result.matrices) if fabric else native_count,
+                    inputs=inputs,
+                    outputs=[result],
+                    device=device,
+                )
+                if allow_passthrough:
+                    self._transform_cache[key] = (version, result)
+        for name in output_format.vars:
+            setattr(output, name, getattr(result, name))
+        return True
 
     def set_interactive_scene(self, scene: Any) -> None:
         """Attach the active interactive scene for scene-owned sensor discovery."""
@@ -120,58 +250,6 @@ class SceneDataProvider:
         """
         return _walk_camera_prims(self.usd_stage)
 
-    def get_transforms(
-        self,
-        output: SceneDataFormat.Vec3_Quat
-        | SceneDataFormat.Transform
-        | SceneDataFormat.Matrix44
-        | SceneDataFormat.Vec3_Matrix33,
-        mapping: wp.array(dtype=wp.int32) | None = None,
-        allow_passthrough: bool = True,
-    ) -> bool:
-        """Convert sim backend transforms into the requested output format.
-
-        When the backend's native format matches ``output``, data is either passed
-        through by reference (``allow_passthrough=True``) or deep-copied. Otherwise a
-        Warp conversion kernel is launched to transform the data, applying ``mapping``
-        to reorder the output if provided.
-
-        Args:
-            output: A pre-allocated :class:`SceneDataFormat` struct that determines the
-                target format. Uninitialized (``None``) fields are allocated automatically
-                when a conversion kernel is needed.
-            mapping: Optional index remapping array produced by
-                :meth:`create_mapping`. When ``None``, input and output indices are
-                identical.
-            allow_passthrough: If ``True`` and the formats already match, the output
-                struct's fields are set to reference the input arrays directly
-                (zero-copy). If ``False``, the data is always copied.
-
-        Returns:
-            ``True`` if the conversion succeeded, ``False`` if no suitable conversion
-            kernel exists for the input/output format pair.
-        """
-        input = self.backend.transforms
-
-        if mapping is None and type(input) is type(output):
-            if allow_passthrough:
-                for field_name in input._cls.vars:
-                    setattr(output, field_name, getattr(input, field_name))
-            else:
-                self.init_output(output)
-                for field_name in input._cls.vars:
-                    wp.copy(getattr(output, field_name), getattr(input, field_name))
-            return True
-
-        conversion_kernel_name = f"convert_{input._cls.__name__}_to_{output._cls.__name__}"
-
-        if conversion_kernel := getattr(ConversionKernels, conversion_kernel_name, None):
-            self.init_output(output)
-            wp.launch(kernel=conversion_kernel, dim=self.transform_count, inputs=[input, mapping], outputs=[output])
-            return True
-
-        return False
-
     def init_output(
         self,
         output: SceneDataFormat.Vec3_Quat
@@ -188,9 +266,8 @@ class SceneDataProvider:
             output: A :class:`SceneDataFormat` struct whose ``None``-valued fields
                 will be replaced with empty arrays of length :attr:`transform_count`.
         """
-        for field_name, field_value in output._cls.vars.items():
-            if getattr(output, field_name) is None:
-                setattr(output, field_name, wp.empty(self.transform_count, dtype=field_value.type.dtype))
+        input = self.backend.transforms
+        _init_output(output, self.transform_count, _publication_device(input))
 
     def create_mapping(self, paths: list[str | None]) -> wp.array(dtype=wp.int32) | None:
         """Create an index mapping from sim backend transforms to desired output ordering.
@@ -210,13 +287,151 @@ class SceneDataProvider:
             paths or if no mapping is needed.
         """
         if input_paths := self.backend.transform_paths:
-            mapping = [-1] * len(input_paths)
-            for i, path in enumerate(input_paths):
-                with contextlib.suppress(ValueError):
-                    mapping[i] = paths.index(path)
-            if not np.array_equal(mapping, np.arange(len(input_paths))):
-                return wp.array(mapping, dtype=wp.int32)
+            # The map keeps resolution linear in the number of paths. For duplicate
+            # paths the first occurrence wins, matching ``list.index``.
+            path_to_out: dict[str | None, int] = {}
+            for out_idx, out_path in enumerate(paths):
+                if out_path not in path_to_out:
+                    path_to_out[out_path] = out_idx
+            mapping = [path_to_out.get(path, -1) for path in input_paths]
+            if len(paths) != len(input_paths) or not np.array_equal(mapping, np.arange(len(input_paths))):
+                input = self.backend.transforms
+                return wp.array(mapping, dtype=wp.int32, device=_publication_device(input))
         return None
+
+    def get_geometry_points(
+        self,
+        *,
+        output: wp.array | SceneDataFormat.FabricPoints | None = None,
+        offsets: dict[str, int] | None = None,
+    ) -> dict[str, wp.array] | wp.array | SceneDataFormat.FabricPoints:
+        """Borrow visual point views or convert directly into the requested native destination.
+
+        Producers supply exact visual prim paths, native pointers and immutable interpolation
+        metadata. SDP performs interpolation and destination reordering together, once per
+        update timestamp and output layout. Only cross-device destinations require staging.
+
+        Args:
+            output: Consumer-owned world-space point buffer [m] or native Fabric destination.
+                Omit to borrow shared point views. ``FabricPoints`` without offsets borrows
+                native Fabric storage when the producer publishes it.
+            offsets: Visual prim paths mapped to flat-buffer offsets or Fabric array indices.
+                Keep this mapping immutable for the destination's lifetime.
+
+        Returns:
+            Read-only world-space views by visual prim path when no output is supplied;
+            otherwise the supplied destination, populated directly on the same device.
+        """
+        fabric = output is not None and not isinstance(output, wp.array)
+        requested_format = SceneDataFormat.FabricPoints if fabric and offsets is None else SceneDataFormat.Points
+        batches = self.backend.get_geometry_batches(requested_format)
+        if fabric and len(batches) == 1 and batches[0][0]._cls is SceneDataFormat.FabricPoints:
+            output.points = batches[0][0].points
+            return output
+        timestamp = self.backend.geometry_timestamp
+        if output is not None:
+            if offsets is None:
+                raise ValueError("A geometry destination requires its visual-path offsets.")
+            destination = output.points if fabric else output
+            cached = self._geometry_destination_cache.get(output)
+            if cached is None or cached[2] is not offsets:
+                jobs, bound = [], set()
+                for source, ranges in batches:
+                    selected = {path: bounds for path, bounds in ranges.items() if path in offsets}
+                    count = sum(count for _, count in selected.values())
+                    indices = np.empty((3 if fabric else 2, count), dtype=np.int32)
+                    cursor = 0
+                    for path, (start, count) in selected.items():
+                        vertices = np.arange(count)
+                        indices[0, cursor : cursor + count] = start + vertices
+                        indices[1, cursor : cursor + count] = offsets[path] if fabric else offsets[path] + vertices
+                        if fabric:
+                            indices[2, cursor : cursor + count] = vertices
+                        elif offsets[path] < 0 or offsets[path] + count > len(output):
+                            raise ValueError("Geometry destination range exceeds its output buffer.")
+                        cursor += count
+                    device = _publication_device(source)
+                    source_indices = wp.array(indices[0], device=device)
+                    destination_indices = wp.array(
+                        indices[1:].T if fabric else indices[1],
+                        dtype=wp.vec2i if fabric else wp.int32,
+                        device=destination.device,
+                    )
+                    transfer = None
+                    if cursor and device != destination.device:
+                        staging = SceneDataFormat.Points()
+                        staging.points = wp.empty(
+                            cursor, wp.vec3f, device=destination.device, pinned=destination.device.is_cpu
+                        )
+                        transfer = (wp.empty(cursor, wp.vec3f, device=device), staging, wp.array(dtype=wp.int32))
+                    jobs.append((source_indices, destination_indices, transfer))
+                    bound.update(selected)
+                if bound != offsets.keys():
+                    raise KeyError(f"Geometry destinations have no native publication: {offsets.keys() - bound}")
+            else:
+                timestamp_last_update, jobs, _ = cached
+                if timestamp_last_update == timestamp:
+                    return output
+            for (source, _), (source_indices, destination_indices, transfer) in zip(batches, jobs, strict=True):
+                if len(source_indices):
+                    device = _publication_device(source)
+                    count = len(source_indices)
+                    if transfer is not None:
+                        packed, staging, identity = transfer
+                        wp.launch(
+                            convert_geometry_points_kernel,
+                            dim=count,
+                            inputs=[source, source_indices, identity, packed],
+                            device=device,
+                        )
+                        wp.copy(staging.points, packed)
+                        if destination.device.is_cpu:
+                            wp.synchronize_stream(device)
+                        source, source_indices = staging, identity
+                    wp.launch(
+                        convert_geometry_fabric_kernel if fabric else convert_geometry_points_kernel,
+                        dim=count,
+                        inputs=[source, source_indices, destination_indices, destination],
+                        device=destination.device,
+                    )
+            # Retain conversion buffers, never the consumer's destination or slices of it.
+            self._geometry_destination_cache[output] = (timestamp, jobs, offsets)
+            return output
+        if offsets is not None:
+            raise ValueError("Geometry offsets require a destination.")
+        cached = self._geometry_view_cache
+        if cached is None:
+            views, jobs = {}, []
+            for source, ranges in batches:
+                device = _publication_device(source)
+                count = max((start + count for start, count in ranges.values()), default=0)
+                buffer = (
+                    source.points if source._cls is SceneDataFormat.Points else wp.empty(count, wp.vec3f, device=device)
+                )
+                indices = wp.array(dtype=wp.int32, device=device)
+                jobs.append((indices, buffer, ranges))
+                views.update((path, buffer[start : start + count]) for path, (start, count) in ranges.items())
+        else:
+            timestamp_last_update, views, jobs = cached
+            if timestamp_last_update == timestamp:
+                return views
+
+        for index, ((source, _), (indices, buffer, ranges)) in enumerate(zip(batches, jobs, strict=True)):
+            if source._cls is SceneDataFormat.Points:
+                if buffer is not source.points:
+                    buffer = source.points
+                    jobs[index] = (indices, buffer, ranges)
+                    views.update((path, buffer[start : start + count]) for path, (start, count) in ranges.items())
+                continue
+            if len(buffer):
+                wp.launch(
+                    convert_geometry_points_kernel,
+                    dim=len(buffer),
+                    inputs=[source, indices, indices, buffer],
+                    device=buffer.device,
+                )
+        self._geometry_view_cache = (timestamp, views, jobs)
+        return views
 
 
 class ConversionKernels:
@@ -227,6 +442,66 @@ class ConversionKernels:
         if tid < mapping.shape[0]:
             return mapping[tid]
         return wp.int32(-1)
+
+    @wp.func
+    def matrix_indices(tid: int, mapping: wp.array(dtype=wp.int32)):
+        """Return source, destination, and authored-scale indices."""
+        index = ConversionKernels.get_output_index(tid, mapping)
+        return tid, index, index
+
+    @wp.func
+    def matrix_indices(tid: int, mapping: wp.fabricarray(dtype=wp.int32)):  # noqa: F811 - Warp overload
+        return mapping[tid], tid, mapping[tid]
+
+    @wp.func
+    def transposed_matrix(matrix: wp.mat44f, scales: wp.array(dtype=wp.vec3f), index: int) -> wp.mat44d:
+        result = wp.mat44d(wp.transpose(matrix))
+        if scales.shape[0]:
+            scale = scales[index]
+            for row in range(3):
+                for column in range(3):
+                    result[row, column] = result[row, column] * wp.float64(scale[row])
+        return result
+
+    @wp.kernel(enable_backward=False)
+    def convert_Transform_to_TransposedMatrix44d(
+        input: SceneDataFormat.Transform, mapping: Any, scales: wp.array(dtype=wp.vec3f), output: Any
+    ):
+        source, index, scale_index = ConversionKernels.matrix_indices(wp.tid(), mapping)
+        if index > -1:
+            output.matrices[index] = ConversionKernels.transposed_matrix(
+                wp.transform_to_matrix(input.transforms[source]), scales, scale_index
+            )
+
+    @wp.kernel(enable_backward=False)
+    def convert_Vec3_Quat_to_TransposedMatrix44d(
+        input: SceneDataFormat.Vec3_Quat, mapping: Any, scales: wp.array(dtype=wp.vec3f), output: Any
+    ):
+        source, index, scale_index = ConversionKernels.matrix_indices(wp.tid(), mapping)
+        if index > -1:
+            pose = wp.transformf(input.positions[source], input.orientations[source])
+            output.matrices[index] = ConversionKernels.transposed_matrix(
+                wp.transform_to_matrix(pose), scales, scale_index
+            )
+
+    @wp.kernel(enable_backward=False)
+    def convert_Vec3_Matrix33_to_TransposedMatrix44d(
+        input: SceneDataFormat.Vec3_Matrix33, mapping: Any, scales: wp.array(dtype=wp.vec3f), output: Any
+    ):
+        source, index, scale_index = ConversionKernels.matrix_indices(wp.tid(), mapping)
+        if index > -1:
+            pose = wp.transformf(input.positions[source], wp.quat_from_matrix(input.orientations[source]))
+            output.matrices[index] = ConversionKernels.transposed_matrix(
+                wp.transform_to_matrix(pose), scales, scale_index
+            )
+
+    @wp.kernel(enable_backward=False)
+    def convert_Matrix44_to_TransposedMatrix44d(
+        input: SceneDataFormat.Matrix44, mapping: Any, scales: wp.array(dtype=wp.vec3f), output: Any
+    ):
+        source, index, scale_index = ConversionKernels.matrix_indices(wp.tid(), mapping)
+        if index > -1:
+            output.matrices[index] = ConversionKernels.transposed_matrix(input.matrices[source], scales, scale_index)
 
     @wp.kernel
     def convert_Vec3_Quat_to_Vec3_Quat(
@@ -494,67 +769,3 @@ def _walk_camera_prims(stage: Usd.Stage | None) -> dict[str, Any] | None:
         orientations.append(per_world_ori)
 
     return {"order": shared_paths, "positions": positions, "orientations": orientations, "num_envs": num_envs}
-
-
-############################
-## Example
-
-if __name__ == "__main__":
-
-    class ExampleSceneDataBackend(SceneDataBackend):
-        def __init__(self):
-            self.__transforms = SceneDataFormat.Transform()
-            self.__transforms.transforms = wp.array(np.hstack([np.arange(10).reshape(10, 1)] * 7), dtype=wp.transformf)
-
-        @property
-        def transforms(self) -> SceneDataFormat.Transform:
-            return self.__transforms
-
-        @property
-        def transform_count(self) -> int:
-            return self.__transforms.transforms.shape[0]
-
-        @property
-        def transform_paths(self):
-            return [
-                "/world/shape_01",
-                "/world/shape_02",
-                "/world/shape_03",
-                "/world/shape_04",
-                "/world/shape_05",
-                "/world/shape_06",
-                "/world/shape_07",
-                "/world/shape_08",
-                "/world/shape_09",
-                "/world/shape_10",
-            ]
-
-    sim = ExampleSceneDataBackend()
-    sdp = SceneDataProvider(sim)
-
-    output_data = SceneDataFormat.Vec3_Matrix33()
-    output_data.positions = wp.empty(sdp.transform_count, dtype=wp.vec3f)
-    output_data.orientations = wp.empty(sdp.transform_count, dtype=wp.mat33f)
-
-    print(sim.transforms.transforms)
-    mapping = sdp.create_mapping(
-        [
-            "/world/shape_02",
-            "/world/shape_01",
-            "/world/shape_03",
-            "/world/shape_04",
-            "/world/shape_05",
-            None,
-            None,
-            "/world/shape_10",
-            None,
-            None,
-        ]
-    )
-    print(mapping)
-    if sdp.get_transforms(output_data, mapping):
-        print(output_data.positions)
-    else:
-        print("Failed to get transforms!")
-
-    wp.synchronize()

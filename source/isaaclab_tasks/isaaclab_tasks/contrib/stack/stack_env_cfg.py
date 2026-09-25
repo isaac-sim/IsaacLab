@@ -7,6 +7,7 @@ from dataclasses import MISSING
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -18,12 +19,12 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers.config import FRAME_MARKER_CFG
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg, OffsetCfg
-from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -31,14 +32,16 @@ from . import mdp
 from .mdp import stack_events
 
 # Shared rigid-body properties for the three stacking cubes (robot-neutral).
-_CUBE_PROPERTIES = RigidBodyPropertiesCfg(
-    solver_position_iteration_count=16,
-    solver_velocity_iteration_count=1,
-    max_angular_velocity=1000.0,
-    max_linear_velocity=1000.0,
-    max_depenetration_velocity=5.0,
-    disable_gravity=False,
-)
+_CUBE_PROPERTIES = [
+    PhysxRigidBodyCfg(
+        solver_position_iteration_count=16,
+        solver_velocity_iteration_count=1,
+        max_angular_velocity=1000.0,
+        max_linear_velocity=1000.0,
+        max_depenetration_velocity=5.0,
+        disable_gravity=False,
+    )
+]
 
 
 def make_ee_frame_cfg(
@@ -290,11 +293,13 @@ class TerminationsCfg:
 class PhysicsCfg(PresetCfg):
     """Physics backend presets for stack tasks."""
 
-    default = PhysxCfg(
+    isaacsim_physx = PhysxCfg(
         bounce_threshold_velocity=0.01,
         gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
         gpu_total_aggregate_pairs_capacity=2**21,
         friction_correlation_distance=0.00625,
+        # Let object contacts stall position-driven grippers before they tunnel through a grasp.
+        solve_articulation_contact_last=True,
     )
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
@@ -316,7 +321,8 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
-    physx = default
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    default = isaacsim_physx
 
 
 def raise_if_surface_gripper_on_newton(env_cfg) -> None:
@@ -334,7 +340,21 @@ def raise_if_surface_gripper_on_newton(env_cfg) -> None:
     if isinstance(env_cfg.sim.physics, NewtonCfg):
         raise ValueError(
             "Surface grippers are only supported by the PhysX backend; the Newton backend has no "
-            "surface-gripper implementation. Re-run this task with physics=physx (the default)."
+            "surface-gripper implementation. Re-run this task with physics=isaacsim_physx (the default)."
+        )
+
+
+def raise_if_surface_gripper_on_gpu(env_cfg) -> None:
+    """Reject GPU simulation for scenes that configure a surface gripper.
+
+    Args:
+        env_cfg: The resolved environment config to inspect.
+    """
+    if getattr(env_cfg.scene, "surface_gripper", None) is None:
+        return
+    if env_cfg.sim.device != "cpu":
+        raise ValueError(
+            "Surface grippers are only supported on the CPU simulation device. Re-run this task with --device cpu."
         )
 
 
@@ -343,7 +363,7 @@ class StackEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the stacking environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=2.5, replicate_physics=False)
+    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=False)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

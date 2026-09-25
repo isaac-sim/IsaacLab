@@ -101,9 +101,9 @@ def benchmark_usd_or_fabric(view_type: str, num_iterations: int) -> dict[str, fl
     object_cfg = sim_utils.ConeCfg(
         radius=0.15,
         height=0.5,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        mass_props=sim_utils.MassCfg(mass=1.0),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
     )
     for i in range(args_cli.num_envs):
@@ -141,7 +141,7 @@ def benchmark_newton(num_iterations: int) -> dict[str, float]:
     from isaaclab.assets import RigidObjectCfg
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
     from isaaclab.sim import SimulationCfg, build_simulation_context
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     timing_results = {}
 
@@ -151,9 +151,9 @@ def benchmark_newton(num_iterations: int) -> dict[str, float]:
             prim_path="{ENV_REGEX_NS}/Cube",
             spawn=sim_utils.CuboidCfg(
                 size=(0.2, 0.2, 0.2),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-                collision_props=sim_utils.CollisionPropertiesCfg(),
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+                mass_props=sim_utils.MassCfg(mass=1.0),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
         )
@@ -207,9 +207,9 @@ def benchmark_physx(num_iterations: int) -> dict[str, float]:
     object_cfg = sim_utils.ConeCfg(
         radius=0.15,
         height=0.5,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        mass_props=sim_utils.MassCfg(mass=1.0),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
     )
     for i in range(args_cli.num_envs):

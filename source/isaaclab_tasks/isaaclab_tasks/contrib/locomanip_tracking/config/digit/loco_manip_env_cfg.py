@@ -10,7 +10,7 @@ from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.core.velocity.mdp as mdp
@@ -234,16 +234,10 @@ class DigitLocoManipEnvCfg(DigitRoughEnvCfg):
         # Remove terrain curriculum.
         self.curriculum.terrain_levels = None
 
+    def play_mode(self) -> None:
+        # play-mode overrides of parent
+        super().play_mode()
 
-class DigitLocoManipEnvCfg_PLAY(DigitLocoManipEnvCfg):
-    def __post_init__(self) -> None:
-        super().__post_init__()
-
-        # Make a smaller scene for play.
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        # Disable randomization for play.
-        self.observations.policy.enable_corruption = False
         # Remove random pushing.
         self.events.base_external_force_torque = None
         self.events.push_robot = None

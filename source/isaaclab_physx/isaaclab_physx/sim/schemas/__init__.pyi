@@ -5,8 +5,6 @@
 
 __all__ = [
     "apply_physx_joint",
-    "apply_fixed_tendon",
-    "apply_spatial_tendon",
     "define_deformable_body_properties",
     "modify_deformable_body_properties",
     "ArticulationRootPropertiesCfg",
@@ -27,8 +25,6 @@ __all__ = [
     "PhysxConvexHullCfg",
     "PhysxConvexHullPropertiesCfg",
     "PhysxDeformableBodyPropertiesCfg",
-    "PhysxDeformableCollisionPropertiesCfg",
-    "PhysxFixedTendonCfg",
     "PhysxFixedTendonPropertiesCfg",
     "PhysxJointCfg",
     "PhysxJointDrivePropertiesCfg",
@@ -36,8 +32,10 @@ __all__ = [
     "PhysxRigidBodyPropertiesCfg",
     "PhysxSDFMeshCfg",
     "PhysxSDFMeshPropertiesCfg",
-    "PhysxSpatialTendonCfg",
     "PhysxSpatialTendonPropertiesCfg",
+    "PhysxTendonAttachmentRootCfg",
+    "PhysxTendonAxisCfg",
+    "PhysxTendonAxisRootCfg",
     "PhysxTriangleMeshCfg",
     "PhysxTriangleMeshPropertiesCfg",
     "PhysxTriangleMeshSimplificationCfg",
@@ -49,13 +47,7 @@ __all__ = [
     "TriangleMeshSimplificationPropertiesCfg",
 ]
 
-from .schemas import (
-    apply_physx_joint,
-    apply_fixed_tendon,
-    apply_spatial_tendon,
-    define_deformable_body_properties,
-    modify_deformable_body_properties,
-)
+from .schemas import apply_physx_joint, define_deformable_body_properties, modify_deformable_body_properties
 from .schemas_cfg import (
     ArticulationRootPropertiesCfg,
     CollisionPropertiesCfg,
@@ -75,8 +67,6 @@ from .schemas_cfg import (
     PhysxConvexHullCfg,
     PhysxConvexHullPropertiesCfg,
     PhysxDeformableBodyPropertiesCfg,
-    PhysxDeformableCollisionPropertiesCfg,
-    PhysxFixedTendonCfg,
     PhysxFixedTendonPropertiesCfg,
     PhysxJointCfg,
     PhysxJointDrivePropertiesCfg,
@@ -84,8 +74,10 @@ from .schemas_cfg import (
     PhysxRigidBodyPropertiesCfg,
     PhysxSDFMeshCfg,
     PhysxSDFMeshPropertiesCfg,
-    PhysxSpatialTendonCfg,
     PhysxSpatialTendonPropertiesCfg,
+    PhysxTendonAttachmentRootCfg,
+    PhysxTendonAxisCfg,
+    PhysxTendonAxisRootCfg,
     PhysxTriangleMeshCfg,
     PhysxTriangleMeshPropertiesCfg,
     PhysxTriangleMeshSimplificationCfg,

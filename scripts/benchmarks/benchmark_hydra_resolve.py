@@ -40,7 +40,7 @@ from dataclasses import dataclass
 
 import gymnasium
 
-from isaaclab.test.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
+from isaaclab.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
@@ -63,7 +63,7 @@ QUICK_CASES = (
     Case("cartpole_manager", "Isaac-Cartpole"),
     Case("cartpole_camera_presets", "Isaac-Cartpole-Camera-Direct", "rl_games_cfg_entry_point"),
     Case("anymal_rough", "IsaacContrib-Velocity-Rough-AnymalC"),
-    Case("franka_lift_cube", "Isaac-Lift-Cube-Franka"),
+    Case("franka_lift_cube", "IsaacContrib-Lift-Cube-Franka"),
     Case(
         "cartpole_camera_newton_ovrtx",
         "Isaac-Cartpole-Camera-Direct",
@@ -81,7 +81,7 @@ BROAD_CASES = (
     Case("ant_manager", "Isaac-Ant"),
     Case("humanoid_manager", "Isaac-Humanoid", "rsl_rl_cfg_entry_point"),
     Case("franka_reach", "Isaac-Reach-Franka"),
-    Case("franka_lift_cube_agent", "Isaac-Lift-Cube-Franka", "sb3_cfg_entry_point"),
+    Case("franka_lift_cube_agent", "IsaacContrib-Lift-Cube-Franka", "sb3_cfg_entry_point"),
     Case("kuka_allegro_lift", "Isaac-Lift-KukaAllegro", "rsl_rl_cfg_entry_point"),
     Case(
         "kuka_allegro_lift_single_camera",
@@ -181,7 +181,7 @@ def _log_results(benchmark: BaseIsaacLabBenchmark, results: dict[Case, list[floa
             )
 
     benchmark.update_manual_recorders()
-    benchmark._finalize_impl()
+    benchmark.finalize()
 
 
 def main() -> int:

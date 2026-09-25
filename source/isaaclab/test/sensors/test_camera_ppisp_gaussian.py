@@ -46,6 +46,7 @@ from generate_synthetic_gaussian_asset import (
     assert_ppisp_controller_matches_static,
     assert_ppisp_invariants,
     assert_ppisp_lifts_exposure,
+    assert_tiled_views_match,
     make_aggressive_ppisp_cfg,
     make_neutral_ppisp_cfg,
     make_synthetic_gaussian_usd,
@@ -101,36 +102,6 @@ if not _RENDERER_CFG_PARAMS:
         "No renderer packages installed (isaaclab_physx).",
         allow_module_level=True,
     )
-
-
-@pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.parametrize("renderer_cfg_cls", _RENDERER_CFG_PARAMS)
-@pytest.mark.isaacsim_ci
-def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians(renderer_cfg_cls, device):
-    """Wrapper PPISP via ``isaac_rtx`` must show every PPISP-feature signature.
-
-    Renders a synthetic RGBW gaussian grid through ``isaac_rtx`` + the aggressive
-    wrapper PPISP cfg and asserts:
-
-    1. **Non-degenerate frame** — content is rendered (not pure black / pure white).
-    2. **HDR source** — ``rgb_hdr`` is present and bright enough for PPISP.
-    3. **PPISP LDR mapping** — the center patch lands in a useful, non-saturated
-       LDR range after the calibrated responsivity/exposure pair.
-    4. **Vignetting** — each corner patch mean is meaningfully below the center mean.
-    5. **CRF/clamping** — output stays in [0, 255] with no overflow.
-    """
-    with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
-        asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
-        output = render_synthetic_gaussian_scene(
-            asset_path,
-            sim_cfg=_isaac_rtx_sim_cfg(device),
-            renderer_cfg=renderer_cfg_cls(),
-            data_types=["rgb", "rgb_hdr"],
-            sim_dt=SIM_DT,
-            responsivity=ISAAC_RTX_RESPONSIVITY,
-        )
-    assert_ppisp_lifts_exposure(output["rgb_hdr"][0], output["rgb"][0], label="isaac_rtx")
-    assert_ppisp_invariants(output["rgb"][0], label="isaac_rtx")
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
@@ -202,8 +173,12 @@ def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians(ren
 @pytest.mark.parametrize("renderer_cfg_cls", _RENDERER_CFG_PARAMS)
 @pytest.mark.isaacsim_ci
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_multitile(renderer_cfg_cls, device):
-    """Multi-tile wrapper PPISP via ``isaac_rtx`` must hold the same invariants
-    independently for every tile.
+    """Multi-tile wrapper PPISP via ``isaac_rtx`` must show every PPISP-feature signature on every tile.
+
+    Renders a synthetic RGBW gaussian grid through ``isaac_rtx`` + the aggressive
+    wrapper PPISP cfg and asserts per tile: a non-degenerate frame, a bright
+    enough ``rgb_hdr`` source, a useful non-saturated PPISP LDR mapping,
+    vignetting, and output bounded to [0, 255].
 
     Builds an :class:`InteractiveScene` with :data:`MULTI_TILE_COUNT` envs so
     the camera regex resolves to one camera per env. Both ``rgb`` and
@@ -220,6 +195,7 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_multitile(render
             data_types=["rgb", "rgb_hdr"],
             num_envs=MULTI_TILE_COUNT,
             sim_dt=SIM_DT,
+            stabilisation_steps=15,
             responsivity=ISAAC_RTX_RESPONSIVITY,
         )
 
@@ -229,6 +205,8 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_multitile(render
         f"Expected {MULTI_TILE_COUNT} tiles, got shape={tuple(rgb.shape)}. "
         f"Check that the camera regex {SYNTHETIC_GAUSSIAN_CAMERA_REGEX} resolves to one camera per env."
     )
+    assert_tiled_views_match(rgb, label=f"{renderer_cfg_cls.__name__} rgb")
+    assert_tiled_views_match(rgb_hdr, max_relative_mean_abs_diff=0.05, label=f"{renderer_cfg_cls.__name__} rgb_hdr")
     for i in range(MULTI_TILE_COUNT):
         assert_ppisp_lifts_exposure(rgb_hdr[i], rgb[i], label=f"isaac_rtx tile {i}")
         assert_ppisp_invariants(rgb[i], label=f"isaac_rtx tile {i}")

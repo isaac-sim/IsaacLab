@@ -17,7 +17,7 @@ from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 import isaaclab_tasks.contrib.dr_legs.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
@@ -46,16 +46,17 @@ class DrLegsContactSensorCfg(PresetCfg):
     """Backend-specific foot contact sensor configuration."""
 
     default = NewtonContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/foot_.*",
+        prim_path="{ENV_REGEX_NS}/Robot/foot_[^/]*",
         history_length=3,
         track_air_time=True,
     )
     newton_kamino = default
     physx = PhysXContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/foot_.*",
+        prim_path="{ENV_REGEX_NS}/Robot/foot_[^/]*",
         history_length=3,
         track_air_time=True,
     )
+    isaacsim_physx = physx
 
 
 @configclass
@@ -154,6 +155,22 @@ class WalkRewardsCfg:
     )
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.001)
     action_2nd_derivative = RewTerm(func=mdp.ActionRate2L2, weight=-5.0e-5)
+
+    # -- success metric (velocity tracking + gait-contact match)
+    success_rate = RewTerm(
+        func=mdp.walk_success_rate,
+        weight=1.0,
+        params={
+            "command_name": "base_velocity",
+            "asset_cfg": SceneEntityCfg("robot"),
+            "sensor_cfg": _FOOT_SENSOR_CFG,
+            "gait_period": _GAIT_PERIOD,
+            "contact_threshold": 1.0,
+            "vel_xy_threshold": 0.15,
+            "vel_yaw_threshold": 0.4,
+            "contact_match_threshold": 0.7,
+        },
+    )
 
 
 @configclass

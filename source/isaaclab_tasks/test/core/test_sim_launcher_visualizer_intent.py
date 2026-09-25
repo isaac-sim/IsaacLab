@@ -46,12 +46,19 @@ def test_launch_simulation_passes_visualizer_intent_to_applauncher(monkeypatch):
     captured: dict[str, object] = {}
 
     class _FakeAppLauncher:
+        is_available = staticmethod(lambda: True)
+
         def __init__(self, launcher_args):
             captured["launcher_args"] = launcher_args
             captured["closed"] = False
             self.app = types.SimpleNamespace(close=lambda: captured.update({"closed": True}))
 
     monkeypatch.setitem(sys.modules, "isaaclab.utils", types.SimpleNamespace(has_kit=lambda: False))
+    monkeypatch.setitem(
+        sys.modules,
+        "isaaclab.utils.assets",
+        types.SimpleNamespace(configure_storage_profile=lambda: None),
+    )
     monkeypatch.setitem(sys.modules, "isaaclab.app", types.SimpleNamespace(AppLauncher=_FakeAppLauncher))
     monkeypatch.setattr("importlib.util.find_spec", lambda name: object() if name == "omni.kit" else None)
 
@@ -66,6 +73,7 @@ def test_launch_simulation_passes_visualizer_intent_to_applauncher(monkeypatch):
     assert getattr(forwarded_args, "visualizer_intent") == {
         "has_any_visualizers": True,
         "has_kit_visualizer": True,
+        "has_kit_streaming_view": False,
     }
     assert captured["closed"] is True
 
@@ -75,6 +83,8 @@ def test_launch_simulation_kitless_viz_none_sets_disable_all(monkeypatch):
     captured = {"types": None, "explicit": None, "disable_all": None}
 
     class _FakeAppLauncher:
+        is_available = staticmethod(lambda: True)
+
         @staticmethod
         def sync_visualizer_cli_settings_to_carb(launcher_args: dict) -> None:
             captured["types"] = " ".join(launcher_args["visualizer"]) if launcher_args.get("visualizer") else ""

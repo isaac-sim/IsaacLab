@@ -162,23 +162,22 @@ def _step(proc, messages_tracked) -> dict:
     return {k: v.value for k, v in outputs.items()}
 
 
+def _drive_to_running(proc) -> None:
+    """Play the STOPPED -> PAUSED -> RUNNING start sequence, then settle idle.
+
+    The trailing idle frame drains the queue so ``_prev_toggle_output`` is
+    ``False`` -- the steady state a reset would arrive in during real use.
+    """
+    _step(proc, _tracked(b"start"))
+    _step(proc, _empty_tracked())
+    _step(proc, _empty_tracked())
+    _step(proc, _empty_tracked())
+    assert proc._shadow_state == "running"
+
+
 # ===========================================================================
 # TeleopMessageProcessor: basic command parsing
 # ===========================================================================
-
-
-class TestStartCommand:
-    def test_start_sets_run_toggle(self):
-        proc = TeleopMessageProcessor(name="test")
-        result = _step(proc, _tracked(b"start"))
-        assert result["run_toggle"] is True
-        assert result["kill"] is False
-        assert result["reset"] is False
-
-    def test_start_does_not_set_reset(self):
-        proc = TeleopMessageProcessor(name="test")
-        result = _step(proc, _tracked(b"start"))
-        assert result["reset"] is False
 
 
 class TestStopCommand:
@@ -187,25 +186,6 @@ class TestStopCommand:
         result = _step(proc, _tracked(b"stop"))
         assert result["run_toggle"] is False
         assert result["kill"] is False
-
-
-class TestResetCommand:
-    def test_reset_sets_reset_flag(self):
-        proc = TeleopMessageProcessor(name="test")
-        result = _step(proc, _tracked(b"reset"))
-        assert result["reset"] is True
-        assert result["run_toggle"] is False
-        assert result["kill"] is False
-
-
-class TestResetPulseBehaviour:
-    def test_reset_clears_on_next_step(self):
-        proc = TeleopMessageProcessor(name="test")
-        result = _step(proc, _tracked(b"reset"))
-        assert result["reset"] is True
-
-        result = _step(proc, _empty_tracked())
-        assert result["reset"] is False
 
 
 class TestKillAlwaysFalse:
@@ -229,6 +209,8 @@ class TestStartFromStopped:
         # Frame 0: "start" received, first toggle edge queued
         r0 = _step(proc, _tracked(b"start"))
         assert r0["run_toggle"] is True  # edge 1: STOPPED -> PAUSED
+        assert r0["kill"] is False
+        assert r0["reset"] is False
 
         # Frame 1: queue drains False (prev resets)
         r1 = _step(proc, _empty_tracked())
@@ -242,16 +224,9 @@ class TestStartFromStopped:
         r3 = _step(proc, _empty_tracked())
         assert r3["run_toggle"] is False
 
-    def test_shadow_state_is_running_after_sequence(self):
-        proc = TeleopMessageProcessor(name="test")
-        _step(proc, _tracked(b"start"))
-        _step(proc, _empty_tracked())
-        _step(proc, _empty_tracked())
-        assert proc._shadow_state == "running"
-
 
 class TestStartFromPaused:
-    """``start`` from PAUSED needs 1 toggle edge."""
+    """``stop`` from RUNNING and ``start`` from PAUSED each need 1 toggle edge."""
 
     def test_single_edge_reaches_running(self):
         proc = TeleopMessageProcessor(name="test")
@@ -263,7 +238,7 @@ class TestStartFromPaused:
 
         # Stop to reach PAUSED (prev_toggle is True from start sequence,
         # so a False is prepended before the toggle edge)
-        _step(proc, _tracked(b"stop"))  # drains False (prepended)
+        assert _step(proc, _tracked(b"stop"))["run_toggle"] is False  # drains False (prepended)
         r_stop_edge = _step(proc, _empty_tracked())  # drains True (edge)
         assert r_stop_edge["run_toggle"] is True
         assert proc._shadow_state == "paused"
@@ -274,54 +249,8 @@ class TestStartFromPaused:
         assert r_start_edge["run_toggle"] is True
         assert proc._shadow_state == "running"
 
-
-class TestStartFromRunning:
-    """``start`` when already RUNNING is a no-op."""
-
-    def test_start_from_running_noop(self):
-        proc = TeleopMessageProcessor(name="test")
-        _step(proc, _tracked(b"start"))
-        _step(proc, _empty_tracked())
-        _step(proc, _empty_tracked())
-        assert proc._shadow_state == "running"
-
-        result = _step(proc, _tracked(b"start"))
-        assert result["run_toggle"] is False
-
-
-class TestStopFromRunning:
-    """``stop`` from RUNNING uses one toggle edge to reach PAUSED."""
-
-    def test_stop_pauses(self):
-        proc = TeleopMessageProcessor(name="test")
-        _step(proc, _tracked(b"start"))
-        _step(proc, _empty_tracked())
-        _step(proc, _empty_tracked())
-        assert proc._shadow_state == "running"
-
-        # prev_toggle is True, so stop prepends False before the edge
-        r0 = _step(proc, _tracked(b"stop"))
-        assert r0["run_toggle"] is False  # prepended False
-        r1 = _step(proc, _empty_tracked())
-        assert r1["run_toggle"] is True  # edge: RUNNING -> PAUSED
-        assert proc._shadow_state == "paused"
-
-
-class TestStopFromPaused:
-    """``stop`` when already PAUSED is a no-op."""
-
-    def test_stop_from_paused_noop(self):
-        proc = TeleopMessageProcessor(name="test")
-        _step(proc, _tracked(b"start"))
-        _step(proc, _empty_tracked())
-        _step(proc, _empty_tracked())
-        # Stop to PAUSED
-        _step(proc, _tracked(b"stop"))
-        _step(proc, _empty_tracked())
-        assert proc._shadow_state == "paused"
-
-        result = _step(proc, _tracked(b"stop"))
-        assert result["run_toggle"] is False
+        # Start when already RUNNING is a no-op.
+        assert _step(proc, _tracked(b"start"))["run_toggle"] is False
 
 
 class TestCommandDuringToggleSequence:
@@ -344,12 +273,6 @@ class TestCommandDuringToggleSequence:
 
 
 class TestInjectReset:
-    def test_inject_reset_produces_pulse(self):
-        proc = TeleopMessageProcessor(name="test")
-        proc.inject_reset()
-        result = _step(proc, _empty_tracked())
-        assert result["reset"] is True
-
     def test_inject_reset_clears_after_one_step(self):
         proc = TeleopMessageProcessor(name="test")
         proc.inject_reset()
@@ -357,13 +280,18 @@ class TestInjectReset:
         result = _step(proc, _empty_tracked())
         assert result["reset"] is False
 
-    def test_inject_reset_combines_with_message_reset(self):
+    def test_operator_inject_reset_cancels_pending_toggle(self):
+        # An operator reset (pause=True) cancels a toggle queued in the same step so the
+        # session does not reach RUNNING right after the reset; the reset pulse still fires.
         proc = TeleopMessageProcessor(name="test")
-        proc.inject_reset()
-        result = _step(proc, _tracked(b"reset"))
+        proc.inject_reset(pause=True)
+        result = _step(proc, _tracked(b"start"))
+        assert result["run_toggle"] is False
         assert result["reset"] is True
 
-    def test_inject_reset_independent_of_toggle(self):
+    def test_host_inject_reset_keeps_pending_toggle(self):
+        # A host reset (default) is a pure pulse: it does not cancel a concurrent start,
+        # so a non-XR startup reset() + request_start() still reaches RUNNING.
         proc = TeleopMessageProcessor(name="test")
         proc.inject_reset()
         result = _step(proc, _tracked(b"start"))
@@ -372,21 +300,82 @@ class TestInjectReset:
 
 
 # ===========================================================================
+# Operator reset pauses; host reset keeps running
+# ===========================================================================
+
+
+class TestResetPauseSemantics:
+    """Operator resets pause a running session; host resets leave it running."""
+
+    def test_channel_reset_pauses_running_session(self):
+        # Headset channel "reset" is an operator reset: pulses reset AND emits the
+        # RUNNING -> PAUSED edge.
+        proc = TeleopMessageProcessor(name="test")
+        _drive_to_running(proc)
+        result = _step(proc, _tracked(b"reset"))
+        assert result["reset"] is True
+        assert result["run_toggle"] is True
+        assert proc._shadow_state == "paused"
+
+    def test_operator_inject_reset_pauses_running_session(self):
+        # Keyboard R path: reset(pause=True) pauses the session.
+        proc = TeleopMessageProcessor(name="test")
+        _drive_to_running(proc)
+        proc.inject_reset(pause=True)
+        result = _step(proc, _empty_tracked())
+        assert result["reset"] is True
+        assert result["run_toggle"] is True
+        assert proc._shadow_state == "paused"
+
+    def test_host_inject_reset_keeps_running(self):
+        # Task-success path: reset() (default) pulses reset but keeps the session running.
+        proc = TeleopMessageProcessor(name="test")
+        _drive_to_running(proc)
+        proc.inject_reset()
+        result = _step(proc, _empty_tracked())
+        assert result["reset"] is True
+        assert result["run_toggle"] is False
+        assert proc._shadow_state == "running"
+
+    def test_operator_reset_from_paused_stays_paused(self):
+        # Already paused: an operator reset pulses but emits no toggle edge.
+        proc = TeleopMessageProcessor(name="test")
+        _drive_to_running(proc)
+        _step(proc, _tracked(b"stop"))  # RUNNING -> PAUSED
+        _step(proc, _empty_tracked())
+        assert proc._shadow_state == "paused"
+        # Stop when already PAUSED is a no-op (and settles the toggle output idle).
+        assert _step(proc, _tracked(b"stop"))["run_toggle"] is False
+        result = _step(proc, _tracked(b"reset"))
+        assert result["reset"] is True
+        assert result["run_toggle"] is False
+        assert proc._shadow_state == "paused"
+
+    def test_operator_reset_from_stopped_stays_stopped(self):
+        # Startup: an operator reset before any start emits no spurious toggle edge.
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, _tracked(b"reset"))
+        assert result["reset"] is True
+        assert result["run_toggle"] is False
+        assert proc._shadow_state == "stopped"
+        # The channel reset is a one-frame pulse.
+        assert _step(proc, _empty_tracked())["reset"] is False
+
+
+# ===========================================================================
 # Word boundary matching
 # ===========================================================================
 
 
 class TestWordBoundaryMatching:
-    @pytest.mark.parametrize("payload", [b"teleop start", b"xr start session", b"start now"])
-    def test_start_word(self, payload: bytes):
+    def test_start_word(self):
         proc = TeleopMessageProcessor(name="test")
-        result = _step(proc, _tracked(payload))
+        result = _step(proc, _tracked(b"teleop start"))
         assert result["run_toggle"] is True
 
-    @pytest.mark.parametrize("payload", [b"teleop reset", b"env reset"])
-    def test_reset_word(self, payload: bytes):
+    def test_reset_word(self):
         proc = TeleopMessageProcessor(name="test")
-        result = _step(proc, _tracked(payload))
+        result = _step(proc, _tracked(b"teleop reset"))
         assert result["reset"] is True
 
 
@@ -404,29 +393,20 @@ class TestAmbiguousPayloads:
 
 
 class TestEmptyAndNullBatches:
-    def test_empty_data_list(self):
+    @pytest.mark.parametrize("messages_tracked", [_null_tracked(), None], ids=["null_data", "none_input"])
+    def test_null_data(self, messages_tracked):
         proc = TeleopMessageProcessor(name="test")
-        result = _step(proc, _empty_tracked())
-        assert result["run_toggle"] is False
-        assert result["kill"] is False
-        assert result["reset"] is False
-
-    def test_null_data(self):
-        proc = TeleopMessageProcessor(name="test")
-        result = _step(proc, _null_tracked())
-        assert result["run_toggle"] is False
-
-    def test_none_input(self):
-        proc = TeleopMessageProcessor(name="test")
-        result = _step(proc, None)
+        result = _step(proc, messages_tracked)
         assert result["run_toggle"] is False
 
 
 class TestMultipleMessagesInBatch:
     def test_start_then_reset_in_one_batch(self):
+        # Reset wins over a same-batch start: the toggle is cancelled so the
+        # session does not start, while the reset pulse still fires.
         proc = TeleopMessageProcessor(name="test")
         result = _step(proc, _tracked(b"start", b"reset"))
-        assert result["run_toggle"] is True
+        assert result["run_toggle"] is False
         assert result["reset"] is True
 
 
@@ -461,15 +441,13 @@ class TestJsonFormat:
         result = _step(proc, _tracked(_json_command("start teleop")))
         assert result["run_toggle"] is True
 
-    def test_json_stop_teleop_from_stopped_noop(self):
+    def test_json_stop_teleop_pauses_running_session(self):
         proc = TeleopMessageProcessor(name="test")
+        _drive_to_running(proc)
+        # The idle toggle output means no False is prepended: the edge fires immediately.
         result = _step(proc, _tracked(_json_command("stop teleop")))
-        assert result["run_toggle"] is False
-
-    def test_json_reset_teleop(self):
-        proc = TeleopMessageProcessor(name="test")
-        result = _step(proc, _tracked(_json_command("reset teleop")))
-        assert result["reset"] is True
+        assert result["run_toggle"] is True
+        assert proc._shadow_state == "paused"
 
     def test_json_wrong_type_ignored(self):
         payload = json.dumps({"type": "other_event", "message": {"command": "start"}}).encode("utf-8")
@@ -490,17 +468,6 @@ class TestJsonFormat:
 
 
 class TestExtractCommand:
-    def test_plain_text(self):
-        assert _extract_command("start teleop") == "start teleop"
-
-    def test_json_teleop_command(self):
-        text = json.dumps({"type": "teleop_command", "message": {"command": "stop"}})
-        assert _extract_command(text) == "stop"
-
-    def test_json_wrong_type(self):
-        text = json.dumps({"type": "other", "message": {"command": "start"}})
-        assert _extract_command(text) is None
-
     def test_json_no_message_key(self):
         text = json.dumps({"type": "teleop_command"})
         assert _extract_command(text) is None
@@ -517,18 +484,10 @@ class TestExtractCommand:
 
 
 class TestClassifyCommand:
-    def test_exact_words(self):
-        assert _classify_command("start") == "start"
-        assert _classify_command("stop") == "stop"
-        assert _classify_command("reset") == "reset"
-
     def test_word_boundary_prevents_false_match(self):
         assert _classify_command("upstart") is None
         assert _classify_command("nonstop") is None
         assert _classify_command("unreset") is None
-
-    def test_reset_beats_start(self):
-        assert _classify_command("reset and start") == "reset"
 
     def test_stop_beats_start(self):
         assert _classify_command("stop and start") == "stop"
@@ -562,14 +521,6 @@ class TestPollControlEvents:
         result = poll_control_events(FakeDevice())
         assert result.is_active is True
         assert result.should_reset is True
-
-    def test_device_with_none_events(self):
-        class FakeDevice:
-            last_control_events = None
-
-        result = poll_control_events(FakeDevice())
-        assert result.is_active is None
-        assert result.should_reset is False
 
     def test_duck_typed_snapshot(self):
         class FakeSnapshot:

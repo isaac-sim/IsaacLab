@@ -38,7 +38,7 @@ Always run a small random-action check first:
 uv run python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 8
 ```
 
-For visual observations or camera tasks, lower `--num_envs` and confirm renderer and sensor support before scaling. Do not add `` unless the current task or docs explicitly require it.
+For visual observations or camera tasks, lower `--num_envs` and confirm renderer and sensor support before scaling. Camera support is automatic; select a compatible renderer instead of adding obsolete camera-launch options.
 
 ## After Training
 

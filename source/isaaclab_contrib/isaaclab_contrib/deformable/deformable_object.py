@@ -13,14 +13,13 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
-from isaaclab_newton.cloner import queue_newton_physics_replication
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
-from isaaclab.cloner import queue_usd_replication
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.physics import PhysicsEvent
+from isaaclab.scene_data.deformable_vis_remap import VolumeVisRemap, build_volume_vis_barycentric_remap
 from isaaclab.utils.warp import ProxyArray
 
 from .deformable_object_data import DeformableObjectData
@@ -42,7 +41,7 @@ class DeformableRegistryEntry:
     """Entry in the deformable body registry.
 
     Registered by :class:`DeformableObject` during ``__init__``, consumed by
-    ``newton_physics_replicate`` inside the per-world ``begin_world``/``end_world`` loop.
+    the Newton clone context inside the per-world ``begin_world``/``end_world`` loop.
     After replication, ``particle_offsets`` and ``particles_per_body`` are filled in
     so the asset can bind to the correct particle ranges.
     """
@@ -67,9 +66,11 @@ class DeformableRegistryEntry:
     k_mu: float = 1e5
     k_lambda: float = 1e5
     k_damp: float = 0.0
-    # Filled by newton_physics_replicate:
+    # Filled by the Newton clone context:
     particle_offsets: list[int] = field(default_factory=list)
     particles_per_body: int = 0
+    volume_vis_remap: VolumeVisRemap | None = None
+    """Prototype interpolation tables when visual vertices differ from native simulation nodes."""
 
 
 if TYPE_CHECKING:
@@ -82,8 +83,8 @@ def add_deformable_entry_to_builder(
     builder,
     entry: DeformableRegistryEntry,
     env_idx: int,
-    env_position: list[float],
-    env_rotation: list[float] | tuple[float, float, float, float],
+    env_position: np.ndarray,
+    env_rotation: np.ndarray,
 ) -> None:
     """Add a deformable registry entry to a Newton ``ModelBuilder`` for one environment.
 
@@ -175,74 +176,12 @@ def add_deformable_entry_to_builder(
 def add_registered_deformables_to_builder(
     builder,
     world_idx: int,
-    env_position: list[float],
-    env_rotation: list[float] | tuple[float, float, float, float],
+    env_position: np.ndarray,
+    env_rotation: np.ndarray,
 ) -> None:
     """Add all registered deformable entries to one Newton builder world."""
     for entry in SimulationManager._deformable_registry:
         add_deformable_entry_to_builder(builder, entry, world_idx, env_position, env_rotation)
-
-
-def color_registered_deformables(builder) -> None:
-    """Color the Newton builder when deformables were registered."""
-    if SimulationManager._deformable_registry:
-        builder.color()
-
-
-def setup_registered_deformable_fabric_sync(manager_cls: type[SimulationManager]) -> None:
-    """Bind registered deformable visual meshes to their Newton particle slices in Fabric."""
-    if manager_cls._clone_physics_only or not manager_cls._deformable_registry:
-        return
-
-    import re
-
-    import usdrt
-
-    from isaaclab.sim.utils.stage import get_current_stage
-
-    if SimulationManager._usdrt_stage is None:
-        SimulationManager._usdrt_stage = get_current_stage(fabric=True)
-    fabric_stage = SimulationManager._usdrt_stage
-    if fabric_stage is None:
-        logger.warning("[setup_fabric_particle_sync] Fabric stage is unavailable.")
-        return
-
-    stage = get_current_stage()
-    synced_any = False
-    for entry in manager_cls._deformable_registry:
-        for inst_idx, offset in enumerate(entry.particle_offsets):
-            resolved_vis = re.sub(r"(?<=[Ee]nv_)\.\*", str(inst_idx), entry.vis_mesh_prim_path)
-            resolved_vis = re.sub(r"\.\*", str(inst_idx), resolved_vis)
-            vis_prim = stage.GetPrimAtPath(resolved_vis)
-
-            if not vis_prim or not vis_prim.IsValid():
-                logger.warning("[setup_fabric_particle_sync] vis prim not found at %s", resolved_vis)
-                continue
-
-            fab_prim = fabric_stage.GetPrimAtPath(vis_prim.GetPath().pathString)
-            if not fab_prim or not fab_prim.IsValid():
-                logger.warning("[setup_fabric_particle_sync] Fabric prim not found at %s", resolved_vis)
-                continue
-
-            offset_attr = fab_prim.CreateAttribute(
-                SimulationManager._newton_particle_offset_attr, usdrt.Sdf.ValueTypeNames.UInt, True
-            )
-            count_attr = fab_prim.CreateAttribute(
-                SimulationManager._newton_particle_count_attr, usdrt.Sdf.ValueTypeNames.UInt, True
-            )
-            if not offset_attr.IsValid() or not count_attr.IsValid():
-                logger.warning(
-                    "[setup_fabric_particle_sync] Fabric particle attributes not created at %s", resolved_vis
-                )
-                continue
-
-            offset_attr.Set(int(offset))
-            count_attr.Set(int(entry.particles_per_body))
-            synced_any = True
-
-    if synced_any:
-        manager_cls._mark_particles_dirty()
-        manager_cls.sync_particles_to_usd()
 
 
 def install_deformable_builder_hooks() -> None:
@@ -250,12 +189,8 @@ def install_deformable_builder_hooks() -> None:
     SimulationManager._deformable_registry = []
     if not hasattr(SimulationManager, "_per_world_builder_hooks"):
         SimulationManager._per_world_builder_hooks = []
-    if not hasattr(SimulationManager, "_post_replicate_hooks"):
-        SimulationManager._post_replicate_hooks = []
     if add_registered_deformables_to_builder not in SimulationManager._per_world_builder_hooks:
         SimulationManager._per_world_builder_hooks.append(add_registered_deformables_to_builder)
-    if color_registered_deformables not in SimulationManager._post_replicate_hooks:
-        SimulationManager._post_replicate_hooks.append(color_registered_deformables)
 
 
 def clear_deformable_builder_hooks() -> None:
@@ -266,10 +201,6 @@ def clear_deformable_builder_hooks() -> None:
             hook
             for hook in SimulationManager._per_world_builder_hooks
             if hook is not add_registered_deformables_to_builder
-        ]
-    if hasattr(SimulationManager, "_post_replicate_hooks"):
-        SimulationManager._post_replicate_hooks = [
-            hook for hook in SimulationManager._post_replicate_hooks if hook is not color_registered_deformables
         ]
 
 
@@ -299,8 +230,6 @@ class DeformableObject(BaseDeformableObject):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-        queue_usd_replication(cfg)
-        queue_newton_physics_replication(cfg)
 
         # initialize deformable type to None, should be set to either surface or volume on initialization
         self._deformable_type: str | None = None
@@ -436,6 +365,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
+        SimulationManager._mark_particles_dirty()
         self._invalidate_nodal_pos_cache()
 
     def write_nodal_velocity_to_sim_index(
@@ -550,6 +480,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
+        SimulationManager._mark_particles_dirty()
         self._invalidate_nodal_state_cache()
 
     def write_nodal_pos_to_sim_mask(
@@ -581,6 +512,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
+        SimulationManager._mark_particles_dirty()
         self._invalidate_nodal_pos_cache()
 
     def write_nodal_velocity_to_sim_mask(
@@ -780,12 +712,12 @@ class DeformableObject(BaseDeformableObject):
 
         # Bake the template prim's xform directly into the vertex positions.
         xform_cache = UsdGeom.XformCache()
-        mesh_to_parent_frame = (
-            xform_cache.GetLocalToWorldTransform(mesh_prim)
-            * xform_cache.GetLocalToWorldTransform(template_prim.GetParent()).GetInverse()
-        )
 
-        def _bake_points(raw_pts) -> list[wp.vec3]:
+        def _bake_points(raw_pts, prim) -> list[wp.vec3]:
+            mesh_to_parent_frame = (
+                xform_cache.GetLocalToWorldTransform(prim)
+                * xform_cache.GetLocalToWorldTransform(template_prim.GetParent()).GetInverse()
+            )
             out = []
             for p in raw_pts:
                 q = mesh_to_parent_frame.Transform(Gf.Vec3d(float(p[0]), float(p[1]), float(p[2])))
@@ -795,7 +727,7 @@ class DeformableObject(BaseDeformableObject):
         if deformable_type == "volume":
             tet_mesh = UsdGeom.TetMesh(mesh_prim)
             pts = tet_mesh.GetPointsAttr().Get()
-            vertices = _bake_points(pts)
+            vertices = _bake_points(pts, mesh_prim)
             raw_tet_indices = tet_mesh.GetTetVertexIndicesAttr().Get()
             indices = []
             for vec4i in raw_tet_indices:
@@ -804,9 +736,23 @@ class DeformableObject(BaseDeformableObject):
         else:  # surface
             usd_mesh = UsdGeom.Mesh(mesh_prim)
             pts = usd_mesh.GetPointsAttr().Get()
-            vertices = _bake_points(pts)
+            vertices = _bake_points(pts, mesh_prim)
             indices = list(usd_mesh.GetFaceVertexIndicesAttr().Get())
             logger.info("Registered UsdGeom.Mesh: %d vertices.", len(pts))
+
+        volume_vis_remap = None
+        if vis_mesh_prim != mesh_prim:
+            vis_points = UsdGeom.PointBased(vis_mesh_prim).GetPointsAttr().Get()
+            vis_vertices = np.asarray(_bake_points(vis_points, vis_mesh_prim), dtype=np.float32)
+            sim_vertices = np.asarray(vertices, dtype=np.float32)
+            if not np.array_equal(sim_vertices, vis_vertices):
+                if deformable_type != "volume":
+                    raise ValueError(f"Surface visual topology differs from its native nodes: {template_prim_path}")
+                volume_vis_remap = build_volume_vis_barycentric_remap(
+                    sim_vertices, np.asarray(indices, dtype=np.int32), vis_vertices
+                )
+                if volume_vis_remap is None:
+                    raise ValueError(f"Cannot bind visual vertices to deformable tetrahedra: {template_prim_path}")
 
         # init_pos/init_rot are already baked into the vertices by the Xform
         # transform above. Setting them to identity prevents add_cloth_mesh/add_soft_mesh
@@ -859,6 +805,7 @@ class DeformableObject(BaseDeformableObject):
             vertices=vertices,
             indices=indices,
             deformable_type=deformable_type,
+            volume_vis_remap=volume_vis_remap,
             init_pos=init_pos,
             init_rot=init_rot,
             density=density,
@@ -886,7 +833,7 @@ class DeformableObject(BaseDeformableObject):
         if self._num_instances == 0:
             raise RuntimeError(
                 f"No deformable body instances found for '{self.cfg.prim_path}'. "
-                "Ensure newton_physics_replicate or MODEL_INIT processed the registry."
+                "Ensure clone-plan replication or MODEL_INIT processed the registry."
             )
 
         logger.info("Newton deformable object initialized at: %s", self.cfg.prim_path)

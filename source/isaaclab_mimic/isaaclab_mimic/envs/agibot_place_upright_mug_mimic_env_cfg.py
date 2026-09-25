@@ -5,7 +5,7 @@
 
 
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.place.config.agibot.place_upright_mug_rmp_rel_env_cfg import (
     RmpFlowAgibotPlaceUprightMugEnvCfg,
@@ -29,7 +29,6 @@ class RmpFlowAgibotPlaceUprightMugMimicEnvCfg(RmpFlowAgibotPlaceUprightMugEnvCfg
         self.datagen_config.generation_select_src_per_subtask = True
         self.datagen_config.generation_transform_first_robot_pose = False
         self.datagen_config.generation_interpolate_from_last_target_pose = True
-        self.datagen_config.max_num_failures = 25
         self.datagen_config.seed = 1
 
         # The following are the subtask configurations for the stack task.

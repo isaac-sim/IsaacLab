@@ -5,18 +5,31 @@
 
 """Configuration for Newton Warp Renderer."""
 
-from typing import Literal
+from __future__ import annotations
 
+from typing import TYPE_CHECKING, Literal
+
+import warp as wp
+
+from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
+
+if TYPE_CHECKING:
+    from .newton_warp_renderer import NewtonWarpRenderer
 
 
 @configclass
 class NewtonWarpRendererCfg(RendererCfg):
     """Configuration for Newton Warp Renderer."""
 
+    class_type: type[NewtonWarpRenderer] | str = "{DIR}.newton_warp_renderer:NewtonWarpRenderer"
+    """Renderer implementation class."""
+
     renderer_type: str = "newton_warp"
     """Type identifier for Newton Warp renderer."""
+
+    cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
 
     enable_textures: bool = True
     """Enable texture-mapped rendering for meshes."""
@@ -27,7 +40,7 @@ class NewtonWarpRendererCfg(RendererCfg):
     enable_ambient_lighting: bool = True
     """Enable ambient lighting for the scene."""
 
-    enable_backface_culling: bool = True
+    enable_backface_culling: bool = False
     """Cull back-facing triangles."""
 
     max_distance: float = 1000.0
@@ -56,7 +69,7 @@ class NewtonWarpRendererCfg(RendererCfg):
 
     semantic_filter: str | list[str] = "*:*"
     """A string or list specifying a semantic filter predicate for :attr:`semantic_segmentation` and
-    :attr:`instance_segmentation_fast`. Defaults to ``"*:*"`` (all semantic types and labels).
+    :attr:`instance_segmentation`. Defaults to ``"*:*"`` (all semantic types and labels).
 
     Mirrors :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.semantic_filter`. If a string, it is a
     disjunctive-normal-form predicate over ``(semantic_type, labels)`` clauses separated by ``;``. Each
@@ -82,10 +95,10 @@ class NewtonWarpRendererCfg(RendererCfg):
     """
 
     colorize_instance_segmentation: bool = True
-    """Whether to colorize the instance segmentation image. Defaults to True.
+    """Whether to colorize the semantic instance segmentation image. Defaults to True.
 
-    If True, :attr:`instance_segmentation_fast` is returned as an ``(N, H, W, 4) uint8`` RGBA image, else
-    an ``(N, H, W, 1) int32`` id image. ``data.info["instance_segmentation_fast"]`` provides ``idToLabels``
+    If True, :attr:`instance_segmentation` is returned as an ``(N, H, W, 4) uint8`` RGBA image, else
+    an ``(N, H, W, 1) int32`` id image. ``data.info["instance_segmentation"]`` provides ``idToLabels``
     (id/color to prim path) and ``idToSemantics`` (id/color to semantic label).
     """
 
@@ -109,3 +122,22 @@ class NewtonWarpRendererCfg(RendererCfg):
 
     kernel_block_dim: int = 64
     """Thread block dimension forwarded to Newton."""
+
+    def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
+        """Return the per-output layouts supported by the Newton Warp renderer."""
+
+        def segmentation_spec(colorize: bool) -> RenderBufferSpec:
+            return RenderBufferSpec(4, wp.uint8) if colorize else RenderBufferSpec(1, wp.int32)
+
+        return {
+            RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32),
+            RenderBufferKind.ALBEDO: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
+            RenderBufferKind.SEMANTIC_SEGMENTATION: segmentation_spec(self.colorize_semantic_segmentation),
+            RenderBufferKind.INSTANCE_SEGMENTATION: segmentation_spec(self.colorize_instance_segmentation),
+        }

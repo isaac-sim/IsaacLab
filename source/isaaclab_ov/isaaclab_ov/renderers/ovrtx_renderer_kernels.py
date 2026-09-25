@@ -173,16 +173,3 @@ def generate_random_colors_from_ids_kernel(
     """
     i, j, k = wp.tid()
     output_colors[i, j, k] = random_color_from_id_wp(input_ids[i, j, k])
-
-
-@wp.kernel
-def sync_newton_transforms_kernel(
-    ovrtx_transforms: wp.array(dtype=wp.mat44d),  # type: ignore
-    newton_body_indices: wp.array(dtype=wp.int32),  # type: ignore
-    newton_body_q: wp.array(dtype=wp.transformf),  # type: ignore
-):
-    """Sync Newton physics body transforms to OVRTX 4x4 column-major matrices."""
-    i = wp.tid()
-    body_idx = newton_body_indices[i]
-    transform = newton_body_q[body_idx]
-    ovrtx_transforms[i] = wp.transpose(wp.mat44d(wp.transform_to_matrix(transform)))

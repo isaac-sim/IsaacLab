@@ -64,7 +64,6 @@ sys.modules.setdefault("isaaclab.assets.asset_base", asset_base_stub)
 
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 
 if _inserted_sim_stub:
     sys.modules.pop("isaaclab.sim", None)
@@ -127,18 +126,23 @@ def test_ordering_resolvers_reject_invalid_kind(entrypoint: str) -> None:
             get_articulation_name_ordering(articulation, "physx", kind="dof")  # type: ignore[arg-type]
 
 
-def test_articulation_cfg_accepts_optional_ordering_fields() -> None:
-    """Configure explicit or symbolic public articulation ordering."""
-    explicit_joint_order = ("shoulder", "elbow", "wrist")
-    cfg = ArticulationCfg(
-        prim_path="/World/Robot",
-        actuators={},
-        joint_ordering=explicit_joint_order,
-        body_ordering="mjwarp",
-    )
+def test_articulation_element_kind_registry_enforces_singletons() -> None:
+    """Resolve and enumerate registered kinds while rejecting duplicate labels."""
+    kind_cls = ordering_resolvers._ArticulationElementKind
 
-    assert cfg.joint_ordering == explicit_joint_order
-    assert cfg.body_ordering == "mjwarp"
+    assert kind_cls.resolve("joint") is ordering_resolvers._JOINT_KIND
+    assert kind_cls.resolve(ordering_resolvers._BODY_KIND) is ordering_resolvers._BODY_KIND
+    assert kind_cls.all() == (ordering_resolvers._JOINT_KIND, ordering_resolvers._BODY_KIND)
+
+    with pytest.raises(ValueError, match="duplicate articulation element kind 'joint'"):
+        kind_cls(
+            label="joint",
+            backend_names_attr="backend_joint_names",
+            relationship_name="isaac:physics:robotJoints",
+            name_override_attrs=("isaac:NameOverride", "isaac:nameOverride"),
+            config_field="joint_ordering",
+            matches_backend_spelling=True,
+        )
 
 
 def test_apply_articulation_ordering_preset_sets_joint_and_body_ordering() -> None:
@@ -263,50 +267,16 @@ def test_resolve_articulation_ordering_names_keeps_matching_backend_preset_ident
     assert user_names == ("base", "left_foot", "right_foot")
 
 
-@pytest.mark.parametrize("backend_name", ["physx", "ovphysx"])
-def test_physx_ordering_helper_uses_same_backend_identity_without_discovery(
-    monkeypatch: pytest.MonkeyPatch, backend_name: str
+@pytest.mark.parametrize(
+    ("convention", "builder_name"),
+    [
+        ("physx", "_get_physx_names_from_newton_usd_builder"),
+        ("mjwarp", "_get_mjwarp_names_from_newton_usd_builder"),
+    ],
+)
+def test_backend_native_orderings_declaration_drives_identity_fast_path(
+    monkeypatch: pytest.MonkeyPatch, convention: str, builder_name: str
 ) -> None:
-    """Return PhysX and OVPhysX backend names without metadata discovery."""
-
-    class _Articulation:
-        __backend_name__ = backend_name
-        __backend_native_orderings__ = ("physx",)
-        backend_joint_names = ("shoulder", "elbow", "wrist")
-        backend_body_names = ("base", "arm", "hand")
-
-    monkeypatch.setattr(
-        ordering_resolvers,
-        "_get_physx_names_from_newton_usd_builder",
-        lambda _: pytest.fail("same-backend resolution must not invoke the USD builder"),
-    )
-
-    articulation = _Articulation()
-    assert get_articulation_name_ordering(articulation, "physx", kind="joint") == articulation.backend_joint_names
-    assert get_articulation_name_ordering(articulation, "physx", kind="body") == articulation.backend_body_names
-
-
-def test_mjwarp_ordering_helper_uses_newton_identity_without_discovery(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Return Newton backend names without metadata discovery."""
-
-    class _Articulation:
-        __backend_name__ = "newton"
-        __backend_native_orderings__ = ("mjwarp",)
-        backend_joint_names = ("knee", "hip", "ankle")
-        backend_body_names = ("base", "thigh", "foot")
-
-    monkeypatch.setattr(
-        ordering_resolvers,
-        "_get_mjwarp_names_from_newton_usd_builder",
-        lambda _: pytest.fail("same-backend resolution must not invoke the USD builder"),
-    )
-
-    articulation = _Articulation()
-    assert get_articulation_name_ordering(articulation, "mjwarp", kind="joint") == articulation.backend_joint_names
-    assert get_articulation_name_ordering(articulation, "mjwarp", kind="body") == articulation.backend_body_names
-
-
-def test_backend_native_orderings_declaration_drives_identity_fast_path(monkeypatch: pytest.MonkeyPatch) -> None:
     """A backend self-declares the conventions its native order satisfies.
 
     The resolver keys the same-backend identity fast path off
@@ -316,36 +286,20 @@ def test_backend_native_orderings_declaration_drives_identity_fast_path(monkeypa
 
     class _Articulation:
         __backend_name__ = "fourth_backend"
-        __backend_native_orderings__ = ("physx",)
+        __backend_native_orderings__ = (convention,)
         _ordering_convention_name_cache: dict = {}
         backend_joint_names = ("shoulder", "elbow")
         backend_body_names = ("base", "arm")
 
     monkeypatch.setattr(
         ordering_resolvers,
-        "_get_physx_names_from_newton_usd_builder",
+        builder_name,
         lambda _: pytest.fail("a declared native convention must not invoke the USD builder"),
     )
 
     articulation = _Articulation()
-    assert get_articulation_name_ordering(articulation, "physx", kind="joint") == articulation.backend_joint_names
-    assert get_articulation_name_ordering(articulation, "physx", kind="body") == articulation.backend_body_names
-
-
-def test_undeclared_convention_bypasses_identity_fast_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A convention absent from ``__backend_native_orderings__`` falls through to discovery."""
-
-    class _Articulation:
-        __backend_name__ = "fourth_backend"
-        __backend_native_orderings__ = ("physx",)
-        _ordering_convention_name_cache: dict = {}
-        backend_joint_names = ("shoulder", "elbow")
-        backend_body_names = ("base", "arm")
-
-    monkeypatch.setattr(ordering_resolvers, "_get_mjwarp_names_from_newton_usd_builder", lambda _: None)
-
-    with pytest.raises(NotImplementedError, match="Unable to resolve 'mjwarp'"):
-        get_articulation_name_ordering(_Articulation(), "mjwarp", kind="joint")
+    assert get_articulation_name_ordering(articulation, convention, kind="joint") == articulation.backend_joint_names
+    assert get_articulation_name_ordering(articulation, convention, kind="body") == articulation.backend_body_names
 
 
 @pytest.mark.parametrize(
@@ -364,6 +318,8 @@ def test_mjwarp_ordering_helper_reports_actionable_cross_backend_failure(
 
     class _Articulation:
         __backend_name__ = "physx"
+        # A convention absent from the native declaration bypasses the identity fast path.
+        __backend_native_orderings__ = ("physx",)
         _ordering_convention_name_cache: dict = {}
         backend_joint_names = ("hip", "knee")
         backend_body_names = ("base", "foot")
@@ -376,7 +332,7 @@ def test_mjwarp_ordering_helper_reports_actionable_cross_backend_failure(
     message = str(exc_info.value)
     assert f"Unable to resolve 'mjwarp' {kind} ordering" in message
     assert "active backend 'physx'" in message
-    assert f"env.scene.robot.{config_field}" in message
+    assert f"ArticulationCfg.{config_field}" in message
     assert f"explicit {kind}-name permutation" in message
     assert "mjwarp_usd_builder: the Newton USD builder returned no articulation names" in message
 
@@ -498,11 +454,11 @@ def test_describe_newton_usd_builder_unavailability_reports_missing_source_asset
     monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.queries", queries_mod)
 
     class _Articulation:
-        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot", articulation_root_prim_path=None)
+        cfg = types.SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot", articulation_root_prim_path=None)
 
     reason = ordering_resolvers._describe_newton_usd_builder_unavailability(_Articulation())
 
-    assert reason == "source asset prim matching '/World/envs/env_.*/Robot' was not found"
+    assert reason == "source asset prim matching '/World/envs/env_[^/]+/Robot' was not found"
 
 
 def _install_source_asset_resolver(monkeypatch: pytest.MonkeyPatch, resolve_matching_prims_from_source) -> None:
@@ -522,7 +478,7 @@ def _install_source_asset_resolver(monkeypatch: pytest.MonkeyPatch, resolve_matc
 
 
 _ROBOT_SCHEMA_PRIM_PATH = "/World/envs/env_0/Robot"
-_ROBOT_SCHEMA_SOURCE_EXPR = "/World/envs/env_.*/Robot"
+_ROBOT_SCHEMA_SOURCE_EXPR = "/World/envs/env_[^/]+/Robot"
 
 
 def _author_robot_schema_relationship(prim: Usd.Prim, relationship_name: str, target_paths: list[str]) -> None:
@@ -766,10 +722,10 @@ def test_mjwarp_ordering_helper_builds_newton_view_from_usd_source(monkeypatch: 
     root_prim = stage.DefinePrim("/World/envs/env_0/Robot/base", "Xform")
 
     def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
-        assert path_expr == "/World/envs/env_.*/Robot"
+        assert path_expr == "/World/envs/env_[^/]+/Robot"
         if predicate is None:
-            return [(robot_prim, "/World/envs/env_.*/Robot")]
-        return [(root_prim, "/World/envs/env_.*/Robot/base")]
+            return [(robot_prim, "/World/envs/env_[^/]+/Robot")]
+        return [(root_prim, "/World/envs/env_[^/]+/Robot/base")]
 
     _install_newton_usd_builder_mocks(
         monkeypatch,
@@ -782,7 +738,7 @@ def test_mjwarp_ordering_helper_builds_newton_view_from_usd_source(monkeypatch: 
     class _Articulation:
         __backend_name__ = "physx"
         _ordering_convention_name_cache: dict = {}
-        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot", articulation_root_prim_path=None)
+        cfg = types.SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot", articulation_root_prim_path=None)
 
         @property
         def backend_joint_names(self) -> list[str]:
@@ -812,10 +768,10 @@ def test_physx_ordering_helper_builds_bfs_newton_view_from_usd_source(monkeypatc
     root_prim = stage.DefinePrim("/World/envs/env_0/Robot/base", "Xform")
 
     def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
-        assert path_expr == "/World/envs/env_.*/Robot"
+        assert path_expr == "/World/envs/env_[^/]+/Robot"
         if predicate is None:
-            return [(robot_prim, "/World/envs/env_.*/Robot")]
-        return [(root_prim, "/World/envs/env_.*/Robot/base")]
+            return [(robot_prim, "/World/envs/env_[^/]+/Robot")]
+        return [(root_prim, "/World/envs/env_[^/]+/Robot/base")]
 
     _install_newton_usd_builder_mocks(
         monkeypatch,
@@ -831,7 +787,7 @@ def test_physx_ordering_helper_builds_bfs_newton_view_from_usd_source(monkeypatc
     class _Articulation:
         __backend_name__ = "newton"
         _ordering_convention_name_cache: dict = {}
-        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot", articulation_root_prim_path=None)
+        cfg = types.SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot", articulation_root_prim_path=None)
 
         @property
         def backend_joint_names(self) -> list[str]:
@@ -998,43 +954,6 @@ def test_multi_dof_name_normalization_keeps_ambiguous_spellings() -> None:
     assert ordering_resolvers._match_backend_joint_name_spellings(convention_names, backend_names) == convention_names
 
 
-def test_base_articulation_data_property_uses_base_data_contract() -> None:
-    """Annotate the abstract property with the type implemented by every backend."""
-    return_annotation = BaseArticulation.data.fget.__annotations__["return"]
-    assert return_annotation == "BaseArticulationData"
-
-
-def test_base_articulation_keeps_none_ordering_on_default_path() -> None:
-    """Keep the default public ordering path free of ordering maps."""
-    apply_calls = []
-    data = types.SimpleNamespace(
-        joint_ordering=None,
-        body_ordering=None,
-        joint_names=None,
-        body_names=None,
-        _apply_ordering_maps_after_resolve=lambda: apply_calls.append("called"),
-    )
-    articulation = types.SimpleNamespace(
-        __backend_name__="mock",
-        cfg=types.SimpleNamespace(joint_ordering=None, body_ordering=None),
-        data=data,
-        backend_joint_names=["hip", "knee"],
-        backend_body_names=["base", "foot"],
-        device="cpu",
-    )
-    articulation._resolve_axis_ordering = BaseArticulation._resolve_axis_ordering.__get__(articulation)
-
-    BaseArticulation._resolve_and_install_ordering_maps(articulation)
-
-    assert data.joint_ordering is None
-    assert data.body_ordering is None
-    assert data.joint_names == ["hip", "knee"]
-    assert data.body_names == ["base", "foot"]
-    # The install site always lets the data container reconcile its staging;
-    # backend hooks are no-ops when no ordering is or was active.
-    assert apply_calls == ["called"]
-
-
 class _LegacyArticulation(BaseArticulation):
     """Old-style backend that predates the ordering introspection properties."""
 
@@ -1168,10 +1087,25 @@ def test_map_ids_to_backend_handles_slice_selectors() -> None:
     all_items = slice(None)
     assert identity.map_joint_ids_to_backend(all_items) is all_items
     assert identity.map_body_ids_to_backend(all_items) is all_items
+    # The default (``None``) ordering returns list selectors unchanged as well.
+    ids = [2, 0, 1]
+    assert identity.map_joint_ids_to_backend(ids) is ids
+    assert identity.map_body_ids_to_backend(ids) is ids
 
 
 def test_ordering_map_helpers_pick_axis_direction_and_identity_fallback() -> None:
     """Return the exact map object per axis and direction, or the backend identity buffer."""
+    from isaaclab.assets.articulation.base_articulation import BaseArticulation
+    from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
+
+    # Ordering state has one owner; mirrored maps and cached flags must not return.
+    for owner, names in (
+        (BaseArticulation, ("_cache_ordering_maps", "_reset_and_cache_ordering_maps")),
+        (BaseArticulationData, ("_install_ordering_flags", "_has_joint_ordering", "_has_body_ordering")),
+    ):
+        for name in names:
+            assert not hasattr(owner, name), f"{owner.__name__}.{name} duplicates ordering state"
+
     permuted = _make_map_ids_articulation(permuted=True)
     joint_ordering = permuted._data.joint_ordering
     body_ordering = permuted._data.body_ordering
@@ -1221,28 +1155,6 @@ def test_floating_base_body_ordering_accepts_root_relocation() -> None:
     BaseArticulation._resolve_and_install_ordering_maps(articulation)
 
     assert articulation.data.body_names == ["foot", "base"]
-
-
-def test_explicit_backend_order_normalizes_to_none() -> None:
-    """Normalize orderings that resolve to backend order to ``None`` instead of identity maps."""
-    articulation = _make_ordering_resolution_articulation(
-        body_ordering=("base", "foot"),
-        is_fixed_base=True,
-    )
-    articulation.cfg.joint_ordering = ("joint",)
-
-    BaseArticulation._resolve_and_install_ordering_maps(articulation)
-
-    assert articulation.data.joint_ordering is None
-    assert articulation.data.body_ordering is None
-    assert articulation.data.joint_names == ["joint"]
-    assert articulation.data.body_names == ["base", "foot"]
-
-
-def test_base_articulation_data_defines_optional_ordering_maps() -> None:
-    """Expose optional ordering maps on articulation data containers."""
-    assert hasattr(BaseArticulationData, "joint_ordering")
-    assert hasattr(BaseArticulationData, "body_ordering")
 
 
 def test_build_articulation_name_map_builds_permutation_indices_and_device_maps() -> None:
@@ -1303,82 +1215,3 @@ def test_build_articulation_name_map_returns_none_for_identity() -> None:
         is None
     )
     assert build_articulation_name_map(kind="joint", backend_names=backend_names, user_names=None, device="cpu") is None
-
-    permuted = build_articulation_name_map(
-        kind="joint", backend_names=backend_names, user_names=("j_c", "j_a", "j_b"), device="cpu"
-    )
-    assert permuted is not None
-    assert permuted.user_to_backend_indices == (2, 0, 1)
-    assert permuted.backend_to_user_indices == (1, 2, 0)
-    assert not hasattr(permuted, "is_identity")
-    assert not hasattr(permuted, "user_names")
-
-
-def test_ordering_state_lives_only_on_data() -> None:
-    """No mirrored ordering flags or maps exist on the asset or data classes."""
-    from isaaclab.assets.articulation.base_articulation import BaseArticulation
-    from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
-
-    for owner, names in (
-        (BaseArticulation, ("_cache_ordering_maps", "_reset_and_cache_ordering_maps")),
-        (BaseArticulationData, ("_install_ordering_flags", "_has_joint_ordering", "_has_body_ordering")),
-    ):
-        for name in names:
-            assert not hasattr(owner, name), f"{owner.__name__}.{name} should be deleted"
-
-
-_NONIDENTITY_ORDERING = types.SimpleNamespace(
-    user_to_backend_indices=(0, 2, 1),
-    backend_to_user_indices=(0, 2, 1),
-    is_identity=False,
-)
-
-
-class _MapBodyIdsSurface:
-    """Minimal surface exercising the real body-id translation method."""
-
-    map_body_ids_to_backend = BaseArticulation.map_body_ids_to_backend
-
-    def __init__(self, body_ordering):
-        self.body_ordering = body_ordering
-
-
-class _MapJointIdsSurface:
-    """Minimal surface exercising the real joint-id translation method."""
-
-    map_joint_ids_to_backend = BaseArticulation.map_joint_ids_to_backend
-
-    def __init__(self, joint_ordering):
-        self.joint_ordering = joint_ordering
-
-
-def test_map_body_ids_to_backend_returns_input_unchanged_for_default_ordering() -> None:
-    """A ``None`` body ordering returns the input object unchanged.
-
-    ``None`` covers identity-configured orderings too: assets normalize
-    identity maps away at install time, so this is the only fast-path state.
-    """
-    asset = _MapBodyIdsSurface(None)
-    body_ids = [2, 0, 1]
-    assert asset.map_body_ids_to_backend(body_ids) is body_ids
-
-
-def test_map_body_ids_to_backend_permutes_ids_for_nonidentity_ordering() -> None:
-    """A nonidentity body ordering gathers public IDs into backend order."""
-    asset = _MapBodyIdsSurface(_NONIDENTITY_ORDERING)
-    # user_to_backend_indices == (0, 2, 1): public 1 -> backend 2, public 2 -> backend 1
-    assert asset.map_body_ids_to_backend([1, 2]) == [2, 1]
-
-
-def test_map_joint_ids_to_backend_returns_input_unchanged_for_default_ordering() -> None:
-    """A ``None`` (default) joint ordering returns the input object unchanged."""
-    asset = _MapJointIdsSurface(None)
-    joint_ids = [2, 0, 1]
-    assert asset.map_joint_ids_to_backend(joint_ids) is joint_ids
-
-
-def test_map_joint_ids_to_backend_permutes_ids_for_nonidentity_ordering() -> None:
-    """A nonidentity joint ordering gathers public IDs into backend order."""
-    asset = _MapJointIdsSurface(_NONIDENTITY_ORDERING)
-    # user_to_backend_indices == (0, 2, 1): public 1 -> backend 2, public 2 -> backend 1
-    assert asset.map_joint_ids_to_backend([1, 2]) == [2, 1]

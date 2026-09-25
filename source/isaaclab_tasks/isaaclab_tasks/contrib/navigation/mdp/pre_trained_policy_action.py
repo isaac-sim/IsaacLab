@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Action term wrapping a pre-trained low-level locomotion policy."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

@@ -35,9 +35,8 @@ class Test_Uv_Can_Resolve_Without_Lock:
     anything - so a resolution break hidden by the current lock fails CI now, not at
     the next dependency change.
 
-    Complements the neighbouring checks: ``test_uv_lock_check_smoke`` validates the
-    committed lock is current, and the ``uv_run/`` tests validate the committed lock
-    installs and trains.
+    Complements the neighbouring checks: the ``uv_run/`` tests validate the committed
+    lock installs and trains.
     """
 
     @classmethod

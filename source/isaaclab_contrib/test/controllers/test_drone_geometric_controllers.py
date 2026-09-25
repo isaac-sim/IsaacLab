@@ -36,27 +36,13 @@ from isaaclab_contrib.controllers.lee_position_control_cfg import LeePosControll
 from isaaclab_contrib.controllers.lee_velocity_control_cfg import LeeVelControllerCfg
 
 
-class _DummyRootView:
-    """Stub articulation view with ``get_masses`` and ``get_inertias`` for controller tests."""
-
-    def __init__(self, num_envs: int, num_bodies: int, device: torch.device):
-        inertia_flat = torch.eye(3, device=device).reshape(9)
-        self._inertias = inertia_flat.unsqueeze(0).unsqueeze(0).expand(num_envs, num_bodies, 9).clone()
-        self._masses = torch.ones((num_envs, num_bodies), device=device)
-
-    def get_inertias(self) -> torch.Tensor:
-        return self._inertias
-
-    def get_masses(self) -> torch.Tensor:
-        return self._masses
-
-
 class _DummyRobot:
     """Minimal multirotor stub exposing the attributes used by the controllers."""
 
     def __init__(self, num_envs: int, num_bodies: int, device: torch.device):
         self.num_bodies = num_bodies
         quat_id = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)
+        inertia_flat = torch.eye(3, device=device).reshape(1, 1, 9)
         self.data = types.SimpleNamespace(
             root_link_quat_w=quat_id.repeat(num_envs, 1),
             root_quat_w=quat_id.repeat(num_envs, 1),
@@ -67,8 +53,9 @@ class _DummyRobot:
             body_link_quat_w=quat_id.repeat(num_envs, num_bodies, 1),
             body_com_pos_b=torch.zeros((num_envs, num_bodies, 3), device=device),
             body_com_quat_b=quat_id.repeat(num_envs, num_bodies, 1),
+            body_mass=torch.ones((num_envs, num_bodies), device=device),
+            body_inertia=inertia_flat.repeat(num_envs, num_bodies, 1),
         )
-        self.root_view = _DummyRootView(num_envs, num_bodies, device)
 
 
 class _DummySimCfg:
@@ -104,13 +91,6 @@ def _patch_sim_context(monkeypatch: pytest.MonkeyPatch, module) -> None:
         return _DummySimContext()
 
     monkeypatch.setattr(sim_utils.SimulationContext, "instance", _mock_instance)
-
-
-def _device_param(device_str: str) -> torch.device:
-    """Return the torch.device or skip when CUDA is unavailable."""
-    if device_str == "cuda" and not torch.cuda.is_available():
-        pytest.skip("CUDA not available on this system")
-    return torch.device(device_str)
 
 
 def _create_vel_cfg() -> LeeVelControllerCfg:
@@ -155,35 +135,29 @@ def _create_att_cfg() -> LeeAttControllerCfg:
     return cfg
 
 
-@pytest.mark.parametrize("device_str", ["cpu", "cuda"])
-@pytest.mark.parametrize("num_envs", [1, 2, 8])
-@pytest.mark.parametrize("num_bodies", [1, 4])
+# Controllers are pure torch with inertia aggregation patched out: device, env and body counts select no branch.
 @pytest.mark.parametrize(
-    "controller_cls,cfg_factory,mod_name",
+    "controller_cls,cfg_factory,mod_name,gain_names",
     [
-        ("LeeVelController", _create_vel_cfg, vel_mod),
-        ("LeePosController", _create_pos_cfg, pos_mod),
-        ("LeeAccController", _create_acc_cfg, acc_mod),
-        ("LeeAttController", _create_att_cfg, att_mod),
+        ("LeeVelController", _create_vel_cfg, vel_mod, ("K_vel",)),
+        ("LeePosController", _create_pos_cfg, pos_mod, ("K_pos",)),
+        ("LeeAccController", _create_acc_cfg, acc_mod, ("K_rot", "K_angvel")),
+        ("LeeAttController", _create_att_cfg, att_mod, ("K_rot", "K_angvel")),
     ],
 )
 def test_lee_controllers_basic(
     monkeypatch: pytest.MonkeyPatch,
-    device_str: str,
-    num_envs: int,
-    num_bodies: int,
     controller_cls: str,
     cfg_factory,
     mod_name,
+    gain_names: tuple[str, ...],
 ):
-    """Controllers return finite (N, 6) wrench on zero state and counter gravity on +Z.
-
-    Tests various configurations of number of environments and bodies to catch edge cases.
-    """
-    device = _device_param(device_str)
+    """Controllers return finite (N, 6) wrench on zero state, counter gravity on +Z, and randomize gains in range."""
+    device = torch.device("cpu")
+    num_envs = 2
     _patch_aggregate(monkeypatch, mod_name, num_envs, device)
     _patch_sim_context(monkeypatch, mod_name)
-    robot = _DummyRobot(num_envs, num_bodies, device)
+    robot = _DummyRobot(num_envs, 1, device)
 
     cfg = cfg_factory()
     controller = getattr(mod_name, controller_cls)(cfg, robot, num_envs=num_envs, device=str(device))
@@ -196,150 +170,14 @@ def test_lee_controllers_basic(
     assert torch.isfinite(wrench).all(), "Wrench contains non-finite values"
     assert torch.all(wrench[:, 2] > 0.0), "Body-z force should oppose gravity"
 
-
-@pytest.mark.parametrize("device_str", ["cpu", "cuda"])
-@pytest.mark.parametrize("num_envs", [1, 2, 8])
-@pytest.mark.parametrize("num_bodies", [1, 4])
-def test_lee_vel_randomize_params_within_bounds(
-    monkeypatch: pytest.MonkeyPatch, device_str: str, num_envs: int, num_bodies: int
-):
-    """Randomized gains stay within configured ranges for velocity controller.
-
-    Tests edge cases with single and multiple environments and bodies.
-    """
-    device = _device_param(device_str)
-    _patch_aggregate(monkeypatch, vel_mod, num_envs, device)
-    _patch_sim_context(monkeypatch, vel_mod)
-    robot = _DummyRobot(num_envs, num_bodies, device)
-
-    cfg = _create_vel_cfg()
-    controller = vel_mod.LeeVelController(cfg, robot, num_envs=num_envs, device=str(device))
-
     controller.reset_idx(env_ids=None)
 
-    # Ensure tensors are on the correct device
-    K_vel_min = torch.tensor(cfg.K_vel_range[0], device=device, dtype=torch.float32)
-    K_vel_max = torch.tensor(cfg.K_vel_range[1], device=device, dtype=torch.float32)
+    for name in gain_names:
+        gain_range = getattr(cfg, f"{name}_range")
+        gain_min = torch.tensor(gain_range[0], device=device, dtype=torch.float32)
+        gain_max = torch.tensor(gain_range[1], device=device, dtype=torch.float32)
+        gain = getattr(controller, f"{name}_current").to(device)
 
-    # Move controller gains to same device if needed
-    K_vel_current = controller.K_vel_current.to(device)
-
-    assert K_vel_current.shape == (num_envs, 3), f"Expected shape ({num_envs}, 3), got {K_vel_current.shape}"
-    assert torch.all(K_vel_current >= K_vel_min), f"K_vel below minimum: {K_vel_current.min()} < {K_vel_min.min()}"
-    assert torch.all(K_vel_current <= K_vel_max), f"K_vel above maximum: {K_vel_current.max()} > {K_vel_max.max()}"
-
-
-@pytest.mark.parametrize("device_str", ["cpu", "cuda"])
-@pytest.mark.parametrize("num_envs", [1, 2, 8])
-@pytest.mark.parametrize("num_bodies", [1, 4])
-def test_lee_pos_randomize_params_within_bounds(
-    monkeypatch: pytest.MonkeyPatch, device_str: str, num_envs: int, num_bodies: int
-):
-    """Randomized gains stay within configured ranges for position controller.
-
-    Tests edge cases with single and multiple environments and bodies.
-    """
-    device = _device_param(device_str)
-    _patch_aggregate(monkeypatch, pos_mod, num_envs, device)
-    _patch_sim_context(monkeypatch, pos_mod)
-    robot = _DummyRobot(num_envs, num_bodies, device)
-
-    cfg = _create_pos_cfg()
-    controller = pos_mod.LeePosController(cfg, robot, num_envs=num_envs, device=str(device))
-
-    controller.reset_idx(env_ids=None)
-
-    # Check K_pos gains
-    K_pos_min = torch.tensor(cfg.K_pos_range[0], device=device, dtype=torch.float32)
-    K_pos_max = torch.tensor(cfg.K_pos_range[1], device=device, dtype=torch.float32)
-    K_pos_current = controller.K_pos_current.to(device)
-
-    assert K_pos_current.shape == (num_envs, 3), f"Expected shape ({num_envs}, 3), got {K_pos_current.shape}"
-    assert torch.all(K_pos_current >= K_pos_min), f"K_pos below minimum: {K_pos_current.min()} < {K_pos_min.min()}"
-    assert torch.all(K_pos_current <= K_pos_max), f"K_pos above maximum: {K_pos_current.max()} > {K_pos_max.max()}"
-
-
-@pytest.mark.parametrize("device_str", ["cpu", "cuda"])
-@pytest.mark.parametrize("num_envs", [1, 2, 8])
-@pytest.mark.parametrize("num_bodies", [1, 4])
-def test_lee_acc_randomize_params_within_bounds(
-    monkeypatch: pytest.MonkeyPatch, device_str: str, num_envs: int, num_bodies: int
-):
-    """Randomized gains stay within configured ranges for acceleration controller.
-
-    Tests edge cases with single and multiple environments and bodies.
-    """
-    device = _device_param(device_str)
-    _patch_aggregate(monkeypatch, acc_mod, num_envs, device)
-    _patch_sim_context(monkeypatch, acc_mod)
-    robot = _DummyRobot(num_envs, num_bodies, device)
-
-    cfg = _create_acc_cfg()
-    controller = acc_mod.LeeAccController(cfg, robot, num_envs=num_envs, device=str(device))
-
-    controller.reset_idx(env_ids=None)
-
-    # Check K_rot gains
-    K_rot_min = torch.tensor(cfg.K_rot_range[0], device=device, dtype=torch.float32)
-    K_rot_max = torch.tensor(cfg.K_rot_range[1], device=device, dtype=torch.float32)
-    K_rot_current = controller.K_rot_current.to(device)
-
-    assert K_rot_current.shape == (num_envs, 3), f"Expected shape ({num_envs}, 3), got {K_rot_current.shape}"
-    assert torch.all(K_rot_current >= K_rot_min), f"K_rot below minimum: {K_rot_current.min()} < {K_rot_min.min()}"
-    assert torch.all(K_rot_current <= K_rot_max), f"K_rot above maximum: {K_rot_current.max()} > {K_rot_max.max()}"
-
-    # Check K_angvel gains
-    K_angvel_min = torch.tensor(cfg.K_angvel_range[0], device=device, dtype=torch.float32)
-    K_angvel_max = torch.tensor(cfg.K_angvel_range[1], device=device, dtype=torch.float32)
-    K_angvel_current = controller.K_angvel_current.to(device)
-
-    assert K_angvel_current.shape == (num_envs, 3), f"Expected shape ({num_envs}, 3), got {K_angvel_current.shape}"
-    assert torch.all(K_angvel_current >= K_angvel_min), (
-        f"K_angvel below minimum: {K_angvel_current.min()} < {K_angvel_min.min()}"
-    )
-    assert torch.all(K_angvel_current <= K_angvel_max), (
-        f"K_angvel above maximum: {K_angvel_current.max()} > {K_angvel_max.max()}"
-    )
-
-
-@pytest.mark.parametrize("device_str", ["cpu", "cuda"])
-@pytest.mark.parametrize("num_envs", [1, 2, 8])
-@pytest.mark.parametrize("num_bodies", [1, 4])
-def test_lee_att_randomize_params_within_bounds(
-    monkeypatch: pytest.MonkeyPatch, device_str: str, num_envs: int, num_bodies: int
-):
-    """Randomized gains stay within configured ranges for attitude controller.
-
-    Tests edge cases with single and multiple environments and bodies.
-    """
-    device = _device_param(device_str)
-    _patch_aggregate(monkeypatch, att_mod, num_envs, device)
-    _patch_sim_context(monkeypatch, att_mod)
-    robot = _DummyRobot(num_envs, num_bodies, device)
-
-    cfg = _create_att_cfg()
-    controller = att_mod.LeeAttController(cfg, robot, num_envs=num_envs, device=str(device))
-
-    controller.reset_idx(env_ids=None)
-
-    # Check K_rot gains
-    K_rot_min = torch.tensor(cfg.K_rot_range[0], device=device, dtype=torch.float32)
-    K_rot_max = torch.tensor(cfg.K_rot_range[1], device=device, dtype=torch.float32)
-    K_rot_current = controller.K_rot_current.to(device)
-
-    assert K_rot_current.shape == (num_envs, 3), f"Expected shape ({num_envs}, 3), got {K_rot_current.shape}"
-    assert torch.all(K_rot_current >= K_rot_min), f"K_rot below minimum: {K_rot_current.min()} < {K_rot_min.min()}"
-    assert torch.all(K_rot_current <= K_rot_max), f"K_rot above maximum: {K_rot_current.max()} > {K_rot_max.max()}"
-
-    # Check K_angvel gains
-    K_angvel_min = torch.tensor(cfg.K_angvel_range[0], device=device, dtype=torch.float32)
-    K_angvel_max = torch.tensor(cfg.K_angvel_range[1], device=device, dtype=torch.float32)
-    K_angvel_current = controller.K_angvel_current.to(device)
-
-    assert K_angvel_current.shape == (num_envs, 3), f"Expected shape ({num_envs}, 3), got {K_angvel_current.shape}"
-    assert torch.all(K_angvel_current >= K_angvel_min), (
-        f"K_angvel below minimum: {K_angvel_current.min()} < {K_angvel_min.min()}"
-    )
-    assert torch.all(K_angvel_current <= K_angvel_max), (
-        f"K_angvel above maximum: {K_angvel_current.max()} > {K_angvel_max.max()}"
-    )
+        assert gain.shape == (num_envs, 3), f"Expected {name} shape ({num_envs}, 3), got {gain.shape}"
+        assert torch.all(gain >= gain_min), f"{name} below minimum: {gain.min()} < {gain_min.min()}"
+        assert torch.all(gain <= gain_max), f"{name} above maximum: {gain.max()} > {gain_max.max()}"

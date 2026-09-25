@@ -28,7 +28,7 @@ Expected behavior:
 Known failure modes:
 
 - Starts a full-scale training run before checking shape and reset behavior.
-- Uses a raw `python` command instead of the Isaac Lab wrapper.
+- Uses a raw `python` command instead of the documented `uv run isaaclab train` entry point.
 
 ## Scenario 3: Visual Observations
 

@@ -289,18 +289,15 @@ def _resolve_matching_names_impl(
     for target_index, potential_match_string in enumerate(list_of_strings):
         for key_index, re_key in enumerate(keys):
             if re.fullmatch(re_key, potential_match_string):
-                # check if match already found
                 if target_strings_match_found[target_index]:
                     raise ValueError(
                         f"Multiple matches for '{potential_match_string}':"
                         f" '{target_strings_match_found[target_index]}' and '{re_key}'!"
                     )
-                # add to list
                 target_strings_match_found[target_index] = re_key
                 index_list.append(target_index)
                 names_list.append(potential_match_string)
                 key_idx_list.append(key_index)
-                # add for regex key
                 keys_match_found[key_index].append(potential_match_string)
     # reorder keys if they should be returned in order of the query keys
     if preserve_order:
@@ -329,7 +326,6 @@ def _resolve_matching_names_impl(
         for key, value in zip(keys, keys_match_found):
             msg += f"\t{key}: {value}\n"
         msg += f"Available strings: {list_of_strings}\n"
-        # raise error
         raise ValueError(
             f"Not all regular expressions are matched! Please check that the regular expressions are correct: {msg}"
         )
@@ -436,7 +432,6 @@ def resolve_matching_names_values(
         ValueError: When multiple matches are found for a string in the dictionary.
         ValueError: When not all regular expressions in the data keys are matched (if strict is True).
     """
-    # check valid input
     if not isinstance(data, dict):
         raise TypeError(f"Input argument `data` should be a dictionary. Received: {data}")
     # find matching patterns
@@ -500,6 +495,24 @@ def resolve_matching_names_values(
         )
     # return
     return index_list, names_list, values_list
+
+
+def _resolve_matching_values_dense(value: dict[str, float | int] | float | int, names: list[str]) -> tuple[float, ...]:
+    """Expand a scalar or regex-keyed mapping into dense per-name float values.
+
+    Scalars broadcast to every name. Mapping entries resolve through
+    :func:`resolve_matching_names_values`; names not matched by any pattern
+    resolve to zero. This zero fill is the shared contract for actuator
+    configuration values across model parsing, alias comparison, and USD
+    authoring.
+    """
+    if isinstance(value, (float, int)):
+        return (float(value),) * len(names)
+    indices, _, values = resolve_matching_names_values(value, names)
+    resolved_values = [0.0] * len(names)
+    for index, resolved_value in zip(indices, values, strict=True):
+        resolved_values[index] = float(resolved_value)
+    return tuple(resolved_values)
 
 
 def find_unique_string_name(initial_name: str, is_unique_fn: Callable[[str], bool]) -> str:

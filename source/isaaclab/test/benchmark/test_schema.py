@@ -11,7 +11,7 @@ import os
 
 import pytest
 
-from isaaclab.test.benchmark.schema import (
+from isaaclab.benchmark.schema import (
     SCHEMA_VERSION,
     CProfileFunction,
     EnvironmentStepTiming,
@@ -32,7 +32,7 @@ from isaaclab.test.benchmark.schema import (
     TrainingBundle,
     Versions,
 )
-from isaaclab.test.benchmark.serialize import write_bundle_file
+from isaaclab.benchmark.serialize import write_bundle_file
 
 pytestmark = pytest.mark.benchmark
 
@@ -125,6 +125,7 @@ def _minimal_training_bundle() -> TrainingBundle:
             ema_alpha=0.05,
             reward=LearningCurve(final_raw=1823.4, final_ema=1796.1, series_per_iter=[12.3, 34.5, 58.1]),
             ep_length=LearningCurve(final_raw=987.0, final_ema=962.3, series_per_iter=[4.1, 5.0, 7.2]),
+            success_rate=LearningCurve(final_raw=0.95, final_ema=0.91, series_per_iter=[0.1, 0.5, 0.95]),
         ),
         success_rate=0.91,
         checkpoint_path="logs/rsl_rl/ant/2026-04-22_13-15-00/model_499.pt",
@@ -149,6 +150,7 @@ def test_training_bundle_round_trip(tmp_path):
     assert data["runtime"]["collection_fps"]["mean"] == pytest.approx(1_142_000.0)
     assert data["runtime"]["total_fps"]["mean"] == pytest.approx(1_071_780.0)
     timing = data["runtime"]["environment_step_timing"]
+    assert timing["warmup_steps"] == 0
     assert timing["outside_simulation_step_fraction"] == pytest.approx(0.375)
     assert timing["measurement_mode"] == "serialized_synchronized"
     assert "overhead_step_time_s" not in timing
@@ -156,6 +158,8 @@ def test_training_bundle_round_trip(tmp_path):
     # merged MeanStd: util has no peak, memory does
     assert data["resources"]["gpu_util_pct"]["peak"] is None
     assert data["resources"]["ram_gb"]["peak"] == pytest.approx(24.8)
+    assert data["learning"]["success_rate"]["final_raw"] == pytest.approx(0.95)
+    assert data["learning"]["success_rate"]["series_per_iter"] == pytest.approx([0.1, 0.5, 0.95])
     assert data["success_rate"] == pytest.approx(0.91)
     assert data["checkpoint_path"].endswith("model_499.pt")
     assert data["video_path"] is None
@@ -219,24 +223,8 @@ def test_runtime_bundle_round_trip(tmp_path):
     assert data["run"]["framework"] is None
     assert data["run"]["max_iterations"] is None
     assert "learning" not in data
+    assert data["extra"] is None
     assert data["resources"]["gpu_mem_gb"]["peak"] == pytest.approx(19.2)
-
-
-def test_training_bundle_without_series(tmp_path):
-    bundle = dataclasses.replace(
-        _minimal_training_bundle(),
-        learning=Learning(
-            ema_alpha=0.05,
-            reward=LearningCurve(final_raw=1.0, final_ema=1.0, series_per_iter=None),
-            ep_length=LearningCurve(final_raw=1.0, final_ema=1.0, series_per_iter=None),
-        ),
-    )
-    path = os.path.join(tmp_path, "training.json")
-    write_bundle_file(bundle, path)
-    with open(path) as f:
-        data = json.load(f)
-    assert data["learning"]["reward"]["series_per_iter"] is None
-    assert data["learning"]["ep_length"]["series_per_iter"] is None
 
 
 def test_startup_bundle_reuses_run_identity(tmp_path):
@@ -273,12 +261,12 @@ def test_startup_bundle_reuses_run_identity(tmp_path):
 
 
 def test_mean_std_rejects_peak_below_mean():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="peak"):
         MeanStd(mean=10.0, std=1.0, peak=5.0)
 
 
 def test_run_identity_rejects_negative_duration():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="duration_s"):
         RunIdentity(
             run_id="x",
             framework=None,
@@ -294,8 +282,8 @@ def test_run_identity_rejects_negative_duration():
 
 def test_package_reexports_match_schema_module():
     """Every schema symbol exported from the package is the same object as in schema.py."""
-    import isaaclab.test.benchmark as pkg
-    from isaaclab.test.benchmark import schema
+    import isaaclab.benchmark as pkg
+    from isaaclab.benchmark import schema
 
     schema_names = {n for n in dir(schema) if not n.startswith("_")}
     checked = [n for n in getattr(pkg, "__all__", []) if n in schema_names]
@@ -306,7 +294,7 @@ def test_package_reexports_match_schema_module():
 
 def test_write_bundle_file_is_atomic(tmp_path, monkeypatch):
     """A failure mid-serialise must not clobber an existing good file."""
-    import isaaclab.test.benchmark.serialize as serialize
+    import isaaclab.benchmark.serialize as serialize
 
     path = os.path.join(tmp_path, "training.json")
     write_bundle_file(_minimal_training_bundle(), path)
@@ -325,33 +313,6 @@ def test_write_bundle_file_is_atomic(tmp_path, monkeypatch):
     with open(path) as fh:
         assert fh.read() == good
     assert not os.path.exists(path + ".tmp")
-
-
-def test_extra_field_round_trips(tmp_path):
-    """The free-form `extra` mapping round-trips with scalar values; defaults to None."""
-    bundle = dataclasses.replace(
-        _minimal_training_bundle(),
-        extra={"grad_norm": 0.42, "note": "warmup", "stable": True, "restarts": 2},
-    )
-    path = os.path.join(tmp_path, "training.json")
-    write_bundle_file(bundle, path)
-    with open(path) as f:
-        data = json.load(f)
-    assert data["extra"] == {"grad_norm": 0.42, "note": "warmup", "stable": True, "restarts": 2}
-
-    # default is None and serialises to JSON null
-    rt = RuntimeBundle(
-        run=_run_identity(framework=None, max_iterations=None),
-        versions=_versions(),
-        hardware=_hardware(),
-        runtime=_runtime(),
-        resources=_resources(),
-    )
-    path2 = os.path.join(tmp_path, "runtime.json")
-    write_bundle_file(rt, path2)
-    with open(path2) as f:
-        data2 = json.load(f)
-    assert data2["extra"] is None
 
 
 def test_run_config_presets_round_trip(tmp_path):

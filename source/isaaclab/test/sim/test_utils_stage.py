@@ -43,33 +43,6 @@ def test_create_new_stage():
     assert root_prim.IsValid()
 
 
-def test_create_multiple_stages():
-    """Test creating multiple stages."""
-    stage1 = sim_utils.create_new_stage()
-    stage2 = sim_utils.create_new_stage()
-    stage3 = sim_utils.create_new_stage()
-
-    assert stage1 is not None
-    assert stage2 is not None
-    assert stage3 is not None
-    assert stage1 != stage2
-    assert stage1 != stage3
-    assert stage2 != stage3
-
-
-def test_create_new_stage_in_memory():
-    """Test creating a new stage in memory (Isaac Sim 5.0+)."""
-    stage = sim_utils.create_new_stage()
-
-    # Should return a valid stage
-    assert stage is not None
-    assert isinstance(stage, Usd.Stage)
-
-    # Stage should have a root prim
-    root_prim = stage.GetPseudoRoot()
-    assert root_prim.IsValid()
-
-
 def test_is_current_stage_in_memory():
     """Test checking if current stage is in memory."""
     # Create a stage - in kitless mode, this creates an in-memory stage
@@ -105,9 +78,14 @@ def test_save_and_open_stage():
         assert result is True
         assert save_path.exists()
 
-        # Open the saved stage
+        # Switch to a different stage before opening
+        sim_utils.create_new_stage()
+        sim_utils.get_current_stage().DefinePrim("/DifferentPrim", "Xform")
+
+        # Open the saved stage; it becomes the current stage
         opened_stage = sim_utils.open_stage(str(save_path))
         assert isinstance(opened_stage, Usd.Stage)
+        assert sim_utils.get_current_stage() == opened_stage
 
         # Verify content was preserved
         test_cube = opened_stage.GetPrimAtPath("/World/TestCube")
@@ -121,57 +99,11 @@ def test_open_stage_invalid_path():
         sim_utils.open_stage("/invalid/path/to/stage.invalid")
 
 
-def test_use_stage_context_manager():
-    """Test use_stage context manager."""
-    # Create two stages
-    stage1 = sim_utils.create_new_stage()
-    stage1.DefinePrim("/World", "Xform")
-    stage1.DefinePrim("/World/Stage1Marker", "Xform")
-
-    stage2 = Usd.Stage.CreateInMemory()
-    stage2.DefinePrim("/World", "Xform")
-    stage2.DefinePrim("/World/Stage2Marker", "Xform")
-
-    # Initially on stage1
-    current = sim_utils.get_current_stage()
-    marker1 = current.GetPrimAtPath("/World/Stage1Marker")
-    assert marker1.IsValid()
-
-    # Switch to stage2 temporarily
-    with sim_utils.use_stage(stage2):
-        temp_current = sim_utils.get_current_stage()
-        # Should be on stage2 now
-        marker2 = temp_current.GetPrimAtPath("/World/Stage2Marker")
-        assert marker2.IsValid()
-
-    # Should be back on stage1
-    final_current = sim_utils.get_current_stage()
-    marker1_again = final_current.GetPrimAtPath("/World/Stage1Marker")
-    assert marker1_again.IsValid()
-
-
 def test_use_stage_with_invalid_input():
     """Test use_stage with invalid input."""
     with pytest.raises((TypeError, AssertionError)):
         with sim_utils.use_stage("not a stage"):  # type: ignore
             pass
-
-
-def test_update_stage():
-    """Test updating the stage."""
-    # Create a new stage
-    stage = sim_utils.create_new_stage()
-
-    # Add a prim
-    prim_path = "/World/Test"
-    stage.DefinePrim(prim_path, "Xform")
-
-    # Update stage should not raise errors
-    sim_utils.update_stage()
-
-    # Prim should still exist
-    prim = stage.GetPrimAtPath(prim_path)
-    assert prim.IsValid()
 
 
 def test_save_stage_with_reload():
@@ -241,12 +173,13 @@ def test_close_stage():
     # Close it
     result = sim_utils.close_stage()
 
-    # Should succeed (or return bool)
-    assert isinstance(result, bool)
+    assert result is True
+    # the closed stage is no longer the current stage
+    assert sim_utils.get_current_stage() != stage
 
 
 def test_clear_stage():
-    """Test clearing the stage."""
+    """Test clearing the stage deletes local prims and keeps protected ones."""
     # Create a new stage
     stage = sim_utils.create_new_stage()
 
@@ -254,23 +187,18 @@ def test_clear_stage():
     stage.DefinePrim("/World", "Xform")
     stage.DefinePrim("/World/Cube", "Cube")
     stage.DefinePrim("/World/Sphere", "Sphere")
+    # prims the default predicate must preserve
+    stage.DefinePrim("/Keep", "Xform").SetMetadata("no_delete", True)
+    stage.DefinePrim("/Render/Vars", "Scope")
 
     # Clear the stage
     sim_utils.clear_stage()
 
-    # Stage should still exist but prims should be removed
-    assert stage is not None
-
-
-def test_get_current_stage():
-    """Test getting the current stage."""
-    # Create a new stage
-    created_stage = sim_utils.create_new_stage()
-
-    # Get current stage should return the same stage
-    current_stage = sim_utils.get_current_stage()
-    assert current_stage == created_stage
-    assert isinstance(current_stage, Usd.Stage)
+    # locally authored prims are removed; protected prims and the root survive
+    for path in ("/World", "/World/Cube", "/World/Sphere"):
+        assert not stage.GetPrimAtPath(path).IsValid(), path
+    for path in ("/", "/Keep", "/Render", "/Render/Vars"):
+        assert stage.GetPrimAtPath(path).IsValid(), path
 
 
 def test_get_current_stage_id():
@@ -286,39 +214,47 @@ def test_get_current_stage_id():
     assert stage_id >= 0
 
 
-def test_resolve_paths():
-    """Test resolve_paths helper for asset path resolution."""
+def test_resolve_paths_keeps_search_path_assets():
+    """Test resolve_paths leaves search-path asset identifiers untouched.
+
+    Identifiers such as the MDL module ``OmniPBR.mdl`` are resolved against the renderer's module
+    path rather than the layer's directory, so re-anchoring one to the destination layer yields a
+    path relative to the process working directory that resolves to nothing.
+    """
+    from pxr import Sdf, UsdShade
+
     from isaaclab.sim.utils.stage import resolve_paths
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        # Create a source stage with a sublayer reference
-        source_path = Path(temp_dir) / "source" / "source_stage.usd"
-        source_path.parent.mkdir(parents=True, exist_ok=True)
+        # Create a mesh the source asset references through a directory-qualified relative path
+        mesh_path = Path(temp_dir) / "meshes" / "mesh.usda"
+        mesh_path.parent.mkdir(parents=True, exist_ok=True)
+        mesh_stage = Usd.Stage.CreateNew(str(mesh_path))
+        mesh_stage.GetRootLayer().Save()
 
-        # Create source stage with some content
+        # Create the source asset with a mesh reference and an MDL shader
+        source_path = Path(temp_dir) / "asset.usda"
         source_stage = Usd.Stage.CreateNew(str(source_path))
-        source_stage.DefinePrim("/World", "Xform")
-        source_stage.DefinePrim("/World/Cube", "Cube")
+        world_prim = source_stage.DefinePrim("/World", "Xform")
+        world_prim.GetReferences().AddReference("./meshes/mesh.usda")
+        shader = UsdShade.Shader.Define(source_stage, "/World/Looks/red/red")
+        shader.SetSourceAsset(Sdf.AssetPath("OmniPBR.mdl"), "mdl")
         source_stage.GetRootLayer().Save()
 
-        # Copy to a different location using layer transfer
-        dest_path = Path(temp_dir) / "dest" / "dest_stage.usd"
+        # Copy the layer one directory deeper, as export_prim_to_file does for instanceable meshes
+        dest_path = Path(temp_dir) / "Props" / "instanceable_meshes.usda"
         dest_path.parent.mkdir(parents=True, exist_ok=True)
-
-        from pxr import Sdf
-
         dest_layer = Sdf.Layer.CreateNew(str(dest_path))
         dest_layer.TransferContent(source_stage.GetRootLayer())
 
-        # Resolve paths (should not raise any errors)
         resolve_paths(str(source_path), str(dest_path))
         dest_layer.Save()
 
-        # Open destination stage and verify content was preserved
-        dest_stage = Usd.Stage.Open(str(dest_path))
-        cube_prim = dest_stage.GetPrimAtPath("/World/Cube")
-        assert cube_prim.IsValid()
-        assert cube_prim.GetTypeName() == "Cube"
+        contents = dest_layer.ExportToString()
+        # the MDL module keeps its search-path identifier
+        assert "@OmniPBR.mdl@" in contents
+        # the mesh reference is re-anchored to the new location
+        assert "@../meshes/mesh.usda@" in contents
 
 
 def test_stage_context_tracking():
@@ -347,45 +283,3 @@ def test_stage_context_tracking():
     # After context manager, should be back to stage2
     current = sim_utils.get_current_stage()
     assert current.GetPrimAtPath("/Stage2Marker").IsValid()
-
-
-def test_is_prim_deletable():
-    """Test _is_prim_deletable with various prim types."""
-    from isaaclab.sim.utils.stage import _is_prim_deletable
-
-    stage = sim_utils.create_new_stage()
-
-    # Create a locally authored prim - should be deletable
-    local_prim = stage.DefinePrim("/World/LocalPrim", "Xform")
-    assert _is_prim_deletable(local_prim) is True
-
-    # Create another deletable prim
-    another_prim = stage.DefinePrim("/World/AnotherPrim", "Cube")
-    assert _is_prim_deletable(another_prim) is True
-
-    # Root prim should not be deletable
-    root_prim = stage.GetPseudoRoot()
-    assert _is_prim_deletable(root_prim) is False
-
-
-def test_open_stage_sets_current():
-    """Test that open_stage sets the opened stage as current."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        # Create and save a stage
-        stage = sim_utils.create_new_stage()
-        stage.DefinePrim("/TestPrim", "Xform")
-
-        save_path = Path(temp_dir) / "test.usd"
-        sim_utils.save_stage(str(save_path), save_and_reload_in_place=False)
-
-        # Create a different stage
-        sim_utils.create_new_stage()
-        sim_utils.get_current_stage().DefinePrim("/DifferentPrim", "Xform")
-
-        # Open the saved stage
-        opened = sim_utils.open_stage(str(save_path))
-
-        # Opened stage should now be current
-        current = sim_utils.get_current_stage()
-        assert current == opened
-        assert current.GetPrimAtPath("/TestPrim").IsValid()

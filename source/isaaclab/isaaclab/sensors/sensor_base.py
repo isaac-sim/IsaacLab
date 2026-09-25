@@ -13,23 +13,24 @@ from __future__ import annotations
 
 import inspect
 import logging
+import sys
 import weakref
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
-import isaaclab.sim as sim_utils
-from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.sim.utils.queries import get_first_matching_ancestor_prim
-from isaaclab.sim.utils.transforms import resolve_prim_pose
-
+from .. import cloner
+from .. import sim as sim_utils
+from ..cloner.cloner_cfg import expand_env_regex_ns
+from ..physics import PhysicsEvent, PhysicsManager
+from ..sim.utils.queries import get_first_matching_ancestor_prim
+from ..sim.utils.transforms import resolve_prim_pose
 from .kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
 if TYPE_CHECKING:
-    from isaaclab.cloner import ClonePlan
-
+    from ..cloner import ClonePlan
     from .sensor_base_cfg import SensorBaseCfg
 
 logger = logging.getLogger(__name__)
@@ -38,10 +39,9 @@ logger = logging.getLogger(__name__)
 class SensorBase(ABC):
     """The base class for implementing a sensor.
 
-    The implementation is based on lazy evaluation. The sensor data is only updated when the user
-    tries accessing the data through the :attr:`data` property or sets ``force_compute=True`` in
-    the :meth:`update` method. This is done to avoid unnecessary computation when the sensor data
-    is not used.
+    The implementation is based on lazy evaluation. Sensor buffers are refreshed through the
+    :attr:`data` property, by setting ``force_recompute=True`` in :meth:`update`, or by calling
+    :meth:`update_batch`. This avoids unnecessary computation when sensor data is not used.
 
     The sensor is updated at the specified update period. If the update period is zero, then the
     sensor is updated at every simulation step.
@@ -53,30 +53,31 @@ class SensorBase(ABC):
         Args:
             cfg: The configuration parameters for the sensor.
         """
-        # check that the config is valid
         cfg.validate()
-        # store inputs
-        self._source_cfg = cfg
+        cfg.prim_path = expand_env_regex_ns(cfg.prim_path)
         self.cfg = cfg.copy()
-        # flag for whether the sensor is initialized
         self._is_initialized = False
-        # flag for whether the sensor is in visualization mode
         self._is_visualizing = False
         # clone plan used for this sensor's latest initialization
         self._clone_plan: ClonePlan | None = None
         self.stage = sim_utils.get_current_stage()
 
-        # register various callback functions
         self._register_callbacks()
 
         # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
         self._debug_vis_handle = None
-        # set initial state of debug visualization
         self.set_debug_vis(self.cfg.debug_vis)
 
-    def __del__(self):
-        """Unsubscribe from the callbacks."""
-        # clear physics events handles
+    def __del__(self, _sys=sys):
+        """Unsubscribe from the callbacks.
+
+        Skips cleanup during interpreter shutdown. ``sys`` is bound as a default argument so it
+        survives module teardown. Running :meth:`_clear_callbacks` after import machinery is gone
+        can lazy-import ``isaaclab.sim`` and raise ``ImportError: sys.meta_path is None``, which
+        then masks the exception that actually aborted the process.
+        """
+        if _sys.is_finalizing() or _sys.meta_path is None:
+            return
         self._clear_callbacks()
 
     """
@@ -103,6 +104,15 @@ class SensorBase(ABC):
     def device(self) -> str:
         """Memory device for computation."""
         return self._device
+
+    @property
+    def supports_batch_update(self) -> bool:
+        """Whether eager buffer refreshes can share work through :meth:`update_batch`.
+
+        Defaults to False. Sensors may opt in and implement ``_update_buffers_batch_impl``
+        to share work with sensors that use the same batch implementation.
+        """
+        return False
 
     @property
     @abstractmethod
@@ -209,6 +219,34 @@ class SensorBase(ABC):
         if force_recompute or self._is_visualizing:
             self._update_outdated_buffers(force_recompute=force_recompute)
 
+    @staticmethod
+    def update_batch(sensors: Sequence[SensorBase], dt: float) -> None:
+        """Advance batch-capable sensors and eagerly refresh their data in compatible groups.
+
+        All sensors must report :attr:`supports_batch_update` as True. Calls each sensor's
+        :meth:`update` once in input order with ``force_recompute=False``, then processes
+        pending buffers through their shared ``_update_buffers_batch_impl`` static methods.
+        Use this method instead of calling :meth:`update` separately for the same time step.
+
+        Uninitialized sensors and sensors already refreshed during the update loop are excluded
+        from batch processing. Each batch is marked updated only after its implementation
+        returns successfully.
+
+        Args:
+            sensors: Batch-capable sensors to update, each appearing once. An empty sequence
+                performs no work.
+            dt: Time elapsed since the previous sensor update [s].
+
+        Raises:
+            ValueError: If any sensor does not support batch updates. No sensors are advanced
+                in this case.
+        """
+        if any(not sensor.supports_batch_update for sensor in sensors):
+            raise ValueError("Batch updates require sensors with supports_batch_update=True.")
+        for sensor in sensors:
+            sensor.update(dt, force_recompute=False)
+        SensorBase._process_batch(sensors)
+
     """
     Implementation specific.
     """
@@ -230,18 +268,16 @@ class SensorBase(ABC):
         clone_plan = self._clone_plan
         clone_plan_matches = ()
         if clone_plan is not None:
-            from isaaclab.cloner.cloner_utils import iter_clone_plan_matches  # noqa: PLC0415
-
-            clone_plan_matches = tuple(iter_clone_plan_matches(clone_plan, self.cfg.prim_path))
+            clone_plan_matches = tuple(cloner.query.iter_sources(clone_plan, self.cfg.prim_path))
         if clone_plan_matches:
             self._parent_prims = []
             self._num_envs = int(clone_plan.clone_mask.shape[1])
         elif clone_plan is not None:
-            env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
+            env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
             self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
-            self._num_envs = int(clone_plan.env_ids.numel())
+            self._num_envs = int(clone_plan.env_ids.size)
         else:
-            env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
+            env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
             self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
             self._num_envs = len(self._parent_prims)
         # Create warp env mask arrays for "all envs" cases and resets.
@@ -275,6 +311,21 @@ class SensorBase(ABC):
             env_mask: The mask of the environments that are ready to capture.
         """
         raise NotImplementedError
+
+    @staticmethod
+    def _update_buffers_batch_impl(sensors: Sequence[SensorBase]) -> None:
+        """Fill buffers for initialized sensors that share this batch implementation.
+
+        Each sensor's ``_is_outdated`` mask selects its due environments and may be empty.
+        Implementations must fill the requested buffers before returning and leave timestamp
+        and generation bookkeeping to the caller. The default implementation
+        calls each sensor's ``_update_buffers_impl`` individually.
+
+        Args:
+            sensors: Sensors whose buffers need checking, all using this static method.
+        """
+        for sensor in sensors:
+            sensor._update_buffers_impl(sensor._is_outdated)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         """Set debug visualization into visualization objects.
@@ -398,6 +449,10 @@ class SensorBase(ABC):
         if not force_recompute and self._data_generation == self._data_generation_last_update:
             return
         self._update_buffers_impl(self._is_outdated)
+        self._mark_buffers_updated()
+
+    def _mark_buffers_updated(self) -> None:
+        """Commit capture timestamps after the sensor's output buffers have been filled."""
         # update timestamps and clear outdated flags
         wp.launch(
             update_outdated_envs_kernel,
@@ -406,6 +461,22 @@ class SensorBase(ABC):
             device=self._device,
         )
         self._data_generation_last_update = self._data_generation
+
+    @staticmethod
+    def _process_batch(sensors: Sequence[SensorBase]) -> None:
+        """Refresh pending buffers for batch-capable sensors whose timing has already advanced."""
+        # A later sensor's update may already have refreshed an earlier sensor's data.
+        groups: dict[Callable[[Sequence[SensorBase]], None], list[SensorBase]] = {}
+        for sensor in sensors:
+            if not sensor.is_initialized or sensor._data_generation == sensor._data_generation_last_update:
+                continue
+            batch_impl = type(sensor)._update_buffers_batch_impl
+            groups.setdefault(batch_impl, []).append(sensor)
+
+        for batch_impl, group in groups.items():
+            batch_impl(group)
+            for sensor in group:
+                sensor._mark_buffers_updated()
 
     def _resolve_indices_and_mask(
         self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None
@@ -435,7 +506,7 @@ class SensorBase(ABC):
 
         1. When an active :class:`~isaaclab.cloner.ClonePlan` exists, the
            source-side env path is taken from the plan via
-           :func:`~isaaclab.cloner.resolve_clone_plan_source`, the rigid-body ancestor
+           :func:`~isaaclab.cloner.query.path_to_source`, the rigid-body ancestor
            is located on that source env, and the destination expression is
            reconstructed by trimming the sensor-relative suffix from the plan's
            destination glob.
@@ -448,7 +519,7 @@ class SensorBase(ABC):
 
         The returned expression may still contain regex-style wildcards (e.g.
         ``.*``); callers are responsible for converting to glob form for their
-        physics view (e.g. ``.replace(".*", "*")``).
+        physics view (e.g. via :func:`~isaaclab.sim.utils.path_expr_to_glob`).
 
         Returns:
             A tuple of:

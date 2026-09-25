@@ -10,9 +10,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from .dispatch import run_play_cli, run_train_cli
+from .dispatch import run_play_cli, run_random_agent_cli, run_train_cli, run_zero_agent_cli
 
-BackendName = Literal["rl_games", "rlinf", "rsl_rl", "sb3", "skrl"]
+BackendName = Literal["rl_games", "rlinf", "rsl_rl", "sb3", "skrl", "torchrl"]
+"""Backends of the unified entrypoints."""
+
+MULTI_GPU_BACKENDS: tuple[BackendName, ...] = ("rl_games", "rsl_rl", "skrl")
+"""Backends the multi-GPU launcher can drive."""
 
 
 @dataclass(frozen=True)
@@ -77,6 +81,27 @@ class PlaybackRequest:
     hydra_args: tuple[str, ...] = field(default_factory=tuple)
 
 
+@dataclass(frozen=True)
+class SimpleAgentRequest:
+    """Parameters shared by the checkpoint-free playback workflows.
+
+    Args:
+        task: Registered Gym task identifier.
+        num_envs: Number of environments to simulate.
+        device: Simulation device identifier.
+        max_steps: Number of environment steps to run. Runs unbounded when omitted.
+        video: Whether to record video; the run stops once every recorder finishes its first clip.
+        hydra_args: Hydra overrides and typed preset selectors.
+    """
+
+    task: str
+    num_envs: int | None = None
+    device: str | None = None
+    max_steps: int | None = None
+    video: bool = False
+    hydra_args: tuple[str, ...] = field(default_factory=tuple)
+
+
 def train(request: TrainingRequest) -> int:
     """Run a training workflow for the requested backend.
 
@@ -101,13 +126,37 @@ def play(request: PlaybackRequest) -> int:
     return run_play_cli(_playback_argv(request))
 
 
+def zero_agent(request: SimpleAgentRequest) -> int:
+    """Run an environment with a zero-action agent.
+
+    Args:
+        request: Typed checkpoint-free playback parameters.
+
+    Returns:
+        Process exit code.
+    """
+    return run_zero_agent_cli(_simple_agent_argv(request))
+
+
+def random_agent(request: SimpleAgentRequest) -> int:
+    """Run an environment with a random-action agent.
+
+    Args:
+        request: Typed checkpoint-free playback parameters.
+
+    Returns:
+        Process exit code.
+    """
+    return run_random_agent_cli(_simple_agent_argv(request))
+
+
 def _training_argv(request: TrainingRequest) -> list[str]:
     argv = ["--rl_library", request.backend, "--task", request.task]
-    _append_value(argv, "--model_path" if request.backend == "rlinf" else "--checkpoint", request.checkpoint)
+    _append_value(argv, "--checkpoint", request.checkpoint)
     _append_value(argv, "--agent", request.agent)
     _append_value(argv, "--num_envs", request.num_envs)
     _append_value(argv, "--seed", request.seed)
-    _append_value(argv, "--max_epochs" if request.backend == "rlinf" else "--max_iterations", request.max_iterations)
+    _append_value(argv, "--max_iterations", request.max_iterations)
     _append_value(argv, "--device", request.device)
     if request.video:
         argv.append("--video")
@@ -119,7 +168,7 @@ def _training_argv(request: TrainingRequest) -> list[str]:
 
 def _playback_argv(request: PlaybackRequest) -> list[str]:
     argv = ["--rl_library", request.backend, "--task", request.task]
-    _append_value(argv, "--model_path" if request.backend == "rlinf" else "--checkpoint", request.checkpoint)
+    _append_value(argv, "--checkpoint", request.checkpoint)
     _append_value(argv, "--agent", request.agent)
     _append_value(argv, "--num_envs", request.num_envs)
     _append_value(argv, "--seed", request.seed)
@@ -127,6 +176,16 @@ def _playback_argv(request: PlaybackRequest) -> list[str]:
     if request.video:
         argv.append("--video")
     return argv + list(request.backend_args) + list(request.hydra_args)
+
+
+def _simple_agent_argv(request: SimpleAgentRequest) -> list[str]:
+    argv = ["--task", request.task]
+    _append_value(argv, "--num_envs", request.num_envs)
+    _append_value(argv, "--device", request.device)
+    _append_value(argv, "--max_steps", request.max_steps)
+    if request.video:
+        argv.append("--video")
+    return argv + list(request.hydra_args)
 
 
 def _append_value(argv: list[str], option: str, value: str | int | None) -> None:

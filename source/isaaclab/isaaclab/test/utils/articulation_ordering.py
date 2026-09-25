@@ -9,20 +9,66 @@ from typing import Any
 
 import torch
 
+ANYMAL_C_PHYSX_JOINT_NAMES = (
+    "LF_HAA",
+    "LH_HAA",
+    "RF_HAA",
+    "RH_HAA",
+    "LF_HFE",
+    "LH_HFE",
+    "RF_HFE",
+    "RH_HFE",
+    "LF_KFE",
+    "LH_KFE",
+    "RF_KFE",
+    "RH_KFE",
+)
+
+PANDA_JOINT_NAMES = (
+    "panda_joint1",
+    "panda_joint2",
+    "panda_joint3",
+    "panda_joint4",
+    "panda_joint5",
+    "panda_joint6",
+    "panda_joint7",
+    "panda_finger_joint1",
+    "panda_finger_joint2",
+)
+
+PANDA_BODY_NAMES = (
+    "panda_link0",
+    "panda_link1",
+    "panda_link2",
+    "panda_link3",
+    "panda_link4",
+    "panda_link5",
+    "panda_link6",
+    "panda_link7",
+    "panda_hand",
+    "panda_leftfinger",
+    "panda_rightfinger",
+)
+PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES = (PANDA_BODY_NAMES[0], *reversed(PANDA_BODY_NAMES[1:]))
+
+BRANCHING_PHYSX_JOINT_NAMES = ("left_shoulder", "right_shoulder", "left_elbow", "right_elbow")
+BRANCHING_MJWARP_JOINT_NAMES = ("left_shoulder", "left_elbow", "right_shoulder", "right_elbow")
+BRANCHING_PHYSX_BODY_NAMES = ("base", "left_upper", "right_upper", "left_tip", "right_tip")
+BRANCHING_MJWARP_BODY_NAMES = ("base", "left_upper", "left_tip", "right_upper", "right_tip")
+
+
 _ORDERING_TRACE_FIELDS = (
     "joint_pos",
     "joint_vel",
-    "computed_torque",
-    "applied_torque",
-    "adapter_computed_effort",
+    "computed_effort",
+    "applied_effort",
     "adapter_applied_effort",
 )
 _ORDERING_TRACE_TOLERANCES = {
     "joint_pos": (2e-3, 1e-3),
     "joint_vel": (1e-2, 1e-2),
-    "computed_torque": (1e-3, 1e-3),
-    "applied_torque": (1e-3, 1e-3),
-    "adapter_computed_effort": (1e-3, 1e-3),
+    "computed_effort": (1e-3, 1e-3),
+    "applied_effort": (1e-3, 1e-3),
     "adapter_applied_effort": (1e-3, 1e-3),
 }
 
