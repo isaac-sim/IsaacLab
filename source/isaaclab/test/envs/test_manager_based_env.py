@@ -90,9 +90,18 @@ def test_step_updates_observation_history(device):
     torch.testing.assert_close(history.current_length, torch.tensor([3, 1, 3], device=device))
     env.reset_to({}, env_ids=slice(0, None, 2))
     torch.testing.assert_close(history.current_length, torch.tensor([1, 2, 1], device=device))
-    with pytest.raises(TypeError, match="env_ids"):
-        env.reset(env_ids=[0, 2])
-    with pytest.raises(TypeError, match="env_ids"):
-        env.reset_to({}, env_ids=[0, 2])
+    for invalid in (None, [0, 2]):
+        with pytest.raises(TypeError, match="env_ids"):
+            env.reset(invalid)
+        with pytest.raises(TypeError, match="env_ids"):
+            env.reset(env_ids=invalid)
+        with pytest.raises(TypeError, match="env_ids"):
+            env.reset_to({}, env_ids=invalid)
     torch.testing.assert_close(history.current_length, torch.tensor([1, 2, 1], device=device))
+    env.reset()
+    torch.testing.assert_close(history.current_length, torch.ones_like(history.current_length))
+    env.reset(slice(None), seed=42)
+    env.reset_to({})
+    torch.testing.assert_close(history.current_length, torch.ones_like(history.current_length))
+    assert not hasattr(env.scene, "resolve_env_ids")
     env.close()

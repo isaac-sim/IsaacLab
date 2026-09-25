@@ -2,13 +2,15 @@ Changed
 ^^^^^^^
 
 * **Breaking:** Restricted ``ManagerBasedEnv.reset`` / ``reset_to`` and reset event selectors to one-dimensional
-  ``torch.int32`` / ``torch.int64`` tensors on the environment device, positive-step slices, or ``None``.
-  Python sequences and tensors on a different device now raise before resetting state instead of
-  relying on implicit indexing conversions. Callers using explicit lists must construct their index
-  tensor on the environment device once and reuse it.
-* Made reset event callbacks consistently receive device index tensors, including for ``None`` and
-  slice selectors. Resolved those selectors through the scene's existing index buffer without copying
-  index data or transferring it between devices.
+  ``torch.int32`` / ``torch.int64`` tensors on the environment device. Public environment resets also accept
+  positive-step slices, defaulting to ``slice(None)`` for all environments. Explicit ``env_ids=None`` and Python
+  sequences are unsupported; omit the selector for a full reset or prepare device indices once and reuse them.
+* Made the environment selector the first positional argument of ``ManagerBasedEnv.reset``. Pass the seed and
+  Gymnasium options by keyword: ``env.reset(seed=42)``. ``env.reset()`` resets all environments;
+  ``env.reset(None)`` raises instead of treating None as a selection or seed.
+* Required explicit device indices for ``EventManager.apply(mode="reset", ...)``. The environment handles
+  slice selections once at its public boundary; the event manager passes supplied indices directly to callbacks.
+  ``EventManager.reset()`` defaults to ``slice(None)`` and passes slices directly to stateful terms.
 
 Fixed
 ^^^^^

@@ -401,8 +401,9 @@ class ManagerBasedEnv:
 
     def reset(
         self,
+        env_ids: torch.Tensor | slice = slice(None),
+        *,
         seed: int | None = None,
-        env_ids: torch.Tensor | slice | None = None,
         options: dict[str, Any] | None = None,
     ) -> tuple[VecEnvObs, dict]:
         """Resets the specified environments and returns observations.
@@ -412,9 +413,9 @@ class ManagerBasedEnv:
         are not repeated.
 
         Args:
+            env_ids: A one-dimensional int32/int64 tensor on the environment device or a positive-step slice.
+                Defaults to ``slice(None)`` (all environments). Explicit None is not supported.
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
-            env_ids: A one-dimensional int32/int64 tensor on the environment device, a positive-step slice,
-                or None for all environments. See :meth:`InteractiveScene.resolve_env_ids`.
             options: Additional information to specify how the environment is reset. Defaults to None.
 
                 Note:
@@ -423,7 +424,17 @@ class ManagerBasedEnv:
         Returns:
             A tuple containing the observations and extras.
         """
-        env_ids = self.scene.resolve_env_ids(env_ids)
+        if isinstance(env_ids, slice):
+            # The reset pipeline consumes indices; this is a view of the scene's existing buffer.
+            env_ids = self.scene._ALL_INDICES[env_ids]
+        elif (
+            not isinstance(env_ids, torch.Tensor)
+            or env_ids.ndim != 1
+            or env_ids.dtype not in (torch.int32, torch.int64)
+        ):
+            raise TypeError("env_ids must be a slice or a one-dimensional int32/int64 tensor.")
+        elif env_ids.device != self.scene._ALL_INDICES.device:
+            raise ValueError(f"env_ids must be on {self.device}; received {env_ids.device}.")
 
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
@@ -461,7 +472,7 @@ class ManagerBasedEnv:
     def reset_to(
         self,
         state: dict[str, dict[str, dict[str, torch.Tensor]]],
-        env_ids: torch.Tensor | slice | None,
+        env_ids: torch.Tensor | slice = slice(None),
         seed: int | None = None,
         is_relative: bool = False,
     ):
@@ -477,13 +488,23 @@ class ManagerBasedEnv:
         Args:
             state: The state to reset the specified environments to. Please refer to
                 :meth:`InteractiveScene.get_state` for the format.
-            env_ids: A one-dimensional int32/int64 tensor on the environment device, a positive-step slice,
-                or None for all environments. See :meth:`InteractiveScene.resolve_env_ids`.
+            env_ids: A one-dimensional int32/int64 tensor on the environment device or a positive-step slice.
+                Defaults to ``slice(None)`` (all environments). Explicit None is not supported.
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
             is_relative: If set to True, the state is considered relative to the environment origins.
                 Defaults to False.
         """
-        env_ids = self.scene.resolve_env_ids(env_ids)
+        if isinstance(env_ids, slice):
+            # The reset pipeline consumes indices; this is a view of the scene's existing buffer.
+            env_ids = self.scene._ALL_INDICES[env_ids]
+        elif (
+            not isinstance(env_ids, torch.Tensor)
+            or env_ids.ndim != 1
+            or env_ids.dtype not in (torch.int32, torch.int64)
+        ):
+            raise TypeError("env_ids must be a slice or a one-dimensional int32/int64 tensor.")
+        elif env_ids.device != self.scene._ALL_INDICES.device:
+            raise ValueError(f"env_ids must be on {self.device}; received {env_ids.device}.")
 
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)

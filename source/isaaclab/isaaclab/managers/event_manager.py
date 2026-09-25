@@ -121,23 +121,25 @@ class EventManager(ManagerBase):
     Operations.
     """
 
-    def reset(self, env_ids: torch.Tensor | slice | None = None) -> dict[str, float]:
-        """Reset event state for device indices, a positive-step slice, or all environments (None).
+    def reset(self, env_ids: torch.Tensor | slice = slice(None)) -> dict[str, float]:
+        """Reset event state for device indices or a slice, defaulting to all environments.
 
-        See :meth:`~isaaclab.scene.InteractiveScene.resolve_env_ids` for the selector contract.
+        Explicit None is not supported. The selector is passed directly to stateful terms.
         """
-        if env_ids is not None:
-            env_ids = self._env.scene.resolve_env_ids(env_ids)
+        if not isinstance(env_ids, slice) and (
+            not isinstance(env_ids, torch.Tensor)
+            or env_ids.ndim != 1
+            or env_ids.dtype not in (torch.int32, torch.int64)
+        ):
+            raise TypeError("env_ids must be a slice or a one-dimensional int32/int64 tensor.")
+        if isinstance(env_ids, torch.Tensor) and env_ids.device != torch.device(self.device):
+            raise ValueError(f"env_ids must be on {self.device}; received {env_ids.device}.")
         # call all terms that are classes
         for mode_cfg in self._mode_class_term_cfgs.values():
             for term_cfg in mode_cfg:
                 term_cfg.func.reset(env_ids=env_ids)
 
-        # resolve number of environments
-        if env_ids is None:
-            num_envs = self._env.num_envs
-        else:
-            num_envs = len(env_ids)
+        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         # if we are doing interval based events then we need to reset the time left
         # when the episode starts. otherwise the counter will start from the last time
         # for that environment
@@ -159,7 +161,7 @@ class EventManager(ManagerBase):
     def apply(
         self,
         mode: str,
-        env_ids: torch.Tensor | slice | None = None,
+        env_ids: torch.Tensor | None = None,
         dt: float | None = None,
         global_env_step_count: int | None = None,
     ):
@@ -180,9 +182,8 @@ class EventManager(ManagerBase):
             mode: The mode of event.
             env_ids: The indices of the environments to apply the event to.
                 Defaults to None, in which case the event is applied to all environments when applicable.
-                Reset mode accepts a one-dimensional int32/int64 tensor on the environment device,
-                a positive-step slice, or None. Reset callbacks receive device indices in all cases.
-                See :meth:`~isaaclab.scene.InteractiveScene.resolve_env_ids`.
+                Reset mode requires explicit one-dimensional int32/int64 indices on the environment device.
+                The environment supplies these indices before dispatch; reset mode does not accept slices or None.
             dt: The time step of the environment. This is only used for the "interval" mode.
                 Defaults to None to simplify the call for other modes.
             global_env_step_count: The total number of environment steps that have happened. This is only used
@@ -201,7 +202,14 @@ class EventManager(ManagerBase):
             return
 
         if mode == "reset":
-            env_ids = self._env.scene.resolve_env_ids(env_ids)
+            if (
+                not isinstance(env_ids, torch.Tensor)
+                or env_ids.ndim != 1
+                or env_ids.dtype not in (torch.int32, torch.int64)
+            ):
+                raise TypeError("Reset events require explicit one-dimensional int32/int64 environment indices.")
+            if env_ids.device != torch.device(self.device):
+                raise ValueError(f"env_ids must be on {self.device}; received {env_ids.device}.")
 
         # ensure class-based terms are resolved before applying
         # the timeline PLAY callback may not have fired yet, so we resolve synchronously

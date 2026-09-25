@@ -15,13 +15,12 @@ import torch
 
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import EventManager, EventTermCfg, ManagerTermBase, ManagerTermBaseCfg
-from isaaclab.scene import InteractiveScene
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.unit
 
-DummyEnv = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim", "dummy1", "dummy2", "scene"])
+DummyEnv = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim", "dummy1", "dummy2"])
 """Dummy environment for testing."""
 
 
@@ -85,10 +84,8 @@ def env(request):
     # simulation double that has not started playing, so class terms stay deferred to the physics-ready callback
     sim = MagicMock()
     sim.is_playing.return_value = False
-    scene = object.__new__(InteractiveScene)
-    scene._ALL_INDICES = torch.arange(num_envs, device=device)
     # create dummy environment
-    return DummyEnv(num_envs, 0.01, device, sim, dummy1, dummy2, scene)
+    return DummyEnv(num_envs, 0.01, device, sim, dummy1, dummy2)
 
 
 def test_config_equivalence(env):
@@ -181,7 +178,10 @@ def test_class_terms_created_while_playing_are_reset(env, monkeypatch):
 
     event_man.reset()
 
-    assert reset_calls == [None]
+    assert reset_calls == [slice(None)]
+    selected = slice(1, None, 2)
+    event_man.reset(selected)
+    assert reset_calls[-1] is selected
 
 
 def test_config_empty(env):
@@ -376,17 +376,13 @@ def test_apply_interval_mode_resample_on_reset(env):
     torch.testing.assert_close(event_man._interval_term_time_left[1], expected_after_apply)
 
 
-@pytest.mark.parametrize("selector", [None, slice(None), torch.int32, torch.int64, slice(1, None, 2), slice(0, 0)])
+@pytest.mark.parametrize("index_dtype", [torch.int32, torch.int64])
 @pytest.mark.parametrize("env", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA), indirect=True)
-def test_apply_reset_mode(env, selector):
+def test_apply_reset_mode(env, index_dtype):
     """Selectors preserve index storage and per-environment cooldowns for both reset terms."""
 
     def increment(env, ids):
-        assert isinstance(ids, torch.Tensor)
-        if isinstance(env_ids, torch.Tensor):
-            assert ids is env_ids
-        else:
-            assert ids.untyped_storage().data_ptr() == env.scene._ALL_INDICES.untyped_storage().data_ptr()
+        assert ids is env_ids
         increment_dummy1_by_one(env, ids)
 
     event_man = EventManager(
@@ -401,13 +397,11 @@ def test_apply_reset_mode(env, selector):
     triggered = [False] * env.num_envs
 
     for count in range(23):
-        # Alternate tensor selections to exercise mixed cooldowns and empty tensors.
-        if isinstance(selector, torch.dtype):
-            selected = [i for i in range(env.num_envs) if (i + count) % 3 == 0] if count % 4 else []
-            env_ids = torch.tensor(selected, dtype=selector, device=env.device)
-        else:
-            env_ids = selector
-            selected = list(range(env.num_envs))[selector if selector is not None else slice(None)]
+        # Include a full reset, mixed cooldowns, and empty selections.
+        selected = list(range(env.num_envs)) if count == 0 else [i for i in range(env.num_envs) if (i + count) % 3 == 0]
+        if count > 0 and count % 4 == 0:
+            selected = []
+        env_ids = torch.tensor(selected, dtype=index_dtype, device=env.device)
         event_man.apply("reset", env_ids=env_ids, global_env_step_count=count)
 
         for i in selected:
@@ -441,11 +435,11 @@ def test_reset_rejects_incompatible_selectors_before_mutation(env, monkeypatch):
         ((0, 2), TypeError),
         ([], TypeError),
         ((), TypeError),
+        (None, TypeError),
         (torch.zeros(2, device=env.device), TypeError),
         (torch.zeros(2, dtype=torch.bool, device=env.device), TypeError),
         (torch.zeros((1, 2), dtype=torch.int64, device=env.device), TypeError),
         (torch.zeros(2, dtype=torch.int64, device=wrong_device), ValueError),
-        (slice(None, None, -1), ValueError),
     ):
         with pytest.raises(error):
             event_man.apply("reset", env_ids=selector, global_env_step_count=1)
@@ -455,3 +449,8 @@ def test_reset_rejects_incompatible_selectors_before_mutation(env, monkeypatch):
         assert torch.all(env.dummy2 == 1)
         assert not torch.any(event_man._reset_term_last_triggered_once[0])
         assert not torch.any(event_man._reset_term_last_triggered_step_id[0])
+
+    with pytest.raises(TypeError, match="explicit"):
+        event_man.apply("reset", global_env_step_count=1)
+    with pytest.raises(TypeError, match="explicit"):
+        event_man.apply("reset", env_ids=slice(None), global_env_step_count=1)
