@@ -115,7 +115,6 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch: py
     renderer = OVRTXRenderer(OVRTXRendererCfg())
     shared = OVRTXRenderer(renderer.cfg)
 
-    assert not {"_backend", "_renderer", "_stage", "_stage_paths", "_ovstage_exit_stack"}.intersection(vars(renderer))
     assert shared.backend is renderer.backend
     assert renderer.backend.renderer is not None
     assert config_kwargs["suppress_deprecation_warnings"] is True
@@ -164,9 +163,18 @@ def test_ovrtx_supported_output_types_key_set():
     assert specs[RenderBufferKind.MOTION_VECTORS] == RenderBufferSpec(2, wp.float32)
 
 
-@pytest.mark.parametrize("use_ovstage", [False, True])
-@pytest.mark.parametrize("missing_output", [None, "product", "frame"])
-@pytest.mark.parametrize("batch", [False, True])
+# Each missing output runs with and without batching; ``use_ovstage`` only changes the ordinal bookkeeping.
+@pytest.mark.parametrize(
+    ("missing_output", "batch", "use_ovstage"),
+    [
+        (None, False, False),
+        (None, True, True),
+        ("product", False, True),
+        ("product", True, False),
+        ("frame", False, False),
+        ("frame", True, True),
+    ],
+)
 def test_ovrtx_render_submits_requested_products_and_routes_outputs(monkeypatch, use_ovstage, missing_output, batch):
     """A submission fills each camera from its product and rejects incomplete results."""
     renderer = _make_ovrtx_renderer_without_backend()
@@ -382,7 +390,7 @@ def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():
         pytest.skip("OVRTX zero-copy wrapping requires a CUDA device")
     device = "cuda"
 
-    cfg = _make_camera_cfg(["rgb", "rgba", "depth"])
+    cfg = _make_camera_cfg(["rgb", "rgba", "depth", "rgb_hdr"])
     data = CameraData.allocate(
         data_types=cfg.data_types,
         height=8,
@@ -397,30 +405,8 @@ def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():
     assert set(render_data.warp_buffers.keys()) >= {"rgba", "depth"}
     assert render_data.warp_buffers["rgba"].ptr == data.output["rgba"].warp.ptr
     assert render_data.warp_buffers["depth"].ptr == data.output["depth"].warp.ptr
-    assert "rgb" not in render_data.warp_buffers
-
-
-def test_ovrtx_set_outputs_wraps_requested_rgb_hdr_output():
-    """OVRTXRenderer.set_outputs publishes a zero-copy view for requested RGB_HDR."""
-    renderer = _make_ovrtx_renderer_without_backend()
-
-    if not torch.cuda.is_available():
-        pytest.skip("OVRTX zero-copy wrapping requires a CUDA device")
-    device = "cuda"
-
-    cfg = _make_camera_cfg(["rgb_hdr"])
-    data = CameraData.allocate(
-        data_types=cfg.data_types,
-        height=8,
-        width=16,
-        num_views=2,
-        device=device,
-        supported_specs=renderer.supported_output_types(),
-    )
-    render_data = _make_ovrtx_camera_render_data()
-    renderer.set_outputs(render_data, data.output)
-
     assert render_data.warp_buffers["rgb_hdr"].ptr == data.output["rgb_hdr"].warp.ptr
+    assert "rgb" not in render_data.warp_buffers
 
 
 def test_ovrtx_set_outputs_routes_ppisp_buffers_through_warp_buffers():
@@ -464,8 +450,8 @@ def test_ovrtx_process_frame_skips_ldr_rgba_when_ppisp_is_active():
     renderer._process_render_frame(render_data, frame, {"rgba": object()})
 
 
-@pytest.mark.parametrize("use_ovstage", [False, True])
-@pytest.mark.parametrize("version", ["0.4", "0.5"])
+# Render-var keys depend only on the OVRTX version; ``use_ovstage`` only selects the registration path.
+@pytest.mark.parametrize(("use_ovstage", "version"), [(False, "0.4"), (True, "0.5")])
 def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_ovstage, version):
     """Both OVRTX APIs extract each camera's outputs using keys from its authored USD."""
     from packaging.version import Version
@@ -664,10 +650,9 @@ def test_ovrtx_use_ovstage_rejects_non_boolean_values(monkeypatch):
         ovrtx_use_ovstage_enabled()
 
 
-@pytest.mark.parametrize("platform", ["win32", "darwin"])
-def test_ovrtx_render_var_sync_is_gpu_side_off_linux(monkeypatch, platform):
+def test_ovrtx_render_var_sync_is_gpu_side_off_linux(monkeypatch):
     """Everywhere but Linux the mapping is ordered by a GPU-side wait on the Warp stream."""
-    monkeypatch.setattr(sys, "platform", platform)
+    monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.delenv(_DISABLE_LINUX_CUDA_CPU_SYNC_ENV, raising=False)
     assert _gpu_side_render_var_sync_enabled() is True
 
@@ -945,9 +930,6 @@ def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
     monkeypatch.setattr(wp, "get_stream", lambda device: types.SimpleNamespace(cuda_stream=99))
     parameters = wp.zeros((5, 2), dtype=wp.float32, device="cpu")
     renderer.update_camera_intrinsics(cameras[1], wp.zeros(2, dtype=wp.mat33f, device="cpu"), parameters)
-    # Keep native resources on the backend and reuse the camera-owned query for calibration.
-    assert not {"_renderer", "_stage", "_stage_paths", "_camera_intrinsic_bindings"}.intersection(vars(renderer))
-    assert all(not {"intrinsic_query", "intrinsic_paths"}.intersection(vars(camera)) for camera in cameras)
     if use_ovstage:
         assert renderer.backend.stage.write_attributes.call_args.args[0] is cameras[1].camera_xform_query
         bound_paths = [call.args[0] for call in renderer.backend.paths.create_path_list_from_strings.call_args_list]

@@ -28,8 +28,10 @@ Set :attr:`~sensors.JointWrenchSensorCfg.prim_path` to the articulation root. Re
 depends on the physics backend:
 
 * PhysX and OVPhysX report every articulation link, including the root link.
-* Newton reports the child link of each non-free, non-fixed joint. It therefore excludes the root
-  link and any links connected through free or fixed joints.
+* Newton reports the child link of each non-free joint in the articulation tree, including fixed
+  connections between bodies such as a welded wrist sensor or tool flange. Free joints, fixed joints
+  to the world, and loop-closing constraints are excluded. The reported wrench at a weld includes
+  the loads transmitted by its child subtree, even though the joint has no degrees of freedom.
 
 Use :attr:`~sensors.JointWrenchSensor.body_names` or
 :meth:`~sensors.JointWrenchSensor.find_bodies` instead of assuming that different backends expose

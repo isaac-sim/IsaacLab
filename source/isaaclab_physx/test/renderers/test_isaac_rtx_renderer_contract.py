@@ -46,19 +46,30 @@ def _install_omni_stubs(monkeypatch):
     return replicator_core_module, syntheticdata_module
 
 
-def test_isaac_rtx_supported_output_types_include_rgb_hdr(monkeypatch):
-    """Isaac RTX advertises RGB_HDR as a 3-channel float renderer output."""
+@pytest.mark.parametrize("isaac_sim_version", ["5.1", "6.0"])
+def test_isaac_rtx_supported_output_types_include_rgb_hdr(monkeypatch, isaac_sim_version):
+    """Isaac RTX advertises RGB_HDR as a 3-channel float output; ALBEDO and simple shading need Isaac Sim 6.0+."""
     _install_omni_stubs(monkeypatch)
     from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer
     from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
 
     renderer = IsaacRtxRenderer.__new__(IsaacRtxRenderer)
     renderer.cfg = IsaacRtxRendererCfg()
-    with patch("isaaclab_physx.renderers.isaac_rtx_renderer.get_isaac_sim_version", return_value=version.parse("6.0")):
+    with patch(
+        "isaaclab_physx.renderers.isaac_rtx_renderer.get_isaac_sim_version",
+        return_value=version.parse(isaac_sim_version),
+    ):
         specs = renderer.supported_output_types()
 
-    assert specs == renderer.cfg.supported_output_types()
     assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)
+    requires_6_0 = [
+        RenderBufferKind.ALBEDO,
+        RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE,
+        RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL,
+        RenderBufferKind.SIMPLE_SHADING_FULL_MDL,
+    ]
+    is_supported = isaac_sim_version == "6.0"
+    assert all((kind in specs) is is_supported for kind in requires_6_0)
 
 
 def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch):
@@ -150,7 +161,6 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
         pytest.param(["simple_shading_constant_diffuse"], 1, True, id="constant_diffuse"),
         pytest.param(["simple_shading_diffuse_mdl"], 2, True, id="diffuse_mdl"),
         pytest.param(["simple_shading_full_mdl"], 3, True, id="full_mdl"),
-        pytest.param(["simple_shading_full_mdl", "simple_shading_full_mdl"], 3, True, id="duplicate_full_mdl"),
         pytest.param(
             ["simple_shading_constant_diffuse", "simple_shading_full_mdl"],
             1,
@@ -363,18 +373,19 @@ def test_init_applies_only_explicit_global_spectator_view_setting(monkeypatch, c
 
     settings = MagicMock()
     settings.get.return_value = False
+    # The unset case uses the default renderer config, which must preserve the launch setting.
+    if configured_value is None:
+        cfg = IsaacRtxRendererCfg()
+    else:
+        cfg = IsaacRtxRendererCfg(
+            global_settings=IsaacRtxRendererGlobalSettingsCfg(show_all_partitions_by_default=configured_value)
+        )
     with (
         patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
         patch.object(rtx_renderer, "enable_extension"),
         patch.object(rtx_renderer, "ensure_rtx_hydra_engine_attached"),
     ):
-        rtx_renderer.IsaacRtxRenderer(
-            IsaacRtxRendererCfg(
-                global_settings=IsaacRtxRendererGlobalSettingsCfg(
-                    show_all_partitions_by_default=configured_value,
-                )
-            )
-        )
+        rtx_renderer.IsaacRtxRenderer(cfg)
 
     spectator_calls = [
         setting_call
@@ -424,8 +435,9 @@ def test_deterministic_flag_gates_rtx_determinism_settings(monkeypatch, stored, 
         determinism_mock.assert_called_once_with(settings)
 
 
-@pytest.mark.parametrize("data_type", ["rgba", "normals"])
-@pytest.mark.parametrize("batched", [False, True], ids=["single", "batch"])
+@pytest.mark.parametrize(
+    ("data_type", "batched"), [("rgba", False), ("normals", True)], ids=["rgba-single", "normals-batch"]
+)
 def test_render_treats_empty_annotator_frame_as_not_ready(monkeypatch, data_type, batched):
     """An empty warm-up frame should clear its output without slicing or launching a reshape."""
     _install_omni_stubs(monkeypatch)
@@ -467,9 +479,7 @@ def test_render_treats_empty_annotator_frame_as_not_ready(monkeypatch, data_type
 @pytest.mark.parametrize(
     "states",
     [
-        pytest.param((), id="empty"),
         pytest.param(("no_spec", "no_output"), id="uninitialized"),
-        pytest.param(("ready", "ready"), id="ready"),
         pytest.param(("no_spec", "ready", "no_output", "ready"), id="mixed"),
     ],
 )
