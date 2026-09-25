@@ -6,7 +6,8 @@
 import pytest
 import torch
 
-from isaaclab.actuators import DCMotorCfg
+from isaaclab.actuators import ActuatorNetLSTMCfg, DCMotorCfg
+from isaaclab.utils.types import ArticulationActions
 
 pytestmark = pytest.mark.integration
 
@@ -152,12 +153,11 @@ def test_dc_motor_clip(num_envs, num_joints, device, test_point):
 
     joint_names = [f"joint_{d}" for d in range(num_joints)]
     joint_ids = [d for d in range(num_joints)]
-    stiffness = 200
-    damping = 10
+    # zero gains, so the computed effort is the feed-forward torque and only the motor model clips it
     actuator_cfg = DCMotorCfg(
         joint_names_expr=joint_names,
-        stiffness=stiffness,
-        damping=damping,
+        stiffness=0.0,
+        damping=0.0,
         actuator_effort_limit=effort_lim,
         actuator_velocity_limit=velocity_limit,
         saturation_effort=saturation_effort,
@@ -173,16 +173,17 @@ def test_dc_motor_clip(num_envs, num_joints, device, test_point):
         damping=actuator_cfg.damping,
     )
 
-    ts = torque_speed_pairs[test_point]
-    torque = ts[0]
-    speed = ts[1]
-    actuator._joint_vel[:] = speed * torch.ones(num_envs, num_joints, device=device)
-    effort = torque * torch.ones(num_envs, num_joints, device=device)
-    clipped_effort = actuator._clip_effort(effort)
-    torch.testing.assert_close(
-        expected_clipped_effort[test_point] * torch.ones(num_envs, num_joints, device=device),
-        clipped_effort,
+    torque, speed = torque_speed_pairs[test_point]
+    zeros = torch.zeros(num_envs, num_joints, device=device)
+    joint_vel = torch.full_like(zeros, speed)
+    control_action = ArticulationActions(
+        joint_positions=zeros.clone(), joint_velocities=zeros.clone(), joint_efforts=torch.full_like(zeros, torque)
     )
+    applied = actuator.compute(control_action, joint_pos=zeros, joint_vel=joint_vel)
+    expected = torch.full_like(zeros, expected_clipped_effort[test_point])
+    torch.testing.assert_close(actuator.applied_effort, expected)
+    torch.testing.assert_close(applied.joint_efforts, expected)
+    torch.testing.assert_close(joint_vel, torch.full_like(joint_vel, speed))
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -213,6 +214,41 @@ def test_dc_motor_clip_with_per_joint_saturation_effort(device):
 
     # at half the no-load speed each joint delivers half of its own stall torque, and the shared
     # effort limit is high enough to clip neither
-    actuator._joint_vel[:] = 25.0
-    clipped_effort = actuator._clip_effort(torch.full((1, 2), 500.0, device=device))
+    joint_vel = torch.full((1, 2), 25.0, device=device)
+    clipped_effort = actuator._clip_effort(torch.full((1, 2), 500.0, device=device), joint_vel)
     torch.testing.assert_close(clipped_effort, torch.tensor([[50.0, 95.0]], device=device))
+
+
+class _ConstantTorqueLSTM(torch.nn.Module):
+    """LSTM-shaped network that always requests 100 N·m."""
+
+    def __init__(self):
+        super().__init__()
+        self.lstm = torch.nn.LSTM(input_size=2, hidden_size=4, num_layers=1, batch_first=True)
+
+    def forward(
+        self, x: torch.Tensor, hc: tuple[torch.Tensor, torch.Tensor]
+    ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
+        return torch.full((x.shape[0], 1), 100.0), hc
+
+
+def test_lstm_actuator_clips_with_torque_speed_curve(tmp_path):
+    """LSTM compute must supply the current velocity to DC-motor clipping."""
+    network_file = tmp_path / "constant_lstm.pt"
+    torch.jit.script(_ConstantTorqueLSTM()).save(str(network_file))
+    cfg = ActuatorNetLSTMCfg(
+        joint_names_expr=["joint_.*"],
+        network_file=str(network_file),
+        saturation_effort=120.0,
+        actuator_effort_limit=80.0,
+        actuator_velocity_limit=7.5,
+    )
+    actuator = cfg.class_type(cfg, joint_names=["joint_0", "joint_1"], joint_ids=[0, 1], num_envs=2, device="cpu")
+
+    zeros = torch.zeros(2, 2)
+    joint_vel = torch.tensor([[0.0, 3.75], [7.5, -7.5]])
+    action = actuator.compute(ArticulationActions(joint_positions=zeros), zeros, joint_vel)
+
+    # Positive torque falls to zero at the velocity limit; braking torque remains available.
+    torch.testing.assert_close(action.joint_efforts, torch.tensor([[80.0, 60.0], [0.0, 80.0]]))
+    assert "_joint_vel" not in vars(actuator)
