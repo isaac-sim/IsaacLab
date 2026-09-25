@@ -626,15 +626,15 @@ class NewtonManager(PhysicsManager):
         device = PhysicsManager._device
         capture_pending = cls._graph_capture_pending and cfg is not None and cfg.use_cuda_graph and "cuda" in device  # type: ignore[union-attr]
         state_reconciled = False
-        kit_rendering = has_kit() and sim.requires_usd_stage
-        if capture_pending and not kit_rendering:
+        kit_active = has_kit()
+        if capture_pending and not kit_active:
             # Reconcile reset-authored solver resources before standard capture.
             cls.forward()
             state_reconciled = True
 
         if capture_pending:
             NewtonManager._graph_capture_pending = False
-            if not kit_rendering:
+            if not kit_active:
                 simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
                 with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
                     with _paused_gc(), wp.ScopedCapture(device=device, force_module_load=False) as capture:
@@ -1649,7 +1649,7 @@ class NewtonManager(PhysicsManager):
         Called by :meth:`start_simulation` and :meth:`set_decimation`
         whenever the graph needs to be (re-)captured.
 
-        * **No Kit rendering**: captures immediately via
+        * **No Kit runtime**: captures immediately via
           ``wp.ScopedCapture`` unless the solver requires reset-dependent setup.
         * **RTX active**: defers capture to the first :meth:`step` call
           via relaxed capture, because RTX background
@@ -1672,9 +1672,10 @@ class NewtonManager(PhysicsManager):
             return
 
         if use_cuda_graph:
-            kit_rendering = has_kit() and PhysicsManager._sim.requires_usd_stage
+            # Kit has background CUDA streams even when no consumer requires USD.
+            kit_active = has_kit()
             with Timer(name="newton_cuda_graph", msg="CUDA graph took:", activity="Capturing CUDA graph"):
-                if not kit_rendering and not cls._requires_initial_reset_before_graph_capture():
+                if not kit_active and not cls._requires_initial_reset_before_graph_capture():
                     simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
                     with _paused_gc(), wp.ScopedCapture(device=device) as capture:
                         simulate()
@@ -1692,7 +1693,7 @@ class NewtonManager(PhysicsManager):
                     # the first step. RTX retains its existing relaxed capture path.
                     NewtonManager._graph = None
                     NewtonManager._graph_capture_pending = True
-                    reason = "Kit background streams" if kit_rendering else "initial environment reset"
+                    reason = "Kit background streams" if kit_active else "initial environment reset"
                     logger.info("Newton CUDA graph capture deferred until first step() (%s)", reason)
         else:
             NewtonManager._graph = None
