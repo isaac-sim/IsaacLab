@@ -218,7 +218,7 @@ class TestImageFunctionCloneKwarg:
         assert out.data_ptr() == camera_buf.data_ptr()
 
     def test_clone_true_returns_independent_copy(self):
-        """The default ``clone=True`` path returns a fresh tensor independent of the camera buffer."""
+        """The ``clone=True`` path returns a fresh tensor independent of the camera buffer."""
         from isaaclab.envs.mdp.observations import image
 
         camera_buf = torch.randint(0, 255, (NUM_ENVS, HEIGHT, WIDTH, CHANNELS), dtype=torch.uint8)

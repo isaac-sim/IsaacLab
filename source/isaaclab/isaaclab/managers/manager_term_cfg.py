@@ -225,6 +225,15 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     """Whether or not the observation manager should flatten history-based observation terms to a 2-D (N, D) tensor.
     Defaults to True."""
 
+    clone_output: bool = True
+    """Whether the observation manager clones the term output before post-processing. Defaults to True.
+
+    The clone keeps in-place post-processing and later consumers of the observation from aliasing
+    buffers owned by the term, such as sensor data. Set it to False only for terms that return a
+    new tensor on every call, e.g. :func:`~isaaclab.envs.mdp.observations.image` with ``normalize=True``,
+    to skip a redundant copy.
+    """
+
     def validate_config(self):
         """Validate observation delay bounds."""
         if type(self.delay_min_lag) is not int or type(self.delay_max_lag) is not int:

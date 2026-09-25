@@ -67,6 +67,5 @@ class CameraImageStack(ManagerTermBase):
 
         if defer_normalize:
             observation = normalize_camera_image(observation, data_type, channel_dim=1)
-        elif self._stack is not None:
-            observation = observation.clone()
+        # a stacked view of the ring buffer is copied by the observation manager's output clone
         return observation
