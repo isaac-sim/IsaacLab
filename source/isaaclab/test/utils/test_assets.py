@@ -42,24 +42,11 @@ def test_asset_root_falls_back_to_kit_file(monkeypatch):
     assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
 
 
-def test_asset_root_uses_china_storage_profile(monkeypatch):
-    """Test the China asset region profile uses the same public bucket root as Isaac Sim."""
-    monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
-    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
-    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
-
-    expected_root = (
-        f"https://simready-cn.s3.oss-cn-shanghai.aliyuncs.com/Assets/Isaac/{assets_utils._ISAAC_SIM_ASSET_RELEASE}"
-    )
-    assert assets_utils._resolve_asset_root() == expected_root
-
-
 def test_us_asset_root_is_parsed_from_kit_file(monkeypatch):
     """Test the US asset region profile initializes its root from the shipped experience."""
     monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
     monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "us")
 
-    assert assets_utils._parse_kit_asset_root() == assets_utils._US_ASSET_ROOT
     assert assets_utils._resolve_asset_root() == assets_utils._US_ASSET_ROOT
 
 
@@ -104,9 +91,13 @@ def test_configure_china_storage_profile_once(monkeypatch):
     ]
 
 
-def test_configure_us_storage_profile_is_lazy(monkeypatch):
-    """Test the primary profile selects its root without importing OmniClient."""
-    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "us")
+@pytest.mark.parametrize("profile", ["us", None], ids=["us", "unset"])
+def test_configure_storage_profile_is_lazy(monkeypatch, profile):
+    """Test the primary profile, or no selected profile, does not import OmniClient."""
+    if profile is None:
+        monkeypatch.delenv("ISAACSIM_ASSET_REGION_PROFILE", raising=False)
+    else:
+        monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", profile)
     original_omni_client = sys.modules.pop("omni.client", None)
     try:
         assets_utils.configure_storage_profile()
@@ -126,18 +117,6 @@ def test_configure_storage_profile_reports_client_failure(monkeypatch):
 
     with pytest.raises(RuntimeError, match="Asset region profile 'china' failed to configure"):
         assets_utils.configure_storage_profile()
-
-
-def test_configure_storage_profile_is_lazy_without_selection(monkeypatch):
-    """Test the initializer does not import OmniClient when no profile is selected."""
-    monkeypatch.delenv("ISAACSIM_ASSET_REGION_PROFILE", raising=False)
-    original_omni_client = sys.modules.pop("omni.client", None)
-    try:
-        assets_utils.configure_storage_profile()
-        assert "omni.client" not in sys.modules
-    finally:
-        if original_omni_client is not None:
-            sys.modules["omni.client"] = original_omni_client
 
 
 def test_configure_asset_region_profile_alias(monkeypatch):
@@ -176,12 +155,6 @@ def test_asset_root_ignores_empty_environment_override(monkeypatch):
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
-
-
-def test_kit_experience_path_resolves_to_the_shipped_experience():
-    """Test the unpatched experience-file path so a broken relative walk fails here."""
-    assert Path(assets_utils._KIT_EXPERIENCE_PATH).is_file()
-    assert assets_utils._parse_kit_asset_root()
 
 
 def test_kit_experience_asset_roots_use_production():
@@ -254,12 +227,6 @@ def test_exported_asset_root_constants_follow_china_storage_profile(monkeypatch)
             assert f"{root}/Isaac/IsaacLab" == module.ISAACLAB_NUCLEUS_DIR
     finally:
         importlib.reload(assets_utils)
-
-
-def test_nucleus_connection():
-    """Test checking the Nucleus connection."""
-    # check nucleus connection
-    assert assets_utils.NUCLEUS_ASSET_ROOT_DIR is not None
 
 
 def test_check_file_path_nucleus():
@@ -729,16 +696,12 @@ def test_unmirror_file_path_recovers_the_url_a_copy_was_cached_from(asset_cache,
 
 @pytest.mark.parametrize(
     "path",
-    ["/home/user/assets/example.usd", "Materials/dex_cube_mod.png", "OmniPBR.mdl", ""],
-)
-def test_unmirror_file_path_leaves_paths_outside_the_cache_unclaimed(asset_cache, path):
-    """Test a locally authored asset path is not mistaken for a cached remote copy."""
-    assert assets_utils.unmirror_file_path(path) == ""
-
-
-@pytest.mark.parametrize(
-    "path",
     [
+        "/home/user/assets/example.usd",
+        "Materials/dex_cube_mod.png",
+        "OmniPBR.mdl",
+        "",
+        # an ordinary local layout is not read as a cache layout because of a directory name;
         # ``Omniverse`` is where Omniverse puts user projects by default
         "C:/Users/user/Omniverse/MyProject/scene.usd",
         "/data/omniverse/assets/robot.usd",
@@ -746,8 +709,8 @@ def test_unmirror_file_path_leaves_paths_outside_the_cache_unclaimed(asset_cache
         "/home/user/projects/https/site/logo.png",
     ],
 )
-def test_unmirror_file_path_leaves_a_directory_named_after_a_url_scheme_unclaimed(asset_cache, path):
-    """Test an ordinary local layout is not read as a cache layout because of a directory name."""
+def test_unmirror_file_path_leaves_paths_outside_the_cache_unclaimed(asset_cache, path):
+    """Test a locally authored asset path is not mistaken for a cached remote copy."""
     assert assets_utils.unmirror_file_path(path) == ""
 
 

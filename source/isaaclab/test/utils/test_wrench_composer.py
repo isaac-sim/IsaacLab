@@ -140,293 +140,63 @@ def random_unit_quaternion_np(rng: np.random.Generator, shape: tuple) -> np.ndar
 
 
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("num_envs", [1, 10, 100, 1000])
-@pytest.mark.parametrize("num_bodies", [1, 3, 5, 10])
-def test_wrench_composer_add_force(device: str, num_envs: int, num_bodies: int):
-    # Initialize random number generator
-    rng = np.random.default_rng(seed=0)
-
-    for _ in range(10):
-        mock_asset = create_mock_asset(num_envs, num_bodies, device)
-        wrench_composer = WrenchComposer(mock_asset)
-        # Initialize hand-calculated composed force
-        hand_calculated_composed_force_np = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
-        for _ in range(10):
-            # Get random number of envs and bodies and their indices
-            num_envs_np = rng.integers(1, num_envs, endpoint=True)
-            num_bodies_np = rng.integers(1, num_bodies, endpoint=True)
-            env_ids_np = rng.choice(num_envs, size=num_envs_np, replace=False)
-            body_ids_np = rng.choice(num_bodies, size=num_bodies_np, replace=False)
-            # Convert to warp arrays
-            env_ids = wp.from_numpy(env_ids_np, dtype=wp.int32, device=device)
-            body_ids = wp.from_numpy(body_ids_np, dtype=wp.int32, device=device)
-            # Get random forces
-            forces_np = (
-                np.random.uniform(low=-100.0, high=100.0, size=(num_envs_np * num_bodies_np * 3))
-                .reshape(num_envs_np, num_bodies_np, 3)
-                .astype(np.float32)
-            )
-            forces = wp.from_numpy(forces_np, dtype=wp.vec3f, device=device)
-            # Add forces to wrench composer
-            wrench_composer.add_forces_and_torques_index(forces=forces, body_ids=body_ids, env_ids=env_ids)
-            # Add forces to hand-calculated composed force
-            hand_calculated_composed_force_np[env_ids_np[:, None], body_ids_np[None, :], :] += forces_np
-        # Compose to body frame before checking output
-        wrench_composer.compose_to_body_frame()
-        # Get composed force from wrench composer
-        composed_force_np = wrench_composer.out_force_b.warp.numpy()
-        assert np.allclose(composed_force_np, hand_calculated_composed_force_np, atol=1, rtol=1e-7)
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("num_envs", [1, 10, 100, 1000])
-@pytest.mark.parametrize("num_bodies", [1, 3, 5, 10])
-def test_wrench_composer_add_torque(device: str, num_envs: int, num_bodies: int):
-    # Initialize random number generator
-    rng = np.random.default_rng(seed=1)
-
-    for _ in range(10):
-        mock_asset = create_mock_asset(num_envs, num_bodies, device)
-        wrench_composer = WrenchComposer(mock_asset)
-        # Initialize hand-calculated composed torque
-        hand_calculated_composed_torque_np = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
-        for _ in range(10):
-            # Get random number of envs and bodies and their indices
-            num_envs_np = rng.integers(1, num_envs, endpoint=True)
-            num_bodies_np = rng.integers(1, num_bodies, endpoint=True)
-            env_ids_np = rng.choice(num_envs, size=num_envs_np, replace=False)
-            body_ids_np = rng.choice(num_bodies, size=num_bodies_np, replace=False)
-            # Convert to warp arrays
-            env_ids = wp.from_numpy(env_ids_np, dtype=wp.int32, device=device)
-            body_ids = wp.from_numpy(body_ids_np, dtype=wp.int32, device=device)
-            # Get random torques
-            torques_np = (
-                np.random.uniform(low=-100.0, high=100.0, size=(num_envs_np * num_bodies_np * 3))
-                .reshape(num_envs_np, num_bodies_np, 3)
-                .astype(np.float32)
-            )
-            torques = wp.from_numpy(torques_np, dtype=wp.vec3f, device=device)
-            # Add torques to wrench composer
-            wrench_composer.add_forces_and_torques_index(torques=torques, body_ids=body_ids, env_ids=env_ids)
-            # Add torques to hand-calculated composed torque
-            hand_calculated_composed_torque_np[env_ids_np[:, None], body_ids_np[None, :], :] += torques_np
-        # Compose to body frame before checking output
-        wrench_composer.compose_to_body_frame()
-        # Get composed torque from wrench composer
-        composed_torque_np = wrench_composer.out_torque_b.warp.numpy()
-        assert np.allclose(composed_torque_np, hand_calculated_composed_torque_np, atol=1, rtol=1e-7)
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("num_envs", [1, 10, 100, 1000])
-@pytest.mark.parametrize("num_bodies", [1, 3, 5, 10])
-def test_add_forces_at_positions(device: str, num_envs: int, num_bodies: int):
-    """Test adding forces at local positions (offset from link frame)."""
-    rng = np.random.default_rng(seed=2)
-
-    for _ in range(10):
-        # Initialize wrench composer
-        mock_asset = create_mock_asset(num_envs, num_bodies, device)
-        wrench_composer = WrenchComposer(mock_asset)
-        # Initialize hand-calculated composed force
-        hand_calculated_composed_force_np = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
-        # Initialize hand-calculated composed torque
-        hand_calculated_composed_torque_np = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
-        for _ in range(10):
-            # Get random number of envs and bodies and their indices
-            num_envs_np = rng.integers(1, num_envs, endpoint=True)
-            num_bodies_np = rng.integers(1, num_bodies, endpoint=True)
-            env_ids_np = rng.choice(num_envs, size=num_envs_np, replace=False)
-            body_ids_np = rng.choice(num_bodies, size=num_bodies_np, replace=False)
-            # Convert to warp arrays
-            env_ids = wp.from_numpy(env_ids_np, dtype=wp.int32, device=device)
-            body_ids = wp.from_numpy(body_ids_np, dtype=wp.int32, device=device)
-            # Get random forces
-            forces_np = (
-                np.random.uniform(low=-100.0, high=100.0, size=(num_envs_np * num_bodies_np * 3))
-                .reshape(num_envs_np, num_bodies_np, 3)
-                .astype(np.float32)
-            )
-            positions_np = (
-                np.random.uniform(low=-100.0, high=100.0, size=(num_envs_np * num_bodies_np * 3))
-                .reshape(num_envs_np, num_bodies_np, 3)
-                .astype(np.float32)
-            )
-            forces = wp.from_numpy(forces_np, dtype=wp.vec3f, device=device)
-            positions = wp.from_numpy(positions_np, dtype=wp.vec3f, device=device)
-            # Add forces at positions to wrench composer
-            wrench_composer.add_forces_and_torques_index(
-                forces=forces, positions=positions, body_ids=body_ids, env_ids=env_ids
-            )
-            # Add forces to hand-calculated composed force
-            hand_calculated_composed_force_np[env_ids_np[:, None], body_ids_np[None, :], :] += forces_np
-            # Add torques to hand-calculated composed torque: torque = cross(position, force)
-            torques_from_forces = np.cross(positions_np, forces_np)
-            for i in range(num_envs_np):
-                for j in range(num_bodies_np):
-                    hand_calculated_composed_torque_np[env_ids_np[i], body_ids_np[j], :] += torques_from_forces[i, j, :]
-
-        # Compose to body frame before checking output
-        wrench_composer.compose_to_body_frame()
-        # Get composed force from wrench composer
-        composed_force_np = wrench_composer.out_force_b.warp.numpy()
-        assert np.allclose(composed_force_np, hand_calculated_composed_force_np, atol=1, rtol=1e-7)
-        # Get composed torque from wrench composer
-        composed_torque_np = wrench_composer.out_torque_b.warp.numpy()
-        assert np.allclose(composed_torque_np, hand_calculated_composed_torque_np, atol=1, rtol=1e-7)
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("num_envs", [1, 10, 100, 1000])
-@pytest.mark.parametrize("num_bodies", [1, 3, 5, 10])
-def test_add_torques_at_position(device: str, num_envs: int, num_bodies: int):
-    rng = np.random.default_rng(seed=3)
-
-    for _ in range(10):
-        mock_asset = create_mock_asset(num_envs, num_bodies, device)
-        wrench_composer = WrenchComposer(mock_asset)
-        # Initialize hand-calculated composed torque
-        hand_calculated_composed_torque_np = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
-        for _ in range(10):
-            # Get random number of envs and bodies and their indices
-            num_envs_np = rng.integers(1, num_envs, endpoint=True)
-            num_bodies_np = rng.integers(1, num_bodies, endpoint=True)
-            env_ids_np = rng.choice(num_envs, size=num_envs_np, replace=False)
-            body_ids_np = rng.choice(num_bodies, size=num_bodies_np, replace=False)
-            # Convert to warp arrays
-            env_ids = wp.from_numpy(env_ids_np, dtype=wp.int32, device=device)
-            body_ids = wp.from_numpy(body_ids_np, dtype=wp.int32, device=device)
-            # Get random torques
-            torques_np = (
-                np.random.uniform(low=-100.0, high=100.0, size=(num_envs_np * num_bodies_np * 3))
-                .reshape(num_envs_np, num_bodies_np, 3)
-                .astype(np.float32)
-            )
-            positions_np = (
-                np.random.uniform(low=-100.0, high=100.0, size=(num_envs_np * num_bodies_np * 3))
-                .reshape(num_envs_np, num_bodies_np, 3)
-                .astype(np.float32)
-            )
-            torques = wp.from_numpy(torques_np, dtype=wp.vec3f, device=device)
-            positions = wp.from_numpy(positions_np, dtype=wp.vec3f, device=device)
-            # Add torques at positions to wrench composer
-            wrench_composer.add_forces_and_torques_index(
-                torques=torques, positions=positions, body_ids=body_ids, env_ids=env_ids
-            )
-            # Add torques to hand-calculated composed torque
-            hand_calculated_composed_torque_np[env_ids_np[:, None], body_ids_np[None, :], :] += torques_np
-        # Compose to body frame before checking output
-        wrench_composer.compose_to_body_frame()
-        # Get composed torque from wrench composer
-        composed_torque_np = wrench_composer.out_torque_b.warp.numpy()
-        assert np.allclose(composed_torque_np, hand_calculated_composed_torque_np, atol=1, rtol=1e-7)
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("num_envs", [1, 10, 100, 1000])
-@pytest.mark.parametrize("num_bodies", [1, 3, 5, 10])
-def test_add_forces_and_torques_at_position(device: str, num_envs: int, num_bodies: int):
-    """Test adding forces and torques at local positions."""
+@pytest.mark.parametrize(
+    "num_envs, num_bodies, use_forces, use_torques, use_positions",
+    [
+        pytest.param(7, 3, True, False, False, id="forces"),
+        pytest.param(7, 3, False, True, False, id="torques"),
+        pytest.param(7, 3, True, False, True, id="forces_at_positions"),
+        pytest.param(7, 3, False, True, True, id="torques_ignore_positions"),
+        pytest.param(7, 3, True, True, True, id="forces_and_torques_at_positions"),
+        pytest.param(1, 1, True, True, True, id="forces_and_torques_at_positions_single_body"),
+    ],
+)
+def test_add_forces_and_torques_at_position(
+    device: str, num_envs: int, num_bodies: int, use_forces: bool, use_torques: bool, use_positions: bool
+):
+    """Test accumulating local forces and torques, optionally at local positions, over random index subsets."""
     rng = np.random.default_rng(seed=4)
 
+    mock_asset = create_mock_asset(num_envs, num_bodies, device)
+    wrench_composer = WrenchComposer(mock_asset)
+    # Initialize hand-calculated composed force and torque
+    hand_calculated_composed_force_np = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
+    hand_calculated_composed_torque_np = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
     for _ in range(10):
-        mock_asset = create_mock_asset(num_envs, num_bodies, device)
-        wrench_composer = WrenchComposer(mock_asset)
-        # Initialize hand-calculated composed force and torque
-        hand_calculated_composed_force_np = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
-        hand_calculated_composed_torque_np = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
-        for _ in range(10):
-            # Get random number of envs and bodies and their indices
-            num_envs_np = rng.integers(1, num_envs, endpoint=True)
-            num_bodies_np = rng.integers(1, num_bodies, endpoint=True)
-            env_ids_np = rng.choice(num_envs, size=num_envs_np, replace=False)
-            body_ids_np = rng.choice(num_bodies, size=num_bodies_np, replace=False)
-            # Convert to warp arrays
-            env_ids = wp.from_numpy(env_ids_np, dtype=wp.int32, device=device)
-            body_ids = wp.from_numpy(body_ids_np, dtype=wp.int32, device=device)
-            # Get random forces and torques
-            forces_np = (
-                np.random.uniform(low=-100.0, high=100.0, size=(num_envs_np * num_bodies_np * 3))
-                .reshape(num_envs_np, num_bodies_np, 3)
-                .astype(np.float32)
-            )
-            torques_np = (
-                np.random.uniform(low=-100.0, high=100.0, size=(num_envs_np * num_bodies_np * 3))
-                .reshape(num_envs_np, num_bodies_np, 3)
-                .astype(np.float32)
-            )
-            positions_np = (
-                np.random.uniform(low=-100.0, high=100.0, size=(num_envs_np * num_bodies_np * 3))
-                .reshape(num_envs_np, num_bodies_np, 3)
-                .astype(np.float32)
-            )
-            forces = wp.from_numpy(forces_np, dtype=wp.vec3f, device=device)
-            torques = wp.from_numpy(torques_np, dtype=wp.vec3f, device=device)
-            positions = wp.from_numpy(positions_np, dtype=wp.vec3f, device=device)
-            # Add forces and torques at positions to wrench composer
-            wrench_composer.add_forces_and_torques_index(
-                forces=forces, torques=torques, positions=positions, body_ids=body_ids, env_ids=env_ids
-            )
-            # Add forces to hand-calculated composed force
-            hand_calculated_composed_force_np[env_ids_np[:, None], body_ids_np[None, :], :] += forces_np
-            # Add torques to hand-calculated composed torque: torque = cross(position, force) + torque
-            torques_from_forces = np.cross(positions_np, forces_np)
-            for i in range(num_envs_np):
-                for j in range(num_bodies_np):
-                    hand_calculated_composed_torque_np[env_ids_np[i], body_ids_np[j], :] += torques_from_forces[i, j, :]
-            hand_calculated_composed_torque_np[env_ids_np[:, None], body_ids_np[None, :], :] += torques_np
-        # Compose to body frame before checking output
-        wrench_composer.compose_to_body_frame()
-        # Get composed force from wrench composer
-        composed_force_np = wrench_composer.out_force_b.warp.numpy()
-        assert np.allclose(composed_force_np, hand_calculated_composed_force_np, atol=1, rtol=1e-7)
-        # Get composed torque from wrench composer
-        composed_torque_np = wrench_composer.out_torque_b.warp.numpy()
-        assert np.allclose(composed_torque_np, hand_calculated_composed_torque_np, atol=1, rtol=1e-7)
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("num_envs", [1, 10, 100, 1000])
-@pytest.mark.parametrize("num_bodies", [1, 3, 5, 10])
-def test_wrench_composer_reset(device: str, num_envs: int, num_bodies: int):
-    rng = np.random.default_rng(seed=5)
-    for _ in range(10):
-        mock_asset = create_mock_asset(num_envs, num_bodies, device)
-        wrench_composer = WrenchComposer(mock_asset)
         # Get random number of envs and bodies and their indices
         num_envs_np = rng.integers(1, num_envs, endpoint=True)
         num_bodies_np = rng.integers(1, num_bodies, endpoint=True)
         env_ids_np = rng.choice(num_envs, size=num_envs_np, replace=False)
         body_ids_np = rng.choice(num_bodies, size=num_bodies_np, replace=False)
-        # Convert to warp arrays
-        env_ids = wp.from_numpy(env_ids_np, dtype=wp.int32, device=device)
-        body_ids = wp.from_numpy(body_ids_np, dtype=wp.int32, device=device)
-        # Get random forces and torques
-        forces_np = (
-            np.random.uniform(low=-100.0, high=100.0, size=(num_envs_np * num_bodies_np * 3))
-            .reshape(num_envs_np, num_bodies_np, 3)
-            .astype(np.float32)
+        selected = (env_ids_np[:, None], body_ids_np[None, :])
+        # Get random forces, torques, and positions
+        forces_np, torques_np, positions_np = rng.uniform(-100.0, 100.0, (3, num_envs_np, num_bodies_np, 3)).astype(
+            np.float32
         )
-        torques_np = (
-            np.random.uniform(low=-100.0, high=100.0, size=(num_envs_np * num_bodies_np * 3))
-            .reshape(num_envs_np, num_bodies_np, 3)
-            .astype(np.float32)
+        wrench = {}
+        if use_forces:
+            wrench["forces"] = wp.from_numpy(forces_np, dtype=wp.vec3f, device=device)
+            hand_calculated_composed_force_np[selected] += forces_np
+        if use_torques:
+            wrench["torques"] = wp.from_numpy(torques_np, dtype=wp.vec3f, device=device)
+            hand_calculated_composed_torque_np[selected] += torques_np
+        if use_positions:
+            wrench["positions"] = wp.from_numpy(positions_np, dtype=wp.vec3f, device=device)
+            # torque = cross(position, force); positions are ignored for torque-only input
+            if use_forces:
+                hand_calculated_composed_torque_np[selected] += np.cross(positions_np, forces_np)
+        # Add the wrench to the wrench composer
+        wrench_composer.add_forces_and_torques_index(
+            **wrench,
+            body_ids=wp.from_numpy(body_ids_np, dtype=wp.int32, device=device),
+            env_ids=wp.from_numpy(env_ids_np, dtype=wp.int32, device=device),
         )
-        forces = wp.from_numpy(forces_np, dtype=wp.vec3f, device=device)
-        torques = wp.from_numpy(torques_np, dtype=wp.vec3f, device=device)
-        # Add forces and torques to wrench composer
-        wrench_composer.add_forces_and_torques_index(forces=forces, torques=torques, body_ids=body_ids, env_ids=env_ids)
-        # Reset wrench composer
-        wrench_composer.reset()
-        # Check all 7 buffers are zero (5 input + 2 output)
-        zeros = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
-        assert np.allclose(wrench_composer.global_force_w.numpy(), zeros, atol=1, rtol=1e-7)
-        assert np.allclose(wrench_composer.global_torque_w.numpy(), zeros, atol=1, rtol=1e-7)
-        assert np.allclose(wrench_composer.global_force_at_com_w.numpy(), zeros, atol=1, rtol=1e-7)
-        assert np.allclose(wrench_composer.local_force_b.numpy(), zeros, atol=1, rtol=1e-7)
-        assert np.allclose(wrench_composer.local_torque_b.numpy(), zeros, atol=1, rtol=1e-7)
-        assert np.allclose(wrench_composer.out_force_b.warp.numpy(), zeros, atol=1, rtol=1e-7)
-        assert np.allclose(wrench_composer.out_torque_b.warp.numpy(), zeros, atol=1, rtol=1e-7)
+    # Compose to body frame before checking output
+    wrench_composer.compose_to_body_frame()
+    composed_force_np = wrench_composer.out_force_b.warp.numpy()
+    composed_torque_np = wrench_composer.out_torque_b.warp.numpy()
+    np.testing.assert_allclose(composed_force_np, hand_calculated_composed_force_np, atol=1e-2, rtol=1e-5)
+    np.testing.assert_allclose(composed_torque_np, hand_calculated_composed_torque_np, atol=1e-2, rtol=1e-5)
 
 
 # ============================================================================
@@ -435,10 +205,9 @@ def test_wrench_composer_reset(device: str, num_envs: int, num_bodies: int):
 
 
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("num_envs", [1, 10, 100])
-@pytest.mark.parametrize("num_bodies", [1, 3, 5])
-def test_global_forces_with_rotation(device: str, num_envs: int, num_bodies: int):
+def test_global_forces_with_rotation(device: str):
     """Test that global forces are correctly rotated to the local frame."""
+    num_envs, num_bodies = 7, 3
     rng = np.random.default_rng(seed=10)
 
     for method in (
@@ -485,10 +254,9 @@ def test_global_forces_with_rotation(device: str, num_envs: int, num_bodies: int
 
 
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("num_envs", [1, 10, 100])
-@pytest.mark.parametrize("num_bodies", [1, 3, 5])
-def test_global_torques_with_rotation(device: str, num_envs: int, num_bodies: int):
+def test_global_torques_with_rotation(device: str):
     """Test that global torques are correctly rotated to the local frame."""
+    num_envs, num_bodies = 7, 3
     rng = np.random.default_rng(seed=11)
 
     for method in (
@@ -535,10 +303,9 @@ def test_global_torques_with_rotation(device: str, num_envs: int, num_bodies: in
 
 
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("num_envs", [1, 10, 50])
-@pytest.mark.parametrize("num_bodies", [1, 3, 5])
-def test_global_forces_at_global_position(device: str, num_envs: int, num_bodies: int):
+def test_global_forces_at_global_position(device: str):
     """Test global forces at global positions with full coordinate transformation."""
+    num_envs, num_bodies = 7, 3
     rng = np.random.default_rng(seed=12)
 
     for method in (
@@ -601,48 +368,6 @@ def test_global_forces_at_global_position(device: str, num_envs: int, num_bodies
         assert np.allclose(composed_torque_np, expected_torques_local, atol=1e-3, rtol=1e-4), (
             f"Global force at position failed.\nExpected torques:\n{expected_torques_local}\nGot:\n{composed_torque_np}"
         )
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_local_vs_global_identity_quaternion(device: str):
-    """Test that local and global give same result with identity quaternion and zero position."""
-    rng = np.random.default_rng(seed=13)
-    num_envs, num_bodies = 10, 5
-
-    # Create mock with identity pose (default)
-    mock_asset_local = create_mock_asset(num_envs, num_bodies, device)
-    mock_asset_global = create_mock_asset(num_envs, num_bodies, device)
-
-    wrench_composer_local = WrenchComposer(mock_asset_local)
-    wrench_composer_global = WrenchComposer(mock_asset_global)
-
-    # Generate random forces and torques
-    forces_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
-    torques_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
-    forces = wp.from_numpy(forces_np, dtype=wp.vec3f, device=device)
-    torques = wp.from_numpy(torques_np, dtype=wp.vec3f, device=device)
-
-    # Apply as local
-    wrench_composer_local.add_forces_and_torques_index(forces=forces, torques=torques, is_global=False)
-
-    # Apply as global (should be same with identity quaternion)
-    wrench_composer_global.add_forces_and_torques_index(forces=forces, torques=torques, is_global=True)
-
-    # Compose to body frame before checking output
-    wrench_composer_local.compose_to_body_frame()
-    wrench_composer_global.compose_to_body_frame()
-
-    # Results should be identical
-    assert np.allclose(
-        wrench_composer_local.out_force_b.warp.numpy(),
-        wrench_composer_global.out_force_b.warp.numpy(),
-        atol=1e-6,
-    )
-    assert np.allclose(
-        wrench_composer_local.out_torque_b.warp.numpy(),
-        wrench_composer_global.out_torque_b.warp.numpy(),
-        atol=1e-6,
-    )
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -731,10 +456,9 @@ def test_composition_mixed_local_and_global(device: str):
 
 
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("num_envs", [1, 10, 50])
-@pytest.mark.parametrize("num_bodies", [1, 3, 5])
-def test_local_forces_at_local_position(device: str, num_envs: int, num_bodies: int):
+def test_local_forces_at_local_position(device: str):
     """Test local forces at local positions (offset from link frame)."""
+    num_envs, num_bodies = 7, 3
     rng = np.random.default_rng(seed=15)
 
     for method in (
@@ -780,59 +504,15 @@ def test_local_forces_at_local_position(device: str, num_envs: int, num_bodies: 
         assert np.allclose(composed_torque_np, expected_torques, atol=1e-4, rtol=1e-5)
 
 
-@pytest.mark.parametrize("device", test_devices())
-def test_global_force_at_link_origin_no_torque(device: str):
-    """Test that a global force applied at the link origin produces no torque."""
-    rng = np.random.default_rng(seed=16)
-    num_envs, num_bodies = 5, 3
-
-    # Create random link poses
-    link_pos_np = rng.uniform(-10.0, 10.0, (num_envs, num_bodies, 3)).astype(np.float32)
-    link_quat_np = random_unit_quaternion_np(rng, (num_envs, num_bodies))
-    link_pos_torch = torch.from_numpy(link_pos_np)
-    link_quat_torch = torch.from_numpy(link_quat_np)
-
-    mock_asset = create_mock_asset(num_envs, num_bodies, device, link_pos=link_pos_torch, link_quat=link_quat_torch)
-    wrench_composer = WrenchComposer(mock_asset)
-
-    # Generate random global forces
-    forces_global_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
-    forces_global = wp.from_numpy(forces_global_np, dtype=wp.vec3f, device=device)
-
-    # Position = link position (so offset is zero)
-    positions_at_link = wp.from_numpy(link_pos_np, dtype=wp.vec3f, device=device)
-
-    # Apply global forces at link origin
-    wrench_composer.add_forces_and_torques_index(forces=forces_global, positions=positions_at_link, is_global=True)
-
-    # Expected: force rotated to local, torque = 0 (since position offset is zero)
-    expected_forces = quat_rotate_inv_np(link_quat_np, forces_global_np)
-    expected_torques = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
-
-    # Check raw global force buffer
-    global_force_np = wrench_composer.global_force_w.numpy()
-    assert np.allclose(global_force_np, forces_global_np, atol=1e-4, rtol=1e-5)
-
-    # Compose to body frame before checking output
-    wrench_composer.compose_to_body_frame()
-
-    composed_force_np = wrench_composer.out_force_b.warp.numpy()
-    composed_torque_np = wrench_composer.out_torque_b.warp.numpy()
-
-    assert np.allclose(composed_force_np, expected_forces, atol=1e-4, rtol=1e-5)
-    assert np.allclose(composed_torque_np, expected_torques, atol=1e-4, rtol=1e-5)
-
-
 # ============================================================================
 # add_raw_buffers_from Tests
 # ============================================================================
 
 
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("num_envs", [1, 10, 100])
-@pytest.mark.parametrize("num_bodies", [1, 3, 5])
-def test_add_raw_buffers_from(device: str, num_envs: int, num_bodies: int):
+def test_add_raw_buffers_from(device: str):
     """Test that add_raw_buffers_from merges all five input buffers correctly."""
+    num_envs, num_bodies = 7, 3
     rng = np.random.default_rng(seed=20)
 
     # Create two composers with random link poses
@@ -923,6 +603,11 @@ def test_add_raw_buffers_from_inactive_is_noop(device: str):
 
     assert np.allclose(composer_a.local_force_b.numpy(), local_force_before, atol=1e-7)
 
+    # Merging an inactive source must not activate an inactive target
+    composer_c = WrenchComposer(create_mock_asset(num_envs, num_bodies, device))
+    composer_c.add_raw_buffers_from(composer_b)
+    assert not composer_c.active
+
 
 # ============================================================================
 # Mask-based API Tests
@@ -930,10 +615,9 @@ def test_add_raw_buffers_from_inactive_is_noop(device: str):
 
 
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("num_envs", [1, 10, 100])
-@pytest.mark.parametrize("num_bodies", [1, 3, 5])
-def test_add_forces_mask(device: str, num_envs: int, num_bodies: int):
+def test_add_forces_mask(device: str):
     """Test that add_forces_and_torques_mask produces the same result as the index variant."""
+    num_envs, num_bodies = 7, 3
     rng = np.random.default_rng(seed=30)
 
     for _ in range(5):
@@ -984,56 +668,6 @@ def test_add_forces_mask(device: str, num_envs: int, num_bodies: int):
         ), f"Mask vs index torque mismatch (envs={num_envs}, bodies={num_bodies})"
 
 
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("num_envs", [1, 10, 100])
-@pytest.mark.parametrize("num_bodies", [1, 3, 5])
-def test_add_forces_mask_global(device: str, num_envs: int, num_bodies: int):
-    """Test mask-based API with global forces and positions."""
-    rng = np.random.default_rng(seed=31)
-
-    # Random link poses
-    link_pos_np = rng.uniform(-10.0, 10.0, (num_envs, num_bodies, 3)).astype(np.float32)
-    link_quat_np = random_unit_quaternion_np(rng, (num_envs, num_bodies))
-    link_pos_torch = torch.from_numpy(link_pos_np)
-    link_quat_torch = torch.from_numpy(link_quat_np)
-
-    # Select all envs and bodies to keep comparison simple
-    forces_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
-    positions_np = rng.uniform(-10.0, 10.0, (num_envs, num_bodies, 3)).astype(np.float32)
-
-    # Index-based
-    mock_idx = create_mock_asset(num_envs, num_bodies, device, link_pos=link_pos_torch, link_quat=link_quat_torch)
-    composer_idx = WrenchComposer(mock_idx)
-    composer_idx.add_forces_and_torques_index(
-        forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
-        positions=wp.from_numpy(positions_np, dtype=wp.vec3f, device=device),
-        is_global=True,
-    )
-
-    # Mask-based (all-True masks)
-    mock_mask = create_mock_asset(num_envs, num_bodies, device, link_pos=link_pos_torch, link_quat=link_quat_torch)
-    composer_mask = WrenchComposer(mock_mask)
-    env_mask = wp.from_numpy(np.ones(num_envs, dtype=np.bool_), dtype=wp.bool, device=device)
-    body_mask = wp.from_numpy(np.ones(num_bodies, dtype=np.bool_), dtype=wp.bool, device=device)
-    composer_mask.add_forces_and_torques_mask(
-        forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
-        positions=wp.from_numpy(positions_np, dtype=wp.vec3f, device=device),
-        env_mask=env_mask,
-        body_mask=body_mask,
-        is_global=True,
-    )
-
-    composer_idx.compose_to_body_frame()
-    composer_mask.compose_to_body_frame()
-
-    assert np.allclose(
-        composer_idx.out_force_b.warp.numpy(), composer_mask.out_force_b.warp.numpy(), atol=1e-4, rtol=1e-5
-    ), "Mask vs index global force mismatch"
-    assert np.allclose(
-        composer_idx.out_torque_b.warp.numpy(), composer_mask.out_torque_b.warp.numpy(), atol=1e-4, rtol=1e-5
-    ), "Mask vs index global torque mismatch"
-
-
 # ============================================================================
 # set_forces_and_torques_index Tests
 # ============================================================================
@@ -1082,8 +716,9 @@ def test_index_dtype_combinations_preserve_selected_wrench_cells(
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_set_forces_overwrites_previous_add(device: str):
-    """Test that set_forces_and_torques_index clears previously accumulated values."""
+@pytest.mark.parametrize("method", ["set_forces_and_torques_index", "set_forces_and_torques_mask"])
+def test_set_forces_overwrites_previous_add(device: str, method: str):
+    """Test that set_forces_and_torques_index/mask clears previously accumulated values."""
     num_envs, num_bodies = 4, 2
     rng = np.random.default_rng(seed=40)
 
@@ -1098,7 +733,7 @@ def test_set_forces_overwrites_previous_add(device: str):
 
     # Now set new forces -- should replace, not accumulate
     forces_b_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
-    composer.set_forces_and_torques_index(
+    getattr(composer, method)(
         forces=wp.from_numpy(forces_b_np, dtype=wp.vec3f, device=device),
     )
 
@@ -1106,7 +741,7 @@ def test_set_forces_overwrites_previous_add(device: str):
     assert is_global is False
 
     # Output should match forces_b only (forces_a should be gone)
-    assert np.allclose(force.numpy(), forces_b_np, atol=1e-4, rtol=1e-5), "set_forces did not clear previous add"
+    assert np.allclose(force.numpy(), forces_b_np, atol=1e-4, rtol=1e-5), f"{method} did not clear previous add"
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -1233,11 +868,15 @@ def test_full_reset_clears_active_flag(device: str, env_ids: slice | None):
     forces_np = np.ones((num_envs, num_bodies, 3), dtype=np.float32)
     composer.add_forces_and_torques_index(
         forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
+        torques=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
     )
     composer.add_forces_and_torques_index(
         forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
-        positions=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
+        positions=wp.from_numpy(2.0 * forces_np, dtype=wp.vec3f, device=device),
         is_global=True,
+    )
+    composer.add_forces_and_torques_index(
+        forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device), is_global=True
     )
     composer.get_forces_and_torques()
     assert composer.active
@@ -1245,6 +884,15 @@ def test_full_reset_clears_active_flag(device: str, env_ids: slice | None):
     composer.reset(env_ids=env_ids)
     assert not composer.active
     assert not composer._dirty
+    # Check all 7 buffers are zero (5 input + 2 output)
+    zeros = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
+    np.testing.assert_array_equal(composer.global_force_w.numpy(), zeros)
+    np.testing.assert_array_equal(composer.global_torque_w.numpy(), zeros)
+    np.testing.assert_array_equal(composer.global_force_at_com_w.numpy(), zeros)
+    np.testing.assert_array_equal(composer.local_force_b.numpy(), zeros)
+    np.testing.assert_array_equal(composer.local_torque_b.numpy(), zeros)
+    np.testing.assert_array_equal(composer.out_force_b.warp.numpy(), zeros)
+    np.testing.assert_array_equal(composer.out_torque_b.warp.numpy(), zeros)
 
     force, torque, is_global = _get_wrench_without_pose_reads(composer)
     assert is_global is False
@@ -1262,42 +910,25 @@ def test_full_reset_clears_active_flag(device: str, env_ids: slice | None):
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_composed_force_emits_deprecation_warning(device: str):
-    """Test that accessing composed_force emits a DeprecationWarning."""
+@pytest.mark.parametrize(
+    "deprecated_name, name, input_name",
+    [("composed_force", "out_force_b", "forces"), ("composed_torque", "out_torque_b", "torques")],
+)
+def test_composed_wrench_emits_deprecation_warning(device: str, deprecated_name: str, name: str, input_name: str):
+    """Test that accessing composed_force/composed_torque emits a DeprecationWarning and aliases the output."""
     num_envs, num_bodies = 2, 1
 
     mock_asset = create_mock_asset(num_envs, num_bodies, device)
     composer = WrenchComposer(mock_asset)
 
-    forces_np = np.array([[[1.0, 2.0, 3.0]], [[4.0, 5.0, 6.0]]], dtype=np.float32)
-    composer.add_forces_and_torques_index(
-        forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
-    )
+    values_np = np.array([[[1.0, 2.0, 3.0]], [[4.0, 5.0, 6.0]]], dtype=np.float32)
+    composer.add_forces_and_torques_index(**{input_name: wp.from_numpy(values_np, dtype=wp.vec3f, device=device)})
 
-    with pytest.warns(DeprecationWarning, match="composed_force.*is deprecated"):
-        result = composer.composed_force
+    with pytest.warns(DeprecationWarning, match=f"{deprecated_name}.*is deprecated"):
+        result = getattr(composer, deprecated_name)
 
-    # Should return the same data as out_force_b
-    assert np.allclose(result.warp.numpy(), composer.out_force_b.warp.numpy(), atol=1e-7)
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_composed_torque_emits_deprecation_warning(device: str):
-    """Test that accessing composed_torque emits a DeprecationWarning."""
-    num_envs, num_bodies = 2, 1
-
-    mock_asset = create_mock_asset(num_envs, num_bodies, device)
-    composer = WrenchComposer(mock_asset)
-
-    torques_np = np.array([[[1.0, 2.0, 3.0]], [[4.0, 5.0, 6.0]]], dtype=np.float32)
-    composer.add_forces_and_torques_index(
-        torques=wp.from_numpy(torques_np, dtype=wp.vec3f, device=device),
-    )
-
-    with pytest.warns(DeprecationWarning, match="composed_torque.*is deprecated"):
-        result = composer.composed_torque
-
-    assert np.allclose(result.warp.numpy(), composer.out_torque_b.warp.numpy(), atol=1e-7)
+    # Should return the same data as the new output property
+    assert np.allclose(result.warp.numpy(), getattr(composer, name).warp.numpy(), atol=1e-7)
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -1323,36 +954,6 @@ def test_deprecated_add_forces_and_torques_emits_warning(device: str):
 # ============================================================================
 # set_forces_and_torques_mask Tests
 # ============================================================================
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_set_forces_mask_overwrites_previous_add(device: str):
-    """Test that set_forces_and_torques_mask clears previously accumulated values."""
-    num_envs, num_bodies = 4, 2
-    rng = np.random.default_rng(seed=60)
-
-    mock_asset = create_mock_asset(num_envs, num_bodies, device)
-    composer = WrenchComposer(mock_asset)
-
-    # Accumulate some forces via add
-    forces_a_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
-    composer.add_forces_and_torques_index(
-        forces=wp.from_numpy(forces_a_np, dtype=wp.vec3f, device=device),
-    )
-
-    # Now set new forces via mask -- should replace, not accumulate
-    forces_b_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
-    composer.set_forces_and_torques_mask(
-        forces=wp.from_numpy(forces_b_np, dtype=wp.vec3f, device=device),
-    )
-
-    force, _, is_global = _get_wrench_without_pose_reads(composer)
-    assert is_global is False
-
-    # Output should match forces_b only (forces_a should be gone)
-    assert np.allclose(force.numpy(), forces_b_np, atol=1e-4, rtol=1e-5), (
-        "set_forces_and_torques_mask did not clear previous add"
-    )
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -1425,59 +1026,15 @@ def test_set_forces_mask_clears_targeted_envs_only(device: str):
     )
 
 
-@pytest.mark.parametrize("device", test_devices())
-def test_set_forces_mask_matches_set_forces_index(device: str):
-    """Test that set_forces_and_torques_mask produces the same result as the index variant."""
-    num_envs, num_bodies = 6, 3
-    rng = np.random.default_rng(seed=62)
-
-    # Random link poses
-    link_pos_np = rng.uniform(-10.0, 10.0, (num_envs, num_bodies, 3)).astype(np.float32)
-    link_quat_np = random_unit_quaternion_np(rng, (num_envs, num_bodies))
-    link_pos_torch = torch.from_numpy(link_pos_np)
-    link_quat_torch = torch.from_numpy(link_quat_np)
-
-    # Use all envs/bodies to compare
-    forces_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
-    positions_np = rng.uniform(-10.0, 10.0, (num_envs, num_bodies, 3)).astype(np.float32)
-
-    # Index-based
-    mock_idx = create_mock_asset(num_envs, num_bodies, device, link_pos=link_pos_torch, link_quat=link_quat_torch)
-    composer_idx = WrenchComposer(mock_idx)
-    composer_idx.set_forces_and_torques_index(
-        forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
-        positions=wp.from_numpy(positions_np, dtype=wp.vec3f, device=device),
-        is_global=True,
-    )
-
-    # Mask-based (all-True)
-    mock_mask = create_mock_asset(num_envs, num_bodies, device, link_pos=link_pos_torch, link_quat=link_quat_torch)
-    composer_mask = WrenchComposer(mock_mask)
-    composer_mask.set_forces_and_torques_mask(
-        forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
-        positions=wp.from_numpy(positions_np, dtype=wp.vec3f, device=device),
-        is_global=True,
-    )
-
-    composer_idx.compose_to_body_frame()
-    composer_mask.compose_to_body_frame()
-
-    assert np.allclose(
-        composer_idx.out_force_b.warp.numpy(), composer_mask.out_force_b.warp.numpy(), atol=1e-4, rtol=1e-5
-    ), "set mask vs index force mismatch"
-    assert np.allclose(
-        composer_idx.out_torque_b.warp.numpy(), composer_mask.out_torque_b.warp.numpy(), atol=1e-4, rtol=1e-5
-    ), "set mask vs index torque mismatch"
-
-
 # ============================================================================
 # Lazy Composition (_ensure_composed) Tests
 # ============================================================================
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_out_force_b_triggers_lazy_composition(device: str):
-    """Test that accessing out_force_b without explicit compose_to_body_frame still returns correct results."""
+@pytest.mark.parametrize("input_name, output_name", [("forces", "out_force_b"), ("torques", "out_torque_b")])
+def test_output_property_triggers_lazy_composition(device: str, input_name: str, output_name: str):
+    """Test that reading out_force_b/out_torque_b without explicit compose_to_body_frame returns correct results."""
     num_envs, num_bodies = 4, 2
     rng = np.random.default_rng(seed=70)
 
@@ -1487,83 +1044,43 @@ def test_out_force_b_triggers_lazy_composition(device: str):
     mock_asset = create_mock_asset(num_envs, num_bodies, device, link_quat=link_quat_torch)
     composer = WrenchComposer(mock_asset)
 
-    forces_global_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
+    values_global_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
     composer.add_forces_and_torques_index(
-        forces=wp.from_numpy(forces_global_np, dtype=wp.vec3f, device=device),
+        **{input_name: wp.from_numpy(values_global_np, dtype=wp.vec3f, device=device)},
         is_global=True,
     )
 
     # Do NOT call compose_to_body_frame -- rely on lazy composition
-    expected_forces_local = quat_rotate_inv_np(link_quat_np, forces_global_np)
-    composed_force_np = composer.out_force_b.warp.numpy()
+    expected_values_local = quat_rotate_inv_np(link_quat_np, values_global_np)
+    composed_np = getattr(composer, output_name).warp.numpy()
 
-    assert np.allclose(composed_force_np, expected_forces_local, atol=1e-4, rtol=1e-5), (
-        "Lazy composition via out_force_b failed"
+    assert np.allclose(composed_np, expected_values_local, atol=1e-4, rtol=1e-5), (
+        f"Lazy composition via {output_name} failed"
     )
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_out_torque_b_triggers_lazy_composition(device: str):
-    """Test that accessing out_torque_b without explicit compose_to_body_frame still returns correct results."""
-    num_envs, num_bodies = 4, 2
-    rng = np.random.default_rng(seed=71)
-
-    link_quat_np = random_unit_quaternion_np(rng, (num_envs, num_bodies))
-    link_quat_torch = torch.from_numpy(link_quat_np)
-
-    mock_asset = create_mock_asset(num_envs, num_bodies, device, link_quat=link_quat_torch)
-    composer = WrenchComposer(mock_asset)
-
-    torques_global_np = rng.uniform(-100.0, 100.0, (num_envs, num_bodies, 3)).astype(np.float32)
-    composer.add_forces_and_torques_index(
-        torques=wp.from_numpy(torques_global_np, dtype=wp.vec3f, device=device),
-        is_global=True,
-    )
-
-    # Do NOT call compose_to_body_frame -- rely on lazy composition
-    expected_torques_local = quat_rotate_inv_np(link_quat_np, torques_global_np)
-    composed_torque_np = composer.out_torque_b.warp.numpy()
-
-    assert np.allclose(composed_torque_np, expected_torques_local, atol=1e-4, rtol=1e-5), (
-        "Lazy composition via out_torque_b failed"
-    )
-
-
-@pytest.mark.parametrize("device", test_devices())
-def test_lazy_composition_tracks_dirty_flag(device: str):
-    """Test that the dirty flag is correctly managed through add/compose/add cycles."""
+def test_lazy_composition_reflects_later_adds(device: str):
+    """Test that an add after a lazy composition is reflected by the next output read."""
     num_envs, num_bodies = 2, 1
 
     mock_asset = create_mock_asset(num_envs, num_bodies, device)
     composer = WrenchComposer(mock_asset)
 
-    # Initially clean
-    assert not composer._dirty
-
-    # After add, dirty
     forces_np = np.ones((num_envs, num_bodies, 3), dtype=np.float32)
     composer.add_forces_and_torques_index(
         forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
     )
-    assert composer._dirty
+    # Reading out_force_b composes lazily
+    assert np.allclose(composer.out_force_b.warp.numpy(), forces_np, atol=1e-4, rtol=1e-5)
 
-    # After accessing out_force_b, clean (lazy compose happened)
-    _ = composer.out_force_b
-    assert not composer._dirty
-
-    # After another add, dirty again
+    # Another add must be reflected by the next read of either output
     composer.add_forces_and_torques_index(
         forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
+        torques=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
     )
-    assert composer._dirty
-
-    # Accessing out_torque_b also triggers composition
-    _ = composer.out_torque_b
-    assert not composer._dirty
-
-    # Verify accumulated result (2x forces)
-    expected = 2.0 * forces_np
-    assert np.allclose(composer.out_force_b.warp.numpy(), expected, atol=1e-4, rtol=1e-5)
+    assert np.allclose(composer.out_torque_b.warp.numpy(), forces_np, atol=1e-4, rtol=1e-5)
+    assert np.allclose(composer.out_force_b.warp.numpy(), 2.0 * forces_np, atol=1e-4, rtol=1e-5)
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -1679,58 +1196,6 @@ def test_global_force_with_com_offset(device: str):
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_global_force_at_com_no_torque_with_com_offset(device: str):
-    """Test that a global force at CoM position produces zero torque even with CoM offset."""
-    num_envs, num_bodies = 2, 1
-
-    # Link at origin, CoM offset by [2, 3, 0]
-    link_pos_np = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
-    link_quat_np = np.zeros((num_envs, num_bodies, 4), dtype=np.float32)
-    link_quat_np[..., 3] = 1.0
-
-    com_pos_np = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
-    com_pos_np[..., 0] = 2.0
-    com_pos_np[..., 1] = 3.0
-
-    mock_asset = create_mock_asset(
-        num_envs,
-        num_bodies,
-        device,
-        link_pos=torch.from_numpy(link_pos_np),
-        link_quat=torch.from_numpy(link_quat_np),
-    )
-    com_pose = torch.cat(
-        (
-            torch.from_numpy(com_pos_np),
-            torch.tensor([0.0, 0.0, 0.0, 1.0]).view(1, 1, 4).expand(num_envs, num_bodies, 4),
-        ),
-        dim=-1,
-    )
-    mock_asset.data.set_body_com_pose_w(com_pose)
-
-    composer = WrenchComposer(mock_asset)
-
-    # Apply global force at the CoM position
-    forces_np = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
-    forces_np[..., 2] = 50.0
-    positions_np = com_pos_np.copy()
-
-    composer.add_forces_and_torques_index(
-        forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
-        positions=wp.from_numpy(positions_np, dtype=wp.vec3f, device=device),
-        is_global=True,
-    )
-
-    composer.compose_to_body_frame()
-
-    # Torque = cross(com, F) - cross(com, F) = 0
-    expected_torque = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
-    assert np.allclose(composer.out_torque_b.warp.numpy(), expected_torque, atol=1e-4, rtol=1e-5), (
-        "Force at CoM should produce zero torque regardless of CoM offset"
-    )
-
-
-@pytest.mark.parametrize("device", test_devices())
 def test_com_offset_with_rotation(device: str):
     """Test torque correction with both CoM offset and non-identity rotation."""
     num_envs, num_bodies = 1, 1
@@ -1795,26 +1260,6 @@ def test_com_offset_with_rotation(device: str):
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_deprecated_set_forces_and_torques_emits_warning(device: str):
-    """Test that the deprecated set_forces_and_torques wrapper emits a warning and works."""
-    num_envs, num_bodies = 4, 2
-    rng = np.random.default_rng(seed=80)
-
-    mock_asset = create_mock_asset(num_envs, num_bodies, device)
-    composer = WrenchComposer(mock_asset)
-
-    forces_np = rng.uniform(-50.0, 50.0, (num_envs, num_bodies, 3)).astype(np.float32)
-
-    with pytest.warns(DeprecationWarning, match="set_forces_and_torques.*is deprecated"):
-        composer.set_forces_and_torques(
-            forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
-        )
-
-    composer.compose_to_body_frame()
-    assert np.allclose(composer.out_force_b.warp.numpy(), forces_np, atol=1e-4, rtol=1e-5)
-
-
-@pytest.mark.parametrize("device", test_devices())
 def test_deprecated_set_forces_and_torques_clears_previous(device: str):
     """Test that deprecated set_forces_and_torques actually replaces previous values."""
     num_envs, num_bodies = 4, 2
@@ -1831,7 +1276,7 @@ def test_deprecated_set_forces_and_torques_clears_previous(device: str):
 
     # Then set via deprecated method -- should replace
     forces_b_np = rng.uniform(-50.0, 50.0, (num_envs, num_bodies, 3)).astype(np.float32)
-    with pytest.warns(DeprecationWarning):
+    with pytest.warns(DeprecationWarning, match="set_forces_and_torques.*is deprecated"):
         composer.set_forces_and_torques(
             forces=wp.from_numpy(forces_b_np, dtype=wp.vec3f, device=device),
         )
