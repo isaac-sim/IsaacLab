@@ -16,6 +16,7 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg, SimulationContext
@@ -261,9 +262,8 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
     renderer = OVRTXRenderer(OVRTXRendererCfg())
     renderer._exported_usd_string = stage.ExportToString()
     renderer._clone_plan = ClonePlan(
-        sources=("/World/envs/env_0",),
-        destinations=("/World/envs/env_{}",),
-        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        sources=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),),
+        destinations=np.zeros((1, 2), dtype=np.int32),
         env_ids=np.arange(2, dtype=np.int64),
         positions=np.zeros((2, 3), dtype=np.float32),
     )

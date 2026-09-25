@@ -40,7 +40,7 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
         raise ValueError("replicate() requires the active SimulationContext's ClonePlan.")
     context_types = tuple(
         context_type
-        for context_type in plan.context_rows
+        for context_type in plan.context_source_indices
         if replicate_physics or context_type is not sim.physics_manager.clone_context_type
     )
     missing = [context_type for context_type in context_types if context_type not in sim.clone_contexts]
@@ -74,7 +74,6 @@ class ReplicateSession:
         num_clones: int,
         env_spacing: float,
         *,
-        global_paths: tuple[str, ...] = (),
         clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential,
         valid_set: np.ndarray | None = None,
         replicate_physics: bool = True,
@@ -86,7 +85,6 @@ class ReplicateSession:
             cfgs: Asset cfgs with resolved ``prim_path``.
             num_clones: Number of target envs.
             env_spacing: Grid spacing between env origins [m].
-            global_paths: Complete shared-asset roots declared by the composition root. Defaults to none.
             clone_strategy: Prototype-to-env assignment function.
             valid_set: Optional ``[num_combos, num_groups]`` integer array of valid
                 prototype combinations; ``None`` uses the full cartesian product.
@@ -99,7 +97,6 @@ class ReplicateSession:
         self._kwargs = dict(
             num_clones=num_clones,
             env_spacing=env_spacing,
-            global_paths=global_paths,
             clone_strategy=clone_strategy,
             valid_set=valid_set,
             env_template=env_template,

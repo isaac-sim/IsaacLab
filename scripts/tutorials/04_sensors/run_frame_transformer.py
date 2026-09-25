@@ -44,66 +44,50 @@ from isaacsim.util.debug_draw import _debug_draw as omni_debug_draw
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab import cloner
-from isaaclab.assets import Articulation
+from isaaclab.assets import Articulation, AssetBaseCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformer, FrameTransformerCfg, OffsetCfg
 from isaaclab.sim import SimulationContext
+from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort:skip
 
-ROBOT_PRIM_PATH = "/World/envs/env_0/Robot"
-ROBOT_PRIM_PATH_EXPR = "/World/envs/env_.*/Robot"
+ROBOT_PRIM_PATH_EXPR = "{ENV_REGEX_NS}/Robot"
+ROT_OFFSET = math_utils.quat_from_euler_xyz(torch.zeros(1), torch.zeros(1), torch.tensor(-math.pi / 2))
+POS_OFFSET = math_utils.quat_apply(ROT_OFFSET[0], torch.tensor([0.08795, 0.01305, -0.33797]))
 
 
-def define_sensor() -> FrameTransformer:
-    """Defines the FrameTransformer sensor to add to the scene."""
-    # define offset
-    rot_offset = math_utils.quat_from_euler_xyz(torch.zeros(1), torch.zeros(1), torch.tensor(-math.pi / 2))
-    pos_offset = math_utils.quat_apply(rot_offset[0], torch.tensor([0.08795, 0.01305, -0.33797]))
+@configclass
+class FrameTransformerSceneCfg(InteractiveSceneCfg):
+    """Robot and sensor declarations share the scene's clone lifecycle."""
+
+    ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    light = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    )
+    robot = ANYMAL_C_CFG.replace(prim_path=ROBOT_PRIM_PATH_EXPR)
 
     # Example using .* to get full body + LF_FOOT
-    frame_transformer_cfg = FrameTransformerCfg(
+    frame_transformer = FrameTransformerCfg(
         prim_path=f"{ROBOT_PRIM_PATH_EXPR}/base",
         target_frames=[
             FrameTransformerCfg.FrameCfg(prim_path=f"{ROBOT_PRIM_PATH_EXPR}/.*"),
             FrameTransformerCfg.FrameCfg(
                 prim_path=f"{ROBOT_PRIM_PATH_EXPR}/LF_SHANK",
                 name="LF_FOOT_USER",
-                offset=OffsetCfg(pos=tuple(pos_offset.tolist()), rot=tuple(rot_offset[0].tolist())),
+                offset=OffsetCfg(pos=tuple(POS_OFFSET.tolist()), rot=tuple(ROT_OFFSET[0].tolist())),
             ),
         ],
         debug_vis=False,
     )
-    frame_transformer = FrameTransformer(frame_transformer_cfg)
-
-    return frame_transformer
 
 
-def design_scene() -> dict:
-    """Design the scene."""
-    # Populate scene
-    # -- Ground-plane
-    cfg = sim_utils.GroundPlaneCfg()
-    cfg.func("/World/defaultGroundPlane", cfg)
-    # -- Lights
-    cfg = sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
-    cfg.func("/World/Light", cfg)
-    # -- Robot
-    robot = Articulation(ANYMAL_C_CFG.replace(prim_path=ROBOT_PRIM_PATH))
-    # -- Sensors
-    frame_transformer = define_sensor()
-
-    # return the scene information
-    scene_entities = {"robot": robot, "frame_transformer": frame_transformer}
-    return scene_entities
-
-
-def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
+def run_simulator(sim: sim_utils.SimulationContext, scene_entities: InteractiveScene):
     """Run the simulator."""
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -178,11 +162,7 @@ def main():
     # Set main camera
     sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
     # Design scene
-    global_paths = ("/World/defaultGroundPlane", "/World/Light", ROBOT_PRIM_PATH)
-    plan = cloner.make_clone_plan((), 1, 0.0, global_paths=global_paths)
-    sim.set_clone_plan(plan)
-    scene_entities = design_scene()
-    cloner.replicate(plan, replicate_physics=False)
+    scene_entities = InteractiveScene(FrameTransformerSceneCfg(num_envs=1, env_spacing=0.0, replicate_physics=False))
     # Play the simulator
     sim.reset()
     # Now we are ready!

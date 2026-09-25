@@ -18,8 +18,8 @@ from newton import ModelBuilder
 from pxr import Usd, UsdGeom
 
 from isaaclab.cloner import ClonePlan
-from isaaclab.cloner.path import rebase
-from isaaclab.cloner.query import iter_sources
+from isaaclab.cloner.path import match, rebase
+from isaaclab.cloner.query import replication_mapping
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data.deformable_discovery import deformable_prototypes, expand_deformable_entries
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
@@ -96,10 +96,15 @@ def newton_builder_world_hook(
 
 def _replicate_newton(
     stage: Usd.Stage,
-    plan: ClonePlan,
-    rows: tuple[int, ...],
+    sources: Sequence[str],
+    destinations: Sequence[str],
+    env_ids: np.ndarray,
+    mapping: np.ndarray,
     sim: SimulationContext,
     *,
+    positions: np.ndarray | None = None,
+    global_paths: Sequence[str] = (),
+    exclude_paths: Sequence[str] = (),
     up_axis: str = "Z",
     quaternions: np.ndarray | None = None,
 ) -> tuple[ModelBuilder, object, dict]:
@@ -112,14 +117,12 @@ def _replicate_newton(
 
     cfg = sim.cfg.physics
     simulation = isinstance(cfg, NewtonCfg)
-    sources = tuple(plan.sources[row] for row in rows)
-    positions = plan.positions
     if simulation:
         reset_registered_mpm_particle_ranges()
     if positions is None:
-        positions = np.zeros((len(plan.env_ids), 3), dtype=np.float32)
+        positions = np.zeros((len(env_ids), 3), dtype=np.float32)
     if quaternions is None:
-        quaternions = np.zeros((len(plan.env_ids), 4), dtype=np.float32)
+        quaternions = np.zeros((len(env_ids), 4), dtype=np.float32)
         quaternions[:, 3] = 1.0
 
     manager_cls = sim.physics_manager if simulation else NewtonManager
@@ -129,25 +132,26 @@ def _replicate_newton(
     if load_visual_shapes is None:
         load_visual_shapes = sim.is_rendering or sim.can_render_rgb_array() or sim.visual_shapes_required
     builder = create_builder()
-    import_paths = (sim.cfg.physics_prim_path, *plan.global_paths) if simulation else plan.global_paths
+    import_paths = (sim.cfg.physics_prim_path, *global_paths) if simulation else global_paths
     if simulation:
         global_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths)
         # Native deformables are appended by per-world hooks, not the USD importer.
         ignore_paths = [
-            path
+            source + matched.suffix
             for entry in NewtonManager._deformable_registry
-            for _, _, path, _ in iter_sources(plan, entry.prim_path)
+            for source, destination in zip(sources, destinations, strict=True)
+            if (matched := match(entry.prim_path, destination)) is not None
         ]
         global_ignore_paths.extend(ignore_paths)
         global_ignore_paths.extend(entry.prim_path for entry in NewtonManager._deformable_registry)
     else:
-        entries = deformable_prototypes(stage, plan, rows)
+        entries = deformable_prototypes(stage, sources, destinations, global_paths, exclude_paths=exclude_paths)
         ignore_paths = list(
             dict.fromkeys(
                 path for entry in entries for path in (entry.root_path, entry.sim_mesh_path, entry.vis_mesh_path)
             )
         )
-        global_ignore_paths = [*plan.sources, *ignore_paths]
+        global_ignore_paths = [*sources, *exclude_paths, *ignore_paths]
 
     import_results = []
     for root_path in import_paths:
@@ -194,10 +198,10 @@ def _replicate_newton(
             if source is None:
                 cable_counts[path] = len(bodies)
             else:
-                for row in rows:
-                    if plan.sources[row] == source:
-                        for column in np.flatnonzero(plan.clone_mask[row]):
-                            destination = plan.destinations[row].format(int(plan.env_ids[column]))
+                for prototype_index, prototype in enumerate(sources):
+                    if prototype == source:
+                        for column in np.flatnonzero(mapping[prototype_index]):
+                            destination = destinations[prototype_index].format(int(env_ids[column]))
                             cable_counts[rebase(path, source, destination)] = len(bodies)
 
     if simulation:
@@ -229,12 +233,12 @@ def _replicate_newton(
     local_site_map, world_xforms, fabric_body_bindings = replicate_builder_mapping(
         builder=builder,
         sources=sources,
-        mapping=plan.clone_mask[list(rows)],
+        mapping=mapping,
         positions=positions,
         quaternions=quaternions,
         source_builders=source_builders,
-        destinations=tuple(plan.destinations[row] for row in rows),
-        env_ids=plan.env_ids,
+        destinations=destinations,
+        env_ids=env_ids,
         source_site_indices=source_sites,
         env_root_sites=root_sites,
         per_world_builder_hooks=NewtonManager._per_world_builder_hooks if simulation else (),
@@ -257,10 +261,12 @@ def _replicate_newton(
         NewtonManager._world_xforms = world_xforms
         NewtonManager._cl_protos = source_builders
         NewtonManager.set_builder(builder)
-        NewtonManager._num_envs = len(plan.env_ids)
+        NewtonManager._num_envs = len(env_ids)
     else:
-        geometry_offsets = add_shadow_deformables_to_builder(builder, expand_deformable_entries(plan, entries, rows))
-        backend_cfg = NewtonBackendCfg(builder=builder, device=sim.device, num_envs=len(plan.env_ids), simulation=False)
+        geometry_offsets = add_shadow_deformables_to_builder(
+            builder, expand_deformable_entries(entries, sources, destinations, env_ids, mapping, positions)
+        )
+        backend_cfg = NewtonBackendCfg(builder=builder, device=sim.device, num_envs=len(env_ids), simulation=False)
         sim.physics_manager.register_callback(
             partial(NewtonManager._initialize_visualization_model, backend_cfg, geometry_offsets),
             PhysicsEvent.PHYSICS_READY,
@@ -271,7 +277,7 @@ def _replicate_newton(
 
 
 class NewtonReplicateContext:
-    """Build one Newton model from the rows routed to it in a clone plan."""
+    """Build one Newton model from the sources routed to it in a clone plan."""
 
     replicate_priority = 0
 
@@ -281,10 +287,24 @@ class NewtonReplicateContext:
         self.up_axis = up_axis
 
     def replicate(self, plan: ClonePlan) -> tuple[ModelBuilder, object, dict]:
-        """Build and publish a Newton model from this context's plan rows."""
+        """Build and publish a Newton model from this context's source declarations."""
         if plan.env_ids is None:
             raise ValueError("ClonePlan.env_ids is required for replication.")
-        return _replicate_newton(self._sim.stage, plan, plan.context_rows[type(self)], self._sim, up_axis=self.up_axis)
+        source_indices = plan.context_source_indices[type(self)]
+        sources, destinations, mapping = replication_mapping(plan, source_indices)
+        excluded_sources, _, _ = replication_mapping(plan, tuple(set(range(len(plan.sources))) - set(source_indices)))
+        return _replicate_newton(
+            self._sim.stage,
+            sources,
+            destinations,
+            plan.env_ids,
+            mapping,
+            self._sim,
+            positions=plan.positions,
+            global_paths=plan.global_paths,
+            exclude_paths=excluded_sources,
+            up_axis=self.up_axis,
+        )
 
 
 def newton_physics_replicate(
@@ -314,15 +334,16 @@ def newton_physics_replicate(
     Returns:
         Tuple of the populated Newton model builder and stage metadata.
     """
-    plan = ClonePlan(
-        sources=tuple(sources),
-        destinations=tuple(destinations),
-        env_ids=env_ids,
-        clone_mask=mapping,
+    builder, stage_info, _ = _replicate_newton(
+        stage,
+        sources,
+        destinations,
+        env_ids,
+        mapping,
+        PhysicsManager._sim,
         positions=positions,
         global_paths=global_paths,
-    )
-    builder, stage_info, _ = _replicate_newton(
-        stage, plan, tuple(range(len(sources))), PhysicsManager._sim, up_axis=up_axis, quaternions=quaternions
+        up_axis=up_axis,
+        quaternions=quaternions,
     )
     return builder, stage_info

@@ -11,7 +11,6 @@ import numpy as np
 
 from pxr import Gf, Sdf, Usd, UsdGeom
 
-from isaaclab.cloner import ClonePlan
 from isaaclab.scene_data.deformable_discovery import (
     deformable_entry,
     deformable_prototypes,
@@ -138,26 +137,28 @@ def test_backend_geometry_nearest_owner_partial_rows_and_shared_roots():
     mpm_points = UsdGeom.Points.Define(stage, "/Lab/Cell3/SimulationPoints")
     mpm_points.CreatePointsAttr([(1.0, 2.0, 3.0), (0.0, 0.0, 0.0)])
     _add_api_schemas(mpm_points.GetPrim(), ["PhysicsDeformableBodyAPI"])
-    plan = ClonePlan(
-        sources=("/Lab/Cell3", "/Lab/Cell3/Nested", "/Missing", "/Lab/Cell3/Dormant"),
-        destinations=("/Lab/Cell{}", "/Lab/Cell{}/Nested", "/Other/{}", "/Lab/Cell{}/Dormant"),
-        clone_mask=np.asarray([[1, 1, 0], [1, 0, 1], [0, 0, 0], [0, 0, 0]], dtype=np.bool_),
-        env_ids=np.asarray([3, 7, 11]),
-        positions=np.asarray([[10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [35.0, 0.0, 0.0]]),
-        global_paths=("/Shared", "/Shared/Cloth", "/Lab"),
-    )
-
-    prototypes = deformable_prototypes(stage, plan)
+    sources = ("/Lab/Cell3", "/Lab/Cell3/Nested")
+    destinations = ("/Lab/Cell{}", "/Lab/Cell{}/Nested")
+    mapping = np.asarray([[1, 1, 0], [1, 0, 1]], dtype=np.bool_)
+    env_ids = np.asarray([3, 7, 11])
+    positions = np.asarray([[10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [35.0, 0.0, 0.0]])
+    shared = ("/Shared", "/Shared/Cloth", "/Lab")
+    excluded = ("/Missing", "/Lab/Cell3/Dormant")
+    prototypes = deformable_prototypes(stage, sources, destinations, shared, exclude_paths=excluded)
+    nested = deformable_prototypes(stage, sources[1:], destinations, shared, exclude_paths=(*sources[:1], *excluded))
     assert len(prototypes) == 3
     assert {entry.root_path for entry in prototypes} == {"/Lab/Cell3/Cloth", "/Lab/Cell3/Nested/Cloth", "/Shared/Cloth"}
-    assert {entry.root_path for entry in deformable_prototypes(stage, plan, (1,))} == {
+    assert {entry.root_path for entry in nested} == {
         "/Lab/Cell3/Nested/Cloth",
         "/Shared/Cloth",
     }
     prototype = next(entry for entry in prototypes if entry.root_path == "/Lab/Cell3/Cloth")
     stage.RemovePrim("/Lab")
 
-    expanded = {entry.root_path: entry for entry in expand_deformable_entries(plan, prototypes)}
+    expanded = {
+        entry.root_path: entry
+        for entry in expand_deformable_entries(prototypes, sources, destinations, env_ids, mapping, positions)
+    }
     assert set(expanded) == {
         "/Lab/Cell3/Cloth",
         "/Lab/Cell7/Cloth",
@@ -165,7 +166,10 @@ def test_backend_geometry_nearest_owner_partial_rows_and_shared_roots():
         "/Lab/Cell11/Nested/Cloth",
         "/Shared/Cloth",
     }
-    assert {entry.root_path for entry in expand_deformable_entries(plan, prototypes, (1,))} == {
+    assert {
+        entry.root_path
+        for entry in expand_deformable_entries(nested, sources[1:], destinations[1:], env_ids, mapping[1:], positions)
+    } == {
         "/Lab/Cell3/Nested/Cloth",
         "/Lab/Cell11/Nested/Cloth",
         "/Shared/Cloth",
@@ -177,13 +181,12 @@ def test_backend_geometry_nearest_owner_partial_rows_and_shared_roots():
     np.testing.assert_allclose(clone.init_rot, (0.0, 0.0, np.sin(np.pi / 12), np.cos(np.pi / 12)))
 
     # Distinct source roots can target the same subtree; its nearest destination owner wins.
-    override_plan = ClonePlan(
-        sources=("/Lab/Cell3", "/Shared"),
-        destinations=("/Lab/Cell{}", "/Lab/Cell{}/Nested"),
-        clone_mask=np.ones((2, 1), dtype=np.bool_),
-        env_ids=np.asarray([3]),
-    )
     shared = next(entry for entry in prototypes if entry.root_path == "/Shared/Cloth")
     for ordered in (prototypes, prototypes[::-1]):
-        expanded = {entry.root_path: entry for entry in expand_deformable_entries(override_plan, ordered)}
+        expanded = {
+            entry.root_path: entry
+            for entry in expand_deformable_entries(
+                ordered, ("/Lab/Cell3", "/Shared"), destinations, np.asarray([3]), np.ones((2, 1), dtype=np.bool_)
+            )
+        }
         assert expanded["/Lab/Cell3/Nested/Cloth"].vertices is shared.vertices

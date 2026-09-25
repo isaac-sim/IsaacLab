@@ -56,17 +56,14 @@ def _clone_recipes(
     if quaternions is not None and quaternions.shape != (len(env_ids), 4):
         raise ValueError(f"quaternions must have shape [num_envs, 4], got {list(quaternions.shape)}.")
 
-    columns_by_row = [[] for _ in range(mapping.shape[0])]
-    for row, column in np.argwhere(mapping):
-        columns_by_row[row].append(column)
     xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
     recipes = []
-    for row, source in enumerate(sources):
-        columns = columns_by_row[row]
-        if not columns:
+    for source_index, source in enumerate(sources):
+        columns = np.flatnonzero(mapping[source_index])
+        if not len(columns):
             continue
         active_env_ids = env_ids[columns]
-        matched = cloner.path.match(source, destinations[row])
+        matched = cloner.path.match(source, destinations[source_index])
         self_env_id = int(matched.instance) if matched is not None and matched.instance.isdigit() else None
 
         source_prim = stage.GetPrimAtPath(source)
@@ -76,7 +73,7 @@ def _clone_recipes(
         if self_env_id is None:
             source_anchor_world = Gf.Matrix4d(1.0)
         else:
-            prefix, _ = cloner.path.split(destinations[row])
+            prefix, _ = cloner.path.split(destinations[source_index])
             source_anchor_path = f"{prefix}{self_env_id}"
             source_anchor = stage.GetPrimAtPath(source_anchor_path)
             if not source_anchor.IsValid():
@@ -90,7 +87,7 @@ def _clone_recipes(
             env_id = int(env_id)
             if env_id == self_env_id:
                 continue
-            targets.append(destinations[row].format(env_id))
+            targets.append(destinations[source_index].format(env_id))
             target_env_world = Gf.Matrix4d(1.0)
             if positions is not None:
                 target_env_world.SetTranslateOnly(Gf.Vec3d(*map(float, positions[column])))
@@ -118,7 +115,7 @@ class OvPhysxReplicateContext:
         self.stage = sim_context.stage
 
     def replicate(self, plan: ClonePlan) -> None:
-        """Publish clone operations from this context's plan rows.
+        """Publish clone operations from this context's source declarations.
 
         Args:
             plan: Replication layout shared by every clone backend.
@@ -128,13 +125,14 @@ class OvPhysxReplicateContext:
         """
         if plan.env_ids is None:
             raise ValueError("ClonePlan.env_ids is required for replication.")
-        rows = plan.context_rows[type(self)]
+        source_indices = plan.context_source_indices[type(self)]
+        sources, destinations, mapping = cloner.query.replication_mapping(plan, source_indices)
         recipes = _clone_recipes(
             stage=self.stage,
-            sources=tuple(plan.sources[row] for row in rows),
-            destinations=tuple(plan.destinations[row] for row in rows),
+            sources=sources,
+            destinations=destinations,
             env_ids=plan.env_ids,
-            mapping=plan.clone_mask[list(rows)],
+            mapping=mapping,
             positions=plan.positions,
             quaternions=None,
         )

@@ -8,6 +8,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 
 # launch omniverse app
@@ -138,11 +139,10 @@ def test_physx_replicate_context_consumes_plan(sim):
     with patch("isaaclab_physx.cloner.replicate.get_physx_replicator_interface", return_value=mock_rep):
         ctx = PhysxReplicateContext(stage)
         plan = ClonePlan(
-            sources=("/World/envs/env_0/Object",),
-            destinations=("/World/envs/env_{}/Object",),
-            clone_mask=np.ones((1, 3), dtype=np.bool_),
+            sources=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),),
+            destinations=np.zeros((1, 3), dtype=np.int32),
             env_ids=np.arange(3, dtype=np.int64),
-            context_rows={PhysxReplicateContext: (0,)},
+            context_source_indices={PhysxReplicateContext: (0,)},
         )
         ctx.replicate(plan)
 

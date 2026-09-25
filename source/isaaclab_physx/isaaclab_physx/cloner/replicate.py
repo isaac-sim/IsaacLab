@@ -36,24 +36,24 @@ class PhysxReplicateContext:
         self._stage_id = cached_id.ToLongInt() if cached_id.IsValid() else cache.Insert(stage).ToLongInt()
 
     def replicate(self, plan: ClonePlan) -> None:
-        """Register the PhysX replicator for this context's plan rows.
+        """Register the PhysX replicator for this context's source declarations.
 
         Args:
             plan: Replication layout shared by every clone backend.
         """
         if plan.env_ids is None:
             raise ValueError("ClonePlan.env_ids is required for replication.")
-        rows = plan.context_rows[type(self)]
-        native_rows = set(rows)
-        other_rows = {
-            row for context, routed in plan.context_rows.items() if context is not type(self) for row in routed
-        }
+        source_indices = plan.context_source_indices[type(self)]
+        sources, destinations, mapping = cloner.query.replication_mapping(plan, source_indices)
+        native_source_indices = set(source_indices)
         self._replicate_mapping(
-            sources=tuple(plan.sources[row] for row in rows),
-            destinations=tuple(plan.destinations[row] for row in rows),
+            sources=sources,
+            destinations=destinations,
             env_ids=plan.env_ids,
-            mapping=plan.clone_mask[list(rows)],
-            has_usd_only_rows=bool(other_rows - native_rows),
+            mapping=mapping,
+            has_usd_only_sources=any(
+                set(indices) - native_source_indices for indices in plan.context_source_indices.values()
+            ),
             exclude_self_replication=True,
         )
 
@@ -63,7 +63,7 @@ class PhysxReplicateContext:
         destinations: Sequence[str],
         env_ids: np.ndarray,
         mapping: np.ndarray,
-        has_usd_only_rows: bool,
+        has_usd_only_sources: bool,
         exclude_self_replication: bool,
     ) -> None:
         """Register one raw source-to-environment mapping with PhysX."""
@@ -79,7 +79,7 @@ class PhysxReplicateContext:
 
         for i, src in enumerate(sources):
             worlds = tuple(map(int, env_ids[np.flatnonzero(mapping[i])]))
-            if has_usd_only_rows:
+            if has_usd_only_sources:
                 native_paths.append(src)
                 native_paths.extend(destinations[i].format(world) for world in worlds)
             if exclude_self_replication:
@@ -111,7 +111,7 @@ class PhysxReplicateContext:
         ]
         excluded_paths = (
             list(dict.fromkeys(native_paths))
-            if has_usd_only_rows
+            if has_usd_only_sources
             else list(dict.fromkeys(("/World/template", *env_namespaces)))
         )
 
@@ -170,6 +170,6 @@ def physx_replicate(
         destinations=destinations,
         env_ids=env_ids,
         mapping=mapping,
-        has_usd_only_rows=False,
+        has_usd_only_sources=False,
         exclude_self_replication=exclude_self_replication,
     )

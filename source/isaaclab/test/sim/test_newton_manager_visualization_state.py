@@ -13,7 +13,9 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan
+from isaaclab.sim import SpawnerCfg
 
 pytestmark = pytest.mark.integration
 
@@ -72,12 +74,12 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
     _reset_newton_manager_state()
     monkeypatch.setattr(PhysicsManager, "_device", "cpu")
     plan = ClonePlan(
-        sources=("/Scene/Source",),
-        destinations=("/Scene/Copy_{}",),
-        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        sources=(AssetBaseCfg(prim_path="/Scene/Copy_[^/]+", spawn=SpawnerCfg(spawn_path="/Scene/Source")),),
+        destinations=np.zeros((1, 2), dtype=np.int32),
+        clone_template="/Scene/Copy_{}",
         env_ids=np.arange(2),
         positions=np.zeros((2, 3), dtype=np.float32),
-        context_rows={NewtonReplicateContext: (0,)},
+        context_source_indices={NewtonReplicateContext: (0,)},
     )
     sim = object.__new__(SimulationContext)
     sim.cfg = SimpleNamespace(physics=object(), device="cpu")
@@ -349,13 +351,16 @@ def test_clone_visualization_builder_imports_only_declared_global_deformables(mo
         UsdGeom.Xform.Define(stage, source)
         Sdf.CopySpec(stage.GetRootLayer(), "/World/Assets/Cloth", stage.GetRootLayer(), f"{source}/Cloth")
     clone_plan = ClonePlan(
-        sources=sources,
-        destinations=("/Copies/env_{}/Selected", "/Copies/env_{}/Excluded"),
+        sources=tuple(
+            AssetBaseCfg(prim_path=dst.format("[^/]+"), spawn=SpawnerCfg(spawn_path=src))
+            for src, dst in zip(sources, ("/Copies/env_{}/Selected", "/Copies/env_{}/Excluded"), strict=True)
+        )
+        + (AssetBaseCfg(prim_path=global_path),),
+        destinations=np.array([[0, 0], [0, 0], [-1, -1]], dtype=np.int32),
+        clone_template="/Copies/env_{}",
         env_ids=np.asarray([0, 1], dtype=np.int64),
-        clone_mask=np.ones((2, 2), dtype=np.bool_),
         positions=np.zeros((2, 3), dtype=np.float32),
-        global_paths=(global_path,),
-        context_rows={NewtonReplicateContext: (0,)},
+        context_source_indices={NewtonReplicateContext: (0,)},
     )
     sim = SimpleNamespace(
         cfg=SimpleNamespace(physics=object()),

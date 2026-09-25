@@ -24,7 +24,9 @@ from newton.solvers import SolverImplicitMPM
 from pxr import UsdGeom, UsdPhysics, UsdShade
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan
+from isaaclab.sim import MultiUsdFileCfg
 
 pytestmark = pytest.mark.unit
 
@@ -97,11 +99,16 @@ def test_mpm_points_author_and_import_through_usd(stage, monkeypatch):
     shared_cfg = cfg.copy()
     shared_cfg.func("/World/Shared", shared_cfg, translation=(-2.0, 0.0, 0.0))
     plan = ClonePlan(
-        sources=("/World/Media", "/World/Other"),
-        destinations=("/Scene/copy_{}/Media",) * 2,
-        clone_mask=np.array([[True, False, True], [False, True, False]]),
+        sources=(
+            AssetBaseCfg(
+                prim_path="/Scene/copy_[^/]+/Media",
+                spawn=MultiUsdFileCfg(usd_path=["", ""], spawn_paths=["/World/Media", "/World/Other"]),
+            ),
+            AssetBaseCfg(prim_path="/World/Shared"),
+        ),
+        destinations=np.array([[0, 1, 0], [-1, -1, -1]], dtype=np.int32),
+        clone_template="/Scene/copy_{}",
         env_ids=np.array([12, 99, 7]),
-        global_paths=("/World/Shared",),
     )
     monkeypatch.setattr(sim_utils.SimulationContext, "instance", lambda: SimpleNamespace(get_clone_plan=lambda: plan))
     state = SimpleNamespace(particle_q=wp.zeros(12, dtype=wp.vec3f, device="cpu"))
