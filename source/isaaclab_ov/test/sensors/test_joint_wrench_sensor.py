@@ -35,6 +35,7 @@ import warp as wp
 # the optional ovphysx wheel. Skip the OVPhysX tests gracefully in that case.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_physx.sim.schemas import PhysxJointCfg  # noqa: E402
 from joint_wrench_contract import test_joint_wrench_frame  # noqa: E402, F401
@@ -199,7 +200,7 @@ def test_initialization_and_shapes(sim, device):
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_nested_articulation_root_resolution(sim, device):
-    """Sensor accepts an asset prim path whose articulation root is nested in the USD asset."""
+    """Resolve a nested articulation root and preserve the wrench belonging to each physical link."""
     scene = InteractiveScene(_NestedRootAntSceneCfg(num_envs=1))
     sim.reset()
 
@@ -211,6 +212,12 @@ def test_nested_articulation_root_resolution(sim, device):
     assert sensor.body_names == robot.body_names
     assert sensor.data.force.torch.shape == (1, robot.num_bodies, 3)
     assert sensor.data.torque.torch.shape == (1, robot.num_bodies, 3)
+
+    # The single-joint analytic contract cannot detect a gather that duplicates one link across the others.
+    expected = wp.to_torch(robot.root_view.get_attribute(TT.LINK_INCOMING_JOINT_FORCE)).reshape(1, robot.num_bodies, 6)
+    assert not torch.allclose(expected[:, 2:], expected[:, 1:2].expand_as(expected[:, 2:]))
+    torch.testing.assert_close(sensor.data.force.torch, expected[..., :3], rtol=1e-4, atol=1e-5)
+    torch.testing.assert_close(sensor.data.torque.torch, expected[..., 3:], rtol=1e-4, atol=1e-5)
 
 
 # ---------------------------------------------------------------------------
