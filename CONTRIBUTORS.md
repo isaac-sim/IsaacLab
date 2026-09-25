@@ -101,6 +101,7 @@ Guidelines for modifications:
 * Giulio Romualdi
 * Grzegorz Malczyk
 * Haoran Zhou
+* Haptikostech
 * Harsh Patel
 * Henry Hu
 * HoJin Jeon
