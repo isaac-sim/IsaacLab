@@ -224,7 +224,8 @@ class TestV4:
 
     def test_infers_rnn_actor_critic(self):
         p = RslRlPpoActorCriticRecurrentCfg(
-            init_noise_std=1.0,
+            init_noise_std=1.5,
+            state_dependent_std=True,
             actor_obs_normalization=False,
             critic_obs_normalization=False,
             actor_hidden_dims=[256, 256],
@@ -241,7 +242,11 @@ class TestV4:
         assert cfg.actor.rnn_type == "gru"
         assert cfg.actor.rnn_hidden_dim == 128
         assert cfg.actor.rnn_num_layers == 3
+        assert cfg.actor.stochastic is True
+        assert cfg.actor.init_noise_std == 1.5
+        assert cfg.actor.state_dependent_std is True
         assert isinstance(cfg.critic, RslRlRNNModelCfg)
+        assert cfg.critic.stochastic is False
 
     def test_skips_existing_actor_critic(self):
         actor = _mlp_model()
@@ -294,7 +299,9 @@ class TestV4:
 
         assert isinstance(cfg.student, RslRlRNNModelCfg)
         assert cfg.student.rnn_type == "gru"
+        assert cfg.student.stochastic is True
         assert isinstance(cfg.teacher, RslRlRNNModelCfg)
+        assert cfg.teacher.stochastic is True
         assert cfg.teacher.init_noise_std == 0.0
 
     def test_distillation_skips_existing_student_teacher(self):
