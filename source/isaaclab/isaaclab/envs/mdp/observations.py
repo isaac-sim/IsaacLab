@@ -367,7 +367,7 @@ def image(
     convert_perspective_to_orthogonal: bool = False,
     normalize: bool = True,
     permute: bool = False,
-    clone: bool = True,
+    clone: bool = False,
 ) -> torch.Tensor:
     """Images of a specific datatype from the camera sensor.
 
@@ -388,10 +388,10 @@ def image(
         normalize: Whether to normalize the images. This depends on the selected data type.
             Defaults to True.
         permute: Whether to permute the image to (num_envs, channel, height, width). Defaults to False.
-        clone: Whether to return a fresh clone of the result. Defaults to True (defensive: protects
-            against downstream in-place mutation of the camera buffer). Callers that immediately
-            copy the result into their own storage (e.g. a frame-stack buffer) can pass ``False``
-            to skip the redundant allocation.
+        clone: Whether to return a fresh clone of the result. Defaults to False, since the
+            observation manager already copies every term's output. Without normalization, the
+            result then shares storage with the camera buffer; callers outside the manager that
+            mutate it should pass ``True``.
 
     Returns:
         The images produced at the last time-step
@@ -580,6 +580,10 @@ class image_features(ManagerTermBase):
                     del model_class.all_tied_weights_keys
             return model.to(model_device)
 
+        # ImageNet normalization statistics, created once instead of on every inference call
+        mean = torch.tensor([0.485, 0.456, 0.406], device=model_device).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225], device=model_device).view(1, 3, 1, 1)
+
         def _inference(model, images: torch.Tensor) -> torch.Tensor:
             """Inference the Theia transformer model.
 
@@ -595,8 +599,6 @@ class image_features(ManagerTermBase):
             # permute the image to (num_envs, channel, height, width)
             image_proc = image_proc.permute(0, 3, 1, 2).float() / 255.0
             # Normalize the image
-            mean = torch.tensor([0.485, 0.456, 0.406], device=model_device).view(1, 3, 1, 1)
-            std = torch.tensor([0.229, 0.224, 0.225], device=model_device).view(1, 3, 1, 1)
             image_proc = (image_proc - mean) / std
 
             # Taken from Transformers; inference converted to be GPU only
@@ -631,6 +633,10 @@ class image_features(ManagerTermBase):
             model = getattr(models, model_name)(weights=resnet_weights[model_name]).eval()
             return model.to(model_device)
 
+        # ImageNet normalization statistics, created once instead of on every inference call
+        mean = torch.tensor([0.485, 0.456, 0.406], device=model_device).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225], device=model_device).view(1, 3, 1, 1)
+
         def _inference(model, images: torch.Tensor) -> torch.Tensor:
             """Inference the ResNet model.
 
@@ -646,8 +652,6 @@ class image_features(ManagerTermBase):
             # permute the image to (num_envs, channel, height, width)
             image_proc = image_proc.permute(0, 3, 1, 2).float() / 255.0
             # normalize the image
-            mean = torch.tensor([0.485, 0.456, 0.406], device=model_device).view(1, 3, 1, 1)
-            std = torch.tensor([0.229, 0.224, 0.225], device=model_device).view(1, 3, 1, 1)
             image_proc = (image_proc - mean) / std
 
             # forward the image through the model
@@ -747,8 +751,8 @@ class stacked_image(ManagerTermBase):
             # hazard documentation.
             return normalize_camera_image(stacked, data_type)
         # ``stacked`` is a view of the ring buffer storage which is overwritten on the next
-        # ``env.step``; clone so the returned tensor outlives the next step.
-        return stacked.clone()
+        # ``env.step``; the observation manager's output clone keeps the observation valid.
+        return stacked
 
 
 """

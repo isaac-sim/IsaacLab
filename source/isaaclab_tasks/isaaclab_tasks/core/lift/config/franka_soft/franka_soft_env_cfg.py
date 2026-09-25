@@ -460,6 +460,8 @@ class FrankaCameraObservationsCfg:
                 "normalize": True,
                 "permute": True,
             },
+            # normalization returns a new tensor, so the manager's copy would be redundant
+            clone_output=False,
         )
 
     policy: PolicyCfg = PolicyCfg()
