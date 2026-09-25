@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import contextlib
-import importlib.util
 import logging
 import math
 import os
@@ -32,6 +31,7 @@ if __import__("sys").platform not in ("win32", "darwin") and not __import__("os"
     _pyglet_headless_init.options["headless"] = True
     del _pyglet_headless_init
 
+import newton
 from isaaclab_newton.physics import NewtonManager
 from newton.viewer import ViewerGL, ViewerRTX
 from pyglet.math import Vec3 as PygletVec3
@@ -109,67 +109,21 @@ class _MeshSubmission:
     opacity: float | None
 
 
-def _newton_icon_source_dir() -> Path | None:
-    """Return the directory containing Newton's bundled ``icon_{16,32,64}.png``, if installed.
+def _apply_newton_icon(window) -> None:
+    """Set Newton's bundled icon on a ``ViewerRTX`` window, which unlike ``ViewerGL`` never sets one.
 
-    Deliberately duplicated (rather than shared with ``isaaclab.utils.desktop_icons``, which
-    has its own copy of this lookup): this RTX-icon workaround belongs upstream in Newton
-    itself (``ViewerRTX`` should set its own icon the way ``RendererGL`` already does), so it
-    is kept local and dependency-free rather than coupled to an unrelated module.
-
-    Resolves the path via :func:`importlib.util.find_spec` rather than importing
-    ``newton._src.viewer.gl.opengl`` directly, since that module pulls in ``warp``/``pyglet``/GL
-    at import time.
-
-    TODO(Newton): temporary Isaac Lab-side lookup; remove once ``ViewerRTX`` sets its own icon.
+    TODO(Newton): remove once ``ViewerRTX`` sets its own icon
+    (https://github.com/newton-physics/newton/issues/4321).
     """
-    spec = importlib.util.find_spec("newton")
-    if spec is None or not spec.submodule_search_locations:
-        return None
-    icon_dir = Path(spec.submodule_search_locations[0]) / "_src" / "viewer" / "gl"
-    return icon_dir if icon_dir.is_dir() else None
-
-
-def _load_newton_icon_images() -> list:
-    """Load Newton's own bundled apple icon as a multi-resolution list of ``pyglet`` images.
-
-    ``RendererGL`` (the GL backend) already sets this icon on its window. ``ViewerRTX``
-    creates a bare ``pyglet.window.Window`` and never sets an icon at all, so it falls
-    back to the windowing toolkit's generic default. Reusing Newton's own icon file here
-    (rather than a new asset) keeps the RTX window consistent with the GL window.
-
-    TODO(Newton): temporary Isaac Lab-side loader; remove once ``ViewerRTX`` sets its own icon.
-    """
-    import io
-
     import pyglet
 
-    icon_dir = _newton_icon_source_dir()
-    if icon_dir is None:
-        raise FileNotFoundError("Newton's bundled icon directory could not be located.")
-    images = []
-    for size in (16, 32, 64):
-        filename = icon_dir / f"icon_{size}.png"
-        with open(filename, "rb") as f:
-            images.append(pyglet.image.load(filename=str(filename), file=io.BytesIO(f.read())))
-    return images
-
-
-def _apply_newton_icon(window) -> None:
-    """Set *window*'s icon to Newton's own apple icon, ignoring headless/EGL windows.
-
-    TODO(Newton): this is a temporary Isaac Lab-side workaround for ``ViewerRTX`` never setting
-    its own window icon, unlike ``ViewerGL``'s ``RendererGL`` which already sets Newton's bundled
-    icon. Remove this function (and ``_load_newton_icon_images`` / ``_newton_icon_source_dir``)
-    once ``ViewerRTX`` sets its own icon upstream in Newton.
-    """
-    import pyglet.util
-
+    icon_dir = Path(newton.__file__).parent / "_src" / "viewer" / "gl"
     try:
-        images = _load_newton_icon_images()
-    except (FileNotFoundError, OSError, pyglet.util.DecodeException) as error:
-        logger.debug("Could not load Newton's bundled icon for the RTX viewer window: %s", error)
+        images = [pyglet.image.load(str(icon_dir / f"icon_{size}.png")) for size in (16, 32, 64)]
+    except (OSError, pyglet.util.DecodeException) as error:
+        logger.warning("Could not load Newton's bundled icon for the RTX viewer window: %s", error)
         return
+    # Headless/EGL windows may not support icons.
     with contextlib.suppress(Exception):
         window.set_icon(*images)
 
@@ -785,9 +739,6 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
     def _init_window(self) -> None:
         """Create the viewer window and immediately apply Isaac Lab UI patches."""
         super()._init_window()
-        # ViewerRTX creates a bare pyglet window and never sets an icon, unlike ViewerGL's
-        # RendererGL which sets Newton's own apple icon — without this the RTX window shows
-        # the windowing toolkit's generic default icon.
         _apply_newton_icon(self._window)
         # Disable imgui's automatic ini file I/O — the file would be written to the
         # current working directory (often the repo root), polluting it with

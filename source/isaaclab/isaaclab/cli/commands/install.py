@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import importlib.util
 import os
 import re
 import shutil
@@ -15,6 +16,7 @@ from pathlib import Path
 import tomllib
 
 from ..utils import (
+    DEFAULT_ISAAC_SIM_PATH,
     ISAACLAB_ROOT,
     extract_isaacsim_path,
     extract_python_exe,
@@ -1123,6 +1125,92 @@ def _repoint_prebundle_packages() -> None:
             )
 
 
+# WM_CLASS values pyglet derives from the Newton viewer window captions.
+_NEWTON_VIEWER_WM_CLASSES = {
+    "isaaclab-newton-gl-viewer": ("Newton Viewer", "Newton"),
+    "isaaclab-newton-rtx-viewer": ("Newton RTX Viewer", "Newton RTX Viewer"),
+}
+
+
+def _kit_wm_class(kit_file: Path) -> str | None:
+    """Return the ``WM_CLASS`` Kit composes from the app window title and version, e.g. ``"Isaac Lab 3.0.0"``.
+
+    ``.kit`` files redeclare ``[settings]`` tables, which :mod:`tomllib` rejects, so this scans for
+    the two keys under their exact section headers.
+    """
+    values = {}
+    section = ""
+    for line in kit_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line.startswith("["):
+            section = line
+        elif match := re.match(r'(\w+)\s*=\s*"([^"]*)"', line):
+            values[(section, match[1])] = match[2]
+    title = values.get(("[settings.app.window]", "title"))
+    version = values.get(("[settings.app]", "version"))
+    return f"{title} {version}" if title and version else None
+
+
+def _install_desktop_entries() -> None:
+    """Write Linux desktop entries so docks show real icons for the Kit and Newton viewer windows.
+
+    Docks such as GNOME's pick a window's icon by matching its ``WM_CLASS`` to a desktop entry's
+    ``StartupWMClass`` rather than using the window's own icon, so without these entries the
+    windows show a generic icon. The entries are hidden from menus and exist only for that match.
+    Skipped outside a Linux graphical session; failures only print a warning.
+    """
+    if not sys.platform.startswith("linux") or not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        return
+    try:
+        entries: dict[str, tuple[str, str, Path]] = {}
+        kit_wm_class = _kit_wm_class(ISAACLAB_ROOT / "apps" / "isaaclab.python.kit")
+        # Look up Isaac Sim by file layout: importing it to probe ISAAC_PATH blocks on the EULA prompt.
+        isaacsim_dirs = [DEFAULT_ISAAC_SIM_PATH, *filter(None, [os.environ.get("ISAAC_PATH")])]
+        isaacsim_spec = importlib.util.find_spec("isaacsim")
+        if isaacsim_spec and isaacsim_spec.submodule_search_locations:
+            isaacsim_dirs += isaacsim_spec.submodule_search_locations
+        kit_icons = (
+            Path(d) / "exts" / "isaacsim.simulation_app" / "data" / "omni.isaac.sim.png" for d in isaacsim_dirs
+        )
+        kit_icon = next((icon for icon in kit_icons if icon.is_file()), None)
+        if kit_wm_class and kit_icon:
+            entries["isaaclab"] = ("Isaac Lab", kit_wm_class, kit_icon.resolve())
+        else:
+            print_warning("Skipping the Kit desktop entry: could not resolve its WM_CLASS or the Isaac Sim icon.")
+        newton_spec = importlib.util.find_spec("newton")
+        if newton_spec and newton_spec.submodule_search_locations:
+            newton_icon = Path(newton_spec.submodule_search_locations[0]) / "_src" / "viewer" / "gl" / "icon_64.png"
+            if newton_icon.is_file():
+                for filename, (name, wm_class) in _NEWTON_VIEWER_WM_CLASSES.items():
+                    entries[filename] = (name, wm_class, newton_icon)
+
+        data_home = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
+        applications_dir = data_home / "applications"
+        applications_dir.mkdir(parents=True, exist_ok=True)
+        for filename, (name, wm_class, icon) in entries.items():
+            (applications_dir / f"{filename}.desktop").write_text(
+                "[Desktop Entry]\n"
+                "Type=Application\n"
+                f"Name={name}\n"
+                f"Icon={icon}\n"
+                "Exec=true\n"
+                "NoDisplay=true\n"
+                f"StartupWMClass={wm_class}\n",
+                encoding="utf-8",
+            )
+        if entries and shutil.which("update-desktop-database"):
+            run_command(
+                ["update-desktop-database", str(applications_dir)],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        if entries:
+            print_info(f"Desktop entries generated in {applications_dir}")
+    except (OSError, RuntimeError, ValueError) as error:
+        print_warning(f"Skipping desktop entries: {error}")
+
+
 def command_install(install_type: str = "all") -> None:
     """Install Isaac Lab extensions and optional extras.
 
@@ -1345,7 +1433,7 @@ def command_install(install_type: str = "all") -> None:
             if saved_pythonpath is not None:
                 os.environ["PYTHONPATH"] = saved_pythonpath
 
-    # Update editor settings unless we're in Docker. This also installs the Newton viewer and
-    # Kit desktop icons as a best-effort convenience step (see setup_editor).
+    # Update editor settings and desktop entries unless we're in Docker.
     if not (os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")):
         command_editor([], project_dir=ISAACLAB_ROOT)
+        _install_desktop_entries()

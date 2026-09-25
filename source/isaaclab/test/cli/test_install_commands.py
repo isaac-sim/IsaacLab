@@ -834,3 +834,87 @@ class TestInstallRootExtraExcludesIsaacSim:
 
         mock_run.assert_called_once()
         assert mock_run.call_args.args[0] == [*pip_cmd, "install", "isaacteleop[cloudxr]==1.0.0"]
+
+
+# ---------------------------------------------------------------------------
+# _install_desktop_entries
+# ---------------------------------------------------------------------------
+
+# Kit redeclares [settings] and repeats keys under other tables, which the WM_CLASS lookup must skip.
+_KIT_FILE = """
+[package]
+title = "Wrong Title"
+version = "0.0.0"
+
+[settings]
+app.name = "IsaacLab"
+
+[settings.app]
+version = "3.0.0"
+
+[settings.app.window]
+title = "Isaac Lab"
+
+[settings]
+physics.updateToUsd = false
+"""
+
+
+class TestInstallDesktopEntries:
+    """Linux desktop entries let docks match Kit and Newton viewer windows to real icons."""
+
+    @pytest.fixture
+    def install_env(self, tmp_path, monkeypatch):
+        """A Linux graphical session with a fake Isaac Lab root and Isaac Sim install."""
+        root = tmp_path / "isaaclab"
+        (root / "apps").mkdir(parents=True)
+        (root / "apps" / "isaaclab.python.kit").write_text(_KIT_FILE)
+        isaacsim = tmp_path / "isaacsim"
+        kit_icon = isaacsim / "exts" / "isaacsim.simulation_app" / "data" / "omni.isaac.sim.png"
+        kit_icon.parent.mkdir(parents=True)
+        kit_icon.write_bytes(b"")
+        monkeypatch.setattr(sys, "platform", "linux")
+        monkeypatch.setenv("DISPLAY", ":0")
+        monkeypatch.delenv("ISAAC_PATH", raising=False)
+        monkeypatch.setenv("HOME", str(tmp_path / "home"))
+        monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+        monkeypatch.setattr(install_cmd, "ISAACLAB_ROOT", root)
+        monkeypatch.setattr(install_cmd, "DEFAULT_ISAAC_SIM_PATH", isaacsim)
+        monkeypatch.setattr(install_cmd.shutil, "which", lambda name: None)
+        return tmp_path / "data" / "applications", kit_icon
+
+    def test_writes_hidden_entries_matching_window_classes(self, install_env):
+        applications_dir, kit_icon = install_env
+
+        install_cmd._install_desktop_entries()
+
+        entries = {path.name: path.read_text() for path in applications_dir.glob("*.desktop")}
+        expected_wm_classes = {
+            "isaaclab.desktop": "Isaac Lab 3.0.0",
+            "isaaclab-newton-gl-viewer.desktop": "Newton",
+            "isaaclab-newton-rtx-viewer.desktop": "Newton RTX Viewer",
+        }
+        assert set(entries) == set(expected_wm_classes)
+        assert f"Icon={kit_icon}\n" in entries["isaaclab.desktop"]
+        for name, content in entries.items():
+            assert f"StartupWMClass={expected_wm_classes[name]}\n" in content
+            assert "NoDisplay=true\n" in content
+            icon = Path(content.split("Icon=")[1].splitlines()[0])
+            assert icon.is_file()
+
+    @pytest.mark.parametrize("case", ["windows", "no-display", "unwritable-data-home"])
+    def test_skips_without_failing_the_install(self, install_env, monkeypatch, tmp_path, case):
+        applications_dir, _ = install_env
+        if case == "windows":
+            monkeypatch.setattr(sys, "platform", "win32")
+        elif case == "no-display":
+            monkeypatch.delenv("DISPLAY")
+            monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+        else:
+            applications_dir = tmp_path / "file" / "applications"
+            (tmp_path / "file").write_text("")
+            monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "file"))
+
+        install_cmd._install_desktop_entries()
+
+        assert not applications_dir.exists()
