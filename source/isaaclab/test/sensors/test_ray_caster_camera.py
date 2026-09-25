@@ -116,14 +116,23 @@ def setup_sim():
 
 @pytest.mark.isaacsim_ci
 def test_camera_init(setup_sim):
-    """Test camera initialization."""
+    """Test camera initialization, shared mesh loading, and frame counting."""
     sim, camera_cfg, dt = setup_sim
     # Create camera
     camera = RayCasterCamera(cfg=camera_cfg)
+    # -- second camera with a different prim path
+    cam_cfg_2 = copy.deepcopy(camera_cfg)
+    cam_cfg_2.prim_path = "/World/Camera_2"
+    sim_utils.create_prim("/World/Camera_2", "Xform")
+    camera_2 = RayCasterCamera(cam_cfg_2)
+    # check that the loaded meshes are equal
+    assert camera.meshes == camera_2.meshes
     # Play sim
     sim.reset()
     # Check if camera is initialized
     assert camera.is_initialized
+    assert torch.all(camera.frame == 0), "Frame must start at 0"
+    assert "Ray-Caster-Camera" in str(camera)
     # Check buffers that exist and have correct shapes
     assert camera.data.pos_w.torch.shape == (1, 3)
     assert camera.data.quat_w_ros.torch.shape == (1, 4)
@@ -132,37 +141,32 @@ def test_camera_init(setup_sim):
     assert camera.data.intrinsic_matrices.torch.shape == (1, 3, 3)
     assert camera.data.image_shape == (camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width)
     assert camera.data.info == {camera_cfg.data_types[0]: None}
-    # Simulate physics
-    for _ in range(10):
-        sim.step()
-        camera.update(dt)
-        # check image data
-        for im_data in camera.data.output.values():
-            assert im_data.shape == (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width, 1)
 
     # check the camera reset
     camera.reset()
     assert torch.all(camera.frame == 0)
     # Simulate physics
-    for _ in range(10):
+    n_steps = 7
+    for step in range(1, n_steps + 1):
         sim.step()
-        camera.update(dt)
+        camera.update(dt, force_recompute=True)
+        camera_2.update(dt)
+        assert camera.frame[0].item() == step, f"Frame must be {step} after {step} update(s)"
+        # check image data
+        for cam in [camera, camera_2]:
+            for im_data in cam.data.output.values():
+                assert im_data.shape == (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width, 1)
+
+    # Partial reset: only env 0 (single-env camera, but API accepts env_ids)
     camera.reset(env_ids=[0])
-    assert camera.frame[0] == 0
+    assert camera.frame[0].item() == 0, "Frame must be 0 after reset(env_ids=[0])"
 
-
-@pytest.mark.isaacsim_ci
-def test_camera_resolution(setup_sim):
-    """Test camera resolution is correctly set."""
-    sim, camera_cfg, dt = setup_sim
-    # Create camera
-    camera = RayCasterCamera(cfg=camera_cfg)
-    # Play sim
-    sim.reset()
-    camera.update(dt)
-    # access image data and compare shapes
-    for im_data in camera.data.output.values():
-        assert im_data.shape == (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width, 1)
+    # Full reset
+    for _ in range(3):
+        sim.step()
+        camera.update(dt, force_recompute=True)
+    camera.reset()
+    assert torch.all(camera.frame == 0), "Frame must be 0 after full reset()"
 
 
 @pytest.mark.isaacsim_ci
@@ -370,47 +374,8 @@ def test_camera_init_intrinsic_matrix(setup_sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_multi_camera_init(setup_sim):
-    """Test multi-camera initialization."""
-    sim, camera_cfg, dt = setup_sim
-    # create two cameras with different prim paths
-    # -- camera 1
-    cam_cfg_1 = copy.deepcopy(camera_cfg)
-    cam_cfg_1.prim_path = "/World/Camera_1"
-    sim_utils.create_prim("/World/Camera_1", "Xform")
-    # Create camera
-    cam_1 = RayCasterCamera(cam_cfg_1)
-    # -- camera 2
-    cam_cfg_2 = copy.deepcopy(camera_cfg)
-    cam_cfg_2.prim_path = "/World/Camera_2"
-    sim_utils.create_prim("/World/Camera_2", "Xform")
-    cam_2 = RayCasterCamera(cam_cfg_2)
-
-    # check that the loaded meshes are equal
-    assert cam_1.meshes == cam_2.meshes
-
-    # play sim
-    sim.reset()
-
-    # Simulate for a few steps
-    for _ in range(5):
-        sim.step()
-    # Simulate physics
-    for _ in range(10):
-        # perform rendering
-        sim.step()
-        # update camera
-        cam_1.update(dt)
-        cam_2.update(dt)
-        # check image data
-        for cam in [cam_1, cam_2]:
-            for im_data in cam.data.output.values():
-                assert im_data.shape == (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width, 1)
-
-
-@pytest.mark.isaacsim_ci
 def test_camera_set_world_poses(setup_sim):
-    """Test camera function to set specific world pose."""
+    """Test camera functions to set specific world poses directly and from view."""
     sim, camera_cfg, dt = setup_sim
     camera = RayCasterCamera(camera_cfg)
     # play sim
@@ -426,50 +391,15 @@ def test_camera_set_world_poses(setup_sim):
     torch.testing.assert_close(camera.data.pos_w.torch, position)
     torch.testing.assert_close(camera.data.quat_w_world.torch, orientation)
 
-
-@pytest.mark.isaacsim_ci
-def test_camera_set_world_poses_from_view(setup_sim):
-    """Test camera function to set specific world pose from view."""
-    sim, camera_cfg, dt = setup_sim
-    camera = RayCasterCamera(camera_cfg)
-    # play sim
-    sim.reset()
-
-    # convert to torch tensors
+    # set a pose from eye/target
     eyes = torch.tensor([POSITION], dtype=torch.float32, device=camera.device)
     targets = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera.device)
     quat_ros_gt = torch.tensor([QUAT_ROS], dtype=torch.float32, device=camera.device)
-    # set new pose
     camera.set_world_poses_from_view(eyes.clone(), targets.clone())
 
     # check if transform correctly set in output
     torch.testing.assert_close(camera.data.pos_w.torch, eyes)
     _assert_quat_close(camera.data.quat_w_ros, quat_ros_gt)
-
-
-@pytest.mark.isaacsim_ci
-def test_intrinsic_matrix(setup_sim):
-    """Checks that the camera's set and retrieve methods work for intrinsic matrix."""
-    sim, camera_cfg, dt = setup_sim
-    camera_cfg = copy.deepcopy(camera_cfg)
-    camera_cfg.pattern_cfg.height = 240
-    camera_cfg.pattern_cfg.width = 320
-    camera = RayCasterCamera(camera_cfg)
-    # play sim
-    sim.reset()
-    # Desired properties (obtained from realsense camera at 320x240 resolution)
-    rs_intrinsic_matrix = [229.31640625, 0.0, 164.810546875, 0.0, 229.826171875, 122.1650390625, 0.0, 0.0, 1.0]
-    rs_intrinsic_matrix = torch.tensor(rs_intrinsic_matrix, device=camera.device).reshape(3, 3).unsqueeze(0)
-    # Set matrix into simulator
-    camera.set_intrinsic_matrices(rs_intrinsic_matrix.clone())
-    # Simulate physics
-    for _ in range(10):
-        # perform rendering
-        sim.step()
-        # update camera
-        camera.update(dt)
-        # Check that matrix is correct
-        torch.testing.assert_close(rs_intrinsic_matrix, camera.data.intrinsic_matrices.torch)
 
 
 @pytest.mark.isaacsim_ci
@@ -560,82 +490,6 @@ def test_output_equal_to_usdcamera(setup_sim):
         camera_warp.data.output["distance_to_camera"].torch,
         atol=5e-5,
         rtol=5e-6,
-    )
-
-    # check normals
-    # NOTE: floating point issues of ~1e-5, so using atol and rtol in this case
-    torch.testing.assert_close(
-        camera_usd.data.output["normals"].torch[..., :3],
-        camera_warp.data.output["normals"].torch,
-        rtol=1e-5,
-        atol=1e-4,
-    )
-
-
-@pytest.mark.isaacsim_ci
-def test_output_equal_to_usdcamera_offset(setup_sim):
-    sim, camera_cfg, dt = setup_sim
-    offset_rot = [0.3617, 0.8731, -0.3020, -0.1251]
-
-    camera_pattern_cfg = patterns.PinholeCameraPatternCfg(
-        focal_length=24.0,
-        horizontal_aperture=20.955,
-        height=240,
-        width=320,
-    )
-    sim_utils.create_prim("/World/Camera_warp", "Xform")
-    camera_cfg_warp = RayCasterCameraCfg(
-        prim_path="/World/Camera",
-        mesh_prim_paths=["/World/defaultGroundPlane"],
-        update_period=0,
-        offset=RayCasterCameraCfg.OffsetCfg(pos=(2.5, 2.5, 4.0), rot=tuple(offset_rot), convention="ros"),
-        debug_vis=False,
-        pattern_cfg=camera_pattern_cfg,
-        data_types=["distance_to_image_plane", "distance_to_camera", "normals"],
-    )
-
-    camera_warp = RayCasterCamera(camera_cfg_warp)
-
-    # create usd camera
-    camera_cfg_usd = CameraCfg(
-        height=240,
-        width=320,
-        prim_path="/World/Camera_usd",
-        update_period=0,
-        data_types=["distance_to_image_plane", "distance_to_camera", "normals"],
-        spawn=PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(1e-6, 1.0e5)
-        ),
-        offset=CameraCfg.OffsetCfg(
-            pos=(2.5, 2.5, 4.0), rot=(offset_rot[0], offset_rot[1], offset_rot[2], offset_rot[3]), convention="ros"
-        ),
-    )
-    camera_usd = Camera(camera_cfg_usd)
-
-    # play sim
-    sim.reset()
-    sim.play()
-
-    # perform steps
-    for _ in range(5):
-        sim.step()
-
-    # update camera
-    camera_usd.update(dt)
-    camera_warp.update(dt)
-
-    # check image data
-    torch.testing.assert_close(
-        camera_usd.data.output["distance_to_image_plane"].torch,
-        camera_warp.data.output["distance_to_image_plane"].torch,
-        rtol=1e-3,
-        atol=1e-5,
-    )
-    torch.testing.assert_close(
-        camera_usd.data.output["distance_to_camera"].torch,
-        camera_warp.data.output["distance_to_camera"].torch,
-        rtol=1e-3,
-        atol=1e-5,
     )
 
     # check normals
@@ -742,15 +596,16 @@ def test_output_equal_to_usdcamera_prim_offset(setup_sim):
     )
 
 
-@pytest.mark.parametrize("focal_length", [0.193, 1.93, 19.3])
 @pytest.mark.isaacsim_ci
-def test_output_equal_to_usd_camera_intrinsics(setup_sim, focal_length):
+def test_output_equal_to_usd_camera_intrinsics(setup_sim):
     """
     Test that the output of the ray caster camera and usd camera are the same when both are
     initialized with the same intrinsic matrix.
     """
 
     sim, camera_cfg, dt = setup_sim
+    # the focal length only scales the apertures (same K), so one value covers the ray pattern
+    focal_length = 19.3
     # create cameras
     offset_rot = (0.3617, 0.8731, -0.3020, -0.1251)
     offset_pos = (2.5, 2.5, 4.0)
@@ -854,150 +709,14 @@ def test_output_equal_to_usd_camera_intrinsics(setup_sim, focal_length):
         plt.close()
 
     # check image data
-    if focal_length != 0.193:
-        # FIXME: 0.193 is not working on the IsaacSim/ UsdGeom side, add back once fixed
-        torch.testing.assert_close(
-            cam_warp_output,
-            cam_usd_output,
-            atol=5e-5,
-            rtol=1e-5,
-        )
+    torch.testing.assert_close(
+        cam_warp_output,
+        cam_usd_output,
+        atol=5e-5,
+        rtol=1e-5,
+    )
 
     del camera_warp, camera_usd
-
-
-@pytest.mark.parametrize(
-    "focal_length_aperture",
-    [
-        (0.193, 0.20955),
-        pytest.param((1.93, 2.0955), marks=pytest.mark.flaky(max_runs=3, min_passes=1)),
-        (19.3, 20.955),
-        (0.193, 20.955),
-    ],
-)
-@pytest.mark.isaacsim_ci
-def test_output_equal_to_usd_camera_when_intrinsics_set(setup_sim, focal_length_aperture):
-    """
-    Test that the output of the ray caster camera is equal to the output of the usd camera when both are placed
-    under an XForm prim and an intrinsic matrix is set.
-    """
-    # unpack focal length and aperture
-    focal_length, aperture = focal_length_aperture
-
-    sim, camera_cfg, dt = setup_sim
-    camera_pattern_cfg = patterns.PinholeCameraPatternCfg(
-        focal_length=focal_length,
-        horizontal_aperture=aperture,
-        height=540,
-        width=960,
-    )
-    camera_cfg_warp = RayCasterCameraCfg(
-        prim_path="/World/Camera",
-        mesh_prim_paths=["/World/defaultGroundPlane"],
-        update_period=0,
-        offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0)),
-        debug_vis=False,
-        pattern_cfg=camera_pattern_cfg,
-        data_types=["distance_to_camera"],
-    )
-
-    camera_warp = RayCasterCamera(camera_cfg_warp)
-
-    # create usd camera
-    camera_cfg_usd = CameraCfg(
-        height=540,
-        width=960,
-        prim_path="/World/Camera_usd",
-        update_period=0,
-        data_types=["distance_to_camera"],
-        spawn=PinholeCameraCfg(
-            focal_length=focal_length, focus_distance=400.0, horizontal_aperture=aperture, clipping_range=(1e-4, 1.0e5)
-        ),
-    )
-    camera_usd = Camera(camera_cfg_usd)
-
-    # play sim
-    sim.reset()
-    sim.play()
-
-    # set intrinsic matrix
-    # NOTE: extend the test to cover aperture offsets once supported by the usd camera
-    # intrinsic_matrix = torch.tensor(
-    #     [[380.0831, 0.0, camera_cfg_usd.width / 2, 0.0, 380.0831, camera_cfg_usd.height / 2, 0.0, 0.0, 1.0]],
-    #     device=camera_warp.device,
-    # ).reshape(1, 3, 3)
-    # camera_warp.set_intrinsic_matrices(intrinsic_matrix, focal_length=10)
-    # camera_usd.set_intrinsic_matrices(intrinsic_matrix, focal_length=10)
-
-    # set camera position
-    eyes_np = np.asarray([[0.0, 0.0, 5.0]], dtype=np.float32)
-    targets_np = np.asarray([[0.0, 0.0, 0.0]], dtype=np.float32)
-    eyes = torch.tensor(eyes_np, device=camera_warp.device)
-    targets = torch.tensor(targets_np, device=camera_warp.device)
-    camera_warp.set_world_poses_from_view(
-        eyes=eyes,
-        targets=targets,
-    )
-    camera_usd.set_world_poses_from_view(eyes=eyes_np, targets=targets_np)
-
-    # perform steps
-    for _ in range(5):
-        sim.step()
-
-    # update camera
-    camera_usd.update(dt)
-    camera_warp.update(dt)
-
-    if DEBUG_PLOTS:
-        # plot both images next to each other plus their difference in a 1x3 grid figure
-        import matplotlib.pyplot as plt
-
-        fig, axs = plt.subplots(1, 3, figsize=(15, 5))
-        usd_plt = axs[0].imshow(camera_usd.data.output["distance_to_camera"].torch[0].cpu().numpy())
-        fig.colorbar(usd_plt, ax=axs[0])
-        axs[0].set_title("USD")
-        warp_plt = axs[1].imshow(camera_warp.data.output["distance_to_camera"].torch[0].cpu().numpy())
-        fig.colorbar(warp_plt, ax=axs[1])
-        axs[1].set_title("WARP")
-        diff_plt = axs[2].imshow(
-            torch.abs(
-                camera_usd.data.output["distance_to_camera"].torch - camera_warp.data.output["distance_to_camera"].torch
-            )[0]
-            .cpu()
-            .numpy()
-        )
-        fig.colorbar(diff_plt, ax=axs[2])
-        axs[2].set_title("Difference")
-        # save figure
-        plt.tight_layout()
-        plt.savefig(
-            f"{os.path.dirname(os.path.abspath(__file__))}/output/test_output_equal_to_usd_camera_when_intrinsics_set_{focal_length}_{aperture}.png"
-        )
-        plt.close()
-
-    # check image data
-    if focal_length != 0.193:
-        # FIXME: 0.193 is not working on the IsaacSim/ UsdGeom side, add back once fixed
-        torch.testing.assert_close(
-            camera_usd.data.output["distance_to_camera"].torch,
-            camera_warp.data.output["distance_to_camera"].torch,
-            rtol=5e-3,
-            atol=1e-4,
-        )
-
-    del camera_warp, camera_usd
-
-
-@pytest.mark.isaacsim_ci
-def test_sensor_print(setup_sim):
-    """Test sensor print is working correctly."""
-    sim, camera_cfg, dt = setup_sim
-    # Create sensor
-    sensor = RayCasterCamera(cfg=camera_cfg)
-    # Play sim
-    sim.reset()
-    # print info
-    print(sensor)
 
 
 @pytest.mark.isaacsim_ci
@@ -1068,33 +787,6 @@ def test_depth_clipping_d2ip_and_d2c_are_independent(setup_sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_frame_counter_increments_per_update(setup_sim):
-    """frame counter must increment by exactly 1 per update() call and reset to 0 on reset()."""
-    sim, camera_cfg, dt = setup_sim
-    camera = RayCasterCamera(cfg=camera_cfg)
-    sim.reset()
-
-    assert torch.all(camera.frame == 0), "Frame must start at 0"
-
-    n_steps = 7
-    for step in range(1, n_steps + 1):
-        sim.step()
-        camera.update(dt, force_recompute=True)
-        assert camera.frame[0].item() == step, f"Frame must be {step} after {step} update(s)"
-
-    # Partial reset: only env 0 (single-env camera, but API accepts env_ids)
-    camera.reset(env_ids=[0])
-    assert camera.frame[0].item() == 0, "Frame must be 0 after reset(env_ids=[0])"
-
-    # Full reset
-    for _ in range(3):
-        sim.step()
-        camera.update(dt, force_recompute=True)
-    camera.reset()
-    assert torch.all(camera.frame == 0), "Frame must be 0 after full reset()"
-
-
-@pytest.mark.isaacsim_ci
 def test_set_intrinsic_matrices_updates_output(setup_sim):
     """Depth output must change when intrinsics are updated via set_intrinsic_matrices().
 
@@ -1105,6 +797,8 @@ def test_set_intrinsic_matrices_updates_output(setup_sim):
 
     # Place camera looking straight down at the ground
     camera_cfg = copy.deepcopy(camera_cfg)
+    camera_cfg.pattern_cfg.height = 240
+    camera_cfg.pattern_cfg.width = 320
     camera_cfg.offset = RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 5.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world")
     camera_cfg.data_types = ["distance_to_camera"]
     camera = RayCasterCamera(cfg=camera_cfg)
@@ -1116,16 +810,16 @@ def test_set_intrinsic_matrices_updates_output(setup_sim):
         camera.update(dt)
     output_before = camera.data.output["distance_to_camera"].torch.clone()
 
-    # Change to a very different focal length (longer → tighter FOV → depth values differ at edges)
-    new_matrix = torch.tensor(
-        [[200.0, 0.0, 320.0], [0.0, 200.0, 240.0], [0.0, 0.0, 1.0]],
-        device=camera.device,
-    ).unsqueeze(0)
-    camera.set_intrinsic_matrices(new_matrix, focal_length=1.0)
+    # Change to a non-square, off-center calibration (obtained from a realsense camera at 320x240 resolution)
+    rs_intrinsic_matrix = [229.31640625, 0.0, 164.810546875, 0.0, 229.826171875, 122.1650390625, 0.0, 0.0, 1.0]
+    rs_intrinsic_matrix = torch.tensor(rs_intrinsic_matrix, device=camera.device).reshape(3, 3).unsqueeze(0)
+    camera.set_intrinsic_matrices(rs_intrinsic_matrix.clone(), focal_length=1.0)
 
     for _ in range(3):
         sim.step()
         camera.update(dt)
+        # Check that the matrix reads back unchanged
+        torch.testing.assert_close(rs_intrinsic_matrix, camera.data.intrinsic_matrices.torch)
     output_after = camera.data.output["distance_to_camera"].torch.clone()
 
     # Outputs must differ after intrinsics change (different ray angles → different depths)

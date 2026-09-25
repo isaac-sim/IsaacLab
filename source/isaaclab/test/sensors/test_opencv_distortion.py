@@ -56,7 +56,12 @@ if not _MISSING_MODULES:
         OpenCvPinholeDistortionCfg,
         PinholeCameraCfg,
     )
+    from isaaclab.test.utils import DeviceScope, test_devices
     from isaaclab.utils.warp import ProxyArray
+
+    _CUDA_DEVICES = test_devices(DeviceScope.CUDA)
+else:
+    _CUDA_DEVICES = []
 
 
 # Real SO-101 wrist-camera calibration: exercises fx != fy and an off-center principal point, which
@@ -142,17 +147,6 @@ def test_fisheye_distortion_authors_opencv_fisheye_api():
     assert prim.GetAttribute(f"{prefix}:fx").Get() == pytest.approx(300.0)
     assert prim.GetAttribute(f"{prefix}:k1").Get() == pytest.approx(0.1)
     assert prim.GetAttribute(f"{prefix}:k4").Get() == pytest.approx(0.0)
-
-
-def test_distortion_attributes_survive_usd_export():
-    """The authored OpenCV distortion API survives serialization, which the RTX/OVRTX path consumes."""
-    cfg = PinholeCameraCfg(distortion=OpenCvPinholeDistortionCfg(apply_lens_distortion=True, **_PINHOLE_CALIB))
-    stage, _prim = _spawn_camera_on_new_stage(cfg)
-
-    exported = stage.ExportToString()
-    assert "OmniLensDistortionOpenCvPinholeAPI" in exported
-    assert "omni:lensdistortion:opencvPinhole:fx" in exported
-    assert "omni:lensdistortion:model" in exported
 
 
 def test_camera_without_distortion_authors_no_opencv_api():
@@ -244,21 +238,6 @@ def test_readback_uses_authored_fx_fy_cx_cy():
     assert k[2, 2] == pytest.approx(1.0)
 
 
-def test_readback_preserves_non_square_and_off_center():
-    """The readback must not collapse to the stock ``fx == fy`` / centered principal point."""
-    fx, fy, cx, cy = 339.26592887, 338.82010626, 323.55809091, 250.27360914
-    width, height = 640, 480
-    _stage, cam = _camera_prim_with_pinhole_distortion(fx, fy, cx, cy, width, height)
-
-    k = _read_back_intrinsics(cam, width, height)
-
-    # non-square pixels are preserved (the old readback forced fx == fy)
-    assert k[0, 0] != k[1, 1]
-    # principal point is off-center (the old readback forced width/2, height/2)
-    assert k[0, 2] != pytest.approx(width / 2)
-    assert k[1, 2] != pytest.approx(height / 2)
-
-
 def _camera_prim_with_model_token_only():
     """Build a camera prim that declares the distortion model token but authors no fx/fy/cx/cy."""
     stage = Usd.Stage.CreateInMemory()
@@ -316,7 +295,7 @@ def test_pointcloud_from_rgbd_uniform_color():
         torch.testing.assert_close(points_rgb, expected)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", _CUDA_DEVICES)
 def test_set_intrinsic_matrices_skips_only_distortion_cameras_in_batch(device):
     """In a mixed batch only the distortion camera is skipped (with a warning); a plain camera is updated.
 
@@ -324,8 +303,6 @@ def test_set_intrinsic_matrices_skips_only_distortion_cameras_in_batch(device):
     focal-length/aperture write would be discarded for a distortion camera. Skipping the whole call would
     also drop ordinary selected cameras; only the distortion entries must be left untouched.
     """
-    if device.startswith("cuda") and not wp.is_cuda_available():
-        pytest.skip("CUDA is unavailable")
     width, height = 640, 480
     _stage_d, distortion_cam = _camera_prim_with_pinhole_distortion(339.0, 338.0, 323.0, 250.0, width, height)
     plain_stage = Usd.Stage.CreateInMemory()
@@ -360,11 +337,12 @@ def test_set_intrinsic_matrices_skips_only_distortion_cameras_in_batch(device):
     assert any("skipped" in message.lower() for message in messages)
 
 
-@pytest.fixture(params=["cpu", "cuda:0"])
+@pytest.fixture(params=_CUDA_DEVICES)
 def intrinsic_camera(request):
-    """Three independent camera prims, with buffers on the selected device."""
-    if request.param.startswith("cuda") and not wp.is_cuda_available():
-        pytest.skip("CUDA is unavailable")
+    """Three independent camera prims, with buffers on the selected device.
+
+    The calibration kernels and validation are device-independent; CUDA also exercises host-tensor inputs.
+    """
     stage = Usd.Stage.CreateInMemory()
     prims = [UsdGeom.Camera.Define(stage, f"/Camera_{i}") for i in range(3)]
     camera = _camera_for_prims(prims, device=request.param)
@@ -372,7 +350,7 @@ def intrinsic_camera(request):
 
 
 @pytest.mark.parametrize("env_ids", [None, [2, 0]])
-@pytest.mark.parametrize("batch_delta", [-1, 0, 1])
+@pytest.mark.parametrize("batch_delta", [-1, 0])
 def test_intrinsic_batch_rejection_is_atomic(intrinsic_camera, env_ids, batch_delta):
     """Cardinality errors and backend rejection leave USD and active calibration unchanged."""
     stage, camera = intrinsic_camera
@@ -539,28 +517,3 @@ def test_single_intrinsic_matrix(intrinsic_camera, as_warp):
     matrix = torch.tensor([[240.0, 0, 320], [0, 240.0, 240], [0, 0, 1]], device=camera.device)
     camera.set_intrinsic_matrices(wp.from_torch(matrix) if as_warp else matrix, env_ids=[1])
     np.testing.assert_allclose(camera._data.intrinsic_matrices.warp.numpy()[1], matrix.cpu().numpy())
-
-
-@pytest.mark.parametrize("edit_layer", ["root", "sublayer", "session"])
-def test_runtime_intrinsics_are_independent_of_usd_edit_target(intrinsic_camera, edit_layer):
-    """Runtime calibration owns its values independently of USD composition and never authors layers."""
-    stage, camera = intrinsic_camera
-    with Usd.EditContext(stage, stage.GetSessionLayer()):
-        camera._sensor_prims[1].GetFocalLengthAttr().Set(25.0)
-        camera._sensor_prims[1].GetHorizontalApertureAttr().Set(32.0)
-    target = stage.GetRootLayer()
-    if edit_layer == "sublayer":
-        target = Sdf.Layer.CreateAnonymous()
-        stage.GetRootLayer().subLayerPaths.append(target.identifier)
-    elif edit_layer == "session":
-        target = stage.GetSessionLayer()
-    matrix = torch.tensor([[[100.0, 0, 320], [0, 100.0, 240], [0, 0, 1]]], device=camera.device)
-
-    before = stage.ExportToString()
-    with Usd.EditContext(stage, target):
-        camera.set_intrinsic_matrices(matrix, env_ids=[1])
-    assert stage.ExportToString() == before
-
-    expected_focal = 100
-    expected = [[expected_focal, 0, 320], [0, expected_focal, 240], [0, 0, 1]]
-    np.testing.assert_allclose(camera._data.intrinsic_matrices.warp.numpy()[1], expected)

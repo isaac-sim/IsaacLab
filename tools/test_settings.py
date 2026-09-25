@@ -118,7 +118,6 @@ TESTS_TO_SKIP = [
     "test_build_simulation_context_nonheadless.py",  # headless
     # lab_tasks
     "test_record_video.py",  # Failing
-    "test_tiled_camera_env.py",  # Need to improve the logic
     # curobo / skillgen - require cuRobo installation; run via test-curobo and test-skillgen CI jobs
     *CUROBO_TESTS,
     # quarantined tests - run in dedicated CI job that does not block PR merges
