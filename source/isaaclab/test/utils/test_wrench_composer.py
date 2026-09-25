@@ -866,13 +866,17 @@ def test_full_reset_clears_active_flag(device: str, env_ids: slice | None):
     composer = WrenchComposer(mock_asset, supports_world_at_com=True)
 
     forces_np = np.ones((num_envs, num_bodies, 3), dtype=np.float32)
+    # Not parallel to the force, so the global torque buffer is non-zero before the reset.
+    positions_np = np.zeros((num_envs, num_bodies, 3), dtype=np.float32)
+    positions_np[..., 0] = 1.0
     composer.add_forces_and_torques_index(
         forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
         torques=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
     )
     composer.add_forces_and_torques_index(
         forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
-        positions=wp.from_numpy(2.0 * forces_np, dtype=wp.vec3f, device=device),
+        torques=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
+        positions=wp.from_numpy(positions_np, dtype=wp.vec3f, device=device),
         is_global=True,
     )
     composer.add_forces_and_torques_index(

@@ -238,7 +238,7 @@ def test_configure_logging_with_file():
 
         # Should return root logger
         assert logger is not None
-        # Root logger is always set to DEBUG
+        # Root logger level matches the requested level
         assert logger.level == logging.DEBUG
 
         # Should have two handlers (stream + file)
@@ -329,6 +329,8 @@ def test_configure_logging_default_log_dir():
     assert len(logger.handlers) == 2
     file_handler = logger.handlers[1]
     assert isinstance(file_handler, logging.FileHandler)
+    # The file handler always records DEBUG, regardless of the requested console level.
+    assert file_handler.level == logging.DEBUG
 
     # File should be in temp directory
     log_file_path = file_handler.baseFilename
