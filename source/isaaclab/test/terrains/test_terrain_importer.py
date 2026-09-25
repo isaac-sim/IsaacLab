@@ -19,7 +19,7 @@ import pytest
 import torch
 import trimesh
 
-from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
+from pxr import UsdGeom
 
 import isaaclab.terrains as terrain_gen
 from isaaclab.sim import PreviewSurfaceCfg, build_simulation_context, get_first_matching_child_prim
@@ -166,35 +166,6 @@ def test_usd():
 
         assert actualSize[0] == pytest.approx(expectedSizeX)
         assert actualSize[1] == pytest.approx(expectedSizeY)
-
-
-def test_mesh_file(tmp_path):
-    """Imports an OBJ terrain from a file with triangle-mesh collision and grid origins."""
-    mesh_path = tmp_path / "terrain.obj"
-    trimesh.creation.box(extents=(6.0, 4.0, 0.2)).export(mesh_path)
-
-    with build_simulation_context(device="cuda:0", auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        terrain_importer = TerrainImporter(
-            TerrainImporterCfg(
-                prim_path="/World/ground",
-                terrain_type="mesh",
-                mesh_path=str(mesh_path),
-                num_envs=1,
-                env_spacing=1.0,
-            )
-        )
-
-        assert terrain_importer.terrain_prim_paths == ["/World/ground/terrain"]
-        torch.testing.assert_close(terrain_importer.env_origins.cpu(), torch.zeros((1, 3)))
-        terrain_prim = sim.stage.GetPrimAtPath("/World/ground/terrain")
-        meshes = [prim for prim in Usd.PrimRange(terrain_prim, Usd.TraverseInstanceProxies()) if prim.IsA(UsdGeom.Mesh)]
-        assert meshes
-        assert all(prim.HasAPI(UsdPhysics.CollisionAPI) for prim in meshes)
-        assert all(UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr().Get() == "none" for prim in meshes)
-        assert all(not prim.IsInstanceProxy() for prim in meshes)
-        material, _ = UsdShade.MaterialBindingAPI(meshes[0]).ComputeBoundMaterial(materialPurpose="physics")
-        assert material.GetPath() == "/World/ground/terrain/physicsMaterial"
 
 
 def _obtain_collision_mesh(mesh_prim_path: str, mesh_type: Literal["Mesh", "Plane"]) -> trimesh.Trimesh | None:

@@ -43,10 +43,10 @@ class TerrainImporterCfg:
     :attr:`isaaclab.scene.InteractiveSceneCfg.num_envs` attribute.
     """
 
-    terrain_type: Literal["generator", "mesh", "plane", "usd"] = "generator"
+    terrain_type: Literal["generator", "plane", "usd"] = "generator"
     """The type of terrain to generate. Defaults to "generator".
 
-    Available options are "generator", "mesh", "plane", and "usd".
+    Available options are "plane", "usd", and "generator".
     """
 
     terrain_generator: TerrainGeneratorCfg | None = None
@@ -61,17 +61,11 @@ class TerrainImporterCfg:
     Only used if ``terrain_type`` is set to "usd".
     """
 
-    mesh_path: str | None = None
-    """The path to a mesh file containing the terrain (for example, OBJ, STL, or FBX).
-
-    Only used if ``terrain_type`` is set to "mesh".
-    """
-
     env_spacing: float | None = None
     """The spacing between environment origins when defined in a grid. Defaults to None.
 
     Note:
-      This parameter is used only when the ``terrain_type`` is "mesh", "plane", or "usd", or if
+      This parameter is used only when the ``terrain_type`` is "plane" or "usd" or if
       :attr:`use_terrain_origins` is False.
     """
 
@@ -86,12 +80,10 @@ class TerrainImporterCfg:
     visual_material: sim_utils.VisualMaterialCfg | None = MISSING
     """The visual material of the terrain. The default depends on :attr:`terrain_type`.
 
-    This parameter is used for the "generator", "mesh", and "plane" terrains.
+    This parameter is used for both the "generator" and "plane" terrains.
 
     - If the ``terrain_type`` is "generator", a dark material is used by default. The material is
       created at the path ``{prim_path}/visualMaterial`` and applied to all the sub-terrains.
-    - If the ``terrain_type`` is "mesh", no material is used by default. A provided material is
-      bound to the imported mesh, overriding its authored appearance.
     - If the ``terrain_type`` is "plane" and the material defines a diffuse color, then that color
       tints the imported ground plane. If no material is provided, the ground plane's authored
       appearance is preserved.
@@ -109,7 +101,7 @@ class TerrainImporterCfg:
     The material is created at the path: ``{prim_path}/physicsMaterial``.
 
     .. note::
-        This parameter is used only when the ``terrain_type`` is "generator", "mesh", or "plane".
+        This parameter is used only when the ``terrain_type`` is "generator" or "plane".
 
     Accepts a legacy rigid material cfg, a single rigid-material fragment, or a list of
     rigid-material fragments.

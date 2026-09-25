@@ -64,8 +64,7 @@ class TerrainImporter:
             ValueError: If input terrain type is not supported.
             ValueError: If terrain type is 'generator' and no configuration provided for ``terrain_generator``.
             ValueError: If terrain type is 'usd' and no configuration provided for ``usd_path``.
-            ValueError: If terrain type is 'mesh' and no configuration provided for ``mesh_path``.
-            ValueError: If terrain type is 'mesh', 'usd', or 'plane' and no configuration provided for ``env_spacing``.
+            ValueError: If terrain type is 'usd' or 'plane' and no configuration provided for ``env_spacing``.
         """
         # check that the config is valid
         cfg.validate()
@@ -110,11 +109,6 @@ class TerrainImporter:
             # import the terrain
             self.import_usd("terrain", self.cfg.usd_path)
             # configure the origins in a grid
-            self.configure_env_origins()
-        elif self.cfg.terrain_type == "mesh":
-            if self.cfg.mesh_path is None:
-                raise ValueError("Input terrain type is 'mesh' but no value provided for 'mesh_path'.")
-            self.import_mesh_file("terrain", self.cfg.mesh_path)
             self.configure_env_origins()
         elif self.cfg.terrain_type == "plane":
             self.import_ground_plane("terrain")
@@ -260,37 +254,6 @@ class TerrainImporter:
         create_prim_from_mesh(
             prim_path, mesh, visual_material=self.cfg.visual_material, physics_material=self.cfg.physics_material
         )
-
-    def import_mesh_file(self, name: str, mesh_path: str):
-        """Import a terrain from a mesh file.
-
-        The mesh is converted to USD and spawned as a static triangle-mesh collider at
-        ``cfg.prim_path/{name}``. OBJ, STL, and FBX files are supported by the mesh converter.
-
-        Args:
-            name: The name of the imported terrain.
-            mesh_path: The path to the mesh file.
-
-        Raises:
-            ValueError: If a terrain with the same name already exists.
-        """
-        prim_path = self.cfg.prim_path + f"/{name}"
-        if prim_path in self.terrain_prim_paths:
-            raise ValueError(
-                f"A terrain with the name '{name}' already exists. Existing terrains: {', '.join(self.terrain_names)}."
-            )
-
-        mesh_cfg = sim_utils.MeshFileCfg(
-            mesh=mesh_path,
-            make_uninstanceable=True,
-            collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
-            mesh_collision_props=[sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="none")],
-            visual_material=self.cfg.visual_material,
-            physics_material=self.cfg.physics_material,
-        )
-        mesh_cfg.func(prim_path, mesh_cfg)
-        # register the terrain only after conversion succeeds so a failed import can be retried
-        self.terrain_prim_paths.append(prim_path)
 
     def _compute_ground_plane_size(self) -> tuple[float, float]:
         """Cover the environment grid with 50 m of visual walking room on each side [m]."""

@@ -447,13 +447,6 @@ class MeshFileCfg(RigidObjectSpawnerCfg):
     mesh: str | TriangleMeshCfg | TrimeshObjectCfg = MISSING
     """Mesh source to spawn: a mesh file path, :class:`TriangleMeshCfg`, or :class:`TrimeshObjectCfg`."""
 
-    make_uninstanceable: bool = False
-    """Whether to disable USD instancing below the converted mesh before applying overrides. Defaults to False.
-
-    Enable this when a material must be bound to the converted mesh's collider. This option has no effect
-    on in-memory meshes. See :attr:`UsdFileCfg.make_uninstanceable` for details.
-    """
-
     scale: tuple[float, float, float] | None = None
     """Scale of the mesh root prim. Defaults to None, in which case the scale is not modified."""
 
