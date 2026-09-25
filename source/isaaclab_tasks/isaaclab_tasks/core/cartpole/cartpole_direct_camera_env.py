@@ -55,7 +55,7 @@ class CartpoleCameraEnv(CartpoleEnv):
 
     def _get_observations(self) -> dict:
         data_type = self.cfg.scene.tiled_camera.data_types[0]
-        camera_data = self._tiled_camera.data.output[data_type]
+        camera_data = self._tiled_camera.data.output[data_type].torch
 
         rgb_like = is_rgb_like(data_type)
         segmentation = data_type == "semantic_segmentation"
@@ -92,7 +92,7 @@ class CartpoleCameraEnv(CartpoleEnv):
             obs = obs.clone()
 
         if self.cfg.write_image_to_file:
-            save_images_to_file(self._tiled_camera.data.output[data_type] / 255.0, f"cartpole_{data_type}.png")
+            save_images_to_file(self._tiled_camera.data.output[data_type].torch / 255.0, f"cartpole_{data_type}.png")
 
         critic_obs = super()._get_observations()["policy"]
         return {"policy": obs, "critic": critic_obs}

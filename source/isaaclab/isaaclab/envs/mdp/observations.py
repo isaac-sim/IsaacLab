@@ -395,7 +395,7 @@ def image(
         The images produced at the last time-step
     """
     sensor: Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
-    images = sensor.data.output[data_type]
+    images = sensor.data.output[data_type].torch
     # depth image conversion
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
         images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)

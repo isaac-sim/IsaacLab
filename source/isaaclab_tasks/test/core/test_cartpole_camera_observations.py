@@ -16,8 +16,10 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+import warp as wp
 
 from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.core.cartpole.mdp.observations import CameraImageStack
 
@@ -30,7 +32,7 @@ _DEVICE = "cpu"
 
 def _observe(images: torch.Tensor, frame_stack: int, device: str) -> torch.Tensor:
     """Run the observation term over ``images`` using a minimal environment stub."""
-    camera = SimpleNamespace(data=SimpleNamespace(output={"semantic_segmentation": images}))
+    camera = SimpleNamespace(data=SimpleNamespace(output={"semantic_segmentation": ProxyArray(wp.from_torch(images))}))
     env = SimpleNamespace(
         cfg=SimpleNamespace(frame_stack=frame_stack),
         num_envs=images.shape[0],
