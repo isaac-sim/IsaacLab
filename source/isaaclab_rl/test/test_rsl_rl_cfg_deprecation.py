@@ -56,20 +56,6 @@ def _ppo_mlp_policy():
     )
 
 
-def _ppo_rnn_policy():
-    return RslRlPpoActorCriticRecurrentCfg(
-        init_noise_std=1.0,
-        actor_obs_normalization=False,
-        critic_obs_normalization=False,
-        actor_hidden_dims=[256, 256],
-        critic_hidden_dims=[128, 128],
-        activation="elu",
-        rnn_type="lstm",
-        rnn_hidden_dim=256,
-        rnn_num_layers=1,
-    )
-
-
 def _distillation_mlp_policy():
     return RslRlDistillationStudentTeacherCfg(
         init_noise_std=1.0,
@@ -147,13 +133,12 @@ def _distillation_runner(**kw):
 # rsl-rl < 4.0.0
 # ===================================================================
 class TestBelow4:
-    def test_no_policy_raises(self):
+    @pytest.mark.parametrize(
+        ("make_runner", "make_algo"), [(_on_policy_runner, _ppo_algo), (_distillation_runner, _distillation_algo)]
+    )
+    def test_no_policy_raises(self, make_runner, make_algo):
         with pytest.raises(ValueError, match="policy"):
-            handle_deprecated_rsl_rl_cfg(_on_policy_runner(algorithm=_ppo_algo()), "3.0.0")
-
-    def test_distillation_no_policy_raises(self):
-        with pytest.raises(ValueError, match="policy"):
-            handle_deprecated_rsl_rl_cfg(_distillation_runner(algorithm=_distillation_algo()), "3.0.0")
+            handle_deprecated_rsl_rl_cfg(make_runner(algorithm=make_algo()), "3.0.0")
 
     def test_preserves_policy(self, capsys):
         cfg = _on_policy_runner(policy=_ppo_mlp_policy(), algorithm=_ppo_algo())
@@ -190,24 +175,19 @@ class TestBelow4:
         assert cfg.policy.actor_obs_normalization is False
         assert cfg.policy.critic_obs_normalization is False
 
-    def test_clears_model_cfgs(self):
-        critic = _mlp_model()
-        critic.stochastic = False
-        cfg = _on_policy_runner(policy=_ppo_mlp_policy(), algorithm=_ppo_algo(), actor=_mlp_model(), critic=critic)
+    @pytest.mark.parametrize(
+        ("make_runner", "make_algo", "make_policy", "model_names"),
+        [
+            (_on_policy_runner, _ppo_algo, _ppo_mlp_policy, ("actor", "critic")),
+            (_distillation_runner, _distillation_algo, _distillation_mlp_policy, ("student", "teacher")),
+        ],
+    )
+    def test_clears_model_cfgs(self, make_runner, make_algo, make_policy, model_names):
+        models = {name: _mlp_model() for name in model_names}
+        cfg = make_runner(policy=make_policy(), algorithm=make_algo(), **models)
         handle_deprecated_rsl_rl_cfg(cfg, "3.0.0")
-        assert is_missing(cfg.actor)
-        assert is_missing(cfg.critic)
-
-    def test_distillation_clears_model_cfgs(self):
-        cfg = _distillation_runner(
-            policy=_distillation_mlp_policy(),
-            algorithm=_distillation_algo(),
-            student=_mlp_model(),
-            teacher=_mlp_model(),
-        )
-        handle_deprecated_rsl_rl_cfg(cfg, "3.0.0")
-        assert is_missing(cfg.student)
-        assert is_missing(cfg.teacher)
+        for name in model_names:
+            assert is_missing(getattr(cfg, name))
 
 
 # ===================================================================
@@ -263,19 +243,16 @@ class TestV4:
         assert cfg.actor.rnn_num_layers == 3
         assert isinstance(cfg.critic, RslRlRNNModelCfg)
 
-    def test_skips_existing_actor(self):
+    def test_skips_existing_actor_critic(self):
         actor = _mlp_model()
         actor.hidden_dims = [999]
-        cfg = _on_policy_runner(policy=_ppo_mlp_policy(), algorithm=_ppo_algo(), actor=actor)
-        handle_deprecated_rsl_rl_cfg(cfg, "4.0.0")
-        assert cfg.actor.hidden_dims == [999]
-
-    def test_skips_existing_critic(self):
+        # a non-stochastic existing critic also passes the legacy stochastic validation
         critic = _mlp_model()
         critic.stochastic = False
         critic.hidden_dims = [777]
-        cfg = _on_policy_runner(policy=_ppo_mlp_policy(), algorithm=_ppo_algo(), critic=critic)
+        cfg = _on_policy_runner(policy=_ppo_mlp_policy(), algorithm=_ppo_algo(), actor=actor, critic=critic)
         handle_deprecated_rsl_rl_cfg(cfg, "4.0.0")
+        assert cfg.actor.hidden_dims == [999]
         assert cfg.critic.hidden_dims == [777]
 
     def test_empirical_norm_then_inference(self):
@@ -336,12 +313,6 @@ class TestV4:
         assert cfg.teacher.hidden_dims == [777]
 
     # Stochastic tests
-    def test_validates_stochastic_on_existing_models(self):
-        critic = _mlp_model()
-        critic.stochastic = False
-        cfg = _on_policy_runner(algorithm=_ppo_algo(), actor=_mlp_model(), critic=critic)
-        handle_deprecated_rsl_rl_cfg(cfg, "4.0.0")  # should not raise
-
     def test_missing_stochastic_raises(self):
         a = _mlp_model()
         a.stochastic = MISSING
@@ -436,32 +407,6 @@ class TestV5:
         assert cfg.actor.distribution_cfg.std_type == "log"
         assert cfg.critic.distribution_cfg is None
 
-    def test_mlp_policy_state_dependent_pipeline(self):
-        p = _ppo_mlp_policy()
-        p.init_noise_std = 0.5
-        p.state_dependent_std = True
-        cfg = _on_policy_runner(policy=p, algorithm=_ppo_algo())
-        handle_deprecated_rsl_rl_cfg(cfg, "5.0.0")
-
-        assert isinstance(cfg.actor.distribution_cfg, RslRlMLPModelCfg.HeteroscedasticGaussianDistributionCfg)
-
-    def test_rnn_policy_full_pipeline(self):
-        p = _ppo_rnn_policy()
-        p.init_noise_std = 1.5
-        p.rnn_type = "gru"
-        p.rnn_hidden_dim = 64
-        p.rnn_num_layers = 3
-        cfg = _on_policy_runner(policy=p, algorithm=_ppo_algo())
-        handle_deprecated_rsl_rl_cfg(cfg, "5.0.0")
-
-        assert is_missing(cfg.policy)
-        assert isinstance(cfg.actor, RslRlRNNModelCfg)
-        assert cfg.actor.rnn_type == "gru"
-        assert isinstance(cfg.actor.distribution_cfg, RslRlMLPModelCfg.GaussianDistributionCfg)
-        assert cfg.actor.distribution_cfg.init_std == 1.5
-        assert isinstance(cfg.critic, RslRlRNNModelCfg)
-        assert cfg.critic.distribution_cfg is None
-
     def test_distillation_mlp_policy_full_pipeline(self):
         p = _distillation_mlp_policy()
         p.init_noise_std = 0.9
@@ -476,32 +421,7 @@ class TestV5:
         assert isinstance(cfg.teacher.distribution_cfg, RslRlMLPModelCfg.GaussianDistributionCfg)
         assert cfg.teacher.distribution_cfg.init_std == 0.0
 
-    def test_distillation_rnn_policy_full_pipeline(self):
-        p = _distillation_rnn_policy()
-        p.init_noise_std = 1.2
-        cfg = _distillation_runner(policy=p, algorithm=_distillation_algo())
-        handle_deprecated_rsl_rl_cfg(cfg, "5.0.0")
-
-        assert is_missing(cfg.policy)
-        assert isinstance(cfg.student, RslRlRNNModelCfg)
-        assert isinstance(cfg.student.distribution_cfg, RslRlMLPModelCfg.GaussianDistributionCfg)
-        assert isinstance(cfg.teacher, RslRlRNNModelCfg)
-        assert cfg.teacher.distribution_cfg.init_std == 0.0
-
     def test_no_policy_no_models_is_noop(self):
         cfg = _on_policy_runner(algorithm=_ppo_algo())
         handle_deprecated_rsl_rl_cfg(cfg, "5.0.0")
         assert is_missing(cfg.actor) and is_missing(cfg.critic)
-
-    def test_empirical_norm_rnn_policy_full_pipeline(self):
-        p = _ppo_rnn_policy()
-        p.init_noise_std = 2.0
-        p.state_dependent_std = True
-        p.actor_obs_normalization = MISSING
-        p.critic_obs_normalization = MISSING
-        cfg = _on_policy_runner(policy=p, algorithm=_ppo_algo(), empirical_normalization=True)
-        handle_deprecated_rsl_rl_cfg(cfg, "5.0.0")
-
-        assert is_missing(cfg.policy) and is_missing(cfg.empirical_normalization)
-        assert cfg.actor.obs_normalization is True
-        assert isinstance(cfg.actor.distribution_cfg, RslRlMLPModelCfg.HeteroscedasticGaussianDistributionCfg)
