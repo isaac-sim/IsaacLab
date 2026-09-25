@@ -66,6 +66,7 @@ class SceneDataProvider:
         self._num_envs_cache: int | None = None
         self._interactive_scene: Any | None = None
         self._cache: dict[Any, TimestampedBuffer] = {}
+        self._transform_mappings: dict[tuple, wp.array | None] = {}
 
     def get_transforms(
         self,
@@ -276,6 +277,9 @@ class SceneDataProvider:
         appear in ``paths`` (or maps to ``None``) receive an index of ``-1`` and are
         skipped during conversion.
 
+        Equal source and destination layouts reuse the same mapping, so independent consumers
+        share SDP conversions without storing bindings on a native backend.
+
         Args:
             paths: Desired output ordering expressed as prim paths. Use ``None`` for
                 slots that should not receive any transform.
@@ -286,15 +290,23 @@ class SceneDataProvider:
             paths or if no mapping is needed.
         """
         if input_paths := self.backend.transform_paths:
+            key = tuple(input_paths), tuple(paths)
+            if key in self._transform_mappings:
+                return self._transform_mappings[key]
             # The map keeps resolution linear in the number of paths. For duplicate
             # paths the first occurrence wins, matching ``list.index``.
             path_to_out: dict[str | None, int] = {}
             for out_idx, out_path in enumerate(paths):
                 if out_path not in path_to_out:
                     path_to_out[out_path] = out_idx
+            if missing := path_to_out.keys() - set(input_paths) - {None}:
+                raise KeyError(f"Transform destinations have no native publication: {missing}")
             mapping = [path_to_out.get(path, -1) for path in input_paths]
+            result = None
             if len(paths) != len(input_paths) or not np.array_equal(mapping, np.arange(len(input_paths))):
-                return wp.array(mapping, dtype=wp.int32, device=_publication_device(self.backend.transforms))
+                result = wp.array(mapping, dtype=wp.int32, device=_publication_device(self.backend.transforms))
+            self._transform_mappings[key] = result
+            return result
         return None
 
     def get_geometry_points(

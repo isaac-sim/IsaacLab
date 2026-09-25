@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Clone-owned Newton visualization models and SDP state synchronization under foreign physics."""
+"""Clone-built, registry-owned Newton resources and native SDP publication."""
 
 from __future__ import annotations
 
@@ -51,95 +51,68 @@ def _make_surface_cloth_stage(path: str = "/World/envs/env_0/Cloth"):
     return stage
 
 
-@pytest.mark.parametrize(("body_count", "particle_count"), [(0, 0), (3, 0), (0, 4)])
-def test_visualization_model_is_built_during_clone_and_allocated_on_physics_ready(
-    monkeypatch, body_count, particle_count
-):
-    """Cloning owns parsing; READY owns native allocation; getters never discover or allocate."""
-    import warp as wp
+def test_physics_manager_close_only_clears_active_manager_binding(monkeypatch):
+    """Only the active physics manager can clear shared SimulationContext state."""
+    from isaaclab.physics import PhysicsManager
+
+    class _ActiveManager(PhysicsManager):
+        _callbacks = {}
+
+    class _InactiveManager(PhysicsManager):
+        pass
+
+    _ActiveManager.close()
+    assert PhysicsManager._sim is None
+
+    active_sim = SimpleNamespace(physics_manager=_ActiveManager)
+    monkeypatch.setattr(PhysicsManager, "_sim", active_sim, raising=False)
+    monkeypatch.setattr(PhysicsManager, "_cfg", "active-cfg", raising=False)
+    monkeypatch.setattr(PhysicsManager, "_sim_time", 1.25, raising=False)
+
+    monkeypatch.setattr(PhysicsManager, "_callbacks", {1: (None, lambda _: None, 0, "stale", None)}, raising=False)
+    _InactiveManager.close()
+    assert PhysicsManager._callbacks == {}
+    assert (PhysicsManager._sim, PhysicsManager._cfg, PhysicsManager._sim_time) == (active_sim, "active-cfg", 1.25)
+
+    _ActiveManager.close()
+    assert (PhysicsManager._sim, PhysicsManager._cfg, PhysicsManager._sim_time) == (None, None, 0.0)
+
+
+def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
+    """Cloning produces inputs; consumers acquire one native resource without rebuilding the scene."""
     from isaaclab_newton.cloner import NewtonReplicateContext
-    from isaaclab_newton.cloner import replicate as replicate_module
     from isaaclab_newton.physics import NewtonManager
-    from newton import ModelBuilder
 
     from pxr import Usd, UsdGeom
 
-    from isaaclab.physics import PhysicsEvent, PhysicsManager
-    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
     from isaaclab.sim import SimulationContext
 
-    class ForeignPhysicsManager(PhysicsManager):
-        _callbacks = {}
-
     _reset_newton_manager_state()
-    monkeypatch.setattr(PhysicsManager, "_device", "cpu")
     asset = AssetBaseCfg(prim_path="/Scene/Copy_[^/]+", spawn=SpawnerCfg(spawn_path="/Scene/Source"))
     plan = make_clone_plan((asset,), ((0,),), 2, env_template="/Scene/Copy_{}")
     sim = object.__new__(SimulationContext)
     sim.cfg = SimpleNamespace(physics=object(), device="cpu")
+    sim.physics_manager = SimpleNamespace(get_device=lambda: "cpu")
     sim.stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(sim.stage, "/Scene/Source")
-    sim.physics_manager = ForeignPhysicsManager
     sim._backend_registry = []
-    body_paths = [f"/Scene/Body_{index}" for index in range(body_count)]
-    transforms = SceneDataFormat.Transform()
-    transforms.transforms = wp.zeros(body_count, dtype=wp.transformf, device="cpu")
-    sim._scene_data_provider = SceneDataProvider(
-        SimpleNamespace(
-            transforms=transforms,
-            get_transforms=lambda _format: transforms,
-            transforms_timestamp=0,
-            transform_paths=body_paths,
-            transform_count=body_count,
-        )
-    )
-    monkeypatch.setattr(SimulationContext, "_instance", sim)
-
-    finalize = Mock(
-        side_effect=lambda device: SimpleNamespace(
-            body_count=body_count,
-            body_label=body_paths,
-            particle_count=particle_count,
-            world_count=2,
-            state=lambda: SimpleNamespace(
-                body_q=wp.empty(body_count, dtype=wp.transformf, device="cpu") if body_count else None, particle_q=None
-            ),
-        )
-    )
-    monkeypatch.setattr(ModelBuilder, "finalize", finalize)
-    build = Mock(wraps=replicate_module._replicate_newton)
-    monkeypatch.setattr(replicate_module, "_replicate_newton", build)
     context = NewtonReplicateContext(sim)
-    assert NewtonManager.get_model() is None
-    assert NewtonManager.get_state() is None
-    build.assert_not_called()
-
     builder, _, _ = context.replicate(plan, (0,))
-    assert isinstance(builder, ModelBuilder)
-    build.assert_called_once()
-    finalize.assert_not_called()
     assert not sim._backend_registry
-
-    ForeignPhysicsManager.dispatch_event(PhysicsEvent.PHYSICS_READY)
-    if body_count:
-        assert NewtonManager.get_state_0().body_q is transforms.transforms
-    first_model = NewtonManager.get_model()
-    first_state = NewtonManager.get_state()
-    ForeignPhysicsManager.dispatch_event(PhysicsEvent.PHYSICS_READY)
-    assert NewtonManager.get_model() is first_model
-    assert NewtonManager.get_state() is first_state
-    assert (first_model.body_count, first_model.particle_count) == (body_count, particle_count)
-    assert first_model.num_envs == NewtonManager.get_num_envs() == 2
+    finalize = Mock(wraps=builder.finalize)
+    monkeypatch.setattr(builder, "finalize", finalize)
+    first = sim.get_or_create_backend(context.backend_cfg)
+    assert sim.get_or_create_backend(context.backend_cfg) is first
+    assert first.model.world_count == len(plan.topology.world_prototype_layout)
     finalize.assert_called_once_with(device="cpu")
-
-    ForeignPhysicsManager.dispatch_event(PhysicsEvent.STOP)
-    assert NewtonManager.get_model() is None and NewtonManager.get_state() is None
+    assert NewtonManager.backend is None
+    sim.close_backend(first)
     assert not sim._backend_registry
-    ForeignPhysicsManager.dispatch_event(PhysicsEvent.PHYSICS_READY)
-    assert NewtonManager.get_model() is not first_model
+    assert first.model is first.state_0 is None
+    second = sim.get_or_create_backend(context.backend_cfg)
+    assert second is not first
     assert finalize.call_count == 2
-    assert build.call_count == 1
-    ForeignPhysicsManager.dispatch_event(PhysicsEvent.STOP)
+    sim.close_backend(second)
 
 
 @pytest.mark.parametrize("invalidate", ["invalidate_body_state", "invalidate_fk"])
@@ -174,7 +147,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
     matrices = output.matrices
     NewtonManager.pre_render()
     NewtonManager._eval_fk.assert_not_called()
-    NewtonManager.get_state(provider)
+    assert provider.get_transforms(SceneDataFormat.Transform())
     assert provider.get_transforms(output)
     assert output.matrices is matrices
     assert wp.launch.call_count == 1
@@ -201,133 +174,6 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
     assert output.matrices is matrices
     assert wp.launch.call_count == 3
     np.testing.assert_allclose(output.matrices.numpy()[0, :3, 3], [3, 2, 1])
-
-
-def test_resolve_scene_data_body_paths_uses_joint_body_targets():
-    """PhysX visualization sync maps Newton joint labels to the actual body prim path."""
-    pytest.importorskip("pxr")
-    from isaaclab_newton.physics import NewtonManager
-
-    from pxr import Usd, UsdGeom, UsdPhysics
-
-    stage = Usd.Stage.CreateInMemory()
-    body_prim = UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot/robot0_forearm").GetPrim()
-    UsdPhysics.RigidBodyAPI.Apply(body_prim)
-    joint = UsdPhysics.FixedJoint.Define(stage, "/World/envs/env_0/Robot/joints/robot0_forearm")
-    joint.GetBody1Rel().SetTargets([body_prim.GetPath()])
-
-    body_paths = ["/World/envs/env_0/Robot/joints/robot0_forearm"]
-    resolved_paths = NewtonManager._resolve_scene_data_body_paths(body_paths, stage)
-
-    assert resolved_paths == ["/World/envs/env_0/Robot/robot0_forearm"]
-
-
-@pytest.mark.parametrize("layout", ["identity", "reordered", "missing", "duplicate"])
-def test_update_visualization_state_shares_sdp_transforms(monkeypatch, layout):
-    """Native and reordered layouts bind shared output once and refresh only on publication."""
-    import numpy as np
-    import warp as wp
-    from isaaclab_newton.physics import NewtonManager
-
-    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
-
-    _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, provider=None: False))
-
-    body_paths = ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
-    render_paths = {
-        "identity": body_paths,
-        "reordered": body_paths[::-1],
-        "missing": [body_paths[0], "/World/Missing"],
-        "duplicate": [body_paths[0], body_paths[0]],
-    }[layout]
-    source_transforms = wp.array(
-        [
-            [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0],
-            [4.0, 5.0, 6.0, 0.0, 0.0, 0.0, 1.0],
-        ],
-        dtype=wp.transformf,
-        device="cpu",
-    )
-    source_data = SceneDataFormat.Transform()
-    source_data.transforms = source_transforms
-    provider = SceneDataProvider(
-        SimpleNamespace(
-            transforms=source_data,
-            get_transforms=lambda _format: source_data,
-            transforms_timestamp=0,
-            transform_paths=body_paths,
-            transform_count=len(body_paths),
-        )
-    )
-    monkeypatch.setattr(SceneDataProvider, "usd_stage", property(lambda self: None))
-
-    destination = wp.zeros(len(body_paths), dtype=wp.transformf, device="cpu")
-    monkeypatch.setattr(
-        NewtonManager,
-        "backend",
-        SimpleNamespace(
-            model=SimpleNamespace(body_label=render_paths, body_count=len(body_paths)),
-            state_0=SimpleNamespace(body_q=destination, particle_q=None),
-        ),
-    )
-
-    if layout in ("missing", "duplicate"):
-        with pytest.raises(ValueError, match="one unique SDP transform path"):
-            NewtonManager.update_visualization_state(provider)
-        return
-
-    remapped = layout == "reordered"
-    NewtonManager.update_visualization_state(provider)
-    shared = NewtonManager.get_state(provider).body_q
-    assert (shared is source_transforms) is not remapped
-    np.testing.assert_allclose(shared.numpy(), source_transforms.numpy()[:: -1 if remapped else 1])
-    assert NewtonManager.get_state(provider).body_q is shared
-
-    source_data.transforms = wp.array(source_transforms.numpy() + 1.0, dtype=wp.transformf, device="cpu")
-    provider.backend.transforms_timestamp += 1
-    NewtonManager.update_visualization_state(provider)
-    np.testing.assert_allclose(
-        NewtonManager.backend.state_0.body_q.numpy(), source_data.transforms.numpy()[:: -1 if remapped else 1]
-    )
-
-
-def test_update_visualization_state_writes_final_geometry_once_per_timestamp(monkeypatch):
-    """SDP writes directly into native render slots, preserving gaps and the destination allocation."""
-    import warp as wp
-    from isaaclab_newton.physics import NewtonManager
-
-    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
-
-    _reset_newton_manager_state()
-    data = SceneDataFormat.Points()
-    data.points = wp.array(np.arange(18, dtype=np.float32).reshape(6, 3), dtype=wp.vec3f, device="cpu")
-    ranges = {"/Cells/Cloth/mesh": (1, 2), "/Shared/Particles": (4, 1)}
-    backend = SimpleNamespace(geometry_timestamp=0, get_geometry_batches=lambda _format: [(data, ranges)])
-    provider = SceneDataProvider(backend)
-    particle_q = wp.zeros(6, dtype=wp.vec3f, device="cpu")
-    monkeypatch.setattr(
-        NewtonManager,
-        "backend",
-        SimpleNamespace(model=SimpleNamespace(), state_0=SimpleNamespace(body_q=None, particle_q=particle_q)),
-    )
-    monkeypatch.setattr(NewtonManager, "_geometry_offsets", {"/Shared/Particles": 1, "/Cells/Cloth/mesh": 3})
-    monkeypatch.setattr(NewtonManager, "_mark_sensor_state_dirty", Mock())
-    monkeypatch.setattr(wp, "launch", Mock(wraps=wp.launch))
-
-    for timestamp in (0, 1):
-        if timestamp:
-            data.points = wp.array(data.points.numpy() + 10.0, dtype=wp.vec3f, device="cpu")
-            backend.geometry_timestamp += 1
-        NewtonManager.update_visualization_state(provider)
-        NewtonManager.update_visualization_state(provider)
-        expected = np.zeros((6, 3), dtype=np.float32)
-        expected[1] = data.points.numpy()[4]
-        expected[3:5] = data.points.numpy()[1:3]
-        assert NewtonManager.backend.state_0.particle_q is particle_q
-        np.testing.assert_array_equal(particle_q.numpy(), expected)
-        assert wp.launch.call_count == timestamp + 1
-        assert NewtonManager._mark_sensor_state_dirty.call_count == timestamp + 1
 
 
 @pytest.mark.parametrize("global_path", ["/World/Assets/Cloth", "/World/Assets"])
@@ -365,9 +211,9 @@ def test_clone_visualization_builder_imports_only_declared_global_deformables(mo
 
     monkeypatch.setattr(ModelBuilder, "add_usd", import_usd)
 
-    builder, _, _ = NewtonReplicateContext(sim).replicate(plan, (0, 2))
-    callback = sim.physics_manager.register_callback.call_args.args[0]
-    geometry = callback.args[1]
+    context = NewtonReplicateContext(sim)
+    builder, _, _ = context.replicate(plan, (0, 2))
+    geometry = context.backend_cfg.geometry_offsets
 
     assert sorted(kwargs["root_path"] for kwargs in usd_imports) == sorted([global_path, sources[0]])
     assert set(geometry) == {"/World/Assets/Cloth", "/Copies/env_0/Selected/Cloth", "/Copies/env_1/Selected/Cloth"}

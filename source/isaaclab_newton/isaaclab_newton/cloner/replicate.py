@@ -20,7 +20,7 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology
 from isaaclab.cloner import path as cloner_path
-from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.physics import PhysicsManager
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
     deformable_geometry_batches,
@@ -107,7 +107,7 @@ def _replicate_newton(
     positions: np.ndarray | None = None,
     up_axis: str = "Z",
     quaternions: np.ndarray | None = None,
-) -> tuple[ModelBuilder, object, dict]:
+) -> tuple[ModelBuilder, object, dict, NewtonBackendCfg | None]:
     """Import and replicate the plan's Newton representation, with or without Newton physics."""
     cfg = sim.cfg.physics
     sources = cloner_path.get_asset_prototype_paths(plan)
@@ -185,7 +185,7 @@ def _replicate_newton(
     source_cables = {}
     for source, imported in import_results.items():
         cables = source_cables[source] = {}
-        if not imported["path_cable_map"]:
+        if not simulation or not imported["path_cable_map"]:
             continue
         shapes = {label: index for index, label in enumerate(source_builders[source].shape_label)}
         for path, (bodies, _) in imported["path_cable_map"].items():
@@ -194,7 +194,6 @@ def _replicate_newton(
             if len(UsdGeom.BasisCurves(stage.GetPrimAtPath(path)).GetCurveVertexCountsAttr().Get()) != 1:
                 continue
             cables[path] = [shapes[f"{path}_edge_capsule_{segment}"] for segment in range(len(bodies))]
-
     if simulation:
         global_sites, source_sites, root_sites = NewtonManager._cl_inject_sites(builder, source_builders)
     else:
@@ -234,8 +233,9 @@ def _replicate_newton(
     )
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
-    NewtonManager._cable_bindings = cable_bindings
+    backend_cfg = None
     if simulation:
+        NewtonManager._cable_bindings = cable_bindings
         geometry = expand_deformable_entries(entries, plan, env_ids, positions)
         ranges = {
             label: start
@@ -255,14 +255,10 @@ def _replicate_newton(
         NewtonManager.set_builder(builder, particle_ranges=particle_ranges)
         NewtonManager._num_envs = len(env_ids)
     else:
-        backend_cfg = NewtonBackendCfg(builder=builder, device=sim.device, num_envs=len(env_ids), simulation=False)
-        sim.physics_manager.register_callback(
-            partial(NewtonManager._initialize_visualization_model, backend_cfg, geometry_offsets),
-            PhysicsEvent.PHYSICS_READY,
-            name="newton_visualization_model",
-            wrap_weak_ref=False,
+        backend_cfg = NewtonBackendCfg(
+            builder=builder, device=sim.device, num_envs=len(env_ids), simulation=False, geometry_offsets=geometry_offsets
         )
-    return builder, stage_info, site_index_map
+    return builder, stage_info, site_index_map, backend_cfg
 
 
 class NewtonReplicateContext:
@@ -274,12 +270,17 @@ class NewtonReplicateContext:
         """Initialize the context from its owning simulation."""
         self._sim = sim_context
         self.up_axis = up_axis
+        self.backend_cfg: NewtonBackendCfg | None = None
+        """Completed allocation inputs; native resources belong to the simulation registry."""
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> tuple[ModelBuilder, object, dict]:
         """Build and publish a Newton model from this context's source declarations."""
         env_ids = np.arange(len(plan.topology.world_prototype_layout))
         options = dict(plan=plan, asset_prototype_ids=asset_prototype_ids, positions=plan.positions)
-        return _replicate_newton(self._sim.stage, env_ids, self._sim, up_axis=self.up_axis, **options)
+        builder, stage_info, sites, self.backend_cfg = _replicate_newton(
+            self._sim.stage, env_ids, self._sim, up_axis=self.up_axis, **options
+        )
+        return builder, stage_info, sites
 
 
 def newton_physics_replicate(
@@ -326,5 +327,5 @@ def newton_physics_replicate(
     plan = ClonePlan(topology, asset_cfgs=assets, env_template=env_template, positions=positions)
     options = dict(plan=plan, asset_prototype_ids=range(len(assets)), positions=positions)
     options.update(up_axis=up_axis, quaternions=quaternions)
-    builder, stage_info, _ = _replicate_newton(stage, env_ids, PhysicsManager._sim, **options)
+    builder, stage_info, _, _ = _replicate_newton(stage, env_ids, PhysicsManager._sim, **options)
     return builder, stage_info

@@ -14,11 +14,12 @@ __all__ = [
     "MPMParticleSpawnerCfg",
     "MPMPointsCfg",
     "schemas",
+    "queries",
     "spawners",
     "views",
 ]
 
-from . import schemas, spawners, views
+from . import queries, schemas, spawners, views
 from .schemas import NewtonDeformableBodyPropertiesCfg
 from .spawners.materials import (
     NewtonDeformableBodyMaterialCfg,

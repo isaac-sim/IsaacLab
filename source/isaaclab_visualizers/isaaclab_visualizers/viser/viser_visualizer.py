@@ -18,8 +18,11 @@ from typing import TYPE_CHECKING, Any
 
 import newton
 import numpy as np
+from isaaclab_newton.cloner import NewtonReplicateContext
 from newton.viewer import ViewerViser
 
+from isaaclab.scene_data import SceneDataFormat
+from isaaclab.sim import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
@@ -380,8 +383,7 @@ class ViserVisualizer(BaseVisualizer):
         super().__init__(cfg)
         self.cfg: ViserVisualizerCfg = cfg
         self._viewer: NewtonViewerViser | None = None
-        self._model: Any | None = None
-        self._state = None
+        self.backend = None
         self._sim_time = 0.0
         self._active_record_path: str | None = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
@@ -405,8 +407,6 @@ class ViserVisualizer(BaseVisualizer):
         Args:
             scene_data_provider: Scene data provider used to fetch model/state data.
         """
-        from isaaclab_newton.physics import NewtonManager
-
         if self._is_initialized:
             logger.debug("[ViserVisualizer] initialize() called while already initialized.")
             return
@@ -415,8 +415,9 @@ class ViserVisualizer(BaseVisualizer):
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
-        self._model = NewtonManager.get_model()
-        self._state = NewtonManager.get_state(self._scene_data_provider)
+        sim = SimulationContext.instance()
+        self.backend = sim.get_or_create_backend(sim.clone_contexts[NewtonReplicateContext].backend_cfg)
+        self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         self._active_record_path = self.cfg.record_to_viser
         self._create_viewer(record_to_viser=self.cfg.record_to_viser, metadata=metadata)
@@ -447,15 +448,12 @@ class ViserVisualizer(BaseVisualizer):
         Args:
             dt: Simulation time-step in seconds.
         """
-        from isaaclab_newton.physics import NewtonManager
-
         if not self._is_initialized or self._viewer is None or self._scene_data_provider is None:
             return
 
         self._apply_pending_camera_pose()
 
-        self._state = NewtonManager.get_state(self._scene_data_provider)
-        num_envs = NewtonManager.get_num_envs()
+        num_envs = self.backend.model.num_envs
 
         self._sim_time += dt
 
@@ -484,7 +482,13 @@ class ViserVisualizer(BaseVisualizer):
             # When streaming_view is active, skip the 3D Newton scene so the
             # background streaming composite is the only content visible.
             if not self.cfg.streaming_view:
-                self._viewer.log_state(self._state)
+                backend, provider = self.backend, self._scene_data_provider
+                poses = SceneDataFormat.Transform()
+                if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
+                    backend.state_0.body_q = poses.transforms
+                if backend.geometry_offsets:
+                    provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
+                self._viewer.log_state(self.backend.state_0)
                 if self.cfg.enable_markers:
                     self._render_markers(num_envs)
             self._render_live_plots()
@@ -663,6 +667,21 @@ class ViserVisualizer(BaseVisualizer):
             else:
                 logger.debug("[ViserVisualizer] Marker rendering failed: %s", exc)
 
+    def reset(self, soft: bool = False) -> None:
+        """Rebind the viewer when a hard reset replaces the shared native model."""
+        if soft or not self._is_initialized or self._is_closed:
+            return
+        sim = SimulationContext.instance()
+        backend = sim.get_or_create_backend(sim.clone_contexts[NewtonReplicateContext].backend_cfg)
+        if backend is self.backend:
+            return
+        self.backend = backend
+        self._transform_mapping = self._scene_data_provider.create_mapping(list(backend.model.body_label))
+        self._viewer.set_model(backend.model)
+        self._setup_isaaclab_sidebar(self._viewer._server)
+        self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
+        self._viewer.set_world_offsets((0.0, 0.0, 0.0))
+
     def close(self) -> None:
         """Close viewer resources and finalize optional recording."""
         if not self._is_initialized:
@@ -681,6 +700,7 @@ class ViserVisualizer(BaseVisualizer):
 
         self._viewer = None
         self._is_initialized = False
+        self.backend = self._scene_data_provider = self._transform_mapping = None
         self._is_closed = True
         self._active_record_path = None
         self._pending_camera_pose = None
@@ -763,9 +783,6 @@ class ViserVisualizer(BaseVisualizer):
             record_to_viser: Optional output path for viser recording.
             metadata: Optional metadata passed to viewer.
         """
-        if self._model is None:
-            raise RuntimeError("Viser visualizer requires a Newton model.")
-
         self._viewer = NewtonViewerViser(
             port=self.cfg.port,
             bind_address=self.cfg.bind_address,
@@ -788,7 +805,7 @@ class ViserVisualizer(BaseVisualizer):
                 viewer_url,
             )
         num_envs = int((metadata or {}).get("num_envs", 0))
-        self._viewer.set_model(self._model)
+        self._viewer.set_model(self.backend.model)
         self._viewer.show_particles = self.cfg.show_particles
         # Set up sidebar AFTER set_model() — set_model calls clear_model() internally,
         # which would destroy any GUI elements created before it.
