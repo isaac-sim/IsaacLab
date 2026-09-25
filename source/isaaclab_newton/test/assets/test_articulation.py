@@ -1898,7 +1898,9 @@ def test_loading_gains_from_usd(sim, num_articulations, device, articulation_typ
 @pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize(
-    ("joint_limit", "actuator_limit"), [(1e5, None), (None, 1e2)], ids=["joint_limit", "actuator_limit"]
+    ("joint_limit", "actuator_limit"),
+    [(1e5, None), (None, 1e2), (1e5, 1e2)],
+    ids=["joint_limit", "actuator_limit", "both_limits"],
 )
 @pytest.mark.parametrize("articulation_type", ["single_joint_implicit", "single_joint_explicit"])
 @pytest.mark.parametrize("use_newton_actuators", [False])  # consumed by the sim fixture

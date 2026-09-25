@@ -193,9 +193,9 @@ def test_wrench_with_external_force_and_torque(sim):
     torque_gravity = sensor.data.torque.torch[0, 0].clone()
     torch.testing.assert_close(force_gravity.norm(), weight_w.norm(), atol=1e-2, rtol=1e-3)
 
-    # 10 N along body Y and a body torque with a component along that force.
+    # Force on every axis makes the dot-product check sensitive to each torque component.
     ext_force_b = torch.zeros((1, robot.num_bodies, 3), device=sim.device)
-    ext_force_b[:, arm_idx, 1] = 10.0
+    ext_force_b[:, arm_idx, :] = torch.tensor([5.0, 10.0, 10.0], device=sim.device)
     ext_torque_b = torch.zeros((1, robot.num_bodies, 3), device=sim.device)
     ext_torque_b[:, arm_idx, 1] = 5.0
     ext_torque_b[:, arm_idx, 2] = 10.0

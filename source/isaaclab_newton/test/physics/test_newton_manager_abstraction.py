@@ -26,6 +26,7 @@ import logging
 import subprocess
 import sys
 import textwrap
+from inspect import signature
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -396,6 +397,12 @@ def test_sensor_bvh_shape_flags_are_fixed_before_builder_creation(monkeypatch):
     assert model.bvh_shapes is not None
 
 
+def test_sensor_task_registration_has_no_raycast_bvh_fallback():
+    """Raycast BVH requirements belong to builder creation, not task registration."""
+    assert "include_collision_shapes" not in signature(NewtonManager._register_sensor_task).parameters
+    assert not hasattr(NewtonManager, "_sensor_bvh_has_collision_shapes")
+
+
 def test_newton_shape_cfg_defaults_match_newton_shape_config():
     """``NewtonShapeCfg`` contact defaults mirror Newton's ``ShapeConfig``.
 
@@ -637,6 +644,13 @@ def test_solver_registers_only_its_builder_attributes(manager, active, inactive)
     # A second registration on the same builder is a no-op.
     manager._register_builder_attributes(builder)
     assert builder.has_custom_attribute(active)
+
+
+def test_clone_source_builder_has_no_solver_dependency():
+    """The active manager's builder factory, not the cloner, owns solver attributes."""
+    import isaaclab_newton.cloner.newton_clone_utils as clone_utils
+
+    assert not hasattr(clone_utils, "solvers")
 
 
 def test_mpm_prepare_builder_makes_kinematic_bodies_massless():

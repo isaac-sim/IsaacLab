@@ -10,6 +10,8 @@
 - Use modern Python type hints, including `X | None` instead of `Optional[X]`.
 - Use `snake_case` for methods, functions, and CLI arguments.
 - Keep related public symbols discoverable through consistent prefixes.
+- Keep Newton solver schema registration in the active manager's builder factory; the cloner must not depend on solver modules.
+- Resolve Newton raycast BVH requirements before builder finalization; sensor task registration must not add a late BVH fallback.
 - Keep joint-wrench sensor coverage separate from articulation control-joint selection. Reuse cached
   body bindings without changing the shared view's joint filters or creating a second view for sensing.
 - For external wrenches, follow the asset API's `is_global` boolean and `_b`/`_w` buffer naming. Keep
