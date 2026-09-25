@@ -83,6 +83,8 @@ PER_TEST_STARTUP_TIMEOUTS = {
 PYTEST_WORKERS = {
     # 20 independent export round trips, ~18 min serially: the RL job's long pole.
     "test_leapp_export_flow.py": 4,
+    # Smoke-runs every contributed environment, ~19 min serially: the contrib-environments job's only file.
+    "test_contrib_environments.py": 4,
 }
 """Test files split across ``pytest-xdist`` workers, and how many.
 

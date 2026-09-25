@@ -802,6 +802,7 @@ jobs:
         cache-tag: cache-curobo
         include-files: "test_contrib_environments.py"
         warp-cache: restore
+        test-jobs: "4"
         container-name: isaac-lab-contrib-environments-test
 
   test-record-video:
