@@ -3037,8 +3037,9 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            limit: Fixed tendon position limit. Shape is (len(env_ids), len(fixed_tendon_ids)) or
-                (num_instances, num_fixed_tendons) if full_data.
+            limit: Fixed tendon position limits ``[lower, upper]`` [m]. Shape is (len(env_ids), len(fixed_tendon_ids))
+                or (num_instances, num_fixed_tendons) if full_data, with dtype wp.vec2f. A torch tensor has a
+                trailing dimension of 2.
             fixed_tendon_ids: The tendon indices to set the position limit for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
@@ -3046,41 +3047,17 @@ class Articulation(BaseArticulation):
         # resolve indices
         env_ids = self._resolve_env_ids(env_ids)
         fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
-        if full_data:
-            self.assert_shape_and_dtype(limit, (self.num_instances, self.num_fixed_tendons), wp.float32, "limit")
-        else:
-            self.assert_shape_and_dtype(limit, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "limit")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(limit, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-                dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    limit,
-                    env_ids,
-                    fixed_tendon_ids,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_pos_limits,
-                ],
-                device=self.device,
-            )
+            raise ValueError("Fixed tendon position limits must be a tensor or array, not a float.")
+        if full_data:
+            self.assert_shape_and_dtype(limit, (self.num_instances, self.num_fixed_tendons), wp.vec2f, "limit")
         else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-                dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    limit,
-                    env_ids,
-                    fixed_tendon_ids,
-                    full_data,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_pos_limits,
-                ],
-                device=self.device,
-            )
-        # Only updates internal buffers, does not apply the position limit to the simulation.
+            self.assert_shape_and_dtype(limit, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.vec2f, "limit")
+        # the (num_instances, num_fixed_tendons, 2) buffer and a vec2f input both view as (..., 2) torch tensors
+        limit = wp.to_torch(limit) if isinstance(limit, wp.array) else limit
+        rows = (wp.to_torch(env_ids) if isinstance(env_ids, wp.array) else env_ids).long()[:, None]
+        cols = (wp.to_torch(fixed_tendon_ids) if isinstance(fixed_tendon_ids, wp.array) else fixed_tendon_ids).long()
+        wp.to_torch(self.data._fixed_tendon_pos_limits)[rows, cols] = limit[rows, cols] if full_data else limit
 
     def set_fixed_tendon_position_limit_mask(
         self,
@@ -3103,7 +3080,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            limit: Fixed tendon position limit. Shape is (num_instances, num_fixed_tendons).
+            limit: Fixed tendon position limits ``[lower, upper]`` [m]. Shape is (num_instances, num_fixed_tendons)
+                with dtype wp.vec2f. A torch tensor has a trailing dimension of 2.
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """

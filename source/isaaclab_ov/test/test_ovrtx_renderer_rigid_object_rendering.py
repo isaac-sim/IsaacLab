@@ -22,7 +22,7 @@ from rigid_object_rendering_contract import (  # noqa: E402
     run_rigid_object_scale_and_pose_rendering_contract,
 )
 
-_REQUIRED_MODULES = ("isaaclab_ov", "ovrtx", "ovphysx", "isaaclab_newton", "newton")
+_REQUIRED_MODULES = ("isaaclab_ov", "ovrtx", "ovphysx")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 _OVSTAGE_AVAILABLE = importlib.util.find_spec("ovstage") is not None
 
@@ -34,11 +34,9 @@ pytestmark = [
 ]
 
 if not _MISSING_MODULES:
-    from isaaclab_newton.physics import NewtonManager  # noqa: E402
     from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
 else:
-    NewtonManager = None
     OVRTXRendererCfg = None
     OvPhysxCfg = None
 
@@ -56,7 +54,6 @@ else:
 )
 def test_kinematic_rigid_object_scale_and_pose_are_rendered(monkeypatch: pytest.MonkeyPatch, use_ovstage: bool) -> None:
     """Kinematic OVPhysX transforms and root scale must reach OVRTX."""
-    assert NewtonManager is not None
     assert OVRTXRendererCfg is not None
     assert OvPhysxCfg is not None
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(use_ovstage)))
@@ -66,6 +63,5 @@ def test_kinematic_rigid_object_scale_and_pose_are_rendered(monkeypatch: pytest.
             name=f"ovrtx (OVPhysX, {'ovstage' if use_ovstage else 'legacy'})",
             simulation_context_factory=lambda: build_simulation_context(sim_cfg=sim_cfg),
             renderer_cfg=OVRTXRendererCfg(),
-            cleanup=NewtonManager.clear,
         )
     )

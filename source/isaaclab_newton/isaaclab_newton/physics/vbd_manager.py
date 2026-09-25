@@ -36,17 +36,10 @@ class NewtonVBDManager(NewtonManager):
 
     @classmethod
     def start_simulation(cls) -> None:
-        """Start simulation and bind registered deformables to Fabric."""
+        """Color the prebuilt model before starting simulation."""
         if cls._builder is not None:
             cls._builder.color(balance_colors=False)
         super().start_simulation()
-        try:
-            from isaaclab_contrib.deformable.deformable_object import setup_registered_deformable_fabric_sync
-        except ModuleNotFoundError as exc:
-            if exc.name not in {"isaaclab_contrib", "isaaclab_contrib.deformable"}:
-                raise
-        else:
-            setup_registered_deformable_fabric_sync(cls)
 
     @classmethod
     def instantiate_builder_from_stage(cls) -> None:

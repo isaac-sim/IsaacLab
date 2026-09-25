@@ -68,7 +68,7 @@ from isaaclab_newton.physics import (
 )
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
 from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
-from newton import JointTargetMode, JointType, ModelBuilder, ShapeFlags
+from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags, ShapeFlags
 from newton.selection import ArticulationView
 from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD, SolverXPBD
 
@@ -1389,12 +1389,9 @@ def test_initialize_solver_prepares_picking_before_graph_capture(
         monkeypatch.setitem(sys.modules, "usdrt", Mock())
         monkeypatch.setattr(NewtonMJWarpManager, "_clone_physics_only", False)
         monkeypatch.setattr(newton_manager_module, "get_current_stage", lambda **kwargs: Mock())
-        for kind in ("body", "cable", "particle"):
-            monkeypatch.setattr(
-                NewtonManager,
-                f"_initialize_fabric_{kind}_prims",
-                staticmethod(lambda *args, kind=kind: events.append(kind)),
-            )
+        monkeypatch.setattr(
+            NewtonManager, "_initialize_fabric_body_prims", staticmethod(lambda *args: events.append("body"))
+        )
 
         def on_physics_ready(_):
             events.append("ready")
@@ -1429,7 +1426,7 @@ def test_initialize_solver_prepares_picking_before_graph_capture(
         sim.reset()
         sim.reset()
 
-    assert events == ["body", "cable", "ready", "particle", *expected_events] * 2
+    assert events == ["body", "ready", *expected_events] * 2
 
 
 def test_abstract_build_solver_raises():
@@ -1499,10 +1496,8 @@ def test_initialize_solver_populates_canonical_state(
        to MJCF; a ground-plane-only scene fails MJCF conversion.
     3. Kamino's internal collision detector requires collidable geometry to
        construct its collision pipeline.
-    4. Pre-populating ``NewtonManager._builder`` causes
-       :meth:`NewtonManager.start_simulation` to skip
-       :meth:`instantiate_builder_from_stage`, so the test does not depend on
-       USD asset packages.
+    4. Supplying a native builder keeps initialization independent of USD asset
+       packages and clone planning.
     """
     solver_cfg = solver_cfg_factory()
     sim_cfg = SimulationCfg(
@@ -1569,6 +1564,9 @@ def test_initialize_solver_populates_canonical_state(
         assert NewtonManager._use_single_state is expected_use_single_state
         assert NewtonManager._needs_collision_pipeline is expected_needs_collision_pipeline
         assert NewtonManager._supports_rigid_body_force_input is expected_supports_force_input
+        # only Featherstone ignores inertial property changes after construction, and warns about it
+        ignores_inertia = ModelFlags.BODY_INERTIAL_PROPERTIES in NewtonManager._ignored_model_changes
+        assert ignores_inertia is (expected_manager is NewtonFeatherstoneManager)
         assert NewtonManager._reset_solver_internals_delegate.__self__ is expected_manager
         assert (
             NewtonManager._reset_solver_internals_delegate.__func__ is expected_manager._reset_solver_internals.__func__

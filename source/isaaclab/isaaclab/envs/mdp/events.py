@@ -77,9 +77,11 @@ def randomize_rigid_body_scale(
             " Please ensure that the event term is called before the simulation starts by using the 'usd' mode."
         )
 
+    from ...assets import BaseArticulation  # noqa: PLC0415
+
     asset: RigidObject = env.scene[asset_cfg.name]
 
-    if any(cls.__name__ == "Articulation" for cls in type(asset).__mro__):
+    if isinstance(asset, BaseArticulation):
         raise ValueError(
             "Scaling an articulation randomly is not supported, as it affects joint attributes and can cause"
             " unexpected behavior. To achieve different scales, we recommend generating separate USD files for"
@@ -908,13 +910,13 @@ class randomize_rigid_body_com(ManagerTermBase):
     This class tracks the original CoM values and randomizes from those defaults on each call,
     ensuring repeatable randomization across resets.
 
-    Automatically detects the active physics backend:
+    The CoM pose (position and quaternion) is passed to ``set_coms_index``; backends that model the CoM as a
+    position only (Newton) ignore the orientation.
 
-    - **PhysX**: Passes the full CoM pose (position + quaternion) to ``set_coms_index``.
-    - **Newton**: Passes position-only (vec3) to ``set_coms_index``. Note that on Newton
-      (MuJoCo Warp), runtime CoM changes may cause simulation instability because
-      ``notify_model_changed(BODY_INERTIAL_PROPERTIES)`` does not fully recompute the
-      mass matrix after ``body_ipos`` changes. Use with caution until this is fixed upstream.
+    .. note::
+        On Newton (MuJoCo Warp), runtime CoM changes may cause simulation instability because
+        ``notify_model_changed(BODY_INERTIAL_PROPERTIES)`` does not fully recompute the mass matrix after
+        ``body_ipos`` changes. Use with caution until this is fixed upstream.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
@@ -928,11 +930,6 @@ class randomize_rigid_body_com(ManagerTermBase):
 
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
-
-        # detect physics backend
-        manager_name = env.sim.physics_manager.__name__.lower()
-        self._is_newton = "newton" in manager_name
-
         self.default_com = None
 
     def __call__(
@@ -969,12 +966,8 @@ class randomize_rigid_body_com(ManagerTermBase):
         coms = self.default_com.clone()
         coms[env_ids[:, None], body_ids, :3] += rand_samples
 
-        # Newton expects position-only (vec3f), PhysX expects the full pose (pos + quat)
         # note: pass partial data of shape (len(env_ids), len(body_ids), ...) to match the API
-        if self._is_newton:
-            self.asset.set_coms_index(coms=coms[env_ids[:, None], body_ids, :3], body_ids=body_ids, env_ids=env_ids)
-        else:
-            self.asset.set_coms_index(coms=coms[env_ids[:, None], body_ids], body_ids=body_ids, env_ids=env_ids)
+        self.asset.set_coms_index(coms=coms[env_ids[:, None], body_ids], body_ids=body_ids, env_ids=env_ids)
 
 
 class _RandomizeRigidBodyColliderOffsetsPhysx:
@@ -1665,19 +1658,15 @@ class randomize_joint_parameters(ManagerTermBase):
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: Articulation = env.scene[self.asset_cfg.name]
 
-        # detect physics backend
-        manager_name = env.sim.physics_manager.__name__.lower()
-        self._backend = "newton" if "newton" in manager_name else "physx"
-
-        # cache default values (common to both backends)
+        # cache default values
         self.default_joint_friction_coeff = self.asset.data.joint_friction_coeff.torch.clone()
         self.default_joint_armature = self.asset.data.joint_armature.torch.clone()
         self.default_joint_pos_limits = self.asset.data.joint_pos_limits.torch.clone()
-
-        # Newton supports static friction and passive viscous damping but not dynamic friction.
         self.default_viscous_joint_friction_coeff = self.asset.data.joint_viscous_friction_coeff.torch.clone()
-        if self._backend == "physx":
-            self.default_dynamic_joint_friction_coeff = (self.asset.data.joint_dynamic_friction_coeff.torch).clone()
+        # dynamic friction is only exposed by backends that model it (e.g. not Newton)
+        self.default_dynamic_joint_friction_coeff = None
+        if hasattr(self.asset.data, "joint_dynamic_friction_coeff"):
+            self.default_dynamic_joint_friction_coeff = self.asset.data.joint_dynamic_friction_coeff.torch.clone()
 
         # check for valid operation
         if cfg.params["operation"] == "scale":
@@ -1687,7 +1676,7 @@ class randomize_joint_parameters(ManagerTermBase):
                 _validate_scale_range(cfg.params["armature_distribution_params"], "armature_distribution_params")
         elif cfg.params["operation"] not in ("abs", "add"):
             raise ValueError(
-                "Randomization term 'randomize_fixed_tendon_parameters' does not support operation:"
+                "Randomization term 'randomize_joint_parameters' does not support operation:"
                 f" '{cfg.params['operation']}'."
             )
 
@@ -1747,18 +1736,8 @@ class randomize_joint_parameters(ManagerTermBase):
             viscous_friction_coeff = torch.clamp(viscous_friction_coeff, min=0.0)
             viscous_friction_coeff = viscous_friction_coeff[env_ids_for_slice, joint_ids]
 
-            if self._backend == "newton":
-                self.asset.write_joint_friction_coefficient_to_sim_index(
-                    joint_friction_coeff=static_friction_coeff,
-                    joint_ids=joint_ids,
-                    env_ids=env_ids,
-                )
-                self.asset.write_joint_viscous_friction_coefficient_to_sim_index(
-                    joint_viscous_friction_coeff=viscous_friction_coeff,
-                    joint_ids=joint_ids,
-                    env_ids=env_ids,
-                )
-            else:
+            dynamic_friction_coeff = None
+            if self.default_dynamic_joint_friction_coeff is not None:
                 dynamic_friction_coeff = _randomize_prop_by_op(
                     self.default_dynamic_joint_friction_coeff.clone(),
                     friction_distribution_params,
@@ -1767,23 +1746,17 @@ class randomize_joint_parameters(ManagerTermBase):
                     operation=operation,
                     distribution=distribution,
                 )
-                # Clamp to non-negative
-                dynamic_friction_coeff = torch.clamp(dynamic_friction_coeff, min=0.0)
-
-                # Ensure dynamic ≤ static (same shape before indexing)
-                dynamic_friction_coeff = torch.minimum(dynamic_friction_coeff, friction_coeff)
-
-                # Index once at the end
+                # dynamic friction is non-negative and at most the static friction
+                dynamic_friction_coeff = torch.minimum(torch.clamp(dynamic_friction_coeff, min=0.0), friction_coeff)
                 dynamic_friction_coeff = dynamic_friction_coeff[env_ids_for_slice, joint_ids]
 
-                # Single write call for all versions
-                self.asset.write_joint_friction_coefficient_to_sim_index(
-                    joint_friction_coeff=static_friction_coeff,
-                    joint_dynamic_friction_coeff=dynamic_friction_coeff,
-                    joint_viscous_friction_coeff=viscous_friction_coeff,
-                    joint_ids=joint_ids,
-                    env_ids=env_ids,
-                )
+            self.asset.write_joint_friction_coefficient_to_sim_index(
+                joint_friction_coeff=static_friction_coeff,
+                joint_dynamic_friction_coeff=dynamic_friction_coeff,
+                joint_viscous_friction_coeff=viscous_friction_coeff,
+                joint_ids=joint_ids,
+                env_ids=env_ids,
+            )
 
         if armature_distribution_params is not None:
             armature = _randomize_prop_by_op(
@@ -1894,8 +1867,6 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         operation: Literal["add", "scale", "abs"] = "abs",
         distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
     ):
-        _backend = env.sim.physics_manager.__name__.lower()
-
         # resolve environment ids
         if env_ids is None:
             env_ids = torch.arange(env.scene.num_envs, device=self.asset.device)
@@ -1905,6 +1876,8 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
             tendon_ids = slice(None)  # for optimization purposes
         else:
             tendon_ids = torch.tensor(self.asset_cfg.fixed_tendon_ids, dtype=torch.int, device=self.asset.device)
+        # index rows and columns jointly only when both are tensors; with a slice the result is already 2D
+        env_ids_for_slice = env_ids[:, None] if isinstance(tendon_ids, torch.Tensor) else env_ids
 
         # sample tendon properties from the given ranges and set into the physics simulation
         # stiffness
@@ -1918,7 +1891,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
                 distribution=distribution,
             )
             self.asset.set_fixed_tendon_stiffness_index(
-                stiffness=stiffness[env_ids[:, None], tendon_ids], fixed_tendon_ids=tendon_ids, env_ids=env_ids
+                stiffness=stiffness[env_ids_for_slice, tendon_ids], fixed_tendon_ids=tendon_ids, env_ids=env_ids
             )
 
         if damping_distribution_params is not None:
@@ -1931,94 +1904,84 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
                 distribution=distribution,
             )
             self.asset.set_fixed_tendon_damping_index(
-                damping=damping[env_ids[:, None], tendon_ids], fixed_tendon_ids=tendon_ids, env_ids=env_ids
+                damping=damping[env_ids_for_slice, tendon_ids], fixed_tendon_ids=tendon_ids, env_ids=env_ids
             )
 
         # limit stiffness
         if limit_stiffness_distribution_params is not None:
-            if _backend == "physx":
-                limit_stiffness = _randomize_prop_by_op(
-                    self.asset.data.fixed_tendon_limit_stiffness.torch.clone(),
-                    limit_stiffness_distribution_params,
-                    env_ids,
-                    tendon_ids,
-                    operation=operation,
-                    distribution=distribution,
-                )
-                self.asset.set_fixed_tendon_limit_stiffness(
-                    limit_stiffness[env_ids[:, None], tendon_ids], tendon_ids, env_ids
-                )
-            else:
-                raise NotImplementedError("Limit stiffness is not support in Newton.")
+            limit_stiffness = _randomize_prop_by_op(
+                self.asset.data.fixed_tendon_limit_stiffness.torch.clone(),
+                limit_stiffness_distribution_params,
+                env_ids,
+                tendon_ids,
+                operation=operation,
+                distribution=distribution,
+            )
+            self.asset.set_fixed_tendon_limit_stiffness_index(
+                limit_stiffness=limit_stiffness[env_ids_for_slice, tendon_ids],
+                fixed_tendon_ids=tendon_ids,
+                env_ids=env_ids,
+            )
 
         if lower_limit_distribution_params is not None or upper_limit_distribution_params is not None:
-            if _backend == "physx":
-                limit = self.asset.data.fixed_tendon_pos_limits.torch.clone()
-                # -- lower limit
-                if lower_limit_distribution_params is not None:
-                    limit[..., 0] = _randomize_prop_by_op(
-                        limit[..., 0],
-                        lower_limit_distribution_params,
-                        env_ids,
-                        tendon_ids,
-                        operation=operation,
-                        distribution=distribution,
-                    )
-                # -- upper limit
-                if upper_limit_distribution_params is not None:
-                    limit[..., 1] = _randomize_prop_by_op(
-                        limit[..., 1],
-                        upper_limit_distribution_params,
-                        env_ids,
-                        tendon_ids,
-                        operation=operation,
-                        distribution=distribution,
-                    )
-
-                # check if the limits are valid
-                tendon_limits = limit[env_ids[:, None], tendon_ids]
-                if (tendon_limits[..., 0] > tendon_limits[..., 1]).any():
-                    raise ValueError(
-                        "Randomization term 'randomize_fixed_tendon_parameters' is setting lower tendon limits that are"
-                        " greater than upper tendon limits."
-                    )
-                self.asset.set_fixed_tendon_position_limit_index(
-                    limit=tendon_limits, fixed_tendon_ids=tendon_ids, env_ids=env_ids
+            limit = self.asset.data.fixed_tendon_pos_limits.torch.clone()
+            # -- lower limit
+            if lower_limit_distribution_params is not None:
+                limit[..., 0] = _randomize_prop_by_op(
+                    limit[..., 0],
+                    lower_limit_distribution_params,
+                    env_ids,
+                    tendon_ids,
+                    operation=operation,
+                    distribution=distribution,
                 )
-            else:
-                raise NotImplementedError("Position limits is not yet implemented with Newton.")
+            # -- upper limit
+            if upper_limit_distribution_params is not None:
+                limit[..., 1] = _randomize_prop_by_op(
+                    limit[..., 1],
+                    upper_limit_distribution_params,
+                    env_ids,
+                    tendon_ids,
+                    operation=operation,
+                    distribution=distribution,
+                )
+
+            # check if the limits are valid
+            tendon_limits = limit[env_ids_for_slice, tendon_ids]
+            if (tendon_limits[..., 0] > tendon_limits[..., 1]).any():
+                raise ValueError(
+                    "Randomization term 'randomize_fixed_tendon_parameters' is setting lower tendon limits that are"
+                    " greater than upper tendon limits."
+                )
+            self.asset.set_fixed_tendon_position_limit_index(
+                limit=tendon_limits, fixed_tendon_ids=tendon_ids, env_ids=env_ids
+            )
 
         if rest_length_distribution_params is not None:
-            if _backend == "physx":
-                rest_length = _randomize_prop_by_op(
-                    self.asset.data.fixed_tendon_rest_length.torch.clone(),
-                    rest_length_distribution_params,
-                    env_ids,
-                    tendon_ids,
-                    operation=operation,
-                    distribution=distribution,
-                )
-                self.asset.set_fixed_tendon_rest_length_index(
-                    rest_length=rest_length[env_ids[:, None], tendon_ids], fixed_tendon_ids=tendon_ids, env_ids=env_ids
-                )
-            else:
-                raise NotImplementedError("Rest length is not yet implemented with Newton.")
+            rest_length = _randomize_prop_by_op(
+                self.asset.data.fixed_tendon_rest_length.torch.clone(),
+                rest_length_distribution_params,
+                env_ids,
+                tendon_ids,
+                operation=operation,
+                distribution=distribution,
+            )
+            self.asset.set_fixed_tendon_rest_length_index(
+                rest_length=rest_length[env_ids_for_slice, tendon_ids], fixed_tendon_ids=tendon_ids, env_ids=env_ids
+            )
         # offset
         if offset_distribution_params is not None:
-            if _backend == "physx":
-                offset = _randomize_prop_by_op(
-                    self.asset.data.fixed_tendon_offset.torch.clone(),
-                    offset_distribution_params,
-                    env_ids,
-                    tendon_ids,
-                    operation=operation,
-                    distribution=distribution,
-                )
-                self.asset.set_fixed_tendon_offset_index(
-                    offset=offset[env_ids[:, None], tendon_ids], fixed_tendon_ids=tendon_ids, env_ids=env_ids
-                )
-            else:
-                raise NotImplementedError("Offset is not supported in Newton.")
+            offset = _randomize_prop_by_op(
+                self.asset.data.fixed_tendon_offset.torch.clone(),
+                offset_distribution_params,
+                env_ids,
+                tendon_ids,
+                operation=operation,
+                distribution=distribution,
+            )
+            self.asset.set_fixed_tendon_offset_index(
+                offset=offset[env_ids_for_slice, tendon_ids], fixed_tendon_ids=tendon_ids, env_ids=env_ids
+            )
 
         self.asset.write_fixed_tendon_properties_to_sim_index(env_ids=env_ids)
 

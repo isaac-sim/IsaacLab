@@ -15,7 +15,7 @@ import torch
 import torch.nn.functional as F
 import warp as wp
 from isaaclab_newton.cloner import copy_newton_clone_source
-from isaaclab_newton.ik import (
+from isaaclab_newton.controllers.ik import (
     NewtonIKJointLimitObjectiveCfg,
     NewtonIKPoseObjectiveCfg,
     NewtonIKSolver,

@@ -153,6 +153,7 @@ The following modules are available in the ``isaaclab_newton`` extension:
 
    assets
    cloner
+   controllers
    physics
    renderers
    sensors
@@ -246,7 +247,6 @@ The following public modules provide additional specialized APIs:
    lab/isaaclab.utils.leapp
    lab_experimental/isaaclab_experimental.envs.mdp.actions
    lab_newton/isaaclab_newton.envs.mdp
-   lab_newton/isaaclab_newton.ik
    lab_newton/isaaclab_newton.sim.views
    lab_ov/isaaclab_ov.sensors
    lab_ov/isaaclab_ov.sensors.ray_caster
