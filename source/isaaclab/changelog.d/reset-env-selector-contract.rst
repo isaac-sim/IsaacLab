@@ -21,3 +21,4 @@ Fixed
 * Converted int64 environment indices to the native CPU int32 representation when writing PhysX rigid-body
   material properties.
 * Preserved int32/int64 device indices when resetting native actuator state without scalar host-to-device uploads.
+* Kept Newton's global-world gravity unchanged when randomizing environment gravity with slices.

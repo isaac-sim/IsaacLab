@@ -1371,7 +1371,8 @@ class randomize_physics_scene_gravity(ManagerTermBase):
         if model is None or model.gravity is None:
             raise RuntimeError("Newton model is not initialized. Cannot randomize gravity.")
 
-        gravity = wp.to_torch(model.gravity)
+        # Newton appends global-world gravity after the environment rows.
+        gravity = wp.to_torch(model.gravity)[: env.num_envs]
 
         if env_ids is None:
             env_ids = slice(None)
