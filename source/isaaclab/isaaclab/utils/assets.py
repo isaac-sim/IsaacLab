@@ -247,12 +247,7 @@ _MIRRORED_URLS: dict[str, str] = {}
 from its path, so a cache path is never inferred from a directory that merely looks like one."""
 
 _LOCALIZED_ASSETS: dict[str, tuple[str, dict[str, tuple[int, int]]]] = {}
-"""Completed local trees, with their original roots and file stamps for invalidation.
-
-Only managed copies are recorded; caller-owned local layers are always traversed. The
-record is process-local, like the remote freshness cache, and is published after the
-entire dependency walk and reference rewriting succeed.
-"""
+"""Original roots and file stamps of completed managed trees, recorded per process."""
 
 _GIT_SSH_RE = re.compile(r"^[^@/:]+@[^:]+:.+")
 
@@ -628,12 +623,10 @@ def check_file_path(path: str) -> Literal[0, 1, 2]:
 def retrieve_file_path(path: str, download_dir: str | None = None, force_download: bool = False) -> str:
     """Retrieves the path to a file on the Nucleus Server or locally.
 
-    Dependencies are followed through both local files and remote URLs. Remote files are
-    downloaded into the cache, and USD layers needing different references are copied
-    with locally resolved paths, leaving authored files and raw downloads untouched.
-    Local files without changes are returned directly. Completed managed copies skip
-    dependency discovery on subsequent calls until a file in their tree changes or disappears.
-    Remote URLs retain the normal server freshness checks.
+    Dependencies are traversed through local files and remote URLs. Changed USD layers
+    are written to working copies, preserving authored layers and raw downloads. Completed
+    managed copies skip discovery while their file stamps match. Remote URLs retain the
+    normal server freshness checks.
 
     Args:
         path: The path to the file.
@@ -707,31 +700,29 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
             target_path = _mirror_path(source, download_dir) if remote else source
             if remote:
                 os.makedirs(os.path.dirname(target_path), exist_ok=True)
-                # Keep raw downloads separate from the resolved USD copies. Fingerprints
-                # and read_file() must continue to describe the server's original bytes.
-                with FileLock(target_path + ".lock"):
-                    if force_download or not _usable_mirror(source, download_dir):
-                        temporary_path = f"{target_path}.{uuid.uuid4().hex}.partial"
-                        try:
-                            result = omni_client.copy(source, temporary_path, omni_client.CopyBehavior.OVERWRITE)
-                            if result != omni_client.Result.OK:
-                                if force_download or source == root:
-                                    raise RuntimeError(f"Unable to copy file: '{source}'")
-                                logger.debug("Skipping unavailable dependency: %s", source)
-                                complete = False
-                                continue
-                            os.replace(temporary_path, target_path)
-                            _write_mirror_fingerprint(source, target_path)
-                        finally:
-                            with contextlib.suppress(OSError):
-                                os.remove(temporary_path)
-                    stat = os.stat(target_path)
-                    refs = _find_asset_dependencies(target_path)
-            else:
-                if not os.path.isfile(target_path):
-                    logger.debug("Skipping unavailable dependency: %s", source)
-                    complete = False
-                    continue
+            elif not os.path.isfile(target_path):
+                logger.debug("Skipping unavailable dependency: %s", source)
+                complete = False
+                continue
+
+            # Raw mirrors keep the server's bytes. Parse them under the download lock
+            # so another rank cannot replace a file while USD reads it.
+            with FileLock(target_path + ".lock") if remote else contextlib.nullcontext():
+                if remote and (force_download or not _usable_mirror(source, download_dir)):
+                    temporary_path = f"{target_path}.{uuid.uuid4().hex}.partial"
+                    try:
+                        result = omni_client.copy(source, temporary_path, omni_client.CopyBehavior.OVERWRITE)
+                        if result != omni_client.Result.OK:
+                            if force_download or source == root:
+                                raise RuntimeError(f"Unable to copy file: '{source}'")
+                            logger.debug("Skipping unavailable dependency: %s", source)
+                            complete = False
+                            continue
+                        os.replace(temporary_path, target_path)
+                        _write_mirror_fingerprint(source, target_path)
+                    finally:
+                        with contextlib.suppress(OSError):
+                            os.remove(temporary_path)
                 stat = os.stat(target_path)
                 refs = _find_asset_dependencies(target_path)
 
