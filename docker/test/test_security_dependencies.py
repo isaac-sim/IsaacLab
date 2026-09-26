@@ -5,12 +5,8 @@
 
 """Dependency-selection regressions that also run without the simulation runtime."""
 
-import io
-import os
-import shlex
 import subprocess
 import sys
-import tarfile
 import tempfile
 import unittest
 from pathlib import Path
@@ -60,17 +56,35 @@ class TestSecurityDependencies(unittest.TestCase):
             with self.subTest(package=name):
                 self.assertGreaterEqual(tuple(map(int, packages[name].split("."))), tuple(map(int, version.split("."))))
 
-    def test_both_images_install_verified_git_lfs(self):
+    def test_images_ship_no_git_lfs(self):
+        # Half the pair is the dangerous state: ``git-lfs install --system`` sets
+        # ``filter.lfs.required=true``, so a git without the filter fails on an LFS tree.
         for name in ("Dockerfile.base", "Dockerfile.kitless"):
             with self.subTest(dockerfile=name):
                 text = (REPO_ROOT / "docker" / name).read_text(encoding="utf-8")
-                self.assertIn("COPY docker/scripts/install_git_lfs.sh /tmp/install_git_lfs.sh", text)
-                self.assertIn("RUN /bin/bash /tmp/install_git_lfs.sh", text)
-                self.assertLess(text.index("RUN /bin/bash /tmp/install_git_lfs.sh"), text.index("USER isaaclab"))
+                for line in text.splitlines():
+                    if not line.lstrip().startswith("#"):
+                        self.assertNotIn("git-lfs", line)
 
-    def test_git_lfs_changes_invalidate_dependency_cache(self):
-        action = REPO_ROOT / ".github/actions/_lib/compute-deps-hash/action.yml"
-        self.assertIn("docker/scripts/install_git_lfs.sh", action.read_text(encoding="utf-8"))
+    def test_kitless_runtime_stage_ships_no_git(self):
+        text = (REPO_ROOT / "docker/Dockerfile.kitless").read_text(encoding="utf-8")
+        runtime = text[text.index("FROM", text.index("AS builder")) :]
+        for line in runtime.splitlines():
+            if not line.lstrip().startswith("#"):
+                self.assertNotEqual(line.strip().rstrip("\\").strip(), "git")
+
+    def test_base_image_purges_its_build_only_git(self):
+        # Single-stage: it resolves the ``git+https://`` requirements in place, so git has to
+        # be installed, and the purge is what keeps it out of the runtime filesystem.
+        text = (REPO_ROOT / "docker/Dockerfile.base").read_text(encoding="utf-8")
+        self.assertIn("apt-get purge -y git", text)
+        self.assertLess(text.index("apt-get purge -y git"), text.index("USER isaaclab"))
+
+    def test_kitless_builder_keeps_git_for_vcs_dependencies(self):
+        # rl-games and robomimic resolve over ``git+https://`` during the builder stage.
+        text = (REPO_ROOT / "docker/Dockerfile.kitless").read_text(encoding="utf-8")
+        builder = text[text.index("AS builder") : text.index("FROM", text.index("AS builder"))]
+        self.assertIn("      git \\", builder)
 
     def test_contract_workflows_use_hash_locked_dependencies(self):
         requirements = REPO_ROOT / "docker/test/requirements.txt"
@@ -89,125 +103,6 @@ class TestSecurityDependencies(unittest.TestCase):
         self.assertNotIn('python3 "${bootstrap_dir}/get-pip.py"', text)
         self.assertNotIn("site-packages/pip*", text)
         self.assertIn("uv sync --frozen --inexact", text)
-
-
-class TestGitLfsInstaller(unittest.TestCase):
-    """Exercise the shell installer with no network, root writes or package-manager changes."""
-
-    def setUp(self):
-        self.directory = tempfile.TemporaryDirectory()
-        self.addCleanup(self.directory.cleanup)
-        self.root = Path(self.directory.name)
-        self.bin = self.root / "bin"
-        self.bin.mkdir()
-        self.env = {**os.environ, "PATH": f"{self.bin}:/usr/bin:/bin", "FIXTURE_ROOT": str(self.root)}
-        self.env.update(TEST_ARCH="amd64", TEST_INSTALLED="yes", TEST_CHECKSUM="pass")
-        with tarfile.open(self.root / "fixture.tar.gz", "w:gz") as archive:
-            for name, content, mode in [
-                (
-                    "git-lfs",
-                    b'#!/bin/sh\necho "lfs $*" >> "$FIXTURE_ROOT/events"\necho \'git-lfs/3.8.0 (test)\'\n',
-                    0o755,
-                ),
-                ("README.md", b"Fixture README\n", 0o644),
-                ("man/man1/git-lfs.1", b"Fixture manual\n", 0o644),
-                ("LICENSE.md", b"Fixture license\n", 0o644),
-                ("vendor/example/NOTICE", b"Fixture notice\n", 0o644),
-            ]:
-                member = tarfile.TarInfo(f"git-lfs-3.8.0/{name}")
-                member.size, member.mode = len(content), mode
-                archive.addfile(member, io.BytesIO(content))
-        self._command("dpkg", 'echo "$TEST_ARCH"')
-        self._command("dpkg-query", '[ "$TEST_INSTALLED" = yes ] && printf "install ok installed"')
-        self._command(
-            "curl",
-            """
-printf 'download %s\\n' "$*" >> "$FIXTURE_ROOT/events"
-while [ "$1" != --output ]; do shift; done
-cp "$FIXTURE_ROOT/fixture.tar.gz" "$2"
-""",
-        )
-        # Hash computation belongs to sha256sum. Verify the installer's supplied
-        # hashes separately below; simulate both outcomes of that external command.
-        self._command(
-            "sha256sum",
-            """
-cat >> "$FIXTURE_ROOT/checksums"
-[ "$TEST_CHECKSUM" = pass ]
-""",
-        )
-        self._command("apt-get", 'echo "remove $*" >> "$FIXTURE_ROOT/events"')
-        self._command("install", 'echo "install $*" >> "$FIXTURE_ROOT/events"')
-
-    def _command(self, name: str, body: str):
-        path = self.bin / name
-        path.write_text("#!/bin/sh\nset -eu\n" + body + "\n", encoding="utf-8")
-        path.chmod(0o755)
-
-    def _run(self):
-        return subprocess.run(
-            ["bash", str(REPO_ROOT / "docker/scripts/install_git_lfs.sh")],
-            env=self.env,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-    def test_installs_each_supported_architecture_and_preserves_notices(self):
-        hashes = {
-            "amd64": "e455e00f15d9b95661b8d53498ffb0c3367962cf1ec73c31ab7369516cd6ab8d",
-            "arm64": "ac9c8efac980bb0505ead384d087e2acb6486fd8498691a2165fa174ec6118c2",
-        }
-        for architecture, checksum in hashes.items():
-            with self.subTest(architecture=architecture):
-                self.env["TEST_ARCH"] = architecture
-                result = self._run()
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn(checksum, (self.root / "checksums").read_text())
-                events = (self.root / "events").read_text()
-                self.assertIn(f"git-lfs-linux-{architecture}-v3.8.0.tar.gz", events)
-                self.assertLess(events.index("remove remove -y git-lfs"), events.index("install -m 0755"))
-                self.assertIn("/usr/local/share/doc/git-lfs/LICENSE.md", events)
-                self.assertIn("/usr/local/share/doc/git-lfs/vendor/example/NOTICE", events)
-                self.assertIn("/usr/local/share/man/man1/git-lfs.1", events)
-                self.assertIn("lfs install --system --skip-repo", events)
-
-    def test_bad_checksum_cannot_remove_or_install_anything(self):
-        self.env["TEST_CHECKSUM"] = "fail"
-        result = self._run()
-        self.assertNotEqual(result.returncode, 0)
-        events = (self.root / "events").read_text()
-        self.assertNotIn("remove ", events)
-        self.assertNotIn("install ", events)
-
-    def test_both_downloads_only_allow_https_redirects(self):
-        result = self._run()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        downloads = [line for line in (self.root / "events").read_text().splitlines() if line.startswith("download ")]
-        self.assertEqual(len(downloads), 2)
-        for download in downloads:
-            with self.subTest(download=download):
-                args = shlex.split(download)
-                self.assertIn("--fail", args)
-                self.assertIn("--location", args)
-                for option in ("--proto", "--proto-redir"):
-                    self.assertIn(option, args)
-                    self.assertEqual(args[args.index(option) + 1], "=https")
-
-    def test_unsupported_architecture_fails_before_downloading(self):
-        self.env["TEST_ARCH"] = "s390x"
-        result = self._run()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Unsupported Git LFS architecture", result.stderr)
-        self.assertFalse((self.root / "events").exists())
-
-    def test_fresh_image_does_not_remove_a_package(self):
-        self.env["TEST_INSTALLED"] = "no"
-        result = self._run()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        events = (self.root / "events").read_text()
-        self.assertNotIn("remove ", events)
-        self.assertIn("install -m 0755", events)
 
 
 if __name__ == "__main__":

@@ -124,10 +124,10 @@ ENV PYTHONUNBUFFERED=1
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
 
-# Git LFS is required because CI checks out with ``lfs: true`` and bind-mounts that tree in.
-# Any ``git`` call then invokes the LFS filter, and without the binary it fails with "the remote
-# end hung up unexpectedly" -- which surfaced as every kit-less case failing before it allocated a
-# single byte of GPU memory. Both images install the same verified Git LFS release below.
+# Neither git nor Git LFS ships in the runtime image: nothing here invokes git, and CI's
+# ``lfs: true`` checkout is materialised on the runner before the tree is bind-mounted in.
+# Leaving only one of the pair installed is what breaks -- ``git-lfs install --system`` sets
+# ``filter.lfs.required=true``, so a git without the filter binary fails every call on that tree.
 #
 # Libraries ovrtx loads at init. GLVND splits these: libgl1 gives libGL.so.1,
 # but libOpenGL.so.0 and libEGL.so.1 need libopengl0 and libegl1. libxrender1 is
@@ -136,7 +136,6 @@ ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates \
-      git \
       curl \
       wget \
       libegl1 \
@@ -158,9 +157,6 @@ RUN apt-get update \
  && mkdir -p "${HOME}" \
  && chown -R isaaclab:isaaclab "${HOME}" \
  && chmod 750 "${HOME}"
-
-COPY docker/scripts/install_git_lfs.sh /tmp/install_git_lfs.sh
-RUN /bin/bash /tmp/install_git_lfs.sh && rm /tmp/install_git_lfs.sh
 
 COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
 COPY --from=builder /usr/local/bin/uvx /usr/local/bin/uvx
