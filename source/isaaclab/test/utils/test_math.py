@@ -584,6 +584,17 @@ def test_interpolate_poses():
         np.testing.assert_array_almost_equal(result_pos, expected_pos, decimal=DECIMAL_PRECISION)
 
 
+def test_interpolate_poses_without_interpolation():
+    """Test that interpolate_poses with num_steps=0 returns just the start and end poses."""
+    pose_1 = math_utils.generate_random_transformation_matrix()
+    pose_2 = math_utils.generate_random_transformation_matrix()
+
+    poses, num_steps = math_utils.interpolate_poses(pose_1, pose_2, num_steps=0)
+
+    assert num_steps == 0
+    torch.testing.assert_close(poses, torch.stack([pose_1, pose_2]))
+
+
 def test_pose_inv():
     """Test pose_inv function.
 
