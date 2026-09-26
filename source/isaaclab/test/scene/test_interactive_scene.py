@@ -203,13 +203,15 @@ def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
     with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
         sim._app_control_on_stop_handle = None
         InteractiveScene(MySceneCfg(num_envs=4, env_spacing=1.0))
+        instances = sim.clone_contexts[cloner.UsdReplicateContext].instances
 
     assert len(captured) == 1
     plan, replicate_physics, published = captured[0]
     assert published is plan
-    assert plan.sources == ("/World/envs/env_0",)
-    assert plan.destinations == ("/World/envs/env_{}",)
-    assert plan.clone_mask.shape == (1, 4)
+    sources, destinations, mapping = cloner.query.replication_mapping(instances, len(plan.destinations))
+    assert sources == ("/World/envs/env_0/Robot", "/World/envs/env_0/RigidObj")
+    assert destinations == ("/World/envs/env_{}/Robot", "/World/envs/env_{}/RigidObj")
+    assert mapping.shape == (2, 4) and mapping.all()
     assert replicate_physics is True
 
 
@@ -232,7 +234,14 @@ def test_scene_constructs_plan_owned_markers():
         scene = InteractiveScene(MarkerSceneCfg(num_envs=1, env_spacing=1.0))
 
         assert isinstance(scene["goal"], VisualizationMarkers)
-        assert sim.get_clone_plan().global_paths == ("/Visuals/Goal", "/World/Prop", "/Visuals/Deferred")
+        plan = sim.get_clone_plan()
+        _, shared, worlds = next(cloner.query.iter_worlds(plan))
+        assert tuple(plan.asset_prototypes[index].prim_path for index in shared) == (
+            "/Visuals/Goal",
+            "/World/Prop",
+            "/Visuals/Deferred",
+        )
+        np.testing.assert_array_equal(worlds, [-1])
 
 
 def test_empty_scene_leaves_clone_lifecycle_to_caller():
@@ -262,6 +271,10 @@ def test_empty_scene_leaves_clone_lifecycle_to_caller():
         assert sim.get_clone_plan() is plan
         assert all(scene.stage.GetPrimAtPath(f"{env_template.format(i)}/Cube").IsValid() for i in range(4))
         torch.testing.assert_close(scene.env_origins, torch.from_numpy(positions))
+        for env_id, position in enumerate(positions):
+            np.testing.assert_allclose(
+                sim_utils.resolve_prim_pose(scene.stage.GetPrimAtPath(env_template.format(env_id)))[0], position
+            )
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
@@ -314,8 +327,8 @@ def test_replicate_physics_flag_controls_physx_replicator(device, replicate_phys
     assert torch.isfinite(scene["robot"].data.joint_pos.torch).all()
 
 
-def test_collect_asset_cfgs_resolves_env_regex_macros_and_declares_globals():
-    """The composition root separates cloneable configs from shared prim roots."""
+def test_collect_asset_cfgs_preserves_declarations_and_resolves_namespaces():
+    """Collections, shared assets, and non-spawning sensors feed one plan without parallel manifests."""
     scene = object.__new__(InteractiveScene)
     cube_cfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube",
@@ -331,30 +344,24 @@ def test_collect_asset_cfgs_resolves_env_regex_macros_and_declares_globals():
         num_envs=2,
         objects=RigidObjectCollectionCfg(rigid_objects={"cube": cube_cfg, "shape": shape_cfg}),
         ground=AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg()),
+        sensor=ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Cube"),
     )
     scene.cloner_cfg = CloneCfg()
     scene._env_fmt = scene.cloner_cfg.clone_template
 
-    cfgs, global_paths, _ = scene._collect_asset_cfgs()
+    cfgs, world_prototypes, weights = scene._collect_asset_cfgs()
+    sensor = scene.cfg.sensor
+    cube_cfg, shape_cfg = scene.cfg.objects.rigid_objects.values()
+    markers = (sensor.visualizer_cfg, sensor.normal_force_visualizer_cfg, sensor.friction_force_visualizer_cfg)
+    assert cfgs == [cube_cfg, shape_cfg, scene.cfg.ground, *markers, sensor]
+    assert cube_cfg.prim_path == "/World/envs/env_[^/]+/Cube"
+    assert shape_cfg.prim_path == "/World/envs/env_[^/]+/Shape"
+    assert world_prototypes is weights is None
 
-    prim_paths = sorted(c.prim_path for c in cfgs)
-    assert prim_paths == ["/World/envs/env_[^/]+/Cube", "/World/envs/env_[^/]+/Shape"]
-    assert global_paths == ("/World/Ground",)
-
-
-def test_collect_asset_cfgs_excludes_entities_without_spawners():
-    """Sensors without spawners add no clone rows but still declare their debug-marker roots."""
-
-    scene = object.__new__(InteractiveScene)
-    sensor = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
-    scene.cfg = SimpleNamespace(num_envs=1, sensor=sensor)
-    scene.cloner_cfg = CloneCfg()
-    scene._env_fmt = scene.cloner_cfg.clone_template
-
-    cfgs, global_paths, _ = scene._collect_asset_cfgs()
-
-    assert cfgs == []
-    assert global_paths == (sensor.visualizer_cfg.prim_path,)
+    scene.cloner_cfg.clone_combinations = [cloner.InclusionSet(assets=["objects"])]
+    _, world_prototypes, weights = scene._collect_asset_cfgs()
+    assert world_prototypes == ((0, 1), (0, 2))
+    np.testing.assert_array_equal(weights, [0.5, 0.5])
 
 
 def assert_state_equal(s1: dict, s2: dict, path=""):

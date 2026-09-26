@@ -68,7 +68,7 @@ class _VisualMaterialSceneCfg(InteractiveSceneCfg):
     )
 
 
-def test_nested_materials_clone_with_parent_rows_and_write_selected_gpu_rows(tmp_path) -> None:
+def test_nested_materials_clone_with_parent_assets_and_write_selected_gpu_rows(tmp_path) -> None:
     asset_path = tmp_path / "visual_material_robot.usda"
     asset_path.write_text(
         """#usda 1.0
@@ -99,17 +99,14 @@ def Xform "Robot"
         sim.reset()
 
         assert scene.num_envs == 12
-        assert len(scene.clone_plan.sources) == 3
-        assert scene.clone_plan.destinations == ("/World/envs/env_{}/Robot",) * 3
-        assert scene.clone_plan.cfg_rows[id(cfg.robot)] == (0, 1, 2)
-        assert id(cfg.warm) not in scene.clone_plan.cfg_rows
-        assert id(cfg.cool) not in scene.clone_plan.cfg_rows
+        assert all(source is not cfg.warm and source is not cfg.cool for source in scene.clone_plan.asset_prototypes)
+        assert len(cfg.robot.spawn.spawn_paths) == 3
         assert scene["warm"].num_instances == scene["cool"].num_instances == 12
         assert scene["shared"].num_instances == 1
         for env_id in range(scene.num_envs):
             for cloned_material in ("warm", "cool"):
                 assert scene.stage.GetPrimAtPath(f"/World/envs/env_{env_id}/Robot/{cloned_material}").IsValid()
-            material_name = ("warm", "cool", None)[env_id % 3]
+            material_name = ("warm", "cool", None)[env_id // 4]
             material_path = (
                 "/World/shared" if material_name is None else f"/World/envs/env_{env_id}/Robot/{material_name}"
             )

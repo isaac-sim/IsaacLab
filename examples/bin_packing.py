@@ -7,7 +7,7 @@
 
 The scene declares a bin layout as a clone combination on its
 :class:`~isaaclab.cloner.CloneCfg`, and the replication pipeline then spawns
-only the assets named by each combination, cycling environments through the
+only the assets named by each combination, grouping environments by their
 declared layouts. Instead of listing those assets by hand, this script defines
 its own combination set, ``RandomSubsetSet``, which draws a random subset of
 the grocery slots: the cloner only reads ``assets`` and ``weight`` off a
@@ -80,7 +80,7 @@ if TYPE_CHECKING:
 # Layout and spawn counts.
 MAX_OBJECTS_PER_BIN = 24  # Maximum active objects we plan to fit inside the bin.
 MIN_OBJECTS_PER_BIN = 1  # Lower bound for randomized active object count.
-NUM_LAYOUTS = 16  # Number of distinct bin layouts declared; environments cycle through them.
+NUM_LAYOUTS = 16  # Maximum number of distinct bin layouts.
 NUM_OBJECTS_PER_LAYER = 4  # Number of groceries spawned on each layer of the active stack.
 ACTIVE_LAYER_SPACING = 0.1  # Vertical spacing (m) between layers inside the bin.
 BIN_DIMENSIONS = (0.2, 0.3, 0.15)  # Physical size (m) of the storage bin.
@@ -277,10 +277,6 @@ class BinPackingSceneCfg(InteractiveSceneCfg):
     grocery_22: AssetBaseCfg = grocery_cfg(22)
     grocery_23: AssetBaseCfg = grocery_cfg(23)
 
-    # A slot claimed by some layout but active in none of the layouts the environments
-    # actually receive is never spawned, which the scene rejects. Environments cycle
-    # through the layouts in order, so a full first layout keeps every slot active for
-    # any ``--num_envs``, and the random draws below stay unconstrained.
     clone_cfg: CloneCfg = CloneCfg(
         clone_combinations=[
             InclusionSet(assets=GROCERY_NAMES),
@@ -291,6 +287,10 @@ class BinPackingSceneCfg(InteractiveSceneCfg):
         ],
         clone_strategy=sequential,
     )
+
+    def __post_init__(self):
+        """Give every declared layout an environment, including the full first bin."""
+        self.clone_cfg.clone_combinations = self.clone_cfg.clone_combinations[: self.num_envs]
 
 
 ##

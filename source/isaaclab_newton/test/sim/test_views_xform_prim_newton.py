@@ -31,7 +31,7 @@ from pxr import Sdf
 
 import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.utils import configclass
@@ -129,8 +129,12 @@ def test_non_colliding_shapes_after_finalize(device):
     site_prim.SetMetadata("apiSchemas", site_schemas)
     sim_utils.create_prim(VISUAL_PATH, prim_type="Cube", scale=(0.01, 0.01, 0.01))
     sim.require_visual_shapes()
-    plan = cloner.make_clone_plan((), 1, 0.0, global_paths=("/World/defaultGroundPlane", "/World/Robot"))
-    sim.set_clone_plan(plan)
+    plan = cloner.clone_plan_from_env_0(
+        cloner.CloneCfg(),
+        (AssetBaseCfg(prim_path="/World/defaultGroundPlane"), AssetBaseCfg(prim_path="/World/Robot")),
+        1,
+        0.0,
+    )
     cloner.replicate(plan)
     sim.reset()
 

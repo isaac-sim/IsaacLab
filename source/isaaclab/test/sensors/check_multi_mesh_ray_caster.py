@@ -19,6 +19,8 @@ This script shows how to use the multi-mesh ray caster from the Isaac Lab framew
 import argparse
 
 from isaaclab.app import AppLauncher
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.sim import SpawnerCfg
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Ray Caster Test Script")
@@ -103,15 +105,17 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     # Clone the scene
     envs_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
     lab_cloner.usd_replicate(sim.stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
-    # Publish a trivial homogeneous ClonePlan so consumers (e.g. multi-mesh ray-caster's
-    # target tracker) can drive per-env work via clone_mask. Mirrors InteractiveScene's
-    # synthesis path for hand-authored scenes that bypass it.
-    sim.set_clone_plan(
-        lab_cloner.ClonePlan(
-            sources=(env_fmt.format(0),),
-            destinations=(env_fmt,),
-            clone_mask=np.ones((1, num_envs), dtype=np.bool_),
-        )
+    # Publish the manually authored environment declaration for sensor queries.
+    plan = lab_cloner.make_clone_plan(
+        (AssetBaseCfg(prim_path=env_fmt.format("[^/]+"), spawn=SpawnerCfg(spawn_path=env_fmt.format(0))),),
+        ((0,),),
+        num_envs,
+    )
+    sim.set_clone_plan(plan)
+    sim.clone_contexts[lab_cloner.UsdReplicateContext] = lab_cloner.UsdReplicateContext(
+        sim.stage,
+        plan,
+        positions=env_origins,
     )
     # PhysX-only optimization: filter collisions across env clones. Skip on Newton —
     # PhysxSceneAPI isn't applied there and the cloner helper is PhysX-specific.

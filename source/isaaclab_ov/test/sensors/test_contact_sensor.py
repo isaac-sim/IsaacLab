@@ -35,6 +35,7 @@ from __future__ import annotations
 from dataclasses import MISSING
 from enum import Enum
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -55,7 +56,7 @@ from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.sim.schemas as schemas  # noqa: E402
 from isaaclab import cloner  # noqa: E402
-from isaaclab.assets import RigidObjectCfg  # noqa: E402
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context  # noqa: E402
 from isaaclab.sim.utils.stage import get_current_stage  # noqa: E402
@@ -610,20 +611,22 @@ def test_nested_rigid_body_hierarchy(device):
             debug_vis=False,
             update_period=0.0,
         )
-        clone_plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (contact_sensor_cfg,), num_envs, 3.0)
-        assert clone_plan.env_ids is not None and clone_plan.positions is not None
-        env_positions = clone_plan.positions
+        asset_cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot")
+        cloner.clone_plan_from_env_0(cloner.CloneCfg(), (asset_cfg, contact_sensor_cfg), num_envs, 3.0)
+        usd = sim.clone_contexts[cloner.UsdReplicateContext]
+        env_positions = usd.positions
         env_0 = UsdGeom.Xform.Define(stage, "/World/envs/env_0")
         env_0.AddTranslateOp().Set(Gf.Vec3d(*env_positions[0].tolist()))
         _author_nested_chain("/World/envs/env_0/Robot")
 
+        sources, destinations, mapping = cloner.query.replication_mapping(usd.instances, num_envs, (0,))
         ovphysx_replicate(
             stage,
-            clone_plan.sources,
-            clone_plan.destinations,
-            clone_plan.env_ids,
-            clone_plan.clone_mask,
-            positions=clone_plan.positions,
+            sources,
+            destinations,
+            np.arange(num_envs),
+            mapping,
+            positions=env_positions,
         )
         contact_sensor = ContactSensor(contact_sensor_cfg)
         sim.reset()

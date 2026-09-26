@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, NoReturn
 import newton
 import warp as wp
 
+from isaaclab.cloner import UsdReplicateContext
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
@@ -559,8 +560,10 @@ class NewtonWarpRenderer(BaseRenderer):
             or RenderBufferKind.INSTANCE_SEGMENTATION in spec.cfg.data_types
         ):
             if self._seg_mapper is None:
-                clone_plan = SimulationContext.instance().get_clone_plan()
-                self._seg_mapper = NewtonSegmentationMapper(self.newton_sensor.model, self._stage, self.cfg, clone_plan)
+                usd = SimulationContext.instance().clone_contexts[UsdReplicateContext]
+                self._seg_mapper = NewtonSegmentationMapper(
+                    self.newton_sensor.model, self._stage, self.cfg, usd.instances
+                )
         if RenderBufferKind.SEMANTIC_SEGMENTATION in spec.cfg.data_types:
             self._seg_mapper.build_mapping(
                 RenderBufferKind.SEMANTIC_SEGMENTATION, bool(self.cfg.colorize_semantic_segmentation)

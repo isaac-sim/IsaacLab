@@ -65,8 +65,8 @@ except ModuleNotFoundError as exc:
         "(or, manually: python -m pip install 'ovrtx==0.5.0.377615')."
     ) from exc
 
-from isaaclab.cloner import ClonePlan
-from isaaclab.cloner import query as clone_query
+from isaaclab.cloner import UsdReplicateContext
+from isaaclab.cloner.query import iter_clones
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
@@ -393,7 +393,7 @@ class OVRTXRenderer(BaseRenderer):
         self._exported_usd_string: str | None = None
         self._camera_prim_path: str | None = None
         self._output_id_color_buffers: dict[str, wp.array] = {}
-        self._clone_plan: ClonePlan | None = None
+        self._usd: UsdReplicateContext | None = None
         self._visual_material_writer_ref: weakref.ReferenceType[OVRTXVisualMaterialWriter] | None = None
 
         # Selected once at construction so every dispatch method below sees a stable path for the
@@ -456,11 +456,7 @@ class OVRTXRenderer(BaseRenderer):
         if stage is None:
             return
 
-        self._clone_plan = SimulationContext.instance().get_clone_plan()
-        if self._clone_plan is None or self._clone_plan.env_ids is None or self._clone_plan.positions is None:
-            raise RuntimeError("Clone plan with environment ids and positions is required when preparing OVRTX stage")
-        if not np.array_equal(self._clone_plan.env_ids, np.arange(num_envs)):
-            raise RuntimeError("OVRTX requires ClonePlan environment ids ordered from zero.")
+        self._usd = SimulationContext.instance().clone_contexts[UsdReplicateContext]
 
         # If temp_usd_dir is set, write the pre-ovrtx stage to a temporary file.
         if self.cfg.temp_usd_dir is not None:
@@ -470,25 +466,20 @@ class OVRTXRenderer(BaseRenderer):
         create_scene_partition_attributes(stage, num_envs)
 
         # Composed scales must be read while the full stage is still live, before export trims it.
-        self._capture_object_scales(stage, self._clone_plan)
+        self._capture_object_scales(stage)
 
-        # The clone plan already identifies every source row. Keep those rows independent so
-        # backend bindings for dynamic assets retain the paths they were compiled against.
-        # A homogeneous plan clones the env roots themselves, so they must be trimmed: OVRTX 0.6
-        # refuses to clone onto a prim that already exists. Sub-path rows still need the roots,
-        # which carry the env transform that clone does not recreate.
+        # OVRTX cannot clone onto existing prims. Keep environment roots unless explicitly cloned;
+        # asset-level clones need their parents' authored environment transforms.
+        sources = tuple(dict.fromkeys(source for _, source, _, world_ids in self._usd.instances if len(world_ids)))
+        clones_env_roots = any(template == self._usd.env_template for _, _, template, _ in self._usd.instances)
         self._exported_usd_string = export_stage_to_string(
             stage,
             num_envs,
-            source_paths=self._clone_plan.sources,
-            keep_env_roots=not self._use_ovstage and not self._clone_targets_env_roots(),
+            source_paths=sources,
+            keep_env_roots=not self._use_ovstage and not clones_env_roots,
         )
 
-    def _clone_targets_env_roots(self) -> bool:
-        """Return whether any clone row replicates an environment root rather than a prim beneath it."""
-        return any(destination.format(0) == "/World/envs/env_0" for destination in self._clone_plan.destinations)
-
-    def _capture_object_scales(self, stage: Any, plan: ClonePlan) -> None:
+    def _capture_object_scales(self, stage: Any) -> None:
         """Record composed world scales beneath the plan's prototypes and shared roots before export.
 
         The per-frame object transform write rebuilds each body's matrix from an SDP
@@ -496,35 +487,31 @@ class OVRTXRenderer(BaseRenderer):
         USD prim is lost once that write lands. Capturing the composed scale here, while the full
         stage is still live, lets :meth:`_create_object_scale_array` fold it back in.
 
-        Only paths whose scale deviates from unit are stored. Scales found under clone-plan source
-        paths are projected through the cloner query boundary because OVRTX creates their active
-        destinations only after the host stage is exported.
+        Only non-unit scales are stored. Native instance paths include repeated assets whose
+        destinations OVRTX creates after the host stage is exported.
 
         Args:
             stage: The live USD stage, before per-environment trimming and export.
-            plan: Validated plan describing the active prototype-to-clone relation.
         """
         self._object_scales_by_path.clear()
 
         from pxr import Gf, Usd, UsdGeom
 
         xform_cache = UsdGeom.XformCache()
-        for root in (*plan.sources, *plan.global_paths):
+        for root in dict.fromkeys(path for _, path, _, world_ids in self._usd.instances if len(world_ids)):
+            destinations = [(template, ids) for _, source, template, ids in self._usd.instances if source == root]
             for prim in Usd.PrimRange(stage.GetPrimAtPath(root)):
                 if not prim.IsA(UsdGeom.Xformable):
                     continue
                 scale = Gf.Transform(xform_cache.GetLocalToWorldTransform(prim)).GetScale()
                 scale = (float(scale[0]), float(scale[1]), float(scale[2]))
                 if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
-                    self._object_scales_by_path[str(prim.GetPath())] = scale
-
-        # OVRTX creates non-source rows after this stage is exported, so those destination prims
-        # cannot be traversed above. Clone queries retain the plan's nearest-owner semantics.
-        for source_path, scale in tuple(self._object_scales_by_path.items()):
-            for env_id in clone_query.path_env_ids(plan, source_path):
-                clone_path = clone_query.path_to_clone(plan, source_path, env_id)
-                assert clone_path is not None
-                self._object_scales_by_path.setdefault(clone_path, scale)
+                    path = str(prim.GetPath())
+                    self._object_scales_by_path[path] = scale
+                    for template, ids in destinations:
+                        self._object_scales_by_path.update(
+                            (template.format(world_id) + path[len(root) :], scale) for world_id in ids
+                        )
 
     def _create_object_scale_array(self, object_paths: list[str]) -> wp.array:
         """Build the device scale array aligned with the published body binding order.
@@ -623,36 +610,29 @@ class OVRTXRenderer(BaseRenderer):
 
     def _clone_sources_in_ovrtx(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
-        clone_plan = self._clone_plan
-        if clone_plan is None or clone_plan.env_ids is None or clone_plan.positions is None:
-            raise RuntimeError("Clone plan with environment ids and positions is required when using OVRTX cloning")
-
-        env_ids = clone_plan.env_ids
-        clone_mask = clone_plan.clone_mask
-        num_envs = len(env_ids)
-        env_prim_paths = [f"/World/envs/env_{int(env_id)}" for env_id in env_ids]
+        usd = self._usd
+        num_envs = len(usd.plan.destinations)
+        env_ids = np.arange(num_envs)
+        env_prim_paths = [usd.env_template.format(int(env_id)) for env_id in env_ids]
         logger.info("Cloning sources in OVRTX...")
 
         num_cloned_sources = 0
-        for row_idx, (source, destination) in enumerate(zip(clone_plan.sources, clone_plan.destinations, strict=True)):
+        for asset_prototype_id, source, destination, world_ids in iter_clones(usd.instances):
             target_paths = [
-                destination.format(int(env_id))
-                for env_id in env_ids[clone_mask[row_idx]]
-                if destination.format(int(env_id)) != source
+                destination.format(int(world_id))
+                for world_id in world_ids
+                if destination.format(int(world_id)) != source
             ]
             if target_paths:
-                logger.debug("Cloning row %d: %s -> %d target(s)", row_idx, source, len(target_paths))
-                try:
-                    self.backend.renderer.clone_usd(source, target_paths)
-                    num_cloned_sources += 1
-                except Exception as e:
-                    error_msg = f"Failed to clone row {row_idx} from {source}: {e}"
-                    logger.error(error_msg)
-                    raise RuntimeError(error_msg)
+                logger.debug(
+                    "Cloning asset prototype %d: %s -> %d target(s)", asset_prototype_id, source, len(target_paths)
+                )
+                self.backend.renderer.clone_usd(source, target_paths)
+                num_cloned_sources += 1
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
         env_root_xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
-        env_root_xforms[:, 3, :3] = clone_plan.positions
+        env_root_xforms[:, 3, :3] = usd.positions
         self.backend.renderer.write_attribute(
             prim_paths=env_prim_paths,
             attribute_name="omni:xform",
@@ -1677,37 +1657,30 @@ class OVRTXRenderer(BaseRenderer):
 
     def _clone_sources_ovstage(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan` (ovstage path)."""
-        clone_plan = self._clone_plan
-        if clone_plan is None or clone_plan.env_ids is None or clone_plan.positions is None:
-            raise RuntimeError("Clone plan with environment ids and positions is required when using OVRTX cloning")
-
-        env_ids = clone_plan.env_ids
-        clone_mask = clone_plan.clone_mask
-        num_envs = len(env_ids)
-        env_prim_paths = [f"/World/envs/env_{int(env_id)}" for env_id in env_ids]
+        usd = self._usd
+        num_envs = len(usd.plan.destinations)
+        env_ids = np.arange(num_envs)
+        env_prim_paths = [usd.env_template.format(int(env_id)) for env_id in env_ids]
 
         logger.info("Cloning sources in OVRTX...")
 
         num_cloned_sources = 0
-        for row_idx, (source, destination) in enumerate(zip(clone_plan.sources, clone_plan.destinations, strict=True)):
+        for asset_prototype_id, source, destination, world_ids in iter_clones(usd.instances):
             target_paths = [
-                destination.format(int(env_id))
-                for env_id in env_ids[clone_mask[row_idx]]
-                if destination.format(int(env_id)) != source
+                destination.format(int(world_id))
+                for world_id in world_ids
+                if destination.format(int(world_id)) != source
             ]
             if target_paths:
-                logger.debug("Cloning row %d: %s -> %d target(s)", row_idx, source, len(target_paths))
-                try:
-                    self.backend.stage.clone(source, target_paths, ordinal=self._current_ordinal)
-                    num_cloned_sources += 1
-                except Exception as e:
-                    error_msg = f"Failed to clone row {row_idx} from {source}: {e}"
-                    logger.error(error_msg)
-                    raise RuntimeError(error_msg)
+                logger.debug(
+                    "Cloning asset prototype %d: %s -> %d target(s)", asset_prototype_id, source, len(target_paths)
+                )
+                self.backend.stage.clone(source, target_paths, ordinal=self._current_ordinal)
+                num_cloned_sources += 1
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
         env_root_xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
-        env_root_xforms[:, 3, :3] = clone_plan.positions
+        env_root_xforms[:, 3, :3] = usd.positions
         env_paths_list = self.backend.paths.create_path_list_from_strings(env_prim_paths)
         env_query = self.backend.stage.query_from_path_list(env_paths_list)
         self.backend.stage.write_attribute(

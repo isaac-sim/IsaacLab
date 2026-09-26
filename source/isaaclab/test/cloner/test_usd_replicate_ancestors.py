@@ -6,10 +6,13 @@
 """Tests for ancestor authoring in :func:`~isaaclab.cloner.usd_replicate`."""
 
 import numpy as np
+import pytest
 
 from pxr import Sdf, Usd
 
-from isaaclab.cloner import usd_replicate
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import UsdReplicateContext, make_clone_plan, usd_replicate
+from isaaclab.sim import SpawnerCfg
 
 
 def _make_stage_with_source(source_path: str) -> Usd.Stage:
@@ -43,3 +46,21 @@ def test_usd_replicate_defines_nested_destination_ancestors():
     assert existing_scope.IsDefined()
     assert existing_scope.GetTypeName() == "Xform"
     assert stage.GetPrimAtPath("/World/envs/env_2/Groceries/Object").IsDefined()
+
+
+@pytest.mark.parametrize("independent_child", [False, True])
+def test_context_clones_nested_declarations_parent_first(independent_child):
+    """An attached child is copied once; an independently authored child overrides its parent."""
+    stage = _make_stage_with_source("/Sources/Robot/Camera")
+    stage.GetPrimAtPath("/Sources/Robot/Camera").CreateAttribute("marker", Sdf.ValueTypeNames.Int).Set(1)
+    stage.DefinePrim("/Sources/Camera", "Camera").CreateAttribute("marker", Sdf.ValueTypeNames.Int).Set(2)
+    child_source = "/Sources/Camera" if independent_child else "/Sources/Robot/Camera"
+    cfgs = (
+        AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot/Camera", spawn=SpawnerCfg(spawn_path=child_source)),
+        AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path="/Sources/Robot")),
+    )
+    plan = make_clone_plan(cfgs, ((0, 1), (0,)), 2)
+    UsdReplicateContext(stage, plan).replicate(plan, (0, 1))
+    for world in range(2):
+        camera = stage.GetPrimAtPath(f"/World/envs/env_{world}/Robot/Camera")
+        assert camera.GetAttribute("marker").Get() == (2 if independent_child else 1)

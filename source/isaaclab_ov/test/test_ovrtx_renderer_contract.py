@@ -16,6 +16,7 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg, SimulationContext
@@ -232,7 +233,7 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
 
     from pxr import Gf, Usd, UsdGeom, UsdLux
 
-    from isaaclab.cloner.clone_plan import ClonePlan
+    from isaaclab.cloner import UsdReplicateContext, make_clone_plan
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec
     from isaaclab.utils.math import convert_camera_frame_orientation_convention
     from isaaclab.utils.warp import ProxyArray
@@ -260,13 +261,8 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
 
     renderer = OVRTXRenderer(OVRTXRendererCfg())
     renderer._exported_usd_string = stage.ExportToString()
-    renderer._clone_plan = ClonePlan(
-        sources=("/World/envs/env_0",),
-        destinations=("/World/envs/env_{}",),
-        clone_mask=np.ones((1, 2), dtype=np.bool_),
-        env_ids=np.arange(2, dtype=np.int64),
-        positions=np.zeros((2, 3), dtype=np.float32),
-    )
+    plan = make_clone_plan((AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 2)
+    renderer._usd = UsdReplicateContext(stage, plan, positions=np.zeros((2, 3), dtype=np.float32))
     cameras = []
 
     def camera_scope_exists(rd):

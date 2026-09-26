@@ -45,12 +45,14 @@ class RigidObjectHasher:
         # to a single source covering all envs for homogeneous scenes. Walking the clone source
         # (instead of the cloned subtrees) also works when there is no USD cloning, where only
         # the source instances exist on stage and the per-env layout comes from the clone plan.
-        plan = SimulationContext.instance().get_clone_plan()
+        usd = SimulationContext.instance().clone_contexts.get(cloner.UsdReplicateContext)
         source_rows: list[tuple[str, tuple[int, ...]]] = []
-        if plan is not None:
+        if usd is not None:
             source_rows = [
                 (source_path, env_ids)
-                for _src_root, _dst_tmpl, source_path, env_ids in cloner.query.iter_sources(plan, prim_path_pattern)
+                for _src_root, _dst_tmpl, source_path, env_ids in cloner.query.iter_sources(
+                    usd.instances, prim_path_pattern
+                )
             ]
         if not source_rows:
             # No clone plan (or pattern not owned by it): resolve a single source instance and

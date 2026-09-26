@@ -18,6 +18,7 @@ from isaaclab_newton.physics import MPMSolverCfg, NewtonCfg, NewtonMPMManager
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg
 
 from isaaclab.assets import RigidObjectCfg
+from isaaclab.cloner import UsdReplicateContext
 from isaaclab.cloner.query import iter_sources
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
@@ -155,7 +156,9 @@ def test_mpm_object_publishes_points_without_kit_visualizer():
         expected_paths = [f"/World/envs/env_{env_idx}/Sand/Particles" for env_idx in range(media.num_instances)]
         assert list(publication) == expected_paths
 
-        for _, _, source_path, _ in iter_sources(sim.get_clone_plan(), media.cfg.prim_path):
+        for _, _, source_path, _ in iter_sources(
+            sim.clone_contexts[UsdReplicateContext].instances, media.cfg.prim_path
+        ):
             points_prim = media.stage.GetPrimAtPath(source_path + "/Particles")
             assert points_prim.IsValid()
             points = UsdGeom.Points(points_prim)

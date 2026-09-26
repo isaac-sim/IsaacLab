@@ -26,7 +26,6 @@ from .kernels import copy_mesh_poses_to_table_kernel, fill_ray_hits_distance_inf
 from .multi_mesh_ray_caster_data import MultiMeshRayCasterData
 
 if TYPE_CHECKING:
-    from ...cloner import ClonePlan
     from .multi_mesh_ray_caster_cfg import MultiMeshRayCasterCfg
 
 logger = logging.getLogger(__name__)
@@ -147,7 +146,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
     def _initialize_warp_meshes(self):
         """Initialize mesh buffers from the ClonePlan when env-scoped, else from the stage."""
         sim = SimulationContext.instance()
-        plan = sim.get_clone_plan() if sim is not None else None
+        usd = sim.clone_contexts.get(cloner.UsdReplicateContext) if sim is not None else None
         target_records_by_expr = {}
         dummy_mesh_id: int | None = None
         self._mesh_views = []
@@ -155,7 +154,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         # Build one per-env mesh list for each configured raycast target.
         for target_cfg in self._raycast_targets_cfg:
             records_per_env, dummy_mesh_id, tracked_target_exprs = self._build_mesh_records(
-                target_cfg, plan, dummy_mesh_id
+                target_cfg, () if usd is None else usd.instances, dummy_mesh_id
             )
             self._num_meshes_per_env[target_cfg.prim_expr] = max(len(records) for records in records_per_env)
             target_records_by_expr[target_cfg.prim_expr] = records_per_env
@@ -198,7 +197,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
     def _build_mesh_records(
         self,
         target_cfg: MultiMeshRayCasterCfg.RaycastTargetCfg,
-        plan: ClonePlan | None,
+        instances: tuple,
         dummy_mesh_id: int | None,
     ):
         """Build mesh records for the target configuration."""
@@ -207,10 +206,12 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         tracked_target_exprs: list[str] = [target_cfg.prim_expr]
         has_rigid_body_api = lambda p: p.HasAPI(UsdPhysics.RigidBodyAPI)  # noqa: E731
         # Prefer ClonePlan data for env-scoped targets; destination USD prims may not exist.
-        if plan is not None and target_cfg.track_mesh_transforms:
+        if instances and target_cfg.track_mesh_transforms:
             plan_tracked_target_exprs: list[str] = []
             prim_expr = target_cfg.prim_expr
-            for source_root, destination_template, source_path, env_ids in cloner.query.iter_sources(plan, prim_expr):
+            for source_root, destination_template, source_path, env_ids in cloner.query.iter_sources(
+                instances, prim_expr
+            ):
                 target_in_plan = True
 
                 # Load meshes from the authored source entry.

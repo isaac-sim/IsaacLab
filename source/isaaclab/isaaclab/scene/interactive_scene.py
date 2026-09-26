@@ -147,7 +147,7 @@ class InteractiveScene:
         self._ALL_INDICES = torch.arange(self.cfg.num_envs, dtype=torch.long, device=self.device)
 
         self._global_prim_paths = []
-        asset_cfgs, global_paths, valid_set = self._collect_asset_cfgs()
+        asset_cfgs, world_prototypes, weights = self._collect_asset_cfgs()
         scene_from_cfg = any(
             name not in InteractiveSceneCfg.__dataclass_fields__ and cfg is not None
             for name, cfg in self.cfg.__dict__.items()
@@ -157,23 +157,24 @@ class InteractiveScene:
                 asset_cfgs,
                 num_clones=self.num_envs,
                 env_spacing=self.cfg.env_spacing,
-                global_paths=global_paths,
                 env_template=self._env_fmt,
                 clone_strategy=self.cloner_cfg.clone_strategy,
-                valid_set=valid_set,
+                world_prototypes=world_prototypes,
+                weights=weights,
                 replicate_physics=self.cloner_cfg.replicate_physics,
-            ) as session:
+            ):
+                usd = self.sim.clone_contexts[cloner.UsdReplicateContext]
                 self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
                 with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
                     cloner.usd_replicate(
                         self.stage,
                         [self.env_prim_paths[0]],
                         [self._env_fmt],
-                        session.plan.env_ids,
-                        positions=session.plan.positions,
+                        np.arange(self.num_envs),
+                        positions=usd.positions,
                     )
                 self._add_entities_from_cfg()
-            positions = session.plan.positions
+            positions = usd.positions
         else:
             positions = cloner.grid_transforms(self.num_envs, self.cfg.env_spacing)[0]
             env_0 = self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
@@ -185,12 +186,12 @@ class InteractiveScene:
         if self.cfg.filter_collisions and "physx" in self.physics_backend and scene_from_cfg:
             self.filter_collisions(self._global_prim_paths)
 
-    def _collect_asset_cfgs(self) -> tuple[list[Any], tuple[str, ...], np.ndarray | None]:
+    def _collect_asset_cfgs(self) -> tuple[list[Any], tuple[tuple[int, ...], ...] | None, np.ndarray | None]:
         """Flatten user-declared cfgs and declare shared prim roots for clone planning.
 
         Expands :class:`~isaaclab.assets.RigidObjectCollectionCfg` into its members,
-        resolves ``{ENV_REGEX_NS}`` macros, lets an enclosing asset's row own nested materials,
-        and returns env-scoped configs with a spawner, global roots, and valid clone combinations.
+        resolves ``{ENV_REGEX_NS}`` macros, lets an enclosing asset own nested materials,
+        and returns asset declarations and valid clone combinations.
         """
 
         cfg_fields = InteractiveSceneCfg.__dataclass_fields__
@@ -225,34 +226,36 @@ class InteractiveScene:
         scene_asset_names = [name for name in scene_asset_names if name not in nested_material_names]
 
         cfgs: list[Any] = []
-        global_paths: tuple[str, ...] = ()
         clone_asset_names: list[str] = []
         variant_counts: list[int] = []
+        prototype_indices: list[int] = []
+        prototype_count = 0
         for asset_name, child in flat_items:
-            if isinstance(child, CameraCfg):
-                self.sim.get_or_create_backend(child.renderer_cfg)
             if id(child) in nested_visual_material_ids:
                 if child.spawn is not None:
                     child.spawn.spawn_path = child.prim_path
                 continue
-            if cloner.path.match(child.prim_path, self._env_fmt) is None:
-                if child.prim_path not in global_paths:
-                    global_paths += (child.prim_path,)
-            elif isinstance(child, (AssetBaseCfg, CameraCfg, RayCasterCfg)) and child.spawn is not None:
-                cfgs.append(child)
+            cfgs.append(child)
+            count = cloner.num_spawn_variants(getattr(child, "spawn", None))
+            if (
+                cloner.path.match(child.prim_path, self._env_fmt) is not None
+                and isinstance(child, (AssetBaseCfg, CameraCfg, RayCasterCfg))
+                and child.spawn is not None
+            ):
                 clone_asset_names.append(asset_name)
-                variant_counts.append(cloner.num_spawn_variants(child.spawn))
+                variant_counts.append(count)
+                prototype_indices.extend(range(prototype_count, prototype_count + count))
+            prototype_count += count
 
         if self.cloner_cfg.clone_combinations and clone_asset_names:
-            valid_set = cloner.make_valid_clone_combinations(
+            worlds, weights = cloner.make_valid_clone_combinations(
                 clone_asset_names,
                 variant_counts,
                 self.cloner_cfg.clone_combinations,
                 all_asset_names=scene_asset_names,
             )
-        else:
-            valid_set = None
-        return cfgs, global_paths, valid_set
+            return cfgs, tuple(tuple(prototype_indices[index] for index in world) for world in worlds), weights
+        return cfgs, None, None
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.
@@ -357,7 +360,7 @@ class InteractiveScene:
             return self._terrain.env_origins
         plan = self.sim.get_clone_plan()
         if plan is not None and plan is not self._env_origins_plan:
-            self._env_origins = plan.positions
+            self._env_origins = self.sim.clone_contexts[cloner.UsdReplicateContext].positions
             self._env_origins_plan = plan
         if not isinstance(self._env_origins, torch.Tensor):
             self._env_origins = torch.as_tensor(self._env_origins, device=self._ALL_INDICES.device)
@@ -795,17 +798,6 @@ class InteractiveScene:
         )
 
         for asset_name, asset_cfg in ordered_items:
-            # set spawn_path on spawner if cloning is needed
-            if hasattr(asset_cfg, "spawn") and asset_cfg.spawn is not None:
-                is_multi_spawner = isinstance(
-                    asset_cfg.spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)
-                )
-                if cloner.path.match(asset_cfg.prim_path, self._env_fmt) is None:
-                    asset_cfg.spawn.spawn_path = asset_cfg.prim_path
-                elif is_multi_spawner and not asset_cfg.spawn.spawn_paths:
-                    raise RuntimeError(f"Clone planning did not assign spawn_paths for '{asset_cfg.prim_path}'.")
-                elif not is_multi_spawner and asset_cfg.spawn.spawn_path is None:
-                    raise RuntimeError(f"Clone planning did not assign spawn_path for '{asset_cfg.prim_path}'.")
             # create asset
             if isinstance(asset_cfg, TerrainImporterCfg):
                 # terrains are special entities since they define environment origins
@@ -821,22 +813,6 @@ class InteractiveScene:
             elif isinstance(asset_cfg, RigidObjectCfg):
                 self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCollectionCfg):
-                for rigid_object_cfg in asset_cfg.rigid_objects.values():
-                    # set spawn_path on spawner if cloning is needed
-                    if hasattr(rigid_object_cfg, "spawn") and rigid_object_cfg.spawn is not None:
-                        is_multi_spawner = isinstance(
-                            rigid_object_cfg.spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)
-                        )
-                        if cloner.path.match(rigid_object_cfg.prim_path, self._env_fmt) is None:
-                            rigid_object_cfg.spawn.spawn_path = rigid_object_cfg.prim_path
-                        elif is_multi_spawner and not rigid_object_cfg.spawn.spawn_paths:
-                            raise RuntimeError(
-                                f"Clone planning did not assign spawn_paths for '{rigid_object_cfg.prim_path}'."
-                            )
-                        elif not is_multi_spawner and rigid_object_cfg.spawn.spawn_path is None:
-                            raise RuntimeError(
-                                f"Clone planning did not assign spawn_path for '{rigid_object_cfg.prim_path}'."
-                            )
                 self._rigid_object_collections[asset_name] = asset_cfg.class_type(asset_cfg)
                 for rigid_object_cfg in asset_cfg.rigid_objects.values():
                     if hasattr(rigid_object_cfg, "collision_group") and rigid_object_cfg.collision_group == -1:
