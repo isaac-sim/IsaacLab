@@ -10,8 +10,8 @@ Changed
 * **Breaking:** Moved USD names and placement out of ``ClonePlan``. Path queries now accepted
   the native mapping tuples in ``sim.clone_contexts[UsdReplicateContext].instances``;
   ``get_asset_prototypes(plan, path_expr=None)`` and ``get_world_prototypes(plan, path_expr=None)``
-  returned prototype ID lists, optionally filtered by declared cfg paths. Read cfgs and world
-  memberships from the plan instead of unpacking topology-query results.
+  returned prototype IDs as 1-D NumPy ``int32`` arrays, optionally filtered by declared cfg paths.
+  Read cfgs and world memberships from the plan instead of unpacking topology-query results.
   Renamed native-path lookup ``iter_sources`` to ``get_matched_sources``, returning a list.
   Removed cached configuration/context routing maps. Raw USD and native backend replication
   functions retained their path-based inputs.

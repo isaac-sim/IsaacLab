@@ -193,12 +193,12 @@ before batched native replication; this does not expand its USD import scope.
 Querying topology and native paths
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Topology queries depend only on the plan and return lists of prototype IDs:
+Topology queries depend only on the plan and return 1-D NumPy arrays of prototype IDs with dtype ``int32``:
 
 .. code-block:: python
 
-    cloner.query.get_asset_prototypes(plan, banana_cfg.prim_path)  # [0]
-    cloner.query.get_world_prototypes(plan, banana_cfg.prim_path)  # [0, 1, 2]
+    cloner.query.get_asset_prototypes(plan, banana_cfg.prim_path)  # array([0], dtype=int32)
+    cloner.query.get_world_prototypes(plan, banana_cfg.prim_path)  # array([0, 1, 2], dtype=int32)
 
     cfg = plan.asset_prototypes[asset_id]
     start, end = plan.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]

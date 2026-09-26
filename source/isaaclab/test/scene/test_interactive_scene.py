@@ -245,7 +245,7 @@ def test_scene_constructs_plan_owned_markers():
             "/World/Prop",
             "/Visuals/Deferred",
         )
-        assert cloner.query.get_world_prototypes(plan, "/Visuals/Goal") == [-1]
+        np.testing.assert_array_equal(cloner.query.get_world_prototypes(plan, "/Visuals/Goal"), [-1])
 
 
 def test_empty_scene_leaves_clone_lifecycle_to_caller():

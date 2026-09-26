@@ -443,14 +443,19 @@ def test_world_topology_preserves_repeated_assets_and_shared_world(shared_assets
         [0, len(shared_assets), *(len(shared_assets) + np.cumsum([len(world) for world in worlds]))],
     )
     np.testing.assert_array_equal(plan.world_prototypes, [*shared_assets, 0, 1, 0, 1, 1, 0, 0, 1, 1])
-    assert cloner.query.get_asset_prototypes(plan) == [0, 1]
-    assert cloner.query.get_world_prototypes(plan) == [-1, 0, 1, 2, 3]
-    assert cloner.query.get_asset_prototypes(plan, "/Banana") == [0]
-    assert cloner.query.get_world_prototypes(plan, "/Banana") == ([-1] if shared_assets else []) + [0, 1, 2]
-    assert cloner.query.get_asset_prototypes(plan, "/(Banana|Franka)") == [0, 1]
-    assert cloner.query.get_world_prototypes(plan, "/(Banana|Franka)") == ([-1] if shared_assets else []) + [0, 1, 2, 3]
-    assert cloner.query.get_asset_prototypes(plan, "/Missing") == []
-    assert cloner.query.get_world_prototypes(plan, "/Missing") == []
+    for path_expr, asset_ids, world_ids in (
+        (None, [0, 1], [-1, 0, 1, 2, 3]),
+        ("/Banana", [0], ([-1] if shared_assets else []) + [0, 1, 2]),
+        ("/(Banana|Franka)", [0, 1], ([-1] if shared_assets else []) + [0, 1, 2, 3]),
+        ("/Missing", [], []),
+    ):
+        for query, expected in (
+            (cloner.query.get_asset_prototypes, asset_ids),
+            (cloner.query.get_world_prototypes, world_ids),
+        ):
+            actual = query(plan, path_expr)
+            assert actual.dtype == np.int32 and actual.ndim == 1
+            np.testing.assert_array_equal(actual, expected)
     # Pure planning does not modify USD names or source poses.
     assert [cfg.prim_path for cfg in assets] == ["/Banana", "/Franka"]
     assert all(cfg.spawn.spawn_path is None for cfg in assets)
@@ -460,17 +465,21 @@ def test_world_topology_weights_empty_worlds_and_invalid_membership():
     assets = tuple(AssetBaseCfg(prim_path=f"/env_[^/]+/{name}") for name in ("Banana", "Franka"))
     plan = make_clone_plan(assets, ((0,), (), (1, 1), (0,)), 6, weights=(1, 0, 2, 0))
     np.testing.assert_array_equal(plan.world_prototype_layout, [0, 0, 2, 2, 2, 2])
-    assert cloner.query.get_world_prototypes(plan) == [-1, 0, 1, 2, 3]
-    assert cloner.query.get_asset_prototypes(plan, assets[0].prim_path) == [0]
-    assert cloner.query.get_world_prototypes(plan, assets[0].prim_path) == [0, 3]
-    assert cloner.query.get_asset_prototypes(plan, ".*/Banana") == [0]
-    assert cloner.query.get_asset_prototypes(plan, "/env_0/Banana") == []
+    np.testing.assert_array_equal(cloner.query.get_world_prototypes(plan), [-1, 0, 1, 2, 3])
+    np.testing.assert_array_equal(cloner.query.get_asset_prototypes(plan, assets[0].prim_path), [0])
+    np.testing.assert_array_equal(cloner.query.get_world_prototypes(plan, assets[0].prim_path), [0, 3])
+    np.testing.assert_array_equal(cloner.query.get_asset_prototypes(plan, ".*/Banana"), [0])
+    np.testing.assert_array_equal(cloner.query.get_asset_prototypes(plan, "/env_0/Banana"), [])
     empty = make_clone_plan((), ((),), 3)
     np.testing.assert_array_equal(empty.world_prototype_starts, [0, 0, 0])
     np.testing.assert_array_equal(empty.world_prototype_layout, [0, 0, 0])
-    assert cloner.query.get_asset_prototypes(empty) == []
-    assert cloner.query.get_world_prototypes(empty) == [-1, 0]
-    assert cloner.query.get_world_prototypes(empty, ".*") == []
+    for actual, expected in (
+        (cloner.query.get_asset_prototypes(empty), []),
+        (cloner.query.get_world_prototypes(empty), [-1, 0]),
+        (cloner.query.get_world_prototypes(empty, ".*"), []),
+    ):
+        assert actual.dtype == np.int32 and actual.ndim == 1
+        np.testing.assert_array_equal(actual, expected)
     for members in ((2,), (-1,), (0.5,), ("0",)):
         with pytest.raises(ValueError, match="integer indices"):
             make_clone_plan(assets, (members,), 1)
