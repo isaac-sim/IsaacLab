@@ -1768,29 +1768,19 @@ class ArticulationData(BaseArticulationData):
         #    properties never return None).  Routed through _read_scalar_binding.
         fixed_tendon_shape = (num_instances, self._num_fixed_tendons)
         spatial_tendon_shape = (num_instances, self._num_spatial_tendons)
-        self._fixed_tendon_stiffness = TimestampedBuffer(wp.zeros(fixed_tendon_shape, dtype=wp.float32, device=device))
-        self._fixed_tendon_damping = TimestampedBuffer(wp.zeros(fixed_tendon_shape, dtype=wp.float32, device=device))
-        self._fixed_tendon_limit_stiffness = TimestampedBuffer(
-            wp.zeros(fixed_tendon_shape, dtype=wp.float32, device=device)
-        )
-        self._fixed_tendon_rest_length = TimestampedBuffer(
-            wp.zeros(fixed_tendon_shape, dtype=wp.float32, device=device)
-        )
-        self._fixed_tendon_offset = TimestampedBuffer(wp.zeros(fixed_tendon_shape, dtype=wp.float32, device=device))
+        self._fixed_tendon_stiffness = TimestampedBuffer(wp.zeros(fixed_tendon_shape, wp.float32, device))
+        self._fixed_tendon_damping = TimestampedBuffer(wp.zeros(fixed_tendon_shape, wp.float32, device))
+        self._fixed_tendon_limit_stiffness = TimestampedBuffer(wp.zeros(fixed_tendon_shape, wp.float32, device))
+        self._fixed_tendon_rest_length = TimestampedBuffer(wp.zeros(fixed_tendon_shape, wp.float32, device))
+        self._fixed_tendon_offset = TimestampedBuffer(wp.zeros(fixed_tendon_shape, wp.float32, device))
         # Legacy alias kept for any internal callers that used the old vec2f buffer.
-        self._fixed_tendon_pos_limits = TimestampedBuffer(wp.zeros(fixed_tendon_shape, dtype=wp.vec2f, device=device))
+        self._fixed_tendon_pos_limits = TimestampedBuffer(wp.zeros(fixed_tendon_shape, wp.vec2f, device))
         # scratch for the tendon target setters: rest_length - target before the masked/indexed write
-        self._fixed_tendon_offset_scratch = wp.zeros(fixed_tendon_shape, dtype=wp.float32, device=device)
-        self._spatial_tendon_stiffness = TimestampedBuffer(
-            wp.zeros(spatial_tendon_shape, dtype=wp.float32, device=device)
-        )
-        self._spatial_tendon_damping = TimestampedBuffer(
-            wp.zeros(spatial_tendon_shape, dtype=wp.float32, device=device)
-        )
-        self._spatial_tendon_limit_stiffness = TimestampedBuffer(
-            wp.zeros(spatial_tendon_shape, dtype=wp.float32, device=device)
-        )
-        self._spatial_tendon_offset = TimestampedBuffer(wp.zeros(spatial_tendon_shape, dtype=wp.float32, device=device))
+        self._fixed_tendon_offset_scratch = wp.zeros(fixed_tendon_shape, wp.float32, device)
+        self._spatial_tendon_stiffness = TimestampedBuffer(wp.zeros(spatial_tendon_shape, wp.float32, device))
+        self._spatial_tendon_damping = TimestampedBuffer(wp.zeros(spatial_tendon_shape, wp.float32, device))
+        self._spatial_tendon_limit_stiffness = TimestampedBuffer(wp.zeros(spatial_tendon_shape, wp.float32, device))
+        self._spatial_tendon_offset = TimestampedBuffer(wp.zeros(spatial_tendon_shape, wp.float32, device))
 
         # -- CPU staging buffers for CPU-only bindings.
         # Pre-allocate all of them so there is no per-step allocation on the hot path.
@@ -2074,9 +2064,7 @@ class ArticulationData(BaseArticulationData):
                 )
                 user_buffer.timestamp = backend_buffer.timestamp
 
-            self._joint_friction_props_backend = TimestampedBuffer(
-                wp.zeros((*joint_shape, 3), dtype=wp.float32, device=device)
-            )
+            self._joint_friction_props_backend = TimestampedBuffer(wp.zeros((*joint_shape, 3), wp.float32, device))
             self._joint_friction_props_backend.data.assign(self._joint_friction_props_buf.data)
             self._joint_friction_props_backend.timestamp = self._joint_friction_props_buf.timestamp
             wp.launch(
@@ -2111,12 +2099,8 @@ class ArticulationData(BaseArticulationData):
             body_shape = (self.num_instances, self.num_bodies)
             self._body_link_pose_w_backend = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.transformf, device=device))
             self._body_com_pose_b_backend = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.transformf, device=device))
-            self._body_com_vel_w_backend = TimestampedBuffer(
-                wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device)
-            )
-            self._body_com_acc_w_backend = TimestampedBuffer(
-                wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device)
-            )
+            self._body_com_vel_w_backend = TimestampedBuffer(wp.zeros(body_shape, wp.spatial_vectorf, device))
+            self._body_com_acc_w_backend = TimestampedBuffer(wp.zeros(body_shape, wp.spatial_vectorf, device))
             # Invariant: from seeding onward, each backend staging must stay the backend-order
             # image of its public buffer. Partial body-property setters scatter only the
             # selected cells into both buffers and push full backend rows to the simulation,

@@ -454,7 +454,7 @@ class ArticulationData(BaseArticulationData):
         """
         if self._joint_pos_limits is None:
             self._joint_pos_limits = TimestampedBuffer(
-                wp.zeros((self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device)
+                wp.zeros((self._num_instances, self._num_joints), wp.vec2f, self.device)
             )
             self._joint_pos_limits_ta = ProxyArray(self._joint_pos_limits.data)
         if self._joint_pos_limits.timestamp < self._sim_timestamp:
@@ -1183,9 +1183,7 @@ class ArticulationData(BaseArticulationData):
         its actor frame.
         """
         if self._root_link_lin_vel_b is None:
-            self._root_link_lin_vel_b = TimestampedBuffer(
-                wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device)
-            )
+            self._root_link_lin_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_link_lin_vel_b_ta = ProxyArray(self._root_link_lin_vel_b.data)
         if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -1208,9 +1206,7 @@ class ArticulationData(BaseArticulationData):
         its actor frame.
         """
         if self._root_link_ang_vel_b is None:
-            self._root_link_ang_vel_b = TimestampedBuffer(
-                wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device)
-            )
+            self._root_link_ang_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_link_ang_vel_b_ta = ProxyArray(self._root_link_ang_vel_b.data)
         if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -1233,9 +1229,7 @@ class ArticulationData(BaseArticulationData):
         its actor frame.
         """
         if self._root_com_lin_vel_b is None:
-            self._root_com_lin_vel_b = TimestampedBuffer(
-                wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device)
-            )
+            self._root_com_lin_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_com_lin_vel_b_ta = ProxyArray(self._root_com_lin_vel_b.data)
         if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -1258,9 +1252,7 @@ class ArticulationData(BaseArticulationData):
         its actor frame.
         """
         if self._root_com_ang_vel_b is None:
-            self._root_com_ang_vel_b = TimestampedBuffer(
-                wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device)
-            )
+            self._root_com_ang_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_com_ang_vel_b_ta = ProxyArray(self._root_com_ang_vel_b.data)
         if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -2428,9 +2420,7 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._root_state_w is None:
-            self._root_state_w = TimestampedBuffer(
-                wp.empty(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
-            )
+            self._root_state_w = TimestampedBuffer(wp.empty(self._num_instances, shared_kernels.vec13f, self.device))
             self._root_state_w_ta = ProxyArray(self._root_state_w.data)
         if self._root_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -2460,7 +2450,7 @@ class ArticulationData(BaseArticulationData):
         )
         if self._root_link_state_w is None:
             self._root_link_state_w = TimestampedBuffer(
-                wp.empty(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
+                wp.empty(self._num_instances, shared_kernels.vec13f, self.device)
             )
             self._root_link_state_w_ta = ProxyArray(self._root_link_state_w.data)
         if self._root_link_state_w.timestamp < self._sim_timestamp:
@@ -2491,7 +2481,7 @@ class ArticulationData(BaseArticulationData):
         )
         if self._root_com_state_w is None:
             self._root_com_state_w = TimestampedBuffer(
-                wp.empty(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
+                wp.empty(self._num_instances, shared_kernels.vec13f, self.device)
             )
             self._root_com_state_w_ta = ProxyArray(self._root_com_state_w.data)
         if self._root_com_state_w.timestamp < self._sim_timestamp:
@@ -2560,7 +2550,7 @@ class ArticulationData(BaseArticulationData):
         )
         if self._body_state_w is None:
             self._body_state_w = TimestampedBuffer(
-                wp.empty((self._num_instances, self._num_bodies), dtype=shared_kernels.vec13f, device=self.device)
+                wp.empty((self._num_instances, self._num_bodies), shared_kernels.vec13f, self.device)
             )
             self._body_state_w_ta = ProxyArray(self._body_state_w.data)
         if self._body_state_w.timestamp < self._sim_timestamp:
@@ -2595,7 +2585,7 @@ class ArticulationData(BaseArticulationData):
         )
         if self._body_link_state_w is None:
             self._body_link_state_w = TimestampedBuffer(
-                wp.empty((self._num_instances, self._num_bodies), dtype=shared_kernels.vec13f, device=self.device)
+                wp.empty((self._num_instances, self._num_bodies), shared_kernels.vec13f, self.device)
             )
             self._body_link_state_w_ta = ProxyArray(self._body_link_state_w.data)
         if self._body_link_state_w.timestamp < self._sim_timestamp:
@@ -2632,7 +2622,7 @@ class ArticulationData(BaseArticulationData):
         )
         if self._body_com_state_w is None:
             self._body_com_state_w = TimestampedBuffer(
-                wp.empty((self._num_instances, self._num_bodies), dtype=shared_kernels.vec13f, device=self.device)
+                wp.empty((self._num_instances, self._num_bodies), shared_kernels.vec13f, self.device)
             )
             self._body_com_state_w_ta = ProxyArray(self._body_com_state_w.data)
         if self._body_com_state_w.timestamp < self._sim_timestamp:

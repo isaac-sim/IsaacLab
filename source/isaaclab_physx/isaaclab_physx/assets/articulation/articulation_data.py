@@ -1878,9 +1878,7 @@ class ArticulationData(BaseArticulationData):
             # selected cells into both buffers and push full backend rows to the simulation,
             # so a stale or divergent staging silently corrupts the unselected cells.
             if self._body_com_pose_b_backend is None:
-                self._body_com_pose_b_backend = TimestampedBuffer(
-                    wp.zeros(body_shape, dtype=wp.transformf, device=device)
-                )
+                self._body_com_pose_b_backend = TimestampedBuffer(wp.zeros(body_shape, wp.transformf, device))
             if self._body_mass_backend is None:
                 self._body_mass_backend = wp.clone(self._body_mass.data, device=device)
             if self._body_inertia_backend is None:

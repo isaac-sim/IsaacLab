@@ -538,9 +538,7 @@ class RigidObjectData(BaseRigidObjectData):
         rigid body's actor frame.
         """
         if self._root_link_lin_vel_b is None:
-            self._root_link_lin_vel_b = TimestampedBuffer(
-                wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device)
-            )
+            self._root_link_lin_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_link_lin_vel_b_ta = ProxyArray(self._root_link_lin_vel_b.data)
         if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -562,9 +560,7 @@ class RigidObjectData(BaseRigidObjectData):
         rigid body's actor frame.
         """
         if self._root_link_ang_vel_b is None:
-            self._root_link_ang_vel_b = TimestampedBuffer(
-                wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device)
-            )
+            self._root_link_ang_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_link_ang_vel_b_ta = ProxyArray(self._root_link_ang_vel_b.data)
         if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -586,9 +582,7 @@ class RigidObjectData(BaseRigidObjectData):
         rigid body's actor frame.
         """
         if self._root_com_lin_vel_b is None:
-            self._root_com_lin_vel_b = TimestampedBuffer(
-                wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device)
-            )
+            self._root_com_lin_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_com_lin_vel_b_ta = ProxyArray(self._root_com_lin_vel_b.data)
         if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -610,9 +604,7 @@ class RigidObjectData(BaseRigidObjectData):
         rigid body's actor frame.
         """
         if self._root_com_ang_vel_b is None:
-            self._root_com_ang_vel_b = TimestampedBuffer(
-                wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device)
-            )
+            self._root_com_ang_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_com_ang_vel_b_ta = ProxyArray(self._root_com_ang_vel_b.data)
         if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -1092,9 +1084,7 @@ class RigidObjectData(BaseRigidObjectData):
             stacklevel=2,
         )
         if self._root_state_w is None:
-            self._root_state_w = TimestampedBuffer(
-                wp.empty(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
-            )
+            self._root_state_w = TimestampedBuffer(wp.empty(self._num_instances, shared_kernels.vec13f, self.device))
             self._root_state_w_ta = ProxyArray(self._root_state_w.data)
         if self._root_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -1124,7 +1114,7 @@ class RigidObjectData(BaseRigidObjectData):
         )
         if self._root_link_state_w is None:
             self._root_link_state_w = TimestampedBuffer(
-                wp.empty(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
+                wp.empty(self._num_instances, shared_kernels.vec13f, self.device)
             )
             self._root_link_state_w_ta = ProxyArray(self._root_link_state_w.data)
         if self._root_link_state_w.timestamp < self._sim_timestamp:
@@ -1155,7 +1145,7 @@ class RigidObjectData(BaseRigidObjectData):
         )
         if self._root_com_state_w is None:
             self._root_com_state_w = TimestampedBuffer(
-                wp.empty(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
+                wp.empty(self._num_instances, shared_kernels.vec13f, self.device)
             )
             self._root_com_state_w_ta = ProxyArray(self._root_com_state_w.data)
         if self._root_com_state_w.timestamp < self._sim_timestamp:
@@ -1216,9 +1206,7 @@ class RigidObjectData(BaseRigidObjectData):
         )
         # Access internal buffer directly to avoid cascading deprecation warnings from root_state_w
         if self._root_state_w is None:
-            self._root_state_w = TimestampedBuffer(
-                wp.empty(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
-            )
+            self._root_state_w = TimestampedBuffer(wp.empty(self._num_instances, shared_kernels.vec13f, self.device))
             self._root_state_w_ta = ProxyArray(self._root_state_w.data)
         if self._root_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -1250,7 +1238,7 @@ class RigidObjectData(BaseRigidObjectData):
         # Access internal buffer directly to avoid cascading deprecation warnings from root_link_state_w
         if self._root_link_state_w is None:
             self._root_link_state_w = TimestampedBuffer(
-                wp.empty(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
+                wp.empty(self._num_instances, shared_kernels.vec13f, self.device)
             )
             self._root_link_state_w_ta = ProxyArray(self._root_link_state_w.data)
         if self._root_link_state_w.timestamp < self._sim_timestamp:
@@ -1282,7 +1270,7 @@ class RigidObjectData(BaseRigidObjectData):
         )
         if self._root_com_state_w is None:
             self._root_com_state_w = TimestampedBuffer(
-                wp.empty(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
+                wp.empty(self._num_instances, shared_kernels.vec13f, self.device)
             )
             self._root_com_state_w_ta = ProxyArray(self._root_com_state_w.data)
         if self._root_com_state_w.timestamp < self._sim_timestamp:
