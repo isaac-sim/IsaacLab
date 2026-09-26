@@ -186,6 +186,19 @@ class MeshStarTerrainCfg(SubTerrainBaseCfg):
 
 
 @configclass
+class MeshFileTerrainCfg(SubTerrainBaseCfg):
+    """Configuration for a terrain loaded from a mesh file."""
+
+    function: str = "{DIR}.mesh_terrains:mesh_file_terrain"
+
+    mesh_path: str = MISSING
+    """The path to the mesh file, in any format that ``trimesh`` can load (for example, OBJ, STL, or PLY).
+
+    The mesh must be Z-up with coordinates in meters, and its footprint should fit within :attr:`size`.
+    """
+
+
+@configclass
 class MeshRepeatedObjectsTerrainCfg(SubTerrainBaseCfg):
     """Base configuration for a terrain with repeated objects."""
 
