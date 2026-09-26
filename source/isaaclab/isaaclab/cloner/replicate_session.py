@@ -105,12 +105,11 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
     routing = {context: set() for context in render_contexts}
     for index in sorted(active):
         cfg = plan.asset_cfgs[index]
-        fields = vars(cfg)
-        references = fields.get("cloning_contexts", ())
+        references = vars(cfg).get("cloning_contexts", ())
         if references is None:
             references = () if physics_context is None else (physics_context,)
         contexts = tuple(string_to_callable(value) if isinstance(value, str) else value for value in references)
-        if isinstance(fields.get("spawn"), sim_utils.SpawnerCfg):
+        if isinstance(vars(cfg).get("spawn"), sim_utils.SpawnerCfg):
             contexts += tuple(spawn_contexts)
         if index in shared:
             contexts += tuple(context for context in (physics_context, *render_contexts) if context is not None)
