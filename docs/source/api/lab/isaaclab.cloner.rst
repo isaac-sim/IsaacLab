@@ -3,7 +3,7 @@
 
 .. automodule:: isaaclab.cloner
 
-   .. Rubric:: Submodules
+   .. Rubric:: Function namespaces
 
    .. autosummary::
 
@@ -39,19 +39,19 @@ Clone plan
 ~~~~~~~~~~
 
 .. automodule:: isaaclab.cloner.clone_plan
-   :members:
+   :members: ClonePlan, PrototypeWorldTopology, TemplateMatch, make_clone_plan, grid_transforms, to_warp
    :show-inheritance:
 
 Path
 ~~~~
 
-.. automodule:: isaaclab.cloner.path
+.. autoclass:: isaaclab.cloner.path
    :members:
 
 Query
 ~~~~~
 
-.. automodule:: isaaclab.cloner.query
+.. autoclass:: isaaclab.cloner.query
    :members:
 
 Additional Public Classes

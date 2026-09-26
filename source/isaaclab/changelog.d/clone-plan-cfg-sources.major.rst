@@ -28,6 +28,8 @@ Changed
   compose topology queries and ``cloner.path`` primitives for authored paths and destination
   names. ``cloner.path.iter_subtree_copies(instances)`` selected non-redundant copies for USD
   and OVRTX without adding native naming to the topology query API.
+  Consolidated ``path`` and ``query`` into stateless namespaces in ``clone_plan.py``.
+  Import them from ``isaaclab.cloner``; calls through ``cloner.path`` and ``cloner.query`` stayed unchanged.
   Removed cached configuration/context routing maps. Raw USD and native backend replication
   functions retained their path-based inputs.
   Clone contexts consumed destination world IDs directly without allocating dense masks.

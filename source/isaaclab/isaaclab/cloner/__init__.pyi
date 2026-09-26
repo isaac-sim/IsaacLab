@@ -28,9 +28,8 @@ __all__ = [
     "usd_replicate",
 ]
 
-from . import path, query
 from ._fabric_notices import disabled_fabric_change_notifies
-from .clone_plan import ClonePlan, PrototypeWorldTopology, grid_transforms, make_clone_plan, to_warp
+from .clone_plan import ClonePlan, PrototypeWorldTopology, grid_transforms, make_clone_plan, path, query, to_warp
 from .cloner_cfg import CloneCfg, InclusionSet, add, expand_env_regex_ns
 from .cloner_strategies import random, sequential
 from .collision_filter import filter_collisions

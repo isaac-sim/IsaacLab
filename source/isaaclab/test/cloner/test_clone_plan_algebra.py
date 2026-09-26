@@ -5,7 +5,7 @@
 
 """Tests for the cloner path/query algebra.
 
-These exercise :mod:`isaaclab.cloner.path` and :mod:`isaaclab.cloner.query`, which are pure
+These exercise :class:`isaaclab.cloner.path` and :class:`isaaclab.cloner.query`, which are pure
 string/array operations over topology and path templates. They need no stage, no
 simulator and no USD, so they live outside ``test/sim/``.
 """
@@ -133,7 +133,9 @@ def test_cloner_imports_without_kit():
     Kit boots would also bind it to the wrong USD runtime.
     """
     probe = (
-        "from isaaclab.cloner import ClonePlan, query; import sys; "
+        "from isaaclab.cloner import ClonePlan, path, query; import sys; "
+        "assert all(isinstance(namespace, type) and namespace.__module__ == ClonePlan.__module__ "
+        "for namespace in (path, query)); "
         "assert not any(hasattr(query, name) for name in "
         "('get_matched_sources', 'path_to_source', 'path_to_clone', 'path_env_ids', 'iter_clones')); "
         "print(any(n == 'isaaclab.cloner.usd' or n == 'pxr' or n.startswith('pxr.') for n in sys.modules))"
