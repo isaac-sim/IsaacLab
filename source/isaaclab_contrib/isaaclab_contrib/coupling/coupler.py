@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from functools import partial
 
@@ -127,6 +128,21 @@ class NewtonCouplerManager(NewtonVBDManager):
             )
         if not solver_cfg.entries:
             raise ValueError("CouplerCfg.entries must contain at least one solver entry.")
+
+        if isinstance(solver_cfg, CouplerAdmmCfg):
+            capacity = solver_cfg.contact_max_triangle_pairs
+            if capacity is not None and (type(capacity) is not int or capacity <= 0):
+                raise ValueError("CouplerAdmmCfg.contact_max_triangle_pairs must be a positive integer or None.")
+            if capacity is not None and capacity >= 2**20 and solver_cfg.rigid_contact_matching in ("latest", "sticky"):
+                raise ValueError(
+                    "CouplerAdmmCfg.contact_max_triangle_pairs must be less than 2**20 when "
+                    "rigid_contact_matching is 'latest' or 'sticky'."
+                )
+            factor = solver_cfg.contact_reduction_hashtable_size_factor
+            if factor is not None and (not math.isfinite(factor) or factor <= 0.0):
+                raise ValueError(
+                    "CouplerAdmmCfg.contact_reduction_hashtable_size_factor must be finite and positive or None."
+                )
 
         if any(not isinstance(entry.name, str) or not entry.name for entry in solver_cfg.entries):
             raise ValueError("CouplerCfg entry names must be non-empty strings.")
@@ -415,7 +431,44 @@ class NewtonCouplerManager(NewtonVBDManager):
                 for source, destination in solver_cfg.contact_pairs
             ]
         coupling = SolverCoupledADMM.Config(**values)
-        return SolverCoupledADMM(model=model, entries=entries, coupling=coupling)
+        solver = SolverCoupledADMM(model=model, entries=entries, coupling=coupling)
+        if any(
+            getattr(solver_cfg, name) is not None and name not in values
+            for name in ("contact_max_triangle_pairs", "contact_reduction_hashtable_size_factor")
+        ):
+            cls._configure_admm_contact_capacity(solver, solver_cfg)
+        return solver
+
+    @staticmethod
+    def _configure_admm_contact_capacity(solver: SolverCoupledADMM, solver_cfg: CouplerAdmmCfg) -> None:
+        """Apply internal collision budgets before any stepping or CUDA graph capture."""
+        # Compatibility with the pinned Newton version; skipped when Config accepts both budgets.
+        # Remove after the minimum Newton version includes https://github.com/newton-physics/newton/pull/4309.
+        # Rebuild it while preserving ADMM's pair filters, output capacities, and matching mode.
+        previous = solver._admm_collision_pipeline
+        if previous is None:
+            return
+        overrides = {}
+        if solver_cfg.contact_max_triangle_pairs is not None:
+            overrides["max_triangle_pairs"] = solver_cfg.contact_max_triangle_pairs
+        if solver_cfg.contact_reduction_hashtable_size_factor is not None:
+            overrides["contact_reduction_hashtable_size_factor"] = solver_cfg.contact_reduction_hashtable_size_factor
+        if solver_cfg.contact_matching_pos_threshold is not None:
+            overrides["contact_matching_pos_threshold"] = solver_cfg.contact_matching_pos_threshold
+        if solver_cfg.contact_matching_normal_dot_threshold is not None:
+            overrides["contact_matching_normal_dot_threshold"] = solver_cfg.contact_matching_normal_dot_threshold
+        pipeline = CollisionPipeline(
+            solver.model,
+            broad_phase=previous.broad_phase_mode,
+            shape_pairs_filtered=previous.shape_pairs_filtered,
+            rigid_contact_max=previous.rigid_contact_max,
+            soft_contact_max=previous.soft_contact_max,
+            soft_contact_gap=previous.soft_contact_gap,
+            contact_matching=previous.contact_matching,
+            **overrides,
+        )
+        solver._admm_collision_pipeline = pipeline
+        solver._admm_internal_contacts = pipeline.contacts()
 
     @staticmethod
     def _validate_no_cross_entry_proxy_joints(model: Model, entries: dict[str, _ResolvedEntry]) -> None:

@@ -141,6 +141,41 @@ def test_config_validation_requires_entries():
         NewtonCouplerManager._validate_config(CouplerProxyCfg())
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("contact_max_triangle_pairs", 0),
+        ("contact_max_triangle_pairs", 1.5),
+        ("contact_reduction_hashtable_size_factor", 0.0),
+        ("contact_reduction_hashtable_size_factor", float("nan")),
+        ("contact_reduction_hashtable_size_factor", float("inf")),
+    ],
+)
+def test_config_validation_rejects_invalid_admm_contact_capacity(field, value):
+    cfg = CouplerAdmmCfg(entries=[CouplerEntryCfg(name="entry", solver_cfg=XPBDSolverCfg())])
+    setattr(cfg, field, value)
+    with pytest.raises(ValueError, match=field):
+        NewtonCouplerManager._validate_config(cfg)
+
+
+@pytest.mark.parametrize("matching", ["latest", "sticky", "disabled"])
+@pytest.mark.parametrize(
+    ("capacity", "valid_with_matching"),
+    [(None, True), (2**20 - 1, True), (2**20, False), (2**20 + 1, False)],
+)
+def test_config_validation_admm_contact_capacity_matching_limit(matching, capacity, valid_with_matching):
+    cfg = CouplerAdmmCfg(
+        entries=[CouplerEntryCfg(name="entry", solver_cfg=XPBDSolverCfg())],
+        contact_max_triangle_pairs=capacity,
+        rigid_contact_matching=matching,
+    )
+    if valid_with_matching or matching == "disabled":
+        NewtonCouplerManager._validate_config(cfg)
+    else:
+        with pytest.raises(ValueError, match=r"contact_max_triangle_pairs.*2\*\*20.*rigid_contact_matching"):
+            NewtonCouplerManager._validate_config(cfg)
+
+
 def test_config_validation_requires_nonempty_entry_names():
     cfg = CouplerAdmmCfg(entries=[CouplerEntryCfg(name="", solver_cfg=XPBDSolverCfg())])
     with pytest.raises(ValueError, match="non-empty strings"):
@@ -864,6 +899,30 @@ def test_admm_build_forwards_multiple_pairs_matching_and_proximal_options(monkey
     assert solver.coupling.contact_matching_pos_threshold == pytest.approx(0.01)
     assert solver.coupling.contact_matching_normal_dot_threshold == pytest.approx(0.8)
     assert solver.coupling.contact_matching_force_scale == pytest.approx(0.7)
+
+
+def test_admm_build_forwards_native_contact_capacity_without_fallback(monkeypatch):
+    @dataclass(frozen=True)
+    class NativeCapacityConfig(_RecordingAdmm.Config):
+        contact_max_triangle_pairs: int | None = None
+        contact_reduction_hashtable_size_factor: float | None = None
+
+    def reject_fallback(*args):
+        pytest.fail("Native ADMM capacity support must bypass the compatibility adapter")
+
+    monkeypatch.setattr(_RecordingAdmm, "Config", NativeCapacityConfig)
+    monkeypatch.setattr(coupler, "SolverCoupledADMM", _RecordingAdmm)
+    monkeypatch.setattr(NewtonCouplerManager, "_configure_admm_contact_capacity", reject_fallback)
+    cfg = CouplerAdmmCfg(
+        contact_pairs=[],
+        contact_max_triangle_pairs=8192,
+        contact_reduction_hashtable_size_factor=2.0,
+    )
+
+    solver = NewtonCouplerManager._build_admm_coupled_solver(_FakeModel(), [], cfg)
+
+    assert solver.coupling.contact_max_triangle_pairs == 8192
+    assert solver.coupling.contact_reduction_hashtable_size_factor == 2.0
 
 
 def test_admm_build_auto_detects_symmetric_contact_pairs_by_default(monkeypatch):
