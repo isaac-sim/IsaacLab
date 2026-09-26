@@ -1021,8 +1021,11 @@ class Camera(SensorBase):
             if not env_ids.is_contiguous():
                 env_ids = env_ids.contiguous()
             return wp.from_torch(env_ids, dtype=wp.int32)
-        elif isinstance(env_ids, slice):
+        elif isinstance(env_ids, slice) and (env_ids.step or 1) > 0:
             return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
+        elif isinstance(env_ids, slice):
+            # Torch cannot slice with a negative step.
+            env_ids = np.arange(self._view.count, dtype=np.int32)[env_ids]
         else:
             env_ids = np.asarray(env_ids, dtype=np.int32).reshape(-1)
         return wp.array(env_ids, dtype=wp.int32, device=self._device)

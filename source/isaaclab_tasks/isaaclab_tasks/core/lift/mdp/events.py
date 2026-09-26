@@ -121,29 +121,29 @@ def reset_to_target(
         target_cfg: Target body (e.g. the gripper palm) to spawn the asset at.
         asset_cfg: The asset to reset.
     """
-    num_envs = env.num_envs
-    env_mask = torch.zeros(num_envs, dtype=torch.bool, device=env.device)
-    env_mask[env_ids] = torch.rand(num_envs, device=env.device)[env_ids] < probability
+    env_ids = env.scene._ALL_INDICES[env_ids]
+    picked = env_ids[torch.rand(len(env_ids), device=env.device) < probability]
+    if len(picked) == 0:
+        return
     asset = env.scene[asset_cfg.name]
     target = env.scene[target_cfg.name]
-    target_pos = target.data.body_pos_w.torch[:, target_cfg.body_ids, :].reshape(num_envs, -1)[:, :3]
-    target_quat = target.data.body_quat_w.torch[:, target_cfg.body_ids, :].reshape(num_envs, -1)[:, :4]
+    target_pos = target.data.body_pos_w.torch[picked][:, target_cfg.body_ids, :].reshape(len(picked), -1)[:, :3]
+    target_quat = target.data.body_quat_w.torch[picked][:, target_cfg.body_ids, :].reshape(len(picked), -1)[:, :4]
 
     keys = ("x", "y", "z")
     offsets = torch.tensor([tuple(pose_range.get(key, (0.0, 0.0))) for key in keys], device=asset.device)
     # offsets are expressed in the target body frame, so e.g. a +z range places the object
     # along the gripper approach axis (between the fingertips) at any hand orientation
-    local_offsets = sample_uniform(offsets[:, 0], offsets[:, 1], (num_envs, 3), device=asset.device)
+    local_offsets = sample_uniform(offsets[:, 0], offsets[:, 1], (len(picked), 3), device=asset.device)
     positions = target_pos + quat_apply(target_quat, local_offsets)
-    orientations = random_orientation(num_envs, device=asset.device)
+    orientations = random_orientation(len(picked), device=asset.device)
 
     keys = ("x", "y", "z", "roll", "pitch", "yaw")
     vel_ranges = torch.tensor([tuple(velocity_range.get(key, (0.0, 0.0))) for key in keys], device=asset.device)
-    velocities = sample_uniform(vel_ranges[:, 0], vel_ranges[:, 1], (num_envs, 6), device=asset.device)
+    velocities = sample_uniform(vel_ranges[:, 0], vel_ranges[:, 1], (len(picked), 6), device=asset.device)
 
-    root_pose = torch.cat([positions, orientations], dim=-1)
-    asset.write_root_pose_to_sim_mask(root_pose=root_pose, env_mask=wp.from_torch(env_mask))
-    asset.write_root_velocity_to_sim_mask(root_velocity=velocities, env_mask=wp.from_torch(env_mask))
+    asset.write_root_pose_to_sim_index(root_pose=torch.cat([positions, orientations], dim=-1), env_ids=picked)
+    asset.write_root_velocity_to_sim_index(root_velocity=velocities, env_ids=picked)
 
 
 class conditional_reset(ManagerTermBase):
