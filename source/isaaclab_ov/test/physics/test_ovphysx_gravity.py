@@ -13,11 +13,11 @@ import torch
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov.assets import RigidObject
+from isaaclab_ov.envs.mdp import randomize_physics_scene_gravity
 from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.envs.mdp.events import randomize_physics_scene_gravity
 from isaaclab.managers import EventTermCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 

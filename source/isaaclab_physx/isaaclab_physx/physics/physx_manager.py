@@ -49,6 +49,8 @@ from isaaclab_physx.cloner import PhysxReplicateContext
 from .physx_manager_cfg import PhysxBackendCfg
 
 if TYPE_CHECKING:
+    from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.managers import EventTermCfg, ManagerTermBase
     from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
     from isaaclab.sim.simulation_context import SimulationContext
 
@@ -1077,3 +1079,24 @@ class PhysxManager(PhysicsManager):
         cls._subscriptions["assets_loaded"] = cls._event_bus.observe_event(
             event_name=ctx.stage_event_name(omni.usd.StageEventType.ASSETS_LOADED), on_event=on_loaded
         )
+
+    @classmethod
+    def _create_legacy_material_randomizer(cls, cfg: EventTermCfg, env: ManagerBasedEnv) -> ManagerTermBase:
+        """Compatibility for the deprecated core material event; new tasks select terms directly."""
+        from ..envs.mdp.physics_events import randomize_rigid_body_material
+
+        return randomize_rigid_body_material(cfg, env)
+
+    @classmethod
+    def _create_legacy_collider_randomizer(cls, cfg: EventTermCfg, env: ManagerBasedEnv) -> ManagerTermBase:
+        """Compatibility for the deprecated core collider event; new tasks select terms directly."""
+        from ..envs.mdp.physics_events import randomize_rigid_body_collider_offsets
+
+        return randomize_rigid_body_collider_offsets(cfg, env)
+
+    @classmethod
+    def _create_legacy_gravity_randomizer(cls, cfg: EventTermCfg, env: ManagerBasedEnv) -> ManagerTermBase:
+        """Compatibility for the deprecated core gravity event; new tasks select terms directly."""
+        from ..envs.mdp.physics_events import randomize_physics_scene_gravity
+
+        return randomize_physics_scene_gravity(cfg, env)

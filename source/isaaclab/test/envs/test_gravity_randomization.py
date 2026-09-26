@@ -6,15 +6,20 @@
 """Tests for gravity randomization and observations."""
 
 import math
+import sys
 from types import SimpleNamespace
 
 import pytest
 import torch
 import warp as wp
+from isaaclab_newton.envs.mdp import randomize_world_gravity
+from isaaclab_newton.physics import NewtonManager
+from isaaclab_ov.envs.mdp import randomize_physics_scene_gravity as ov_gravity
+from isaaclab_physx.envs.mdp import randomize_physics_scene_gravity as physx_gravity
 
 from isaaclab.envs.mdp.events import randomize_physics_scene_gravity
 from isaaclab.envs.mdp.observations import body_projected_gravity_b
-from isaaclab.managers import EventTermCfg, SceneEntityCfg
+from isaaclab.managers import EventManager, EventTermCfg, SceneEntityCfg
 
 
 @pytest.mark.parametrize("backend", ["physx", "ovphysx"])
@@ -26,27 +31,30 @@ def test_scene_wide_backends_use_configured_distribution(monkeypatch: pytest.Mon
         (),
         {"set_gravity": staticmethod(lambda gravity: setattr(gravity_sink, "value", gravity))},
     )
-    monkeypatch.setattr(randomize_physics_scene_gravity, "_init_physx", lambda *_args: None)
+    monkeypatch.setitem(sys.modules, "carb", SimpleNamespace(Float3=lambda *values: values))
+    term_type = physx_gravity if backend == "physx" else ov_gravity
     env = SimpleNamespace(
         device="cpu",
+        num_envs=2,
         sim=SimpleNamespace(
             cfg=SimpleNamespace(gravity=(0.0, 0.0, -9.81)),
             physics_manager=physics_manager,
+            physics_sim_view=physics_manager,
+            is_playing=lambda: True,
         ),
     )
     cfg = EventTermCfg(
-        func=randomize_physics_scene_gravity,
+        func=term_type,
+        mode="startup",
         params={
             "gravity_distribution_params": ((1.0, 2.0, 3.0), (0.0, 0.0, 0.0)),
             "operation": "abs",
             "distribution": "gaussian",
         },
     )
-    gravity_event = randomize_physics_scene_gravity(cfg, env)
-    gravity_event._carb = SimpleNamespace(Float3=lambda *values: values)
-    gravity_event._physics_sim_view = physics_manager
+    manager = EventManager({"gravity": cfg}, env)
     torch.manual_seed(0)
-    gravity_event(env, env_ids=None, **cfg.params)
+    manager.apply("startup")
     assert gravity_sink.value == pytest.approx((1.0, 2.0, 3.0))
 
 
@@ -56,15 +64,25 @@ def test_newton_gravity_selectors_preserve_global_world(monkeypatch: pytest.Monk
     gravity = torch.full((5, 3), -9.81)
     model = SimpleNamespace(gravity=wp.from_torch(gravity, dtype=wp.vec3))
     notifications = []
-    manager = SimpleNamespace(get_model=lambda: model, add_model_change=notifications.append)
-    monkeypatch.setattr(randomize_physics_scene_gravity, "_init_newton", lambda *_args: None)
-    env = SimpleNamespace(device="cpu", num_envs=4, sim=SimpleNamespace(physics_manager=type("NewtonManager", (), {})))
+
+    class CustomDynamics(NewtonManager):
+        pass
+
+    monkeypatch.setattr(CustomDynamics, "get_model", classmethod(lambda cls: model))
+    monkeypatch.setattr(CustomDynamics, "add_model_change", classmethod(lambda cls, flag: notifications.append(flag)))
+    env = SimpleNamespace(
+        device="cpu",
+        num_envs=4,
+        sim=SimpleNamespace(physics_manager=CustomDynamics, is_playing=lambda: True),
+    )
     cfg = EventTermCfg(
-        func=randomize_physics_scene_gravity,
+        func=randomize_world_gravity,
+        mode="startup",
         params={"gravity_distribution_params": ((1.0, 2.0, 3.0), (1.0, 2.0, 3.0)), "operation": "abs"},
     )
-    event = randomize_physics_scene_gravity(cfg, env)
-    event._newton_manager, event._notify_model_properties = manager, "gravity"
+    from newton import ModelFlags
+
+    manager = EventManager({"gravity": cfg}, env)
     for selector, rows in (
         (None, [0, 1, 2, 3]),
         (slice(None), [0, 1, 2, 3]),
@@ -75,11 +93,19 @@ def test_newton_gravity_selectors_preserve_global_world(monkeypatch: pytest.Monk
     ):
         gravity.fill_(-9.81)
         notifications.clear()
-        event(env, selector, **cfg.params)
+        manager.apply("startup", env_ids=selector)
         expected = torch.full_like(gravity, -9.81)
         expected[rows] = torch.tensor([1.0, 2.0, 3.0])
         torch.testing.assert_close(gravity, expected)
-        assert notifications == (["gravity"] if rows else [])
+        assert notifications == ([ModelFlags.MODEL_PROPERTIES] if rows else [])
+
+    with pytest.warns(DeprecationWarning, match="Select the physics backend"):
+        legacy = randomize_physics_scene_gravity(cfg, env)
+    gravity.fill_(-9.81)
+    legacy(env, torch.tensor([2]), **cfg.params)
+    expected = torch.full_like(gravity, -9.81)
+    expected[2] = torch.tensor([1.0, 2.0, 3.0])
+    torch.testing.assert_close(gravity, expected)
 
 
 @pytest.mark.unit

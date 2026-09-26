@@ -248,7 +248,9 @@ The following public modules provide additional specialized APIs:
    lab_experimental/isaaclab_experimental.envs.mdp.actions
    lab_newton/isaaclab_newton.envs.mdp
    lab_newton/isaaclab_newton.sim.views
+   lab_ov/isaaclab_ov.envs.mdp
    lab_ov/isaaclab_ov.sensors
    lab_ov/isaaclab_ov.sensors.ray_caster
+   lab_physx/isaaclab_physx.envs.mdp
    lab_physx/isaaclab_physx.sim.views
    lab_ppisp/isaaclab_ppisp
