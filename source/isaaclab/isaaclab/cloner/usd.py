@@ -159,7 +159,7 @@ class UsdReplicateContext:
         """Replicate this context's declared sources with the same low-level USD operation."""
         from pxr import Gf, Sdf, Vt  # noqa: PLC0415
 
-        env_ids = np.arange(len(plan.destinations))
+        env_ids = np.arange(len(plan.world_prototype_layout))
         with disabled_fabric_change_notifies(self.stage), Sdf.ChangeBlock():
             for _, source, template, targets in iter_clones(
                 instance for instance in self.instances if instance[0] in asset_prototype_ids

@@ -333,7 +333,7 @@ def test_clone_plan_from_env_0_uses_flat_cfg_manifest(sim):
     assert sim.get_clone_plan() is plan
     assert plan.asset_prototypes == (robot, sensor, prop, light, light_reference)
     assert sim.clone_contexts[UsdReplicateContext].global_paths == ("/World/Light",)
-    np.testing.assert_array_equal(plan.destinations, np.zeros(4, dtype=np.int32))
+    np.testing.assert_array_equal(plan.world_prototype_layout, np.zeros(4, dtype=np.int32))
     np.testing.assert_array_equal(plan.world_prototypes, [3, 4, 0, 1, 2])
     assert robot.prim_path == "/World/envs/env_[^/]+/Robot"
     assert robot.spawn.spawn_path == "/World/envs/env_0/Robot"

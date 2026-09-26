@@ -82,7 +82,7 @@ def test_empty_and_shared_only_worlds(simulation, shared):
     with ReplicateSession(assets, 3, 2.0) as session:
         usd = simulation.clone_contexts[UsdReplicateContext]
         assert usd.global_paths == (("/World/Ground",) if shared else ())
-        np.testing.assert_array_equal(session.plan.destinations, [0, 0, 0])
+        np.testing.assert_array_equal(session.plan.world_prototype_layout, [0, 0, 0])
         np.testing.assert_array_equal(session.plan.world_prototype_starts, [0, int(shared), int(shared)])
     assert {context for context, _, _ in simulation.calls} == (
         {_Context, _RenderContext} if shared else {_RenderContext}
@@ -159,4 +159,4 @@ def test_multi_spawner_creates_concrete_asset_prototypes(simulation):
             assert cfg.spawn.assets_cfg[0] is shape
         assert object_cfg.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_2/Object"]
         np.testing.assert_array_equal(plan.world_prototypes, [2, 0, 1])
-        np.testing.assert_array_equal(plan.destinations, [0, 0, 1, 1])
+        np.testing.assert_array_equal(plan.world_prototype_layout, [0, 0, 1, 1])

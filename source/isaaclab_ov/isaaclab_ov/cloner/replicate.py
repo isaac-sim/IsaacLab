@@ -129,7 +129,7 @@ class OvPhysxReplicateContext:
         recipes = _clone_recipes(
             stage=self.stage,
             instances=tuple(instance for instance in usd.instances if instance[0] in asset_prototype_ids),
-            env_ids=np.arange(len(plan.destinations)),
+            env_ids=np.arange(len(plan.world_prototype_layout)),
             positions=usd.positions,
             quaternions=None,
         )

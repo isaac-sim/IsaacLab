@@ -39,8 +39,8 @@ class ClonePlan:
     An empty shared world starts with ``[0, 0]``.
     """
 
-    destinations: np.ndarray
-    """World-prototype index for each destination world; shared assets are not sampled."""
+    world_prototype_layout: np.ndarray
+    """World-prototype index per world, indexed by world ID; shared assets are not sampled."""
 
 
 def make_clone_plan(
@@ -79,19 +79,19 @@ def make_clone_plan(
         raise ValueError("Each world prototype requires one finite, non-negative weight.")
     if weights.sum() <= 0 or num_worlds < 0:
         raise ValueError("Weights must have positive total mass and num_worlds must be non-negative.")
-    destinations = np.asarray(clone_strategy(weights, num_worlds))
+    world_prototype_layout = np.asarray(clone_strategy(weights, num_worlds))
     if (
-        destinations.shape != (num_worlds,)
-        or not np.issubdtype(destinations.dtype, np.integer)
-        or (destinations < 0).any()
-        or (destinations >= len(weights)).any()
+        world_prototype_layout.shape != (num_worlds,)
+        or not np.issubdtype(world_prototype_layout.dtype, np.integer)
+        or (world_prototype_layout < 0).any()
+        or (world_prototype_layout >= len(weights)).any()
     ):
         raise ValueError("clone_strategy must select one valid world-prototype index per destination.")
     return ClonePlan(
         asset_prototypes=asset_prototypes,
         world_prototypes=members.astype(np.int32, copy=False),
         world_prototype_starts=np.cumsum([0, *(len(world) for world in compositions)], dtype=np.int64),
-        destinations=destinations.astype(np.int32, copy=False),
+        world_prototype_layout=world_prototype_layout.astype(np.int32, copy=False),
     )
 
 

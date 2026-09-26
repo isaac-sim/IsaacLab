@@ -249,7 +249,7 @@ class conditional_reset(ManagerTermBase):
 
         if not self._prefilled:
             # The plan already identifies the world prototype selected by each environment.
-            _, group = np.unique(env.scene.clone_plan.destinations, return_inverse=True)
+            _, group = np.unique(env.scene.clone_plan.world_prototype_layout, return_inverse=True)
             self._group = torch.as_tensor(group, device=env.device)
             num_groups = int(self._group.max().item()) + 1
             # without a descriptor there is nothing to spread over, so harvesting extra is waste

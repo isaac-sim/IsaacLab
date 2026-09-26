@@ -26,8 +26,8 @@ def get_world_prototypes(plan: ClonePlan) -> list[tuple[int, np.ndarray, np.ndar
         Repeated asset-prototype IDs remain repeated.
         The shared world has ID -1 and destination [-1]. Unselected prototypes have no destinations.
     """
-    world_ids = np.argsort(plan.destinations, kind="stable")
-    offsets = np.cumsum(np.bincount(plan.destinations, minlength=len(plan.world_prototype_starts) - 2))
+    world_ids = np.argsort(plan.world_prototype_layout, kind="stable")
+    offsets = np.cumsum(np.bincount(plan.world_prototype_layout, minlength=len(plan.world_prototype_starts) - 2))
     prototypes = [(-1, plan.world_prototypes[: plan.world_prototype_starts[1]], np.asarray([-1], dtype=np.int64))]
     start = 0
     for world_prototype_id, end in enumerate(offsets):
