@@ -210,10 +210,13 @@ def _prepare_cloning(
     sim = sim_utils.SimulationContext.instance()
     if sim is None or sim.get_clone_plan() is not None:
         raise RuntimeError("Clone preparation requires a simulation without an existing clone plan.")
+    cfgs = tuple(cfgs)
+    for cfg in cfgs:
+        cfg.prim_path = expand_env_regex_ns(cfg.prim_path, env_template)
+    spawned = [cfg for cfg in cfgs if getattr(cfg, "spawn", None) is not None]
     # Expand spawner variants into asset prototypes; per-asset choices form the default world compositions.
     asset_prototypes, groups, shared, declarations = [], [], [], []
     for cfg in cfgs:
-        cfg.prim_path = expand_env_regex_ns(cfg.prim_path, env_template)
         if isinstance(cfg, CameraCfg):
             sim.get_or_create_backend(cfg.renderer_cfg)
         spawn = getattr(cfg, "spawn", None)
@@ -233,8 +236,15 @@ def _prepare_cloning(
                 else:
                     prototype.spawn.usd_path = spawn.usd_path[variant]
             asset_prototypes.append(prototype)
-        if isinstance(cfg, SensorBaseCfg) and spawn is None:
-            continue
+        if spawn is None:
+            # Views of an authored subtree inherit its copies; different context overrides stay explicit.
+            contexts = getattr(cfg, "cloning_contexts", ())
+            covered = any(
+                cfg.prim_path.startswith(parent.prim_path + "/") and getattr(parent, "cloning_contexts", ()) == contexts
+                for parent in spawned
+            )
+            if isinstance(cfg, SensorBaseCfg) or covered:
+                continue
         if cloner_path.match(cfg.prim_path, env_template) is None:
             shared.extend(indices)
         else:

@@ -46,7 +46,7 @@ For varying assets across environments, see :doc:`multi_asset_spawning`.
 
 
 Walking through a ClonePlan
---------------------------
+---------------------------
 
 An **asset prototype** is one reusable asset definition. A **world prototype** is
 a composition of those assets. For example, two asset prototypes can describe
@@ -101,7 +101,7 @@ Only declared asset subtrees participate, not undeclared siblings found on the s
 
 
 Explicit cloning for tests and tools
------------------------------------
+------------------------------------
 
 Without ``InteractiveScene``, a homogeneous scene can use the same lifecycle
 explicitly. Set the asset paths to ``{ENV_REGEX_NS}/Banana`` and
@@ -119,5 +119,5 @@ Pass a flat collection of asset and sensor cfgs, including shared assets such as
 ground and lights. Prefer ``InteractiveScene`` for maintained tasks and demos;
 it also handles backend-specific setup such as PhysX collision filtering.
 
-See the :doc:`cloner API reference </api/lab/isaaclab.cloner>` for individual
+See the :doc:`cloner API reference <../api/lab/isaaclab.cloner>` for individual
 functions, topology queries, and path utilities.

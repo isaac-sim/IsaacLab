@@ -105,6 +105,7 @@ def test_camera_registers_before_cloning_and_shares_the_plan(simulation, from_en
     prop = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Prop", spawn=MultiAssetSpawnerCfg(assets_cfg=[SphereCfg(radius=1)]))
     assets = camera, ground, prop, AssetBaseCfg(prim_path="/Lab/Ground/Material")
     assets += SensorBaseCfg(prim_path="/Lab/Ground/Frame"), SensorBaseCfg(prim_path=camera.prim_path)
+    assets += (AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Prop/body"),)
     if from_env_0:
         plan = clone_plan_from_env_0(CloneCfg(clone_template="/Lab/Cell{}"), assets, 3, 2.0)
         replicate_session.replicate(plan)
@@ -124,7 +125,7 @@ def test_camera_registers_before_cloning_and_shares_the_plan(simulation, from_en
     shared = templates[: starts[1]]
     roots = [path for path, parent in zip(shared, cloner_path.get_parent_indices(shared)) if parent == -1]
     assert roots == ["/Lab/Ground"]
-    np.testing.assert_array_equal(plan.topology.world_prototypes, [1, 3, 0, 2])
+    np.testing.assert_array_equal(plan.topology.world_prototypes, [1, 0, 2])
     np.testing.assert_array_equal(plan.topology.world_prototype_layout, [0, 0, 0])
     assert {context for context, _, _ in simulation.calls} == {_Context, _RenderContext}
     assert all(received is plan for _, received, _ in simulation.calls)

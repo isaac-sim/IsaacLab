@@ -139,4 +139,7 @@ class UsdReplicateContext:
                     attr.default = Gf.Vec3d(*map(float, position))
                     name = "xformOpOrder"
                     order = spec.attributes.get(name) or Sdf.AttributeSpec(spec, name, Sdf.ValueTypeNames.TokenArray)
-                    order.default = Vt.TokenArray([attr.name])
+                    ops = list(order.default or ())
+                    if attr.name not in ops:
+                        ops.insert(ops.index("!resetXformStack!") + 1 if "!resetXformStack!" in ops else 0, attr.name)
+                    order.default = Vt.TokenArray(ops)

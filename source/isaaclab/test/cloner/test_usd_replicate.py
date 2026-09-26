@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from pxr import Sdf, Usd
+from pxr import Sdf, Usd, UsdGeom
 
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import UsdReplicateContext, make_clone_plan, usd_replicate
@@ -63,8 +63,15 @@ def test_usd_replicate_preserves_ancestors_and_relationships():
 
 @pytest.mark.parametrize("independent_child", [False, True])
 def test_context_clones_nested_declarations_parent_first(independent_child):
-    """An attached child is copied once; an independently authored child overrides its parent."""
+    """Child overrides and existing world transforms survive parent-first cloning."""
     stage = Usd.Stage.CreateInMemory()
+    for world in range(2):
+        root = UsdGeom.Xform.Define(stage, f"/World/envs/env_{world}")
+        if world == 0:
+            root.AddTranslateOp().Set((10, 20, 30))
+        root.AddRotateZOp().Set(90)
+        root.AddScaleOp().Set((2, 3, 4))
+        root.SetResetXformStack(True)
     stage.DefinePrim("/Sources/Robot/Camera", "Camera").CreateAttribute("marker", Sdf.ValueTypeNames.Int).Set(1)
     stage.DefinePrim("/Sources/Camera", "Camera").CreateAttribute("marker", Sdf.ValueTypeNames.Int).Set(2)
     child_source = "/Sources/Camera" if independent_child else "/Sources/Robot/Camera"
@@ -72,8 +79,12 @@ def test_context_clones_nested_declarations_parent_first(independent_child):
         AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot/Camera", spawn=SpawnerCfg(spawn_path=child_source)),
         AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path="/Sources/Robot")),
     )
-    plan = make_clone_plan(cfgs, ((0, 1), (0,)), 2)
+    positions = np.asarray([[1, 2, 3], [4, 5, 6]], dtype=np.float32)
+    plan = make_clone_plan(cfgs, ((0, 1), (0,)), 2, positions=positions)
     UsdReplicateContext(SimpleNamespace(stage=stage)).replicate(plan, (0, 1))
     for world in range(2):
         camera = stage.GetPrimAtPath(f"/World/envs/env_{world}/Robot/Camera")
         assert camera.GetAttribute("marker").Get() == (2 if independent_child else 1)
+        transform = UsdGeom.Xformable(camera).ComputeLocalToWorldTransform(0)
+        np.testing.assert_allclose(transform.Transform((1, 0, 0)), positions[world] + [0, 2, 0], atol=1e-6)
+        assert UsdGeom.Xformable(stage.GetPrimAtPath(f"/World/envs/env_{world}")).GetResetXformStack()

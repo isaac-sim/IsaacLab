@@ -38,9 +38,22 @@
 Clone plan
 ~~~~~~~~~~
 
-.. automodule:: isaaclab.cloner.clone_plan
-   :members: ClonePlan, PrototypeWorldTopology, TemplateMatch, make_clone_plan, grid_transforms, to_warp
-   :show-inheritance:
+.. currentmodule:: isaaclab.cloner
+
+.. autoclass:: ClonePlan
+   :members:
+
+.. autoclass:: PrototypeWorldTopology
+   :members:
+
+.. autoclass:: isaaclab.cloner.clone_plan.TemplateMatch
+   :members:
+
+.. autofunction:: make_clone_plan
+
+.. autofunction:: grid_transforms
+
+.. autofunction:: to_warp
 
 Path
 ~~~~
@@ -56,18 +69,6 @@ Query
 
 Additional Public Classes
 -------------------------
-
-The following classes are part of the public :mod:`isaaclab.cloner` API.
-
-.. currentmodule:: isaaclab.cloner
-
-.. autosummary::
-   :nosignatures:
-
-   CloneCfg
-   InclusionSet
-   ReplicateSession
-   UsdReplicateContext
 
 .. autoclass:: CloneCfg
    :show-inheritance:
