@@ -50,11 +50,10 @@ def usd_replicate(
     with disabled_fabric_change_notifies(stage), Sdf.ChangeBlock():
         for source_index in sorted(range(len(sources)), key=lambda index: destinations[index].count("/")):
             source, template = sources[source_index], destinations[source_index]
-            columns = (
-                np.arange(len(env_ids))
-                if mask is None
-                else np.flatnonzero(mask if mask.ndim == 1 else mask[source_index])
-            )
+            if mask is None:
+                columns = range(len(env_ids))
+            else:
+                columns = np.flatnonzero(mask if mask.ndim == 1 else mask[source_index])
             is_env_root = template.rstrip("/").endswith("{}")
             for column in columns:
                 destination = template.format(int(env_ids[column]))
@@ -106,21 +105,20 @@ class UsdReplicateContext:
         templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
             plan, include_world_indices=True
         )
+        assets = plan.topology.world_prototypes
         # Group copies by source/template, omitting descendants already covered by an identical parent copy.
         copies = {}
         for group in np.flatnonzero(np.diff(world_starts)):
             start, end = starts[group : group + 2]
             targets = world_ids[world_starts[group] : world_starts[group + 1]]
-            members = [
-                index for index in range(start, end) if plan.topology.world_prototypes[index] in asset_prototype_ids
-            ]
+            members = [index for index in range(start, end) if assets[index] in asset_prototype_ids]
             destinations = [templates[index] for index in members]
             for index, parent in zip(members, cloner_path.get_parent_indices(destinations), strict=True):
-                source, template = sources[plan.topology.world_prototypes[index]], templates[index]
+                source, template = sources[assets[index]], templates[index]
                 if parent != -1:
                     ancestor = members[parent]
                     suffix = cloner_path.relative_to(template, templates[ancestor])
-                    if source == sources[plan.topology.world_prototypes[ancestor]] + suffix:
+                    if source == sources[assets[ancestor]] + suffix:
                         continue
                 copies.setdefault((source, template), []).append(targets)
         env_ids = range(len(plan.topology.world_prototype_layout))

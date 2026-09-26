@@ -156,16 +156,10 @@ def _replicate_newton(
         stage_info = builder.add_usd(stage, root_path=sim.cfg.physics_prim_path, schema_resolvers=schema_resolvers)
 
     import_results: dict[str, dict[str, Any]] = {}
-    source_builders = build_source_builders(
-        stage,
-        [sources[index] for index in asset_prototype_ids if sources[index] is not None],
-        create_builder,
-        schema_resolvers,
-        ignore_paths=global_ignore_paths,
-        load_visual_shapes=load_visual_shapes,
-        skip_mesh_approximation=not simulation,
-        import_results_out=import_results,
-    )
+    source_paths = [sources[index] for index in asset_prototype_ids if sources[index] is not None]
+    options = dict(ignore_paths=global_ignore_paths, load_visual_shapes=load_visual_shapes)
+    options.update(skip_mesh_approximation=not simulation, import_results_out=import_results)
+    source_builders = build_source_builders(stage, source_paths, create_builder, schema_resolvers, **options)
 
     # Keep only renderable cables from this representation's actual imports.
     cable_counts = {}
@@ -191,25 +185,16 @@ def _replicate_newton(
         global_sites, source_sites, root_sites = {}, {}, {}
 
     def record_particles(source: str, offset: int, source_builder: ModelBuilder, xform: Sequence[float]) -> None:
+        particles = import_results[source].get("path_particle_map", {})
         record_registered_mpm_particle_ranges(
-            import_results[source].get("path_particle_map", {}),
-            offset,
-            builder=builder,
-            source_builder=source_builder,
-            source_xform=xform,
+            particles, offset, builder=builder, source_builder=source_builder, source_xform=xform
         )
 
+    options = dict(env_ids=env_ids, source_site_indices=source_sites, env_root_sites=root_sites)
+    options["per_world_builder_hooks"] = NewtonManager._per_world_builder_hooks if simulation else ()
+    options["source_builder_added"] = record_particles if simulation and NewtonManager._mpm_object_registry else None
     local_site_map, world_xforms, fabric_body_bindings = replicate_builder_mapping(
-        builder,
-        plan,
-        positions,
-        quaternions,
-        source_builders,
-        env_ids=env_ids,
-        source_site_indices=source_sites,
-        env_root_sites=root_sites,
-        per_world_builder_hooks=NewtonManager._per_world_builder_hooks if simulation else (),
-        source_builder_added=record_particles if simulation and NewtonManager._mpm_object_registry else None,
+        builder, plan, positions, quaternions, source_builders, **options
     )
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
@@ -253,15 +238,9 @@ class NewtonReplicateContext:
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> tuple[ModelBuilder, object, dict]:
         """Build and publish a Newton model from this context's source declarations."""
-        return _replicate_newton(
-            self._sim.stage,
-            np.arange(len(plan.topology.world_prototype_layout)),
-            self._sim,
-            plan=plan,
-            asset_prototype_ids=asset_prototype_ids,
-            positions=plan.positions,
-            up_axis=self.up_axis,
-        )
+        env_ids = np.arange(len(plan.topology.world_prototype_layout))
+        options = dict(plan=plan, asset_prototype_ids=asset_prototype_ids, positions=plan.positions)
+        return _replicate_newton(self._sim.stage, env_ids, self._sim, up_axis=self.up_axis, **options)
 
 
 def newton_physics_replicate(
@@ -296,28 +275,17 @@ def newton_physics_replicate(
     members = [np.flatnonzero(mask) for mask in world_masks[order]]
     shared = np.arange(len(sources), len(sources) + len(global_paths))
     prefix, suffix = destinations[0].split("{}", 1) if destinations else ("/World/envs/env_", "")
-    plan = ClonePlan(
-        PrototypeWorldTopology(
-            len(sources) + len(global_paths),
-            np.concatenate((shared, *members)).astype(np.int32),
-            np.r_[0, len(shared), len(shared) + np.cumsum([len(world) for world in members])],
-            np.argsort(order)[selected].astype(np.int32),
-        ),
-        asset_cfgs=tuple(
-            AssetBaseCfg(prim_path=destination.format("[^/]+"), spawn=SpawnerCfg(spawn_path=source))
-            for source, destination in zip((*sources, *global_paths), (*destinations, *global_paths), strict=True)
-        ),
-        env_template=prefix + "{}" + suffix.split("/", 1)[0],
-        positions=positions,
+    topology = PrototypeWorldTopology(
+        len(sources) + len(global_paths),
+        np.concatenate((shared, *members)).astype(np.int32),
+        np.r_[0, len(shared), len(shared) + np.cumsum([len(world) for world in members])],
+        np.argsort(order)[selected].astype(np.int32),
     )
-    builder, stage_info, _ = _replicate_newton(
-        stage,
-        env_ids,
-        PhysicsManager._sim,
-        plan=plan,
-        asset_prototype_ids=range(len(plan.asset_cfgs)),
-        positions=positions,
-        up_axis=up_axis,
-        quaternions=quaternions,
-    )
+    roots = zip((*sources, *global_paths), (*destinations, *global_paths), strict=True)
+    assets = tuple(AssetBaseCfg(prim_path=dst.format("[^/]+"), spawn=SpawnerCfg(spawn_path=src)) for src, dst in roots)
+    env_template = prefix + "{}" + suffix.split("/", 1)[0]
+    plan = ClonePlan(topology, asset_cfgs=assets, env_template=env_template, positions=positions)
+    options = dict(plan=plan, asset_prototype_ids=range(len(assets)), positions=positions)
+    options.update(up_axis=up_axis, quaternions=quaternions)
+    builder, stage_info, _ = _replicate_newton(stage, env_ids, PhysicsManager._sim, **options)
     return builder, stage_info

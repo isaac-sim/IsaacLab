@@ -129,17 +129,13 @@ def make_clone_plan(
     has_valid_ids = is_world_layout and (layout >= 0).all() and (layout < len(weights)).all()
     if not has_valid_ids:
         raise ValueError("clone_strategy must select one valid world-prototype index per destination.")
-    return ClonePlan(
-        topology=PrototypeWorldTopology(
-            num_asset_prototypes=len(asset_cfgs),
-            world_prototypes=np.ascontiguousarray(members, dtype=np.int32),
-            world_prototype_starts=np.cumsum([0, *(len(world) for world in compositions)], dtype=np.int64),
-            world_prototype_layout=np.ascontiguousarray(layout, dtype=np.int32),
-        ),
-        asset_cfgs=asset_cfgs,
-        env_template=env_template,
-        positions=positions,
+    topology = PrototypeWorldTopology(
+        num_asset_prototypes=len(asset_cfgs),
+        world_prototypes=np.ascontiguousarray(members, dtype=np.int32),
+        world_prototype_starts=np.cumsum([0, *(len(world) for world in compositions)], dtype=np.int64),
+        world_prototype_layout=np.ascontiguousarray(layout, dtype=np.int32),
     )
+    return ClonePlan(topology, asset_cfgs=asset_cfgs, env_template=env_template, positions=positions)
 
 
 def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z") -> tuple[np.ndarray, np.ndarray]:

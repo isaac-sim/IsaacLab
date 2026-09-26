@@ -45,15 +45,10 @@ class PhysxReplicateContext:
             for index in range(*starts[group : group + 2]):
                 if (asset := plan.topology.world_prototypes[index]) in asset_prototype_ids:
                     copies.setdefault((sources[asset], templates[index]), []).append(targets)
-        _replicate_instances(
-            self.stage,
-            copies=((key, np.concatenate(groups)) for key, groups in copies.items()),
-            env_ids=np.arange(len(plan.topology.world_prototype_layout)),
-            has_usd_only_sources=any(
-                index not in asset_prototype_ids for index, source in enumerate(sources) if source is not None
-            ),
-            exclude_self_replication=True,
-        )
+        copies = ((key, np.concatenate(groups)) for key, groups in copies.items())
+        env_ids = np.arange(len(plan.topology.world_prototype_layout))
+        usd_only = any(i not in asset_prototype_ids for i, source in enumerate(sources) if source is not None)
+        _replicate_instances(self.stage, copies, env_ids, usd_only, exclude_self_replication=True)
 
 
 def physx_replicate(
@@ -82,15 +77,10 @@ def physx_replicate(
     expected_shape = (len(sources), len(env_ids))
     if mapping.shape != expected_shape:
         raise ValueError(f"mapping must have shape {expected_shape}, got {mapping.shape}.")
-    _replicate_instances(
-        stage,
-        copies=(
-            (pair, np.flatnonzero(mapping[index])) for index, pair in enumerate(zip(sources, destinations, strict=True))
-        ),
-        env_ids=env_ids,
-        has_usd_only_sources=False,
-        exclude_self_replication=exclude_self_replication,
-    )
+    pairs = zip(sources, destinations, strict=True)
+    copies = ((pair, np.flatnonzero(mapping[index])) for index, pair in enumerate(pairs))
+    options = dict(has_usd_only_sources=False, exclude_self_replication=exclude_self_replication)
+    _replicate_instances(stage, copies, env_ids, **options)
 
 
 def _replicate_instances(

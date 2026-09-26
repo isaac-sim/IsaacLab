@@ -292,11 +292,8 @@ def deformable_prototypes(
     """
     authored = cloner_path.get_asset_prototype_paths(plan)
     templates, starts = cloner_path.get_world_prototype_asset_templates(plan)
-    source_paths = [
-        authored[index]
-        for index in np.unique(plan.topology.world_prototypes[starts[1] :])
-        if authored[index] is not None and authored[index] not in exclude_paths
-    ]
+    prototype_ids = np.unique(plan.topology.world_prototypes[starts[1] :])
+    source_paths = [authored[i] for i in prototype_ids if authored[i] is not None and authored[i] not in exclude_paths]
     destination_paths = templates[starts[1] :]
     selected_sources = {Sdf.Path(source) for source in source_paths}
     sources = selected_sources | {Sdf.Path(source) for source in exclude_paths}

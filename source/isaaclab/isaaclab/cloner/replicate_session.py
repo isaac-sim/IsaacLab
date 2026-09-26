@@ -91,30 +91,38 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
         string_to_callable(context) if isinstance(context, str) else context
         for context in sim.render_context.clone_contexts
     }
+    # Spawners need rendering representations, but physics participation remains an asset choice.
     spawn_contexts = render_contexts - {physics_context}
     if has_kit():
         spawn_contexts.add(UsdReplicateContext)
+
+    # Include shared world -1 and sampled compositions, not unused prototype definitions.
     topology = plan.topology
     shared = set(topology.world_prototypes[: topology.world_prototype_starts[1]])
     active = shared.copy()
     for prototype in np.unique(topology.world_prototype_layout):
         start, end = topology.world_prototype_starts[prototype + 1 : prototype + 3]
         active.update(topology.world_prototypes[start:end])
+    # Render contexts must also build valid empty scenes when no assets are routed to them.
     routing = {context: set() for context in render_contexts}
     for index in sorted(active):
         cfg = plan.asset_cfgs[index]
         references = vars(cfg).get("cloning_contexts", ())
+        # None inherits active physics; an explicit tuple replaces that default.
         if references is None:
             references = () if physics_context is None else (physics_context,)
         contexts = tuple(string_to_callable(value) if isinstance(value, str) else value for value in references)
         if isinstance(vars(cfg).get("spawn"), sim_utils.SpawnerCfg):
             contexts += tuple(spawn_contexts)
+        # Shared assets, such as ground, belong to physics and every rendering representation.
         if index in shared:
             contexts += tuple(context for context in (physics_context, *render_contexts) if context is not None)
         for context in contexts:
             if not isinstance(context, type):
                 raise TypeError(f"{type(cfg).__name__}.cloning_contexts must contain only context classes.")
             routing.setdefault(context, set()).add(index)
+
+    # Register all participants before cloning; priorities put USD authoring before native imports.
     for context in routing:
         if context not in sim.clone_contexts:
             sim.clone_contexts[context] = context(sim)
@@ -172,12 +180,8 @@ class ReplicateSession:
         """Capture prototype declarations, composition choices, and USD authoring inputs."""
         self._args = cfgs, num_clones, env_spacing
         self._replicate_physics = replicate_physics
-        self._kwargs = dict(
-            env_template=env_template,
-            clone_strategy=clone_strategy,
-            world_prototypes=world_prototypes,
-            weights=weights,
-        )
+        self._kwargs = dict(env_template=env_template, clone_strategy=clone_strategy)
+        self._kwargs.update(world_prototypes=world_prototypes, weights=weights)
         self.plan: ClonePlan | None = None
 
     def __enter__(self) -> ReplicateSession:
@@ -235,16 +239,10 @@ def _prepare_cloning(
             shared.extend(indices)
         else:
             groups.append(indices)
-    plan = make_clone_plan(
-        asset_prototypes,
-        tuple(itertools.product(*groups)) if world_prototypes is None else world_prototypes,
-        num_clones,
-        weights=weights,
-        shared_assets=shared,
-        clone_strategy=clone_strategy,
-        env_template=env_template,
-        positions=grid_transforms(num_clones, env_spacing)[0] if positions is None else positions,
-    )
+    worlds = tuple(itertools.product(*groups)) if world_prototypes is None else world_prototypes
+    positions = grid_transforms(num_clones, env_spacing)[0] if positions is None else positions
+    options = dict(weights=weights, shared_assets=shared, clone_strategy=clone_strategy, env_template=env_template)
+    plan = make_clone_plan(asset_prototypes, worlds, num_clones, positions=positions, **options)
     source_paths = cloner_path.get_asset_prototype_paths(plan)
     for cfg, indices in declarations:
         spawn = getattr(cfg, "spawn", None)

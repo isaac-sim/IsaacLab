@@ -147,9 +147,8 @@ def ovphysx_replicate(
         RuntimeError: If no simulation context is active.
         ValueError: If transforms are malformed or a source or source anchor is invalid.
     """
-    copies = (
-        (pair, np.flatnonzero(mapping[index])) for index, pair in enumerate(zip(sources, destinations, strict=True))
-    )
+    pairs = zip(sources, destinations, strict=True)
+    copies = ((pair, np.flatnonzero(mapping[index])) for index, pair in enumerate(pairs))
     recipes = _clone_recipes(stage, copies, env_ids, positions, quaternions)
     sim = PhysicsManager._sim
     if sim is None:

@@ -139,10 +139,10 @@ class InteractiveScene:
         self.stage_id = get_current_stage_id()
         self.physics_backend = self.sim.physics_manager.__name__.lower()
         self._physics_scene_path = None
-        self.cloner_cfg = copy.deepcopy(self.cfg.clone_cfg)
-        self.cloner_cfg.replicate_physics = self.cfg.replicate_physics
+        clone_cfg = self.cloner_cfg = copy.deepcopy(self.cfg.clone_cfg)
+        clone_cfg.replicate_physics = self.cfg.replicate_physics
         # the template is authoritative; the regex form is the same namespace spelled for matching
-        self._env_fmt = self.cloner_cfg.clone_template
+        self._env_fmt = clone_cfg.clone_template
         self.env_prim_paths = [self._env_fmt.format(i) for i in range(self.cfg.num_envs)]
         self._ALL_INDICES = torch.arange(self.cfg.num_envs, dtype=torch.long, device=self.device)
 
@@ -153,26 +153,14 @@ class InteractiveScene:
             for name, cfg in self.cfg.__dict__.items()
         )
         if scene_from_cfg:
-            with cloner.ReplicateSession(
-                asset_cfgs,
-                num_clones=self.num_envs,
-                env_spacing=self.cfg.env_spacing,
-                env_template=self._env_fmt,
-                clone_strategy=self.cloner_cfg.clone_strategy,
-                world_prototypes=world_prototypes,
-                weights=weights,
-                replicate_physics=self.cloner_cfg.replicate_physics,
-            ) as session:
+            options = dict(env_template=self._env_fmt, world_prototypes=world_prototypes, weights=weights)
+            options.update(clone_strategy=clone_cfg.clone_strategy, replicate_physics=clone_cfg.replicate_physics)
+            with cloner.ReplicateSession(asset_cfgs, self.num_envs, self.cfg.env_spacing, **options) as session:
                 positions = session.plan.positions
-                self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
+                source, env_ids = self.env_prim_paths[0], np.arange(self.num_envs)
+                self.stage.DefinePrim(source, "Xform")
                 with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
-                    cloner.usd_replicate(
-                        self.stage,
-                        [self.env_prim_paths[0]],
-                        [self._env_fmt],
-                        np.arange(self.num_envs),
-                        positions=positions,
-                    )
+                    cloner.usd_replicate(self.stage, [source], [self._env_fmt], env_ids, positions=positions)
                 self._add_entities_from_cfg()
         else:
             positions = cloner.grid_transforms(self.num_envs, self.cfg.env_spacing)[0]
