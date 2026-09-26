@@ -316,19 +316,24 @@ class OvPhysxFrameView(BaseFrameView):
         sim = sim_utils.SimulationContext.instance()
         usd = sim.clone_contexts.get(cloner.UsdReplicateContext) if sim is not None else None
         self._usd = usd
-        source_matches = cloner.query.get_matched_sources(usd.instances, prim_path) if usd is not None else []
+        instances = tuple(instance for instance in usd.instances if len(instance[3])) if usd is not None else ()
+        resolved = cloner.query.path_to_source(instances, prim_path)
         self._source_sites = []
         self._prims: list[Usd.Prim] = []
-        for source_root, destination_template, source_path, env_ids in source_matches:
-            source_pattern = re.compile(source_path)
-            source_prims = sim_utils.get_all_matching_child_prims(
-                source_root,
-                lambda prim: source_pattern.fullmatch(prim.GetPath().pathString) is not None,
-                stage=stage,
-            )
-            self._prims.extend(source_prims)
-            self._source_sites.extend((source_root, destination_template, prim, env_ids) for prim in source_prims)
-        if not source_matches:
+        if resolved is not None:
+            _, destination_expr, suffix = resolved
+            for _, source_root, destination_template, env_ids in instances:
+                if destination_template.format("[^/]+") != destination_expr:
+                    continue
+                source_pattern = re.compile(source_root + suffix)
+                source_prims = sim_utils.get_all_matching_child_prims(
+                    source_root,
+                    lambda prim: source_pattern.fullmatch(prim.GetPath().pathString) is not None,
+                    stage=stage,
+                )
+                self._prims.extend(source_prims)
+                self._source_sites.extend((source_root, destination_template, prim, env_ids) for prim in source_prims)
+        else:
             self._prims = sim_utils.find_matching_prims(prim_path, stage=stage)
         if not self._prims:
             raise ValueError(f"OvPhysxFrameView: pattern {prim_path!r} matched zero prims.")

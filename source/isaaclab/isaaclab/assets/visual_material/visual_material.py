@@ -137,11 +137,13 @@ class VisualMaterial(AssetBase):
         if self._is_per_env:
             usd = SimulationContext.instance().clone_contexts[cloner.UsdReplicateContext]
             material_paths = [""] * len(usd.plan.world_prototype_layout)
-            for source_root, destination, source_path, env_ids in cloner.query.get_matched_sources(
-                usd.instances, self.cfg.prim_path
-            ):
+            instances = tuple(instance for instance in usd.instances if len(instance[3]))
+            _, destination_expr, suffix = cloner.query.path_to_source(instances, self.cfg.prim_path)
+            for _, _, destination, env_ids in instances:
+                if destination.format("[^/]+") != destination_expr:
+                    continue
                 for env_id in env_ids:
-                    material_paths[env_id] = cloner.path.rebase(source_path, source_root, destination.format(env_id))
+                    material_paths[env_id] = destination.format(env_id) + suffix
             if not all(material_paths):
                 raise ValueError(
                     f"Per-environment material {self._source_material_path!r} must populate every environment."

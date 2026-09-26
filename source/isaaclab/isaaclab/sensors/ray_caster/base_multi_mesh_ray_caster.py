@@ -208,10 +208,12 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         # Prefer ClonePlan data for env-scoped targets; destination USD prims may not exist.
         if instances and target_cfg.track_mesh_transforms:
             plan_tracked_target_exprs: list[str] = []
-            prim_expr = target_cfg.prim_expr
-            for source_root, destination_template, source_path, env_ids in cloner.query.get_matched_sources(
-                instances, prim_expr
-            ):
+            instances = tuple(instance for instance in instances if len(instance[3]))
+            resolved = cloner.query.path_to_source(instances, target_cfg.prim_expr)
+            for _, source_root, destination_template, env_ids in instances:
+                if resolved is None or destination_template.format("[^/]+") != resolved[1]:
+                    continue
+                source_path = source_root + resolved[2]
                 target_in_plan = True
 
                 # Load meshes from the authored source entry.

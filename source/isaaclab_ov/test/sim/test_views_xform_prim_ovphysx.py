@@ -47,7 +47,7 @@ def test_view_raises_before_physics_ready():
 
 @pytest.mark.parametrize("repeated", [False, True])
 def test_world_attached_source_prim_expands_from_clone_plan(repeated):
-    """A source-only world frame expands across cloned environments without USD replication."""
+    """Nested frames resolve every populated variant and repeated native name without cloned USD."""
     from isaaclab_ov.sim.views import OvPhysxFrameView
 
     device = "cpu"
@@ -56,27 +56,35 @@ def test_world_attached_source_prim_expands_from_clone_plan(repeated):
         device=device, sim_cfg=OVPHYSX_SIM_CFG, auto_add_lighting=False, add_ground_plane=False
     ) as sim:
         sim._app_control_on_stop_handle = None
-        scene = InteractiveScene(InteractiveSceneCfg(num_envs=2, env_spacing=2.0))
+        scene = InteractiveScene(InteractiveSceneCfg(num_envs=12, env_spacing=2.0))
         target_env_ids = tuple(range(scene.num_envs))
+        path = "/World/envs/env_[^/]+/WorldCamera"
         plan = cloner.make_clone_plan(
-            (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/WorldCamera"),),
-            ((0, 0) if repeated else (0,),),
+            (
+                AssetBaseCfg(prim_path=path),
+                AssetBaseCfg(prim_path=path),
+                AssetBaseCfg(prim_path=path + "/Frame", spawn=sim_utils.SpawnerCfg()),
+            ),
+            ((0, 0), (1, 1)) if repeated else ((0,), (1,)),
             scene.num_envs,
+            weights=(10, 2),
         )
+        positions = np.zeros((scene.num_envs, 3), dtype=np.float32)
+        positions[:, 0] = np.arange(scene.num_envs) * 3 + 2
         sim.clone_contexts[cloner.UsdReplicateContext] = cloner.UsdReplicateContext(
-            sim.stage,
-            plan,
-            positions=np.array([[2, 0, 0], [5, 0, 0]], dtype=np.float32),
+            sim.stage, plan, positions=positions
         )
         sim.set_clone_plan(plan)
         stage = sim_utils.get_current_stage()
-        stage.GetPrimAtPath("/World/envs/env_0").GetAttribute("xformOp:translate").Set(Gf.Vec3d(2, 0, 0))
-        prim = stage.DefinePrim("/World/envs/env_0/WorldCamera", "Xform")
-        sim_utils.standardize_xform_ops(prim)
-        prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.25, -0.5, 1.0))
+        for env_id, offset in ((0, 0.25), (10, 0.5)):
+            root = stage.DefinePrim(f"/World/envs/env_{env_id}", "Xform")
+            sim_utils.standardize_xform_ops(root, translation=tuple(map(float, positions[env_id])))
+            stage.DefinePrim(f"/World/envs/env_{env_id}/WorldCamera", "Xform")
+            prim = stage.DefinePrim(f"/World/envs/env_{env_id}/WorldCamera/Frame", "Xform")
+            sim_utils.standardize_xform_ops(prim, translation=(offset, -0.5, 1.0))
         sim.reset()
 
-        name = "WorldCamera_1" if repeated else "WorldCamera"
+        name = "WorldCamera_1/Frame" if repeated else "WorldCamera/Frame"
         view = FrameView(f"/World/envs/env_[^/]+/{name}", device=device)
 
         assert isinstance(view, OvPhysxFrameView)
@@ -84,10 +92,13 @@ def test_world_attached_source_prim_expands_from_clone_plan(repeated):
         assert not stage.GetPrimAtPath(f"/World/envs/env_{target_env_ids[1]}/WorldCamera").IsValid()
         assert view.count == scene.num_envs
         assert len(view.prims) == scene.num_envs
-        assert {prim.GetPath().pathString for prim in view.prims} == {"/World/envs/env_0/WorldCamera"}
+        assert {prim.GetPath().pathString for prim in view.prims} == {
+            f"/World/envs/env_{index}/WorldCamera/Frame" for index in (0, 10)
+        }
         assert view.prim_paths == [f"/World/envs/env_{i}/{name}" for i in target_env_ids]
         positions, _ = view.get_world_poses()
         expected_positions = scene.env_origins + torch.tensor([0.25, -0.5, 1.0], device=device)
+        expected_positions[10:, 0] += 0.25
     torch.testing.assert_close(positions.torch, expected_positions)
 
 

@@ -306,6 +306,7 @@ class NewtonSiteFrameView(BaseFrameView):
     def _resolve_site_specs(self, stage, validate_xform_ops: bool) -> list[_SiteSpec]:
         """Resolve source prims into Newton site registration specs."""
         usd = sim_utils.SimulationContext.instance().clone_contexts.get(cloner.UsdReplicateContext)
+        instances = tuple(instance for instance in usd.instances if len(instance[3])) if usd is not None else ()
         model = NewtonManager.get_model()
         body_labels = list(model.body_label) if model is not None else ()
         shape_labels = list(model.shape_label) if model is not None else ()
@@ -331,9 +332,13 @@ class NewtonSiteFrameView(BaseFrameView):
                         f"FrameView prim '{path_expr}' matches a Newton collision shape. "
                         "FrameView should only be used for non-physics frames."
                     )
-            matches = cloner.query.get_matched_sources(usd.instances, path_expr) if usd is not None else []
-            if matches:
-                for source_root, destination_template, source_path, env_ids in matches:
+            resolved = cloner.query.path_to_source(instances, path_expr)
+            if resolved is not None:
+                _, destination_expr, suffix = resolved
+                for _, source_root, destination_template, env_ids in instances:
+                    if destination_template.format("[^/]+") != destination_expr:
+                        continue
+                    source_path = source_root + suffix
                     source_pattern = re.compile(source_path)
                     source_prims = sim_utils.get_all_matching_child_prims(
                         source_root,
@@ -348,7 +353,7 @@ class NewtonSiteFrameView(BaseFrameView):
                             validate_xform_ops,
                             source_root,
                             destination_template,
-                            env_ids,
+                            tuple(map(int, env_ids)),
                             use_clone_body_pattern,
                             stage,
                         )

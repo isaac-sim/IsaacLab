@@ -17,7 +17,8 @@ Changed
   Use ``get_asset_prototype_unique_world_index(plan, asset_prototype)`` or
   ``get_world_prototype_world_index(plan, world_prototype)`` for unique destination world indices.
   All three accepted an index or declared-path expression.
-  Renamed native-path lookup ``iter_sources`` to ``get_matched_sources``, returning a list.
+  Removed ``iter_sources``; use topology queries for prototype/world membership and
+  existing native bindings for authored paths and destination names.
   Removed cached configuration/context routing maps. Raw USD and native backend replication
   functions retained their path-based inputs.
   Clone contexts consumed destination world IDs directly without allocating dense masks.

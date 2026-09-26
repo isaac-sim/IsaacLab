@@ -251,13 +251,12 @@ a USD-backed consumer gets its source/destination mappings from the USD context:
     usd = sim.clone_contexts[cloner.UsdReplicateContext]
     instances = usd.instances
     # Each entry: asset-prototype ID, source path, destination template, world IDs.
-    matches = cloner.query.get_matched_sources(instances, "/World/envs/env_[^/]+/Obstacle")
-    for source_root, destination, source_path, world_ids in matches:
-        ...
+    source, destination_expr, suffix = cloner.query.path_to_source(instances, "/World/envs/env_2/Robot/hand")
+    # Read the authored hand at source + suffix, even when destination USD was not cloned.
+    hand = usd.stage.GetPrimAtPath(source + suffix)
 
-:func:`~isaaclab.cloner.query.get_matched_sources` returns a list of all populated
-instance groups behind the nearest matching destination declaration, not a generator.
-The existing :func:`~isaaclab.cloner.query.path_to_source` selects one representative
+Use the topology queries above for prototype membership and world indices.
+:func:`~isaaclab.cloner.query.path_to_source` selects one representative
 prototype; a concrete path or explicit ``env_id`` selects its world.
 :func:`~isaaclab.cloner.query.path_to_clone` rejects ambiguous single-instance requests
 when a world contains the same asset more than once. The generic query module never
