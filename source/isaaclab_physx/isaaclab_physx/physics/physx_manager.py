@@ -188,6 +188,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
     """Borrowed native resource; its lifetime belongs to the simulation registry."""
 
     def __init__(self):
+        self._transforms = TimestampedBuffer(SceneDataFormat.Transform())
         self.transforms_timestamp = 0
         self.geometry_timestamp = 0
         self.clear()
@@ -197,7 +198,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
         self.backend = None
         self._rigid_body_view: omni.physics.tensors.RigidBodyView | None = None
         self._deformable_bindings: list[tuple[Any, list]] | None = None
-        self._transforms = TimestampedBuffer(SceneDataFormat.Transform())
+        self._transforms.data.transforms = None
         self.transforms_timestamp += 1
         self.geometry_timestamp += 1
         self._fabric_timestamp = -1

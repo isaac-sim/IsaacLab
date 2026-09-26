@@ -127,7 +127,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         from isaaclab_ov import tensor_types as TT  # local: keep heavy ovphysx out of module load
 
         self._rigid_bindings = []
-        self._transforms = TimestampedBuffer(SceneDataFormat.Transform())
+        self._transforms.data.transforms = None
         self.transforms_timestamp += 1
         self._deformable_bindings = []
         self.geometry_timestamp += 1

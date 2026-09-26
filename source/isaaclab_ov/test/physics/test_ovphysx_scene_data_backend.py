@@ -818,7 +818,9 @@ def test_transforms_read_native_slices_only_when_dirty(monkeypatch):
     monkeypatch.setattr(module, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
     stage = SimpleNamespace(Traverse=lambda: (_fake_rigid_body_prim(path) for path in paths))
     backend = module.OvPhysxSceneDataBackend()
+    publication = backend.transforms
     backend.setup(FakePhysX(), stage, "cpu")
+    assert backend.transforms is publication
     sdp = SceneDataProvider(backend)
 
     native = SceneDataFormat.Transform()
@@ -838,6 +840,10 @@ def test_transforms_read_native_slices_only_when_dirty(monkeypatch):
     assert second_output.transforms is native.transforms
     assert len(reads) == 4
     np.testing.assert_array_equal(native.transforms.numpy(), expected)
+
+    backend.setup(None, None, "cpu")
+    assert backend.transforms is publication
+    assert publication.transforms is None
 
 
 def test_setup_propagates_failed_rigid_binding(monkeypatch):
