@@ -157,6 +157,9 @@ class NewtonKaminoManager(NewtonManager):
             )
 
         NewtonManager._solver = cls._create_solver(model, solver_cfg)
+        # Initialize the output state's persistent Kamino buffers before capture. The input
+        # state is initialized by _eval_fk_impl after solver construction.
+        cls._solver.reset(cls.backend.state_1, config=SolverKamino.ResetConfig.preserve())
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_collision_detector
         NewtonManager._supports_rigid_body_force_input = True

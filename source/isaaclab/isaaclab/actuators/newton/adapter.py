@@ -131,8 +131,8 @@ class NewtonActuatorAdapter:
         """
         sim_control.joint_computed_f = self._computed_effort
 
-    def step(self, sim_state: Any, sim_control: Any, dt: float) -> None:
-        """Zero actuated DOFs, step all actuators, and swap state buffers.
+    def step(self, sim_state: Any, sim_control: Any, dt: float, *, swap_state: bool = True) -> None:
+        """Zero actuated DOFs, step all actuators, and advance state buffers.
 
         Args:
             sim_state: Object with ``joint_q``, ``joint_qd``, etc.
@@ -144,6 +144,9 @@ class NewtonActuatorAdapter:
                 :class:`~isaaclab.actuators.newton.physx_wrapper.PhysxActuatorWrapper`
                 on the PhysX backend.
             dt: Physics timestep [s].
+            swap_state: Swap state buffers after stepping. Set to ``False`` on the last step
+                of an odd-length graph to copy the output back into the input buffers instead,
+                keeping their addresses stable across replays.
         """
         # Zero before scatter-add (actuators accumulate into this buffer).
         self._computed_effort.zero_()
@@ -155,7 +158,12 @@ class NewtonActuatorAdapter:
             )
         for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
             act.step(sim_state, sim_control, sa, sb, dt=dt)
-        self._swap_state_buffers()
+        if swap_state:
+            self._swap_state_buffers()
+        else:
+            for sa, sb in zip(self._states_a, self._states_b):
+                if sa is not None:
+                    sa.assign(sb)
 
     def _swap_state_buffers(self) -> None:
         """Advance the actuator state ping-pong after an eager step or graph replay."""
