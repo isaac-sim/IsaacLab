@@ -11,16 +11,28 @@ the observation introduced by the function.
 
 from __future__ import annotations
 
+import functools
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+from typing_extensions import deprecated
 
 from ...managers import SceneEntityCfg
 from ...managers.manager_base import ManagerTermBase
 from ...managers.manager_term_cfg import ObservationTermCfg
 from ...utils import math as math_utils
-from ...utils.buffers import CircularBuffer
-from ...utils.images import is_rgb_like, normalize_camera_image
+from ...utils.images import (
+    CameraFrameStack,
+    is_depth_like,
+    is_normals_like,
+    is_rgb_like,
+    normalize_camera_image,
+    normalize_depth,
+    normalize_normals,
+    normalize_rgb,
+    normalize_segmentation,
+)
 
 if TYPE_CHECKING:
     from ...assets import Articulation, RigidObject
@@ -360,54 +372,210 @@ def imu_lin_acc(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg
     return asset.data.lin_acc_b.torch
 
 
-def image(
+def _read_camera_output(
     env: ManagerBasedEnv,
-    sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
-    data_type: str = "rgb",
+    sensor_cfg: SceneEntityCfg,
+    data_type: str,
     convert_perspective_to_orthogonal: bool = False,
-    normalize: bool = True,
-    permute: bool = False,
-    clone: bool = True,
 ) -> torch.Tensor:
-    """Images of a specific datatype from the camera sensor.
-
-    If the flag :attr:`normalize` is True, post-processing of the images are performed based on their
-    data-types:
-
-    - "rgb": Scales the image to (0, 1) and subtracts with the mean of the current image batch.
-    - "depth" or "distance_to_camera" or "distance_to_plane": Replaces infinity values with zero.
-
-    See :func:`~isaaclab.utils.images.normalize_camera_image` for all data types.
-
-    Args:
-        env: The environment the cameras are placed within.
-        sensor_cfg: The desired sensor to read from. Defaults to SceneEntityCfg("tiled_camera").
-        data_type: The data type to pull from the desired camera. Defaults to "rgb".
-        convert_perspective_to_orthogonal: Whether to orthogonalize perspective depth images.
-            This is used only when the data type is "distance_to_camera". Defaults to False.
-        normalize: Whether to normalize the images. This depends on the selected data type.
-            Defaults to True.
-        permute: Whether to permute the image to (num_envs, channel, height, width). Defaults to False.
-        clone: Whether to return a fresh clone of the result. Defaults to True (defensive: protects
-            against downstream in-place mutation of the camera buffer). Callers that immediately
-            copy the result into their own storage (e.g. a frame-stack buffer) can pass ``False``
-            to skip the redundant allocation.
-
-    Returns:
-        The images produced at the last time-step
-    """
+    """Latest camera output of ``data_type``, a view of the sensor buffer. Shape is ``(B, H, W, C)``."""
     sensor: Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
     images = sensor.data.output[data_type].torch
-    # depth image conversion
-    if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
+    if data_type == "distance_to_camera" and convert_perspective_to_orthogonal:
         images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
-    if normalize:
-        # permute while normalizing to avoid a separate layout copy
-        images = normalize_camera_image(images, data_type, output_channel_dim=1 if permute else None)
-    elif permute:
-        images = images.permute(0, 3, 1, 2)
+    return images
 
-    return images.clone() if clone else images
+
+class _camera_image(ManagerTermBase):
+    """Base for camera image terms: validates the data type and owns the frame stack.
+
+    Subclasses read their sensor output and pass it with a normalizer from
+    :mod:`isaaclab.utils.images` to :attr:`_frames`.
+    """
+
+    default_data_type: str
+    """Data type used when the term's params do not set ``data_type``."""
+
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+        data_type = cfg.params.get("data_type", self.default_data_type)
+        if not self._accepts(data_type):
+            raise ValueError(f"{type(self).__name__} does not support camera data type '{data_type}'.")
+        self._frames = CameraFrameStack(
+            env.num_envs,
+            env.device,
+            frame_stack=cfg.params.get("frame_stack", 1),
+            channel_first=cfg.params.get("channel_first", False),
+        )
+
+    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None):
+        self._frames.reset(env_ids)
+
+    @staticmethod
+    def _accepts(data_type: str) -> bool:
+        raise NotImplementedError
+
+
+class image_rgb(_camera_image):
+    """Color images from a camera sensor.
+
+    Reads an RGB-like output (``"rgb"``, ``"albedo"``, ``"simple_shading_*"``) and keeps its first three
+    channels, dropping albedo's unused alpha. When ``normalize`` is True, the image is scaled to
+    ``[0, 1]`` and centered with :func:`~isaaclab.utils.images.normalize_rgb`.
+
+    Args:
+        sensor_cfg: The camera sensor to read. Defaults to SceneEntityCfg("tiled_camera").
+        data_type: The RGB-like camera data type. Defaults to "rgb".
+        normalize: Whether to normalize the image. Defaults to True.
+        mean: Constant subtracted after scaling. Defaults to None, which subtracts the per-image,
+            per-channel mean.
+        channel_first: Whether to return ``(num_envs, C, H, W)``. Defaults to False.
+        frame_stack: Number of recent frames to stack along the channel axis. Defaults to 1.
+
+    Returns:
+        The image. Shape is ``(num_envs, H, W, 3 * frame_stack)``, or channel-first.
+    """
+
+    default_data_type = "rgb"
+
+    @staticmethod
+    def _accepts(data_type: str) -> bool:
+        return is_rgb_like(data_type)
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
+        data_type: str = "rgb",
+        normalize: bool = True,
+        mean: float | None = None,
+        channel_first: bool = False,
+        frame_stack: int = 1,
+    ) -> torch.Tensor:
+        images = _read_camera_output(env, sensor_cfg, data_type)[..., :3]
+        return self._frames(images, functools.partial(normalize_rgb, mean=mean) if normalize else None)
+
+
+class image_depth(_camera_image):
+    """Depth images from a camera or ray-caster camera sensor.
+
+    Reads a depth-like output (``"depth"``, ``"distance_to_image_plane"``, ``"distance_to_camera"``).
+    When ``normalize`` is True, invalid pixels are replaced and depth is optionally rescaled with
+    :func:`~isaaclab.utils.images.normalize_depth`.
+
+    Args:
+        sensor_cfg: The camera sensor to read. Defaults to SceneEntityCfg("tiled_camera").
+        data_type: The depth-like camera data type. Defaults to "distance_to_image_plane".
+        convert_perspective_to_orthogonal: Whether to convert ``"distance_to_camera"`` into
+            distance to the image plane. Defaults to False.
+        normalize: Whether to normalize the image. Defaults to True.
+        invalid_value: Value for NaN and infinite pixels [m]. Defaults to 0.
+        max_depth: Clip depth to this range and divide by it [m]. Defaults to None.
+        tanh_scale: Map depth to ``tanh(depth / tanh_scale) - 0.5`` [m]. Defaults to None.
+        channel_first: Whether to return ``(num_envs, C, H, W)``. Defaults to False.
+        frame_stack: Number of recent frames to stack along the channel axis. Defaults to 1.
+
+    Returns:
+        The depth image, metric [m] unless rescaled. Shape is ``(num_envs, H, W, frame_stack)``,
+        or channel-first.
+    """
+
+    default_data_type = "distance_to_image_plane"
+
+    @staticmethod
+    def _accepts(data_type: str) -> bool:
+        return is_depth_like(data_type)
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
+        data_type: str = "distance_to_image_plane",
+        convert_perspective_to_orthogonal: bool = False,
+        normalize: bool = True,
+        invalid_value: float = 0.0,
+        max_depth: float | None = None,
+        tanh_scale: float | None = None,
+        channel_first: bool = False,
+        frame_stack: int = 1,
+    ) -> torch.Tensor:
+        images = _read_camera_output(env, sensor_cfg, data_type, convert_perspective_to_orthogonal)
+        normalizer = None
+        if normalize:
+            normalizer = functools.partial(
+                normalize_depth, invalid_value=invalid_value, max_depth=max_depth, tanh_scale=tanh_scale
+            )
+        return self._frames(images, normalizer)
+
+
+class image_normals(_camera_image):
+    """Surface-normal images from a camera or ray-caster camera sensor.
+
+    When ``normalize`` is True, normals are mapped to ``[0, 1]`` with
+    :func:`~isaaclab.utils.images.normalize_normals`.
+
+    Args:
+        sensor_cfg: The camera sensor to read. Defaults to SceneEntityCfg("tiled_camera").
+        normalize: Whether to normalize the image. Defaults to True.
+        channel_first: Whether to return ``(num_envs, C, H, W)``. Defaults to False.
+        frame_stack: Number of recent frames to stack along the channel axis. Defaults to 1.
+
+    Returns:
+        The normals image. Shape is ``(num_envs, H, W, 3 * frame_stack)``, or channel-first.
+    """
+
+    default_data_type = "normals"
+
+    @staticmethod
+    def _accepts(data_type: str) -> bool:
+        return is_normals_like(data_type)
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
+        normalize: bool = True,
+        channel_first: bool = False,
+        frame_stack: int = 1,
+    ) -> torch.Tensor:
+        images = _read_camera_output(env, sensor_cfg, "normals")
+        return self._frames(images, normalize_normals if normalize else None)
+
+
+class image_segmentation(_camera_image):
+    """Segmentation images from a camera sensor.
+
+    When ``normalize`` is True, colorized segmentation is normalized like color and label-id
+    segmentation is cast to float, see :func:`~isaaclab.utils.images.normalize_segmentation`.
+
+    Args:
+        sensor_cfg: The camera sensor to read. Defaults to SceneEntityCfg("tiled_camera").
+        data_type: The segmentation camera data type. Defaults to "semantic_segmentation".
+        normalize: Whether to normalize the image. Defaults to True.
+        channel_first: Whether to return ``(num_envs, C, H, W)``. Defaults to False.
+        frame_stack: Number of recent frames to stack along the channel axis. Defaults to 1.
+
+    Returns:
+        The segmentation image. Shape is ``(num_envs, H, W, C * frame_stack)``, or channel-first.
+    """
+
+    default_data_type = "semantic_segmentation"
+
+    @staticmethod
+    def _accepts(data_type: str) -> bool:
+        return "segmentation" in data_type
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
+        data_type: str = "semantic_segmentation",
+        normalize: bool = True,
+        channel_first: bool = False,
+        frame_stack: int = 1,
+    ) -> torch.Tensor:
+        images = _read_camera_output(env, sensor_cfg, data_type)
+        return self._frames(images, normalize_segmentation if normalize else None)
 
 
 class image_features(ManagerTermBase):
@@ -415,7 +583,7 @@ class image_features(ManagerTermBase):
 
     This term uses models from the model zoo in PyTorch and extracts features from the images.
 
-    It calls the :func:`image` function to get the images and then processes them using the model zoo.
+    It reads the raw camera images and then processes them using the model zoo.
 
     A user can provide their own model zoo configuration to use different models for feature extraction.
     The model zoo configuration should be a dictionary that maps different model names to a dictionary
@@ -516,14 +684,8 @@ class image_features(ManagerTermBase):
         model_device: str | None = None,
         inference_kwargs: dict | None = None,
     ) -> torch.Tensor:
-        # obtain the images from the sensor
-        image_data = image(
-            env=env,
-            sensor_cfg=sensor_cfg,
-            data_type=data_type,
-            convert_perspective_to_orthogonal=convert_perspective_to_orthogonal,
-            normalize=False,  # we pre-process based on model
-        )
+        # raw images: the model's inference function does its own pre-processing
+        image_data = _read_camera_output(env, sensor_cfg, data_type, convert_perspective_to_orthogonal)
         # store the device of the image
         image_device = image_data.device
         # forward the images through the model
@@ -657,17 +819,16 @@ class image_features(ManagerTermBase):
         return {"model": _load_model, "inference": _inference}
 
 
+@deprecated(
+    "mdp.stacked_image is deprecated; use the frame_stack parameter of image_rgb, image_depth, image_normals"
+    " or image_segmentation instead. mdp.stacked_image will be removed in a future release."
+)
 class stacked_image(ManagerTermBase):
     """Channel-stacked observation of the last ``frame_stack`` camera frames.
 
-    Maintains a per-env rolling history of camera frames in a
-    :class:`~isaaclab.utils.buffers.CircularBuffer` and returns them concatenated along the
-    channel dimension in oldest-to-newest order. Useful for camera-based RL tasks whose
-    rendering backend does not supply implicit temporal information (e.g., the Newton Warp
-    renderer, which lacks temporal anti-aliasing).
-
-    On the first call after construction or per-env reset, all history slots for the affected
-    envs are filled with the current frame so the policy never sees zero-padded warmup data.
+    .. deprecated::
+        Use the ``frame_stack`` parameter of :class:`image_rgb`, :class:`image_depth`,
+        :class:`image_normals` or :class:`image_segmentation`.
 
     Args:
         sensor_cfg: The sensor configuration to poll. Defaults to SceneEntityCfg("tiled_camera").
@@ -676,8 +837,8 @@ class stacked_image(ManagerTermBase):
             Defaults to 1 (single-frame passthrough).
         convert_perspective_to_orthogonal: Whether to orthogonalize perspective depth images.
             Used only when ``data_type == "distance_to_camera"``. Defaults to False.
-        normalize: Whether to normalize the images. See :func:`image` for per-data-type
-            behavior. Defaults to True.
+        normalize: Whether to normalize the images with
+            :func:`~isaaclab.utils.images.normalize_camera_image`. Defaults to True.
 
     Returns:
         Stacked image tensor. Shape is ``(num_envs, H, W, frame_stack * C)`` where the first
@@ -686,25 +847,10 @@ class stacked_image(ManagerTermBase):
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-
-        frame_stack: int = cfg.params.get("frame_stack", 1)
-        if frame_stack < 1:
-            raise ValueError(f"frame_stack must be >= 1, got {frame_stack}.")
-
-        # K=1 is a documented passthrough; no buffer needed.
-        self._buffer: CircularBuffer | None = None
-        if frame_stack > 1:
-            # Channel-stack: K frames concatenated along C; .stacked is a free contiguous view.
-            self._buffer = CircularBuffer(
-                max_len=frame_stack,
-                batch_size=env.num_envs,
-                device=env.device,
-                stack_dim=-1,
-            )
+        self._frames = CameraFrameStack(env.num_envs, env.device, frame_stack=cfg.params.get("frame_stack", 1))
 
     def reset(self, env_ids: torch.Tensor | None = None):
-        if self._buffer is not None:
-            self._buffer.reset(env_ids)
+        self._frames.reset(env_ids)
 
     def __call__(
         self,
@@ -715,40 +861,10 @@ class stacked_image(ManagerTermBase):
         convert_perspective_to_orthogonal: bool = False,
         normalize: bool = True,
     ) -> torch.Tensor:
-        if self._buffer is None:
-            return image(
-                env=env,
-                sensor_cfg=sensor_cfg,
-                data_type=data_type,
-                convert_perspective_to_orthogonal=convert_perspective_to_orthogonal,
-                normalize=normalize,
-            )
-
-        # RGB-like camera output is uint8; defer normalize so the buffer can hold it raw.
-        # Depth / normals output is float32 — leave normalize per-frame in image().
-        defer_normalize = normalize and is_rgb_like(data_type)
-        single_frame = image(
-            env=env,
-            sensor_cfg=sensor_cfg,
-            data_type=data_type,
-            convert_perspective_to_orthogonal=convert_perspective_to_orthogonal,
-            normalize=normalize and not defer_normalize,
-            clone=False,
+        images = _read_camera_output(env, sensor_cfg, data_type, convert_perspective_to_orthogonal)
+        return self._frames(
+            images, functools.partial(normalize_camera_image, data_type=data_type) if normalize else None
         )
-        self._buffer.append(single_frame)
-        stacked = self._buffer.stacked
-
-        if defer_normalize:
-            # No ``out=`` -- a fresh float32 tensor is allocated per call. The caching
-            # allocator returns a different block than the previous step's (still
-            # referenced by the trainer), so the previous-iteration ``observations``
-            # is not overwritten before ``record_transition`` reads it. See
-            # :func:`isaaclab.utils.warp.ops.normalize_image_uint8` for the aliasing
-            # hazard documentation.
-            return normalize_camera_image(stacked, data_type)
-        # ``stacked`` is a view of the ring buffer storage which is overwritten on the next
-        # ``env.step``; clone so the returned tensor outlives the next step.
-        return stacked.clone()
 
 
 """

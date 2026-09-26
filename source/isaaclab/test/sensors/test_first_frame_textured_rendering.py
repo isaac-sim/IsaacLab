@@ -156,7 +156,7 @@ def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
 
         concatenate_terms = False
         depth = ObservationTermCfg(
-            func=mdp.image,
+            func=mdp.image_depth,
             params={"sensor_cfg": SceneEntityCfg("camera"), "data_type": "distance_to_image_plane", "normalize": False},
         )
 
