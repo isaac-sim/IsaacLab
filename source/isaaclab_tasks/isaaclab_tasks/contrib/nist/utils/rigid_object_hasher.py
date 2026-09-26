@@ -41,21 +41,28 @@ class RigidObjectHasher:
 
         # Read each authored variant once, including descendants such as articulation links.
         plan = SimulationContext.instance().get_clone_plan()
+        if plan is not None:
+            source_paths = cloner.path.get_asset_prototype_paths(plan)
+            templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
+                plan, include_world_indices=True
+            )
         matches = [
-            (instance, matched)
-            for instance in (cloner.path.get_instance_paths(plan) if plan is not None else ())
-            if len(instance[3]) and instance[3][0] != -1
-            if (matched := cloner.path.match(prim_path_pattern, instance[2])) is not None
+            (group, index, matched)
+            for group in (range(1, len(starts) - 1) if plan is not None else ())
+            if world_starts[group] != world_starts[group + 1]
+            for index in range(starts[group], starts[group + 1])
+            if (matched := cloner.path.match(prim_path_pattern, templates[index])) is not None
         ]
         if matches:
-            suffix = min((matched.suffix for _, matched in matches), key=len)
+            suffix = min((matched.suffix for _, _, matched in matches), key=len)
             sources = []
-            for (_, source, _, env_ids), matched in matches:
+            for group, index, matched in matches:
                 if matched.suffix != suffix:
                     continue
+                env_ids = worlds[world_starts[group] : world_starts[group + 1]]
                 selected, _ = resolve_matching_names(matched.instance, env_ids.astype(str), raise_when_no_match=False)
                 if selected:
-                    sources.append((source + suffix, env_ids[selected]))
+                    sources.append((source_paths[plan.topology.world_prototypes[index]] + suffix, env_ids[selected]))
         else:
             # No clone plan (or pattern not owned by it): resolve a single source instance and
             # treat every env as a clone of it.

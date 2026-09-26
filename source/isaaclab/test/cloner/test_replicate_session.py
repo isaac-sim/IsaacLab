@@ -81,9 +81,8 @@ def test_empty_and_shared_only_worlds(simulation, shared):
     simulation.render_context.clone_contexts.add(_RenderContext)
     assets = (AssetBaseCfg(prim_path="/World/Ground"),) if shared else ()
     with ReplicateSession(assets, 3, 2.0) as session:
-        assert cloner_path.get_shared_paths(cloner_path.get_instance_paths(session.plan)) == (
-            ("/World/Ground",) if shared else ()
-        )
+        templates, starts = cloner_path.get_world_prototype_asset_templates(session.plan)
+        assert templates[: starts[1]] == (("/World/Ground",) if shared else ())
         np.testing.assert_array_equal(session.plan.topology.world_prototype_layout, [0, 0, 0])
         np.testing.assert_array_equal(session.plan.topology.world_prototype_starts, [0, int(shared), int(shared)])
     assert {context for context, _, _ in simulation.calls} == (

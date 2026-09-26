@@ -469,9 +469,11 @@ class OVRTXRenderer(BaseRenderer):
 
         # OVRTX cannot clone onto existing prims. Keep environment roots unless explicitly cloned;
         # asset-level clones need their parents' authored environment transforms.
-        instances = cloner_path.get_instance_paths(self._clone_plan)
-        sources = tuple(dict.fromkeys(source for _, source, _, world_ids in instances if len(world_ids)))
-        clones_env_roots = any(template == self._clone_plan.env_template for _, _, template, _ in instances)
+        sources = tuple(
+            source for source in cloner_path.get_asset_prototype_paths(self._clone_plan) if source is not None
+        )
+        templates, _ = cloner_path.get_world_prototype_asset_templates(self._clone_plan)
+        clones_env_roots = self._clone_plan.env_template in templates
         self._exported_usd_string = export_stage_to_string(
             stage,
             num_envs,
@@ -498,9 +500,20 @@ class OVRTXRenderer(BaseRenderer):
         from pxr import Gf, Usd, UsdGeom
 
         xform_cache = UsdGeom.XformCache()
-        instances = cloner_path.get_instance_paths(self._clone_plan)
-        for root in dict.fromkeys(path for _, path, _, world_ids in instances if len(world_ids)):
-            destinations = [(template, ids) for _, source, template, ids in instances if source == root]
+        plan = self._clone_plan
+        sources = cloner_path.get_asset_prototype_paths(plan)
+        templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
+            plan, include_world_indices=True
+        )
+        destinations = {}
+        for group, (start, end) in enumerate(zip(starts[:-1], starts[1:], strict=True)):
+            ids = world_ids[world_starts[group] : world_starts[group + 1]]
+            if len(ids):
+                for index in range(start, end):
+                    destinations.setdefault(sources[plan.topology.world_prototypes[index]], []).append(
+                        (templates[index], ids)
+                    )
+        for root, targets in destinations.items():
             for prim in Usd.PrimRange(stage.GetPrimAtPath(root)):
                 if not prim.IsA(UsdGeom.Xformable):
                     continue
@@ -509,7 +522,7 @@ class OVRTXRenderer(BaseRenderer):
                 if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
                     path = str(prim.GetPath())
                     self._object_scales_by_path[path] = scale
-                    for template, ids in destinations:
+                    for template, ids in targets:
                         self._object_scales_by_path.update(
                             (template.format(world_id) + path[len(root) :], scale) for world_id in ids
                         )
@@ -610,19 +623,33 @@ class OVRTXRenderer(BaseRenderer):
         env_prim_paths = [plan.env_template.format(world) for world in range(num_envs)]
         logger.info("Cloning sources in OVRTX...")
 
+        sources = cloner_path.get_asset_prototype_paths(plan)
+        templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
+            plan, include_world_indices=True
+        )
+        copies = {}
+        for group, (start, end) in enumerate(zip(starts[:-1], starts[1:], strict=True)):
+            targets = world_ids[world_starts[group] : world_starts[group + 1]]
+            if not len(targets):
+                continue
+            for index, parent in enumerate(cloner_path.get_parent_indices(templates[start:end]), start):
+                source, template = sources[plan.topology.world_prototypes[index]], templates[index]
+                if parent != -1:
+                    ancestor = start + parent
+                    suffix = cloner_path.relative_to(template, templates[ancestor])
+                    if source == sources[plan.topology.world_prototypes[ancestor]] + suffix:
+                        continue
+                copies.setdefault((source, template), []).append(targets)
         num_cloned_sources = 0
-        for asset_prototype_id, source, destination, world_ids in cloner_path.iter_subtree_copies(
-            cloner_path.get_instance_paths(plan)
-        ):
+        for source, destination in sorted(copies, key=lambda copy: copy[1].count("/")):
             target_paths = [
                 destination.format(int(world_id))
-                for world_id in world_ids
+                for targets in copies[source, destination]
+                for world_id in targets
                 if destination.format(int(world_id)) != source
             ]
             if target_paths:
-                logger.debug(
-                    "Cloning asset prototype %d: %s -> %d target(s)", asset_prototype_id, source, len(target_paths)
-                )
+                logger.debug("Cloning %s -> %d target(s)", source, len(target_paths))
                 if self._use_ovstage:
                     self.backend.stage.clone(source, target_paths, ordinal=self._current_ordinal)
                 else:

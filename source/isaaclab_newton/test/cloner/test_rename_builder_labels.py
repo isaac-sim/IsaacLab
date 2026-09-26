@@ -39,11 +39,8 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         plan = make_clone_plan(
             cfgs, ((0, 1), (0, 1, 1), (0, 0, 1), (1,)), 16, positions=np.zeros((16, 3), dtype=np.float32)
         )
-        instances = cloner_path.get_instance_paths(plan)
         assets = {}
-        for _, source, _, world_ids in instances:
-            if not len(world_ids) or source in assets:
-                continue
+        for source in cloner_path.get_asset_prototype_paths(plan):
             asset = assets[source] = newton.ModelBuilder()
             asset.add_body(label=source, xform=wp.transform((1, 2, 3), wp.quat_identity()))
         builder = newton.ModelBuilder()
@@ -51,7 +48,6 @@ class TestReplicateBuilderMapping(unittest.TestCase):
             replicate_builder_mapping(
                 builder,
                 plan,
-                instances,
                 plan.positions,
                 np.tile([0, 0, 0, 1], (16, 1)),
                 assets,
@@ -67,7 +63,7 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         self.assertIn("/World/envs/env_8/Banana_1", builder.body_label)
 
     def test_local_and_env_root_sites_keep_indices_labels_and_world_positions(self):
-        source_path, destination = "/World/envs/env_0/Robot", "/World/envs/env_{}/Robot"
+        source_path = "/World/envs/env_0/Robot"
         source = newton.ModelBuilder()
         source.add_body(xform=wp.transform((2.0, 0.0, 0.0), wp.quat_identity()), label=source_path)
         site_idx = source.add_site(body=0, xform=wp.transform(), label="ee")
@@ -85,16 +81,11 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         base_shape = builder.shape_count
         positions = np.array([[2.0, 0.0, 0.0], [5.0, 0.0, 0.0], [8.0, 0.0, 0.0]], dtype=np.float32)
 
-        plan = make_clone_plan((source_path, other_path), ((0, 1),), 3)
-        instances = (
-            (0, source_path, destination, np.arange(3)),
-            (1, other_path, "/World/envs/env_{}/Box", np.arange(3)),
-        )
+        plan = make_clone_plan(tuple(AssetBaseCfg(prim_path=path) for path in (source_path, other_path)), ((0, 1),), 3)
         with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
             local_site_map, _, _ = replicate_builder_mapping(
                 builder,
                 plan,
-                instances,
                 positions,
                 np.array([[0.0, 0.0, 0.0, 1.0]] * 3, dtype=np.float32),
                 {source_path: source, other_path: other},
@@ -127,12 +118,10 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         source_builders[sources[0]].add_body(label="/outside/the/plan")
         builder = newton.ModelBuilder()
 
-        plan = make_clone_plan(sources, ((1,), ()), 2)
-        instances = ((1, sources[1], "/World/envs/env_{}/active", np.array([0])),)
+        plan = make_clone_plan(tuple(AssetBaseCfg(prim_path=path) for path in sources), ((1,), ()), 2)
         replicate_builder_mapping(
             builder,
             plan,
-            instances,
             np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], dtype=np.float32),
             np.array([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]], dtype=np.float32),
             source_builders,
@@ -348,16 +337,22 @@ class TestVisualizationClonePlan(unittest.TestCase):
         cloth.CreatePointsAttr(vertices)
         cloth.CreateFaceVertexCountsAttr([3])
         cloth.CreateFaceVertexIndicesAttr([0, 1, 2])
-        instances = ((0, path, "/Scene/copy_{}/Parent/Cloth", np.array([0, 2])),)
+        plan = make_clone_plan(
+            (AssetBaseCfg(prim_path="/Scene/copy_[^/]+/Parent/Cloth", spawn=SpawnerCfg(spawn_path=path)),),
+            ((0,), ()),
+            3,
+            clone_strategy=lambda _weights, _count: np.array([0, 1, 0]),
+            env_template="/Scene/copy_{}",
+        )
         env_ids = np.array([7, 9, 12])
         positions = np.array([[10, 0, 0], [20, 0, 0], [30, 0, 0]], dtype=np.float32)
-        prototypes = deformable_prototypes(stage, instances)
+        prototypes = deformable_prototypes(stage, plan)
         for positions in (positions, None):
             with self.subTest(positions=positions):
                 builder = newton.ModelBuilder()
                 offsets = visualization_deformables_module.add_shadow_deformables_to_builder(
                     builder,
-                    expand_deformable_entries(prototypes, instances, env_ids, positions),
+                    expand_deformable_entries(prototypes, plan, env_ids, positions),
                 )
                 self.assertEqual(offsets, {path: 0, "/Scene/copy_12/Parent/Cloth": 3})
                 self.assertFalse(stage.GetPrimAtPath("/Scene/copy_12"))
@@ -381,15 +376,21 @@ class TestVisualizationClonePlan(unittest.TestCase):
             )
             for name, count in (("A", 3), ("B", 6))
         )
-        instances = (
-            (0, entries[0].root_path, "/Copies/{}/Body", np.array([0, 2])),
-            (1, entries[1].root_path, "/Copies/{}/Body", np.array([1])),
+        plan = make_clone_plan(
+            tuple(
+                AssetBaseCfg(prim_path="/Copies/[^/]+/Body", spawn=SpawnerCfg(spawn_path=entry.root_path))
+                for entry in entries
+            ),
+            ((0,), (1,)),
+            3,
+            clone_strategy=lambda _weights, _count: np.array([0, 1, 0]),
+            env_template="/Copies/{}",
         )
         env_ids = np.array([2, 10, 30])
         builder = newton.ModelBuilder()
         builder.add_particle(pos=wp.vec3(), vel=wp.vec3(), mass=1.0)
         offsets = visualization_deformables_module.add_shadow_deformables_to_builder(
-            builder, expand_deformable_entries(entries, instances, env_ids)
+            builder, expand_deformable_entries(entries, plan, env_ids)
         )
         self.assertEqual(
             offsets, {"/Copies/2/Body/Visual": 1, "/Copies/30/Body/Visual": 4, "/Copies/10/Body/Visual": 7}
@@ -466,10 +467,8 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
         }
         builder = newton.ModelBuilder()
         env_ids = np.array([10, 20], dtype=np.int64)
-        plan = make_clone_plan((self._SRC, sibling_material), ((0, 1),), len(env_ids))
-        instances = (
-            (0, self._SRC, "/World/envs/env_{}/Robot", np.arange(len(env_ids))),
-            (1, sibling_material, "/World/envs/env_{}/Material", np.arange(len(env_ids))),
+        plan = make_clone_plan(
+            tuple(AssetBaseCfg(prim_path=path) for path in (self._SRC, sibling_material)), ((0, 1),), len(env_ids)
         )
         positions = np.zeros((len(env_ids), 3), dtype=np.float32)
         quaternions = np.zeros((len(env_ids), 4), dtype=np.float32)
@@ -477,7 +476,6 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
         replicate_builder_mapping(
             builder,
             plan,
-            instances,
             positions,
             quaternions,
             {self._SRC: source, sibling_material: newton.ModelBuilder()},
@@ -508,8 +506,7 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
         source.add_body(label=f"{self._SRC}/base")
         builder = newton.ModelBuilder()
         env_ids = np.array([10, 20], dtype=np.int64)
-        plan = make_clone_plan((self._SRC,), ((0,),), 2)
-        instances = ((0, self._SRC, "/World/envs/env_{}/Robot", np.arange(2)),)
+        plan = make_clone_plan((AssetBaseCfg(prim_path=self._SRC),), ((0,),), 2)
 
         def hook(builder, *_):
             builder.add_body(label=f"{self._SRC}/hook")
@@ -517,7 +514,6 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
         replicate_builder_mapping(
             builder,
             plan,
-            instances,
             np.zeros((2, 3), dtype=np.float32),
             np.array([[0.0, 0.0, 0.0, 1.0]] * 2, dtype=np.float32),
             {self._SRC: source},

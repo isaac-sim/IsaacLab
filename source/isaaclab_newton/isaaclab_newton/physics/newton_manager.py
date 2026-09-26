@@ -77,11 +77,12 @@ from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, 
 
 from pxr import Usd, UsdGeom
 
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, make_clone_plan
 from isaaclab.cloner import path as cloner_path
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
-from isaaclab.sim import SimulationContext
+from isaaclab.sim import SimulationContext, SpawnerCfg
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
@@ -223,19 +224,21 @@ class NewtonSceneDataBackend(SceneDataBackend):
         self.geometry_timestamp = 0
         self._geometry_batches = []
 
-    def initialize_geometry(self, plan: ClonePlan, instances: tuple) -> None:
+    def initialize_geometry(self, plan: ClonePlan) -> None:
         """Bind imported geometry paths to native particle ranges and capsule endpoints."""
         ranges, visual_ranges = {}, {}
         indices, weights = [], []
         visual_offset = 0
+        if NewtonManager._deformable_registry:
+            templates, starts = cloner_path.get_world_prototype_asset_templates(plan)
         for entry in NewtonManager._deformable_registry:
             asset_ids = cloner_path.get_asset_prototypes(plan, entry.prim_path)
             suffix = entry.vis_mesh_prim_path[len(entry.prim_path) :]
             paths = [
-                template.format(env_id) + suffix
-                for asset_id, _, template, env_ids in instances
-                if asset_id in asset_ids
-                for env_id in env_ids
+                templates[index].format(world) + suffix
+                for world, prototype in enumerate((-1, *plan.topology.world_prototype_layout), -1)
+                for index in range(starts[prototype + 1], starts[prototype + 2])
+                if plan.topology.world_prototypes[index] in asset_ids
             ]
             if entry.volume_vis_remap is None:
                 ranges.update(
@@ -1353,8 +1356,7 @@ class NewtonManager(PhysicsManager):
             NewtonManager._initialize_fabric_body_prims(cls._usdrt_stage, fabric_hierarchy, usdrt, body_bindings)
 
         plan = PhysicsManager._sim.get_clone_plan()
-        instances = cloner_path.get_instance_paths(plan) if cls._deformable_registry else ()
-        cls._scene_data_backend.initialize_geometry(plan, instances)
+        cls._scene_data_backend.initialize_geometry(plan)
         logger.info("Dispatching PHYSICS_READY callbacks")
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
 
@@ -1589,7 +1591,11 @@ class NewtonManager(PhysicsManager):
             quaternions = np.asarray([quat for _, quat in poses], dtype=np.float32)
             env_template = proto_path.rsplit("_", 1)[0] + "_{}"
             plan = make_clone_plan(
-                (proto_path,), ((0,),), len(env_paths), positions=positions, env_template=env_template
+                (AssetBaseCfg(prim_path=proto_path, spawn=SpawnerCfg(spawn_path=proto_path)),),
+                ((0,),),
+                len(env_paths),
+                positions=positions,
+                env_template=env_template,
             )
 
             def record_source_particle_ranges(source, particle_offset, source_builder, source_xform) -> None:
@@ -1605,7 +1611,6 @@ class NewtonManager(PhysicsManager):
             local_site_map, world_xforms, _ = replicate_builder_mapping(
                 builder=builder,
                 plan=plan,
-                instances=((0, proto_path, env_template, np.arange(len(env_paths))),),
                 positions=positions,
                 quaternions=quaternions,
                 source_builders=source_builders,

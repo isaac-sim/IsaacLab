@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -43,7 +43,7 @@ def _matrix_to_clone_transform(matrix: Gf.Matrix4d) -> CloneTransform:
 
 def _clone_recipes(
     stage: Usd.Stage,
-    instances: Sequence[tuple[int, str | None, str, np.ndarray]],
+    copies: Iterable[tuple[tuple[str, str], np.ndarray]],
     env_ids: np.ndarray,
     positions: np.ndarray | None,
     quaternions: np.ndarray | None,
@@ -56,11 +56,11 @@ def _clone_recipes(
 
     xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
     recipes = []
-    for _, source, template, columns in instances:
+    for (source, template), columns in copies:
         if not len(columns) or columns[0] == -1:
             continue
         active_env_ids = env_ids[columns]
-        prefix, suffix = cloner.path.split(template)
+        prefix, _, suffix = template.partition("{}")
         env_template = prefix + "{}" + suffix.split("/", 1)[0]
         matched = cloner.path.match(source, env_template)
         self_env_id = int(matched.instance) if matched is not None and matched.instance.isdigit() else None
@@ -125,11 +125,20 @@ class OvPhysxReplicateContext:
         Raises:
             ValueError: If positions are malformed or an active source or source anchor prim is invalid.
         """
+        sources = cloner.path.get_asset_prototype_paths(plan)
+        templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
+            plan, include_world_indices=True
+        )
+        copies = {}
+        for group in range(1, len(starts) - 1):
+            targets = world_ids[world_starts[group] : world_starts[group + 1]]
+            if len(targets):
+                for index in range(starts[group], starts[group + 1]):
+                    if (asset := plan.topology.world_prototypes[index]) in asset_prototype_ids:
+                        copies.setdefault((sources[asset], templates[index]), []).append(targets)
         recipes = _clone_recipes(
             stage=self.stage,
-            instances=tuple(
-                instance for instance in cloner.path.get_instance_paths(plan) if instance[0] in asset_prototype_ids
-            ),
+            copies=((key, np.concatenate(groups)) for key, groups in copies.items()),
             env_ids=np.arange(len(plan.topology.world_prototype_layout)),
             positions=plan.positions,
             quaternions=None,
@@ -164,8 +173,8 @@ def ovphysx_replicate(
     """
     recipes = _clone_recipes(
         stage=stage,
-        instances=tuple(
-            (index, source, destination, np.flatnonzero(mapping[index]))
+        copies=(
+            ((source, destination), np.flatnonzero(mapping[index]))
             for index, (source, destination) in enumerate(zip(sources, destinations, strict=True))
         ),
         env_ids=env_ids,

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, NamedTuple
 
@@ -232,122 +232,101 @@ class path:
         return prototype_ids[np.diff(match_counts[topology.world_prototype_starts]) > 0]
 
     @staticmethod
-    def get_instance_paths(plan: ClonePlan) -> tuple[tuple[int, str | None, str, np.ndarray], ...]:
-        """Resolve native names for the plan's declared asset instances without accessing a stage.
+    def get_asset_prototype_paths(plan: ClonePlan) -> tuple[str | None, ...]:
+        """Return authored source paths indexed by asset-prototype ID, without reading a stage.
 
         Args:
-            plan: Host plan supplying declarations, membership, and the destination-world template.
+            plan: Host declarations, topology, and naming template.
 
         Returns:
-            Asset-prototype ID, authored source path, destination template, and world IDs per named
-            occurrence. Shared instances use world -1; unused occurrences have no source path.
-            Repeated memberships inherit the prototype pose and receive distinct sibling names.
+            One source path per asset definition, or None for an unused definition. Explicit
+            spawner paths take precedence; otherwise the first participating prototype/world
+            supplies the source. Shared world -1 precedes replicated worlds.
+        """
+        templates, starts = path.get_world_prototype_asset_templates(plan)
+        first_worlds = np.full(len(starts) - 1, -2, dtype=np.int32)
+        first_worlds[0] = -1
+        prototypes, first = np.unique(plan.topology.world_prototype_layout, return_index=True)
+        first_worlds[prototypes + 1] = first
+        sources = [None] * len(plan.asset_cfgs)
+        for asset, template, world in zip(
+            plan.topology.world_prototypes, templates, np.repeat(first_worlds, np.diff(starts)), strict=True
+        ):
+            if world < -1 or sources[asset] is not None:
+                continue
+            spawn = getattr(plan.asset_cfgs[asset], "spawn", None)
+            source = getattr(spawn, "spawn_path", None)
+            sources[asset] = source if source is not None else template.format(int(world))
+        return tuple(sources)
+
+    @staticmethod
+    def get_world_prototype_asset_templates(
+        plan: ClonePlan, *, include_world_indices: bool = False
+    ) -> tuple[tuple[str, ...], np.ndarray] | tuple[tuple[str, ...], np.ndarray, np.ndarray, np.ndarray]:
+        """Name every asset occurrence in each world prototype.
+
+        Args:
+            plan: Host declarations, topology, and naming template.
+            include_world_indices: Also return destination world IDs and their per-prototype starts.
+
+        Returns:
+            Flat templates aligned with ``topology.world_prototypes``, and the existing
+            ``world_prototype_starts`` array by reference. Shared templates have no instance slot;
+            repeated memberships receive distinct sibling names. Unused prototypes retain templates.
+
+            When requested, two additional arrays group destination world IDs by world prototype,
+            including shared world -1 first. For group g (prototype g-1), template starts select its
+            members and world-index starts select its destinations. These are different boundaries;
+            world IDs are not duplicated for every member. Both starts arrays include the final end.
         """
         topology = plan.topology
-        targets = {}
-        sorted_world_ids = np.argsort(topology.world_prototype_layout, kind="stable")
-        counts = np.bincount(topology.world_prototype_layout, minlength=len(topology.world_prototype_starts) - 2)
-        offsets = np.r_[0, np.cumsum(counts)]
-        for world_prototype_id in path.get_world_prototypes(plan):
-            start, end = topology.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
-            world_ids = (
-                np.array([-1])
-                if world_prototype_id == -1
-                else sorted_world_ids[offsets[world_prototype_id] : offsets[world_prototype_id + 1]]
-            )
+        starts = topology.world_prototype_starts
+        templates = []
+        for group, (start, end) in enumerate(zip(starts[:-1], starts[1:], strict=True)):
             names = set()
-            for asset_prototype_id in topology.world_prototypes[start:end]:
-                cfg = plan.asset_cfgs[asset_prototype_id]
-                matched = path.match(cfg.prim_path, plan.env_template)
-                template = plan.env_template + matched.suffix if matched is not None else cfg.prim_path
-                if world_prototype_id == -1:
+            for asset in topology.world_prototypes[start:end]:
+                declared = plan.asset_cfgs[asset].prim_path
+                matched = path.match(declared, plan.env_template)
+                template = plan.env_template + matched.suffix if matched is not None else declared
+                if group == 0:
                     template = template.format("shared")
                 elif matched is None:
-                    template = plan.env_template + "/" + cfg.prim_path.rsplit("/", 1)[-1]
+                    template = plan.env_template + "/" + declared.rsplit("/", 1)[-1]
                 name, occurrence = template, 0
                 while template in names:
                     occurrence += 1
                     template = f"{name}_{occurrence}"
                 names.add(template)
-                targets.setdefault((int(asset_prototype_id), template), []).append(world_ids)
-        targets = [(index, template, np.concatenate(groups)) for (index, template), groups in targets.items()]
-        source_paths = {}
-        for asset_prototype_id, template, world_ids in targets:
-            if len(world_ids) and asset_prototype_id not in source_paths:
-                spawn = getattr(plan.asset_cfgs[asset_prototype_id], "spawn", None)
-                source_path = getattr(spawn, "spawn_path", None)
-                source_paths[asset_prototype_id] = (
-                    source_path if source_path is not None else template.format(int(world_ids[0]))
-                )
-        return tuple(
-            (asset_prototype_id, source_paths.get(asset_prototype_id), template, world_ids)
-            for asset_prototype_id, template, world_ids in targets
-        )
+                templates.append(template)
+        if not include_world_indices:
+            return tuple(templates), starts
+        indices = np.r_[-1, np.argsort(topology.world_prototype_layout, kind="stable")].astype(np.int32)
+        counts = np.bincount(topology.world_prototype_layout, minlength=len(starts) - 2)
+        return tuple(templates), starts, indices, np.cumsum(np.r_[0, 1, counts], dtype=np.int64)
 
     @staticmethod
-    def get_shared_paths(instances: Iterable[tuple[int, str | None, str, np.ndarray]]) -> tuple[str, ...]:
-        """Return minimal shared roots from :meth:`path.get_instance_paths`, without inferring membership from names."""
-        paths = tuple(template for _, _, template, world_ids in instances if len(world_ids) and world_ids[0] == -1)
-        return tuple(
-            prim_path
-            for prim_path in paths
-            if not any(prim_path != root and path.under(prim_path, root) for root in paths)
-        )
-
-    @staticmethod
-    def iter_subtree_copies(
-        instances: Iterable[tuple[int, str | None, str, np.ndarray]],
-    ) -> Iterator[tuple[int, str, str, np.ndarray]]:
-        """Yield parent-first subtree copies, preserving independently sourced child overrides.
+    def get_parent_indices(paths: Sequence[str]) -> np.ndarray:
+        """Return the nearest strict ancestor in a path collection, independent of input order.
 
         Args:
-            instances: Routed instance paths from :meth:`path.get_instance_paths`.
-
-        Yields:
-            Asset-prototype ID, source path, destination template, and world IDs requiring a copy.
-        """
-        instances = sorted(
-            (instance for instance in instances if len(instance[3])),
-            key=lambda item: item[2].count("/"),
-        )
-        for index, (asset_prototype_id, source, destination, world_ids) in enumerate(instances):
-            covered = np.zeros(len(world_ids), dtype=np.bool_)
-            redundant = covered.copy()
-            for _, parent_source, parent_destination, parent_world_ids in reversed(instances[:index]):
-                if destination == parent_destination or not path.under(destination, parent_destination):
-                    continue
-                inherited = np.isin(world_ids, parent_world_ids) & ~covered
-                if path.rebase(source, parent_source, parent_destination) == destination:
-                    redundant |= inherited
-                covered |= inherited
-            if not redundant.all():
-                yield asset_prototype_id, source, destination, world_ids[~redundant]
-
-    @staticmethod
-    def split(template: str) -> tuple[str, str]:
-        """Split a clone destination template around its ``"{}"`` clone slot.
-
-        The clone slot represents one concrete environment/instance path segment.
-
-        Args:
-            template: Destination path template with exactly one ``"{}"`` for the instance id.
+            paths: Concrete paths or templates. Equal paths are peers, not parents.
 
         Returns:
-            The ``(prefix, suffix)`` strings around the clone slot. A trailing slash is
-            insignificant, so an instance-root template (``".../env_{}"``) yields an empty suffix.
-
-        Raises:
-            ValueError: If ``template`` does not hold exactly one clone slot. A second slot would
-                survive into the suffix and break the later ``str.format`` that fills the first.
+            Parent index per input, dtype int32; -1 when no ancestor occurs in the collection.
+            For duplicate ancestors the first occurrence is used. No stage is read.
         """
-        template = template.rstrip("/") or "/"
-        slots = template.count("{}")
-        if slots != 1:
-            raise ValueError(
-                f"Clone destination template must contain exactly one '{{}}', found {slots}: {template!r}."
-            )
-        prefix, _, suffix = template.partition("{}")
-        return prefix, suffix
+        indices = {}
+        for index, value in enumerate(paths):
+            indices.setdefault(value.rstrip("/") or "/", index)
+        parents = np.full(len(paths), -1, dtype=np.int32)
+        for index, value in enumerate(paths):
+            parent = value.rstrip("/")
+            while parent:
+                parent = parent.rpartition("/")[0]
+                if (parent or "/") in indices:
+                    parents[index] = indices[parent or "/"]
+                    break
+        return parents
 
     @staticmethod
     def match(path_expr: str, template: str) -> TemplateMatch | None:
@@ -369,7 +348,10 @@ class path:
             >>> path.match("/World/envs/env_3/Robot/base", "/World/envs/env_{}/Robot")
             TemplateMatch(instance='3', suffix='/base')
         """
-        prefix, template_suffix = path.split(template)
+        template = template.rstrip("/") or "/"
+        if template.count("{}") != 1:
+            raise ValueError(f"Clone destination template must contain exactly one '{{}}': {template!r}.")
+        prefix, _, template_suffix = template.partition("{}")
         # the slot holds one segment's worth of text: a concrete id, or a wildcard standing for one.
         # A segment-safe wildcard is written as a character class, whose text contains a '/' that is
         # not a separator, so it is matched as a class rather than by the one-segment alternative.
@@ -410,22 +392,6 @@ class path:
         return suffix if suffix.startswith("/") else None
 
     @classmethod
-    def under(cls, path: str, root: str) -> bool:
-        """Return whether ``path`` lies within the subtree rooted at ``root``.
-
-        Boundary-correct membership test: unlike :meth:`str.startswith`, it does not match
-        across a segment boundary (``".../Robot"`` does not contain ``".../RobotArm"``).
-
-        Args:
-            path: Candidate descendant path.
-            root: Concrete subtree root.
-
-        Returns:
-            ``True`` when ``path`` equals ``root`` or is a descendant of it.
-        """
-        return cls.relative_to(path, root) is not None
-
-    @classmethod
     def rebase(cls, path: str, src_root: str, dst_root: str) -> str:
         """Rebase ``path`` from one concrete root prefix onto another on a segment boundary.
 
@@ -444,24 +410,6 @@ class path:
         if suffix is None:
             return path
         return (dst_root.rstrip("/") + suffix) or "/"
-
-    @staticmethod
-    def relativize(path_expr: str, template: str) -> str | None:
-        """Return the part of ``path_expr`` below a template's instance root.
-
-        The suffix half of :meth:`path.match`, for callers that do not need the captured instance.
-
-        Args:
-            path_expr: Path or path expression on the clone (destination) side.
-            template: Destination path template with ``"{}"`` for the instance id.
-
-        Returns:
-            The asset-relative suffix (starting with ``/``, or ``""`` when ``path_expr`` is
-            exactly the template root), or ``None`` when ``path_expr`` is not under the root.
-
-        """
-        matched = path.match(path_expr, template)
-        return None if matched is None else matched.suffix
 
 
 class query:

@@ -11,11 +11,14 @@ import numpy as np
 
 from pxr import Gf, Sdf, Usd, UsdGeom
 
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import make_clone_plan
 from isaaclab.scene_data.deformable_discovery import (
     deformable_entry,
     deformable_prototypes,
     expand_deformable_entries,
 )
+from isaaclab.sim import SpawnerCfg
 
 
 def _add_api_schemas(prim: Usd.Prim, schemas: list[str]) -> None:
@@ -139,16 +142,22 @@ def test_backend_geometry_nearest_owner_partial_rows_and_shared_roots():
     _add_api_schemas(mpm_points.GetPrim(), ["PhysicsDeformableBodyAPI"])
     sources = ("/Lab/Cell3", "/Lab/Cell3/Nested")
     destinations = ("/Lab/Cell{}", "/Lab/Cell{}/Nested")
-    instances = (
-        (0, sources[0], destinations[0], np.array([0, 1])),
-        (1, sources[1], destinations[1], np.array([0, 2])),
-    )
     env_ids = np.asarray([3, 7, 11])
     positions = np.asarray([[10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [35.0, 0.0, 0.0]])
     shared = ("/Shared", "/Shared/Cloth", "/Lab")
+    plan = make_clone_plan(
+        tuple(
+            AssetBaseCfg(prim_path=template.format("[^/]+"), spawn=SpawnerCfg(spawn_path=source))
+            for source, template in zip((*sources, *shared), (*destinations, *shared), strict=True)
+        ),
+        ((0, 1), (0,), (1,)),
+        3,
+        shared_assets=(2, 3, 4),
+        env_template="/Lab/Cell{}",
+    )
     excluded = ("/Missing", "/Lab/Cell3/Dormant")
-    prototypes = deformable_prototypes(stage, instances, shared, exclude_paths=excluded)
-    nested = deformable_prototypes(stage, instances, shared, exclude_paths=(*sources[:1], *excluded))
+    prototypes = deformable_prototypes(stage, plan, exclude_paths=excluded)
+    nested = deformable_prototypes(stage, plan, exclude_paths=(*sources[:1], *excluded))
     assert len(prototypes) == 3
     assert {entry.root_path for entry in prototypes} == {"/Lab/Cell3/Cloth", "/Lab/Cell3/Nested/Cloth", "/Shared/Cloth"}
     assert {entry.root_path for entry in nested} == {
@@ -158,9 +167,7 @@ def test_backend_geometry_nearest_owner_partial_rows_and_shared_roots():
     prototype = next(entry for entry in prototypes if entry.root_path == "/Lab/Cell3/Cloth")
     stage.RemovePrim("/Lab")
 
-    expanded = {
-        entry.root_path: entry for entry in expand_deformable_entries(prototypes, instances, env_ids, positions)
-    }
+    expanded = {entry.root_path: entry for entry in expand_deformable_entries(prototypes, plan, env_ids, positions)}
     assert set(expanded) == {
         "/Lab/Cell3/Cloth",
         "/Lab/Cell7/Cloth",
@@ -168,7 +175,7 @@ def test_backend_geometry_nearest_owner_partial_rows_and_shared_roots():
         "/Lab/Cell11/Nested/Cloth",
         "/Shared/Cloth",
     }
-    assert {entry.root_path for entry in expand_deformable_entries(nested, instances[1:], env_ids, positions)} == {
+    assert {entry.root_path for entry in expand_deformable_entries(nested, plan, env_ids, positions)} == {
         "/Lab/Cell3/Nested/Cloth",
         "/Lab/Cell11/Nested/Cloth",
         "/Shared/Cloth",
@@ -186,7 +193,15 @@ def test_backend_geometry_nearest_owner_partial_rows_and_shared_roots():
             entry.root_path: entry
             for entry in expand_deformable_entries(
                 ordered,
-                ((0, "/Lab/Cell3", destinations[0], np.array([0])), (1, "/Shared", destinations[1], np.array([0]))),
+                make_clone_plan(
+                    tuple(
+                        AssetBaseCfg(prim_path=template.format("[^/]+"), spawn=SpawnerCfg(spawn_path=source))
+                        for source, template in zip(("/Lab/Cell3", "/Shared"), destinations, strict=True)
+                    ),
+                    ((0, 1),),
+                    1,
+                    env_template="/Lab/Cell{}",
+                ),
                 np.asarray([3]),
             )
         }

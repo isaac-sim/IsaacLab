@@ -301,15 +301,14 @@ when a consumer starts with a concrete destination path rather than an asset cfg
     world_id = int(world)
     world_prototype_id = plan.topology.world_prototype_layout[world_id]
     start, end = plan.topology.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
-    asset_ids = plan.topology.world_prototypes[start:end]
-
     # Names distinguish repeated occurrences of the same asset prototype.
-    matches = []
-    for asset_id, source, destination, worlds in cloner.path.get_instance_paths(plan):
-        if asset_id in asset_ids and world_id in worlds:
-            suffix = cloner.path.relative_to(path, destination.format(world_id))
-            if suffix is not None:
-                matches.append((source, suffix))
+    sources = cloner.path.get_asset_prototype_paths(plan)
+    templates, _ = cloner.path.get_world_prototype_asset_templates(plan)
+    matches = [
+        (sources[plan.topology.world_prototypes[index]], suffix)
+        for index in range(start, end)
+        if (suffix := cloner.path.relative_to(path, templates[index].format(world_id))) is not None
+    ]
     # A separately declared child owns its descendants instead of its parent.
     source, suffix = min(matches, key=lambda item: len(item[1]))
     hand = sim.stage.GetPrimAtPath(source + suffix)
@@ -321,6 +320,30 @@ do not distinguish their native names. A consumer that already knows its asset c
 select its prototype IDs directly and use their native bindings without parsing a path.
 Shared assets use the leading world ``-1`` slice, not a negative index into
 ``world_prototype_layout``. No lookup requires walking cloned USD destinations.
+
+The two naming tables have different indices: source paths use asset-prototype IDs;
+templates use member positions in ``world_prototypes``. The template query returns
+``world_prototype_starts`` by reference so repeated memberships stay grouped. For
+Banana/Franka compositions ``[(0, 1), (0, 1, 1), (0, 0, 1), (1,)]``:
+
+.. code-block:: python
+
+    templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
+        plan, include_world_indices=True
+    )
+    # starts = [0, 0, 2, 5, 8, 9]: empty shared world, then four world prototypes.
+    # With 16 equally weighted worlds, world_starts = [0, 1, 5, 9, 13, 17].
+    # These offsets group different arrays. Destination IDs are stored once per world,
+    # not repeated for every asset. Group 3 corresponds to world prototype 2:
+    templates[starts[3]:starts[4]]       # Banana, Banana_1, Franka templates
+    worlds[world_starts[3]:world_starts[4]]  # [8, 9, 10, 11]
+
+``get_parent_indices(paths)`` returns the nearest strict ancestor within the supplied
+path collection, or ``-1``. It does not choose cloning operations. Clone backends use
+that relation to omit descendants inherited from a parent copy while keeping
+independently authored overrides. ``under`` and ``relativize`` were removed: use
+``relative_to(...) is not None`` and the suffix returned by ``match``. Use string
+``partition("{}")`` to split a template; ``match`` validates its single instance slot.
 
 A plan is the *what*. Putting one together and handing it to the backends is
 the *how*. Both Manager-based and Direct environments normally declare their

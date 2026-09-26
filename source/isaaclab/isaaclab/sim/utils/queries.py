@@ -409,15 +409,21 @@ def resolve_matching_prims_from_source(
         RuntimeError: If no prim matches ``path_expr`` and ``raise_if_no_matches`` is True.
     """
     plan = SimulationContext.instance().get_clone_plan()
-    matches = [
-        (instance, matched)
-        for instance in (cloner.path.get_instance_paths(plan) if plan is not None else ())
-        if len(instance[3]) and instance[3][0] != -1
-        if (matched := cloner.path.match(path_expr, instance[2])) is not None
-        if any(re.fullmatch(matched.instance, str(world_id)) for world_id in instance[3])
-    ]
+    matches = []
+    if plan is not None:
+        sources = cloner.path.get_asset_prototype_paths(plan)
+        templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
+            plan, include_world_indices=True
+        )
+        for group in range(1, len(starts) - 1):
+            targets = worlds[world_starts[group] : world_starts[group + 1]]
+            for index in range(starts[group], starts[group + 1]):
+                matched = cloner.path.match(path_expr, templates[index])
+                if matched is not None and any(re.fullmatch(matched.instance, str(world)) for world in targets):
+                    matches.append((index, matched))
     if matches:
-        (_, source_path, destination, _), matched = min(matches, key=lambda item: len(item[1].suffix))
+        index, matched = min(matches, key=lambda item: len(item[1].suffix))
+        source_path, destination = sources[plan.topology.world_prototypes[index]], templates[index]
         source_expr = source_path + matched.suffix
         dest_expr = destination.format("[^/]+")
         source_prim = get_current_stage().GetPrimAtPath(source_path)

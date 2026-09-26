@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -35,13 +35,23 @@ class PhysxReplicateContext:
             plan: Replication layout shared by every clone backend.
             asset_prototype_ids: Asset definitions routed to PhysX.
         """
-        instances = cloner.path.get_instance_paths(plan)
+        sources = cloner.path.get_asset_prototype_paths(plan)
+        templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
+            plan, include_world_indices=True
+        )
+        copies = {}
+        for group in range(1, len(starts) - 1):
+            targets = world_ids[world_starts[group] : world_starts[group + 1]]
+            if len(targets):
+                for index in range(starts[group], starts[group + 1]):
+                    if (asset := plan.topology.world_prototypes[index]) in asset_prototype_ids:
+                        copies.setdefault((sources[asset], templates[index]), []).append(targets)
         _replicate_instances(
             self.stage,
-            instances=tuple(instance for instance in instances if instance[0] in asset_prototype_ids),
+            copies=((key, np.concatenate(groups)) for key, groups in copies.items()),
             env_ids=np.arange(len(plan.topology.world_prototype_layout)),
             has_usd_only_sources=any(
-                index not in asset_prototype_ids for index, _, _, world_ids in instances if len(world_ids)
+                index not in asset_prototype_ids for index, source in enumerate(sources) if source is not None
             ),
             exclude_self_replication=True,
         )
@@ -75,8 +85,8 @@ def physx_replicate(
         raise ValueError(f"mapping must have shape {expected_shape}, got {mapping.shape}.")
     _replicate_instances(
         stage,
-        instances=tuple(
-            (index, source, destination, np.flatnonzero(mapping[index]))
+        copies=(
+            ((source, destination), np.flatnonzero(mapping[index]))
             for index, (source, destination) in enumerate(zip(sources, destinations, strict=True))
         ),
         env_ids=env_ids,
@@ -87,7 +97,7 @@ def physx_replicate(
 
 def _replicate_instances(
     stage: Usd.Stage,
-    instances: Sequence[tuple[int, str | None, str, np.ndarray]],
+    copies: Iterable[tuple[tuple[str, str], np.ndarray]],
     env_ids: np.ndarray,
     has_usd_only_sources: bool,
     exclude_self_replication: bool,
@@ -102,7 +112,7 @@ def _replicate_instances(
 
     native_paths: list[str] = []
 
-    for _, src, destination, world_ids in instances:
+    for (src, destination), world_ids in copies:
         if not len(world_ids) or world_ids[0] == -1:
             continue
         worlds = tuple(map(int, env_ids[world_ids]))
@@ -132,7 +142,7 @@ def _replicate_instances(
 
     current_worlds: list[int] = []
     current_template: str = ""
-    prefixes = [cloner.path.split(destination)[0] for _, destination, _ in physx_queue]
+    prefixes = [destination.partition("{}")[0] for _, destination, _ in physx_queue]
     env_namespaces = [prefix.rstrip("/") if prefix.endswith("/") else prefix.rsplit("/", 1)[0] for prefix in prefixes]
     excluded_paths = (
         list(dict.fromkeys(native_paths))

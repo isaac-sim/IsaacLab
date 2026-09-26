@@ -333,7 +333,11 @@ def test_clone_plan_from_env_0_uses_flat_cfg_manifest(sim):
 
     assert sim.get_clone_plan() is plan
     assert plan.asset_cfgs == (robot, sensor, prop, light, light_reference)
-    assert cloner.path.get_shared_paths(cloner.path.get_instance_paths(plan)) == ("/World/Light",)
+    templates, starts = cloner.path.get_world_prototype_asset_templates(plan)
+    shared = templates[: starts[1]]
+    assert [root for root, parent in zip(shared, cloner.path.get_parent_indices(shared)) if parent == -1] == [
+        "/World/Light"
+    ]
     np.testing.assert_array_equal(plan.topology.world_prototype_layout, np.zeros(4, dtype=np.int32))
     np.testing.assert_array_equal(plan.topology.world_prototypes, [3, 4, 0, 1, 2])
     assert robot.prim_path == "/World/envs/env_[^/]+/Robot"

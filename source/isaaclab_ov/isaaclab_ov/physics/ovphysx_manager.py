@@ -27,7 +27,6 @@ import warp as wp
 
 from pxr import Sdf, UsdPhysics
 
-from isaaclab.cloner import path as cloner_path
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
@@ -871,10 +870,9 @@ class OvPhysxManager(PhysicsManager):
 
         entries = None
         if (plan := sim.get_clone_plan()) is not None:
-            instances = cloner_path.get_instance_paths(plan)
-            prototypes = deformable_prototypes(sim.stage, instances, cloner_path.get_shared_paths(instances))
+            prototypes = deformable_prototypes(sim.stage, plan)
             entries = expand_deformable_entries(
-                prototypes, instances, np.arange(len(plan.topology.world_prototype_layout)), plan.positions
+                prototypes, plan, np.arange(len(plan.topology.world_prototype_layout)), plan.positions
             )
 
         ovphysx_device = "gpu" if "cuda" in PhysicsManager._device else "cpu"

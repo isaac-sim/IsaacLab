@@ -11,8 +11,11 @@ Changed
   Kept host declarations, naming, and placement on ``plan.asset_cfgs``, ``plan.env_template``,
   and ``plan.positions``, outside numeric topology. Pass ``env_template=...`` and
   ``positions=...`` when constructing a plan.
-* **Breaking:** Removed consumer access to USD clone contexts. Derive native instance paths
-  with ``cloner.path.get_instance_paths(plan)``;
+* **Breaking:** Removed consumer access to USD clone contexts. Read authored paths with
+  ``cloner.path.get_asset_prototype_paths(plan)`` and destination templates with
+  ``cloner.path.get_world_prototype_asset_templates(plan)``. The latter returned templates
+  aligned with world memberships and the existing ``world_prototype_starts`` array;
+  ``include_world_indices=True`` also returned destination IDs and their per-prototype starts.
   ``cloner.path.get_asset_prototypes(plan, path_expr=None)`` and
   ``cloner.path.get_world_prototypes(plan, path_expr=None)``
   returned prototype IDs as 1-D NumPy ``int32`` arrays, optionally filtered by declared cfg paths.
@@ -26,8 +29,9 @@ Changed
   before querying. Repeated input IDs retained separate results; a scalar formed a one-query batch.
   Removed ``iter_sources``, ``path_env_ids``, ``path_to_clone``, and ``path_to_source`` from ``cloner.query``;
   compose topology queries and ``cloner.path`` primitives for authored paths and destination
-  names. ``cloner.path.iter_subtree_copies(instances)`` selected non-redundant copies for USD
-  and OVRTX without adding native naming to the topology query API.
+  names. Moved subtree-copy policy into clone backends; ``cloner.path.get_parent_indices(paths)``
+  supplied strict ancestry without copying policy. Removed ``under``, ``relativize``, and ``split``;
+  use ``relative_to(...) is not None``, ``match(...).suffix``, and ``template.partition("{}")``.
   Consolidated ``path`` and ``query`` into stateless namespaces in ``clone_plan.py``.
   Import them from ``isaaclab.cloner``; calls through ``cloner.path`` and ``cloner.query`` stayed unchanged.
   Removed cached configuration/context routing maps. Raw USD and native backend replication

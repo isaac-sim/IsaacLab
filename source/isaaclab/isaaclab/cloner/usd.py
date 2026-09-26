@@ -56,7 +56,7 @@ def usd_replicate(
                 if mask is None
                 else np.flatnonzero(mask if mask.ndim == 1 else mask[source_index])
             )
-            is_env_root = "{}" in template and cloner_path.split(template)[1] == ""
+            is_env_root = template.rstrip("/").endswith("{}")
             for column in columns:
                 destination = template.format(int(env_ids[column]))
                 Sdf.CreatePrimInLayer(layer, destination)
@@ -107,13 +107,31 @@ class UsdReplicateContext:
         """Replicate this context's declared sources with the same low-level USD operation."""
         from pxr import Gf, Sdf, Vt  # noqa: PLC0415
 
-        instances = (
-            instance for instance in cloner_path.get_instance_paths(plan) if instance[0] in asset_prototype_ids
+        sources = cloner_path.get_asset_prototype_paths(plan)
+        templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
+            plan, include_world_indices=True
         )
+        copies = {}
+        for group, (start, end) in enumerate(zip(starts[:-1], starts[1:], strict=True)):
+            targets = world_ids[world_starts[group] : world_starts[group + 1]]
+            if not len(targets):
+                continue
+            members = [
+                index for index in range(start, end) if plan.topology.world_prototypes[index] in asset_prototype_ids
+            ]
+            destinations = [templates[index] for index in members]
+            for index, parent in zip(members, cloner_path.get_parent_indices(destinations), strict=True):
+                source, template = sources[plan.topology.world_prototypes[index]], templates[index]
+                if parent != -1:
+                    ancestor = members[parent]
+                    suffix = cloner_path.relative_to(template, templates[ancestor])
+                    if source == sources[plan.topology.world_prototypes[ancestor]] + suffix:
+                        continue
+                copies.setdefault((source, template), []).append(targets)
         env_ids = np.arange(len(plan.topology.world_prototype_layout))
         with disabled_fabric_change_notifies(self.stage), Sdf.ChangeBlock():
-            for _, source, template, targets in cloner_path.iter_subtree_copies(instances):
-                usd_replicate(self.stage, (source,), (template,), targets)
+            for source, template in sorted(copies, key=lambda copy: copy[1].count("/")):
+                usd_replicate(self.stage, (source,), (template,), np.concatenate(copies[source, template]))
             if plan.positions is not None:
                 # Environment frames come from the plan, not copies of an undeclared USD subtree.
                 layer = self.stage.GetRootLayer()

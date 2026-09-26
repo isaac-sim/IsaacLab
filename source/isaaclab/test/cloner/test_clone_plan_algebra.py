@@ -29,17 +29,6 @@ from isaaclab.sim import CuboidCfg
 ##
 
 
-def test_path_split():
-    """Split clone destination templates around their clone slot."""
-    assert cloner.path.split("/World/envs/env_{}/Robot") == ("/World/envs/env_", "/Robot")
-    assert cloner.path.split("/World/scenes/{}/") == ("/World/scenes/", "")
-    with pytest.raises(ValueError, match="exactly one"):
-        cloner.path.split("/World/envs/env_0/Robot")
-    # A second slot would survive into the suffix and break the later format call.
-    with pytest.raises(ValueError, match="exactly one"):
-        cloner.path.split("/World/envs/env_{}/Robot/{}")
-
-
 def test_path_relative_to():
     """relative_to strips a concrete root on a boundary, or returns None."""
     root = "/World/envs/env_0/Robot"
@@ -50,6 +39,10 @@ def test_path_relative_to():
     # The stage root is not a segment: stripping it keeps the leading slash.
     assert cloner.path.relative_to("/World/envs/env_0", "/") == "/World/envs/env_0"
     assert cloner.path.relative_to("/", "/") == ""
+    np.testing.assert_array_equal(
+        cloner.path.get_parent_indices(("/Banana/Peel", "/Franka/hand", "/Banana", "/Franka", "/Banana_1", "/")),
+        [2, 3, 5, 5, 5, -1],
+    )
 
 
 def test_expand_env_regex_ns_preserves_regex_quantifiers():
@@ -76,12 +69,6 @@ _PATH_ROOT_CASES = [
 
 
 @pytest.mark.parametrize("path, root", _PATH_ROOT_CASES)
-def test_path_law_membership(path, root):
-    """P1: under() holds exactly when relative_to() resolves."""
-    assert cloner.path.under(path, root) == (cloner.path.relative_to(path, root) is not None)
-
-
-@pytest.mark.parametrize("path, root", _PATH_ROOT_CASES)
 @pytest.mark.parametrize("dst_root", ["/World/other", "/World/other/", "/"])
 def test_path_law_rebase_swaps_only_the_root(path, root, dst_root):
     """P2: rebase is the destination root plus the tail, and rebasing onto the same root is a no-op."""
@@ -97,17 +84,20 @@ def test_path_law_rebase_swaps_only_the_root(path, root, dst_root):
 @pytest.mark.parametrize("path, root", _PATH_ROOT_CASES)
 def test_path_law_no_special_cases(path, root):
     """P3: "/" is the root of every absolute path, and a trailing slash is insignificant."""
-    assert cloner.path.under(path, "/")
+    assert cloner.path.relative_to(path, "/") is not None
     assert cloner.path.relative_to(path, root) == cloner.path.relative_to(path, root.rstrip("/") or "/")
     assert cloner.path.rebase(path, root, "/World/x") == cloner.path.rebase(path, root + "/", "/World/x")
 
 
 def test_path_match_captures_the_clone_slot():
-    """match keeps the instance the template's slot captured, which relativize discards."""
+    """Match captures the instance slot and rejects ambiguous templates."""
     tmpl = "/World/envs/env_{}/Robot"
     assert cloner.path.match("/World/envs/env_3/Robot/base", tmpl) == ("3", "/base")
     assert cloner.path.match("/World/envs/env_[^/]+/Robot", tmpl) == ("[^/]+", "")
     assert cloner.path.match("/World/envs/env_3/RobotArm", tmpl) is None
+    for invalid in ("/World/envs/env_0/Robot", "/World/envs/env_{}/Robot/{}"):
+        with pytest.raises(ValueError, match="exactly one"):
+            cloner.path.match("/World/envs/env_3/Robot", invalid)
 
 
 @pytest.mark.parametrize(
@@ -119,11 +109,10 @@ def test_path_match_captures_the_clone_slot():
     ],
 )
 def test_path_law_template_split(path_expr, template):
-    """P4: a match reassembles into the original path, and its suffix is what relativize returns."""
+    """P4: a match reassembles into the original path."""
     matched = cloner.path.match(path_expr, template)
     assert matched is not None
     assert template.format(matched.instance) + matched.suffix == path_expr
-    assert cloner.path.relativize(path_expr, template) == matched.suffix
 
 
 def test_cloner_imports_without_kit():
@@ -138,6 +127,8 @@ def test_cloner_imports_without_kit():
         "for namespace in (path, query)); "
         "assert not any(hasattr(query, name) for name in "
         "('get_matched_sources', 'path_to_source', 'path_to_clone', 'path_env_ids', 'iter_clones')); "
+        "assert not any(hasattr(path, name) for name in "
+        "('get_instance_paths', 'get_shared_paths', 'iter_subtree_copies', 'under', 'relativize', 'split')); "
         "print(any(n == 'isaaclab.cloner.usd' or n == 'pxr' or n.startswith('pxr.') for n in sys.modules))"
     )
     result = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True)
@@ -171,6 +162,30 @@ def test_world_topology_preserves_repeated_assets_and_shared_world(shared_assets
         [0, len(shared_assets), *(len(shared_assets) + np.cumsum([len(world) for world in worlds]))],
     )
     np.testing.assert_array_equal(plan.topology.world_prototypes, [*shared_assets, 0, 1, 0, 1, 1, 0, 0, 1, 1])
+    templates, starts, indices, index_starts = cloner.path.get_world_prototype_asset_templates(
+        plan, include_world_indices=True
+    )
+    assert starts is plan.topology.world_prototype_starts
+    assert cloner.path.get_world_prototype_asset_templates(plan)[0] == templates
+    assert cloner.path.get_asset_prototype_paths(plan) == (
+        "/Banana" if shared_assets else "/World/envs/env_0/Banana",
+        "/World/envs/env_0/Franka",
+    )
+    for group, names in enumerate(
+        (
+            tuple("Banana" for _ in shared_assets),
+            ("Banana", "Franka"),
+            ("Banana", "Franka", "Franka_1"),
+            ("Banana", "Banana_1", "Franka"),
+            ("Franka",),
+        )
+    ):
+        expected_templates = tuple(("/" if group == 0 else plan.env_template + "/") + name for name in names)
+        assert templates[starts[group] : starts[group + 1]] == expected_templates
+        np.testing.assert_array_equal(
+            indices[index_starts[group] : index_starts[group + 1]],
+            [-1] if group == 0 else range(4 * (group - 1), 4 * group),
+        )
     for path_expr, asset_ids, world_ids in (
         (None, [0, 1], [-1, 0, 1, 2, 3]),
         ("/Banana", [0], ([-1] if shared_assets else []) + [0, 1, 2]),

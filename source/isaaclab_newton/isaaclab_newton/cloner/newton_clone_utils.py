@@ -152,7 +152,7 @@ def build_source_builders(
             schema_resolvers=schema_resolvers,
             ignore_paths=[
                 *(ignore_paths or ()),
-                *(path for path in sources if path != source and clone_path.under(path, source)),
+                *(path for path in sources if path != source and clone_path.relative_to(path, source) is not None),
             ],
             return_deformable_results=True,
         )
@@ -270,7 +270,7 @@ def _rebase_builder_paths(
                 value = attr.values[index]
                 if isinstance(value, str):
                     for reference_source in reference_sources:
-                        if clone_path.under(value, reference_source):
+                        if clone_path.relative_to(value, reference_source) is not None:
                             attr.values[index] = clone_path.rebase(
                                 value, reference_source, reference_destinations[reference_source]
                             )
@@ -286,22 +286,17 @@ def _rebase_builder_paths(
 def replicate_builder_mapping(
     builder: ModelBuilder,
     plan: ClonePlan,
-    instances: Sequence[tuple[int, str | None, str, np.ndarray]],
     positions: np.ndarray,
     quaternions: np.ndarray,
     source_builders: dict[str, ModelBuilder],
     *,
     env_ids: np.ndarray,
-    reference_instances: Sequence[tuple[int, str | None, str, np.ndarray]] = (),
     source_site_indices: dict[int, dict[str, list[int]]] | None = None,
     env_root_sites: dict[str, wp.transform] | None = None,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = (),
     source_builder_added: Callable[[str, int, ModelBuilder, Sequence[float]], None] | None = None,
 ) -> tuple[dict[str, list[list[int]]], list[wp.transform], list[tuple[str, int]]]:
-    """Compose each declared world prototype once, then replicate its selected worlds.
-
-    Additional ``reference_instances`` supply path bindings, not geometry to import.
-    """
+    """Compose routed source builders once per world prototype, then batch their selected worlds."""
     topology = plan.topology
     env_template = plan.env_template
     source_site_indices = source_site_indices or {}
@@ -314,31 +309,23 @@ def replicate_builder_mapping(
         for label, indices in source_site_indices.get(id(builder), {}).items()
     }
     source_inverse = {}
-    for _, source, _, world_ids in instances:
-        if len(world_ids) and source not in source_inverse:
-            source_inverse[source] = (
-                np.asarray(wp.transform(), dtype=np.float32)
-                if world_ids[0] == -1 or clone_path.match(source, env_template) is None
-                else _invert_xform(xforms_np[world_ids[0]])
-            )
+    sources = clone_path.get_asset_prototype_paths(plan)
+    templates, starts = clone_path.get_world_prototype_asset_templates(plan)
     world_builders = {}
     prototype_ids, first_world_ids = np.unique(topology.world_prototype_layout, return_index=True)
     for world_prototype_id, first_world in zip((-1, *prototype_ids), (-1, *first_world_ids), strict=True):
-        start, end = topology.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
-        members = topology.world_prototypes[start:end]
-        # Native names belong to the importer. The plan supplies composition and cardinality.
-        by_asset = {}
-        for asset_prototype_id, source, destination, targets in instances:
-            if first_world in targets:
-                by_asset.setdefault(asset_prototype_id, []).append((source, destination))
-        by_asset = {index: iter(targets) for index, targets in by_asset.items()}
-        components = [next(by_asset[int(index)]) for index in members if int(index) in by_asset]
-        reference_paths = components + [
-            (source, destination) for _, source, destination, targets in reference_instances if first_world in targets
-        ]
+        start, end = starts[world_prototype_id + 1 : world_prototype_id + 3]
+        reference_paths = [(sources[topology.world_prototypes[index]], templates[index]) for index in range(start, end)]
+        components = [(source, template) for source, template in reference_paths if source in source_builders]
         prototype = ModelBuilder(up_axis=builder.up_axis)
         sites, particle_offsets = {}, []
         for source, destination in components:
+            if source not in source_inverse:
+                source_inverse[source] = (
+                    np.asarray(wp.transform(), dtype=np.float32)
+                    if first_world == -1 or clone_path.match(source, env_template) is None
+                    else _invert_xform(xforms_np[first_world])
+                )
             asset = source_builders[source]
             particle_offsets.append(prototype.particle_count)
             for label, indices in source_site_indices.get(id(asset), {}).items():

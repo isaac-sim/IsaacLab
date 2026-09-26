@@ -222,12 +222,12 @@ def _prepare_cloning(
         env_template=env_template,
         positions=grid_transforms(num_clones, env_spacing)[0] if positions is None else positions,
     )
-    source_paths = {index: path for index, path, _, world_ids in cloner_path.get_instance_paths(plan) if len(world_ids)}
+    source_paths = cloner_path.get_asset_prototype_paths(plan)
     for cfg, indices in declarations:
         spawn = getattr(cfg, "spawn", None)
         if spawn is None:
             continue
-        paths = [source_paths.get(index) for index in indices]
+        paths = [source_paths[index] for index in indices]
         if isinstance(spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)):
             spawn.spawn_path, spawn.spawn_paths = None, paths
             for index, path in zip(indices, paths, strict=True):

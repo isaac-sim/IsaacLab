@@ -637,9 +637,7 @@ class mesh_clearance(ManagerTermBase):
         env_object_mesh = np.zeros(env.num_envs, dtype=np.int32)
         mesh_by_path: dict[str, int] = {}
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        source_paths = {
-            index: path for index, path, _, world_ids in cloner.path.get_instance_paths(plan) if len(world_ids)
-        }
+        source_paths = cloner.path.get_asset_prototype_paths(plan)
         for index in cloner.path.get_asset_prototypes(plan, self._object.cfg.prim_path):
             env_ids, _ = cloner.query.get_asset_prototype_unique_world_index(plan.topology, index)
             if not len(env_ids):

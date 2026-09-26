@@ -119,8 +119,9 @@ def _make_mock_physx_rep_detailed():
 
 
 @cuda_only
-def test_physx_replicate_context_consumes_plan(sim):
-    """PhysxReplicateContext reads its mapping from the shared clone plan."""
+@pytest.mark.parametrize("world_prototypes", [((0,),), ((0,), (0,))])
+def test_physx_replicate_context_consumes_plan(sim, world_prototypes):
+    """PhysX batches an asset's destinations across world-prototype boundaries."""
     from unittest.mock import patch
 
     sim_utils.create_prim("/World/envs", "Xform")
@@ -130,7 +131,7 @@ def test_physx_replicate_context_consumes_plan(sim):
     mock_rep, replicate_calls = _make_mock_physx_rep()
     with patch("isaaclab_physx.cloner.replicate.get_physx_replicator_interface", return_value=mock_rep):
         ctx = PhysxReplicateContext(sim)
-        plan = make_clone_plan((AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),), ((0,),), 3)
+        plan = make_clone_plan((AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),), world_prototypes, 3)
         ctx.replicate(plan, (0,))
 
     assert replicate_calls == [2]
@@ -168,10 +169,10 @@ def test_physx_replicate_world_counts(sim, num_envs, src, expected_worlds):
     with patch("isaaclab_physx.cloner.replicate.get_physx_replicator_interface", return_value=mock_rep):
         physx_replicate(
             stage,
-            sources=[src],
-            destinations=["/World/envs/env_{}"],
+            sources=[src, src],
+            destinations=["/World/envs/env_{}"] * 2,
             env_ids=np.arange(num_envs, dtype=np.int64),
-            mapping=np.ones((1, num_envs), dtype=np.bool_),
+            mapping=np.array([[True] * num_envs, [False] * num_envs], dtype=np.bool_),
         )
 
     assert replicate_calls == expected_worlds, (

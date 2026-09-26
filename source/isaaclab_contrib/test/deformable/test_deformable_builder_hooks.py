@@ -133,10 +133,7 @@ def test_planned_geometry_aliases_surface_nodes_and_interpolates_volume_once(mon
             world_prototype_layout=world_layout,
         ),
         asset_cfgs=(asset.cfg, SimpleNamespace(prim_path=surface.prim_path)),
-    )
-    instances = tuple(
-        (index, f"/Scene/copy_0/{name}", f"/Scene/copy_{{}}/{name}", np.array([7, 42]))
-        for index, name in enumerate(("Volume", "cloth"))
+        env_template="/Scene/copy_{}",
     )
     nodes = np.zeros((40, 3), dtype=np.float32)
     nodes[7:11], nodes[19:23] = np.asarray(entry.vertices), np.asarray(entry.vertices) + [100, 0, 0]
@@ -144,7 +141,7 @@ def test_planned_geometry_aliases_surface_nodes_and_interpolates_volume_once(mon
     monkeypatch.setattr(NewtonManager, "_cable_bindings", {})
     monkeypatch.setattr(NewtonSceneDataBackend, "state", property(lambda self: state))
     backend = NewtonSceneDataBackend()
-    backend.initialize_geometry(plan, instances)
+    backend.initialize_geometry(plan)
     stage.RemovePrim("/Scene")
     points = SceneDataProvider(backend).get_geometry_points()
     assert set(points) == {f"/Scene/copy_{index}/{mesh}" for index in (7, 42) for mesh in ("Volume/vis", "cloth/mesh")}

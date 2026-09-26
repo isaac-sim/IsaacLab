@@ -378,7 +378,7 @@ def test_clone_visualization_builder_imports_only_declared_global_deformables(mo
     callback = sim.physics_manager.register_callback.call_args.args[0]
     geometry = callback.args[1]
 
-    assert [kwargs["root_path"] for kwargs in usd_imports] == [global_path, sources[0]]
+    assert sorted(kwargs["root_path"] for kwargs in usd_imports) == sorted([global_path, sources[0]])
     assert set(geometry) == {
         "/World/Assets/Cloth",
         "/Copies/env_0/Selected/Cloth",
