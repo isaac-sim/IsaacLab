@@ -96,10 +96,10 @@ def _candidate_lattice(vertices: np.ndarray, spacing: float, inset: float, jitte
     return grid
 
 
-def _mark_lattice_points(
-    kernel: wp.Kernel, vertices: np.ndarray, faces: np.ndarray, grid: np.ndarray, device: str, *extra_inputs
-) -> np.ndarray:
-    """Run a containment kernel over ``grid`` against a winding-number mesh and keep the flagged points."""
+def _prepare_lattice_query(
+    vertices: np.ndarray, faces: np.ndarray, grid: np.ndarray, device: str
+) -> tuple[wp.Mesh, wp.array, wp.array]:
+    """Create the winding-number mesh and candidate and result buffers on the selected device."""
     mesh = wp.Mesh(
         points=wp.array(vertices, dtype=wp.vec3, device=device),
         indices=wp.array(faces.reshape(-1), dtype=wp.int32, device=device),
@@ -107,8 +107,7 @@ def _mark_lattice_points(
     )
     candidates = wp.array(grid, dtype=wp.vec3, device=device)
     inside = wp.empty(grid.shape[0], dtype=wp.float32, device=device)
-    wp.launch(kernel, dim=grid.shape[0], inputs=[candidates, mesh.id, *extra_inputs], outputs=[inside], device=device)
-    return np.ascontiguousarray(grid[inside.numpy() > 0.5], dtype=np.float32)
+    return mesh, candidates, inside
 
 
 @wp.kernel
@@ -193,9 +192,15 @@ def sample_particles_in_mesh(
     grid = _candidate_lattice(vertices, spacing, inset, jitter, seed)
     if grid.shape[0] == 0:
         return np.empty((0, 3), dtype=np.float32)
-    return _mark_lattice_points(
-        mark_points_in_mesh_kernel, vertices, faces, grid, device, float(max_query_dist), float(surface_margin)
+    mesh, candidates, inside = _prepare_lattice_query(vertices, faces, grid, device)
+    wp.launch(
+        mark_points_in_mesh_kernel,
+        dim=grid.shape[0],
+        inputs=[candidates, mesh.id, float(max_query_dist), float(surface_margin)],
+        outputs=[inside],
+        device=device,
     )
+    return np.ascontiguousarray(grid[inside.numpy() > 0.5], dtype=np.float32)
 
 
 @wp.kernel
@@ -328,15 +333,20 @@ def sample_particles_in_cavity(
         if max_ray_dist <= 0.0:
             raise ValueError("The mesh AABB diagonal must be positive when `max_ray_dist` is None.")
     level = float(water_level) if water_level is not None else 1.0e30
-    return _mark_lattice_points(
+    mesh, candidates, inside = _prepare_lattice_query(vertices, faces, grid, device)
+    wp.launch(
         mark_cavity_points_kernel,
-        vertices,
-        faces,
-        grid,
-        device,
-        float(max_query_dist),
-        float(surface_margin),
-        float(max_ray_dist),
-        int(min_ray_hits),
-        level,
+        dim=grid.shape[0],
+        inputs=[
+            candidates,
+            mesh.id,
+            float(max_query_dist),
+            float(surface_margin),
+            float(max_ray_dist),
+            int(min_ray_hits),
+            level,
+        ],
+        outputs=[inside],
+        device=device,
     )
+    return np.ascontiguousarray(grid[inside.numpy() > 0.5], dtype=np.float32)
