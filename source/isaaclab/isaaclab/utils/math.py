@@ -969,7 +969,8 @@ def apply_delta_pose(
     # interpret delta_pose[:, 3:6] as target rotation displacements
     rot_actions = delta_pose[:, 3:6]
     angle = torch.linalg.vector_norm(rot_actions, dim=1)
-    axis = rot_actions / angle.unsqueeze(-1)
+    # Keep the unselected branch finite for autograd at zero rotation.
+    axis = rot_actions / angle.clamp_min(eps).unsqueeze(-1)
     # change from axis-angle to quat convention (xyzw format: identity is [0, 0, 0, 1])
     identity_quat = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device).repeat(num_poses, 1)
     rot_delta_quat = torch.where(angle.unsqueeze(-1) > eps, quat_from_angle_axis(angle, axis), identity_quat)
@@ -1436,20 +1437,22 @@ def sample_gaussian(
     """Sample using gaussian distribution.
 
     Args:
-        mean: Mean of the gaussian.
-        std: Std of the gaussian.
+        mean: Mean of the gaussian. Must be broadcastable to :attr:`size`.
+        std: Non-negative standard deviation. Must be broadcastable to :attr:`size`.
         size: The shape of the tensor.
-        device: Device to create tensor on.
+        device: Device on which to generate the samples.
 
     Returns:
-        Sampled tensor.
+        Independently sampled tensor with shape :attr:`size`.
+
+    Raises:
+        RuntimeError: If either parameter cannot expand to :attr:`size`, or a standard deviation is negative.
     """
-    if isinstance(mean, float):
-        if isinstance(size, int):
-            size = (size,)
-        return torch.normal(mean=mean, std=std, size=size).to(device=device)
-    else:
-        return torch.normal(mean=mean, std=std).to(device=device)
+    if isinstance(size, int):
+        size = (size,)
+    mean = torch.as_tensor(mean, device=device).expand(size)
+    std = torch.as_tensor(std, device=device).expand(size)
+    return torch.normal(mean=mean, std=std)
 
 
 def sample_cylinder(
