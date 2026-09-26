@@ -216,6 +216,8 @@ The complementary queries map prototypes to actual world indices:
 
     # World prototype 1 occupies worlds 4 through 7 in the sixteen-world example above.
     cloner.query.get_world_prototype_world_index(plan, 1)  # array([4, 5, 6, 7], dtype=int32)
+    cloner.query.get_world_prototype_world_index(plan, banana_cfg.prim_path)
+    # array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], dtype=int32)
 
     # Franka is asset prototype 1 and occurs twice in each of those worlds.
     world_indices, world_starts = cloner.query.get_asset_prototype_world_index(plan, 1)
@@ -224,19 +226,21 @@ The complementary queries map prototypes to actual world indices:
     # world_starts (empty shared world first):
     # array([0, 0, 1, 2, 3, 4, 6, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20], dtype=int32)
     start, end = world_starts[5:7]  # World 4 contains selected instances [4:6].
-    worlds = cloner.query.get_asset_prototype_world_index(plan, franka_cfg.prim_path, unique=True)
+    worlds = cloner.query.get_asset_prototype_unique_world_index(plan, franka_cfg.prim_path)
     # array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], dtype=int32)
 
 ``get_asset_prototype_world_index`` accepts an integer prototype index or the same declared-path
-expression as ``get_asset_prototypes``. By default it returns ``(world_indices, world_starts)``:
+expression as ``get_asset_prototypes``. It returns ``(world_indices, world_starts)``:
 one world index per selected asset instance and offsets for each world's instances.
 ``world_starts[w + 1 : w + 3]`` gives world ``w``'s start/end offsets, with shared world ``-1``
 first. Empty worlds have equal start/end offsets. These offsets address selected plan instances,
-not native body or particle buffers. ``unique=True`` returns only the array of containing worlds,
-each included once. All arrays are 1-D NumPy ``int32`` arrays.
+not native body or particle buffers. ``get_asset_prototype_unique_world_index`` returns only the
+array of containing worlds, each included once. All arrays are 1-D NumPy ``int32`` arrays.
+``get_world_prototype_world_index`` accepts a world-prototype index or a declared-path expression
+interpreted by ``get_world_prototypes`` and returns each matching destination world once.
 ``get_world_prototype_world_index(plan, -1)`` returns ``[-1]``, even for an empty shared world;
 an unused world prototype returns an empty array. Assets with no instances return empty
-world indices and all-zero starts, or just empty world indices with ``unique=True``.
+world indices and all-zero starts; the unique query returns an empty array.
 
 Native-path queries instead resolve backend-assigned instance names and descendants.
 They take plain native mapping data, not a clone context or a plan. For example,

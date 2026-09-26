@@ -463,10 +463,14 @@ def test_world_topology_preserves_repeated_assets_and_shared_world(shared_assets
         for actual, values in (
             (world_indices, expected),
             (world_starts, [sum(index < world for index in expected) for world in range(-1, 17)]),
-            (cloner.query.get_asset_prototype_world_index(plan, selector, unique=True), sorted(set(expected))),
+            (cloner.query.get_asset_prototype_unique_world_index(plan, selector), sorted(set(expected))),
         ):
             assert actual.dtype == np.int32 and actual.ndim == 1
             np.testing.assert_array_equal(actual, values)
+        if isinstance(selector, str):
+            actual = cloner.query.get_world_prototype_world_index(plan, selector)
+            assert actual.dtype == np.int32 and actual.ndim == 1
+            np.testing.assert_array_equal(actual, sorted(set(expected)))
     for prototype in range(-1, len(worlds)):
         actual = cloner.query.get_world_prototype_world_index(plan, prototype)
         assert actual.dtype == np.int32 and actual.ndim == 1
@@ -493,12 +497,16 @@ def test_world_topology_weights_empty_worlds_and_invalid_membership():
         (cloner.query.get_asset_prototypes(empty), []),
         (cloner.query.get_world_prototypes(empty), [-1, 0]),
         (cloner.query.get_world_prototypes(empty, ".*"), []),
-        (cloner.query.get_asset_prototype_world_index(empty, 0, unique=True), []),
+        (cloner.query.get_asset_prototype_unique_world_index(empty, 0), []),
         (cloner.query.get_world_prototype_world_index(empty, 0), [0, 1, 2]),
+        (cloner.query.get_world_prototype_world_index(empty, ".*"), []),
         (cloner.query.get_world_prototype_world_index(empty, -1), [-1]),
         (cloner.query.get_world_prototype_world_index(plan, 1), []),
         (cloner.query.get_world_prototype_world_index(plan, 3), []),
-        (cloner.query.get_asset_prototype_world_index(shared_only, assets[1].prim_path, unique=True), [-1]),
+        (cloner.query.get_world_prototype_world_index(plan, assets[0].prim_path), [0, 1]),
+        (cloner.query.get_asset_prototype_unique_world_index(shared_only, assets[1].prim_path), [-1]),
+        (cloner.query.get_world_prototype_world_index(shared_only, assets[0].prim_path), []),
+        (cloner.query.get_world_prototype_world_index(shared_only, assets[1].prim_path), [-1]),
     ):
         assert actual.dtype == np.int32 and actual.ndim == 1
         np.testing.assert_array_equal(actual, expected)
@@ -507,7 +515,7 @@ def test_world_topology_weights_empty_worlds_and_invalid_membership():
         (shared_only, 0, [], [0, 0]),
         (shared_only, 1, [-1, -1], [0, 2]),
     ):
-        result = cloner.query.get_asset_prototype_world_index(topology, selector, unique=False)
+        result = cloner.query.get_asset_prototype_world_index(topology, selector)
         for actual, expected in zip(result, (indices, starts), strict=True):
             assert actual.dtype == np.int32 and actual.ndim == 1
             np.testing.assert_array_equal(actual, expected)
