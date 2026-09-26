@@ -150,8 +150,8 @@ class SceneDataBackend:
         """
         return []
 
-    transforms_version: int
-    """Monotonic producer version, incremented after native writes or buffer swaps; never reset by readers."""
+    transforms_timestamp: int
+    """Logical timestamp, incremented after native writes or buffer swaps; never reset by readers."""
 
     @property
     def native_transform_formats(self) -> tuple[Any, ...]:
@@ -168,7 +168,7 @@ class SceneDataBackend:
     ) -> (
         SceneDataFormat.Vec3_Quat | SceneDataFormat.Transform | SceneDataFormat.Matrix44 | SceneDataFormat.Vec3_Matrix33
     ):
-        """Return native transforms without copying; pointer changes must increment ``transforms_version``."""
+        """Return native transforms without copying; pointer changes must increment ``transforms_timestamp``."""
         raise NotImplementedError
 
     @property

@@ -341,6 +341,15 @@ class TestArticulationDataProperties:
     @_devices
     def test_articulation_data_property_contract(self, backend, device):
         art, _ = get_articulation(backend, _NUM_INSTANCES, _NUM_JOINTS, _NUM_BODIES, device=device)
+        if backend == "newton":
+            # Native selections may stride over other articulations in each world.
+            for name in ("root_link_pose_w", "root_com_vel_w", "body_link_pose_w", "body_com_vel_w"):
+                binding = getattr(art.data, "_sim_bind_" + name)
+                storage = wp.empty((2 * binding.shape[0], *binding.shape[1:]), dtype=binding.dtype, device=device)
+                view = storage[::2]
+                view.assign(binding)
+                setattr(art.data, "_sim_bind_" + name, view)
+            art.data._pin_proxy_arrays()
         art.data.update(dt=0.01)
         shapes = {
             "N": (_NUM_INSTANCES,),
@@ -356,6 +365,15 @@ class TestArticulationDataProperties:
             else:
                 value = getattr(art.data, name)
             _check_proxy_array(value, expected_shape=shapes[shape_kind], expected_dtype=dtype, name=name)
+
+        for frame in ("root_link", "root_com", "body_link", "body_com"):
+            for quantity, components in (("pose", ("pos", "quat")), ("vel", ("lin_vel", "ang_vel"))):
+                packed = getattr(art.data, f"{frame}_{quantity}_w").torch
+                for component, expected in zip(components, (packed[..., :3], packed[..., 3:]), strict=True):
+                    view = getattr(art.data, f"{frame}_{component}_w").torch
+                    torch.testing.assert_close(view, expected)
+                    assert view.data_ptr() == expected.data_ptr()
+                    assert view.stride() == expected.stride()
 
     @pytest.mark.skipif("physx" not in BACKENDS, reason="PhysX backend unavailable")
     def test_physx_set_coms_index_updates_body_com_pose_b_cache(self):

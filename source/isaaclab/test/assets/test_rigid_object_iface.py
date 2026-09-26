@@ -190,6 +190,15 @@ class TestRigidObjectDataProperties:
                 getattr(obj.data, name), expected_shape=shapes[shape_kind], expected_dtype=dtype, name=name
             )
 
+        for frame in ("root_link", "root_com", "body_link", "body_com"):
+            for quantity, components in (("pose", ("pos", "quat")), ("vel", ("lin_vel", "ang_vel"))):
+                packed = getattr(obj.data, f"{frame}_{quantity}_w").torch
+                for component, expected in zip(components, (packed[..., :3], packed[..., 3:]), strict=True):
+                    view = getattr(obj.data, f"{frame}_{component}_w").torch
+                    torch.testing.assert_close(view, expected)
+                    assert view.data_ptr() == expected.data_ptr()
+                    assert view.stride() == expected.stride()
+
 
 # ---------------------------------------------------------------------------
 # Tests: Alias/shorthand properties
@@ -395,6 +404,7 @@ class TestRigidObjectCacheInvalidation:
     def test_velocity_write_invalidates_body_frame_caches(self, backend):
         obj, _ = get_rigid_object(backend, num_instances=2, device="cpu")
         obj.data.update(dt=0.01)
+        body_velocity = obj.data.body_link_vel_w
         buffers = _prime_timestamped_properties(
             obj.data,
             [
@@ -407,6 +417,9 @@ class TestRigidObjectCacheInvalidation:
         root_velocity = _make_data_warp((obj.num_instances,), "cpu", wp.spatial_vectorf)
         obj.write_root_com_velocity_to_sim_index(root_velocity=root_velocity)
         _assert_buffers_stale(obj.data, buffers)
+        # Read the body alias first; zero angular velocity makes link and COM velocities equal.
+        _assert_reads_back(obj.data.body_link_vel_w, wp.to_torch(root_velocity).unsqueeze(1), "body_link_vel_w")
+        assert obj.data.body_link_vel_w is body_velocity
 
     @_production_backends
     @pytest.mark.parametrize("setter_kind", ["index", "mask"])
@@ -627,7 +640,7 @@ class TestRigidObjectWritersBody:
     """Test body property writers/setters with all input combinations."""
 
     @_production_backends
-    def test_external_wrench_frames(self, backend, monkeypatch):
+    def test_external_wrench_frames(self, backend):
         """Forward local and world wrenches through the real writer in each backend's frame."""
         device = "cpu"  # the composer and wrench-packing kernels are device-independent
         obj, raw_backend = get_rigid_object(backend, num_instances=2, device=device)
@@ -636,13 +649,9 @@ class TestRigidObjectWritersBody:
             [[1.0, 2.0, 3.0, 0.0, 0.0, 2.0**-0.5, 2.0**-0.5], [4.0, 5.0, 6.0, 0.0, 0.0, 2.0**-0.5, 2.0**-0.5]],
             device=device,
         )
-        if backend == "newton":
-            from isaaclab_newton.physics import NewtonManager
-
-            # The mocked view has no state for forward kinematics; seed the body pose FK would publish below.
-            monkeypatch.setattr(NewtonManager, "forward", MagicMock())
         obj.write_root_link_pose_to_sim_index(root_pose=root_pose)
         if backend == "newton":
+            # Seed the body pose the native FK would publish.
             obj.data._sim_bind_body_link_pose_w.assign(wp.from_torch(root_pose, dtype=wp.transformf))
         composer = obj.permanent_wrench_composer
         forces = torch.arange(1.0, 7.0, device=device).reshape(2, 1, 3)

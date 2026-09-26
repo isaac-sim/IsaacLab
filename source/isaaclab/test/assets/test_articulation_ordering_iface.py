@@ -16,7 +16,7 @@ import warp as wp
 from _articulation_iface_test_utils import BACKEND_UNAVAILABLE_REASONS, BACKENDS, get_articulation
 from _pytest.mark.structures import ParameterSet
 
-from isaaclab.utils.buffers import TimestampedBufferWarp
+from isaaclab.utils.buffers import TimestampedBuffer
 
 
 def _make_body_ordering_backend_data(num_instances: int, num_bodies: int) -> tuple[np.ndarray, ...]:
@@ -105,9 +105,9 @@ def _body_ordering_for_mode(mode: str, num_bodies: int) -> tuple[str, ...] | Non
     raise ValueError(f"Unsupported body ordering mode: {mode}")
 
 
-def _ordering_shadow_shape(buffer: wp.array | TimestampedBufferWarp) -> tuple[int, ...]:
+def _ordering_shadow_shape(buffer: wp.array | TimestampedBuffer) -> tuple[int, ...]:
     """Return the allocation shape for a raw or timestamped ordering shadow."""
-    if isinstance(buffer, TimestampedBufferWarp):
+    if isinstance(buffer, TimestampedBuffer):
         buffer = buffer.data
     return tuple(buffer.shape)
 
