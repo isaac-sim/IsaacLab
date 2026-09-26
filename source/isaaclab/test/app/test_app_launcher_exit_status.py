@@ -105,7 +105,7 @@ def test_sigterm_reports_killed_by_signal_status():
     # returns and the handler re-raises. Either way, never a successful exit.
     assert proc.returncode in (128 + signal.SIGTERM, -signal.SIGTERM), f"returncode={proc.returncode}\n{stderr}"
     # the teardown must not recurse through the abort handler
-    assert "_on_abort_signal" not in stderr
+    assert "on_sigterm" not in stderr
 
 
 @pytest.mark.integration
