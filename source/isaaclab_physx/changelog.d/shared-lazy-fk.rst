@@ -9,3 +9,4 @@ Changed
 
 * Used timestamped buffers for native pose/geometry reads and Fabric geometry destinations,
   retaining native geometry batches across reads and preserving rendering cadence.
+* Removed redundant zero initialization from fully overwritten asset read caches.

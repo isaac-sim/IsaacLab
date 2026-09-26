@@ -1664,17 +1664,17 @@ class ArticulationData(BaseArticulationData):
 
         # -- Root state buffers
         self._root_link_pose_w = TimestampedBuffer(wp.zeros(N, dtype=wp.transformf, device=dev))
-        self._root_link_vel_w = TimestampedBuffer(wp.zeros(N, dtype=wp.spatial_vectorf, device=dev))
-        self._root_com_pose_w = TimestampedBuffer(wp.zeros(N, dtype=wp.transformf, device=dev))
+        self._root_link_vel_w = TimestampedBuffer(wp.empty(N, dtype=wp.spatial_vectorf, device=dev))
+        self._root_com_pose_w = TimestampedBuffer(wp.empty(N, dtype=wp.transformf, device=dev))
         self._root_com_vel_w = TimestampedBuffer(wp.zeros(N, dtype=wp.spatial_vectorf, device=dev))
 
         # -- Body state buffers
         self._body_link_pose_w = TimestampedBuffer(wp.zeros((N, L), dtype=wp.transformf, device=dev))
         self._body_link_pose_w_backend: TimestampedBuffer | None = None
-        self._body_link_vel_w = TimestampedBuffer(wp.zeros((N, L), dtype=wp.spatial_vectorf, device=dev))
+        self._body_link_vel_w = TimestampedBuffer(wp.empty((N, L), dtype=wp.spatial_vectorf, device=dev))
         self._body_com_pose_b = TimestampedBuffer(wp.zeros((N, L), dtype=wp.transformf, device=dev))
         self._body_com_pose_b_backend: TimestampedBuffer | None = None
-        self._body_com_pose_w = TimestampedBuffer(wp.zeros((N, L), dtype=wp.transformf, device=dev))
+        self._body_com_pose_w = TimestampedBuffer(wp.empty((N, L), dtype=wp.transformf, device=dev))
         self._body_com_vel_w = TimestampedBuffer(wp.zeros((N, L), dtype=wp.spatial_vectorf, device=dev))
         self._body_com_vel_w_backend: TimestampedBuffer | None = None
         self._body_com_acc_w = TimestampedBuffer(wp.zeros((N, L), dtype=wp.spatial_vectorf, device=dev))
@@ -1748,22 +1748,22 @@ class ArticulationData(BaseArticulationData):
         self._default_joint_vel = wp.zeros((N, D), dtype=wp.float32, device=dev)
 
         # -- Derived property buffers
-        self._projected_gravity_b = TimestampedBuffer(wp.zeros(N, dtype=wp.vec3f, device=dev))
-        self._heading_w = TimestampedBuffer(wp.zeros(N, dtype=wp.float32, device=dev))
-        self._root_link_lin_vel_b = TimestampedBuffer(wp.zeros(N, dtype=wp.vec3f, device=dev))
-        self._root_link_ang_vel_b = TimestampedBuffer(wp.zeros(N, dtype=wp.vec3f, device=dev))
-        self._root_com_lin_vel_b = TimestampedBuffer(wp.zeros(N, dtype=wp.vec3f, device=dev))
-        self._root_com_ang_vel_b = TimestampedBuffer(wp.zeros(N, dtype=wp.vec3f, device=dev))
+        self._projected_gravity_b = TimestampedBuffer(wp.empty(N, dtype=wp.vec3f, device=dev))
+        self._heading_w = TimestampedBuffer(wp.empty(N, dtype=wp.float32, device=dev))
+        self._root_link_lin_vel_b = TimestampedBuffer(wp.empty(N, dtype=wp.vec3f, device=dev))
+        self._root_link_ang_vel_b = TimestampedBuffer(wp.empty(N, dtype=wp.vec3f, device=dev))
+        self._root_com_lin_vel_b = TimestampedBuffer(wp.empty(N, dtype=wp.vec3f, device=dev))
+        self._root_com_ang_vel_b = TimestampedBuffer(wp.empty(N, dtype=wp.vec3f, device=dev))
 
         # -- Deprecated combined state buffers (TimestampedBuffer; lazily filled on first access)
-        self._root_state_w_buf = TimestampedBuffer(wp.zeros(N, dtype=vec13f, device=dev))
-        self._root_link_state_w_buf = TimestampedBuffer(wp.zeros(N, dtype=vec13f, device=dev))
-        self._root_com_state_w_buf = TimestampedBuffer(wp.zeros(N, dtype=vec13f, device=dev))
+        self._root_state_w_buf = TimestampedBuffer(wp.empty(N, dtype=vec13f, device=dev))
+        self._root_link_state_w_buf = TimestampedBuffer(wp.empty(N, dtype=vec13f, device=dev))
+        self._root_com_state_w_buf = TimestampedBuffer(wp.empty(N, dtype=vec13f, device=dev))
         self._default_root_state_buf = wp.zeros(N, dtype=vec13f, device=dev)
         # -- Deprecated body combined state buffers (TimestampedBuffer; lazily filled on first access)
-        self._body_state_w_buf = TimestampedBuffer(wp.zeros((N, L), dtype=vec13f, device=dev))
-        self._body_link_state_w_buf = TimestampedBuffer(wp.zeros((N, L), dtype=vec13f, device=dev))
-        self._body_com_state_w_buf = TimestampedBuffer(wp.zeros((N, L), dtype=vec13f, device=dev))
+        self._body_state_w_buf = TimestampedBuffer(wp.empty((N, L), dtype=vec13f, device=dev))
+        self._body_link_state_w_buf = TimestampedBuffer(wp.empty((N, L), dtype=vec13f, device=dev))
+        self._body_com_state_w_buf = TimestampedBuffer(wp.empty((N, L), dtype=vec13f, device=dev))
 
         # -- Tendon property buffers (always allocated; empty shape when T==0 so
         #    properties never return None).  Routed through _read_scalar_binding.

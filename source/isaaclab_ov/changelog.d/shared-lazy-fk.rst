@@ -9,3 +9,4 @@ Changed
 
 * Used timestamped buffers for native pose/geometry reads and OVRTX uploads, sharing freshness
   handling between legacy and ovstage transports while preserving retries after failed writes.
+* Removed redundant zero initialization from fully overwritten asset read caches.

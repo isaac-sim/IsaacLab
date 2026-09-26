@@ -718,7 +718,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             wp.zeros((self.num_instances, self.num_bodies), dtype=wp.transformf, device=self.device)
         )
         self._body_link_vel_w = TimestampedBuffer(
-            wp.zeros((self.num_instances, self.num_bodies), dtype=wp.spatial_vectorf, device=self.device)
+            wp.empty((self.num_instances, self.num_bodies), dtype=wp.spatial_vectorf, device=self.device)
         )
         # -- com frame w.r.t. link frame
         self._body_com_pose_b = TimestampedBuffer(
@@ -726,7 +726,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         )
         # -- com frame w.r.t. world frame
         self._body_com_pose_w = TimestampedBuffer(
-            wp.zeros((self.num_instances, self.num_bodies), dtype=wp.transformf, device=self.device)
+            wp.empty((self.num_instances, self.num_bodies), dtype=wp.transformf, device=self.device)
         )
         self._body_com_vel_w = TimestampedBuffer(
             wp.zeros((self.num_instances, self.num_bodies), dtype=wp.spatial_vectorf, device=self.device)
@@ -736,13 +736,13 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         )
         # -- combined state (these are cached as they concatenate)
         self._body_state_w = TimestampedBuffer(
-            wp.zeros((self.num_instances, self.num_bodies), dtype=shared_kernels.vec13f, device=self.device)
+            wp.empty((self.num_instances, self.num_bodies), dtype=shared_kernels.vec13f, device=self.device)
         )
         self._body_link_state_w = TimestampedBuffer(
-            wp.zeros((self.num_instances, self.num_bodies), dtype=shared_kernels.vec13f, device=self.device)
+            wp.empty((self.num_instances, self.num_bodies), dtype=shared_kernels.vec13f, device=self.device)
         )
         self._body_com_state_w = TimestampedBuffer(
-            wp.zeros((self.num_instances, self.num_bodies), dtype=shared_kernels.vec13f, device=self.device)
+            wp.empty((self.num_instances, self.num_bodies), dtype=shared_kernels.vec13f, device=self.device)
         )
 
         # -- Default state
@@ -756,22 +756,22 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
         # -- Derived properties
         self._projected_gravity_b = TimestampedBuffer(
-            wp.zeros((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
+            wp.empty((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
         )
         self._heading_w = TimestampedBuffer(
-            wp.zeros((self.num_instances, self.num_bodies), dtype=wp.float32, device=self.device)
+            wp.empty((self.num_instances, self.num_bodies), dtype=wp.float32, device=self.device)
         )
         self._body_link_lin_vel_b = TimestampedBuffer(
-            wp.zeros((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
+            wp.empty((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
         )
         self._body_link_ang_vel_b = TimestampedBuffer(
-            wp.zeros((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
+            wp.empty((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
         )
         self._body_com_lin_vel_b = TimestampedBuffer(
-            wp.zeros((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
+            wp.empty((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
         )
         self._body_com_ang_vel_b = TimestampedBuffer(
-            wp.zeros((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
+            wp.empty((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
         )
 
         # -- Body properties (stored in instance order: num_instances, num_bodies[, data_dim])

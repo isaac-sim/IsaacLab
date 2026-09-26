@@ -65,10 +65,10 @@ class DeformableObjectData(BaseDeformableObjectData):
             wp.zeros((self._num_instances, self._max_sim_vertices), dtype=wp.vec3f, device=device)
         )
         self._nodal_state_w = TimestampedBuffer(
-            wp.zeros((self._num_instances, self._max_sim_vertices), dtype=vec6f, device=device)
+            wp.empty((self._num_instances, self._max_sim_vertices), dtype=vec6f, device=device)
         )
-        self._root_pos_w = TimestampedBuffer(wp.zeros(self._num_instances, dtype=wp.vec3f, device=device))
-        self._root_vel_w = TimestampedBuffer(wp.zeros(self._num_instances, dtype=wp.vec3f, device=device))
+        self._root_pos_w = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=device))
+        self._root_vel_w = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=device))
 
         self._nodal_pos_w_proxy: ProxyArray | None = None
         self._nodal_vel_w_proxy: ProxyArray | None = None

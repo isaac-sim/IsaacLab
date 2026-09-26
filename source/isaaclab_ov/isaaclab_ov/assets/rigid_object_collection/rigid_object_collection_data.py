@@ -833,28 +833,28 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
         # -- link frame w.r.t. world frame
         self._body_link_pose_w = TimestampedBuffer(wp.zeros((N, B), dtype=wp.transformf, device=self.device))
-        self._body_link_vel_w = TimestampedBuffer(wp.zeros((N, B), dtype=wp.spatial_vectorf, device=self.device))
+        self._body_link_vel_w = TimestampedBuffer(wp.empty((N, B), dtype=wp.spatial_vectorf, device=self.device))
         # -- com frame w.r.t. link frame
         self._body_com_pose_b = TimestampedBuffer(wp.zeros((N, B), dtype=wp.transformf, device=self.device))
         # -- com frame w.r.t. world frame
-        self._body_com_pose_w = TimestampedBuffer(wp.zeros((N, B), dtype=wp.transformf, device=self.device))
+        self._body_com_pose_w = TimestampedBuffer(wp.empty((N, B), dtype=wp.transformf, device=self.device))
         self._body_com_vel_w = TimestampedBuffer(wp.zeros((N, B), dtype=wp.spatial_vectorf, device=self.device))
         # -- combined state (cached, used by deprecated concat properties)
-        self._body_state_w = TimestampedBuffer(wp.zeros((N, B), dtype=shared_kernels.vec13f, device=self.device))
-        self._body_link_state_w = TimestampedBuffer(wp.zeros((N, B), dtype=shared_kernels.vec13f, device=self.device))
-        self._body_com_state_w = TimestampedBuffer(wp.zeros((N, B), dtype=shared_kernels.vec13f, device=self.device))
+        self._body_state_w = TimestampedBuffer(wp.empty((N, B), dtype=shared_kernels.vec13f, device=self.device))
+        self._body_link_state_w = TimestampedBuffer(wp.empty((N, B), dtype=shared_kernels.vec13f, device=self.device))
+        self._body_com_state_w = TimestampedBuffer(wp.empty((N, B), dtype=shared_kernels.vec13f, device=self.device))
         # -- derived properties (in-body-frame velocities)
-        self._body_link_lin_vel_b = TimestampedBuffer(wp.zeros((N, B), dtype=wp.vec3f, device=self.device))
-        self._body_link_ang_vel_b = TimestampedBuffer(wp.zeros((N, B), dtype=wp.vec3f, device=self.device))
-        self._body_com_lin_vel_b = TimestampedBuffer(wp.zeros((N, B), dtype=wp.vec3f, device=self.device))
-        self._body_com_ang_vel_b = TimestampedBuffer(wp.zeros((N, B), dtype=wp.vec3f, device=self.device))
+        self._body_link_lin_vel_b = TimestampedBuffer(wp.empty((N, B), dtype=wp.vec3f, device=self.device))
+        self._body_link_ang_vel_b = TimestampedBuffer(wp.empty((N, B), dtype=wp.vec3f, device=self.device))
+        self._body_com_lin_vel_b = TimestampedBuffer(wp.empty((N, B), dtype=wp.vec3f, device=self.device))
+        self._body_com_ang_vel_b = TimestampedBuffer(wp.empty((N, B), dtype=wp.vec3f, device=self.device))
         # -- derived properties (acceleration via finite differencing)
         self._body_com_acc_w = TimestampedBuffer(wp.zeros((N, B), dtype=wp.spatial_vectorf, device=self.device))
         # Holds the previous-step COM velocity for FD; initialised lazily on first access.
         self._previous_body_com_vel: wp.array | None = None
         # -- derived properties (projected gravity and heading)
-        self._projected_gravity_b = TimestampedBuffer(wp.zeros((N, B), dtype=wp.vec3f, device=self.device))
-        self._heading_w = TimestampedBuffer(wp.zeros((N, B), dtype=wp.float32, device=self.device))
+        self._projected_gravity_b = TimestampedBuffer(wp.empty((N, B), dtype=wp.vec3f, device=self.device))
+        self._heading_w = TimestampedBuffer(wp.empty((N, B), dtype=wp.float32, device=self.device))
 
         # -- Body properties: mass (N, B) and inertia (N, B, 9).
         # Initialised eagerly from the CPU-only bindings.

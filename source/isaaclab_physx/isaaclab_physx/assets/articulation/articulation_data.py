@@ -1648,13 +1648,13 @@ class ArticulationData(BaseArticulationData):
             wp.zeros(self._num_instances, dtype=wp.transformf, device=self.device)
         )
         self._root_link_vel_w = TimestampedBuffer(
-            wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
+            wp.empty(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
         )
         self._body_link_pose_w = TimestampedBuffer(
             wp.zeros((self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device)
         )
         self._body_link_vel_w = TimestampedBuffer(
-            wp.zeros((self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device)
+            wp.empty((self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device)
         )
         # -- com frame w.r.t. link frame
         self._body_com_pose_b = TimestampedBuffer(
@@ -1663,13 +1663,13 @@ class ArticulationData(BaseArticulationData):
         self._body_com_pose_b_backend: TimestampedBuffer | None = None
         # -- com frame w.r.t. world frame
         self._root_com_pose_w = TimestampedBuffer(
-            wp.zeros(self._num_instances, dtype=wp.transformf, device=self.device)
+            wp.empty(self._num_instances, dtype=wp.transformf, device=self.device)
         )
         self._root_com_vel_w = TimestampedBuffer(
             wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
         )
         self._body_com_pose_w = TimestampedBuffer(
-            wp.zeros((self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device)
+            wp.empty((self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device)
         )
         self._body_com_vel_w = TimestampedBuffer(
             wp.zeros((self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device)
@@ -1679,22 +1679,22 @@ class ArticulationData(BaseArticulationData):
         )
         # -- combined state (these are cached as they concatenate)
         self._root_state_w = TimestampedBuffer(
-            wp.zeros(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
+            wp.empty(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
         )
         self._root_link_state_w = TimestampedBuffer(
-            wp.zeros(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
+            wp.empty(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
         )
         self._root_com_state_w = TimestampedBuffer(
-            wp.zeros(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
+            wp.empty(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
         )
         self._body_state_w = TimestampedBuffer(
-            wp.zeros((self._num_instances, self._num_bodies), dtype=shared_kernels.vec13f, device=self.device)
+            wp.empty((self._num_instances, self._num_bodies), dtype=shared_kernels.vec13f, device=self.device)
         )
         self._body_link_state_w = TimestampedBuffer(
-            wp.zeros((self._num_instances, self._num_bodies), dtype=shared_kernels.vec13f, device=self.device)
+            wp.empty((self._num_instances, self._num_bodies), dtype=shared_kernels.vec13f, device=self.device)
         )
         self._body_com_state_w = TimestampedBuffer(
-            wp.zeros((self._num_instances, self._num_bodies), dtype=shared_kernels.vec13f, device=self.device)
+            wp.empty((self._num_instances, self._num_bodies), dtype=shared_kernels.vec13f, device=self.device)
         )
         # -- joint state
         self._joint_pos = TimestampedBuffer(
@@ -1709,12 +1709,12 @@ class ArticulationData(BaseArticulationData):
             wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
         )
         # -- derived properties (these are cached to avoid repeated memory allocations)
-        self._projected_gravity_b = TimestampedBuffer(wp.zeros(self._num_instances, dtype=wp.vec3f, device=self.device))
-        self._heading_w = TimestampedBuffer(wp.zeros(self._num_instances, dtype=wp.float32, device=self.device))
-        self._root_link_lin_vel_b = TimestampedBuffer(wp.zeros(self._num_instances, dtype=wp.vec3f, device=self.device))
-        self._root_link_ang_vel_b = TimestampedBuffer(wp.zeros(self._num_instances, dtype=wp.vec3f, device=self.device))
-        self._root_com_lin_vel_b = TimestampedBuffer(wp.zeros(self._num_instances, dtype=wp.vec3f, device=self.device))
-        self._root_com_ang_vel_b = TimestampedBuffer(wp.zeros(self._num_instances, dtype=wp.vec3f, device=self.device))
+        self._projected_gravity_b = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device))
+        self._heading_w = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.float32, device=self.device))
+        self._root_link_lin_vel_b = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device))
+        self._root_link_ang_vel_b = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device))
+        self._root_com_lin_vel_b = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device))
+        self._root_com_ang_vel_b = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device))
 
         # -- dynamics quantities for task-space controllers
         # PhysX Jacobians exclude only the fixed root body and prepend six base-DoF columns
