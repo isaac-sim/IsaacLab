@@ -226,6 +226,7 @@ Guidelines for modifications:
 * Yijie Guo
 * Yize Wang
 * Yohan Choi
+* Yuguo Shan
 * Yujian Zhang
 * Yun Liu
 * YuTeh Shen
