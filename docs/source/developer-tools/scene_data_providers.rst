@@ -29,20 +29,30 @@ Architecture
 Lazy-read contract
 ~~~~~~~~~~~~~~~~~~
 
-Asset data and SDP use :class:`~isaaclab.utils.buffers.TimestampedBuffer` for cached values.
-``TimestampedBufferWarp`` uses the same implementation with preallocated Warp storage. Allocation
-does not make a value fresh: the owner updates its timestamp only after a successful refresh.
-Same-step writes invalidate affected asset caches through ``reset_timestamps`` and advance SDP's
-publication timestamp, so one reader cannot hide a write from another.
+Asset data, native pose/geometry reads, SDP conversions, and renderer uploads use
+:class:`~isaaclab.utils.buffers.TimestampedBuffer` for cached values. ``TimestampedBufferWarp`` uses
+the same implementation with preallocated Warp storage. Allocation does not make a value fresh:
+the owner updates its timestamp only after a successful refresh. Same-step writes invalidate
+affected asset caches through ``reset_timestamps`` and advance SDP's publication timestamp, so
+one reader cannot hide a write from another. Native pointer resolution can advance that timestamp;
+readers compare it after requesting the data, not before.
 
-FK is shared work, not an asset-local cache. Asset reads and native scene-data reads call
-:meth:`~isaaclab.physics.PhysicsManager.ensure_kinematics`; the active manager owns the dirty state
-and consumes pending work once. Newton keeps its per-world/per-articulation GPU masks for selective
-reset and graph replay. A reordered articulation view separately refreshes its own derived arrays.
+FK is shared work, not an asset-local cache. Asset and native scene-data reads check the manager's
+pending-work flag before computing kinematics. Newton uses its existing ``forward()`` operation;
+PhysX and OVPhysX use ``update_kinematics()`` without the publication/rendering work of their
+``forward()`` calls. The operation clears the shared pending flag only after completing the work.
+Newton keeps its per-world/per-articulation GPU masks for selective reset and graph replay.
+A reordered articulation view separately refreshes its own derived arrays.
 
-Sensor sampling periods and acceleration finite differences still use simulation time [s]. They
-must not use publication counters. Python checks do not run during CUDA graph replay: captured
-computations must remain in the graph, and readers of externally replayed writes remain conservative.
+Sensors and Newton's shared BVH similarly use a dirty flag for pending work, cleared only after
+successful computation. Sensor updates and partial resets mark work pending; per-environment
+device masks still decide which samples are due. PhysX contact sensors retain their eager native
+contact reads, so lazy access cannot miss contact loss.
+
+Sensor sampling periods and acceleration finite differences still use simulation time [s]. Fabric
+geometry cadence uses render frames. Neither is a publication counter. Python checks do not run
+during CUDA graph replay: captured computations must remain in the graph, and readers of externally
+replayed writes remain conservative.
 
 Data flow
 ~~~~~~~~~

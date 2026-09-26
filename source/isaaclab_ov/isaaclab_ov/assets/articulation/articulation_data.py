@@ -756,7 +756,8 @@ class ArticulationData(BaseArticulationData):
         This quantity contains the linear and angular velocities of the articulation root's actor frame
         relative to the world.
         """
-        OvPhysxManager.ensure_kinematics()
+        if OvPhysxManager._kinematics_dirty:
+            OvPhysxManager.update_kinematics()
         # ovphysx ROOT_VELOCITY is COM velocity; link velocity comes from the first
         # element of the backend-order per-link velocity tensor.
         if self.has_body_ordering:
@@ -836,7 +837,8 @@ class ArticulationData(BaseArticulationData):
         (identical in either order for the same physical body), so it must not advance the public
         :attr:`body_link_pose_w` shadow.
         """
-        OvPhysxManager.ensure_kinematics()
+        if OvPhysxManager._kinematics_dirty:
+            OvPhysxManager.update_kinematics()
         if not self.has_body_ordering:
             self._read_transform_binding(TT.LINK_POSE, self._body_link_pose_w)
             return self._body_link_pose_w.data
@@ -940,7 +942,8 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the articulation links' actor frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        OvPhysxManager.ensure_kinematics()
+        if OvPhysxManager._kinematics_dirty:
+            OvPhysxManager.update_kinematics()
         self._refresh_reordered_body_buffer(self._body_link_pose_w, self._body_link_pose_w_backend, TT.LINK_POSE)
         if self._body_link_pose_w_ta is None:
             self._body_link_pose_w_ta = ProxyArray(self._body_link_pose_w.data)
@@ -953,7 +956,8 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf.
         In torch this resolves to (num_instances, num_bodies, 6).
         """
-        OvPhysxManager.ensure_kinematics()
+        if OvPhysxManager._kinematics_dirty:
+            OvPhysxManager.update_kinematics()
         self._refresh_reordered_body_buffer(self._body_com_vel_w, self._body_com_vel_w_backend, TT.LINK_VELOCITY)
         if self._body_com_vel_w_ta is None:
             self._body_com_vel_w_ta = ProxyArray(self._body_com_vel_w.data)

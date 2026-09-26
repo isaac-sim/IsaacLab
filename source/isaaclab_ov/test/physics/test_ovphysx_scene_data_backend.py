@@ -421,7 +421,7 @@ def test_transforms_finish_dirty_kinematics_before_native_reads(monkeypatch):
     OvPhysxManager.backend.physx = SimpleNamespace(update_articulations_kinematic=lambda: calls.append("fk"))
     backend = OvPhysxManager._scene_data_backend
     poses = wp.zeros(1, dtype=wp.transformf, device="cpu")
-    backend._transforms.transforms = poses
+    backend._transforms.data.transforms = poses
     backend._rigid_bindings = [(SimpleNamespace(read_into=lambda *args: calls.append("read")), poses)]
     sdp = SceneDataProvider(backend)
     monkeypatch.setattr(OvPhysxManager, "_kinematics_dirty", True)
@@ -864,8 +864,8 @@ def test_failed_rigid_read_is_retried():
         raise RuntimeError("simulated read failure")
 
     backend = OvPhysxSceneDataBackend()
-    backend._transforms.transforms = wp.empty(1, dtype=wp.transformf, device="cpu")
-    backend._rigid_bindings = [(SimpleNamespace(read_into=fail_read), backend._transforms.transforms)]
+    backend._transforms.data.transforms = wp.empty(1, dtype=wp.transformf, device="cpu")
+    backend._rigid_bindings = [(SimpleNamespace(read_into=fail_read), backend._transforms.data.transforms)]
     sdp = SceneDataProvider(backend)
 
     for _ in range(2):

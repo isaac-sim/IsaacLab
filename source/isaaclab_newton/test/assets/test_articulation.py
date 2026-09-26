@@ -1069,7 +1069,6 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
     assert implicit_executor is not None
     actuator_state_inputs = [implicit_executor.kernel_inputs]
     data.joint_pos_limits.torch.clone()
-    assert data._joint_pos_limits_timestamp == data._sim_timestamp
     # The Tier-1 state shadows are plain wp.arrays (no timestamp): they are
     # allocated for non-identity ordering and stay ``None`` for identity ordering.
     if has_ordering:
@@ -1134,7 +1133,6 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
         assert inputs[3].ptr == data.joint_pos.warp.ptr
         assert inputs[4].ptr == data.joint_vel.warp.ptr
 
-    assert data._joint_pos_limits_timestamp == -1.0
     assert data._joint_acc.timestamp == -1.0
     assert data._body_com_acc_w.timestamp == -1.0
 
@@ -1191,7 +1189,6 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
         axis=-1,
     )
     np.testing.assert_array_equal(data.joint_pos_limits.warp.numpy(), expected_limits)
-    assert data._joint_pos_limits_timestamp == data._sim_timestamp
 
 
 @pytest.mark.parametrize("num_articulations", [1])

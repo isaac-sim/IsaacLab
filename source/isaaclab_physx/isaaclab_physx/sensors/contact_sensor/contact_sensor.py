@@ -212,7 +212,7 @@ class ContactSensor(BaseContactSensor):
         super().update(dt, force_recompute=force_recompute)
         # Skip the fetch if the base class already refreshed the buffers on this step, which it
         # does when the sensor carries a history buffer.
-        if self._is_initialized and self._data_generation != self._data_generation_last_update:
+        if self._is_initialized and self._data_dirty:
             self._fetch_physx_buffers(include_pose=False)
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:

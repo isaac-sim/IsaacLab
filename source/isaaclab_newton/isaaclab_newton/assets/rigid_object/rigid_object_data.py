@@ -375,7 +375,8 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity is the pose of the actor frame of the rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        SimulationManager.ensure_kinematics()
+        if SimulationManager._reconciliation_pending or SimulationManager._transforms_may_change_on_graph_replay:
+            SimulationManager.forward()
         return self._body_link_pose_w_ta
 
     @property
@@ -403,7 +404,8 @@ class RigidObjectData(BaseRigidObjectData):
         # Refresh FK and re-derive the root com pose so a stale cache is recomputed after a write.
         # The reshape cached below is a view of ``root_com_pose_w``'s buffer, so once that buffer is
         # refreshed in place the cached view reflects the fresh data without reallocation.
-        SimulationManager.ensure_kinematics()
+        if SimulationManager._reconciliation_pending or SimulationManager._transforms_may_change_on_graph_replay:
+            SimulationManager.forward()
         root_com_pose_w = self.root_com_pose_w
         if self._body_com_pose_w_ta is None:
             self._body_com_pose_w_ta = ProxyArray(root_com_pose_w.warp.reshape((self._num_instances, 1)))
@@ -417,7 +419,8 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity contains the linear and angular velocities of the root rigid body's center of mass frame
         relative to the world.
         """
-        SimulationManager.ensure_kinematics()
+        if SimulationManager._reconciliation_pending or SimulationManager._transforms_may_change_on_graph_replay:
+            SimulationManager.forward()
         return self._body_com_vel_w_ta
 
     @property

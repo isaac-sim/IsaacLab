@@ -845,8 +845,8 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the articulation links' actor frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        if self._body_link_pose_w.timestamp < self._sim_timestamp:
-            SimulationManager.ensure_kinematics()
+        if SimulationManager._kinematics_dirty:
+            SimulationManager.update_kinematics()
         self._refresh_body_state_user(
             self._body_link_pose_w, lambda: self._root_view.get_link_transforms().view(wp.transformf)
         )
@@ -921,8 +921,8 @@ class ArticulationData(BaseArticulationData):
         This quantity contains the linear and angular velocities of the articulation links' center of mass frame
         relative to the world.
         """
-        if self._body_com_vel_w.timestamp < self._sim_timestamp:
-            SimulationManager.ensure_kinematics()
+        if SimulationManager._kinematics_dirty:
+            SimulationManager.update_kinematics()
         self._refresh_body_state_user(
             self._body_com_vel_w, lambda: self._root_view.get_link_velocities().view(wp.spatial_vectorf)
         )

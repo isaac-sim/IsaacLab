@@ -282,7 +282,7 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     """One state refresh precedes BVH refits and rendering, including explicit transform updates."""
 
     state = object()
-    status = {"state_refreshes": 0, "shape_refit": False, "particle_refit": False, "rendered": False}
+    status = {"state_refreshes": 0, "shape_refit": 0, "particle_refit": 0, "rendered": False}
 
     class FakeModel:
         shape_count = 1
@@ -301,16 +301,16 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
 
         def bvh_refit_shapes(self, current_state):
             assert current_state is state
-            status["shape_refit"] = True
+            status["shape_refit"] += 1
 
         def bvh_refit_particles(self, current_state):
             assert current_state is state
-            status["particle_refit"] = True
+            status["particle_refit"] += 1
 
     model = FakeModel()
 
     def render():
-        assert status["state_refreshes"] == 1
+        assert status["state_refreshes"] > 0
         assert model.bvh_shapes is not None
         assert model.bvh_particles is not None
         assert status["shape_refit"]
@@ -338,8 +338,13 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     renderer.newton_sensor = SimpleNamespace(model=model)
     monkeypatch.setattr(renderer, "_launch_render", lambda _data: render())
     renderer.update_transforms()
-    renderer.render(SimpleNamespace(sensor_task_name=None, ppisp_pipeline=None))
-
+    render_data = SimpleNamespace(sensor_task_name=None, ppisp_pipeline=None)
+    renderer.render(render_data)
+    renderer.render(render_data)
+    assert status["shape_refit"] == status["particle_refit"] == 1
+    NewtonManager._mark_sensor_state_dirty()
+    renderer.render(render_data)
+    assert status["shape_refit"] == status["particle_refit"] == 2
     assert status["rendered"]
 
 

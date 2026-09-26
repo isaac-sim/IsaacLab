@@ -15,7 +15,7 @@ The setup is a bit convoluted so that we can run these tests without requiring I
 """
 
 import math
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -32,20 +32,10 @@ _NUM_INSTANCES, _NUM_BODIES = 2, 3
 
 
 @pytest.fixture
-def make_collection(monkeypatch):
-    """Build a mocked collection; Newton gets a no-op ``forward()``.
-
-    The Newton collection's ``body_link_pose_w`` triggers ``_ensure_fk_fresh()`` ->
-    ``NewtonManager.forward()``, which runs ``eval_fk`` against a live simulation state. The mocked
-    interface has no such state (``_state_0`` is ``None``), so stub ``forward()`` to a no-op; the mock
-    view supplies the cached pose data directly.
-    """
+def make_collection():
+    """Build a collection backed by mocked native views."""
 
     def _make(backend: str, device: str):
-        if backend == "newton":
-            from isaaclab_newton.physics import NewtonManager
-
-            monkeypatch.setattr(NewtonManager, "forward", MagicMock())
         return get_rigid_object_collection(backend, _NUM_INSTANCES, _NUM_BODIES, device)
 
     return _make

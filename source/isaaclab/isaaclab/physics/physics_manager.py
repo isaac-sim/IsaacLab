@@ -408,15 +408,6 @@ class PhysicsManager(ABC):
         pass
 
     @classmethod
-    def ensure_kinematics(cls) -> None:
-        """Resolve pending authored-state writes before a read, without stepping or rendering.
-
-        Backends own the dirty state; multiple readers must not repeat clean FK. Device-side
-        reset masks remain authoritative when writes are replayed inside CUDA graphs.
-        """
-        pass
-
-    @classmethod
     @abstractmethod
     def get_scene_data_backend(cls) -> SceneDataBackend:
         """Return the SceneDataBackend for the SceneDataProvider."""

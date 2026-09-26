@@ -276,7 +276,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the pose of the actor frame of the rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        SimulationManager.ensure_kinematics()
+        if SimulationManager._reconciliation_pending or SimulationManager._transforms_may_change_on_graph_replay:
+            SimulationManager.forward()
         return self._body_link_pose_w_ta
 
     @property
@@ -341,7 +342,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity contains the linear and angular velocities of the root rigid body's center of mass frame
         relative to the world.
         """
-        SimulationManager.ensure_kinematics()
+        if SimulationManager._reconciliation_pending or SimulationManager._transforms_may_change_on_graph_replay:
+            SimulationManager.forward()
         return self._body_com_vel_w_ta
 
     @property

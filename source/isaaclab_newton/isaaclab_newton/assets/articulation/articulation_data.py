@@ -153,9 +153,10 @@ class ArticulationData(BaseArticulationData):
         self.joint_acc
         self.body_com_acc_w
 
-    def _ensure_fk_fresh(self) -> None:
+    def _update_body_state(self) -> None:
         """Resolve shared FK, then refresh this view's reordered body state after a manual write."""
-        SimulationManager.ensure_kinematics()
+        if SimulationManager._reconciliation_pending or SimulationManager._transforms_may_change_on_graph_replay:
+            SimulationManager.forward()
         if self._body_state_dirty or SimulationManager._transforms_may_change_on_graph_replay:
             self._refresh_user_order_body_state()
 
@@ -451,11 +452,11 @@ class ArticulationData(BaseArticulationData):
         The limits are in the order :math:`[lower, upper]`.
         """
         if self._joint_pos_limits is None:
-            self._joint_pos_limits = wp.zeros(
-                (self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device
+            self._joint_pos_limits = TimestampedBuffer(
+                shape=(self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device
             )
-            self._joint_pos_limits_ta = ProxyArray(self._joint_pos_limits)
-        if self._joint_pos_limits_timestamp < self._sim_timestamp:
+            self._joint_pos_limits_ta = ProxyArray(self._joint_pos_limits.data)
+        if self._joint_pos_limits.timestamp < self._sim_timestamp:
             joint_pos_limits_lower = (
                 self._joint_pos_limits_lower_user if self.has_joint_ordering else self._sim_bind_joint_pos_limits_lower
             )
@@ -471,10 +472,10 @@ class ArticulationData(BaseArticulationData):
                     joint_pos_limits_upper,
                 ],
                 outputs=[
-                    self._joint_pos_limits,
+                    self._joint_pos_limits.data,
                 ],
             )
-            self._joint_pos_limits_timestamp = self._sim_timestamp
+            self._joint_pos_limits.timestamp = self._sim_timestamp
         return self._joint_pos_limits_ta
 
     @property
@@ -750,7 +751,7 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the articulation links' actor frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        self._ensure_fk_fresh()
+        self._update_body_state()
         return self._body_link_pose_w_ta
 
     @property
@@ -793,7 +794,7 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the center of mass frame of the articulation links relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        self._ensure_fk_fresh()
+        self._update_body_state()
         if self._body_com_pose_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_pose_w",
@@ -821,7 +822,7 @@ class ArticulationData(BaseArticulationData):
         This quantity contains the linear and angular velocities of the articulation links' center of mass frame
         relative to the world.
         """
-        self._ensure_fk_fresh()
+        self._update_body_state()
         return self._body_com_vel_w_ta
 
     @property
@@ -908,7 +909,7 @@ class ArticulationData(BaseArticulationData):
         """
         # Newton's eval_jacobian reads ``state.body_q`` (link poses); refresh FK if stale.
         # Matches the convention in ``body_link_pose_w`` — Python-guarded lazy refresh.
-        self._ensure_fk_fresh()
+        self._update_body_state()
         # eval_jacobian writes every articulation in the model; gather kernel extracts this
         # view's rows. ``link_offset`` skips Newton's fixed-root row for fixed-base; the DoF
         # axis is preserved in full (free-root joint's 6 columns up front for floating-base),
@@ -971,7 +972,7 @@ class ArticulationData(BaseArticulationData):
         """
         # eval_jacobian / eval_mass_matrix read ``state.body_q``; refresh FK if stale.
         # Matches the convention in ``body_link_pose_w`` — Python-guarded lazy refresh.
-        self._ensure_fk_fresh()
+        self._update_body_state()
         # eval_mass_matrix treats ``J`` as an input (skips its own jacobian compute when
         # provided), so we must populate the scratch first via eval_jacobian. Reusing
         # ``_jacobian_buf_flat`` (same shape) avoids a second allocation. All scratch buffers
@@ -1014,7 +1015,7 @@ class ArticulationData(BaseArticulationData):
         """
         # eval_inverse_dynamics_passive reads ``state.body_q``; refresh FK if stale.
         # Matches the convention in ``body_link_pose_w`` — Python-guarded lazy refresh.
-        self._ensure_fk_fresh()
+        self._update_body_state()
         # eval_inverse_dynamics_passive writes every articulation in the model-wide flat
         # buffer (zeros outside the view); the gather kernel extracts this view's DoF
         # segments. Newton allocates its RNEA scratch internally on every call through
@@ -2088,8 +2089,7 @@ class ArticulationData(BaseArticulationData):
             self._previous_joint_vel.assign(self._sim_bind_joint_vel)
             self._actuator_stiffness.assign(self._sim_bind_joint_stiffness_sim)
             self._actuator_damping.assign(self._sim_bind_joint_damping_sim)
-        self._joint_pos_limits_timestamp = -1.0
-        reset_timestamps([self._joint_acc])
+        reset_timestamps([self._joint_acc, self._joint_pos_limits])
 
     def _configure_body_ordering_buffers(self) -> None:
         """Allocate or release buffers owned only by nonidentity body ordering."""
@@ -2338,9 +2338,6 @@ class ArticulationData(BaseArticulationData):
             self._sync_user_ordered_joint_property_buffers()
         if is_rebind and self.has_body_ordering:
             self._sync_user_ordered_body_property_buffers()
-        if is_rebind:
-            self._joint_pos_limits_timestamp = -1.0
-
         joint_stiffness = self._joint_stiffness_user if self.has_joint_ordering else self._sim_bind_joint_stiffness_sim
         joint_damping = self._joint_damping_user if self.has_joint_ordering else self._sim_bind_joint_damping_sim
         joint_armature = self._joint_armature_user if self.has_joint_ordering else self._sim_bind_joint_armature
@@ -2510,7 +2507,6 @@ class ArticulationData(BaseArticulationData):
         self._body_com_quat_b = None
         self._joint_pos_limits_ta: ProxyArray | None = None
         self._joint_pos_limits = None
-        self._joint_pos_limits_timestamp = -1.0
         self._root_link_lin_vel_b_ta: ProxyArray | None = None
         self._root_link_lin_vel_b = None
         self._root_link_ang_vel_b_ta: ProxyArray | None = None

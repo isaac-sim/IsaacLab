@@ -70,6 +70,7 @@ from isaaclab.cloner import query as clone_query
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
+from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
 from isaaclab_ov.renderers.ovrtx_annotator_utils import (
@@ -384,11 +385,11 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_render_data: list[OVRTXCameraRenderData] = []
         self._next_camera_id = 0
         self._sdp = SimulationContext.instance().get_scene_data_provider()
-        self._transforms_version_last_update = -1
+        self._transforms = TimestampedBuffer(SceneDataFormat.TransposedMatrix44d())
         self._object_scales: wp.array | None = None
         self._object_scales_by_path: dict[str, tuple[float, float, float]] = {}
         self._geometry_paths: list[str] = []
-        self._geometry_timestamp_last_update = -1
+        self._geometry = TimestampedBuffer()
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
         self._camera_prim_path: str | None = None
@@ -898,40 +899,6 @@ class OVRTXRenderer(BaseRenderer):
                     " LDR output destination, but neither was provided. Add 'rgb' or 'rgba' to"
                     " Camera.cfg.data_types when isp_cfg is set."
                 )
-
-    def _update_transforms_legacy(self) -> None:
-        """Write SDP's requested matrix layout without another conversion."""
-        if self._object_xform_binding is None:
-            return
-        transforms = SceneDataFormat.TransposedMatrix44d()
-        if not self._sdp.get_transforms(transforms, scales=self._object_scales):
-            return
-        if self._transforms_version_last_update == self._sdp.backend.transforms_version:
-            return
-        # Blocking ``write()`` so the buffer stays valid until OVRTX finishes reading it.
-        # ``DataAccess.ASYNC`` + the Warp CUDA stream let OVRTX read in place and wait
-        # on-GPU for the kernel; ``SYNC`` is rejected for GPU buffers.
-        self._object_xform_binding.write(
-            transforms.matrices,
-            data_access=DataAccess.ASYNC,
-            cuda_stream=self._warp_device.stream.cuda_stream,
-        )
-        self._transforms_version_last_update = self._sdp.backend.transforms_version
-
-    def _update_geometries_legacy(self) -> None:
-        """Write SDP point views using the producing stream, without staging copies."""
-        if self._geometry_points_binding is None:
-            return
-        points = self._sdp.get_geometry_points()
-        timestamp = self._sdp.backend.geometry_timestamp
-        if self._geometry_timestamp_last_update == timestamp:
-            return
-        self._geometry_points_binding.write(
-            cast(Any, [points[path] for path in self._geometry_paths]),
-            data_access=DataAccess.ASYNC,
-            cuda_stream=self._warp_device.stream.cuda_stream,
-        )
-        self._geometry_timestamp_last_update = timestamp
 
     def _update_camera_legacy(
         self,
@@ -1446,18 +1413,54 @@ class OVRTXRenderer(BaseRenderer):
             self._initialize_camera_render_data_from_spec_legacy(spec, render_data)
 
     def update_transforms(self) -> None:
-        """Sync transforms to OVRTX."""
+        """Consume each SDP publication once, committing freshness after the native write succeeds."""
+        binding = self._object_xform_query if self._use_ovstage else self._object_xform_binding
+        if binding is None or not self._sdp.get_transforms(self._transforms.data, scales=self._object_scales):
+            return
+        timestamp = self._sdp.backend.transforms_version
+        if self._transforms.timestamp == timestamp:
+            return
+        matrices = self._transforms.data.matrices
+        # Both writes wait for consumption; the producing CUDA stream orders access to the borrowed buffer.
         if self._use_ovstage:
-            self._update_transforms_ovstage()
+            self.backend.stage.write_attribute(
+                binding,
+                "omni:xform",
+                ordinal=self._current_ordinal,
+                tensors=xform_tensor_from_warp(matrices),
+                is_array=False,
+                semantic=ovstage.AttributeSemantic.MATRIX,
+                cuda_stream=self._warp_device.stream.cuda_stream,
+            ).wait()
         else:
-            self._update_transforms_legacy()
+            binding.write(matrices, data_access=DataAccess.ASYNC, cuda_stream=self._warp_device.stream.cuda_stream)
+        self._transforms.timestamp = timestamp
 
     def update_geometries(self) -> None:
-        """Sync geometries to OVRTX."""
+        """Consume borrowed SDP points once per publication, independently of transform reads."""
+        binding = self._geometry_points_query if self._use_ovstage else self._geometry_points_binding
+        if binding is None:
+            return
+        self._geometry.data = self._sdp.get_geometry_points()
+        timestamp = self._sdp.backend.geometry_timestamp
+        if self._geometry.timestamp == timestamp:
+            return
+        points = [self._geometry.data[path] for path in self._geometry_paths]
         if self._use_ovstage:
-            self._update_geometries_ovstage()
+            self.backend.stage.write_attribute(
+                binding,
+                "points",
+                ordinal=self._current_ordinal,
+                tensors=[points_tensor_from_warp(array) for array in points],
+                is_array=True,
+                semantic=ovstage.AttributeSemantic.POINT,
+                cuda_stream=self._warp_device.stream.cuda_stream,
+            ).wait()
         else:
-            self._update_geometries_legacy()
+            binding.write(
+                cast(Any, points), data_access=DataAccess.ASYNC, cuda_stream=self._warp_device.stream.cuda_stream
+            )
+        self._geometry.timestamp = timestamp
 
     def update_camera(
         self,
@@ -1544,7 +1547,8 @@ class OVRTXRenderer(BaseRenderer):
         else:
             self._close_legacy()
         self._geometry_paths = []
-        self._geometry_timestamp_last_update = -1
+        self._geometry = TimestampedBuffer()
+        self._transforms = TimestampedBuffer(SceneDataFormat.TransposedMatrix44d())
         self._render_product_paths.clear()
         self._output_id_color_buffers.clear()
         self._initialized_scene = False
@@ -1808,46 +1812,6 @@ class OVRTXRenderer(BaseRenderer):
             is_array=False,
             semantic=ovstage.AttributeSemantic.MATRIX,
         ).wait()
-
-    def _update_transforms_ovstage(self) -> None:
-        """Write SDP's matrix layout through the active ovstage ordinal."""
-        if self._object_xform_query is None:
-            return
-        transforms = SceneDataFormat.TransposedMatrix44d()
-        if not self._sdp.get_transforms(transforms, scales=self._object_scales):
-            return
-        if self._transforms_version_last_update == self._sdp.backend.transforms_version:
-            return
-        # Stream-ordered zero-copy handoff; wait until OVStage has consumed the shared buffer.
-        self.backend.stage.write_attribute(
-            self._object_xform_query,
-            "omni:xform",
-            ordinal=self._current_ordinal,
-            tensors=xform_tensor_from_warp(transforms.matrices),
-            is_array=False,
-            semantic=ovstage.AttributeSemantic.MATRIX,
-            cuda_stream=self._warp_device.stream.cuda_stream,
-        ).wait()
-        self._transforms_version_last_update = self._sdp.backend.transforms_version
-
-    def _update_geometries_ovstage(self) -> None:
-        """Write SDP point views and wait until OVStage has consumed the borrowed arrays."""
-        if self._geometry_points_query is None:
-            return
-        points = self._sdp.get_geometry_points()
-        timestamp = self._sdp.backend.geometry_timestamp
-        if self._geometry_timestamp_last_update == timestamp:
-            return
-        self.backend.stage.write_attribute(
-            self._geometry_points_query,
-            "points",
-            ordinal=self._current_ordinal,
-            tensors=[points_tensor_from_warp(points[path]) for path in self._geometry_paths],
-            is_array=True,
-            semantic=ovstage.AttributeSemantic.POINT,
-            cuda_stream=self._warp_device.stream.cuda_stream,
-        ).wait()
-        self._geometry_timestamp_last_update = timestamp
 
     def _update_camera_ovstage(
         self,

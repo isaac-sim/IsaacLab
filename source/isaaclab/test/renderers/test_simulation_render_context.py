@@ -299,8 +299,7 @@ class _CpuCamera(Camera):
         self._is_outdated = wp.ones(2, dtype=wp.bool, device="cpu")
         self._timestamp = wp.zeros(2, device="cpu")
         self._timestamp_last_update = wp.zeros(2, device="cpu")
-        self._data_generation = 0
-        self._data_generation_last_update = -1
+        self._data_dirty = True
         self.pose = 0.0
         self._view = SimpleNamespace(count=2, xform_world_space_writer=self._pose_writer)
         self.update(0.0)
@@ -332,8 +331,7 @@ class _CpuSensor(SensorBase):
         self._is_outdated = wp.ones(2, dtype=wp.bool, device="cpu")
         self._timestamp = wp.zeros(2, device="cpu")
         self._timestamp_last_update = wp.zeros(2, device="cpu")
-        self._data_generation = 0
-        self._data_generation_last_update = -1
+        self._data_dirty = True
         self._data = np.zeros(2, dtype=int)
         self.name = name
         self.batches = batches
