@@ -428,10 +428,8 @@ def resolve_matching_prims_from_source(
         source_path, destination = sources[plan.topology.world_prototypes[index]], templates[index]
         dest_expr = destination.format("[^/]+")
         source_prim = get_current_stage().GetPrimAtPath(source_path)
-        results = [
-            (prim, dest_expr + prim.GetPath().pathString[len(source_path) :])
-            for prim in _iter_matching_prims_in_subtree(source_path + matched.suffix, source_prim)
-        ]
+        prims = _iter_matching_prims_in_subtree(source_path + matched.suffix, source_prim)
+        results = [(prim, dest_expr + prim.GetPath().pathString[len(source_path) :]) for prim in prims]
     else:
         # No clone plan, or ``path_expr`` is not owned by any plan row. Resolve from the stage
         # in two phases (mirroring the clone-plan branch above): (1) locate ONE instance root to
@@ -465,20 +463,18 @@ def resolve_matching_prims_from_source(
             instance_root = "/" + "/".join(match_segments[: instance_seg + 1])
             trailing = segments[instance_seg + 1 :]
             walk_root = instance_root + ("/" + "/".join(trailing) if trailing else "")
-            results = [
-                (prim, instance_expr + prim.GetPath().pathString[len(instance_root) :])
-                for prim in find_matching_prims(walk_root)
-                if prim.GetPath().pathString == instance_root
-                or prim.GetPath().pathString.startswith(instance_root + "/")
-            ]
+            results = []
+            for prim in find_matching_prims(walk_root):
+                path = prim.GetPath().pathString
+                if path == instance_root or path.startswith(instance_root + "/"):
+                    results.append((prim, instance_expr + path[len(instance_root) :]))
     if predicate is not None:
         # Whole-path regexes can select both a prim and its ancestors; their descendant sets overlap.
         unique_matches = {}
         for source, dest in results:
             source_path = source.GetPath().pathString
-            for child in get_all_matching_child_prims(
-                source.GetPath(), predicate, traverse_instance_prims=traverse_instance_prims
-            ):
+            children = get_all_matching_child_prims(source_path, predicate, traverse_instance_prims=traverse_instance_prims)
+            for child in children:
                 child_path = child.GetPath().pathString
                 unique_matches.setdefault(child_path, (child, dest + child_path[len(source_path) :]))
         results = list(unique_matches.values())

@@ -378,11 +378,10 @@ class NewtonSegmentationMapper:
             return None
         prototype = topology.world_prototype_layout[world_id]
         start, end = topology.world_prototype_starts[prototype + 1 : prototype + 3]
-        matches = [
-            (index, matched.suffix)
-            for index in range(start, end)
-            if (matched := cloner_path.match(prim_path, self._templates[index])) is not None
-        ]
+        matches = []
+        for index in range(start, end):
+            if (matched := cloner_path.match(prim_path, self._templates[index])) is not None:
+                matches.append((index, matched.suffix))
         if not matches:
             return None
         index, suffix = min(matches, key=lambda item: len(item[1]))

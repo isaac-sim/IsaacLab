@@ -76,11 +76,12 @@ def _restore_visible_colliders_without_visual_shapes(
         collider_prim = stage.GetPrimAtPath(path.removesuffix("_visual"))
         if collider_prim and collider_prim.HasAPI(UsdPhysics.CollisionAPI):
             builder.shape_flags[index] &= ~ShapeFlags.VISIBLE
-    bodies_with_visual_shapes = {
-        builder.shape_body[index]
-        for index, flags in enumerate(builder.shape_flags)
-        if builder.shape_body[index] >= 0 and flags & ShapeFlags.VISIBLE and not flags & ShapeFlags.COLLIDE_SHAPES
-    }
+    bodies_with_visual_shapes = set()
+    for body, flags in zip(builder.shape_body, builder.shape_flags, strict=True):
+        is_visible = flags & ShapeFlags.VISIBLE
+        is_collider = flags & ShapeFlags.COLLIDE_SHAPES
+        if body >= 0 and is_visible and not is_collider:
+            bodies_with_visual_shapes.add(body)
     # Resolved on first use: a static parent whose colliders are all filtered out below is
     # never traversed at all.
     static_owners_with_visual_shapes: dict[str, bool] = {}
@@ -230,16 +231,14 @@ def _rebase_builder_paths(
     builder._resolve_custom_frequency_articulation_owners()
     labels = _label_groups(builder)
     world_frequencies = {attr.frequency for attr in builder.custom_attributes.values() if attr.references == "world"}
-    paths = [
-        attr
-        for attr in builder.custom_attributes.values()
-        if attr.dtype is str
-        and (
-            attr.frequency in world_frequencies
-            or (attr.namespace == "isaaclab" and attr.name == "visual_material_path")
-        )
-        and not any(attr.values is values for values in labels.values())
-    ]
+    paths = []
+    for attr in builder.custom_attributes.values():
+        if attr.dtype is not str:
+            continue
+        is_world_path = attr.frequency in world_frequencies
+        is_material_path = attr.namespace == "isaaclab" and attr.name == "visual_material_path"
+        if (is_world_path or is_material_path) and not any(attr.values is values for values in labels.values()):
+            paths.append(attr)
     original_labels = {name: list(values) for name, values in labels.items()}
     original_paths = [attr.values.copy() for attr in paths]
     source, destination = source.rstrip("/") or "/", destination.rstrip("/") or "/"
@@ -296,10 +295,8 @@ def replicate_builder_mapping(
     num_worlds = len(layout)
     xforms_np = np.concatenate((positions, quaternions), axis=1).astype(np.float32, copy=False)
     world_xforms = [wp.transform(*xform) for xform in xforms_np]
-    local_site_map = {
-        label: [indices.copy() for _ in range(num_worlds)]
-        for label, indices in source_site_indices.get(id(builder), {}).items()
-    }
+    initial_sites = source_site_indices.get(id(builder), {})
+    local_site_map = {label: [indices.copy() for _ in range(num_worlds)] for label, indices in initial_sites.items()}
     source_inverse = {}
     sources = clone_path.get_asset_prototype_paths(plan)
     templates, starts = clone_path.get_world_prototype_asset_templates(plan)

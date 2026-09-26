@@ -148,10 +148,8 @@ class InteractiveScene:
 
         self._global_prim_paths = []
         asset_cfgs, world_prototypes, weights = self._collect_asset_cfgs()
-        scene_from_cfg = any(
-            name not in InteractiveSceneCfg.__dataclass_fields__ and cfg is not None
-            for name, cfg in self.cfg.__dict__.items()
-        )
+        cfg_fields = InteractiveSceneCfg.__dataclass_fields__
+        scene_from_cfg = any(name not in cfg_fields and cfg is not None for name, cfg in vars(self.cfg).items())
         if scene_from_cfg:
             options = dict(env_template=self._env_fmt, world_prototypes=world_prototypes, weights=weights)
             options.update(clone_strategy=clone_cfg.clone_strategy, replicate_physics=clone_cfg.replicate_physics)
@@ -195,20 +193,17 @@ class InteractiveScene:
                 flat_items.append((asset_name, child))
         flat_items.sort(key=lambda item: isinstance(item[1], SensorBaseCfg))
 
-        owner_paths = [
-            cfg.prim_path
-            for _name, cfg in flat_items
-            if isinstance(cfg, AssetBaseCfg)
-            and not isinstance(cfg, VisualMaterialCfg)
-            and cfg.spawn is not None
-            and cloner.path.match(cfg.prim_path, self._env_fmt) is not None
-        ]
-        nested_visual_material_ids = {
-            id(cfg)
-            for _name, cfg in flat_items
-            if isinstance(cfg, VisualMaterialCfg)
-            and any(cloner.path.relative_to(cfg.prim_path, owner) not in (None, "") for owner in owner_paths)
-        }
+        owner_paths, visual_materials = [], []
+        for _, cfg in flat_items:
+            if isinstance(cfg, VisualMaterialCfg):
+                visual_materials.append(cfg)
+            elif isinstance(cfg, AssetBaseCfg) and cfg.spawn is not None:
+                if cloner.path.match(cfg.prim_path, self._env_fmt) is not None:
+                    owner_paths.append(cfg.prim_path)
+        nested_visual_material_ids = set()
+        for cfg in visual_materials:
+            if any(cloner.path.relative_to(cfg.prim_path, owner) not in (None, "") for owner in owner_paths):
+                nested_visual_material_ids.add(id(cfg))
         nested_material_names = {name for name, cfg in flat_items if id(cfg) in nested_visual_material_ids}
         scene_asset_names = [name for name in scene_asset_names if name not in nested_material_names]
 
@@ -769,11 +764,8 @@ class InteractiveScene:
         # store paths that are in global collision filter
         self._global_prim_paths = list()
         # Parent prototypes must exist before anything spawned below them; sensors initialize last.
-        all_items = [
-            (k, v)
-            for k, v in self.cfg.__dict__.items()
-            if k not in InteractiveSceneCfg.__dataclass_fields__ and v is not None
-        ]
+        cfg_fields = InteractiveSceneCfg.__dataclass_fields__
+        all_items = [(name, cfg) for name, cfg in vars(self.cfg).items() if name not in cfg_fields and cfg is not None]
         ordered_items = sorted(
             all_items,
             key=lambda item: (

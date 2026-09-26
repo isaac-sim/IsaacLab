@@ -222,17 +222,14 @@ class NewtonSceneDataBackend(SceneDataBackend):
         for entry in NewtonManager._deformable_registry:
             asset_ids = cloner_path.get_asset_prototypes(plan, entry.prim_path)
             suffix = entry.vis_mesh_prim_path[len(entry.prim_path) :]
-            paths = [
-                templates[index].format(world) + suffix
-                for world, prototype in enumerate((-1, *plan.topology.world_prototype_layout), -1)
-                for index in range(starts[prototype + 1], starts[prototype + 2])
-                if plan.topology.world_prototypes[index] in asset_ids
-            ]
+            paths = []
+            for world, prototype in enumerate((-1, *plan.topology.world_prototype_layout), -1):
+                for index in range(*starts[prototype + 1 : prototype + 3]):
+                    if plan.topology.world_prototypes[index] in asset_ids:
+                        paths.append(templates[index].format(world) + suffix)
             if entry.volume_vis_remap is None:
-                ranges.update(
-                    (path, (offset, entry.particles_per_body))
-                    for path, offset in zip(paths, entry.particle_offsets, strict=True)
-                )
+                for path, offset in zip(paths, entry.particle_offsets, strict=True):
+                    ranges[path] = offset, entry.particles_per_body
             else:
                 prototype_indices = entry.volume_vis_remap.tet_vertex_indices.numpy()
                 prototype_weights = entry.volume_vis_remap.bary_weights.numpy()
