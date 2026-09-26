@@ -666,14 +666,8 @@ class ArticulationData(BaseArticulationData):
                 "root_link_vel_w",
                 shared_kernels.get_root_link_vel_from_root_com_vel,
                 dim=self._num_instances,
-                inputs=[
-                    self.root_com_vel_w.warp,
-                    self.root_link_pose_w.warp,
-                    self._sim_bind_body_com_pos_b,
-                ],
-                outputs=[
-                    self._root_link_vel_w.data,
-                ],
+                inputs=[self.root_com_vel_w.warp, self.root_link_pose_w.warp, self._sim_bind_body_com_pos_b],
+                outputs=[self._root_link_vel_w.data],
             )
             self._root_link_vel_w.timestamp = self._sim_timestamp
 
@@ -693,18 +687,12 @@ class ArticulationData(BaseArticulationData):
             self._root_com_pose_w.data = wp.empty(self._num_instances, dtype=wp.transformf, device=self.device)
             self._root_com_pose_w_ta = ProxyArray(self._root_com_pose_w.data)
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
-            # apply local transform to center of mass frame
             self._read_launch_cache.launch(
                 "root_com_pose_w",
                 shared_kernels.get_root_com_pose_from_root_link_pose,
                 dim=self._num_instances,
-                inputs=[
-                    self.root_link_pose_w.warp,
-                    self._sim_bind_body_com_pos_b,
-                ],
-                outputs=[
-                    self._root_com_pose_w.data,
-                ],
+                inputs=[self.root_link_pose_w.warp, self._sim_bind_body_com_pos_b],
+                outputs=[self._root_com_pose_w.data],
             )
             self._root_com_pose_w.timestamp = self._sim_timestamp
 
@@ -778,14 +766,8 @@ class ArticulationData(BaseArticulationData):
                 "body_link_vel_w",
                 shared_kernels.get_body_link_vel_from_body_com_vel,
                 dim=(self._num_instances, self._num_bodies),
-                inputs=[
-                    self.body_com_vel_w.warp,
-                    self.body_link_pose_w.warp,
-                    self.body_com_pos_b.warp,
-                ],
-                outputs=[
-                    self._body_link_vel_w.data,
-                ],
+                inputs=[self.body_com_vel_w.warp, self.body_link_pose_w.warp, self.body_com_pos_b.warp],
+                outputs=[self._body_link_vel_w.data],
             )
             self._body_link_vel_w.timestamp = self._sim_timestamp
 
@@ -802,7 +784,6 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the center of mass frame of the articulation links relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        self._update_body_state()
         if self._body_com_pose_w.data is None:
             self._body_com_pose_w.data = wp.empty((self._num_instances, self._num_bodies), wp.transformf, self.device)
             self._body_com_pose_w_ta = ProxyArray(self._body_com_pose_w.data)
@@ -889,17 +870,12 @@ class ArticulationData(BaseArticulationData):
             self._body_com_pose_b.data = wp.empty((self._num_instances, self._num_bodies), wp.transformf, self.device)
             self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b.data)
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
-            # set the buffer data and timestamp
             self._read_launch_cache.launch(
                 "body_com_pose_b",
                 shared_kernels.make_dummy_body_com_pose_b,
                 dim=(self._num_instances, self._num_bodies),
-                inputs=[
-                    self.body_com_pos_b.warp,
-                ],
-                outputs=[
-                    self._body_com_pose_b.data,
-                ],
+                inputs=[self.body_com_pos_b.warp],
+                outputs=[self._body_com_pose_b.data],
             )
             self._body_com_pose_b.timestamp = self._sim_timestamp
         return self._body_com_pose_b_ta

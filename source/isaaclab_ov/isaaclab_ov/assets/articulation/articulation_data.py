@@ -1063,6 +1063,8 @@ class ArticulationData(BaseArticulationData):
             if has_body_ordering or has_joint_ordering or self._has_reversed_joints:
                 if self._body_com_jacobian_w_backend is None:
                     self._body_com_jacobian_w_backend = wp.empty_like(self._body_com_jacobian_w.data)
+                if has_body_ordering and self._jacobian_body_user_to_backend is None:
+                    self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend()
                 self._binding_read(TT.JACOBIAN, self._body_com_jacobian_w_backend)
                 self._read_launch_cache.launch(
                     "body_com_jacobian_w",
@@ -1071,7 +1073,7 @@ class ArticulationData(BaseArticulationData):
                     inputs=[
                         self._body_com_jacobian_w_backend,
                         self._jacobian_body_user_to_backend,
-                        self._jacobian_joint_user_to_backend,
+                        self.joint_ordering.user_to_backend if has_joint_ordering else None,
                         self._joint_dof_signs,
                         self._num_base_dofs,
                         has_body_ordering,
@@ -1104,37 +1106,6 @@ class ArticulationData(BaseArticulationData):
         )
         return self._body_link_jacobian_w_ta
 
-    def _refresh_generalized_dynamics_buffer(
-        self,
-        buffer: TimestampedBuffer,
-        backend_buffer: wp.array | None,
-        tensor_type: int,
-        reorder_kernel: wp.Kernel,
-        *,
-        correct_joint_signs: bool = True,
-    ) -> None:
-        """Refresh a generalized dynamics buffer and gather its joint axes when needed."""
-        if buffer.timestamp >= self._sim_timestamp:
-            return
-        if self.has_joint_ordering or (correct_joint_signs and self._has_reversed_joints):
-            self._binding_read(tensor_type, backend_buffer)
-            self._read_launch_cache.launch(
-                (id(buffer), "generalized_dynamics"),
-                reorder_kernel,
-                dim=buffer.data.shape,
-                inputs=[
-                    backend_buffer,
-                    self._jacobian_joint_user_to_backend,
-                    self._joint_dof_signs if correct_joint_signs else None,
-                    self._num_base_dofs,
-                    self.has_joint_ordering,
-                ],
-                outputs=[buffer.data],
-            )
-        else:
-            self._binding_read(tensor_type, buffer.data)
-        buffer.timestamp = self._sim_timestamp
-
     @property
     def mass_matrix(self) -> ProxyArray:
         """See :attr:`isaaclab.assets.BaseArticulationData.mass_matrix`."""
@@ -1142,14 +1113,27 @@ class ArticulationData(BaseArticulationData):
             shape = self._view.binding_for(TT.MASS_MATRIX).shape
             self._mass_matrix.data = wp.empty(shape, dtype=wp.float32, device=self.device)
             self._mass_matrix_ta = ProxyArray(self._mass_matrix.data)
-        if (self.has_joint_ordering or self._has_reversed_joints) and self._mass_matrix_backend is None:
-            self._mass_matrix_backend = wp.empty_like(self._mass_matrix.data)
-        self._refresh_generalized_dynamics_buffer(
-            self._mass_matrix,
-            self._mass_matrix_backend,
-            TT.MASS_MATRIX,
-            ordering_kernels.reorder_mass_matrix_backend_to_user,
-        )
+        if self._mass_matrix.timestamp < self._sim_timestamp:
+            if self.has_joint_ordering or self._has_reversed_joints:
+                if self._mass_matrix_backend is None:
+                    self._mass_matrix_backend = wp.empty_like(self._mass_matrix.data)
+                self._binding_read(TT.MASS_MATRIX, self._mass_matrix_backend)
+                self._read_launch_cache.launch(
+                    "mass_matrix",
+                    ordering_kernels.reorder_mass_matrix_backend_to_user,
+                    dim=self._mass_matrix.data.shape,
+                    inputs=[
+                        self._mass_matrix_backend,
+                        self.joint_ordering.user_to_backend if self.has_joint_ordering else None,
+                        self._joint_dof_signs,
+                        self._num_base_dofs,
+                        self.has_joint_ordering,
+                    ],
+                    outputs=[self._mass_matrix.data],
+                )
+            else:
+                self._binding_read(TT.MASS_MATRIX, self._mass_matrix.data)
+            self._mass_matrix.timestamp = self._sim_timestamp
         return self._mass_matrix_ta
 
     @property
@@ -1159,16 +1143,28 @@ class ArticulationData(BaseArticulationData):
             shape = self._view.binding_for(TT.GRAVITY_FORCE).shape
             self._gravity_compensation_forces.data = wp.empty(shape, dtype=wp.float32, device=self.device)
             self._gravity_compensation_forces_ta = ProxyArray(self._gravity_compensation_forces.data)
-        if self.has_joint_ordering and self._gravity_compensation_forces_backend is None:
-            self._gravity_compensation_forces_backend = wp.empty_like(self._gravity_compensation_forces.data)
-        # Gravity forces already use the public joint basis on both 0.5.11 and 0.6.
-        self._refresh_generalized_dynamics_buffer(
-            self._gravity_compensation_forces,
-            self._gravity_compensation_forces_backend,
-            TT.GRAVITY_FORCE,
-            ordering_kernels.reorder_generalized_vector_backend_to_user,
-            correct_joint_signs=False,
-        )
+        if self._gravity_compensation_forces.timestamp < self._sim_timestamp:
+            # OVPhysX gravity forces already use the public joint directions.
+            if self.has_joint_ordering:
+                if self._gravity_compensation_forces_backend is None:
+                    self._gravity_compensation_forces_backend = wp.empty_like(self._gravity_compensation_forces.data)
+                self._binding_read(TT.GRAVITY_FORCE, self._gravity_compensation_forces_backend)
+                self._read_launch_cache.launch(
+                    "gravity_compensation_forces",
+                    ordering_kernels.reorder_generalized_vector_backend_to_user,
+                    dim=self._gravity_compensation_forces.data.shape,
+                    inputs=[
+                        self._gravity_compensation_forces_backend,
+                        self.joint_ordering.user_to_backend,
+                        None,
+                        self._num_base_dofs,
+                        True,
+                    ],
+                    outputs=[self._gravity_compensation_forces.data],
+                )
+            else:
+                self._binding_read(TT.GRAVITY_FORCE, self._gravity_compensation_forces.data)
+            self._gravity_compensation_forces.timestamp = self._sim_timestamp
         return self._gravity_compensation_forces_ta
 
     """
@@ -1711,8 +1707,7 @@ class ArticulationData(BaseArticulationData):
         # -- Dynamics quantities for task-space controllers
         self._jacobian_link_offset = 1 if self._view.is_fixed_base else 0
         self._num_base_dofs = 0 if self._view.is_fixed_base else 6
-        self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend()
-        self._jacobian_joint_user_to_backend = wp.array(range(self._num_joints), dtype=wp.int32, device=device)
+        self._jacobian_body_user_to_backend: wp.array | None = None
         self._body_com_jacobian_w = TimestampedBuffer()
         self._body_com_jacobian_w_backend: wp.array | None = None
         self._mass_matrix = TimestampedBuffer()
@@ -2154,9 +2149,7 @@ class ArticulationData(BaseArticulationData):
         """Configure public-order buffers after articulation ordering maps are installed."""
         self._read_launch_cache.clear()
         self._configure_ordering_buffers()
-        self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend()
-        if self.has_joint_ordering:
-            self._jacobian_joint_user_to_backend = self.joint_ordering.user_to_backend
+        self._jacobian_body_user_to_backend = None
         reset_timestamps(
             [
                 self._body_com_jacobian_w,

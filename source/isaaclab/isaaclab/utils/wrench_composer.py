@@ -65,11 +65,7 @@ class WrenchComposer:
                 wrench. Defaults to False.
         """
         self.num_envs = asset.num_instances
-        # Avoid isinstance to prevent circular import issues; check by attribute presence instead.
-        if hasattr(asset, "num_bodies"):
-            self.num_bodies = asset.num_bodies
-        else:
-            raise ValueError(f"Unsupported asset type: {asset.__class__.__name__}")
+        self.num_bodies = asset.num_bodies
         self.device = asset.device
         self._asset = asset
         self._active = False
@@ -549,9 +545,6 @@ class WrenchComposer:
 
         The dirty flag is cleared after composition.
         """
-        com_pos_w = self._asset.data.body_com_pos_w.warp
-        link_quat_w = self._asset.data.body_link_quat_w.warp
-
         wp.launch(
             compose_wrench_to_body_frame,
             dim=(self.num_envs, self.num_bodies),
@@ -561,8 +554,8 @@ class WrenchComposer:
                 self._global_force_at_com_w,
                 self._local_force_b,
                 self._local_torque_b,
-                com_pos_w,
-                link_quat_w,
+                self._asset.data.body_com_pos_w.warp,
+                self._asset.data.body_link_quat_w.warp,
                 self._out_force_b,
                 self._out_torque_b,
             ],

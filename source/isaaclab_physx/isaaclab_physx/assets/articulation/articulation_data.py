@@ -981,11 +981,8 @@ class ArticulationData(BaseArticulationData):
             if has_body_ordering or has_joint_ordering or self._has_reversed_joints:
                 if self._body_com_jacobian_w.data is None:
                     self._body_com_jacobian_w.data = wp.empty_like(backend_jacobian)
-                joint_user_to_backend = (
-                    self._jacobian_joint_user_to_backend
-                    if self._jacobian_joint_user_to_backend is not None
-                    else self._joint_dof_signs
-                )
+                if has_body_ordering and self._jacobian_body_user_to_backend is None:
+                    self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend()
                 self._read_launch_cache.launch(
                     "body_com_jacobian_w_ordering",
                     ordering_kernels.reorder_jacobian_backend_to_user,
@@ -993,7 +990,7 @@ class ArticulationData(BaseArticulationData):
                     inputs=[
                         backend_jacobian,
                         self._jacobian_body_user_to_backend,
-                        joint_user_to_backend,
+                        self.joint_ordering.user_to_backend if has_joint_ordering else None,
                         self._joint_dof_signs,
                         self._num_base_dofs,
                         has_body_ordering,
@@ -1032,75 +1029,58 @@ class ArticulationData(BaseArticulationData):
         )
         return self._body_link_jacobian_w_ta
 
-    def _refresh_generalized_joint_buffer(
-        self, buf: TimestampedBuffer, view_getter: Callable[[], wp.array], reorder_kernel: wp.Kernel
-    ) -> None:
-        """Refresh a timestamp-lazy generalized joint-axis buffer from its backend view.
-
-        Reads the backend view once when stale for the current step and either aliases
-        it or normalizes its joint axes into the owned public-order buffer with
-        :paramref:`reorder_kernel`. Unlike the world-frame pose
-        buffers this needs no explicit kinematic refresh, because PhysX recomputes
-        the quantity from the current joint state on query.
-
-        Args:
-            buf: Owned public-order buffer to refresh in place.
-            view_getter: Zero-argument callable returning the backend-order view.
-            reorder_kernel: Warp kernel that normalizes the joint axes.
-        """
-        if buf.timestamp >= self._sim_timestamp:
-            return
-        backend_source = view_getter()
-        has_joint_ordering = self.has_joint_ordering
-        if has_joint_ordering or self._has_reversed_joints:
-            if buf.data is None:
-                buf.data = wp.empty_like(backend_source)
-            joint_user_to_backend = self.joint_ordering.user_to_backend if has_joint_ordering else self._joint_dof_signs
-            self._read_launch_cache.launch(
-                id(buf),
-                reorder_kernel,
-                dim=buf.data.shape,
-                inputs=[
-                    backend_source,
-                    joint_user_to_backend,
-                    self._joint_dof_signs,
-                    self._num_base_dofs,
-                    has_joint_ordering,
-                ],
-                outputs=[buf.data],
-            )
-        else:
-            buf.data = backend_source
-        buf.timestamp = self._sim_timestamp
-
     @property
     def mass_matrix(self) -> ProxyArray:
-        """See :attr:`isaaclab.assets.BaseArticulationData.mass_matrix`.
-
-        Uses :meth:`_refresh_generalized_joint_buffer` for timestamped refresh and
-        joint-axis reordering.
-        """
-        self._refresh_generalized_joint_buffer(
-            self._mass_matrix,
-            self._root_view.get_generalized_mass_matrices,
-            ordering_kernels.reorder_mass_matrix_backend_to_user,
-        )
+        """See :attr:`isaaclab.assets.BaseArticulationData.mass_matrix`."""
+        if self._mass_matrix.timestamp < self._sim_timestamp:
+            source = self._root_view.get_generalized_mass_matrices()
+            if self.has_joint_ordering or self._has_reversed_joints:
+                if self._mass_matrix.data is None:
+                    self._mass_matrix.data = wp.empty_like(source)
+                self._read_launch_cache.launch(
+                    "mass_matrix",
+                    ordering_kernels.reorder_mass_matrix_backend_to_user,
+                    dim=source.shape,
+                    inputs=[
+                        source,
+                        self.joint_ordering.user_to_backend if self.has_joint_ordering else None,
+                        self._joint_dof_signs,
+                        self._num_base_dofs,
+                        self.has_joint_ordering,
+                    ],
+                    outputs=[self._mass_matrix.data],
+                )
+            else:
+                self._mass_matrix.data = source
+            self._mass_matrix.timestamp = self._sim_timestamp
         if self._mass_matrix_ta is None:
             self._mass_matrix_ta = ProxyArray(self._mass_matrix.data)
         return self._mass_matrix_ta
 
     @property
     def gravity_compensation_forces(self) -> ProxyArray:
-        """See :attr:`isaaclab.assets.BaseArticulationData.gravity_compensation_forces`.
-
-        Uses :meth:`_refresh_generalized_joint_buffer` for timestamped refresh and
-        joint-axis reordering.
-        """
-        self._refresh_generalized_joint_buffer(
-            self._gravity_compensation_forces,
-            self._root_view.get_gravity_compensation_forces,
-            ordering_kernels.reorder_generalized_vector_backend_to_user,
-        )
+        """See :attr:`isaaclab.assets.BaseArticulationData.gravity_compensation_forces`."""
+        if self._gravity_compensation_forces.timestamp < self._sim_timestamp:
+            source = self._root_view.get_gravity_compensation_forces()
+            if self.has_joint_ordering or self._has_reversed_joints:
+                if self._gravity_compensation_forces.data is None:
+                    self._gravity_compensation_forces.data = wp.empty_like(source)
+                self._read_launch_cache.launch(
+                    "gravity_compensation_forces",
+                    ordering_kernels.reorder_generalized_vector_backend_to_user,
+                    dim=source.shape,
+                    inputs=[
+                        source,
+                        self.joint_ordering.user_to_backend if self.has_joint_ordering else None,
+                        self._joint_dof_signs,
+                        self._num_base_dofs,
+                        self.has_joint_ordering,
+                    ],
+                    outputs=[self._gravity_compensation_forces.data],
+                )
+            else:
+                self._gravity_compensation_forces.data = source
+            self._gravity_compensation_forces.timestamp = self._sim_timestamp
         if self._gravity_compensation_forces_ta is None:
             self._gravity_compensation_forces_ta = ProxyArray(self._gravity_compensation_forces.data)
         return self._gravity_compensation_forces_ta
@@ -1693,7 +1673,6 @@ class ArticulationData(BaseArticulationData):
         self._jacobian_link_offset = 1 if is_fixed_base else 0
         self._num_base_dofs = 0 if is_fixed_base else 6
         self._jacobian_body_user_to_backend: wp.array | None = None
-        self._jacobian_joint_user_to_backend: wp.array | None = None
         self._body_com_jacobian_w = TimestampedBuffer()
         self._mass_matrix = TimestampedBuffer()
         self._gravity_compensation_forces = TimestampedBuffer()
@@ -1883,18 +1862,8 @@ class ArticulationData(BaseArticulationData):
     def _apply_ordering_maps_after_resolve(self) -> None:
         """Configure public-order buffers after articulation ordering maps are installed."""
         self._read_launch_cache.clear()
-        joint_ordering = self.joint_ordering
-        body_ordering = self.body_ordering
         self._configure_ordering_buffers()
-
-        if body_ordering is not None:
-            self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend()
-        else:
-            self._jacobian_body_user_to_backend = None
-        if joint_ordering is not None:
-            self._jacobian_joint_user_to_backend = joint_ordering.user_to_backend
-        else:
-            self._jacobian_joint_user_to_backend = None
+        self._jacobian_body_user_to_backend = None
 
         if self.has_body_ordering:
             self._body_link_pose_w.data = wp.zeros(
