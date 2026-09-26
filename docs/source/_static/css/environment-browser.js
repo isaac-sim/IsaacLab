@@ -84,6 +84,7 @@
             ["IsaacContrib-Forge-NutThread-Direct", "rl_games", "", "", "", "tasks/factory/nut_thread.jpg"],
             ["IsaacContrib-Forge-PegInsert-Direct", "rl_games", "", "", "", "tasks/factory/peg_insert.jpg"],
             ["IsaacContrib-Franka-Pour", "rsl_rl", "", "", "", "tasks/manipulation/franka_pour.jpg"],
+            ["IsaacContrib-Franka-Smoothie", "rsl_rl", "", "", "", "tasks/franka_smoothie.png"],
             ["IsaacContrib-Humanoid-AMP-Dance-Direct", "skrl", "", "", "", "tasks/others/humanoid_amp.jpg"],
             ["IsaacContrib-Humanoid-AMP-Run-Direct", "skrl", "", "", "", "tasks/others/humanoid_amp.jpg"],
             ["IsaacContrib-Humanoid-AMP-Walk-Direct", "skrl", "", "", "", "tasks/others/humanoid_amp.jpg"],
