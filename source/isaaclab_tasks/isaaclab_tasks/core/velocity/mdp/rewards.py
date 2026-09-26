@@ -189,10 +189,12 @@ def _pelvis_clearance(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, sensor_
 def pelvis_height_deficit_l2(
     env: ManagerBasedRLEnv, target_height: float, asset_cfg: SceneEntityCfg, sensor_cfg: SceneEntityCfg
 ) -> torch.Tensor:
-    """Penalize squared clearance shortfall below ``target_height`` [m].
+    """Penalize squared scan-relative height shortfall below ``target_height`` [m].
 
-    The median terrain ray hit avoids treating a terrain depression as a crouch.
-    Clearances above the target incur no penalty.
+    Height is relative to the median of the entire terrain scan, not the supporting
+    foot surface. Narrow raised treads can be outvoted by lower surrounding terrain,
+    so this posture heuristic does not detect every crouch. Heights above the target
+    incur no penalty.
     """
     return torch.clamp(target_height - _pelvis_clearance(env, asset_cfg, sensor_cfg), min=0.0).square()
 

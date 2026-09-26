@@ -192,7 +192,7 @@ def test_g1_symmetry_validates_each_articulations_default_pose():
 
 
 def test_g1_sole_plate_spawn_clones_geometry_and_preserves_contact_settings(tmp_path):
-    """Every clone gets the trained sole box without rewriting contact offsets."""
+    """Every clone preserves the xyzw root rotation, sole box, and contact offsets."""
     from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
     import isaaclab.sim as sim_utils
@@ -215,11 +215,16 @@ def test_g1_sole_plate_spawn_clones_geometry_and_preserves_contact_settings(tmp_
     for index in range(2):
         UsdGeom.Xform.Define(stage, f"/World/env_{index}")
     cfg = sim_utils.UsdFileCfg(usd_path=str(tmp_path / "robot.usda"))
+    # A quarter turn about z in xyzw order maps the x axis to the y axis.
+    orientation = (0.0, 0.0, 0.5**0.5, 0.5**0.5)
     with sim_utils.use_stage(stage):
-        spawn_g1_with_sole_plates("/World/env_[0-1]/Robot", cfg)
+        spawn_g1_with_sole_plates("/World/env_[0-1]/Robot", cfg, orientation=orientation)
         # A second spawn must not add duplicate transform operations or colliders.
-        spawn_g1_with_sole_plates("/World/env_[0-1]/Robot", cfg)
+        spawn_g1_with_sole_plates("/World/env_[0-1]/Robot", cfg, orientation=orientation)
     for index in range(2):
+        rotation = UsdGeom.Xformable(stage.GetPrimAtPath(f"/World/env_{index}/Robot")).GetLocalTransformation()
+        assert tuple(rotation.TransformDir(Gf.Vec3d(1.0, 0.0, 0.0))) == pytest.approx((0.0, 1.0, 0.0), abs=1e-6)
+        assert tuple(rotation.TransformDir(Gf.Vec3d(0.0, 0.0, 1.0))) == pytest.approx((0.0, 0.0, 1.0), abs=1e-6)
         for side in ("left", "right"):
             path = f"/World/env_{index}/Robot/{side}_ankle_roll_link"
             assert not stage.GetPrimAtPath(path + "/collisions").IsActive()

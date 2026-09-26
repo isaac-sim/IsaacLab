@@ -59,10 +59,12 @@ def pelvis_below_terrain_clearance_after_warmup(
     asset_cfg: SceneEntityCfg,
     sensor_cfg: SceneEntityCfg,
 ) -> torch.Tensor:
-    """Terminate below ``minimum_height`` [m] after ``warmup_steps`` environment steps.
+    """Terminate below scan-relative ``minimum_height`` [m] after ``warmup_steps`` environment steps.
 
     The warmup uses the global environment step counter, so episode resets do not
     restart it. This lets the policy learn to stand before enforcing the height floor.
+    The reference is the full scan's median terrain height; narrow raised treads can
+    be missed, so this is not a minimum clearance guarantee above the supporting feet.
     """
     if env.common_step_counter < warmup_steps:
         return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)

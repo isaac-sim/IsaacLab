@@ -436,7 +436,7 @@ def spawn_g1_with_sole_plates(
         prim_path: Robot prim path or expression matching multiple environment parents.
         cfg: USD spawn configuration for the 29-body-DoF G1 asset.
         translation: Root translation relative to its parent [m].
-        orientation: Root quaternion in (x, y, z, w) order.
+        orientation: Root quaternion in (x, y, z, w) order, matching :func:`~isaaclab.sim.spawn_from_usd`.
         **kwargs: Additional USD spawner arguments.
 
     Returns:
