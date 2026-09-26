@@ -1,6 +1,35 @@
 Changelog
 ---------
 
+1.13.1 (2026-09-26)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Routed Kit deformable, particle, and cable updates through the shared Fabric resource and SDP
+  geometry publications, removing dependence on physics-manager render callbacks.
+* Fixed the Kit, ``newton_gl``, and ``newton_rtx`` visualizer windows showing a generic icon in
+  Linux docks. Opening a visualizer window now writes a hidden desktop entry to
+  ``$XDG_DATA_HOME/applications`` (default ``~/.local/share/applications``) that matches the
+  window to its icon.
+* Fixed the ``newton_rtx`` visualizer window not setting Newton's icon.
+
+
+1.13.0 (2026-09-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a clickable demo and example selector to Newton GL for packaged Isaac Lab programs.
+* Added :meth:`~isaaclab_visualizers.newton.NewtonGLVisualizer.is_key_down` so scripts can read
+  keyboard input from the Newton viewer window.
+* Added :meth:`~isaaclab_visualizers.newton.NewtonGLVisualizer.register_ui_callback` and
+  :meth:`~isaaclab_visualizers.newton.NewtonGLVisualizer.request_close` so callers can add viewer panels and close
+  the window safely from inside them.
+
+
 1.12.1 (2026-09-24)
 ~~~~~~~~~~~~~~~~~~~
 

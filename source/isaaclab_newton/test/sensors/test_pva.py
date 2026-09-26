@@ -12,7 +12,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
 import torch
-import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 import isaaclab.sim as sim_utils
@@ -65,8 +64,12 @@ def sim():
         yield sim
 
 
-def test_initialization_and_data_shapes(sim):
-    """The Newton PVA sensor initializes and exposes correctly shaped, populated buffers after one step."""
+def test_at_rest_reports_gravity_and_zero_velocity(sim):
+    """A settled PVA sensor reports unit gravity along body -Z and near-zero velocity.
+
+    While the cube still falls, PVA reports coordinate acceleration (from body_qdd), not proper
+    acceleration: (0, 0, -9.81) in the body frame of the upright cube, with a growing downward speed.
+    """
     scene_cfg = PvaTestSceneCfg(num_envs=2)
     scene = InteractiveScene(scene_cfg)
     sim.reset()
@@ -74,35 +77,33 @@ def test_initialization_and_data_shapes(sim):
     pva: Pva = scene["pva"]
     assert pva.num_instances == 2
 
-    sim.step()
-    scene.update(sim.get_physics_dt())
-
-    assert pva.data.pos_w.torch.shape == (2, 3)
-    assert pva.data.quat_w.torch.shape == (2, 4)
-    assert pva.data.pose_w.torch.shape == (2, 7)
-    assert pva.data.lin_vel_b.torch.shape == (2, 3)
-    assert pva.data.ang_vel_b.torch.shape == (2, 3)
-    assert pva.data.lin_acc_b.torch.shape == (2, 3)
-    assert pva.data.ang_acc_b.torch.shape == (2, 3)
-    assert pva.data.projected_gravity_b.torch.shape == (2, 3)
-    # The cube starts above the ground plane, so the world position is populated rather than zero.
-    assert torch.all(pva.data.pos_w.torch[:, 2] > 0.0), (
-        f"Expected positive z position, got {pva.data.pos_w.torch[:, 2]}"
-    )
-
-
-def test_at_rest_reports_gravity_and_zero_velocity(sim):
-    """A settled PVA sensor reports unit gravity along body -Z and near-zero velocity."""
-    scene_cfg = PvaTestSceneCfg(num_envs=2)
-    scene = InteractiveScene(scene_cfg)
-    sim.reset()
-
     # Cube falls from z=1.0 (bottom at z=0.9), reaches ground in ~86 steps at 200 Hz.
-    for _ in range(200):
+    for _ in range(10):
         sim.step()
         scene.update(sim.get_physics_dt())
 
-    pva: Pva = scene["pva"]
+    assert pva.data.quat_w.torch.shape == (2, 4)
+    torch.testing.assert_close(pva.data.pose_w.torch[:, :3], pva.data.pos_w.torch)
+    torch.testing.assert_close(pva.data.pose_w.torch[:, 3:], pva.data.quat_w.torch)
+    lin_acc = pva.data.lin_acc_b.torch
+    ang_acc = pva.data.ang_acc_b.torch
+    expected_acc = torch.tensor([[0.0, 0.0, -9.81]], dtype=lin_acc.dtype, device=lin_acc.device).repeat(2, 1)
+    torch.testing.assert_close(lin_acc, expected_acc, atol=0.5, rtol=0.0)
+    # Angular acceleration should be near zero (no torques in freefall).
+    torch.testing.assert_close(ang_acc, torch.zeros_like(ang_acc), atol=0.05, rtol=0.0)
+
+    early_speed = torch.norm(pva.data.lin_vel_b.torch, dim=-1)
+    for _ in range(40):
+        sim.step()
+        scene.update(sim.get_physics_dt())
+    speed = torch.norm(pva.data.lin_vel_b.torch, dim=-1)
+    assert torch.all(speed > 0.1), f"Expected non-zero velocity in freefall, got {speed}"
+    assert torch.all(speed > early_speed), f"Expected speed to grow in freefall, got {early_speed} -> {speed}"
+
+    for _ in range(150):
+        sim.step()
+        scene.update(sim.get_physics_dt())
+
     proj_grav = pva.data.projected_gravity_b.torch
     lin_vel = pva.data.lin_vel_b.torch
     ang_vel = pva.data.ang_vel_b.torch
@@ -113,107 +114,13 @@ def test_at_rest_reports_gravity_and_zero_velocity(sim):
     torch.testing.assert_close(ang_vel, torch.zeros_like(ang_vel), atol=0.05, rtol=0.0)
 
 
-def test_reset(sim):
-    """Test that reset zeroes out PVA data."""
-    scene_cfg = PvaTestSceneCfg(num_envs=2)
-    scene = InteractiveScene(scene_cfg)
-    sim.reset()
-
-    for _ in range(10):
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    pva: Pva = scene["pva"]
-
-    pos = pva.data.pos_w.torch
-    assert torch.any(pos != 0), "Expected non-zero data before reset"
-
-    pva.reset()
-
-    # Access internal buffers directly to avoid lazy re-evaluation via pva.data
-    # (the data property triggers _update_buffers_impl which would overwrite reset values).
-    pos = wp.to_torch(pva._data._pos_w)
-    lin_vel = wp.to_torch(pva._data._lin_vel_b)
-    ang_vel = wp.to_torch(pva._data._ang_vel_b)
-    lin_acc = wp.to_torch(pva._data._lin_acc_b)
-    ang_acc = wp.to_torch(pva._data._ang_acc_b)
-    quat = wp.to_torch(pva._data._quat_w)
-
-    torch.testing.assert_close(pos, torch.zeros_like(pos))
-    torch.testing.assert_close(lin_vel, torch.zeros_like(lin_vel))
-    torch.testing.assert_close(ang_vel, torch.zeros_like(ang_vel))
-    torch.testing.assert_close(lin_acc, torch.zeros_like(lin_acc))
-    torch.testing.assert_close(ang_acc, torch.zeros_like(ang_acc))
-    expected_quat = torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=quat.dtype, device=quat.device).repeat(2, 1)
-    torch.testing.assert_close(quat, expected_quat)
-
-
-@configclass
-class FreefallSceneCfg(InteractiveSceneCfg):
-    """Scene with a rigid cube and PVA but no ground plane (freefall)."""
-
-    env_spacing = 2.0
-    cube = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
-            mass_props=sim_utils.MassCfg(mass=1.0),
-            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5.0)),
-    )
-
-    pva = PvaCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-    )
-
-
-def test_freefall_reports_gravity_acceleration_and_growing_speed(sim):
-    """A freefalling body reports coordinate acceleration equal to gravity and a growing downward speed.
-
-    PVA reports coordinate acceleration (from body_qdd), not proper acceleration.
-    In freefall, coordinate acceleration equals gravitational acceleration (~9.81 m/s^2
-    downward). For an upright body, this is (0, 0, -9.81) in the body frame.
-    """
-    scene_cfg = FreefallSceneCfg(num_envs=2)
-    scene = InteractiveScene(scene_cfg)
-    sim.reset()
-
-    for _ in range(10):
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    pva: Pva = scene["pva"]
-    lin_acc = pva.data.lin_acc_b.torch
-    ang_acc = pva.data.ang_acc_b.torch
-
-    # Coordinate acceleration in freefall should be ~(0, 0, -9.81) in body frame.
-    expected_acc = torch.tensor([[0.0, 0.0, -9.81]], dtype=lin_acc.dtype, device=lin_acc.device).repeat(2, 1)
-    torch.testing.assert_close(lin_acc, expected_acc, atol=0.5, rtol=0.0)
-
-    # Angular acceleration should be near zero (no torques in freefall).
-    torch.testing.assert_close(ang_acc, torch.zeros_like(ang_acc), atol=0.05, rtol=0.0)
-
-    early_speed = torch.norm(pva.data.lin_vel_b.torch, dim=-1)
-    for _ in range(40):
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    speed = torch.norm(pva.data.lin_vel_b.torch, dim=-1)
-    assert torch.all(speed > 0.1), f"Expected non-zero velocity in freefall, got {speed}"
-    assert torch.all(speed > early_speed), f"Expected speed to grow in freefall, got {early_speed} -> {speed}"
-
-
 @configclass
 class OffsetRotatedSceneCfg(InteractiveSceneCfg):
     """Scene with a tilted cube and offset PVA sensor in freefall.
 
     The cube is rotated 90 degrees about the X axis and the sensor has a
     +Z offset of 0.5 m in the body frame. This exercises the lever-arm
-    velocity/acceleration corrections and body-frame gravity projection.
+    position offset and body-frame gravity projection.
     """
 
     env_spacing = 2.0
@@ -276,9 +183,10 @@ def test_no_stale_data_after_scene_reset(sim):
 
     Mirrors the PhysX equivalent. The PVA sensor's lazy ``data`` accessor must not refetch from
     the Newton rigid-body view here (the velocity buffer reflects the previous step and would
-    produce spurious finite-difference accelerations).
+    produce spurious finite-difference accelerations). A partial reset leaves other envs untouched
+    and a full sensor reset zeroes every output.
     """
-    scene_cfg = PvaTestSceneCfg(num_envs=1)
+    scene_cfg = PvaTestSceneCfg(num_envs=2)
     scene = InteractiveScene(scene_cfg)
     sim.reset()
     scene.reset()
@@ -292,8 +200,9 @@ def test_no_stale_data_after_scene_reset(sim):
         sim.step(render=False)
         scene.update(dt=sim.get_physics_dt())
 
-    pre_reset_vel_mag = torch.linalg.norm(pva.data.lin_vel_b.torch, dim=-1).item()
-    assert pre_reset_vel_mag > 0.05, f"Expected non-zero velocity before reset; got {pre_reset_vel_mag!r}"
+    pre_reset_vel = pva.data.lin_vel_b.torch.clone()
+    pre_reset_vel_mag = torch.linalg.norm(pre_reset_vel, dim=-1)
+    assert (pre_reset_vel_mag > 0.05).all(), f"Expected non-zero velocity before reset; got {pre_reset_vel_mag!r}"
 
     # Reset the scene without writing fresh velocity/transform. The Newton velocity buffer
     # therefore still holds the pre-reset (falling) value.
@@ -302,5 +211,15 @@ def test_no_stale_data_after_scene_reset(sim):
 
     post_reset_vel = pva.data.lin_vel_b.torch
     post_reset_acc = pva.data.lin_acc_b.torch
-    torch.testing.assert_close(post_reset_vel, torch.zeros_like(post_reset_vel))
-    torch.testing.assert_close(post_reset_acc, torch.zeros_like(post_reset_acc))
+    torch.testing.assert_close(post_reset_vel[0], torch.zeros_like(post_reset_vel[0]))
+    torch.testing.assert_close(post_reset_acc[0], torch.zeros_like(post_reset_acc[0]))
+    torch.testing.assert_close(post_reset_vel[1], pre_reset_vel[1])
+
+    # Full reset zeroes every environment.
+    pva.reset()
+    for name in ("pos_w", "lin_vel_b", "ang_vel_b", "lin_acc_b", "ang_acc_b"):
+        value = getattr(pva.data, name).torch
+        torch.testing.assert_close(value, torch.zeros_like(value), msg=name)
+    quat = pva.data.quat_w.torch
+    expected_quat = torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=quat.dtype, device=quat.device).repeat(2, 1)
+    torch.testing.assert_close(quat, expected_quat)

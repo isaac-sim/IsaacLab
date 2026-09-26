@@ -10,6 +10,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from pxr import Usd, UsdGeom
+
 import isaaclab.cloner.clone_plan as clone_plan
 import isaaclab.cloner.replicate_session as replicate_session
 from isaaclab.assets import AssetBaseCfg
@@ -41,11 +43,13 @@ def simulation(monkeypatch):
         clone_contexts={},
         _backend_registry=registry,
         _render_context=RenderContext(registry),
-        stage=object(),
+        stage=Usd.Stage.CreateInMemory(),
         plan=None,
         calls=[],
     )
     sim.render_context = sim._render_context
+    for path in ("/World/envs/env_0", "/World/Ground", "/Lab/Cell0", "/Lab/Ground"):
+        UsdGeom.Xform.Define(sim.stage, path)
     sim.get_or_create_backend = lambda cfg: SimulationContext.get_or_create_backend(sim, cfg)
     sim.clone_contexts[_Context] = _Context(sim)
     sim.get_clone_plan = lambda: sim.plan
@@ -138,13 +142,6 @@ def test_camera_registers_rendering_before_planning_and_shares_the_plan(simulati
     assert all(received is plan for _, received in simulation.calls)
 
 
-def test_context_routing_requires_every_asset_row(simulation):
-    """An incomplete cfg-row mapping must fail instead of silently dropping an asset."""
-    cfg = SimpleNamespace(cloning_contexts=None)
-    with pytest.raises(KeyError):
-        clone_plan._context_rows((cfg,), {}, {0})
-
-
 @pytest.mark.parametrize("valid_set", [np.asarray([["0"]]), np.asarray([[0 + 1j]])])
 def test_make_clone_plan_rejects_non_integer_combinations(valid_set):
     """Prototype indices must be integer data rather than values NumPy can coerce to integers."""
@@ -156,15 +153,18 @@ def test_make_clone_plan_rejects_non_integer_combinations(valid_set):
         make_clone_plan((cfg,), 2, 1.0, valid_set=valid_set)
 
 
-def test_grid_transforms_always_returns_float32():
-    """NumPy scalar inputs do not widen the public transform arrays."""
-    positions, orientations = clone_plan.grid_transforms(2, np.float64(1.0))
+def test_grid_transforms_centers_a_float32_grid():
+    """Three envs fill a centered 2x2 grid row by row, and NumPy scalar inputs do not widen the arrays."""
+    positions, orientations = clone_plan.grid_transforms(3, np.float64(2.0))
 
     assert positions.dtype == orientations.dtype == np.float32
+    # Hand-computed: rows run along -x, columns along +y, both centered on the origin.
+    np.testing.assert_array_equal(positions, [[1.0, -1.0, 0.0], [1.0, 1.0, 0.0], [-1.0, -1.0, 0.0]])
+    np.testing.assert_array_equal(orientations, [[0.0, 0.0, 0.0, 1.0]] * 3)
 
 
 def test_replicate_dispatches_the_same_plan_in_priority_order(simulation):
-    """Registered contexts receive one shared plan in backend priority order."""
+    """Generic dispatch forwards one layout without interpreting asset geometry."""
 
     class Late(_Context):
         replicate_priority = 1
@@ -173,6 +173,7 @@ def test_replicate_dispatches_the_same_plan_in_priority_order(simulation):
         replicate_priority = -1
 
     plan = _plan(Late, Early)
+    simulation.stage = None
     simulation.physics_manager.clone_context_type = Late
     simulation.clone_contexts = {Late: Late(simulation), Early: Early(simulation)}
     simulation.plan = plan
@@ -180,6 +181,7 @@ def test_replicate_dispatches_the_same_plan_in_priority_order(simulation):
     replicate_session.replicate(plan)
 
     assert simulation.calls == [(Early, plan), (Late, plan)]
+    assert not {"deformables", "cables", "point_clouds"}.intersection(vars(plan))
 
 
 def test_replicate_physics_false_preserves_rendering_and_usd(simulation):

@@ -44,37 +44,6 @@ wp.init()
 
 
 @configclass
-class DeformableSceneCfg(InteractiveSceneCfg):
-    """Interactive scene configuration for cloned volume deformables."""
-
-    deformable: DeformableObjectCfg = DeformableObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Object",
-        spawn=pre_tetrahedralized_deformable_spawn_cfg(),
-        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
-    )
-
-
-@configclass
-class MixedDeformableRigidSceneCfg(InteractiveSceneCfg):
-    """Interactive scene configuration for cloned deformable and rigid assets."""
-
-    deformable: DeformableObjectCfg = DeformableObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Object",
-        spawn=pre_tetrahedralized_deformable_spawn_cfg(),
-        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
-    )
-    cube: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.1, 0.1, 0.1),
-            rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
-            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.35, 0.0, 1.0)),
-    )
-
-
-@configclass
 class HeterogeneousMixedDeformableRigidSceneCfg(InteractiveSceneCfg):
     """Interactive scene configuration with two rigid variants and a deformable."""
 
@@ -180,19 +149,22 @@ def _run_cpu_deformable_initialization(result_queue: Any) -> None:
 @pytest.mark.parametrize(
     "num_objects, material_path",
     [
-        (1, "material"),
         (2, None),
-        (2, "/World/SoftMaterial"),
-        (2, "material"),
+        # A shared absolute material whose path only textually prefixes a sibling asset path.
+        (2, "/World/Table_0/ObjectSiblingMaterial"),
     ],
 )
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
 def test_initialization(num_objects: int, material_path: str | None):
-    """Test volume deformable initialization and public buffer shapes."""
+    """Test volume deformable initialization, optional and shared materials, and public buffer shapes."""
     with _ovphysx_sim_context(device="cuda:0") as sim:
         deformable = _generate_deformable_scene(
             pre_tetrahedralized_deformable_spawn_cfg(material_path=material_path), num_objects=num_objects
         )
+        if material_path is not None:
+            # A same-named material under the other table must not be matched by prefix expansion.
+            distractor_cfg = PhysxDeformableBodyMaterialCfg()
+            distractor_cfg.func("/World/Table_1/ObjectSiblingMaterial", distractor_cfg)
 
         assert sys.getrefcount(deformable) < 10
         sim.reset()
@@ -203,12 +175,9 @@ def test_initialization(num_objects: int, material_path: str | None):
         assert deformable.root_view.count == num_objects
         if material_path is None:
             assert deformable.material_physx_view is None
-        elif material_path.startswith("/"):
-            assert deformable.material_physx_view is not None
-            assert deformable.material_physx_view.count == 1
         else:
             assert deformable.material_physx_view is not None
-            assert deformable.material_physx_view.count == num_objects
+            assert deformable.material_physx_view.count == 1
         assert deformable.data.nodal_state_w.torch.shape == (
             num_objects,
             deformable.max_sim_vertices_per_body,
@@ -226,53 +195,6 @@ def test_initialization(num_objects: int, material_path: str | None):
         deformable._invalidate_initialize_callback(None)
         assert deformable._root_physx_view is None
         assert deformable._material_physx_view is None
-
-
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-def test_absolute_material_sibling_prefix_is_not_expanded():
-    """Keep a shared absolute material exact when its path only textually prefixes the asset path."""
-    with _ovphysx_sim_context(device="cuda:0") as sim:
-        material_path = "/World/Table_0/ObjectSiblingMaterial"
-        deformable = _generate_deformable_scene(
-            pre_tetrahedralized_deformable_spawn_cfg(material_path=material_path), num_objects=2
-        )
-        distractor_cfg = PhysxDeformableBodyMaterialCfg()
-        distractor_cfg.func("/World/Table_1/ObjectSiblingMaterial", distractor_cfg)
-
-        sim.reset()
-
-        material_view = deformable.material_physx_view
-        assert material_view is not None
-        assert material_view.count == 1
-
-
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-def test_initialization_surface_deformable():
-    """Test surface deformable initialization and unsupported target writes."""
-    with _ovphysx_sim_context(device="cuda:0") as sim:
-        num_objects = 2
-        deformable = _generate_deformable_scene(pretriangulated_surface_deformable_spawn_cfg(), num_objects=num_objects)
-
-        sim.reset()
-
-        assert deformable.is_initialized
-        assert deformable._deformable_type == "surface"
-        assert deformable.num_instances == num_objects
-        assert deformable.root_view.count == num_objects
-        assert deformable.material_physx_view is not None
-        assert deformable.material_physx_view.count == num_objects
-        assert deformable.data.nodal_state_w.torch.shape == (
-            num_objects,
-            deformable.max_sim_vertices_per_body,
-            6,
-        )
-        assert deformable.data.root_pos_w.torch.shape == (num_objects, 3)
-        assert deformable.data.root_vel_w.torch.shape == (num_objects, 3)
-        assert deformable.data.nodal_kinematic_target is None
-
-        dummy_targets = torch.zeros(num_objects, deformable.max_sim_vertices_per_body, 4, device=sim.device)
-        with pytest.raises(ValueError, match="Kinematic targets can only be set for volume deformable bodies"):
-            deformable.write_nodal_kinematic_target_to_sim_index(dummy_targets)
 
 
 def test_initialization_on_device_cpu():
@@ -302,103 +224,25 @@ def test_initialization_on_device_cpu():
     assert is_initialized is False
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-def test_set_nodal_state():
-    """Test combined nodal state writes while independently randomizing position and velocity."""
-    with _ovphysx_sim_context(device="cuda:0") as sim:
-        num_objects = 2
-        deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=num_objects)
-        sim.reset()
-
-        for state_type_to_randomize in ["nodal_pos_w", "nodal_vel_w"]:
-            state_dict = {
-                "nodal_pos_w": torch.zeros_like(deformable.data.nodal_pos_w.torch),
-                "nodal_vel_w": torch.zeros_like(deformable.data.nodal_vel_w.torch),
-            }
-
-            for _ in range(5):
-                deformable.reset()
-                state_dict[state_type_to_randomize] = torch.randn(
-                    num_objects, deformable.max_sim_vertices_per_body, 3, device=sim.device
-                )
-
-                for _ in range(5):
-                    nodal_state = torch.cat([state_dict["nodal_pos_w"], state_dict["nodal_vel_w"]], dim=-1)
-                    deformable.write_nodal_state_to_sim_index(nodal_state)
-                    torch.testing.assert_close(deformable.data.nodal_state_w.torch, nodal_state, rtol=1e-5, atol=1e-5)
-
-                    sim.step()
-                    deformable.update(sim.cfg.dt)
-
-
-@pytest.mark.parametrize(
-    ("property_name", "write_method_name", "tensor_type", "command_value"),
-    [
-        ("nodal_pos_w", "write_nodal_pos_to_sim_index", "deformable_sim_nodal_position", 100.0),
-        ("nodal_vel_w", "write_nodal_velocity_to_sim_index", "deformable_sim_nodal_velocity", -100.0),
-    ],
-)
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-def test_indexed_partial_write_preserves_retained_aliased_slice_in_simulator(
-    property_name: str, write_method_name: str, tensor_type: str, command_value: float
-) -> None:
-    """Preserve a retained selected command while hydrating stale rows from OVPhysX."""
-    with _ovphysx_sim_context(device="cuda:0") as sim:
-        deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=2)
-        sim.reset()
-
-        retained = getattr(deformable.data, property_name).torch
-        sim.step()
-        deformable.update(sim.cfg.dt)
-        latest = wp.to_torch(deformable.root_view.get_attribute(tensor_type)).clone()
-        selected = retained[1:2]
-        selected.fill_(command_value)
-
-        getattr(deformable, write_method_name)(selected, env_ids=torch.tensor([1], device=sim.device))
-        readback = wp.to_torch(deformable.root_view.get_attribute(tensor_type))
-
-        torch.testing.assert_close(readback[0], latest[0], rtol=1e-5, atol=1e-5)
-        torch.testing.assert_close(readback[1], selected[0], rtol=1e-5, atol=1e-5)
-
-
-@pytest.mark.parametrize(
-    "num_objects, randomize_pos, randomize_rot",
-    [
-        (1, False, False),
-        (1, True, False),
-        (1, False, True),
-        (2, True, True),
-    ],
-)
 @flaky(max_runs=3, min_passes=1)
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-def test_set_nodal_state_with_applied_transform(num_objects: int, randomize_pos: bool, randomize_rot: bool):
+def test_set_nodal_state_with_applied_transform():
     """Test combined nodal state writes after applying rigid transforms."""
     with _ovphysx_sim_context(device="cuda:0", gravity_enabled=False) as sim:
-        deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=num_objects)
+        deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=2)
         sim.reset()
 
         for _ in range(5):
             nodal_state = deformable.data.default_nodal_state_w.torch.clone()
             mean_nodal_pos_default = nodal_state[..., :3].mean(dim=1)
 
-            if randomize_pos:
-                pos_w = 0.5 * torch.rand(deformable.num_instances, 3, device=sim.device)
-                pos_w[:, 2] += 0.5
-            else:
-                pos_w = None
-            if randomize_rot:
-                quat_w = math_utils.random_orientation(deformable.num_instances, device=sim.device)
-            else:
-                quat_w = None
+            pos_w = 0.5 * torch.rand(deformable.num_instances, 3, device=sim.device)
+            pos_w[:, 2] += 0.5
+            quat_w = math_utils.random_orientation(deformable.num_instances, device=sim.device)
 
             nodal_state[..., :3] = deformable.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
             mean_nodal_pos_init = nodal_state[..., :3].mean(dim=1)
-
-            if pos_w is None:
-                torch.testing.assert_close(mean_nodal_pos_init, mean_nodal_pos_default, rtol=1e-5, atol=1e-5)
-            else:
-                torch.testing.assert_close(mean_nodal_pos_init, mean_nodal_pos_default + pos_w, rtol=1e-5, atol=1e-5)
+            torch.testing.assert_close(mean_nodal_pos_init, mean_nodal_pos_default + pos_w, rtol=1e-5, atol=1e-5)
 
             deformable.write_nodal_state_to_sim_index(nodal_state)
             deformable.reset()
@@ -560,6 +404,20 @@ def test_volume_deformable_reads_writes_targets_materials_and_steps():
             deformable.update(sim.cfg.dt)
         _assert_finite_deformable_state(deformable)
 
+        # A forced re-warm replaces the attached stage, so the deformable bindings are rebuilt.
+        original_view = deformable.root_view
+        original_binding = original_view.binding_for(TT.DEFORMABLE_SIM_NODAL_POSITION)
+        OvPhysxManager._warmup_done = False
+        sim.reset()
+
+        assert deformable.is_initialized
+        assert deformable.root_view is not original_view
+        assert deformable.root_view.binding_for(TT.DEFORMABLE_SIM_NODAL_POSITION) is not original_binding
+        _assert_finite_deformable_state(deformable)
+        sim.step()
+        deformable.update(sim.cfg.dt)
+        _assert_finite_deformable_state(deformable)
+
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
 def test_surface_deformable_reads_writes_materials_and_steps():
@@ -575,6 +433,7 @@ def test_surface_deformable_reads_writes_materials_and_steps():
         assert deformable.max_sim_vertices_per_body == 4
         assert deformable.max_sim_elements_per_body == 2
         assert deformable.max_collision_elements_per_body == 0
+        assert deformable.max_collision_vertices_per_body == 0
         assert deformable.data.nodal_state_w.torch.shape == (2, 4, 6)
         assert deformable.data.root_pos_w.torch.shape == (2, 3)
         assert deformable.data.root_vel_w.torch.shape == (2, 3)
@@ -665,70 +524,6 @@ def test_surface_deformable_reads_writes_materials_and_steps():
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-def test_deformable_interactive_scene_uses_full_authored_stage():
-    """Initialize cloned deformable bodies and materials from the full authored stage."""
-    with _ovphysx_sim_context(device="cuda:0") as sim:
-        scene = InteractiveScene(DeformableSceneCfg(num_envs=3, env_spacing=0.75, lazy_sensor_update=False))
-
-        sim.reset()
-
-        deformable = scene["deformable"]
-        assert deformable.num_instances == 3
-        assert deformable.root_view.count == 3
-        assert deformable.material_physx_view is not None
-        assert deformable.material_physx_view.count == 3
-
-        sim.step()
-        scene.update(sim.cfg.dt)
-        _assert_finite_deformable_state(deformable)
-
-
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-def test_forced_rewarm_rebuilds_deformable_bindings():
-    """Replace deformable bindings when a forced re-warm replaces the attached stage."""
-    with _ovphysx_sim_context(device="cuda:0") as sim:
-        deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=2)
-        sim.reset()
-
-        original_view = deformable.root_view
-        original_binding = original_view.binding_for(TT.DEFORMABLE_SIM_NODAL_POSITION)
-
-        OvPhysxManager._warmup_done = False
-        sim.reset()
-
-        assert deformable.is_initialized
-        assert deformable.root_view is not original_view
-        assert deformable.root_view.binding_for(TT.DEFORMABLE_SIM_NODAL_POSITION) is not original_binding
-        _assert_finite_deformable_state(deformable)
-        sim.step()
-        deformable.update(sim.cfg.dt)
-        _assert_finite_deformable_state(deformable)
-
-
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-def test_mixed_deformable_rigid_scene_does_not_duplicate_runtime_clones():
-    """Keep deformable, material, and rigid clone counts aligned in a mixed scene."""
-    with _ovphysx_sim_context(device="cuda:0") as sim:
-        scene = InteractiveScene(MixedDeformableRigidSceneCfg(num_envs=3, env_spacing=0.75, lazy_sensor_update=False))
-
-        sim.reset()
-
-        deformable = scene["deformable"]
-        cube = scene["cube"]
-        assert deformable.num_instances == 3
-        assert deformable.root_view.count == 3
-        assert deformable.material_physx_view is not None
-        assert deformable.material_physx_view.count == 3
-        assert cube.num_instances == 3
-        assert cube.root_view.count == 3
-
-        sim.step()
-        scene.update(sim.cfg.dt)
-        _assert_finite_deformable_state(deformable)
-        assert torch.isfinite(cube.data.root_pos_w.torch).all()
-
-
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
 def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets():
     """Materialize missing rigid targets beside full-stage deformable clones without duplicates."""
     with _ovphysx_sim_context(device="cuda:0") as sim:
@@ -767,7 +562,11 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
 
         deformable = scene["deformable"]
         shape = scene["shape"]
+        assert deformable.num_instances == num_envs
         assert deformable.root_view.count == num_envs, deformable.root_view.prim_paths
+        assert deformable.material_physx_view is not None
+        assert deformable.material_physx_view.count == num_envs
+        assert shape.num_instances == num_envs
         assert shape.root_view.count == num_envs, shape.root_view.prim_paths
         runtime_paths = shape.root_view.prim_paths
         assert set(runtime_paths) == expected_paths

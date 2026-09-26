@@ -267,7 +267,7 @@ class RecorderManager(ManagerBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
+    def reset(self, env_ids: Sequence[int] | slice | None = None) -> dict[str, torch.Tensor]:
         """Resets the recorder data.
 
         Args:
@@ -282,7 +282,9 @@ class RecorderManager(ManagerBase):
             return {}
         # resolve environment ids
         if env_ids is None:
-            env_ids = list(range(self._env.num_envs))
+            env_ids = slice(None)
+        if isinstance(env_ids, slice):
+            env_ids = list(range(self._env.num_envs)[env_ids])
         if isinstance(env_ids, torch.Tensor):
             env_ids = env_ids.tolist()
 
@@ -306,7 +308,7 @@ class RecorderManager(ManagerBase):
         """
         return self._episodes.get(env_id, EpisodeData())
 
-    def add_to_episodes(self, key: str, value: torch.Tensor | dict, env_ids: Sequence[int] | None = None):
+    def add_to_episodes(self, key: str, value: torch.Tensor | dict, env_ids: Sequence[int] | slice | None = None):
         """Adds the given key-value pair to the episodes for the given environment ids.
 
         Args:
@@ -325,7 +327,9 @@ class RecorderManager(ManagerBase):
         if key is None:
             return
         if env_ids is None:
-            env_ids = list(range(self._env.num_envs))
+            env_ids = slice(None)
+        if isinstance(env_ids, slice):
+            env_ids = list(range(self._env.num_envs)[env_ids])
         if isinstance(env_ids, torch.Tensor):
             env_ids = env_ids.tolist()
 
@@ -345,7 +349,7 @@ class RecorderManager(ManagerBase):
                 self._episodes[env_id].env_id = env_id
             self._episodes[env_id].add(key, value[value_index], clone=False)
 
-    def set_success_to_episodes(self, env_ids: Sequence[int] | None, success_values: torch.Tensor):
+    def set_success_to_episodes(self, env_ids: Sequence[int] | slice | None, success_values: torch.Tensor):
         """Sets the task success values to the episodes for the given environment ids.
 
         Args:
@@ -358,7 +362,9 @@ class RecorderManager(ManagerBase):
 
         # resolve environment ids
         if env_ids is None:
-            env_ids = list(range(self._env.num_envs))
+            env_ids = slice(None)
+        if isinstance(env_ids, slice):
+            env_ids = list(range(self._env.num_envs)[env_ids])
         if isinstance(env_ids, torch.Tensor):
             env_ids = env_ids.tolist()
 
@@ -395,7 +401,7 @@ class RecorderManager(ManagerBase):
             key, value = term.record_post_physics_decimation_step()
             self.add_to_episodes(key, value)
 
-    def record_pre_reset(self, env_ids: Sequence[int] | None, force_export_or_skip=None) -> None:
+    def record_pre_reset(self, env_ids: Sequence[int] | slice | None, force_export_or_skip=None) -> None:
         """Trigger recorder terms for pre-reset functions.
 
         Args:
@@ -406,7 +412,9 @@ class RecorderManager(ManagerBase):
             return
 
         if env_ids is None:
-            env_ids = list(range(self._env.num_envs))
+            env_ids = slice(None)
+        if isinstance(env_ids, slice):
+            env_ids = list(range(self._env.num_envs)[env_ids])
         if isinstance(env_ids, torch.Tensor):
             env_ids = env_ids.tolist()
 
@@ -425,7 +433,7 @@ class RecorderManager(ManagerBase):
         if force_export_or_skip or (force_export_or_skip is None and self.cfg.export_in_record_pre_reset):
             self.export_episodes(env_ids)
 
-    def record_post_reset(self, env_ids: Sequence[int] | None) -> None:
+    def record_post_reset(self, env_ids: Sequence[int] | slice | None) -> None:
         """Trigger recorder terms for post-reset functions.
 
         Args:
@@ -434,6 +442,9 @@ class RecorderManager(ManagerBase):
         # Do nothing if no active recorder terms are provided
         if len(self.active_terms) == 0:
             return
+
+        if isinstance(env_ids, slice):
+            env_ids = list(range(self._env.num_envs)[env_ids])
 
         for term in self._terms.values():
             key, value = term.record_post_reset(env_ids)
@@ -456,7 +467,9 @@ class RecorderManager(ManagerBase):
         ep_meta = self._env.cfg.get_ep_meta()
         return ep_meta
 
-    def export_episodes(self, env_ids: Sequence[int] | None = None, demo_ids: Sequence[int] | None = None) -> None:
+    def export_episodes(
+        self, env_ids: Sequence[int] | slice | None = None, demo_ids: Sequence[int] | None = None
+    ) -> None:
         """Concludes and exports the episodes for the given environment ids.
 
         Args:
@@ -472,7 +485,9 @@ class RecorderManager(ManagerBase):
             return
 
         if env_ids is None:
-            env_ids = list(range(self._env.num_envs))
+            env_ids = slice(None)
+        if isinstance(env_ids, slice):
+            env_ids = list(range(self._env.num_envs)[env_ids])
         if isinstance(env_ids, torch.Tensor):
             env_ids = env_ids.tolist()
 

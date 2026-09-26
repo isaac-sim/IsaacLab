@@ -1,6 +1,48 @@
 Changelog
 ---------
 
+7.2.4 (2026-09-26)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Initialized PhysX deformable publications from clone-plan paths and unpadded node counts,
+  including partially replicated assets and shared geometry, without completed-stage discovery.
+* Published native padded nodal views and Fabric points through SDP. Moved foreign geometry updates
+  into the shared Fabric resource, including same-step position changes and MPM render cadence.
+* Removed redundant native Fabric geometry requests, preserving standalone rendering without a clone plan.
+* Converted foreign mesh geometry directly into GPU Fabric destinations. Routed Points and
+  BasisCurves through CPU Fabric for Hydra without USD point writes, transferring only due geometry.
+* Fixed :meth:`~isaaclab_physx.assets.Articulation.set_fixed_tendon_position_limit_index` and
+  :meth:`~isaaclab_physx.assets.Articulation.set_fixed_tendon_position_limit_mask` rejecting position limits in
+  the layout the asset stores and reports them in. They now take ``wp.vec2f`` arrays of shape
+  (num_envs, num_fixed_tendons), or torch tensors with a trailing dimension of 2, like the joint position limits.
+* Corrected tendon configuration documentation that incorrectly described tendons as a PhysX-only feature.
+
+
+7.2.3 (2026-09-25)
+~~~~~~~~~~~~~~~~~~
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``body_ids`` argument of the :class:`~isaaclab_physx.assets.RigidObjectCollection` mask writers
+  listed above. Pass a boolean ``body_mask`` of shape (num_bodies,) instead, or use the ``*_index`` writers with
+  ``body_ids``.
+
+Fixed
+^^^^^
+
+* Avoided repeated Isaac RTX render-update checks by checking once per camera batch before
+  extracting each camera's annotator outputs.
+* Fixed :meth:`~isaaclab_physx.assets.RigidObjectCollection.write_body_link_pose_to_sim_mask`,
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.write_body_com_pose_to_sim_mask`,
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.write_body_com_velocity_to_sim_mask`, and
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.write_body_link_velocity_to_sim_mask` not accepting the
+  ``body_mask`` argument that the base class and the other backends declare.
+
+
 7.2.2 (2026-09-24)
 ~~~~~~~~~~~~~~~~~~
 

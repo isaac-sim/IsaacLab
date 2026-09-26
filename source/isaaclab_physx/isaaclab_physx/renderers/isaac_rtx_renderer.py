@@ -583,9 +583,9 @@ class IsaacRtxRenderer(BaseRenderer):
         self._fabric.update_transforms(SimulationContext.instance().get_scene_data_provider())
 
     def update_geometries(self) -> None:
-        """No-op for Isaac RTX - uses USD scene directly.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_geometries`."""
-        pass
+        """Update shared Fabric geometry from SDP's visual point publication."""
+        sim = SimulationContext.instance()
+        self._fabric.update_geometries(sim.get_scene_data_provider(), sim.render_generation)
 
     def update_camera(
         self,

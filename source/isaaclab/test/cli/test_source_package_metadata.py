@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -27,35 +28,34 @@ def test_resolved_torch_stack_supports_blackwell(source_checkout_root: Path, nam
     assert all(package["source"]["registry"] == "https://download.pytorch.org/whl/cu130" for package in packages)
 
 
-def test_isaaclab_uses_one_standalone_usd_provider(source_checkout_root: Path):
+def _requirement_name(requirement: str) -> str:
+    """Return the normalized distribution name of a requirement string."""
+    return re.split(r"[\s\[<>=!~;@]", requirement, maxsplit=1)[0].lower()
+
+
+def _root_project(source_checkout_root: Path) -> dict:
+    """Load the ``[project]`` table of the root ``pyproject.toml``."""
+    with (source_checkout_root / "pyproject.toml").open("rb") as f:
+        return tomllib.load(f)["project"]
+
+
+def test_resolved_environment_has_no_second_usd_provider(source_checkout_root: Path):
     """Isaac Lab must install only the USD provider shared with its importer dependencies.
 
     ``usd-core`` and ``usd-exchange`` each install a complete ``pxr`` into the same directory, so
     a second provider silently overwrites the first and removing either one leaves ``pxr`` broken.
     Nothing detects that, because the two are separate distributions.
-    """
-    with (source_checkout_root / "pyproject.toml").open("rb") as f:
-        pyproject = tomllib.load(f)
 
-    dependencies = pyproject["project"]["dependencies"]
-    usd_providers = [
-        dependency
-        for dependency in dependencies
-        if dependency.startswith("usd-core") or dependency.startswith("usd-exchange")
-    ]
-
-    assert usd_providers == ["usd-exchange==2.3.0"]
-
-
-def test_resolved_environment_has_no_second_usd_provider(source_checkout_root: Path):
-    """No dependency may pull ``usd-core`` back in behind an extra.
-
+    No dependency may pull ``usd-core`` back in behind an extra either:
     ``newton[importers]``, ``mujoco[usd]`` and ``warp-lang[examples]`` all require it, so selecting
     any of them would reinstate the overlap that the direct dependencies avoid. Checking the lock
     catches that, where checking ``pyproject.toml`` alone would not.
     """
     with (source_checkout_root / "uv.lock").open("rb") as f:
         lock = tomllib.load(f)
+
+    direct_names = [_requirement_name(dep) for dep in _root_project(source_checkout_root)["dependencies"]]
+    assert [name for name in direct_names if name in ("usd-core", "usd-exchange")] == ["usd-exchange"]
 
     locked = {package["name"] for package in lock["package"]}
 
@@ -65,13 +65,8 @@ def test_resolved_environment_has_no_second_usd_provider(source_checkout_root: P
 
 def test_standalone_importers_are_opt_in(source_checkout_root: Path):
     """Standalone URDF/MJCF importers must not constrain the base environment."""
-    with (source_checkout_root / "pyproject.toml").open("rb") as f:
-        pyproject = tomllib.load(f)
+    project = _root_project(source_checkout_root)
+    importers = {"isaacsim-asset-isolated", "tinyobjloader"}
 
-    project = pyproject["project"]
-    assert "isaacsim-asset-isolated==6.1.0.0" not in project["dependencies"]
-    assert "tinyobjloader==2.0.0rc13" not in project["dependencies"]
-    assert project["optional-dependencies"]["importers"] == [
-        "isaacsim-asset-isolated==6.1.0.0",
-        "tinyobjloader==2.0.0rc13",
-    ]
+    assert not {_requirement_name(dep) for dep in project["dependencies"]} & importers
+    assert {_requirement_name(dep) for dep in project["optional-dependencies"]["importers"]} == importers

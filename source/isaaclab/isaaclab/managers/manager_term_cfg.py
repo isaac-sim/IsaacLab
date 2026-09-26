@@ -135,7 +135,7 @@ class CurriculumTermCfg(ManagerTermBaseCfg):
     func: Callable[..., float | dict[str, float] | None] = MISSING
     """The name of the function to be called.
 
-    This function should take the environment object, environment indices
+    This function should take the environment object, an environment slice or device-resident indices
     and any other parameters as input and return the curriculum state for
     logging purposes. If the function returns None, the curriculum state
     is not logged.
@@ -294,7 +294,7 @@ class EventTermCfg(ManagerTermBaseCfg):
     func: Callable[..., None] = MISSING
     """The name of the function to be called.
 
-    This function should take the environment object, environment indices
+    This function should take the environment object, an environment slice or device-resident indices
     and any other parameters as input.
     """
 

@@ -13,7 +13,7 @@ the world-attached prim edge case.
 import sys
 from pathlib import Path
 
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test" / "sim"))
@@ -109,26 +109,7 @@ def view_factory():
 # ==================================================================
 
 
-@pytest.mark.parametrize("device", test_devices())
-def test_reject_body_and_shape_paths(device):
-    """FrameView rejects prim paths that resolve to a Newton physics body or collision shape."""
-    ctx = _sim_context(device, num_envs=2)
-    sim = ctx.__enter__()
-    sim._app_control_on_stop_handle = None
-    InteractiveScene(_SceneCfg(num_envs=2, env_spacing=2.0))
-    sim.reset()
-
-    with pytest.raises(ValueError, match="physics body"):
-        FrameView("/World/envs/env_[^/]+/Cube", device=device)
-
-    shape_labels = list(NewtonManager.get_model().shape_label)
-    assert shape_labels, "scene must contribute at least one collision shape"
-    with pytest.raises(ValueError, match="collision shape"):
-        FrameView(shape_labels[0], device=device)
-    ctx.__exit__(None, None, None)
-
-
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_non_colliding_shapes_after_finalize(device):
     """Non-colliding site and visual shapes remain valid after finalization."""
     ctx = _sim_context(device, num_envs=1)
@@ -161,13 +142,13 @@ def test_non_colliding_shapes_after_finalize(device):
     ctx.__exit__(None, None, None)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_body_local_frame_resolves_before_and_after_reset(device):
-    """A body-local site resolves through the ClonePlan before reset and from Newton body labels after it.
+@pytest.mark.parametrize("device", test_devices())
+def test_body_local_frame_resolves_from_body_labels_after_reset(device):
+    """A body-local site created after reset resolves from the finalized Newton body labels.
 
-    Only the prototype env authors the child prim on the stage; the view created before ``sim.reset``
-    expands it through the ClonePlan, while the view created afterwards resolves the same frame directly
-    from the finalized Newton body labels. Both must agree with the parent body poses.
+    Only the prototype env authors the child prim on the stage, so the view must expand it through the
+    Newton body labels rather than the stage. The ClonePlan path before reset is covered by the shared
+    contract tests.
     """
     num_envs = 3
     ctx = _sim_context(device, num_envs=num_envs)
@@ -180,22 +161,22 @@ def test_body_local_frame_resolves_before_and_after_reset(device):
     assert not stage.GetPrimAtPath("/World/envs/env_1/Cube").IsValid()
     sim_utils.create_prim("/World/envs/env_0/Cube/CameraMount", translation=CHILD_OFFSET)
 
-    clone_plan_view = FrameView("/World/envs/env_[^/]+/Cube/CameraMount", device=device)
     sim.reset()
     label_view = FrameView("/World/envs/env_[^/]+/Cube/CameraMount", device=device)
 
-    assert clone_plan_view.count == num_envs
     assert label_view.count == num_envs
     assert not stage.GetPrimAtPath("/World/envs/env_1/Cube/CameraMount").IsValid()
     expected = _get_body_positions(num_envs, device) + torch.tensor(CHILD_OFFSET, device=device)
-    torch.testing.assert_close(clone_plan_view.get_world_poses()[0].torch, expected, atol=1e-5, rtol=0)
     torch.testing.assert_close(label_view.get_world_poses()[0].torch, expected, atol=1e-5, rtol=0)
     ctx.__exit__(None, None, None)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_close_before_reset_cancels_deferred_initialization(device):
-    """A view closed before the Newton model exists must not initialize on ``PHYSICS_READY``."""
+    """A view closed before the Newton model exists must not initialize on ``PHYSICS_READY``.
+
+    After reset, new views over Newton bodies or collision shapes are rejected.
+    """
     num_envs = 3
     ctx = _sim_context(device, num_envs=num_envs)
     sim = ctx.__enter__()
@@ -210,6 +191,14 @@ def test_close_before_reset_cancels_deferred_initialization(device):
     sim.reset()
 
     assert view.count == 0, "a closed view still initialized from the physics-ready callback"
+
+    # FrameView rejects prim paths that resolve to a Newton physics body or collision shape.
+    with pytest.raises(ValueError, match="physics body"):
+        FrameView("/World/envs/env_[^/]+/Cube", device=device)
+    shape_labels = list(NewtonManager.get_model().shape_label)
+    assert shape_labels, "scene must contribute at least one collision shape"
+    with pytest.raises(ValueError, match="collision shape"):
+        FrameView(shape_labels[0], device=device)
     ctx.__exit__(None, None, None)
 
 

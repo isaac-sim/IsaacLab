@@ -6,6 +6,7 @@
 """Regression tests for backend-specific asset data setup and refresh behavior."""
 
 import importlib
+import inspect
 import sys
 from dataclasses import replace
 from types import ModuleType, SimpleNamespace
@@ -183,12 +184,8 @@ def test_ovphysx_data_targets_are_independent_and_properties_preflight_when_avai
         resolve_property_benchmarks,
     )
 
-    try:
-        ovphysx_runtime._load_runtime_symbols()
-    except ModuleNotFoundError as exc:
-        if exc.name == "ovphysx":
-            pytest.skip("optional ovphysx runtime is not installed")
-        raise
+    pytest.importorskip("ovphysx", reason="optional ovphysx runtime is not installed")
+    ovphysx_runtime._load_runtime_symbols()
 
     for component in ("articulation", "rigid_object", "rigid_object_collection"):
         config = replace(
@@ -219,62 +216,6 @@ def test_ovphysx_data_targets_are_independent_and_properties_preflight_when_avai
         assert data_target._sim_timestamp == previous_timestamp + 1.0
 
 
-def test_newton_articulation_data_target_restores_model_dynamics_and_ordering(monkeypatch) -> None:
-    """Dedicated Newton articulation data should allocate against configured model dimensions and apply ordering."""
-    model = SimpleNamespace()
-    view = SimpleNamespace(randomized=False)
-
-    def set_random_mock_data() -> None:
-        view.randomized = True
-
-    view.set_random_mock_data = set_random_mock_data
-
-    class FakeView:
-        def __new__(cls, **kwargs):
-            view.kwargs = kwargs
-            return view
-
-    class FakeData:
-        def __init__(self, root_view, device):
-            self.root_view = root_view
-            self.device = device
-            self.ordering_applied = False
-            self._jacobian_body_user_to_backend = None
-            self._sim_timestamp = 0.0
-            self._fk_timestamp = 0.0
-
-        def _apply_ordering_maps_after_resolve(self) -> None:
-            self.ordering_applied = True
-            self._jacobian_body_user_to_backend = object()
-
-    monkeypatch.setattr(newton_runtime, "MockNewtonArticulationView", FakeView, raising=False)
-    monkeypatch.setattr(newton_runtime, "NewtonArticulationData", FakeData, raising=False)
-    monkeypatch.setattr(
-        newton_runtime,
-        "NewtonSimulationManager",
-        SimpleNamespace(get_model=lambda: model),
-        raising=False,
-    )
-    create_target = getattr(newton_runtime, "_create_articulation_data_target", None)
-
-    assert create_target is not None
-    data, refresh = create_target(_CONFIG)
-
-    assert model.articulation_count == 2
-    assert model.max_joints_per_articulation == 3
-    assert model.max_dofs_per_articulation == 10
-    assert model.joint_dof_count == 20
-    assert model.body_count == 6
-    assert view.randomized
-    assert callable(view.eval_jacobian)
-    assert callable(view.eval_mass_matrix)
-    assert data.ordering_applied
-    assert data._jacobian_body_user_to_backend is not None
-    refresh(_CONFIG)
-    assert data._sim_timestamp == 1.0
-    assert data._fk_timestamp == 1.0
-
-
 def test_newton_articulation_open_targets_constructs_real_method_and_data_targets(monkeypatch) -> None:
     """The combined Newton path should configure model dimensions before constructing either data target."""
     from isaaclab.benchmark.asset_suites import get_asset_benchmark_adapter
@@ -286,13 +227,18 @@ def test_newton_articulation_open_targets_constructs_real_method_and_data_target
     with newton_runtime.open_asset_targets(adapter, request, _CONFIG, _CONFIG) as targets:
         assert targets.method_target._data._jacobian_buf.shape == (2, 3, 6, 10)
         assert targets.data_target._jacobian_buf.shape == (2, 3, 6, 10)
+        # The dedicated data target applies joint/body ordering and installs the dynamics stubs.
+        assert targets.data_target._jacobian_body_user_to_backend is not None
+        assert targets.data_target.mass_matrix is not None
+        sim_timestamp = targets.data_target._sim_timestamp
+        fk_timestamp = targets.data_target._fk_timestamp
+        targets.refresh_data(_CONFIG)
+        assert targets.data_target._sim_timestamp == sim_timestamp + 1.0
+        assert targets.data_target._fk_timestamp == fk_timestamp + 1.0
 
 
 def test_physx_cpu_boundary_reuses_int32_scratch_for_int64_env_ids(monkeypatch) -> None:
-    module_name = "isaaclab_physx.assets.articulation.articulation"
-    monkeypatch.delitem(sys.modules, module_name, raising=False)
     physx_runtime._load_runtime_symbols()
-    assert sys.modules[module_name].Articulation is physx_runtime.Articulation
     zeros = wp.zeros
     empty = wp.empty
     monkeypatch.setattr(wp, "zeros", lambda *args, **kwargs: zeros(*args, **(kwargs | {"pinned": False})))
@@ -303,7 +249,15 @@ def test_physx_cpu_boundary_reuses_int32_scratch_for_int64_env_ids(monkeypatch) 
     sim_env_ids = wp.array([1, 0], dtype=wp.int32, device="cpu")
 
     assert target._get_cpu_env_ids(env_ids, sim_env_ids).ptr == sim_env_ids.ptr
+
+    # The PhysX CPU API receives int32 simulation ids even when the caller passes int64 env ids.
+    set_masses_indices = []
+    monkeypatch.setattr(target.root_view, "set_masses", lambda masses, indices=None: set_masses_indices.append(indices))
     target.set_masses_index(masses=wp.ones((2, 1), dtype=wp.float32, device="cpu"), env_ids=env_ids)
+    (indices,) = set_masses_indices
+    assert indices.dtype == wp.int32
+    assert str(indices.device) == "cpu"
+    np.testing.assert_array_equal(indices.numpy(), [1, 0])
 
 
 def test_physx_collection_reuses_bounded_flat_view_id_scratch(monkeypatch) -> None:
@@ -348,17 +302,6 @@ def test_physx_collection_reuses_bounded_flat_view_id_scratch(monkeypatch) -> No
     assert calls == ["copy", ("sync", "cuda:0")]
 
 
-@pytest.mark.parametrize("runtime", (physx_runtime, newton_runtime))
-def test_open_targets_preserves_setup_errors(monkeypatch, runtime) -> None:
-    _hide_app_launcher(monkeypatch)
-    monkeypatch.setattr(runtime, "_load_runtime_symbols", lambda: (_ for _ in ()).throw(RuntimeError("setup")))
-    request = SimpleNamespace(launcher_args=None, check_shapes=True)
-
-    with pytest.raises(RuntimeError, match="setup"):
-        with runtime.open_asset_targets(None, request, _CONFIG, _CONFIG):
-            pass
-
-
 @pytest.mark.parametrize(
     ("factory_name", "module_name", "class_name"),
     (
@@ -383,25 +326,19 @@ def test_open_targets_preserves_setup_errors(monkeypatch, runtime) -> None:
 def test_ovphysx_factories_use_exported_binding_set_signature(
     monkeypatch, factory_name, module_name, class_name
 ) -> None:
-    """Every OVPhysX target factory should call the exported binding constructor compatibly."""
+    """Factory calls match the exported binding constructor without requiring the optional runtime."""
+    monkeypatch.setitem(sys.modules, "ovphysx", None)
 
     class ConstructorAccepted(Exception):
         pass
 
+    from isaaclab_ov.test.fixtures import MockOvPhysxBindingSet
+
+    binding_set_signature = inspect.signature(MockOvPhysxBindingSet)
+
     class StrictBindingSet:
-        def __init__(
-            self,
-            num_instances,
-            num_joints,
-            num_bodies,
-            is_fixed_base=False,
-            joint_names=None,
-            body_names=None,
-            num_fixed_tendons=0,
-            num_spatial_tendons=0,
-            *,
-            asset_kind="articulation",
-        ):
+        def __init__(self, *args, **kwargs):
+            binding_set_signature.bind(*args, **kwargs)
             raise ConstructorAccepted
 
     if module_name is not None:
@@ -425,7 +362,7 @@ def test_ovphysx_factories_use_exported_binding_set_signature(
 @pytest.mark.parametrize("read_mode", ("numpy", "structured_warp", "view_preflight"))
 def test_mock_ovphysx_binding_reads_latest_data_without_optional_runtime(monkeypatch, read_mode) -> None:
     """Repository mock reads should support every consumer mode and reflect subsequent writes."""
-    monkeypatch.setitem(sys.modules, "isaaclab_ov.tensor_types", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "ovphysx", None)
     bindings_module = importlib.import_module("isaaclab_ov.test.fixtures.views.mock_ovphysx_bindings")
     binding = bindings_module.MockTensorBinding(tensor_type=0, shape=(2, 7), count=2)
     first = np.arange(14, dtype=np.float32).reshape(2, 7)

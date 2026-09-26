@@ -193,8 +193,8 @@ class TerrainImporter:
         Args:
             name: The name of the imported terrain. This name is used to create the USD prim
                 corresponding to the terrain.
-            size: The visual size of the plane [m]. If None, the visual mesh covers the configured
-                environment grid with a 100 m minimum. The collision plane remains infinite.
+            size: The visual size of the plane [m]. If None, the visual mesh extends 50 m beyond
+                each side of the configured environment grid. The collision plane remains infinite.
 
         Raises:
             ValueError: If a terrain with the same name already exists.
@@ -256,11 +256,11 @@ class TerrainImporter:
         )
 
     def _compute_ground_plane_size(self) -> tuple[float, float]:
-        """Compute a bounded visual plane size that covers the environment grid [m]."""
+        """Cover the environment grid with 50 m of visual walking room on each side [m]."""
         num_rows = int(np.ceil(self.cfg.num_envs / np.sqrt(self.cfg.num_envs)))
         num_cols = int(np.ceil(self.cfg.num_envs / num_rows))
         spacing = self.cfg.env_spacing or 0.0
-        return (max(100.0, (num_rows + 1) * spacing), max(100.0, (num_cols + 1) * spacing))
+        return ((num_rows - 1) * spacing + 100.0, (num_cols - 1) * spacing + 100.0)
 
     def _is_heightfield_collider_requested(self, cfg: TerrainGeneratorCfg) -> bool:
         """Check whether the generated terrain should be collided against as a heightfield.

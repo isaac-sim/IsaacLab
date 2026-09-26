@@ -3020,7 +3020,20 @@ class Articulation(BaseArticulation):
         """
         env_ids = self._resolve_env_ids(env_ids)
         tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
-        self.assert_shape_and_dtype(limit, (env_ids.shape[0], tendon_ids.shape[0], 2), wp.float32, "limit")
+        if isinstance(limit, float):
+            raise ValueError("Fixed tendon position limits must be a tensor or array, not a float.")
+        # accept both wp.vec2f (N, T) and the (N, T, 2) wp.float32 form, like the joint position limits
+        if isinstance(limit, wp.array) and limit.dtype == wp.vec2f:
+            self.assert_shape_and_dtype(limit, (env_ids.shape[0], tendon_ids.shape[0]), wp.vec2f, "limit")
+            limit = wp.array(
+                ptr=limit.ptr,
+                shape=(env_ids.shape[0], tendon_ids.shape[0], 2),
+                dtype=wp.float32,
+                device=str(limit.device),
+                copy=False,
+            )
+        else:
+            self.assert_shape_and_dtype(limit, (env_ids.shape[0], tendon_ids.shape[0], 2), wp.float32, "limit")
         if env_ids.shape[0] == 0 or tendon_ids.shape[0] == 0:
             return
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
@@ -3074,7 +3087,20 @@ class Articulation(BaseArticulation):
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
         tendon_mask_wp = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
-        self.assert_shape_and_dtype(limit, (self._num_instances, self._num_fixed_tendons, 2), wp.float32, "limit")
+        if isinstance(limit, float):
+            raise ValueError("Fixed tendon position limits must be a tensor or array, not a float.")
+        # accept both wp.vec2f (N, T) and the (N, T, 2) wp.float32 form, like the joint position limits
+        if isinstance(limit, wp.array) and limit.dtype == wp.vec2f:
+            self.assert_shape_and_dtype(limit, (self._num_instances, self._num_fixed_tendons), wp.vec2f, "limit")
+            limit = wp.array(
+                ptr=limit.ptr,
+                shape=(self._num_instances, self._num_fixed_tendons, 2),
+                dtype=wp.float32,
+                device=str(limit.device),
+                copy=False,
+            )
+        else:
+            self.assert_shape_and_dtype(limit, (self._num_instances, self._num_fixed_tendons, 2), wp.float32, "limit")
         wp.launch(
             shared_kernels.write_joint_position_limit_to_buffer_mask,
             dim=(self._num_instances, self._num_fixed_tendons),
@@ -4358,6 +4384,8 @@ class Articulation(BaseArticulation):
         """Resolve environment indices on ``self._device``."""
         if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         if isinstance(env_ids, ProxyArray):
             raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if isinstance(env_ids, list):

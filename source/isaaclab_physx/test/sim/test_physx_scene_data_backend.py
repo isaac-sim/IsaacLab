@@ -101,6 +101,34 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     np.testing.assert_array_equal(output.matrices.numpy()[0, :3, 3], [4, 5, 6])
     assert view.get_transforms.call_count == 3
     assert backend.transforms_version == version
+
+    points = wp.zeros(2, dtype=wp.vec3f, device="cpu")
+    pointers = wp.array([points.ptr], dtype=wp.uint64, device="cpu")
+    lengths = wp.array([len(points)], dtype=wp.uint64, device="cpu")
+    backend._fabric_points_selection = SimpleNamespace(
+        PrepareForReuse=Mock(return_value=False),
+        __fabric_arrays_interface__={
+            "version": 1,
+            "device": "cpu",
+            "attribs": {
+                "points": {
+                    "type": (True, "f4", 3, 1, "vector"),
+                    "access": 1,
+                    "pointers": [pointers.ptr],
+                    "counts": [1],
+                    "array_lengths": [lengths.ptr],
+                }
+            },
+        },
+    )
+    backend._setup_deformable_geometry(())
+    geometry = provider.get_geometry_points(output=SceneDataFormat.FabricPoints())
+    assert geometry._cls is SceneDataFormat.FabricPoints and geometry.points is not None
+    backend.geometry_timestamp += 1
+    assert provider.get_geometry_points(output=geometry) is geometry
+    assert provider.get_transforms(SceneDataFormat.FabricMatrix44())
+    assert fabric.force_update.call_count == 4
+    assert view.get_transforms.call_count == 3
     backend.clear()
     assert backend.transforms_version > version
 
@@ -145,63 +173,91 @@ def test_rigid_body_view_uses_exact_path_for_joint_name_collision(monkeypatch, j
     ]
 
 
-def test_discover_deformable_geometry_publishes_discovered_roots(monkeypatch):
-    """PhysX deformable views may report child meshes; geometry_paths must be roots."""
+@pytest.mark.parametrize("declared", [False, True])
+def test_geometry_publication_distinguishes_undeclared_and_empty_scenes(monkeypatch, declared):
+    """Only an explicitly initialized, empty geometry declaration publishes no batches."""
     from isaaclab_physx.physics import physx_manager
-    from isaaclab_physx.physics.physx_manager import PhysxSceneDataBackend
 
+    monkeypatch.setattr(physx_manager.PhysxManager, "_fabric", None)
+    backend = physx_manager.PhysxSceneDataBackend()
+    if declared:
+        backend._setup_deformable_geometry(())
+        assert backend.get_geometry_batches() == []
+        assert backend.native_geometry_formats == ()
+    else:
+        with pytest.raises(RuntimeError, match="ClonePlan"):
+            backend.get_geometry_batches()
+        with pytest.raises(RuntimeError, match="ClonePlan"):
+            _ = backend.native_geometry_formats
+
+
+@pytest.mark.parametrize("capacity", [3, 8])
+def test_deformable_geometry_uses_declared_counts_and_native_order(monkeypatch, capacity):
+    """Declared unpadded counts survive native reordering and mesh paths."""
+    from isaaclab_physx.physics import physx_manager
+
+    from isaaclab.scene_data import SceneDataProvider
     from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
 
-    class _FakeDeformableView:
-        _backend = object()
-        max_simulation_nodes_per_body = 8
-        prim_paths = [
-            "/World/envs/env_0/Deformable/sim_mesh",
-            "/World/envs/env_1/Deformable/sim_mesh",
-        ]
-
-    class _SimulationView:
-        def create_volume_deformable_body_view(self, patterns):
-            return None
-
-        def create_surface_deformable_body_view(self, patterns):
-            return _FakeDeformableView()
-
-    monkeypatch.setattr(
-        physx_manager.omni.usd,
-        "get_context",
-        lambda: SimpleNamespace(get_stage=lambda: object()),
-    )
-    monkeypatch.setattr(
-        physx_manager,
-        "discover_deformables_on_stage",
-        lambda stage: [
-            DeformableStageEntry(
-                root_path="/World/envs/env_0/Deformable",
-                sim_mesh_path="/World/envs/env_0/Deformable/sim_mesh",
-                vis_mesh_path="/World/envs/env_0/Deformable/vis_mesh",
-                deformable_type="surface",
-                vertex_count=4,
-                vis_vertex_count=4,
-            ),
-            DeformableStageEntry(
-                root_path="/World/envs/env_1/Deformable",
-                sim_mesh_path="/World/envs/env_1/Deformable/sim_mesh",
-                vis_mesh_path="/World/envs/env_1/Deformable/vis_mesh",
-                deformable_type="surface",
-                vertex_count=4,
-                vis_vertex_count=4,
-            ),
-        ],
-    )
-
-    backend = PhysxSceneDataBackend()
-    assert backend.geometry_paths == []
-    backend.backend = SimpleNamespace(simulation_view=_SimulationView())
-    backend._discover_deformable_geometry()
-
-    assert backend.geometry_paths == [
-        "/World/envs/env_0/Deformable",
-        "/World/envs/env_1/Deformable",
+    values = {"/Clones/slot_2/Asset": 2.0, "/Clones/slot_9/Asset": 9.0, "/Shared": 100.0}
+    counts = {"/Clones/slot_2/Asset": 4, "/Clones/slot_9/Asset": 4, "/Shared": 2}
+    entries = [
+        DeformableStageEntry(
+            path, path + "/sim", path + "/vis", "volume" if path == "/Shared" else "surface", count, count
+        )
+        for path, count in counts.items()
     ]
-    assert backend.geometry_counts == [4, 4]
+    native_points, reads = {}, []
+
+    def create_view(paths):
+        paths = list(reversed(paths))
+        nodal = np.full((len(paths), capacity, 3), -999.0, dtype=np.float32)
+        for index, path in enumerate(paths):
+            nodal[index, : counts[path]] = values[path]
+        points = wp.array(nodal, dtype=wp.float32, device="cpu")
+        for index, path in enumerate(paths):
+            native_points[path + "/vis"] = points, index * capacity
+
+        def read():
+            reads.append(points.ptr)
+            return points
+
+        return SimpleNamespace(
+            count=len(paths),
+            prim_paths=[path + "/sim" for path in paths],
+            max_simulation_nodes_per_body=capacity,
+            get_simulation_nodal_positions=read,
+        )
+
+    monkeypatch.setattr(
+        physx_manager.omni.usd, "get_context", lambda: pytest.fail("Geometry bindings must not fetch a stage.")
+    )
+    backend = physx_manager.PhysxSceneDataBackend()
+    backend.backend = SimpleNamespace(
+        simulation_view=SimpleNamespace(
+            create_volume_deformable_body_view=create_view, create_surface_deformable_body_view=create_view
+        )
+    )
+    if capacity < 4:
+        with pytest.raises(RuntimeError, match="node capacity"):
+            backend._setup_deformable_geometry(entries)
+        return
+    backend._setup_deformable_geometry(entries)
+
+    provider = SceneDataProvider(backend)
+    visual = provider.get_geometry_points()
+    assert set(visual) == {path + "/vis" for path in counts}
+    for path, (native, offset) in native_points.items():
+        assert visual[path].ptr == native.ptr + offset * wp.types.type_size_in_bytes(wp.vec3f)
+        np.testing.assert_array_equal(visual[path].numpy(), np.full((counts[path[:-4]], 3), values[path[:-4]]))
+    read_count = len(reads)
+    assert provider.get_geometry_points() is visual
+    assert len(reads) == read_count
+    backend.geometry_timestamp += 1
+    provider.get_geometry_points()
+    assert len(reads) == read_count + 2
+    backend.clear()
+    with pytest.raises(RuntimeError, match="ClonePlan"):
+        backend.get_geometry_batches()
+    with pytest.raises(RuntimeError, match="ClonePlan"):
+        _ = backend.native_geometry_formats

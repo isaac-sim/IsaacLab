@@ -482,7 +482,7 @@ class SensorBase(ABC):
         self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None
     ) -> wp.array:
         """Resolve environment indices to a warp array and mask."""
-        if env_ids is None and env_mask is None:
+        if (env_ids is None or env_ids == slice(None)) and env_mask is None:
             return self._ALL_ENV_MASK
         elif env_mask is not None:
             return env_mask

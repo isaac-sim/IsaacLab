@@ -1,6 +1,99 @@
 Changelog
 ---------
 
+8.1.0 (2026-09-26)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added fixed tendon position limits to :class:`~isaaclab_newton.assets.Articulation`:
+  :meth:`~isaaclab_newton.assets.Articulation.set_fixed_tendon_position_limit_index` and
+  :meth:`~isaaclab_newton.assets.Articulation.set_fixed_tendon_position_limit_mask` now write the MuJoCo tendon
+  range instead of raising :class:`NotImplementedError`.
+
+Changed
+^^^^^^^
+
+* Changed the fixed tendon limit stiffness, rest length, and offset setters and data properties of
+  :class:`~isaaclab_newton.assets.Articulation` to explain why the Newton backend does not support them in
+  their :class:`NotImplementedError`.
+* Changed the ``set_coms_index`` and ``set_coms_mask`` methods of the Newton
+  :class:`~isaaclab_newton.assets.Articulation`, :class:`~isaaclab_newton.assets.RigidObject`, and
+  :class:`~isaaclab_newton.assets.RigidObjectCollection` to also accept center of mass poses (trailing dimension
+  of 7 or ``wp.transformf``), like the other backends. The orientation is ignored.
+
+Fixed
+^^^^^
+
+* Bound Newton rendering geometry from clone-plan prototypes and native ranges, preserving
+  heterogeneous deformables and authoring MPM point clouds before cloning.
+* Published native particle and cable data through SDP, replacing Newton-owned Fabric writers and
+  intermediate deformable buffers. Removed internal USD geometry sync calls; renderers request SDP data.
+* Fixed :meth:`~isaaclab_newton.assets.Articulation.write_fixed_tendon_properties_to_sim_index` not notifying
+  the solver of the change, so written fixed tendon stiffness and damping never reached the MuJoCo model.
+* Fixed :meth:`~isaaclab_newton.assets.Articulation.write_fixed_tendon_properties_to_sim_index` failing when
+  ``env_ids`` is None.
+* Fixed selected tendon property writes reading staged values from the first environment or tendon instead
+  of the selected indices.
+* Fixed :meth:`~isaaclab_newton.assets.Articulation.set_fixed_tendon_stiffness_mask` and
+  :meth:`~isaaclab_newton.assets.Articulation.set_fixed_tendon_damping_mask` raising ``AttributeError``.
+* Fixed :meth:`~isaaclab_newton.assets.Articulation.write_fixed_tendon_properties_to_sim_mask` raising
+  ``TypeError``, and added the ``fixed_tendon_ids`` and ``fixed_tendon_mask`` arguments that the base class
+  declares to the fixed tendon writers.
+* Corrected fixed tendon errors and documentation to distinguish unimplemented Isaac Lab properties from
+  Newton's MuJoCo tendon support. Identified the missing tendon force-gain conversion and the existing
+  Newton joint-limit conversion that provides a reference implementation.
+* Fixed mass, center of mass, and inertia changes on the Featherstone solver being dropped silently. The
+  solver does not apply them after it is constructed; the Newton manager now logs a warning the first time
+  such a change is made.
+
+
+8.0.0 (2026-09-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :mod:`isaaclab_newton.controllers` with :class:`~isaaclab_newton.controllers.NewtonDifferentialIKController`,
+  :class:`~isaaclab_newton.controllers.NewtonJointImpedanceController`, and
+  :class:`~isaaclab_newton.controllers.NewtonOperationalSpaceController`. They wrap the model-free controllers in
+  :mod:`newton.controllers` for any physics backend, and their configurations expose every Newton option,
+  including differential IK posture control, joint-impedance Coriolis and acceleration feedforward, and
+  operational-space selection frames and live gains.
+* Added :class:`~isaaclab_newton.envs.mdp.NewtonDifferentialInverseKinematicsActionCfg` and
+  :class:`~isaaclab_newton.envs.mdp.NewtonOperationalSpaceControllerActionCfg` to drive the Newton controllers
+  from manager-based environments.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed implicit USD-stage import when Newton started without a builder.
+  Use ``InteractiveScene`` to construct and replicate configured USD assets before initialization.
+  Native tools can continue supplying a builder
+  through ``NewtonManager.set_builder(builder)`` without declaring a clone plan.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Moved :mod:`isaaclab_newton.ik` to :mod:`isaaclab_newton.controllers.ik` without an alias. Replace
+  imports such as ``from isaaclab_newton.ik import NewtonIKSolver`` with
+  ``from isaaclab_newton.controllers.ik import NewtonIKSolver``, and ``isaaclab_newton.ik.<module>`` with
+  ``isaaclab_newton.controllers.ik.<module>``.
+
+Fixed
+^^^^^
+
+* Replaced the fixed 180-degree OpenCV fisheye ray limit with the camera's configured
+  ``max_fov``. Calibrated rays beyond the forward hemisphere can now be rendered without
+  changing the existing default or introducing per-frame ray generation.
+* Fixed the deprecated :meth:`~isaaclab_newton.assets.Articulation.write_joint_friction_coefficient_to_sim` and
+  :meth:`~isaaclab_newton.assets.Articulation.write_joint_friction_to_sim` always raising ``TypeError``. The Newton
+  override passed arguments that :meth:`~isaaclab_newton.assets.Articulation.write_joint_friction_coefficient_to_sim_index`
+  does not accept; it is removed in favor of the base class implementation.
+* Prevented globally declared native deformables from being imported twice through clone plans.
+
+
 7.0.1 (2026-09-24)
 ~~~~~~~~~~~~~~~~~~
 

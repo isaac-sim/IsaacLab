@@ -233,6 +233,7 @@ class DeformableObject(BaseDeformableObject):
         self._data._nodal_state_w.timestamp = -1.0
         self._data._root_pos_w.timestamp = -1.0
         self.root_view.set_attribute(self._sim_nodal_position_type, self._get_nodal_pos_w_f32(), indices=env_ids)
+        OvPhysxManager.get_scene_data_backend().geometry_timestamp += 1
 
     def write_nodal_velocity_to_sim_index(
         self,
@@ -530,6 +531,9 @@ class DeformableObject(BaseDeformableObject):
         """Resolve environment indices to a device-resident int32 Warp array."""
         if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            # OVPhysX consumes these IDs directly and requires contiguous DLPack tensors.
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids].contiguous())
         if isinstance(env_ids, torch.Tensor):
             values = env_ids.to(device=self.device, dtype=torch.int32).contiguous()
             return wp.from_torch(values, dtype=wp.int32)

@@ -106,8 +106,16 @@ class _FakeNewtonArticulation:
         self.static_friction_writes = []
         self.viscous_friction_writes = []
 
-    def write_joint_friction_coefficient_to_sim_index(self, **kwargs):
-        """Record Newton static-friction writes."""
+    def write_joint_friction_coefficient_to_sim_index(
+        self, *, joint_dynamic_friction_coeff=None, joint_viscous_friction_coeff=None, **kwargs
+    ):
+        """Record Newton static-friction writes; like Newton, forward viscous friction and drop dynamic friction."""
+        if joint_viscous_friction_coeff is not None:
+            self.write_joint_viscous_friction_coefficient_to_sim_index(
+                joint_viscous_friction_coeff=joint_viscous_friction_coeff,
+                joint_ids=kwargs["joint_ids"],
+                env_ids=kwargs["env_ids"],
+            )
         self.static_friction_writes.append(kwargs)
 
     def write_joint_viscous_friction_coefficient_to_sim_index(self, **kwargs):
@@ -156,8 +164,9 @@ def deterministic_material_sampling(monkeypatch):
         pytest.param(None, slice(1, 3), id="default-ordering"),
     ],
 )
+@pytest.mark.parametrize("index_dtype", [torch.int32, torch.int64, slice])
 def test_physx_material_randomization_automatically_converts_public_body_ids_to_backend_shape_range(
-    monkeypatch, deterministic_material_sampling, body_ordering, expected_shape_slice
+    monkeypatch, deterministic_material_sampling, body_ordering, expected_shape_slice, index_dtype
 ):
     """PhysX automatically converts public body selections to backend shape ranges."""
     import isaaclab.assets as assets_module
@@ -178,7 +187,7 @@ def test_physx_material_randomization_automatically_converts_public_body_ids_to_
 
     term(
         env,
-        torch.tensor([0], dtype=torch.int32),
+        slice(0, 1) if index_dtype is slice else torch.tensor([0], dtype=index_dtype),
         static_friction_range=(0.4, 0.4),
         dynamic_friction_range=(0.2, 0.2),
         restitution_range=(0.1, 0.1),
@@ -239,7 +248,8 @@ def test_newton_material_randomization_automatically_converts_public_body_ids_to
     assert len(_FakeNewtonManager.notifications) == 1
 
 
-def test_newton_joint_parameter_randomization_writes_static_and_viscous_friction():
+@pytest.mark.parametrize("env_ids", [torch.tensor([0], dtype=torch.int32), slice(0, 1)])
+def test_newton_joint_parameter_randomization_writes_static_and_viscous_friction(env_ids):
     """Newton randomization writes static friction and passive viscous damping separately."""
     asset = _FakeNewtonArticulation(body_ordering=None)
     asset_cfg = SimpleNamespace(name="robot", joint_ids=slice(None))
@@ -250,15 +260,13 @@ def test_newton_joint_parameter_randomization_writes_static_and_viscous_friction
             "friction_distribution_params": (0.5, 0.5),
         }
     )
-    env = SimpleNamespace(
-        scene=_FakeScene(robot=asset),
-        sim=SimpleNamespace(physics_manager=type("NewtonManager", (), {})),
-    )
+    # the term does not read the physics backend; the asset API decides what it supports
+    env = SimpleNamespace(scene=_FakeScene(robot=asset))
 
     term = events_module.randomize_joint_parameters(cfg, env)
     term(
         env,
-        torch.tensor([0], dtype=torch.int32),
+        env_ids,
         asset_cfg,
         friction_distribution_params=(0.5, 0.5),
     )
@@ -271,5 +279,37 @@ def test_newton_joint_parameter_randomization_writes_static_and_viscous_friction
     assert set(viscous_write) == {"joint_viscous_friction_coeff", "joint_ids", "env_ids"}
     torch.testing.assert_close(static_write["joint_friction_coeff"], torch.full((1, 2), 0.5))
     torch.testing.assert_close(viscous_write["joint_viscous_friction_coeff"], torch.full((1, 2), 0.5))
-    torch.testing.assert_close(static_write["env_ids"], torch.tensor([0], dtype=torch.int32))
-    torch.testing.assert_close(viscous_write["env_ids"], torch.tensor([0], dtype=torch.int32))
+    assert static_write["env_ids"] is env_ids
+    assert viscous_write["env_ids"] is env_ids
+
+
+def test_fixed_tendon_randomization_writes_limit_stiffness_and_rest_length():
+    """Fixed tendon randomization writes every requested property through the asset setters."""
+    tendon_values = torch.zeros((_NUM_ENVS, 2))
+    writes = {}
+    asset = SimpleNamespace(
+        device="cpu",
+        data=SimpleNamespace(
+            fixed_tendon_limit_stiffness=SimpleNamespace(torch=tendon_values.clone()),
+            fixed_tendon_rest_length=SimpleNamespace(torch=tendon_values.clone()),
+        ),
+        set_fixed_tendon_limit_stiffness_index=lambda **kwargs: writes.update(limit_stiffness=kwargs),
+        set_fixed_tendon_rest_length_index=lambda **kwargs: writes.update(rest_length=kwargs),
+        write_fixed_tendon_properties_to_sim_index=lambda **kwargs: writes.update(sim=kwargs),
+    )
+    asset_cfg = SimpleNamespace(name="robot", fixed_tendon_ids=slice(None))
+    cfg = SimpleNamespace(params={"asset_cfg": asset_cfg, "operation": "abs"})
+    env = SimpleNamespace(scene=_FakeScene(robot=asset))
+
+    term = events_module.randomize_fixed_tendon_parameters(cfg, env)
+    term(
+        env,
+        torch.tensor([0]),
+        asset_cfg,
+        limit_stiffness_distribution_params=(2.0, 2.0),
+        rest_length_distribution_params=(0.5, 0.5),
+    )
+
+    torch.testing.assert_close(writes["limit_stiffness"]["limit_stiffness"], torch.full((1, 2), 2.0))
+    torch.testing.assert_close(writes["rest_length"]["rest_length"], torch.full((1, 2), 0.5))
+    assert "sim" in writes

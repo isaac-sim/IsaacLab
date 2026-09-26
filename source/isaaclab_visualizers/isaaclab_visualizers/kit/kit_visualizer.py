@@ -40,6 +40,7 @@ from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matr
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
+from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 
 from .kit_visualizer_cfg import KitVisualizerCfg
@@ -221,6 +222,7 @@ class KitVisualizer(BaseVisualizer):
         if self._runtime_headless:
             return
         self._fabric.update_transforms(self._scene_data_provider)
+        self._fabric.update_geometries(self._scene_data_provider, SimulationContext.instance().render_generation)
         if self.cfg.origin_type == "asset":
             self._update_asset_tracking_camera()
         _externally_paused = self.is_training_paused()
@@ -293,6 +295,7 @@ class KitVisualizer(BaseVisualizer):
         import omni.replicator.core as rep
 
         self._fabric.update_transforms(self._scene_data_provider)
+        self._fabric.update_geometries(self._scene_data_provider, SimulationContext.instance().render_generation)
         if self._runtime_headless and self.cfg.origin_type == "asset":
             self._update_asset_tracking_camera()
         camera_path = self._controlled_camera_path or "/OmniverseKit_Persp"
@@ -604,6 +607,19 @@ class KitVisualizer(BaseVisualizer):
                 Gf.Vec3f(*self.cfg.background_color)
             )
 
+    def _write_desktop_entry(self) -> None:
+        """Write the Linux desktop entry that lets docks show the Kit window's icon."""
+        import carb.tokens
+
+        settings = get_settings_manager()
+        title = settings.get("/app/window/title")
+        version = settings.get("/app/version")
+        icon_path = settings.get("/app/window/iconPath")
+        if title and version and icon_path:
+            # Kit composes the window's WM_CLASS from the app title and version, e.g. "Isaac Lab 3.0.0".
+            icon = carb.tokens.get_tokens_interface().resolve(icon_path)
+            write_desktop_entry("isaaclab", title, f"{title} {version}", icon)
+
     def _setup_viewport(self) -> None:
         """Create/resolve viewport and configure initial camera."""
         if self._runtime_headless:
@@ -619,6 +635,7 @@ class KitVisualizer(BaseVisualizer):
             self._refresh_controlled_camera_path()
             return
 
+        self._write_desktop_entry()
         import omni.kit.viewport.utility as vp_utils
         from omni.ui import DockPosition
 

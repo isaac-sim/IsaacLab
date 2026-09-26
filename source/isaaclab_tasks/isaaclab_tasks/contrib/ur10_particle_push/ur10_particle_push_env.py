@@ -717,11 +717,10 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
 
     def randomize_push_scene(self, env_ids: Sequence[int] | torch.Tensor) -> None:
         """Randomize a collision-screened robot start and its nearby single pile."""
-        env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
-        if len(env_ids) == 0:
+        reset_count = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        if reset_count == 0:
             return
 
-        reset_count = len(env_ids)
         curriculum = self.curriculum_manager.cfg.reset_randomization.func
         if not isinstance(curriculum, mdp.SinglePushCurriculum):
             raise TypeError("The push reset event requires SinglePushCurriculum.")

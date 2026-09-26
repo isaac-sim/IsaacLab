@@ -634,44 +634,36 @@ def quat_box_plus(q: torch.Tensor, delta: torch.Tensor, eps: float = 1.0e-6) -> 
 def quat_apply(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
     """Apply a quaternion rotation to a vector.
 
+    Leading dimensions follow NumPy broadcasting rules. Incompatible batch shapes raise an error.
+
     Args:
         quat: The quaternion in (x, y, z, w). Shape is (..., 4).
         vec: The vector in (x, y, z). Shape is (..., 3).
 
     Returns:
-        The rotated vector in (x, y, z). Shape is (..., 3).
+        The rotated vector in (x, y, z). Shape is the broadcast batch shape followed by (3,).
     """
-    # store shape
-    shape = vec.shape
-    # reshape to (N, 3) for multiplication
-    quat = quat.reshape(-1, 4)
-    vec = vec.reshape(-1, 3)
-    # extract components from quaternions (xyzw format)
-    xyz = quat[:, :3]
+    xyz, vec = torch.broadcast_tensors(quat[..., :3], vec)
     t = xyz.cross(vec, dim=-1) * 2
-    return (vec + quat[:, 3:4] * t + xyz.cross(t, dim=-1)).view(shape)
+    return vec + quat[..., 3:4] * t + xyz.cross(t, dim=-1)
 
 
 @torch.jit.script
 def quat_apply_inverse(quat: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
     """Apply an inverse quaternion rotation to a vector.
 
+    Leading dimensions follow NumPy broadcasting rules. Incompatible batch shapes raise an error.
+
     Args:
         quat: The quaternion in (x, y, z, w). Shape is (..., 4).
         vec: The vector in (x, y, z). Shape is (..., 3).
 
     Returns:
-        The rotated vector in (x, y, z). Shape is (..., 3).
+        The rotated vector in (x, y, z). Shape is the broadcast batch shape followed by (3,).
     """
-    # store shape
-    shape = vec.shape
-    # reshape to (N, 3) for multiplication
-    quat = quat.reshape(-1, 4)
-    vec = vec.reshape(-1, 3)
-    # extract components from quaternions (xyzw format)
-    xyz = quat[:, :3]
+    xyz, vec = torch.broadcast_tensors(quat[..., :3], vec)
     t = xyz.cross(vec, dim=-1) * 2
-    return (vec - quat[:, 3:4] * t + xyz.cross(t, dim=-1)).view(shape)
+    return vec - quat[..., 3:4] * t + xyz.cross(t, dim=-1)
 
 
 @torch.jit.script
@@ -1290,7 +1282,7 @@ def project_points(points: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
     intrinsics_batch = intrinsics.clone()
 
     # check if inputs are batched
-    is_batched = points_batch.dim() == 2
+    is_batched = points_batch.dim() == 3
     # make sure inputs are batched
     if points_batch.dim() == 2:
         points_batch = points_batch[None]  # (P, 3) -> (1, P, 3)
@@ -1311,7 +1303,7 @@ def project_points(points: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
 
     # return points in same shape as input
     if not is_batched:
-        points_2d = points_2d.squeeze(0)  # (1, 3, P) -> (3, P)
+        points_2d = points_2d.squeeze(0)  # (1, P, 3) -> (P, 3)
 
     return points_2d
 

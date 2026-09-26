@@ -172,12 +172,11 @@ def test_scene_state_does_not_skip_writes_within_a_physics_step(sim):
     for step in (1, 1, 2):
         sim.render_context.update_scene_state(step)
     assert renderer.update_transforms.call_count == 3
-    assert renderer.update_geometries.call_count == 2
+    assert renderer.update_geometries.call_count == 3
 
-    sim.render_context.reset_scene_state_cadence()
     sim.render_context.update_scene_state(2)
     assert renderer.update_transforms.call_count == 4
-    assert renderer.update_geometries.call_count == 3
+    assert renderer.update_geometries.call_count == 4
 
 
 @pytest.mark.parametrize("profile", [False, True])
@@ -196,6 +195,7 @@ def test_render_into_camera_call_order_and_profile_output(sim, capsys, profile):
         call.render_batch([data]),
         call.read_output(data, camera),
         call.update_transforms(),
+        call.update_geometries(),
         call.render_batch([data]),
         call.read_output(data, camera),
     ]
