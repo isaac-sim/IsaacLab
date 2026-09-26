@@ -437,7 +437,7 @@ def test_world_topology_preserves_repeated_assets_and_shared_world(shared_assets
     worlds = ((0, 1), (0, 1, 1), (0, 0, 1), (1,))
     plan = make_clone_plan(assets, worlds, 16, shared_assets=shared_assets)
     assert all(actual is expected for actual, expected in zip(plan.asset_prototypes, assets, strict=True))
-    np.testing.assert_array_equal(plan.destinations, np.repeat(np.arange(4), 4))
+    np.testing.assert_array_equal(plan.world_prototype_layout, np.repeat(np.arange(4), 4))
     np.testing.assert_array_equal(
         plan.world_prototype_starts,
         [0, len(shared_assets), *(len(shared_assets) + np.cumsum([len(world) for world in worlds]))],
@@ -462,11 +462,11 @@ def test_world_topology_preserves_repeated_assets_and_shared_world(shared_assets
 def test_world_topology_weights_empty_worlds_and_invalid_membership():
     assets = object(), object()
     plan = make_clone_plan(assets, ((0,), (), (1, 1)), 6, weights=(1, 0, 2))
-    np.testing.assert_array_equal(plan.destinations, [0, 0, 2, 2, 2, 2])
+    np.testing.assert_array_equal(plan.world_prototype_layout, [0, 0, 2, 2, 2, 2])
     assert len(cloner.query.get_world_prototypes(plan)[2][2]) == 0
     empty = make_clone_plan((), ((),), 3)
     np.testing.assert_array_equal(empty.world_prototype_starts, [0, 0, 0])
-    np.testing.assert_array_equal(empty.destinations, [0, 0, 0])
+    np.testing.assert_array_equal(empty.world_prototype_layout, [0, 0, 0])
     for members in ((2,), (-1,), (0.5,), ("0",)):
         with pytest.raises(ValueError, match="integer indices"):
             make_clone_plan(assets, (members,), 1)

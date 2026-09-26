@@ -311,7 +311,7 @@ def test_multi_mesh_uses_clone_plan_geometry_and_backend_object_pose(sim_ground)
         asset_prototypes=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),) * 2,
         world_prototypes=np.array([0, 1]),
         world_prototype_starts=np.array([0, 0, 1, 2]),
-        destinations=np.array([0, 1, 0]),
+        world_prototype_layout=np.array([0, 1, 0]),
     )
     sim.set_clone_plan(plan)
     sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(stage, plan)

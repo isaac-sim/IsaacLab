@@ -261,7 +261,7 @@ class SensorBase(ABC):
         # Native clones need not have corresponding USD prims.
         clone_plan = sim.get_clone_plan()
         if clone_plan is not None:
-            self._num_envs = len(clone_plan.destinations)
+            self._num_envs = len(clone_plan.world_prototype_layout)
         else:
             env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
             self._num_envs = len(sim_utils.find_matching_prims(env_prim_path_expr))

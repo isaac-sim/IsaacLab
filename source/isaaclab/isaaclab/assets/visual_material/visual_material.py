@@ -136,7 +136,7 @@ class VisualMaterial(AssetBase):
     def _initialize_impl(self) -> None:
         if self._is_per_env:
             usd = SimulationContext.instance().clone_contexts[cloner.UsdReplicateContext]
-            material_paths = [""] * len(usd.plan.destinations)
+            material_paths = [""] * len(usd.plan.world_prototype_layout)
             for source_root, destination, source_path, env_ids in cloner.query.get_matched_sources(
                 usd.instances, self.cfg.prim_path
             ):

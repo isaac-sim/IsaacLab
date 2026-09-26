@@ -325,7 +325,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
             + (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Material", cloning_contexts=()),),
             world_prototypes=np.array([0, 2, 1, 2]),
             world_prototype_starts=np.array([0, 0, 2, 4]),
-            destinations=np.array([0, 1, 0]),
+            world_prototype_layout=np.array([0, 1, 0]),
         )
         self.sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(
             stage,

@@ -973,7 +973,7 @@ class PhysxManager(PhysicsManager):
         if (usd := sim.clone_contexts.get(UsdReplicateContext)) is not None:
             prototypes = deformable_prototypes(sim.stage, usd.instances, usd.global_paths)
             entries = expand_deformable_entries(
-                prototypes, usd.instances, np.arange(len(usd.plan.destinations)), usd.positions
+                prototypes, usd.instances, np.arange(len(usd.plan.world_prototype_layout)), usd.positions
             )
 
         is_gpu = "cuda" in PhysicsManager.get_device()

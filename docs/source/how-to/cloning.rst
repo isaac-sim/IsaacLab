@@ -151,8 +151,8 @@ another instance with the prototype's default pose. Backends assign native names
      - Flat array of asset-prototype indices, including repeated instances.
    * - ``world_prototype_starts``
      - Slice boundaries into ``world_prototypes``. The first slice is the shared world ``-1``.
-   * - ``destinations``
-     - World-prototype index selected for each destination world.
+   * - ``world_prototype_layout``
+     - World-prototype index selected for each world, indexed by world ID.
 
 For two reusable assets, four compositions, and sixteen destination worlds:
 
@@ -169,7 +169,7 @@ For two reusable assets, four compositions, and sixteen destination worlds:
     asset_prototypes       = (banana_cfg, franka_cfg)
     world_prototypes       = [0,1, 0,1,1, 0,0,1, 1]
     world_prototype_starts = [0,0,2,5,8,9]
-    destinations           = [0,0,0,0, 1,1,1,1, 2,2,2,2, 3,3,3,3]
+    world_prototype_layout = [0,0,0,0, 1,1,1,1, 2,2,2,2, 3,3,3,3]
 
 The leading ``[0, 0]`` describes an empty shared world. To include a shared ground,
 append its cfg to ``asset_prototypes`` and pass ``shared_assets=(2,)``.

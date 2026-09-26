@@ -266,7 +266,7 @@ class NewtonReplicateContext:
         usd = self._sim.clone_contexts[UsdReplicateContext]
         return _replicate_newton(
             self._sim.stage,
-            np.arange(len(plan.destinations)),
+            np.arange(len(plan.world_prototype_layout)),
             self._sim,
             plan=plan,
             instances=tuple(instance for instance in usd.instances if instance[0] in asset_prototype_ids),
