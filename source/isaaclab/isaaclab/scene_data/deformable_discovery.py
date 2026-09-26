@@ -18,6 +18,7 @@ import warp as wp
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 from .. import sim as sim_utils
+from ..cloner import ClonePlan
 from ..cloner import path as cloner_path
 from ..sim.utils.queries import has_deformable_body_api
 from .deformable_vis_remap import build_volume_vis_barycentric_remap
@@ -278,8 +279,7 @@ def deformable_entry(root_prim: Usd.Prim) -> DeformableStageEntry | None:
 
 def deformable_prototypes(
     stage: Usd.Stage,
-    instances: Sequence[tuple[int, str | None, str, np.ndarray]],
-    global_paths: Sequence[str] = (),
+    plan: ClonePlan,
     *,
     exclude_paths: Sequence[str] = (),
 ) -> list[DeformableStageEntry]:
@@ -287,19 +287,23 @@ def deformable_prototypes(
 
     Args:
         stage: Stage containing the authored asset prototypes.
-        instances: Complete native mapping of asset-prototype ID, source path, destination template, and world IDs.
-        global_paths: Declared shared roots imported once.
+        plan: Declared asset prototypes and their world topology.
         exclude_paths: Prototypes routed to other contexts, excluded even beneath shared roots.
 
     Returns:
         Prototype geometry owned by the caller, including shared assets once.
     """
-    active = [instance for instance in instances if len(instance[3]) and instance[3][0] != -1]
-    source_paths = [source for _, source, _, _ in active if source not in exclude_paths]
-    destination_paths = [template for _, _, template, _ in active]
+    authored = cloner_path.get_asset_prototype_paths(plan)
+    templates, starts = cloner_path.get_world_prototype_asset_templates(plan)
+    source_paths = [
+        authored[index]
+        for index in np.unique(plan.topology.world_prototypes[starts[1] :])
+        if authored[index] is not None and authored[index] not in exclude_paths
+    ]
+    destination_paths = templates[starts[1] :]
     selected_sources = {Sdf.Path(source) for source in source_paths}
     sources = selected_sources | {Sdf.Path(source) for source in exclude_paths}
-    roots = Sdf.Path.RemoveDescendentPaths([*source_paths, *global_paths])
+    roots = Sdf.Path.RemoveDescendentPaths([*source_paths, *templates[: starts[1]]])
     entries = []
     for root in roots:
         prims = iter(Usd.PrimRange(stage.GetPrimAtPath(root), Usd.TraverseInstanceProxies()))
@@ -326,7 +330,7 @@ def deformable_prototypes(
 
 def expand_deformable_entries(
     prototypes: Sequence[DeformableStageEntry],
-    instances: Sequence[tuple[int, str | None, str, np.ndarray]],
+    plan: ClonePlan,
     env_ids: np.ndarray,
     positions: np.ndarray | None = None,
 ) -> list[DeformableStageEntry]:
@@ -334,7 +338,7 @@ def expand_deformable_entries(
 
     Args:
         prototypes: Geometry captured during this backend's prototype import.
-        instances: Asset-prototype ID, source path, destination template, and world IDs per instance group.
+        plan: Declared asset prototypes and their world topology.
         env_ids: Target environment ids.
         positions: Environment origins [m], shape [num_envs, 3].
 
@@ -344,9 +348,16 @@ def expand_deformable_entries(
     """
     entries: dict[str, tuple[str, DeformableStageEntry]] = {}
     source_instances = defaultdict(list)
-    for _, source, template, world_ids in instances:
-        if len(world_ids) and world_ids[0] != -1:
-            source_instances[Sdf.Path(source)].append((source, template, world_ids))
+    sources = cloner_path.get_asset_prototype_paths(plan)
+    templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
+        plan, include_world_indices=True
+    )
+    for group in range(1, len(starts) - 1):
+        columns = world_ids[world_starts[group] : world_starts[group + 1]]
+        if len(columns):
+            for index in range(starts[group], starts[group + 1]):
+                source = sources[plan.topology.world_prototypes[index]]
+                source_instances[Sdf.Path(source)].append((source, templates[index], columns))
     for entry in prototypes:
         owner = Sdf.Path(entry.root_path)
         while owner != Sdf.Path.absoluteRootPath and owner not in source_instances:
@@ -354,10 +365,11 @@ def expand_deformable_entries(
         if owner not in source_instances:
             entries[entry.root_path] = (entry.root_path, entry)
             continue
+        source_column = source_instances[owner][0][2][0]
         for source, template, columns in source_instances[owner]:
             for column in columns:
                 target = template.format(int(env_ids[column]))
-                offset = 0 if positions is None else positions[column] - positions[columns[0]]
+                offset = 0 if positions is None else positions[column] - positions[source_column]
                 cloned = replace(
                     entry,
                     root_path=cloner_path.rebase(entry.root_path, source, target),

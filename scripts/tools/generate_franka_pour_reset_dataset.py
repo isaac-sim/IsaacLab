@@ -628,9 +628,9 @@ class _Generator:
         from isaaclab import cloner
 
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        instances = cloner.path.get_instance_paths(plan)
+        sources = cloner.path.get_asset_prototype_paths(plan)
         asset_ids = cloner.path.get_asset_prototypes(plan, self.env._robot.cfg.prim_path)
-        source_path = next(source for index, source, _, worlds in instances if index in asset_ids and len(worlds))
+        source_path = next(sources[index] for index in asset_ids if sources[index] is not None)
         source_builder = copy_newton_clone_source(source_path)
         prototype_origin = -self.env.env_origins[0]
         prototype_xform = wp.transform(wp.vec3(*prototype_origin.tolist()), wp.quat_identity())
@@ -638,7 +638,7 @@ class _Generator:
         self.prototype.add_builder(source_builder, xform=prototype_xform)
         if not any("/Table/" in str(label) or str(label).endswith("/Table") for label in self.prototype.shape_label):
             asset_ids = cloner.path.get_asset_prototypes(plan, self.env.scene["table"].cfg.prim_path)
-            table_source = next(source for index, source, _, worlds in instances if index in asset_ids and len(worlds))
+            table_source = next(sources[index] for index in asset_ids if sources[index] is not None)
             self.prototype.add_builder(copy_newton_clone_source(table_source), xform=prototype_xform)
         if not any("/Table/" in str(label) or str(label).endswith("/Table") for label in self.prototype.shape_label):
             raise RuntimeError("The reset generator requires the SeattleLab table collision geometry.")

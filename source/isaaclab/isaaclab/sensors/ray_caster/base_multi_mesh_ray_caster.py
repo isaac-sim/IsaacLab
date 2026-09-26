@@ -148,7 +148,6 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         """Initialize mesh buffers from the ClonePlan when env-scoped, else from the stage."""
         sim = SimulationContext.instance()
         plan = sim.get_clone_plan() if sim is not None else None
-        instances = cloner.path.get_instance_paths(plan) if plan is not None else ()
         target_records_by_expr = {}
         dummy_mesh_id: int | None = None
         self._mesh_views = []
@@ -156,7 +155,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         # Build one per-env mesh list for each configured raycast target.
         for target_cfg in self._raycast_targets_cfg:
             records_per_env, dummy_mesh_id, tracked_target_exprs = self._build_mesh_records(
-                target_cfg, instances, dummy_mesh_id
+                target_cfg, plan, dummy_mesh_id
             )
             self._num_meshes_per_env[target_cfg.prim_expr] = max(len(records) for records in records_per_env)
             target_records_by_expr[target_cfg.prim_expr] = records_per_env
@@ -199,7 +198,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
     def _build_mesh_records(
         self,
         target_cfg: MultiMeshRayCasterCfg.RaycastTargetCfg,
-        instances: tuple,
+        plan: cloner.ClonePlan | None,
         dummy_mesh_id: int | None,
     ):
         """Build mesh records for the target configuration."""
@@ -208,23 +207,30 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         tracked_target_exprs: list[str] = [target_cfg.prim_expr]
         has_rigid_body_api = lambda p: p.HasAPI(UsdPhysics.RigidBodyAPI)  # noqa: E731
         # Prefer ClonePlan data for env-scoped targets; destination USD prims may not exist.
-        if instances and target_cfg.track_mesh_transforms:
+        if plan is not None and target_cfg.track_mesh_transforms:
+            sources = cloner.path.get_asset_prototype_paths(plan)
+            templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
+                plan, include_world_indices=True
+            )
             plan_tracked_target_exprs: list[str] = []
             matches = [
-                (instance, matched)
-                for instance in instances
-                if len(instance[3]) and instance[3][0] != -1
-                if (matched := cloner.path.match(target_cfg.prim_expr, instance[2])) is not None
+                (group, index, matched)
+                for group in range(1, len(starts) - 1)
+                if world_starts[group] != world_starts[group + 1]
+                for index in range(starts[group], starts[group + 1])
+                if (matched := cloner.path.match(target_cfg.prim_expr, templates[index])) is not None
             ]
-            suffix = min((matched.suffix for _, matched in matches), key=len, default=None)
-            for (_, source_root, destination_template, env_ids), matched in matches:
+            suffix = min((matched.suffix for _, _, matched in matches), key=len, default=None)
+            for group, index, matched in matches:
                 if matched.suffix != suffix:
                     continue
+                env_ids = worlds[world_starts[group] : world_starts[group + 1]]
                 env_ids = env_ids[
                     resolve_matching_names(matched.instance, env_ids.astype(str), raise_when_no_match=False)[0]
                 ]
                 if not len(env_ids):
                     continue
+                source_root, destination_template = sources[plan.topology.world_prototypes[index]], templates[index]
                 source_path = source_root + suffix
                 target_in_plan = True
 

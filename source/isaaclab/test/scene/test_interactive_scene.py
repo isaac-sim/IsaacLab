@@ -203,19 +203,23 @@ def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
     with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
         sim._app_control_on_stop_handle = None
         InteractiveScene(MySceneCfg(num_envs=4, env_spacing=1.0))
-        instances = cloner.path.get_instance_paths(sim.get_clone_plan())
 
     assert len(captured) == 1
     plan, replicate_physics, published = captured[0]
     assert published is plan
-    replicated = [instance for instance in instances if len(instance[3]) and instance[3][0] != -1]
-    assert tuple(source for _, source, _, _ in replicated) == ("/World/envs/env_0/Robot", "/World/envs/env_0/RigidObj")
-    assert tuple(template for _, _, template, _ in replicated) == (
+    sources = cloner.path.get_asset_prototype_paths(plan)
+    templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
+        plan, include_world_indices=True
+    )
+    assert tuple(sources[index] for index in plan.topology.world_prototypes[starts[1] :]) == (
+        "/World/envs/env_0/Robot",
+        "/World/envs/env_0/RigidObj",
+    )
+    assert templates[starts[1] :] == (
         "/World/envs/env_{}/Robot",
         "/World/envs/env_{}/RigidObj",
     )
-    for _, _, _, world_ids in replicated:
-        np.testing.assert_array_equal(world_ids, np.arange(4))
+    np.testing.assert_array_equal(worlds[world_starts[1] : world_starts[2]], np.arange(4))
     assert replicate_physics is True
 
 

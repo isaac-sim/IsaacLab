@@ -49,10 +49,10 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
     monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=OvPhysxManager))
     ovphysx_replicate(
         stage,
-        sources=["/World/envs/env_0/Robot", "/World/envs/env_9/Inactive"],
-        destinations=["/World/envs/env_{}/Robot", "/World/envs/env_{}/Inactive"],
+        sources=["/World/envs/env_0/Robot", "/World/envs/env_9/Inactive", "/World/envs/env_0/Robot"],
+        destinations=["/World/envs/env_{}/Robot", "/World/envs/env_{}/Inactive", "/World/envs/env_{}/Robot"],
         env_ids=np.array([0, 1], dtype=np.int64),
-        mapping=np.array([[True, True], [False, False]], dtype=np.bool_),
+        mapping=np.array([[True, True], [False, False], [True, False]], dtype=np.bool_),
         positions=np.array([[4.0, 5.0, 6.0], [10.0, 20.0, 30.0]], dtype=np.float32),
         quaternions=np.array(
             [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, target_half_angle_sin, target_half_angle_cos]],
@@ -93,19 +93,21 @@ def test_ovphysx_context_consumes_plan():
     manager = SimpleNamespace(_register_clone_transforms=lambda *recipe: recipes.append(recipe))
     plan = make_clone_plan(
         (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),),
-        ((0, 0),),
-        2,
-        positions=np.array([[2, 0, 0], [5, 2, 3]], dtype=np.float32),
+        ((0, 0), (0,)),
+        3,
+        weights=(2, 1),
+        positions=np.array([[2, 0, 0], [5, 2, 3], [8, 0, 0]], dtype=np.float32),
     )
     simulation = SimpleNamespace(stage=stage, physics_manager=manager)
 
     OvPhysxReplicateContext(simulation).replicate(plan, (0,))
 
-    assert recipes[0][0:2] == ("/World/envs/env_0/Robot", ["/World/envs/env_1/Robot"])
+    assert len(recipes) == 2
+    assert recipes[0][0:2] == ("/World/envs/env_0/Robot", ["/World/envs/env_1/Robot", "/World/envs/env_2/Robot"])
     assert recipes[0][2][0] == pytest.approx((5.25, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0))
     assert recipes[1][1] == ["/World/envs/env_0/Robot_1", "/World/envs/env_1/Robot_1"]
     np.testing.assert_allclose(recipes[1][2], [(2.25, 0, 0, 0, 0, 0, 1), (5.25, 2, 3, 0, 0, 0, 1)])
-    assert recipes[0][3] == [1]
+    assert recipes[0][3] == [1, 2]
     assert recipes[1][3] == [0, 1]
 
 

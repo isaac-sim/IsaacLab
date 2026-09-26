@@ -537,7 +537,7 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
             )
         )
         plan = sim.get_clone_plan()
-        source_paths = {index: path for index, path, _, world_ids in path.get_instance_paths(plan) if len(world_ids)}
+        source_paths = path.get_asset_prototype_paths(plan)
         shape_ids = path.get_asset_prototypes(plan, scene.cfg.shape.prim_path)
         worlds, starts = query.get_asset_prototype_unique_world_index(plan.topology, shape_ids)
         assert (starts[:, -1] - starts[:, 0]).tolist() == [2, 2]

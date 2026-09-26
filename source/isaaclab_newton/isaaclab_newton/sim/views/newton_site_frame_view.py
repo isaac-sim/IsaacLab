@@ -306,7 +306,11 @@ class NewtonSiteFrameView(BaseFrameView):
     def _resolve_site_specs(self, stage, validate_xform_ops: bool) -> list[_SiteSpec]:
         """Resolve source prims into Newton site registration specs."""
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        instances = cloner.path.get_instance_paths(plan) if plan is not None else ()
+        if plan is not None:
+            sources = cloner.path.get_asset_prototype_paths(plan)
+            templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
+                plan, include_world_indices=True
+            )
         model = NewtonManager.get_model()
         body_labels = list(model.body_label) if model is not None else ()
         shape_labels = list(model.shape_label) if model is not None else ()
@@ -333,21 +337,24 @@ class NewtonSiteFrameView(BaseFrameView):
                         "FrameView should only be used for non-physics frames."
                     )
             matches = [
-                (instance, matched)
-                for instance in instances
-                if len(instance[3]) and instance[3][0] != -1
-                if (matched := cloner.path.match(path_expr, instance[2])) is not None
+                (group, index, matched)
+                for group in (range(1, len(starts) - 1) if plan is not None else ())
+                if world_starts[group] != world_starts[group + 1]
+                for index in range(starts[group], starts[group + 1])
+                if (matched := cloner.path.match(path_expr, templates[index])) is not None
             ]
             if matches:
-                suffix = min((matched.suffix for _, matched in matches), key=len)
-                for (_, source_root, destination_template, env_ids), matched in matches:
+                suffix = min((matched.suffix for _, _, matched in matches), key=len)
+                for group, index, matched in matches:
                     if matched.suffix != suffix:
                         continue
+                    env_ids = worlds[world_starts[group] : world_starts[group + 1]]
                     env_ids = env_ids[
                         resolve_matching_names(matched.instance, env_ids.astype(str), raise_when_no_match=False)[0]
                     ]
                     if not len(env_ids):
                         continue
+                    source_root, destination_template = sources[plan.topology.world_prototypes[index]], templates[index]
                     source_path = source_root + suffix
                     source_pattern = re.compile(source_path)
                     source_prims = sim_utils.get_all_matching_child_prims(
@@ -459,10 +466,9 @@ class NewtonSiteFrameView(BaseFrameView):
 
         ref_path = source_root
         if source_root is not None and destination_template is not None:
-            template_prefix, _ = cloner.path.split(destination_template)
-            source_suffix = cloner.path.relativize(source_root, template_prefix + "{}")
-            if source_suffix is not None:
-                ref_path = source_root[: -len(source_suffix)] if source_suffix else source_root
+            matched = cloner.path.match(source_root, destination_template.partition("{}")[0] + "{}")
+            if matched is not None:
+                ref_path = source_root.removesuffix(matched.suffix)
         ref_prim = stage.GetPrimAtPath(ref_path) if ref_path is not None else None
         pos, quat = sim_utils.resolve_prim_pose(prim, ref_prim if ref_prim and ref_prim.IsValid() else None)
         return None, wp.transform(pos, quat), scale, source_root is not None, env_ids, dest_paths

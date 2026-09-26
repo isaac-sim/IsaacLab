@@ -28,6 +28,7 @@ import warp as wp
 
 # Colorization (host ``random_color_from_id`` / ``pack_rgba``) and the reserved BACKGROUND / UNLABELLED
 # ids are shared with the RTX and OVRTX renderers to keep colorized segmentation visually consistent.
+from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import path as cloner_path
 from isaaclab.renderers.segmentation_colors import BACKGROUND_ID, UNLABELLED_ID, pack_rgba, random_color_from_id
 from isaaclab.utils.timer import Timer
@@ -256,7 +257,7 @@ class NewtonSegmentationMapping:
 class NewtonSegmentationMapper:
     """Builds per-shape segmentation lookup tables from a Newton model and its USD stage."""
 
-    def __init__(self, model: newton.Model, stage: Usd.Stage | None, cfg, instances: tuple) -> None:
+    def __init__(self, model: newton.Model, stage: Usd.Stage | None, cfg, plan: ClonePlan | None) -> None:
         """Initialize the mapper from the Newton model, USD stage, renderer config, and native instance paths.
 
         Construction is cheap — it only captures references and snapshots ``model.shape_label``.
@@ -267,7 +268,7 @@ class NewtonSegmentationMapper:
             stage: The live USD stage used to read :class:`UsdSemantics.LabelsAPI` labels. May be
                 ``None`` in stageless setups, in which case every shape is treated as unlabelled.
             cfg: Renderer config exposing ``semantic_filter`` and ``semantic_segmentation_mapping``.
-            instances: Native source paths, destination templates, and world IDs, used when a
+            plan: Prototype topology and native naming, used when a
                 replicated shape has no prim on the stage. See :meth:`_resolve_via_prototype`.
         """
         self._model = model
@@ -280,7 +281,9 @@ class NewtonSegmentationMapper:
         # Cache of prim path -> (matched_labels or None); labels resolved with ancestor inheritance.
         self._matched_cache: dict[str, tuple[dict[SemanticType, SemanticLabels], SemanticPrimPath] | None] = {}
         self._mappings: dict[tuple[str, bool], NewtonSegmentationMapping] = {}
-        self._instances = instances
+        self._plan = plan
+        self._source_paths = () if plan is None else cloner_path.get_asset_prototype_paths(plan)
+        self._templates = () if plan is None else cloner_path.get_world_prototype_asset_templates(plan)[0]
 
     def build_mapping(self, kind: _SegKind, colorize: bool) -> None:
         """Build and cache the :class:`NewtonSegmentationMapping` for ``kind`` at the requested colorization."""
@@ -390,12 +393,18 @@ class NewtonSegmentationMapper:
             into ``prim_path``'s environment, or ``None`` when ``prim_path`` is not a clone, or the
             prototype itself is unlabelled.
         """
+        if self._plan is None or (world := cloner_path.match(prim_path, self._plan.env_template)) is None:
+            return None
+        world_id = int(world.instance)
+        topology = self._plan.topology
+        if not 0 <= world_id < len(topology.world_prototype_layout):
+            return None
+        prototype = topology.world_prototype_layout[world_id]
+        start, end = topology.world_prototype_starts[prototype + 1 : prototype + 3]
         matches = [
-            (source, matched)
-            for _, source, template, world_ids in self._instances
-            if len(world_ids) and world_ids[0] != -1
-            if (matched := cloner_path.match(prim_path, template)) is not None
-            if int(matched.instance) in world_ids
+            (self._source_paths[topology.world_prototypes[index]], matched)
+            for index in range(start, end)
+            if (matched := cloner_path.match(prim_path, self._templates[index])) is not None
         ]
         if not matches:
             # ``prim_path`` is not owned by the clone plan at all (e.g. an un-cloned ground plane or

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import numpy as np
 import pytest
 
 pytest.importorskip("torch")
@@ -23,6 +22,8 @@ from pxr import Usd
 # The color palette / reserved ids live in core and are unit-tested there
 # (``isaaclab/test/renderers/test_segmentation_colors.py``); here they are only an oracle for the
 # mapper's info-dict keys.
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import make_clone_plan
 from isaaclab.renderers.segmentation_colors import BACKGROUND_ID, UNLABELLED_ID, pack_rgba, random_color_from_id
 from isaaclab.sim.utils.semantics import add_labels
 
@@ -64,7 +65,7 @@ def _model(shape_paths):
 def test_semantic_segmentation_shares_class_id_across_envs():
     """All cartpole shapes across envs share one class id; the unlabelled ground is UNLABELLED."""
     stage, shape_paths = _scene()
-    mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg(), ())
+    mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg(), None)
     mapper.build_mapping("semantic_segmentation", colorize=False)
     mapping = mapper.get_mapping("semantic_segmentation", colorize=False)
 
@@ -82,7 +83,7 @@ def test_semantic_segmentation_shares_class_id_across_envs():
 def test_instance_segmentation_groups_by_labelled_ancestor():
     """Shapes group by their nearest labelled ancestor; idToSemantics carries the class label."""
     stage, shape_paths = _scene()
-    mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg(), ())
+    mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg(), None)
     mapper.build_mapping("instance_segmentation", colorize=False)
     mapping = mapper.get_mapping("instance_segmentation", colorize=False)
 
@@ -115,7 +116,7 @@ def test_semantic_filter_comma_separated_type_clauses():
     add_labels(stage.GetPrimAtPath("/World/shelf"), labels=["wood"], instance_name="material")
 
     mapper = NewtonSegmentationMapper(
-        _model(shape_paths), stage, _cfg(semantic_filter="class:cartpole, material:wood"), ()
+        _model(shape_paths), stage, _cfg(semantic_filter="class:cartpole, material:wood"), None
     )
     mapper.build_mapping("semantic_segmentation", colorize=False)
     mapping = mapper.get_mapping("semantic_segmentation", colorize=False)
@@ -139,7 +140,7 @@ def test_ancestor_cache_prevents_redundant_get_labels_calls():
     import isaaclab.sim.utils.semantics as _semantics_mod
 
     stage, shape_paths = _scene()
-    mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg(), ())
+    mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg(), None)
 
     original_get_labels = _semantics_mod.get_labels
     queried_paths: list[str] = []
@@ -176,7 +177,7 @@ def _prototype_only_scene():
         "/World/envs/env_1/Robot/cart/geom",
         "/World/ground/geom",
     ]
-    plan = ((0, "/World/envs/env_0/Robot", "/World/envs/env_{}/Robot", np.arange(2)),)
+    plan = make_clone_plan((AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),), ((0,),), 2)
     return stage, shape_paths, plan
 
 
@@ -243,7 +244,7 @@ def test_semantic_segmentation_mapping_overrides_color():
         _model(shape_paths),
         stage,
         _cfg(semantic_segmentation_mapping={"class:cartpole": override}),
-        (),
+        None,
     )
     mapper.build_mapping("semantic_segmentation", colorize=True)
     mapping = mapper.get_mapping("semantic_segmentation", colorize=True)

@@ -317,24 +317,32 @@ class OvPhysxFrameView(BaseFrameView):
         sim = sim_utils.SimulationContext.instance()
         plan = sim.get_clone_plan() if sim is not None else None
         self._clone_plan = plan
+        if plan is not None:
+            sources = cloner.path.get_asset_prototype_paths(plan)
+            templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
+                plan, include_world_indices=True
+            )
         matches = [
-            (instance, matched)
-            for instance in (cloner.path.get_instance_paths(plan) if plan is not None else ())
-            if len(instance[3]) and instance[3][0] != -1
-            if (matched := cloner.path.match(prim_path, instance[2])) is not None
+            (group, index, matched)
+            for group in (range(1, len(starts) - 1) if plan is not None else ())
+            if world_starts[group] != world_starts[group + 1]
+            for index in range(starts[group], starts[group + 1])
+            if (matched := cloner.path.match(prim_path, templates[index])) is not None
         ]
         self._source_sites = []
         self._prims: list[Usd.Prim] = []
         if matches:
-            suffix = min((matched.suffix for _, matched in matches), key=len)
-            for (_, source_root, destination_template, env_ids), matched in matches:
+            suffix = min((matched.suffix for _, _, matched in matches), key=len)
+            for group, index, matched in matches:
                 if matched.suffix != suffix:
                     continue
+                env_ids = worlds[world_starts[group] : world_starts[group + 1]]
                 env_ids = env_ids[
                     resolve_matching_names(matched.instance, env_ids.astype(str), raise_when_no_match=False)[0]
                 ]
                 if not len(env_ids):
                     continue
+                source_root, destination_template = sources[plan.topology.world_prototypes[index]], templates[index]
                 source_pattern = re.compile(source_root + suffix)
                 source_prims = sim_utils.get_all_matching_child_prims(
                     source_root,

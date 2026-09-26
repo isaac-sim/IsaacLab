@@ -17,10 +17,12 @@ from newton import ModelBuilder
 
 from pxr import Usd, UsdGeom
 
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology
 from isaaclab.cloner import path as cloner_path
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data.deformable_discovery import deformable_prototypes, expand_deformable_entries
+from isaaclab.sim import SpawnerCfg
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     build_source_builders,
@@ -96,11 +98,8 @@ def _replicate_newton(
     sim: SimulationContext,
     *,
     plan: ClonePlan,
-    instances: tuple,
-    reference_instances: tuple,
+    asset_prototype_ids: Sequence[int],
     positions: np.ndarray | None = None,
-    global_paths: Sequence[str] = (),
-    exclude_paths: Sequence[str] = (),
     up_axis: str = "Z",
     quaternions: np.ndarray | None = None,
 ) -> tuple[ModelBuilder, object, dict]:
@@ -112,6 +111,15 @@ def _replicate_newton(
     )
 
     cfg = sim.cfg.physics
+    sources = cloner_path.get_asset_prototype_paths(plan)
+    templates, starts = cloner_path.get_world_prototype_asset_templates(plan)
+    shared = templates[: starts[1]]
+    global_paths = tuple(
+        root for root, parent in zip(shared, cloner_path.get_parent_indices(shared), strict=True) if parent == -1
+    )
+    exclude_paths = tuple(
+        source for index, source in enumerate(sources) if source is not None and index not in asset_prototype_ids
+    )
     simulation = isinstance(cfg, NewtonCfg)
     if simulation:
         reset_registered_mpm_particle_ranges()
@@ -135,14 +143,14 @@ def _replicate_newton(
         ignore_paths = [
             source + matched.suffix
             for entry in NewtonManager._deformable_registry
-            for _, source, destination, world_ids in instances
-            if len(world_ids) and world_ids[0] != -1
+            for index, destination in enumerate(templates[starts[1] :], starts[1])
+            if (source := sources[plan.topology.world_prototypes[index]]) is not None
             if (matched := cloner_path.match(entry.prim_path, destination)) is not None
         ]
         global_ignore_paths.extend(ignore_paths)
         global_ignore_paths.extend(entry.prim_path for entry in NewtonManager._deformable_registry)
     else:
-        entries = deformable_prototypes(stage, reference_instances, global_paths, exclude_paths=exclude_paths)
+        entries = deformable_prototypes(stage, plan, exclude_paths=exclude_paths)
         ignore_paths = list(
             dict.fromkeys(
                 path for entry in entries for path in (entry.root_path, entry.sim_mesh_path, entry.vis_mesh_path)
@@ -157,7 +165,7 @@ def _replicate_newton(
     source_import_results: dict[str, dict[str, Any]] = {}
     source_builders = build_source_builders(
         stage,
-        tuple(dict.fromkeys(source for _, source, _, world_ids in instances if len(world_ids))),
+        tuple(dict.fromkeys(sources[index] for index in asset_prototype_ids if sources[index] is not None)),
         create_builder,
         schema_resolvers,
         ignore_paths=global_ignore_paths,
@@ -174,10 +182,10 @@ def _replicate_newton(
                 continue
             if len(UsdGeom.BasisCurves(stage.GetPrimAtPath(path)).GetCurveVertexCountsAttr().Get()) != 1:
                 continue
-            for _, prototype, destination, world_ids in instances:
-                if prototype == source:
-                    for world_id in world_ids:
-                        target = destination.format(-1 if world_id == -1 else int(env_ids[world_id]))
+            for world, prototype in enumerate((-1, *plan.topology.world_prototype_layout), -1):
+                for index in range(starts[prototype + 1], starts[prototype + 2]):
+                    if sources[plan.topology.world_prototypes[index]] == source:
+                        target = templates[index].format(-1 if world == -1 else int(env_ids[world]))
                         cable_counts[cloner_path.rebase(path, source, target)] = len(bodies)
 
     if simulation:
@@ -206,12 +214,10 @@ def _replicate_newton(
     local_site_map, world_xforms, fabric_body_bindings = replicate_builder_mapping(
         builder=builder,
         plan=plan,
-        instances=instances,
         positions=positions,
         quaternions=quaternions,
         source_builders=source_builders,
         env_ids=env_ids,
-        reference_instances=reference_instances,
         source_site_indices=source_sites,
         env_root_sites=root_sites,
         per_world_builder_hooks=NewtonManager._per_world_builder_hooks if simulation else (),
@@ -237,7 +243,7 @@ def _replicate_newton(
         NewtonManager._num_envs = len(env_ids)
     else:
         geometry_offsets = add_shadow_deformables_to_builder(
-            builder, expand_deformable_entries(entries, instances, env_ids, positions)
+            builder, expand_deformable_entries(entries, plan, env_ids, positions)
         )
         backend_cfg = NewtonBackendCfg(builder=builder, device=sim.device, num_envs=len(env_ids), simulation=False)
         sim.physics_manager.register_callback(
@@ -261,21 +267,13 @@ class NewtonReplicateContext:
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> tuple[ModelBuilder, object, dict]:
         """Build and publish a Newton model from this context's source declarations."""
-        instances = cloner_path.get_instance_paths(plan)
         return _replicate_newton(
             self._sim.stage,
             np.arange(len(plan.topology.world_prototype_layout)),
             self._sim,
             plan=plan,
-            instances=tuple(instance for instance in instances if instance[0] in asset_prototype_ids),
-            reference_instances=instances,
+            asset_prototype_ids=asset_prototype_ids,
             positions=plan.positions,
-            global_paths=cloner_path.get_shared_paths(instances),
-            exclude_paths=tuple(
-                source
-                for index, source, _, world_ids in instances
-                if index not in asset_prototype_ids and len(world_ids) and world_ids[0] != -1
-            ),
             up_axis=self.up_axis,
         )
 
@@ -307,8 +305,9 @@ def newton_physics_replicate(
     Returns:
         Tuple of the populated Newton model builder and stage metadata.
     """
-    world_masks, selected = np.unique(mapping.T, axis=0, return_inverse=True)
-    members = [np.flatnonzero(mask) for mask in world_masks]
+    world_masks, first, selected = np.unique(mapping.T, axis=0, return_index=True, return_inverse=True)
+    order = np.argsort(first)
+    members = [np.flatnonzero(mask) for mask in world_masks[order]]
     shared = np.arange(len(sources), len(sources) + len(global_paths))
     prefix, suffix = destinations[0].split("{}", 1) if destinations else ("/World/envs/env_", "")
     plan = ClonePlan(
@@ -316,25 +315,22 @@ def newton_physics_replicate(
             len(sources) + len(global_paths),
             np.concatenate((shared, *members)).astype(np.int32),
             np.r_[0, len(shared), len(shared) + np.cumsum([len(world) for world in members])],
-            selected.astype(np.int32),
+            np.argsort(order)[selected].astype(np.int32),
         ),
-        asset_cfgs=(*sources, *global_paths),
+        asset_cfgs=tuple(
+            AssetBaseCfg(prim_path=destination.format("[^/]+"), spawn=SpawnerCfg(spawn_path=source))
+            for source, destination in zip((*sources, *global_paths), (*destinations, *global_paths), strict=True)
+        ),
         env_template=prefix + "{}" + suffix.split("/", 1)[0],
         positions=positions,
     )
-    instances = tuple(
-        (index, source, destination, np.flatnonzero(mapping[index]))
-        for index, (source, destination) in enumerate(zip(sources, destinations, strict=True))
-    ) + tuple((int(index), path, path, np.array([-1])) for index, path in zip(shared, global_paths, strict=True))
     builder, stage_info, _ = _replicate_newton(
         stage,
         env_ids,
         PhysicsManager._sim,
         plan=plan,
-        instances=instances,
-        reference_instances=instances,
+        asset_prototype_ids=range(len(plan.asset_cfgs)),
         positions=positions,
-        global_paths=global_paths,
         up_axis=up_axis,
         quaternions=quaternions,
     )

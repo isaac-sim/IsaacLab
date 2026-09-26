@@ -65,7 +65,7 @@ def sample_object_point_cloud(num_envs: int, num_points: int, prim_path: str, de
     stage = sim_utils.get_current_stage()
 
     plan = sim_utils.SimulationContext.instance().get_clone_plan()
-    source_paths = {index: path for index, path, _, world_ids in cloner.path.get_instance_paths(plan) if len(world_ids)}
+    source_paths = cloner.path.get_asset_prototype_paths(plan)
     for index in cloner.path.get_asset_prototypes(plan, prim_path):
         env_ids, _ = cloner.query.get_asset_prototype_unique_world_index(plan.topology, index)
         if not len(env_ids):

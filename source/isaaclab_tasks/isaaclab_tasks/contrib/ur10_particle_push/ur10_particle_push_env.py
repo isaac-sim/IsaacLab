@@ -367,11 +367,8 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
             )
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
         asset_ids = cloner.path.get_asset_prototypes(plan, self._robot.cfg.prim_path)
-        source_path = next(
-            source
-            for index, source, _, worlds in cloner.path.get_instance_paths(plan)
-            if index in asset_ids and len(worlds)
-        )
+        sources = cloner.path.get_asset_prototype_paths(plan)
+        source_path = next(sources[index] for index in asset_ids if sources[index] is not None)
         prototype_origin = -self.scene.env_origins[0]
         prototype_xform = wp.transform(wp.vec3(*prototype_origin.tolist()), wp.quat_identity())
 

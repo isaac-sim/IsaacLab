@@ -177,11 +177,8 @@ class NewtonInverseKinematicsAction(ActionTerm):
         # Finalize the controlled asset's retained prototype builder.
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
         asset_ids = cloner.path.get_asset_prototypes(plan, self._asset.cfg.prim_path)
-        self._source_path = next(
-            source
-            for index, source, _, worlds in cloner.path.get_instance_paths(plan)
-            if index in asset_ids and len(worlds)
-        )
+        sources = cloner.path.get_asset_prototype_paths(plan)
+        self._source_path = next(sources[index] for index in asset_ids if sources[index] is not None)
         prototype_model = NewtonManager._cl_protos[self._source_path].finalize(device=NewtonManager.get_model().device)
         prototype_view = ArticulationView(
             prototype_model,
