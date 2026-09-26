@@ -12,7 +12,7 @@ import scipy.spatial.transform as scipy_tf
 import torch
 
 import isaaclab.utils.math as math_utils
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = pytest.mark.unit
 
@@ -1196,3 +1196,61 @@ def test_create_rotation_matrix_from_view_non_finite_returns_nan(device):
     targets = torch.tensor([[0.0, 0.0, 0.0]], device=device)
     R = math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis="Z", device=device)
     assert torch.isnan(R).all()
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize(
+    "mean, std, size",
+    [
+        (0.5, 0.2, 4096),
+        (torch.tensor(0.5), torch.tensor(0.2), (4096,)),
+        (torch.tensor([0.0, 10.0, 20.0]), 0.2, (4096, 3)),
+        (0.5, torch.tensor([0.1, 0.2, 0.3]), (4096, 3)),
+    ],
+)
+def test_sample_gaussian_shape_and_distribution(device, mean, std, size):
+    """Draw independent samples of the requested shape, including CPU tensor parameters on CUDA."""
+    torch.manual_seed(42)
+    samples = math_utils.sample_gaussian(mean, std, size, device)
+    assert samples.shape == ((size,) if isinstance(size, int) else size)
+    assert samples.device == torch.device(device)
+    assert torch.unique(samples, dim=0).shape[0] > samples.shape[0] // 2
+    actual_std, actual_mean = torch.std_mean(samples, dim=0)
+    expected_mean = torch.as_tensor(mean, device=device).expand_as(actual_mean)
+    expected_std = torch.as_tensor(std, device=device).expand_as(actual_std)
+    torch.testing.assert_close(actual_mean, expected_mean, atol=0.02, rtol=0.0)
+    torch.testing.assert_close(actual_std, expected_std, atol=0.02, rtol=0.0)
+
+
+def test_sample_gaussian_broadcast_zero_std():
+    """A per-row mean broadcasts to the requested columns without adding noise at zero std."""
+    mean = torch.tensor([[0.0], [10.0]])
+    samples = math_utils.sample_gaussian(mean, 0.0, (2, 3), "cpu")
+    torch.testing.assert_close(samples, torch.tensor([[0.0, 0.0, 0.0], [10.0, 10.0, 10.0]]))
+
+
+@pytest.mark.parametrize(
+    "mean, std, match",
+    [
+        (torch.zeros(4), 1.0, "expand"),
+        (0.0, torch.zeros(4), "expand"),
+        (0.0, -1.0, "std"),
+    ],
+)
+def test_sample_gaussian_invalid_parameters(mean, std, match):
+    """Reject incompatible parameter shapes and retain rejection of negative standard deviations."""
+    with pytest.raises(RuntimeError, match=match):
+        math_utils.sample_gaussian(mean, std, (3,), "cpu")
+
+
+def test_apply_delta_pose_zero_rotation_gradients():
+    """A translation-only command preserves orientation and has finite gradients at zero rotation."""
+    source_pos = torch.tensor([[1.0, 2.0, 3.0]], requires_grad=True)
+    source_rot = torch.tensor([[0.0, 0.0, 1.0, 0.0]], requires_grad=True)
+    delta = torch.tensor([[0.5, -0.5, 1.0, 0.0, 0.0, 0.0]], requires_grad=True)
+    target_pos, target_rot = math_utils.apply_delta_pose(source_pos, source_rot, delta)
+    torch.testing.assert_close(target_pos, torch.tensor([[1.5, 1.5, 4.0]]))
+    torch.testing.assert_close(target_rot, source_rot)
+    (target_pos.sum() + target_rot.sum()).backward()
+    for value in (source_pos, source_rot, delta):
+        assert torch.isfinite(value.grad).all()
