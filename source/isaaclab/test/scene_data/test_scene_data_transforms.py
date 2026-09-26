@@ -7,7 +7,9 @@
 
 from __future__ import annotations
 
+import gc
 import itertools
+import weakref
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -248,6 +250,11 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
         assert provider.get_transforms(output, mapping, scales=scales)
         assert output.matrices is destination
         launch.assert_called_once()
-        assert len(provider._transform_cache) == 1
         np.testing.assert_allclose(matrices.numpy(), expected, rtol=1.0e-6, atol=1.0e-6)
         np.testing.assert_array_equal(scales.numpy(), authored_scales)
+        released_output, released_mapping = weakref.ref(output), weakref.ref(mapping)
+        launch.reset_mock()
+        del output, mapping
+        gc.collect()
+        assert released_output() is None
+        assert released_mapping() is None

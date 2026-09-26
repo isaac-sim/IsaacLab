@@ -21,6 +21,8 @@
   locators, resource keys, or separate renderer registries.
 - Renderers consume geometry through `SceneDataProvider`. Keep Newton imports out of OVRTX renderers
   and Fabric destination ownership and shadow remapping out of physics backends.
+- Keep SDP cache lifetime and invalidation independent of data format. Conversion functions bind
+  layouts; caller-owned destinations must not be retained by their cached bindings.
 - For external wrenches, follow the asset API's `is_global` boolean and `_b`/`_w` buffer naming. Keep
   frame conversion decisions in `WrenchComposer` and track pending contributions with plain booleans;
   do not introduce frame enums, content bitmasks, or a classification layer.
