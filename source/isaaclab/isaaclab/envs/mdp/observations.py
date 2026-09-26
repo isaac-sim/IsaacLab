@@ -742,6 +742,10 @@ class image_features(ManagerTermBase):
                     del model_class.all_tied_weights_keys
             return model.to(model_device)
 
+        # ImageNet normalization statistics, created once instead of on every inference call
+        mean = torch.tensor([0.485, 0.456, 0.406], device=model_device).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225], device=model_device).view(1, 3, 1, 1)
+
         def _inference(model, images: torch.Tensor) -> torch.Tensor:
             """Inference the Theia transformer model.
 
@@ -757,8 +761,6 @@ class image_features(ManagerTermBase):
             # permute the image to (num_envs, channel, height, width)
             image_proc = image_proc.permute(0, 3, 1, 2).float() / 255.0
             # Normalize the image
-            mean = torch.tensor([0.485, 0.456, 0.406], device=model_device).view(1, 3, 1, 1)
-            std = torch.tensor([0.229, 0.224, 0.225], device=model_device).view(1, 3, 1, 1)
             image_proc = (image_proc - mean) / std
 
             # Taken from Transformers; inference converted to be GPU only
@@ -793,6 +795,10 @@ class image_features(ManagerTermBase):
             model = getattr(models, model_name)(weights=resnet_weights[model_name]).eval()
             return model.to(model_device)
 
+        # ImageNet normalization statistics, created once instead of on every inference call
+        mean = torch.tensor([0.485, 0.456, 0.406], device=model_device).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225], device=model_device).view(1, 3, 1, 1)
+
         def _inference(model, images: torch.Tensor) -> torch.Tensor:
             """Inference the ResNet model.
 
@@ -808,8 +814,6 @@ class image_features(ManagerTermBase):
             # permute the image to (num_envs, channel, height, width)
             image_proc = image_proc.permute(0, 3, 1, 2).float() / 255.0
             # normalize the image
-            mean = torch.tensor([0.485, 0.456, 0.406], device=model_device).view(1, 3, 1, 1)
-            std = torch.tensor([0.229, 0.224, 0.225], device=model_device).view(1, 3, 1, 1)
             image_proc = (image_proc - mean) / std
 
             # forward the image through the model

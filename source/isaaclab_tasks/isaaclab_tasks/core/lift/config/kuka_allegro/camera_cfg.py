@@ -7,13 +7,13 @@
 
 from dataclasses import MISSING
 
+import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, MultiMeshRayCasterCameraCfg, patterns
 from isaaclab.utils import configclass
-from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
@@ -223,10 +223,14 @@ class SingleCameraObservationsCfg(StateObservationCfg):
         """Camera observations for policy group."""
 
         object_observation_b = ObsTerm(
-            func=mdp.vision_camera,
-            noise=Unoise(n_min=-0.0, n_max=0.0),
-            clip=(-1.0, 1.0),
-            params={"sensor_cfg": SceneEntityCfg("base_camera")},
+            func=base_mdp.image_rgb,
+            params={
+                "sensor_cfg": SceneEntityCfg("base_camera"),
+                "data_type": "rgb",
+                "normalize": False,
+                "channel_first": True,
+            },
+            clone_output=False,
         )
 
     # image groups keep the group default of no history: a stack of frames per step costs more
@@ -243,10 +247,14 @@ class DuoCameraObservationsCfg(SingleCameraObservationsCfg):
         """Camera observations for the wrist image group."""
 
         wrist_observation = ObsTerm(
-            func=mdp.vision_camera,
-            noise=Unoise(n_min=-0.0, n_max=0.0),
-            clip=(-1.0, 1.0),
-            params={"sensor_cfg": SceneEntityCfg("wrist_camera")},
+            func=base_mdp.image_rgb,
+            params={
+                "sensor_cfg": SceneEntityCfg("wrist_camera"),
+                "data_type": "rgb",
+                "normalize": False,
+                "channel_first": True,
+            },
+            clone_output=False,
         )
 
     wrist_image: WristImageObsCfg = WristImageObsCfg()
