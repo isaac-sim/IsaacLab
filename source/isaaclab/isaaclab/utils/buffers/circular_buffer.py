@@ -142,11 +142,7 @@ class CircularBuffer:
         # nothing to reset; arming the backfill would cost one full-buffer pass in append
         if batch_ids is not None and len(batch_ids) == 0:
             return
-        batch_ids_resolved: Sequence[int] | slice
-        if batch_ids is None:
-            batch_ids_resolved = slice(None)
-        else:
-            batch_ids_resolved = batch_ids
+        batch_ids_resolved = slice(None) if batch_ids is None else batch_ids
         self._num_pushes[batch_ids_resolved] = 0
         self._need_reset = True
         if self._buffer is not None:
