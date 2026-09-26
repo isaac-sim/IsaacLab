@@ -13,6 +13,8 @@ import torch
 
 from isaaclab.managers import SceneEntityCfg
 
+from .rewards import _pelvis_clearance
+
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
@@ -48,3 +50,20 @@ def terrain_out_of_bounds(
         return torch.logical_or(x_out_of_bounds, y_out_of_bounds)
     else:
         raise ValueError("Received unsupported terrain type, must be either 'plane' or 'generator'.")
+
+
+def pelvis_below_terrain_clearance_after_warmup(
+    env: ManagerBasedRLEnv,
+    minimum_height: float,
+    warmup_steps: int,
+    asset_cfg: SceneEntityCfg,
+    sensor_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+    """Terminate below ``minimum_height`` [m] after ``warmup_steps`` environment steps.
+
+    The warmup uses the global environment step counter, so episode resets do not
+    restart it. This lets the policy learn to stand before enforcing the height floor.
+    """
+    if env.common_step_counter < warmup_steps:
+        return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+    return _pelvis_clearance(env, asset_cfg, sensor_cfg) < minimum_height

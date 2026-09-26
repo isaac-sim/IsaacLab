@@ -14,11 +14,16 @@ The following configurations are available:
 * :obj:`H1_MINIMAL_CFG`: H1 humanoid robot with minimal collision bodies
 * :obj:`G1_CFG`: G1 humanoid robot
 * :obj:`G1_MINIMAL_CFG`: G1 humanoid robot with minimal collision bodies
+* :obj:`G1_29DOF_VELOCITY_CFG`: G1 humanoid with 29 controlled body joints and passive fingers
 * :obj:`G1_29DOF_CFG`: G1 humanoid robot configured for locomanipulation tasks
 * :obj:`G1_INSPIRE_FTP_CFG`: G1 29DOF humanoid robot with Inspire 5-finger hand
 
 Reference: https://github.com/unitreerobotics/unitree_ros
 """
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
@@ -27,6 +32,10 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ActuatorNetMLPCfg, DCMotorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+
+if TYPE_CHECKING:
+    from pxr import Usd
+
 
 HEALTHCARE_S3 = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/Healthcare/0.5.0/132c82d"
 
@@ -406,6 +415,111 @@ G1_MINIMAL_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_mi
 """Configuration for the Unitree G1 Humanoid robot with fewer collision meshes.
 
 This configuration removes most collision meshes to speed up simulation.
+"""
+
+
+@sim_utils.clone
+def spawn_g1_with_sole_plates(
+    prim_path: str,
+    cfg: sim_utils.UsdFileCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> Usd.Prim:
+    """Load G1 and replace its foot collision groups with the trained sole boxes.
+
+    The outer clone decorator copies the completed geometry to every matching environment.
+    Only collision geometry is authored here; contact margins and rest offsets retain their
+    existing settings. The articulation, inertias, and joints come from the supplied USD.
+
+    Args:
+        prim_path: Robot prim path or expression matching multiple environment parents.
+        cfg: USD spawn configuration for the 29-body-DoF G1 asset.
+        translation: Root translation relative to its parent [m].
+        orientation: Root quaternion in (x, y, z, w) order.
+        **kwargs: Additional USD spawner arguments.
+
+    Returns:
+        The spawned source prim, with both sole plates installed.
+    """
+    from pxr import Gf, UsdGeom, UsdPhysics
+
+    # The inner spawner receives one resolved path, so geometry is complete before outer cloning.
+    prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
+    stage = prim.GetStage()
+    paths = [prim.GetPath().AppendPath(f"{side}_ankle_roll_link") for side in ("left", "right")]
+    if any(not stage.GetPrimAtPath(path.AppendPath("collisions")) for path in paths):
+        raise ValueError("G1 sole plates require left/right ankle_roll_link/collisions in the supplied USD")
+    for path in paths:
+        stage.GetPrimAtPath(path.AppendPath("collisions")).SetActive(False)
+        plate = UsdGeom.Cube.Define(stage, path.AppendPath("foot_plate"))
+        plate.CreateSizeAttr(1.0)
+        UsdPhysics.CollisionAPI.Apply(plate.GetPrim())
+        plate.ClearXformOpOrder()
+        # Sole dimensions and placement used by the velocity policies [m].
+        plate.AddTranslateOp(precision=UsdGeom.XformOp.PrecisionFloat).Set(
+            Gf.Vec3f(0.0359170487, 2.22044605e-16, -0.0251700647)
+        )
+        plate.AddScaleOp(precision=UsdGeom.XformOp.PrecisionFloat).Set(Gf.Vec3f(0.203109218, 0.065469244, 0.0185078794))
+    return prim
+
+
+G1_29DOF_VELOCITY_CFG = G1_CFG.replace(
+    spawn=G1_CFG.spawn.replace(
+        func=spawn_g1_with_sole_plates,
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
+    ),
+    init_state=G1_CFG.init_state.replace(
+        pos=(0.0, 0.0, 0.793),
+        joint_pos={
+            ".*_hip_pitch_joint": -0.20,
+            ".*_knee_joint": 0.42,
+            ".*_ankle_pitch_joint": -0.23,
+            ".*_elbow_joint": 0.87,
+            "left_shoulder_roll_joint": 0.16,
+            "left_shoulder_pitch_joint": 0.35,
+            "right_shoulder_roll_joint": -0.16,
+            "right_shoulder_pitch_joint": 0.35,
+        },
+    ),
+    actuators={
+        "legs": G1_CFG.actuators["legs"].replace(
+            joint_names_expr=[".*_hip_.*_joint", ".*_knee_joint", "waist_yaw_joint"],
+            stiffness={
+                ".*_hip_yaw_joint": 150.0,
+                ".*_hip_roll_joint": 150.0,
+                ".*_hip_pitch_joint": 200.0,
+                ".*_knee_joint": 200.0,
+                "waist_yaw_joint": 200.0,
+            },
+            damping=5.0,
+            armature=0.01,
+        ),
+        "feet": G1_CFG.actuators["feet"].copy(),
+        "waist": ImplicitActuatorCfg(
+            joint_names_expr=["waist_roll_joint", "waist_pitch_joint"],
+            joint_effort_limit=50.0,
+            stiffness=200.0,
+            damping=5.0,
+            armature=0.01,
+        ),
+        "arms": G1_CFG.actuators["arms"].replace(
+            joint_names_expr=[".*_shoulder_.*_joint", ".*_elbow_joint", ".*_wrist_.*_joint"],
+            armature=0.01,
+        ),
+        "hands": ImplicitActuatorCfg(
+            joint_names_expr=[".*_hand_.*_joint"],
+            joint_effort_limit=300,
+            stiffness=0.0,
+            damping=0.1,
+            armature=0.001,
+        ),
+    },
+)
+"""G1 locomotion configuration with sole boxes and passive Dex3 fingers.
+
+The authored masses, inertias, joint limits, contact margins and rest offsets are preserved.
+Policies control the 29 body joints; the 14 finger joints remain in the articulation.
 """
 
 
