@@ -57,24 +57,31 @@ def get_world_prototypes(plan: ClonePlan, path_expr: str | None = None) -> np.nd
     return prototype_ids[np.diff(match_counts[plan.world_prototype_starts]) > 0]
 
 
-def get_asset_prototype_world_index(plan: ClonePlan, asset_prototype: int | str, *, unique: bool = False) -> np.ndarray:
+def get_asset_prototype_world_index(
+    plan: ClonePlan, asset_prototype: int | str, *, unique: bool = False
+) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
     """Return destination world indices for selected asset-prototype instances.
 
     Args:
         plan: Asset prototypes and world compositions.
         asset_prototype: Prototype index or a declared-path expression accepted by :func:`get_asset_prototypes`.
-        unique: Return each containing world once instead of one entry per selected asset instance.
+        unique: Return each containing world once, without instance offsets.
 
     Returns:
-        Ascending world indices, shape [num_matches], dtype int32. Shared instances use -1.
-        Expressions select all matching prototypes; empty selections return an empty array.
+        With unique=True, ascending world indices, each included once. Otherwise,
+        (world_indices, world_starts), with one world index per selected asset instance.
+        All arrays are 1-D with dtype int32. Shared instances use world -1 and occupy the first slice.
+        World w's start/end offsets are world_starts[w + 1 : w + 3]. Starts have length num_worlds + 2, including
+        empty worlds and the final end offset. These offsets address selected plan instances, not native buffers.
     """
     asset_ids = get_asset_prototypes(plan, asset_prototype) if isinstance(asset_prototype, str) else asset_prototype
     match_counts = np.r_[0, np.cumsum(np.isin(plan.world_prototypes, asset_ids))]
     counts = np.diff(match_counts[plan.world_prototype_starts])
     counts = np.r_[counts[0], counts[plan.world_prototype_layout + 1]]
     world_ids = np.arange(-1, len(plan.world_prototype_layout), dtype=np.int32)
-    return world_ids[counts > 0] if unique else np.repeat(world_ids, counts)
+    if unique:
+        return world_ids[counts > 0]
+    return np.repeat(world_ids, counts), np.r_[0, counts].cumsum(dtype=np.int32)
 
 
 def get_world_prototype_world_index(plan: ClonePlan, world_prototype: int) -> np.ndarray:
