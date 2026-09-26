@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Backend implementations of MDP event terms for physx."""
+"""Backend implementations of MDP event terms for PhysX."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Literal
 import torch
 import warp as wp
 
+from isaaclab import assets
 from isaaclab.envs.mdp.events import _GravityRandomization, _randomize_prop_by_op
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import math as math_utils
@@ -28,7 +29,7 @@ class randomize_rigid_body_material(ManagerTermBase):
     Materials are pre-sampled into buckets and randomly assigned to shapes.
     """
 
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
         """Bind this term to the active simulation and capture term-local state.
 
         Args:
@@ -38,7 +39,6 @@ class randomize_rigid_body_material(ManagerTermBase):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         asset: RigidObject | Articulation = env.scene[asset_cfg.name]
-        from isaaclab.assets import BaseArticulation
 
         # obtain parameters for sampling friction and restitution values
         static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
@@ -64,7 +64,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         # obtain number of shapes per body (needed for indexing the material properties correctly)
         # note: this is a workaround since the Articulation does not provide a direct way to obtain the number of shapes
         #  per body. We use the physics simulation view to obtain the number of shapes per body.
-        if isinstance(asset, BaseArticulation) and asset_cfg.body_ids != slice(None):
+        if isinstance(asset, assets.BaseArticulation) and asset_cfg.body_ids != slice(None):
             self.num_shapes_per_body = []
             for link_path in asset.root_view.link_paths[0]:
                 link_physx_view = asset._physics_sim_view.create_rigid_body_view(link_path)  # type: ignore
@@ -93,8 +93,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         num_buckets: int,
         asset_cfg: SceneEntityCfg,
         make_consistent: bool = False,
-    ):
-        # resolve environment ids
+    ) -> None:
         """Apply the configured randomization.
 
         Args:
@@ -142,7 +141,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
     Uses rest offset and contact offset directly via the PhysX tensor API.
     """
 
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
         """Bind this term to the active simulation and capture term-local state.
 
         Args:
@@ -164,7 +163,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
         rest_offset_distribution_params: tuple[float, float] | None = None,
         contact_offset_distribution_params: tuple[float, float] | None = None,
         distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
-    ):
+    ) -> None:
         """Apply the configured randomization.
 
         Args:
@@ -173,7 +172,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
             asset_cfg: Asset selection; collider randomization operates on every body.
             rest_offset_distribution_params: Rest offset distribution parameters [m].
             contact_offset_distribution_params: Contact offset distribution parameters [m].
-            distribution: Sampling distribution; gravity terms cache this at construction.
+            distribution: Sampling distribution for the offsets.
         """
         if env_ids is None:
             env_ids = torch.arange(env.scene.num_envs, device="cpu", dtype=torch.int32)
@@ -216,13 +215,14 @@ class randomize_physics_scene_gravity(_GravityRandomization):
     parameters [m/s^2] may change at runtime.
     """
 
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
         """Bind this term to the active simulation and capture term-local state.
 
         Args:
             cfg: Event configuration.
             env: Environment owning this term.
         """
+        # Carb is available only after Isaac Sim starts; material terms also support kitless use.
         import carb
 
         super().__init__(cfg, env, device="cpu")

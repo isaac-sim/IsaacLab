@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Backend implementations of MDP event terms for newton."""
+"""Backend implementations of MDP event terms for Newton."""
 
 from __future__ import annotations
 
@@ -11,12 +11,15 @@ from typing import TYPE_CHECKING, Literal
 
 import torch
 import warp as wp
+from newton import ModelFlags
+from newton.solvers import SolverKamino
 
 from isaaclab.envs.mdp.events import _GravityRandomization, _randomize_prop_by_op
 from isaaclab.envs.mdp.visual_events import _compile_distribution
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import math as math_utils
 
+from ... import assets
 from ...physics.newton_manager import NewtonManager
 
 if TYPE_CHECKING:
@@ -38,25 +41,21 @@ class randomize_rigid_body_material(ManagerTermBase):
     environment (no per-env variation). All other Newton solvers keep the per-shape sampling.
     """
 
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
+        """Bind the asset properties and capture the configured sampling state.
+
+        Args:
+            cfg: Event configuration.
+            env: Environment owning this term.
+        """
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         asset: RigidObject | Articulation = env.scene[asset_cfg.name]
-        from newton import ModelFlags  # noqa: PLC0415
-        from newton.solvers import SolverKamino  # noqa: PLC0415
-
-        from ...assets import Articulation as NewtonArticulation  # noqa: PLC0415
 
         self.asset = asset
         self.asset_cfg = asset_cfg
         self._newton_manager = env.sim.physics_manager
-        self._notify_shape_properties = ModelFlags.SHAPE_PROPERTIES
-        # Kamino deduplicates contact materials globally by (mu, restitution) at build time and
-        # shares them across environments, so its in-place material update rejects per-shape /
-        # per-env overrides. When Kamino is active we instead sample one value per build-time
-        # material group and broadcast it to every environment. The grouping is derived lazily on
-        # the first call, when the shape bindings still hold their build-time values.
-        self._solver_kamino_cls = SolverKamino
+        # Capture material groups on the first call, before any randomized writes.
         self._kamino_group_inverse: torch.Tensor | None = None
         self._kamino_num_groups = 0
 
@@ -70,7 +69,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         self._restitution_binding = asset._root_view.get_attribute("shape_material_restitution", model)[:, 0]  # type: ignore
 
         # compute shape indices for body-specific randomization
-        if isinstance(asset, NewtonArticulation) and asset_cfg.body_ids != slice(None):
+        if isinstance(asset, assets.Articulation) and asset_cfg.body_ids != slice(None):
             # ``body_ids`` are public IDs, while shape bindings use backend order; convert the
             # selected IDs once and index the backend-ordered shape counts directly.
             num_shapes_per_body = asset.backend_num_shapes_per_body
@@ -94,7 +93,20 @@ class randomize_rigid_body_material(ManagerTermBase):
         num_buckets: int,
         asset_cfg: SceneEntityCfg,
         make_consistent: bool = False,
-    ):
+    ) -> None:
+        """Sample friction and restitution for the selected shapes.
+
+        Args:
+            env: Environment owning this term.
+            env_ids: Environment selection; ignored by Kamino's shared material groups.
+                None selects all environments.
+            static_friction_range: Friction bounds captured at construction.
+            dynamic_friction_range: Unused; Newton has a single friction coefficient.
+            restitution_range: Restitution bounds captured at construction.
+            num_buckets: Unused; Newton samples continuous values.
+            asset_cfg: Asset and body selection resolved at construction.
+            make_consistent: Unused; Newton has a single friction coefficient.
+        """
         device = env.device
         # resolve environment ids
         if env_ids is None:
@@ -110,11 +122,8 @@ class randomize_rigid_body_material(ManagerTermBase):
         restitution_view = wp.to_torch(self._restitution_binding)
 
         num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        if isinstance(self._newton_manager._solver, self._solver_kamino_cls):
-            # Kamino: sample one value per build-time material group and broadcast across every
-            # environment. Per-shape / per-env variation is impossible because Kamino shares each
-            # contact material across all shapes and environments that were built with identical
-            # (mu, restitution).
+        if isinstance(self._newton_manager._solver, SolverKamino):
+            # Kamino shares each material group across all environments.
             if self._kamino_group_inverse is None:
                 build_keys = torch.stack((friction_view[0, shape_idx], restitution_view[0, shape_idx]), dim=-1)
                 _, inverse = torch.unique(build_keys, dim=0, return_inverse=True)
@@ -142,7 +151,7 @@ class randomize_rigid_body_material(ManagerTermBase):
             restitution_view[env_rows, shape_idx] = restitution_samples
 
         # notify the physics engine
-        self._newton_manager.add_model_change(self._notify_shape_properties)
+        self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
 
 class randomize_rigid_body_collider_offsets(ManagerTermBase):
@@ -158,15 +167,19 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
     .. _Newton collision schema: https://newton-physics.github.io/newton/latest/concepts/collisions.html
     """
 
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
+        """Bind the asset properties and capture the configured sampling state.
+
+        Args:
+            cfg: Event configuration.
+            env: Environment owning this term.
+        """
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         asset: RigidObject | Articulation = env.scene[asset_cfg.name]
-        from newton import ModelFlags  # noqa: PLC0415
 
         self.asset = asset
         self._newton_manager = env.sim.physics_manager
-        self._notify_shape_properties = ModelFlags.SHAPE_PROPERTIES
 
         model = self._newton_manager.get_model()
         self._sim_bind_shape_margin = asset._root_view.get_attribute("shape_margin", model)[:, 0]  # type: ignore
@@ -183,7 +196,17 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
         rest_offset_distribution_params: tuple[float, float] | None = None,
         contact_offset_distribution_params: tuple[float, float] | None = None,
         distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
-    ):
+    ) -> None:
+        """Sample offsets and translate them to Newton margins and gaps.
+
+        Args:
+            env: Environment owning this term.
+            env_ids: Environment selection; None selects all environments.
+            asset_cfg: Asset selection; collider randomization operates on every body.
+            rest_offset_distribution_params: Rest offset distribution parameters [m].
+            contact_offset_distribution_params: Contact offset distribution parameters [m].
+            distribution: Sampling distribution for the offsets.
+        """
         if env_ids is None:
             env_ids = slice(None)
 
@@ -217,7 +240,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
             gap_view = wp.to_torch(self._sim_bind_shape_gap)
             gap_view[env_ids] = gap[env_ids]
         if rest_offset_distribution_params is not None or contact_offset_distribution_params is not None:
-            self._newton_manager.add_model_change(self._notify_shape_properties)
+            self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
 
 class randomize_physics_scene_gravity(_GravityRandomization):
@@ -227,7 +250,7 @@ class randomize_physics_scene_gravity(_GravityRandomization):
     is fixed at construction; distribution parameters [m/s^2] may change at runtime.
     """
 
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
         """Bind this term to the active simulation and capture term-local state.
 
         Args:
@@ -251,11 +274,9 @@ class randomize_physics_scene_gravity(_GravityRandomization):
             env: Environment owning this term.
             env_ids: Environment selection; None selects all environments.
             gravity_distribution_params: Distribution parameters [m/s^2] for add/abs, dimensionless for scale.
-            operation: Apply absolute values, add to the baseline, or scale the baseline.
+            operation: Apply absolute values, add to current gravity, or scale current gravity.
             distribution: Sampling distribution; gravity terms cache this at construction.
         """
-        from newton import ModelFlags
-
         model = self._manager.get_model()
         if model is None or model.gravity is None:
             raise RuntimeError("Newton model is not initialized. Cannot randomize gravity.")

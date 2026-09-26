@@ -21,7 +21,11 @@ from types import ModuleType
 from typing import TYPE_CHECKING, Literal
 
 import torch
+from isaaclab_newton.physics import NewtonCfg
+from isaaclab_ov.physics import OvPhysxCfg
+from isaaclab_physx.physics import PhysxCfg
 
+from ... import assets
 from ... import sim as sim_utils
 from ...managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from ...utils import math as math_utils
@@ -187,14 +191,18 @@ class randomize_rigid_body_material(ManagerTermBase):
 
     """
 
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
-        from ...assets import BaseArticulation, BaseRigidObject
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
+        """Initialize the implementation for the active physics backend.
 
+        Args:
+            cfg: Event configuration.
+            env: Environment owning this term.
+        """
         super().__init__(cfg, env)
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
 
-        if not isinstance(self.asset, (BaseRigidObject, BaseArticulation)):
+        if not isinstance(self.asset, (assets.BaseRigidObject, assets.BaseArticulation)):
             raise ValueError(
                 f"Randomization term 'randomize_rigid_body_material' not supported for asset: '{self.asset_cfg.name}'"
                 f" with type: '{type(self.asset)}'."
@@ -212,7 +220,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         num_buckets: int,
         asset_cfg: SceneEntityCfg,
         make_consistent: bool = False,
-    ):
+    ) -> None:
         self._impl(
             env,
             env_ids,
@@ -569,14 +577,18 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
 
     """
 
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
-        from ...assets import BaseArticulation, BaseRigidObject
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
+        """Initialize the implementation for the active physics backend.
 
+        Args:
+            cfg: Event configuration.
+            env: Environment owning this term.
+        """
         super().__init__(cfg, env)
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
 
-        if not isinstance(self.asset, (BaseRigidObject, BaseArticulation)):
+        if not isinstance(self.asset, (assets.BaseRigidObject, assets.BaseArticulation)):
             raise ValueError(
                 f"Randomization term 'randomize_rigid_body_collider_offsets' not supported for asset:"
                 f" '{self.asset_cfg.name}' with type: '{type(self.asset)}'."
@@ -592,7 +604,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
         rest_offset_distribution_params: tuple[float, float] | None = None,
         contact_offset_distribution_params: tuple[float, float] | None = None,
         distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
-    ):
+    ) -> None:
         self._impl(
             env,
             env_ids,
@@ -624,7 +636,13 @@ class randomize_physics_scene_gravity(ManagerTermBase):
         env: The environment instance.
     """
 
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
+        """Initialize the implementation for the active physics backend.
+
+        Args:
+            cfg: Event configuration.
+            env: Environment owning this term.
+        """
         super().__init__(cfg, env)
         self._impl = _get_backend_events(env).randomize_physics_scene_gravity(cfg, env)
 
@@ -635,7 +653,7 @@ class randomize_physics_scene_gravity(ManagerTermBase):
         gravity_distribution_params: tuple[list[float], list[float]],
         operation: Literal["add", "scale", "abs"],
         distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
-    ):
+    ) -> None:
         self._impl(env, env_ids, gravity_distribution_params, operation, distribution)
 
 
@@ -2214,10 +2232,25 @@ def _validate_scale_range(
         raise ValueError(f"{name}: upper bound ({high}) must be ≥ lower bound ({low}).")
 
 
+def _get_backend_events(env: ManagerBasedEnv) -> ModuleType:
+    """Select event implementations from the simulation's resolved physics configuration."""
+    # Import only the selected runtime, after this module and the simulation are initialized.
+    physics_cfg = env.sim.cfg.physics
+    if isinstance(physics_cfg, NewtonCfg):
+        from isaaclab_newton.envs.mdp import events
+    elif isinstance(physics_cfg, OvPhysxCfg):
+        from isaaclab_ov.envs.mdp import events
+    elif isinstance(physics_cfg, PhysxCfg):
+        from isaaclab_physx.envs.mdp import events
+    else:
+        raise NotImplementedError(f"Physics randomization is unsupported for {type(physics_cfg).__name__}.")
+    return events
+
+
 class _GravityRandomization(ManagerTermBase):
     """Shared distribution state; native terms own gravity scope and writes."""
 
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv, device: str):
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv, device: str) -> None:
         super().__init__(cfg, env)
         self._sampling_device = device
         self._distribution = cfg.params.get("distribution", "uniform")
@@ -2246,21 +2279,3 @@ class _GravityRandomization(ManagerTermBase):
             operation=operation,
             distribution=self._distribution,
         )
-
-
-def _get_backend_events(env: ManagerBasedEnv) -> ModuleType:
-    """Select event implementations from the simulation's resolved physics configuration."""
-    from isaaclab_newton.physics import NewtonCfg
-    from isaaclab_ov.physics import OvPhysxCfg
-    from isaaclab_physx.physics import PhysxCfg
-
-    physics_cfg = env.sim.cfg.physics
-    if isinstance(physics_cfg, NewtonCfg):
-        from isaaclab_newton.envs.mdp import events
-    elif isinstance(physics_cfg, OvPhysxCfg):
-        from isaaclab_ov.envs.mdp import events
-    elif isinstance(physics_cfg, PhysxCfg):
-        from isaaclab_physx.envs.mdp import events
-    else:
-        raise NotImplementedError(f"Physics randomization is unsupported for {type(physics_cfg).__name__}.")
-    return events

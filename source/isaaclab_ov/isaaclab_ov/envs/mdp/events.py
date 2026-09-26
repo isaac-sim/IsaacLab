@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Backend implementations of MDP event terms for ov."""
+"""Backend implementations of MDP event terms for OVPhysX."""
 
 from __future__ import annotations
 
@@ -12,21 +12,20 @@ from typing import TYPE_CHECKING, Literal
 import torch
 import warp as wp
 
+from pxr import UsdPhysics
+
 import isaaclab.sim as sim_utils
+from isaaclab import assets
 from isaaclab.envs.mdp.events import _GravityRandomization, _randomize_prop_by_op
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import math as math_utils
 
+from ... import tensor_types as ovphysx_tt
+from ...sim.views.ovphysx_view import OvPhysxView
+
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedEnv
-
-
-def _is_all_body_selection(body_ids: list[int] | slice, num_bodies: int) -> bool:
-    """Return whether a body selector covers the entire asset."""
-    if body_ids == slice(None):
-        return True
-    return sorted(body_ids) == list(range(num_bodies))
 
 
 class randomize_rigid_body_material(ManagerTermBase):
@@ -45,7 +44,7 @@ class randomize_rigid_body_material(ManagerTermBase):
     storage.
     """
 
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
         """Bind this term to the active simulation and capture term-local state.
 
         Args:
@@ -55,10 +54,6 @@ class randomize_rigid_body_material(ManagerTermBase):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         asset: RigidObject | Articulation = env.scene[asset_cfg.name]
-        from isaaclab.assets import BaseArticulation  # noqa: PLC0415
-
-        from ... import tensor_types as ovphysx_tt  # noqa: PLC0415
-        from ...sim.views.ovphysx_view import OvPhysxView  # noqa: PLC0415
 
         # sample material buckets once (PhysX-style; the 64000 unique-material limit applies)
         static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
@@ -75,11 +70,9 @@ class randomize_rigid_body_material(ManagerTermBase):
         self._material_view = asset.root_view
         self._material_rows_by_env = torch.arange(asset.num_instances, dtype=torch.long).unsqueeze(-1)
 
-        if isinstance(asset, BaseArticulation):
+        if isinstance(asset, assets.BaseArticulation):
             self._material_type = ovphysx_tt.SHAPE_FRICTION_AND_RESTITUTION
             if not _is_all_body_selection(asset_cfg.body_ids, asset.num_bodies):
-                from pxr import UsdPhysics  # noqa: PLC0415
-
                 body_ids = [int(body_id) for body_id in asset_cfg.body_ids]
                 if len(body_ids) == 0:
                     self._material_view = None
@@ -185,7 +178,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         num_buckets: int,
         asset_cfg: SceneEntityCfg,
         make_consistent: bool = False,
-    ):
+    ) -> None:
         """Apply the configured randomization.
 
         Args:
@@ -242,7 +235,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
     environments as write indices.
     """
 
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
         """Bind this term to the active simulation and capture term-local state.
 
         Args:
@@ -252,12 +245,9 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         asset: RigidObject | Articulation = env.scene[asset_cfg.name]
-        from isaaclab.assets import BaseArticulation  # noqa: PLC0415
-
-        from ... import tensor_types as ovphysx_tt  # noqa: PLC0415
 
         self.asset = asset
-        if isinstance(asset, BaseArticulation):
+        if isinstance(asset, assets.BaseArticulation):
             self._rest_offset_type = ovphysx_tt.REST_OFFSET
             self._contact_offset_type = ovphysx_tt.CONTACT_OFFSET
         else:
@@ -274,7 +264,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
         rest_offset_distribution_params: tuple[float, float] | None = None,
         contact_offset_distribution_params: tuple[float, float] | None = None,
         distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
-    ):
+    ) -> None:
         """Apply the configured randomization.
 
         Args:
@@ -283,7 +273,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
             asset_cfg: Asset selection; collider randomization operates on every body.
             rest_offset_distribution_params: Rest offset distribution parameters [m].
             contact_offset_distribution_params: Contact offset distribution parameters [m].
-            distribution: Sampling distribution; gravity terms cache this at construction.
+            distribution: Sampling distribution for the offsets.
         """
         if env_ids is None:
             env_ids = torch.arange(env.scene.num_envs, device="cpu", dtype=torch.int32)
@@ -333,7 +323,7 @@ class randomize_physics_scene_gravity(_GravityRandomization):
     parameters [m/s^2] may change at runtime.
     """
 
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
         """Bind this term to the active simulation and capture term-local state.
 
         Args:
@@ -363,3 +353,10 @@ class randomize_physics_scene_gravity(_GravityRandomization):
         gravity = torch.tensor(env.sim.cfg.gravity, device="cpu").unsqueeze(0)
         gravity = self._sample_gravity(gravity, gravity_distribution_params, operation)[0].tolist()
         self._manager.set_gravity(tuple(gravity))
+
+
+def _is_all_body_selection(body_ids: list[int] | slice, num_bodies: int) -> bool:
+    """Return whether a body selector covers the entire asset."""
+    if body_ids == slice(None):
+        return True
+    return sorted(body_ids) == list(range(num_bodies))
