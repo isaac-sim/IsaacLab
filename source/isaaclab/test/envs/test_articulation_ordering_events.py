@@ -11,6 +11,9 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+import warp as wp
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.assets import BaseArticulation
 from isaaclab.envs.mdp import events as events_module
@@ -153,8 +156,8 @@ def deterministic_material_sampling(monkeypatch):
 
     _ = assets_module.BaseArticulation
     monkeypatch.setattr(events_module.math_utils, "sample_uniform", _sample_lower_bound)
-    monkeypatch.setattr(events_module.wp, "from_torch", lambda tensor, dtype=None: tensor)
-    monkeypatch.setattr(events_module.wp, "to_torch", lambda tensor, requires_grad=None: tensor)
+    monkeypatch.setattr(wp, "from_torch", lambda tensor, dtype=None: tensor)
+    monkeypatch.setattr(wp, "to_torch", lambda tensor, requires_grad=None: tensor)
 
 
 @pytest.mark.parametrize(
@@ -173,7 +176,7 @@ def test_physx_material_randomization_automatically_converts_public_body_ids_to_
 
     monkeypatch.setattr(assets_module, "BaseArticulation", _FakePhysxArticulation)
     asset = _FakePhysxArticulation(body_ordering)
-    asset_cfg = SimpleNamespace(body_ids=[1])
+    asset_cfg = SimpleNamespace(name="robot", body_ids=[1])
     cfg = SimpleNamespace(
         params={
             "static_friction_range": (0.4, 0.4),
@@ -182,8 +185,14 @@ def test_physx_material_randomization_automatically_converts_public_body_ids_to_
             "num_buckets": 1,
         }
     )
-    env = SimpleNamespace(scene=SimpleNamespace(num_envs=_NUM_ENVS), device="cpu")
-    term = events_module._RandomizeRigidBodyMaterialPhysx(cfg, env, asset, asset_cfg)
+    cfg.params["asset_cfg"] = asset_cfg
+    env = SimpleNamespace(
+        scene=_FakeScene(robot=asset),
+        num_envs=_NUM_ENVS,
+        device="cpu",
+        sim=SimpleNamespace(physics_manager=_FakeNewtonManager, cfg=SimpleNamespace(physics=PhysxCfg())),
+    )
+    term = events_module.randomize_rigid_body_material(cfg, env)
 
     term(
         env,
@@ -212,30 +221,39 @@ def test_newton_material_randomization_automatically_converts_public_body_ids_to
     monkeypatch, deterministic_material_sampling, body_ordering, expected_shape_slice
 ):
     """Newton automatically converts public body selections to backend shape ranges."""
+    import isaaclab.assets as assets_module
+
+    monkeypatch.setattr(assets_module, "BaseArticulation", _FakeNewtonArticulation)
     newton_assets_module = pytest.importorskip("isaaclab_newton.assets")
-    newton_manager_module = pytest.importorskip("isaaclab_newton.physics.newton_manager")
 
     monkeypatch.setattr(newton_assets_module, "Articulation", _FakeNewtonArticulation)
-    monkeypatch.setattr(newton_manager_module, "NewtonManager", _FakeNewtonManager)
     _FakeNewtonManager.notifications.clear()
     asset = _FakeNewtonArticulation(body_ordering)
-    asset_cfg = SimpleNamespace(body_ids=[1])
+    asset_cfg = SimpleNamespace(name="robot", body_ids=[1])
     cfg = SimpleNamespace(
         params={
             "static_friction_range": (0.4, 0.4),
             "restitution_range": (0.1, 0.1),
         }
     )
-    env = SimpleNamespace(scene=SimpleNamespace(num_envs=_NUM_ENVS), device="cpu")
-    term = events_module._RandomizeRigidBodyMaterialNewton(cfg, env, asset, asset_cfg)
+    cfg.params["asset_cfg"] = asset_cfg
+    env = SimpleNamespace(
+        scene=_FakeScene(robot=asset),
+        num_envs=_NUM_ENVS,
+        device="cpu",
+        sim=SimpleNamespace(
+            physics_manager=_FakeNewtonManager, cfg=SimpleNamespace(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
+        ),
+    )
+    term = events_module.randomize_rigid_body_material(cfg, env)
 
     term(
         env,
         torch.tensor([0], dtype=torch.int32),
         static_friction_range=(0.4, 0.4),
         dynamic_friction_range=(0.2, 0.2),
-        restitution_range=(0.1, 0.1),
         num_buckets=1,
+        restitution_range=(0.1, 0.1),
         asset_cfg=asset_cfg,
     )
 
@@ -243,8 +261,8 @@ def test_newton_material_randomization_automatically_converts_public_body_ids_to
     expected_restitution = torch.zeros_like(expected_friction)
     expected_friction[0, expected_shape_slice] = 0.4
     expected_restitution[0, expected_shape_slice] = 0.1
-    torch.testing.assert_close(term._friction_binding, expected_friction)
-    torch.testing.assert_close(term._restitution_binding, expected_restitution)
+    torch.testing.assert_close(asset._root_view.attributes["shape_material_mu"][:, 0], expected_friction)
+    torch.testing.assert_close(asset._root_view.attributes["shape_material_restitution"][:, 0], expected_restitution)
     assert len(_FakeNewtonManager.notifications) == 1
 
 
@@ -313,3 +331,33 @@ def test_fixed_tendon_randomization_writes_limit_stiffness_and_rest_length():
     torch.testing.assert_close(writes["limit_stiffness"]["limit_stiffness"], torch.full((1, 2), 2.0))
     torch.testing.assert_close(writes["rest_length"]["rest_length"], torch.full((1, 2), 0.5))
     assert "sim" in writes
+
+
+def test_newton_collider_offsets_translate_only_selected_environments(monkeypatch, deterministic_material_sampling):
+    """The shared offset term performs Newton margin/gap translation internally."""
+    import isaaclab.assets as assets_module
+
+    monkeypatch.setattr(assets_module, "BaseArticulation", _FakeNewtonArticulation)
+    asset = _FakeNewtonArticulation(None)
+    asset._root_view.attributes.update(
+        shape_margin=torch.full((_NUM_ENVS, 1, _NUM_SHAPES), 0.1),
+        shape_gap=torch.full((_NUM_ENVS, 1, _NUM_SHAPES), 0.2),
+    )
+    asset_cfg = SimpleNamespace(name="robot", body_ids=slice(None))
+    env = SimpleNamespace(
+        scene=_FakeScene(robot=asset),
+        sim=SimpleNamespace(
+            physics_manager=_FakeNewtonManager,
+            cfg=SimpleNamespace(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg())),
+        ),
+    )
+    term = events_module.randomize_rigid_body_collider_offsets(SimpleNamespace(params={"asset_cfg": asset_cfg}), env)
+    term(env, torch.tensor([1]), asset_cfg, (0.3, 0.3), (0.4, 0.4))
+    expected_margin = torch.tensor([0.1, 0.3])[:, None, None].expand(_NUM_ENVS, 1, _NUM_SHAPES)
+    expected_gap = torch.tensor([0.2, 0.1])[:, None, None].expand(_NUM_ENVS, 1, _NUM_SHAPES)
+    torch.testing.assert_close(asset._root_view.attributes["shape_margin"], expected_margin)
+    torch.testing.assert_close(asset._root_view.attributes["shape_gap"], expected_gap)
+    term(env, slice(0, 1), asset_cfg, contact_offset_distribution_params=(0.6, 0.6))
+    torch.testing.assert_close(asset._root_view.attributes["shape_margin"], expected_margin)
+    expected_gap = torch.tensor([0.5, 0.1])[:, None, None].expand(_NUM_ENVS, 1, _NUM_SHAPES)
+    torch.testing.assert_close(asset._root_view.attributes["shape_gap"], expected_gap)

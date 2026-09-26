@@ -35,6 +35,7 @@ from newton import ModelFlags
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
+from isaaclab.envs.mdp import randomize_physics_scene_gravity
 from isaaclab.envs.mdp.events import randomize_rigid_body_material
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
@@ -453,14 +454,17 @@ def test_gravity_vec_w_tracks_model_gravity(num_cubes, device):
         assert cube_object.data.GRAVITY_VEC_W.warp.ptr == model_gravity_arr.ptr
         assert cube_object.data.GRAVITY_VEC_W.shape == (num_cubes,)
 
-        # Mutate model.gravity per-env in place, as randomize_physics_scene_gravity does.
+        # Exercise the public event and verify the asset sees its per-world writes.
         new_gravity = torch.tensor(
             [[0.1 * (i + 1), 0.2 * (i + 1), -3.0 - float(i)] for i in range(num_cubes)],
             device=device,
             dtype=torch.float32,
         )
-        wp.to_torch(model_gravity_arr).copy_(new_gravity)
-        SimulationManager.add_model_change(ModelFlags.MODEL_PROPERTIES)
+        env = SimpleNamespace(sim=sim, device=device, num_envs=num_cubes)
+        params = {"gravity_distribution_params": ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)), "operation": "abs"}
+        event = randomize_physics_scene_gravity(EventTermCfg(func=randomize_physics_scene_gravity, params=params), env)
+        for row, values in enumerate(new_gravity.tolist()):
+            event(env, torch.tensor([row], device=device), (values, values), operation="abs")
 
         # Live view: new per-env values are visible immediately, no invalidation step.
         torch.testing.assert_close(cube_object.data.GRAVITY_VEC_W.torch, new_gravity)

@@ -17,14 +17,15 @@ from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.envs.mdp.events import randomize_physics_scene_gravity
+from isaaclab.envs.mdp import randomize_physics_scene_gravity
 from isaaclab.managers import EventTermCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
 
 def test_gravity_event_changes_rigid_body_motion():
     """The gravity event must dispatch through OvStage and change motion in OvPhysX."""
-    sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device="cpu", dt=1.0 / 60.0)
+    sim_cfg = SimulationCfg(physics=PhysxAutoCfg(ovphysx=OvPhysxCfg()), device="cpu", dt=1.0 / 60.0)
     with build_simulation_context(device="cpu", sim_cfg=sim_cfg) as sim:
         cube = RigidObject(
             RigidObjectCfg(

@@ -195,3 +195,30 @@ The following classes are part of the public :mod:`isaaclab.envs.mdp` API.
 
 .. autoclass:: UniformVelocityCommand
    :show-inheritance:
+
+Physics event backend selection
+-------------------------------
+
+Configure physics randomization through the shared ``isaaclab.envs.mdp`` terms:
+
+.. code-block:: python
+
+    import isaaclab.envs.mdp as mdp
+    from isaaclab.managers import EventTermCfg
+
+    gravity = EventTermCfg(
+        func=mdp.randomize_physics_scene_gravity,
+        mode="startup",
+        params={
+            "gravity_distribution_params": ((0.0, 0.0, -10.0), (0.0, 0.0, -9.0)),
+            "operation": "abs",
+        },
+    )
+
+Material, collider-offset, and gravity terms select the backend at construction from
+the simulation's resolved physics configuration, including the ``physx`` auto selector.
+Use the same terms for Newton, Isaac Sim PhysX, and OVPhysX; parameter translation is
+handled internally.
+
+See the shared terms for backend limits: scene-wide versus per-environment gravity,
+PhysX material buckets, Newton's single friction coefficient, and Kamino's shared materials.
