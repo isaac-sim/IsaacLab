@@ -1420,7 +1420,7 @@ Tasks declare their default selection through ``IsaacTeleopCfg.xr_camera_feeds``
    )
 
 For a recorded training view, define the named ``CameraCfg`` in the task scene and a matching
-``mdp.image`` term in ``observations.policy``. The normal recorder then stores that observation,
+``mdp.image_rgb`` term in ``observations.policy``. The normal recorder then stores that observation,
 while the PiP declaration above only selects it for presentation. Enabled task-declared entries
 control camera selection, panel count, display order, and automatic-layout order without mutating
 the reusable task configuration.

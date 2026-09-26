@@ -1268,7 +1268,7 @@ def project_points(points: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
     intrinsics_batch = intrinsics.clone()
 
     # check if inputs are batched
-    is_batched = points_batch.dim() == 2
+    is_batched = points_batch.dim() == 3
     # make sure inputs are batched
     if points_batch.dim() == 2:
         points_batch = points_batch[None]  # (P, 3) -> (1, P, 3)
@@ -1289,7 +1289,7 @@ def project_points(points: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
 
     # return points in same shape as input
     if not is_batched:
-        points_2d = points_2d.squeeze(0)  # (1, 3, P) -> (3, P)
+        points_2d = points_2d.squeeze(0)  # (1, P, 3) -> (P, 3)
 
     return points_2d
 
@@ -1551,8 +1551,8 @@ def convert_camera_frame_orientation_convention(
     if origin == "ros":
         # convert from ros to opengl convention
         rotm = matrix_from_quat(orientation)
-        rotm[:, :, 2] = -rotm[:, :, 2]
-        rotm[:, :, 1] = -rotm[:, :, 1]
+        rotm[..., 2] = -rotm[..., 2]
+        rotm[..., 1] = -rotm[..., 1]
         # convert to opengl convention
         quat_gl = quat_from_matrix(rotm)
     elif origin == "world":
@@ -1571,8 +1571,8 @@ def convert_camera_frame_orientation_convention(
     if target == "ros":
         # convert from opengl to ros convention
         rotm = matrix_from_quat(quat_gl)
-        rotm[:, :, 2] = -rotm[:, :, 2]
-        rotm[:, :, 1] = -rotm[:, :, 1]
+        rotm[..., 2] = -rotm[..., 2]
+        rotm[..., 1] = -rotm[..., 1]
         return quat_from_matrix(rotm)
     elif target == "world":
         # convert from opengl to world (x forward and z up) convention
@@ -1861,11 +1861,7 @@ def interpolate_poses(
 
     if num_steps == 0:
         # Skip interpolation
-        return (
-            torch.cat([pos1[None], pos2[None]], dim=0),
-            torch.cat([rot1[None], rot2[None]], dim=0),
-            num_steps,
-        )
+        return make_pose(torch.stack([pos1, pos2]), torch.stack([rot1, rot2])), num_steps
 
     delta_pos = pos2 - pos1
     if num_steps is None:

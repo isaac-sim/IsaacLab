@@ -21,11 +21,9 @@ Covers:
 
 from __future__ import annotations
 
-import ctypes
+import contextlib
 import logging
-import subprocess
 import sys
-import textwrap
 from inspect import signature
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -33,7 +31,6 @@ from unittest.mock import Mock
 import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
-import torch
 import warp as wp
 from isaaclab_newton.assets.articulation import articulation as articulation_module
 from isaaclab_newton.assets.rigid_object import rigid_object as rigid_object_module
@@ -63,6 +60,7 @@ from isaaclab_newton.physics import (
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
 from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
 from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags, ShapeFlags
+from newton.actuators import DrivePID
 from newton.selection import ArticulationView
 from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD, SolverXPBD
 
@@ -912,7 +910,8 @@ def test_mpm_project_outside_colliders_gates_projection(project_outside):
 @pytest.mark.parametrize(
     ("overrides", "expected"),
     [
-        pytest.param({"grid_type": "fixed"}, True, id="fixed"),
+        pytest.param({"grid_type": "fixed"}, True, id="bounded_fixed"),
+        pytest.param({"grid_type": "fixed", "max_active_cell_count": -1}, False, id="unbounded_fixed"),
         pytest.param({}, True, id="bounded_sparse"),
         pytest.param({"max_active_cell_count": -1}, False, id="unbounded_sparse"),
         pytest.param({"grid_type": "dense"}, False, id="dense"),
@@ -999,7 +998,7 @@ def test_mpm_supported_cuda_graph_capture_defers_until_initial_reset(monkeypatch
 
     monkeypatch.setattr(wp, "ScopedCapture", UnexpectedCapture)
 
-    NewtonMPMManager._capture_or_defer_graph()
+    NewtonMPMManager._invalidate_graph()
 
     assert NewtonManager._graph is None
     assert NewtonManager._graph_capture_pending is True
@@ -1026,64 +1025,10 @@ def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
     monkeypatch.setattr(NewtonManager, "_graph", object(), raising=False)
     monkeypatch.setattr(NewtonManager, "_graph_capture_pending", True, raising=False)
 
-    NewtonMPMManager._capture_or_defer_graph()
+    NewtonMPMManager._invalidate_graph()
 
     assert NewtonManager._graph is None
     assert NewtonManager._graph_capture_pending is False
-
-
-@pytest.mark.parametrize(
-    ("torch_cuda", "available", "expected"),
-    [
-        ("12.8", "libcudart.so.12,libcudart.so.13", "libcudart.so.12"),
-        ("13.0", "libcudart.so.12,libcudart.so.13", "libcudart.so.13"),
-        ("13.0", "libcudart.so.12,libcudart.so", "libcudart.so.13"),
-        ("", "libcudart.so.12,libcudart.so.13", ""),
-    ],
-    ids=["cuda12", "cuda13", "matching_runtime_missing", "cpu"],
-)
-def test_cuda_runtime_selection_matches_torch_in_isolated_import(torch_cuda, available, expected):
-    """Graph capture must use Torch's runtime major, even when another CUDA runtime is available."""
-    code = textwrap.dedent("""\
-        import ctypes
-        import sys
-        import torch
-
-        torch.version.cuda = sys.argv[1] or None
-        available = set(sys.argv[2].split(","))
-        expected = sys.argv[3]
-        runtime = object()
-        requested = []
-        original_cdll = ctypes.CDLL
-
-        def load_library(name, *args, **kwargs):
-            if not str(name).startswith("libcudart.so"):
-                return original_cdll(name, *args, **kwargs)
-            requested.append(name)
-            if name not in available:
-                raise OSError("CUDA runtime is unavailable")
-            return runtime
-
-        ctypes.CDLL = load_library
-        import isaaclab_newton.physics.newton_manager as manager
-
-        assert requested == ([expected] if expected else []), requested
-        assert manager._cudart is (runtime if expected in available else None)
-        """)
-    result = subprocess.run(
-        [sys.executable, "-c", code, torch_cuda, available, expected], capture_output=True, text=True, timeout=30
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
-
-
-def test_cuda_runtime_loaded_version_matches_torch():
-    """CUDA-enabled Linux wheels must expose the matching runtime without requiring a GPU context."""
-    if sys.platform != "linux" or torch.version.cuda is None:
-        pytest.skip("CUDA runtime loading is supported for CUDA-enabled Linux wheels.")
-    assert newton_manager_module._cudart is not None
-    runtime_version = ctypes.c_int()
-    assert newton_manager_module._cudart.cudaRuntimeGetVersion(ctypes.byref(runtime_version)) == 0
-    assert runtime_version.value // 1000 == int(torch.version.cuda.split(".")[0])
 
 
 def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
@@ -1093,8 +1038,8 @@ def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
     captured_graph = object()
 
     class FakeScopedCapture:
-        def __init__(self, device=None):
-            captured_devices.append(device)
+        def __init__(self, stream=None, capture_mode=None):
+            captured_devices.append(stream.device)
             self.graph = captured_graph
 
         def __enter__(self):
@@ -1103,18 +1048,17 @@ def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
         def __exit__(self, exc_type, exc_value, traceback):
             return False
 
-    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
     monkeypatch.setattr(PhysicsManager, "_device", "cuda:1", raising=False)
     monkeypatch.setattr(NewtonManager, "_usdrt_stage", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_is_all_graphable", classmethod(lambda cls: False))
-    monkeypatch.setattr(NewtonManager, "_simulate_physics_only", classmethod(lambda cls: None))
+    stream = SimpleNamespace(device="cuda:1")
+    monkeypatch.setattr(wp, "get_stream", lambda device: stream if device == "cuda:1" else None)
+    monkeypatch.setattr(wp, "ScopedStream", lambda stream: contextlib.nullcontext())
     monkeypatch.setattr(wp, "ScopedCapture", FakeScopedCapture)
 
-    NewtonManager._capture_or_defer_graph()
+    graph = NewtonManager._capture_graph(lambda: None)
 
     assert captured_devices == ["cuda:1"]
-    assert NewtonManager._graph is captured_graph
+    assert graph is captured_graph
 
 
 # ---------------------------------------------------------------------------
@@ -1295,18 +1239,8 @@ def test_articulation_target_modes_are_resolved_once_for_replicas(monkeypatch):
     assert actuator_resolutions == 1
 
 
-@pytest.mark.parametrize(
-    "native_path_active, native_graphable, expected_events",
-    [
-        pytest.param(False, False, ["prepare", "capture"], id="lab_actuators"),
-        pytest.param(True, False, ["prepare", "capture"], id="native_non_graphable"),
-        pytest.param(True, True, ["prepare"], id="native_graphable"),
-    ],
-)
-def test_initialize_solver_prepares_picking_before_graph_capture(
-    monkeypatch, native_path_active, native_graphable, expected_events
-):
-    """Initial and hard resets realize native layouts before consumers, then prepare picking and capture."""
+def test_initialize_solver_prepares_picking_after_scene_data(monkeypatch):
+    """Initial and hard resets realize native layouts before consumers and picking."""
     events: list[str] = []
     sim_cfg = SimulationCfg(
         dt=1.0 / 120.0,
@@ -1315,7 +1249,6 @@ def test_initialize_solver_prepares_picking_before_graph_capture(
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        build_solver = NewtonMJWarpManager._build_solver
         monkeypatch.setitem(sys.modules, "usdrt", Mock())
         monkeypatch.setattr(NewtonMJWarpManager, "_clone_physics_only", False)
         monkeypatch.setattr(newton_manager_module, "get_current_stage", lambda **kwargs: Mock())
@@ -1327,26 +1260,11 @@ def test_initialize_solver_prepares_picking_before_graph_capture(
             events.append("ready")
             sim.get_scene_data_provider().get_transforms(SceneDataFormat.Transform())
 
-        def build_solver_with_actuator_mode(cls, model, solver_cfg):
-            build_solver(model, solver_cfg)
-            NewtonManager._use_newton_actuators_active = native_path_active
-            NewtonManager._adapter = SimpleNamespace(is_all_graphable=native_graphable)
-
         builder = sim.physics_manager.create_builder()
         body = builder.add_body(mass=1.0)
         builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
         NewtonManager.set_builder(builder)
-        monkeypatch.setattr(
-            NewtonMJWarpManager,
-            "_build_solver",
-            classmethod(build_solver_with_actuator_mode),
-        )
         monkeypatch.setattr(sim, "_prepare_newton_visualizer_for_capture", lambda: events.append("prepare"))
-        monkeypatch.setattr(
-            NewtonMJWarpManager,
-            "_capture_or_defer_graph",
-            classmethod(lambda cls: events.append("capture")),
-        )
         sim.physics_manager.register_callback(
             on_physics_ready,
             PhysicsEvent.PHYSICS_READY,
@@ -1356,7 +1274,7 @@ def test_initialize_solver_prepares_picking_before_graph_capture(
         sim.reset()
         sim.reset()
 
-    assert events == ["body", "ready", *expected_events] * 2
+    assert events == ["body", "ready", "prepare"] * 2
 
 
 # ---------------------------------------------------------------------------
@@ -1693,6 +1611,89 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph():
         assert np.allclose(canonical_joint_q, sentinel), (
             f"reset write did not land in _state_0 after {num_steps} steps: {canonical_joint_q}"
         )
+
+
+@wp.kernel
+def _count_physics_steps(counter: wp.array(dtype=wp.int32)):
+    counter[0] += 1
+
+
+@pytest.mark.parametrize(
+    ("solver_cfg", "rtx_capture"),
+    [(MJWarpSolverCfg(use_mujoco_contacts=True), True), (KaminoPADMMSolverCfg(), False)],
+    ids=["mjwarp_rtx", "kamino_standard"],
+)
+def test_graph_capture_preserves_first_step_and_recapture(monkeypatch, solver_cfg, rtx_capture):
+    """Capturing and recapturing preserve staged forces and execute callbacks once per step."""
+    sim_cfg = SimulationCfg(
+        dt=0.005,
+        device="cuda:0",
+        gravity=(0.0, 0.0, -9.81),
+        physics=NewtonCfg(solver_cfg=solver_cfg, num_substeps=1, use_cuda_graph=True),
+    )
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        builder = NewtonManager.create_builder()
+        builder.add_body(mass=1.0)
+        builder.joint_q[-7:] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+        NewtonManager.set_builder(builder)
+        sim.reset()
+        if rtx_capture:
+            monkeypatch.setattr(NewtonManager, "_usdrt_stage", object())
+        NewtonManager.activate_newton_actuator_path()
+        counter = wp.zeros(1, dtype=wp.int32, device="cuda:0")
+        NewtonManager.register_post_step_callback(lambda: wp.launch(_count_physics_steps, 1, inputs=[counter]))
+        wrench = wp.array([[0.0, 0.0, 9.81, 0.0, 0.0, 0.0]], dtype=wp.spatial_vector, device="cuda:0")
+        for step in range(3):
+            if step != 1:
+                NewtonManager.set_decimation(1)
+            NewtonManager.get_state_0().body_f.assign(wrench)
+            sim.step(render=False)
+            assert NewtonManager._graph is not None
+            np.testing.assert_allclose(NewtonManager.get_state_0().joint_qd.numpy(), 0.0, atol=1e-6)
+            assert counter.numpy()[0] == step + 1
+
+
+def test_stateful_actuator_graph_matches_eager_across_decimation_changes(monkeypatch):
+    """PID and delay history survive repeated replay, recapture, and odd/even loop lengths."""
+    trajectories = []
+    for use_graph in (False, True):
+        sim_cfg = SimulationCfg(
+            dt=0.005,
+            device="cuda:0",
+            gravity=(0.0, 0.0, 0.0),
+            physics=NewtonCfg(
+                solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=True), num_substeps=1, use_cuda_graph=use_graph
+            ),
+        )
+        with build_simulation_context(sim_cfg=sim_cfg) as sim:
+            builder = NewtonManager.create_builder()
+            builder.begin_world()
+            body = builder.add_link(mass=1.0)
+            joint = builder.add_joint_prismatic(parent=-1, child=body, axis=(1.0, 0.0, 0.0))
+            builder.add_articulation([joint])
+            builder.add_actuator(DrivePID, index=0, kp=1.0, kd=0.0, ki=0.5, delay_steps=2)
+            builder.end_world()
+            NewtonManager.set_builder(builder)
+            sim.reset()
+            monkeypatch.setattr(NewtonManager, "_usdrt_stage", object())
+            NewtonManager.activate_newton_actuator_path()
+            samples = []
+            for decimation in (1, 2, 3):
+                NewtonManager.set_decimation(decimation)
+                for target in (1.0, -2.0, 3.0, 0.0):
+                    NewtonManager.get_control().joint_target_q.fill_(target)
+                    sim.step(render=False)
+                    samples.append(
+                        np.concatenate(
+                            (
+                                NewtonManager.get_state_0().joint_q.numpy(),
+                                NewtonManager.get_state_0().joint_qd.numpy(),
+                                NewtonManager.get_control().joint_f.numpy(),
+                            )
+                        )
+                    )
+            trajectories.append(np.asarray(samples))
+    np.testing.assert_allclose(trajectories[1], trajectories[0], atol=1e-6, rtol=1e-5)
 
 
 def _build_collision_scene(sim, num_boxes=8):

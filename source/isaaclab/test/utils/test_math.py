@@ -327,6 +327,22 @@ def test_convention_converter(device):
 
 
 @pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("origin", ["opengl", "ros", "world"])
+@pytest.mark.parametrize("target", ["opengl", "ros", "world"])
+def test_convention_converter_leading_dims(device, origin, target):
+    """Test convert_camera_frame_orientation_convention on (..., 4) inputs other than (N, 4)."""
+    quat = math_utils.random_orientation(6, device)
+    expected = math_utils.convert_camera_frame_orientation_convention(quat, origin, target)
+
+    # multiple leading dimensions (A, B, 4) match the flat (N, 4) result
+    nested = math_utils.convert_camera_frame_orientation_convention(quat.view(2, 3, 4), origin, target)
+    torch.testing.assert_close(nested, expected.view(2, 3, 4))
+    # a single (4,) quaternion matches the corresponding row
+    single = math_utils.convert_camera_frame_orientation_convention(quat[0], origin, target)
+    torch.testing.assert_close(single, expected[0])
+
+
+@pytest.mark.parametrize("device", test_devices())
 def test_convert_quat(device):
     """Test convert_quat from "xyzw" to "wxyz" and back to "xyzw" and verify the correct rolling of the tensor.
 
@@ -515,6 +531,37 @@ def test_unproject_depth(device):
     torch.testing.assert_close(points, expected)
 
 
+@pytest.mark.parametrize("device", test_devices())
+def test_project_points(device):
+    """Test project_points against the pinhole camera model for unbatched and batched inputs."""
+    fx, fy, cx, cy = 50.0, 40.0, 1.5, 1.0
+    intrinsics = torch.tensor([[fx, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]], device=device)
+    points = torch.tensor([[0.2, -0.1, 2.0], [-0.4, 0.3, 4.0]], device=device)
+    expected = torch.tensor(
+        [[fx * x / z + cx, fy * y / z + cy, z] for x, y, z in points.tolist()],
+        device=device,
+    )
+
+    # unbatched (P, 3) input returns (P, 3)
+    torch.testing.assert_close(math_utils.project_points(points, intrinsics), expected)
+    # a single-item batch (1, P, 3) keeps its batch dimension
+    torch.testing.assert_close(math_utils.project_points(points[None], intrinsics[None]), expected[None])
+    # a multi-item batch (N, P, 3) returns (N, P, 3), projecting each item with its own intrinsics
+    batch_fx = [50.0, 60.0, 70.0]
+    batch_intrinsics = torch.stack(
+        [torch.tensor([[f, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]], device=device) for f in batch_fx]
+    )
+    batch_points = torch.stack([points * (i + 1) for i in range(len(batch_fx))])
+    batch_expected = torch.tensor(
+        [
+            [[f * x / z + cx, fy * y / z + cy, z] for x, y, z in item.tolist()]
+            for f, item in zip(batch_fx, batch_points)
+        ],
+        device=device,
+    )
+    torch.testing.assert_close(math_utils.project_points(batch_points, batch_intrinsics), batch_expected)
+
+
 def test_interpolate_poses():
     """Test interpolate_poses function.
 
@@ -551,6 +598,17 @@ def test_interpolate_poses():
         # Assert that the result is almost equal to the expected quaternion
         np.testing.assert_array_almost_equal(result_quat, expected_quat, decimal=DECIMAL_PRECISION)
         np.testing.assert_array_almost_equal(result_pos, expected_pos, decimal=DECIMAL_PRECISION)
+
+
+def test_interpolate_poses_without_interpolation():
+    """Test that interpolate_poses with num_steps=0 returns just the start and end poses."""
+    pose_1 = math_utils.generate_random_transformation_matrix()
+    pose_2 = math_utils.generate_random_transformation_matrix()
+
+    poses, num_steps = math_utils.interpolate_poses(pose_1, pose_2, num_steps=0)
+
+    assert num_steps == 0
+    torch.testing.assert_close(poses, torch.stack([pose_1, pose_2]))
 
 
 def test_pose_inv():

@@ -48,12 +48,7 @@ class CartpoleCameraShowcaseEnv(CartpoleCameraEnv):
     def _get_observations(self) -> dict:
         # get camera data
         data_type = "rgb" if "rgb" in self.cfg.scene.tiled_camera.data_types else "depth"
-        if "rgb" in self.cfg.scene.tiled_camera.data_types:
-            # normalize the camera data for better training results
-            camera_data = normalize_camera_image(self._tiled_camera.data.output[data_type].torch, data_type)
-        elif "depth" in self.cfg.scene.tiled_camera.data_types:
-            camera_data = self._tiled_camera.data.output[data_type].torch
-            camera_data[camera_data == float("inf")] = 0
+        camera_data = normalize_camera_image(self._tiled_camera.data.output[data_type].torch, data_type)
 
         # fundamental spaces
         # - Box

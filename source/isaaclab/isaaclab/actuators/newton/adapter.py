@@ -131,8 +131,8 @@ class NewtonActuatorAdapter:
         """
         sim_control.joint_computed_f = self._computed_effort
 
-    def step(self, sim_state: Any, sim_control: Any, dt: float) -> None:
-        """Zero actuated DOFs, step all actuators, and swap state buffers.
+    def step(self, sim_state: Any, sim_control: Any, dt: float, *, swap_state: bool = True) -> None:
+        """Zero actuated DOFs, step all actuators, and advance state buffers.
 
         Args:
             sim_state: Object with ``joint_q``, ``joint_qd``, etc.
@@ -144,6 +144,9 @@ class NewtonActuatorAdapter:
                 :class:`~isaaclab.actuators.newton.physx_wrapper.PhysxActuatorWrapper`
                 on the PhysX backend.
             dt: Physics timestep [s].
+            swap_state: Swap state buffers after stepping. Set to ``False`` on the last step
+                of an odd-length graph to copy the output back into the input buffers instead,
+                keeping their addresses stable across replays.
         """
         # Zero before scatter-add (actuators accumulate into this buffer).
         self._computed_effort.zero_()
@@ -155,13 +158,18 @@ class NewtonActuatorAdapter:
             )
         for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
             act.step(sim_state, sim_control, sa, sb, dt=dt)
-        self._swap_state_buffers()
+        if swap_state:
+            self._swap_state_buffers()
+        else:
+            for sa, sb in zip(self._states_a, self._states_b):
+                if sa is not None:
+                    sa.assign(sb)
 
     def _swap_state_buffers(self) -> None:
         """Advance the actuator state ping-pong after an eager step or graph replay."""
         self._states_a, self._states_b = self._states_b, self._states_a
 
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None = None) -> None:
         """Reset actuator states for the given environments.
 
         Args:
@@ -185,16 +193,20 @@ class NewtonActuatorAdapter:
                     sb.reset(None)
             return
 
-        if isinstance(env_ids, torch.Tensor):
-            if env_ids.numel() == 0:
-                return
-            idx = wp.from_torch(env_ids.to(device=self._device).contiguous().to(torch.int32), dtype=wp.int32)
-        else:
-            if len(env_ids) == 0:
-                return
-            idx = wp.array(list(env_ids), dtype=wp.int32, device=self._device)
+        num_envs = len(range(self._num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        if num_envs == 0:
+            return
         env_mask = wp.zeros(self._num_envs, dtype=wp.bool, device=self._device)
-        wp.launch(set_mask_kernel, dim=idx.shape[0], inputs=[env_mask, idx], device=self._device)
+        if isinstance(env_ids, slice):
+            wp.to_torch(env_mask)[env_ids] = True
+        else:
+            # Torch indexed scalar assignment uploads True and synchronizes on CUDA.
+            indices = (
+                wp.from_torch(env_ids)
+                if isinstance(env_ids, torch.Tensor)
+                else wp.array(env_ids, dtype=wp.int32, device=self._device)
+            )
+            wp.launch(set_mask_kernel, dim=num_envs, inputs=[env_mask, indices], device=self._device)
 
         for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
             per_dof_mask = wp.zeros(act.indices.shape[0], dtype=wp.bool, device=self._device)
@@ -347,7 +359,7 @@ def write_group_parameter(
     component: str,
     attr: str,
     values: torch.Tensor,
-    env_ids: torch.Tensor | None = None,
+    env_ids: torch.Tensor | slice | None = None,
     joint_ids: torch.Tensor | None = None,
 ) -> None:
     """Write one Newton actuator parameter for a native group.
@@ -377,9 +389,9 @@ def write_group_parameter(
     if joint_ids is not None:
         columns = columns[joint_ids.to(device, dtype=torch.long)]
     mask = None
-    env_rows: torch.Tensor | None = None
-    if env_ids is not None:
-        env_rows = env_ids.to(device, dtype=torch.long).unsqueeze(1)
+    env_rows: torch.Tensor | slice | None = None
+    if env_ids is not None and env_ids != slice(None):
+        env_rows = env_ids if isinstance(env_ids, slice) else env_ids[:, None]
         mask_torch = torch.zeros(collection.num_instances, dtype=torch.bool, device=device)
         mask_torch[env_rows] = True
         mask = wp.from_torch(mask_torch, dtype=wp.bool)
@@ -390,7 +402,7 @@ def write_group_parameter(
         if env_rows is None:
             current_torch[:, columns] = values.to(dtype=current_torch.dtype)
         else:
-            current_torch[env_rows, columns.unsqueeze(0)] = values.to(dtype=current_torch.dtype)
+            current_torch[env_rows, columns] = values.to(dtype=current_torch.dtype)
         view.set_actuator_parameter(actuator=actuator, component=owner, name=attr, values=current, mask=mask)
 
 
