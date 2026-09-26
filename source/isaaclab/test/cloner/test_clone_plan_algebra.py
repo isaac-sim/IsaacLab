@@ -229,78 +229,6 @@ def test_path_to_source_selects_the_declared_variant():
     assert cloner.query.path_to_source(instances, "/World/envs/env_[^/]+/Object/Body/Camera", env_id=3) is None
 
 
-def test_get_matched_sources_returns_populated_variants():
-    """Return each active prototype with only the environments selecting it."""
-    instances = _instances(
-        ("/World/envs/env_{}/Object",),
-        [[0, 0, 1, 1]],
-        [("/World/envs/env_0/Object", "/World/envs/env_1/Object", None)],
-    )
-
-    matches = cloner.query.get_matched_sources(instances, "/World/envs/env_[^/]+/Object/Body/Camera")
-
-    assert matches == [
-        (
-            "/World/envs/env_0/Object",
-            "/World/envs/env_{}/Object",
-            "/World/envs/env_0/Object/Body/Camera",
-            (0, 1),
-        ),
-        (
-            "/World/envs/env_1/Object",
-            "/World/envs/env_{}/Object",
-            "/World/envs/env_1/Object/Body/Camera",
-            (2, 3),
-        ),
-    ]
-    absent = tuple((index, source, template, np.empty(0, dtype=np.int64)) for index, source, template, _ in instances)
-    assert cloner.query.path_to_source(absent, "/World/envs/env_[^/]+/Object/Body") is None
-    assert cloner.query.get_matched_sources(absent, "/World/envs/env_[^/]+/Object/Body") == []
-
-
-def test_get_matched_sources_skips_declarations_without_envs():
-    """A nearer template populating no env does not hide the populated ancestor owning the path."""
-    instances = _instances(
-        ("/World/envs/env_{}/Robot", "/World/envs/env_{}/Robot/wrist/Camera"),
-        [[0, 0, -1, -1], [-1, -1, -1, -1]],
-        [("/World/envs/env_0/Robot",), ("/World/envs/env_0/Robot/wrist/Camera",)],
-    )
-
-    assert cloner.query.get_matched_sources(instances, "/World/envs/env_[^/]+/Robot/wrist/Camera") == [
-        (
-            "/World/envs/env_0/Robot",
-            "/World/envs/env_{}/Robot",
-            "/World/envs/env_0/Robot/wrist/Camera",
-            (0, 1),
-        )
-    ]
-
-
-def test_get_matched_sources_distinct_env_root():
-    """The destination template need not sit under the default env root."""
-    instances = MAPPINGS["distinct_env_root"]
-
-    assert cloner.query.get_matched_sources(instances, "/World/scenes/[^/]+/Robot/base") == [
-        ("/World/source/Robot", "/World/scenes/{}/Robot", "/World/source/Robot/base", (0, 1))
-    ]
-
-
-def test_get_matched_sources_ranks_variants_independently_of_env_id_width():
-    """Regression: a variant is not ranked out because its first env id has more digits.
-
-    Specificity is the suffix below the destination template, which does not depend on the
-    env ids a row happens to populate. Ranking by the *formatted* template instead made
-    ``env_10`` look more specific than ``env_0`` and silently dropped the first variant for
-    any scene with more than ten envs.
-    """
-    instances = _wide_env_id_instances()
-
-    matches = cloner.query.get_matched_sources(instances, "/World/envs/env_[^/]+/Object/Body")
-
-    assert [match[0] for match in matches] == ["/World/envs/env_0/Object", "/World/envs/env_10/Object"]
-    assert [match[3] for match in matches] == [tuple(range(10)), (10, 11)]
-
-
 ##
 # Laws, checked over every native mapping above.
 ##
@@ -400,7 +328,6 @@ def test_query_preserves_noncontiguous_world_ids():
     assert cloner.query.path_to_clone(instances, path, 5) == "/World/envs/env_5/Robot/base"
     # World 1 is not targeted by this mapping.
     assert cloner.query.path_to_clone(instances, path, 1) is None
-    assert cloner.query.get_matched_sources(instances, "/World/envs/env_[^/]+/Robot")[0][3] == (2, 5)
 
     source, _glob, suffix = cloner.query.path_to_source(instances, "/World/envs/env_5/Robot/base")
     assert source + suffix == path
@@ -422,6 +349,7 @@ def test_cloner_imports_without_kit():
     """
     probe = (
         "from isaaclab.cloner import ClonePlan, query; import sys; "
+        "assert not hasattr(query, 'get_matched_sources'); "
         "print(any(n == 'isaaclab.cloner.usd' or n == 'pxr' or n.startswith('pxr.') for n in sys.modules))"
     )
     result = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True)

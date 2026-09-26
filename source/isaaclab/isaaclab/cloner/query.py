@@ -210,45 +210,19 @@ def path_to_source(
     Returns:
         Source root, destination expression, and asset suffix, or None for an absent instance.
     """
-    for source, template, world_ids, matched in _clone_sources(instances, path_expr, populated_only=False):
+    candidates = [
+        (source, template, world_ids, matched)
+        for _, source, template, world_ids in instances
+        if not len(world_ids) or world_ids[0] != -1
+        if (matched := pth.match(path_expr, template)) is not None
+    ]
+    nearest = min((len(matched.suffix) for _, _, _, matched in candidates), default=0)
+    for source, template, world_ids, matched in candidates:
+        if len(matched.suffix) != nearest:
+            continue
         selected_env = env_id
         if selected_env is None and matched.instance.isdigit():
             selected_env = int(matched.instance)
         if len(world_ids) and (selected_env is None or selected_env in world_ids):
             return source, template.format("[^/]+"), matched.suffix
     return None
-
-
-def get_matched_sources(
-    instances: Sequence[tuple[int, str | None, str, np.ndarray]], path_expr: str
-) -> list[tuple[str, str, str, tuple[int, ...]]]:
-    """Return the native prototypes and worlds behind the nearest destination declaration.
-
-    Args:
-        instances: Asset-prototype ID, source path, destination template, and world IDs per instance group.
-        path_expr: Destination path or path expression.
-
-    Returns:
-        List of (source root, destination template, prototype descendant path, destination world IDs) groups.
-    """
-    return [
-        (
-            source,
-            template,
-            pth.rebase(path_expr, template.format(matched.instance), source),
-            tuple(map(int, world_ids)),
-        )
-        for source, template, world_ids, matched in _clone_sources(instances, path_expr, populated_only=True)
-    ]
-
-
-def _clone_sources(instances, path_expr, *, populated_only):
-    candidates = [
-        (source, template, world_ids, matched)
-        for _, source, template, world_ids in instances
-        if not len(world_ids) or world_ids[0] != -1
-        if not populated_only or len(world_ids)
-        if (matched := pth.match(path_expr, template)) is not None
-    ]
-    nearest = min((len(matched.suffix) for _, _, _, matched in candidates), default=0)
-    return [candidate for candidate in candidates if len(candidate[3].suffix) == nearest]

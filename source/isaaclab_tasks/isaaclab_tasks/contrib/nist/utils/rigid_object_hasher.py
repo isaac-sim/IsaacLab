@@ -38,29 +38,24 @@ class RigidObjectHasher:
                 UsdPhysics.CollisionAPI
             )
 
-        # Discover collider sources from the clone plan rather than walking every cloned env
-        # subtree on stage. Each plan row is one source variant; ``env_ids`` are exactly the
-        # envs its clone-mask populates. This is correct for heterogeneous plans (a clone_mask
-        # with mixed True/False across variant rows -> different geometry per env) and reduces
-        # to a single source covering all envs for homogeneous scenes. Walking the clone source
-        # (instead of the cloned subtrees) also works when there is no USD cloning, where only
-        # the source instances exist on stage and the per-env layout comes from the clone plan.
+        # Read each authored variant once, including descendants such as articulation links.
         usd = SimulationContext.instance().clone_contexts.get(cloner.UsdReplicateContext)
-        source_rows: list[tuple[str, tuple[int, ...]]] = []
-        if usd is not None:
-            source_rows = [
-                (source_path, env_ids)
-                for _src_root, _dst_tmpl, source_path, env_ids in cloner.query.get_matched_sources(
-                    usd.instances, prim_path_pattern
-                )
+        instances = tuple(instance for instance in usd.instances if len(instance[3])) if usd is not None else ()
+        resolved = cloner.query.path_to_source(instances, prim_path_pattern)
+        if resolved is not None:
+            _, destination_expr, suffix = resolved
+            sources = [
+                (source + suffix, env_ids)
+                for _, source, destination, env_ids in instances
+                if destination.format("[^/]+") == destination_expr
             ]
-        if not source_rows:
+        else:
             # No clone plan (or pattern not owned by it): resolve a single source instance and
             # treat every env as a clone of it.
             fallback = resolve_matching_prims_from_source(prim_path_pattern, raise_if_no_matches=False)
             if not fallback:
                 return
-            source_rows = [(fallback[0][0].GetPath().pathString, tuple(range(num_envs)))]
+            sources = [(fallback[0][0].GetPath().pathString, range(num_envs))]
 
         num_roots = num_envs
         collider_prims: list[Usd.Prim] = []
@@ -69,11 +64,11 @@ class RigidObjectHasher:
         collider_rel_pos_list: list[torch.Tensor] = []
         collider_rel_mat_list: list[torch.Tensor] = []
         collider_rel_mat_inv_list: list[torch.Tensor] = []
-        # Indexed by env id so downstream root-indexed reads stay aligned regardless of row order.
+        # Indexed by environment so reads stay aligned across heterogeneous variants.
         root_prim_hashes: list[int] = [0] * num_roots
         root_prim_scales: list = [None] * num_roots
 
-        for source_path, env_ids in source_rows:
+        for source_path, env_ids in sources:
             asset_prim = stage.GetPrimAtPath(source_path)
             # ``traverse_instance_prims=True`` so colliders authored inside instanceable asset
             # references are still discovered (the hasher needs the actual mesh geometry).
@@ -131,7 +126,7 @@ class RigidObjectHasher:
 
             root_hash_int = int.from_bytes(root_hash.digest()[:8], "little", signed=True)
 
-            # Apply this variant to every env its clone-mask row populates.
+            # Apply this variant to the environments containing it.
             for e in env_ids:
                 collider_prims.extend(coll_prims)
                 collider_prim_env_ids.extend([e] * len(coll_prims))

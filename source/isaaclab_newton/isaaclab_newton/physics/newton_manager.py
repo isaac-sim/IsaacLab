@@ -78,8 +78,8 @@ from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, 
 from pxr import Usd, UsdGeom
 
 from isaaclab.cloner import ClonePlan, UsdReplicateContext
-from isaaclab.cloner.path import rebase, under
-from isaaclab.cloner.query import get_matched_sources
+from isaaclab.cloner.path import under
+from isaaclab.cloner.query import path_to_source
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationContext
@@ -229,12 +229,18 @@ class NewtonSceneDataBackend(SceneDataBackend):
         ranges, visual_ranges = {}, {}
         indices, weights = [], []
         visual_offset = 0
+        instances = tuple(instance for instance in instances if len(instance[3]))
         for entry in NewtonManager._deformable_registry:
-            paths = [
-                rebase(path, source, template.format(env_id))
-                for source, template, path, env_ids in get_matched_sources(instances, entry.vis_mesh_prim_path)
-                for env_id in env_ids
-            ]
+            resolved = path_to_source(instances, entry.vis_mesh_prim_path)
+            paths = []
+            if resolved is not None:
+                _, destination_expr, suffix = resolved
+                paths = [
+                    template.format(env_id) + suffix
+                    for _, _, template, env_ids in instances
+                    if template.format("[^/]+") == destination_expr
+                    for env_id in env_ids
+                ]
             if not paths and any(under(entry.vis_mesh_prim_path, root) for root in global_paths):
                 paths.append(entry.vis_mesh_prim_path)
             if entry.volume_vis_remap is None:

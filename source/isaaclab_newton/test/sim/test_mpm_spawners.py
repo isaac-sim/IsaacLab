@@ -100,6 +100,7 @@ def test_mpm_points_author_and_import_through_usd(stage, monkeypatch):
         instances=(
             (0, "/World/Media", "/Scene/copy_{}/Media", np.array([12, 7])),
             (1, "/World/Other", "/Scene/copy_{}/Media", np.array([99])),
+            (2, "/World/Shared", "/World/Shared", np.array([-1])),
         ),
         global_paths=("/World/Shared",),
     )
