@@ -16,7 +16,7 @@ from . import path as pth
 from .clone_plan import ClonePlan
 
 
-def get_asset_prototypes(plan: ClonePlan, path_expr: str | None = None) -> list[int]:
+def get_asset_prototypes(plan: ClonePlan, path_expr: str | None = None) -> np.ndarray:
     """Return asset-prototype IDs selected by their declared cfg paths, without expanding instances.
 
     Args:
@@ -25,19 +25,19 @@ def get_asset_prototypes(plan: ClonePlan, path_expr: str | None = None) -> list[
             path string. None selects all definitions, including unused prototypes.
 
     Returns:
-        Ascending asset-prototype IDs, each included once. Generated native paths are not matched.
+        Ascending asset-prototype IDs, shape [num_matches], dtype int32, each included once.
+        Generated native paths are not matched.
     """
     if path_expr is None:
-        return list(range(len(plan.asset_prototypes)))
+        return np.arange(len(plan.asset_prototypes), dtype=np.int32)
     pattern = re.compile(path_expr)
-    return [
-        index
-        for index, cfg in enumerate(plan.asset_prototypes)
-        if cfg.prim_path == path_expr or pattern.fullmatch(cfg.prim_path)
-    ]
+    paths = (cfg.prim_path for cfg in plan.asset_prototypes)
+    return np.fromiter(
+        (index for index, path in enumerate(paths) if path == path_expr or pattern.fullmatch(path)), dtype=np.int32
+    )
 
 
-def get_world_prototypes(plan: ClonePlan, path_expr: str | None = None) -> list[int]:
+def get_world_prototypes(plan: ClonePlan, path_expr: str | None = None) -> np.ndarray:
     """Return world-prototype IDs containing assets selected by their declared cfg paths.
 
     Args:
@@ -46,19 +46,15 @@ def get_world_prototypes(plan: ClonePlan, path_expr: str | None = None) -> list[
             all world definitions, including empty and unused prototypes and shared world -1.
 
     Returns:
-        Ascending world-prototype IDs, not destination world IDs. Filtering selects complete
-        compositions; repeated asset memberships remain in the plan.
+        Ascending world-prototype IDs, shape [num_matches], dtype int32, not destination world IDs.
+        Filtering selects complete compositions; repeated asset memberships remain in the plan.
     """
-    prototype_ids = range(-1, len(plan.world_prototype_starts) - 2)
+    prototype_ids = np.arange(-1, len(plan.world_prototype_starts) - 2, dtype=np.int32)
     if path_expr is None:
-        return list(prototype_ids)
-    asset_ids = set(get_asset_prototypes(plan, path_expr))
-    matched = []
-    for index in prototype_ids:
-        start, end = plan.world_prototype_starts[index + 1 : index + 3]
-        if not asset_ids.isdisjoint(plan.world_prototypes[start:end]):
-            matched.append(index)
-    return matched
+        return prototype_ids
+    matched_assets = np.isin(plan.world_prototypes, get_asset_prototypes(plan, path_expr))
+    match_counts = np.r_[0, np.cumsum(matched_assets)]
+    return prototype_ids[np.diff(match_counts[plan.world_prototype_starts]) > 0]
 
 
 def iter_clones(
