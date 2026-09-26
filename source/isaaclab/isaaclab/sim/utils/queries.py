@@ -473,7 +473,9 @@ def resolve_matching_prims_from_source(
         unique_matches = {}
         for source, dest in results:
             source_path = source.GetPath().pathString
-            children = get_all_matching_child_prims(source_path, predicate, traverse_instance_prims=traverse_instance_prims)
+            children = get_all_matching_child_prims(
+                source_path, predicate, traverse_instance_prims=traverse_instance_prims
+            )
             for child in children:
                 child_path = child.GetPath().pathString
                 unique_matches.setdefault(child_path, (child, dest + child_path[len(source_path) :]))
