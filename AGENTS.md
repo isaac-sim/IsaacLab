@@ -45,6 +45,9 @@
 
 ## Code style
 
+- Keep short expressions on one line within the configured limit; break longer ones at meaningful boundaries.
+- Prefer descriptive names to new acronyms. Reuse matching sequences or mappings with `*`/`**` instead of
+  unpacking and rebuilding them; do not add packing containers or reflective assignment just to shorten code.
 - Group imports in PEP 8 order, separated by blank lines: `__future__`, standard library, third-party,
   Omniverse runtime packages (`isaacsim`, `omni`, `pxr`, `carb`, ...), Isaac Lab packages, then local relative imports.
   Ruff enforces this order through `uv run isaaclab -f`; do not sort imports by hand.

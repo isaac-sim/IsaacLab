@@ -27,15 +27,10 @@ class MPMObjectData(BaseDeformableObjectData):
         self._particles_per_object = particles_per_object
         self._num_instances = num_instances
 
-        self._particle_pos_w = TimestampedBuffer(
-            wp.empty((num_instances, particles_per_object), dtype=wp.vec3f, device=device)
-        )
-        self._particle_vel_w = TimestampedBuffer(
-            wp.empty((num_instances, particles_per_object), dtype=wp.vec3f, device=device)
-        )
-        self._particle_state_w = TimestampedBuffer(
-            wp.empty((num_instances, particles_per_object), dtype=vec6f, device=device)
-        )
+        particle_shape = (num_instances, particles_per_object)
+        self._particle_pos_w = TimestampedBuffer(wp.empty(particle_shape, dtype=wp.vec3f, device=device))
+        self._particle_vel_w = TimestampedBuffer(wp.empty(particle_shape, dtype=wp.vec3f, device=device))
+        self._particle_state_w = TimestampedBuffer(wp.empty(particle_shape, dtype=vec6f, device=device))
         self._root_pos_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
         self._root_vel_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
         self._particle_pos_w_ta = ProxyArray(self._particle_pos_w.data)

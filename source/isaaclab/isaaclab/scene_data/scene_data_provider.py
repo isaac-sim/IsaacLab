@@ -266,8 +266,7 @@ class SceneDataProvider:
             output: A :class:`SceneDataFormat` struct whose ``None``-valued fields
                 will be replaced with empty arrays of length :attr:`transform_count`.
         """
-        input = self.backend.transforms
-        _init_output(output, self.transform_count, _publication_device(input))
+        _init_output(output, self.transform_count, _publication_device(self.backend.transforms))
 
     def create_mapping(self, paths: list[str | None]) -> wp.array(dtype=wp.int32) | None:
         """Create an index mapping from sim backend transforms to desired output ordering.
@@ -295,8 +294,7 @@ class SceneDataProvider:
                     path_to_out[out_path] = out_idx
             mapping = [path_to_out.get(path, -1) for path in input_paths]
             if len(paths) != len(input_paths) or not np.array_equal(mapping, np.arange(len(input_paths))):
-                input = self.backend.transforms
-                return wp.array(mapping, dtype=wp.int32, device=_publication_device(input))
+                return wp.array(mapping, dtype=wp.int32, device=_publication_device(self.backend.transforms))
         return None
 
     def get_geometry_points(

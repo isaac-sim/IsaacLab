@@ -49,15 +49,10 @@ class DeformableObjectData(BaseDeformableObjectData):
         self._num_instances = num_instances
 
         # Initialize lazy buffers
-        self._nodal_pos_w = TimestampedBuffer(
-            wp.zeros((num_instances, particles_per_body), dtype=wp.vec3f, device=device)
-        )
-        self._nodal_vel_w = TimestampedBuffer(
-            wp.zeros((num_instances, particles_per_body), dtype=wp.vec3f, device=device)
-        )
-        self._nodal_state_w = TimestampedBuffer(
-            wp.empty((num_instances, particles_per_body), dtype=vec6f, device=device)
-        )
+        nodal_shape = (num_instances, particles_per_body)
+        self._nodal_pos_w = TimestampedBuffer(wp.zeros(nodal_shape, dtype=wp.vec3f, device=device))
+        self._nodal_vel_w = TimestampedBuffer(wp.zeros(nodal_shape, dtype=wp.vec3f, device=device))
+        self._nodal_state_w = TimestampedBuffer(wp.empty(nodal_shape, dtype=vec6f, device=device))
         self._root_pos_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
         self._root_vel_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
         self._nodal_pos_w_ta: ProxyArray | None = None
