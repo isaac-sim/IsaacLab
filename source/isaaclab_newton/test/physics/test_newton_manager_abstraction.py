@@ -1048,12 +1048,8 @@ def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
         def __exit__(self, exc_type, exc_value, traceback):
             return False
 
-    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
     monkeypatch.setattr(PhysicsManager, "_device", "cuda:1", raising=False)
     monkeypatch.setattr(NewtonManager, "_usdrt_stage", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_solver", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_is_all_graphable", classmethod(lambda cls: False))
-    monkeypatch.setattr(NewtonManager, "_simulate_physics_only", classmethod(lambda cls: None))
     stream = SimpleNamespace(device="cuda:1")
     monkeypatch.setattr(wp, "get_stream", lambda device: stream if device == "cuda:1" else None)
     monkeypatch.setattr(wp, "ScopedStream", lambda stream: contextlib.nullcontext())

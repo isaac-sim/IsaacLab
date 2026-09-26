@@ -19,32 +19,6 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import numpy as np
 import torch
 import warp as wp
-
-
-@contextlib.contextmanager
-def _paused_gc():
-    """Pause Python garbage collection for the duration of a CUDA graph capture.
-
-    A garbage-collection pass inside a capture window can drop the last
-    reference to an array allocated earlier in the capture. While the capture
-    is paused for a ``wp.capture_while``/``wp.capture_if`` conditional body,
-    Warp then inserts the memory free node into the body graph with dependency
-    nodes from the parent graph, which fails and latches a sticky CUDA error
-    that poisons a later, unrelated copy. Reference-count-driven frees are
-    deterministic solver behavior and remain allowed; only the collector is
-    deferred, and a collection runs immediately after the capture window,
-    where freeing graph-scoped allocations is handled correctly.
-    """
-    was_enabled = gc.isenabled()
-    gc.disable()
-    try:
-        yield
-    finally:
-        if was_enabled:
-            gc.enable()
-            gc.collect()
-
-
 from newton import (
     Axis,
     CollisionPipeline,
@@ -111,6 +85,30 @@ _SENSORS_BY_STATE_ATTRIBUTE = {
 
 _SENSOR_STAGE_STATE_ATTRIBUTES = frozenset(_SENSORS_BY_STATE_ATTRIBUTE)
 """Extended state attributes that MuJoCo Warp's sensor stage fills via ``rne_postconstraint``."""
+
+
+@contextlib.contextmanager
+def _paused_gc():
+    """Pause Python garbage collection for the duration of a CUDA graph capture.
+
+    A garbage-collection pass inside a capture window can drop the last
+    reference to an array allocated earlier in the capture. While the capture
+    is paused for a ``wp.capture_while``/``wp.capture_if`` conditional body,
+    Warp then inserts the memory free node into the body graph with dependency
+    nodes from the parent graph, which fails and latches a sticky CUDA error
+    that poisons a later, unrelated copy. Reference-count-driven frees are
+    deterministic solver behavior and remain allowed; only the collector is
+    deferred, and a collection runs immediately after the capture window,
+    where freeing graph-scoped allocations is handled correctly.
+    """
+    was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        yield
+    finally:
+        if was_enabled:
+            gc.enable()
+            gc.collect()
 
 
 def _compile_label_pattern(expr: str | list[str] | None) -> re.Pattern[str] | None:
