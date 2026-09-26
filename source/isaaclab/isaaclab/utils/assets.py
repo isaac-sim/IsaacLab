@@ -17,6 +17,7 @@ import contextlib
 import io
 import json
 import logging
+import ntpath
 import os
 import posixpath
 import re
@@ -248,8 +249,8 @@ _MIRRORED_URLS: dict[str, str] = {}
 """Source URL per locally cached copy, recorded as the copy is located rather than recovered
 from its path, so a cache path is never inferred from a directory that merely looks like one."""
 
-_LOCALIZED_ASSETS: dict[str, tuple[str, dict[str, tuple[int, int]]]] = {}
-"""Original roots and file stamps of completed managed trees, recorded per process."""
+_LOCALIZED_ASSETS: dict[str, tuple[str, str, str, dict[str, tuple[int, int]]]] = {}
+"""Source, result, cache directory, and file stamps of completed managed trees, recorded per process."""
 
 _GIT_SSH_RE = re.compile(r"^[^@/:]+@[^:]+:.+")
 
@@ -648,24 +649,29 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
     """
     # Only trees completed by this process may bypass discovery. A download directory
     # can also contain raw mirrors, caller-owned files, or interrupted downloads.
-    local_path = os.path.abspath(path)
-    completed = _LOCALIZED_ASSETS.get(local_path)
+    download_dir = os.path.abspath(download_dir or tempfile.gettempdir())
+    requested_key = _localization_cache_key(path)
+    completed = _LOCALIZED_ASSETS.get(requested_key)
     if completed is not None:
-        source, files = completed
-        if not force_download:
+        source, result, cached_download_dir, files = completed
+        same_cache = requested_key == _localization_cache_key(result) or download_dir == cached_download_dir
+        if not force_download and same_cache:
             try:
-                if all(((stat := os.stat(file)).st_mtime_ns, stat.st_size) == stamp for file, stamp in files.items()):
-                    return local_path
+                files_match = all(
+                    ((stat := os.stat(file)).st_mtime_ns, stat.st_size) == stamp for file, stamp in files.items()
+                )
             except OSError:
-                pass
+                files_match = False
+            remote_is_current = not _is_remote_path(source) or bool(_usable_mirror(source, cached_download_dir))
+            if files_match and remote_is_current:
+                return result
         path = source
     else:
-        path = unmirror_file_path(local_path) or path
+        path = unmirror_file_path(os.path.abspath(path)) or path
 
     if check_file_path(path) == 0:
         raise FileNotFoundError(f"Unable to find the file: {path}")
     root = os.path.abspath(path) if os.path.isfile(path) else path.replace(os.sep, "/")
-    download_dir = os.path.abspath(download_dir or tempfile.gettempdir())
     prepared = {}
     files = {}
     complete = True
@@ -675,7 +681,7 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
         nonlocal complete
         if source in prepared:
             return prepared[source]
-        remote = bool(urlparse(source).scheme) and not os.path.isabs(source)
+        remote = _is_remote_path(source)
         target = _mirror_path(source, download_dir) if remote else source
         prepared[source] = None
         if _UDIM_RE.search(source):
@@ -729,7 +735,9 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
                 and check_file_path(dependency) == 0
             ):
                 return ref
-            resolved = prepare(dependency) or dependency
+            resolved = prepare(dependency)
+            if resolved is None:
+                return ref
             changed |= resolved != _resolve_reference_url(local_path, ref)
             return resolved
 
@@ -751,10 +759,14 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
     report_activity("Loading assets")
     try:
         result = prepare(root)
-        if complete:
+        if complete and result is not None:
+            root_entry = (root, result, download_dir, files)
+            _LOCALIZED_ASSETS[requested_key] = root_entry
             for source, local_path in prepared.items():
-                if source != local_path:
-                    _LOCALIZED_ASSETS[local_path] = (source, files)
+                if local_path is not None:
+                    entry = (source, local_path, download_dir, files)
+                    _LOCALIZED_ASSETS[_localization_cache_key(source)] = entry
+                    _LOCALIZED_ASSETS[_localization_cache_key(local_path)] = entry
         return result
     finally:
         report_activity(None)
@@ -890,9 +902,10 @@ def _resolve_reference_url(base_url: str, ref: str) -> str:
         return ref
 
     base = urlparse(base_url)
-    if base.scheme == "":
-        base_dir = os.path.dirname(base_url)
-        return os.path.normpath(os.path.join(base_dir, ref))
+    if not _is_remote_path(base_url):
+        path_module = ntpath if ntpath.splitdrive(base_url)[0] else os.path
+        base_dir = path_module.dirname(base_url)
+        return path_module.normpath(path_module.join(base_dir, ref))
 
     base_dir = posixpath.dirname(base.path)
     if ref.startswith("/"):
@@ -900,3 +913,13 @@ def _resolve_reference_url(base_url: str, ref: str) -> str:
     else:
         new_path = posixpath.normpath(posixpath.join(base_dir, ref))
     return f"{base.scheme}://{base.netloc}{new_path}"
+
+
+def _is_remote_path(path: str) -> bool:
+    """Return whether a path has a URL scheme rather than a Windows drive letter."""
+    return len(urlparse(path).scheme) > 1 and not os.path.isabs(path)
+
+
+def _localization_cache_key(path: str) -> str:
+    """Return the stable per-process localization cache key for a path or URL."""
+    return path.replace(os.sep, "/") if _is_remote_path(path) else os.path.abspath(path)
