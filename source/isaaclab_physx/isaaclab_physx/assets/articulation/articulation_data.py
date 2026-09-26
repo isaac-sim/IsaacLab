@@ -14,8 +14,7 @@ import warp as wp
 
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
-from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
-from isaaclab.utils.buffers import reset_timestamps
+from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.math import normalize
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
@@ -175,7 +174,7 @@ class ArticulationData(BaseArticulationData):
                 self._mass_matrix,
             ]
         )
-        SimulationManager._kinematics_dirty = True
+        SimulationManager.kinematics_dirty = True
 
     def _reset_velocity(self, from_com: bool = True) -> None:
         """Reset velocity-dependent cached articulation properties.
@@ -203,7 +202,7 @@ class ArticulationData(BaseArticulationData):
                 self._body_com_state_w,
             ]
         )
-        SimulationManager._kinematics_dirty = True
+        SimulationManager.kinematics_dirty = True
 
     def _reset_body_com_pose_b_dependents(self) -> None:
         """Reset cached properties derived from body-frame center-of-mass offsets."""
@@ -845,8 +844,7 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the articulation links' actor frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        if SimulationManager._kinematics_dirty:
-            SimulationManager.update_kinematics()
+        SimulationManager.update_kinematics()
         self._refresh_body_state_user(
             self._body_link_pose_w, lambda: self._root_view.get_link_transforms().view(wp.transformf)
         )
@@ -921,8 +919,7 @@ class ArticulationData(BaseArticulationData):
         This quantity contains the linear and angular velocities of the articulation links' center of mass frame
         relative to the world.
         """
-        if SimulationManager._kinematics_dirty:
-            SimulationManager.update_kinematics()
+        SimulationManager.update_kinematics()
         self._refresh_body_state_user(
             self._body_com_vel_w, lambda: self._root_view.get_link_velocities().view(wp.spatial_vectorf)
         )
@@ -1647,51 +1644,77 @@ class ArticulationData(BaseArticulationData):
         self._num_spatial_tendons = self._root_view.max_spatial_tendons
 
         # -- link frame w.r.t. world frame
-        self._root_link_pose_w = TimestampedBuffer((self._num_instances), self.device, wp.transformf)
-        self._root_link_vel_w = TimestampedBuffer((self._num_instances), self.device, wp.spatial_vectorf)
-        self._body_link_pose_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, wp.transformf)
+        self._root_link_pose_w = TimestampedBuffer(
+            wp.zeros(self._num_instances, dtype=wp.transformf, device=self.device)
+        )
+        self._root_link_vel_w = TimestampedBuffer(
+            wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
+        )
+        self._body_link_pose_w = TimestampedBuffer(
+            wp.zeros((self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device)
+        )
         self._body_link_vel_w = TimestampedBuffer(
-            (self._num_instances, self._num_bodies), self.device, wp.spatial_vectorf
+            wp.zeros((self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device)
         )
         # -- com frame w.r.t. link frame
-        self._body_com_pose_b = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, wp.transformf)
+        self._body_com_pose_b = TimestampedBuffer(
+            wp.zeros((self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device)
+        )
         self._body_com_pose_b_backend: TimestampedBuffer | None = None
         # -- com frame w.r.t. world frame
-        self._root_com_pose_w = TimestampedBuffer((self._num_instances), self.device, wp.transformf)
-        self._root_com_vel_w = TimestampedBuffer((self._num_instances), self.device, wp.spatial_vectorf)
-        self._body_com_pose_w = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, wp.transformf)
+        self._root_com_pose_w = TimestampedBuffer(
+            wp.zeros(self._num_instances, dtype=wp.transformf, device=self.device)
+        )
+        self._root_com_vel_w = TimestampedBuffer(
+            wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
+        )
+        self._body_com_pose_w = TimestampedBuffer(
+            wp.zeros((self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device)
+        )
         self._body_com_vel_w = TimestampedBuffer(
-            (self._num_instances, self._num_bodies), self.device, wp.spatial_vectorf
+            wp.zeros((self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device)
         )
         self._body_com_acc_w = TimestampedBuffer(
-            (self._num_instances, self._num_bodies), self.device, wp.spatial_vectorf
+            wp.zeros((self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device)
         )
         # -- combined state (these are cached as they concatenate)
-        self._root_state_w = TimestampedBuffer((self._num_instances), self.device, shared_kernels.vec13f)
-        self._root_link_state_w = TimestampedBuffer((self._num_instances), self.device, shared_kernels.vec13f)
-        self._root_com_state_w = TimestampedBuffer((self._num_instances), self.device, shared_kernels.vec13f)
+        self._root_state_w = TimestampedBuffer(
+            wp.zeros(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
+        )
+        self._root_link_state_w = TimestampedBuffer(
+            wp.zeros(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
+        )
+        self._root_com_state_w = TimestampedBuffer(
+            wp.zeros(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
+        )
         self._body_state_w = TimestampedBuffer(
-            (self._num_instances, self._num_bodies), self.device, shared_kernels.vec13f
+            wp.zeros((self._num_instances, self._num_bodies), dtype=shared_kernels.vec13f, device=self.device)
         )
         self._body_link_state_w = TimestampedBuffer(
-            (self._num_instances, self._num_bodies), self.device, shared_kernels.vec13f
+            wp.zeros((self._num_instances, self._num_bodies), dtype=shared_kernels.vec13f, device=self.device)
         )
         self._body_com_state_w = TimestampedBuffer(
-            (self._num_instances, self._num_bodies), self.device, shared_kernels.vec13f
+            wp.zeros((self._num_instances, self._num_bodies), dtype=shared_kernels.vec13f, device=self.device)
         )
         # -- joint state
-        self._joint_pos = TimestampedBuffer((self._num_instances, self._num_joints), self.device, wp.float32)
-        self._joint_vel = TimestampedBuffer((self._num_instances, self._num_joints), self.device, wp.float32)
+        self._joint_pos = TimestampedBuffer(
+            wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+        )
+        self._joint_vel = TimestampedBuffer(
+            wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+        )
         self._joint_pos_backend: TimestampedBuffer | None = None
         self._joint_vel_backend: TimestampedBuffer | None = None
-        self._joint_acc = TimestampedBuffer((self._num_instances, self._num_joints), self.device, wp.float32)
+        self._joint_acc = TimestampedBuffer(
+            wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+        )
         # -- derived properties (these are cached to avoid repeated memory allocations)
-        self._projected_gravity_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
-        self._heading_w = TimestampedBuffer((self._num_instances), self.device, wp.float32)
-        self._root_link_lin_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
-        self._root_link_ang_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
-        self._root_com_lin_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
-        self._root_com_ang_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
+        self._projected_gravity_b = TimestampedBuffer(wp.zeros(self._num_instances, dtype=wp.vec3f, device=self.device))
+        self._heading_w = TimestampedBuffer(wp.zeros(self._num_instances, dtype=wp.float32, device=self.device))
+        self._root_link_lin_vel_b = TimestampedBuffer(wp.zeros(self._num_instances, dtype=wp.vec3f, device=self.device))
+        self._root_link_ang_vel_b = TimestampedBuffer(wp.zeros(self._num_instances, dtype=wp.vec3f, device=self.device))
+        self._root_com_lin_vel_b = TimestampedBuffer(wp.zeros(self._num_instances, dtype=wp.vec3f, device=self.device))
+        self._root_com_ang_vel_b = TimestampedBuffer(wp.zeros(self._num_instances, dtype=wp.vec3f, device=self.device))
 
         # -- dynamics quantities for task-space controllers
         # PhysX Jacobians exclude only the fixed root body and prepend six base-DoF columns
@@ -1716,19 +1739,21 @@ class ArticulationData(BaseArticulationData):
         # they remain owned gather destinations. Timestamps advance on each refresh and are
         # invalidated by write paths.
         self._body_com_jacobian_w = TimestampedBuffer(
-            (self._num_instances, num_jacobi_bodies, 6, self._num_joints + num_base_dofs),
-            self.device,
-            wp.float32,
+            wp.zeros(
+                (self._num_instances, num_jacobi_bodies, 6, self._num_joints + num_base_dofs),
+                dtype=wp.float32,
+                device=self.device,
+            )
         )
         self._mass_matrix = TimestampedBuffer(
-            (self._num_instances, self._num_joints + num_base_dofs, self._num_joints + num_base_dofs),
-            self.device,
-            wp.float32,
+            wp.zeros(
+                (self._num_instances, self._num_joints + num_base_dofs, self._num_joints + num_base_dofs),
+                dtype=wp.float32,
+                device=self.device,
+            )
         )
         self._gravity_compensation_forces = TimestampedBuffer(
-            (self._num_instances, self._num_joints + num_base_dofs),
-            self.device,
-            wp.float32,
+            wp.zeros((self._num_instances, self._num_joints + num_base_dofs), dtype=wp.float32, device=self.device)
         )
 
         # Default root pose and velocity
@@ -1836,9 +1861,9 @@ class ArticulationData(BaseArticulationData):
         # host-to-device on GPU pipelines. Under body ordering the backend-order staging buffers
         # below are gathered into these public-order buffers on read.
         _masses = self._root_view.get_masses()
-        self._body_mass = TimestampedBuffer(_masses.shape, self.device, _masses.dtype)
+        self._body_mass = TimestampedBuffer(wp.zeros(_masses.shape, dtype=_masses.dtype, device=self.device))
         _inertias = self._root_view.get_inertias()
-        self._body_inertia = TimestampedBuffer(_inertias.shape, self.device, _inertias.dtype)
+        self._body_inertia = TimestampedBuffer(wp.zeros(_inertias.shape, dtype=_inertias.dtype, device=self.device))
         self._body_mass_backend: wp.array | None = None
         self._body_inertia_backend: wp.array | None = None
         self._default_root_state = None
@@ -1851,11 +1876,11 @@ class ArticulationData(BaseArticulationData):
         if self.has_joint_ordering:
             if self._joint_pos_backend is None:
                 self._joint_pos_backend = TimestampedBuffer(
-                    (self._num_instances, self._num_joints), self.device, wp.float32
+                    wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
                 )
             if self._joint_vel_backend is None:
                 self._joint_vel_backend = TimestampedBuffer(
-                    (self._num_instances, self._num_joints), self.device, wp.float32
+                    wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
                 )
             joint_property_specs = (
                 ("_joint_stiffness_backend", self._joint_stiffness),
@@ -1928,7 +1953,7 @@ class ArticulationData(BaseArticulationData):
             # so a stale or divergent staging silently corrupts the unselected cells.
             if self._body_com_pose_b_backend is None:
                 self._body_com_pose_b_backend = TimestampedBuffer(
-                    (self._num_instances, self._num_bodies), self.device, wp.transformf
+                    wp.zeros((self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device)
                 )
             if self._body_mass_backend is None:
                 self._body_mass_backend = wp.clone(self._body_mass.data, device=self.device)

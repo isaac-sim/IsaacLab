@@ -389,7 +389,7 @@ class OVRTXRenderer(BaseRenderer):
         self._object_scales: wp.array | None = None
         self._object_scales_by_path: dict[str, tuple[float, float, float]] = {}
         self._geometry_paths: list[str] = []
-        self._geometry = TimestampedBuffer()
+        self._geometry_timestamp = -1
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
         self._camera_prim_path: str | None = None
@@ -1413,11 +1413,11 @@ class OVRTXRenderer(BaseRenderer):
             self._initialize_camera_render_data_from_spec_legacy(spec, render_data)
 
     def update_transforms(self) -> None:
-        """Consume each SDP publication once, committing freshness after the native write succeeds."""
+        """Write changed SDP transforms to OVRTX."""
         binding = self._object_xform_query if self._use_ovstage else self._object_xform_binding
         if binding is None or not self._sdp.get_transforms(self._transforms.data, scales=self._object_scales):
             return
-        timestamp = self._sdp.backend.transforms_version
+        timestamp = self._sdp.backend.transforms_timestamp
         if self._transforms.timestamp == timestamp:
             return
         matrices = self._transforms.data.matrices
@@ -1437,15 +1437,15 @@ class OVRTXRenderer(BaseRenderer):
         self._transforms.timestamp = timestamp
 
     def update_geometries(self) -> None:
-        """Consume borrowed SDP points once per publication, independently of transform reads."""
+        """Write changed SDP geometry to OVRTX."""
         binding = self._geometry_points_query if self._use_ovstage else self._geometry_points_binding
         if binding is None:
             return
-        self._geometry.data = self._sdp.get_geometry_points()
+        points = self._sdp.get_geometry_points()
         timestamp = self._sdp.backend.geometry_timestamp
-        if self._geometry.timestamp == timestamp:
+        if self._geometry_timestamp == timestamp:
             return
-        points = [self._geometry.data[path] for path in self._geometry_paths]
+        points = [points[path] for path in self._geometry_paths]
         if self._use_ovstage:
             self.backend.stage.write_attribute(
                 binding,
@@ -1460,7 +1460,7 @@ class OVRTXRenderer(BaseRenderer):
             binding.write(
                 cast(Any, points), data_access=DataAccess.ASYNC, cuda_stream=self._warp_device.stream.cuda_stream
             )
-        self._geometry.timestamp = timestamp
+        self._geometry_timestamp = timestamp
 
     def update_camera(
         self,
@@ -1547,7 +1547,7 @@ class OVRTXRenderer(BaseRenderer):
         else:
             self._close_legacy()
         self._geometry_paths = []
-        self._geometry = TimestampedBuffer()
+        self._geometry_timestamp = -1
         self._transforms = TimestampedBuffer(SceneDataFormat.TransposedMatrix44d())
         self._render_product_paths.clear()
         self._output_id_color_buffers.clear()

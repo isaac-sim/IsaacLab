@@ -292,7 +292,6 @@ class SensorBase(ABC):
         self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
         self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
         self._timestamp_last_update = wp.zeros_like(self._timestamp)
-        # Host pending-work flag; per-environment cadence remains in the device mask.
         self._data_dirty = True
 
         # Initialize debug visualization handle

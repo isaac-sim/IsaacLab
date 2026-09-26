@@ -35,7 +35,7 @@ def _make_renderer_without_backend() -> tuple[OVRTXRenderer, MagicMock]:
     renderer.backend = SimpleNamespace(renderer=MagicMock())
     renderer._device = "cpu"
     renderer._geometry_paths = []
-    renderer._geometry = TimestampedBuffer()
+    renderer._geometry_timestamp = -1
     renderer._transforms = TimestampedBuffer(SceneDataFormat.TransposedMatrix44d())
     renderer._use_ovstage = False
     renderer._init_fields_legacy()
@@ -140,7 +140,7 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
     poses = np.array([[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 0, 0, 0, 1]], dtype=np.float32)
     transforms = SceneDataFormat.Transform()
     transforms.transforms = wp.array(poses, dtype=wp.transformf, device="cpu")
-    backend = SimpleNamespace(transforms=transforms, transforms_version=0, transform_count=2, transform_paths=paths)
+    backend = SimpleNamespace(transforms=transforms, transforms_timestamp=0, transform_count=2, transform_paths=paths)
     backend.get_transforms = lambda _format: transforms
     renderer._sdp = SceneDataProvider(backend)
     renderer._object_scales_by_path = {paths[0]: (2, 3, 4)}
@@ -182,7 +182,7 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
 
     poses[:, 0] += 10
     transforms.transforms.assign(poses)
-    backend.transforms_version += 1
+    backend.transforms_timestamp += 1
     renderer.update_transforms()
     assert len(writes) == 2
     updated = writes[1][2]["tensors"] if use_ovstage else writes[1][1]

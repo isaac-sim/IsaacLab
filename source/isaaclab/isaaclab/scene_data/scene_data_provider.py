@@ -65,7 +65,7 @@ class SceneDataProvider:
         self.backend = backend
         self._num_envs_cache: int | None = None
         self._interactive_scene: Any | None = None
-        self._transform_cache: dict[tuple, TimestampedBuffer[Any]] = {}
+        self._transform_cache: dict[tuple, TimestampedBuffer] = {}
         self._geometry_view_cache = TimestampedBuffer()
         self._geometry_destination_cache = WeakKeyDictionary()
 
@@ -86,7 +86,7 @@ class SceneDataProvider:
         """Bind shared transforms or write them directly into caller-owned output arrays.
 
         With passthrough enabled, matching native arrays are borrowed without a copy; other
-        layouts share SDP-owned buffers converted once per producer version. Treat these arrays
+        layouts share SDP-owned buffers converted once per producer timestamp. Treat these arrays
         as read-only. With passthrough disabled, conversion writes directly into ``output``.
         Fabric destinations must already be bound by their rendering owner.
 
@@ -110,7 +110,7 @@ class SceneDataProvider:
         fabric = output_format is SceneDataFormat.FabricMatrix44
         source = self.backend.get_transforms(output_format)
         source_format = source._cls
-        timestamp = self.backend.transforms_version
+        timestamp = self.backend.transforms_timestamp
         native_count = next(
             (len(array) for name in source_format.vars if (array := getattr(source, name)) is not None), 0
         )

@@ -221,12 +221,13 @@ class NewtonSceneDataBackend(SceneDataBackend):
 
     def __init__(self):
         self._transforms = SceneDataFormat.Transform()
-        self.transforms_version = 0
+        self.transforms_timestamp = 0
         self.geometry_timestamp = 0
         self._geometry_batches = []
 
     def initialize_geometry(self, plan: ClonePlan) -> None:
         """Bind imported geometry paths to native particle ranges and capsule endpoints."""
+        state = NewtonManager.get_state_0()
         ranges, visual_ranges = {}, {}
         indices, weights = [], []
         visual_offset = 0
@@ -253,11 +254,11 @@ class NewtonSceneDataBackend(SceneDataBackend):
                     visual_ranges[path] = (visual_offset, count)
                     visual_offset += count
         source = SceneDataFormat.Points()
-        source.points = self.state.particle_q
+        source.points = state.particle_q
         self._geometry_batches = [(source, ranges)]
         if visual_ranges:
             source = SceneDataFormat.WeightedPoints()
-            source.points = self.state.particle_q
+            source.points = state.particle_q
             source.indices = wp.array(np.concatenate(indices), dtype=wp.int32, device=source.points.device)
             source.weights = wp.array(np.concatenate(weights), dtype=wp.float32, device=source.points.device)
             self._geometry_batches.append((source, visual_ranges))
@@ -276,7 +277,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
         if endpoints:
             model = self.model
             source = SceneDataFormat.CapsuleEndpoints()
-            source.transforms = self.state.body_q
+            source.transforms = state.body_q
             source.shape_body = model.shape_body
             source.shape_transform = model.shape_transform
             source.shape_scale = model.shape_scale
@@ -304,7 +305,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
         transforms = self.state.body_q
         if self._transforms.transforms is not transforms:
             self._transforms.transforms = transforms
-            self.transforms_version += 1
+            self.transforms_timestamp += 1
         return self._transforms
 
     @property
@@ -326,12 +327,11 @@ class NewtonSceneDataBackend(SceneDataBackend):
     @property
     def state(self) -> State:
         """Return native physics state without entering the rendering consumer path."""
-        if NewtonManager._transforms_may_change_on_graph_replay:
+        if NewtonManager.transforms_may_change_on_graph_replay:
             # Raw external graph replays bypass Python invalidation, so these reads must stay conservative.
-            self.transforms_version += 1
+            self.transforms_timestamp += 1
             self.geometry_timestamp += 1
-        if NewtonManager._reconciliation_pending or NewtonManager._transforms_may_change_on_graph_replay:
-            NewtonManager.forward()
+        NewtonManager.forward()
         return NewtonManager.get_state_0()
 
 
@@ -419,7 +419,7 @@ class NewtonManager(PhysicsManager):
     # Newton reserves the final slot for global entities in world -1.
     _world_reset_mask: wp.array | None = None  # (num_envs + 1,) wp.bool
     _fk_reset_mask: wp.array | None = None  # (articulation_count,) wp.bool — for eval_fk(mask=...)
-    _reconciliation_pending: bool = False
+    kinematics_dirty: bool = False
     # Solver-specialized FK delegate. Bound in initialize_solver() to the active subclass's choice of FK implementation.
     _eval_fk: Callable[[wp.array | None, wp.array | None], None] = _eval_fk_unbound
     # Solver-specialized reset delegate. Like _eval_fk, this must dispatch correctly through the base manager.
@@ -457,7 +457,7 @@ class NewtonManager(PhysicsManager):
     # USD/Fabric sync
     _usdrt_stage = None
     _clone_physics_only = False
-    _transforms_may_change_on_graph_replay: bool = False
+    transforms_may_change_on_graph_replay: bool = False
     _cable_bindings: dict[str, list[int]] = {}
 
     # Model changes (callbacks use unified system from PhysicsManager)
@@ -475,7 +475,7 @@ class NewtonManager(PhysicsManager):
     _transform_mapping: wp.array | None = None
     _visualization_transforms: ClassVar[TimestampedBuffer] = TimestampedBuffer()
     _geometry_offsets: dict[str, int] = {}
-    _visualization_points: ClassVar[TimestampedBuffer] = TimestampedBuffer()
+    _geometry_timestamp: int = -1
     _visualization_stop_callback: CallbackHandle | None = None
 
     _builder_attribute_solvers: tuple[type[SolverBase], ...] = ()
@@ -605,9 +605,7 @@ class NewtonManager(PhysicsManager):
         Asset and scene-data reads share the same pending work. The bound delegate dispatches
         calls on ``NewtonManager`` to the active solver's implementation.
         """
-        if cls._eval_fk is not _eval_fk_unbound and not (
-            cls._reconciliation_pending or cls._transforms_may_change_on_graph_replay
-        ):
+        if not (cls.kinematics_dirty or cls.transforms_may_change_on_graph_replay):
             return
         cls._reset_solver_internals_delegate(cls._world_reset_mask)
         cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
@@ -615,7 +613,7 @@ class NewtonManager(PhysicsManager):
             cls._fk_reset_mask.zero_()
         if cls._world_reset_mask is not None:
             cls._world_reset_mask.zero_()
-        NewtonManager._reconciliation_pending = False
+        NewtonManager.kinematics_dirty = False
         cls._mark_sensor_state_dirty()
 
     @classmethod
@@ -649,13 +647,13 @@ class NewtonManager(PhysicsManager):
     def _mark_transforms_changed(cls) -> None:
         """Publish authored rigid-body changes and invalidate cable geometry."""
         if NewtonManager._scene_data_backend is not None:
-            NewtonManager._scene_data_backend.transforms_version += 1
+            NewtonManager._scene_data_backend.transforms_timestamp += 1
             NewtonManager._scene_data_backend.geometry_timestamp += 1
         device = PhysicsManager._device
         if device is not None:
             device = wp.get_device(device)
             if device.is_cuda and device.stream.is_capturing:
-                NewtonManager._transforms_may_change_on_graph_replay = True
+                NewtonManager.transforms_may_change_on_graph_replay = True
 
     @classmethod
     def _mark_particles_dirty(cls) -> None:
@@ -663,7 +661,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._scene_data_backend.geometry_timestamp += 1
         device = wp.get_device(PhysicsManager._device)
         if device.is_cuda and device.stream.is_capturing:
-            NewtonManager._transforms_may_change_on_graph_replay = True
+            NewtonManager.transforms_may_change_on_graph_replay = True
 
     @classmethod
     def register_particle_visual_prim(cls, prim_path: str, particle_offset: int, particle_count: int) -> None:
@@ -859,7 +857,7 @@ class NewtonManager(PhysicsManager):
         # Per-world reset masks
         NewtonManager._world_reset_mask = None
         NewtonManager._fk_reset_mask = None
-        NewtonManager._reconciliation_pending = False
+        NewtonManager.kinematics_dirty = False
         NewtonManager._graph = None
         NewtonManager._graph_capture_pending = False
         NewtonManager._sensor_tasks = {}
@@ -869,7 +867,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._sensor_state_dirty = True
         NewtonManager._sensor_bvh_shape_flags = ShapeFlags.VISIBLE
         NewtonManager._usdrt_stage = None
-        NewtonManager._transforms_may_change_on_graph_replay = False
+        NewtonManager.transforms_may_change_on_graph_replay = False
         NewtonManager._cable_bindings = {}
         NewtonManager._mpm_object_registry = []
         NewtonManager._deformable_registry = []
@@ -878,7 +876,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._transform_mapping = None
         NewtonManager._visualization_transforms = TimestampedBuffer()
         NewtonManager._geometry_offsets = {}
-        NewtonManager._visualization_points = TimestampedBuffer()
+        NewtonManager._geometry_timestamp = -1
         NewtonManager._model_changes = set()
         NewtonManager._scene_data_backend = None
         NewtonManager._cl_pending_sites = {}
@@ -1158,7 +1156,7 @@ class NewtonManager(PhysicsManager):
 
         if cls._world_reset_mask is None or cls._fk_reset_mask is None:
             return
-        NewtonManager._reconciliation_pending = True
+        NewtonManager.kinematics_dirty = True
 
         if articulation_ids is not None and env_mask is not None:
             wp.launch(
@@ -1196,7 +1194,7 @@ class NewtonManager(PhysicsManager):
         cls._mark_transforms_changed()
         if cls._world_reset_mask is None:
             return
-        NewtonManager._reconciliation_pending = True
+        NewtonManager.kinematics_dirty = True
         if env_mask is not None:
             wp.launch(
                 _or_world_reset_mask_from_mask,
@@ -2317,7 +2315,7 @@ class NewtonManager(PhysicsManager):
         run_eagerly = bool(cls._sensor_eager_tasks.intersection(names))
         cfg = PhysicsManager._cfg
         use_cuda_graph = (
-            not run_eagerly and bool(getattr(cfg, "use_cuda_graph", False)) and "cuda" in str(PhysicsManager._device)
+            not run_eagerly and isinstance(cfg, NewtonCfg) and cfg.use_cuda_graph and "cuda" in PhysicsManager._device
         )
         if use_cuda_graph and cls._sensor_graph is None and not cls._sensor_graph_capture_failed:
             cls._capture_sensor_graph()
@@ -2450,7 +2448,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._transform_mapping = None
         NewtonManager._visualization_transforms = TimestampedBuffer()
         NewtonManager._geometry_offsets = geometry_offsets
-        NewtonManager._visualization_points = TimestampedBuffer()
+        NewtonManager._geometry_timestamp = -1
         cls.update_visualization_state()
         NewtonManager._visualization_stop_callback = sim.physics_manager.register_callback(
             lambda _payload: NewtonManager.clear(),
@@ -2511,18 +2509,18 @@ class NewtonManager(PhysicsManager):
                 if cls.backend.state_0.body_q is not cached.data.transforms:
                     cls.backend.state_0.body_q = cached.data.transforms
                     cls._invalidate_sensor_graph()
-                if cached.timestamp != scene_data_provider.backend.transforms_version:
+                if cached.timestamp != scene_data_provider.backend.transforms_timestamp:
                     cls._mark_sensor_state_dirty()
-                cached.timestamp = scene_data_provider.backend.transforms_version
+                cached.timestamp = scene_data_provider.backend.transforms_timestamp
 
         if cls._geometry_offsets:
-            cached = cls._visualization_points
-            cached.data = cls.backend.state_0.particle_q
-            scene_data_provider.get_geometry_points(output=cached.data, offsets=cls._geometry_offsets)
+            scene_data_provider.get_geometry_points(
+                output=cls.backend.state_0.particle_q, offsets=cls._geometry_offsets
+            )
             timestamp = scene_data_provider.backend.geometry_timestamp
-            if cached.timestamp != timestamp:
+            if cls._geometry_timestamp != timestamp:
                 cls._mark_sensor_state_dirty()
-                cached.timestamp = timestamp
+                cls._geometry_timestamp = timestamp
 
     @staticmethod
     def _resolve_scene_data_body_paths(body_paths: list[str | None], stage) -> list[str | None]:

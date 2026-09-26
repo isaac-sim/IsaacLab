@@ -30,7 +30,7 @@ from isaaclab.assets.articulation.ordering_resolvers import (
     _canonical_joint_dof_name,
 )
 from isaaclab.physics import PhysicsManager
-from isaaclab.utils.buffers import TimestampedBufferWarp
+from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import kernels as warp_kernels
@@ -536,8 +536,8 @@ class Articulation(BaseArticulation):
         self._root_view.set_attribute(
             TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids
         )
-        OvPhysxManager._kinematics_dirty = True
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager.kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -577,8 +577,8 @@ class Articulation(BaseArticulation):
         if not skip_forward:
             self.data._reset_pose()
         self._root_view.set_attribute(TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp)
-        OvPhysxManager._kinematics_dirty = True
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager.kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -622,8 +622,8 @@ class Articulation(BaseArticulation):
         self._root_view.set_attribute(
             TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids
         )
-        OvPhysxManager._kinematics_dirty = True
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager.kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -664,8 +664,8 @@ class Articulation(BaseArticulation):
         if not skip_forward:
             self.data._reset_pose(from_link=False)
         self._root_view.set_attribute(TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp)
-        OvPhysxManager._kinematics_dirty = True
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager.kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_velocity_to_sim_index(
         self,
@@ -981,8 +981,8 @@ class Articulation(BaseArticulation):
             self._data._reset_pose()
             self._data._reset_velocity()
         self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, indices=sim_env_ids)
-        OvPhysxManager._kinematics_dirty = True
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager.kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
         self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, indices=sim_env_ids)
 
     def write_joint_position_to_sim_index(
@@ -1033,8 +1033,8 @@ class Articulation(BaseArticulation):
             self._data._reset_pose()
             self._data._reset_velocity()
         self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, indices=sim_env_ids)
-        OvPhysxManager._kinematics_dirty = True
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager.kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_joint_position_to_sim_mask(
         self,
@@ -1086,8 +1086,8 @@ class Articulation(BaseArticulation):
             self._data._reset_pose()
             self._data._reset_velocity()
         self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, mask=env_mask_wp)
-        OvPhysxManager._kinematics_dirty = True
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager.kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_joint_velocity_to_sim_index(
         self,
@@ -1258,8 +1258,8 @@ class Articulation(BaseArticulation):
             self._data._reset_pose()
             self._data._reset_velocity()
         self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, mask=env_mask_wp)
-        OvPhysxManager._kinematics_dirty = True
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager.kinematics_dirty = True
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
         self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, mask=env_mask_wp)
 
     """
@@ -4614,7 +4614,7 @@ class Articulation(BaseArticulation):
         self,
         tensor_type: int,
         user_buffer: wp.array,
-        backend_buffer: wp.array | TimestampedBufferWarp | None,
+        backend_buffer: wp.array | TimestampedBuffer | None,
         *,
         cpu_buffer: wp.array | None = None,
         component_count: int | None = None,

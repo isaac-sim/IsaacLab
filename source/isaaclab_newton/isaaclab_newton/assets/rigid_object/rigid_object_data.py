@@ -13,8 +13,7 @@ import numpy as np
 import warp as wp
 
 from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
-from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
-from isaaclab.utils.buffers import reset_timestamps
+from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.utils import capture_unsafe
 
@@ -375,8 +374,7 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity is the pose of the actor frame of the rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        if SimulationManager._reconciliation_pending or SimulationManager._transforms_may_change_on_graph_replay:
-            SimulationManager.forward()
+        SimulationManager.forward()
         return self._body_link_pose_w_ta
 
     @property
@@ -404,8 +402,7 @@ class RigidObjectData(BaseRigidObjectData):
         # Refresh FK and re-derive the root com pose so a stale cache is recomputed after a write.
         # The reshape cached below is a view of ``root_com_pose_w``'s buffer, so once that buffer is
         # refreshed in place the cached view reflects the fresh data without reallocation.
-        if SimulationManager._reconciliation_pending or SimulationManager._transforms_may_change_on_graph_replay:
-            SimulationManager.forward()
+        SimulationManager.forward()
         root_com_pose_w = self.root_com_pose_w
         if self._body_com_pose_w_ta is None:
             self._body_com_pose_w_ta = ProxyArray(root_com_pose_w.warp.reshape((self._num_instances, 1)))
@@ -419,8 +416,7 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity contains the linear and angular velocities of the root rigid body's center of mass frame
         relative to the world.
         """
-        if SimulationManager._reconciliation_pending or SimulationManager._transforms_may_change_on_graph_replay:
-            SimulationManager.forward()
+        SimulationManager.forward()
         return self._body_com_vel_w_ta
 
     @property
@@ -543,7 +539,7 @@ class RigidObjectData(BaseRigidObjectData):
         """
         if self._root_link_lin_vel_b is None:
             self._root_link_lin_vel_b = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=wp.vec3f, device=self.device
+                wp.zeros(self._num_instances, dtype=wp.vec3f, device=self.device)
             )
             self._root_link_lin_vel_b_ta = ProxyArray(self._root_link_lin_vel_b.data)
         if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
@@ -567,7 +563,7 @@ class RigidObjectData(BaseRigidObjectData):
         """
         if self._root_link_ang_vel_b is None:
             self._root_link_ang_vel_b = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=wp.vec3f, device=self.device
+                wp.zeros(self._num_instances, dtype=wp.vec3f, device=self.device)
             )
             self._root_link_ang_vel_b_ta = ProxyArray(self._root_link_ang_vel_b.data)
         if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
@@ -591,7 +587,7 @@ class RigidObjectData(BaseRigidObjectData):
         """
         if self._root_com_lin_vel_b is None:
             self._root_com_lin_vel_b = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=wp.vec3f, device=self.device
+                wp.zeros(self._num_instances, dtype=wp.vec3f, device=self.device)
             )
             self._root_com_lin_vel_b_ta = ProxyArray(self._root_com_lin_vel_b.data)
         if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
@@ -615,7 +611,7 @@ class RigidObjectData(BaseRigidObjectData):
         """
         if self._root_com_ang_vel_b is None:
             self._root_com_ang_vel_b = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=wp.vec3f, device=self.device
+                wp.zeros(self._num_instances, dtype=wp.vec3f, device=self.device)
             )
             self._root_com_ang_vel_b_ta = ProxyArray(self._root_com_ang_vel_b.data)
         if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
@@ -969,29 +965,31 @@ class RigidObjectData(BaseRigidObjectData):
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
         self._root_link_vel_w = TimestampedBuffer(
-            shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
+            wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
         )
         self._root_link_vel_b = TimestampedBuffer(
-            shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
+            wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
         )
-        self._projected_gravity_b = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.vec3f, device=self.device)
-        self._heading_w = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.float32, device=self.device)
+        self._projected_gravity_b = TimestampedBuffer(wp.zeros(self._num_instances, dtype=wp.vec3f, device=self.device))
+        self._heading_w = TimestampedBuffer(wp.zeros(self._num_instances, dtype=wp.float32, device=self.device))
         self._body_link_vel_w = TimestampedBuffer(
-            shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
+            wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
         )
         # -- com frame w.r.t. world frame
-        self._root_com_pose_w = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.transformf, device=self.device)
+        self._root_com_pose_w = TimestampedBuffer(
+            wp.zeros(self._num_instances, dtype=wp.transformf, device=self.device)
+        )
         self._root_com_vel_b = TimestampedBuffer(
-            shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
+            wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
         )
         self._root_com_acc_w = TimestampedBuffer(
-            shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
+            wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
         )
         self._body_com_acc_w = TimestampedBuffer(
-            shape=(self._num_instances, 1), dtype=wp.spatial_vectorf, device=self.device
+            wp.zeros((self._num_instances, 1), dtype=wp.spatial_vectorf, device=self.device)
         )
         self._body_com_pose_b = TimestampedBuffer(
-            shape=(self._num_instances, 1), dtype=wp.transformf, device=self.device
+            wp.zeros((self._num_instances, 1), dtype=wp.transformf, device=self.device)
         )
         # Empty memory pre-allocations
         self._root_state_w = None
@@ -1337,7 +1335,7 @@ class RigidObjectData(BaseRigidObjectData):
         )
         if self._root_state_w is None:
             self._root_state_w = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
+                wp.zeros(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
             )
             self._root_state_w_ta = ProxyArray(self._root_state_w.data)
         if self._root_state_w.timestamp < self._sim_timestamp:
@@ -1368,7 +1366,7 @@ class RigidObjectData(BaseRigidObjectData):
         )
         if self._root_link_state_w is None:
             self._root_link_state_w = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
+                wp.zeros(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
             )
             self._root_link_state_w_ta = ProxyArray(self._root_link_state_w.data)
         if self._root_link_state_w.timestamp < self._sim_timestamp:
@@ -1399,7 +1397,7 @@ class RigidObjectData(BaseRigidObjectData):
         )
         if self._root_com_state_w is None:
             self._root_com_state_w = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
+                wp.zeros(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
             )
             self._root_com_state_w_ta = ProxyArray(self._root_com_state_w.data)
         if self._root_com_state_w.timestamp < self._sim_timestamp:
@@ -1461,7 +1459,7 @@ class RigidObjectData(BaseRigidObjectData):
         # Access internal buffer directly to avoid cascading deprecation warnings from root_state_w
         if self._root_state_w is None:
             self._root_state_w = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
+                wp.zeros(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
             )
             self._root_state_w_ta = ProxyArray(self._root_state_w.data)
         if self._root_state_w.timestamp < self._sim_timestamp:
@@ -1494,7 +1492,7 @@ class RigidObjectData(BaseRigidObjectData):
         # Access internal buffer directly to avoid cascading deprecation warnings from root_link_state_w
         if self._root_link_state_w is None:
             self._root_link_state_w = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
+                wp.zeros(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
             )
             self._root_link_state_w_ta = ProxyArray(self._root_link_state_w.data)
         if self._root_link_state_w.timestamp < self._sim_timestamp:
@@ -1526,7 +1524,7 @@ class RigidObjectData(BaseRigidObjectData):
         )
         if self._root_com_state_w is None:
             self._root_com_state_w = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
+                wp.zeros(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
             )
             self._root_com_state_w_ta = ProxyArray(self._root_com_state_w.data)
         if self._root_com_state_w.timestamp < self._sim_timestamp:

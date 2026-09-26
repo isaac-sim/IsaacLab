@@ -98,7 +98,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
     def __init__(self):
         self._rigid_bindings: list[tuple[OvPhysxView, wp.array]] = []
         self._transforms = TimestampedBuffer(SceneDataFormat.Transform())
-        self.transforms_version = 0
+        self.transforms_timestamp = 0
         self.geometry_timestamp = 0
         self._geometry = TimestampedBuffer()
         self._deformable_bindings: list[tuple[OvPhysxView, Any, wp.array]] = []
@@ -128,7 +128,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
         self._rigid_bindings = []
         self._transforms = TimestampedBuffer(SceneDataFormat.Transform())
-        self.transforms_version += 1
+        self.transforms_timestamp += 1
         self._deformable_bindings = []
         self.geometry_timestamp += 1
         self._geometry = TimestampedBuffer()
@@ -246,11 +246,11 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
     @property
     def transforms(self) -> SceneDataFormat.Transform:
         """Publish native rigid-body poses [m, xyzw]."""
-        if self._transforms.timestamp != self.transforms_version:
+        if self._transforms.timestamp != self.transforms_timestamp:
             OvPhysxManager.pre_render()
             for view, buffer in self._rigid_bindings:
                 view.read_into("rigid_body_pose", buffer)
-            self._transforms.timestamp = self.transforms_version
+            self._transforms.timestamp = self.transforms_timestamp
         return self._transforms.data
 
 
@@ -356,7 +356,7 @@ class OvPhysxManager(PhysicsManager):
     _pending_clones: ClassVar[list[tuple[str, list[str], list[CloneTransform]]]] = []
     _atexit_registered: ClassVar[bool] = False
     _scene_data_backend: ClassVar[OvPhysxSceneDataBackend | None] = None
-    _kinematics_dirty: ClassVar[bool] = False
+    kinematics_dirty: ClassVar[bool] = False
     # Gravity currently applied to the running scene [m/s^2]. Seeded from ``SimulationCfg.gravity``
     # in :meth:`initialize` and refreshed by :meth:`set_gravity`. ``cfg.gravity`` stays the nominal
     # value that randomization terms resample from, so live updates must not be written back to it.
@@ -488,7 +488,7 @@ class OvPhysxManager(PhysicsManager):
         # and the USD stage are live. Matches PhysX's pattern of constructing
         # the backend during ``initialize()``.
         cls._scene_data_backend = OvPhysxSceneDataBackend()
-        cls._kinematics_dirty = False
+        cls.kinematics_dirty = False
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:
@@ -510,29 +510,30 @@ class OvPhysxManager(PhysicsManager):
                     cls.dispatch_event(PhysicsEvent.STOP, payload={})
                 cls._warmup_and_load()
             cls.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
-        cls._kinematics_dirty = True
-        cls._scene_data_backend.transforms_version += 1
+        cls.kinematics_dirty = True
+        cls._scene_data_backend.transforms_timestamp += 1
         cls._scene_data_backend.geometry_timestamp += 1
 
     @classmethod
     def forward(cls) -> None:
         """Evaluate and publish state changes made without stepping physics."""
         cls.update_kinematics()
-        cls._scene_data_backend.transforms_version += 1
+        cls._scene_data_backend.transforms_timestamp += 1
         cls._scene_data_backend.geometry_timestamp += 1
 
     @classmethod
     def pre_render(cls) -> None:
         """Finish native kinematics before SDP publishes manually written joint poses."""
-        if cls._kinematics_dirty:
-            cls.update_kinematics()
+        cls.update_kinematics()
 
     @classmethod
     def update_kinematics(cls) -> None:
-        """Compute native articulation state and clear its pending-work flag, without publishing or rendering."""
+        """Update dirty articulation kinematics without publishing or rendering."""
+        if not cls.kinematics_dirty:
+            return
         if cls.backend is not None and cls.backend.physx is not None:
             cls.backend.physx.update_articulations_kinematic()
-            cls._kinematics_dirty = False
+            cls.kinematics_dirty = False
 
     @classmethod
     def step(cls) -> None:
@@ -541,8 +542,9 @@ class OvPhysxManager(PhysicsManager):
             return
         dt = cls.get_physics_dt()
         cls.backend.physx.step_sync(dt=dt)
+        cls.kinematics_dirty = True
         cls.update_kinematics()
-        cls._scene_data_backend.transforms_version += 1
+        cls._scene_data_backend.transforms_timestamp += 1
         cls._scene_data_backend.geometry_timestamp += 1
         PhysicsManager._sim_time += dt
 
@@ -579,7 +581,7 @@ class OvPhysxManager(PhysicsManager):
                 # belong to the runtime instance just released. The next
                 # SimulationContext re-creates it in initialize().
                 cls._scene_data_backend = None
-                cls._kinematics_dirty = False
+                cls.kinematics_dirty = False
                 cls._next_control_ordinal = 2
 
     @classmethod

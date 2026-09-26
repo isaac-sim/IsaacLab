@@ -92,7 +92,7 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
         SimpleNamespace(
             transforms=transforms,
             get_transforms=lambda _format: transforms,
-            transforms_version=0,
+            transforms_timestamp=0,
             transform_paths=body_paths,
             transform_count=body_count,
         )
@@ -259,7 +259,7 @@ def test_update_visualization_state_shares_sdp_transforms(monkeypatch, layout):
         SimpleNamespace(
             transforms=source_data,
             get_transforms=lambda _format: source_data,
-            transforms_version=0,
+            transforms_timestamp=0,
             transform_paths=body_paths,
             transform_count=len(body_paths),
         )
@@ -289,7 +289,7 @@ def test_update_visualization_state_shares_sdp_transforms(monkeypatch, layout):
     assert NewtonManager.get_state(provider).body_q is shared
 
     source_data.transforms = wp.array(source_transforms.numpy() + 1.0, dtype=wp.transformf, device="cpu")
-    provider.backend.transforms_version += 1
+    provider.backend.transforms_timestamp += 1
     NewtonManager.update_visualization_state(provider)
     np.testing.assert_allclose(
         NewtonManager.backend.state_0.body_q.numpy(), source_data.transforms.numpy()[:: -1 if remapped else 1]

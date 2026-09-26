@@ -13,8 +13,7 @@ import numpy as np
 import warp as wp
 
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import BaseRigidObjectCollectionData
-from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
-from isaaclab.utils.buffers import reset_timestamps
+from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -276,8 +275,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the pose of the actor frame of the rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        if SimulationManager._reconciliation_pending or SimulationManager._transforms_may_change_on_graph_replay:
-            SimulationManager.forward()
+        SimulationManager.forward()
         return self._body_link_pose_w_ta
 
     @property
@@ -342,8 +340,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity contains the linear and angular velocities of the root rigid body's center of mass frame
         relative to the world.
         """
-        if SimulationManager._reconciliation_pending or SimulationManager._transforms_may_change_on_graph_replay:
-            SimulationManager.forward()
+        SimulationManager.forward()
         return self._body_com_vel_w_ta
 
     @property
@@ -738,22 +735,28 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame (computed from com vel)
         self._body_link_vel_w = TimestampedBuffer(
-            (self.num_instances, self.num_bodies), self.device, wp.spatial_vectorf
+            wp.zeros((self.num_instances, self.num_bodies), dtype=wp.spatial_vectorf, device=self.device)
         )
         # -- com frame w.r.t. link frame
-        self._body_com_pose_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.transformf)
+        self._body_com_pose_b = TimestampedBuffer(
+            wp.zeros((self.num_instances, self.num_bodies), dtype=wp.transformf, device=self.device)
+        )
         # -- com frame w.r.t. world frame
-        self._body_com_pose_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.transformf)
-        self._body_com_acc_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.spatial_vectorf)
+        self._body_com_pose_w = TimestampedBuffer(
+            wp.zeros((self.num_instances, self.num_bodies), dtype=wp.transformf, device=self.device)
+        )
+        self._body_com_acc_w = TimestampedBuffer(
+            wp.zeros((self.num_instances, self.num_bodies), dtype=wp.spatial_vectorf, device=self.device)
+        )
         # -- combined state (these are cached as they concatenate)
         self._body_state_w = TimestampedBuffer(
-            (self.num_instances, self.num_bodies), self.device, shared_kernels.vec13f
+            wp.zeros((self.num_instances, self.num_bodies), dtype=shared_kernels.vec13f, device=self.device)
         )
         self._body_link_state_w = TimestampedBuffer(
-            (self.num_instances, self.num_bodies), self.device, shared_kernels.vec13f
+            wp.zeros((self.num_instances, self.num_bodies), dtype=shared_kernels.vec13f, device=self.device)
         )
         self._body_com_state_w = TimestampedBuffer(
-            (self.num_instances, self.num_bodies), self.device, shared_kernels.vec13f
+            wp.zeros((self.num_instances, self.num_bodies), dtype=shared_kernels.vec13f, device=self.device)
         )
 
         # -- Default state
@@ -766,12 +769,24 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self._default_body_state = None
 
         # -- Derived properties
-        self._projected_gravity_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.vec3f)
-        self._heading_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.float32)
-        self._body_link_lin_vel_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.vec3f)
-        self._body_link_ang_vel_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.vec3f)
-        self._body_com_lin_vel_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.vec3f)
-        self._body_com_ang_vel_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.vec3f)
+        self._projected_gravity_b = TimestampedBuffer(
+            wp.zeros((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
+        )
+        self._heading_w = TimestampedBuffer(
+            wp.zeros((self.num_instances, self.num_bodies), dtype=wp.float32, device=self.device)
+        )
+        self._body_link_lin_vel_b = TimestampedBuffer(
+            wp.zeros((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
+        )
+        self._body_link_ang_vel_b = TimestampedBuffer(
+            wp.zeros((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
+        )
+        self._body_com_lin_vel_b = TimestampedBuffer(
+            wp.zeros((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
+        )
+        self._body_com_ang_vel_b = TimestampedBuffer(
+            wp.zeros((self.num_instances, self.num_bodies), dtype=wp.vec3f, device=self.device)
+        )
 
         # -- Initialize history for finite differencing
         self._previous_body_com_vel = wp.clone(self._sim_bind_body_com_vel_w)

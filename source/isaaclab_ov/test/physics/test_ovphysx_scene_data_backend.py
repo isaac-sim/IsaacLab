@@ -30,7 +30,7 @@ def _native_backend(monkeypatch):
     backend.stage = None
     monkeypatch.setattr(OvPhysxManager, "backend", backend)
     monkeypatch.setattr(OvPhysxManager, "_scene_data_backend", OvPhysxSceneDataBackend())
-    monkeypatch.setattr(OvPhysxManager, "_kinematics_dirty", False)
+    monkeypatch.setattr(OvPhysxManager, "kinematics_dirty", False)
 
 
 @pytest.fixture(autouse=True)
@@ -333,12 +333,12 @@ def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
         lambda event, payload=None: calls.append(event),
     )
 
-    version = OvPhysxManager._scene_data_backend.transforms_version
+    version = OvPhysxManager._scene_data_backend.transforms_timestamp
     OvPhysxManager.reset()
 
     assert calls == [PhysicsEvent.STOP, "warmup", PhysicsEvent.PHYSICS_READY]
-    assert OvPhysxManager._scene_data_backend.transforms_version > version
-    assert OvPhysxManager._kinematics_dirty
+    assert OvPhysxManager._scene_data_backend.transforms_timestamp > version
+    assert OvPhysxManager.kinematics_dirty
 
 
 @pytest.mark.parametrize(
@@ -396,7 +396,7 @@ def test_manager_supports_pinned_runtime_api(
     OvPhysxManager.backend.physx = physx
     monkeypatch.setattr(OvPhysxManager, "get_physics_dt", lambda: 0.02)
     monkeypatch.setattr(PhysicsManager, "_sim_time", 0.0)
-    version = OvPhysxManager._scene_data_backend.transforms_version
+    version = OvPhysxManager._scene_data_backend.transforms_timestamp
     OvPhysxManager.step()
     OvPhysxManager._prepare_physx_for_stage_reuse()
 
@@ -406,8 +406,8 @@ def test_manager_supports_pinned_runtime_api(
     assert physx.constructor["config"].cooked_collider_cache_dir == cache_dir
     assert physx.calls == [("step_sync", 0.02), ("update_articulations_kinematic",), ("reset_stage",), ("wait_op", 23)]
     assert PhysicsManager._sim_time == 0.02
-    assert OvPhysxManager._scene_data_backend.transforms_version > version
-    assert not OvPhysxManager._kinematics_dirty
+    assert OvPhysxManager._scene_data_backend.transforms_timestamp > version
+    assert not OvPhysxManager.kinematics_dirty
 
 
 def test_transforms_finish_dirty_kinematics_before_native_reads(monkeypatch):
@@ -424,15 +424,17 @@ def test_transforms_finish_dirty_kinematics_before_native_reads(monkeypatch):
     backend._transforms.data.transforms = poses
     backend._rigid_bindings = [(SimpleNamespace(read_into=lambda *args: calls.append("read")), poses)]
     sdp = SceneDataProvider(backend)
-    monkeypatch.setattr(OvPhysxManager, "_kinematics_dirty", True)
+    monkeypatch.setattr(OvPhysxManager, "kinematics_dirty", True)
     sdp.get_transforms(SceneDataFormat.Transform())
     sdp.get_transforms(SceneDataFormat.Transform())
     assert calls == ["fk", "read"]
-    assert not OvPhysxManager._kinematics_dirty
+    assert not OvPhysxManager.kinematics_dirty
 
-    version = backend.transforms_version
+    version = backend.transforms_timestamp
+    OvPhysxManager.update_kinematics()
+    OvPhysxManager.kinematics_dirty = True
     OvPhysxManager.forward()
-    assert backend.transforms_version > version
+    assert backend.transforms_timestamp > version
     sdp.get_transforms(SceneDataFormat.Transform())
     sdp.get_transforms(SceneDataFormat.Transform())
     assert calls == ["fk", "read", "fk", "read"]
@@ -831,7 +833,7 @@ def test_transforms_read_native_slices_only_when_dirty(monkeypatch):
     assert len(reads) == 2
 
     expected[:, 0] += 10
-    backend.transforms_version += 1
+    backend.transforms_timestamp += 1
     assert sdp.get_transforms(second_output)
     assert second_output.transforms is native.transforms
     assert len(reads) == 4

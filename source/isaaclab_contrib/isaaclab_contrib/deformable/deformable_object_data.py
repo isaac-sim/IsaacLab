@@ -9,7 +9,7 @@ import warp as wp
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from isaaclab.assets.deformable_object.base_deformable_object_data import BaseDeformableObjectData
-from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
+from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
 
 from .kernels import compute_mean_vec3f_over_vertices, compute_nodal_state_w, gather_particles_vec3f, vec6f
@@ -49,11 +49,17 @@ class DeformableObjectData(BaseDeformableObjectData):
         self._num_instances = num_instances
 
         # Initialize lazy buffers
-        self._nodal_pos_w = TimestampedBuffer((num_instances, particles_per_body), device, wp.vec3f)
-        self._nodal_vel_w = TimestampedBuffer((num_instances, particles_per_body), device, wp.vec3f)
-        self._nodal_state_w = TimestampedBuffer((num_instances, particles_per_body), device, vec6f)
-        self._root_pos_w = TimestampedBuffer((num_instances,), device, wp.vec3f)
-        self._root_vel_w = TimestampedBuffer((num_instances,), device, wp.vec3f)
+        self._nodal_pos_w = TimestampedBuffer(
+            wp.zeros((num_instances, particles_per_body), dtype=wp.vec3f, device=device)
+        )
+        self._nodal_vel_w = TimestampedBuffer(
+            wp.zeros((num_instances, particles_per_body), dtype=wp.vec3f, device=device)
+        )
+        self._nodal_state_w = TimestampedBuffer(
+            wp.zeros((num_instances, particles_per_body), dtype=vec6f, device=device)
+        )
+        self._root_pos_w = TimestampedBuffer(wp.zeros(num_instances, dtype=wp.vec3f, device=device))
+        self._root_vel_w = TimestampedBuffer(wp.zeros(num_instances, dtype=wp.vec3f, device=device))
         self._nodal_pos_w_ta: ProxyArray | None = None
         self._nodal_vel_w_ta: ProxyArray | None = None
         self._nodal_state_w_ta: ProxyArray | None = None

@@ -103,7 +103,7 @@ class FabricBackend:
             self.transforms = SceneDataFormat.FabricMatrix44()
             self.transforms.matrices = wp.fabricarray(self._write_selection, "omni:fabric:localMatrix")
         provider.get_transforms(self.transforms, self._mapping, scales=self._scales)
-        timestamp = provider.backend.transforms_version
+        timestamp = provider.backend.transforms_timestamp
         if self._selection is not None and (changed or self._transforms_timestamp != timestamp):
             self._write_selection.PrepareForReuse()
             device = self._scales.device
