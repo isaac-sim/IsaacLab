@@ -44,7 +44,9 @@ def test_so101_lift_object_starts_inside_termination_bounds() -> None:
     cfg = SO101LiftEnvCfg()
     bounds = cfg.terminations.object_out_of_bound.params["in_bound_range"]
 
-    assert all(bounds[axis][0] < position < bounds[axis][1] for axis, position in zip("xyz", cfg.scene.object.init_state.pos))
+    assert all(
+        bounds[axis][0] < position < bounds[axis][1] for axis, position in zip("xyz", cfg.scene.object.init_state.pos)
+    )
 
 
 class _MarkerSpy:
