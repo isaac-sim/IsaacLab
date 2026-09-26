@@ -53,7 +53,12 @@ def _make_env(gripper_pos: float, stacked: bool = True) -> SimpleNamespace:
         # Swap the top two so the required bottom-to-top order no longer holds.
         heights = [0.0, 2 * _STACK_DZ, _STACK_DZ]
     cubes = {
-        f"cube_{i + 1}": SimpleNamespace(data=SimpleNamespace(root_pos_w=_proxy(torch.tensor([[0.3, 0.0, z]]))))
+        f"cube_{i + 1}": SimpleNamespace(
+            data=SimpleNamespace(
+                root_pos_w=_proxy(torch.tensor([[0.3, 0.0, z]])),
+                root_lin_vel_w=_proxy(torch.zeros((1, 3))),
+            )
+        )
         for i, z in enumerate(heights)
     }
     return SimpleNamespace(

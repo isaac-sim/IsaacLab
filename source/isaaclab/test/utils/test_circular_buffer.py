@@ -34,13 +34,14 @@ def test_reset(circular_buffer):
     data = torch.ones((circular_buffer.batch_size, 2), device=circular_buffer.device)
     circular_buffer.append(data)
     # reset the buffer
-    circular_buffer.reset()
+    circular_buffer.reset(slice(None))
 
     # check if the buffer has zeros entries
     assert circular_buffer.current_length.tolist() == [0, 0, 0]
 
 
-def test_reset_subset(circular_buffer):
+@pytest.mark.parametrize("batch_ids", [[1], slice(1, 2)])
+def test_reset_subset(circular_buffer, batch_ids):
     """Test resetting a subset of batches in the circular buffer."""
     data1 = torch.ones((circular_buffer.batch_size, 2), device=circular_buffer.device)
     data2 = 2.0 * data1.clone()
@@ -49,7 +50,7 @@ def test_reset_subset(circular_buffer):
     circular_buffer.append(data2)
     # reset the buffer
     reset_batch_id = 1
-    circular_buffer.reset(batch_ids=[reset_batch_id])
+    circular_buffer.reset(batch_ids=batch_ids)
     # check that correct batch is reset
     assert circular_buffer.current_length.tolist()[reset_batch_id] == 0
     # Append new set of data
@@ -177,7 +178,7 @@ def test_reset_subset_zeroes_buffer_storage_default_mode():
     buf = CircularBuffer(max_len=3, batch_size=4, device="cpu")
     buf.append(torch.full((4, 2), 5.0))
     buf.append(torch.full((4, 2), 5.0))
-    buf.reset(batch_ids=[1, 3])
+    buf.reset(batch_ids=slice(1, None, 2))
     # Reset rows must read as zero in the buffer; non-reset rows must still hold 5.0.
     torch.testing.assert_close(buf.buffer[[1, 3]], torch.zeros((2, 3, 2)))
     torch.testing.assert_close(buf.buffer[[0, 2]], torch.full((2, 3, 2), 5.0))

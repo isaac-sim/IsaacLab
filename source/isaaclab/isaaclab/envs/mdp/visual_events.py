@@ -55,9 +55,9 @@ class randomize_visual_material(ManagerTermBase):
         channels: dict[str, tuple | dict],
     ) -> None:
         del materials, channels
-        if isinstance(env_ids, slice):
-            env_ids = None
-        count = env.scene.num_envs if env_ids is None else len(env_ids)
+        if env_ids is None:
+            env_ids = slice(None)
+        count = len(range(env.scene.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         shape = (len(self._materials), count) if self._per_env else (len(self._materials),)
         sampled = {channel: sampler(shape) for channel, sampler in self._samplers.items()}
         env.sim.render_context.write_visual_materials(self._materials, sampled, env_ids if self._per_env else None)

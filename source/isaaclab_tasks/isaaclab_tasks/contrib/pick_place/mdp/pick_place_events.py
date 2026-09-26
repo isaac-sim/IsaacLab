@@ -56,9 +56,8 @@ def reset_object_poses_nut_pour(
     ranges = torch.tensor(range_list, device=sorting_beaker.device)
 
     # randomize sorting beaker and factory nut together
-    rand_samples = math_utils.sample_uniform(
-        ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=sorting_beaker.device
-    )
+    num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (num_envs, 6), device=sorting_beaker.device)
     orientations_delta = math_utils.quat_from_euler_xyz(rand_samples[:, 3], rand_samples[:, 4], rand_samples[:, 5])
     positions_sorting_beaker = sorting_beaker_root_poses[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
     positions_factory_nut = factory_nut_root_poses[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
@@ -66,17 +65,13 @@ def reset_object_poses_nut_pour(
     orientations_factory_nut = math_utils.quat_mul(factory_nut_root_poses[:, 3:7], orientations_delta)
 
     # randomize sorting bowl
-    rand_samples = math_utils.sample_uniform(
-        ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=sorting_beaker.device
-    )
+    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (num_envs, 6), device=sorting_beaker.device)
     orientations_delta = math_utils.quat_from_euler_xyz(rand_samples[:, 3], rand_samples[:, 4], rand_samples[:, 5])
     positions_sorting_bowl = sorting_bowl_root_poses[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
     orientations_sorting_bowl = math_utils.quat_mul(sorting_bowl_root_poses[:, 3:7], orientations_delta)
 
     # randomize scorting scale
-    rand_samples = math_utils.sample_uniform(
-        ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=sorting_beaker.device
-    )
+    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (num_envs, 6), device=sorting_beaker.device)
     orientations_delta = math_utils.quat_from_euler_xyz(rand_samples[:, 3], rand_samples[:, 4], rand_samples[:, 5])
     positions_sorting_scale = sorting_scale_root_poses[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
     orientations_sorting_scale = math_utils.quat_mul(sorting_scale_root_poses[:, 3:7], orientations_delta)
