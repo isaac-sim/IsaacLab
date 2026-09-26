@@ -20,6 +20,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.images import normalize_camera_image
 
 from ... import mdp
 from . import stack_joint_pos_env_cfg
@@ -44,11 +45,8 @@ def image(
 ) -> torch.Tensor:
     """Images of a specific datatype from the camera sensor.
 
-    If the flag :attr:`normalize` is True, post-processing of the images are performed based on their
-    data-types:
-
-    - "rgb": Scales the image to (0, 1) and subtracts with the mean of the current image batch.
-    - "depth" or "distance_to_camera" or "distance_to_plane": Replaces infinity values with zero.
+    If the flag :attr:`normalize` is True, the images are normalized with
+    :func:`~isaaclab.utils.images.normalize_camera_image`.
 
     Args:
         env: The environment the cameras are placed within.
@@ -66,22 +64,14 @@ def image(
     sensor: Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
 
     # obtain the input image
-    images = sensor.data.output[data_type]
+    images = sensor.data.output[data_type].torch
 
     # depth image conversion
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
         images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
 
-    # rgb/depth image normalization
     if normalize:
-        if data_type == "rgb":
-            images = images.float() / 255.0
-            mean_tensor = torch.mean(images, dim=(1, 2), keepdim=True)
-            images -= mean_tensor
-        elif "distance_to" in data_type or "depth" in data_type:
-            images[images == float("inf")] = 0
-        elif data_type == "normals":
-            images = (images + 1.0) * 0.5
+        images = normalize_camera_image(images, data_type)
 
     if save_image_to_file:
         dir_path, _ = os.path.split(image_path)

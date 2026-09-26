@@ -217,6 +217,8 @@ class CableObject(BaseCableObject):
         """Resolve environment indices to a Warp array."""
         if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         if isinstance(env_ids, torch.Tensor):
             return wp.from_torch(env_ids.to(device=self.device, dtype=torch.int32).contiguous(), dtype=wp.int32)
         if isinstance(env_ids, Sequence):

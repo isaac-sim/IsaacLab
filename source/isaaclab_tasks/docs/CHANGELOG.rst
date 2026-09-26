@@ -1,6 +1,34 @@
 Changelog
 ---------
 
+21.1.1 (2026-09-26)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated Cartpole camera observations to use shared fused image normalization, including direct
+  channel-first output conversion where needed.
+
+Fixed
+^^^^^
+
+* Removed the redundant backend-specific Jacobian refresh from the NIST
+  ``reset_end_effector_around_asset`` event. Articulation data refreshes forward kinematics on demand
+  after joint writes, avoiding access to ``root_physx_view`` on OVPhysX.
+* Fixed the Cartpole camera observations reading the sensor's ``ProxyArray`` directly, which left
+  colorized semantic segmentation unscaled.
+* Corrected the SO101 Keyboard task's initial pose for the SysID asset: rotated
+  the robot base toward the keyboard and restored the task's zero joint-position
+  reset-IK seed. Shared SO101 defaults, actuator parameters, and reset IK budgets
+  remained unchanged. Removed the need for a manual task-specific base rotation.
+* Fixed :func:`~isaaclab_tasks.contrib.stack.mdp.terminations.cubes_stacked` reporting success for a
+  cube that is still falling: the check tested an instantaneous configuration, which a dropped cube
+  satisfies on the way down. Cubes must now also be at rest, controlled by the new ``max_lin_vel``
+  argument (default ``0.05`` m/s). Reported stack success rates drop slightly as a result; pass
+  ``max_lin_vel=None`` to restore the previous behaviour.
+
+
 21.1.0 (2026-09-24)
 ~~~~~~~~~~~~~~~~~~~
 

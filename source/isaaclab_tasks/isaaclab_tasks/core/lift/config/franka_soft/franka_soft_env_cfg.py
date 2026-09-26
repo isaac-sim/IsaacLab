@@ -453,12 +453,11 @@ class FrankaCameraObservationsCfg:
         """Camera observations for the base image group."""
 
         image = ObsTerm(
-            func=mdp.image,
+            func=mdp.image_rgb,
             params={
                 "sensor_cfg": SceneEntityCfg("base_camera"),
-                "data_type": "rgb",
                 "normalize": True,
-                "permute": True,
+                "channel_first": True,
             },
         )
 

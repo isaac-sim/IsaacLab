@@ -198,16 +198,16 @@ class ObservationsCfg:
         """Observations from the robot's cameras."""
 
         front_camera = ObsTerm(
-            func=base_mdp.image,
-            params={"sensor_cfg": SceneEntityCfg("front_camera"), "data_type": "rgb", "normalize": False},
+            func=base_mdp.image_rgb,
+            params={"sensor_cfg": SceneEntityCfg("front_camera"), "normalize": False},
         )
         left_wrist_camera = ObsTerm(
-            func=base_mdp.image,
-            params={"sensor_cfg": SceneEntityCfg("left_wrist_camera"), "data_type": "rgb", "normalize": False},
+            func=base_mdp.image_rgb,
+            params={"sensor_cfg": SceneEntityCfg("left_wrist_camera"), "normalize": False},
         )
         right_wrist_camera = ObsTerm(
-            func=base_mdp.image,
-            params={"sensor_cfg": SceneEntityCfg("right_wrist_camera"), "data_type": "rgb", "normalize": False},
+            func=base_mdp.image_rgb,
+            params={"sensor_cfg": SceneEntityCfg("right_wrist_camera"), "normalize": False},
         )
 
         def __post_init__(self):
