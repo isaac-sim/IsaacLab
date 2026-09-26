@@ -93,6 +93,37 @@ def test_g1_height_terms_use_median_terrain_and_global_warmup():
     )
 
 
+def test_g1_height_terms_detect_crouching_on_a_narrow_raised_tread():
+    """Distant low terrain must not hide a crouch, even with one bad local ray."""
+    from isaaclab.managers import SceneEntityCfg
+
+    from isaaclab_tasks.core.velocity.mdp import (
+        pelvis_below_terrain_clearance_after_warmup,
+        pelvis_height_deficit_l2,
+    )
+
+    x, y = torch.meshgrid(torch.arange(-8, 9) * 0.1, torch.arange(-5, 6) * 0.1, indexing="xy")
+    hits = torch.stack((x.flatten() + 2.0, y.flatten() - 3.0, torch.zeros(187)), dim=-1).unsqueeze(0)
+    local = (x.abs() <= 0.101) & (y.abs() <= 0.101)
+    hits[0, local.flatten(), 2] = 0.3
+    hits[0, 93, 2] = float("nan")
+    env = SimpleNamespace(
+        num_envs=1,
+        device="cpu",
+        common_step_counter=12_000,
+        scene={
+            "robot": SimpleNamespace(
+                data=SimpleNamespace(root_pos_w=SimpleNamespace(torch=torch.tensor([[2.0, -3.0, 0.65]])))
+            ),
+            "height_scanner": SimpleNamespace(data=SimpleNamespace(ray_hits_w=SimpleNamespace(torch=hits))),
+        },
+    )
+    selection = {"asset_cfg": SceneEntityCfg("robot"), "sensor_cfg": SceneEntityCfg("height_scanner")}
+    # The raised step is 0.30 m high; pelvis clearance is 0.35 m, not 0.65 m.
+    torch.testing.assert_close(pelvis_height_deficit_l2(env, 0.75, **selection), torch.tensor([0.4**2]))
+    assert pelvis_below_terrain_clearance_after_warmup(env, 0.4, 12_000, **selection).item()
+
+
 def test_g1_symmetry_reflects_velocity_and_height_scan():
     """A left-right reflection flips lateral scan rows and the appropriate vector axes."""
     env = _symmetry_env(list(range(6)), list(range(6)), list(range(6)))

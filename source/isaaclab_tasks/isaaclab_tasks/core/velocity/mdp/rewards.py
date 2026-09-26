@@ -180,21 +180,27 @@ def joint_deviation_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> tor
 
 
 def _pelvis_clearance(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Return root height above the median terrain ray hit [m]."""
-    hits = env.scene[sensor_cfg.name].data.ray_hits_w.torch[..., 2]
-    ground = torch.nan_to_num(hits, nan=0.0, posinf=0.0, neginf=0.0).median(dim=1).values
-    return env.scene[asset_cfg.name].data.root_pos_w.torch[:, 2] - ground
+    """Return root height above the median of the nine nearest valid terrain hits [m]."""
+    hits = env.scene[sensor_cfg.name].data.ray_hits_w.torch
+    root_pos = env.scene[asset_cfg.name].data.root_pos_w.torch
+    valid = torch.isfinite(hits).all(dim=-1)
+    distance_sq = (hits[..., :2] - root_pos[:, None, :2]).square().sum(dim=-1)
+    nearest = distance_sq.masked_fill(~valid, float("inf")).topk(min(9, hits.shape[1]), largest=False).indices
+    heights = hits[..., 2].masked_fill(~valid, float("nan")).gather(1, nearest)
+    # Retain the zero-height fallback if every ray misses the terrain.
+    ground = torch.nan_to_num(heights.nanmedian(dim=1).values, nan=0.0)
+    return root_pos[:, 2] - ground
 
 
 def pelvis_height_deficit_l2(
     env: ManagerBasedRLEnv, target_height: float, asset_cfg: SceneEntityCfg, sensor_cfg: SceneEntityCfg
 ) -> torch.Tensor:
-    """Penalize squared scan-relative height shortfall below ``target_height`` [m].
+    """Penalize squared local-terrain height shortfall below ``target_height`` [m].
 
-    Height is relative to the median of the entire terrain scan, not the supporting
-    foot surface. Narrow raised treads can be outvoted by lower surrounding terrain,
-    so this posture heuristic does not detect every crouch. Heights above the target
-    incur no penalty.
+    The nine valid scan hits nearest the root in the horizontal plane define the
+    reference height (roughly a 0.2 x 0.2 m patch on the default 0.1 m grid). This is
+    a local posture heuristic, not a support-foot measurement. Heights above the
+    target incur no penalty.
     """
     return torch.clamp(target_height - _pelvis_clearance(env, asset_cfg, sensor_cfg), min=0.0).square()
 
