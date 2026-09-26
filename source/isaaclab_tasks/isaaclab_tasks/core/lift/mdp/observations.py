@@ -125,7 +125,7 @@ class object_point_cloud_b(ManagerTermBase):
         self.ref_asset: Articulation = env.scene[ref_asset_cfg.name]
         self.points_local = sample_object_point_cloud(env.num_envs, num_points, self.object.cfg.prim_path, env.device)
         self.points_w = torch.zeros_like(self.points_local)
-        if cfg.params.get("visualize", True):
+        if cfg.params.get("visualize", False):
             marker_cfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/ObservationPointCloud")
             marker_cfg.markers["hit"].radius = 0.0025
             self.visualizer = VisualizationMarkers(marker_cfg)
@@ -138,7 +138,7 @@ class object_point_cloud_b(ManagerTermBase):
         object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
         num_points: int = 10,
         flatten: bool = False,
-        visualize: bool = True,
+        visualize: bool = False,
     ) -> torch.Tensor:
         """Compute the object point cloud in the reference asset's root frame.
 
@@ -150,7 +150,8 @@ class object_point_cloud_b(ManagerTermBase):
             flatten: Whether to return the points as ``(num_envs, 3 * num_points)`` instead of
                 ``(num_envs, num_points, 3)``.
             visualize: Whether to draw markers for the points. The markers are only created when this is
-                ``True`` in the term parameters.
+                ``True`` in the term parameters. Defaults to False, since drawing ``num_envs * num_points``
+                markers every step is costly and, with RTX rendering, puts the markers into camera images.
 
         Returns:
             Object surface points [m] in the reference root frame, flattened if requested.

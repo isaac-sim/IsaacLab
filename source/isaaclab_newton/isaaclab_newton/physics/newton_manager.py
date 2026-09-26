@@ -451,6 +451,7 @@ class NewtonManager(PhysicsManager):
     _sensor_state: State | None = None
     _sensor_state_dirty: bool = True
     _sensor_graph_capture_failed: bool = False
+    _sensor_flags_uploaded: np.ndarray | None = None
     _sensor_bvh_shape_flags: ShapeFlags = ShapeFlags.VISIBLE
 
     # USD/Fabric sync
@@ -2340,7 +2341,11 @@ class NewtonManager(PhysicsManager):
         task_names = tuple(name for name in cls._sensor_tasks if name not in cls._sensor_eager_tasks)
         for name in names:
             cls._sensor_flags_host[1 + task_names.index(name)] = 1
-        cls._sensor_flags.assign(cls._sensor_flags_host)
+        # The host->device flag upload is a pageable copy that synchronizes the stream; the flags are
+        # identical on steady-state steps, so only upload when they differ from the last launch.
+        if cls._sensor_flags_uploaded is None or not np.array_equal(cls._sensor_flags_uploaded, cls._sensor_flags_host):
+            cls._sensor_flags.assign(cls._sensor_flags_host)
+            cls._sensor_flags_uploaded = cls._sensor_flags_host.copy()
         wp.capture_launch(cls._sensor_graph)
         cls._sensor_state_dirty = False
 
@@ -2389,6 +2394,7 @@ class NewtonManager(PhysicsManager):
         cls._sensor_graph = None
         cls._sensor_flags = None
         cls._sensor_flags_host = None
+        cls._sensor_flags_uploaded = None
         cls._sensor_graph_capture_failed = False
 
     @classmethod
@@ -2404,6 +2410,7 @@ class NewtonManager(PhysicsManager):
 
         cls._sensor_flags = wp.zeros(1 + len(graph_tasks), dtype=wp.int32, device=PhysicsManager._device)
         cls._sensor_flags_host = np.zeros(1 + len(graph_tasks), dtype=np.int32)
+        cls._sensor_flags_uploaded = None
 
         def pipeline() -> None:
             assert cls._sensor_flags is not None
@@ -2425,6 +2432,7 @@ class NewtonManager(PhysicsManager):
         if cls._sensor_graph is None:
             cls._sensor_flags = None
             cls._sensor_flags_host = None
+            cls._sensor_flags_uploaded = None
             cls._sensor_graph_capture_failed = True
             logger.warning("Newton sensor graph capture failed; falling back to eager execution.")
         else:

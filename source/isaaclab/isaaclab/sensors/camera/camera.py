@@ -1030,10 +1030,11 @@ class Camera(SensorBase):
             env_ids = np.asarray(env_ids, dtype=np.int32).reshape(-1)
         return wp.array(env_ids, dtype=wp.int32, device=self._device)
 
-    @staticmethod
-    def _env_mask_has_any(env_mask: wp.array) -> bool:
+    def _env_mask_has_any(self, env_mask: wp.array) -> bool:
         """Return whether the mask selects any camera."""
-        return bool(np.any(env_mask.numpy()))
+        # Every step marks all cameras outdated when the update period is zero, so skip the
+        # device-to-host copy and synchronization.
+        return self.cfg.update_period <= 0.0 or bool(np.any(env_mask.numpy()))
 
     """
     Internal simulation callbacks.

@@ -145,15 +145,23 @@ class CircularBuffer:
         num_batches = len(range(self.batch_size)[batch_ids]) if isinstance(batch_ids, slice) else len(batch_ids)
         if num_batches == 0:
             return
-        self._num_pushes[batch_ids] = 0
+        # Fill views or index on device, avoiding a host scalar upload on every reset.
+        if isinstance(batch_ids, slice):
+            self._num_pushes[batch_ids].fill_(0)
+        else:
+            batch_ids_t = torch.as_tensor(batch_ids, device=self._device).long()
+            self._num_pushes.index_fill_(0, batch_ids_t, 0)
         self._need_reset = True
         if self._buffer is not None:
-            # set buffer at batch_id reset indices to 0.0 so that the buffer() getter returns
-            # the cleared circular buffer after reset.
-            if self._stack_dim_internal is None:
-                self._buffer[:, batch_ids] = 0.0
+            # Keep buffer() consistent with the cleared reset counters.
+            if isinstance(batch_ids, slice):
+                if self._stack_dim_internal is None:
+                    self._buffer[:, batch_ids].fill_(0.0)
+                else:
+                    self._buffer[batch_ids].fill_(0.0)
             else:
-                self._buffer[batch_ids] = 0.0
+                batch_dim = 1 if self._stack_dim_internal is None else 0
+                self._buffer.index_fill_(batch_dim, batch_ids_t, 0.0)
 
     def append(self, data: torch.Tensor):
         """Append the data to the circular buffer.
