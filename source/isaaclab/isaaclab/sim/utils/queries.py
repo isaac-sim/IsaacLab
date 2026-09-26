@@ -426,12 +426,11 @@ def resolve_matching_prims_from_source(
     if matches:
         index, matched = min(matches, key=lambda item: len(item[1].suffix))
         source_path, destination = sources[plan.topology.world_prototypes[index]], templates[index]
-        source_expr = source_path + matched.suffix
         dest_expr = destination.format("[^/]+")
         source_prim = get_current_stage().GetPrimAtPath(source_path)
         results = [
             (prim, dest_expr + prim.GetPath().pathString[len(source_path) :])
-            for prim in _iter_matching_prims_in_subtree(source_expr, source_prim)
+            for prim in _iter_matching_prims_in_subtree(source_path + matched.suffix, source_prim)
         ]
     else:
         # No clone plan, or ``path_expr`` is not owned by any plan row. Resolve from the stage

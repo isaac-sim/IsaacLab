@@ -112,12 +112,11 @@ class OvPhysxReplicateContext:
             plan, include_world_indices=True
         )
         copies = {}
-        for group in range(1, len(starts) - 1):
+        for group in np.flatnonzero(np.diff(world_starts[1:])) + 1:
             targets = world_ids[world_starts[group] : world_starts[group + 1]]
-            if len(targets):
-                for index in range(starts[group], starts[group + 1]):
-                    if (asset := plan.topology.world_prototypes[index]) in asset_prototype_ids:
-                        copies.setdefault((sources[asset], templates[index]), []).append(targets)
+            for index in range(*starts[group : group + 2]):
+                if (asset := plan.topology.world_prototypes[index]) in asset_prototype_ids:
+                    copies.setdefault((sources[asset], templates[index]), []).append(targets)
         copies = ((key, np.concatenate(groups)) for key, groups in copies.items())
         env_ids = np.arange(len(plan.topology.world_prototype_layout))
         for recipe in _clone_recipes(self.stage, copies, env_ids, plan.positions, None):

@@ -632,8 +632,7 @@ class _Generator:
         asset_ids = cloner.path.get_asset_prototypes(plan, self.env._robot.cfg.prim_path)
         source_path = next(sources[index] for index in asset_ids if sources[index] is not None)
         source_builder = copy_newton_clone_source(source_path)
-        prototype_origin = -self.env.env_origins[0]
-        prototype_xform = wp.transform(wp.vec3(*prototype_origin.tolist()), wp.quat_identity())
+        prototype_xform = wp.transform(wp.vec3(*(-self.env.env_origins[0]).tolist()), wp.quat_identity())
         self.prototype = newton.ModelBuilder(up_axis=source_builder.up_axis)
         self.prototype.add_builder(source_builder, xform=prototype_xform)
         if not any("/Table/" in str(label) or str(label).endswith("/Table") for label in self.prototype.shape_label):

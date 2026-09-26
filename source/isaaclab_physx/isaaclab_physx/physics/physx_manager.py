@@ -969,10 +969,8 @@ class PhysxManager(PhysicsManager):
         sim = PhysicsManager._sim
         entries = None
         if (plan := sim.get_clone_plan()) is not None:
-            prototypes = deformable_prototypes(sim.stage, plan)
-            entries = expand_deformable_entries(
-                prototypes, plan, np.arange(len(plan.topology.world_prototype_layout)), plan.positions
-            )
+            env_ids = np.arange(len(plan.topology.world_prototype_layout))
+            entries = expand_deformable_entries(deformable_prototypes(sim.stage, plan), plan, env_ids, plan.positions)
 
         is_gpu = "cuda" in PhysicsManager.get_device()
 

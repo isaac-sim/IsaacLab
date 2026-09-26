@@ -213,13 +213,12 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                 plan, include_world_indices=True
             )
             plan_tracked_target_exprs: list[str] = []
-            matches = [
-                (group, index, matched)
-                for group in range(1, len(starts) - 1)
-                if world_starts[group] != world_starts[group + 1]
-                for index in range(starts[group], starts[group + 1])
-                if (matched := cloner.path.match(target_cfg.prim_expr, templates[index])) is not None
-            ]
+            matches = []
+            # Match populated world prototypes, excluding the shared-world slice.
+            for group in np.flatnonzero(np.diff(world_starts[1:])) + 1:
+                for index in range(*starts[group : group + 2]):
+                    if (matched := cloner.path.match(target_cfg.prim_expr, templates[index])) is not None:
+                        matches.append((group, index, matched))
             suffix = min((matched.suffix for _, _, matched in matches), key=len, default=None)
             for group, index, matched in matches:
                 if matched.suffix != suffix:
@@ -269,11 +268,8 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                         dummy_mesh_id = mesh_id if dummy_mesh_id is None else dummy_mesh_id
                         mesh_ids.append(mesh_id)
                         owner_path = str(owner_prim.GetPath())
-                        if owner_path == source_root:
-                            owner_suffix = ""
-                        elif owner_path.startswith(source_root + "/"):
-                            owner_suffix = owner_path[len(source_root) :]
-                        else:
+                        owner_suffix = cloner.path.relative_to(owner_path, source_root)
+                        if owner_suffix is None:
                             raise RuntimeError(
                                 f"Tracked target owner '{owner_path}' is not under ClonePlan source root "
                                 f"'{source_root}'."

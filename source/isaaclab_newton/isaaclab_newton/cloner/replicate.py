@@ -134,13 +134,12 @@ def _replicate_newton(
     if simulation:
         global_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths)
         # Native deformables are appended by per-world hooks, not the USD importer.
-        ignore_paths = [
-            source + matched.suffix
-            for entry in NewtonManager._deformable_registry
-            for index, destination in enumerate(templates[starts[1] :], starts[1])
-            if (source := sources[topology.world_prototypes[index]]) is not None
-            if (matched := cloner_path.match(entry.prim_path, destination)) is not None
-        ]
+        ignore_paths = []
+        for entry in NewtonManager._deformable_registry:
+            for index in range(starts[1], len(templates)):
+                source = sources[topology.world_prototypes[index]]
+                if source is not None and (matched := cloner_path.match(entry.prim_path, templates[index])) is not None:
+                    ignore_paths.append(source + matched.suffix)
         global_ignore_paths.extend(ignore_paths)
         global_ignore_paths.extend(entry.prim_path for entry in NewtonManager._deformable_registry)
     else:

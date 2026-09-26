@@ -11,6 +11,7 @@ import logging
 import re
 from typing import Any
 
+import numpy as np
 import warp as wp
 
 from pxr import Gf, Usd, UsdGeom, UsdPhysics
@@ -317,18 +318,17 @@ class OvPhysxFrameView(BaseFrameView):
         sim = sim_utils.SimulationContext.instance()
         plan = sim.get_clone_plan() if sim is not None else None
         self._clone_plan = plan
+        matches = []
         if plan is not None:
             sources = cloner.path.get_asset_prototype_paths(plan)
             templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
                 plan, include_world_indices=True
             )
-        matches = [
-            (group, index, matched)
-            for group in (range(1, len(starts) - 1) if plan is not None else ())
-            if world_starts[group] != world_starts[group + 1]
-            for index in range(starts[group], starts[group + 1])
-            if (matched := cloner.path.match(prim_path, templates[index])) is not None
-        ]
+            # Resolve frame expressions through the closest declared asset, then inspect only its prototype subtree.
+            for group in np.flatnonzero(np.diff(world_starts[1:])) + 1:
+                for index in range(*starts[group : group + 2]):
+                    if (matched := cloner.path.match(prim_path, templates[index])) is not None:
+                        matches.append((group, index, matched))
         self._source_sites = []
         self._prims: list[Usd.Prim] = []
         if matches:
@@ -342,15 +342,13 @@ class OvPhysxFrameView(BaseFrameView):
                 ]
                 if not len(env_ids):
                     continue
-                source_root, destination_template = sources[plan.topology.world_prototypes[index]], templates[index]
-                source_pattern = re.compile(source_root + suffix)
-                source_prims = sim_utils.get_all_matching_child_prims(
-                    source_root,
-                    lambda prim: source_pattern.fullmatch(prim.GetPath().pathString) is not None,
-                    stage=stage,
+                root, template = sources[plan.topology.world_prototypes[index]], templates[index]
+                pattern = re.compile(root + suffix)
+                prims = sim_utils.get_all_matching_child_prims(
+                    root, lambda prim: pattern.fullmatch(prim.GetPath().pathString) is not None, stage=stage
                 )
-                self._prims.extend(source_prims)
-                self._source_sites.extend((source_root, destination_template, prim, env_ids) for prim in source_prims)
+                self._prims.extend(prims)
+                self._source_sites.extend((root, template, prim, env_ids) for prim in prims)
         else:
             self._prims = sim_utils.find_matching_prims(prim_path, stage=stage)
         if not self._prims:

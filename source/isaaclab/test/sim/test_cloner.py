@@ -97,8 +97,7 @@ def test_usd_replicate_context_consumes_plan(sim):
         2,
         positions=np.asarray([[1, 2, 3], [4, 5, 6]], dtype=np.float32),
     )
-    ctx = UsdReplicateContext(sim)
-    ctx.replicate(plan, (0,))
+    UsdReplicateContext(sim).replicate(plan, (0,))
 
     assert not stage.GetPrimAtPath("/World/envs/env_0").IsA(UsdGeom.Cube)
     prim = stage.GetPrimAtPath("/World/envs/env_1")

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
@@ -167,7 +168,7 @@ def test_clone_sources_in_ovrtx_writes_plan_positions_after_cloning():
     )
     call_order: list[str] = []
     clone_calls: list[tuple[str, list[str]]] = []
-    write_calls: list[dict] = []
+    write_calls: list[tuple] = []
 
     def _clone_usd(source: str, target_paths: list[str]) -> None:
         call_order.append("clone")
@@ -175,9 +176,9 @@ def test_clone_sources_in_ovrtx_writes_plan_positions_after_cloning():
 
     renderer.backend.renderer.clone_usd = _clone_usd
 
-    def _write_attribute(**kwargs):
+    def _write_attribute(prim_paths, attribute_name, tensor, **kwargs):
         call_order.append("write")
-        write_calls.append(kwargs)
+        write_calls.append((prim_paths, attribute_name, tensor))
 
     renderer.backend.renderer.write_attribute = _write_attribute
 
@@ -188,9 +189,9 @@ def test_clone_sources_in_ovrtx_writes_plan_positions_after_cloning():
     assert call_order == ["clone", "write"]
     assert clone_calls == [("/World/envs/env_0", ["/World/envs/env_1", "/World/envs/env_2"])]
     assert len(write_calls) == 1
-    assert write_calls[0]["prim_paths"] == ["/World/envs/env_0", "/World/envs/env_1", "/World/envs/env_2"]
-    assert write_calls[0]["attribute_name"] == "omni:xform"
-    np.testing.assert_array_equal(write_calls[0]["tensor"], expected)
+    assert write_calls[0][0] == ["/World/envs/env_0", "/World/envs/env_1", "/World/envs/env_2"]
+    assert write_calls[0][1] == "omni:xform"
+    np.testing.assert_array_equal(write_calls[0][2], expected)
 
 
 @pytest.mark.skipif(importlib.util.find_spec("ovstage") is None, reason="requires optional module: ovstage")
@@ -212,9 +213,9 @@ def test_clone_sources_ovstage_writes_plan_positions_after_cloning(monkeypatch: 
     def _clone(source: str, target_paths: list[str], **_kwargs):
         events.append(("clone", source, target_paths))
 
-    def _query(path_list: str) -> str:
+    def _query(path_list: str) -> contextlib.AbstractContextManager[str]:
         events.append(("query", "envs", path_list))
-        return "env_query"
+        return contextlib.nullcontext("env_query")
 
     def _write(_query, attribute_name: str, **kwargs):
         events.append(("write", attribute_name, kwargs["tensors"]))
@@ -228,7 +229,6 @@ def test_clone_sources_ovstage_writes_plan_positions_after_cloning(monkeypatch: 
         query_from_path_list=_query,
         clone=_clone,
         write_attribute=_write,
-        release_query=lambda _query: completion,
     )
     renderer.backend.paths = SimpleNamespace(
         create_path_list_from_strings=_create_paths,

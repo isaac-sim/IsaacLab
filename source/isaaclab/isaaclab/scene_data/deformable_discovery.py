@@ -278,10 +278,7 @@ def deformable_entry(root_prim: Usd.Prim) -> DeformableStageEntry | None:
 
 
 def deformable_prototypes(
-    stage: Usd.Stage,
-    plan: ClonePlan,
-    *,
-    exclude_paths: Sequence[str] = (),
+    stage: Usd.Stage, plan: ClonePlan, *, exclude_paths: Sequence[str] = ()
 ) -> list[DeformableStageEntry]:
     """Read deformable geometry beneath the prototypes imported by one backend.
 
@@ -303,9 +300,8 @@ def deformable_prototypes(
     destination_paths = templates[starts[1] :]
     selected_sources = {Sdf.Path(source) for source in source_paths}
     sources = selected_sources | {Sdf.Path(source) for source in exclude_paths}
-    roots = Sdf.Path.RemoveDescendentPaths([*source_paths, *templates[: starts[1]]])
     entries = []
-    for root in roots:
+    for root in Sdf.Path.RemoveDescendentPaths([*source_paths, *templates[: starts[1]]]):
         prims = iter(Usd.PrimRange(stage.GetPrimAtPath(root), Usd.TraverseInstanceProxies()))
         for prim in prims:
             path = prim.GetPath()
@@ -352,12 +348,11 @@ def expand_deformable_entries(
     templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
         plan, include_world_indices=True
     )
-    for group in range(1, len(starts) - 1):
+    for group in np.flatnonzero(np.diff(world_starts[1:])) + 1:
         columns = world_ids[world_starts[group] : world_starts[group + 1]]
-        if len(columns):
-            for index in range(starts[group], starts[group + 1]):
-                source = sources[plan.topology.world_prototypes[index]]
-                source_instances[Sdf.Path(source)].append((source, templates[index], columns))
+        for index in range(*starts[group : group + 2]):
+            source = sources[plan.topology.world_prototypes[index]]
+            source_instances[Sdf.Path(source)].append((source, templates[index], columns))
     for entry in prototypes:
         owner = Sdf.Path(entry.root_path)
         while owner != Sdf.Path.absoluteRootPath and owner not in source_instances:

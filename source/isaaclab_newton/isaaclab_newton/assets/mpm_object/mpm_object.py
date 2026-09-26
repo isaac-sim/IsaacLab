@@ -420,12 +420,11 @@ class MPMObject(BaseDeformableObject):
         sources = cloner_path.get_asset_prototype_paths(plan)
         asset_ids = {index for index, source in enumerate(sources) if source == self.cfg.spawn.spawn_path}
         templates, starts = cloner_path.get_world_prototype_asset_templates(plan)
-        asset_prim_paths = [
-            templates[index].format(world)
-            for world, prototype in enumerate((-1, *plan.topology.world_prototype_layout), -1)
-            for index in range(starts[prototype + 1], starts[prototype + 2])
-            if plan.topology.world_prototypes[index] in asset_ids
-        ]
+        asset_prim_paths = []
+        for world, prototype in enumerate((-1, *plan.topology.world_prototype_layout), -1):
+            for index in range(*starts[prototype + 1 : prototype + 3]):
+                if plan.topology.world_prototypes[index] in asset_ids:
+                    asset_prim_paths.append(templates[index].format(world))
         for prim_path, offset in zip(asset_prim_paths, self._recorded_particle_offsets, strict=True):
             SimulationManager.register_particle_visual_prim(
                 f"{prim_path}/Particles",

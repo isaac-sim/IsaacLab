@@ -236,11 +236,9 @@ class InteractiveScene:
                 continue
             cfgs.append(child)
             count = cloner.num_spawn_variants(getattr(child, "spawn", None))
-            if (
-                cloner.path.match(child.prim_path, self._env_fmt) is not None
-                and isinstance(child, (AssetBaseCfg, CameraCfg, RayCasterCfg))
-                and child.spawn is not None
-            ):
+            is_per_env = cloner.path.match(child.prim_path, self._env_fmt) is not None
+            is_spawned = isinstance(child, (AssetBaseCfg, CameraCfg, RayCasterCfg)) and child.spawn is not None
+            if is_per_env and is_spawned:
                 clone_asset_names.append(asset_name)
                 variant_counts.append(count)
                 prototype_indices.extend(range(prototype_count, prototype_count + count))

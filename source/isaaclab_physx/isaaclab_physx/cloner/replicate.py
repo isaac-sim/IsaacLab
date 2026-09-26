@@ -40,12 +40,11 @@ class PhysxReplicateContext:
             plan, include_world_indices=True
         )
         copies = {}
-        for group in range(1, len(starts) - 1):
+        for group in np.flatnonzero(np.diff(world_starts[1:])) + 1:
             targets = world_ids[world_starts[group] : world_starts[group + 1]]
-            if len(targets):
-                for index in range(starts[group], starts[group + 1]):
-                    if (asset := plan.topology.world_prototypes[index]) in asset_prototype_ids:
-                        copies.setdefault((sources[asset], templates[index]), []).append(targets)
+            for index in range(*starts[group : group + 2]):
+                if (asset := plan.topology.world_prototypes[index]) in asset_prototype_ids:
+                    copies.setdefault((sources[asset], templates[index]), []).append(targets)
         _replicate_instances(
             self.stage,
             copies=((key, np.concatenate(groups)) for key, groups in copies.items()),
@@ -121,17 +120,11 @@ def _replicate_instances(
         if exclude_self_replication:
             matched = cloner.path.match(src, destination)
             if matched is not None and matched.instance.isdigit():
-                filtered = tuple(world for world in worlds if world != int(matched.instance))
-                worlds = filtered if filtered else worlds
+                worlds = tuple(world for world in worlds if world != int(matched.instance)) or worlds
         physx_queue.append((src, destination, worlds))
 
-    # Fully-heterogeneous 1:1 layouts have every source mapped only to its own
-    # environment (no cross-env replication needed). Calling rep.replicate() once
-    # per source with a single self-target is known to trigger intermittent native
-    # heap corruption (double-free / SIGABRT) under mGPU, likely due to per-call
-    # PhysX-internal allocations summing to a problematic total across processes.
-    # For these layouts the source prims are already in their correct env positions
-    # and PhysX can parse them from the stage without any replicator registration.
+    # Self-only layouts already exist in USD. Skip registration: one native self-copy per
+    # source has triggered intermittent heap corruption in multi-GPU runs.
     if all(len(envs) == 1 and src == destination.format(envs[0]) for src, destination, envs in physx_queue):
         return
 

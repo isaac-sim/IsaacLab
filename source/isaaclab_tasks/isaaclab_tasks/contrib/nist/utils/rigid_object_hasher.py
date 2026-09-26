@@ -41,18 +41,16 @@ class RigidObjectHasher:
 
         # Read each authored variant once, including descendants such as articulation links.
         plan = SimulationContext.instance().get_clone_plan()
+        matches = []
         if plan is not None:
             source_paths = cloner.path.get_asset_prototype_paths(plan)
             templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
                 plan, include_world_indices=True
             )
-        matches = [
-            (group, index, matched)
-            for group in (range(1, len(starts) - 1) if plan is not None else ())
-            if world_starts[group] != world_starts[group + 1]
-            for index in range(starts[group], starts[group + 1])
-            if (matched := cloner.path.match(prim_path_pattern, templates[index])) is not None
-        ]
+            for group in np.flatnonzero(np.diff(world_starts[1:])) + 1:
+                for index in range(*starts[group : group + 2]):
+                    if (matched := cloner.path.match(prim_path_pattern, templates[index])) is not None:
+                        matches.append((group, index, matched))
         if matches:
             suffix = min((matched.suffix for _, _, matched in matches), key=len)
             sources = []

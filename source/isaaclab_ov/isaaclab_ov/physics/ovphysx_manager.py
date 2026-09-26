@@ -840,10 +840,8 @@ class OvPhysxManager(PhysicsManager):
                 targets[0],
                 targets[-1],
             )
-            transforms = target_transforms or None
             # Assets cloned separately into the same world must still collide with each other.
-            op_idx = physx.clone(source, targets, transforms, env_ids=env_ids)
-            physx.wait_op(op_idx)
+            physx.wait_op(physx.clone(source, targets, target_transforms or None, env_ids=env_ids))
 
     @classmethod
     def _warmup_and_load(cls) -> None:
@@ -870,10 +868,8 @@ class OvPhysxManager(PhysicsManager):
 
         entries = None
         if (plan := sim.get_clone_plan()) is not None:
-            prototypes = deformable_prototypes(sim.stage, plan)
-            entries = expand_deformable_entries(
-                prototypes, plan, np.arange(len(plan.topology.world_prototype_layout)), plan.positions
-            )
+            env_ids = np.arange(len(plan.topology.world_prototype_layout))
+            entries = expand_deformable_entries(deformable_prototypes(sim.stage, plan), plan, env_ids, plan.positions)
 
         ovphysx_device = "gpu" if "cuda" in PhysicsManager._device else "cpu"
 

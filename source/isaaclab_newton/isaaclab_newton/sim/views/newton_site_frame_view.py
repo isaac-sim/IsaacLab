@@ -12,6 +12,7 @@ import logging
 import re
 import sys
 
+import numpy as np
 import warp as wp
 from newton import ShapeFlags
 
@@ -39,11 +40,6 @@ WORLD_BODY_INDEX = -1
 _REGEX_TOKENS = frozenset(".*[]()+?|\\^$")
 
 
-def _has_regex_tokens(pattern: str) -> bool:
-    """Return whether ``pattern`` contains regex metacharacters (i.e. is not a literal path)."""
-    return any(token in _REGEX_TOKENS for token in pattern)
-
-
 # One resolved site registration: (body_patterns, local transform, xform scale, per_world, env_ids,
 # destination prim paths).  Prim paths follow the spec's expansion order.
 _Strs = tuple[str, ...]
@@ -56,16 +52,6 @@ def _extend_prim_paths(collected: list[str] | None, paths: tuple[str, ...] | Non
         return None
     collected.extend(paths)
     return collected
-
-
-def _destination_prim_paths(
-    prim_path: str, source_root: str | None, destination_template: str | None, env_ids: tuple[int, ...] | None
-) -> tuple[str, ...]:
-    """Map a clone source prim to its per-environment destination paths, or to itself outside a plan row."""
-    if source_root is None or destination_template is None or env_ids is None:
-        return (prim_path,)
-    suffix = prim_path if source_root == "/" else prim_path[len(source_root) :]
-    return tuple(destination_template.format(env_id) + suffix for env_id in env_ids)
 
 
 @wp.kernel
@@ -306,11 +292,13 @@ class NewtonSiteFrameView(BaseFrameView):
     def _resolve_site_specs(self, stage, validate_xform_ops: bool) -> list[_SiteSpec]:
         """Resolve source prims into Newton site registration specs."""
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
+        groups = ()
         if plan is not None:
             sources = cloner.path.get_asset_prototype_paths(plan)
             templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
                 plan, include_world_indices=True
             )
+            groups = np.flatnonzero(np.diff(world_starts[1:])) + 1
         model = NewtonManager.get_model()
         body_labels = list(model.body_label) if model is not None else ()
         shape_labels = list(model.shape_label) if model is not None else ()
@@ -336,13 +324,12 @@ class NewtonSiteFrameView(BaseFrameView):
                         f"FrameView prim '{path_expr}' matches a Newton collision shape. "
                         "FrameView should only be used for non-physics frames."
                     )
-            matches = [
-                (group, index, matched)
-                for group in (range(1, len(starts) - 1) if plan is not None else ())
-                if world_starts[group] != world_starts[group + 1]
-                for index in range(starts[group], starts[group + 1])
-                if (matched := cloner.path.match(path_expr, templates[index])) is not None
-            ]
+            # Resolve frame expressions through the closest declared asset, then inspect only its prototype subtree.
+            matches = []
+            for group in groups:
+                for index in range(*starts[group : group + 2]):
+                    if (matched := cloner.path.match(path_expr, templates[index])) is not None:
+                        matches.append((group, index, matched))
             if matches:
                 suffix = min((matched.suffix for _, _, matched in matches), key=len)
                 for group, index, matched in matches:
@@ -355,11 +342,9 @@ class NewtonSiteFrameView(BaseFrameView):
                     if not len(env_ids):
                         continue
                     root, template = sources[plan.topology.world_prototypes[index]], templates[index]
-                    source_pattern = re.compile(root + suffix)
+                    pattern = re.compile(root + suffix)
                     prims = sim_utils.get_all_matching_child_prims(
-                        root,
-                        lambda prim: source_pattern.fullmatch(prim.GetPath().pathString) is not None,
-                        stage=stage,
+                        root, lambda prim: pattern.fullmatch(prim.GetPath().pathString) is not None, stage=stage
                     )
                     if not prims:
                         raise RuntimeError(f"FrameView '{path_expr}' could not resolve source prim '{root + suffix}'.")
@@ -392,7 +377,10 @@ class NewtonSiteFrameView(BaseFrameView):
     ) -> _SiteSpec:
         """Resolve one source prim into body patterns, local frame, xform scale, and destination paths."""
         prim_path = prim.GetPath().pathString
-        dest_paths = _destination_prim_paths(prim_path, source_root, destination_template, env_ids)
+        dest_paths = (prim_path,)
+        if source_root is not None and destination_template is not None and env_ids is not None:
+            suffix = cloner.path.relative_to(prim_path, source_root)
+            dest_paths = tuple(destination_template.format(env_id) + suffix for env_id in env_ids)
         if prim.HasAPI(UsdPhysics.CollisionAPI):
             raise ValueError(
                 f"FrameView prim '{prim_path}' is a Newton collision shape. "
@@ -423,21 +411,13 @@ class NewtonSiteFrameView(BaseFrameView):
                 spec_tail = (wp.transform(pos, quat), scale, False, env_ids, dest_paths)
                 if source_root is not None and destination_template is not None:
                     assert env_ids is not None
-                    if body_path == source_root:
-                        suffix = ""
-                    elif body_path.startswith(source_root + "/"):
-                        suffix = body_path[len(source_root) :]
-                    elif source_root.startswith(body_path + "/"):
+                    worlds = (".*",) if use_clone_body_pattern else env_ids
+                    suffix = cloner.path.relative_to(body_path, source_root)
+                    # A separately declared frame can be cloned below a body outside its source root.
+                    if suffix is None and source_root.startswith(body_path + "/"):
                         suffix = source_root[len(body_path) :]
-                        if use_clone_body_pattern:
-                            destination_root = destination_template.format(".*")
-                            if not destination_root.endswith(suffix):
-                                raise RuntimeError(
-                                    f"FrameView destination root '{destination_root}' does not end with '{suffix}'."
-                                )
-                            return ((destination_root[: -len(suffix)],), *spec_tail)
                         body_patterns = []
-                        for env_id in env_ids:
+                        for env_id in worlds:
                             destination_root = destination_template.format(env_id)
                             if not destination_root.endswith(suffix):
                                 raise RuntimeError(
@@ -445,12 +425,9 @@ class NewtonSiteFrameView(BaseFrameView):
                                 )
                             body_patterns.append(destination_root[: -len(suffix)])
                         return (tuple(body_patterns), *spec_tail)
-                    else:
+                    if suffix is None:
                         raise RuntimeError(f"FrameView source body '{body_path}' is not under '{source_root}'.")
-                    if use_clone_body_pattern:
-                        body_patterns = (destination_template.format(".*") + suffix,)
-                    else:
-                        body_patterns = tuple(destination_template.format(env_id) + suffix for env_id in env_ids)
+                    body_patterns = tuple(destination_template.format(env_id) + suffix for env_id in worlds)
                 else:
                     body_patterns = (body_path,)
                 return (body_patterns, *spec_tail)
@@ -528,7 +505,7 @@ class NewtonSiteFrameView(BaseFrameView):
                 continue
 
             for index, body_pattern in enumerate(body_patterns):
-                exact_index = label_to_index.get(body_pattern) if not _has_regex_tokens(body_pattern) else None
+                exact_index = label_to_index.get(body_pattern) if _REGEX_TOKENS.isdisjoint(body_pattern) else None
                 if exact_index is not None:
                     matched_indices = [exact_index]
                 else:

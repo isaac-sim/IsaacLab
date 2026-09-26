@@ -369,9 +369,7 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         asset_ids = cloner.path.get_asset_prototypes(plan, self._robot.cfg.prim_path)
         sources = cloner.path.get_asset_prototype_paths(plan)
         source_path = next(sources[index] for index in asset_ids if sources[index] is not None)
-        prototype_origin = -self.scene.env_origins[0]
-        prototype_xform = wp.transform(wp.vec3(*prototype_origin.tolist()), wp.quat_identity())
-
+        prototype_xform = wp.transform(wp.vec3(*(-self.scene.env_origins[0]).tolist()), wp.quat_identity())
         prototype_builder = copy_newton_clone_source(source_path, xform=prototype_xform)
         model = prototype_builder.finalize(device=self.device)
 

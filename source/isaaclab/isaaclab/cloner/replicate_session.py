@@ -64,14 +64,12 @@ def make_valid_clone_combinations(
     offsets = np.cumsum([0, *variant_counts])
     worlds, weights = [], []
     for combination in combinations:
-        unknown = set(combination.assets) - known
-        if unknown:
+        if unknown := set(combination.assets) - known:
             raise ValueError(f"Unknown assets in clone combination: {sorted(unknown)}.")
-        choices = [
-            range(int(offsets[index]), int(offsets[index + 1]))
-            for index, name in enumerate(asset_names)
-            for _ in range(combination.assets.count(name) if name in claimed else 1)
-        ]
+        choices = []
+        for index, name in enumerate(asset_names):
+            count = combination.assets.count(name) if name in claimed else 1
+            choices.extend([range(*offsets[index : index + 2])] * count)
         variants = tuple(itertools.product(*choices))
         worlds.extend(variants)
         weights.extend([combination.weight / len(variants)] * len(variants))
@@ -208,6 +206,7 @@ def _prepare_cloning(
     sim = sim_utils.SimulationContext.instance()
     if sim is None or sim.get_clone_plan() is not None:
         raise RuntimeError("Clone preparation requires a simulation without an existing clone plan.")
+    # Expand spawner variants into asset prototypes; per-asset choices form the default world compositions.
     asset_prototypes, groups, shared, declarations = [], [], [], []
     for cfg in cfgs:
         cfg.prim_path = expand_env_regex_ns(cfg.prim_path, env_template)
@@ -236,10 +235,9 @@ def _prepare_cloning(
             shared.extend(indices)
         else:
             groups.append(indices)
-    worlds = tuple(itertools.product(*groups)) if world_prototypes is None else world_prototypes
     plan = make_clone_plan(
         asset_prototypes,
-        worlds,
+        tuple(itertools.product(*groups)) if world_prototypes is None else world_prototypes,
         num_clones,
         weights=weights,
         shared_assets=shared,

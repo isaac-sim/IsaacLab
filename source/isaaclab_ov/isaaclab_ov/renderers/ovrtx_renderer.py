@@ -473,12 +473,11 @@ class OVRTXRenderer(BaseRenderer):
             source for source in cloner_path.get_asset_prototype_paths(self._clone_plan) if source is not None
         )
         templates, _ = cloner_path.get_world_prototype_asset_templates(self._clone_plan)
-        clones_env_roots = self._clone_plan.env_template in templates
         self._exported_usd_string = export_stage_to_string(
             stage,
             num_envs,
             source_paths=sources,
-            keep_env_roots=not self._use_ovstage and not clones_env_roots,
+            keep_env_roots=not self._use_ovstage and self._clone_plan.env_template not in templates,
         )
 
     def _capture_object_scales(self, stage: Any) -> None:
@@ -517,8 +516,7 @@ class OVRTXRenderer(BaseRenderer):
             for prim in Usd.PrimRange(stage.GetPrimAtPath(root)):
                 if not prim.IsA(UsdGeom.Xformable):
                     continue
-                scale = Gf.Transform(xform_cache.GetLocalToWorldTransform(prim)).GetScale()
-                scale = (float(scale[0]), float(scale[1]), float(scale[2]))
+                scale = tuple(map(float, Gf.Transform(xform_cache.GetLocalToWorldTransform(prim)).GetScale()))
                 if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
                     path = str(prim.GetPath())
                     self._object_scales_by_path[path] = scale
@@ -620,18 +618,18 @@ class OVRTXRenderer(BaseRenderer):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
         plan = self._clone_plan
         num_envs = len(plan.topology.world_prototype_layout)
-        env_prim_paths = [plan.env_template.format(world) for world in range(num_envs)]
+        env_paths = [plan.env_template.format(world) for world in range(num_envs)]
         logger.info("Cloning sources in OVRTX...")
 
         sources = cloner_path.get_asset_prototype_paths(plan)
         templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
             plan, include_world_indices=True
         )
+        # Group copies by source/template, omitting descendants already covered by an identical parent copy.
         copies = {}
-        for group, (start, end) in enumerate(zip(starts[:-1], starts[1:], strict=True)):
+        for group in np.flatnonzero(np.diff(world_starts)):
+            start, end = starts[group : group + 2]
             targets = world_ids[world_starts[group] : world_starts[group + 1]]
-            if not len(targets):
-                continue
             for index, parent in enumerate(cloner_path.get_parent_indices(templates[start:end]), start):
                 source, template = sources[plan.topology.world_prototypes[index]], templates[index]
                 if parent != -1:
@@ -642,12 +640,8 @@ class OVRTXRenderer(BaseRenderer):
                 copies.setdefault((source, template), []).append(targets)
         num_cloned_sources = 0
         for source, destination in sorted(copies, key=lambda copy: copy[1].count("/")):
-            target_paths = [
-                destination.format(int(world_id))
-                for targets in copies[source, destination]
-                for world_id in targets
-                if destination.format(int(world_id)) != source
-            ]
+            worlds = np.concatenate(copies[source, destination])
+            target_paths = [target for target in map(destination.format, worlds) if target != source]
             if target_paths:
                 logger.debug("Cloning %s -> %d target(s)", source, len(target_paths))
                 if self._use_ovstage:
@@ -657,29 +651,23 @@ class OVRTXRenderer(BaseRenderer):
                 num_cloned_sources += 1
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
-        env_root_xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
-        env_root_xforms[:, 3, :3] = plan.positions
+        xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
+        xforms[:, 3, :3] = plan.positions
         if self._use_ovstage:
-            env_paths_list = self.backend.paths.create_path_list_from_strings(env_prim_paths)
-            env_query = self.backend.stage.query_from_path_list(env_paths_list)
-            self.backend.stage.write_attribute(
-                env_query,
-                "omni:xform",
-                ordinal=self._current_ordinal,
-                tensors=xform_tensor_from_numpy(env_root_xforms),
-                is_array=False,
-                semantic=ovstage.AttributeSemantic.MATRIX,
-            ).wait()
-
-            self.backend.stage.release_query(env_query).wait()
-            self.backend.paths.destroy_path_list(env_paths_list)
+            path_list = self.backend.paths.create_path_list_from_strings(env_paths)
+            with self.backend.stage.query_from_path_list(path_list) as query:
+                self.backend.stage.write_attribute(
+                    query,
+                    "omni:xform",
+                    ordinal=self._current_ordinal,
+                    tensors=xform_tensor_from_numpy(xforms),
+                    is_array=False,
+                    semantic=ovstage.AttributeSemantic.MATRIX,
+                ).wait()
+            self.backend.paths.destroy_path_list(path_list)
         else:
             self.backend.renderer.write_attribute(
-                prim_paths=env_prim_paths,
-                attribute_name="omni:xform",
-                tensor=env_root_xforms,
-                semantic=Semantic.XFORM_MAT4x4,
-                prim_mode=PrimMode.MUST_EXIST,
+                env_paths, "omni:xform", xforms, semantic=Semantic.XFORM_MAT4x4, prim_mode=PrimMode.MUST_EXIST
             )
 
     def _update_scene_partitions_after_clone(self, camera_paths: Sequence[str]) -> None:

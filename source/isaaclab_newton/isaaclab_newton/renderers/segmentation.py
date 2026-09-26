@@ -236,22 +236,11 @@ class NewtonSegmentationMapping:
         if self.shape_count == 0:
             out_view.zero_()
             return
-        if self.colorize:
-            wp.launch(
-                _remap_shape_index_to_color_kernel,
-                dim=shape_index.shape,
-                inputs=[shape_index, self.shape_to_color, self.shape_count],
-                outputs=[out_view],
-                device=out_view.device,
-            )
-        else:
-            wp.launch(
-                _remap_shape_index_to_id_kernel,
-                dim=shape_index.shape,
-                inputs=[shape_index, self.shape_to_id, self.shape_count],
-                outputs=[out_view],
-                device=out_view.device,
-            )
+        kernel = _remap_shape_index_to_color_kernel if self.colorize else _remap_shape_index_to_id_kernel
+        mapping = self.shape_to_color if self.colorize else self.shape_to_id
+        wp.launch(
+            kernel, shape_index.shape, [shape_index, mapping, self.shape_count], [out_view], device=out_view.device
+        )
 
 
 class NewtonSegmentationMapper:

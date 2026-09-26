@@ -98,9 +98,7 @@ def test_ovphysx_context_consumes_plan():
         weights=(2, 1),
         positions=np.array([[2, 0, 0], [5, 2, 3], [8, 0, 0]], dtype=np.float32),
     )
-    simulation = SimpleNamespace(stage=stage, physics_manager=manager)
-
-    OvPhysxReplicateContext(simulation).replicate(plan, (0,))
+    OvPhysxReplicateContext(SimpleNamespace(stage=stage, physics_manager=manager)).replicate(plan, (0,))
 
     assert len(recipes) == 2
     assert recipes[0][0:2] == ("/World/envs/env_0/Robot", ["/World/envs/env_1/Robot", "/World/envs/env_2/Robot"])

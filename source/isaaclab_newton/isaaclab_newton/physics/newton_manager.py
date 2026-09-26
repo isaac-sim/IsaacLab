@@ -1316,8 +1316,7 @@ class NewtonManager(PhysicsManager):
 
             NewtonManager._initialize_fabric_body_prims(cls._usdrt_stage, fabric_hierarchy, usdrt, body_bindings)
 
-        plan = PhysicsManager._sim.get_clone_plan()
-        cls._scene_data_backend.initialize_geometry(plan)
+        cls._scene_data_backend.initialize_geometry(PhysicsManager._sim.get_clone_plan())
         logger.info("Dispatching PHYSICS_READY callbacks")
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
 

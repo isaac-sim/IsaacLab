@@ -125,12 +125,9 @@ def make_clone_plan(
     if weights.sum() <= 0 or num_worlds < 0:
         raise ValueError("Weights must have positive total mass and num_worlds must be non-negative.")
     layout = np.asarray(clone_strategy(weights, num_worlds))
-    if (
-        layout.shape != (num_worlds,)
-        or not np.issubdtype(layout.dtype, np.integer)
-        or (layout < 0).any()
-        or (layout >= len(weights)).any()
-    ):
+    is_world_layout = layout.shape == (num_worlds,) and np.issubdtype(layout.dtype, np.integer)
+    has_valid_ids = is_world_layout and (layout >= 0).all() and (layout < len(weights)).all()
+    if not has_valid_ids:
         raise ValueError("clone_strategy must select one valid world-prototype index per destination.")
     return ClonePlan(
         topology=PrototypeWorldTopology(
@@ -502,9 +499,8 @@ class query:
                 raise TypeError("Topology queries require integer IDs; resolve expressions with cloner.path.")
             layout = np.r_[-1, topology.world_prototype_layout]
             if by_asset:
-                matches = prototype_ids[:, None] == topology.world_prototypes
                 prefix = np.zeros((len(prototype_ids), len(topology.world_prototypes) + 1), dtype=np.int64)
-                np.cumsum(matches, axis=1, out=prefix[:, 1:])
+                np.cumsum(prototype_ids[:, None] == topology.world_prototypes, axis=1, out=prefix[:, 1:])
                 counts = np.diff(prefix[:, topology.world_prototype_starts], axis=1)[:, layout + 1]
                 if unique:
                     counts = counts > 0
@@ -525,20 +521,9 @@ class query:
             indices, starts = out
             if starts.shape != (len(prototype_ids), num_worlds + 2) or not starts.is_contiguous:
                 raise ValueError("world_starts must be contiguous with shape [num_queries, num_worlds + 2].")
-            wp.launch(
-                _count_world_instances,
-                dim=starts.shape,
-                inputs=[
-                    topology.world_prototypes,
-                    topology.world_prototype_starts,
-                    topology.world_prototype_layout,
-                    prototype_ids,
-                    by_asset,
-                    unique,
-                ],
-                outputs=[starts],
-                device=starts.device,
-            )
+            arrays = topology.world_prototypes, topology.world_prototype_starts, topology.world_prototype_layout
+            inputs = [*arrays, prototype_ids, by_asset, unique]
+            wp.launch(_count_world_instances, starts.shape, inputs, [starts], device=starts.device)
             wp.utils.array_scan(starts.flatten(), starts.flatten())
             wp.launch(
                 _fill_world_indices, (len(prototype_ids), num_worlds + 1), [starts, indices], device=starts.device

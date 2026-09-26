@@ -31,10 +31,8 @@ def _has_visible_non_collision_geometry(stage: Usd.Stage, prim_path: str) -> boo
         if not prim.IsA(UsdGeom.Gprim) or prim.HasAPI(UsdPhysics.CollisionAPI):
             continue
         imageable = UsdGeom.Imageable(prim)
-        if imageable.ComputeVisibility() != UsdGeom.Tokens.invisible and imageable.ComputePurpose() in (
-            UsdGeom.Tokens.default_,
-            UsdGeom.Tokens.proxy,
-        ):
+        is_visible = imageable.ComputeVisibility() != UsdGeom.Tokens.invisible
+        if is_visible and imageable.ComputePurpose() in (UsdGeom.Tokens.default_, UsdGeom.Tokens.proxy):
             return True
     return False
 
@@ -87,13 +85,11 @@ def _restore_visible_colliders_without_visual_shapes(
     # never traversed at all.
     static_owners_with_visual_shapes: dict[str, bool] = {}
     for path, index in path_shape_map.items():
-        flags = builder.shape_flags[index]
-        body_index = builder.shape_body[index]
-        if (
-            not flags & ShapeFlags.COLLIDE_SHAPES
-            or builder.shape_type[index] == GeoType.MESH
-            or body_index in bodies_with_visual_shapes
-        ):
+        flags, body_index = builder.shape_flags[index], builder.shape_body[index]
+        is_collider = bool(flags & ShapeFlags.COLLIDE_SHAPES)
+        is_mesh = builder.shape_type[index] == GeoType.MESH
+        has_visuals = body_index in bodies_with_visual_shapes
+        if not is_collider or is_mesh or has_visuals:
             continue
         if body_index < 0:
             owner_path = _static_collider_owner_path(stage, path)
@@ -102,11 +98,8 @@ def _restore_visible_colliders_without_visual_shapes(
             if static_owners_with_visual_shapes[owner_path]:
                 continue
         imageable = UsdGeom.Imageable(stage.GetPrimAtPath(path))
-        if (
-            imageable
-            and imageable.ComputeVisibility() != UsdGeom.Tokens.invisible
-            and imageable.ComputePurpose() in (UsdGeom.Tokens.default_, UsdGeom.Tokens.proxy)
-        ):
+        is_visible = imageable and imageable.ComputeVisibility() != UsdGeom.Tokens.invisible
+        if is_visible and imageable.ComputePurpose() in (UsdGeom.Tokens.default_, UsdGeom.Tokens.proxy):
             builder.shape_flags[index] = flags | ShapeFlags.VISIBLE
 
 
@@ -296,8 +289,7 @@ def replicate_builder_mapping(
     source_builder_added: Callable[[str, int, ModelBuilder, Sequence[float]], None] | None = None,
 ) -> tuple[dict[str, list[list[int]]], list[wp.transform], list[tuple[str, int]]]:
     """Compose routed source builders once per world prototype, then batch their selected worlds."""
-    topology = plan.topology
-    env_template = plan.env_template
+    topology, env_template = plan.topology, plan.env_template
     layout = topology.world_prototype_layout
     source_site_indices = source_site_indices or {}
     env_root_sites = env_root_sites or {}
@@ -320,6 +312,7 @@ def replicate_builder_mapping(
         prototype = builder if prototype_id == -1 else ModelBuilder(up_axis=builder.up_axis)
         sites, particle_offsets = {}, []
         for source, destination in components:
+            # Remove the source world's placement before composing assets into other world prototypes.
             if source not in source_inverse:
                 source_inverse[source] = (
                     np.asarray(wp.transform(), dtype=np.float32)
@@ -385,6 +378,7 @@ def replicate_builder_mapping(
                 )
                 for index, xform in enumerate(transforms):
                     source_builder_added(source, int(particle_bases[index]) + offset, source_builders[source], xform)
+    # Resolve remaining world-slot placeholders using each native element's owning world.
     worlds_by_frequency = {
         attr.frequency: attr.values for attr in builder.custom_attributes.values() if attr.references == "world"
     }

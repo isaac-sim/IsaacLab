@@ -130,9 +130,8 @@ def test_physx_replicate_context_consumes_plan(sim, world_prototypes):
 
     mock_rep, replicate_calls = _make_mock_physx_rep()
     with patch("isaaclab_physx.cloner.replicate.get_physx_replicator_interface", return_value=mock_rep):
-        ctx = PhysxReplicateContext(sim)
         plan = make_clone_plan((AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),), world_prototypes, 3)
-        ctx.replicate(plan, (0,))
+        PhysxReplicateContext(sim).replicate(plan, (0,))
 
     assert replicate_calls == [2]
 

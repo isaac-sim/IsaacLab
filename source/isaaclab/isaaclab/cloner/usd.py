@@ -47,9 +47,8 @@ def usd_replicate(
 
     layer = stage.GetRootLayer()
     # Parents must be copied before independently declared descendants.
-    source_indices = sorted(range(len(sources)), key=lambda index: destinations[index].count("/"))
     with disabled_fabric_change_notifies(stage), Sdf.ChangeBlock():
-        for source_index in source_indices:
+        for source_index in sorted(range(len(sources)), key=lambda index: destinations[index].count("/")):
             source, template = sources[source_index], destinations[source_index]
             columns = (
                 np.arange(len(env_ids))
@@ -76,21 +75,17 @@ def usd_replicate(
                 spec = layer.GetPrimAtPath(destination)
                 op_names = []
                 if positions is not None:
-                    attr = spec.GetAttributeAtPath(destination + ".xformOp:translate") or Sdf.AttributeSpec(
-                        spec, "xformOp:translate", Sdf.ValueTypeNames.Double3
-                    )
+                    name = "xformOp:translate"
+                    attr = spec.attributes.get(name) or Sdf.AttributeSpec(spec, name, Sdf.ValueTypeNames.Double3)
                     attr.default = Gf.Vec3d(*map(float, positions[column]))
-                    op_names.append("xformOp:translate")
+                    op_names.append(name)
                 if quaternions is not None:
-                    q = quaternions[column]
-                    attr = spec.GetAttributeAtPath(destination + ".xformOp:orient") or Sdf.AttributeSpec(
-                        spec, "xformOp:orient", Sdf.ValueTypeNames.Quatd
-                    )
+                    name, q = "xformOp:orient", quaternions[column]
+                    attr = spec.attributes.get(name) or Sdf.AttributeSpec(spec, name, Sdf.ValueTypeNames.Quatd)
                     attr.default = Gf.Quatd(float(q[3]), Gf.Vec3d(*map(float, q[:3])))
-                    op_names.append("xformOp:orient")
-                op_order = spec.GetAttributeAtPath(destination + ".xformOpOrder") or Sdf.AttributeSpec(
-                    spec, UsdGeom.Tokens.xformOpOrder, Sdf.ValueTypeNames.TokenArray
-                )
+                    op_names.append(name)
+                name = UsdGeom.Tokens.xformOpOrder
+                op_order = spec.attributes.get(name) or Sdf.AttributeSpec(spec, name, Sdf.ValueTypeNames.TokenArray)
                 op_order.default = Vt.TokenArray(op_names)
 
 
@@ -111,11 +106,11 @@ class UsdReplicateContext:
         templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
             plan, include_world_indices=True
         )
+        # Group copies by source/template, omitting descendants already covered by an identical parent copy.
         copies = {}
-        for group, (start, end) in enumerate(zip(starts[:-1], starts[1:], strict=True)):
+        for group in np.flatnonzero(np.diff(world_starts)):
+            start, end = starts[group : group + 2]
             targets = world_ids[world_starts[group] : world_starts[group + 1]]
-            if not len(targets):
-                continue
             members = [
                 index for index in range(start, end) if plan.topology.world_prototypes[index] in asset_prototype_ids
             ]
@@ -128,7 +123,7 @@ class UsdReplicateContext:
                     if source == sources[plan.topology.world_prototypes[ancestor]] + suffix:
                         continue
                 copies.setdefault((source, template), []).append(targets)
-        env_ids = np.arange(len(plan.topology.world_prototype_layout))
+        env_ids = range(len(plan.topology.world_prototype_layout))
         with disabled_fabric_change_notifies(self.stage), Sdf.ChangeBlock():
             for source, template in sorted(copies, key=lambda copy: copy[1].count("/")):
                 usd_replicate(self.stage, (source,), (template,), np.concatenate(copies[source, template]))
@@ -136,16 +131,14 @@ class UsdReplicateContext:
                 # Environment frames come from the plan, not copies of an undeclared USD subtree.
                 layer = self.stage.GetRootLayer()
                 for env_id, position in zip(env_ids, plan.positions, strict=True):
-                    path = plan.env_template.format(int(env_id))
+                    path = plan.env_template.format(env_id)
                     spec = Sdf.CreatePrimInLayer(layer, path)
                     spec.specifier = Sdf.SpecifierDef
                     if not spec.typeName:
                         spec.typeName = "Xform"
-                    attr = spec.GetAttributeAtPath(path + ".xformOp:translate") or Sdf.AttributeSpec(
-                        spec, "xformOp:translate", Sdf.ValueTypeNames.Double3
-                    )
+                    name = "xformOp:translate"
+                    attr = spec.attributes.get(name) or Sdf.AttributeSpec(spec, name, Sdf.ValueTypeNames.Double3)
                     attr.default = Gf.Vec3d(*map(float, position))
-                    order = spec.GetAttributeAtPath(path + ".xformOpOrder") or Sdf.AttributeSpec(
-                        spec, "xformOpOrder", Sdf.ValueTypeNames.TokenArray
-                    )
-                    order.default = Vt.TokenArray(["xformOp:translate"])
+                    name = "xformOpOrder"
+                    order = spec.attributes.get(name) or Sdf.AttributeSpec(spec, name, Sdf.ValueTypeNames.TokenArray)
+                    order.default = Vt.TokenArray([attr.name])

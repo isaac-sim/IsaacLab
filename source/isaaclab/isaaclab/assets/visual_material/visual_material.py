@@ -144,15 +144,14 @@ class VisualMaterial(AssetBase):
                     if (matched := cloner.path.match(self.cfg.prim_path, template)) is not None:
                         material_templates[prototype] = template + matched.suffix
                         break
-            material_paths = [
+            self._material_paths = tuple(
                 material_templates[prototype].format(world)
                 for world, prototype in enumerate(plan.topology.world_prototype_layout)
-            ]
-            if not all(material_paths):
+            )
+            if not all(self._material_paths):
                 raise ValueError(
                     f"Per-environment material {self._source_material_path!r} must populate every environment."
                 )
-            self._material_paths = tuple(material_paths)
             shader_suffix = self._source_shader_path.removeprefix(self._source_material_path)
             self._shader_paths = tuple(path + shader_suffix for path in self._material_paths)
         else:
