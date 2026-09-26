@@ -385,6 +385,10 @@ def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
                 bodies=["/World/envs/env_[^/]+/Robot/base"],
                 mode="staggered",
                 mass_scale=0.25,
+                proxy_relaxation=0.4,
+                proxy_relaxation_mode="aitken",
+                proxy_relaxation_min=0.2,
+                proxy_relaxation_max=0.8,
                 collide_interval=4,
                 collision_pipeline=custom_pipeline,
             ),
@@ -405,6 +409,10 @@ def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
     assert solver.coupling.iterations == 3
     assert solver.coupling.proxies[0].mode == "staggered"
     assert solver.coupling.proxies[0].mass_scale == pytest.approx(0.25)
+    assert solver.coupling.proxies[0].proxy_relaxation == pytest.approx(0.4)
+    assert solver.coupling.proxies[0].proxy_relaxation_mode == "aitken"
+    assert solver.coupling.proxies[0].proxy_relaxation_min == pytest.approx(0.2)
+    assert solver.coupling.proxies[0].proxy_relaxation_max == pytest.approx(0.8)
     assert solver.coupling.proxies[0].collide_interval == 4
     assert solver.coupling.proxies[0].collision_pipeline is custom_pipeline
     assert solver.coupling.proxies[1].collision_pipeline("soft-view") == ("soft-view", "explicit")

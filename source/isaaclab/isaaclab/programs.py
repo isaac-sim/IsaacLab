@@ -76,6 +76,7 @@ _RESET_CALLBACK_NAME = "isaaclab.programs"
 """Name of the simulation reset callback installed while a program runs."""
 
 _ISAACSIM = {"extras": ("isaacsim",), "required_modules": ("isaacsim",)}
+_RSL_RL = {"extras": ("rsl-rl",), "required_modules": ("rsl_rl",)}
 _TETRAHEDRALIZATION = {"extras": ("tetrahedralization",), "required_modules": ("pytetwild",)}
 _TELEOP = {"extras": ("teleop",), "required_modules": ("isaaclab_teleop", "websockets")}
 
@@ -148,6 +149,27 @@ EXAMPLES = (
         "mpm-two-way-coupling",
         "examples/mpm/newton_mpm_twoway_coupling.py",
         "Couple MPM sand with rigid bodies.",
+    ),
+    ProgramSpec(
+        "mpm-material-tuning",
+        "examples/mpm/tuning/material_parameters.py",
+        "Compare Newton MPM material parameters in controlled scenes.",
+    ),
+    ProgramSpec(
+        "mpm-rigid-equivalence",
+        "examples/mpm/tuning/rigid_body_equivalence.py",
+        "Compare nearly rigid MPM particles with MJWarp rigid bodies.",
+    ),
+    ProgramSpec(
+        "mpm-g1-coupling",
+        "examples/mpm/tuning/g1_coupling.py",
+        "Compare one-way and two-way G1 coupling across MPM strips.",
+        **_RSL_RL,
+    ),
+    ProgramSpec(
+        "mpm-surface-reconstruction",
+        "examples/mpm/tuning/surface_reconstruction.py",
+        "Compare surface reconstruction for a falling MPM water blob.",
     ),
     ProgramSpec(
         "camera",

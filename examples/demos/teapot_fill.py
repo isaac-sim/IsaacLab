@@ -28,12 +28,16 @@ import argparse
 import math
 from collections.abc import Callable
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
+
+if TYPE_CHECKING:
+    from isaaclab_visualizers.newton import ParticleSurfaceRenderer
 
 DEFAULT_VOXEL_SIZE = 0.003
 DEFAULT_PARTICLES_PER_VOXEL_AXIS = 2.0
@@ -114,7 +118,7 @@ parser.add_argument(
 parser.add_argument(
     "--fluid_render_mode",
     type=str,
-    default="surface",
+    default="particles",
     choices=["particles", "surface", "both"],
     help="Fluid visualization: raw MPM particles, reconstructed surface mesh, or both.",
 )
@@ -229,102 +233,40 @@ def create_visualizer_cfgs():
     ]
 
 
-class FluidSurfaceRenderer:
-    """Extract and display a dynamic water surface in Newton visualizers."""
+def create_surface_renderer(sim) -> ParticleSurfaceRenderer:
+    """Configure teapot-specific surface extraction after Newton initializes."""
+    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_visualizers.newton import ParticleSurfaceRenderer
+    from newton.geometry import ParticleSurface
 
-    def __init__(self, sim) -> None:
-        import warp as wp
-        from isaaclab_newton.physics import NewtonManager
-        from isaaclab_visualizers.newton import NewtonGLVisualizer, NewtonRTXVisualizer
-        from newton.geometry import ParticleSurface
-
-        self._wp = wp
-        self._visualizers = tuple(
-            visualizer
-            for visualizer in sim.visualizers
-            if isinstance(visualizer, (NewtonGLVisualizer, NewtonRTXVisualizer))
-        )
-        if not self._visualizers:
-            raise RuntimeError("Particle surface rendering requires a Newton GL or RTX visualizer.")
-
-        self._model = NewtonManager.get_model()
-        self._state = NewtonManager.get_state_0()
-        self._surface = ParticleSurface(
-            voxel_size=SURFACE_VOXEL_SIZE,
-            max_grid_cells=SURFACE_MAX_GRID_CELLS,
-            world_count=max(self._model.world_count, 1),
-            kernel_radius=SURFACE_KERNEL_RADIUS,
-            threshold=0.4,
-            smooth_lambda=0.0,
-            anisotropic=True,
-            kernel_scale=0.5,
-            anisotropy_ratio=16.0,
-            anisotropy_scale=1.0,
-            anisotropy_min_neighbors=4,
-            anisotropy_binning=True,
-            anisotropy_strength=0.95,
-            field_smooth_iterations=0,
-            mesh_smooth_iterations=1,
-            device=self._model.device,
-        )
-        self._empty_points = wp.empty(0, dtype=wp.vec3, device=self._model.device)
-        self._empty_indices = wp.empty(0, dtype=wp.int32, device=self._model.device)
-        self._empty_normals = wp.empty(0, dtype=wp.vec3, device=self._model.device)
-        self._surface_mesh = None
-        self._surface_graph = None
-        self._capture_surface_extraction()
-
-    def _extract_surface(self):
-        """Extract the water surface from the current Newton particle state."""
-        return self._surface.extract(
-            self._state.particle_q,
-            self._model.particle_radius,
-            particle_flags=self._model.particle_flags,
-            particle_world=self._model.particle_world if self._surface.world_count > 1 else None,
-        )
-
-    def _capture_surface_extraction(self) -> None:
-        """Capture reconstruction separately from the MPM physics graph."""
-        if not self._model.device.is_cuda or args_cli.disable_cuda_graph:
-            return
-        self._surface_mesh = self._extract_surface()
-        with self._wp.ScopedCapture(device=self._model.device) as capture:
-            self._surface_mesh = self._extract_surface()
-        self._surface_graph = capture.graph
-
-    def update(self) -> int:
-        """Reconstruct and publish the current water surface, returning its triangle count."""
-        if self._surface_graph is None:
-            self._surface_mesh = self._extract_surface()
-        else:
-            self._wp.capture_launch(self._surface_graph)
-
-        vertices, indices, normals = self._surface_mesh.to_arrays()
-        if vertices is None:
-            vertices = self._empty_points
-            indices = self._empty_indices
-            normals = self._empty_normals
-            hidden = True
-            triangle_count = 0
-        else:
-            hidden = False
-            triangle_count = indices.shape[0] // 3
-
-        for visualizer in self._visualizers:
-            visualizer.log_mesh(
-                SURFACE_PATH,
-                vertices,
-                indices,
-                normals=normals,
-                hidden=hidden,
-                backface_culling=False,
-                color=WATER_COLOR,
-                roughness=0.1,
-                metallic=0.0,
-                dynamic=True,
-                opacity=WATER_OPACITY,
-            )
-        return triangle_count
+    model = NewtonManager.get_model()
+    surface = ParticleSurface(
+        voxel_size=SURFACE_VOXEL_SIZE,
+        max_grid_cells=SURFACE_MAX_GRID_CELLS,
+        world_count=max(model.world_count, 1),
+        kernel_radius=SURFACE_KERNEL_RADIUS,
+        threshold=0.4,
+        smooth_lambda=0.0,
+        anisotropic=True,
+        kernel_scale=0.5,
+        anisotropy_ratio=16.0,
+        anisotropy_scale=1.0,
+        anisotropy_min_neighbors=4,
+        anisotropy_binning=True,
+        anisotropy_strength=0.95,
+        field_smooth_iterations=0,
+        mesh_smooth_iterations=1,
+        device=model.device,
+    )
+    return ParticleSurfaceRenderer(
+        sim.visualizers,
+        surface,
+        path=SURFACE_PATH,
+        color=WATER_COLOR,
+        opacity=WATER_OPACITY,
+        roughness=0.1,
+        use_cuda_graph=not args_cli.disable_cuda_graph,
+    )
 
 
 def quat_y(angle_rad: float) -> tuple[float, float, float, float]:
@@ -793,7 +735,7 @@ def write_container_state(container, sim_time: float) -> None:
     container.write_root_link_velocity_to_sim_index(root_velocity=velocity)
 
 
-def run_simulator(sim, scene, surface_renderer: FluidSurfaceRenderer | None) -> None:
+def run_simulator(sim, scene, surface_renderer: ParticleSurfaceRenderer | None) -> None:
     """Run the scripted teapot-fill MPM loop."""
     sim_dt = sim.get_physics_dt()
     container = scene["container"]
@@ -839,7 +781,7 @@ def main() -> None:
         sim.reset()
         sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
         surface_renderer = (
-            FluidSurfaceRenderer(sim)
+            create_surface_renderer(sim)
             if SHOW_FLUID_SURFACE and any(v in (args_cli.visualizer or []) for v in ("newton_gl", "newton_rtx"))
             else None
         )

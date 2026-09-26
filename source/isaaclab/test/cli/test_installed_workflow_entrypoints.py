@@ -152,6 +152,8 @@ def test_example_catalog_lists_packaged_examples(capsys):
     assert "bin-packing" in output
     assert "newton-dominoes" in output
     assert "mpm-two-way-coupling" in output
+    assert "mpm-material-tuning" in output
+    assert "uvx --from 'isaaclab[rsl-rl]' isaaclab example mpm-g1-coupling" in output
     assert "uvx --from 'isaaclab[isaacsim]' isaaclab example camera" in output
     assert "teapot-fill" not in output
 
@@ -183,7 +185,9 @@ def test_newton_gl_selector_omits_incompatible_programs():
     assert gl_visualizer.register_ui_callback.call_args.kwargs == {"position": "panel"}
     kit_visualizer.register_ui_callback.assert_not_called()
     assert "Zoo##demo:zoo" in labels
+    assert "Teapot Fill##demo:teapot-fill" in labels
     assert "Cables##example:cables" in labels
+    assert "Mpm Material Tuning##example:mpm-material-tuning" in labels
     assert "Newton Dominoes##example:newton-dominoes" in labels
     assert "Newton Dominoes##demo:newton-dominoes" not in labels
     assert "H1 Locomotion##demo:h1-locomotion" in labels
