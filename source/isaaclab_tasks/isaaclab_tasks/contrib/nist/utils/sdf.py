@@ -22,8 +22,6 @@ Consumed by :class:`~.collision_analyzer.CollisionAnalyzer`.
 
 from __future__ import annotations
 
-from typing import Any
-
 import warp as wp
 
 # ---------------------------------------------------------------------------
@@ -141,9 +139,7 @@ def get_signed_distance_mega(
     body_quat_w: wp.array(dtype=wp.quat, ndim=2),
     body_ids: wp.array(dtype=wp.int32),
     local_pts: wp.array(dtype=wp.vec3, ndim=3),
-    env_ids: wp.array(dtype=Any),
-    env_start: int,
-    env_step: int,
+    env_ids: wp.array(dtype=wp.int32),
     obs_root_pos: wp.array(dtype=wp.vec3, ndim=2),
     obs_root_quat: wp.array(dtype=wp.quat, ndim=2),
     obs_root_scale: wp.array(dtype=wp.vec3, ndim=2),
@@ -173,9 +169,7 @@ def get_signed_distance_mega(
     body_local = rem // num_points
     point_local = rem - body_local * num_points
 
-    env_id = env_start + env_local * env_step
-    if env_ids.shape[0] > 0:
-        env_id = int(env_ids[env_local])
+    env_id = env_ids[env_local]
     body_id = body_ids[body_local]
 
     query = compute_world_point(

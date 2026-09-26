@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -121,30 +121,27 @@ def reset_to_target(
         target_cfg: Target body (e.g. the gripper palm) to spawn the asset at.
         asset_cfg: The asset to reset.
     """
-    picked = env_ids
-    if probability < 1.0:
-        ids = env.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
-        picked = ids[torch.rand(len(ids), device=env.device) < probability]
-        if len(picked) == 0:
-            return
+    if isinstance(env_ids, slice):
+        env_ids = env.scene._ALL_INDICES[env_ids]
+    picked = env_ids[torch.rand(len(env_ids), device=env.device) < probability]
+    if len(picked) == 0:
+        return
     asset = env.scene[asset_cfg.name]
     target = env.scene[target_cfg.name]
-    target_pos = target.data.body_pos_w.torch[picked][:, target_cfg.body_ids, :]
-    num_picked = target_pos.shape[0]
-    target_pos = target_pos.reshape(num_picked, -1)[:, :3]
-    target_quat = target.data.body_quat_w.torch[picked][:, target_cfg.body_ids, :].reshape(num_picked, -1)[:, :4]
+    target_pos = target.data.body_pos_w.torch[picked][:, target_cfg.body_ids, :].reshape(len(picked), -1)[:, :3]
+    target_quat = target.data.body_quat_w.torch[picked][:, target_cfg.body_ids, :].reshape(len(picked), -1)[:, :4]
 
     keys = ("x", "y", "z")
     offsets = torch.tensor([tuple(pose_range.get(key, (0.0, 0.0))) for key in keys], device=asset.device)
     # offsets are expressed in the target body frame, so e.g. a +z range places the object
     # along the gripper approach axis (between the fingertips) at any hand orientation
-    local_offsets = sample_uniform(offsets[:, 0], offsets[:, 1], (num_picked, 3), device=asset.device)
+    local_offsets = sample_uniform(offsets[:, 0], offsets[:, 1], (len(picked), 3), device=asset.device)
     positions = target_pos + quat_apply(target_quat, local_offsets)
-    orientations = random_orientation(num_picked, device=asset.device)
+    orientations = random_orientation(len(picked), device=asset.device)
 
     keys = ("x", "y", "z", "roll", "pitch", "yaw")
     vel_ranges = torch.tensor([tuple(velocity_range.get(key, (0.0, 0.0))) for key in keys], device=asset.device)
-    velocities = sample_uniform(vel_ranges[:, 0], vel_ranges[:, 1], (num_picked, 6), device=asset.device)
+    velocities = sample_uniform(vel_ranges[:, 0], vel_ranges[:, 1], (len(picked), 6), device=asset.device)
 
     asset.write_root_pose_to_sim_index(root_pose=torch.cat([positions, orientations], dim=-1), env_ids=picked)
     asset.write_root_velocity_to_sim_index(root_velocity=velocities, env_ids=picked)
@@ -468,9 +465,7 @@ def _slab_signed_dist(
 
 @wp.kernel
 def _object_points_slab_min(
-    env_ids: wp.array(dtype=Any),
-    env_start: int,
-    env_step: int,
+    env_ids: wp.array(dtype=wp.int32),
     obj_points: wp.array2d(dtype=wp.vec3),
     obj_pose: wp.array(dtype=wp.transformf),
     env_origins: wp.array(dtype=wp.vec3),
@@ -483,9 +478,7 @@ def _object_points_slab_min(
     out_min: wp.array(dtype=wp.float32),
 ):
     i, k = wp.tid()
-    env = env_start + i * env_step
-    if env_ids.shape[0] > 0:
-        env = int(env_ids[i])
+    env = env_ids[i]
     point_env = wp.transform_point(obj_pose[env], obj_points[env, k]) - env_origins[env]
     dist = _slab_signed_dist(point_env, slab_top, slab_x, slab_y, slab_has_x, slab_has_y, margin, out_min[i])
     wp.atomic_min(out_min, i, dist)
@@ -493,9 +486,7 @@ def _object_points_slab_min(
 
 @wp.kernel
 def _robot_vertices_slab_min(
-    env_ids: wp.array(dtype=Any),
-    env_start: int,
-    env_step: int,
+    env_ids: wp.array(dtype=wp.int32),
     vertices: wp.array(dtype=wp.vec3),
     vertex_body: wp.array(dtype=wp.int32),
     body_pose: wp.array2d(dtype=wp.transformf),
@@ -509,9 +500,7 @@ def _robot_vertices_slab_min(
     out_min: wp.array(dtype=wp.float32),
 ):
     i, k = wp.tid()
-    env = env_start + i * env_step
-    if env_ids.shape[0] > 0:
-        env = int(env_ids[i])
+    env = env_ids[i]
     point_env = wp.transform_point(body_pose[env, vertex_body[k]], vertices[k]) - env_origins[env]
     dist = _slab_signed_dist(point_env, slab_top, slab_x, slab_y, slab_has_x, slab_has_y, margin, out_min[i])
     wp.atomic_min(out_min, i, dist)
@@ -519,9 +508,7 @@ def _robot_vertices_slab_min(
 
 @wp.kernel
 def _object_points_mesh_min(
-    env_ids: wp.array(dtype=Any),
-    env_start: int,
-    env_step: int,
+    env_ids: wp.array(dtype=wp.int32),
     obj_points: wp.array2d(dtype=wp.vec3),
     obj_pose: wp.array(dtype=wp.transformf),
     body_pose: wp.array2d(dtype=wp.transformf),
@@ -534,9 +521,7 @@ def _object_points_mesh_min(
     out_min: wp.array(dtype=wp.float32),
 ):
     i, k = wp.tid()
-    env = env_start + i * env_step
-    if env_ids.shape[0] > 0:
-        env = int(env_ids[i])
+    env = env_ids[i]
     point_world = wp.transform_point(obj_pose[env], obj_points[env, k])
     dist = out_min[i]
     for m in range(mesh_ids.shape[0]):
@@ -557,9 +542,7 @@ def _object_points_mesh_min(
 
 @wp.kernel
 def _robot_vertices_object_mesh_min(
-    env_ids: wp.array(dtype=Any),
-    env_start: int,
-    env_step: int,
+    env_ids: wp.array(dtype=wp.int32),
     vertices: wp.array(dtype=wp.vec3),
     vertex_body: wp.array(dtype=wp.int32),
     body_pose: wp.array2d(dtype=wp.transformf),
@@ -573,9 +556,7 @@ def _robot_vertices_object_mesh_min(
     out_min: wp.array(dtype=wp.float32),
 ):
     i, k = wp.tid()
-    env = env_start + i * env_step
-    if env_ids.shape[0] > 0:
-        env = int(env_ids[i])
+    env = env_ids[i]
     mesh_index = env_object_mesh[env]
     point_world = wp.transform_point(body_pose[env, vertex_body[k]], vertices[k])
     point_local = wp.transform_point(wp.transform_inverse(obj_pose[env]), point_world)
@@ -689,7 +670,6 @@ class mesh_clearance(ManagerTermBase):
         self._object_mesh_center = wp.array(np.stack(object_mesh_center), dtype=wp.vec3, device=device)
         self._object_mesh_radius = wp.array(object_mesh_radius, dtype=wp.float32, device=device)
         self._env_object_mesh = wp.array(env_object_mesh, dtype=wp.int32, device=device)
-        self._no_env_ids = wp.empty(0, dtype=wp.int32, device=device)
 
         # query horizon: must exceed both the clearance and plausible penetration depths so
         # contained points still resolve a (negative) signed distance
@@ -697,19 +677,14 @@ class mesh_clearance(ManagerTermBase):
 
     def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor) -> torch.Tensor:
         if isinstance(env_ids, slice):
-            num = len(range(env.num_envs)[env_ids])
-            start, _, step = env_ids.indices(env.num_envs)
-            ids = self._no_env_ids
-        else:
-            num, start, step, ids = len(env_ids), 0, 0, wp.from_torch(env_ids)
+            env_ids = env.scene._ALL_INDICES[env_ids]
+        num = len(env_ids)
         out_min = wp.full(num, 1.0e6, dtype=wp.float32, device=env.device)
         wp.launch(
             _object_points_mesh_min,
             dim=(num, self.cfg.num_object_points),
             inputs=[
-                ids,
-                start,
-                step,
+                wp.from_torch(env_ids.to(torch.int32).contiguous()),
                 self._obj_points,
                 self._object.data.root_link_pose_w.warp,
                 self._robot.data.body_link_pose_w.warp,
@@ -727,9 +702,7 @@ class mesh_clearance(ManagerTermBase):
             _robot_vertices_object_mesh_min,
             dim=(num, self._vertices.shape[0]),
             inputs=[
-                ids,
-                start,
-                step,
+                wp.from_torch(env_ids.to(torch.int32).contiguous()),
                 self._vertices,
                 self._vertex_body,
                 self._robot.data.body_link_pose_w.warp,
@@ -788,23 +761,18 @@ class slab_clearance(ManagerTermBase):
             wp.array(np.array([y is not None for _, y, _ in slabs], dtype=np.int32), device=device),
         ]
         self._env_origins = wp.from_torch(env.scene.env_origins.contiguous(), dtype=wp.vec3)
-        self._no_env_ids = wp.empty(0, dtype=wp.int32, device=device)
 
     def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor) -> torch.Tensor:
         if isinstance(env_ids, slice):
-            num = len(range(env.num_envs)[env_ids])
-            start, _, step = env_ids.indices(env.num_envs)
-            ids = self._no_env_ids
-        else:
-            num, start, step, ids = len(env_ids), 0, 0, wp.from_torch(env_ids)
+            env_ids = env.scene._ALL_INDICES[env_ids]
+        num = len(env_ids)
         out_min = wp.full(num, 1.0e6, dtype=wp.float32, device=env.device)
+        ids = wp.from_torch(env_ids.to(torch.int32).contiguous())
         wp.launch(
             _object_points_slab_min,
             dim=(num, self.cfg.num_object_points),
             inputs=[
                 ids,
-                start,
-                step,
                 self._obj_points,
                 self._object.data.root_link_pose_w.warp,
                 self._env_origins,
@@ -819,8 +787,6 @@ class slab_clearance(ManagerTermBase):
             dim=(num, len(self._vertices)),
             inputs=[
                 ids,
-                start,
-                step,
                 self._vertices,
                 self._vertex_body,
                 self._robot.data.body_link_pose_w.warp,

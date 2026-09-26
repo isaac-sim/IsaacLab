@@ -290,11 +290,10 @@ class TermChoice(ManagerTermBase):
             success = env.termination_manager.get_term_cfg("progress_context").func.is_success
             self.success_monitor.success_update(self.term_samples[env_ids], success[env_ids])
 
-        num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        probs, choices = self._sampler.probabilities_and_sample(num_envs)
-        self.term_samples[env_ids] = choices
         if isinstance(env_ids, slice):
             env_ids = env.scene._ALL_INDICES[env_ids]
+        probs, choices = self._sampler.probabilities_and_sample(len(env_ids))
+        self.term_samples[env_ids] = choices
         if report:
             log.update(
                 {f"Metrics/SampleProb/{name}": probs[i].item() for i, name in enumerate(self.term_partitions.keys())}
@@ -321,12 +320,11 @@ class ChainedResetTerms(ManagerTermBase):
         terms: dict[str, callable],
         probability: float = 1.0,
     ) -> None:
-        env_ids_to_reset = env_ids
-        if probability < 1.0:
-            ids = env.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
-            keep = torch.rand(len(ids), device=env.device) < probability
-            if not keep.any():
-                return
-            env_ids_to_reset = ids[keep]
+        if isinstance(env_ids, slice):
+            env_ids = env.scene._ALL_INDICES[env_ids]
+        keep = torch.rand(env_ids.size(0), device=env_ids.device) < probability
+        if not keep.any():
+            return
+        env_ids_to_reset = env_ids[keep]
         for _, term in terms.items():
             term.func(env, env_ids_to_reset, **term.params)  # type: ignore

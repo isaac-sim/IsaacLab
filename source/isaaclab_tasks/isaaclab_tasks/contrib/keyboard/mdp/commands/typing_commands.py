@@ -11,7 +11,7 @@ import inspect
 import math
 import re
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -42,9 +42,7 @@ if TYPE_CHECKING:
 
 @wp.kernel
 def _resample_reset_kernel(
-    env_ids: wp.array(dtype=Any),
-    env_start: int,
-    env_step: int,
+    env_ids: wp.array(dtype=wp.int32),
     typeable: wp.array(dtype=wp.int64),
     lo: wp.int32,
     hi: wp.int32,
@@ -66,9 +64,7 @@ def _resample_reset_kernel(
     loop, so no padded-matrix masking and no ``sum(t)`` host sync.
     """
     i = wp.tid()
-    e = env_start + i * env_step
-    if env_ids.shape[0] > 0:
-        e = int(env_ids[i])
+    e = env_ids[i]
     rng = wp.rand_init(seed, e)
     m = int(typeable.shape[0])
     width = int(target.shape[1])
@@ -144,7 +140,6 @@ class LetterTypingCommand(CommandTerm):
     def __init__(self, cfg: LetterTypingCommandCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         self.keyboard: Articulation = env.scene[cfg.object_name]
-        self._no_env_ids = wp.empty(0, dtype=wp.int32, device=self.device)
         # Buffer/observation width. Decoupled from letter_length so the obs size (and a trained policy's
         # input layer) stays fixed when letter_length is varied for evaluation; defaults to letter_length[1].
         self.max_len = int(cfg.max_len) if cfg.max_len is not None else int(cfg.letter_length[1])
@@ -355,13 +350,13 @@ class LetterTypingCommand(CommandTerm):
             return
         if not self._buffer_built:
             self._build_buffer()
-        k = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        env_ids_t = self._env.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
+        k = int(env_ids_t.numel())
         if k == 0:
             return
         source = self._sample_sources(k)  # (k,): -1 normal reset, else snapshot index in [0, cap)
-        self._env_source[env_ids] = source
+        self._env_source[env_ids_t] = source
         normal_mask = source < 0
-        env_ids_t = self._env.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
         normal_ids = env_ids_t[normal_mask]
         if normal_ids.numel() > 0:
             self._resample_normal(normal_ids)
@@ -408,13 +403,12 @@ class LetterTypingCommand(CommandTerm):
         distance = torch.zeros(m_candidates, dtype=torch.float32, device=self.device)
         scratch1 = torch.zeros(m_candidates, dtype=torch.long, device=self.device)  # max_prefix (unused here)
         scratch2 = torch.zeros(m_candidates, dtype=torch.long, device=self.device)  # min_prefix (unused here)
+        env_ids = torch.arange(m_candidates, device=self.device, dtype=torch.int32)
         wp.launch(
             _resample_reset_kernel,
             dim=m_candidates,
             inputs=[
-                self._no_env_ids,
-                0,
-                1,
+                wp.from_torch(env_ids, dtype=wp.int32),
                 wp.from_torch(self._typeable.contiguous(), dtype=wp.int64),
                 int(lo),
                 int(hi),
@@ -658,12 +652,8 @@ class LetterTypingCommand(CommandTerm):
         # instant success, and seed the typing metrics + progress water marks - one Warp thread per resetting
         # env, so the ragged fill reads as a per-thread loop instead of padded-matrix masking, with no sum(t)
         # host sync (see :func:`_resample_reset_kernel`). Non-ragged per-env bookkeeping stays in torch.
-        if isinstance(env_ids, slice):
-            k = len(range(self.num_envs)[env_ids])
-            start, _, step = env_ids.indices(self.num_envs)
-            ids = self._no_env_ids
-        else:
-            k, start, step, ids = len(env_ids), 0, 0, wp.from_torch(env_ids)
+        env_ids_t = self._env.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
+        k = int(env_ids_t.numel())
         if k == 0:
             return
         lo, hi = self.cfg.letter_length
@@ -672,9 +662,7 @@ class LetterTypingCommand(CommandTerm):
             _resample_reset_kernel,
             dim=k,
             inputs=[
-                ids,
-                start,
-                step,
+                wp.from_torch(env_ids_t.to(torch.int32).contiguous(), dtype=wp.int32),
                 wp.from_torch(self._typeable.contiguous(), dtype=wp.int64),
                 int(lo),
                 int(hi),
@@ -693,10 +681,10 @@ class LetterTypingCommand(CommandTerm):
             ],
             device=str(self.device),
         )
-        self._prev_pressed[env_ids] = False
-        self._just_reset[env_ids] = True
-        self.new_high[env_ids] = False
-        self.new_low[env_ids] = False
+        self._prev_pressed[env_ids_t] = False
+        self._just_reset[env_ids_t] = True
+        self.new_high[env_ids_t] = False
+        self.new_low[env_ids_t] = False
 
     def _update_command(self):
         if self._press_level is None:
@@ -779,11 +767,12 @@ class LetterTypingCommand(CommandTerm):
         """
         if env_ids is None:
             env_ids = slice(None)
+        ids = self._env.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
 
         # Terminal success (read BEFORE super().reset() resamples the word) of the ending episodes, plus the
         # STARTING distance-to-success each began at (captured at its previous reset).
-        succeeded = (self.distance[env_ids] == 0).float()
-        start_d = self._start_distance[env_ids]
+        succeeded = (self.distance[ids] == 0).float()
+        start_d = self._start_distance[ids]
 
         # Split the success stats by the reset source that SEEDED each ending episode (still in _env_source,
         # before super().reset() overwrites it): "buffer" = restored snapshot (curriculum-biased), "uniform" =
@@ -792,7 +781,7 @@ class LetterTypingCommand(CommandTerm):
         # off the episode's start, not its (fixed-length) word. Empty subsets carry the last value forward (0
         # before the first sample) so the curves have no NaN gaps. Without the curriculum every env is uniform.
         if self._cur_enabled and self._buffer_built:
-            from_buffer = self._env_source[env_ids] >= 0
+            from_buffer = self._env_source[ids] >= 0
         else:
             from_buffer = torch.zeros_like(succeeded, dtype=torch.bool)
         split_metrics: dict[str, float] = {}
@@ -813,7 +802,7 @@ class LetterTypingCommand(CommandTerm):
         # sources assigned at the PREVIOUS reset (still in _env_source) with the terminal distance read above,
         # before super().reset() -> _resample_command overwrites both.
         if self._cur_enabled and self._buffer_built:
-            src = self._env_source[env_ids]
+            src = self._env_source[ids]
             valid = src >= 0
             if bool(valid.any()):
                 self.success_monitor.success_update(src[valid], succeeded[valid] > 0.5)
@@ -827,7 +816,7 @@ class LetterTypingCommand(CommandTerm):
         self._episode_reset = False
         # Record the starting distance of the freshly-seeded episodes (both reset paths set self.distance to the
         # start value; the IK snap below only moves the arm) for the distance<K success split at their next reset.
-        self._start_distance[env_ids] = self.distance[env_ids].long()
+        self._start_distance[ids] = self.distance[ids].long()
         extras.update(split_metrics)
         # Report "distance" as the buffer's fixed mean start-distance (its average difficulty) rather than the
         # noisy, curriculum-biased terminal distance of the episodes that happened to end this batch. Falls back
@@ -839,15 +828,14 @@ class LetterTypingCommand(CommandTerm):
             # Snap above the key the agent must press next for the (possibly pre-filled) buffer. The solve
             # reads target_key_slot(), which already accounts for the correct prefix and any pending
             # backspace, so no need to assume an empty buffer here.
-            snap_ids = env_ids
+            snap_ids = ids
             if self._cur_enabled and self._buffer_built:
                 # Buffer-restored envs already sit at their snapshot pose; only re-solve the normal-path envs.
-                ids = self._env.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
-                snap_ids = ids[self._env_source[env_ids] < 0]
+                snap_ids = ids[self._env_source[ids] < 0]
             self._solve_reset_pose(snap_ids)
         return extras
 
-    def _solve_reset_pose(self, env_ids: torch.Tensor | slice):
+    def _solve_reset_pose(self, env_ids: torch.Tensor):
         """Snap the arm so the moving-jaw tip hovers above the first key, angled to press, without stepping.
 
         Seeds the arm from its default pose (optionally jittered by ``reset.ik_seed_joint_noise``), then runs
@@ -861,7 +849,7 @@ class LetterTypingCommand(CommandTerm):
         all envs (the controller is sized to ``num_envs``) but only ``env_ids`` are written, leaving
         mid-episode envs untouched.
         """
-        if self._reset_ik is None or (not isinstance(env_ids, slice) and len(env_ids) == 0):
+        if self._reset_ik is None or len(env_ids) == 0:
             return
         # _resample_command filled typed/target and the derived typed_len/prefix_len via a Warp kernel
         # launched moments earlier in super().reset(). target_key_pos_w() below reads those tensors back
