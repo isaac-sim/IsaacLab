@@ -46,8 +46,9 @@ The arguments are parallel arrays describing the layout:
 Production scene construction keeps asset definitions and world membership in a
 :class:`~isaaclab.cloner.ClonePlan`. Each simulation-owned clone context receives that
 plan and the asset-prototype indices routed to it. Native names and placement belong
-to the context, not the plan. :func:`~isaaclab.cloner.query.replication_mapping`
-adapts plain native path mappings to the raw APIs above.
+to the context, not the plan. Clone contexts consume native instance groups and their
+destination world IDs directly, without constructing a dense source-to-world mask.
+Only standalone calls to the raw APIs above accept caller-supplied masks.
 
 
 Standalone Examples
@@ -192,11 +193,11 @@ before batched native replication; this does not expand its USD import scope.
 Querying topology and native paths
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Topology queries depend only on the plan:
+Topology queries depend only on the plan and return a list of prototype groups:
 
 .. code-block:: python
 
-    for world_prototype_id, asset_prototype_ids, world_ids in cloner.query.iter_worlds(plan):
+    for world_prototype_id, asset_prototype_ids, world_ids in cloner.query.get_world_prototypes(plan):
         # Shared assets have world_prototype_id == -1 and world_ids == [-1].
         # Repeated asset_prototype_ids remain repeated.
         ...
@@ -209,12 +210,14 @@ a USD-backed consumer gets its source/destination mappings from the USD context:
     usd = sim.clone_contexts[cloner.UsdReplicateContext]
     instances = usd.instances
     # Each entry: asset-prototype ID, source path, destination template, world IDs.
-    cloner.query.path_to_source(instances, "/World/envs/env_2/Obstacle")
-    cloner.query.path_env_ids(instances, "/World/envs/env_2/Obstacle")
+    matches = cloner.query.get_matched_sources(instances, "/World/envs/env_[^/]+/Obstacle")
+    for source_root, destination, source_path, world_ids in matches:
+        ...
 
-A concrete destination path selects its own world. A wildcard expression selects
-one representative prototype unless ``env_id`` is supplied. Use
-:func:`~isaaclab.cloner.query.iter_sources` for every instance group behind an expression.
+:func:`~isaaclab.cloner.query.get_matched_sources` returns a list of all populated
+instance groups behind the nearest matching destination declaration, not a generator.
+The existing :func:`~isaaclab.cloner.query.path_to_source` selects one representative
+prototype; a concrete path or explicit ``env_id`` selects its world.
 :func:`~isaaclab.cloner.query.path_to_clone` rejects ambiguous single-instance requests
 when a world contains the same asset more than once. The generic query module never
 imports a backend context.

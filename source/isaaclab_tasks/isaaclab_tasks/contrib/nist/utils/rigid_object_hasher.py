@@ -50,7 +50,7 @@ class RigidObjectHasher:
         if usd is not None:
             source_rows = [
                 (source_path, env_ids)
-                for _src_root, _dst_tmpl, source_path, env_ids in cloner.query.iter_sources(
+                for _src_root, _dst_tmpl, source_path, env_ids in cloner.query.get_matched_sources(
                     usd.instances, prim_path_pattern
                 )
             ]

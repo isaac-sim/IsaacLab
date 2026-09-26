@@ -35,7 +35,6 @@ from __future__ import annotations
 from dataclasses import MISSING
 from enum import Enum
 
-import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -46,7 +45,7 @@ from flaky import flaky
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov.assets import RigidObject  # noqa: E402
-from isaaclab_ov.cloner import ovphysx_replicate  # noqa: E402
+from isaaclab_ov.cloner import OvPhysxReplicateContext  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_ov.sensors import ContactSensor, ContactSensorCfg  # noqa: E402
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
@@ -612,22 +611,14 @@ def test_nested_rigid_body_hierarchy(device):
             update_period=0.0,
         )
         asset_cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot")
-        cloner.clone_plan_from_env_0(cloner.CloneCfg(), (asset_cfg, contact_sensor_cfg), num_envs, 3.0)
+        plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (asset_cfg, contact_sensor_cfg), num_envs, 3.0)
         usd = sim.clone_contexts[cloner.UsdReplicateContext]
         env_positions = usd.positions
         env_0 = UsdGeom.Xform.Define(stage, "/World/envs/env_0")
         env_0.AddTranslateOp().Set(Gf.Vec3d(*env_positions[0].tolist()))
         _author_nested_chain("/World/envs/env_0/Robot")
 
-        sources, destinations, mapping = cloner.query.replication_mapping(usd.instances, num_envs, (0,))
-        ovphysx_replicate(
-            stage,
-            sources,
-            destinations,
-            np.arange(num_envs),
-            mapping,
-            positions=env_positions,
-        )
+        sim.clone_contexts[OvPhysxReplicateContext].replicate(plan, (0,))
         contact_sensor = ContactSensor(contact_sensor_cfg)
         sim.reset()
 

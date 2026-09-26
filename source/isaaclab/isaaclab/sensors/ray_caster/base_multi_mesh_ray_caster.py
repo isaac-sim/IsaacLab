@@ -209,7 +209,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         if instances and target_cfg.track_mesh_transforms:
             plan_tracked_target_exprs: list[str] = []
             prim_expr = target_cfg.prim_expr
-            for source_root, destination_template, source_path, env_ids in cloner.query.iter_sources(
+            for source_root, destination_template, source_path, env_ids in cloner.query.get_matched_sources(
                 instances, prim_expr
             ):
                 target_in_plan = True

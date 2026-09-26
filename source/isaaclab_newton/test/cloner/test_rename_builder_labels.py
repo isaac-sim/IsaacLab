@@ -357,16 +357,16 @@ class TestVisualizationClonePlan(unittest.TestCase):
         cloth.CreatePointsAttr(vertices)
         cloth.CreateFaceVertexCountsAttr([3])
         cloth.CreateFaceVertexIndicesAttr([0, 1, 2])
-        sources, destinations = (path,), ("/Scene/copy_{}/Parent/Cloth",)
-        env_ids, mapping = np.array([7, 9, 12]), np.array([[1, 0, 1]], dtype=np.bool_)
+        instances = ((0, path, "/Scene/copy_{}/Parent/Cloth", np.array([0, 2])),)
+        env_ids = np.array([7, 9, 12])
         positions = np.array([[10, 0, 0], [20, 0, 0], [30, 0, 0]], dtype=np.float32)
-        prototypes = deformable_prototypes(stage, sources, destinations)
+        prototypes = deformable_prototypes(stage, instances)
         for positions in (positions, None):
             with self.subTest(positions=positions):
                 builder = newton.ModelBuilder()
                 offsets = visualization_deformables_module.add_shadow_deformables_to_builder(
                     builder,
-                    expand_deformable_entries(prototypes, sources, destinations, env_ids, mapping, positions),
+                    expand_deformable_entries(prototypes, instances, env_ids, positions),
                 )
                 self.assertEqual(offsets, {path: 0, "/Scene/copy_12/Parent/Cloth": 3})
                 self.assertFalse(stage.GetPrimAtPath("/Scene/copy_12"))
@@ -390,14 +390,15 @@ class TestVisualizationClonePlan(unittest.TestCase):
             )
             for name, count in (("A", 3), ("B", 6))
         )
-        sources = tuple(entry.root_path for entry in entries)
-        destinations = ("/Copies/{}/Body",) * 2
+        instances = (
+            (0, entries[0].root_path, "/Copies/{}/Body", np.array([0, 2])),
+            (1, entries[1].root_path, "/Copies/{}/Body", np.array([1])),
+        )
         env_ids = np.array([2, 10, 30])
-        mapping = np.array([[1, 0, 1], [0, 1, 0]], dtype=np.bool_)
         builder = newton.ModelBuilder()
         builder.add_particle(pos=wp.vec3(), vel=wp.vec3(), mass=1.0)
         offsets = visualization_deformables_module.add_shadow_deformables_to_builder(
-            builder, expand_deformable_entries(entries, sources, destinations, env_ids, mapping)
+            builder, expand_deformable_entries(entries, instances, env_ids)
         )
         self.assertEqual(
             offsets, {"/Copies/2/Body/Visual": 1, "/Copies/30/Body/Visual": 4, "/Copies/10/Body/Visual": 7}

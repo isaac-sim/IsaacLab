@@ -229,15 +229,15 @@ def test_path_to_source_selects_the_declared_variant():
     assert cloner.query.path_to_source(instances, "/World/envs/env_[^/]+/Object/Body/Camera", env_id=3) is None
 
 
-def test_iter_sources_yields_populated_variants():
-    """Yield each active prototype with only the environments selecting it."""
+def test_get_matched_sources_returns_populated_variants():
+    """Return each active prototype with only the environments selecting it."""
     instances = _instances(
         ("/World/envs/env_{}/Object",),
         [[0, 0, 1, 1]],
         [("/World/envs/env_0/Object", "/World/envs/env_1/Object", None)],
     )
 
-    matches = list(cloner.query.iter_sources(instances, "/World/envs/env_[^/]+/Object/Body/Camera"))
+    matches = cloner.query.get_matched_sources(instances, "/World/envs/env_[^/]+/Object/Body/Camera")
 
     assert matches == [
         (
@@ -255,10 +255,10 @@ def test_iter_sources_yields_populated_variants():
     ]
     absent = tuple((index, source, template, np.empty(0, dtype=np.int64)) for index, source, template, _ in instances)
     assert cloner.query.path_to_source(absent, "/World/envs/env_[^/]+/Object/Body") is None
-    assert not list(cloner.query.iter_sources(absent, "/World/envs/env_[^/]+/Object/Body"))
+    assert cloner.query.get_matched_sources(absent, "/World/envs/env_[^/]+/Object/Body") == []
 
 
-def test_iter_sources_skips_declarations_without_envs():
+def test_get_matched_sources_skips_declarations_without_envs():
     """A nearer template populating no env does not hide the populated ancestor owning the path."""
     instances = _instances(
         ("/World/envs/env_{}/Robot", "/World/envs/env_{}/Robot/wrist/Camera"),
@@ -266,7 +266,7 @@ def test_iter_sources_skips_declarations_without_envs():
         [("/World/envs/env_0/Robot",), ("/World/envs/env_0/Robot/wrist/Camera",)],
     )
 
-    assert list(cloner.query.iter_sources(instances, "/World/envs/env_[^/]+/Robot/wrist/Camera")) == [
+    assert cloner.query.get_matched_sources(instances, "/World/envs/env_[^/]+/Robot/wrist/Camera") == [
         (
             "/World/envs/env_0/Robot",
             "/World/envs/env_{}/Robot",
@@ -276,16 +276,16 @@ def test_iter_sources_skips_declarations_without_envs():
     ]
 
 
-def test_iter_sources_distinct_env_root():
+def test_get_matched_sources_distinct_env_root():
     """The destination template need not sit under the default env root."""
     instances = MAPPINGS["distinct_env_root"]
 
-    assert list(cloner.query.iter_sources(instances, "/World/scenes/[^/]+/Robot/base")) == [
+    assert cloner.query.get_matched_sources(instances, "/World/scenes/[^/]+/Robot/base") == [
         ("/World/source/Robot", "/World/scenes/{}/Robot", "/World/source/Robot/base", (0, 1))
     ]
 
 
-def test_iter_sources_ranks_variants_independently_of_env_id_width():
+def test_get_matched_sources_ranks_variants_independently_of_env_id_width():
     """Regression: a variant is not ranked out because its first env id has more digits.
 
     Specificity is the suffix below the destination template, which does not depend on the
@@ -295,7 +295,7 @@ def test_iter_sources_ranks_variants_independently_of_env_id_width():
     """
     instances = _wide_env_id_instances()
 
-    matches = list(cloner.query.iter_sources(instances, "/World/envs/env_[^/]+/Object/Body"))
+    matches = cloner.query.get_matched_sources(instances, "/World/envs/env_[^/]+/Object/Body")
 
     assert [match[0] for match in matches] == ["/World/envs/env_0/Object", "/World/envs/env_10/Object"]
     assert [match[3] for match in matches] == [tuple(range(10)), (10, 11)]
@@ -400,7 +400,7 @@ def test_query_preserves_noncontiguous_world_ids():
     assert cloner.query.path_to_clone(instances, path, 5) == "/World/envs/env_5/Robot/base"
     # World 1 is not targeted by this mapping.
     assert cloner.query.path_to_clone(instances, path, 1) is None
-    assert next(iter(cloner.query.iter_sources(instances, "/World/envs/env_[^/]+/Robot")))[3] == (2, 5)
+    assert cloner.query.get_matched_sources(instances, "/World/envs/env_[^/]+/Robot")[0][3] == (2, 5)
 
     source, _glob, suffix = cloner.query.path_to_source(instances, "/World/envs/env_5/Robot/base")
     assert source + suffix == path
@@ -443,7 +443,7 @@ def test_world_topology_preserves_repeated_assets_and_shared_world(shared_assets
         [0, len(shared_assets), *(len(shared_assets) + np.cumsum([len(world) for world in worlds]))],
     )
     per_asset = [[], []]
-    for world_prototype_id, members, world_ids in cloner.query.iter_worlds(plan):
+    for world_prototype_id, members, world_ids in cloner.query.get_world_prototypes(plan):
         expected = shared_assets if world_prototype_id == -1 else worlds[world_prototype_id]
         np.testing.assert_array_equal(members, expected)
         for world_id in world_ids:
@@ -463,7 +463,7 @@ def test_world_topology_weights_empty_worlds_and_invalid_membership():
     assets = object(), object()
     plan = make_clone_plan(assets, ((0,), (), (1, 1)), 6, weights=(1, 0, 2))
     np.testing.assert_array_equal(plan.destinations, [0, 0, 2, 2, 2, 2])
-    assert len(tuple(cloner.query.iter_worlds(plan))[2][2]) == 0
+    assert len(cloner.query.get_world_prototypes(plan)[2][2]) == 0
     empty = make_clone_plan((), ((),), 3)
     np.testing.assert_array_equal(empty.world_prototype_starts, [0, 0, 0])
     np.testing.assert_array_equal(empty.destinations, [0, 0, 0])

@@ -637,7 +637,7 @@ class mesh_clearance(ManagerTermBase):
         env_object_mesh = np.zeros(env.num_envs, dtype=np.int32)
         mesh_by_path: dict[str, int] = {}
         usd = sim_utils.SimulationContext.instance().clone_contexts[cloner.UsdReplicateContext]
-        for _, _, source_path, env_ids in cloner.query.iter_sources(usd.instances, self._object.cfg.prim_path):
+        for _, _, source_path, env_ids in cloner.query.get_matched_sources(usd.instances, self._object.cfg.prim_path):
             if source_path not in mesh_by_path:
                 object_prim = sim_utils.get_current_stage().GetPrimAtPath(source_path)
                 object_mesh_by_id = collect_collision_meshes(object_prim, lambda prim: (0, object_prim))

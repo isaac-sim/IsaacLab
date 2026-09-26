@@ -208,10 +208,14 @@ def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
     assert len(captured) == 1
     plan, replicate_physics, published = captured[0]
     assert published is plan
-    sources, destinations, mapping = cloner.query.replication_mapping(instances, len(plan.destinations))
-    assert sources == ("/World/envs/env_0/Robot", "/World/envs/env_0/RigidObj")
-    assert destinations == ("/World/envs/env_{}/Robot", "/World/envs/env_{}/RigidObj")
-    assert mapping.shape == (2, 4) and mapping.all()
+    replicated = [instance for instance in instances if len(instance[3]) and instance[3][0] != -1]
+    assert tuple(source for _, source, _, _ in replicated) == ("/World/envs/env_0/Robot", "/World/envs/env_0/RigidObj")
+    assert tuple(template for _, _, template, _ in replicated) == (
+        "/World/envs/env_{}/Robot",
+        "/World/envs/env_{}/RigidObj",
+    )
+    for _, _, _, world_ids in replicated:
+        np.testing.assert_array_equal(world_ids, np.arange(4))
     assert replicate_physics is True
 
 
@@ -235,7 +239,7 @@ def test_scene_constructs_plan_owned_markers():
 
         assert isinstance(scene["goal"], VisualizationMarkers)
         plan = sim.get_clone_plan()
-        _, shared, worlds = next(cloner.query.iter_worlds(plan))
+        _, shared, worlds = cloner.query.get_world_prototypes(plan)[0]
         assert tuple(plan.asset_prototypes[index].prim_path for index in shared) == (
             "/Visuals/Goal",
             "/World/Prop",

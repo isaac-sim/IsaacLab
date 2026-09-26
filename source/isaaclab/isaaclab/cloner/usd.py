@@ -13,7 +13,7 @@ import numpy as np
 from ._fabric_notices import disabled_fabric_change_notifies
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE
 from .path import match, split, under
-from .query import iter_clones, iter_worlds
+from .query import get_world_prototypes, iter_clones
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -115,7 +115,7 @@ class UsdReplicateContext:
         self.env_template = env_template
         self.positions = positions
         targets = {}
-        for world_prototype_id, asset_prototype_ids, world_ids in iter_worlds(plan):
+        for world_prototype_id, asset_prototype_ids, world_ids in get_world_prototypes(plan):
             names = set()
             for asset_prototype_id in asset_prototype_ids:
                 cfg = plan.asset_prototypes[asset_prototype_id]
