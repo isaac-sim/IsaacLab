@@ -38,7 +38,7 @@ _FLIP_TOKENS = ("_roll_", "_yaw_")
 """Name fragments whose joint turns about the roll or yaw axis and so flips sign under the mirror."""
 
 _EXPLICIT_SIGNS = {"hand_thumb_0_joint": 1.0}
-# Thumb base axes were verified geometrically; equal angles produce mirrored poses.
+# Thumb base joints retain their sign under reflection.
 
 
 def _counterpart(name: str) -> str:
@@ -208,7 +208,7 @@ def compute_symmetric_states(
 ):
     """Return each state alongside its left-right mirror image.
 
-    A biped has one symmetry, not the quadruped's four, so the batch doubles rather than quadruples.
+    The augmented batch contains the original samples followed by their reflections.
 
     Args:
         env: The environment instance.

@@ -264,7 +264,7 @@ def test_g1_sole_plate_spawn_clones_geometry_and_preserves_contact_settings(tmp_
             transform = plate.GetLocalTransformation()
             low = transform.Transform(Gf.Vec3d(-0.5))
             high = transform.Transform(Gf.Vec3d(0.5))
-            # Bounds of the independently measured a1 sole used for candidate training [m].
+            # Expected sole bounds in the ankle frame [m].
             assert tuple(low) == pytest.approx((-0.06563756, -0.03273462, -0.03442401), abs=1e-8)
             assert tuple(high) == pytest.approx((0.13747166, 0.03273462, -0.01591613), abs=1e-8)
             assert not plate.GetPrim().GetAttribute("physxCollision:restOffset").HasAuthoredValueOpinion()

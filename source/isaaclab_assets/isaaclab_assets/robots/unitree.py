@@ -426,11 +426,9 @@ def spawn_g1_with_sole_plates(
     orientation: tuple[float, float, float, float] | None = None,
     **kwargs,
 ) -> Usd.Prim:
-    """Load G1 and replace its foot collision groups with the trained sole boxes.
+    """Load G1 with sole collision boxes before cloning.
 
-    The outer clone decorator copies the completed geometry to every matching environment.
-    Only collision geometry is authored here; contact margins and rest offsets retain their
-    existing settings. The articulation, inertias, and joints come from the supplied USD.
+    Only foot collision geometry is replaced; other USD properties are preserved.
 
     Args:
         prim_path: Robot prim path or expression matching multiple environment parents.
@@ -444,7 +442,6 @@ def spawn_g1_with_sole_plates(
     """
     from pxr import Gf, UsdGeom, UsdPhysics
 
-    # The inner spawner receives one resolved path, so geometry is complete before outer cloning.
     prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
     stage = prim.GetStage()
     paths = [prim.GetPath().AppendPath(f"{side}_ankle_roll_link") for side in ("left", "right")]
@@ -456,7 +453,6 @@ def spawn_g1_with_sole_plates(
         plate.CreateSizeAttr(1.0)
         UsdPhysics.CollisionAPI.Apply(plate.GetPrim())
         plate.ClearXformOpOrder()
-        # Sole dimensions and placement used by the velocity policies [m].
         plate.AddTranslateOp(precision=UsdGeom.XformOp.PrecisionFloat).Set(
             Gf.Vec3f(0.0359170487, 2.22044605e-16, -0.0251700647)
         )
@@ -516,11 +512,7 @@ G1_29DOF_VELOCITY_CFG = G1_CFG.replace(
         ),
     },
 )
-"""G1 locomotion configuration with sole boxes and passive Dex3 fingers.
-
-The authored masses, inertias, joint limits, contact margins and rest offsets are preserved.
-Policies control the 29 body joints; the 14 finger joints remain in the articulation.
-"""
+"""G1 locomotion configuration with 29 controlled body joints, sole boxes, and passive Dex3 fingers."""
 
 
 G1_29DOF_CFG = ArticulationCfg(

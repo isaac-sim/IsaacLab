@@ -61,10 +61,8 @@ def pelvis_below_terrain_clearance_after_warmup(
 ) -> torch.Tensor:
     """Terminate below local-terrain ``minimum_height`` [m] after ``warmup_steps`` environment steps.
 
-    The warmup uses the global environment step counter, so episode resets do not
-    restart it. This lets the policy learn to stand before enforcing the height floor.
-    The reference is the median of the nine valid scan hits horizontally nearest the
-    root, matching the height reward. It approximates nearby terrain, not foot contact height.
+    Episode resets do not restart the warmup. Ground height uses the same local
+    scan estimate as :func:`pelvis_height_deficit_l2`.
     """
     if env.common_step_counter < warmup_steps:
         return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)

@@ -102,7 +102,7 @@ class G1Rewards(RewardsCfg):
 
 @configclass
 class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
-    """Rough velocity tracking with 29 body actions and passive finger joints."""
+    """Configuration for the Unitree G1 velocity-tracking environment on rough terrain."""
 
     rewards: G1Rewards = G1Rewards()
 
@@ -114,7 +114,7 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # scene
         self.scene.robot = G1_29DOF_VELOCITY_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
-        # Body-only actions and joint observations retain the articulation's joint order.
+        # actions and observations
         self.actions.joint_pos.scale = {
             ".*_hip_yaw_joint": 0.1467,
             ".*_hip_roll_joint": 0.1467,
@@ -155,7 +155,7 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.rewards.dof_torques_l2.params["asset_cfg"] = SceneEntityCfg(
             "robot", joint_names=[".*_hip_.*", ".*_knee_joint", ".*_ankle_.*"]
         )
-        # Enforce terrain-relative standing height after 500 PPO rollout iterations.
+        # terminations
         self.terminations.base_height = DoneTerm(
             func=mdp.pelvis_below_terrain_clearance_after_warmup,
             params={
@@ -165,7 +165,6 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
                 "sensor_cfg": SceneEntityCfg("height_scanner"),
             },
         )
-        # terminations
         self.terminations.base_contact.params["sensor_cfg"].body_names = "torso_link"
         # events
         self.events.add_base_mass.params["asset_cfg"].body_names = "torso_link"

@@ -15,14 +15,16 @@ from .rough_env_cfg import G1RoughEnvCfg
 
 @configclass
 class G1FlatEnvCfg(G1RoughEnvCfg):
-    """Plane-terrain G1 walking with the same 29-action, 286-observation interface."""
+    """Configuration for the Unitree G1 velocity-tracking environment on flat terrain."""
 
     def __post_init__(self):
         super().__post_init__()
+
+        # scene
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
         self.curriculum.terrain_levels = None
-        # Retain the height scanner for the observation and terrain-relative height terms.
+        # rewards
         self.rewards.track_lin_vel_xy_exp.weight = 1.0
         self.rewards.lin_vel_z_l2.weight = -2.0
         self.rewards.joint_deviation_arms.weight = -0.1

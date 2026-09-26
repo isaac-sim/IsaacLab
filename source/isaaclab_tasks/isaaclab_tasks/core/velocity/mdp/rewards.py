@@ -187,7 +187,7 @@ def _pelvis_clearance(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, sensor_
     distance_sq = (hits[..., :2] - root_pos[:, None, :2]).square().sum(dim=-1)
     nearest = distance_sq.masked_fill(~valid, float("inf")).topk(min(9, hits.shape[1]), largest=False).indices
     heights = hits[..., 2].masked_fill(~valid, float("nan")).gather(1, nearest)
-    # Retain the zero-height fallback if every ray misses the terrain.
+    # Use zero ground height if every ray misses.
     ground = torch.nan_to_num(heights.nanmedian(dim=1).values, nan=0.0)
     return root_pos[:, 2] - ground
 
@@ -197,18 +197,14 @@ def pelvis_height_deficit_l2(
 ) -> torch.Tensor:
     """Penalize squared local-terrain height shortfall below ``target_height`` [m].
 
-    The nine valid scan hits nearest the root in the horizontal plane define the
-    reference height (roughly a 0.2 x 0.2 m patch on the default 0.1 m grid). This is
-    a local posture heuristic, not a support-foot measurement. Heights above the
-    target incur no penalty.
+    Ground height is the median of the nine nearest valid hits in world XY,
+    approximating local terrain rather than foot contact height. Heights above
+    the target incur no penalty.
     """
     return torch.clamp(target_height - _pelvis_clearance(env, asset_cfg, sensor_cfg), min=0.0).square()
 
 
 def feet_flight(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Return one when both selected feet are airborne, otherwise zero.
-
-    Single-foot swings and double support incur no penalty.
-    """
+    """Return one when both selected feet are airborne, otherwise zero."""
     air_time = env.scene.sensors[sensor_cfg.name].data.current_air_time.torch[:, sensor_cfg.body_ids]
     return torch.all(air_time > 0.0, dim=-1).float()
