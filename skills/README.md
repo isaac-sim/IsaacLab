@@ -17,9 +17,10 @@ User skills:
 - `user/migrate-from-isaac-gym/`: migrate Isaac Gym tasks, assets, and training workflows to Isaac Lab.
 - `user/migrate-2x-to-3x/`: migrate Isaac Lab 2.x projects to Isaac Lab 3.0 using the official migration guide.
 - `user/domain-randomization-events/`: implement fixed and adaptive domain randomization through event and curriculum terms.
-- `user/create-environments/`: create manager-based Isaac Lab environments by default, with direct environments for special cases.
+- `user/isaaclab-building-environments/`: create manager-based Isaac Lab environments by default, with direct environments for special cases.
 - `user/convert-direct-to-manager/`: convert validated direct Isaac Lab environments into manager-based task configurations.
 - `user/train-rl-agents/`: configure and run Isaac Lab reinforcement learning workflows.
+- `user/train-multi-gpu/`: launch and debug multi-GPU and multi-node RL training, including NCCL hangs and collective failures.
 - `user/debug-rl-training/`: diagnose RL rewards, task metrics, checkpoint compatibility, and training experiments.
 - `user/plan-manipulation-tasks/`: stage manipulation tasks through scene, reset, action, reward, and behavior gates.
 - `user/use-sensors-actuators/`: add sensors, sensor observations, and actuator models to tasks.
@@ -28,7 +29,7 @@ User skills:
 - `user/use-presets/`: define and use preset configurations for multi-backend and variant-rich tasks.
 - `user/prepare-assets-for-newton/`: prepare assets for Newton and migrate PhysX-authored assets without losing their physical contract.
 - `user/isaaclab-transferring-policies-sim-to-sim/`: validate bidirectional PhysX/Newton policy transfer and diagnose transfer gaps.
-- `user/setup-troubleshooting/`: route installation, verification, and setup issues to official docs and canonical commands.
+- `_internal/setup-troubleshooting/`: route installation, verification, and setup issues to official docs and canonical commands.
 
 Planned user skills:
 

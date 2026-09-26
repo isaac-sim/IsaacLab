@@ -1,0 +1,63 @@
+{
+  "skill_name": "isaaclab-training-multi-gpu",
+  "evals": [
+    {
+      "id": "isaaclab-training-multi-gpu-001",
+      "prompt": "How do I train Isaac-Cartpole across all my GPUs?",
+      "expected_output": "Uses uv run isaaclab train_multigpu with --rl_library and the suffixless task name, and suggests confirming the single-GPU run first.",
+      "assertions": [
+        "The agent identified isaaclab-training-multi-gpu as the primary skill without being told its name",
+        "Uses uv run isaaclab train_multigpu with --rl_library and the suffixless task name",
+        "Explains that --num_gpus gpu uses every visible device",
+        "Suggests confirming the single-GPU run first",
+        "Does not hand-write a torchrun invocation instead of using the supported launcher",
+        "Does not add --distributed manually",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-training-multi-gpu",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-training-multi-gpu-002",
+      "prompt": "My 2-GPU training run just hangs after 'Synchronizing parameters' and never prints anything else.",
+      "expected_output": "Identifies a stalled NCCL collective, bisects outward-in, and proposes NCCL_P2P_DISABLE=1 as a targeted test.",
+      "assertions": [
+        "The agent identified isaaclab-training-multi-gpu as the primary skill without being told its name",
+        "Identifies the signature as a stalled NCCL collective, not a task bug",
+        "Bisects outward-in: retries at a different world size, then bypasses train_multigpu with plain torchrun",
+        "Checks nvidia-smi topo -m for NVLink topology",
+        "Proposes NCCL_P2P_DISABLE=1 as a targeted test after establishing where the stall occurs",
+        "Does not blame Isaac Lab or the RL library without reproducing outside them",
+        "Does not apply several NCCL variables at once",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-training-multi-gpu",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-training-multi-gpu-003",
+      "prompt": "NCCL_P2P_DISABLE=1 fixed my hang. Should I add it to the repo so nobody else hits this?",
+      "expected_output": "Explains the variable is machine-specific, recommends scoping it to the affected machine, and points to docs for documenting confirmed workarounds.",
+      "assertions": [
+        "The agent identified isaaclab-training-multi-gpu as the primary skill without being told its name",
+        "Explains that the variable is machine-specific and can reduce inter-GPU bandwidth",
+        "Recommends scoping it to the affected machine rather than committing to shared configs",
+        "Does not add the variable to a committed script or config that runs on unaffected hardware",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-training-multi-gpu",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-training-multi-gpu-neg-001",
+      "prompt": "Apply random pushes to the robot during training.",
+      "expected_output": "Adds an interval-mode event term, not multi-GPU training configuration.",
+      "assertions": [
+        "The agent did not use isaaclab-training-multi-gpu as the primary skill",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": null,
+      "expected_script": null
+    }
+  ]
+}

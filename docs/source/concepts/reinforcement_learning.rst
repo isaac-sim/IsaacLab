@@ -534,9 +534,9 @@ Next steps
 
    This page is the source of truth for the ``isaaclab-training-rl-agents`` and
    ``isaaclab-debugging-rl-training`` agent skills
-   (`skills/user/train-rl-agents/
-   <../../../skills/user/train-rl-agents/SKILL.md>`__,
-   `skills/user/debug-rl-training/
-   <../../../skills/user/debug-rl-training/SKILL.md>`__). When you change this
+   (`skills/user/isaaclab-training-rl-agents/
+   <../../../skills/user/isaaclab-training-rl-agents/SKILL.md>`__,
+   `skills/user/isaaclab-debugging-rl-training/
+   <../../../skills/user/isaaclab-debugging-rl-training/SKILL.md>`__). When you change this
    page, update those skills so their guidance stays in sync. See
    :doc:`/source/developer-tools/agent_skills`.
