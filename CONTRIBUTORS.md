@@ -167,6 +167,7 @@ Guidelines for modifications:
 * Oyindamola Omotuyi
 * Özhan Özen
 * Patrick Yin
+* Patrick-SCH03
 * Paul Reeves
 * Peter Du
 * Peter Verswyvelen
