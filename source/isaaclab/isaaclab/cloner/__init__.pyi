@@ -21,6 +21,7 @@ __all__ = [
     "random",
     "ReplicateSession",
     "replicate",
+    "round_robin",
     "sequential",
     "UsdReplicateContext",
     "usd_replicate",
@@ -37,7 +38,7 @@ from .clone_plan import (
     num_spawn_variants,
 )
 from .cloner_cfg import CloneCfg, InclusionSet, add, expand_env_regex_ns
-from .cloner_strategies import random, sequential
+from .cloner_strategies import random, round_robin, sequential
 from .collision_filter import filter_collisions
 from .replicate_session import ReplicateSession, replicate
 from .usd import (

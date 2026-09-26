@@ -7,8 +7,8 @@
 
 The scene declares a bin layout as a clone combination on its
 :class:`~isaaclab.cloner.CloneCfg`, and the replication pipeline then spawns
-only the assets named by each combination, cycling environments through the
-declared layouts. Instead of listing those assets by hand, this script defines
+only the assets named by each combination, assigning consecutive environments to
+each declared layout. Instead of listing those assets by hand, this script defines
 its own combination set, ``RandomSubsetSet``, which draws a random subset of
 the grocery slots: the cloner only reads ``assets`` and ``weight`` off a
 combination, so any subclass of :class:`~isaaclab.cloner.InclusionSet` that
@@ -80,7 +80,7 @@ if TYPE_CHECKING:
 # Layout and spawn counts.
 MAX_OBJECTS_PER_BIN = 24  # Maximum active objects we plan to fit inside the bin.
 MIN_OBJECTS_PER_BIN = 1  # Lower bound for randomized active object count.
-NUM_LAYOUTS = 16  # Number of distinct bin layouts declared; environments cycle through them.
+NUM_LAYOUTS = 16  # Number of distinct bin layouts assigned to consecutive environment blocks.
 NUM_OBJECTS_PER_LAYER = 4  # Number of groceries spawned on each layer of the active stack.
 ACTIVE_LAYER_SPACING = 0.1  # Vertical spacing (m) between layers inside the bin.
 BIN_DIMENSIONS = (0.2, 0.3, 0.15)  # Physical size (m) of the storage bin.
@@ -278,8 +278,8 @@ class BinPackingSceneCfg(InteractiveSceneCfg):
     grocery_23: AssetBaseCfg = grocery_cfg(23)
 
     # A slot claimed by some layout but active in none of the layouts the environments
-    # actually receive is never spawned, which the scene rejects. Environments cycle
-    # through the layouts in order, so a full first layout keeps every slot active for
+    # actually receive is never spawned, which the scene rejects. The first declared
+    # layout always receives environments, so filling it keeps every slot active for
     # any ``--num_envs``, and the random draws below stay unconstrained.
     clone_cfg: CloneCfg = CloneCfg(
         clone_combinations=[

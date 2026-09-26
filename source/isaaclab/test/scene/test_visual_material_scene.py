@@ -109,7 +109,8 @@ def Xform "Robot"
         for env_id in range(scene.num_envs):
             for cloned_material in ("warm", "cool"):
                 assert scene.stage.GetPrimAtPath(f"/World/envs/env_{env_id}/Robot/{cloned_material}").IsValid()
-            material_name = ("warm", "cool", None)[env_id % 3]
+            variant = scene.clone_plan.clone_mask[:, env_id].nonzero()[0].item()
+            material_name = ("warm", "cool", None)[variant]
             material_path = (
                 "/World/shared" if material_name is None else f"/World/envs/env_{env_id}/Robot/{material_name}"
             )

@@ -27,21 +27,21 @@ from isaaclab.cloner import (
     ClonePlan,
     _fabric_notices,
     disabled_fabric_change_notifies,
-    sequential,
+    round_robin,
     usd_replicate,
 )
 from isaaclab.sim import build_simulation_context
 
 
 def _make_flat_clone_plan(num_variants: int, num_clones: int, destination: str):
-    """Build a flat (sources, destinations, clone_mask) tuple for tests using sequential mapping.
+    """Build a flat (sources, destinations, clone_mask) tuple for interleaved test variants.
 
     The PhysX test_cloner tests intentionally bypass cfg-driven planning and exercise
     physx_replicate / usd_replicate against a hand-built per-variant mask. This helper
     captures the small amount of flat-plan logic the tests need without re-introducing
     the legacy ``make_clone_plan(sources, destinations, num_clones, ...)`` signature.
     """
-    chosen = sequential(np.arange(num_variants, dtype=np.int64)[:, None], num_clones).reshape(-1)
+    chosen = round_robin(np.arange(num_variants, dtype=np.int64)[:, None], num_clones).reshape(-1)
     mask = np.zeros((num_variants, num_clones), dtype=np.bool_)
     mask[chosen, np.arange(num_clones)] = True
     sources = tuple(destination.format(i) for i in range(num_variants))

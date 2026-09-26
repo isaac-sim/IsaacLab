@@ -14,11 +14,12 @@ from pxr import Usd, UsdGeom
 
 import isaaclab.cloner.clone_plan as clone_plan
 import isaaclab.cloner.replicate_session as replicate_session
+from isaaclab import cloner
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import CloneCfg, ClonePlan, UsdReplicateContext, clone_plan_from_env_0, make_clone_plan
 from isaaclab.renderers import RenderContext, RendererCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.sim import CuboidCfg, PinholeCameraCfg, SimulationContext
+from isaaclab.sim import CuboidCfg, MultiUsdFileCfg, PinholeCameraCfg, SimulationContext
 
 
 class _Context:
@@ -151,6 +152,31 @@ def test_make_clone_plan_rejects_non_integer_combinations(valid_set):
 
     with pytest.raises(ValueError, match="integer prototype indices"):
         make_clone_plan((cfg,), 2, 1.0, valid_set=valid_set)
+
+
+@pytest.mark.parametrize("entry_point", ["planner", "config", "session"])
+def test_default_clone_strategy_groups_sources_and_queries(simulation, entry_point):
+    """Every public default assigns a variant to consecutive envs and queries use that mapping."""
+    cfg = AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot", spawn=MultiUsdFileCfg(usd_path=["a.usd", "b.usd"]))
+    if entry_point == "session":
+        with replicate_session.ReplicateSession((cfg,), 6, 1.0) as session:
+            plan = session.plan
+        assert simulation.calls == [(_Context, plan)]
+    else:
+        kwargs = {"clone_strategy": CloneCfg().clone_strategy} if entry_point == "config" else {}
+        plan = make_clone_plan((cfg,), 6, 1.0, **kwargs)
+
+    sources = ("/World/envs/env_0/Robot", "/World/envs/env_3/Robot")
+    assert plan.sources == sources
+    assert cfg.spawn.spawn_paths == list(sources)
+    assert plan.cfg_rows[id(cfg)] == (0, 1)
+    np.testing.assert_array_equal(plan.clone_mask, [[1, 1, 1, 0, 0, 0], [0, 0, 0, 1, 1, 1]])
+    for source, env_ids in zip(sources, [(0, 1, 2), (3, 4, 5)]):
+        assert cloner.query.path_env_ids(plan, source) == env_ids
+        for env_id in env_ids:
+            clone_path = f"/World/envs/env_{env_id}/Robot/link"
+            assert cloner.query.path_to_clone(plan, source + "/link", env_id) == clone_path
+            assert cloner.query.path_to_source(plan, clone_path) == (source, "/World/envs/env_[^/]+/Robot", "/link")
 
 
 def test_grid_transforms_centers_a_float32_grid():

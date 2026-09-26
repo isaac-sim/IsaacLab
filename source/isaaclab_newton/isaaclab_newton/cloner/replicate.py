@@ -241,6 +241,7 @@ def _replicate_newton(
         source_builder_added=record_source_particle_ranges
         if simulation and NewtonManager._mpm_object_registry
         else None,
+        create_builder=create_builder,
     )
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())

@@ -25,6 +25,27 @@ def random(combinations: np.ndarray, num_clones: int) -> np.ndarray:
 
 
 def sequential(combinations: np.ndarray, num_clones: int) -> np.ndarray:
+    """Group :func:`round_robin` assignments by first occurrence, preserving combination counts.
+
+    Args:
+        combinations: Prototype combinations, shape (num_combos, num_prototypes). Duplicates add weight.
+        num_clones: Number of environments.
+
+    Returns:
+        Chosen combinations, shape (num_clones, num_prototypes), with the input dtype.
+    """
+    if num_clones == 0:
+        return combinations[:0].copy()
+    _, first, inverse, counts = np.unique(
+        combinations, axis=0, return_index=True, return_inverse=True, return_counts=True
+    )
+    cycles, remainder = divmod(num_clones, len(combinations))
+    counts = cycles * counts + np.bincount(inverse[:remainder], minlength=len(counts))
+    order = np.argsort(first)
+    return np.repeat(combinations[first[order]], counts[order], axis=0)
+
+
+def round_robin(combinations: np.ndarray, num_clones: int) -> np.ndarray:
     """Deterministically assign prototypes to environments in round-robin fashion.
 
     Each environment is assigned a prototype combination based on its index modulo the

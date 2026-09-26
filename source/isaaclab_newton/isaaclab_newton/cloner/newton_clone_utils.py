@@ -282,8 +282,9 @@ def replicate_builder_mapping(
     env_root_sites: dict[str, wp.transform] | None = None,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = (),
     source_builder_added: Callable[[str, int, ModelBuilder, Sequence[float]], None] | None = None,
+    create_builder: Callable[[], ModelBuilder] | None = None,
 ) -> tuple[dict[str, list[list[int]]], list[wp.transform], list[tuple[str, int]]]:
-    """Replicate source builders, naming homogeneous copies at their destinations."""
+    """Replicate in world order, batching contiguous runs of identical source combinations."""
     source_site_indices = source_site_indices or {}
     env_root_sites = env_root_sites or {}
     num_worlds = mapping.shape[1]
@@ -379,25 +380,62 @@ def replicate_builder_mapping(
         )
         source_xforms.update(((row, col), row_xforms[index]) for index, col in enumerate(cols))
 
-    for col in range(num_worlds):
-        builder.begin_world()
+    def append_world(
+        destination_builder: ModelBuilder, world_index: int, site_indices: dict[str, list[list[int]]]
+    ) -> None:
+        destination_builder.begin_world()
         for label, world_site_xforms in root_site_xforms.items():
-            site_idx = builder.add_site(body=-1, xform=world_site_xforms[col], label=label)
-            local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col].append(site_idx)
-        for row in rows_per_world[col]:
-            source_builder = source_builders[sources[row]]
-            shape_offset = builder.shape_count
-            particle_offset = builder.particle_count if source_builder_added is not None else 0
-            builder.add_builder(source_builder, xform=source_xforms[row, col])
+            site_idx = destination_builder.add_site(body=-1, xform=world_site_xforms[world_index], label=label)
+            site_indices.setdefault(label, [[] for _ in range(num_worlds)])[world_index].append(site_idx)
+        for source_row in rows_per_world[world_index]:
+            source_builder = source_builders[sources[source_row]]
+            shape_offset = destination_builder.shape_count
+            particle_offset = destination_builder.particle_count if source_builder_added is not None else 0
+            destination_builder.add_builder(source_builder, xform=source_xforms[source_row, world_index])
             if source_builder_added is not None:
-                source_builder_added(sources[row], particle_offset, source_builder, source_xforms[row, col])
+                source_builder_added(
+                    sources[source_row], particle_offset, source_builder, source_xforms[source_row, world_index]
+                )
 
             for label, source_shape_indices in source_site_indices.get(id(source_builder), {}).items():
-                local_indices = local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col]
+                local_indices = site_indices.setdefault(label, [[] for _ in range(num_worlds)])[world_index]
                 local_indices.extend(shape_offset + shape_idx for shape_idx in source_shape_indices)
         for hook in per_world_builder_hooks:
-            hook(builder, col, xforms_np[col, :3].copy(), xforms_np[col, 3:].copy())
-        builder.end_world()
+            hook(destination_builder, world_index, xforms_np[world_index, :3].copy(), xforms_np[world_index, 3:].copy())
+        destination_builder.end_world()
+
+    can_batch_runs = (
+        create_builder is not None
+        and not per_world_builder_hooks
+        and source_builder_added is None
+        # Particle replication currently applies translations only; composing two
+        # placements would not preserve the original source-to-world transform.
+        and not any(source.particle_count for source in source_builders.values())
+    )
+    boundaries = np.concatenate(
+        ([0], np.flatnonzero(np.any(mapping[:, 1:] != mapping[:, :-1], axis=0)) + 1, [num_worlds])
+    )
+    for run_start, run_end in zip(boundaries[:-1], boundaries[1:], strict=True):
+        if not can_batch_runs or run_end - run_start < 2:
+            for world_index in range(run_start, run_end):
+                append_world(builder, world_index, local_site_map)
+            continue
+        single_world_builder = create_builder()
+        single_world_builder.gravity = builder.gravity
+        single_world_site_indices: dict[str, list[list[int]]] = {}
+        append_world(single_world_builder, run_start, single_world_site_indices)
+        # add_builder() updates world gravity; replicate() reads the builder default.
+        single_world_builder.gravity = single_world_builder.world_gravity[0]
+        base_shape = builder.shape_count
+        xforms = _compose_world_xforms(
+            positions[run_start:run_end], quaternions[run_start:run_end], _invert_xform(xforms_np[run_start])
+        )
+        builder.replicate(single_world_builder, int(run_end - run_start), xforms=xforms)
+        for label, site_indices_by_world in single_world_site_indices.items():
+            sites = local_site_map.setdefault(label, [[] for _ in range(num_worlds)])
+            for world_index in range(run_start, run_end):
+                offset = base_shape + (world_index - run_start) * single_world_builder.shape_count
+                sites[world_index].extend(offset + index for index in site_indices_by_world[run_start])
 
     bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping) if destinations else []
     return local_site_map, world_xforms, bindings
@@ -443,7 +481,7 @@ def rename_builder_labels(
                         bound_body_indices.add(index)
 
         if not skip_entity_labels:
-            for name, labels in vars(builder).items():
+            for name, labels in list(vars(builder).items()):
                 worlds = getattr(builder, f"{name[:-6]}_world", None) if name.endswith("_label") else None
                 if isinstance(labels, list) and worlds is not None:
                     _rename_pair(labels, worlds, collect_body_bindings=name == "body_label")

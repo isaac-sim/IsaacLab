@@ -296,8 +296,7 @@ def make_clone_plan(
         num_clones: Number of target envs.
         env_spacing: Distance between neighboring grid env origins [m].
         global_paths: Complete shared-asset roots declared by the scene composition root. Defaults to none.
-        clone_strategy: Function that assigns prototype combinations to envs. Defaults
-            to :func:`~isaaclab.cloner.sequential`.
+        clone_strategy: Prototype-to-env assignment function. Defaults to :func:`~isaaclab.cloner.sequential`.
         valid_set: Optional ``[num_combos, num_groups]`` integer array of valid prototype
             combinations. ``None`` (default) uses the full cartesian product of every
             group's prototype indices.

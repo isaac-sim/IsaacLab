@@ -12,12 +12,49 @@ simulator and no USD, so they live outside ``test/sim/``.
 
 import subprocess
 import sys
+from collections import Counter
 
 import numpy as np
 import pytest
 
 from isaaclab import cloner
 from isaaclab.cloner import ClonePlan
+
+
+@pytest.mark.parametrize("num_clones", [0, 1, 2, 3, 4, 6, 9])
+def test_clone_strategies_preserve_weighted_counts_and_order(num_clones):
+    """Grouping changes ordering only, including duplicate weights and incomplete cycles."""
+    combinations = np.asarray([[2, 0], [0, 1], [2, 0], [-1, 1]], dtype=np.int32)
+    expected_round_robin = np.asarray(
+        [combinations[index % len(combinations)] for index in range(num_clones)], dtype=combinations.dtype
+    ).reshape(num_clones, combinations.shape[1])
+
+    np.testing.assert_array_equal(cloner.round_robin(combinations, num_clones), expected_round_robin)
+    grouped = cloner.sequential(combinations, num_clones)
+
+    assert grouped.shape == (num_clones, combinations.shape[1])
+    assert grouped.dtype == combinations.dtype
+    assert Counter(map(tuple, grouped)) == Counter(map(tuple, expected_round_robin))
+    # First occurrences, rather than sorted variant indices, determine the block order.
+    expected_order = list(dict.fromkeys(map(tuple, expected_round_robin)))
+    block_starts = [tuple(row) for index, row in enumerate(grouped) if index == 0 or np.any(row != grouped[index - 1])]
+    assert block_starts == expected_order
+
+
+@pytest.mark.parametrize("num_clones", [2, 7, 11])
+def test_sequential_preserves_inclusion_set_weights(num_clones):
+    """Weighted inclusion sets retain their multiplicities after grouping combinations."""
+    combinations = cloner.make_valid_clone_combinations(
+        ("A", "B"),
+        (1, 1),
+        (cloner.InclusionSet(assets=["A"], weight=2), cloner.InclusionSet(assets=["B"], weight=1)),
+    )
+    grouped = cloner.sequential(combinations, num_clones)
+    num_b = num_clones // 3
+    expected = [[0, -1]] * (num_clones - num_b) + [[-1, 0]] * num_b
+
+    np.testing.assert_array_equal(grouped, expected)
+
 
 ##
 # Path primitives.

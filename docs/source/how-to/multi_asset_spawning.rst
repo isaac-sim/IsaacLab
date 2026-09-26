@@ -77,14 +77,19 @@ For configuration-based assets, assign :class:`~sim.spawners.wrappers.MultiAsset
    :dedent: 4
 
 The ``assets_cfg`` list defines the prototypes available to the clone plan. Variant assignment is controlled by
-:attr:`~cloner.CloneCfg.clone_strategy`; the default :func:`~cloner.sequential` strategy assigns combinations in
-round-robin order. To sample combinations randomly instead, set the strategy before constructing the scene:
+:attr:`~cloner.CloneCfg.clone_strategy`; the default :func:`~cloner.sequential` strategy places identical combinations
+in consecutive environments, such as ``A A A B B B``. It preserves the exact counts of the previous round-robin
+default, including weighted combinations and incomplete cycles, but changes which environment IDs receive each
+combination. To retain the previous ``A B A B A B`` ordering, set the strategy before constructing the scene:
 
 .. code-block:: python
 
    from isaaclab import cloner
 
-   scene_cfg.clone_cfg.clone_strategy = cloner.random
+   scene_cfg.clone_cfg.clone_strategy = cloner.round_robin
+
+``sequential`` previously alternated combinations; use ``round_robin`` for that behavior.
+Set ``scene_cfg.clone_cfg.clone_strategy = cloner.random`` to sample combinations randomly.
 
 For USD assets, assign :class:`~sim.spawners.wrappers.MultiUsdFileCfg` to the
 :class:`~assets.ArticulationCfg` spawn configuration:
