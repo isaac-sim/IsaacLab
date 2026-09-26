@@ -219,26 +219,13 @@ def convert_quat(quat: torch.Tensor | np.ndarray, to: Literal["xyzw", "wxyz"] = 
     if to not in ["xyzw", "wxyz"]:
         msg = f"Expected input argument `to` to be 'xyzw' or 'wxyz'. Received: {to}."
         raise ValueError(msg)
-    # check if input is numpy array (we support this backend since some classes use numpy)
+    # wxyz -> xyzw moves the leading w to the end; xyzw -> wxyz moves the trailing w to the front
+    shift = -1 if to == "xyzw" else 1
     if isinstance(quat, np.ndarray):
-        # use numpy functions
-        if to == "xyzw":
-            # wxyz -> xyzw
-            return np.roll(quat, -1, axis=-1)
-        else:
-            # xyzw -> wxyz
-            return np.roll(quat, 1, axis=-1)
-    else:
-        # convert to torch (sanity check)
-        if not isinstance(quat, torch.Tensor):
-            quat = torch.tensor(quat, dtype=float)
-        # convert to specified quaternion type
-        if to == "xyzw":
-            # wxyz -> xyzw
-            return quat.roll(-1, dims=-1)
-        else:
-            # xyzw -> wxyz
-            return quat.roll(1, dims=-1)
+        return np.roll(quat, shift, axis=-1)
+    if not isinstance(quat, torch.Tensor):
+        quat = torch.tensor(quat, dtype=float)
+    return quat.roll(shift, dims=-1)
 
 
 @torch.jit.script
@@ -982,12 +969,11 @@ def apply_delta_pose(
     # interpret delta_pose[:, 3:6] as target rotation displacements
     rot_actions = delta_pose[:, 3:6]
     angle = torch.linalg.vector_norm(rot_actions, dim=1)
-    axis = rot_actions / angle.unsqueeze(-1)
+    # Keep the unselected branch finite for autograd at zero rotation.
+    axis = rot_actions / angle.clamp_min(eps).unsqueeze(-1)
     # change from axis-angle to quat convention (xyzw format: identity is [0, 0, 0, 1])
     identity_quat = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device).repeat(num_poses, 1)
-    rot_delta_quat = torch.where(
-        angle.unsqueeze(-1).repeat(1, 4) > eps, quat_from_angle_axis(angle, axis), identity_quat
-    )
+    rot_delta_quat = torch.where(angle.unsqueeze(-1) > eps, quat_from_angle_axis(angle, axis), identity_quat)
     # TODO: Check if this is the correct order for this multiplication.
     target_rot = quat_mul(rot_delta_quat, source_rot)
 
@@ -1451,20 +1437,22 @@ def sample_gaussian(
     """Sample using gaussian distribution.
 
     Args:
-        mean: Mean of the gaussian.
-        std: Std of the gaussian.
+        mean: Mean of the gaussian. Must be broadcastable to :attr:`size`.
+        std: Non-negative standard deviation. Must be broadcastable to :attr:`size`.
         size: The shape of the tensor.
-        device: Device to create tensor on.
+        device: Device on which to generate the samples.
 
     Returns:
-        Sampled tensor.
+        Independently sampled tensor with shape :attr:`size`.
+
+    Raises:
+        RuntimeError: If either parameter cannot expand to :attr:`size`, or a standard deviation is negative.
     """
-    if isinstance(mean, float):
-        if isinstance(size, int):
-            size = (size,)
-        return torch.normal(mean=mean, std=std, size=size).to(device=device)
-    else:
-        return torch.normal(mean=mean, std=std).to(device=device)
+    if isinstance(size, int):
+        size = (size,)
+    mean = torch.as_tensor(mean, device=device).expand(size)
+    std = torch.as_tensor(std, device=device).expand(size)
+    return torch.normal(mean=mean, std=std)
 
 
 def sample_cylinder(
@@ -1641,12 +1629,10 @@ def create_rotation_matrix_from_view(
     Reference:
     Based on PyTorch3D (https://github.com/facebookresearch/pytorch3d/blob/eaf0709d6af0025fe94d1ee7cec454bc3054826a/pytorch3d/renderer/cameras.py#L1635-L1685)
     """
-    if up_axis == "Y":
-        up_axis_vec = torch.tensor((0, 1, 0), device=device, dtype=torch.float32).repeat(eyes.shape[0], 1)
-    elif up_axis == "Z":
-        up_axis_vec = torch.tensor((0, 0, 1), device=device, dtype=torch.float32).repeat(eyes.shape[0], 1)
-    else:
+    if up_axis not in ("Y", "Z"):
         raise ValueError(f"Invalid up axis: {up_axis}. Valid options are 'Y' and 'Z'.")
+    up = (0.0, 1.0, 0.0) if up_axis == "Y" else (0.0, 0.0, 1.0)
+    up_axis_vec = torch.tensor(up, device=device, dtype=torch.float32).repeat(eyes.shape[0], 1)
 
     forward = targets - eyes
     # 1e-5 matches the torch.nn.functional.normalize eps below: smaller magnitudes produce a sub-unit z_axis
@@ -1779,7 +1765,7 @@ def quat_slerp(q1: torch.Tensor, q2: torch.Tensor, tau: float) -> torch.Tensor:
     if abs(abs(d) - 1.0) < torch.finfo(q1.dtype).eps * 4.0:
         return q1
     if d < 0.0:
-        # Invert rotation
+        # take the shorter arc without mutating the caller's quaternion
         d = -d
         q2 = -q2
     angle = torch.acos(torch.clamp(d, -1, 1))
