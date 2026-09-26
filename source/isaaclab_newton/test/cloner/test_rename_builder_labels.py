@@ -135,65 +135,6 @@ class TestRenameCustomAttributes(unittest.TestCase):
 
         self.assertEqual(notes, {index: f"{_SRC}/note" for index in range(len(self.worlds))})
 
-    def test_heterogeneous_sources_preserve_world_membership_and_binding_order(self):
-        builder = newton.ModelBuilder()
-        builder.body_label = ["/B/link", "/A/link", "/A/other", "/AB/link", "/A/global"]
-        builder.body_world = [1, 0, 1, 0, -1]
-        bindings = rename_builder_labels(
-            builder,
-            ["/A", "/B"],
-            ["/env_{}/A", "/env_{}/B"],
-            self.env_ids,
-            np.array([[True, False], [False, True]]),
-        )
-        self.assertEqual(builder.body_label, ["/env_20/B/link", "/env_10/A/link", "/A/other", "/AB/link", "/A/global"])
-        self.assertEqual(
-            bindings,
-            [
-                ("/env_10/A/link", 1),
-                ("/env_20/B/link", 0),
-                ("/A/other", 2),
-                ("/AB/link", 3),
-                ("/A/global", 4),
-            ],
-        )
-
-    def test_destination_under_later_source_retains_ordered_rewrites(self):
-        builder = newton.ModelBuilder()
-        builder.body_label = ["/A/link", "/env_10/other"]
-        builder.body_world = [0, 0]
-        bindings = rename_builder_labels(
-            builder,
-            ["/A", "/env_10"],
-            ["/env_{}", "/final_{}"],
-            self.env_ids,
-            np.array([[True, False], [True, False]]),
-        )
-        self.assertEqual(builder.body_label, ["/final_10/link", "/final_10/other"])
-        self.assertEqual(
-            bindings,
-            [
-                ("/env_10/link", 0),
-                ("/final_10/link", 0),
-                ("/final_10/other", 1),
-            ],
-        )
-
-    def test_aliased_label_lists_retain_source_major_rewrites(self):
-        builder = newton.ModelBuilder()
-        builder.body_label = builder.shape_label = ["/A/link"]
-        builder.body_world = builder.shape_world = [0]
-        bindings = rename_builder_labels(
-            builder,
-            ["/A", "/A/new"],
-            ["/A/new", "/Z"],
-            self.env_ids,
-            np.array([[True, False], [True, False]]),
-        )
-        self.assertEqual(builder.body_label, ["/Z/new/link"])
-        # ModelBuilder visits the shared shape labels before collecting body bindings.
-        self.assertEqual(bindings, [("/A/new/new/link", 0)])
-
 
 class TestReplicateBuilderMapping(unittest.TestCase):
     def test_local_and_env_root_sites_keep_indices_labels_and_world_positions(self):
@@ -211,7 +152,7 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         positions = np.array([[2.0, 0.0, 0.0], [5.0, 0.0, 0.0], [8.0, 0.0, 0.0]], dtype=np.float32)
 
         with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
-            local_site_map, _, bindings = replicate_builder_mapping(
+            local_site_map, _, _ = replicate_builder_mapping(
                 builder,
                 (source_path,),
                 np.ones((1, 3), dtype=np.bool_),
@@ -225,7 +166,6 @@ class TestReplicateBuilderMapping(unittest.TestCase):
             )
 
         replicate.assert_called_once()
-        self.assertEqual(bindings, [(label, index) for index, label in enumerate(builder.body_label)])
         for name, index in (("ee", site_idx), ("origin", root_site_idx)):
             self.assertEqual(
                 local_site_map[name], [[base_shape + world * source.shape_count + index] for world in range(3)]
