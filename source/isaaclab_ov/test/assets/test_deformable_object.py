@@ -544,9 +544,9 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
 
         expected_paths = {f"/World/envs/env_{index}/Shape" for index in range(num_envs)}
         source_paths = {plan.sources[row] for row in shape_rows}
-        assert source_paths == {"/World/envs/env_0/Shape", "/World/envs/env_1/Shape"}
+        assert source_paths == {"/World/envs/env_0/Shape", "/World/envs/env_2/Shape"}
         stage = sim_utils.get_current_stage()
-        ancestor_path = "/World/envs/env_2/Shape"
+        ancestor_path = "/World/envs/env_1/Shape"
         camera_path = f"{ancestor_path}/Camera"
         UsdGeom.Xform.Define(stage, camera_path)
         authored_paths = {path for path in expected_paths if stage.GetPrimAtPath(path).IsValid()}
