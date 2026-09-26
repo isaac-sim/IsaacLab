@@ -239,13 +239,13 @@ def test_scene_constructs_plan_owned_markers():
 
         assert isinstance(scene["goal"], VisualizationMarkers)
         plan = sim.get_clone_plan()
-        _, shared, worlds = cloner.query.get_world_prototypes(plan)[0]
+        shared = plan.world_prototypes[: plan.world_prototype_starts[1]]
         assert tuple(plan.asset_prototypes[index].prim_path for index in shared) == (
             "/Visuals/Goal",
             "/World/Prop",
             "/Visuals/Deferred",
         )
-        np.testing.assert_array_equal(worlds, [-1])
+        assert cloner.query.get_world_prototypes(plan, "/Visuals/Goal") == [-1]
 
 
 def test_empty_scene_leaves_clone_lifecycle_to_caller():

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Iterator, Sequence
 
 import numpy as np
@@ -15,26 +16,49 @@ from . import path as pth
 from .clone_plan import ClonePlan
 
 
-def get_world_prototypes(plan: ClonePlan) -> list[tuple[int, np.ndarray, np.ndarray]]:
-    """Return each world prototype's members and destination worlds, including shared world -1.
+def get_asset_prototypes(plan: ClonePlan, path_expr: str | None = None) -> list[int]:
+    """Return asset-prototype IDs selected by their declared cfg paths, without expanding instances.
 
     Args:
-        plan: Asset prototypes, world compositions, and destination selections.
+        plan: Asset prototypes and world compositions.
+        path_expr: Exact cfg ``prim_path`` or a regular expression matching the complete declared
+            path string. None selects all definitions, including unused prototypes.
 
     Returns:
-        List of (world-prototype ID, asset-prototype IDs, destination world IDs) groups.
-        Repeated asset-prototype IDs remain repeated.
-        The shared world has ID -1 and destination [-1]. Unselected prototypes have no destinations.
+        Ascending asset-prototype IDs, each included once. Generated native paths are not matched.
     """
-    world_ids = np.argsort(plan.world_prototype_layout, kind="stable")
-    offsets = np.cumsum(np.bincount(plan.world_prototype_layout, minlength=len(plan.world_prototype_starts) - 2))
-    prototypes = [(-1, plan.world_prototypes[: plan.world_prototype_starts[1]], np.asarray([-1], dtype=np.int64))]
-    start = 0
-    for world_prototype_id, end in enumerate(offsets):
-        begin, stop = plan.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
-        prototypes.append((world_prototype_id, plan.world_prototypes[begin:stop], world_ids[start:end]))
-        start = end
-    return prototypes
+    if path_expr is None:
+        return list(range(len(plan.asset_prototypes)))
+    pattern = re.compile(path_expr)
+    return [
+        index
+        for index, cfg in enumerate(plan.asset_prototypes)
+        if cfg.prim_path == path_expr or pattern.fullmatch(cfg.prim_path)
+    ]
+
+
+def get_world_prototypes(plan: ClonePlan, path_expr: str | None = None) -> list[int]:
+    """Return world-prototype IDs containing assets selected by their declared cfg paths.
+
+    Args:
+        plan: Asset prototypes and world compositions.
+        path_expr: Asset-path filter interpreted by :func:`get_asset_prototypes`. None selects
+            all world definitions, including empty and unused prototypes and shared world -1.
+
+    Returns:
+        Ascending world-prototype IDs, not destination world IDs. Filtering selects complete
+        compositions; repeated asset memberships remain in the plan.
+    """
+    prototype_ids = range(-1, len(plan.world_prototype_starts) - 2)
+    if path_expr is None:
+        return list(prototype_ids)
+    asset_ids = set(get_asset_prototypes(plan, path_expr))
+    matched = []
+    for index in prototype_ids:
+        start, end = plan.world_prototype_starts[index + 1 : index + 3]
+        if not asset_ids.isdisjoint(plan.world_prototypes[start:end]):
+            matched.append(index)
+    return matched
 
 
 def iter_clones(

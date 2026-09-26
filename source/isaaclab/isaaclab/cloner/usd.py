@@ -115,9 +115,18 @@ class UsdReplicateContext:
         self.env_template = env_template
         self.positions = positions
         targets = {}
-        for world_prototype_id, asset_prototype_ids, world_ids in get_world_prototypes(plan):
+        sorted_world_ids = np.argsort(plan.world_prototype_layout, kind="stable")
+        counts = np.bincount(plan.world_prototype_layout, minlength=len(plan.world_prototype_starts) - 2)
+        offsets = np.r_[0, np.cumsum(counts)]
+        for world_prototype_id in get_world_prototypes(plan):
+            start, end = plan.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
+            world_ids = (
+                np.array([-1])
+                if world_prototype_id == -1
+                else sorted_world_ids[offsets[world_prototype_id] : offsets[world_prototype_id + 1]]
+            )
             names = set()
-            for asset_prototype_id in asset_prototype_ids:
+            for asset_prototype_id in plan.world_prototypes[start:end]:
                 cfg = plan.asset_prototypes[asset_prototype_id]
                 matched = match(cfg.prim_path, self.env_template)
                 template = self.env_template + matched.suffix if matched is not None else cfg.prim_path
