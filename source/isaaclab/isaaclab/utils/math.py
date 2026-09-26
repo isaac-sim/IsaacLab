@@ -1563,8 +1563,8 @@ def convert_camera_frame_orientation_convention(
     if origin == "ros":
         # convert from ros to opengl convention
         rotm = matrix_from_quat(orientation)
-        rotm[:, :, 2] = -rotm[:, :, 2]
-        rotm[:, :, 1] = -rotm[:, :, 1]
+        rotm[..., 2] = -rotm[..., 2]
+        rotm[..., 1] = -rotm[..., 1]
         # convert to opengl convention
         quat_gl = quat_from_matrix(rotm)
     elif origin == "world":
@@ -1583,8 +1583,8 @@ def convert_camera_frame_orientation_convention(
     if target == "ros":
         # convert from opengl to ros convention
         rotm = matrix_from_quat(quat_gl)
-        rotm[:, :, 2] = -rotm[:, :, 2]
-        rotm[:, :, 1] = -rotm[:, :, 1]
+        rotm[..., 2] = -rotm[..., 2]
+        rotm[..., 1] = -rotm[..., 1]
         return quat_from_matrix(rotm)
     elif target == "world":
         # convert from opengl to world (x forward and z up) convention
