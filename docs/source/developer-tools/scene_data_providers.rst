@@ -26,6 +26,27 @@ tensor views, and the provider handles format conversion and re-mapping on top o
 Architecture
 ------------
 
+Lazy-read contract
+~~~~~~~~~~~~~~~~~~
+
+Asset data and SDP use :class:`~isaaclab.utils.buffers.TimestampedBuffer` for cached values.
+``TimestampedBufferWarp`` uses the same implementation with preallocated Warp storage. Allocation
+does not make a value fresh: the owner updates its timestamp only after a successful refresh.
+Same-step writes invalidate affected asset caches through ``reset_timestamps`` and advance SDP's
+publication timestamp, so one reader cannot hide a write from another.
+
+FK is shared work, not an asset-local cache. Asset reads and native scene-data reads call
+:meth:`~isaaclab.physics.PhysicsManager.ensure_kinematics`; the active manager owns the dirty state
+and consumes pending work once. Newton keeps its per-world/per-articulation GPU masks for selective
+reset and graph replay. A reordered articulation view separately refreshes its own derived arrays.
+
+Sensor sampling periods and acceleration finite differences still use simulation time [s]. They
+must not use publication counters. Python checks do not run during CUDA graph replay: captured
+computations must remain in the graph, and readers of externally replayed writes remain conservative.
+
+Data flow
+~~~~~~~~~
+
 The system has three layers:
 
 1. :class:`~isaaclab.scene_data.SceneDataBackend`: a small interface implemented by each physics

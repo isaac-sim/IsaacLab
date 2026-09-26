@@ -527,6 +527,11 @@ class OvPhysxManager(PhysicsManager):
     @classmethod
     def pre_render(cls) -> None:
         """Finish native kinematics before SDP publishes manually written joint poses."""
+        cls.ensure_kinematics()
+
+    @classmethod
+    def ensure_kinematics(cls) -> None:
+        """Refresh native articulation state once after authored writes."""
         if cls._kinematics_dirty and cls.backend is not None and cls.backend.physx is not None:
             cls.backend.physx.update_articulations_kinematic()
             cls._kinematics_dirty = False

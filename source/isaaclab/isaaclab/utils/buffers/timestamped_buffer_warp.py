@@ -5,18 +5,13 @@
 
 import warp as wp
 
+from .timestamped_buffer import TimestampedBuffer
 
-class TimestampedBufferWarp:
-    """A buffer class containing data and its timestamp.
 
-    This class is a simple data container that stores a tensor and its timestamp. The timestamp is used to
-    track the last update of the buffer. The timestamp is set to -1.0 by default, indicating that the buffer
-    has not been updated yet. The timestamp should be updated whenever the data in the buffer is updated. This
-    way the buffer can be used to check whether the data is outdated and needs to be refreshed.
+class TimestampedBufferWarp(TimestampedBuffer[wp.array]):
+    """A :class:`TimestampedBuffer` with preallocated Warp storage.
 
-    The buffer is useful for creating lazy buffers that only update the data when it is outdated. This can be
-    useful when the data is expensive to compute or retrieve. For example usage, refer to the data classes in
-    the :mod:`isaaclab.assets` module.
+    Allocation does not make the data fresh. The owner commits the timestamp after computing it.
     """
 
     def __init__(self, shape: tuple, device: str, dtype: type) -> None:
@@ -31,5 +26,4 @@ class TimestampedBufferWarp:
             device: The device used for the data.
             dtype: The data type of the data.
         """
-        self.data = wp.zeros(shape, dtype=dtype, device=device)
-        self.timestamp = -1.0
+        super().__init__(data=wp.zeros(shape, dtype=dtype, device=device))

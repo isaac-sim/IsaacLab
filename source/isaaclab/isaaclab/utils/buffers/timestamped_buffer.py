@@ -5,22 +5,12 @@
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Generic, Protocol, TypeVar
+from typing import Generic, TypeVar
 
 DataT = TypeVar("DataT")
 
 
-class _Timestamped(Protocol):
-    """Structural type for any buffer exposing a writable :attr:`timestamp`.
-
-    Matches both :class:`TimestampedBuffer` and ``TimestampedBufferWarp`` so the shared
-    invalidation helper does not depend on the (optional) Warp buffer module.
-    """
-
-    timestamp: float
-
-
-def reset_timestamps(buffers: Iterable[_Timestamped | None]) -> None:
+def reset_timestamps(buffers: Iterable["TimestampedBuffer | None"]) -> None:
     """Mark each non-``None`` timestamped buffer as stale so its next read recomputes.
 
     Each buffer is named exactly once at the call site, which avoids the

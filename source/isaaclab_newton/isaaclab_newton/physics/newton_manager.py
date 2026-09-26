@@ -601,13 +601,17 @@ class NewtonManager(PhysicsManager):
         updated. The masks are consumed (zeroed) afterwards so the next :meth:`step` does not
         redundantly re-solve them.
 
-        The delegate (rather than a direct ``cls._eval_fk_impl`` call) is required because the
-        data layer invokes ``NewtonManager.forward()`` on the base class, where ``cls`` is the
-        base ``NewtonManager``; the bound delegate dispatches to the concrete subclass override.
+        Asset reads use :meth:`ensure_kinematics` and share the same pending work. The bound
+        delegate dispatches calls on ``NewtonManager`` to the active solver's implementation.
         """
-        if cls._eval_fk is not _eval_fk_unbound and not (
-            cls._reconciliation_pending or cls._transforms_may_change_on_graph_replay
-        ):
+        if cls._eval_fk is _eval_fk_unbound:
+            cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
+        cls.ensure_kinematics()
+
+    @classmethod
+    def ensure_kinematics(cls) -> None:
+        """Consume pending FK and solver-reset work once; preserve device masks during graph replay."""
+        if not (cls._reconciliation_pending or cls._transforms_may_change_on_graph_replay):
             return
         cls._reset_solver_internals_delegate(cls._world_reset_mask)
         cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)

@@ -526,6 +526,11 @@ class PhysxManager(PhysicsManager):
     @classmethod
     def pre_render(cls) -> None:
         """Complete pending pose writes before SDP publishes articulation transforms."""
+        cls.ensure_kinematics()
+
+    @classmethod
+    def ensure_kinematics(cls) -> None:
+        """Refresh native articulation state once after authored writes."""
         if cls._kinematics_dirty and cls.backend is not None:
             cls.backend.simulation_view.update_articulations_kinematic()
             cls._kinematics_dirty = False

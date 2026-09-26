@@ -103,7 +103,7 @@ class ArticulationData(BaseArticulationData):
         # Set initial time stamp
         self._sim_timestamp = 0.0
         self._is_primed = False
-        self._fk_timestamp = 0.0
+        self._body_state_dirty = False
         self._read_launch_cache = _WarpLaunchCache(device)
 
         # Bind ``GRAVITY_VEC_W`` to Newton's per-env ``model.gravity`` (m/s^2) so
@@ -148,33 +148,16 @@ class ArticulationData(BaseArticulationData):
         """
         # update the simulation timestamp
         self._sim_timestamp += dt
-        # FK is current after a sim step — keep fk_timestamp in sync unless it was explicitly invalidated
-        if self._fk_timestamp >= 0.0:
-            self._fk_timestamp = self._sim_timestamp
         # Trigger an update of the joint and body com acceleration buffers at a higher frequency
         # since we do finite differencing.
         self.joint_acc
         self.body_com_acc_w
 
     def _ensure_fk_fresh(self) -> None:
-        """Run forward kinematics if joint state has changed since the last FK update.
-
-        Newton's ``state.body_q`` (per-body world transforms) is updated by the active
-        solver manager's ``forward()``, which calls a solver-specialized FK hook.
-        After a manual joint or root write that bypassed the sim step (``write_*_to_sim_*``),
-        ``_fk_timestamp`` is set to ``-1.0`` to force a refresh on the next read of any
-        property that depends on body poses (``body_link_pose_w``, the Jacobian properties,
-        ``mass_matrix``).
-
-        This out-of-band FK path also republishes the user-order body-state shadows via
-        :meth:`_refresh_user_order_body_state`: the post-step callback only fires inside a
-        sim step, so a manual write followed by an FK refresh would otherwise leave the
-        passthrough ``body_link_pose_w`` / ``body_com_vel_w`` shadows stale.
-        """
-        if self._fk_timestamp < self._sim_timestamp:
-            SimulationManager.forward()
+        """Resolve shared FK, then refresh this view's reordered body state after a manual write."""
+        SimulationManager.ensure_kinematics()
+        if self._body_state_dirty or SimulationManager._transforms_may_change_on_graph_replay:
             self._refresh_user_order_body_state()
-            self._fk_timestamp = self._sim_timestamp
 
     def _reset_pose(
         self, from_link: bool = True, *, env_ids: wp.array | None = None, env_mask: wp.array | None = None
@@ -213,10 +196,7 @@ class ArticulationData(BaseArticulationData):
                 self._body_com_state_w,
             ]
         )
-        # NOTE: _fk_timestamp and invalidate_fk serve two distinct roles. _fk_timestamp is on the
-        # data side and forces a refresh on the next outdated read. invalidate_fk is on the
-        # simulation-manager side and lets the solver know state changed before its next step.
-        self._fk_timestamp = -1.0
+        self._body_state_dirty = True
         SimulationManager.invalidate_fk(
             env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
         )
@@ -254,10 +234,7 @@ class ArticulationData(BaseArticulationData):
                 self._body_com_state_w,
             ]
         )
-        # NOTE: _fk_timestamp and invalidate_fk serve two distinct roles. _fk_timestamp is on the
-        # data side and forces a refresh on the next outdated read. invalidate_fk is on the
-        # simulation-manager side and lets the solver know state changed before its next step.
-        self._fk_timestamp = -1.0
+        self._body_state_dirty = True
         SimulationManager.invalidate_fk(
             env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
         )
@@ -2228,15 +2205,19 @@ class ArticulationData(BaseArticulationData):
         body map. No-op under identity ordering (the shadows are the sim-bound
         arrays themselves).
         """
-        if not self.has_body_ordering:
-            return
-        self._read_launch_cache.launch(
-            "body_state_ordering",
-            ordering_kernels.reorder_body_state_backend_to_user,
-            dim=(self._num_instances, self._num_bodies),
-            inputs=[self._sim_bind_body_link_pose_w, self._sim_bind_body_com_vel_w, self.body_ordering.user_to_backend],
-            outputs=[self._body_link_pose_w_user, self._body_com_vel_w_user],
-        )
+        if self.has_body_ordering:
+            self._read_launch_cache.launch(
+                "body_state_ordering",
+                ordering_kernels.reorder_body_state_backend_to_user,
+                dim=(self._num_instances, self._num_bodies),
+                inputs=[
+                    self._sim_bind_body_link_pose_w,
+                    self._sim_bind_body_com_vel_w,
+                    self.body_ordering.user_to_backend,
+                ],
+                outputs=[self._body_link_pose_w_user, self._body_com_vel_w_user],
+            )
+        self._body_state_dirty = False
 
     def _gather_joint_coordinates(self) -> None:
         """Re-derive the DOF-space joint positions from Newton's coordinate array.

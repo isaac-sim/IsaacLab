@@ -231,10 +231,8 @@ def test_newton_articulation_open_targets_constructs_real_method_and_data_target
         assert targets.data_target._jacobian_body_user_to_backend is not None
         assert targets.data_target.mass_matrix is not None
         sim_timestamp = targets.data_target._sim_timestamp
-        fk_timestamp = targets.data_target._fk_timestamp
         targets.refresh_data(_CONFIG)
         assert targets.data_target._sim_timestamp == sim_timestamp + 1.0
-        assert targets.data_target._fk_timestamp == fk_timestamp + 1.0
 
 
 def test_physx_cpu_boundary_reuses_int32_scratch_for_int64_env_ids(monkeypatch) -> None:

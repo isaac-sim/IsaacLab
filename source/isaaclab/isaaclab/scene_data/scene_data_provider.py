@@ -66,7 +66,7 @@ class SceneDataProvider:
         self._num_envs_cache: int | None = None
         self._interactive_scene: Any | None = None
         self._transform_cache: dict[tuple, TimestampedBuffer[Any]] = {}
-        self._geometry_view_cache: tuple | None = None
+        self._geometry_view_cache = TimestampedBuffer()
         self._geometry_destination_cache = WeakKeyDictionary()
 
     def get_transforms(
@@ -337,7 +337,7 @@ class SceneDataProvider:
                 raise ValueError("A geometry destination requires its visual-path offsets.")
             destination = output.points if fabric else output
             cached = self._geometry_destination_cache.get(output)
-            if cached is None or cached[2] is not offsets:
+            if cached is None or cached.data[1] is not offsets:
                 jobs, bound = [], set()
                 for source, ranges in batches:
                     selected = {path: bounds for path, bounds in ranges.items() if path in offsets}
@@ -372,8 +372,8 @@ class SceneDataProvider:
                 if bound != offsets.keys():
                     raise KeyError(f"Geometry destinations have no native publication: {offsets.keys() - bound}")
             else:
-                timestamp_last_update, jobs, _ = cached
-                if timestamp_last_update == timestamp:
+                jobs, _ = cached.data
+                if cached.timestamp == timestamp:
                     return output
             for (source, _), (source_indices, destination_indices, transfer) in zip(batches, jobs, strict=True):
                 if len(source_indices):
@@ -398,12 +398,14 @@ class SceneDataProvider:
                         device=destination.device,
                     )
             # Retain conversion buffers, never the consumer's destination or slices of it.
-            self._geometry_destination_cache[output] = (timestamp, jobs, offsets)
+            if cached is None:
+                cached = self._geometry_destination_cache[output] = TimestampedBuffer()
+            cached.data, cached.timestamp = (jobs, offsets), timestamp
             return output
         if offsets is not None:
             raise ValueError("Geometry offsets require a destination.")
         cached = self._geometry_view_cache
-        if cached is None:
+        if cached.data is None:
             views, jobs = {}, []
             for source, ranges in batches:
                 device = _publication_device(source)
@@ -415,8 +417,8 @@ class SceneDataProvider:
                 jobs.append((indices, buffer, ranges))
                 views.update((path, buffer[start : start + count]) for path, (start, count) in ranges.items())
         else:
-            timestamp_last_update, views, jobs = cached
-            if timestamp_last_update == timestamp:
+            views, jobs = cached.data
+            if cached.timestamp == timestamp:
                 return views
 
         for index, ((source, _), (indices, buffer, ranges)) in enumerate(zip(batches, jobs, strict=True)):
@@ -433,7 +435,7 @@ class SceneDataProvider:
                     inputs=[source, indices, indices, buffer],
                     device=buffer.device,
                 )
-        self._geometry_view_cache = (timestamp, views, jobs)
+        cached.data, cached.timestamp = (views, jobs), timestamp
         return views
 
 

@@ -973,6 +973,7 @@ def test_newton_ordered_body_state_cache_invalidates_on_same_timestamp_root_writ
     articulation.write_root_link_pose_to_sim_index(root_pose=written_root_pose)
     assert data._sim_timestamp == sim_timestamp
     torch.testing.assert_close(data.root_link_pose_w.torch, written_root_pose)
+    SimulationManager.forward()  # Another consumer may resolve shared FK before this view reads.
     refreshed_body_pose = data.body_link_pose_w.torch[:, root_body_idx]
     torch.testing.assert_close(refreshed_body_pose, written_root_pose)
     assert not torch.equal(refreshed_body_pose, cached_body_pose)
