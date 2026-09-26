@@ -18,7 +18,7 @@ from isaaclab_newton.cloner import replicate as replicate_module
 from isaaclab_newton.cloner.newton_clone_utils import replicate_builder_mapping
 from isaaclab_newton.physics import visualization_deformables as visualization_deformables_module
 
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, UsdReplicateContext, make_clone_plan
@@ -164,12 +164,13 @@ class TestVisualizationClonePlan(unittest.TestCase):
         stage = Usd.Stage.CreateInMemory()
         self.sim.stage = stage
         self._define_xform(stage, "/World")
-        for path in ("/World/Declared", "/World/Undeclared"):
+        for path in ("/World/Declared", "/World/Undeclared", "/World/Excluded"):
             body = UsdGeom.Cube.Define(stage, path)
             body.CreateSizeAttr(0.2)
             UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
             UsdPhysics.CollisionAPI.Apply(body.GetPrim())
-        plan = make_clone_plan((AssetBaseCfg(prim_path="/World/Declared"),), ((),), 1, shared_assets=(0,))
+        cfgs = AssetBaseCfg(prim_path="/World/Declared"), AssetBaseCfg(prim_path="/World/Excluded", cloning_contexts=())
+        plan = make_clone_plan(cfgs, ((),), 1, shared_assets=(0, 1))
         self.sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(stage, plan)
         builder, stage_info, site_index_map = NewtonReplicateContext(self.sim).replicate(plan, (0,))
 
@@ -196,7 +197,8 @@ class TestVisualizationClonePlan(unittest.TestCase):
                 )
                 builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, 1))
                 self.assertCountEqual(
-                    builder.body_label, ["/World/Undeclared", "/Copies/env_0/Body", "/Copies/env_1/Body"]
+                    builder.body_label,
+                    ["/World/Undeclared", "/World/Excluded", "/Copies/env_0/Body", "/Copies/env_1/Body"],
                 )
                 source_position = np.asarray(builder.body_q[builder.body_label.index("/Copies/env_0/Body")])[:3]
                 target_position = np.asarray(builder.body_q[builder.body_label.index("/Copies/env_1/Body")])[:3]
@@ -306,20 +308,23 @@ class TestVisualizationClonePlan(unittest.TestCase):
         UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
         self._define_xform(stage, "/World")
         self._define_xform(stage, "/World/envs")
+        material = UsdShade.Material.Define(stage, "/World/envs/env_0/Material")
         env_paths = [(env_id, f"/World/envs/env_{env_id}") for env_id in (0, 1)]
         for env_id, env_path in env_paths:
             self._define_xform(stage, env_path, (float(env_id) * 3.0, 0.0, 0.0))
             body = UsdGeom.Xform.Define(stage, f"{env_path}/Object")
             UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
+            UsdShade.MaterialBindingAPI.Apply(body.GetPrim()).Bind(material)
             UsdGeom.Cube.Define(stage, f"{env_path}/Object/source_{env_id}_visual").CreateSizeAttr(0.2)
 
         plan = ClonePlan(
             asset_prototypes=tuple(
                 AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object", spawn=SpawnerCfg(spawn_path=path + "/Object"))
                 for _, path in env_paths
-            ),
-            world_prototypes=np.array([0, 1]),
-            world_prototype_starts=np.array([0, 0, 1, 2]),
+            )
+            + (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Material", cloning_contexts=()),),
+            world_prototypes=np.array([0, 2, 1, 2]),
+            world_prototype_starts=np.array([0, 0, 2, 4]),
             destinations=np.array([0, 1, 0]),
         )
         self.sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(
@@ -335,6 +340,10 @@ class TestVisualizationClonePlan(unittest.TestCase):
         )
         self.assertEqual(builder.body_world, [0, 1, 2])
         self.assertEqual(builder.shape_world, [0, 1, 2])
+        self.assertEqual(
+            builder.custom_attributes["isaaclab:visual_material_path"].values,
+            {world: f"/World/envs/env_{world}/Material" for world in range(3)},
+        )
 
     def test_shadow_deformables_use_plan_placement_without_destination_prims(self):
         stage = Usd.Stage.CreateInMemory()
@@ -405,6 +414,8 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
         source = newton.ModelBuilder()
         body = source.add_body(xform=wp.transform(), label=self._SRC)
         source.add_shape_box(body=body, label=f"{self._SRC}/shape")
+        source.add_shape_box(body=body, label=f"{self._SRC}/sibling_material_shape")
+        source.add_shape_box(body=body, label=f"{self._SRC}/shared_material_shape")
         child = source.add_link(xform=wp.transform(), label=f"{self._SRC}/link")
         source.add_joint_revolute(parent=body, child=child, axis=(0.0, 0.0, 1.0), label=f"{self._SRC}/hinge")
 
@@ -453,14 +464,21 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
                 )
             )
             source.custom_attributes[f"{namespace}:{name}"].values[0] = self._SRC + "/Looks/material"
+        sibling_material = "/World/envs/env_0/Material"
+        source.custom_attributes["isaaclab:visual_material_path"].values.update(
+            {1: sibling_material, 2: "/World/SharedMaterial"}
+        )
         original = {
             name: list(getattr(source, name))
             for name in ("body_label", "joint_label", "shape_label", "articulation_label")
         }
         builder = newton.ModelBuilder()
         env_ids = np.array([10, 20], dtype=np.int64)
-        plan = make_clone_plan((self._SRC,), ((0,),), len(env_ids))
-        instances = ((0, self._SRC, "/World/envs/env_{}/Robot", np.arange(len(env_ids))),)
+        plan = make_clone_plan((self._SRC, sibling_material), ((0, 1),), len(env_ids))
+        instances = (
+            (0, self._SRC, "/World/envs/env_{}/Robot", np.arange(len(env_ids))),
+            (1, sibling_material, "/World/envs/env_{}/Material", np.arange(len(env_ids))),
+        )
         positions = np.zeros((len(env_ids), 3), dtype=np.float32)
         quaternions = np.zeros((len(env_ids), 4), dtype=np.float32)
         quaternions[:, 3] = 1.0
@@ -470,7 +488,7 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
             instances,
             positions,
             quaternions,
-            {self._SRC: source},
+            {self._SRC: source, sibling_material: newton.ModelBuilder()},
             env_template=self._ENV,
             env_ids=env_ids,
         )
@@ -486,13 +504,12 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
         self.assertEqual(builder.custom_attributes["syn:motor_articulation"].values, [0, source.articulation_count])
         self.assertEqual(builder.custom_attributes["syn:motor_target"].values, expected_labels)
         self.assertEqual(source.custom_attributes["syn:motor_label"].values, [f"{self._SRC}/motor"])
-        self.assertEqual(
-            builder.custom_attributes["isaaclab:visual_material_path"].values,
-            {index: f"{self._ENV.format(env_id)}/Robot/Looks/material" for index, env_id in enumerate(env_ids)},
-        )
+        materials = self._ENV + "/Robot/Looks/material", self._ENV + "/Material", "/World/SharedMaterial"
+        expected = [path.format(env_id) for env_id in env_ids for path in materials]
+        self.assertEqual(builder.custom_attributes["isaaclab:visual_material_path"].values, dict(enumerate(expected)))
         self.assertEqual(
             builder.custom_attributes["syn:shape_note"].values,
-            {index: self._SRC + "/Looks/material" for index in range(len(env_ids))},
+            {index * 3: self._SRC + "/Looks/material" for index in range(len(env_ids))},
         )
 
     def test_hook_labels_are_rewritten_after_the_slow_path(self):

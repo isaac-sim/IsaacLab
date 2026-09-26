@@ -317,7 +317,7 @@ class OvPhysxFrameView(BaseFrameView):
         usd = sim.clone_contexts.get(cloner.UsdReplicateContext) if sim is not None else None
         self._usd = usd
         source_matches = tuple(cloner.query.iter_sources(usd.instances, prim_path)) if usd is not None else ()
-        self._source_records = []
+        self._source_sites = []
         self._prims: list[Usd.Prim] = []
         for source_root, destination_template, source_path, env_ids in source_matches:
             source_pattern = re.compile(source_path)
@@ -327,7 +327,7 @@ class OvPhysxFrameView(BaseFrameView):
                 stage=stage,
             )
             self._prims.extend(source_prims)
-            self._source_records.extend((source_root, destination_template, prim, env_ids) for prim in source_prims)
+            self._source_sites.extend((source_root, destination_template, prim, env_ids) for prim in source_prims)
         if not source_matches:
             self._prims = sim_utils.find_matching_prims(prim_path, stage=stage)
         if not self._prims:
@@ -518,25 +518,24 @@ class OvPhysxFrameView(BaseFrameView):
         self, xform_cache: UsdGeom.XformCache
     ) -> list[tuple[int, Usd.Prim, list[float], list[float], str]]:
         """Return plan-ordered source prims and projected poses for source-only world sites."""
-        if sum(len(env_ids) for _, _, _, env_ids in self._source_records) <= len(self._prims):
+        if sum(len(env_ids) for _, _, _, env_ids in self._source_sites) <= len(self._prims):
             return []
         usd = self._usd
         if usd is None:
             raise RuntimeError("OvPhysxFrameView requires a clone plan for source-only world sites.")
 
-        records: list[tuple[int, Usd.Prim, list[float], list[float], str]] = []
-        for source_root, destination_template, source_prim, env_ids in self._source_records:
+        sites: list[tuple[int, Usd.Prim, list[float], list[float], str]] = []
+        for source_root, destination_template, source_prim, env_ids in self._source_sites:
             source_prim_path = source_prim.GetPath().pathString
             suffix = cloner.path.relative_to(source_prim_path, source_root)
             if suffix is None:
                 raise RuntimeError(f"OvPhysxFrameView source prim {source_prim_path!r} is not under {source_root!r}.")
             source_world = xform_cache.GetLocalToWorldTransform(source_prim)
             source_parent_world = xform_cache.GetLocalToWorldTransform(source_prim.GetParent())
-            source_match = cloner.path.match(source_root, destination_template)
+            source_match = cloner.path.match(source_root, usd.env_template)
             source_anchor_world = Gf.Matrix4d(1.0)
             if source_match is not None:
-                template_prefix, _ = cloner.path.split(destination_template)
-                source_anchor_path = template_prefix + source_match.instance
+                source_anchor_path = usd.env_template.format(source_match.instance)
                 source_anchor = self._stage.GetPrimAtPath(source_anchor_path)
                 if not source_anchor.IsValid():
                     raise RuntimeError(f"OvPhysxFrameView source anchor {source_anchor_path!r} is not on the stage.")
@@ -551,10 +550,10 @@ class OvPhysxFrameView(BaseFrameView):
                     destination_world.SetTranslateOnly(Gf.Vec3d(*map(float, usd.positions[env_id])))
                 site_world = _gf_matrix_to_xform7(source_world * source_inverse * destination_world)
                 parent_world = _gf_matrix_to_xform7(source_parent_world * source_inverse * destination_world)
-                records.append((env_id, source_prim, site_world, parent_world, destination_root + suffix))
+                sites.append((env_id, source_prim, site_world, parent_world, destination_root + suffix))
 
-        records.sort(key=lambda record: record[0])
-        return records
+        sites.sort(key=lambda site: site[0])
+        return sites
 
     def _resolve_rigid_body_ancestor(
         self,

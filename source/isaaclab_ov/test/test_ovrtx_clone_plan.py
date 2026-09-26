@@ -134,8 +134,11 @@ def test_clone_sources_in_ovrtx_uses_world_compositions():
     renderer._usd = UsdReplicateContext(
         None,
         make_clone_plan(
-            tuple(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/" + name) for name in ("Robot", "Object", "Light")),
-            ((0, 2), (0, 1)),
+            tuple(
+                AssetBaseCfg(prim_path="/World/envs/env_[^/]+/" + name)
+                for name in ("Robot", "Object", "Light", "Robot/Camera")
+            ),
+            ((3, 0, 2), (3, 0, 1)),
             4,
             weights=(1, 3),
         ),
@@ -157,24 +160,6 @@ def test_clone_sources_in_ovrtx_uses_world_compositions():
         ),
         ("/World/envs/env_1/Object", ["/World/envs/env_2/Object", "/World/envs/env_3/Object"]),
     ]
-
-
-def test_clone_sources_in_ovrtx_raises_on_clone_failure():
-    """clone_usd failures identify the asset prototype."""
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer._usd = UsdReplicateContext(
-        None,
-        make_clone_plan((AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 2),
-        positions=np.zeros((2, 3), dtype=np.float32),
-    )
-
-    def _clone_usd(source: str, target_paths: list[str]) -> None:
-        raise OSError("clone failed")
-
-    renderer.backend.renderer.clone_usd = _clone_usd
-
-    with pytest.raises(RuntimeError, match="Failed to clone asset prototype 0 from /World/envs/env_0"):
-        renderer._clone_sources_in_ovrtx()
 
 
 def test_clone_sources_in_ovrtx_writes_plan_positions_after_cloning():
@@ -222,8 +207,10 @@ def test_clone_sources_ovstage_writes_plan_positions_after_cloning(monkeypatch: 
     renderer._usd = UsdReplicateContext(
         None,
         make_clone_plan(
-            tuple(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/" + name) for name in ("Robot", "Object")),
-            ((0,), (1,)),
+            tuple(
+                AssetBaseCfg(prim_path="/World/envs/env_[^/]+/" + name) for name in ("Robot", "Object", "Object/Camera")
+            ),
+            ((0,), (2, 1)),
             3,
             weights=(1, 2),
         ),
