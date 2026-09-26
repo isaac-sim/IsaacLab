@@ -24,10 +24,7 @@ from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data.deformable_discovery import deformable_prototypes, expand_deformable_entries
 from isaaclab.sim import SpawnerCfg
 
-from isaaclab_newton.cloner.newton_clone_utils import (
-    build_source_builders,
-    replicate_builder_mapping,
-)
+from isaaclab_newton.cloner.newton_clone_utils import build_source_builders, replicate_builder_mapping
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonCfg, NewtonManager
 from isaaclab_newton.physics.visualization_deformables import add_shadow_deformables_to_builder
 
@@ -52,10 +49,7 @@ def copy_newton_clone_source(source_path: str, xform: wp.transform | None = None
     if source is None:
         raise RuntimeError(f"No retained Newton clone source for {source_path!r}.")
     builder = ModelBuilder(up_axis=source.up_axis)
-    if xform is None:
-        builder.add_builder(source)
-    else:
-        builder.add_builder(source, xform=xform)
+    builder.add_builder(source, xform=xform)
     builder.shape_source = [
         value.copy() if callable(getattr(value, "copy", None)) else copy.copy(value) for value in builder.shape_source
     ]
@@ -110,7 +104,7 @@ def _replicate_newton(
         reset_registered_mpm_particle_ranges,
     )
 
-    cfg = sim.cfg.physics
+    cfg, topology = sim.cfg.physics, plan.topology
     sources = cloner_path.get_asset_prototype_paths(plan)
     templates, starts = cloner_path.get_world_prototype_asset_templates(plan)
     shared = templates[: starts[1]]
@@ -144,7 +138,7 @@ def _replicate_newton(
             source + matched.suffix
             for entry in NewtonManager._deformable_registry
             for index, destination in enumerate(templates[starts[1] :], starts[1])
-            if (source := sources[plan.topology.world_prototypes[index]]) is not None
+            if (source := sources[topology.world_prototypes[index]]) is not None
             if (matched := cloner_path.match(entry.prim_path, destination)) is not None
         ]
         global_ignore_paths.extend(ignore_paths)
@@ -162,29 +156,29 @@ def _replicate_newton(
     if simulation:
         stage_info = builder.add_usd(stage, root_path=sim.cfg.physics_prim_path, schema_resolvers=schema_resolvers)
 
-    source_import_results: dict[str, dict[str, Any]] = {}
+    import_results: dict[str, dict[str, Any]] = {}
     source_builders = build_source_builders(
         stage,
-        tuple(dict.fromkeys(sources[index] for index in asset_prototype_ids if sources[index] is not None)),
+        [sources[index] for index in asset_prototype_ids if sources[index] is not None],
         create_builder,
         schema_resolvers,
         ignore_paths=global_ignore_paths,
         load_visual_shapes=load_visual_shapes,
         skip_mesh_approximation=not simulation,
-        import_results_out=source_import_results,
+        import_results_out=import_results,
     )
 
     # Keep only renderable cables from this representation's actual imports.
     cable_counts = {}
-    for source, imported in source_import_results.items():
+    for source, imported in import_results.items():
         for path, (bodies, _) in imported["path_cable_map"].items():
             if imported["path_cable_attrs"][path]["closed"]:
                 continue
             if len(UsdGeom.BasisCurves(stage.GetPrimAtPath(path)).GetCurveVertexCountsAttr().Get()) != 1:
                 continue
-            for world, prototype in enumerate((-1, *plan.topology.world_prototype_layout), -1):
+            for world, prototype in enumerate((-1, *topology.world_prototype_layout), -1):
                 for index in range(starts[prototype + 1], starts[prototype + 2]):
-                    if sources[plan.topology.world_prototypes[index]] == source:
+                    if sources[topology.world_prototypes[index]] == source:
                         target = templates[index].format(-1 if world == -1 else int(env_ids[world]))
                         cable_counts[cloner_path.rebase(path, source, target)] = len(bodies)
 
@@ -197,33 +191,26 @@ def _replicate_newton(
             imported.shape_collision_group[:] = [0] * imported.shape_count
         global_sites, source_sites, root_sites = {}, {}, {}
 
-    def record_source_particle_ranges(
-        source: str,
-        particle_offset: int,
-        source_builder: ModelBuilder,
-        source_xform: Sequence[float],
-    ) -> None:
+    def record_particles(source: str, offset: int, source_builder: ModelBuilder, xform: Sequence[float]) -> None:
         record_registered_mpm_particle_ranges(
-            source_import_results[source].get("path_particle_map", {}),
-            particle_offset,
+            import_results[source].get("path_particle_map", {}),
+            offset,
             builder=builder,
             source_builder=source_builder,
-            source_xform=source_xform,
+            source_xform=xform,
         )
 
     local_site_map, world_xforms, fabric_body_bindings = replicate_builder_mapping(
-        builder=builder,
-        plan=plan,
-        positions=positions,
-        quaternions=quaternions,
-        source_builders=source_builders,
+        builder,
+        plan,
+        positions,
+        quaternions,
+        source_builders,
         env_ids=env_ids,
         source_site_indices=source_sites,
         env_root_sites=root_sites,
         per_world_builder_hooks=NewtonManager._per_world_builder_hooks if simulation else (),
-        source_builder_added=record_source_particle_ranges
-        if simulation and NewtonManager._mpm_object_registry
-        else None,
+        source_builder_added=record_particles if simulation and NewtonManager._mpm_object_registry else None,
     )
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())

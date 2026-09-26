@@ -60,7 +60,7 @@ def make_valid_clone_combinations(
         raise ValueError("Each asset requires one positive variant count.")
     known = set(asset_names if all_asset_names is None else all_asset_names)
     combinations = clone_combinations or (InclusionSet(assets=list(dict.fromkeys(asset_names))),)
-    claimed = set().union(*(set(combination.assets) for combination in combinations))
+    claimed = set().union(*(combination.assets for combination in combinations))
     offsets = np.cumsum([0, *variant_counts])
     worlds, weights = [], []
     for combination in combinations:
@@ -88,10 +88,42 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
     sim = sim_utils.SimulationContext.instance()
     if sim.get_clone_plan() is not plan:
         raise ValueError("replicate() requires the active SimulationContext's ClonePlan.")
-    routing = _context_asset_prototype_ids(plan, sim)
-    for context_type in sorted(routing, key=lambda context_type: context_type.replicate_priority):
-        if replicate_physics or context_type is not sim.physics_manager.clone_context_type:
-            sim.clone_contexts[context_type].replicate(plan, routing[context_type])
+    physics_context = sim.physics_manager.clone_context_type
+    render_contexts = {
+        string_to_callable(context) if isinstance(context, str) else context
+        for context in sim.render_context.clone_contexts
+    }
+    spawn_contexts = render_contexts - {physics_context}
+    if has_kit():
+        spawn_contexts.add(UsdReplicateContext)
+    topology = plan.topology
+    shared = set(topology.world_prototypes[: topology.world_prototype_starts[1]])
+    active = shared.copy()
+    for prototype in np.unique(topology.world_prototype_layout):
+        start, end = topology.world_prototype_starts[prototype + 1 : prototype + 3]
+        active.update(topology.world_prototypes[start:end])
+    routing = {context: set() for context in render_contexts}
+    for index in sorted(active):
+        cfg = plan.asset_cfgs[index]
+        fields = vars(cfg)
+        references = fields.get("cloning_contexts", ())
+        if references is None:
+            references = () if physics_context is None else (physics_context,)
+        contexts = tuple(string_to_callable(value) if isinstance(value, str) else value for value in references)
+        if isinstance(fields.get("spawn"), sim_utils.SpawnerCfg):
+            contexts += tuple(spawn_contexts)
+        if index in shared:
+            contexts += tuple(context for context in (physics_context, *render_contexts) if context is not None)
+        for context in contexts:
+            if not isinstance(context, type):
+                raise TypeError(f"{type(cfg).__name__}.cloning_contexts must contain only context classes.")
+            routing.setdefault(context, set()).add(index)
+    for context in routing:
+        if context not in sim.clone_contexts:
+            sim.clone_contexts[context] = context(sim)
+    for context in sorted(routing, key=lambda context: context.replicate_priority):
+        if replicate_physics or context is not physics_context:
+            sim.clone_contexts[context].replicate(plan, tuple(sorted(routing[context])))
 
 
 def clone_plan_from_env_0(
@@ -121,11 +153,7 @@ def clone_plan_from_env_0(
     if clone_cfg.clone_combinations or any(num_spawn_variants(getattr(cfg, "spawn", None)) != 1 for cfg in asset_cfgs):
         raise ValueError("clone_plan_from_env_0 requires homogeneous, single-variant declarations.")
     return _prepare_cloning(
-        asset_cfgs,
-        num_envs,
-        env_spacing,
-        env_template=clone_cfg.clone_template,
-        positions=positions,
+        asset_cfgs, num_envs, env_spacing, env_template=clone_cfg.clone_template, positions=positions
     )
 
 
@@ -145,11 +173,9 @@ class ReplicateSession:
         env_template: str = DEFAULT_ENV_TEMPLATE,
     ):
         """Capture prototype declarations, composition choices, and USD authoring inputs."""
-        self._cfgs = cfgs
+        self._args = cfgs, num_clones, env_spacing
         self._replicate_physics = replicate_physics
         self._kwargs = dict(
-            num_clones=num_clones,
-            env_spacing=env_spacing,
             env_template=env_template,
             clone_strategy=clone_strategy,
             world_prototypes=world_prototypes,
@@ -158,7 +184,7 @@ class ReplicateSession:
         self.plan: ClonePlan | None = None
 
     def __enter__(self) -> ReplicateSession:
-        self.plan = _prepare_cloning(self._cfgs, **self._kwargs)
+        self.plan = _prepare_cloning(*self._args, **self._kwargs)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
@@ -236,44 +262,3 @@ def _prepare_cloning(
             spawn.spawn_path = paths[0]
     sim.set_clone_plan(plan)
     return plan
-
-
-def _context_asset_prototype_ids(plan: ClonePlan, sim) -> dict[type, tuple[int, ...]]:
-    """Resolve per-asset routing without adding execution policy to the topology."""
-    physics_context = sim.physics_manager.clone_context_type
-    render_contexts = {
-        string_to_callable(context) if isinstance(context, str) else context
-        for context in sim.render_context.clone_contexts
-    }
-    spawn_contexts = render_contexts - {physics_context}
-    if has_kit():
-        spawn_contexts.add(UsdReplicateContext)
-    shared = set(map(int, plan.topology.world_prototypes[: plan.topology.world_prototype_starts[1]]))
-    routing = {context: set() for context in render_contexts}
-    if shared and physics_context is not None:
-        routing[physics_context] = set()
-    active = shared.copy()
-    for world_prototype_id in np.unique(plan.topology.world_prototype_layout):
-        start, end = plan.topology.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
-        active.update(map(int, plan.topology.world_prototypes[start:end]))
-    for index in sorted(active):
-        cfg = plan.asset_cfgs[index]
-        fields = vars(cfg)
-        references = fields.get("cloning_contexts", ())
-        contexts = (
-            (() if physics_context is None else (physics_context,))
-            if references is None
-            else tuple(string_to_callable(value) if isinstance(value, str) else value for value in references)
-        )
-        if isinstance(fields.get("spawn"), sim_utils.SpawnerCfg):
-            contexts += tuple(spawn_contexts)
-        if index in shared:
-            contexts += tuple(context for context in (physics_context, *render_contexts) if context is not None)
-        for context_type in contexts:
-            if not isinstance(context_type, type):
-                raise TypeError(f"{type(cfg).__name__}.cloning_contexts must contain only context classes.")
-            routing.setdefault(context_type, set()).add(index)
-    for context_type in routing:
-        if context_type not in sim.clone_contexts:
-            sim.clone_contexts[context_type] = context_type(sim)
-    return {context: tuple(sorted(indices)) for context, indices in routing.items()}

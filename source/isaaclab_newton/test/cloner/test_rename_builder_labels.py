@@ -46,12 +46,7 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         builder = newton.ModelBuilder()
         with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
             replicate_builder_mapping(
-                builder,
-                plan,
-                plan.positions,
-                np.tile([0, 0, 0, 1], (16, 1)),
-                assets,
-                env_ids=np.arange(16),
+                builder, plan, plan.positions, np.tile([0, 0, 0, 1], (16, 1)), assets, env_ids=np.arange(16)
             )
         self.assertEqual(replicate.call_count, 4)
         self.assertEqual(len(assets), 2)
@@ -405,6 +400,7 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
 
     def test_batched_prefixes_name_each_world_and_preserve_the_prototype(self):
         source = newton.ModelBuilder()
+        attributes = source.custom_attributes
         body = source.add_body(xform=wp.transform(), label=self._SRC)
         source.add_shape_box(body=body, label=f"{self._SRC}/shape")
         source.add_shape_box(body=body, label=f"{self._SRC}/sibling_material_shape")
@@ -434,33 +430,22 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
         ):
             source.add_custom_attribute(
                 newton.ModelBuilder.CustomAttribute(
-                    name=name,
-                    namespace="syn",
-                    frequency="syn:motor",
-                    dtype=dtype,
-                    default=default,
-                    references=references,
+                    name, dtype, "syn:motor", default=default, namespace="syn", references=references
                 )
             )
-        source.custom_attributes["syn:motor_label"].values = [f"{self._SRC}/motor"]
-        source.custom_attributes["syn:motor_target"].values = [f"{self._SRC}/motor"]
-        source.custom_attributes["syn:motor_world"].values = [-1]
+        for name in ("syn:motor_label", "syn:motor_target"):
+            attributes[name].values = [f"{self._SRC}/motor"]
+        attributes["syn:motor_world"].values = [-1]
         source._custom_frequency_counts["syn:motor"] = 1
         for name, namespace in (("visual_material_path", "isaaclab"), ("shape_note", "syn")):
             source.add_custom_attribute(
                 newton.ModelBuilder.CustomAttribute(
-                    name=name,
-                    namespace=namespace,
-                    dtype=str,
-                    frequency=newton.Model.AttributeFrequency.SHAPE,
-                    default="",
+                    name, str, newton.Model.AttributeFrequency.SHAPE, default="", namespace=namespace
                 )
             )
-            source.custom_attributes[f"{namespace}:{name}"].values[0] = self._SRC + "/Looks/material"
+            attributes[f"{namespace}:{name}"].values[0] = self._SRC + "/Looks/material"
         sibling_material = "/World/envs/env_0/Material"
-        source.custom_attributes["isaaclab:visual_material_path"].values.update(
-            {1: sibling_material, 2: "/World/SharedMaterial"}
-        )
+        attributes["isaaclab:visual_material_path"].values.update({1: sibling_material, 2: "/World/SharedMaterial"})
         original = {
             name: list(getattr(source, name))
             for name in ("body_label", "joint_label", "shape_label", "articulation_label")
@@ -471,8 +456,7 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
             tuple(AssetBaseCfg(prim_path=path) for path in (self._SRC, sibling_material)), ((0, 1),), len(env_ids)
         )
         positions = np.zeros((len(env_ids), 3), dtype=np.float32)
-        quaternions = np.zeros((len(env_ids), 4), dtype=np.float32)
-        quaternions[:, 3] = 1.0
+        quaternions = np.tile([0, 0, 0, 1], (len(env_ids), 1)).astype(np.float32)
         replicate_builder_mapping(
             builder,
             plan,
@@ -489,10 +473,10 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
             self.assertEqual(getattr(source, name), source_labels)
 
         expected_labels = [f"{self._ENV.format(i)}/Robot/motor" for i in env_ids]
-        self.assertEqual(builder.custom_attributes["syn:motor_label"].values, expected_labels)
+        for name in ("syn:motor_label", "syn:motor_target"):
+            self.assertEqual(builder.custom_attributes[name].values, expected_labels)
+            self.assertEqual(attributes[name].values, [f"{self._SRC}/motor"])
         self.assertEqual(builder.custom_attributes["syn:motor_articulation"].values, [0, source.articulation_count])
-        self.assertEqual(builder.custom_attributes["syn:motor_target"].values, expected_labels)
-        self.assertEqual(source.custom_attributes["syn:motor_label"].values, [f"{self._SRC}/motor"])
         materials = self._ENV + "/Robot/Looks/material", self._ENV + "/Material", "/World/SharedMaterial"
         expected = [path.format(env_id) for env_id in env_ids for path in materials]
         self.assertEqual(builder.custom_attributes["isaaclab:visual_material_path"].values, dict(enumerate(expected)))
