@@ -102,5 +102,13 @@ def test_step_updates_observation_history(device, env_type, cfg_factory, monkeyp
     env.reset(slice(None), seed=42)
     env.reset_to({})
     torch.testing.assert_close(history.current_length, torch.ones_like(history.current_length))
+    # Explicit None keeps selecting all environments, normalized to the full slice.
+    env.step(torch.randn_like(env.action_manager.action))
+    env.reset(None)
+    assert reset_scene.call_args.args[0] == slice(None)
+    env.step(torch.randn_like(env.action_manager.action))
+    env.reset_to({}, None)
+    assert reset_history.call_args.kwargs["batch_ids"] == slice(None)
+    torch.testing.assert_close(history.current_length, torch.ones_like(history.current_length))
     assert not hasattr(env.scene, "resolve_env_ids")
     env.close()

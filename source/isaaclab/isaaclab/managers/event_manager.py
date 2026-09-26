@@ -121,11 +121,13 @@ class EventManager(ManagerBase):
     Operations.
     """
 
-    def reset(self, env_ids: torch.Tensor | slice = slice(None)) -> dict[str, float]:
+    def reset(self, env_ids: torch.Tensor | slice | None = slice(None)) -> dict[str, float]:
         """Reset event state for device indices or a slice, defaulting to all environments.
 
-        Explicit None is not supported. The selector is passed directly to stateful terms.
+        None is also accepted and normalized to ``slice(None)``. The selector is passed directly to stateful terms.
         """
+        if env_ids is None:
+            env_ids = slice(None)
         # call all terms that are classes
         for mode_cfg in self._mode_class_term_cfgs.values():
             for term_cfg in mode_cfg:
@@ -209,6 +211,8 @@ class EventManager(ManagerBase):
             )
         if mode == "reset" and global_env_step_count is None:
             raise ValueError(f"Event mode '{mode}' requires the total number of environment steps to be provided.")
+        if mode == "reset" and env_ids is None:
+            env_ids = slice(None)
 
         for index, term_cfg in enumerate(self._mode_term_cfgs[mode]):
             # initialize class-based terms if not already initialized (for non-prestartup modes)

@@ -401,7 +401,7 @@ class ManagerBasedEnv:
 
     def reset(
         self,
-        env_ids: torch.Tensor | slice = slice(None),
+        env_ids: torch.Tensor | slice | None = slice(None),
         *,
         seed: int | None = None,
         options: dict[str, Any] | None = None,
@@ -414,7 +414,7 @@ class ManagerBasedEnv:
 
         Args:
             env_ids: A one-dimensional int32/int64 tensor on the environment device or a positive-step slice.
-                Defaults to ``slice(None)`` (all environments). Explicit None is not supported.
+                Defaults to ``slice(None)`` (all environments). None is also accepted and normalized to ``slice(None)``.
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
             options: Additional information to specify how the environment is reset. Defaults to None.
 
@@ -424,6 +424,8 @@ class ManagerBasedEnv:
         Returns:
             A tuple containing the observations and extras.
         """
+        if env_ids is None:
+            env_ids = slice(None)
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
 
@@ -460,7 +462,7 @@ class ManagerBasedEnv:
     def reset_to(
         self,
         state: dict[str, dict[str, dict[str, torch.Tensor]]],
-        env_ids: torch.Tensor | slice = slice(None),
+        env_ids: torch.Tensor | slice | None = slice(None),
         seed: int | None = None,
         is_relative: bool = False,
     ):
@@ -477,11 +479,13 @@ class ManagerBasedEnv:
             state: The state to reset the specified environments to. Please refer to
                 :meth:`InteractiveScene.get_state` for the format.
             env_ids: A one-dimensional int32/int64 tensor on the environment device or a positive-step slice.
-                Defaults to ``slice(None)`` (all environments). Explicit None is not supported.
+                Defaults to ``slice(None)`` (all environments). None is also accepted and normalized to ``slice(None)``.
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
             is_relative: If set to True, the state is considered relative to the environment origins.
                 Defaults to False.
         """
+        if env_ids is None:
+            env_ids = slice(None)
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
 
