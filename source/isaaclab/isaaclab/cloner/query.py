@@ -158,13 +158,12 @@ def iter_sources(
         Source root, destination template, prototype descendant path, and destination world IDs.
     """
     for source, template, world_ids, matched in _clone_sources(instances, path_expr, populated_only=True):
-        if len(world_ids):
-            yield (
-                source,
-                template,
-                pth.rebase(path_expr, template.format(matched.instance), source),
-                tuple(map(int, world_ids)),
-            )
+        yield (
+            source,
+            template,
+            pth.rebase(path_expr, template.format(matched.instance), source),
+            tuple(map(int, world_ids)),
+        )
 
 
 def _clone_sources(instances, path_expr, *, populated_only):

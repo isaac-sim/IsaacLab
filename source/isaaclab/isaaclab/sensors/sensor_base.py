@@ -21,7 +21,6 @@ from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
-from .. import cloner
 from .. import sim as sim_utils
 from ..cloner.cloner_cfg import expand_env_regex_ns
 from ..physics import PhysicsEvent, PhysicsManager
@@ -259,24 +258,13 @@ class SensorBase(ABC):
         self._device = sim.device
         self._backend = sim.backend
         self._sim_physics_dt = sim.get_physics_dt()
-        # Count number of environments. Prefer the active simulation's clone plan when USD
-        # only carries the env_0 prototype (e.g. Newton clones solver-side).
+        # Native clones need not have corresponding USD prims.
         clone_plan = sim.get_clone_plan()
-        clone_plan_matches = ()
         if clone_plan is not None:
-            usd = sim.clone_contexts[cloner.UsdReplicateContext]
-            clone_plan_matches = tuple(cloner.query.iter_sources(usd.instances, self.cfg.prim_path))
-        if clone_plan_matches:
-            self._parent_prims = []
-            self._num_envs = len(clone_plan.destinations)
-        elif clone_plan is not None:
-            env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
-            self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
             self._num_envs = len(clone_plan.destinations)
         else:
             env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
-            self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
-            self._num_envs = len(self._parent_prims)
+            self._num_envs = len(sim_utils.find_matching_prims(env_prim_path_expr))
         # Create warp env mask arrays for "all envs" cases and resets.
         # Note: We use wp.to_torch() to create zero-copy torch tensor views of warp arrays.
         # This allows warp arrays to be passed to warp kernels while the corresponding torch
@@ -497,21 +485,6 @@ class SensorBase(ABC):
         from that prim until it finds one with ``UsdPhysics.RigidBodyAPI``,
         builds the corresponding destination-side expression, and computes the
         fixed transform from that body to the configured sensor frame.
-
-        Combines two resolution paths:
-
-        1. When an active :class:`~isaaclab.cloner.ClonePlan` exists, the
-           source-side env path is taken from the plan via
-           :func:`~isaaclab.cloner.query.path_to_source`, the rigid-body ancestor
-           is located on that source env, and the destination expression is
-           reconstructed by trimming the sensor-relative suffix from the plan's
-           destination glob.
-        2. Otherwise (stage scan fallback for non-cloned setups), the first
-           matching env is located via
-           :func:`~isaaclab.sim.utils.queries.find_first_matching_prim`, the
-           rigid-body ancestor is located on that env, and the destination
-           expression is the configured :attr:`SensorBaseCfg.prim_path` minus
-           the sensor-relative suffix.
 
         The returned expression may still contain regex-style wildcards (e.g.
         ``.*``); callers are responsible for converting to glob form for their

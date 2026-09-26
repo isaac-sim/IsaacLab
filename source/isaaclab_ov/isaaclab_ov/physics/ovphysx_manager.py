@@ -353,10 +353,10 @@ class OvPhysxManager(PhysicsManager):
     _locked_device: ClassVar[str | None] = None
     # Active clone recipes survive the consumable pending queue so a forced
     # re-warmup can rebuild serialized-stage or runtime-only clones.
-    _active_clone_recipes: ClassVar[list[tuple[str, list[str], list[CloneTransform]]]] = []
+    _active_clone_recipes: ClassVar[list[tuple[str, list[str], list[CloneTransform], list[int] | None]]] = []
     # Consumable snapshot of the active recipes. Full-stage warmup materializes
     # these into serialized USDA; env-0-only warmup replays them with physx.clone().
-    _pending_clones: ClassVar[list[tuple[str, list[str], list[CloneTransform]]]] = []
+    _pending_clones: ClassVar[list[tuple[str, list[str], list[CloneTransform], list[int] | None]]] = []
     _atexit_registered: ClassVar[bool] = False
     _scene_data_backend: ClassVar[OvPhysxSceneDataBackend | None] = None
     _kinematics_dirty: ClassVar[bool] = False
@@ -404,20 +404,17 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def _register_clone_transforms(
-        cls, source: str, targets: list[str], target_transforms: list[CloneTransform]
+        cls, source: str, targets: list[str], target_transforms: list[CloneTransform], env_ids: list[int] | None = None
     ) -> None:
         """Register final target-root world poses for the current simulation context."""
-        recipe = (source, list(targets), list(target_transforms))
+        recipe = (source, list(targets), list(target_transforms), None if env_ids is None else list(env_ids))
         cls._active_clone_recipes.append(recipe)
         cls._pending_clones.append(recipe)
 
     @classmethod
     def _rearm_pending_clones(cls) -> None:
         """Refresh the consumable clone queue from active context recipes."""
-        cls._pending_clones = [
-            (source, list(targets), list(target_transforms))
-            for source, targets, target_transforms in cls._active_clone_recipes
-        ]
+        cls._pending_clones = cls._active_clone_recipes.copy()
 
     _physx_schemas_registered: ClassVar[bool] = False
 
@@ -743,7 +740,7 @@ class OvPhysxManager(PhysicsManager):
         envs_path = Sdf.Path("/World/envs")
         operations: list[tuple[Sdf.Path, Sdf.Path, bool]] = []
         processed_targets: set[Sdf.Path] = set()
-        for source, targets, _ in pending_clones:
+        for source, targets, _, _ in pending_clones:
             source_path = Sdf.Path(source)
             if layer.GetPrimAtPath(source_path) is None:
                 raise RuntimeError(f"OvPhysxManager: clone source {source!r} is absent from the full stage.")
@@ -836,7 +833,7 @@ class OvPhysxManager(PhysicsManager):
         if requires_full_stage:
             return
 
-        for source, targets, target_transforms in pending_clones:
+        for source, targets, target_transforms, env_ids in pending_clones:
             if not targets:
                 continue
             logger.info(
@@ -847,7 +844,8 @@ class OvPhysxManager(PhysicsManager):
                 targets[-1],
             )
             transforms = target_transforms or None
-            op_idx = physx.clone(source, targets, transforms)
+            # Assets cloned separately into the same world must still collide with each other.
+            op_idx = physx.clone(source, targets, transforms, env_ids=env_ids)
             physx.wait_op(op_idx)
 
     @classmethod

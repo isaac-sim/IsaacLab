@@ -49,7 +49,7 @@ def _clone_recipes(
     mapping: np.ndarray,
     positions: np.ndarray | None,
     quaternions: np.ndarray | None,
-) -> list[tuple[str, list[str], list[CloneTransform]]]:
+) -> list[tuple[str, list[str], list[CloneTransform], list[int]]]:
     """Build OvPhysX clone recipes from one flat mapping."""
     if positions is not None and positions.shape != (len(env_ids), 3):
         raise ValueError(f"positions must have shape [num_envs, 3], got {list(positions.shape)}.")
@@ -84,12 +84,14 @@ def _clone_recipes(
 
         targets = []
         target_transforms = []
+        target_env_ids = []
         for env_id, column in zip(active_env_ids, columns):
             env_id = int(env_id)
             destination = destinations[source_index].format(env_id)
             if destination == source:
                 continue
             targets.append(destination)
+            target_env_ids.append(env_id)
             target_env_world = Gf.Matrix4d(1.0)
             if positions is not None:
                 target_env_world.SetTranslateOnly(Gf.Vec3d(*map(float, positions[column])))
@@ -98,7 +100,7 @@ def _clone_recipes(
                 target_env_world.SetRotateOnly(Gf.Quatd(float(q[3]), Gf.Vec3d(*map(float, q[:3]))))
             target_transforms.append(_matrix_to_clone_transform(source_relative * target_env_world))
         if targets:
-            recipes.append((source, targets, target_transforms))
+            recipes.append((source, targets, target_transforms, target_env_ids))
     return recipes
 
 
@@ -139,8 +141,8 @@ class OvPhysxReplicateContext:
             positions=usd.positions,
             quaternions=None,
         )
-        for source, targets, transforms in recipes:
-            self._sim.physics_manager._register_clone_transforms(source, targets, transforms)
+        for recipe in recipes:
+            self._sim.physics_manager._register_clone_transforms(*recipe)
 
 
 def ovphysx_replicate(
@@ -179,5 +181,5 @@ def ovphysx_replicate(
     sim = PhysicsManager._sim
     if sim is None:
         raise RuntimeError("OvPhysX replication requires an active SimulationContext.")
-    for source, targets, transforms in recipes:
-        sim.physics_manager._register_clone_transforms(source, targets, transforms)
+    for recipe in recipes:
+        sim.physics_manager._register_clone_transforms(*recipe)
