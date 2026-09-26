@@ -36,10 +36,9 @@ timestamp. Each consumer compares its own timestamp after requesting data, since
 pointer can itself detect a change. Consumers tracking only an upload need a timestamp, not another
 copy of SDP's data reference.
 
-SDP uses one request-cache lifecycle for converted transforms, point views, and explicit destinations.
-Conversion functions bind the requested layout; the cache records its timestamp only after a successful
-update. Matching native arrays bypass conversion. Caller-owned destinations are weakly referenced, so
-their cached bindings expire when the caller releases them.
+SDP readers cache buffers and mapping data with the same timestamp guard used by asset data, without
+binding factories or stored update callbacks. Matching native arrays bypass conversion. Caller-owned
+destinations are weakly referenced, so their cached mappings expire when the caller releases them.
 
 Pending work belongs to its executor. Newton's ``forward()`` and PhysX/OVPhysX's
 ``update_kinematics()`` check ``kinematics_dirty`` internally and clear it after success; readers
