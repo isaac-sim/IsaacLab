@@ -5,7 +5,7 @@
 
 """Demonstrate per-environment visual-material randomization.
 
-Five ANYmal-C appearance styles are assigned round-robin by heterogeneous cloning. Each styled
+Five ANYmal-C appearance styles are assigned in contiguous blocks by heterogeneous cloning. Each styled
 robot binds scene-declared :class:`~isaaclab.assets.VisualMaterial` assets for its body, legs, and
 feet, so the three part groups and every environment randomize independently on partial resets.
 

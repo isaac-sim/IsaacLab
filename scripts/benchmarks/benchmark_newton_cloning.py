@@ -8,8 +8,8 @@
 Run each case in a fresh process with the same Newton version and asset cache::
 
     uv run python scripts/benchmarks/benchmark_newton_cloning.py --num_envs 16384 --strategy round_robin
-    uv run python scripts/benchmarks/benchmark_newton_cloning.py --num_envs 16384 --strategy grouped --serial
-    uv run python scripts/benchmarks/benchmark_newton_cloning.py --num_envs 16384 --strategy grouped
+    uv run python scripts/benchmarks/benchmark_newton_cloning.py --num_envs 16384 --strategy sequential --serial
+    uv run python scripts/benchmarks/benchmark_newton_cloning.py --num_envs 16384 --strategy sequential
 
 The serial control disables only contiguous-run batching. Timings include index and label
 construction, but exclude asset import, model finalization, GPU allocation, reset IK and stepping.
@@ -32,7 +32,7 @@ import gymnasium as gym
 import newton
 
 from isaaclab.app import launch_simulation
-from isaaclab.cloner import grouped, round_robin
+from isaaclab.cloner import round_robin, sequential
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
@@ -46,7 +46,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--task", default="IsaacContrib-Keyboard-SO101")
     parser.add_argument("--num_envs", type=int, default=16384)
-    parser.add_argument("--strategy", choices=("grouped", "round_robin"), default="grouped")
+    parser.add_argument("--strategy", choices=("sequential", "round_robin"), default="sequential")
     parser.add_argument("--serial", action="store_true", help="Disable contiguous-run batching for attribution.")
     args = parser.parse_args()
     if args.num_envs < 1:
@@ -56,7 +56,7 @@ def main():
     cfg.seed = 42
     cfg.sim.visualizer_cfgs = []
     cfg.video_recorders = []
-    cfg.scene.clone_cfg.clone_strategy = {"grouped": grouped, "round_robin": round_robin}[args.strategy]
+    cfg.scene.clone_cfg.clone_strategy = {"sequential": sequential, "round_robin": round_robin}[args.strategy]
     module = importlib.import_module("isaaclab_newton.cloner.replicate")
     original = module.replicate_builder_mapping
     result = {}
@@ -93,7 +93,7 @@ def main():
     if not result:
         raise RuntimeError("The task did not invoke Newton cloning.")
     for name, root in (
-        ("isaaclab", Path(__file__).resolve().parents[2]),
+        ("isaaclab", Path(importlib.import_module("isaaclab").__file__).resolve().parents[3]),
         ("newton", Path(newton.__file__).resolve().parents[1]),
     ):
         if (root / ".git").exists():

@@ -24,7 +24,7 @@ def random(combinations: np.ndarray, num_clones: int) -> np.ndarray:
     return combinations[np.random.randint(len(combinations), size=num_clones)]
 
 
-def grouped(combinations: np.ndarray, num_clones: int) -> np.ndarray:
+def sequential(combinations: np.ndarray, num_clones: int) -> np.ndarray:
     """Assign identical prototype combinations to consecutive environments.
 
     Counts match :func:`round_robin` exactly, including duplicate rows used as weights
@@ -68,21 +68,3 @@ def round_robin(combinations: np.ndarray, num_clones: int) -> np.ndarray:
         combination for each environment.
     """
     return combinations[np.arange(num_clones) % len(combinations)]
-
-
-def sequential(combinations: np.ndarray, num_clones: int) -> np.ndarray:
-    """Assign prototypes with the legacy :func:`round_robin` ordering.
-
-    This compatibility name retains its original behavior. Use :func:`round_robin`
-    for ``A B A B`` ordering or :func:`grouped` for contiguous ``A A B B`` blocks.
-
-    Args:
-        combinations: Array of shape (num_combos, num_prototypes) containing all possible
-            prototype combinations.
-        num_clones: Number of environments to assign combinations to.
-
-    Returns:
-        Array of shape (num_clones, num_prototypes) containing the chosen prototype
-        combination for each environment.
-    """
-    return round_robin(combinations, num_clones)

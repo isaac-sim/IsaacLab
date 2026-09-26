@@ -32,7 +32,6 @@
       replicate
       usd_replicate
       filter_collisions
-      grouped
       round_robin
       sequential
       random

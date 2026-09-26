@@ -30,8 +30,7 @@ def test_clone_strategies_preserve_weighted_counts_and_order(num_clones):
     ).reshape(num_clones, combinations.shape[1])
 
     np.testing.assert_array_equal(cloner.round_robin(combinations, num_clones), expected_round_robin)
-    np.testing.assert_array_equal(cloner.sequential(combinations, num_clones), expected_round_robin)
-    grouped = cloner.grouped(combinations, num_clones)
+    grouped = cloner.sequential(combinations, num_clones)
 
     assert grouped.shape == (num_clones, combinations.shape[1])
     assert grouped.dtype == combinations.dtype
@@ -43,14 +42,14 @@ def test_clone_strategies_preserve_weighted_counts_and_order(num_clones):
 
 
 @pytest.mark.parametrize("num_clones", [2, 7, 11])
-def test_grouped_preserves_inclusion_set_weights(num_clones):
+def test_sequential_preserves_inclusion_set_weights(num_clones):
     """Weighted inclusion sets retain their multiplicities after grouping combinations."""
     combinations = cloner.make_valid_clone_combinations(
         ("A", "B"),
         (1, 1),
         (cloner.InclusionSet(assets=["A"], weight=2), cloner.InclusionSet(assets=["B"], weight=1)),
     )
-    grouped = cloner.grouped(combinations, num_clones)
+    grouped = cloner.sequential(combinations, num_clones)
     num_b = num_clones // 3
     expected = [[0, -1]] * (num_clones - num_b) + [[-1, 0]] * num_b
 

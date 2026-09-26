@@ -386,7 +386,7 @@ def test_make_clone_plan_heterogeneous_mutates_spawn_paths(sim):
     assert plan.cfg_rows[id(multi_cfg)] == (0, 1)
     assert plan.cfg_rows[id(plain_cfg)] == (2,)
     assert plan.global_paths == ("/World/Ground",)
-    assert multi_cfg.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
+    assert multi_cfg.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_2/Object"]
     assert plain_cfg.spawn.spawn_path == "/World/envs/env_0/Robot"
 
 
