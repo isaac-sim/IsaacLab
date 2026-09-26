@@ -5,9 +5,9 @@
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Generic, Protocol, TypeVar
 
-import torch
+DataT = TypeVar("DataT")
 
 
 class _Timestamped(Protocol):
@@ -37,21 +37,27 @@ def reset_timestamps(buffers: Iterable[_Timestamped | None]) -> None:
 
 
 @dataclass
-class TimestampedBuffer:
-    """A buffer class containing data and its timestamp.
+class TimestampedBuffer(Generic[DataT]):
+    """Cached data and the source timestamp it represents; this container never allocates or computes.
 
-    This class is a simple data container that stores a tensor and its timestamp. The timestamp is used to
-    track the last update of the buffer. The timestamp is set to -1.0 by default, indicating that the buffer
-    has not been updated yet. The timestamp should be updated whenever the data in the buffer is updated. This
-    way the buffer can be used to check whether the data is outdated and needs to be refreshed.
+    Storage and freshness are independent: ``data is None`` means no storage, while ``timestamp``
+    identifies the last successful refresh. The owner allocates on first use and refreshes when
+    the source timestamp differs. Same-step writes must invalidate the cache or advance the source
+    timestamp; elapsed simulation time alone cannot detect them.
 
-    The buffer is useful for creating lazy buffers that only update the data when it is outdated. This can be
-    useful when the data is expensive to compute or retrieve. For example usage, refer to the data classes in
-    the :mod:`isaaclab.assets` module.
+    Each cache records its own timestamp. Dirty flags or masks track pending work owned by one
+    component; readers never clear a shared producer's dirty flag.
+    Timestamps may be simulation time [s] or logical publication counters, but a cache and its
+    source must use the same convention. Physical sampling periods and finite differences still
+    require elapsed time, not publication counters.
+
+    Scratch storage needs no freshness timestamp. Python timestamp checks also do not execute
+    during CUDA graph replay: captured computations must execute on replay or use device-side
+    invalidation.
     """
 
-    data: torch.Tensor = None  # type: ignore
-    """The data stored in the buffer. Default is None, indicating that the buffer is empty."""
+    data: DataT | None = None
+    """Cached data, or None before allocation."""
 
     timestamp: float = -1.0
-    """Timestamp at the last update of the buffer. Default is -1.0, indicating that the buffer has not been updated."""
+    """Source timestamp represented by the data; -1 marks it stale."""

@@ -34,12 +34,13 @@ The system has three layers:
    and total count. Producers increment ``transforms_version`` after native state writes or buffer swaps;
    SDP calls ``get_transforms(output_format)`` before reading the version, since resolving the pointer
    can itself detect a swap. The default implementation returns the existing ``transforms`` property.
-   The version never resets, so independent readers cannot hide changes from one another.
+   This is a logical publication timestamp, not elapsed time. It never resets within the backend's
+   lifetime, so independent readers cannot hide changes from one another.
 
    - :attr:`SceneDataBackend.transforms`: the native data as a Warp struct (one of
      :class:`SceneDataFormat.Vec3_Quat`, :class:`SceneDataFormat.Transform`,
      :class:`SceneDataFormat.Matrix44`, :class:`SceneDataFormat.Vec3_Matrix33`).
-   - :attr:`SceneDataBackend.transforms_version`: monotonic version of the native transforms.
+   - :attr:`SceneDataBackend.transforms_version`: logical update timestamp of the native transforms.
    - :attr:`SceneDataBackend.transform_count`: number of transforms.
    - :attr:`SceneDataBackend.transform_paths`: list of USD prim paths, one per transform.
    - :attr:`SceneDataBackend.native_transform_formats`: formats published without conversion.
@@ -173,6 +174,11 @@ ranges. Consumers bind to those completed resources, never rediscovering the com
 
 The internal flat-node queries and physics-owned geometry sync methods were removed. Rendering
 consumers use ``get_geometry_points``; physics managers no longer run geometry writers from ``pre_render``.
+
+Transform conversion caches use :class:`~isaaclab.utils.buffers.TimestampedBuffer`, the same
+data-and-timestamp container used by asset data. Storage is allocated only when conversion is needed;
+freshness is committed after conversion succeeds. Native matching formats still pass through without
+allocation. Fabric destination replacement invalidates the cached binding even if physics is unchanged.
 
 As in articulation and rigid-object data, the current timestamp and a cached buffer's timestamp
 serve different purposes: one identifies current state; the other identifies the state in that buffer.

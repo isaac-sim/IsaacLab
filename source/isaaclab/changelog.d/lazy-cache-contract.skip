@@ -1,0 +1,1 @@
+Reused TimestampedBuffer for SDP transform caches and documented allocation and freshness ownership.

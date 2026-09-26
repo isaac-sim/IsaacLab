@@ -14,6 +14,7 @@ import numpy as np
 import warp as wp
 
 from .. import sim as sim_utils
+from ..utils.buffers import TimestampedBuffer
 from .geometry_points import convert_geometry_fabric_kernel, convert_geometry_points_kernel
 from .scene_data_backend import SceneDataBackend, SceneDataFormat
 
@@ -64,7 +65,7 @@ class SceneDataProvider:
         self.backend = backend
         self._num_envs_cache: int | None = None
         self._interactive_scene: Any | None = None
-        self._transform_cache: dict[tuple, tuple[int, Any]] = {}
+        self._transform_cache: dict[tuple, TimestampedBuffer[Any]] = {}
         self._geometry_view_cache: tuple | None = None
         self._geometry_destination_cache = WeakKeyDictionary()
 
@@ -109,7 +110,7 @@ class SceneDataProvider:
         fabric = output_format is SceneDataFormat.FabricMatrix44
         source = self.backend.get_transforms(output_format)
         source_format = source._cls
-        version = self.backend.transforms_version
+        timestamp = self.backend.transforms_version
         native_count = next(
             (len(array) for name in source_format.vars if (array := getattr(source, name)) is not None), 0
         )
@@ -137,8 +138,8 @@ class SceneDataProvider:
             if not allow_passthrough or fabric:
                 result = output
             else:
-                result = cached[1] if cached is not None else output_format()
-            if cached is None or cached[0] != version or cached[1] is not result:
+                result = cached.data if cached is not None else output_format()
+            if cached is None or cached.timestamp != timestamp or cached.data is not result:
                 # Fabric changes storage and indexing, not the matrix conversion.
                 format_name = "TransposedMatrix44d" if fabric else output_format.__name__
                 kernel = getattr(ConversionKernels, f"convert_{source_format.__name__}_to_{format_name}", None)
@@ -157,7 +158,9 @@ class SceneDataProvider:
                     device=device,
                 )
                 if allow_passthrough:
-                    self._transform_cache[key] = (version, result)
+                    if cached is None:
+                        cached = self._transform_cache[key] = TimestampedBuffer()
+                    cached.data, cached.timestamp = result, timestamp
         for name in output_format.vars:
             setattr(output, name, getattr(result, name))
         return True
