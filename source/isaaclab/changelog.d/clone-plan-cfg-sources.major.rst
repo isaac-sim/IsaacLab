@@ -14,8 +14,9 @@ Changed
   Read cfgs and world memberships from the plan instead of unpacking topology-query results.
   Added ``get_asset_prototype_world_index(plan, asset_prototype, unique=False)`` and
   ``get_world_prototype_world_index(plan, world_prototype)`` for destination world indices.
-  Asset selection accepted an index or declared-path expression and preserved instance multiplicity
-  unless ``unique=True`` was requested.
+  Asset selection accepted an index or declared-path expression and returned
+  ``(world_indices, world_starts)`` with one entry per instance and shared-world-first offsets.
+  Unpack both arrays for per-world instance ranges, or use ``unique=True`` to return only unique world indices.
   Renamed native-path lookup ``iter_sources`` to ``get_matched_sources``, returning a list.
   Removed cached configuration/context routing maps. Raw USD and native backend replication
   functions retained their path-based inputs.

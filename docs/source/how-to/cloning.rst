@@ -210,7 +210,7 @@ cfg ``prim_path`` or a regular expression matched against that complete path str
 World filtering selects compositions containing matching assets, without removing their
 other members or repeated instances. These IDs identify prototypes, not destination worlds.
 
-The complementary queries return actual world indices, also as 1-D NumPy ``int32`` arrays:
+The complementary queries map prototypes to actual world indices:
 
 .. code-block:: python
 
@@ -218,16 +218,25 @@ The complementary queries return actual world indices, also as 1-D NumPy ``int32
     cloner.query.get_world_prototype_world_index(plan, 1)  # array([4, 5, 6, 7], dtype=int32)
 
     # Franka is asset prototype 1 and occurs twice in each of those worlds.
-    worlds = cloner.query.get_asset_prototype_world_index(plan, 1)
+    world_indices, world_starts = cloner.query.get_asset_prototype_world_index(plan, 1)
+    # world_indices:
     # array([0, 1, 2, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 9, 10, 11, 12, 13, 14, 15], dtype=int32)
+    # world_starts (empty shared world first):
+    # array([0, 0, 1, 2, 3, 4, 6, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20], dtype=int32)
+    start, end = world_starts[5:7]  # World 4 contains selected instances [4:6].
     worlds = cloner.query.get_asset_prototype_world_index(plan, franka_cfg.prim_path, unique=True)
     # array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], dtype=int32)
 
 ``get_asset_prototype_world_index`` accepts an integer prototype index or the same declared-path
-expression as ``get_asset_prototypes``. It preserves one entry per selected asset instance by
-default; ``unique=True`` returns each containing world once. Shared instances use world index
-``-1``. ``get_world_prototype_world_index(plan, -1)`` returns ``[-1]``, even for an empty shared world.
-An unused world prototype or an asset with no instances returns an empty array.
+expression as ``get_asset_prototypes``. By default it returns ``(world_indices, world_starts)``:
+one world index per selected asset instance and offsets for each world's instances.
+``world_starts[w + 1 : w + 3]`` gives world ``w``'s start/end offsets, with shared world ``-1``
+first. Empty worlds have equal start/end offsets. These offsets address selected plan instances,
+not native body or particle buffers. ``unique=True`` returns only the array of containing worlds,
+each included once. All arrays are 1-D NumPy ``int32`` arrays.
+``get_world_prototype_world_index(plan, -1)`` returns ``[-1]``, even for an empty shared world;
+an unused world prototype returns an empty array. Assets with no instances return empty
+world indices and all-zero starts, or just empty world indices with ``unique=True``.
 
 Native-path queries instead resolve backend-assigned instance names and descendants.
 They take plain native mapping data, not a clone context or a plan. For example,
