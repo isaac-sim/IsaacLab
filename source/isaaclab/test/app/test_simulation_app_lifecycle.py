@@ -160,3 +160,36 @@ def test_atexit_close_falls_back_when_exit_code_unsupported(capfd):
 
     assert calls == [1]
     assert "does not accept exit_code" in capfd.readouterr().err
+
+
+def test_install_exit_handlers_leaves_fatal_signals_at_default(monkeypatch):
+    """AppLauncher must not register SIGSEGV or SIGABRT; only SIGTERM gets a custom handler.
+
+    Regression for issue #7774: skipping signal.signal leaves those dispositions
+    untouched (default or carb's crash handler) rather than establishing SIG_DFL.
+    a python SIGSEGV handler that returns re-faults forever with no core dump;
+    the former SIGABRT handler restored SIG_DFL and re-raised. graceful teardown
+    stays on SIGTERM only.
+    """
+    actions = _capture_signal_actions(monkeypatch)
+    lifecycle = _make_lifecycle(lambda exit_code=0: None)
+    monkeypatch.setattr(
+        "isaaclab.app.app_launcher.atexit.register",
+        lambda callback: actions.append(("atexit", callback)),
+    )
+
+    lifecycle.install_exit_handlers()
+
+    registered = {
+        signum: handler
+        for action in actions
+        if action[0] == "set_handler"
+        for _, signum, handler in (action,)
+    }
+    assert signal.SIGTERM in registered
+    assert registered[signal.SIGTERM] == lifecycle._on_abort_signal
+    assert signal.SIGSEGV not in registered
+    assert signal.SIGABRT not in registered
+    assert registered.get(signal.SIGINT) == signal.default_int_handler
+    assert any(action[0] == "atexit" for action in actions)
+
